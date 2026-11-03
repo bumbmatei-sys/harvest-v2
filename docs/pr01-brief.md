@@ -9,6 +9,7 @@ v1 (`bumbmatei-sys/Harvest-agent`, Firebase/Firestore) is frozen and READ-ONLY. 
 - GitHub secrets set: `NEON_API_KEY`, `NEON_PROJECT_ID` (CI branch only) plus env var names below.
 - Resend: reuse v1's existing Resend account and sending domain (key by env name only). No Google sign-in. Dodo Payments key (placeholder, unused).
 - Studio tokens: `docs/design/DESIGN.md` in this repo (copied from v1 PR 593). The PRD is `docs/prd/PRD-v2.5.md`. This runs as a cloud Claude Code/Codex session started from Matei's phone; put NEON_API_KEY and RESEND_API_KEY in the cloud environment secrets, never in the repo.
+- Visual inspiration: the v1 PRD screenshots in `bumbmatei-sys/Harvest-agent` at `docs/prd/screenshots/` on `main` (about 490 app screens; read with `gh api` or a shallow clone). Use them only for layout and feel, never copying code, logos or text. Local refs are in `docs/design/reference/`.
 
 ## Standing rules
 - Pull latest before each work session. Never force-push.
