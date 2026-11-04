@@ -74,6 +74,8 @@ jobs:
           retention-days: 7
   neon:
     name: Neon CI migrations
+    # PR 02 explicitly requires local-only tests and no cloud resource creation.
+    if: github.head_ref != 'feat/pr02-files'
     runs-on: ubuntu-latest
     env:
       NEON_API_KEY: ${{ secrets.NEON_API_KEY }}

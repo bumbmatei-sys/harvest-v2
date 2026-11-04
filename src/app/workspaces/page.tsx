@@ -1,4 +1,6 @@
 import { headers } from "next/headers";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { redirect } from "next/navigation";
 import { getAuth } from "@/server/auth-instance";
 import { getDb } from "@/db/client";
@@ -13,7 +15,7 @@ export default async function Workspaces() {
   const workspaces = await listWorkspaces(getDb(), session.user.id);
   return <main className="mx-auto max-w-xl space-y-6 px-6 py-12">
     <h1 className="text-2xl font-semibold">Your workspaces</h1>
-    {workspaces.length ? <ul className="space-y-3">{workspaces.map((w) => <li key={w.tenantId}><Card><CardHeader><CardTitle>{w.name}</CardTitle></CardHeader><CardContent><p className="text-sm text-muted-foreground">Role: {w.role}</p></CardContent></Card></li>)}</ul> : <Empty><EmptyHeader><EmptyTitle>You don’t have a workspace yet.</EmptyTitle><EmptyDescription>Create your first one below.</EmptyDescription></EmptyHeader></Empty>}
+    {workspaces.length ? <ul className="space-y-3">{workspaces.map((w) => <li key={w.tenantId}><Card><CardHeader><CardTitle>{w.name}</CardTitle></CardHeader><CardContent><p className="text-sm text-muted-foreground">Role: {w.role}</p><Button asChild variant="outline" size="sm" className="mt-3"><Link href={`/workspaces/${w.tenantId}/files`}>Files</Link></Button></CardContent></Card></li>)}</ul> : <Empty><EmptyHeader><EmptyTitle>You don’t have a workspace yet.</EmptyTitle><EmptyDescription>Create your first one below.</EmptyDescription></EmptyHeader></Empty>}
     <WorkspaceForm />
   </main>;
 }
