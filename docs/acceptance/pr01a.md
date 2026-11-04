@@ -21,3 +21,5 @@ Validation on 2026-11-04:
 Limits: live email delivery was intentionally not exercised. EMAIL_FROM must be configured with the existing verified sender. Neon CI depends on repository secrets. Staging/prod migration verification, product owner sign-off, contacts, shell, dual-theme screenshots and theme switching are outside this PR 01a implementation. No deployment is performed.
 
 Committed screenshots: [sign-in](pr01a/sign-in.png), [empty workspaces](pr01a/workspaces-empty.png), [created workspace](pr01a/workspaces-created.png), [mobile](pr01a/workspaces-mobile.png). Final local totals: 6 unit + 19 PostgreSQL integration + 5 Neon integration + 1 Playwright journey, all passing. Lint, strict typecheck, production build, and repeated dev migration also pass.
+
+Remote CI blocker: workflow upload was rejected by GitHub because the OAuth credential lacks `workflow` scope. The connected GitHub app also requires approval unavailable under this session policy. The workflow is committed locally; source/tests/docs are pushed for draft review. No remote CI results are claimed.

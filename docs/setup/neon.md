@@ -41,6 +41,8 @@ Configure `BETTER_AUTH_SECRET`, `BETTER_AUTH_URL`, `RESEND_API_KEY`, and `EMAIL_
 
 ## CI
 
+Upload blocker: the complete workflow exists locally at `.github/workflows/ci.yml`, but GitHub rejected the configured OAuth token because it lacks `workflow` scope. The connected app write also requires approval, which this session's policy disallows. Application code, tests and docs are pushed separately; the workflow remains in a local commit until an appropriately scoped connection can upload it. No remote CI run is claimed.
+
 The workflow always checks lint, types, unit tests, build, local migrations, PostgreSQL RLS, Playwright and axe. The Neon job needs repository secrets named `NEON_API_KEY` and `NEON_PROJECT_ID`; the latter is the project ID above. Secret values are not stored in this document. Cloud session secrets are not automatically GitHub Actions secrets.
 
 Once those repository secrets exist, `scripts/neon-ci.ts` verifies the project name, creates a temporary `ci/<run-id>-<attempt>` branch from dev, privately passes its direct connection to the migration step, and deletes only that run's branch in an `always()` cleanup step. Dev contains synthetic test data only. If credentials are absent, the step summary explicitly reports Neon CI as blocked; the local migration/RLS jobs still run. No long-lived environment is migrated by a PR workflow.
