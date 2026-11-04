@@ -24,5 +24,5 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       if (!(error instanceof AccessError)) console.error("workspace_theme_load_failed");
     }
   }
-  return <html lang="en" suppressHydrationWarning><head><script dangerouslySetInnerHTML={{ __html: themeBootstrap(brandTheme) }} /></head><body className={GeistSans.variable}>{children}</body></html>;
+  return <html lang="en" className={GeistSans.variable} suppressHydrationWarning><head><script dangerouslySetInnerHTML={{ __html: themeBootstrap(brandTheme) }} /></head><body>{children}</body></html>;
 }

@@ -5,6 +5,7 @@ import AxeBuilder from "@axe-core/playwright";
 const evidence = "docs/screenshots/pr01b";
 const origin = "http://127.0.0.1:3100";
 const accessibility: { screen: string; violations: number; checks: number }[] = [];
+test.use({ actionTimeout: 30_000, reducedMotion: "reduce" });
 async function signIn(page: Page, email: string) {
   await page.goto("/sign-in");
   await page.getByLabel("Email address").fill(email);
@@ -29,8 +30,12 @@ async function theme(page: Page, brand: "harvest" | "studio", mode: "light" | "d
   await expect(page.locator("html")).toHaveAttribute("data-brand-theme", brand);
   if (await page.locator("html").getAttribute("data-theme") !== mode) await page.getByRole("button", { name: `Switch to ${mode} mode` }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", mode);
+  expect(await page.evaluate(() => getComputedStyle(document.body).fontFamily)).toMatch(brand === "studio" ? /Geist/ : /Inter/);
+  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe({ harvest: { light: "rgb(250, 250, 248)", dark: "rgb(23, 23, 23)" }, studio: { light: "rgb(247, 247, 245)", dark: "rgb(26, 26, 26)" } }[brand][mode]);
 }
 async function capture(page: Page, name: string) {
+  const shell = page.locator('[data-slot="sidebar-wrapper"]');
+  if (await shell.count()) await expect(shell).toHaveAttribute("data-hydrated", "true");
   await page.evaluate(() => document.fonts.ready);
   await page.screenshot({ path: `${evidence}/${name}.png`, fullPage: true, animations: "disabled" });
   const result = await new AxeBuilder({ page }).analyze();
@@ -44,7 +49,9 @@ async function matrix(page: Page, screen: string) {
 }
 
 test("PR 01b real UI: contacts, consent, themes, workspace isolation and responsive states", async ({ page, browser }) => {
-  test.setTimeout(240_000);
+  test.setTimeout(360_000);
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
   await mkdir(evidence, { recursive: true });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/sign-in");
@@ -121,8 +128,9 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
   await expect(page.getByRole("heading", { name: "Contact not found" })).toBeVisible();
   await capture(page, "contact-not-found-studio-dark");
   // A second verified account exercises reader permissions and its own isolated workspace.
-  const viewerContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
+  const viewerContext = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: "reduce" });
   const viewer = await viewerContext.newPage();
+  viewer.on("pageerror", (error) => pageErrors.push(error.message));
   await signIn(viewer, viewerEmail);
   expect((await page.request.put(`/api/workspaces/${tenantId}/members`, { headers: { origin }, data: { email: viewerEmail, role: "viewer" } })).status()).toBe(200);
   await viewer.goto(base);
@@ -146,21 +154,24 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
   await page.goto(`/workspaces/${other.tenantId}/contacts`);
   await expect(page.getByRole("heading", { name: "Workspace access denied" })).toBeVisible();
   await capture(page, "contacts-unauthorized-harvest-dark");
+  await viewerContext.close();
   await page.goto(detail);
+  await page.setViewportSize({ width: 390, height: 844 });
   for (const brand of ["harvest", "studio"] as const) for (const mode of ["light", "dark"] as const) {
     await theme(page, brand, mode);
-    await page.setViewportSize({ width: 390, height: 844 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await capture(page, `contact-detail-mobile-${brand}-${mode}`);
     await page.getByRole("button", { name: "Toggle Sidebar" }).click();
     await expect(page.getByRole("link", { name: "Contacts", exact: true })).toBeVisible();
     await page.getByRole("link", { name: "Contacts", exact: true }).click();
+    await expect(page).toHaveURL(`${origin}${base}`);
     await expect(page.getByRole("heading", { name: "Contacts", exact: true })).toBeVisible();
     await capture(page, `contacts-list-mobile-${brand}-${mode}`);
-    await page.setViewportSize({ width: 1440, height: 1000 });
-    await page.goto(detail);
+    await page.getByRole("link", { name: "Synthetic Ada Rivers", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Synthetic Ada Rivers", exact: true })).toBeVisible();
   }
-  await viewerContext.close();
+  expect(pageErrors).toEqual([]);
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await writeFile(`${evidence}/axe-results.json`, `${JSON.stringify(accessibility, null, 2)}\n`);
   await page.getByRole("button", { name: "Sign out", exact: true }).click();
   await expect(page).toHaveURL(/\/sign-in$/);

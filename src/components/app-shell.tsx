@@ -4,6 +4,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { ArrowUpRight, Building2, ChevronsUpDown, LogOut, Palette, UsersRound, Wheat } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
+import { useHydrated } from "@/hooks/use-hydrated";
 import { ThemeControls, WorkspaceTheme } from "@/components/theme-controls";
 import type { BrandTheme } from "@/lib/theme";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
   children: React.ReactNode; workspaces: Workspace[]; selected?: string; email: string; brandTheme?: BrandTheme;
 }) {
   const pathname = usePathname(), router = useRouter();
+  const hydrated = useHydrated();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const workspace = workspaces.find((item) => item.tenantId === selected);
@@ -32,7 +34,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
     } catch { setError("Could not connect. Please try again."); }
     finally { setBusy(false); }
   }
-  return <SidebarProvider style={{ "--sidebar-width": "15rem" } as React.CSSProperties}>
+  return <SidebarProvider data-hydrated={hydrated} style={{ "--sidebar-width": "15rem" } as React.CSSProperties}>
     <WorkspaceTheme brandTheme={brandTheme} />
     <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-card focus:p-3">Skip to content</a>
     <Sidebar variant="floating" className="p-2">
