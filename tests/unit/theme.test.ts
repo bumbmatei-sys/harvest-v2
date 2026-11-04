@@ -11,7 +11,7 @@ describe("appearance precedence and pre-paint script", () => {
     expect(resolveBrandTheme(user, workspace)).toBe(expected);
   });
   it.each([false, true])("initializes both axes before hydration with blocked storage = %s", (blocked) => {
-    const root = { dataset: {} as Record<string, string>, classList: { toggle: (_name: string, _active: boolean) => {} } };
+    const root = { dataset: {} as Record<string, string>, classList: { toggle: () => {} } };
     runInNewContext(themeBootstrap("studio"), { document: { documentElement: root }, localStorage: { getItem: () => { if (blocked) throw new Error("blocked"); return null; } }, matchMedia: () => ({ matches: true }) });
     expect(root.dataset).toEqual({ workspaceTheme: "studio", brandTheme: "studio", theme: "dark" });
   });
