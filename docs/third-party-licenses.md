@@ -484,6 +484,7 @@ The shadcn MIT notice is preserved in [licenses/shadcn-ui-MIT.txt](licenses/shad
 | `ignore` | 7.0.14 | MIT |
 | `import-fresh` | 3.3.1 | MIT |
 | `imurmurhash` | 0.1.4 | MIT |
+| `input-otp` | 1.5.0 | MIT |
 | `internal-slot` | 1.1.0 | MIT |
 | `is-array-buffer` | 3.0.5 | MIT |
 | `is-async-function` | 2.1.1 | MIT |

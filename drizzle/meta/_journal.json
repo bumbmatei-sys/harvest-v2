@@ -26,15 +26,22 @@
     {
       "idx": 3,
       "version": "7",
-      "when": 1793793809716,
-      "tag": "0003_smooth_lake",
+      "when": 1793799052807,
+      "tag": "0003_otp-issuance-limits",
       "breakpoints": true
     },
     {
       "idx": 4,
       "version": "7",
-      "when": 1793807912513,
-      "tag": "0004_dry_ezekiel",
+      "when": 1793799052808,
+      "tag": "0004_contact_shell",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1793812000000,
+      "tag": "0005_consent_erasure",
       "breakpoints": true
     }
   ]

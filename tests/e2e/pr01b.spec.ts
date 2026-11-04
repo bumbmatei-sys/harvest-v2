@@ -1,5 +1,5 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 const evidence = "docs/screenshots/pr01b";
@@ -7,6 +7,8 @@ const origin = "http://127.0.0.1:3100";
 const accessibility: { screen: string; violations: number; checks: number }[] = [];
 test.use({ actionTimeout: 30_000, reducedMotion: "reduce" });
 async function signIn(page: Page, email: string) {
+  const [a, b, c] = createHash("sha256").update(email).digest();
+  await page.context().setExtraHTTPHeaders({ "x-forwarded-for": `10.${a}.${b}.${c}` });
   await page.goto("/sign-in");
   await page.getByLabel("Email address").fill(email);
   await page.getByRole("button", { name: "Send sign-in code" }).click();

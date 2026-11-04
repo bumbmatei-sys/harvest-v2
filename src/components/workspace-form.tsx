@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 export function WorkspaceForm() {
   const router = useRouter();
@@ -24,6 +24,6 @@ export function WorkspaceForm() {
   }
   return <div className="space-y-6">
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-    <form onSubmit={submit} className="space-y-3"><Label htmlFor="workspace-name">Workspace name</Label><Input id="workspace-name" required maxLength={100} disabled={!hydrated || busy} value={name} onChange={(e) => setName(e.target.value)} /><Button disabled={!hydrated || busy}>{busy ? "Please wait…" : "Create workspace"}</Button></form>
+    <form onSubmit={submit}><FieldGroup><Field><FieldLabel htmlFor="workspace-name">Workspace name</FieldLabel><Input id="workspace-name" required maxLength={100} disabled={!hydrated || busy} value={name} onChange={(e) => setName(e.target.value)} /></Field><Field orientation="horizontal"><Button disabled={!hydrated || busy}>{busy ? "Please wait…" : "Create workspace"}</Button></Field></FieldGroup></form>
   </div>;
 }

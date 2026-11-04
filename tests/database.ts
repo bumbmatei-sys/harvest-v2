@@ -54,7 +54,7 @@ export async function testDatabase(options: { beforeConsentUpgrade?: (admin: Poo
     const legacy = await mkdtemp(join(tmpdir(), "harvest-legacy-migrations-"));
     await mkdir(join(legacy, "meta"));
     const journal = JSON.parse(await readFile("drizzle/meta/_journal.json", "utf8"));
-    journal.entries = journal.entries.filter((entry: { idx: number }) => entry.idx < 4);
+    journal.entries = journal.entries.filter((entry: { idx: number }) => entry.idx < 5);
     await writeFile(join(legacy, "meta/_journal.json"), JSON.stringify(journal));
     for (const entry of journal.entries) await cp(`drizzle/${entry.tag}.sql`, join(legacy, `${entry.tag}.sql`));
     await migrate(drizzle(admin), { migrationsFolder: legacy });

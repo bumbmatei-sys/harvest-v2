@@ -1,6 +1,6 @@
 {
-  "id": "f3c6a3e5-aa67-4ae8-ae04-37ac86b3197b",
-  "prevId": "d20c1fb1-2d16-4cc9-86c0-d625a5f10a23",
+  "id": "d20c1fb1-2d16-4cc9-86c0-d625a5f10a23",
+  "prevId": "3eb73893-3af6-433f-80af-c1991325c718",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -276,44 +276,13 @@
           "name": "contact_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": false
-        },
-        "recorded_by": {
-          "name": "recorded_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "purpose": {
-          "name": "purpose",
-          "type": "text",
-          "primaryKey": false,
           "notNull": true
-        },
-        "notice_version": {
-          "name": "notice_version",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "recorded_at": {
-          "name": "recorded_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "redacted_at": {
-          "name": "redacted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
         },
         "channel": {
           "name": "channel",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "status": {
           "name": "status",
@@ -325,13 +294,13 @@
           "name": "source",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "evidence": {
           "name": "evidence",
           "type": "text",
           "primaryKey": false,
-          "notNull": false
+          "notNull": true
         },
         "occurred_at": {
           "name": "occurred_at",
@@ -371,19 +340,6 @@
         }
       },
       "foreignKeys": {
-        "contact_consents_recorded_by_users_id_fk": {
-          "name": "contact_consents_recorded_by_users_id_fk",
-          "tableFrom": "contact_consents",
-          "tableTo": "users",
-          "columnsFrom": [
-            "recorded_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
         "contact_consents_tenant_id_contact_id_contacts_tenant_id_id_fk": {
           "name": "contact_consents_tenant_id_contact_id_contacts_tenant_id_id_fk",
           "tableFrom": "contact_consents",
@@ -427,18 +383,6 @@
         "consent_evidence_length": {
           "name": "consent_evidence_length",
           "value": "length(trim(\"contact_consents\".\"evidence\")) between 1 and 2000"
-        },
-        "consent_purpose": {
-          "name": "consent_purpose",
-          "value": "\"contact_consents\".\"purpose\" in ('marketing', 'outreach_follow_up', 'event_administration', 'account_communications', 'legacy_unspecified')"
-        },
-        "consent_notice_version": {
-          "name": "consent_notice_version",
-          "value": "\"contact_consents\".\"notice_version\" in ('notice-v1', 'legacy-unversioned')"
-        },
-        "consent_redaction": {
-          "name": "consent_redaction",
-          "value": "(\"contact_consents\".\"redacted_at\" is null and \"contact_consents\".\"contact_id\" is not null and \"contact_consents\".\"channel\" is not null and \"contact_consents\".\"source\" is not null and \"contact_consents\".\"evidence\" is not null) or (\"contact_consents\".\"redacted_at\" is not null and \"contact_consents\".\"contact_id\" is null and \"contact_consents\".\"channel\" is null and \"contact_consents\".\"source\" is null and \"contact_consents\".\"evidence\" is null and \"contact_consents\".\"recorded_by\" is null)"
         }
       },
       "isRLSEnabled": false
@@ -591,12 +535,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "erased_at": {
-          "name": "erased_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
         "id": {
           "name": "id",
           "type": "uuid",
@@ -714,6 +652,19 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
+        },
+        "issued_at": {
+          "name": "issued_at",
+          "type": "timestamp with time zone[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "ARRAY[]::timestamptz[]"
+        },
+        "reservation_id": {
+          "name": "reservation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
