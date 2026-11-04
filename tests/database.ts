@@ -18,8 +18,21 @@ async function freePort() {
   await new Promise<void>((resolve) => server.close(() => resolve()));
   return port;
 }
-export async function testDatabase(options: { beforeFilesMigration?: (admin: Pool) => Promise<void> } = {}) {
+export async function testDatabase(options: { beforeFilesMigration?: (admin: Pool) => Promise<void>; beforeShellMigration?: (admin: Pool) => Promise<void> } = {}) {
   let embedded: EmbeddedPostgres | undefined;
+  let stoppingEmbedded = false;
+  const poolErrors: Error[] = [];
+  function observePool(pool: Pool) {
+    // pg can emit an idle-client shutdown error after Pool.end resolves. Handle
+    // that expected local shutdown without serializing the client's credentials.
+    pool.on("error", (error) => {
+      const rawCode = (error as { code?: unknown }).code;
+      const code = typeof rawCode === "string" && /^[A-Z0-9]{5}$/.test(rawCode) ? rawCode : "unknown";
+      if (stoppingEmbedded && code === "57P01") return;
+      poolErrors.push(new Error(`Unexpected test database pool error (${code})`));
+    });
+    return pool;
+  }
   let adminURL = process.env.TEST_DATABASE_URL;
   if (adminURL) {
     const url = new URL(adminURL);
@@ -32,22 +45,22 @@ export async function testDatabase(options: { beforeFilesMigration?: (admin: Poo
     await embedded.initialise(); await embedded.start();
     adminURL = `postgresql://postgres:${password}@127.0.0.1:${port}/postgres`;
   }
-  const root = new Pool({ connectionString: adminURL, max: 1 });
+  const root = observePool(new Pool({ connectionString: adminURL, max: 1 }));
   const name = `harvest_test_${randomBytes(8).toString("hex")}`;
   await root.query(`CREATE DATABASE ${name}`);
   const url = new URL(adminURL); url.pathname = `/${name}`;
-  const admin = new Pool({ connectionString: url.toString(), max: 1 });
-  if (options.beforeFilesMigration) {
-    // Build an isolated main+#3 migration folder; repository metadata stays untouched.
+  const admin = observePool(new Pool({ connectionString: url.toString(), max: 1 }));
+  for (const [lastIndex, seed] of [[3, options.beforeFilesMigration], [4, options.beforeShellMigration]] as const) {
+    if (!seed) continue;
     const mainFolder = await mkdtemp(join(tmpdir(), "harvest-main-migrations-"));
     try {
       await cp("drizzle", mainFolder, { recursive: true });
       const journalPath = join(mainFolder, "meta/_journal.json");
       const journal = JSON.parse(await readFile(journalPath, "utf8"));
-      journal.entries = journal.entries.filter((entry: { idx: number }) => entry.idx <= 3);
+      journal.entries = journal.entries.filter((entry: { idx: number }) => entry.idx <= lastIndex);
       await writeFile(journalPath, JSON.stringify(journal));
       await migrate(drizzle(admin), { migrationsFolder: mainFolder });
-      await options.beforeFilesMigration(admin);
+      await seed(admin);
     } finally { await rm(mainFolder, { recursive: true, force: true }); }
   }
   await migrate(drizzle(admin), { migrationsFolder: "drizzle" });
@@ -57,10 +70,12 @@ export async function testDatabase(options: { beforeFilesMigration?: (admin: Poo
   await admin.query(`ALTER ROLE harvest_app LOGIN PASSWORD ${escapeLiteral(appPassword)}`);
   url.username = "harvest_app"; url.password = appPassword;
   // max:1 guarantees physical backend reuse, rather than merely hoping a pool reuses it.
-  const pool = new Pool({ connectionString: url.toString(), max: 1 });
+  const pool = observePool(new Pool({ connectionString: url.toString(), max: 1 }));
   const db = drizzle(pool, { schema });
   return { db, pool, admin, appURL: url.toString(), async close() {
     await pool.end(); await admin.end();
-    await root.query(`DROP DATABASE ${name}`); await root.end(); await embedded?.stop();
+    await root.query(`DROP DATABASE ${name}`); await root.end();
+    stoppingEmbedded = true; await embedded?.stop();
+    if (poolErrors.length) throw new AggregateError(poolErrors, "Test database pool failed");
   } };
 }

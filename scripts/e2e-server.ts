@@ -4,7 +4,7 @@ import { testDatabase } from "../tests/database";
 import { storageMock } from "../tests/storage-mock";
 const database = await testDatabase();
 const storage = await storageMock();
-const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--webpack", "--hostname", "127.0.0.1", "--port", "3100"], {
+const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--turbopack", "--hostname", "127.0.0.1", "--port", "3100"], {
   stdio: ["ignore", "inherit", "inherit"], env: { ...process.env,
     // Override any real credentials and avoid reading live .env.local during browser tests.
     DATABASE_URL: database.appURL, DATABASE_URL_UNPOOLED: "", BETTER_AUTH_SECRET: randomBytes(48).toString("base64url"),

@@ -30,10 +30,10 @@ export default async function FilesPage({ params }: { params: Promise<{ tenantId
       listFiles(getDb(), session.user.id, tenantId),
     ]);
   } catch (error) { if (error instanceof AccessError) notFound(); throw error; }
-  return <main className="mx-auto max-w-4xl space-y-6 px-6 py-12">
+  return <div className="space-y-6">
     <Button asChild variant="outline"><Link href="/workspaces">Back to workspaces</Link></Button>
     <div className="space-y-1"><p className="text-sm text-muted-foreground">{workspace.name}</p><h1 className="text-2xl font-semibold">Workspace files</h1></div>
     <Card><CardHeader><CardTitle>Upload a file</CardTitle></CardHeader><CardContent><UploadControl tenantId={tenantId} canUpload={workspace.canUpload} /></CardContent></Card>
     <Card><CardHeader><CardTitle>Files</CardTitle></CardHeader><CardContent><FileList files={files} tenantId={tenantId} canUpload={workspace.canUpload} /></CardContent></Card>
-  </main>;
+  </div>;
 }

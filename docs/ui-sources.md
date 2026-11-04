@@ -1,4 +1,4 @@
-# UI source register — PR 01a / PR 01c
+# UI source register — PR 01a / PR 01b / PR 01c
 
 Owner: Harvest v2 maintainers. Reviewed 2026-11-04. No AGPL source, competitor application code, logos, copy or imagery is included in the product.
 
@@ -18,7 +18,36 @@ Owner: Harvest v2 maintainers. Reviewed 2026-11-04. No AGPL source, competitor a
 | Harvest-owned forms and screen composition | 2026-11-04 | Private repository code | shadcn primitives above, Better Auth client, Next App Router | `src/app/sign-in/page.tsx`, `src/app/workspaces/*`, `src/components/workspace-form.tsx` | Original content and composition |
 | [Local design specification](design/DESIGN.md), local reference screenshots, read-only v1 `docs/prd/screenshots/16-ui-system` | 2026-11-04 | Visual reference only; no imported application source/assets | None | `src/app/globals.css`, sign-in typography and spacing | Neutral surface/text tokens, 10px controls, 16px cards, Geist and restrained layout; Harvest gold with dark text |
 
-The full selectable theme system, sidebar shell and contacts are deferred to PR 01b. This foundation uses CSS variables for primitives so those additions do not require brand-specific conditionals. MIT and OFL notices are preserved under `docs/licenses/`; the full dependency inventory is in [third-party-licenses.md](third-party-licenses.md).
+PR 01b adds the selectable theme system, sidebar shell and contact screens. This foundation uses CSS variables for primitives so those additions do not require brand-specific conditionals. MIT and OFL notices are preserved under `docs/licenses/`; the full dependency inventory is in [third-party-licenses.md](third-party-licenses.md).
+
+## PR 01b sources
+
+Owner: Harvest v2 maintainers. Retrieved/reviewed 2026-11-04. Registry revision is pinned by the source-owned files committed with package-lock.json.
+
+| Source | Version/date | License | Dependencies | Changed files | Adaptations |
+| --- | --- | --- | --- | --- | --- |
+| [Official shadcn sidebar](https://ui.shadcn.com/r/styles/new-york-v4/sidebar.json) | New York v4, 2026-11-04 | MIT | React, radix-ui, lucide-react, CVA, clsx/tailwind-merge as applicable | `src/components/ui/sidebar.tsx` | Local import aliases; 1024px sidebar breakpoint, stable skeleton and external-store media hook; one main landmark; semantic overlay/surface tokens |
+| [Official shadcn sheet](https://ui.shadcn.com/r/styles/new-york-v4/sheet.json) | New York v4, 2026-11-04 | MIT | React, radix-ui, lucide-react, CVA, clsx/tailwind-merge as applicable | `src/components/ui/sheet.tsx` | Local import aliases; 1024px sidebar breakpoint, stable skeleton and external-store media hook; one main landmark; semantic overlay/surface tokens |
+| [Official shadcn separator](https://ui.shadcn.com/r/styles/new-york-v4/separator.json) | New York v4, 2026-11-04 | MIT | React, radix-ui, lucide-react, CVA, clsx/tailwind-merge as applicable | `src/components/ui/separator.tsx` | Local import aliases; 1024px sidebar breakpoint, stable skeleton and external-store media hook; one main landmark; semantic overlay/surface tokens |
+| [Official shadcn tooltip](https://ui.shadcn.com/r/styles/new-york-v4/tooltip.json) | New York v4, 2026-11-04 | MIT | React, radix-ui, lucide-react, CVA, clsx/tailwind-merge as applicable | `src/components/ui/tooltip.tsx` | Local import aliases; 1024px sidebar breakpoint, stable skeleton and external-store media hook; one main landmark; semantic overlay/surface tokens |
+| [Official shadcn skeleton](https://ui.shadcn.com/r/styles/new-york-v4/skeleton.json) | New York v4, 2026-11-04 | MIT | React, radix-ui, lucide-react, CVA, clsx/tailwind-merge as applicable | `src/components/ui/skeleton.tsx` | Local import aliases; 1024px sidebar breakpoint, stable skeleton and external-store media hook; one main landmark; semantic overlay/surface tokens |
+| [Official shadcn table](https://ui.shadcn.com/r/styles/new-york-v4/table.json) | New York v4, 2026-11-04 | MIT | React, radix-ui, lucide-react, CVA, clsx/tailwind-merge as applicable | `src/components/ui/table.tsx` | Local import aliases; 1024px sidebar breakpoint, stable skeleton and external-store media hook; one main landmark; semantic overlay/surface tokens |
+| [Official shadcn badge](https://ui.shadcn.com/r/styles/new-york-v4/badge.json) | New York v4, 2026-11-04 | MIT | React, radix-ui, lucide-react, CVA, clsx/tailwind-merge as applicable | `src/components/ui/badge.tsx` | Local import aliases; 1024px sidebar breakpoint, stable skeleton and external-store media hook; one main landmark; semantic overlay/surface tokens |
+| [Official shadcn select](https://ui.shadcn.com/r/styles/new-york-v4/select.json) | New York v4, 2026-11-04 | MIT | React, radix-ui, lucide-react, CVA, clsx/tailwind-merge as applicable | `src/components/ui/select.tsx` | Local import aliases; 1024px sidebar breakpoint, stable skeleton and external-store media hook; one main landmark; semantic overlay/surface tokens |
+| [Official shadcn dialog](https://ui.shadcn.com/r/styles/new-york-v4/dialog.json) | New York v4, 2026-11-04 | MIT | React, radix-ui, lucide-react, CVA, clsx/tailwind-merge as applicable | `src/components/ui/dialog.tsx` | Local import aliases; 1024px sidebar breakpoint, stable skeleton and external-store media hook; one main landmark; semantic overlay/surface tokens |
+| [Official shadcn textarea](https://ui.shadcn.com/r/styles/new-york-v4/textarea.json) | New York v4, 2026-11-04 | MIT | React, radix-ui, lucide-react, CVA, clsx/tailwind-merge as applicable | `src/components/ui/textarea.tsx` | Local import aliases; 1024px sidebar breakpoint, stable skeleton and external-store media hook; one main landmark; semantic overlay/surface tokens |
+| [Official shadcn tabs](https://ui.shadcn.com/r/styles/new-york-v4/tabs.json) | New York v4, 2026-11-04 | MIT | React, radix-ui, lucide-react, CVA, clsx/tailwind-merge as applicable | `src/components/ui/tabs.tsx` | Local import aliases; 1024px sidebar breakpoint, stable skeleton and external-store media hook; one main landmark; semantic overlay/surface tokens |
+| [Official shadcn use-mobile](https://ui.shadcn.com/r/styles/new-york-v4/use-mobile.json) | New York v4, 2026-11-04 | MIT | React, radix-ui, lucide-react, CVA, clsx/tailwind-merge as applicable | `src/hooks/use-mobile.ts` | Local import aliases; 1024px sidebar breakpoint, stable skeleton and external-store media hook; one main landmark; semantic overlay/surface tokens |
+| [Lucide](https://github.com/lucide-icons/lucide) | Exact npm version in lockfile, 2026-11-04 | ISC | React | shell and contacts components | Standard line icons; Wheat icon with Harvest text |
+| [Inter / Fontsource](https://github.com/fontsource/font-files/tree/main/fonts/google/inter) | Exact npm version in lockfile, 2026-11-04 | OFL-1.1 | CSS/webfonts | `src/app/layout.tsx`, `src/app/globals.css` | Self-hosted Latin 400/500/600 for Harvest |
+| [tw-animate-css](https://github.com/Wombosvideo/tw-animate-css) | Exact npm version in lockfile, 2026-11-04 | MIT | Tailwind | `src/app/globals.css` | shadcn animation utilities; reduced-motion override |
+| Read-only v1 `docs/prd/screenshots/06-crm/crm-001`, `crm-007` and `16-ui-system/shell-027` on main | Viewed 2026-11-04 | Layout/feel reference only | None | App shell, contacts list and dialog | No code, image, text or logo copied or redistributed |
+
+## Round 2 registry additions
+
+Added with `npx shadcn@latest add` (New York v4, 2026-11-04), MIT: [radio-group](https://ui.shadcn.com/r/styles/new-york-v4/radio-group.json), [pagination](https://ui.shadcn.com/r/styles/new-york-v4/pagination.json), [avatar](https://ui.shadcn.com/r/styles/new-york-v4/avatar.json), [dropdown-menu](https://ui.shadcn.com/r/styles/new-york-v4/dropdown-menu.json), [empty](https://ui.shadcn.com/r/styles/new-york-v4/empty.json), [alert-dialog](https://ui.shadcn.com/r/styles/new-york-v4/alert-dialog.json), [input-group](https://ui.shadcn.com/r/styles/new-york-v4/input-group.json), and [field](https://ui.shadcn.com/r/styles/new-york-v4/field.json). Files are the corresponding `src/components/ui/*.tsx`. They use the existing React, Radix, Lucide and CVA dependencies. Adapted the CLI's bare `cn` import to `@/lib/utils`; no new runtime dependency is required. Existing primitives were preserved when the CLI prompted for replacement. DropdownMenuContent exposes Radix's optional portal container so account-menu content stays inside its navigation landmark, including the mobile sheet. Button's destructive foreground now reads a semantic token for contrast in both color modes. The account composition follows the official shadcn NavUser pattern.
+
+[Round 2 visual reference mapping and consent/erasure behavior](acceptance/pr01b-round2.md).
 
 ## PR 02 file uploads
 
@@ -35,3 +64,7 @@ Round 2 reuses the existing official Empty, Alert and Field components for the
 file empty state, viewer/progress/result notices and upload form fields.
 
 Upload control, file list and Files page are Harvest-owned compositions of these and existing shadcn primitives. No additional application block or competitor source was copied.
+
+## Round 3 registry additions
+
+Added via `npx shadcn@latest add item calendar popover --yes`, New York v4, 2026-11-04 (MIT): [Item](https://ui.shadcn.com/r/styles/new-york-v4/item.json), [Calendar](https://ui.shadcn.com/r/styles/new-york-v4/calendar.json), [Popover](https://ui.shadcn.com/r/styles/new-york-v4/popover.json). Components live in `src/components/ui/`; `cn` imports use `@/lib/utils`. Existing Button and Separator were preserved. Calendar uses react-day-picker/date-fns (MIT, exact versions in package-lock.json); Popover uses the existing Radix package. The form supplies an accessible popover name and numeric day labels matching visible content. The date/time form is a Harvest composition of Calendar, Popover, Button, Field and Input. RadioGroupItem's border reads muted-foreground to meet 3:1 contrast in all four palettes. See [round 3 evidence](acceptance/pr01b-round3.md).

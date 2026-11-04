@@ -1,13 +1,14 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth-client";
+import { useHydrated } from "@/hooks/use-hydrated";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 export function WorkspaceForm() {
   const router = useRouter();
+  const hydrated = useHydrated();
   const [name, setName] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -21,15 +22,8 @@ export function WorkspaceForm() {
     } catch { setError("Could not connect. Please try again."); }
     finally { setBusy(false); }
   }
-  async function signOut() {
-    setBusy(true); setError("");
-    try { const result = await authClient.signOut(); if (result.error) setError("Could not sign out. Try again."); else { router.replace("/sign-in"); router.refresh(); } }
-    catch { setError("Could not connect. Please try again."); }
-    finally { setBusy(false); }
-  }
-  return <FieldGroup>
+  return <div className="space-y-6">
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-    <form onSubmit={submit}><FieldGroup><Field><FieldLabel htmlFor="workspace-name">Workspace name</FieldLabel><Input id="workspace-name" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} /></Field><Field orientation="horizontal"><Button disabled={busy}>{busy ? "Please wait…" : "Create workspace"}</Button></Field></FieldGroup></form>
-    <Button variant="outline" disabled={busy} onClick={() => void signOut()}>Sign out</Button>
-  </FieldGroup>;
+    <form onSubmit={submit}><FieldGroup><Field><FieldLabel htmlFor="workspace-name">Workspace name</FieldLabel><Input id="workspace-name" required maxLength={100} disabled={!hydrated || busy} value={name} onChange={(e) => setName(e.target.value)} /></Field><Field orientation="horizontal"><Button disabled={!hydrated || busy}>{busy ? "Please wait…" : "Create workspace"}</Button></Field></FieldGroup></form>
+  </div>;
 }
