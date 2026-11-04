@@ -1,6 +1,7 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
 import { expect as playwrightExpect, test, type Page } from "@playwright/test";
+import { contrastRatio } from "../../src/lib/theme";
 import AxeBuilder from "@axe-core/playwright";
 // First navigation can include development route compilation in the shared browser harness.
 const expect = playwrightExpect.configure({ timeout: 15_000 });
@@ -27,13 +28,18 @@ async function signIn(page: Page, email: string) {
   await expect(page).toHaveURL(/\/workspaces$/);
 }
 async function selectBrand(page: Page, brand: string) {
-  await page.getByRole("combobox", { name: "Brand theme", exact: true }).click();
-  await page.getByRole("option", { name: brand, exact: true }).click();
+  if (await page.locator('[data-sidebar="footer"]').count()) {
+    if (await page.getByRole("menuitemradio", { name: brand, exact: true }).count() === 0) await page.getByRole("button", { name: "Account menu", exact: true }).click();
+    await page.getByRole("menuitemradio", { name: brand, exact: true }).click();
+  } else {
+    await page.getByRole("combobox", { name: "Brand theme", exact: true }).click();
+    await page.getByRole("option", { name: brand, exact: true }).click();
+  }
 }
 async function theme(page: Page, brand: "harvest" | "studio", mode: "light" | "dark") {
   await selectBrand(page, brand === "harvest" ? "Harvest" : "Studio");
   await expect(page.locator("html")).toHaveAttribute("data-brand-theme", brand);
-  if (await page.locator("html").getAttribute("data-theme") !== mode) await page.getByRole("button", { name: `Switch to ${mode} mode` }).click();
+  if (await page.locator("html").getAttribute("data-theme") !== mode) await page.getByRole("button", { name: new RegExp(`^Switch to ${mode}`) }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", mode);
   await expect(page.locator("body")).toHaveCSS("font-family", brand === "studio" ? /Geist/ : /Inter/);
   await expect(page.locator("body")).toHaveCSS("background-color", { harvest: { light: "rgb(250, 250, 248)", dark: "rgb(23, 23, 23)" }, studio: { light: "rgb(247, 247, 245)", dark: "rgb(26, 26, 26)" } }[brand][mode]);
@@ -68,8 +74,78 @@ async function matrix(page: Page, screen: string) {
   }
 }
 
+async function shellMatrix(page: Page) {
+  await page.setViewportSize({ width: 1280, height: 800 });
+  const sidebar = page.locator('[data-slot="sidebar"][data-variant="inset"]');
+  const inset = page.locator('[data-slot="sidebar-inset"]');
+  const footer = page.locator('[data-sidebar="footer"]');
+  const trigger = footer.locator('[data-sidebar="trigger"]');
+  await expect(sidebar).toHaveAttribute("data-state", "expanded");
+  await expect(inset).toHaveCSS("border-radius", "12px");
+  for (const edge of ["top", "right", "bottom"]) await expect(inset).toHaveCSS(`margin-${edge}`, "8px");
+  await expect(inset).not.toHaveCSS("box-shadow", "none");
+  await expect(page.locator('[data-shell-header] [data-sidebar="trigger"]')).toBeHidden();
+  await expect(trigger).toBeVisible();
+  await expect(footer.getByRole("button", { name: /^Switch to/ })).toBeVisible();
+  const logo = sidebar.locator('img');
+  await expect.poll(() => logo.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+  await expect(sidebar.getByRole("link", { name: "Harvest", exact: true })).toBeVisible();
+  // Keyboard access to the relocated brand radio group.
+  await footer.getByRole("button", { name: "Account menu" }).click();
+  await page.getByRole("menuitemradio", { name: "Harvest", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("html")).toHaveAttribute("data-brand-theme", "harvest");
+  await footer.getByRole("button", { name: "Account menu" }).click();
+  await page.getByRole("menuitemradio", { name: "Studio", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("html")).toHaveAttribute("data-brand-theme", "studio");
+  for (const brand of ["harvest", "studio"] as const) for (const mode of ["light", "dark"] as const) {
+    await theme(page, brand, mode);
+    await capture(page, `shell-expanded-${brand}-${mode}`);
+    await footer.getByRole("button", { name: "Account menu" }).click();
+    await expect(page.getByRole("group", { name: "Brand theme" })).toBeVisible();
+    await capture(page, `shell-account-menu-${brand}-${mode}`);
+    await page.keyboard.press("Escape");
+    await trigger.click();
+    await expect(sidebar).toHaveAttribute("data-collapsible", "icon");
+    await page.reload();
+    await expect(sidebar).toHaveAttribute("data-collapsible", "icon");
+    await expect(page.locator("html")).toHaveAttribute("data-theme", mode);
+    await expect(page.locator("html")).toHaveAttribute("data-brand-theme", brand);
+    await expect(logo).toBeVisible();
+    await expect(sidebar.getByRole("link", { name: "Contacts", exact: true })).toBeVisible();
+    await capture(page, `shell-collapsed-${brand}-${mode}`);
+    // Closed groups must still expose their icon links in the collapsed rail.
+    await trigger.click();
+    await sidebar.getByRole("button", { name: "People", exact: true }).click();
+    await expect(sidebar.getByRole("link", { name: "Contacts", exact: true })).toBeHidden();
+    await page.keyboard.press("Control+b");
+    await expect(sidebar.getByRole("link", { name: "Contacts", exact: true })).toBeVisible();
+    await page.keyboard.press("Control+b");
+    await sidebar.getByRole("button", { name: "People", exact: true }).click();
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(inset).toHaveCSS("margin-top", "0px");
+    await expect(inset).toHaveCSS("border-radius", "0px");
+    await page.locator('[data-shell-header] [data-sidebar="trigger"]').click();
+    await expect(page.getByRole("dialog", { name: "Sidebar" })).toBeVisible();
+    await capture(page, `shell-mobile-${brand}-${mode}`);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.getByRole("link", { name: "Contacts", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "Sidebar" })).toHaveCount(0);
+    await page.setViewportSize({ width: 1280, height: 800 });
+  }
+  // Flip the footer toggle itself and verify its stored mode survives reload.
+  const previous = await page.locator("html").getAttribute("data-theme");
+  await footer.getByRole("button", { name: /^Switch to/ }).click();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", previous === "dark" ? "light" : "dark");
+  await page.reload();
+  await expect(page.locator("html")).toHaveAttribute("data-theme", previous === "dark" ? "light" : "dark");
+  await theme(page, "studio", "dark");
+  await page.setViewportSize({ width: 1440, height: 1000 });
+}
+
 test("PR 01b real UI: contacts, consent, themes, workspace isolation and responsive states", async ({ page, browser }) => {
-  test.setTimeout(360_000);
+  test.setTimeout(600_000);
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await mkdir(evidence, { recursive: true });
@@ -147,6 +223,8 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
   await page.getByRole("link", { name: "All contacts", exact: true }).click();
   await expect(page.getByRole("link", { name: "Synthetic Ada Rivers", exact: true })).toBeVisible();
   await matrix(page, "contacts-list");
+  await shellMatrix(page);
+
   await page.getByLabel("Search contacts").fill("no-such-contact");
   await page.getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByRole("heading", { name: "No matching contacts" })).toBeVisible();
@@ -222,7 +300,10 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
   await page.goto(detail);
   await page.setViewportSize({ width: 390, height: 844 });
   for (const brand of ["harvest", "studio"] as const) for (const mode of ["light", "dark"] as const) {
+    await page.getByRole("button", { name: "Toggle Sidebar", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "Sidebar" })).toBeVisible();
     await theme(page, brand, mode);
+    await page.keyboard.press("Escape");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await capture(page, `contact-detail-mobile-${brand}-${mode}`);
     await page.getByRole("button", { name: "Toggle Sidebar" }).click();
@@ -256,7 +337,13 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
   expect((await page.request.get(`${api}/${contactId}`)).status()).toBe(404);
   await capture(page, "contacts-after-erasure-studio-dark");
   await page.getByRole("button", { name: "Account menu" }).click();
-  await writeFile(`${evidence}/contrast-results.json`, `${JSON.stringify(radioContrast, null, 2)}\n`);
+  const shellColors = [
+    { palette: "harvest-light", canvas: "#fafaf8", panel: "#f3f2ef", card: "#f3f2ef", foreground: "#1a1a1a" },
+    { palette: "harvest-dark", canvas: "#171717", panel: "#202020", card: "#202020", foreground: "#f2f2f2" },
+    { palette: "studio-light", canvas: "#efefec", panel: "#f7f7f5", card: "#ffffff", foreground: "#272523" },
+    { palette: "studio-dark", canvas: "#141414", panel: "#1a1a1a", card: "#212121", foreground: "#ededed" },
+  ].map((colors) => ({ ...colors, panelToCanvas: contrastRatio(colors.panel, colors.canvas), cardToPanel: contrastRatio(colors.card, colors.panel), foregroundToPanel: contrastRatio(colors.foreground, colors.panel) }));
+  await writeFile(`${evidence}/contrast-results.json`, `${JSON.stringify({ unselectedRadio: radioContrast, shellSurfaces: shellColors }, null, 2)}\n`);
   await writeFile(`${evidence}/axe-results.json`, `${JSON.stringify(accessibility, null, 2)}\n`);
   await page.getByRole("menuitem", { name: "Sign out", exact: true }).click();
   await expect(page).toHaveURL(/\/sign-in$/);

@@ -1,24 +1,27 @@
-# PR 01b real UI evidence
+# PR 01b real UI and shell evidence
 
-Regenerated for round 3 on top of `d15bd60` (main remains `207f933`). The detail screens show recording-order withdrawal precedence, shadcn Item lists and the overview heading; appearance uses the corrected radio borders.
+Regenerated for the v1 shell round on top of `74448bf`, retaining the consent-date fix. Captured from the running Next.js app with real Better Auth sessions and persisted disposable PostgreSQL records. Email and file delivery use the existing local mocks; people and workspaces are synthetic browser seeds. No deployment or production data is involved.
 
-Chromium screenshots captured by `tests/e2e/pr01b.spec.ts` from the running Next.js app, with real Better Auth sessions and persisted disposable PostgreSQL records. Email delivery is mocked; displayed people/workspaces are explicitly synthetic browser seeds. Reference imagery and application source are not copied into these screenshots.
+The shell uses Harvest branding above a separate workspace menu, v2 navigation, floating sidebar and content panels, an internal page scroller, breadcrumb, footer account/theme/collapse controls, and an icon rail. Studio page-card colors and all four existing palettes remain unchanged. Shell-only tokens separate Studio's canvas from its panel and leave its white page cards visible. Group labels use 85% sidebar foreground because the reference's 70% yielded only 4.10:1 in Harvest light and 80% still yielded 4.34:1 in Studio light; the stronger color passes AA.
 
-Each desktop set has `harvest-light`, `harvest-dark`, `studio-light`, and `studio-dark` variants at a 1440×1000 viewport (full-page captures may be taller):
+The [v1-shell-ref comparison](../../design/reference/v1-shell/) contains Harvest's own reference PNGs from v1 `c29539f`. Compare side by side:
 
-- `sign-in-*.png`
-- `workspace-*.png`
-- `contacts-empty-*.png`
-- `contacts-list-*.png`
-- `contact-detail-*.png`
-- `appearance-*.png`
+- [shell-expanded-harvest-light.png](shell-expanded-harvest-light.png) vs [v1-expanded-light.png](../../design/reference/v1-shell/v1-expanded-light.png).
+- [shell-collapsed-harvest-dark.png](shell-collapsed-harvest-dark.png) vs [v1-collapsed-dark.png](../../design/reference/v1-shell/v1-collapsed-dark.png).
 
-Mobile list/detail sets have the same four variants at a 390×844 viewport: `contacts-list-mobile-*.png` and `contact-detail-mobile-*.png`.
+Each shell set has `harvest-light`, `harvest-dark`, `studio-light`, and `studio-dark` variants:
 
-Additional screenshots cover the open account menu, consent and erasure dialogs, the open Calendar/Popover date picker, 21-contact pagination, the list after erasure, contact-create network failure with retry, search with no results, unknown contact, view-only access, and a denied workspace. Filename suffixes identify the actual theme/mode of those states.
+- `shell-expanded-*.png`: contacts list, 1280×800.
+- `shell-collapsed-*.png`: contacts list and icon rail, 1280×800.
+- `shell-account-menu-*.png`: footer account menu with Theme radio group, 1280×800.
+- `shell-mobile-*.png`: open navigation sheet, 390×844.
 
-`axe-results.json` contains the check totals for all 43 captured screens: zero violations and 1,704 successful rule results. Every run regenerates these images from the actual UI; assertions also check keyboard date selection and UTC persistence in a Europe/Berlin browser, future-occurrence API rejection, later-recorded withdrawal precedence, keyboard theme selection/save/reload and precedence, Pagination next/previous with 21 contacts and `aria-current`, strict extra-tenant body rejection, non-member route denial, contact erasure, HTML pre-paint initialization, no horizontal mobile overflow, mobile sidebar navigation, role denial and tenant isolation. No deployment is involved. See the [round 3 contracts and results](../../acceptance/pr01b-round3.md) and [opened reference-screen mapping](../../acceptance/pr01b-round2.md).
+The retained desktop page sets use a 1440×1000 viewport: `sign-in-*`, `workspace-*`, `contacts-empty-*`, `contacts-list-*`, `contact-detail-*`, and `appearance-*`. Mobile list/detail sets use 390×844: `contacts-list-mobile-*` and `contact-detail-mobile-*`. All have the same four palette variants.
 
-`contrast-results.json` records the measured unselected radio border-to-card ratios: Harvest light 6.26:1, Harvest dark 7.10:1, Studio light 5.66:1, Studio dark 5.11:1. Every palette exceeds 3:1.
+Additional images cover the account menu, consent and erasure dialogs, Calendar/Popover date picker, pagination with 21 contacts, the list after erasure, contact-create network failure and retry, empty search, unknown contact, view-only access, and denied workspace. Filename suffixes identify their actual palette.
 
-Studio white cards remain the DESIGN.md section 6 default pending product-owner visual review. Compare [Harvest light](contacts-list-harvest-light.png) with [Studio light](contacts-list-studio-light.png), and [Harvest dark](contact-detail-harvest-dark.png) with [Studio dark](contact-detail-studio-dark.png).
+`tests/e2e/pr01b.spec.ts` regenerates every image and `axe-results.json`: 59 captured states, zero violations, and 2,567 successful rule results. Assertions cover 12px shell radius, 8px gutters, shadow, inset variant, loaded logo, footer control placement, collapsed-state cookie and keyboard shortcut, mode persistence, keyboard access to account-menu theme radios, mobile sheet navigation and overflow, plus every existing contact, consent, appearance, permission, isolation and sign-out assertion.
+
+`contrast-results.json` records unselected radio border-to-card ratios and shell canvas/panel/page-card/foreground ratios in every palette. Surface ratios describe subtle decorative separation; text contrast is checked by axe in each captured state. The approved page cards retain their existing tokens, radius, and content.
+
+Required checks passed: `npm run lint`, `npm run typecheck`, `npm test` (59 tests across 6 files), `npm run test:rls` (77 tests across 7 files), and `npm run test:e2e` (4 tests).
