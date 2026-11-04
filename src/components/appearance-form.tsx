@@ -33,7 +33,7 @@ export function AppearanceForm({ tenantId, current, writable }: { tenantId: stri
       </CardContent></Card>)}
     </RadioGroup>
     <p className="text-xs leading-relaxed text-muted-foreground">Harvest brings warm neutrals and softer cards. Studio offers crisp surfaces and compact curves. Both keep Harvest’s gold actions, and work in light and dark.</p>
-    <p role="status" className="text-xs text-muted-foreground">{message}</p>
+    {message && <Alert role="status"><AlertDescription>{message}</AlertDescription></Alert>}
     {writable ? <div className="space-y-4"><Separator /><div className="flex justify-end"><Button size="sm" disabled={busy || theme === current}>{busy ? "Saving…" : "Save appearance"}</Button></div></div> : <Alert><AlertDescription>Only owners and admins can change the workspace default. You can still choose your own theme in the toolbar.</AlertDescription></Alert>}
   </form>;
 }

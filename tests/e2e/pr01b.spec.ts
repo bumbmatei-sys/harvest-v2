@@ -7,7 +7,8 @@ const expect = playwrightExpect.configure({ timeout: 15_000 });
 const evidence = "docs/screenshots/pr01b";
 const origin = "http://127.0.0.1:3100";
 const accessibility: { screen: string; violations: number; checks: number }[] = [];
-test.use({ actionTimeout: 30_000, reducedMotion: "reduce" });
+const radioContrast: { palette: string; ratio: number }[] = [];
+test.use({ actionTimeout: 30_000, reducedMotion: "reduce", timezoneId: "Europe/Berlin" });
 async function signIn(page: Page, email: string) {
   const [a, b, c] = createHash("sha256").update(email).digest();
   await page.context().setExtraHTTPHeaders({ "x-forwarded-for": `10.${a}.${b}.${c}` });
@@ -48,7 +49,22 @@ async function capture(page: Page, name: string) {
 }
 async function matrix(page: Page, screen: string) {
   for (const brand of ["harvest", "studio"] as const) for (const mode of ["light", "dark"] as const) {
-    await theme(page, brand, mode); await capture(page, `${screen}-${brand}-${mode}`);
+    await theme(page, brand, mode);
+    if (screen === "appearance") {
+      const colors = await page.getByRole("radio", { name: "Harvest", exact: true }).evaluate((radio) => ({
+        border: getComputedStyle(radio).borderTopColor,
+        background: getComputedStyle(radio.closest('[data-slot="card"]')!).backgroundColor,
+      }));
+      const luminance = (color: string) => {
+        const channels = color.match(/[\d.]+/g)!.slice(0, 3).map(Number).map((value) => { const c = value / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; });
+        return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+      };
+      const a = luminance(colors.border), b = luminance(colors.background);
+      const ratio = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+      expect(ratio, `${brand}-${mode} unselected radio contrast`).toBeGreaterThanOrEqual(3);
+      radioContrast.push({ palette: `${brand}-${mode}`, ratio });
+    }
+    await capture(page, `${screen}-${brand}-${mode}`);
   }
 }
 
@@ -103,10 +119,29 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
   await page.getByRole("option", { name: "Granted", exact: true }).click();
   await page.getByLabel("Source", { exact: true }).fill("Synthetic preference form");
   await page.getByLabel("Evidence", { exact: true }).fill("Synthetic browser evidence reference PR01b.");
+  await page.getByLabel("Consent date (UTC)", { exact: true }).click();
+  const calendar = page.locator('[data-slot="calendar"]');
+  await expect(calendar).toBeVisible();
+  await capture(page, "consent-calendar-studio-dark");
+  const selected = calendar.locator('[data-selected-single="true"]');
+  await selected.focus();
+  await page.keyboard.press("ArrowLeft");
+  await page.keyboard.press("Enter");
+  await expect(calendar).toHaveCount(0);
+  const chosenDate = await page.getByLabel("Consent date (UTC)", { exact: true }).innerText();
+  await page.getByLabel("Time (UTC)", { exact: true }).fill("12:30");
   await capture(page, "consent-dialog-studio-dark");
   await page.getByRole("button", { name: "Save consent record", exact: true }).click();
   await expect(page.getByText("Synthetic preference form", { exact: true })).toBeVisible();
+  const storedConsent = await (await page.request.get(`${api}/${contactId}`)).json();
+  expect(storedConsent.consents[0].occurredAt).toBe(`${chosenDate.trim()}T12:30:00.000Z`);
   await page.reload();
+  expect((await page.request.post(`${api}/${contactId}/consents`, { headers: { origin }, data: { ...consentData, occurredAt: new Date(Date.now() + 6 * 60_000).toISOString() } })).status()).toBe(400);
+  expect((await page.request.post(`${api}/${contactId}/consents`, { headers: { origin }, data: { ...consentData, status: "withdrawn", occurredAt: "2026-10-01T12:00:00Z" } })).status()).toBe(201);
+  await page.reload();
+  await expect(page.getByText("Marketing preferences").locator("../..")).toContainText("Withdrawn");
+  const effective = await (await page.request.get(`${api}/${contactId}`)).json();
+  expect(effective.effectiveConsents.find((row: { channel: string }) => row.channel === "email").status).toBe("withdrawn");
   await matrix(page, "contact-detail");
   expect((await page.request.post(api, { headers: { origin }, data: { name: "Duplicate", email: `ADA-${marker}@example.test` } })).status()).toBe(409);
   await page.getByRole("link", { name: "All contacts", exact: true }).click();
@@ -221,6 +256,7 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
   expect((await page.request.get(`${api}/${contactId}`)).status()).toBe(404);
   await capture(page, "contacts-after-erasure-studio-dark");
   await page.getByRole("button", { name: "Account menu" }).click();
+  await writeFile(`${evidence}/contrast-results.json`, `${JSON.stringify(radioContrast, null, 2)}\n`);
   await writeFile(`${evidence}/axe-results.json`, `${JSON.stringify(accessibility, null, 2)}\n`);
   await page.getByRole("menuitem", { name: "Sign out", exact: true }).click();
   await expect(page).toHaveURL(/\/sign-in$/);

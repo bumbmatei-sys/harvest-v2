@@ -65,6 +65,11 @@
     "checks": 33
   },
   {
+    "screen": "consent-calendar-studio-dark",
+    "violations": 0,
+    "checks": 40
+  },
+  {
     "screen": "consent-dialog-studio-dark",
     "violations": 0,
     "checks": 32
@@ -72,22 +77,22 @@
   {
     "screen": "contact-detail-harvest-light",
     "violations": 0,
-    "checks": 43
+    "checks": 39
   },
   {
     "screen": "contact-detail-harvest-dark",
     "violations": 0,
-    "checks": 43
+    "checks": 39
   },
   {
     "screen": "contact-detail-studio-light",
     "violations": 0,
-    "checks": 43
+    "checks": 39
   },
   {
     "screen": "contact-detail-studio-dark",
     "violations": 0,
-    "checks": 43
+    "checks": 39
   },
   {
     "screen": "contacts-list-harvest-light",
@@ -157,7 +162,7 @@
   {
     "screen": "contact-detail-mobile-harvest-light",
     "violations": 0,
-    "checks": 43
+    "checks": 37
   },
   {
     "screen": "contacts-list-mobile-harvest-light",
@@ -167,7 +172,7 @@
   {
     "screen": "contact-detail-mobile-harvest-dark",
     "violations": 0,
-    "checks": 43
+    "checks": 37
   },
   {
     "screen": "contacts-list-mobile-harvest-dark",
@@ -177,7 +182,7 @@
   {
     "screen": "contact-detail-mobile-studio-light",
     "violations": 0,
-    "checks": 43
+    "checks": 37
   },
   {
     "screen": "contacts-list-mobile-studio-light",
@@ -187,7 +192,7 @@
   {
     "screen": "contact-detail-mobile-studio-dark",
     "violations": 0,
-    "checks": 43
+    "checks": 37
   },
   {
     "screen": "contacts-list-mobile-studio-dark",
