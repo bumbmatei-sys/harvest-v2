@@ -304,6 +304,16 @@ Visual shell, component consistency and CRUD/admin screens can be substantially 
 
 PR numbers indicate **illustrative work packages**, not a guarantee of 64 PRs. Mature quality can require significantly more and should never be traded for satisfying a numerical target.
 
+### 9.1 Roadmap item: Public courses and Discover page (future scope, after PR 01a)
+
+**Status:** Future scope. Not part of PR 01a or the current foundation PR; do not build it there.
+
+1. **Public courses users can create:** creators can publish a course as public (listed) rather than private or link-only, with a public course page, preview lessons and an enroll or buy call to action. Builds on the course models from Phase 2 and the entitlements and monetization from Phase 5.
+2. **Discover page for browsing public courses:** a cross-workspace browse surface listing public courses, with search, categories, sorting and creator attribution. Only content its owner has explicitly marked public appears; private workspace data never leaks across tenants.
+3. **Products on the Discover page:** public products (downloads, memberships, bundles) are listed alongside courses on the same Discover page, linking to the creator's product page and checkout once commerce ships.
+
+**Reference:** modeled on Eden's discovery surface for layout and feel only (visual language, no Eden code, assets or text). This is a marketplace-style course and product discovery page; it does not reverse the exclusion of Eden's Discover trending-content research tool in section 1.
+
 ## 10. Engineering and product definition of done
 
 1. Feature has a public/admin workflow spec with success, error, empty and unauthorized states.
