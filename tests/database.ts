@@ -1,4 +1,4 @@
-import { mkdtemp } from "node:fs/promises";
+import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
@@ -18,7 +18,7 @@ async function freePort() {
   await new Promise<void>((resolve) => server.close(() => resolve()));
   return port;
 }
-export async function testDatabase() {
+export async function testDatabase(options: { beforeFilesMigration?: (admin: Pool) => Promise<void> } = {}) {
   let embedded: EmbeddedPostgres | undefined;
   let adminURL = process.env.TEST_DATABASE_URL;
   if (adminURL) {
@@ -37,6 +37,19 @@ export async function testDatabase() {
   await root.query(`CREATE DATABASE ${name}`);
   const url = new URL(adminURL); url.pathname = `/${name}`;
   const admin = new Pool({ connectionString: url.toString(), max: 1 });
+  if (options.beforeFilesMigration) {
+    // Build an isolated main+#3 migration folder; repository metadata stays untouched.
+    const mainFolder = await mkdtemp(join(tmpdir(), "harvest-main-migrations-"));
+    try {
+      await cp("drizzle", mainFolder, { recursive: true });
+      const journalPath = join(mainFolder, "meta/_journal.json");
+      const journal = JSON.parse(await readFile(journalPath, "utf8"));
+      journal.entries = journal.entries.filter((entry: { idx: number }) => entry.idx <= 3);
+      await writeFile(journalPath, JSON.stringify(journal));
+      await migrate(drizzle(admin), { migrationsFolder: mainFolder });
+      await options.beforeFilesMigration(admin);
+    } finally { await rm(mainFolder, { recursive: true, force: true }); }
+  }
   await migrate(drizzle(admin), { migrationsFolder: "drizzle" });
   // Applying the same migrations twice must be a no-op.
   await migrate(drizzle(admin), { migrationsFolder: "drizzle" });

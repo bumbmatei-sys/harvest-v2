@@ -19,3 +19,19 @@ Owner: Harvest v2 maintainers. Reviewed 2026-11-04. No AGPL source, competitor a
 | [Local design specification](design/DESIGN.md), local reference screenshots, read-only v1 `docs/prd/screenshots/16-ui-system` | 2026-11-04 | Visual reference only; no imported application source/assets | None | `src/app/globals.css`, sign-in typography and spacing | Neutral surface/text tokens, 10px controls, 16px cards, Geist and restrained layout; Harvest gold with dark text |
 
 The full selectable theme system, sidebar shell and contacts are deferred to PR 01b. This foundation uses CSS variables for primitives so those additions do not require brand-specific conditionals. MIT and OFL notices are preserved under `docs/licenses/`; the full dependency inventory is in [third-party-licenses.md](third-party-licenses.md).
+
+## PR 02 file uploads
+
+Retrieved 2026-11-04 from the official MIT-licensed New York v4 registry. The existing shadcn MIT notice applies.
+
+| Source | Dependencies | Changed file | Adaptation |
+| --- | --- | --- | --- |
+| [shadcn progress](https://ui.shadcn.com/r/styles/new-york-v4/progress.json) | React, local cn, Radix Progress | src/components/ui/progress.tsx | Local utility alias; individual Radix package import; pass value to accessible root |
+| [shadcn table](https://ui.shadcn.com/r/styles/new-york-v4/table.json) | React, local cn | src/components/ui/table.tsx | Local utility alias |
+| [shadcn badge](https://ui.shadcn.com/r/styles/new-york-v4/badge.json) | React, local cn, Radix Slot, class-variance-authority | src/components/ui/badge.tsx | Local utility alias; individual Radix package import |
+| [shadcn native-select](https://ui.shadcn.com/r/styles/new-york-v4/native-select.json) | React, local cn, Lucide icons | src/components/ui/native-select.tsx | Local utility alias |
+
+Round 2 reuses the existing official Empty, Alert and Field components for the
+file empty state, viewer/progress/result notices and upload form fields.
+
+Upload control, file list and Files page are Harvest-owned compositions of these and existing shadcn primitives. No additional application block or competitor source was copied.
