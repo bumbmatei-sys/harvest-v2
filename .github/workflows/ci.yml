@@ -1,0 +1,104 @@
+name: Foundation CI
+on:
+  pull_request:
+  push:
+    branches: [main, feat/pr01a-foundation]
+permissions:
+  contents: read
+concurrency:
+  group: foundation-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  quality:
+    name: ${{ matrix.check }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        check: [lint, typecheck, test, build]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run ${{ matrix.check }}
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+  database:
+    name: migrations and RLS
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: local-ci-only
+          POSTGRES_DB: harvest_test
+        ports: ['5432:5432']
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      DATABASE_URL_UNPOOLED: postgresql://postgres:local-ci-only@127.0.0.1:5432/harvest_test
+      TEST_DATABASE_URL: postgresql://postgres:local-ci-only@127.0.0.1:5432/harvest_test
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run db:migrate
+      - run: npm run db:migrate
+      - run: npm run test:rls
+  browser:
+    name: Playwright and accessibility
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: foundation-browser-evidence
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+  neon:
+    name: Neon CI migrations
+    runs-on: ubuntu-latest
+    env:
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Check Neon CI configuration
+        id: configured
+        run: |
+          if [ -n "$NEON_API_KEY" ] && [ -n "$NEON_PROJECT_ID" ]; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            echo 'Neon CI migration blocked: configure NEON_API_KEY and NEON_PROJECT_ID repository secrets. Local PostgreSQL migrations and RLS still run.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - if: steps.configured.outputs.ready == 'true'
+        run: npx tsx scripts/neon-ci.ts create
+      - if: steps.configured.outputs.ready == 'true'
+        run: npm run db:migrate
+      - name: Remove this run's CI branch
+        if: always() && steps.configured.outputs.ready == 'true'
+        run: |
+          if [ -f .neon-ci-branch ]; then npx tsx scripts/neon-ci.ts delete; fi

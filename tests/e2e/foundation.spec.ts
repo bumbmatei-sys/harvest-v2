@@ -1,0 +1,44 @@
+import { readFile } from "node:fs/promises";
+import { expect, test } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
+
+test("email code → session → workspace persistence → sign out", async ({ page, request }, testInfo) => {
+  await page.goto("/workspaces");
+  await expect(page).toHaveURL(/\/sign-in$/);
+  expect((await request.post("/api/workspaces", { headers: { origin: "http://127.0.0.1:3100" }, data: { name: "Unauthorized" } })).status()).toBe(401);
+  expect((await request.post("/api/auth/sign-in/email", { data: { email: "test@example.test", password: "unused" } })).status()).toBe(404);
+  await expect(page.getByRole("heading", { name: "Sign in to Harvest" })).toBeVisible();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath("sign-in.png"), fullPage: true });
+  const email = `browser-${Date.now()}@example.test`;
+  await page.getByLabel("Email address").fill(email);
+  await page.getByRole("button", { name: "Send sign-in code" }).click();
+  await expect(page.getByLabel("Six-digit code")).toBeVisible();
+  let code = "";
+  await expect.poll(async () => {
+    const lines = (await readFile(process.env.HARVEST_E2E_MAILBOX!, "utf8").catch(() => "")).trim().split("\n").filter(Boolean);
+    const mail = lines.map((line) => JSON.parse(line)).find((message) => message.to === email);
+    code = mail?.text.match(/\b\d{6}\b/)?.[0] ?? ""; return code.length;
+  }).toBe(6);
+  await page.getByLabel("Six-digit code").fill(code);
+  await page.getByRole("button", { name: "Sign in", exact: true }).click();
+  await expect(page).toHaveURL(/\/workspaces$/);
+  await expect(page.getByText("You don’t have a workspace yet.", { exact: false })).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath("workspaces-empty.png"), fullPage: true });
+  expect((await page.request.post("/api/workspaces", { headers: { origin: "https://untrusted.example.test" }, data: { name: "Forbidden origin" } })).status()).toBe(403);
+  expect((await page.request.post("/api/workspaces", { headers: { origin: "http://127.0.0.1:3100" }, data: { name: "Injected", tenantId: "client-controlled" } })).status()).toBe(400);
+  await page.getByLabel("Workspace name").fill("Browser workspace");
+  await page.getByRole("button", { name: "Create workspace" }).click();
+  await expect(page.getByText("Browser workspace", { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByText("Browser workspace", { exact: true })).toBeVisible();
+  await expect(page.getByText("Role: owner")).toBeVisible();
+  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+  await page.screenshot({ path: testInfo.outputPath("workspaces-created.png"), fullPage: true });
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  await page.screenshot({ path: testInfo.outputPath("workspaces-mobile.png"), fullPage: true });
+  await page.getByRole("button", { name: "Sign out" }).click();
+  await expect(page).toHaveURL(/\/sign-in$/);
+  await page.goto("/workspaces"); await expect(page).toHaveURL(/\/sign-in$/);
+});
