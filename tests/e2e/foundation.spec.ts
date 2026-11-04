@@ -1,6 +1,13 @@
 import { readFile } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+
+test.beforeEach(async ({ context }, testInfo) => {
+  // Keep real server rate limits independent across journeys, retries and repeats.
+  const [a, b, c] = createHash("sha256").update(`${testInfo.testId}:${testInfo.workerIndex}:${testInfo.retry}:${testInfo.repeatEachIndex}`).digest();
+  await context.setExtraHTTPHeaders({ "x-forwarded-for": `10.${a}.${b}.${c}` });
+});
 
 test("email code → session → workspace persistence → sign out", async ({ page, context, request }, testInfo) => {
   await page.goto("/workspaces");
@@ -31,9 +38,12 @@ test("email code → session → workspace persistence → sign out", async ({ p
   await expect(signIn).toBeDisabled();
   await codeField.press("Backspace");
   await expect(codeField).toHaveValue("1234");
-  await codeField.pressSequentially("56789");
+  await codeField.pressSequentially("56");
   await expect(codeField).toHaveValue("123456");
   await expect(signIn).toBeEnabled();
+  // Further typing may replace the selected last slot, but cannot add slots.
+  await codeField.pressSequentially("789");
+  await expect(codeField).toHaveValue(/^\d{6}$/);
   await codeField.fill("");
   await expect(codeField).toHaveValue("");
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);

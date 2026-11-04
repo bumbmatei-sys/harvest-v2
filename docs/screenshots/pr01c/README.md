@@ -20,6 +20,7 @@ Validation:
 - `npm test`: 6 unit tests passed.
 - `npm run test:rls`: 27 integration tests passed, using the real local `harvest_app` role and mocked email delivery.
 - `PLAYWRIGHT_BROWSERS_PATH=/tmp/harvest-playwright npm run test:e2e`: 2 Chromium journeys passed. Covers label focus, numeric filtering, maximum length, incomplete-code submission, backspace/clearing, rejected-code feedback, native clipboard paste, resend cooldown, change-email reset, session creation, workspace persistence, and logout. Axe reported zero violations on the initial sign-in, desktop/mobile code entry, code error, and populated workspace screens; mobile screenshots have no horizontal overflow.
+- `CI=1 PLAYWRIGHT_BROWSERS_PATH=/tmp/harvest-playwright npm run test:e2e -- --repeat-each=2`: both journeys passed twice (4 executions). Each attempt supplies a distinct synthetic client IP so real server rate limits remain isolated across journeys, retries, and repetitions. The maximum-length assertion allows InputOTP's selected last slot to be replaced by further typing.
 - React component review: stable hook ordering, direct imports, semantic labels, explicit busy/invalid states, and no server-only imports into the UI.
 
 No merge, deployment, live database migration, or outbound email was performed.
