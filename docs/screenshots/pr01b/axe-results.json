@@ -65,24 +65,29 @@
     "checks": 33
   },
   {
+    "screen": "consent-dialog-studio-dark",
+    "violations": 0,
+    "checks": 32
+  },
+  {
     "screen": "contact-detail-harvest-light",
     "violations": 0,
-    "checks": 39
+    "checks": 43
   },
   {
     "screen": "contact-detail-harvest-dark",
     "violations": 0,
-    "checks": 39
+    "checks": 43
   },
   {
     "screen": "contact-detail-studio-light",
     "violations": 0,
-    "checks": 39
+    "checks": 43
   },
   {
     "screen": "contact-detail-studio-dark",
     "violations": 0,
-    "checks": 39
+    "checks": 43
   },
   {
     "screen": "contacts-list-harvest-light",
@@ -110,9 +115,29 @@
     "checks": 41
   },
   {
+    "screen": "appearance-harvest-light",
+    "violations": 0,
+    "checks": 39
+  },
+  {
+    "screen": "appearance-harvest-dark",
+    "violations": 0,
+    "checks": 39
+  },
+  {
+    "screen": "appearance-studio-light",
+    "violations": 0,
+    "checks": 39
+  },
+  {
     "screen": "appearance-studio-dark",
     "violations": 0,
     "checks": 39
+  },
+  {
+    "screen": "account-menu-studio-dark",
+    "violations": 0,
+    "checks": 42
   },
   {
     "screen": "contact-not-found-studio-dark",
@@ -132,7 +157,7 @@
   {
     "screen": "contact-detail-mobile-harvest-light",
     "violations": 0,
-    "checks": 39
+    "checks": 43
   },
   {
     "screen": "contacts-list-mobile-harvest-light",
@@ -142,7 +167,7 @@
   {
     "screen": "contact-detail-mobile-harvest-dark",
     "violations": 0,
-    "checks": 39
+    "checks": 43
   },
   {
     "screen": "contacts-list-mobile-harvest-dark",
@@ -152,7 +177,7 @@
   {
     "screen": "contact-detail-mobile-studio-light",
     "violations": 0,
-    "checks": 39
+    "checks": 43
   },
   {
     "screen": "contacts-list-mobile-studio-light",
@@ -162,11 +187,26 @@
   {
     "screen": "contact-detail-mobile-studio-dark",
     "violations": 0,
-    "checks": 39
+    "checks": 43
   },
   {
     "screen": "contacts-list-mobile-studio-dark",
     "violations": 0,
     "checks": 44
+  },
+  {
+    "screen": "contacts-pagination-studio-dark",
+    "violations": 0,
+    "checks": 47
+  },
+  {
+    "screen": "contact-erasure-dialog-studio-dark",
+    "violations": 0,
+    "checks": 29
+  },
+  {
+    "screen": "contacts-after-erasure-studio-dark",
+    "violations": 0,
+    "checks": 45
   }
 ]

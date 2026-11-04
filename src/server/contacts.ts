@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, exists, ilike, inArray, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, exists, ilike, inArray, isNull, or, sql } from "drizzle-orm";
 import type { Database, Transaction } from "../db/client";
 import { auditLogs, contactConsents, contactIdentifiers, contacts } from "../db/schema";
 import { contactInput, contactQuery, consentInput, uuidInput, type ContactInput, type ConsentInput } from "../lib/contact-input";
@@ -9,7 +9,7 @@ export function listContacts(db: Database, userId: string, workspace: string, qu
   const { q, page } = contactQuery.parse(query);
   return withTenant(db, userId, uuidInput.parse(workspace), "contacts:read", async (tx, tenantId) => {
     const pattern = `%${q.replace(/[\\%_]/g, "\\$&")}%`;
-    const where = and(eq(contacts.tenantId, tenantId), q ? or(ilike(contacts.name, pattern), exists(tx.select({ one: sql`1` }).from(contactIdentifiers).where(and(eq(contactIdentifiers.tenantId, tenantId), eq(contactIdentifiers.contactId, contacts.id), ilike(contactIdentifiers.value, pattern))))) : undefined);
+    const where = and(eq(contacts.tenantId, tenantId), isNull(contacts.erasedAt), q ? or(ilike(contacts.name, pattern), exists(tx.select({ one: sql`1` }).from(contactIdentifiers).where(and(eq(contactIdentifiers.tenantId, tenantId), eq(contactIdentifiers.contactId, contacts.id), ilike(contactIdentifiers.value, pattern))))) : undefined);
     const [{ total }] = await tx.select({ total: count() }).from(contacts).where(where);
     const rows = await tx.select().from(contacts).where(where).orderBy(asc(contacts.name), asc(contacts.id)).limit(20).offset((page - 1) * 20);
     const identifiers = rows.length ? await tx.select().from(contactIdentifiers).where(and(eq(contactIdentifiers.tenantId, tenantId), inArray(contactIdentifiers.contactId, rows.map((row) => row.id)))) : [];
@@ -19,10 +19,10 @@ export function listContacts(db: Database, userId: string, workspace: string, qu
 export function getContact(db: Database, userId: string, workspace: string, contact: string) {
   return withTenant(db, userId, uuidInput.parse(workspace), "contacts:read", async (tx, tenantId) => {
     const id = uuidInput.parse(contact);
-    const [row] = await tx.select().from(contacts).where(and(eq(contacts.tenantId, tenantId), eq(contacts.id, id)));
+    const [row] = await tx.select().from(contacts).where(and(eq(contacts.tenantId, tenantId), eq(contacts.id, id), isNull(contacts.erasedAt)));
     if (!row) throw new AccessError(404, "This contact is not available in this workspace.");
     const identifiers = await tx.select().from(contactIdentifiers).where(and(eq(contactIdentifiers.tenantId, tenantId), eq(contactIdentifiers.contactId, id)));
-    const consents = await tx.select().from(contactConsents).where(and(eq(contactConsents.tenantId, tenantId), eq(contactConsents.contactId, id))).orderBy(desc(contactConsents.occurredAt), desc(contactConsents.id));
+    const consents = await tx.select().from(contactConsents).where(and(eq(contactConsents.tenantId, tenantId), eq(contactConsents.contactId, id))).orderBy(desc(contactConsents.occurredAt), desc(contactConsents.recordedAt), desc(contactConsents.id));
     return { ...row, identifiers, consents };
   });
 }
@@ -51,7 +51,7 @@ export function createContact(db: Database, userId: string, workspace: string, d
 export function updateContact(db: Database, userId: string, workspace: string, contact: string, data: ContactInput) {
   const input = contactInput.parse(data), id = uuidInput.parse(contact);
   return identityConflict(() => withTenant(db, userId, uuidInput.parse(workspace), "contacts:write", async (tx, tenantId) => {
-    const [row] = await tx.update(contacts).set({ name: input.name, notes: input.notes, updatedAt: new Date() }).where(and(eq(contacts.tenantId, tenantId), eq(contacts.id, id))).returning();
+    const [row] = await tx.update(contacts).set({ name: input.name, notes: input.notes, updatedAt: new Date() }).where(and(eq(contacts.tenantId, tenantId), eq(contacts.id, id), isNull(contacts.erasedAt))).returning();
     if (!row) throw new AccessError(404, "This contact is not available in this workspace.");
     await tx.delete(contactIdentifiers).where(and(eq(contactIdentifiers.tenantId, tenantId), eq(contactIdentifiers.contactId, id)));
     await insertIdentifiers(tx, tenantId, id, input);
@@ -62,10 +62,21 @@ export function updateContact(db: Database, userId: string, workspace: string, c
 export function recordConsent(db: Database, userId: string, workspace: string, contact: string, data: ConsentInput) {
   const input = consentInput.parse(data), id = uuidInput.parse(contact);
   return withTenant(db, userId, uuidInput.parse(workspace), "contacts:write", async (tx, tenantId) => {
-    const [parent] = await tx.select({ id: contacts.id }).from(contacts).where(and(eq(contacts.tenantId, tenantId), eq(contacts.id, id))).for("share");
+    const [parent] = await tx.select({ id: contacts.id }).from(contacts).where(and(eq(contacts.tenantId, tenantId), eq(contacts.id, id), isNull(contacts.erasedAt))).for("share");
     if (!parent) throw new AccessError(404, "This contact is not available in this workspace.");
-    const [consent] = await tx.insert(contactConsents).values({ tenantId, contactId: id, ...input }).returning();
+    const [consent] = await tx.insert(contactConsents).values({ ...input, tenantId, contactId: id, recordedBy: userId, occurredAt: input.occurredAt ? new Date(input.occurredAt) : new Date() }).returning();
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "contact.consent_record", targetId: id, metadata: { consentId: consent.id, channel: input.channel, status: input.status } });
     return consent;
+  });
+}
+
+// Authentication and membership are checked again inside the fixed SQL erasure path.
+// No caller-controlled flag grants permission to mutate the consent ledger.
+export function eraseContact(db: Database, userId: string, workspace: string, contact: string) {
+  const id = uuidInput.parse(contact);
+  return withTenant(db, userId, uuidInput.parse(workspace), "contacts:erase", async (tx, tenantId) => {
+    const result = await tx.execute(sql`select public.erase_contact(${tenantId}::uuid, ${id}::uuid) as erased`);
+    if (!result.rows[0]?.erased) throw new AccessError(404, "This contact is not available in this workspace.");
+    return { erased: true };
   });
 }

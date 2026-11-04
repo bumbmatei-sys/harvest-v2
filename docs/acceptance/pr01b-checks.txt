@@ -1,5 +1,5 @@
-PR 01b final local validation — 2026-11-04
-All commands exited 0. Disposable local PostgreSQL; mocked email only.
+PR 01b round 2 local validation — 2026-11-04
+All commands below exited 0 before the final main/auth-hardening merge. Disposable local PostgreSQL; mocked email only.
 
 Command: npm run lint
 Exit code: 0
@@ -17,13 +17,13 @@ Exit code: 0
 > vitest run --project unit
 
 
- RUN  v5.1.0 /workspace/harvest-v2/repo
+ RUN  v5.1.0 /tmp/harvest-pr01b
 
 
- Test Files  2 passed (2)
-      Tests  17 passed (17)
-   Start at  13:31:58
-   Duration  308ms (import 54%, transform 29%, tests 11%, worker 5%)
+ Test Files  3 passed (3)
+      Tests  20 passed (20)
+   Start at  17:22:09
+   Duration  307ms (import 72%, tests 14%, transform 11%, worker 4%)
 
 Command: npm run test:rls
 Exit code: 0
@@ -31,28 +31,27 @@ Exit code: 0
 > vitest run --project integration
 
 
- RUN  v5.1.0 /workspace/harvest-v2/repo
+ RUN  v5.1.0 /tmp/harvest-pr01b
 
 
- Test Files  3 passed (3)
-      Tests  32 passed (32)
-   Start at  13:31:58
-   Duration  6.65s (tests 63%, import 33%, transform 4%)
+ Test Files  5 passed (5)
+      Tests  39 passed (39)
+   Start at  17:22:10
+   Duration  8.66s (tests 67%, import 31%, transform 2%)
 
-Command: npm run test:e2e
+Command: npm run test:rls (teardown regression repeat)
 Exit code: 0
-> harvest-v2@0.1.0 test:e2e
-> playwright test
+> harvest-v2@0.1.0 test:rls
+> vitest run --project integration
 
 
-Running 2 tests using 1 worker
+ RUN  v5.1.0 /tmp/harvest-pr01b
 
-(node:151) Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.
-(Use `node --trace-warnings ...` to show where the warning was created)
-  ✓  1 [chromium] › tests/e2e/foundation.spec.ts:5:1 › email code → session → workspace persistence → sign out (7.5s)
-  ✓  2 [chromium] › tests/e2e/pr01b.spec.ts:51:1 › PR 01b real UI: contacts, consent, themes, workspace isolation and responsive states (56.8s)
 
-  2 passed (1.2m)
+ Test Files  5 passed (5)
+      Tests  39 passed (39)
+   Start at  17:22:19
+   Duration  8.83s (tests 69%, import 29%, transform 2%)
 
 Command: npm run build
 Exit code: 0
@@ -60,19 +59,18 @@ Exit code: 0
 > next build --webpack
 
 ▲ Next.js 16.4.5 (webpack)
-- Environments: .env.local
-✓ Running next.config.ts took 40ms
+✓ Running next.config.ts took 42ms
 
   Creating an optimized production build ...
-✓ Compiled successfully in 10.7s
+✓ Compiled successfully in 5.5s
   Running TypeScript ...
-  Finished TypeScript in 5.3s ...
+  Finished TypeScript in 5.5s ...
   Collecting page data using 7 workers ...
   Generating static pages using 7 workers (0/5) ...
   Generating static pages using 7 workers (1/5)
   Generating static pages using 7 workers (2/5)
   Generating static pages using 7 workers (3/5)
-✓ Generating static pages using 7 workers (5/5) in 200ms
+✓ Generating static pages using 7 workers (5/5) in 148ms
   Finalizing page optimization ...
   Collecting build traces ...
 
@@ -85,6 +83,7 @@ Route (app)
 ├ ƒ /api/workspaces/[tenantId]/contacts
 ├ ƒ /api/workspaces/[tenantId]/contacts/[contactId]
 ├ ƒ /api/workspaces/[tenantId]/contacts/[contactId]/consents
+├ ƒ /api/workspaces/[tenantId]/contacts/[contactId]/erase
 ├ ƒ /api/workspaces/[tenantId]/members
 ├ ƒ /sign-in
 ├ ƒ /workspaces
@@ -97,13 +96,42 @@ Route (app)
 
 ƒ  (Dynamic)  server-rendered on demand
 
-Accessibility: 34 screens, 1,360 successful rule results, zero violations.
-Screenshots: docs/screenshots/pr01b/ (34 actual UI PNGs plus axe-results.json).
-Production server bundle contains no HARVEST_E2E_MAILBOX test-mailer marker.
+Command: PLAYWRIGHT_BROWSERS_PATH=/tmp/harvest-playwright npm run test:e2e
+Exit code: 0
+> harvest-v2@0.1.0 test:e2e
+> playwright test
 
-CI green for code milestone 88dc1cd: https://github.com/bumbmatei-sys/harvest-v2/actions/runs/41829647488
-This includes lint, typecheck, unit tests, production build, PostgreSQL migrations/RLS, browser/axe, and Neon CI migrations with branch cleanup.
-Final-head checks: https://github.com/bumbmatei-sys/harvest-v2/pull/2/checks
 
-Neon staging verification and product-owner sign-off remain pending; no staging/prod migration or deployment was performed.
-Nothing merged, nothing deployed. No real email and no Vercel environment changes.
+Running 2 tests using 1 worker
+
+  ✓  1 [chromium] › tests/e2e/foundation.spec.ts:5:1 › email code → session → workspace persistence → sign out (7.4s)
+  ✓  2 [chromium] › tests/e2e/pr01b.spec.ts:51:1 › PR 01b real UI: contacts, consent, themes, workspace isolation and responsive states (1.2m)
+
+  2 passed (1.4m)
+
+Command: npm run db:generate
+Exit code: 0
+> harvest-v2@0.1.0 db:generate
+> drizzle-kit generate
+
+No config path provided, using default 'drizzle.config.ts'
+Reading config file '/tmp/harvest-pr01b/drizzle.config.ts'
+13 tables
+accounts 13 columns 2 indexes 1 fks
+audit_logs 7 columns 1 indexes 2 fks
+contact_consents 13 columns 1 indexes 2 fks
+contact_identifiers 6 columns 2 indexes 1 fks
+contacts 7 columns 1 indexes 1 fks
+otp_cooldowns 2 columns 0 indexes 0 fks
+rate_limits 4 columns 0 indexes 0 fks
+roles 1 columns 0 indexes 0 fks
+sessions 8 columns 1 indexes 1 fks
+users 7 columns 0 indexes 0 fks
+verifications 6 columns 1 indexes 0 fks
+workspace_members 4 columns 1 indexes 3 fks
+workspaces 5 columns 0 indexes 1 fks
+
+No schema changes, nothing to migrate 😴
+
+Accessibility: 42 screens; zero violations; 1,704 successful rule results.
+Migrations: applied twice per disposable test database; populated 0003-to-0004 upgrade tested.

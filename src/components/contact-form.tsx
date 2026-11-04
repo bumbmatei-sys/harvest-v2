@@ -6,7 +6,8 @@ import { contactInput } from "@/lib/contact-input";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field, FieldLabel } from "@/components/ui/field";
+import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import type { getContact } from "@/server/contacts";
@@ -37,11 +38,11 @@ export function ContactForm({ tenantId, contact, variant = "default" }: { tenant
       <DialogHeader><DialogTitle>{contact ? "Edit contact" : "Add a contact"}</DialogTitle><DialogDescription>Keep the details that help you stay connected. Adding a contact does not grant marketing consent.</DialogDescription></DialogHeader>
       <form onSubmit={submit} className="space-y-4">
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-        <div className="space-y-2"><Label htmlFor="contact-name">Full name</Label><Input id="contact-name" name="name" required maxLength={100} autoComplete="name" defaultValue={contact?.name} autoFocus /></div>
-        <div className="space-y-2"><Label htmlFor="contact-email">Email address <span className="text-xs text-muted-foreground">(optional)</span></Label><Input id="contact-email" name="email" type="email" autoComplete="email" maxLength={254} defaultValue={value("email")} /></div>
-        <div className="grid gap-4 sm:grid-cols-2"><div className="space-y-2"><Label htmlFor="contact-phone">Phone <span className="text-xs text-muted-foreground">(optional)</span></Label><Input id="contact-phone" name="phone" type="tel" autoComplete="tel" maxLength={40} placeholder="+49…" defaultValue={value("phone")} /></div><div className="space-y-2"><Label htmlFor="contact-social">Social handle <span className="text-xs text-muted-foreground">(optional)</span></Label><Input id="contact-social" name="social" maxLength={100} placeholder="@handle" defaultValue={value("social")} /></div></div>
-        <div className="space-y-2"><Label htmlFor="contact-notes">Notes <span className="text-xs text-muted-foreground">(optional)</span></Label><Textarea id="contact-notes" name="notes" maxLength={5000} defaultValue={contact?.notes} placeholder="A little context for your next conversation…" /></div>
-        <DialogFooter className="border-t pt-4"><DialogClose asChild><Button variant="ghost" type="button" disabled={busy}>Cancel</Button></DialogClose><Button disabled={busy}>{busy ? "Saving…" : "Save contact"}</Button></DialogFooter>
+        <Field className="gap-2"><FieldLabel htmlFor="contact-name">Full name</FieldLabel><Input id="contact-name" name="name" required maxLength={100} autoComplete="name" defaultValue={contact?.name} autoFocus /></Field>
+        <Field className="gap-2"><FieldLabel htmlFor="contact-email">Email address <span className="text-xs text-muted-foreground">(optional)</span></FieldLabel><Input id="contact-email" name="email" type="email" autoComplete="email" maxLength={254} defaultValue={value("email")} /></Field>
+        <div className="grid gap-4 sm:grid-cols-2"><Field className="gap-2"><FieldLabel htmlFor="contact-phone">Phone <span className="text-xs text-muted-foreground">(optional)</span></FieldLabel><Input id="contact-phone" name="phone" type="tel" autoComplete="tel" maxLength={40} placeholder="+49…" defaultValue={value("phone")} /></Field><Field className="gap-2"><FieldLabel htmlFor="contact-social">Social handle <span className="text-xs text-muted-foreground">(optional)</span></FieldLabel><Input id="contact-social" name="social" maxLength={100} placeholder="@handle" defaultValue={value("social")} /></Field></div>
+        <Field className="gap-2"><FieldLabel htmlFor="contact-notes">Notes <span className="text-xs text-muted-foreground">(optional)</span></FieldLabel><Textarea id="contact-notes" name="notes" maxLength={5000} defaultValue={contact?.notes} placeholder="A little context for your next conversation…" /></Field>
+        <Separator /><DialogFooter><DialogClose asChild><Button variant="ghost" type="button" disabled={busy}>Cancel</Button></DialogClose><Button disabled={busy}>{busy ? "Saving…" : "Save contact"}</Button></DialogFooter>
       </form>
     </DialogContent>
   </Dialog>;

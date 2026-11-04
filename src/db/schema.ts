@@ -60,6 +60,7 @@ export const authSchema = { user: users, session: sessions, account: accounts, v
 
 export const contacts = pgTable("contacts", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  erasedAt: timestamp("erased_at", { withTimezone: true }),
   id: uuid("id").notNull().defaultRandom(), name: text("name").notNull(), notes: text("notes").notNull().default(""),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -75,13 +76,20 @@ export const contactIdentifiers = pgTable("contact_identifiers", {
   check("identifier_kind", sql`${t.kind} in ('email', 'phone', 'social')`),
   check("identifier_value_length", sql`length(${t.value}) between 1 and 254 and length(${t.normalizedValue}) between 1 and 254`)]);
 export const contactConsents = pgTable("contact_consents", {
-  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), contactId: uuid("contact_id").notNull(),
-  channel: text("channel").$type<"email" | "sms" | "social">().notNull(),
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), contactId: uuid("contact_id"),
+  recordedBy: text("recorded_by").references(() => users.id),
+  purpose: text("purpose").notNull(), noticeVersion: text("notice_version").notNull(),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+  redactedAt: timestamp("redacted_at", { withTimezone: true }),
+  channel: text("channel").$type<"email" | "sms" | "social">(),
   status: text("status").$type<"granted" | "withdrawn" | "unknown">().notNull(),
-  source: text("source").notNull(), evidence: text("evidence").notNull(),
+  source: text("source"), evidence: text("evidence"),
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
   foreignKey({ columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }),
   index("consents_tenant_contact_time_idx").on(t.tenantId, t.contactId, t.occurredAt),
   check("consent_channel", sql`${t.channel} in ('email', 'sms', 'social')`), check("consent_status", sql`${t.status} in ('granted', 'withdrawn', 'unknown')`),
-  check("consent_source_length", sql`length(trim(${t.source})) between 1 and 200`), check("consent_evidence_length", sql`length(trim(${t.evidence})) between 1 and 2000`)]);
+  check("consent_source_length", sql`length(trim(${t.source})) between 1 and 200`), check("consent_evidence_length", sql`length(trim(${t.evidence})) between 1 and 2000`),
+  check("consent_purpose", sql`${t.purpose} in ('marketing', 'outreach_follow_up', 'event_administration', 'account_communications', 'legacy_unspecified')`),
+  check("consent_notice_version", sql`${t.noticeVersion} in ('notice-v1', 'legacy-unversioned')`),
+  check("consent_redaction", sql`(${t.redactedAt} is null and ${t.contactId} is not null and ${t.channel} is not null and ${t.source} is not null and ${t.evidence} is not null) or (${t.redactedAt} is not null and ${t.contactId} is null and ${t.channel} is null and ${t.source} is null and ${t.evidence} is null and ${t.recordedBy} is null)`)]);

@@ -7,8 +7,13 @@ export const contactInput = z.object({
   social: z.string().trim().max(100).default("").refine((value) => !value || /^@?[a-z0-9_][a-z0-9_.:-]*$/i.test(value), "Use a handle without spaces, optionally starting with @."),
 }).strict();
 export type ContactInput = z.input<typeof contactInput>;
+export const consentPurposes = ["marketing", "outreach_follow_up", "event_administration", "account_communications"] as const;
+export const consentNoticeVersions = ["notice-v1"] as const;
+export const erasureInput = z.object({ confirm: z.literal("erase") }).strict();
 export const consentInput = z.object({
   channel: z.enum(["email", "sms", "social"]), status: z.enum(["granted", "withdrawn", "unknown"]),
+  purpose: z.enum(consentPurposes), noticeVersion: z.enum(consentNoticeVersions),
+  occurredAt: z.iso.datetime({ offset: true }).optional(),
   source: z.string().trim().min(1).max(200), evidence: z.string().trim().min(1).max(2000),
 }).strict();
 export type ConsentInput = z.input<typeof consentInput>;

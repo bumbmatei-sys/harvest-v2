@@ -1,6 +1,6 @@
 # PR 01b workflow contracts and evidence
 
-Date: 2026-11-04. Draft PR targets `feat/pr01a-foundation`. No merge, deployment, real email, Vercel environment edit, or v1 mutation is part of this work.
+Date: 2026-11-04. Round 2 supersedes the original validation totals and consent/erasure contract below: see [round 2 changes, visual references and checks](pr01b-round2.md). Draft PR targets `main`. No merge, deployment, real email, Vercel environment edit, or v1 mutation is part of this work.
 
 | Flow | Success | Error | Empty | Unauthorized |
 | --- | --- | --- | --- | --- |
@@ -10,7 +10,7 @@ Date: 2026-11-04. Draft PR targets `feat/pr01a-foundation`. No merge, deployment
 | List / search / page contacts | Server filters by tenant and name/identifier; total and stable 20-row pages come from PostgreSQL | Invalid search/page shows alert; unexpected load failure uses retry boundary | Original split illustration for first contact; separate no-results and out-of-range states | Missing session redirects/401; foreign workspace denied/403; viewer gets read-only UI |
 | Create contact | Validated name and optional identifiers/notes persist with audit; opens detail | Normalized duplicate returns 409 without merge; strict payload, phone/handle validation and network error surface alerts; retry available | Labelled blank form; no consent inferred | Viewer writes denied; cross-origin and client-injected tenant fields rejected |
 | Read / update contact | Tenant-qualified detail, identifiers and notes survive reload; updates atomically audit | Invalid/missing/foreign contact shows not-found state; duplicate/audit failure rolls back details and identifiers | Missing identifiers/notes and consent are explicitly labelled | Foreign workspace denied; foreign ID never reveals whether it exists elsewhere; viewer edit controls absent and API denies writes |
-| Record consent | Channel, explicit status, source, evidence and server-recorded timestamp append to history; latest event summarizes channel; audit shares transaction | Required evidence/source validation; audit failure rolls back ledger write | All channels are “Not recorded” until a choice is recorded | Viewer denied; cross-tenant parent IDs rejected; runtime and owner cannot alter/delete ledger history |
+| Record consent | Channel, explicit status, purpose, wording version, actor and separate occurrence/recording timestamps append to history; latest marketing event summarizes channel; audit shares transaction | Required evidence/source validation; audit failure rolls back ledger write | All channels are “Not recorded” until a choice is recorded | Viewer denied; cross-tenant parent IDs rejected; ordinary runtime/owner DML cannot alter consent facts; controlled owner/admin erasure redacts personal data while retaining anonymous proof |
 
 ## Validation
 
@@ -18,7 +18,7 @@ Run the standard commands from README. Tests use disposable local PostgreSQL and
 
 The browser harness uses the installed Next Turbopack development server, with the test Resend alias enabled only in the development phase. The production build excludes the test mailer. The browser journey covers authenticated create/update/reload, consent recording, network-error retry, identifier conflicts, search, persisted workspace themes and local precedence, viewer denial, a second isolated workspace, missing contacts, mobile navigation, sign-out and signed-out denial. Axe runs on every committed screen, including all four brand/mode combinations of sign-in, workspace, empty/list/detail contacts and the mobile list/detail variants.
 
-Final local output is saved in [pr01b-checks.txt](pr01b-checks.txt). Actual browser screenshots and the machine-readable axe results are under [../screenshots/pr01b/](../screenshots/pr01b/README.md). Final totals: lint/typecheck/build pass; 17 unit + 32 PostgreSQL integration + 2 Chromium journeys pass. All 34 captured screens pass axe (1,360 successful rule results, zero violations), computed font/page-color checks, and mobile overflow checks. [Code milestone CI](https://github.com/bumbmatei-sys/harvest-v2/actions/runs/41829647488) is green, including Neon CI migration and cleanup; [draft PR checks](https://github.com/bumbmatei-sys/harvest-v2/pull/2/checks) track the final head.
+Final local output is saved in [pr01b-checks.txt](pr01b-checks.txt). Round 2 totals: lint/typecheck/build pass; 20 unit + 39 PostgreSQL integration/RLS + 2 Chromium journeys pass. All 42 captured screens pass axe (1,704 successful rule results, zero violations). Actual browser screenshots and machine-readable axe results are under [../screenshots/pr01b/](../screenshots/pr01b/README.md). [Draft PR checks](https://github.com/bumbmatei-sys/harvest-v2/pull/2/checks) track the final pushed head. The earlier [code milestone CI](https://github.com/bumbmatei-sys/harvest-v2/actions/runs/41829647488) is historical; round 2 results and exact visual references are in [pr01b-round2.md](pr01b-round2.md).
 
 ## Limits and review gates
 
@@ -26,4 +26,4 @@ The inherited CI workflow migrates its disposable Neon CI branch and removes tha
 
 The foundation CI upload blocker was resolved on its branch during this session; remote PR checks now run. See the final PR run links rather than historical PR 01a blocker notes.
 
-The managed workspace mounts its original `.git` read-only. To preserve work and push milestones without changing that mount, Git metadata for this session is at `/tmp/harvest-pr01b-git`, using the repository as its working tree. Use `GIT_DIR=/tmp/harvest-pr01b-git git ...` while this workspace persists. The initial files were backed up privately under `/tmp` before syncing. The inherited local `.github/` files were preserved; CI belongs to the PR 01a base, not to the app changes here.
+The managed workspace mounts its original `.git` read-only. To preserve work and push milestones without changing that mount, Git metadata for this session is at `/tmp/harvest-pr01b-round2/.git`, using the repository as its working tree. Use `GIT_DIR=/tmp/harvest-pr01b-round2/.git git ...` while this workspace persists. The initial files were backed up privately under `/tmp` before syncing. The inherited local `.github/` files were preserved; CI belongs to the PR 01a base, not to the app changes here.

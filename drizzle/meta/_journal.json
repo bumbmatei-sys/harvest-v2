@@ -29,6 +29,13 @@
       "when": 1793793809716,
       "tag": "0003_smooth_lake",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1793807912513,
+      "tag": "0004_dry_ezekiel",
+      "breakpoints": true
     }
   ]
 }
