@@ -2,7 +2,7 @@
   "unselectedRadio": [
     {
       "palette": "harvest-light",
-      "ratio": 6.702693201526157
+      "ratio": 7.004729208035935
     },
     {
       "palette": "harvest-dark",
@@ -20,13 +20,13 @@
   "shellSurfaces": [
     {
       "palette": "harvest-light",
-      "canvas": "#fafaf8",
-      "panel": "#eeede9",
-      "card": "#fafaf8",
+      "canvas": "#f9f9f7",
+      "panel": "#f3f2ef",
+      "card": "#ffffff",
       "foreground": "#1a1a1a",
-      "panelToCanvas": 1.12098590087335,
-      "cardToPanel": 1.12098590087335,
-      "foregroundToPanel": 14.856451439231204
+      "panelToCanvas": 1.0620055388018255,
+      "cardToPanel": 1.1195110820475942,
+      "foregroundToPanel": 15.546364669217517
     },
     {
       "palette": "harvest-dark",

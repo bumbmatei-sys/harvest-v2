@@ -442,7 +442,7 @@
         },
         "consent_redaction": {
           "name": "consent_redaction",
-          "value": "(\"contact_consents\".\"redacted_at\" is null and \"contact_consents\".\"contact_id\" is not null and \"contact_consents\".\"channel\" is not null and \"contact_consents\".\"source\" is not null and \"contact_consents\".\"evidence\" is not null) or (\"contact_consents\".\"redacted_at\" is not null and \"contact_consents\".\"contact_id\" is null and \"contact_consents\".\"channel\" is null and \"contact_consents\".\"source\" is null and \"contact_consents\".\"evidence\" is null and \"contact_consents\".\"recorded_by\" is null)"
+          "value": "(\"contact_consents\".\"redacted_at\" is null and \"contact_consents\".\"contact_id\" is not null and \"contact_consents\".\"channel\" is not null and \"contact_consents\".\"source\" is not null and \"contact_consents\".\"evidence\" is not null) or (\"contact_consents\".\"redacted_at\" is not null and \"contact_consents\".\"channel\" is null and \"contact_consents\".\"source\" is null and \"contact_consents\".\"evidence\" is null and \"contact_consents\".\"recorded_by\" is null)"
         }
       },
       "isRLSEnabled": false

@@ -3,10 +3,10 @@
 @custom-variant dark (&:is(.dark *));
 
 :root, .theme-preview {
-  --shell-canvas: #fafaf8; --shell-panel: #eeede9;
+  --shell-canvas: #f9f9f7; --shell-panel: #f3f2ef;
   --shell-shadow: 0 1px 2px rgb(0 0 0 / 4%), 0 4px 14px rgb(0 0 0 / 3%);
   --brand-color: #c9963a; --earth: #2d2519;
-  --surface: #fafaf8; --surface-raised: #f3f2ef; --surface-card: #fafaf8; --surface-sunken: #efefef;
+  --surface: #fafaf8; --surface-raised: #f3f2ef; --surface-card: #ffffff; --surface-sunken: #efefef;
   --surface-tint: #f5f5f3; --surface-chip: #e0e0e0;
   --text-strong: #1a1a1a; --text-body: #404040; --text-muted: #595959; --text-faint: #696969;
   --border-default: #e9e9e9; --border-hairline: #ededed; --border-subtle: #efefef;

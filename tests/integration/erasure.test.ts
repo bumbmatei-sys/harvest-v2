@@ -49,14 +49,14 @@ describe("controlled contact erasure", () => {
     await recordConsent(fixture.db, "eraser-a", tenantA, a.id, { ...proof, status: "withdrawn" });
     const otherProof = await recordConsent(fixture.db, "eraser-b", tenantB, b.id, proof);
     await eraseContact(fixture.db, "eraser-a", tenantA, a.id);
-    expect(await eraseContact(fixture.db, "eraser-a", tenantA, a.id)).toEqual({ erased: true });
-    const { rows: [contact] } = await fixture.admin.query("select * from contacts where tenant_id=$1 and id=$2", [tenantA, a.id]);
+    await expect(eraseContact(fixture.db, "eraser-a", tenantA, a.id)).rejects.toMatchObject({ status: 404 });
+    const { rows: [contact] } = await fixture.admin.query("select * from contacts where tenant_id=$1 and erased_at is not null", [tenantA]);
     expect(contact).toMatchObject({ name: "Erased contact", notes: "" }); expect(contact.erased_at).toBeInstanceOf(Date);
     expect((await fixture.admin.query("select * from contact_identifiers where tenant_id=$1 and contact_id=$2", [tenantA, a.id])).rows).toEqual([]);
     const { rows: ledger } = await fixture.admin.query("select * from contact_consents where tenant_id=$1 and redacted_at is not null", [tenantA]);
     expect(ledger).toHaveLength(2);
     for (const event of ledger) {
-      expect(event).toMatchObject({ contact_id: null, recorded_by: null, channel: null, source: null, evidence: null, purpose: "marketing", notice_version: "notice-v1", occurred_at: new Date("2026-10-01T00:00:00Z") });
+      expect(event).toMatchObject({ contact_id: contact.id, recorded_by: null, channel: null, source: null, evidence: null, purpose: "marketing", notice_version: "notice-v1", occurred_at: new Date("2026-10-01T00:00:00Z") });
       expect(event.recorded_at.toISOString()).toMatch(/T00:00:00.000Z$/);
       expect(event.redacted_at.toISOString()).toMatch(/T00:00:00.000Z$/);
       expect(event.id).not.toBe(before.id);
@@ -77,7 +77,7 @@ describe("controlled contact erasure", () => {
     await expect(updateContact(fixture.db, "eraser-a", tenantA, a.id, input)).rejects.toMatchObject({ status: 404 });
     await expect(recordConsent(fixture.db, "eraser-a", tenantA, a.id, proof)).rejects.toMatchObject({ status: 404 });
     await expect(withTenant(fixture.db, "eraser-a", tenantA, "contacts:write", (tx) => tx.execute(sql`insert into contact_identifiers (tenant_id, contact_id, kind, value, normalized_value) values (${tenantA}, ${a.id}, 'email', 'new@example.test', 'new@example.test')`))).rejects.toThrow();
-    await expect(fixture.admin.query("update contacts set name='Restored' where tenant_id=$1 and id=$2", [tenantA, a.id])).rejects.toThrow("cannot be changed");
+    await expect(fixture.admin.query("update contacts set name='Restored' where tenant_id=$1 and id=$2", [tenantA, contact.id])).rejects.toThrow("cannot be changed");
     expect(await getContact(fixture.db, "eraser-b", tenantB, b.id)).toEqual({ ...untouched, consents: [otherProof], effectiveConsents: [otherProof] });
   });
 

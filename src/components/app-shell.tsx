@@ -38,11 +38,11 @@ function NavigationGroup({ label, children }: { label: string; children: React.R
 }
 function WorkspaceSwitcher({ workspaces, selected, container }: { workspaces: Workspace[]; selected?: Workspace; container: HTMLElement | null }) {
   const name = selected?.name ?? "Choose workspace";
-  const { setOpenMobile } = useSidebar();
+  const { setOpenMobile, state, isMobile } = useSidebar();
   return <SidebarMenu><SidebarMenuItem><DropdownMenu modal={false}>
     <Tooltip><TooltipTrigger asChild><DropdownMenuTrigger asChild><SidebarMenuButton aria-label={`Switch workspace: ${name}`} className={menuButton}>
       <Avatar className="size-5 shrink-0 rounded-md" aria-hidden="true"><AvatarFallback className="rounded-md bg-sidebar-accent text-[10px] font-semibold"><Sprout className="size-3.5" /></AvatarFallback></Avatar><span data-workspace-name className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:sr-only">{name}</span><ChevronsUpDown aria-hidden="true" className="ml-auto group-data-[collapsible=icon]:hidden" />
-    </SidebarMenuButton></DropdownMenuTrigger></TooltipTrigger><TooltipContent container={container} side="right">{name}</TooltipContent></Tooltip>
+    </SidebarMenuButton></DropdownMenuTrigger></TooltipTrigger><TooltipContent container={container} side="right" hidden={state !== "collapsed" || isMobile}>{name}</TooltipContent></Tooltip>
     <DropdownMenuContent container={container} side="bottom" align="start" className="w-60">
       <DropdownMenuLabel>{selected?.name ?? "Workspaces"}</DropdownMenuLabel>
       <DropdownMenuItem asChild><Link href="/workspaces" onClick={() => setOpenMobile(false)}>Your workspaces</Link></DropdownMenuItem>

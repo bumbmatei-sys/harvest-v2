@@ -115,11 +115,6 @@
     "checks": 49
   },
   {
-    "screen": "shell-workspace-tooltip-studio-dark",
-    "violations": 0,
-    "checks": 50
-  },
-  {
     "screen": "shell-expanded-harvest-light",
     "violations": 0,
     "checks": 49
@@ -137,7 +132,7 @@
   {
     "screen": "shell-mobile-harvest-light",
     "violations": 0,
-    "checks": 38
+    "checks": 37
   },
   {
     "screen": "shell-expanded-harvest-dark",
@@ -157,7 +152,7 @@
   {
     "screen": "shell-mobile-harvest-dark",
     "violations": 0,
-    "checks": 38
+    "checks": 37
   },
   {
     "screen": "shell-expanded-studio-light",
@@ -177,7 +172,7 @@
   {
     "screen": "shell-mobile-studio-light",
     "violations": 0,
-    "checks": 38
+    "checks": 37
   },
   {
     "screen": "shell-expanded-studio-dark",
@@ -190,6 +185,11 @@
     "checks": 52
   },
   {
+    "screen": "shell-workspace-tooltip-studio-dark",
+    "violations": 0,
+    "checks": 49
+  },
+  {
     "screen": "shell-collapsed-studio-dark",
     "violations": 0,
     "checks": 48
@@ -197,7 +197,7 @@
   {
     "screen": "shell-mobile-studio-dark",
     "violations": 0,
-    "checks": 38
+    "checks": 37
   },
   {
     "screen": "contacts-no-results-studio-dark",

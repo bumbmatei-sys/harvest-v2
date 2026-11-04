@@ -24,6 +24,13 @@ it("upgrades 0007, scrubs previously erased audit targets and preserves live his
       { action: "contact.create", target_id: live, metadata: {} },
       { action: "contact.erase", target_id: null, metadata: {} },
     ]);
+    const tombstones = (await fixture.admin.query("select * from contacts where tenant_id=$1 and erased_at is not null", [tenant])).rows;
+    expect(tombstones).toHaveLength(1);
+    expect(tombstones[0].id).not.toBe(contact);
+    for (const column of ["created_at", "updated_at", "erased_at"]) expect(tombstones[0][column].toISOString()).toMatch(/T00:00:00.000Z$/);
+    for (const table of ["contacts", "audit_logs", "contact_consents"]) {
+      expect(JSON.stringify((await fixture.admin.query(`select * from ${table}`)).rows)).not.toContain(contact);
+    }
     expect((await fixture.admin.query("select policyname from pg_policies where policyname='migration_backfill'")).rows).toEqual([]);
   } finally { await fixture.close(); }
 });
