@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from "@/components/ui/table";
 type FileRow = { id: string; name: string; size: number; status: string; visibility: string; canConfirm: boolean; publicUrl: string | null };
 export function FileList({ files, tenantId, canUpload }: { files: FileRow[]; tenantId: string; canUpload: boolean }) {
@@ -21,7 +22,7 @@ export function FileList({ files, tenantId, canUpload }: { files: FileRow[]; ten
     } catch (error) { setError(error instanceof Error ? error.message : "Could not open file. Please try again."); }
     finally { setBusyId(null); }
   }
-  if (!files.length) return <p className="text-sm text-muted-foreground">No files yet. Upload your first file above.</p>;
+  if (!files.length) return <Empty><EmptyHeader><EmptyTitle>No files yet.</EmptyTitle><EmptyDescription>{canUpload ? "Upload your first file above." : "Files uploaded by workspace members will appear here."}</EmptyDescription></EmptyHeader></Empty>;
   return <div className="space-y-4">
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
     <Table>

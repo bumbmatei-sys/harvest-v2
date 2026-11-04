@@ -11,6 +11,6 @@ export interface UploadGrant {
 export interface StorageAdapter {
   presignUpload(key: string, input: UploadInput): Promise<UploadGrant>;
   /** Read and hash the actual bytes, bounded by expected size; never trust user metadata. */
-  inspect(key: string, expectedSize: number): Promise<{ size: number; mime: string; checksum: string }>;
+  inspect(key: string, expected: { size: number; mime: string; name: string }): Promise<{ size: number; mime: string; checksum: string }>;
   presignDownload(key: string, name: string): Promise<string>;
 }

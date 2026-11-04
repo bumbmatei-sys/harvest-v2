@@ -13,10 +13,15 @@ describe("file upload invariants", () => {
   it("defaults to private and accepts the exact size limit", () => {
     expect(uploadInput.parse({ ...valid, size: MAX_FILE_SIZE }).visibility).toBe("private");
   });
+  it("accepts an uppercase extension matching the MIME", () => {
+    expect(uploadInput.parse({ ...valid, name: "REPORT.PDF" }).name).toBe("REPORT.PDF");
+  });
   it.each([
     { size: 0 }, { size: -1 }, { size: 1.5 }, { size: MAX_FILE_SIZE + 1 },
     { mime: "text/html" }, { mime: "image/svg+xml" }, { mime: "application/x-msdownload" },
     { name: "../report.pdf" }, { name: "C:\\report.pdf" }, { name: "bad\nname" }, { name: " " }, { name: "a".repeat(201) },
+    { name: "report.exe" }, { name: "report.txt" }, { name: "pdf" },
+    ...["\u061c", "\u200e", "\u200f", "\u202a", "\u202b", "\u202c", "\u202d", "\u202e", "\u2066", "\u2067", "\u2068", "\u2069"].map((control) => ({ name: `report${control}.pdf` })),
     { checksum: "not-sha256" }, { visibility: "unlisted" }, { tenantId: randomUUID() }, { key: "client-key" }, { ownerId: "someone" }, { status: "ready" },
   ])("rejects invalid metadata or injected fields: %j", (change) => {
     expect(uploadInput.safeParse({ ...valid, ...change }).success).toBe(false);

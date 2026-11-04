@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { FILE_MIME_TYPES, MAX_FILE_SIZE, uploadInput } from "@/lib/files";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field, FieldGroup, FieldLabel, FieldDescription } from "@/components/ui/field";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Progress } from "@/components/ui/progress";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
@@ -68,21 +68,22 @@ export function UploadControl({ tenantId, canUpload }: { tenantId: string; canUp
     finally { setPhase(""); router.refresh(); }
   }
   return <div className="space-y-4">
-    <p id="upload-help" className="text-sm text-muted-foreground">JPEG, PNG, WebP, PDF or text. Up to 10 MiB per file.</p>
-    {!canUpload && <p className="text-sm text-muted-foreground">Your viewer role can download files. Ask a workspace member to upload.</p>}
-    <form onSubmit={submit} className="space-y-4">
-      <div className="space-y-2"><Label htmlFor="upload-file">Choose file</Label><Input id="upload-file" name="file" type="file" accept={FILE_MIME_TYPES.join(",")} required disabled={busy || !canUpload} aria-describedby="upload-help" /></div>
-      <div className="space-y-2"><Label htmlFor="upload-visibility">Visibility</Label>
+    {!canUpload && <Alert><AlertDescription>Your viewer role can download files. Ask a workspace member to upload.</AlertDescription></Alert>}
+    <form onSubmit={submit}><FieldGroup>
+      <Field><FieldLabel htmlFor="upload-file">Choose file</FieldLabel><Input id="upload-file" name="file" type="file" accept={FILE_MIME_TYPES.join(",")} required disabled={busy || !canUpload} aria-describedby="upload-help" />
+        <FieldDescription id="upload-help">JPEG (.jpg, .jpeg), PNG (.png), WebP (.webp), PDF (.pdf) or text (.txt). Up to 10 MiB per file.</FieldDescription>
+      </Field>
+      <Field><FieldLabel htmlFor="upload-visibility">Visibility</FieldLabel>
         <NativeSelect id="upload-visibility" name="visibility" defaultValue="private" disabled={busy || !canUpload} aria-describedby="visibility-help">
           <NativeSelectOption value="private">Private to workspace</NativeSelectOption><NativeSelectOption value="public">Public</NativeSelectOption>
         </NativeSelect>
-        <p id="visibility-help" className="text-sm text-muted-foreground">Public uploads stay quarantined until a malware check approves sharing.</p>
-      </div>
-      <Button disabled={busy || !canUpload}>{busy ? phase : "Upload file"}</Button>
-    </form>
-    {busy && <div className="space-y-2"><Progress value={progress} aria-label="Upload progress" /><p role="status" className="text-sm text-muted-foreground">{phase} {progress}%</p></div>}
+        <FieldDescription id="visibility-help">Public uploads stay quarantined until a malware check approves sharing.</FieldDescription>
+      </Field>
+      <Field orientation="horizontal"><Button disabled={busy || !canUpload}>{busy ? phase : "Upload file"}</Button></Field>
+    </FieldGroup></form>
+    {busy && <div className="space-y-2"><Progress value={progress} aria-label="Upload progress" /><Alert role="status"><AlertDescription>{phase} {progress}%</AlertDescription></Alert></div>}
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
     {retryId && !busy && <Button variant="outline" onClick={() => void retry()}>Retry verification</Button>}
-    {message && <p role="status" className="text-sm">{message}</p>}
+    {message && <Alert role="status"><AlertDescription>{message}</AlertDescription></Alert>}
   </div>;
 }

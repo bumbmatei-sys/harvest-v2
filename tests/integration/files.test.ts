@@ -9,6 +9,7 @@ import { S3Storage } from "../../src/server/storage/s3";
 import { withTenant } from "../../src/server/tenancy";
 import { createWorkspace, putMember } from "../../src/server/workspaces";
 import { confirmUpload, createUpload, fileDownload, listFiles, publicDownload } from "../../src/server/files/service";
+vi.mock("server-only", () => ({}));
 let fixture: Awaited<ReturnType<typeof testDatabase>>;
 let mock: Awaited<ReturnType<typeof storageMock>>;
 let storage: S3Storage;
@@ -112,6 +113,74 @@ describe("real S3 adapter against the signed local mock", () => {
     expect(response.headers.get("content-type")).toBe("application/octet-stream");
     await expect(publicDownload(fixture.db, storage, tenantA, grant.file.id)).rejects.toMatchObject({ status: 404 });
   });
+  it.each([
+    ["fake.png", "image/png", Buffer.from("%PDF-1.7\nPDF bytes")],
+    ["fake.txt", "text/plain", Buffer.from("%PDF-1.7\nPDF bytes")],
+    ["nul.txt", "text/plain", Buffer.from([0x61, 0, 0x62])],
+    ["invalid.txt", "text/plain", Buffer.from([0x61, 0xc3, 0x28])],
+    ["truncated.txt", "text/plain", Buffer.from([0x61, 0xc3])],
+    ["fake.webp", "image/webp", Buffer.from("RIFF1234NOTWEBP")],
+  ])("quarantines mismatched actual bytes: %s", async (name, mime, bytes) => {
+    const grant = await createUpload(fixture.db, storage, "alice", tenantA, { ...input, name, mime, size: bytes.length, checksum: createHash("sha256").update(bytes).digest("hex") });
+    expect((await fetch(grant.upload.url, { method: "PUT", headers: grant.upload.headers, body: bytes })).status).toBe(200);
+    const scanner = { scan: vi.fn(async () => "clean" as const) };
+    expect((await confirmUpload(fixture.db, storage, "alice", tenantA, grant.file.id, scanner)).status).toBe("quarantined");
+    expect(scanner.scan).not.toHaveBeenCalled();
+    await expect(fileDownload(fixture.db, storage, "alice", tenantA, grant.file.id)).rejects.toMatchObject({ status: 409 });
+  });
+  it.each([
+    ["photo.jpg", "image/jpeg", Buffer.from([0xff, 0xd8, 0xff, 0xe0])],
+    ["photo.PNG", "image/png", Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])],
+    ["photo.webp", "image/webp", Buffer.from("RIFF1234WEBPdata")],
+    ["report.pdf", "application/pdf", Buffer.from("%PDF-1.7\n")],
+    ["notes.txt", "text/plain", Buffer.from("Unicode notes: café 🌾")],
+  ])("recognizes supported file signatures: %s", async (name, mime, bytes) => {
+    const grant = await createUpload(fixture.db, storage, "alice", tenantA, { ...input, name, mime, size: bytes.length, checksum: createHash("sha256").update(bytes).digest("hex") });
+    expect((await fetch(grant.upload.url, { method: "PUT", headers: grant.upload.headers, body: bytes })).status).toBe(200);
+    expect((await confirmUpload(fixture.db, storage, "alice", tenantA, grant.file.id)).status).toBe("ready");
+  });
+  it("rejects extension mismatches and bidi names before signing, and checks stored extensions again", async () => {
+    const sign = vi.spyOn(storage, "presignUpload");
+    try {
+      for (const name of ["report.exe", "report.pdf", "report\u202etxt.exe", "report\u2066.txt"]) {
+        expect(() => createUpload(fixture.db, storage, "alice", tenantA, { ...input, name })).toThrow();
+      }
+      expect(sign).not.toHaveBeenCalled();
+    } finally { sign.mockRestore(); }
+    const grant = await uploaded();
+    await fixture.admin.query("update files set name = 'report.exe' where id = $1", [grant.file.id]);
+    expect((await confirmUpload(fixture.db, storage, "alice", tenantA, grant.file.id)).status).toBe("quarantined");
+  });
+  it("releases the database connection and row before R2 inspection; concurrent confirmation is idempotent", async () => {
+    const grant = await uploaded();
+    const inspect = storage.inspect.bind(storage);
+    const spy = vi.spyOn(storage, "inspect").mockImplementation(async (key, expected) => {
+      expect(fixture.pool.idleCount).toBe(1);
+      await fixture.admin.query("select id from files where id = $1 for update nowait", [grant.file.id]);
+      return inspect(key, expected);
+    });
+    try {
+      expect((await confirmUpload(fixture.db, storage, "alice", tenantA, grant.file.id)).status).toBe("ready");
+    } finally { spy.mockRestore(); }
+    const concurrent = await uploaded();
+    const scanner = { scan: vi.fn(async () => "skipped" as const) };
+    const results = await Promise.all([1, 2].map(() => confirmUpload(fixture.db, storage, "alice", tenantA, concurrent.file.id, scanner)));
+    expect(results.map((file) => file.status)).toEqual(["ready", "ready"]);
+    expect(scanner.scan).toHaveBeenCalledTimes(1);
+  });
+  it("requires a clean private scan when configured, while false permits skipped private scans", async () => {
+    try {
+      vi.stubEnv("FILES_REQUIRE_SCAN_PRIVATE", "true");
+      const skipped = await uploaded();
+      expect((await confirmUpload(fixture.db, storage, "alice", tenantA, skipped.file.id)).status).toBe("quarantined");
+      await expect(fileDownload(fixture.db, storage, "viewer", tenantA, skipped.file.id)).rejects.toMatchObject({ status: 409 });
+      const clean = await uploaded();
+      expect((await confirmUpload(fixture.db, storage, "alice", tenantA, clean.file.id, { async scan() { return "clean"; } })).status).toBe("ready");
+      vi.stubEnv("FILES_REQUIRE_SCAN_PRIVATE", "false");
+      const optional = await uploaded();
+      expect((await confirmUpload(fixture.db, storage, "alice", tenantA, optional.file.id)).status).toBe("ready");
+    } finally { vi.unstubAllEnvs(); }
+  });
   it("rejects incomplete uploads, wrong checksums and infected files", async () => {
     const pending = await createUpload(fixture.db, storage, "alice", tenantA, input);
     await expect(confirmUpload(fixture.db, storage, "alice", tenantA, pending.file.id)).rejects.toMatchObject({ status: 409 });
@@ -140,6 +209,7 @@ describe("real S3 adapter against the signed local mock", () => {
     await expect(publicDownload(fixture.db, storage, tenantB, clean.file.id)).rejects.toMatchObject({ status: 404 });
     expect(await fixture.db.select().from(files)).toEqual([]);
     await withTenant(fixture.db, "bob", tenantB, "workspace:read", async (tx) => {
+      await tx.execute(sql`select set_config('app.public_file_id', ${clean.file.id}, true), set_config('app.public_file_tenant_id', ${tenantA}, true)`);
       expect(await tx.select().from(files).where(eq(files.id, clean.file.id))).toEqual([]);
     });
     await fixture.db.transaction(async (tx) => {

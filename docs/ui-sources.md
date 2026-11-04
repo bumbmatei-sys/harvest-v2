@@ -31,4 +31,7 @@ Retrieved 2026-11-04 from the official MIT-licensed New York v4 registry. The ex
 | [shadcn badge](https://ui.shadcn.com/r/styles/new-york-v4/badge.json) | React, local cn, Radix Slot, class-variance-authority | src/components/ui/badge.tsx | Local utility alias; individual Radix package import |
 | [shadcn native-select](https://ui.shadcn.com/r/styles/new-york-v4/native-select.json) | React, local cn, Lucide icons | src/components/ui/native-select.tsx | Local utility alias |
 
+Round 2 reuses the existing official Empty, Alert and Field components for the
+file empty state, viewer/progress/result notices and upload form fields.
+
 Upload control, file list and Files page are Harvest-owned compositions of these and existing shadcn primitives. No additional application block or competitor source was copied.

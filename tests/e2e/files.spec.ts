@@ -40,8 +40,13 @@ test("workspace upload → progress → verified file → private download; publ
   await capture("01-empty");
   const payload = Buffer.from("Harvest files browser upload\n".repeat(10_000));
   const metadata = { name: "workspace-notes.txt", mime: "text/plain", size: payload.length, checksum: createHash("sha256").update(payload).digest("hex") };
-  expect((await request.post(base, { headers: { origin }, data: metadata })).status()).toBe(401);
-  expect((await page.request.post(base, { headers: { origin: "https://untrusted.example.test" }, data: metadata })).status()).toBe(403);
+  const unknownFile = randomUUID();
+  for (const [method, url] of [["GET", base], ["POST", base], ["POST", `${base}/${unknownFile}/confirm`], ["GET", `${base}/${unknownFile}/download`]]) {
+    expect((await request.fetch(url, { method, headers: { origin }, ...(method === "POST" ? { data: metadata } : {}) })).status()).toBe(401);
+  }
+  for (const url of [base, `${base}/${unknownFile}/confirm`]) {
+    expect((await page.request.post(url, { headers: { origin: "https://untrusted.example.test" }, data: metadata })).status()).toBe(403);
+  }
   for (const change of [{ mime: "text/html" }, { size: 10 * 1024 * 1024 + 1 }, { key: "injected" }, { ownerId: "injected" }, { status: "ready" }]) {
     expect((await page.request.post(base, { headers: { origin }, data: { ...metadata, ...change } })).status()).toBe(400);
   }

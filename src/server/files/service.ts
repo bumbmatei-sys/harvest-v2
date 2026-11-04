@@ -1,3 +1,4 @@
+import "server-only";
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -37,24 +38,32 @@ export function createUpload(db: Database, storage: StorageAdapter, userId: stri
 }
 export async function confirmUpload(db: Database, storage: StorageAdapter, userId: string, workspaceHint: string, fileId: string, scanner: FileScanner = noOpScanner) {
   z.uuid().parse(workspaceHint); z.uuid().parse(fileId);
-  // Persist verified receipt before processing. A failed scanner leaves an uploaded
-  // row that confirmation can retry; the scanner seam can move to a durable job later.
-  await withTenant(db, userId, workspaceHint, "workspace:read", async (tx, tenantId, role) => {
+  const requirePrivateScan = process.env.FILES_REQUIRE_SCAN_PRIVATE !== undefined && process.env.FILES_REQUIRE_SCAN_PRIVATE !== "false";
+  // Authorize and release the connection before reading R2. Objects are write-once;
+  // the receipt update below only transitions a still-pending row.
+  const pending = await withTenant(db, userId, workspaceHint, "workspace:read", async (tx, tenantId, role) => {
     requireWriter(role);
-    const [file] = await tx.select().from(files).where(and(eq(files.tenantId, tenantId), eq(files.id, fileId))).for("update");
+    const [file] = await tx.select().from(files).where(and(eq(files.tenantId, tenantId), eq(files.id, fileId)));
     if (!file) throw new AccessError(404, "File not found.");
     if (file.ownerId !== userId) throw new AccessError(403, "Only the uploader can confirm this file.");
-    if (file.status !== "pending") return;
+    return file;
+  });
+  if (pending.status === "pending") {
+    let status: "uploaded" | "quarantined" = "uploaded";
     try {
-      const actual = await storage.inspect(file.key, file.size);
-      if (actual.size !== file.size || actual.mime !== file.mime || actual.checksum !== file.checksum) throw new InvalidStoredFile("Upload verification failed.");
+      const actual = await storage.inspect(pending.key, pending);
+      if (actual.size !== pending.size || actual.mime !== pending.mime || actual.checksum !== pending.checksum) throw new InvalidStoredFile("Upload verification failed.");
     } catch (error) {
       if (!(error instanceof InvalidStoredFile)) throw new AccessError(409, "Upload is unavailable. Finish uploading and retry confirmation.");
-      await tx.update(files).set({ status: "quarantined", updatedAt: new Date() }).where(eq(files.id, fileId));
-      return;
+      status = "quarantined";
     }
-    await tx.update(files).set({ status: "uploaded", updatedAt: new Date() }).where(eq(files.id, fileId));
-  });
+    await withTenant(db, userId, workspaceHint, "workspace:read", async (tx, tenantId, role) => {
+      requireWriter(role);
+      await tx.update(files).set({ status, updatedAt: new Date() }).where(and(
+        eq(files.id, fileId), eq(files.tenantId, tenantId), eq(files.ownerId, userId), eq(files.status, "pending"),
+      ));
+    });
+  }
   return withTenant(db, userId, workspaceHint, "workspace:read", async (tx, tenantId, role) => {
     requireWriter(role);
     const [file] = await tx.select().from(files).where(and(eq(files.tenantId, tenantId), eq(files.id, fileId))).for("update");
@@ -62,7 +71,7 @@ export async function confirmUpload(db: Database, storage: StorageAdapter, userI
     if (file.ownerId !== userId) throw new AccessError(403, "Only the uploader can confirm this file.");
     if (file.status !== "uploaded") return present(file);
     const verdict = await scanner.scan({ key: file.key, size: file.size, mime: file.mime, checksum: file.checksum });
-    const status = verdict === "clean" || (verdict === "skipped" && file.visibility === "private") ? "ready" : "quarantined";
+    const status = verdict === "clean" || (verdict === "skipped" && file.visibility === "private" && !requirePrivateScan) ? "ready" : "quarantined";
     const [processed] = await tx.update(files).set({ status, updatedAt: new Date() }).where(eq(files.id, fileId)).returning();
     return present(processed);
   });
