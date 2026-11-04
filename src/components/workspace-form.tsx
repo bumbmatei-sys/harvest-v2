@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 export function WorkspaceForm() {
   const router = useRouter();
@@ -27,9 +27,9 @@ export function WorkspaceForm() {
     catch { setError("Could not connect. Please try again."); }
     finally { setBusy(false); }
   }
-  return <div className="space-y-6">
+  return <FieldGroup>
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-    <form onSubmit={submit} className="space-y-3"><Label htmlFor="workspace-name">Workspace name</Label><Input id="workspace-name" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} /><Button disabled={busy}>{busy ? "Please wait…" : "Create workspace"}</Button></form>
+    <form onSubmit={submit}><FieldGroup><Field><FieldLabel htmlFor="workspace-name">Workspace name</FieldLabel><Input id="workspace-name" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} /></Field><Field orientation="horizontal"><Button disabled={busy}>{busy ? "Please wait…" : "Create workspace"}</Button></Field></FieldGroup></form>
     <Button variant="outline" disabled={busy} onClick={() => void signOut()}>Sign out</Button>
-  </div>;
+  </FieldGroup>;
 }
