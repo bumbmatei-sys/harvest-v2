@@ -192,6 +192,7 @@ The shadcn MIT notice is preserved in [licenses/shadcn-ui-MIT.txt](licenses/shad
 | `@radix-ui/react-compose-refs` | 1.1.5 | MIT |
 | `@radix-ui/react-label` | 2.1.17 | MIT |
 | `@radix-ui/react-primitive` | 2.2.0 | MIT |
+| `@radix-ui/react-separator` | 1.2.0 | MIT |
 | `@radix-ui/react-slot` | 1.5.0 | MIT |
 | `@rolldown/binding-android-arm-eabi` | 1.2.16 | MIT |
 | `@rolldown/binding-android-arm64` | 1.2.16 | MIT |
@@ -420,6 +421,7 @@ The shadcn MIT notice is preserved in [licenses/shadcn-ui-MIT.txt](licenses/shad
 | `ignore` | 7.0.14 | MIT |
 | `import-fresh` | 3.3.1 | MIT |
 | `imurmurhash` | 0.1.4 | MIT |
+| `input-otp` | 1.5.0 | MIT |
 | `internal-slot` | 1.1.0 | MIT |
 | `is-array-buffer` | 3.0.5 | MIT |
 | `is-async-function` | 2.1.1 | MIT |
@@ -483,6 +485,7 @@ The shadcn MIT notice is preserved in [licenses/shadcn-ui-MIT.txt](licenses/shad
 | `lodash.merge` | 4.6.2 | MIT |
 | `loose-envify` | 1.4.0 | MIT |
 | `lru-cache` | 5.1.1 | ISC |
+| `lucide-react` | 1.68.0 | ISC |
 | `magic-string` | 1.4.5 | MIT |
 | `math-intrinsics` | 1.1.0 | MIT |
 | `merge2` | 1.4.1 | MIT |

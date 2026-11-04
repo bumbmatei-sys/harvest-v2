@@ -91,8 +91,8 @@ jobs:
           if [ -n "$NEON_API_KEY" ] && [ -n "$NEON_PROJECT_ID" ]; then
             echo 'ready=true' >> "$GITHUB_OUTPUT"
           else
-            echo 'ready=false' >> "$GITHUB_OUTPUT"
-            echo 'Neon CI migration blocked: configure NEON_API_KEY and NEON_PROJECT_ID repository secrets. Local PostgreSQL migrations and RLS still run.' >> "$GITHUB_STEP_SUMMARY"
+            echo '::error::Neon CI requires NEON_API_KEY and NEON_PROJECT_ID repository secrets.'
+            exit 1
           fi
       - if: steps.configured.outputs.ready == 'true'
         run: npx tsx scripts/neon-ci.ts create

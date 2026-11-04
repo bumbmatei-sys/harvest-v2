@@ -35,6 +35,8 @@ export const rateLimits = pgTable("rate_limits", {
 });
 export const otpCooldowns = pgTable("otp_cooldowns", {
   email: text("email").primaryKey(), sentAt: timestamp("sent_at", { withTimezone: true }).notNull(),
+  issuedAt: timestamp("issued_at", { withTimezone: true }).array().notNull().default(sql`ARRAY[]::timestamptz[]`),
+  reservationId: uuid("reservation_id"),
 });
 export const roles = pgTable("roles", { id: text("id").primaryKey() });
 export const workspaces = pgTable("workspaces", {
