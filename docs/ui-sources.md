@@ -1,4 +1,4 @@
-# UI source register — PR 01a
+# UI source register — PR 01a / PR 01b
 
 Owner: Harvest v2 maintainers. Reviewed 2026-11-04. No AGPL source, competitor application code, logos, copy or imagery is included in the product.
 
@@ -13,4 +13,27 @@ Owner: Harvest v2 maintainers. Reviewed 2026-11-04. No AGPL source, competitor a
 | Harvest-owned forms and screen composition | 2026-11-04 | Private repository code | shadcn primitives above, Better Auth client, Next App Router | `src/app/sign-in/page.tsx`, `src/app/workspaces/*`, `src/components/workspace-form.tsx` | Original content and composition |
 | [Local design specification](design/DESIGN.md), local reference screenshots, read-only v1 `docs/prd/screenshots/16-ui-system` | 2026-11-04 | Visual reference only; no imported application source/assets | None | `src/app/globals.css`, sign-in typography and spacing | Neutral surface/text tokens, 10px controls, 16px cards, Geist and restrained layout; Harvest gold with dark text |
 
-The full selectable theme system, sidebar shell and contacts are deferred to PR 01b. This foundation uses CSS variables for primitives so those additions do not require brand-specific conditionals. MIT and OFL notices are preserved under `docs/licenses/`; the full dependency inventory is in [third-party-licenses.md](third-party-licenses.md).
+PR 01b adds the selectable theme system, sidebar shell and contact screens. This foundation uses CSS variables for primitives so those additions do not require brand-specific conditionals. MIT and OFL notices are preserved under `docs/licenses/`; the full dependency inventory is in [third-party-licenses.md](third-party-licenses.md).
+
+## PR 01b sources
+
+Owner: Harvest v2 maintainers. Retrieved/reviewed 2026-11-04. Registry revision is pinned by the source-owned files committed with package-lock.json.
+
+| Source | Version/date | License | Dependencies | Changed files | Adaptations |
+| --- | --- | --- | --- | --- | --- |
+| [Official shadcn sidebar](https://ui.shadcn.com/r/styles/new-york-v4/sidebar.json) | New York v4, 2026-11-04 | MIT | React, radix-ui, lucide-react, CVA, clsx/tailwind-merge as applicable | `src/components/ui/sidebar.tsx` | Local import aliases; sidebar breakpoint 1024px; semantic overlay and surface tokens |
+| [Official shadcn sheet](https://ui.shadcn.com/r/styles/new-york-v4/sheet.json) | New York v4, 2026-11-04 | MIT | React, radix-ui, lucide-react, CVA, clsx/tailwind-merge as applicable | `src/components/ui/sheet.tsx` | Local import aliases; sidebar breakpoint 1024px; semantic overlay and surface tokens |
+| [Official shadcn separator](https://ui.shadcn.com/r/styles/new-york-v4/separator.json) | New York v4, 2026-11-04 | MIT | React, radix-ui, lucide-react, CVA, clsx/tailwind-merge as applicable | `src/components/ui/separator.tsx` | Local import aliases; sidebar breakpoint 1024px; semantic overlay and surface tokens |
+| [Official shadcn tooltip](https://ui.shadcn.com/r/styles/new-york-v4/tooltip.json) | New York v4, 2026-11-04 | MIT | React, radix-ui, lucide-react, CVA, clsx/tailwind-merge as applicable | `src/components/ui/tooltip.tsx` | Local import aliases; sidebar breakpoint 1024px; semantic overlay and surface tokens |
+| [Official shadcn skeleton](https://ui.shadcn.com/r/styles/new-york-v4/skeleton.json) | New York v4, 2026-11-04 | MIT | React, radix-ui, lucide-react, CVA, clsx/tailwind-merge as applicable | `src/components/ui/skeleton.tsx` | Local import aliases; sidebar breakpoint 1024px; semantic overlay and surface tokens |
+| [Official shadcn table](https://ui.shadcn.com/r/styles/new-york-v4/table.json) | New York v4, 2026-11-04 | MIT | React, radix-ui, lucide-react, CVA, clsx/tailwind-merge as applicable | `src/components/ui/table.tsx` | Local import aliases; sidebar breakpoint 1024px; semantic overlay and surface tokens |
+| [Official shadcn badge](https://ui.shadcn.com/r/styles/new-york-v4/badge.json) | New York v4, 2026-11-04 | MIT | React, radix-ui, lucide-react, CVA, clsx/tailwind-merge as applicable | `src/components/ui/badge.tsx` | Local import aliases; sidebar breakpoint 1024px; semantic overlay and surface tokens |
+| [Official shadcn select](https://ui.shadcn.com/r/styles/new-york-v4/select.json) | New York v4, 2026-11-04 | MIT | React, radix-ui, lucide-react, CVA, clsx/tailwind-merge as applicable | `src/components/ui/select.tsx` | Local import aliases; sidebar breakpoint 1024px; semantic overlay and surface tokens |
+| [Official shadcn dialog](https://ui.shadcn.com/r/styles/new-york-v4/dialog.json) | New York v4, 2026-11-04 | MIT | React, radix-ui, lucide-react, CVA, clsx/tailwind-merge as applicable | `src/components/ui/dialog.tsx` | Local import aliases; sidebar breakpoint 1024px; semantic overlay and surface tokens |
+| [Official shadcn textarea](https://ui.shadcn.com/r/styles/new-york-v4/textarea.json) | New York v4, 2026-11-04 | MIT | React, radix-ui, lucide-react, CVA, clsx/tailwind-merge as applicable | `src/components/ui/textarea.tsx` | Local import aliases; sidebar breakpoint 1024px; semantic overlay and surface tokens |
+| [Official shadcn tabs](https://ui.shadcn.com/r/styles/new-york-v4/tabs.json) | New York v4, 2026-11-04 | MIT | React, radix-ui, lucide-react, CVA, clsx/tailwind-merge as applicable | `src/components/ui/tabs.tsx` | Local import aliases; sidebar breakpoint 1024px; semantic overlay and surface tokens |
+| [Official shadcn use-mobile](https://ui.shadcn.com/r/styles/new-york-v4/use-mobile.json) | New York v4, 2026-11-04 | MIT | React, radix-ui, lucide-react, CVA, clsx/tailwind-merge as applicable | `src/hooks/use-mobile.ts` | Local import aliases; sidebar breakpoint 1024px; semantic overlay and surface tokens |
+| [Lucide](https://github.com/lucide-icons/lucide) | Exact npm version in lockfile, 2026-11-04 | ISC | React | shell and contacts components | Standard line icons; Wheat icon with Harvest text |
+| [Inter / Fontsource](https://github.com/fontsource/font-files/tree/main/fonts/google/inter) | Exact npm version in lockfile, 2026-11-04 | OFL-1.1 | CSS/webfonts | `src/app/layout.tsx`, `src/app/globals.css` | Self-hosted Latin 400/500/600 for Harvest |
+| [tw-animate-css](https://github.com/Wombosvideo/tw-animate-css) | Exact npm version in lockfile, 2026-11-04 | MIT | Tailwind | `src/app/globals.css` | shadcn animation utilities; reduced-motion override |
+| Read-only v1 `docs/prd/screenshots/06-crm/crm-001`, `crm-007` and `16-ui-system/shell-027` on main | Viewed 2026-11-04 | Layout/feel reference only | None | App shell, contacts list and dialog | No code, image, text or logo copied or redistributed |

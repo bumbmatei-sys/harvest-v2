@@ -1,0 +1,13 @@
+# ADR 0004: one shadcn shell with independent brand and color modes
+
+Status: accepted for PR 01b. Date: 2026-11-04.
+
+Use the MIT official shadcn New York v4 sidebar, sheet, controls and data display primitives throughout the application. The sidebar is a floating panel with 8px gutters and an 18px radius; it becomes a focus-managed sheet below 1024px. Screen content is centered at approximately 960px. Only implemented modules appear in navigation.
+
+Harvest remains the default. `data-brand-theme="harvest|studio"` and `data-theme="light|dark"` on the root are independent axes. Components consume semantic CSS variables and never branch on brand names. Harvest uses Inter and its warm neutral surfaces and larger cards; Studio uses Geist and the exact light/dark surface, typography and radius mapping in DESIGN.md section 6. Fonts are self-hosted. Primary actions use wheat gold #C9963A with #2D2519 text in every combination; hover #CEA04E preserves AA contrast. Custom accent editing is outside this slice; the contrast helper provides the foreground choice for future validated overrides.
+
+A validated localStorage `harvest-brand-theme` override wins over the persisted workspace brand, which wins over Harvest. “Workspace default” clears the override. Color mode is stored separately as `harvest-color-mode`; the system preference is used when absent. A synchronous inline head script sets both attributes before body paint, catches unavailable storage and rejects unknown values. The authenticated workspace default is supplied by the server; client navigation reapplies it before layout paint. Theme choices are presentation, never authorization.
+
+Workspace defaults are tenant settings, writable only by owner/admin and audited in the same transaction. User appearance preferences are local to the browser. No per-tenant subdomains: private screens use `/workspaces/:tenantId/...` on the shared domain; tenant IDs remain untrusted lookup hints checked against membership and RLS. Future globally discoverable content is distinct from private contacts and settings (PRD 9.1).
+
+Studio white cards are the documented opt-in default pending product-owner review of the four actual UI screenshot sets. No external application code, imagery, logos, copy or AGPL source is used. Registry adaptations and dependency licenses are recorded in the UI source register and license inventory.

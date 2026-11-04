@@ -1,7 +1,6 @@
 "use client";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -21,15 +20,8 @@ export function WorkspaceForm() {
     } catch { setError("Could not connect. Please try again."); }
     finally { setBusy(false); }
   }
-  async function signOut() {
-    setBusy(true); setError("");
-    try { const result = await authClient.signOut(); if (result.error) setError("Could not sign out. Try again."); else { router.replace("/sign-in"); router.refresh(); } }
-    catch { setError("Could not connect. Please try again."); }
-    finally { setBusy(false); }
-  }
   return <div className="space-y-6">
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
     <form onSubmit={submit} className="space-y-3"><Label htmlFor="workspace-name">Workspace name</Label><Input id="workspace-name" required maxLength={100} value={name} onChange={(e) => setName(e.target.value)} /><Button disabled={busy}>{busy ? "Please wait…" : "Create workspace"}</Button></form>
-    <Button variant="outline" disabled={busy} onClick={() => void signOut()}>Sign out</Button>
   </div>;
 }

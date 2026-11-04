@@ -7,6 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ThemeControls } from "@/components/theme-controls";
+import { Wheat } from "lucide-react";
 export default function SignIn() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -34,8 +36,9 @@ export default function SignIn() {
     finally { setBusy(false); }
   }
   return <main className="flex min-h-dvh items-center justify-center p-6">
+    <div className="absolute right-5 top-5"><ThemeControls /></div>
     <Card className="w-full max-w-sm">
-      <CardHeader><p className="mb-4 text-sm font-semibold">Harvest</p><CardTitle><h1 className="text-[28px] font-semibold leading-tight tracking-[-0.7px]">Sign in to Harvest</h1></CardTitle><CardDescription>Enter your email to receive a sign-in code.</CardDescription></CardHeader>
+      <CardHeader><p className="mb-6 flex items-center gap-2 text-lg font-semibold"><Wheat className="size-6" aria-hidden="true" />Harvest</p><CardTitle><h1 className="text-[28px] font-semibold leading-tight tracking-[-0.7px]">Sign in to Harvest</h1></CardTitle><CardDescription>Enter your email to receive a sign-in code.</CardDescription></CardHeader>
       <CardContent className="space-y-5">
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
         <p role="status" className="text-sm text-muted-foreground">{message}</p>
