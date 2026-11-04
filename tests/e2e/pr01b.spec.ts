@@ -30,8 +30,8 @@ async function theme(page: Page, brand: "harvest" | "studio", mode: "light" | "d
   await expect(page.locator("html")).toHaveAttribute("data-brand-theme", brand);
   if (await page.locator("html").getAttribute("data-theme") !== mode) await page.getByRole("button", { name: `Switch to ${mode} mode` }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", mode);
-  expect(await page.evaluate(() => getComputedStyle(document.body).fontFamily)).toMatch(brand === "studio" ? /Geist/ : /Inter/);
-  expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe({ harvest: { light: "rgb(250, 250, 248)", dark: "rgb(23, 23, 23)" }, studio: { light: "rgb(247, 247, 245)", dark: "rgb(26, 26, 26)" } }[brand][mode]);
+  await expect(page.locator("body")).toHaveCSS("font-family", brand === "studio" ? /Geist/ : /Inter/);
+  await expect(page.locator("body")).toHaveCSS("background-color", { harvest: { light: "rgb(250, 250, 248)", dark: "rgb(23, 23, 23)" }, studio: { light: "rgb(247, 247, 245)", dark: "rgb(26, 26, 26)" } }[brand][mode]);
 }
 async function capture(page: Page, name: string) {
   const shell = page.locator('[data-slot="sidebar-wrapper"]');

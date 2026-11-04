@@ -95,6 +95,15 @@ describe("contact persistence, evidence and tenant isolation", () => {
     expect(reset).toEqual({ pid, tenant: null, actor: null });
     for (const table of [contacts, contactIdentifiers, contactConsents]) expect(await fixture.db.select().from(table)).toEqual([]);
   });
+  it("paginates with a stable tenant-qualified order and no overlapping rows", async () => {
+    const paging = (await createWorkspace(fixture.db, "owner-b", "Synthetic pagination seed")).tenantId;
+    await Promise.all(Array.from({ length: 21 }, (_, index) => createContact(fixture.db, "owner-b", paging, { name: `Synthetic page ${String(index).padStart(2, "0")}` })));
+    const first = await listContacts(fixture.db, "owner-b", paging);
+    const second = await listContacts(fixture.db, "owner-b", paging, { page: 2 });
+    expect(first.total).toBe(21); expect(first.rows).toHaveLength(20); expect(second.rows).toHaveLength(1);
+    expect(new Set([...first.rows, ...second.rows].map((row) => row.id)).size).toBe(21);
+    expect(first.rows[0].name).toBe("Synthetic page 00"); expect(second.rows[0].name).toBe("Synthetic page 20");
+  });
   it("gates, persists and audits workspace theme without affecting other tenants", async () => {
     await expect(updateWorkspaceTheme(fixture.db, "writer", tenantA, { brandTheme: "studio" })).rejects.toMatchObject({ status: 403 });
     await expect(updateWorkspaceTheme(fixture.db, "owner-a", tenantB, { brandTheme: "studio" })).rejects.toMatchObject({ status: 403 });

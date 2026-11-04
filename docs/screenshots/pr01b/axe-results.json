@@ -1,0 +1,172 @@
+[
+  {
+    "screen": "sign-in-harvest-light",
+    "violations": 0,
+    "checks": 33
+  },
+  {
+    "screen": "sign-in-harvest-dark",
+    "violations": 0,
+    "checks": 33
+  },
+  {
+    "screen": "sign-in-studio-light",
+    "violations": 0,
+    "checks": 33
+  },
+  {
+    "screen": "sign-in-studio-dark",
+    "violations": 0,
+    "checks": 33
+  },
+  {
+    "screen": "workspace-harvest-light",
+    "violations": 0,
+    "checks": 41
+  },
+  {
+    "screen": "workspace-harvest-dark",
+    "violations": 0,
+    "checks": 41
+  },
+  {
+    "screen": "workspace-studio-light",
+    "violations": 0,
+    "checks": 41
+  },
+  {
+    "screen": "workspace-studio-dark",
+    "violations": 0,
+    "checks": 41
+  },
+  {
+    "screen": "contacts-empty-harvest-light",
+    "violations": 0,
+    "checks": 41
+  },
+  {
+    "screen": "contacts-empty-harvest-dark",
+    "violations": 0,
+    "checks": 41
+  },
+  {
+    "screen": "contacts-empty-studio-light",
+    "violations": 0,
+    "checks": 41
+  },
+  {
+    "screen": "contacts-empty-studio-dark",
+    "violations": 0,
+    "checks": 41
+  },
+  {
+    "screen": "contact-create-error-studio-dark",
+    "violations": 0,
+    "checks": 33
+  },
+  {
+    "screen": "contact-detail-harvest-light",
+    "violations": 0,
+    "checks": 39
+  },
+  {
+    "screen": "contact-detail-harvest-dark",
+    "violations": 0,
+    "checks": 39
+  },
+  {
+    "screen": "contact-detail-studio-light",
+    "violations": 0,
+    "checks": 39
+  },
+  {
+    "screen": "contact-detail-studio-dark",
+    "violations": 0,
+    "checks": 39
+  },
+  {
+    "screen": "contacts-list-harvest-light",
+    "violations": 0,
+    "checks": 45
+  },
+  {
+    "screen": "contacts-list-harvest-dark",
+    "violations": 0,
+    "checks": 45
+  },
+  {
+    "screen": "contacts-list-studio-light",
+    "violations": 0,
+    "checks": 45
+  },
+  {
+    "screen": "contacts-list-studio-dark",
+    "violations": 0,
+    "checks": 45
+  },
+  {
+    "screen": "contacts-no-results-studio-dark",
+    "violations": 0,
+    "checks": 41
+  },
+  {
+    "screen": "appearance-studio-dark",
+    "violations": 0,
+    "checks": 39
+  },
+  {
+    "screen": "contact-not-found-studio-dark",
+    "violations": 0,
+    "checks": 37
+  },
+  {
+    "screen": "contacts-viewer-studio-light",
+    "violations": 0,
+    "checks": 45
+  },
+  {
+    "screen": "contacts-unauthorized-harvest-dark",
+    "violations": 0,
+    "checks": 37
+  },
+  {
+    "screen": "contact-detail-mobile-harvest-light",
+    "violations": 0,
+    "checks": 39
+  },
+  {
+    "screen": "contacts-list-mobile-harvest-light",
+    "violations": 0,
+    "checks": 44
+  },
+  {
+    "screen": "contact-detail-mobile-harvest-dark",
+    "violations": 0,
+    "checks": 39
+  },
+  {
+    "screen": "contacts-list-mobile-harvest-dark",
+    "violations": 0,
+    "checks": 44
+  },
+  {
+    "screen": "contact-detail-mobile-studio-light",
+    "violations": 0,
+    "checks": 39
+  },
+  {
+    "screen": "contacts-list-mobile-studio-light",
+    "violations": 0,
+    "checks": 44
+  },
+  {
+    "screen": "contact-detail-mobile-studio-dark",
+    "violations": 0,
+    "checks": 39
+  },
+  {
+    "screen": "contacts-list-mobile-studio-dark",
+    "violations": 0,
+    "checks": 44
+  }
+]
