@@ -4,6 +4,23 @@ import type { Database } from "../db/client";
 import { auditLogs, users, workspaceMembers, workspaces } from "../db/schema";
 import { withTenant, withUser } from "./tenancy";
 import { AccessError, type Role } from "./permissions";
+import { z } from "zod";
+
+export function getWorkspace(db: Database, userId: string, workspace: string) {
+  return withTenant(db, userId, z.uuid().parse(workspace), "workspace:read", async (tx, tenantId, role) => {
+    const [row] = await tx.select().from(workspaces).where(eq(workspaces.tenantId, tenantId));
+    if (!row) throw new AccessError(404, "Workspace unavailable.");
+    return { ...row, role };
+  });
+}
+export function updateWorkspaceTheme(db: Database, userId: string, workspace: string, data: unknown) {
+  const { brandTheme } = z.object({ brandTheme: z.enum(["harvest", "studio"]) }).strict().parse(data);
+  return withTenant(db, userId, z.uuid().parse(workspace), "settings:write", async (tx, tenantId) => {
+    const [row] = await tx.update(workspaces).set({ brandTheme }).where(eq(workspaces.tenantId, tenantId)).returning();
+    await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "workspace.appearance_update", targetId: tenantId, metadata: { brandTheme } });
+    return row;
+  });
+}
 
 export function createWorkspace(db: Database, userId: string, name: string) {
   return withUser(db, userId, async (tx) => {
