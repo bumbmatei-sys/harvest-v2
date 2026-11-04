@@ -13,9 +13,14 @@ export function verifyOrigin(request: Request) {
     throw new AccessError(403, "Request origin denied.");
   }
 }
+function isPermissionDenied(error: unknown): boolean {
+  if (!error || typeof error !== "object") return false;
+  return ("code" in error && error.code === "42501") || ("cause" in error && isPermissionDenied(error.cause));
+}
 export function errorResponse(error: unknown) {
   if (error instanceof AccessError) return Response.json({ error: error.message }, { status: error.status });
   if (error instanceof ZodError || error instanceof SyntaxError) return Response.json({ error: "Check the supplied details." }, { status: 400 });
+  if (isPermissionDenied(error)) return Response.json({ error: "Workspace access denied." }, { status: 403 });
   console.error("request_failed");
   return Response.json({ error: "Something went wrong. Please try again." }, { status: 500 });
 }

@@ -22,8 +22,15 @@ export function getContact(db: Database, userId: string, workspace: string, cont
     const [row] = await tx.select().from(contacts).where(and(eq(contacts.tenantId, tenantId), eq(contacts.id, id), isNull(contacts.erasedAt)));
     if (!row) throw new AccessError(404, "This contact is not available in this workspace.");
     const identifiers = await tx.select().from(contactIdentifiers).where(and(eq(contactIdentifiers.tenantId, tenantId), eq(contactIdentifiers.contactId, id)));
-    const consents = await tx.select().from(contactConsents).where(and(eq(contactConsents.tenantId, tenantId), eq(contactConsents.contactId, id))).orderBy(desc(contactConsents.occurredAt), desc(contactConsents.recordedAt), desc(contactConsents.id));
-    return { ...row, identifiers, consents };
+    const consents = await tx.select().from(contactConsents).where(and(eq(contactConsents.tenantId, tenantId), eq(contactConsents.contactId, id))).orderBy(desc(contactConsents.recordedAt), desc(contactConsents.occurredAt), desc(contactConsents.id));
+    // Recording order is authoritative: a backdated withdrawal still overrides a grant.
+    const seen = new Set<string>();
+    const effectiveConsents = consents.filter((event) => {
+      const key = `${event.channel}:${event.purpose}`;
+      if (seen.has(key)) return false;
+      seen.add(key); return true;
+    });
+    return { ...row, identifiers, consents, effectiveConsents };
   });
 }
 async function insertIdentifiers(tx: Transaction, tenantId: string, contactId: string, input: ReturnType<typeof contactInput.parse>) {

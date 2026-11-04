@@ -50,6 +50,13 @@
       "when": 1793817080263,
       "tag": "0006_contact_policies_erasure",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1793819544981,
+      "tag": "0007_consent_time_and_erasure",
+      "breakpoints": true
     }
   ]
 }

@@ -56,20 +56,29 @@ describe("controlled contact erasure", () => {
     const { rows: ledger } = await fixture.admin.query("select * from contact_consents where tenant_id=$1 and redacted_at is not null", [tenantA]);
     expect(ledger).toHaveLength(2);
     for (const event of ledger) {
-      expect(event).toMatchObject({ contact_id: null, recorded_by: null, channel: null, source: null, evidence: null, purpose: "marketing", notice_version: "notice-v1", occurred_at: before.occurredAt });
-      expect(event.recorded_at).toBeInstanceOf(Date); expect(event.redacted_at).toBeInstanceOf(Date);
+      expect(event).toMatchObject({ contact_id: null, recorded_by: null, channel: null, source: null, evidence: null, purpose: "marketing", notice_version: "notice-v1", occurred_at: new Date("2026-10-01T00:00:00Z") });
+      expect(event.recorded_at.toISOString()).toMatch(/T00:00:00.000Z$/);
+      expect(event.redacted_at.toISOString()).toMatch(/T00:00:00.000Z$/);
       expect(event.id).not.toBe(before.id);
     }
     expect(ledger.map((event) => event.status).sort()).toEqual(["granted", "withdrawn"]);
     const stored = JSON.stringify([contact, ledger, (await fixture.admin.query("select * from audit_logs where tenant_id=$1", [tenantA])).rows]);
     for (const personal of Object.values(input)) expect(stored).not.toContain(personal);
     expect((await listContacts(fixture.db, "eraser-a", tenantA, { q: "Private Person" })).total).toBe(0);
+    const unfiltered = await listContacts(fixture.db, "eraser-a", tenantA);
+    expect(unfiltered.rows.some((row) => row.id === a.id || row.erasedAt !== null)).toBe(false);
+    expect(unfiltered.total).toBe(1); // The earlier provenance contact is still live.
+    // All three precise timestamps previously exposed a path back to the audit target.
+    const joined = await fixture.admin.query(`select c.id from contact_consents c join audit_logs a
+      on a.tenant_id = c.tenant_id and a.created_at = any(array[c.recorded_at,c.occurred_at,c.redacted_at])
+      where c.tenant_id = $1 and c.redacted_at is not null`, [tenantA]);
+    expect(joined.rows).toEqual([]);
     await expect(getContact(fixture.db, "eraser-a", tenantA, a.id)).rejects.toMatchObject({ status: 404 });
     await expect(updateContact(fixture.db, "eraser-a", tenantA, a.id, input)).rejects.toMatchObject({ status: 404 });
     await expect(recordConsent(fixture.db, "eraser-a", tenantA, a.id, proof)).rejects.toMatchObject({ status: 404 });
     await expect(withTenant(fixture.db, "eraser-a", tenantA, "contacts:write", (tx) => tx.execute(sql`insert into contact_identifiers (tenant_id, contact_id, kind, value, normalized_value) values (${tenantA}, ${a.id}, 'email', 'new@example.test', 'new@example.test')`))).rejects.toThrow();
     await expect(fixture.admin.query("update contacts set name='Restored' where tenant_id=$1 and id=$2", [tenantA, a.id])).rejects.toThrow("cannot be changed");
-    expect(await getContact(fixture.db, "eraser-b", tenantB, b.id)).toEqual({ ...untouched, consents: [otherProof] });
+    expect(await getContact(fixture.db, "eraser-b", tenantB, b.id)).toEqual({ ...untouched, consents: [otherProof], effectiveConsents: [otherProof] });
   });
 
   it("rejects member, viewer, non-member, missing context and foreign contact erasure even through SQL", async () => {
@@ -81,6 +90,55 @@ describe("controlled contact erasure", () => {
     await expect(withTenant(fixture.db, "member", tenantA, "contacts:read", (tx) => tx.execute(sql`select public.erase_contact(${tenantA}::uuid, ${a.id}::uuid)`))).rejects.toMatchObject({ cause: { code: "42501" } });
     await expect(withTenant(fixture.db, "eraser-a", tenantA, "contacts:read", (tx) => tx.execute(sql`select public.erase_contact(${tenantB}::uuid, ${a.id}::uuid)`))).rejects.toMatchObject({ cause: { code: "42501" } });
     expect((await getContact(fixture.db, "eraser-a", tenantA, a.id)).name).toBe("Protected");
+  });
+
+  it("denies a dual owner's erasure in B when the transaction context is A", async () => {
+    const b = (await createWorkspace(fixture.db, "eraser-a", "Dual owner B")).tenantId;
+    const contact = await createContact(fixture.db, "eraser-a", b, { name: "Dual owner protected" });
+    await expect(withTenant(fixture.db, "eraser-a", tenantA, "contacts:erase", (tx) =>
+      tx.execute(sql`select public.erase_contact(${b}::uuid, ${contact.id}::uuid)`)
+    )).rejects.toMatchObject({ cause: { code: "42501" } });
+    expect((await getContact(fixture.db, "eraser-a", b, contact.id)).erasedAt).toBeNull();
+  });
+
+  it("coarsens permitted midnight clock skew in UTC while preserving the occurrence bound", async () => {
+    const contact = await createContact(fixture.db, "eraser-a", tenantA, { name: "Midnight skew" });
+    await withTenant(fixture.db, "eraser-a", tenantA, "contacts:write", (tx) => tx.execute(sql`
+      insert into contact_consents (tenant_id,contact_id,recorded_by,purpose,notice_version,channel,status,source,evidence,recorded_at,occurred_at)
+      values (${tenantA},${contact.id},'eraser-a','marketing','notice-v1','email','granted','reference','reference',
+        '2026-10-01T23:59:00Z','2026-10-02T00:01:00Z')`
+    ));
+    await eraseContact(fixture.db, "eraser-a", tenantA, contact.id);
+    const { rows: [row] } = await fixture.admin.query("select recorded_at,occurred_at,redacted_at from contact_consents where tenant_id=$1 and redacted_at is not null and recorded_at='2026-10-01T00:00:00Z'", [tenantA]);
+    expect(row.recorded_at.toISOString()).toBe("2026-10-01T00:00:00.000Z");
+    expect(row.occurred_at.toISOString()).toBe("2026-10-01T00:00:00.000Z");
+    expect(row.redacted_at.toISOString()).toMatch(/T00:00:00.000Z$/);
+  });
+
+  it("rejects a migration-owner redaction that changes consent status", async () => {
+    const contact = await createContact(fixture.db, "eraser-a", tenantA, { name: "Immutable status" });
+    const consent = await recordConsent(fixture.db, "eraser-a", tenantA, contact.id, proof);
+    const client = await fixture.admin.connect();
+    try {
+      await client.query("begin");
+      await client.query("select set_config('app.tenant_id', $1, true), set_config('app.user_id', 'eraser-a', true)", [tenantA]);
+      await client.query("update contacts set name='Erased contact', notes='', erased_at=now() where tenant_id=$1 and id=$2", [tenantA, contact.id]);
+      await expect(client.query(`update contact_consents set id=gen_random_uuid(), contact_id=null, recorded_by=null,
+        channel=null, source=null, evidence=null, status='withdrawn',
+        recorded_at=date_trunc('day',recorded_at,'UTC'), occurred_at=date_trunc('day',occurred_at,'UTC'),
+        redacted_at=date_trunc('day',now(),'UTC') where tenant_id=$1 and id=$2`, [tenantA, consent.id])).rejects.toThrow("append-only");
+    } finally { await client.query("rollback"); client.release(); }
+    expect((await getContact(fixture.db, "eraser-a", tenantA, contact.id)).consents[0].status).toBe("granted");
+  });
+
+  it.each([
+    ["legacy_unspecified", "notice-v1"], ["marketing", "legacy-unversioned"],
+  ])("rejects new app-role consent using legacy provenance %s / %s", async (purpose, version) => {
+    const contact = await createContact(fixture.db, "eraser-a", tenantA, { name: "Legacy provenance denied" });
+    await expect(withTenant(fixture.db, "eraser-a", tenantA, "contacts:write", (tx) => tx.execute(sql`
+      insert into contact_consents (tenant_id,contact_id,recorded_by,purpose,notice_version,channel,status,source,evidence)
+      values (${tenantA},${contact.id},'eraser-a',${purpose},${version},'email','granted','reference','reference')`
+    ))).rejects.toMatchObject({ cause: { message: "invalid consent provenance" } });
   });
 
   it("keeps FORCE RLS, WITH CHECK and append-only facts even with a forged redaction flag", async () => {

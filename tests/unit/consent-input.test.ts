@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { consentInput, erasureInput } from "../../src/lib/contact-input";
 import { can } from "../../src/server/permissions";
 
@@ -15,6 +15,17 @@ describe("consent provenance and erasure boundaries", () => {
     expect(erasureInput.safeParse({ confirm: "erase" }).success).toBe(true);
     expect(erasureInput.safeParse({}).success).toBe(false);
     expect(erasureInput.safeParse({ confirm: "erase", tenantId: "forged" }).success).toBe(false);
+  });
+  it("bounds occurrence time at validation time, including offsets and the five-minute edge", () => {
+    vi.useFakeTimers();
+    try {
+      vi.setSystemTime(new Date("2026-11-04T12:00:00Z"));
+      expect(consentInput.safeParse({ ...proof, occurredAt: "2026-11-04T12:05:00Z" }).success).toBe(true);
+      expect(consentInput.safeParse({ ...proof, occurredAt: "2026-11-04T13:05:00.001+01:00" }).success).toBe(false);
+      expect(consentInput.safeParse({ ...proof, occurredAt: "2099-01-01T00:00:00Z" }).success).toBe(false);
+      vi.setSystemTime(new Date("2026-11-04T13:00:00Z"));
+      expect(consentInput.safeParse({ ...proof, occurredAt: "2026-11-04T13:05:00Z" }).success).toBe(true);
+    } finally { vi.useRealTimers(); }
   });
   it("restricts erasure to owners and admins", () => {
     for (const role of ["owner", "admin"]) expect(can(role, "contacts:erase")).toBe(true);

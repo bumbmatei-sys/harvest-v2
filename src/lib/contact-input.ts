@@ -13,7 +13,7 @@ export const erasureInput = z.object({ confirm: z.literal("erase") }).strict();
 export const consentInput = z.object({
   channel: z.enum(["email", "sms", "social"]), status: z.enum(["granted", "withdrawn", "unknown"]),
   purpose: z.enum(consentPurposes), noticeVersion: z.enum(consentNoticeVersions),
-  occurredAt: z.iso.datetime({ offset: true }).optional(),
+  occurredAt: z.iso.datetime({ offset: true }).refine((value) => Date.parse(value) <= Date.now() + 5 * 60_000, "Consent time cannot be more than five minutes in the future.").optional(),
   source: z.string().trim().min(1).max(200), evidence: z.string().trim().min(1).max(2000),
 }).strict();
 export type ConsentInput = z.input<typeof consentInput>;

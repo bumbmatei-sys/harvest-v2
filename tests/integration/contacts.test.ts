@@ -76,6 +76,28 @@ describe("contact persistence, evidence and tenant isolation", () => {
       expect(events).toHaveLength(2); expect(events.every((row) => !JSON.stringify(row.metadata).includes("evidence"))).toBe(true);
     });
   });
+  it("rejects future occurrence in SQL and lets a later-recorded backdated withdrawal win", async () => {
+    const workspace = (await createWorkspace(fixture.db, "owner-a", "Consent chronology")).tenantId;
+    const contact = await createContact(fixture.db, "owner-a", workspace, { name: "Consent chronology" });
+    const proof = { purpose: "marketing", noticeVersion: "notice-v1", channel: "email", status: "granted", source: "Test", evidence: "Test" } as const;
+    await expect(withTenant(fixture.db, "owner-a", workspace, "contacts:write", (tx) => tx.execute(sql`
+      insert into contact_consents (tenant_id,contact_id,recorded_by,purpose,notice_version,channel,status,source,evidence,occurred_at)
+      values (${workspace},${contact.id},'owner-a','marketing','notice-v1','email','granted','reference','reference',now()+interval '5 minutes 0.001 seconds')`
+    ))).rejects.toMatchObject({ cause: { code: "23514", constraint: "consent_occurrence_bound" } });
+    await recordConsent(fixture.db, "owner-a", workspace, contact.id, { ...proof, occurredAt: new Date(Date.now() + 4 * 60_000).toISOString() });
+    await recordConsent(fixture.db, "owner-a", workspace, contact.id, { ...proof, status: "withdrawn", occurredAt: "2026-10-01T12:00:00Z" });
+    const detail = await getContact(fixture.db, "owner-a", workspace, contact.id);
+    expect(detail.consents.map((event) => event.status)).toEqual(["withdrawn", "granted"]);
+    expect(detail.effectiveConsents).toEqual([detail.consents[0]]);
+    // Equal recording timestamps use occurrence as the next ordering key.
+    await withTenant(fixture.db, "owner-a", workspace, "contacts:write", async (tx) => {
+      await tx.insert(contactConsents).values([
+        { ...proof, tenantId: workspace, contactId: contact.id, recordedBy: "owner-a", channel: "sms", occurredAt: new Date("2026-10-01T10:00:00Z") },
+        { ...proof, tenantId: workspace, contactId: contact.id, recordedBy: "owner-a", channel: "sms", status: "withdrawn", occurredAt: new Date("2026-10-01T11:00:00Z") },
+      ]);
+    });
+    expect((await getContact(fixture.db, "owner-a", workspace, contact.id)).effectiveConsents.find((event) => event.channel === "sms")?.status).toBe("withdrawn");
+  });
   it("searches tenant-qualified identifiers and escapes wildcard text", async () => {
     expect((await listContacts(fixture.db, "reader", tenantA, { q: "ada@example" })).total).toBe(1);
     expect((await listContacts(fixture.db, "reader", tenantA, { q: "%" })).total).toBe(0);
