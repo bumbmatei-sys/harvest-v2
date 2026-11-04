@@ -68,3 +68,7 @@ Upload control, file list and Files page are Harvest-owned compositions of these
 ## Round 3 registry additions
 
 Added via `npx shadcn@latest add item calendar popover --yes`, New York v4, 2026-11-04 (MIT): [Item](https://ui.shadcn.com/r/styles/new-york-v4/item.json), [Calendar](https://ui.shadcn.com/r/styles/new-york-v4/calendar.json), [Popover](https://ui.shadcn.com/r/styles/new-york-v4/popover.json). Components live in `src/components/ui/`; `cn` imports use `@/lib/utils`. Existing Button and Separator were preserved. Calendar uses react-day-picker/date-fns (MIT, exact versions in package-lock.json); Popover uses the existing Radix package. The form supplies an accessible popover name and numeric day labels matching visible content. The date/time form is a Harvest composition of Calendar, Popover, Button, Field and Input. RadioGroupItem's border reads muted-foreground to meet 3:1 contrast in all four palettes. See [round 3 evidence](acceptance/pr01b-round3.md).
+
+## 01b follow-up adaptations
+
+The workspace switcher and static brand header reuse the existing official SidebarMenu, SidebarMenuItem, SidebarMenuButton, DropdownMenu, Avatar and Tooltip components. TooltipContent now exposes Radix Portal’s optional `container` prop, matching the existing DropdownMenuContent adaptation, so workspace tooltip text remains inside the named sidebar landmark. No new component or dependency was added. The navigation landmark excludes footer controls. See [the follow-up acceptance record](acceptance/pr01b-followups.md).

@@ -18,7 +18,7 @@ async function freePort() {
   await new Promise<void>((resolve) => server.close(() => resolve()));
   return port;
 }
-export async function testDatabase(options: { beforeFilesMigration?: (admin: Pool) => Promise<void>; beforeShellMigration?: (admin: Pool) => Promise<void> } = {}) {
+export async function testDatabase(options: { beforeFilesMigration?: (admin: Pool) => Promise<void>; beforeShellMigration?: (admin: Pool) => Promise<void>; beforeFollowupMigration?: (admin: Pool) => Promise<void> } = {}) {
   let embedded: EmbeddedPostgres | undefined;
   let stoppingEmbedded = false;
   const poolErrors: Error[] = [];
@@ -50,7 +50,7 @@ export async function testDatabase(options: { beforeFilesMigration?: (admin: Poo
   await root.query(`CREATE DATABASE ${name}`);
   const url = new URL(adminURL); url.pathname = `/${name}`;
   const admin = observePool(new Pool({ connectionString: url.toString(), max: 1 }));
-  for (const [lastIndex, seed] of [[3, options.beforeFilesMigration], [4, options.beforeShellMigration]] as const) {
+  for (const [lastIndex, seed] of [[3, options.beforeFilesMigration], [4, options.beforeShellMigration], [7, options.beforeFollowupMigration]] as const) {
     if (!seed) continue;
     const mainFolder = await mkdtemp(join(tmpdir(), "harvest-main-migrations-"));
     try {

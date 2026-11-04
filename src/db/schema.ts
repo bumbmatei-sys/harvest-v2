@@ -54,7 +54,7 @@ export const workspaceMembers = pgTable("workspace_members", {
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id"),
   actorId: text("actor_id").notNull().references(() => users.id),
-  action: text("action").notNull(), targetId: text("target_id").notNull(),
+  action: text("action").notNull(), targetId: text("target_id"),
   metadata: jsonb("metadata").$type<Record<string, string>>().notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("audit_logs_tenant_created_idx").on(t.tenantId, t.createdAt), foreignKey({ columns: [t.tenantId], foreignColumns: [workspaces.tenantId] })]);

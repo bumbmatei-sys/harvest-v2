@@ -77,22 +77,22 @@
   {
     "screen": "contact-detail-harvest-light",
     "violations": 0,
-    "checks": 44
+    "checks": 45
   },
   {
     "screen": "contact-detail-harvest-dark",
     "violations": 0,
-    "checks": 44
+    "checks": 45
   },
   {
     "screen": "contact-detail-studio-light",
     "violations": 0,
-    "checks": 44
+    "checks": 45
   },
   {
     "screen": "contact-detail-studio-dark",
     "violations": 0,
-    "checks": 44
+    "checks": 45
   },
   {
     "screen": "contacts-list-harvest-light",
@@ -115,6 +115,11 @@
     "checks": 49
   },
   {
+    "screen": "shell-workspace-tooltip-studio-dark",
+    "violations": 0,
+    "checks": 50
+  },
+  {
     "screen": "shell-expanded-harvest-light",
     "violations": 0,
     "checks": 49
@@ -132,7 +137,7 @@
   {
     "screen": "shell-mobile-harvest-light",
     "violations": 0,
-    "checks": 37
+    "checks": 38
   },
   {
     "screen": "shell-expanded-harvest-dark",
@@ -152,7 +157,7 @@
   {
     "screen": "shell-mobile-harvest-dark",
     "violations": 0,
-    "checks": 37
+    "checks": 38
   },
   {
     "screen": "shell-expanded-studio-light",
@@ -172,7 +177,7 @@
   {
     "screen": "shell-mobile-studio-light",
     "violations": 0,
-    "checks": 37
+    "checks": 38
   },
   {
     "screen": "shell-expanded-studio-dark",
@@ -192,7 +197,7 @@
   {
     "screen": "shell-mobile-studio-dark",
     "violations": 0,
-    "checks": 37
+    "checks": 38
   },
   {
     "screen": "contacts-no-results-studio-dark",

@@ -103,11 +103,18 @@ describe("controlled contact erasure", () => {
 
   it("coarsens permitted midnight clock skew in UTC while preserving the occurrence bound", async () => {
     const contact = await createContact(fixture.db, "eraser-a", tenantA, { name: "Midnight skew" });
-    await withTenant(fixture.db, "eraser-a", tenantA, "contacts:write", (tx) => tx.execute(sql`
-      insert into contact_consents (tenant_id,contact_id,recorded_by,purpose,notice_version,channel,status,source,evidence,recorded_at,occurred_at)
-      values (${tenantA},${contact.id},'eraser-a','marketing','notice-v1','email','granted','reference','reference',
-        '2026-10-01T23:59:00Z','2026-10-02T00:01:00Z')`
-    ));
+    // Historical clock-skew fixture belongs to the migration owner, never the app role.
+    const client = await fixture.admin.connect();
+    try {
+      await client.query("begin");
+      await client.query("alter table contact_consents disable trigger consent_provenance");
+      await client.query(`insert into contact_consents (tenant_id,contact_id,recorded_by,purpose,notice_version,channel,status,source,evidence,recorded_at,occurred_at)
+        values ($1,$2,'eraser-a','marketing','notice-v1','email','granted','reference','reference',
+          '2026-10-01T23:59:00Z','2026-10-02T00:01:00Z')`, [tenantA, contact.id]);
+      await client.query("alter table contact_consents enable trigger consent_provenance");
+      await client.query("commit");
+    } catch (error) { await client.query("rollback"); throw error; }
+    finally { client.release(); }
     await eraseContact(fixture.db, "eraser-a", tenantA, contact.id);
     const { rows: [row] } = await fixture.admin.query("select recorded_at,occurred_at,redacted_at from contact_consents where tenant_id=$1 and redacted_at is not null and recorded_at='2026-10-01T00:00:00Z'", [tenantA]);
     expect(row.recorded_at.toISOString()).toBe("2026-10-01T00:00:00.000Z");
@@ -159,11 +166,13 @@ describe("controlled contact erasure", () => {
     const a = await createContact(fixture.db, "eraser-a", tenantA, { name: "Rollback Person", email: "rollback@example.test", notes: "keep until success" });
     await recordConsent(fixture.db, "eraser-a", tenantA, a.id, proof);
     const before = await getContact(fixture.db, "eraser-a", tenantA, a.id);
+    const beforeAudit = (await fixture.admin.query("select * from audit_logs where tenant_id=$1 order by id", [tenantA])).rows;
     await fixture.admin.query("create function test_erasure_audit_failure() returns trigger language plpgsql as $$ begin if NEW.action = 'contact.erase' then raise exception 'test audit failure'; end if; return NEW; end $$");
     await fixture.admin.query("create trigger test_erasure_audit_failure before insert on audit_logs for each row execute function test_erasure_audit_failure()");
     try { await expect(eraseContact(fixture.db, "eraser-a", tenantA, a.id)).rejects.toThrow(); }
     finally { await fixture.admin.query("drop trigger test_erasure_audit_failure on audit_logs"); }
     expect(await getContact(fixture.db, "eraser-a", tenantA, a.id)).toEqual(before);
+    expect((await fixture.admin.query("select * from audit_logs where tenant_id=$1 order by id", [tenantA])).rows).toEqual(beforeAudit);
   });
 
   it("supports a non-superuser definer with FORCE RLS and tenant checks active", async () => {
@@ -174,7 +183,7 @@ describe("controlled contact erasure", () => {
     await fixture.admin.query("grant usage, create on schema public to harvest_test_eraser");
     await fixture.admin.query("grant select,update on contacts,contact_consents,workspace_members to harvest_test_eraser");
     await fixture.admin.query("grant select,delete on contact_identifiers to harvest_test_eraser");
-    await fixture.admin.query("grant insert on audit_logs to harvest_test_eraser");
+    await fixture.admin.query("grant select,insert,update on audit_logs to harvest_test_eraser");
     for (const table of ["contacts", "contact_consents", "contact_identifiers", "workspace_members", "audit_logs"]) {
       await fixture.admin.query(`create policy test_restricted_erasure on ${table} to harvest_test_eraser using (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid) with check (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid)`);
     }

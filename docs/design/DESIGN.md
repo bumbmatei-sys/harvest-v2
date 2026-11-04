@@ -2,6 +2,8 @@
 
 This document records the visual language extracted from Eden (app.eden.so and eden.so) on 3 Nov 2026 and turns it into **Studio**, a second selectable Harvest theme. Studio does not replace anything. The current Harvest look stays the default theme, and a tenant (optionally a user) can switch to Studio in settings. "Studio" is a placeholder name; the user-facing name must never mention Eden. It is the reference for all theme and component work described in [REBUILD-PLAN.md](./REBUILD-PLAN.md).
 
+> **01b follow-up decision (Matei, 4 Nov 2026):** Inner cards must differ from the large content panel by at least 1.1:1 in every palette and keep a border. Studio light's white cards are approved. This overrides the unchanged-palette/card-whiteness notes below where needed. Use dedicated card and shell tokens; app headings and sidebar branding use the palette UI font (Inter / Geist), with no Georgia override. See [the implementation and validation record](../acceptance/pr01b-followups.md).
+
 ## 1. Purpose and ground rules
 
 The purpose is to match Eden's **visual language only**: tokens, spacing, radii, shadows, motion, and layout patterns. The product remains Harvest.
