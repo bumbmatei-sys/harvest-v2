@@ -309,8 +309,13 @@ PR numbers indicate **illustrative work packages**, not a guarantee of 64 PRs. M
 **Status:** Future scope. Not part of PR 01a or the current foundation PR; do not build it there.
 
 1. **Public courses users can create:** creators can publish a course as public (listed) rather than private or link-only, with a public course page, preview lessons and an enroll or buy call to action. Builds on the course models from Phase 2 and the entitlements and monetization from Phase 5.
-2. **Discover page for browsing public courses:** a cross-workspace browse surface listing public courses, with search, categories, sorting and creator attribution. Only content its owner has explicitly marked public appears; private workspace data never leaks across tenants.
+2. **Discover page for browsing public courses:** a cross-workspace browse surface listing public courses, with search, categories, sorting and creator attribution.
 3. **Products on the Discover page:** public products (downloads, memberships, bundles) are listed alongside courses on the same Discover page, linking to the creator's product page and checkout once commerce ships.
+
+**Constraints (Matei, 2026-11-04):**
+
+- **Public by default, not locked inside a tenant:** everything a user creates as content (courses, products and similar offerings) is visible to everyone across Harvest, available free or purchasable once commerce ships. Discovery is global, not per-tenant. Tenant isolation still applies to private workspace data (CRM contacts, members, messages, billing, settings), which is never exposed.
+- **No per-tenant subdomains:** do not repeat v1's mistake of giving each tenant its own subdomain. Courses, products and the Discover page live on the main Harvest domain under normal paths. Subdomains are reserved only for the public website and the Link in Bio page.
 
 **Reference:** modeled on Eden's discovery surface for layout and feel only (visual language, no Eden code, assets or text). This is a marketplace-style course and product discovery page; it does not reverse the exclusion of Eden's Discover trending-content research tool in section 1.
 
