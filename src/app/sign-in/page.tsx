@@ -9,8 +9,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ThemeControls } from "@/components/theme-controls";
 import { Wheat } from "lucide-react";
+import { useHydrated } from "@/hooks/use-hydrated";
 export default function SignIn() {
   const router = useRouter();
+  const hydrated = useHydrated();
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [sent, setSent] = useState(false);
@@ -43,9 +45,9 @@ export default function SignIn() {
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
         <p role="status" className="text-sm text-muted-foreground">{message}</p>
         <form className="space-y-4" onSubmit={sent ? verify : (event) => { event.preventDefault(); void send(); }}>
-          <div className="space-y-2"><Label htmlFor="email">Email address</Label><Input id="email" type="email" autoComplete="email" required value={email} readOnly={sent} onChange={(e) => setEmail(e.target.value)} /></div>
+          <div className="space-y-2"><Label htmlFor="email">Email address</Label><Input id="email" type="email" autoComplete="email" required disabled={!hydrated || busy} value={email} readOnly={sent} onChange={(e) => setEmail(e.target.value)} /></div>
           {sent && <div className="space-y-2"><Label htmlFor="code">Six-digit code</Label><Input id="code" inputMode="numeric" autoComplete="one-time-code" pattern="[0-9]{6}" maxLength={6} required value={otp} onChange={(e) => setOtp(e.target.value)} /></div>}
-          <Button className="w-full" disabled={busy}>{busy ? "Please wait…" : sent ? "Sign in" : "Send sign-in code"}</Button>
+          <Button className="w-full" disabled={!hydrated || busy}>{busy ? "Please wait…" : sent ? "Sign in" : "Send sign-in code"}</Button>
         </form>
         {sent && <div className="flex gap-2"><Button variant="outline" disabled={busy} onClick={() => void send()}>Resend code</Button><Button variant="ghost" disabled={busy} onClick={() => { setSent(false); setOtp(""); setMessage(""); setError(""); }}>Change email</Button></div>}
       </CardContent>

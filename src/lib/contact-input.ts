@@ -4,7 +4,7 @@ export const contactInput = z.object({
   name: z.string().trim().min(1).max(100), notes: z.string().trim().max(5000).default(""),
   email: z.union([z.email().max(254), z.literal("")]).default("").transform((value) => value.toLowerCase()),
   phone: z.string().trim().max(40).default("").transform((value) => value.replace(/[\s().-]/g, "")).refine((value) => !value || /^\+[1-9][0-9]{6,14}$/.test(value), "Use an international phone number, starting with +."),
-  social: z.string().trim().max(100).default(""),
+  social: z.string().trim().max(100).default("").refine((value) => !value || /^@?[a-z0-9_][a-z0-9_.:-]*$/i.test(value), "Use a handle without spaces, optionally starting with @."),
 }).strict();
 export type ContactInput = z.input<typeof contactInput>;
 export const consentInput = z.object({

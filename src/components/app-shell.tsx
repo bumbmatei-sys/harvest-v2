@@ -36,6 +36,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
     <WorkspaceTheme brandTheme={brandTheme} />
     <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-card focus:p-3">Skip to content</a>
     <Sidebar variant="floating" className="p-2">
+      <nav aria-label="Workspace navigation" className="flex h-full min-h-0 flex-col">
       <SidebarHeader className="gap-6 px-4 pt-5 pb-3">
         <Link href="/workspaces" className="flex items-center gap-2.5 text-xl font-semibold tracking-tight"><span className="flex size-8 items-center justify-center rounded-md bg-selected text-foreground"><Wheat className="size-5" aria-hidden="true" /></span>Harvest</Link>
         <Select value={selected ?? "all"} onValueChange={(value) => router.push(value === "all" ? "/workspaces" : `/workspaces/${value}/contacts`)}>
@@ -44,7 +45,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
         </Select>
       </SidebarHeader>
       <SidebarContent>
-        <SidebarGroup><SidebarGroupLabel className="text-[11px] uppercase tracking-wider">Workspace</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>
+        <SidebarGroup><SidebarGroupLabel className="text-[11px] uppercase tracking-wider text-muted-foreground">Workspace</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>
           <NavigationLink href="/workspaces" active={!selected}><Building2 aria-hidden="true" /><span>Workspaces</span></NavigationLink>
           {selected && <>
             <NavigationLink href={`/workspaces/${selected}/contacts`} active={pathname.includes("/contacts")}><UsersRound aria-hidden="true" /><span>Contacts</span></NavigationLink>
@@ -54,6 +55,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
         <div className="mx-3 mt-auto rounded-xl border border-sidebar-border p-4 text-xs leading-relaxed text-muted-foreground"><Wheat className="mb-3 size-5" aria-hidden="true" /><p className="font-medium text-foreground">A place for your people.</p><p className="mt-1">Build meaningful connections, one conversation at a time.</p></div>
       </SidebarContent>
       <SidebarFooter className="gap-3 p-4"><SidebarSeparator className="mx-0" /><div className="flex min-w-0 items-center gap-2.5"><span className="flex size-8 shrink-0 items-center justify-center rounded-md bg-selected font-medium uppercase">{email.slice(0, 1)}</span><div className="min-w-0 flex-1"><p className="truncate text-xs font-medium">{email}</p><p className="text-[11px] capitalize text-muted-foreground">{workspace?.role ?? "Your account"}</p></div><ChevronsUpDown className="size-3.5 text-muted-foreground" aria-hidden="true" /></div><Button variant="ghost" size="sm" disabled={busy} onClick={() => void signOut()} className="justify-start text-xs text-muted-foreground"><LogOut aria-hidden="true" />Sign out</Button></SidebarFooter>
+      </nav>
     </Sidebar>
     <SidebarInset className="min-w-0 bg-background">
       <header className="flex min-h-16 flex-wrap items-center justify-between gap-2 border-b px-4 py-3 lg:px-8"><div className="flex min-w-0 items-center gap-2"><SidebarTrigger /><span className="truncate text-xs text-muted-foreground">{workspace?.name ?? "Your account"}</span><ArrowUpRight className="size-3 text-muted-foreground" aria-hidden="true" /></div><ThemeControls /></header>

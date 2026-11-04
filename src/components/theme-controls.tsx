@@ -6,13 +6,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { applyTheme, type BrandTheme } from "@/lib/theme";
 
 function subscribe(callback: () => void) {
+  const refresh = () => applyTheme();
+  const media = matchMedia("(prefers-color-scheme: dark)");
   window.addEventListener("harvest-theme-change", callback);
-  window.addEventListener("storage", callback);
-  return () => { window.removeEventListener("harvest-theme-change", callback); window.removeEventListener("storage", callback); };
+  window.addEventListener("storage", refresh);
+  media.addEventListener("change", refresh);
+  return () => { window.removeEventListener("harvest-theme-change", callback); window.removeEventListener("storage", refresh); media.removeEventListener("change", refresh); };
 }
 function snapshot() {
   let preference = "default";
-  try { const stored = localStorage.getItem("harvest-brand-theme"); if (stored === "harvest" || stored === "studio") preference = stored; } catch { /* Use workspace default. */ }
+  const stored = document.documentElement.dataset.brandOverride;
+  if (stored === "harvest" || stored === "studio") preference = stored;
   return `${preference}|${document.documentElement.dataset.theme ?? "light"}`;
 }
 export function WorkspaceTheme({ brandTheme }: { brandTheme: BrandTheme }) {
@@ -21,10 +25,9 @@ export function WorkspaceTheme({ brandTheme }: { brandTheme: BrandTheme }) {
 }
 export function ThemeControls() {
   const [brand, mode] = useSyncExternalStore(subscribe, snapshot, () => "default|light").split("|");
-  function save(key: string, value: string) {
+  function save(key: "harvest-brand-theme" | "harvest-color-mode", value: string) {
     try { if (value === "default") localStorage.removeItem(key); else localStorage.setItem(key, value); } catch { /* Keep controls usable without storage. */ }
-    applyTheme();
-    if (key === "harvest-color-mode") { document.documentElement.dataset.theme = value; document.documentElement.classList.toggle("dark", value === "dark"); window.dispatchEvent(new Event("harvest-theme-change")); }
+    applyTheme(undefined, key === "harvest-brand-theme" ? { brand: value === "harvest" || value === "studio" ? value : "default" } : { mode: value === "dark" ? "dark" : "light" });
   }
   return <div className="flex items-center gap-2">
     <Select value={brand} onValueChange={(value) => save("harvest-brand-theme", value)}>

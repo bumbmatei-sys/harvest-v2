@@ -13,7 +13,7 @@ describe("appearance precedence and pre-paint script", () => {
   it.each([false, true])("initializes both axes before hydration with blocked storage = %s", (blocked) => {
     const root = { dataset: {} as Record<string, string>, classList: { toggle: () => {} } };
     runInNewContext(themeBootstrap("studio"), { document: { documentElement: root }, localStorage: { getItem: () => { if (blocked) throw new Error("blocked"); return null; } }, matchMedia: () => ({ matches: true }) });
-    expect(root.dataset).toEqual({ workspaceTheme: "studio", brandTheme: "studio", theme: "dark" });
+    expect(root.dataset).toMatchObject({ workspaceTheme: "studio", brandTheme: "studio", theme: "dark" });
   });
   it("preserves the documented AA contrast at rest and hover", () => {
     expect(contrastRatio("#C9963A", "#2D2519")).toBeGreaterThan(5.6);

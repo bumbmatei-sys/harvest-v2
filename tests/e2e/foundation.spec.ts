@@ -38,6 +38,7 @@ test("email code → session → workspace persistence → sign out", async ({ p
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath("workspaces-mobile.png"), fullPage: true });
+  await page.getByRole("button", { name: "Toggle Sidebar" }).click();
   await page.getByRole("button", { name: "Sign out" }).click();
   await expect(page).toHaveURL(/\/sign-in$/);
   await page.goto("/workspaces"); await expect(page).toHaveURL(/\/sign-in$/);

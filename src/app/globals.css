@@ -83,4 +83,10 @@ body { margin: 0; background: var(--background); color: var(--foreground); font-
 [data-slot="sidebar-inner"] { border-radius: 18px; }
 [data-slot="sidebar-menu-button"][data-active="true"] { background: var(--selected); }
 [data-slot="button"] { transition-duration: 150ms; transition-timing-function: cubic-bezier(.4,0,.2,1); }
+.theme-preview { --preview-page: #fafaf8; --preview-card: #f3f2ef; --preview-sidebar: #f3f2ef; background: var(--preview-page); }
+.theme-preview[data-preview-brand="studio"] { --preview-page: #f7f7f5; --preview-card: #fff; --preview-sidebar: #f5f4f1; }
+[data-theme="dark"] .theme-preview { --preview-page: #171717; --preview-card: #202020; --preview-sidebar: #202020; }
+[data-theme="dark"] .theme-preview[data-preview-brand="studio"] { --preview-page: #1a1a1a; --preview-card: #212121; --preview-sidebar: #1a1a1a; }
+.preview-card { background: var(--preview-card); }
+.preview-sidebar { background: var(--preview-sidebar); }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition-duration: 0.01ms !important; animation-duration: 0.01ms !important; } }

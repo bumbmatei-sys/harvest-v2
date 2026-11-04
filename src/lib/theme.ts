@@ -24,14 +24,18 @@ export function actionForeground(color: string) {
 
 // Only validated enum values are interpolated. Executes in <head> before body paint.
 export function themeBootstrap(workspace: BrandTheme = "harvest") {
-  return `(function(){var d=document.documentElement,w=${JSON.stringify(resolveBrandTheme(null, workspace))},u=null,m=null;try{u=localStorage.getItem('harvest-brand-theme');m=localStorage.getItem('harvest-color-mode')}catch(e){}d.dataset.workspaceTheme=w;d.dataset.brandTheme=u==='harvest'||u==='studio'?u:w;d.dataset.theme=m==='light'||m==='dark'?m:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');d.classList.toggle('dark',d.dataset.theme==='dark')})()`;
+  return `(function(){var d=document.documentElement,w=${JSON.stringify(resolveBrandTheme(null, workspace))},u=null,m=null;try{u=localStorage.getItem('harvest-brand-theme');m=localStorage.getItem('harvest-color-mode')}catch(e){}d.dataset.workspaceTheme=w;d.dataset.brandOverride=u==='harvest'||u==='studio'?u:'';d.dataset.modeOverride=m==='light'||m==='dark'?m:'';d.dataset.brandTheme=u==='harvest'||u==='studio'?u:w;d.dataset.theme=m==='light'||m==='dark'?m:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');d.classList.toggle('dark',d.dataset.theme==='dark')})()`;
 }
 
-export function applyTheme(workspace?: BrandTheme) {
+export function applyTheme(workspace?: BrandTheme, preference?: { brand?: BrandTheme | "default"; mode?: ColorMode }) {
   const root = document.documentElement;
   if (workspace) root.dataset.workspaceTheme = workspace;
-  let user: string | null = null, mode: string | null = null;
+  let user: string | null = root.dataset.brandOverride ?? null, mode: string | null = root.dataset.modeOverride ?? null;
   try { user = localStorage.getItem("harvest-brand-theme"); mode = localStorage.getItem("harvest-color-mode"); } catch { /* Storage may be unavailable. Workspace defaults still work. */ }
+  if (preference?.brand) user = preference.brand === "default" ? null : preference.brand;
+  if (preference?.mode) mode = preference.mode;
+  root.dataset.brandOverride = user === "harvest" || user === "studio" ? user : "";
+  root.dataset.modeOverride = mode === "light" || mode === "dark" ? mode : "";
   root.dataset.brandTheme = resolveBrandTheme(user, root.dataset.workspaceTheme);
   root.dataset.theme = mode === "light" || mode === "dark" ? mode : matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   root.classList.toggle("dark", root.dataset.theme === "dark");

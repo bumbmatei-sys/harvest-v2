@@ -1,6 +1,6 @@
 # Harvest v2
 
-PR 01a foundation: Next.js App Router, strict TypeScript, Tailwind/shadcn, Drizzle/PostgreSQL, Better Auth email codes, workspaces, roles, append-only audit and transaction-scoped RLS.
+PR 01a / 01b: Next.js App Router, strict TypeScript, Tailwind/shadcn, Drizzle/PostgreSQL, Better Auth email codes, workspaces, roles, append-only audit and transaction-scoped RLS.
 
 Use Node.js 24 and `npm ci`. Copy `.env.example` to an ignored `.env.local` and configure names privately; see [Neon setup](docs/setup/neon.md). Never put secrets in commits or logs.
 
@@ -18,4 +18,4 @@ Local tests provision disposable PostgreSQL automatically. CI also tests migrati
 
 For the app, run `npm run dev` after configuring dev credentials. Sign-in requires `RESEND_API_KEY` and `EMAIL_FROM` from the existing verified sending domain. Do not exercise delivery without authorization. No OAuth, passwords, payments integration or deployment is included.
 
-See [architecture](docs/architecture.md), [workflow states](docs/acceptance/pr01a.md), [UI provenance](docs/ui-sources.md) and [license inventory](docs/third-party-licenses.md). Contacts, dashboard shell, light/dark and brand switching belong to PR 01b.
+See [architecture](docs/architecture.md), [workflow states](docs/acceptance/pr01a.md), [UI provenance](docs/ui-sources.md) and [license inventory](docs/third-party-licenses.md). PR 01b adds the responsive shadcn shell, searchable/paginated contacts with detail editing and consent evidence, Harvest/Studio brand switching, and independent light/dark mode. Workspace owners/admins can save a default under Appearance; the toolbar offers a local override. Private screens use shared-domain workspace paths. See [PR 01b workflows and evidence](docs/acceptance/pr01b.md) and [screenshots](docs/screenshots/pr01b/README.md).
