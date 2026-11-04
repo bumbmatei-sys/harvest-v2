@@ -8,8 +8,10 @@ The environment contains `RESEND_API_KEY`. No Resend API request was made and no
 
 Resend's `from` field requires a sender address; see the [send-email reference](https://resend.com/docs/api-reference/emails/send-email) and [verified-domain requirement](https://github.com/resend/resend-skills/blob/main/skills/resend/references/sending/overview.md). Keep `RESEND_API_KEY` in the environment and out of commits, logs, test snapshots, and PR descriptions. Configure `EMAIL_FROM` locally when provided; this task authorizes no Vercel environment changes.
 
-## Integration blocker
+## Implemented foundation and verification
 
-The available repository contains documentation only. There is no Better Auth configuration, email-code callback, dependency manifest, or test suite to wire or modify. Resend sign-in is **not implemented or verified** by this change.
+The foundation now wires Better Auth's email-code callback to `src/server/email.ts`, using `RESEND_API_KEY` and `EMAIL_FROM`. Password and OAuth sign-in are disabled. Codes are six digits, stored as a keyed hash, expire after ten minutes, permit five failed attempts and enforce a database-backed 60-second resend cooldown before code rotation.
 
-When the existing foundation code is available, wire its email-code callback to Resend using `RESEND_API_KEY` and `EMAIL_FROM`. Keep delivery mocked in every test, including when a real key is present. Cover sender configuration, code delivery payload, missing configuration, and provider failures without making network calls or logging codes or credentials. Preserve the foundation brief's hashed code storage, expiry, attempt limit, and resend cooldown.
+Integration tests run the actual Better Auth/Drizzle stack against local PostgreSQL with the Resend SDK mocked. Browser tests alias the mailer only in a development E2E build and use an isolated local test mailbox. Both test paths override any real credentials and send no email. Provider failures are surfaced safely, and the verified code/session flow persists and audits sign-in.
+
+The remaining delivery prerequisite is the approved `EMAIL_FROM` value. No live delivery test has been authorized or performed. See [PR 01a evidence](../acceptance/pr01a.md) and [Neon setup](neon.md) for the current implementation and passing test totals.
