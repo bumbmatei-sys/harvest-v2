@@ -1,0 +1,11 @@
+{
+  "projectId": "cool-wind-15257108",
+  "projectName": "harvest-v2",
+  "region": "aws-eu-central-1",
+  "branches": {
+    "prod": "br-twilight-dust-bak1tfvb",
+    "staging": "br-super-cloud-bac2tkho",
+    "dev": "br-quiet-silence-bazwnzz2"
+  },
+  "devEndpointHost": "ep-still-cell-baeb9pie.c-8.eu-central-1.aws.neon.tech"
+}
