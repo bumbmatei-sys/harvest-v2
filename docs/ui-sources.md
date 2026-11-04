@@ -48,3 +48,19 @@ Owner: Harvest v2 maintainers. Retrieved/reviewed 2026-11-04. Registry revision 
 Added with `npx shadcn@latest add` (New York v4, 2026-11-04), MIT: [radio-group](https://ui.shadcn.com/r/styles/new-york-v4/radio-group.json), [pagination](https://ui.shadcn.com/r/styles/new-york-v4/pagination.json), [avatar](https://ui.shadcn.com/r/styles/new-york-v4/avatar.json), [dropdown-menu](https://ui.shadcn.com/r/styles/new-york-v4/dropdown-menu.json), [empty](https://ui.shadcn.com/r/styles/new-york-v4/empty.json), [alert-dialog](https://ui.shadcn.com/r/styles/new-york-v4/alert-dialog.json), [input-group](https://ui.shadcn.com/r/styles/new-york-v4/input-group.json), and [field](https://ui.shadcn.com/r/styles/new-york-v4/field.json). Files are the corresponding `src/components/ui/*.tsx`. They use the existing React, Radix, Lucide and CVA dependencies. Adapted the CLI's bare `cn` import to `@/lib/utils`; no new runtime dependency is required. Existing primitives were preserved when the CLI prompted for replacement. DropdownMenuContent exposes Radix's optional portal container so account-menu content stays inside its navigation landmark, including the mobile sheet. Button's destructive foreground now reads a semantic token for contrast in both color modes. The account composition follows the official shadcn NavUser pattern.
 
 [Round 2 visual reference mapping and consent/erasure behavior](acceptance/pr01b-round2.md).
+
+## PR 02 file uploads
+
+Retrieved 2026-11-04 from the official MIT-licensed New York v4 registry. The existing shadcn MIT notice applies.
+
+| Source | Dependencies | Changed file | Adaptation |
+| --- | --- | --- | --- |
+| [shadcn progress](https://ui.shadcn.com/r/styles/new-york-v4/progress.json) | React, local cn, Radix Progress | src/components/ui/progress.tsx | Local utility alias; individual Radix package import; pass value to accessible root |
+| [shadcn table](https://ui.shadcn.com/r/styles/new-york-v4/table.json) | React, local cn | src/components/ui/table.tsx | Local utility alias |
+| [shadcn badge](https://ui.shadcn.com/r/styles/new-york-v4/badge.json) | React, local cn, Radix Slot, class-variance-authority | src/components/ui/badge.tsx | Local utility alias; individual Radix package import |
+| [shadcn native-select](https://ui.shadcn.com/r/styles/new-york-v4/native-select.json) | React, local cn, Lucide icons | src/components/ui/native-select.tsx | Local utility alias |
+
+Round 2 reuses the existing official Empty, Alert and Field components for the
+file empty state, viewer/progress/result notices and upload form fields.
+
+Upload control, file list and Files page are Harvest-owned compositions of these and existing shadcn primitives. No additional application block or competitor source was copied.

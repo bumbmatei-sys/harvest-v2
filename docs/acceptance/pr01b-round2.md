@@ -1,135 +1,66 @@
 # PR 01b round 2
 
-Date: 2026-11-04. Review: `v2-2-REVIEW.md` at b6d3e00. Founder decisions in the companion PRD override the proposed implementation requirements.
+Date: 2026-11-04. Review: `/workspace/grokpr/v2-2-REVIEW.md` at b6d3e00. Scope follows PRD-v2.5 and the founder overrides in PRD-v2.7-companion.
 
-Merged `origin/main` into `feat/pr01b-shell` without rebasing: first 5ec4f02 (including d136f7b, the CI workflow and companion PRD), then 40e8a5b after PR #3 auth hardening merged during this round. Conflicts preserve main’s recipient-bound OTP hashing, issuance limits, delivery rollback, client-IP checks, shadcn OTP/Field controls and their tests alongside this branch’s responsive shell. Main’s applied migration 0003 remains unchanged; the unmerged contact-shell and consent-erasure migrations now follow it as 0004 and 0005, with combined snapshots.
+## Result and merge
 
-B1: installed RadioGroup, Pagination, Avatar, DropdownMenu, Empty, AlertDialog, InputGroup and Field through the official shadcn CLI. Appearance has one keyboard-operated RadioGroup; contact paging uses Pagination with `aria-current`; the sidebar account follows NavUser with Sign out in DropdownMenu. Contact overview uses Tabs; avatars, notices, sidebar promo, access/empty states, illustration placeholders, form fields and search use the registry primitives. Removed the decorative external-link arrow. Theme previews share the actual token declarations, without duplicate hard-coded colors. The account dropdown is non-modal, allowing the page landmarks to remain available to assistive technology while the menu is open; its portal stays inside the workspace navigation landmark. All of `src/` was scanned for raw controls and hand-built equivalents. Layout and typography remain ordinary composition of shadcn primitives.
+Round 2 replaces all reviewed hand-built equivalents with official shadcn components: RadioGroup, Pagination, Avatar, DropdownMenu/NavUser, Tabs, Alert, Card, Empty and Skeleton. Contact/consent/erasure dialogs, search, OTP and form fields use the registry primitives as well. The appearance form has one keyboard-operated choice and no duplicate Select. Pagination exposes `aria-current`; the account menu includes working sign-out. Theme previews share the actual tokens. Ordinary layout, typography and semantic lists remain composition of these primitives.
+
+The preserved round 2 work was committed before fetching and merging main at `207f933` (PR #3 OTP, PR #4 files and both docs commits). Main's server OTP implementation is unchanged. Successful sign-in starts a fresh document at /workspaces so overlapping replace/refresh transitions cannot restore the signed-out route in a fresh browser context. Files remains reachable from workspace cards and the shared sidebar. Its upload, confirmation, quarantine, private download and isolation behavior is retained inside the shell, without a nested main landmark. Child pages retain their own access-state/404 handling.
 
 ## Consent and erasure
 
-Migration 0005 adds `recorded_by`, controlled `purpose` and `notice_version`, and separate `occurred_at` / `recorded_at`. Existing actors and recording times are recovered only from a matching tenant's consent audit event; unavailable provenance remains explicitly legacy/unknown. Occurrence timestamps are preserved; equal occurrence times sort by recording time before the random ID, so a later recorded withdrawal wins a tie. Purpose/version identifiers are allowlisted, so personal information cannot be typed into fields retained after erasure. New inserts verify the recorded actor against the server transaction context.
+Consent rows carry the server actor, controlled purpose and notice version, and separate occurrence/recording timestamps. Equal occurrence times sort by recording time before ID, so a later withdrawal wins a tie. Retained purpose/version fields are allowlisted. New writes verify the actor against transaction context.
 
-Owners/admins can erase a contact through the confirmation dialog or authenticated same-origin `POST /api/workspaces/:tenantId/contacts/:contactId/erase` with `{ "confirm": "erase" }`. Membership is checked by the service and again inside the fixed database function. Member/viewer/non-member access fails closed.
+Owners/admins can erase personal data through AlertDialog or same-origin `POST /api/workspaces/:tenantId/contacts/:contactId/erase` with `{ "confirm": "erase" }`. Membership and role are checked in the service and fixed database function. Erasure replaces the name with a tombstone, clears notes, deletes identifiers and redacts free-text consent source/evidence. Ledger events lose contact, channel and recorded-actor links and receive new random IDs, preventing reconnection through old audit IDs. Only workspace-scoped anonymous consent facts remain: purpose, notice version, status and timestamps. Erased contacts disappear from list/search/detail and cannot be edited or receive new identifiers or consent. No contact or ledger row is hard deleted.
 
-Erasure replaces the name with a constant tombstone, clears notes, deletes every identifier and redacts free-text consent source/evidence. Ledger events lose their contact, channel and recorded-actor links and receive new random IDs so historical audit IDs cannot reconnect them. Only workspace-scoped anonymous facts remain: purpose, wording version, consent status and timestamps. Erased contacts disappear from search/list/detail and cannot be edited or receive identifiers/consent again. No contact or consent row is hard deleted. Immutable audits contain no contact content or evidence.
+Runtime ledger privileges remain SELECT/INSERT only. The security-definer function fixes its search path, qualifies relations, rechecks membership/context, filters by tenant and revokes PUBLIC execution. Its owner has tenant-constrained policies for FORCE RLS environments without BYPASSRLS. No session flag enables ledger updates. Triggers allow only complete controlled redaction after erasure; DELETE/TRUNCATE and consent-fact changes remain blocked. Parent locks serialize erasure with writes; audit failure rolls everything back. Tests cover personal values in every contact/ledger text field, anonymous facts, re-identification attempts, second-workspace preservation, direct SQL denial and a restricted function owner.
 
-The runtime still has only SELECT/INSERT on consent. There is no flag that enables UPDATE. The security-definer erasure function has a fixed `pg_catalog, pg_temp` search path, fully qualified relations, explicit tenant filters, context/membership checks and a PUBLIC execute revocation. Its owner also has tenant-constrained policies for environments where FORCE RLS applies to the owner. A trigger permits only complete redaction after contact erasure and refuses changes to consent facts; DELETE/TRUNCATE remain blocked. Parent locks serialize erasure with contact/identifier/consent writes. Audit failure rolls back everything. See [PostgreSQL's security-definer guidance](https://www.postgresql.org/docs/17/sql-createfunction.html).
+## Migration history
 
-The local test harness handles only the expected Postgres shutdown code after pool closure and records any other pool failure as a sanitized test error, preventing idle-client diagnostics from dumping connection details.
+Main's SQL and snapshots through 0004 are byte-identical to origin/main, and its five journal entries are unchanged:
 
-A populated-history upgrade test covers the backfill and removal of temporary migration-owner policies. Erasure tests cover personal values in all existing contact fields and ledger text, anonymous facts, re-identification attempts, unchanged second-workspace records, direct SQL denial, restricted non-superuser owner, append-only facts and atomic rollback.
+1. `0000_secret_owl`
+2. `0001_rls`
+3. `0002_membership-discovery`
+4. `0003_otp-issuance-limits`
+5. `0004_files`
+6. `0005_contact_shell` — regenerated by `drizzle-kit generate --name=contact_shell` from the merged schema, starting at main's 0004 snapshot. Creates contacts/identifiers/consents with provenance and erasure columns plus the workspace theme.
+7. `0006_contact_policies_erasure` — created by `drizzle-kit generate --custom --name=contact_policies_erasure`; contains the preserved hand-written tenant policies, restricted grants, immutable ledger guards and controlled erasure function.
 
-## Visual references opened before UI edits
+Removed the unmerged branch SQL and snapshot/journal entries before generation. No snapshot JSON was hand-edited. The earlier branch-only legacy-consent backfill is unnecessary because main has no contact tables; final consent columns are generated directly. A populated-main upgrade test instead verifies that adding this slice preserves existing files, workspace memberships and OTP issuance state, then exercises consent writes as harvest_app. Main's PR #4 upgrade test still verifies the pre-files upgrade. Every database fixture migrates a fresh database from zero and applies the chain twice. A subsequent generate reports no schema changes.
 
-All paths below are in [Harvest-agent docs/prd/screenshots on main](https://github.com/bumbmatei-sys/Harvest-agent/tree/main/docs/prd/screenshots). Only layout, spacing and hierarchy inform the implementation; no source, images, logos or text were copied into the product. Tokens follow [DESIGN.md](../design/DESIGN.md).
+## Opened visual references
 
-| Changed screen | Opened reference |
+All eight images were reopened during this audit and verified byte-for-byte against [Harvest-agent main](https://github.com/bumbmatei-sys/Harvest-agent/tree/main/docs/prd/screenshots). Only layout, spacing and hierarchy inform the implementation; no source, imagery, branding or copy was imported. Studio values follow [DESIGN.md section 6](../design/DESIGN.md), with Harvest gold actions in both themes.
+
+| Screen | Reference under docs/prd/screenshots/ |
 | --- | --- |
-| Shared shell, workspace listing and account menu | `03-plans-billing/plans-001-desktop-57-workspace-menu.webp`, `05-communities/comm-072-desktop-81-untitled-profile-menu.webp` |
-| Contacts list, search, paging, empty and access states | `06-crm/crm-001-desktop-32-store-customers.webp`, `crm-005-desktop-14-customers-empty.webp` |
-| Contact detail overview and marketing preferences | `06-crm/crm-009-desktop-21-clients-active-tab.webp`, `07-events/events-012-desktop-29-events-detail-top.webp` |
+| Shared shell, workspace listing and account menu (also wrapping Files) | `03-plans-billing/plans-001-desktop-57-workspace-menu.webp`; `05-communities/comm-072-desktop-81-untitled-profile-menu.webp` |
+| Contacts list, search, paging, empty and access states | `06-crm/crm-001-desktop-32-store-customers.webp`; `06-crm/crm-005-desktop-14-customers-empty.webp` |
+| Contact overview and marketing preferences | `06-crm/crm-009-desktop-21-clients-active-tab.webp`; `07-events/events-012-desktop-29-events-detail-top.webp` |
 | Contact, consent and erasure dialogs | `06-crm/crm-007-desktop-18-customers-add-one-dialog.webp` |
+| Sign-in card and theme toolbar | `06-crm/crm-007-desktop-18-customers-add-one-dialog.webp` (form-card vocabulary); `03-plans-billing/plans-003-desktop-59-settings-preferences.webp` (appearance controls); DESIGN.md measured sign-in typography |
 | Appearance | `03-plans-billing/plans-003-desktop-59-settings-preferences.webp` |
 
-The references have no exact consent-ledger or erasure screen; these use their dialog/card vocabulary with original Harvest workflows.
+Consent/erasure have no exact reference screen; their dialogs/cards use this visual vocabulary with original workflows. Sign-in retains main's PR #3 shadcn OTP UI, adding only the shared theme toolbar and token presentation; its established visual source is recorded in [ui-sources.md](../ui-sources.md). Files content retains PR #4's UI and behavior; the merge applies the shared shell references above.
 
 ## Validation
 
-Final local results: lint, strict typecheck and production build pass; 20 unit tests, 39 PostgreSQL integration/RLS tests and 2 Chromium journeys pass. Integration/RLS was repeated once after the teardown fix, with zero unhandled errors in both runs. Every database harness applies the migrations twice; the populated-history test additionally upgrades from migration 0004. `drizzle-kit generate` reports no schema changes.
+Post-merge results and screenshot/axe totals are recorded in [pr01b-checks.txt](pr01b-checks.txt) and [screenshots/pr01b](../screenshots/pr01b/README.md). Tests use disposable local PostgreSQL, real sessions and mocked email/storage providers. No real email is sent and no long-lived database is migrated.
 
-The browser journeys cover keyboard selection of the workspace theme through RadioGroup, saving, reload persistence and local/workspace precedence; next/previous Pagination with 21 persisted contacts and `aria-current`; POST/PATCH rejection of extra `tenantId` (400); non-member 403s for list/detail/create/update/consent/appearance/erasure; viewer denial; mobile navigation; the erase confirmation and resulting missing contact; safe error retry; and zero browser page exceptions. All 42 captured screens pass the unfiltered axe suite, with 1,704 successful rule results and zero violations.
+Browser coverage includes keyboard RadioGroup selection/save/reload, local/workspace precedence, 21-contact next/previous Pagination and aria-current, strict extra-tenant payload rejection (400), non-member route denial (403), viewer denial, mobile navigation/overflow, error retry, consent, erasure, sign-out and zero page exceptions. Main's auth and file browser journeys run alongside it. The shared browser harness retains the round 2 Turbopack development server with both mocked providers; this avoids the webpack dev HMR initialization error observed in a fresh second browser context. The production build still uses webpack.
 
-Command output is normalized in [pr01b-checks.txt](pr01b-checks.txt). Screenshots and per-screen axe counts are generated from the real local app under [screenshots/pr01b](../screenshots/pr01b/README.md), using disposable PostgreSQL, real sessions and a mocked mailer.
+Neon staging with two seeded tenants/roles and founder visual/task sign-off remain release gates from the prior review. No deployment or PR merge is performed.
 
-Neon staging with two seed tenants/roles and founder visual/task sign-off remain release gates from the prior review. No long-lived database is migrated locally. The PR remains unmerged and nothing is deployed; no real email is sent.
+## Main changed areas
 
+- `src/components/`, workspace routes and `src/app/globals.css`: shadcn shell, theme system, contact/consent/erasure UI and preserved Files navigation.
+- `src/server/contacts.ts`, `src/lib/contact-input.ts`, contact APIs and permission rules: tenant-safe contact/consent/provenance/erasure services.
+- `src/db/schema.ts`, generated 0005 and custom 0006 migrations: merged files/contact schema and restricted database behavior.
+- `tests/unit/`, `tests/integration/`, `tests/e2e/pr01b.spec.ts`, `tests/database.ts`: domain, RLS, migration, browser and accessibility evidence.
+- `docs/acceptance/`, `docs/screenshots/pr01b/`, architecture/source/license records: reviewable behavior and refreshed evidence.
 
 ## Workspace continuation
 
-The original `.git` mount is read-only. This session's writable Git metadata is `/tmp/harvest-pr01b-round2/.git`, with `/tmp/harvest-pr01b` configured as its working tree. Use `GIT_DIR=/tmp/harvest-pr01b-round2/.git git ...` for local follow-up commands. No force-push was used.
-
-## Changed files
-
-Merged from main: `.github/workflows/ci.yml` and `docs/prd/PRD-v2.7-companion.md`. Round 2 implementation, tests and evidence:
-
-```text
-docs/acceptance/pr01b-round2.md
-docs/acceptance/pr01b.md
-docs/architecture.md
-docs/screenshots/pr01b/README.md
-docs/screenshots/pr01b/account-menu-studio-dark.png
-docs/screenshots/pr01b/appearance-harvest-dark.png
-docs/screenshots/pr01b/appearance-harvest-light.png
-docs/screenshots/pr01b/appearance-studio-dark.png
-docs/screenshots/pr01b/appearance-studio-light.png
-docs/screenshots/pr01b/axe-results.json
-docs/screenshots/pr01b/consent-dialog-studio-dark.png
-docs/screenshots/pr01b/contact-create-error-studio-dark.png
-docs/screenshots/pr01b/contact-detail-harvest-dark.png
-docs/screenshots/pr01b/contact-detail-harvest-light.png
-docs/screenshots/pr01b/contact-detail-mobile-harvest-dark.png
-docs/screenshots/pr01b/contact-detail-mobile-harvest-light.png
-docs/screenshots/pr01b/contact-detail-mobile-studio-dark.png
-docs/screenshots/pr01b/contact-detail-mobile-studio-light.png
-docs/screenshots/pr01b/contact-detail-studio-dark.png
-docs/screenshots/pr01b/contact-detail-studio-light.png
-docs/screenshots/pr01b/contact-erasure-dialog-studio-dark.png
-docs/screenshots/pr01b/contact-not-found-studio-dark.png
-docs/screenshots/pr01b/contacts-after-erasure-studio-dark.png
-docs/screenshots/pr01b/contacts-empty-harvest-dark.png
-docs/screenshots/pr01b/contacts-empty-harvest-light.png
-docs/screenshots/pr01b/contacts-empty-studio-dark.png
-docs/screenshots/pr01b/contacts-empty-studio-light.png
-docs/screenshots/pr01b/contacts-list-harvest-dark.png
-docs/screenshots/pr01b/contacts-list-harvest-light.png
-docs/screenshots/pr01b/contacts-list-mobile-harvest-dark.png
-docs/screenshots/pr01b/contacts-list-mobile-harvest-light.png
-docs/screenshots/pr01b/contacts-list-mobile-studio-dark.png
-docs/screenshots/pr01b/contacts-list-mobile-studio-light.png
-docs/screenshots/pr01b/contacts-list-studio-dark.png
-docs/screenshots/pr01b/contacts-list-studio-light.png
-docs/screenshots/pr01b/contacts-no-results-studio-dark.png
-docs/screenshots/pr01b/contacts-pagination-studio-dark.png
-docs/screenshots/pr01b/contacts-unauthorized-harvest-dark.png
-docs/screenshots/pr01b/contacts-viewer-studio-light.png
-docs/screenshots/pr01b/workspace-harvest-dark.png
-docs/screenshots/pr01b/workspace-harvest-light.png
-docs/screenshots/pr01b/workspace-studio-dark.png
-docs/screenshots/pr01b/workspace-studio-light.png
-docs/ui-sources.md
-drizzle/0004_dry_ezekiel.sql
-drizzle/meta/0004_snapshot.json
-drizzle/meta/_journal.json
-src/app/api/workspaces/[tenantId]/contacts/[contactId]/erase/route.ts
-src/app/globals.css
-src/app/workspaces/[tenantId]/contacts/[contactId]/page.tsx
-src/app/workspaces/[tenantId]/contacts/page.tsx
-src/app/workspaces/page.tsx
-src/components/access-state.tsx
-src/components/app-shell.tsx
-src/components/appearance-form.tsx
-src/components/consent-form.tsx
-src/components/contact-form.tsx
-src/components/erase-contact.tsx
-src/components/ui/alert-dialog.tsx
-src/components/ui/avatar.tsx
-src/components/ui/button.tsx
-src/components/ui/dropdown-menu.tsx
-src/components/ui/empty.tsx
-src/components/ui/field.tsx
-src/components/ui/input-group.tsx
-src/components/ui/pagination.tsx
-src/components/ui/radio-group.tsx
-src/db/schema.ts
-src/lib/contact-input.ts
-src/server/contacts.ts
-src/server/permissions.ts
-tests/database.ts
-tests/e2e/foundation.spec.ts
-tests/e2e/pr01b.spec.ts
-tests/integration/consent-migration.test.ts
-tests/integration/contacts.test.ts
-tests/integration/erasure.test.ts
-tests/unit/consent-input.test.ts
-```
+The original `.git` mount is read-only. Writable metadata is `/tmp/harvest-pr01b-round2/.git`, with `/tmp/harvest-pr01b` configured as its working tree. Use `GIT_DIR=/tmp/harvest-pr01b-round2/.git git ...` for local follow-up. The remote branch is updated by normal push.

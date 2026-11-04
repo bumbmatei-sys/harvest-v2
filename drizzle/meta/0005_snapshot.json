@@ -1,6 +1,6 @@
 {
-  "id": "f3c6a3e5-aa67-4ae8-ae04-37ac86b3197b",
-  "prevId": "d20c1fb1-2d16-4cc9-86c0-d625a5f10a23",
+  "id": "85a14b75-f529-4253-8e39-0a7683ca0b29",
+  "prevId": "962cd4a4-27bb-44cb-b7e8-71c4552293e1",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -695,6 +695,191 @@
         "contact_notes_length": {
           "name": "contact_notes_length",
           "value": "length(\"contacts\".\"notes\") <= 5000"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.files": {
+      "name": "files",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "owner_id": {
+          "name": "owner_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mime": {
+          "name": "mime",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "size": {
+          "name": "size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "checksum": {
+          "name": "checksum",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "visibility": {
+          "name": "visibility",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'private'"
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "files_key_idx": {
+          "name": "files_key_idx",
+          "columns": [
+            {
+              "expression": "key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "files_tenant_created_idx": {
+          "name": "files_tenant_created_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "files_tenant_id_workspaces_tenant_id_fk": {
+          "name": "files_tenant_id_workspaces_tenant_id_fk",
+          "tableFrom": "files",
+          "tableTo": "workspaces",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "tenant_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "files_tenant_id_owner_id_workspace_members_tenant_id_user_id_fk": {
+          "name": "files_tenant_id_owner_id_workspace_members_tenant_id_user_id_fk",
+          "tableFrom": "files",
+          "tableTo": "workspace_members",
+          "columnsFrom": [
+            "tenant_id",
+            "owner_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "user_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "files_size": {
+          "name": "files_size",
+          "value": "\"files\".\"size\" BETWEEN 1 AND 10485760"
+        },
+        "files_checksum": {
+          "name": "files_checksum",
+          "value": "\"files\".\"checksum\" ~ '^[a-f0-9]{64}$'"
+        },
+        "files_status": {
+          "name": "files_status",
+          "value": "\"files\".\"status\" IN ('pending', 'uploaded', 'quarantined', 'ready')"
+        },
+        "files_visibility": {
+          "name": "files_visibility",
+          "value": "\"files\".\"visibility\" IN ('private', 'public')"
+        },
+        "files_mime": {
+          "name": "files_mime",
+          "value": "\"files\".\"mime\" IN ('image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'text/plain')"
+        },
+        "files_key_scope": {
+          "name": "files_key_scope",
+          "value": "\"files\".\"key\" = 'workspaces/' || \"files\".\"tenant_id\"::text || '/files/' || \"files\".\"id\"::text"
+        },
+        "files_name": {
+          "name": "files_name",
+          "value": "length(\"files\".\"name\") BETWEEN 1 AND 200"
         }
       },
       "isRLSEnabled": false

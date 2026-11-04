@@ -1,6 +1,5 @@
 "use client";
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { REGEXP_ONLY_DIGITS } from "input-otp";
 import { authClient } from "@/lib/auth-client";
 import { Button } from "@/components/ui/button";
@@ -14,7 +13,6 @@ import { ThemeControls } from "@/components/theme-controls";
 import { Wheat } from "lucide-react";
 import { useHydrated } from "@/hooks/use-hydrated";
 export default function SignIn() {
-  const router = useRouter();
   const hydrated = useHydrated();
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
@@ -37,7 +35,11 @@ export default function SignIn() {
     try {
       const result = await authClient.signIn.emailOtp({ email, otp });
       if (result.error) { setError(result.error.message ?? "Check your code and try again."); setCodeInvalid(true); }
-      else { router.replace("/workspaces"); router.refresh(); }
+      else {
+        // Start a fresh document after the session cookie changes. Overlapping
+        // replace/refresh transitions can remount the signed-out route.
+        window.location.replace("/workspaces");
+      }
     } catch { setError("Could not connect. Please try again."); }
     finally { setBusy(false); }
   }

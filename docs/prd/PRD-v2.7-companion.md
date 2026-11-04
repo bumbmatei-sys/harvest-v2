@@ -4,6 +4,8 @@
 > - UI uses shadcn components only; never hand-build anything shadcn provides.
 > - Contact erasure anonymizes personal data and keeps anonymous consent records.
 > - No per-tenant subdomains; subdomains only for the public website and Link in Bio. User-created courses and products are public across Harvest (PRD-v2.5 section 9.1). "No Discover" here means the trending-content research tool, not the course and product Discover page.
+> - Virus/malware scanning of uploads: medium-high priority, **DEFERRED until beta/production launch** (Matei, 2026-11-04). No paid scanner during development. It is a launch gate; see section 11, requirement 11.-04a.
+- Hosting (Matei, 2026-11-04): v2 runs on Vercel through beta. Avoid Vercel-only APIs (standard Next.js, no Edge Config/KV/Blob, storage via the S3 adapter) so a later move to Cloudflare Workers via OpenNext stays cheap. Revisit at beta using real hosting bills.
 
 # HARVEST V2.7 — COMPANION IMPLEMENTATION PRD
 ## Detailed functional specification for the v2.5 master PRD
@@ -553,6 +555,7 @@ Suggested adapter shape (pseudocode): `connect(provider, scopes)`, `listMessages
 - **11.-02** OneDrive may allow broader listing under approved permissions; tenant administrators can restrict access.
 - **11.-03** Provide Harvest-owned object storage for internal files; external links do not count as durable Harvest copies.
 - **11.-04** Anti-malware scanning, MIME validation, signed URLs and strict file-level ACL.
+- **11.-04a** **Virus/malware scanning of uploads: medium-high priority, DEFERRED until beta/production launch (Matei, 2026-11-04).** No paid scanner during development. It is a launch gate: before beta, public files stay quarantined, and private files are downloadable after the magic-byte type check (`FILES_REQUIRE_SCAN_PRIVATE=false`). Options to revisit at launch: self-hosted ClamAV (free, needs a small always-on container), Cloudmersive (free tier rejected: 1 concurrent scan and 3.5 MB cap; paid from $19.99/mo), attachmentAV/Sophos (€49/mo, EU region). It must support concurrent scans for multiple users and run as a background job.
 
 ### Proposed Neon entities (illustrative, normalize during schema design)
 - `files(storage_driver,key,size,mime,owner,classification)`

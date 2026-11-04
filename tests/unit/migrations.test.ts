@@ -1,0 +1,19 @@
+import { readFile } from "node:fs/promises";
+import { expect, it } from "vitest";
+
+it("keeps a single snapshot chain and a fresh, contiguous migration journal after main+#3", async () => {
+  const read = async (path: string) => JSON.parse(await readFile(path, "utf8"));
+  const journal = await read("drizzle/meta/_journal.json");
+  const snapshots = await Promise.all(journal.entries.map((entry: { idx: number }) => read(`drizzle/meta/${String(entry.idx).padStart(4, "0")}_snapshot.json`)));
+  expect(new Set(snapshots.map((snapshot) => snapshot.id)).size).toBe(snapshots.length);
+  expect(new Set(snapshots.map((snapshot) => snapshot.prevId)).size).toBe(snapshots.length);
+  for (const [index, entry] of journal.entries.entries()) {
+    expect(entry.idx).toBe(index);
+    if (index > 0) {
+      expect(entry.when).toBeGreaterThan(journal.entries[index - 1].when);
+      expect(snapshots[index].prevId).toBe(snapshots[index - 1].id);
+    }
+  }
+  expect(snapshots[3].id).toMatch(/^3eb73893/);
+  expect(journal.entries[4].tag).toBe("0004_files");
+});

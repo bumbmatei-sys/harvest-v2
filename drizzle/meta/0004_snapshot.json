@@ -1,5 +1,5 @@
 {
-  "id": "d20c1fb1-2d16-4cc9-86c0-d625a5f10a23",
+  "id": "962cd4a4-27bb-44cb-b7e8-71c4552293e1",
   "prevId": "3eb73893-3af6-433f-80af-c1991325c718",
   "version": "7",
   "dialect": "postgresql",
@@ -255,31 +255,55 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.contact_consents": {
-      "name": "contact_consents",
+    "public.files": {
+      "name": "files",
       "schema": "",
       "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
         "tenant_id": {
           "name": "tenant_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
         },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "contact_id": {
-          "name": "contact_id",
-          "type": "uuid",
+        "owner_id": {
+          "name": "owner_id",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
-        "channel": {
-          "name": "channel",
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mime": {
+          "name": "mime",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "size": {
+          "name": "size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "checksum": {
+          "name": "checksum",
           "type": "text",
           "primaryKey": false,
           "notNull": true
@@ -288,272 +312,15 @@
           "name": "status",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
-        },
-        "source": {
-          "name": "source",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "evidence": {
-          "name": "evidence",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "occurred_at": {
-          "name": "occurred_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
           "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "consents_tenant_contact_time_idx": {
-          "name": "consents_tenant_contact_time_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "contact_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "occurred_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "contact_consents_tenant_id_contact_id_contacts_tenant_id_id_fk": {
-          "name": "contact_consents_tenant_id_contact_id_contacts_tenant_id_id_fk",
-          "tableFrom": "contact_consents",
-          "tableTo": "contacts",
-          "columnsFrom": [
-            "tenant_id",
-            "contact_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "contact_consents_tenant_id_id_pk": {
-          "name": "contact_consents_tenant_id_id_pk",
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "consent_channel": {
-          "name": "consent_channel",
-          "value": "\"contact_consents\".\"channel\" in ('email', 'sms', 'social')"
+          "default": "'pending'"
         },
-        "consent_status": {
-          "name": "consent_status",
-          "value": "\"contact_consents\".\"status\" in ('granted', 'withdrawn', 'unknown')"
-        },
-        "consent_source_length": {
-          "name": "consent_source_length",
-          "value": "length(trim(\"contact_consents\".\"source\")) between 1 and 200"
-        },
-        "consent_evidence_length": {
-          "name": "consent_evidence_length",
-          "value": "length(trim(\"contact_consents\".\"evidence\")) between 1 and 2000"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.contact_identifiers": {
-      "name": "contact_identifiers",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "contact_id": {
-          "name": "contact_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "value": {
-          "name": "value",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "normalized_value": {
-          "name": "normalized_value",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "identifiers_tenant_kind_value_idx": {
-          "name": "identifiers_tenant_kind_value_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "kind",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "normalized_value",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "identifiers_tenant_contact_kind_idx": {
-          "name": "identifiers_tenant_contact_kind_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "contact_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "kind",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "contact_identifiers_tenant_id_contact_id_contacts_tenant_id_id_fk": {
-          "name": "contact_identifiers_tenant_id_contact_id_contacts_tenant_id_id_fk",
-          "tableFrom": "contact_identifiers",
-          "tableTo": "contacts",
-          "columnsFrom": [
-            "tenant_id",
-            "contact_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "contact_identifiers_tenant_id_id_pk": {
-          "name": "contact_identifiers_tenant_id_id_pk",
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "identifier_kind": {
-          "name": "identifier_kind",
-          "value": "\"contact_identifiers\".\"kind\" in ('email', 'phone', 'social')"
-        },
-        "identifier_value_length": {
-          "name": "identifier_value_length",
-          "value": "length(\"contact_identifiers\".\"value\") between 1 and 254 and length(\"contact_identifiers\".\"normalized_value\") between 1 and 254"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.contacts": {
-      "name": "contacts",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "notes": {
-          "name": "notes",
+        "visibility": {
+          "name": "visibility",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
-          "default": "''"
+          "default": "'private'"
         },
         "created_at": {
           "name": "created_at",
@@ -571,8 +338,23 @@
         }
       },
       "indexes": {
-        "contacts_tenant_name_idx": {
-          "name": "contacts_tenant_name_idx",
+        "files_key_idx": {
+          "name": "files_key_idx",
+          "columns": [
+            {
+              "expression": "key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "files_tenant_created_idx": {
+          "name": "files_tenant_created_idx",
           "columns": [
             {
               "expression": "tenant_id",
@@ -581,13 +363,7 @@
               "nulls": "last"
             },
             {
-              "expression": "name",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
+              "expression": "created_at",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -600,9 +376,9 @@
         }
       },
       "foreignKeys": {
-        "contacts_tenant_id_workspaces_tenant_id_fk": {
-          "name": "contacts_tenant_id_workspaces_tenant_id_fk",
-          "tableFrom": "contacts",
+        "files_tenant_id_workspaces_tenant_id_fk": {
+          "name": "files_tenant_id_workspaces_tenant_id_fk",
+          "tableFrom": "files",
           "tableTo": "workspaces",
           "columnsFrom": [
             "tenant_id"
@@ -612,27 +388,54 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "contacts_tenant_id_id_pk": {
-          "name": "contacts_tenant_id_id_pk",
-          "columns": [
+        },
+        "files_tenant_id_owner_id_workspace_members_tenant_id_user_id_fk": {
+          "name": "files_tenant_id_owner_id_workspace_members_tenant_id_user_id_fk",
+          "tableFrom": "files",
+          "tableTo": "workspace_members",
+          "columnsFrom": [
             "tenant_id",
-            "id"
-          ]
+            "owner_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "user_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
         }
       },
+      "compositePrimaryKeys": {},
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "contact_name_length": {
-          "name": "contact_name_length",
-          "value": "length(trim(\"contacts\".\"name\")) between 1 and 100"
+        "files_size": {
+          "name": "files_size",
+          "value": "\"files\".\"size\" BETWEEN 1 AND 10485760"
         },
-        "contact_notes_length": {
-          "name": "contact_notes_length",
-          "value": "length(\"contacts\".\"notes\") <= 5000"
+        "files_checksum": {
+          "name": "files_checksum",
+          "value": "\"files\".\"checksum\" ~ '^[a-f0-9]{64}$'"
+        },
+        "files_status": {
+          "name": "files_status",
+          "value": "\"files\".\"status\" IN ('pending', 'uploaded', 'quarantined', 'ready')"
+        },
+        "files_visibility": {
+          "name": "files_visibility",
+          "value": "\"files\".\"visibility\" IN ('private', 'public')"
+        },
+        "files_mime": {
+          "name": "files_mime",
+          "value": "\"files\".\"mime\" IN ('image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'text/plain')"
+        },
+        "files_key_scope": {
+          "name": "files_key_scope",
+          "value": "\"files\".\"key\" = 'workspaces/' || \"files\".\"tenant_id\"::text || '/files/' || \"files\".\"id\"::text"
+        },
+        "files_name": {
+          "name": "files_name",
+          "value": "length(\"files\".\"name\") BETWEEN 1 AND 200"
         }
       },
       "isRLSEnabled": false
@@ -1098,13 +901,6 @@
           "primaryKey": false,
           "notNull": true
         },
-        "brand_theme": {
-          "name": "brand_theme",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'harvest'"
-        },
         "created_by": {
           "name": "created_by",
           "type": "text",
@@ -1142,10 +938,6 @@
         "workspace_name_length": {
           "name": "workspace_name_length",
           "value": "length(trim(\"workspaces\".\"name\")) BETWEEN 1 AND 100"
-        },
-        "workspace_brand_theme": {
-          "name": "workspace_brand_theme",
-          "value": "\"workspaces\".\"brand_theme\" in ('harvest', 'studio')"
         }
       },
       "isRLSEnabled": false

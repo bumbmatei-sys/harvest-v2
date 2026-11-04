@@ -1,137 +1,55 @@
-PR 01b round 2 local validation — 2026-11-04
-All commands below exited 0 before the final main/auth-hardening merge. Disposable local PostgreSQL; mocked email only.
+PR 01b round 2 post-merge local validation — 2026-11-04
+Main merged: 207f933 (PR #3 OTP, PR #4 files and both PRD documentation commits).
+Disposable local PostgreSQL; mocked email and S3 storage. No real email, deployment or live database migration.
 
 Command: npm run lint
-Exit code: 0
-> harvest-v2@0.1.0 lint
-> eslint . --max-warnings=0
+Exit code: 0; zero warnings.
 
 Command: npm run typecheck
-Exit code: 0
-> harvest-v2@0.1.0 typecheck
-> tsc --noEmit
+Exit code: 0; strict TypeScript check.
 
 Command: npm test
-Exit code: 0
-> harvest-v2@0.1.0 test
-> vitest run --project unit
-
-
- RUN  v5.1.0 /tmp/harvest-pr01b
-
-
- Test Files  3 passed (3)
-      Tests  20 passed (20)
-   Start at  17:22:09
-   Duration  307ms (import 72%, tests 14%, transform 11%, worker 4%)
+Exit code: 0.
+Test Files: 5 passed (5).
+Tests: 57 passed (57).
 
 Command: npm run test:rls
-Exit code: 0
-> harvest-v2@0.1.0 test:rls
-> vitest run --project integration
-
-
- RUN  v5.1.0 /tmp/harvest-pr01b
-
-
- Test Files  5 passed (5)
-      Tests  39 passed (39)
-   Start at  17:22:10
-   Duration  8.66s (tests 67%, import 31%, transform 2%)
-
-Command: npm run test:rls (teardown regression repeat)
-Exit code: 0
-> harvest-v2@0.1.0 test:rls
-> vitest run --project integration
-
-
- RUN  v5.1.0 /tmp/harvest-pr01b
-
-
- Test Files  5 passed (5)
-      Tests  39 passed (39)
-   Start at  17:22:19
-   Duration  8.83s (tests 69%, import 29%, transform 2%)
+Exit code: 0.
+Test Files: 7 passed (7).
+Tests: 71 passed (71).
+Every fixture creates a new empty database, applies the full chain from zero, and applies it again as a no-op.
+Populated-main upgrades preserve pre-files OTP state and post-files records/memberships/OTP state.
+Services and RLS checks use the restricted harvest_app role; controlled erasure is also checked with a non-superuser function owner.
 
 Command: npm run build
-Exit code: 0
-> harvest-v2@0.1.0 build
-> next build --webpack
-
-▲ Next.js 16.4.5 (webpack)
-✓ Running next.config.ts took 42ms
-
-  Creating an optimized production build ...
-✓ Compiled successfully in 5.5s
-  Running TypeScript ...
-  Finished TypeScript in 5.5s ...
-  Collecting page data using 7 workers ...
-  Generating static pages using 7 workers (0/5) ...
-  Generating static pages using 7 workers (1/5)
-  Generating static pages using 7 workers (2/5)
-  Generating static pages using 7 workers (3/5)
-✓ Generating static pages using 7 workers (5/5) in 148ms
-  Finalizing page optimization ...
-  Collecting build traces ...
-
-Route (app)
-┌ ƒ /
-├ ƒ /_not-found
-├ ƒ /api/auth/[...all]
-├ ƒ /api/workspaces
-├ ƒ /api/workspaces/[tenantId]/appearance
-├ ƒ /api/workspaces/[tenantId]/contacts
-├ ƒ /api/workspaces/[tenantId]/contacts/[contactId]
-├ ƒ /api/workspaces/[tenantId]/contacts/[contactId]/consents
-├ ƒ /api/workspaces/[tenantId]/contacts/[contactId]/erase
-├ ƒ /api/workspaces/[tenantId]/members
-├ ƒ /sign-in
-├ ƒ /workspaces
-├ ƒ /workspaces/[tenantId]/appearance
-├ ƒ /workspaces/[tenantId]/contacts
-└ ƒ /workspaces/[tenantId]/contacts/[contactId]
-
-
-ƒ Proxy (Middleware)
-
-ƒ  (Dynamic)  server-rendered on demand
+Exit code: 0; production webpack build, compilation, TypeScript and route generation pass.
+Includes authenticated files and contact/consent/appearance/erasure routes.
 
 Command: PLAYWRIGHT_BROWSERS_PATH=/tmp/harvest-playwright npm run test:e2e
-Exit code: 0
-> harvest-v2@0.1.0 test:e2e
-> playwright test
+Exit code: 0.
+4 passed (1.8m).
+- workspace upload, progress, verified file and private download; public quarantine and isolation
+- email code, session, workspace persistence and sign out
+- resend cooldown and change-email reset
+- contacts, consent, themes, workspace isolation, mobile states, pagination and erasure
 
+Required coverage: keyboard RadioGroup selection/save/reload; persisted theme precedence; next/previous Pagination with 21 contacts and aria-current; extra tenantId payloads rejected with 400; non-members denied with 403; viewer denial; network retry; zero page exceptions.
+PR 01b screenshots regenerated after the merge: 42.
+Unfiltered axe violations: 0.
+Successful axe rule results: 1704.
+Machine-readable per-screen results: docs/screenshots/pr01b/axe-results.json.
 
-Running 2 tests using 1 worker
+Browser harness: Turbopack, retaining mocked email and storage. An earlier webpack-dev attempt exposed an internal HMR router-initialization error; the final full run passes without filtering page errors. The sign-in success path starts a fresh document after the cookie changes.
 
-  ✓  1 [chromium] › tests/e2e/foundation.spec.ts:5:1 › email code → session → workspace persistence → sign out (7.4s)
-  ✓  2 [chromium] › tests/e2e/pr01b.spec.ts:51:1 › PR 01b real UI: contacts, consent, themes, workspace isolation and responsive states (1.2m)
+Migration generation:
+- Restored main's exact SQL/snapshots/journal through 0004_files.
+- npm run db:generate -- --name=contact_shell -> 0005_contact_shell.sql and generated snapshot.
+- npm run db:generate -- --custom --name=contact_policies_erasure -> 0006_contact_policies_erasure.sql and generated metadata.
+- Preserved tenant policies/grants, ledger guards and erasure function in custom 0006.
+- No hand edits to snapshot JSON.
+- Main SQL/snapshots verified byte-for-byte; original journal entries unchanged.
+- Subsequent npm run db:generate: no schema changes, nothing to migrate.
 
-  2 passed (1.4m)
+Reference verification: all eight opened images match the tracked blobs in Harvest-agent origin/main. Screen mapping: docs/acceptance/pr01b-round2.md.
 
-Command: npm run db:generate
-Exit code: 0
-> harvest-v2@0.1.0 db:generate
-> drizzle-kit generate
-
-No config path provided, using default 'drizzle.config.ts'
-Reading config file '/tmp/harvest-pr01b/drizzle.config.ts'
-13 tables
-accounts 13 columns 2 indexes 1 fks
-audit_logs 7 columns 1 indexes 2 fks
-contact_consents 13 columns 1 indexes 2 fks
-contact_identifiers 6 columns 2 indexes 1 fks
-contacts 7 columns 1 indexes 1 fks
-otp_cooldowns 2 columns 0 indexes 0 fks
-rate_limits 4 columns 0 indexes 0 fks
-roles 1 columns 0 indexes 0 fks
-sessions 8 columns 1 indexes 1 fks
-users 7 columns 0 indexes 0 fks
-verifications 6 columns 1 indexes 0 fks
-workspace_members 4 columns 1 indexes 3 fks
-workspaces 5 columns 0 indexes 1 fks
-
-No schema changes, nothing to migrate 😴
-
-Accessibility: 42 screens; zero violations; 1,704 successful rule results.
-Migrations: applied twice per disposable test database; populated 0003-to-0004 upgrade tested.
+Remaining release gates: seeded Neon staging validation and founder visual/task sign-off. Local results do not claim staging validation.

@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { Building2, ChevronsUpDown, LogOut, Palette, UsersRound, Wheat } from "lucide-react";
+import { Building2, Files, ChevronsUpDown, LogOut, Palette, UsersRound, Wheat } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { ThemeControls, WorkspaceTheme } from "@/components/theme-controls";
@@ -54,6 +54,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
           <NavigationLink href="/workspaces" active={!selected}><Building2 aria-hidden="true" /><span>Workspaces</span></NavigationLink>
           {selected && <>
             <NavigationLink href={`/workspaces/${selected}/contacts`} active={pathname.includes("/contacts")}><UsersRound aria-hidden="true" /><span>Contacts</span></NavigationLink>
+            <NavigationLink href={`/workspaces/${selected}/files`} active={pathname.includes("/files")}><Files aria-hidden="true" /><span>Files</span></NavigationLink>
             <NavigationLink href={`/workspaces/${selected}/appearance`} active={pathname.endsWith("/appearance")}><Palette aria-hidden="true" /><span>Appearance</span></NavigationLink>
           </>}
         </SidebarMenu></SidebarGroupContent></SidebarGroup>

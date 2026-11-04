@@ -95,3 +95,24 @@ export const contactConsents = pgTable("contact_consents", {
   check("consent_purpose", sql`${t.purpose} in ('marketing', 'outreach_follow_up', 'event_administration', 'account_communications', 'legacy_unspecified')`),
   check("consent_notice_version", sql`${t.noticeVersion} in ('notice-v1', 'legacy-unversioned')`),
   check("consent_redaction", sql`(${t.redactedAt} is null and ${t.contactId} is not null and ${t.channel} is not null and ${t.source} is not null and ${t.evidence} is not null) or (${t.redactedAt} is not null and ${t.contactId} is null and ${t.channel} is null and ${t.source} is null and ${t.evidence} is null and ${t.recordedBy} is null)`)]);
+export const files = pgTable("files", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  ownerId: text("owner_id").notNull(),
+  key: text("key").notNull(), name: text("name").notNull(), mime: text("mime").notNull(),
+  size: integer("size").notNull(), checksum: text("checksum").notNull(),
+  status: text("status", { enum: ["pending", "uploaded", "quarantined", "ready"] }).notNull().default("pending"),
+  visibility: text("visibility", { enum: ["private", "public"] }).notNull().default("private"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("files_key_idx").on(t.key), index("files_tenant_created_idx").on(t.tenantId, t.createdAt),
+  foreignKey({ columns: [t.tenantId, t.ownerId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }),
+  check("files_size", sql`${t.size} BETWEEN 1 AND 10485760`),
+  check("files_checksum", sql`${t.checksum} ~ '^[a-f0-9]{64}$'`),
+  check("files_status", sql`${t.status} IN ('pending', 'uploaded', 'quarantined', 'ready')`),
+  check("files_visibility", sql`${t.visibility} IN ('private', 'public')`),
+  check("files_mime", sql`${t.mime} IN ('image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'text/plain')`),
+  check("files_key_scope", sql`${t.key} = 'workspaces/' || ${t.tenantId}::text || '/files/' || ${t.id}::text`),
+  check("files_name", sql`length(${t.name}) BETWEEN 1 AND 200`),
+]);

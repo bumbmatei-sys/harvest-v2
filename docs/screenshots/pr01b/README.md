@@ -1,5 +1,7 @@
 # PR 01b real UI evidence
 
+Regenerated after merging main at `207f933` (OTP hardening, file uploads and latest PRD decisions).
+
 Chromium screenshots captured by `tests/e2e/pr01b.spec.ts` from the running Next.js app, with real Better Auth sessions and persisted disposable PostgreSQL records. Email delivery is mocked; displayed people/workspaces are explicitly synthetic browser seeds. Reference imagery and application source are not copied into these screenshots.
 
 Each desktop set has `harvest-light`, `harvest-dark`, `studio-light`, and `studio-dark` variants at a 1440×1000 viewport (full-page captures may be taller):

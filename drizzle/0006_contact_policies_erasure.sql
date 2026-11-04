@@ -1,21 +1,30 @@
--- Backfill legacy events without inventing an actor, purpose or notice version.
--- Drizzle applies this migration transactionally; the trigger is replaced before commit.
-DROP TRIGGER consent_append_only ON public.contact_consents;
+-- Custom tenant policies, grants and controlled consent erasure. Schema is generated separately.
+-- Tenant context is transaction-local and derived from server-verified membership.
+ALTER TABLE contacts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE contacts FORCE ROW LEVEL SECURITY;
+CREATE POLICY contacts_tenant ON contacts TO harvest_app
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)
+  WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
+ALTER TABLE contact_identifiers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE contact_identifiers FORCE ROW LEVEL SECURITY;
+CREATE POLICY identifiers_tenant ON contact_identifiers TO harvest_app
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)
+  WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
+ALTER TABLE contact_consents ENABLE ROW LEVEL SECURITY;
+ALTER TABLE contact_consents FORCE ROW LEVEL SECURITY;
+CREATE POLICY consents_tenant ON contact_consents TO harvest_app
+  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)
+  WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
+GRANT SELECT, INSERT, UPDATE ON contacts TO harvest_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON contact_identifiers TO harvest_app;
+GRANT SELECT, INSERT ON contact_consents TO harvest_app;
 --> statement-breakpoint
-ALTER TABLE "contact_consents" ALTER COLUMN "contact_id" DROP NOT NULL;--> statement-breakpoint
-ALTER TABLE "contact_consents" ALTER COLUMN "channel" DROP NOT NULL;--> statement-breakpoint
-ALTER TABLE "contact_consents" ALTER COLUMN "source" DROP NOT NULL;--> statement-breakpoint
-ALTER TABLE "contact_consents" ALTER COLUMN "evidence" DROP NOT NULL;--> statement-breakpoint
-ALTER TABLE "contact_consents" ADD COLUMN "recorded_by" text;--> statement-breakpoint
-ALTER TABLE "contact_consents" ADD COLUMN "purpose" text DEFAULT 'legacy_unspecified' NOT NULL;--> statement-breakpoint
-ALTER TABLE "contact_consents" ADD COLUMN "notice_version" text DEFAULT 'legacy-unversioned' NOT NULL;--> statement-breakpoint
-ALTER TABLE "contact_consents" ADD COLUMN "recorded_at" timestamp with time zone DEFAULT now() NOT NULL;--> statement-breakpoint
-ALTER TABLE "contact_consents" ADD COLUMN "redacted_at" timestamp with time zone;--> statement-breakpoint
-ALTER TABLE "contacts" ADD COLUMN "erased_at" timestamp with time zone;--> statement-breakpoint
-ALTER TABLE "contact_consents" ADD CONSTRAINT "contact_consents_recorded_by_users_id_fk" FOREIGN KEY ("recorded_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "contact_consents" ADD CONSTRAINT "consent_purpose" CHECK ("contact_consents"."purpose" in ('marketing', 'outreach_follow_up', 'event_administration', 'account_communications', 'legacy_unspecified'));--> statement-breakpoint
-ALTER TABLE "contact_consents" ADD CONSTRAINT "consent_notice_version" CHECK ("contact_consents"."notice_version" in ('notice-v1', 'legacy-unversioned'));--> statement-breakpoint
-ALTER TABLE "contact_consents" ADD CONSTRAINT "consent_redaction" CHECK (("contact_consents"."redacted_at" is null and "contact_consents"."contact_id" is not null and "contact_consents"."channel" is not null and "contact_consents"."source" is not null and "contact_consents"."evidence" is not null) or ("contact_consents"."redacted_at" is not null and "contact_consents"."contact_id" is null and "contact_consents"."channel" is null and "contact_consents"."source" is null and "contact_consents"."evidence" is null and "contact_consents"."recorded_by" is null));
+-- Consent is an evidence ledger. Changes append another event, never edit history.
+CREATE FUNCTION reject_consent_mutation() RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN RAISE EXCEPTION 'contact_consents are append-only'; END $$;
+CREATE TRIGGER consent_append_only BEFORE UPDATE OR DELETE OR TRUNCATE ON contact_consents
+  FOR EACH STATEMENT EXECUTE FUNCTION reject_consent_mutation();
+
 --> statement-breakpoint
 -- The definer is the migration owner, never harvest_app. Explicit tenant policies also
 -- cover an owner without BYPASSRLS (e.g. Neon); FORCE RLS is never disabled.
@@ -24,19 +33,6 @@ DO $$ DECLARE relation_name text; BEGIN
     EXECUTE format($policy$CREATE POLICY erasure_owner_tenant ON public.%I TO %I USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid) WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)$policy$, relation_name, current_user);
   END LOOP;
 END $$;
---> statement-breakpoint
--- Only the trusted migration owner can see legacy rows during this backfill.
-DO $$ BEGIN
-  EXECUTE format('CREATE POLICY migration_backfill ON public.contact_consents TO %I USING (true) WITH CHECK (true)', current_user);
-  EXECUTE format('CREATE POLICY migration_backfill ON public.audit_logs TO %I USING (true) WITH CHECK (true)', current_user);
-END $$;
-UPDATE public.contact_consents c SET
-  recorded_by = (SELECT a.actor_id FROM public.audit_logs a WHERE a.tenant_id = c.tenant_id AND a.metadata->>'consentId' = c.id::text AND a.action = 'contact.consent_record' ORDER BY a.created_at LIMIT 1),
-  recorded_at = coalesce((SELECT a.created_at FROM public.audit_logs a WHERE a.tenant_id = c.tenant_id AND a.metadata->>'consentId' = c.id::text AND a.action = 'contact.consent_record' ORDER BY a.created_at LIMIT 1), c.occurred_at);
-DROP POLICY migration_backfill ON public.contact_consents;
-DROP POLICY migration_backfill ON public.audit_logs;
-ALTER TABLE public.contact_consents ALTER COLUMN purpose DROP DEFAULT;
-ALTER TABLE public.contact_consents ALTER COLUMN notice_version DROP DEFAULT;
 --> statement-breakpoint
 CREATE FUNCTION public.erase_contact(p_tenant uuid, p_contact uuid) RETURNS boolean
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
@@ -79,6 +75,7 @@ BEGIN
   RETURN NEW;
 END $$;
 CREATE TRIGGER consent_redaction_only BEFORE UPDATE ON public.contact_consents FOR EACH ROW EXECUTE FUNCTION public.guard_consent_redaction();
+DROP TRIGGER consent_append_only ON public.contact_consents;
 CREATE TRIGGER consent_append_only BEFORE DELETE OR TRUNCATE ON public.contact_consents FOR EACH STATEMENT EXECUTE FUNCTION public.reject_consent_mutation();
 --> statement-breakpoint
 -- Lock parent rows to serialize writes against erasure, including direct SQL paths.

@@ -1,6 +1,6 @@
 # PR 01b workflow contracts and evidence
 
-Date: 2026-11-04. Round 2 supersedes the original validation totals and consent/erasure contract below: see [round 2 changes, visual references and checks](pr01b-round2.md). Draft PR targets `main`. No merge, deployment, real email, Vercel environment edit, or v1 mutation is part of this work.
+Date: 2026-11-04. Round 2 supersedes the original validation totals and consent/erasure contract below: see [round 2 changes, visual references and checks](pr01b-round2.md). Draft PR targets `main`. The feature branch merges main; no PR merge, deployment, real email, Vercel environment edit, or v1 mutation is part of this work.
 
 | Flow | Success | Error | Empty | Unauthorized |
 | --- | --- | --- | --- | --- |
@@ -11,6 +11,7 @@ Date: 2026-11-04. Round 2 supersedes the original validation totals and consent/
 | Create contact | Validated name and optional identifiers/notes persist with audit; opens detail | Normalized duplicate returns 409 without merge; strict payload, phone/handle validation and network error surface alerts; retry available | Labelled blank form; no consent inferred | Viewer writes denied; cross-origin and client-injected tenant fields rejected |
 | Read / update contact | Tenant-qualified detail, identifiers and notes survive reload; updates atomically audit | Invalid/missing/foreign contact shows not-found state; duplicate/audit failure rolls back details and identifiers | Missing identifiers/notes and consent are explicitly labelled | Foreign workspace denied; foreign ID never reveals whether it exists elsewhere; viewer edit controls absent and API denies writes |
 | Record consent | Channel, explicit status, purpose, wording version, actor and separate occurrence/recording timestamps append to history; latest marketing event summarizes channel; audit shares transaction | Required evidence/source validation; audit failure rolls back ledger write | All channels are “Not recorded” until a choice is recorded | Viewer denied; cross-tenant parent IDs rejected; ordinary runtime/owner DML cannot alter consent facts; controlled owner/admin erasure redacts personal data while retaining anonymous proof |
+| Erase contact | Owner/admin confirms personal-data erasure; anonymous consent facts remain and the contact leaves list/detail | Invalid confirmation, network or audit failure leaves an actionable error and rolls back data changes | Already erased records stay unavailable | Member/viewer/non-member denied; fixed database function rechecks tenant context and role |
 
 ## Validation
 
@@ -18,7 +19,7 @@ Run the standard commands from README. Tests use disposable local PostgreSQL and
 
 The browser harness uses the installed Next Turbopack development server, with the test Resend alias enabled only in the development phase. The production build excludes the test mailer. The browser journey covers authenticated create/update/reload, consent recording, network-error retry, identifier conflicts, search, persisted workspace themes and local precedence, viewer denial, a second isolated workspace, missing contacts, mobile navigation, sign-out and signed-out denial. Axe runs on every committed screen, including all four brand/mode combinations of sign-in, workspace, empty/list/detail contacts and the mobile list/detail variants.
 
-Final local output is saved in [pr01b-checks.txt](pr01b-checks.txt). Round 2 totals: lint/typecheck/build pass; 20 unit + 39 PostgreSQL integration/RLS + 2 Chromium journeys pass. All 42 captured screens pass axe (1,704 successful rule results, zero violations). Actual browser screenshots and machine-readable axe results are under [../screenshots/pr01b/](../screenshots/pr01b/README.md). [Draft PR checks](https://github.com/bumbmatei-sys/harvest-v2/pull/2/checks) track the final pushed head. The earlier [code milestone CI](https://github.com/bumbmatei-sys/harvest-v2/actions/runs/41829647488) is historical; round 2 results and exact visual references are in [pr01b-round2.md](pr01b-round2.md).
+Final local output is saved in [pr01b-checks.txt](pr01b-checks.txt). Round 2 totals: lint/typecheck/build pass; 57 unit + 71 PostgreSQL integration/RLS + 4 Chromium journeys pass. All 42 captured screens pass axe (1,704 successful rule results, zero violations). Actual browser screenshots and machine-readable axe results are under [../screenshots/pr01b/](../screenshots/pr01b/README.md). [Draft PR checks](https://github.com/bumbmatei-sys/harvest-v2/pull/2/checks) track the final pushed head. The earlier [code milestone CI](https://github.com/bumbmatei-sys/harvest-v2/actions/runs/41829647488) is historical; round 2 results and exact visual references are in [pr01b-round2.md](pr01b-round2.md).
 
 ## Limits and review gates
 

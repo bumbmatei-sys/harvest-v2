@@ -1,7 +1,9 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { createHash, randomUUID } from "node:crypto";
-import { expect, test, type Page } from "@playwright/test";
+import { expect as playwrightExpect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+// First navigation can include development route compilation in the shared browser harness.
+const expect = playwrightExpect.configure({ timeout: 15_000 });
 const evidence = "docs/screenshots/pr01b";
 const origin = "http://127.0.0.1:3100";
 const accessibility: { screen: string; violations: number; checks: number }[] = [];
