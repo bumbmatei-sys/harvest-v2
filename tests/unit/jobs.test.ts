@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { backoffMs, jobInput, workFingerprint } from "../../src/server/jobs/primitives";
 import { can } from "../../src/server/permissions";
 import { signSyntheticWebhook, syntheticEvent, verifySyntheticSignature } from "../../src/server/webhooks/synthetic";
@@ -52,4 +54,15 @@ describe("synthetic raw-body signature contract", () => {
       expect(syntheticEvent.safeParse({ ...event, ...patch }).success).toBe(false);
     }
   });
+});
+
+it("sanitizes CLI connection setup failures without printing credential-shaped input", async () => {
+  const sensitive = "invalid://fixture-user:do-not-print-this-password@";
+  const result = await promisify(execFile)(process.execPath, ["node_modules/tsx/dist/cli.mjs", "scripts/drain-jobs.ts", "operator", connection.tenantId], {
+    env: { ...process.env, DATABASE_URL: sensitive }, timeout: 10_000,
+  }).then(() => { throw new Error("Expected CLI failure"); }, (error: { code: number; stdout: string; stderr: string }) => error);
+  expect(result.code).toBe(1);
+  expect(result.stdout).toBe("");
+  expect(result.stderr.trim()).toBe("jobs_command_failed");
+  expect(result.stderr).not.toContain("do-not-print-this-password");
 });

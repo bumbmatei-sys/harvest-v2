@@ -14,9 +14,10 @@ if (!options.success || !connectionString) {
   console.error("Usage: DATABASE_URL=<application role URL> npm run jobs:drain -- <operator-user-id> <workspace-uuid> [drain [1..100] | replay <job-uuid>]");
   process.exitCode = 1;
 } else {
-  const pool = createPool(connectionString);
-  pool.on("error", () => console.error("jobs_database_pool_error"));
+  let pool: ReturnType<typeof createPool> | undefined;
   try {
+    pool = createPool(connectionString);
+    pool.on("error", () => console.error("jobs_database_pool_error"));
     // Fail closed if an owner/superuser connection would bypass queue RLS.
     const { rows: [role] } = await pool.query("select current_user, rolsuper, rolbypassrls from pg_roles where rolname = current_user");
     if (role?.current_user !== "harvest_app" || role.rolsuper || role.rolbypassrls) throw new Error("APPLICATION_ROLE_REQUIRED");
@@ -26,5 +27,5 @@ if (!options.success || !connectionString) {
       : await drainJobs(db, user, tenantId, `local:${randomUUID()}`, z.coerce.number().int().min(1).max(100).parse(argument ?? 50));
     console.info(JSON.stringify(result));
   } catch { console.error("jobs_command_failed"); process.exitCode = 1; }
-  finally { await pool.end(); }
+  finally { await pool?.end(); }
 }
