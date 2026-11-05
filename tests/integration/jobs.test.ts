@@ -1,7 +1,7 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { and, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
-import { Pool } from "pg";
+import { escapeIdentifier, escapeLiteral, Pool } from "pg";
 import { randomUUID } from "node:crypto";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
@@ -15,10 +15,14 @@ import { claimJob, drainJobs, flushOutbox, listJobs, listWebhookEvents, replayJo
 import { receiveWebhook } from "../../src/server/webhooks/receiver";
 import { MAX_WEBHOOK_BYTES, signSyntheticWebhook } from "../../src/server/webhooks/synthetic";
 import type { JobInput } from "../../src/server/jobs/primitives";
+import { workFingerprint } from "../../src/server/jobs/primitives";
+vi.mock("server-only", () => ({}));
+vi.mock("../../src/server/auth-instance", () => ({ getAuth: vi.fn() }));
+import { errorResponse } from "../../src/server/http";
 
 let fixture: Awaited<ReturnType<typeof testDatabase>>, tenantA: string, tenantB: string;
 let parallelPool: Pool, parallelDb: typeof fixture.db;
-const owner = "jobs-alice", other = "jobs-bob", viewer = "jobs-viewer";
+const owner = "jobs-alice", other = "jobs-bob", viewer = "jobs-viewer", member = "jobs-member";
 const signingKey = "synthetic-only-test-key-with-no-provider-access";
 const context = <T>(run: Parameters<typeof withTenant<T>>[4]) => withTenant(fixture.db, owner, tenantA, "jobs:operate", run);
 const enqueue = (data: Partial<JobInput> = {}) => context((tx) => enqueueJob(tx, tenantA, { kind: "domain.receipt", idempotencyKey: randomUUID(), payload: {}, ...data }));
@@ -44,10 +48,12 @@ beforeAll(async () => {
   await fixture.db.insert(users).values([
     { id: owner, name: "Alice", email: "jobs-alice@example.test" }, { id: other, name: "Bob", email: "jobs-bob@example.test" },
     { id: viewer, name: "Viewer", email: "jobs-viewer@example.test" },
+    { id: member, name: "Member", email: "jobs-member@example.test" },
   ]);
   tenantA = (await createWorkspace(fixture.db, owner, "Jobs A")).tenantId;
   tenantB = (await createWorkspace(fixture.db, other, "Jobs B")).tenantId;
   await putMember(fixture.db, owner, tenantA, "jobs-viewer@example.test", "viewer");
+  await putMember(fixture.db, owner, tenantA, "jobs-member@example.test", "member");
   parallelPool = new Pool({ connectionString: fixture.appURL, max: 2 });
   parallelDb = drizzle(parallelPool, { schema });
 });
@@ -98,10 +104,65 @@ describe("durable jobs and transactional outbox", () => {
     await context((tx) => appendOutboxEvent(tx, tenantA, { kind: "domain.receipt", idempotencyKey: "dispatch-rollback", payload: {} }));
     await fixture.admin.query("create function test_reject_job() returns trigger language plpgsql as $$ begin raise exception 'test job failure'; end $$");
     await fixture.admin.query("create trigger test_reject_job before insert on jobs for each row execute function test_reject_job()");
-    try { await expect(flushOutbox(fixture.db, owner, tenantA)).rejects.toThrow(); }
+    try { expect(await flushOutbox(fixture.db, owner, tenantA)).toBe(0); }
     finally { await fixture.admin.query("drop trigger test_reject_job on jobs"); }
     expect(await flushOutbox(fixture.db, owner, tenantA)).toBe(1);
     await drainJobs(fixture.db, owner, tenantA, "test");
+  });
+  it("skips a legacy key collision while dispatching other events and running unrelated jobs", async () => {
+    const poisoned = await context((tx) => appendOutboxEvent(tx, tenantA, { kind: "domain.receipt", idempotencyKey: randomUUID(), payload: {} }));
+    // Simulate a collision already stored before enqueueJob reserved the prefix.
+    const legacyId = randomUUID(), payload = { legacy: true };
+    await fixture.admin.query("update outbox_events set created_at = now() - interval '1 minute' where id = $1", [poisoned.id]);
+    await fixture.admin.query("insert into jobs (id, tenant_id, kind, idempotency_key, payload, fingerprint) values ($1, $2, 'domain.receipt', $3, $4, $5)",
+      [legacyId, tenantA, `outbox:${poisoned.id}`, payload, workFingerprint("domain.receipt", payload)]);
+    try {
+      const unrelated = await enqueue();
+      const healthy = await context((tx) => appendOutboxEvent(tx, tenantA, { kind: "domain.receipt", idempotencyKey: randomUUID(), payload: { healthy: true } }));
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const result = await drainJobs(fixture.db, owner, tenantA, "poison-test");
+        expect(result.dispatched).toBe(attempt === 0 ? 1 : 0);
+        expect(result.flushFailed).toBe(false);
+      }
+      expect((await getJob(unrelated.id)).status).toBe("succeeded");
+      await context(async (tx) => {
+        const [bad] = await tx.select().from(outboxEvents).where(eq(outboxEvents.id, poisoned.id));
+        expect(bad.dispatchedAt).toBeNull();
+        const [good] = await tx.select().from(outboxEvents).where(eq(outboxEvents.id, healthy.id));
+        expect(good.dispatchedAt).not.toBeNull();
+        const dispatched = await tx.select().from(jobs).where(eq(jobs.idempotencyKey, `outbox:${healthy.id}`));
+        expect(dispatched).toHaveLength(1);
+        expect(dispatched[0].status).toBe("succeeded");
+      });
+    } finally { await fixture.admin.query("delete from jobs where id = $1", [legacyId]); }
+    expect((await drainJobs(fixture.db, owner, tenantA, "recovered")).dispatched).toBe(1);
+  });
+  it("rolls back only the failed event's job when its dispatch marker raises a PostgreSQL error", async () => {
+    const poisoned = await context((tx) => appendOutboxEvent(tx, tenantA, { kind: "domain.receipt", idempotencyKey: randomUUID(), payload: {} }));
+    await fixture.admin.query("update outbox_events set created_at = now() - interval '1 minute' where id = $1", [poisoned.id]);
+    const healthy = await context((tx) => appendOutboxEvent(tx, tenantA, { kind: "domain.receipt", idempotencyKey: randomUUID(), payload: {} }));
+    await fixture.admin.query(`create function test_reject_dispatch() returns trigger language plpgsql as $$ begin if new.id = ${escapeLiteral(poisoned.id)}::uuid then raise exception 'test marker failure'; end if; return new; end $$`);
+    await fixture.admin.query("create trigger test_reject_dispatch before update on outbox_events for each row execute function test_reject_dispatch()");
+    try {
+      expect(await flushOutbox(fixture.db, owner, tenantA)).toBe(1);
+      await context(async (tx) => {
+        expect(await tx.select().from(jobs).where(eq(jobs.idempotencyKey, `outbox:${poisoned.id}`))).toEqual([]);
+        expect(await tx.select().from(jobs).where(eq(jobs.idempotencyKey, `outbox:${healthy.id}`))).toHaveLength(1);
+        const [bad] = await tx.select().from(outboxEvents).where(eq(outboxEvents.id, poisoned.id));
+        expect(bad.dispatchedAt).toBeNull();
+      });
+    } finally { await fixture.admin.query("drop trigger test_reject_dispatch on outbox_events"); }
+    expect((await drainJobs(fixture.db, owner, tenantA, "marker-retry")).dispatched).toBe(1);
+  });
+  it("still claims and runs queued work when the entire outbox flush fails", async () => {
+    const unrelated = await enqueue();
+    await fixture.admin.query("revoke select on outbox_events from harvest_app");
+    try {
+      const result = await drainJobs(fixture.db, owner, tenantA, "flush-unavailable");
+      expect(result).toMatchObject({ dispatched: 0, flushFailed: true });
+      expect(result.results).toContainEqual({ id: unrelated.id, status: "succeeded" });
+      expect((await getJob(unrelated.id)).status).toBe("succeeded");
+    } finally { await fixture.admin.query("grant select on outbox_events to harvest_app"); }
   });
   it("does not claim future work; concurrent workers skip held job rows", async () => {
     const future = await enqueue({ scheduledFor: new Date(Date.now() + 3_600_000) });
@@ -233,6 +294,37 @@ describe("signed webhook audit, dedupe and ordering", () => {
     finally { await fixture.admin.query("drop trigger test_reject_outbox on outbox_events"); }
     await context(async (tx) => expect(await tx.select().from(externalWebhookEvents).where(eq(externalWebhookEvents.providerEventId, rolledBack.id))).toEqual([]));
   });
+  it("returns 409 when two connections in the same tenant reuse an event ID with identical bytes", async () => {
+    const input = event(), connections = [
+      { id: "same-tenant-a", tenantId: tenantA, signingKey }, { id: "same-tenant-b", tenantId: tenantA, signingKey },
+    ];
+    expect(await receiveWebhook(fixture.db, signedRequest(input, "same-tenant-a"), "synthetic", connections)).toEqual({ accepted: true, duplicate: false });
+    await expect(receiveWebhook(fixture.db, signedRequest(input, "same-tenant-b"), "synthetic", connections)).rejects.toMatchObject({ status: 409 });
+    await context(async (tx) => {
+      const rows = await tx.select().from(externalWebhookEvents).where(eq(externalWebhookEvents.providerEventId, input.id));
+      expect(rows).toHaveLength(1);
+      expect(rows[0].connectionId).toBe("same-tenant-a");
+      expect(await tx.select().from(outboxEvents).where(eq(outboxEvents.idempotencyKey, `webhook:${rows[0].id}`))).toHaveLength(1);
+    });
+  });
+  it.each(["\u0000", "\ud800", "\udfff"])("returns 400 before a transaction for signed unstorable strings (%j)", async (invalid) => {
+    const transaction = vi.spyOn(fixture.db, "transaction");
+    try {
+      for (const patch of [{ id: invalid }, { resourceId: invalid }, { data: { value: invalid } }]) {
+        const response = await receive(signedRequest(event(patch))).then(() => { throw new Error("Expected rejection"); }, errorResponse);
+        expect(response.status).toBe(400);
+      }
+      expect(transaction).not.toHaveBeenCalled();
+    } finally { transaction.mockRestore(); }
+  });
+  it("accepts valid surrogate pairs and literal backslash-u text in signed bodies", async () => {
+    const input = event({ data: { value: "\ud83c\udf3e \\u0000 \\ud800" } });
+    expect(await receive(signedRequest(input))).toEqual({ accepted: true, duplicate: false });
+    await context(async (tx) => {
+      const [stored] = await tx.select().from(externalWebhookEvents).where(eq(externalWebhookEvents.providerEventId, input.id));
+      expect(stored.payload).toEqual(input.data);
+    });
+  });
   it("applies only increasing resource sequences, with equal/older events and duplicates retained", async () => {
     const resourceId = randomUUID(), newer = event({ resourceId, sequence: 20, data: { value: "newer" } });
     await receive(signedRequest(newer));
@@ -265,6 +357,48 @@ describe("signed webhook audit, dedupe and ordering", () => {
 });
 
 describe("jobs/webhook RLS and authorization", () => {
+  it.each([viewer, member])("denies claim, flush, drain and run for %s without changing queued work", async (user) => {
+    await drainJobs(fixture.db, owner, tenantA, "permission-setup");
+    const queued = await enqueue();
+    const claim = await claimJob(fixture.db, owner, tenantA, "permission-owner");
+    expect(claim?.id).toBe(queued.id);
+    for (const operate of [
+      () => claimJob(fixture.db, user, tenantA, "unauthorized"),
+      () => flushOutbox(fixture.db, user, tenantA),
+      () => drainJobs(fixture.db, user, tenantA, "unauthorized"),
+      () => runClaimedJob(fixture.db, user, tenantA, claim!),
+    ]) await expect(operate()).rejects.toMatchObject({ status: 403 });
+    expect(await getJob(queued.id)).toMatchObject({ status: "running", attempts: 1, lockToken: claim!.lockToken });
+    expect(await runClaimedJob(fixture.db, owner, tenantA, claim!)).toEqual({ status: "succeeded" });
+  });
+  it.each(["owner", "superuser", "bypassrls"])("refuses %s database connections in the actual drain CLI", async (unsafeRole) => {
+    const url = new URL(fixture.appURL);
+    const { rows: [table] } = await fixture.admin.query("select pg_get_userbyid(relowner) as owner from pg_class where oid = 'jobs'::regclass");
+    if (unsafeRole === "owner") {
+      const password = randomUUID();
+      await fixture.admin.query(`create role harvest_jobs_test_owner login inherit nosuperuser nobypassrls password ${escapeLiteral(password)}`);
+      await fixture.admin.query("grant harvest_app to harvest_jobs_test_owner");
+      await fixture.admin.query("alter table jobs owner to harvest_jobs_test_owner");
+      url.username = "harvest_jobs_test_owner"; url.password = password;
+    } else {
+      // Keep the expected role name to independently exercise each unsafe flag.
+      await fixture.admin.query(unsafeRole === "superuser" ? "alter role harvest_app superuser" : "alter role harvest_app bypassrls");
+    }
+    try {
+      const result = await promisify(execFile)(process.execPath, ["node_modules/tsx/dist/cli.mjs", "scripts/drain-jobs.ts", owner, tenantA, "drain", "1"], {
+        env: { ...process.env, DATABASE_URL: url.toString() }, timeout: 20_000,
+      }).then(() => { throw new Error("Expected CLI rejection"); }, (error: { code: number; stdout: string; stderr: string }) => error);
+      expect(result.code).toBe(1);
+      expect(result.stdout).toBe("");
+      expect(result.stderr.trim()).toBe("jobs_command_failed");
+    } finally {
+      if (unsafeRole === "owner") {
+        await fixture.admin.query(`alter table jobs owner to ${escapeIdentifier(table.owner)}`);
+        await fixture.admin.query("drop owned by harvest_jobs_test_owner");
+        await fixture.admin.query("drop role harvest_jobs_test_owner");
+      } else { await fixture.admin.query("alter role harvest_app nosuperuser nobypassrls"); }
+    }
+  });
   it("denies missing context, cross-tenant direct reads/writes and queue replay", async () => {
     const foreign = await withTenant(fixture.db, other, tenantB, "jobs:operate", (tx) => enqueueJob(tx, tenantB, { kind: "unsupported", idempotencyKey: "foreign", payload: {}, maxAttempts: 1 }));
     await drainJobs(fixture.db, other, tenantB, "other-worker");

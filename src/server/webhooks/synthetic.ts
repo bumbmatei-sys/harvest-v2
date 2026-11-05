@@ -2,10 +2,12 @@ import { createHmac, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 
 // This is a local/test contract, not an adapter for a real provider.
+// PostgreSQL text/jsonb cannot store NUL or unpaired UTF-16 surrogates.
+const storedString = z.string().refine((value) => !value.includes("\u0000") && value.isWellFormed(), "INVALID_STORED_STRING");
 export const syntheticEvent = z.object({
-  id: z.string().min(1).max(100), resourceId: z.string().min(1).max(100),
+  id: storedString.min(1).max(100), resourceId: storedString.min(1).max(100),
   sequence: z.number().int().min(0).max(2_147_483_647), occurredAt: z.iso.datetime({ offset: true }),
-  data: z.object({ value: z.string().max(200) }).strict(),
+  data: z.object({ value: storedString.max(200) }).strict(),
 }).strict();
 export const syntheticConnection = z.object({
   id: z.string().min(1).max(100).regex(/^[a-zA-Z0-9_-]+$/), tenantId: z.uuid(), signingKey: z.string().min(32).max(200),

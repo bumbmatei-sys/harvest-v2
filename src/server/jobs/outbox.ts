@@ -33,9 +33,19 @@ export async function appendOutboxEvent(tx: Transaction, tenantId: string, data:
 export async function dispatchOutbox(tx: Transaction, tenantId: string, limit: number) {
   const events = await tx.select().from(outboxEvents).where(and(eq(outboxEvents.tenantId, tenantId), isNull(outboxEvents.dispatchedAt)))
     .orderBy(asc(outboxEvents.createdAt), asc(outboxEvents.id)).limit(limit).for("update", { skipLocked: true });
+  let dispatched = 0;
   for (const event of events) {
-    await insertJob(tx, tenantId, { kind: event.kind, idempotencyKey: `outbox:${event.id}`, payload: event.payload as JobInput["payload"], scheduledFor: event.scheduledFor });
-    await tx.update(outboxEvents).set({ dispatchedAt: sql`now()` }).where(and(eq(outboxEvents.tenantId, tenantId), eq(outboxEvents.id, event.id)));
+    try {
+      // A failed enqueue or dispatch marker must roll back together without
+      // aborting the batch, including when PostgreSQL aborts the savepoint.
+      await tx.transaction(async (eventTx) => {
+        await insertJob(eventTx, tenantId, { kind: event.kind, idempotencyKey: `outbox:${event.id}`, payload: event.payload as JobInput["payload"], scheduledFor: event.scheduledFor });
+        await eventTx.update(outboxEvents).set({ dispatchedAt: sql`now()` }).where(and(eq(outboxEvents.tenantId, tenantId), eq(outboxEvents.id, event.id)));
+      });
+      dispatched++;
+    } catch {
+      // Leave this event pending for retry; never log its payload or error.
+    }
   }
-  return events.length;
+  return dispatched;
 }
