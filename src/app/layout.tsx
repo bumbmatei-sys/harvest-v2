@@ -17,7 +17,7 @@ import { themeStyles } from "@/lib/theme-registry";
 import "./globals.css";
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("Metadata");
-  return { title: t("title"), description: t("description") };
+  return { title: t("title"), description: t("description"), icons: { icon: "/icons/icon-192.png", apple: "/icons/icon-192.png" } };
 }
 export default async function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   const locale = await getLocale();

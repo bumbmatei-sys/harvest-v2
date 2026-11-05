@@ -11,6 +11,7 @@
     "test": "vitest run --project unit",
     "test:rls": "vitest run --project integration",
     "test:e2e": "playwright test",
+    "test:pwa": "node scripts/check-pwa.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "tsx scripts/migrate.ts",
     "test:rls:neon": "HARVEST_NEON_DEV_VERIFY=1 vitest run --project neon",
