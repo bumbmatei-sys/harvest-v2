@@ -54,6 +54,11 @@ beforeAll(async () => {
 afterAll(async () => { await parallelPool?.end(); await fixture?.close(); });
 
 describe("durable jobs and transactional outbox", () => {
+  it.each(["outbox:", "webhook:"])("reserves %s job keys for infrastructure", async (prefix) => {
+    const key = `${prefix}${randomUUID()}`;
+    await expect(enqueue({ idempotencyKey: key })).rejects.toThrow("RESERVED_JOB_KEY_PREFIX");
+    await context(async (tx) => expect(await tx.select().from(jobs).where(eq(jobs.idempotencyKey, key))).toEqual([]));
+  });
   it("applies the migration twice and enables forced RLS on every new table", async () => {
     const { rows } = await fixture.admin.query("select relname, relrowsecurity, relforcerowsecurity from pg_class where relname = any($1)", [["jobs", "outbox_events", "external_webhook_events", "webhook_resource_states"]]);
     expect(rows).toHaveLength(4);
