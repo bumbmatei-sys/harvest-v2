@@ -77,22 +77,22 @@
   {
     "screen": "contact-detail-harvest-light",
     "violations": 0,
-    "checks": 44
+    "checks": 45
   },
   {
     "screen": "contact-detail-harvest-dark",
     "violations": 0,
-    "checks": 44
+    "checks": 45
   },
   {
     "screen": "contact-detail-studio-light",
     "violations": 0,
-    "checks": 44
+    "checks": 45
   },
   {
     "screen": "contact-detail-studio-dark",
     "violations": 0,
-    "checks": 44
+    "checks": 45
   },
   {
     "screen": "contacts-list-harvest-light",
@@ -183,6 +183,11 @@
     "screen": "shell-account-menu-studio-dark",
     "violations": 0,
     "checks": 52
+  },
+  {
+    "screen": "shell-workspace-tooltip-studio-dark",
+    "violations": 0,
+    "checks": 49
   },
   {
     "screen": "shell-collapsed-studio-dark",

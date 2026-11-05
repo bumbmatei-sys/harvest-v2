@@ -1,4 +1,5 @@
-import { and, asc, count, desc, eq, exists, ilike, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, exists, getTableColumns, gt, ilike, inArray, isNull, notExists, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import type { Database, Transaction } from "../db/client";
 import { auditLogs, contactConsents, contactIdentifiers, contacts } from "../db/schema";
 import { contactInput, contactQuery, consentInput, uuidInput, type ContactInput, type ConsentInput } from "../lib/contact-input";
@@ -22,14 +23,28 @@ export function getContact(db: Database, userId: string, workspace: string, cont
     const [row] = await tx.select().from(contacts).where(and(eq(contacts.tenantId, tenantId), eq(contacts.id, id), isNull(contacts.erasedAt)));
     if (!row) throw new AccessError(404, "This contact is not available in this workspace.");
     const identifiers = await tx.select().from(contactIdentifiers).where(and(eq(contactIdentifiers.tenantId, tenantId), eq(contactIdentifiers.contactId, id)));
-    const consents = await tx.select().from(contactConsents).where(and(eq(contactConsents.tenantId, tenantId), eq(contactConsents.contactId, id))).orderBy(desc(contactConsents.recordedAt), desc(contactConsents.occurredAt), desc(contactConsents.id));
-    // Recording order is authoritative: a backdated withdrawal still overrides a grant.
-    const seen = new Set<string>();
-    const effectiveConsents = consents.filter((event) => {
-      const key = `${event.channel}:${event.purpose}`;
-      if (seen.has(key)) return false;
-      seen.add(key); return true;
-    });
+    const grants = alias(contactConsents, "later_grants");
+    // Compare in PostgreSQL so strict ordering retains sub-millisecond precision.
+    const events = await tx.select({
+      event: getTableColumns(contactConsents),
+      outstandingWithdrawal: sql<boolean>`${and(eq(contactConsents.status, "withdrawn"), notExists(
+        tx.select({ one: sql`1` }).from(grants).where(and(
+          eq(grants.tenantId, contactConsents.tenantId), eq(grants.contactId, contactConsents.contactId),
+          eq(grants.channel, contactConsents.channel), eq(grants.purpose, contactConsents.purpose),
+          eq(grants.status, "granted"), gt(grants.recordedAt, contactConsents.recordedAt), gt(grants.occurredAt, contactConsents.occurredAt),
+        )),
+      ))}`,
+    }).from(contactConsents).where(and(eq(contactConsents.tenantId, tenantId), eq(contactConsents.contactId, id)))
+      .orderBy(desc(contactConsents.recordedAt), desc(contactConsents.occurredAt), desc(contactConsents.id));
+    const consents = events.map(({ event }) => event);
+    // Any unsuperseded unsubscribe wins over grants and unknowns for its scope.
+    const effective = new Map<string, typeof events[number]>();
+    for (const entry of events) {
+      const key = `${entry.event.channel}:${entry.event.purpose}`;
+      const previous = effective.get(key);
+      if (!previous || (!previous.outstandingWithdrawal && entry.outstandingWithdrawal)) effective.set(key, entry);
+    }
+    const effectiveConsents = [...effective.values()].map(({ event }) => event);
     return { ...row, identifiers, consents, effectiveConsents };
   });
 }
