@@ -12,6 +12,7 @@ import { getWorkspace } from "@/server/workspaces";
 import { getDb } from "@/db/client";
 import { AccessError } from "@/server/permissions";
 import type { BrandTheme } from "@/lib/theme";
+import { RegisterServiceWorker } from "@/components/register-service-worker";
 import "./globals.css";
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("Metadata");
@@ -30,5 +31,5 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       if (!(error instanceof AccessError)) console.error("workspace_theme_load_failed");
     }
   }
-  return <html lang={locale} className={GeistSans.variable} suppressHydrationWarning><head><script dangerouslySetInnerHTML={{ __html: themeBootstrap(brandTheme) }} /></head><body><NextIntlClientProvider>{children}</NextIntlClientProvider></body></html>;
+  return <html lang={locale} className={GeistSans.variable} suppressHydrationWarning><head><script dangerouslySetInnerHTML={{ __html: themeBootstrap(brandTheme) }} /></head><body><NextIntlClientProvider><RegisterServiceWorker />{children}</NextIntlClientProvider></body></html>;
 }
