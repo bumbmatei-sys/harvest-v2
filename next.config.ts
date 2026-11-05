@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
 import { resolve } from "node:path";
 import { PHASE_DEVELOPMENT_SERVER } from "next/constants";
-export default function config(phase: string): NextConfig { return {
+const withNextIntl = createNextIntlPlugin();
+export default function config(phase: string): NextConfig { return withNextIntl({
   poweredByHeader: false,
   devIndicators: false,
   turbopack: phase === PHASE_DEVELOPMENT_SERVER && process.env.HARVEST_E2E_MOCK_EMAIL === "1"
@@ -13,4 +15,4 @@ export default function config(phase: string): NextConfig { return {
     }
     return config;
   },
-}; }
+}); }
