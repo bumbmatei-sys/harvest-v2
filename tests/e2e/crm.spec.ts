@@ -49,6 +49,67 @@ async function api(page: Page, method: "get" | "post" | "put" | "patch" | "delet
   return { status: response.status(), body: await response.json().catch(() => ({})) };
 }
 
+test("CRM: company People tab truncates long names, roles and emails without sideways scrolling", async ({ page }) => {
+  test.setTimeout(120_000);
+  await signIn(page);
+  const workspace = await api(page, "post", "/api/workspaces", { name: "Company People layout regression" });
+  expect(workspace.status).toBe(201);
+  const root = `/workspaces/${workspace.body.tenantId}`, apiRoot = `/api${root}`;
+  const company = await api(page, "post", `${apiRoot}/companies`, { name: "Riverside Community Trust" });
+  expect(company.status).toBe(201);
+  const name = "Dr. Oluwaseun Adebayo-Whitfield Castellanos-Rodríguez";
+  const title = "Director of Community Partnerships, International Development and Volunteer Outreach";
+  const email = "oluwaseun.adebayo-whitfield@stbartholomewscommunitydevelopmenttrust.org.uk";
+  const person = await api(page, "post", `${apiRoot}/contacts`, { name, title, email, companyId: company.body.id });
+  expect(person.status).toBe(201);
+
+  // The sidebar leaves ~688px of shell content at 1024px; the detail grid and
+  // card padding constrain this table further. Wider cases exercise Role/Email.
+  for (const width of [320, 390, 768, 1024, 2560]) await test.step(`${width}px, sidebar expanded`, async () => {
+    await page.setViewportSize({ width, height: 900 });
+    await page.context().addCookies([{ name: "sidebar_state", value: "true", url: origin }]);
+    await page.goto(`${root}/crm/companies/${company.body.id}`);
+    await expect(page.locator('[data-slot="sidebar-wrapper"]')).toHaveAttribute("data-hydrated", "true");
+    if (width >= 1024) await expect(page.locator('[data-slot="sidebar"][data-state]')).toHaveAttribute("data-state", "expanded");
+    const table = page.getByRole("table");
+    const link = table.getByRole("link", { name: new RegExp(name) });
+    await expect(link).toBeVisible();
+    await expect(link).toHaveAttribute("href", `${root}/crm/people/${person.body.id}`);
+    await page.evaluate(() => document.fonts.ready);
+    await expectFullWidthShell(page);
+    const fit = await link.evaluate((element, fullName) => {
+      const cell = element.closest("td")!, text = [...element.querySelectorAll("span")].find((span) => span.textContent === fullName)!;
+      const box = element.getBoundingClientRect(), bounds = cell.getBoundingClientRect();
+      return { inCell: box.left >= bounds.left && box.right <= bounds.right + 1, truncated: text.scrollWidth > text.clientWidth, ellipsis: getComputedStyle(text).textOverflow };
+    }, name);
+    expect(fit.inCell).toBe(true);
+    expect(fit.truncated).toBe(true);
+    expect(fit.ellipsis).toBe("ellipsis");
+    // Check whichever role representation the container exposes, including the
+    // mobile subtitle; clipping the whole card must not hide overflowing text.
+    const roles = table.getByText(title, { exact: true });
+    let visibleRoles = 0;
+    for (const role of await roles.all()) if (await role.isVisible()) {
+      visibleRoles += 1;
+      expect(await role.evaluate((element) => ({ truncated: element.scrollWidth > element.clientWidth, ellipsis: getComputedStyle(element).textOverflow }))).toEqual({ truncated: true, ellipsis: "ellipsis" });
+    }
+    expect(visibleRoles).toBe(1);
+    if (width === 768 || width === 2560) await expect(table.getByRole("columnheader", { name: "Role", exact: true })).toBeVisible();
+    if (width === 2560) {
+      const emailCell = table.getByRole("cell", { name: email, exact: true });
+      await expect(emailCell).toBeVisible();
+      expect(await emailCell.evaluate((element) => ({ truncated: element.scrollWidth > element.clientWidth, ellipsis: getComputedStyle(element).textOverflow }))).toEqual({ truncated: true, ellipsis: "ellipsis" });
+      await expect(link.getByText("Primary", { exact: true })).toBeVisible();
+    }
+    const actions = table.getByRole("button", { name: `Actions for ${name}`, exact: true });
+    await expect(actions).toBeInViewport();
+    await actions.click();
+    await expect(page.getByRole("menuitem", { name: "Open person" })).toHaveAttribute("href", `${root}/crm/people/${person.body.id}`);
+    await expect(page.getByRole("menuitem", { name: "Remove from company" })).toBeVisible();
+    await page.keyboard.press("Escape");
+  });
+});
+
 test("CRM: people and companies create, edit, link, filter, isolate and render in every state", async ({ page, browser }) => {
   test.setTimeout(420_000);
   const pageErrors: string[] = [];
