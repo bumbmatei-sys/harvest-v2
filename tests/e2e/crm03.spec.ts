@@ -111,8 +111,11 @@ test("CRM-03: custom fields, saved views, filters, columns and keyboard grid edi
   const grid = page.getByRole("grid", { name: "People" });
   await expect(grid).toBeVisible();
   await page.getByRole("button", { name: "Columns" }).click();
-  await page.getByLabel("Volunteer tier").check();
-  await page.getByLabel("Phone").uncheck();
+  // Columns are URL state: the checkbox reflects the new URL once navigation lands.
+  await page.getByRole("checkbox", { name: "Volunteer tier" }).click();
+  await expect(page.getByRole("checkbox", { name: "Volunteer tier" })).toBeChecked();
+  await page.getByRole("checkbox", { name: "Phone" }).click();
+  await expect(page.getByRole("checkbox", { name: "Phone" })).not.toBeChecked();
   await page.keyboard.press("Escape");
   await expect(page).toHaveURL(/cols=company%2Cemail%2Cmarketing%2Ccreated%2Ccf%3Avolunteer_tier/);
   await expect(grid.getByRole("columnheader", { name: "Volunteer tier" })).toBeVisible();
@@ -169,8 +172,10 @@ test("CRM-03: custom fields, saved views, filters, columns and keyboard grid edi
   await page.keyboard.press("Enter");
   await editor.fill("ada@example.test");
   await page.keyboard.press("Tab");
+  await expect(editor).toBeHidden();
   await expect(grid.getByRole("gridcell", { name: "ada@example.test" })).toBeVisible();
-  await expect(grid.getByRole("gridcell", { name: "ada@example.test" })).not.toBeFocused();
+  // Tab committed and moved focus to the next cell (Phone) in the same row.
+  await expect(grid.getByRole("gridcell", { name: "Not provided" }).first()).toBeFocused();
   expect((await api(page, "get", `${apiRoot}/contacts?q=ada%40example.test`)).body.total).toBe(1);
 
   // No sideways scroll at tablet width with the sidebar expanded, nor on a phone.
@@ -192,9 +197,17 @@ test("CRM-03: custom fields, saved views, filters, columns and keyboard grid edi
   const viewer = await viewerContext.newPage();
   const viewerEmail = await signIn(viewer);
   expect((await api(page, "put", `${apiRoot}/members`, { email: viewerEmail, role: "viewer" })).status).toBe(200);
+  // The owner's personal view is private: for the viewer it is simply not available.
   await viewer.goto(`${root}/crm/people?view=${viewId}`);
-  await expect(viewer.getByRole("grid", { name: "People" }).getByRole("row")).toHaveCount(2);
+  await expect(viewer.getByText("That view is not available, so the default view is shown.")).toBeVisible();
+  await expect(viewer.getByRole("grid", { name: "People" }).getByRole("row")).toHaveCount(5);
+  // Built-in views still apply; viewers can browse but never save.
+  await viewer.getByRole("button", { name: /^All people/ }).click();
+  await expect(viewer.getByRole("menuitem", { name: "Save as new view" })).toHaveCount(0);
+  await viewer.getByRole("menuitem", { name: "No company" }).click();
+  await expect(viewer.getByRole("grid", { name: "People" }).getByRole("row")).toHaveCount(3);
   await expect(viewer.getByRole("button", { name: "Save as new view" })).toHaveCount(0);
+  await viewer.goto(`${root}/crm/people`);
   await viewer.getByRole("grid", { name: "People" }).getByRole("link", { name: /Synthetic Ada Mensah/ }).click();
   await expect(viewer.getByText("Northside")).toBeVisible();
   await expect(viewer.getByLabel("Volunteer tier")).toHaveCount(0);

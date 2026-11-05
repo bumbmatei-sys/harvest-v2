@@ -48,7 +48,7 @@ function ChoiceField({ field, value }: { field: CustomFieldMeta; value: string }
   }
   const label = options.find((option) => option.value === shown)?.label;
   return <Row label={field.label} description={field.description} required={field.required} htmlFor={writable ? id : undefined}>
-    {writable ? <NativeSelect id={id} value={shown} disabled={busy} onChange={(event) => void change(event.target.value)} className="h-8 w-full text-sm" aria-invalid={!!error}>
+    {writable ? <NativeSelect id={id} value={shown} disabled={busy} onChange={(event) => void change(event.target.value)} size="sm" className="min-w-40 text-sm" aria-invalid={!!error}>
       <NativeSelectOption value="">{t("empty")}</NativeSelectOption>
       {options.map((option) => <NativeSelectOption key={option.value} value={option.value}>{option.label}</NativeSelectOption>)}
     </NativeSelect> : <p className={cn("min-h-8 truncate px-2 py-1.5 text-sm", !label && "text-muted-foreground")}>{label ?? t("empty")}</p>}

@@ -140,7 +140,7 @@ export function RecordGrid({ tenantId, objectType, columns, rows, density, label
             onFocus={() => setActive({ row: rowIndex, col })} onDoubleClick={() => startEdit(rowIndex, col)} title={isEditing ? undefined : cell.title ?? cell.text}
             className={cn("overflow-hidden text-xs outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring", column.numeric && "text-right tabular-nums", index === columns.length - 1 && "pr-4", density === "compact" && "py-0.5")}>
             {isEditing && spec ? (spec.kind === "boolean" || spec.kind === "select"
-              ? <NativeSelect autoFocus aria-label={t("editColumnForRecord", { column: column.label, name: row.name })} value={editing.draft} disabled={busy} onKeyDown={onEditorKeyDown} onChange={(event) => setEditing({ ...editing, draft: event.target.value })} onBlur={() => void commit()} className="h-7 w-full text-xs">
+              ? <NativeSelect autoFocus aria-label={t("editColumnForRecord", { column: column.label, name: row.name })} value={editing.draft} disabled={busy} onKeyDown={onEditorKeyDown} onChange={(event) => setEditing({ ...editing, draft: event.target.value })} onBlur={() => void commit()} size="sm" className="h-7 w-full py-0 text-xs">
                 <NativeSelectOption value="">{t("empty")}</NativeSelectOption>
                 {(spec.kind === "boolean" ? [{ value: "true", label: t("yes") }, { value: "false", label: t("no") }] : spec.options ?? []).map((option) => <NativeSelectOption key={option.value} value={option.value}>{option.label}</NativeSelectOption>)}
               </NativeSelect>

@@ -624,7 +624,7 @@
     "chooseValue": "Choose a value",
     "clearFilters": "Clear filters",
     "columns": "Columns",
-    "columnsHiddenAtThisWidth": "{count, plural, one {# column is} other {# columns are}} hidden at this width. Widen the window or collapse the sidebar to see them.",
+    "columnsHiddenAtThisWidth": "{count, plural, one {# column doesn’t fit} other {# columns don’t fit}} at this width.",
     "completeTheFilter": "Complete the filter before applying it.",
     "condition": "Condition",
     "deleteView": "Delete view",

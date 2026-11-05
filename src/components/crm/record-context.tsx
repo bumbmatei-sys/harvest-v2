@@ -21,13 +21,21 @@ export function RecordProvider({ endpoint, version, writable, children }: { endp
   // A refresh may deliver a newer server version (for example after another field saved).
   if (version !== seen) { setSeen(version); setStale(false); }
   // Built-in fields and custom fields (CRM-03) share the record's one version.
-  const send = useCallback(async (url: string, body: Record<string, unknown>) => {
-    const latest = Math.max(current.current, version);
-    const result = await crmRequest<{ version: number }>(url, { method: "PATCH", body: { ...body, version: latest } });
-    if (!result.ok) { if (result.details?.reason === "stale") setStale(true); return result.error; }
-    current.current = result.data.version;
-    router.refresh();
-    return null;
+  // Saves run one at a time: a quick second edit waits for the first to return its new
+  // version instead of racing it with the old one (which would be a false 409).
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const send = useCallback((url: string, body: Record<string, unknown>) => {
+    const run = async () => {
+      const latest = Math.max(current.current, version);
+      const result = await crmRequest<{ version: number }>(url, { method: "PATCH", body: { ...body, version: latest } });
+      if (!result.ok) { if (result.details?.reason === "stale") setStale(true); return result.error; }
+      current.current = result.data.version;
+      router.refresh();
+      return null;
+    };
+    const next = queue.current.then(run, run);
+    queue.current = next;
+    return next;
   }, [crmRequest, router, version]);
   const save = useCallback<Save>((fields) => send(endpoint, fields), [send, endpoint]);
   const saveCustom = useCallback<SaveCustom>((values) => send(`${endpoint}/fields`, { values }), [send, endpoint]);
