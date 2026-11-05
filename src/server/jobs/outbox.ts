@@ -1,0 +1,36 @@
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import type { Transaction } from "../../db/client";
+import { jobs, outboxEvents } from "../../db/schema";
+import { message } from "../../i18n/messages";
+import { AccessError } from "../permissions";
+import { jobInput, workFingerprint, type JobInput } from "./primitives";
+
+// Only call with a tenant transaction; RLS rejects a missing/mismatched context.
+// Namespace application keys separately from the outbox dispatcher's keys.
+export async function enqueueJob(tx: Transaction, tenantId: string, data: JobInput) {
+  const input = jobInput.parse(data), fingerprint = workFingerprint(input.kind, input.payload);
+  const [inserted] = await tx.insert(jobs).values({ ...input, tenantId, fingerprint }).onConflictDoNothing({ target: [jobs.tenantId, jobs.idempotencyKey] }).returning();
+  const row = inserted ?? (await tx.select().from(jobs).where(and(eq(jobs.tenantId, tenantId), eq(jobs.idempotencyKey, input.idempotencyKey))))[0];
+  if (!row || row.fingerprint !== fingerprint) throw new AccessError(409, message("Errors.jobIdempotencyConflict"));
+  return row;
+}
+// Use in the SAME transaction as the domain/activity write. No separate connection.
+export async function appendOutboxEvent(tx: Transaction, tenantId: string, data: Omit<JobInput, "maxAttempts">) {
+  const parsed = jobInput.parse(data);
+  const input = { kind: parsed.kind, idempotencyKey: parsed.idempotencyKey, payload: parsed.payload, scheduledFor: parsed.scheduledFor };
+  if (input.idempotencyKey.length > 190) throw new Error("OUTBOX_KEY_TOO_LONG");
+  const fingerprint = workFingerprint(input.kind, input.payload);
+  const [inserted] = await tx.insert(outboxEvents).values({ ...input, tenantId, fingerprint }).onConflictDoNothing({ target: [outboxEvents.tenantId, outboxEvents.idempotencyKey] }).returning();
+  const row = inserted ?? (await tx.select().from(outboxEvents).where(and(eq(outboxEvents.tenantId, tenantId), eq(outboxEvents.idempotencyKey, input.idempotencyKey))))[0];
+  if (!row || row.fingerprint !== fingerprint) throw new AccessError(409, message("Errors.jobIdempotencyConflict"));
+  return row;
+}
+export async function dispatchOutbox(tx: Transaction, tenantId: string, limit: number) {
+  const events = await tx.select().from(outboxEvents).where(and(eq(outboxEvents.tenantId, tenantId), isNull(outboxEvents.dispatchedAt)))
+    .orderBy(asc(outboxEvents.createdAt), asc(outboxEvents.id)).limit(limit).for("update", { skipLocked: true });
+  for (const event of events) {
+    await enqueueJob(tx, tenantId, { kind: event.kind, idempotencyKey: `outbox:${event.id}`, payload: event.payload as JobInput["payload"], scheduledFor: event.scheduledFor });
+    await tx.update(outboxEvents).set({ dispatchedAt: sql`now()` }).where(and(eq(outboxEvents.tenantId, tenantId), eq(outboxEvents.id, event.id)));
+  }
+  return events.length;
+}
