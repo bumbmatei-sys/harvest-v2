@@ -3,6 +3,7 @@
 > - Object storage is Cloudflare R2 (separate v2 bucket). Payments are Dodo, not Stripe.
 > - UI uses shadcn components only; never hand-build anything shadcn provides.
 > - Contact erasure anonymizes personal data and keeps anonymous consent records.
+> - Follow-up decisions (Matei, 4 Nov 2026): erasure also removes contact/consent links and correlating metadata from the contact’s audit history; the retained erasure event has no contact ID. An unsubscribe remains effective unless superseded by a grant both recorded and occurred strictly after it. A backdated grant never overrides a withdrawal.
 > - No per-tenant subdomains; subdomains only for the public website and Link in Bio. User-created courses and products are public across Harvest (PRD-v2.5 section 9.1). "No Discover" here means the trending-content research tool, not the course and product Discover page.
 > - Virus/malware scanning of uploads: medium-high priority, **DEFERRED until beta/production launch** (Matei, 2026-11-04). No paid scanner during development. It is a launch gate; see section 11, requirement 11.-04a.
 - Hosting (Matei, 2026-11-04): v2 runs on Vercel through beta. Avoid Vercel-only APIs (standard Next.js, no Edge Config/KV/Blob, storage via the S3 adapter) so a later move to Cloudflare Workers via OpenNext stays cheap. Revisit at beta using real hosting bills.

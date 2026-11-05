@@ -2,11 +2,11 @@
   "unselectedRadio": [
     {
       "palette": "harvest-light",
-      "ratio": 6.256953879566992
+      "ratio": 7.004729208035935
     },
     {
       "palette": "harvest-dark",
-      "ratio": 7.095172888313891
+      "ratio": 6.081384621832776
     },
     {
       "palette": "studio-light",
@@ -14,48 +14,48 @@
     },
     {
       "palette": "studio-dark",
-      "ratio": 5.108976080475338
+      "ratio": 4.9251790985312605
     }
   ],
   "shellSurfaces": [
     {
       "palette": "harvest-light",
-      "canvas": "#fafaf8",
+      "canvas": "#f9f9f7",
       "panel": "#f3f2ef",
-      "card": "#f3f2ef",
+      "card": "#ffffff",
       "foreground": "#1a1a1a",
-      "panelToCanvas": 1.0712390294924168,
-      "cardToPanel": 1,
+      "panelToCanvas": 1.0620055388018255,
+      "cardToPanel": 1.1195110820475942,
       "foregroundToPanel": 15.546364669217517
     },
     {
       "palette": "harvest-dark",
       "canvas": "#171717",
       "panel": "#202020",
-      "card": "#202020",
+      "card": "#2c2c2c",
       "foreground": "#f2f2f2",
       "panelToCanvas": 1.1003227936017552,
-      "cardToPanel": 1,
+      "cardToPanel": 1.1667035271608235,
       "foregroundToPanel": 14.554115110831715
     },
     {
       "palette": "studio-light",
       "canvas": "#efefec",
-      "panel": "#f7f7f5",
+      "panel": "#f3f3f0",
       "card": "#ffffff",
       "foreground": "#272523",
-      "panelToCanvas": 1.074044473380234,
-      "cardToPanel": 1.0726516383133289,
-      "foregroundToPanel": 14.23659430915399
+      "panelToCanvas": 1.0362880330779263,
+      "cardToPanel": 1.1117329615115328,
+      "foregroundToPanel": 13.736127953743166
     },
     {
       "palette": "studio-dark",
       "canvas": "#141414",
       "panel": "#1a1a1a",
-      "card": "#212121",
+      "card": "#242424",
       "foreground": "#ededed",
       "panelToCanvas": 1.0585031817721098,
-      "cardToPanel": 1.0808669932761106,
+      "cardToPanel": 1.1212026008292166,
       "foregroundToPanel": 14.866167120520462
     }
   ]

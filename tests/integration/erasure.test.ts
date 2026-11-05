@@ -49,14 +49,14 @@ describe("controlled contact erasure", () => {
     await recordConsent(fixture.db, "eraser-a", tenantA, a.id, { ...proof, status: "withdrawn" });
     const otherProof = await recordConsent(fixture.db, "eraser-b", tenantB, b.id, proof);
     await eraseContact(fixture.db, "eraser-a", tenantA, a.id);
-    expect(await eraseContact(fixture.db, "eraser-a", tenantA, a.id)).toEqual({ erased: true });
-    const { rows: [contact] } = await fixture.admin.query("select * from contacts where tenant_id=$1 and id=$2", [tenantA, a.id]);
+    await expect(eraseContact(fixture.db, "eraser-a", tenantA, a.id)).rejects.toMatchObject({ status: 404 });
+    const { rows: [contact] } = await fixture.admin.query("select * from contacts where tenant_id=$1 and erased_at is not null", [tenantA]);
     expect(contact).toMatchObject({ name: "Erased contact", notes: "" }); expect(contact.erased_at).toBeInstanceOf(Date);
     expect((await fixture.admin.query("select * from contact_identifiers where tenant_id=$1 and contact_id=$2", [tenantA, a.id])).rows).toEqual([]);
     const { rows: ledger } = await fixture.admin.query("select * from contact_consents where tenant_id=$1 and redacted_at is not null", [tenantA]);
     expect(ledger).toHaveLength(2);
     for (const event of ledger) {
-      expect(event).toMatchObject({ contact_id: null, recorded_by: null, channel: null, source: null, evidence: null, purpose: "marketing", notice_version: "notice-v1", occurred_at: new Date("2026-10-01T00:00:00Z") });
+      expect(event).toMatchObject({ contact_id: contact.id, recorded_by: null, channel: null, source: null, evidence: null, purpose: "marketing", notice_version: "notice-v1", occurred_at: new Date("2026-10-01T00:00:00Z") });
       expect(event.recorded_at.toISOString()).toMatch(/T00:00:00.000Z$/);
       expect(event.redacted_at.toISOString()).toMatch(/T00:00:00.000Z$/);
       expect(event.id).not.toBe(before.id);
@@ -77,7 +77,7 @@ describe("controlled contact erasure", () => {
     await expect(updateContact(fixture.db, "eraser-a", tenantA, a.id, input)).rejects.toMatchObject({ status: 404 });
     await expect(recordConsent(fixture.db, "eraser-a", tenantA, a.id, proof)).rejects.toMatchObject({ status: 404 });
     await expect(withTenant(fixture.db, "eraser-a", tenantA, "contacts:write", (tx) => tx.execute(sql`insert into contact_identifiers (tenant_id, contact_id, kind, value, normalized_value) values (${tenantA}, ${a.id}, 'email', 'new@example.test', 'new@example.test')`))).rejects.toThrow();
-    await expect(fixture.admin.query("update contacts set name='Restored' where tenant_id=$1 and id=$2", [tenantA, a.id])).rejects.toThrow("cannot be changed");
+    await expect(fixture.admin.query("update contacts set name='Restored' where tenant_id=$1 and id=$2", [tenantA, contact.id])).rejects.toThrow("cannot be changed");
     expect(await getContact(fixture.db, "eraser-b", tenantB, b.id)).toEqual({ ...untouched, consents: [otherProof], effectiveConsents: [otherProof] });
   });
 
@@ -103,11 +103,18 @@ describe("controlled contact erasure", () => {
 
   it("coarsens permitted midnight clock skew in UTC while preserving the occurrence bound", async () => {
     const contact = await createContact(fixture.db, "eraser-a", tenantA, { name: "Midnight skew" });
-    await withTenant(fixture.db, "eraser-a", tenantA, "contacts:write", (tx) => tx.execute(sql`
-      insert into contact_consents (tenant_id,contact_id,recorded_by,purpose,notice_version,channel,status,source,evidence,recorded_at,occurred_at)
-      values (${tenantA},${contact.id},'eraser-a','marketing','notice-v1','email','granted','reference','reference',
-        '2026-10-01T23:59:00Z','2026-10-02T00:01:00Z')`
-    ));
+    // Historical clock-skew fixture belongs to the migration owner, never the app role.
+    const client = await fixture.admin.connect();
+    try {
+      await client.query("begin");
+      await client.query("alter table contact_consents disable trigger consent_provenance");
+      await client.query(`insert into contact_consents (tenant_id,contact_id,recorded_by,purpose,notice_version,channel,status,source,evidence,recorded_at,occurred_at)
+        values ($1,$2,'eraser-a','marketing','notice-v1','email','granted','reference','reference',
+          '2026-10-01T23:59:00Z','2026-10-02T00:01:00Z')`, [tenantA, contact.id]);
+      await client.query("alter table contact_consents enable trigger consent_provenance");
+      await client.query("commit");
+    } catch (error) { await client.query("rollback"); throw error; }
+    finally { client.release(); }
     await eraseContact(fixture.db, "eraser-a", tenantA, contact.id);
     const { rows: [row] } = await fixture.admin.query("select recorded_at,occurred_at,redacted_at from contact_consents where tenant_id=$1 and redacted_at is not null and recorded_at='2026-10-01T00:00:00Z'", [tenantA]);
     expect(row.recorded_at.toISOString()).toBe("2026-10-01T00:00:00.000Z");
@@ -159,11 +166,13 @@ describe("controlled contact erasure", () => {
     const a = await createContact(fixture.db, "eraser-a", tenantA, { name: "Rollback Person", email: "rollback@example.test", notes: "keep until success" });
     await recordConsent(fixture.db, "eraser-a", tenantA, a.id, proof);
     const before = await getContact(fixture.db, "eraser-a", tenantA, a.id);
+    const beforeAudit = (await fixture.admin.query("select * from audit_logs where tenant_id=$1 order by id", [tenantA])).rows;
     await fixture.admin.query("create function test_erasure_audit_failure() returns trigger language plpgsql as $$ begin if NEW.action = 'contact.erase' then raise exception 'test audit failure'; end if; return NEW; end $$");
     await fixture.admin.query("create trigger test_erasure_audit_failure before insert on audit_logs for each row execute function test_erasure_audit_failure()");
     try { await expect(eraseContact(fixture.db, "eraser-a", tenantA, a.id)).rejects.toThrow(); }
     finally { await fixture.admin.query("drop trigger test_erasure_audit_failure on audit_logs"); }
     expect(await getContact(fixture.db, "eraser-a", tenantA, a.id)).toEqual(before);
+    expect((await fixture.admin.query("select * from audit_logs where tenant_id=$1 order by id", [tenantA])).rows).toEqual(beforeAudit);
   });
 
   it("supports a non-superuser definer with FORCE RLS and tenant checks active", async () => {
@@ -174,7 +183,7 @@ describe("controlled contact erasure", () => {
     await fixture.admin.query("grant usage, create on schema public to harvest_test_eraser");
     await fixture.admin.query("grant select,update on contacts,contact_consents,workspace_members to harvest_test_eraser");
     await fixture.admin.query("grant select,delete on contact_identifiers to harvest_test_eraser");
-    await fixture.admin.query("grant insert on audit_logs to harvest_test_eraser");
+    await fixture.admin.query("grant select,insert,update on audit_logs to harvest_test_eraser");
     for (const table of ["contacts", "contact_consents", "contact_identifiers", "workspace_members", "audit_logs"]) {
       await fixture.admin.query(`create policy test_restricted_erasure on ${table} to harvest_test_eraser using (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid) with check (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid)`);
     }

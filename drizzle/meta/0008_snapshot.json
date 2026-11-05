@@ -1,5 +1,5 @@
 {
-  "id": "b28de9b6-8e70-4cec-aaa5-ca078205a4e3",
+  "id": "d24eb8a5-7644-403e-90e7-d154cc366eba",
   "prevId": "2162025d-af67-4c58-ab02-cc85416aca06",
   "version": "7",
   "dialect": "postgresql",
@@ -181,7 +181,7 @@
           "name": "target_id",
           "type": "text",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "metadata": {
           "name": "metadata",
@@ -442,7 +442,7 @@
         },
         "consent_redaction": {
           "name": "consent_redaction",
-          "value": "(\"contact_consents\".\"redacted_at\" is null and \"contact_consents\".\"contact_id\" is not null and \"contact_consents\".\"channel\" is not null and \"contact_consents\".\"source\" is not null and \"contact_consents\".\"evidence\" is not null) or (\"contact_consents\".\"redacted_at\" is not null and \"contact_consents\".\"contact_id\" is null and \"contact_consents\".\"channel\" is null and \"contact_consents\".\"source\" is null and \"contact_consents\".\"evidence\" is null and \"contact_consents\".\"recorded_by\" is null)"
+          "value": "(\"contact_consents\".\"redacted_at\" is null and \"contact_consents\".\"contact_id\" is not null and \"contact_consents\".\"channel\" is not null and \"contact_consents\".\"source\" is not null and \"contact_consents\".\"evidence\" is not null) or (\"contact_consents\".\"redacted_at\" is not null and \"contact_consents\".\"channel\" is null and \"contact_consents\".\"source\" is null and \"contact_consents\".\"evidence\" is null and \"contact_consents\".\"recorded_by\" is null)"
         }
       },
       "isRLSEnabled": false
@@ -1122,12 +1122,6 @@
         },
         "image": {
           "name": "image",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "locale": {
-          "name": "locale",
           "type": "text",
           "primaryKey": false,
           "notNull": false
