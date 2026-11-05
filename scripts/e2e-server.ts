@@ -1,9 +1,12 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
+import { writeFile } from "node:fs/promises";
 import { testDatabase } from "../tests/database";
 import { storageMock } from "../tests/storage-mock";
 const database = await testDatabase();
 const storage = await storageMock();
+// Browser tests may simulate a slow database (for loading states) on this disposable DB only.
+if (process.env.HARVEST_E2E_MAILBOX) await writeFile(`${process.env.HARVEST_E2E_MAILBOX}.database`, database.appURL, { mode: 0o600 });
 const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--turbopack", "--hostname", "127.0.0.1", "--port", "3100"], {
   stdio: ["ignore", "inherit", "inherit"], env: { ...process.env,
     // Override any real credentials and avoid reading live .env.local during browser tests.

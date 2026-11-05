@@ -16,10 +16,10 @@ test("offline navigation uses a public fallback without caching workspace or API
   const response = await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Private offline test workspace" } });
   expect(response.status()).toBe(201);
   const workspace = (await response.json()).tenantId;
-  await page.goto(`/workspaces/${workspace}/contacts`);
+  await page.goto(`/workspaces/${workspace}/crm/people`);
   await page.evaluate(async () => { await fetch("/api/profile"); await fetch("/api/workspaces"); });
   await context.setOffline(true);
-  await page.goto(`/workspaces/${workspace}/contacts`);
+  await page.goto(`/workspaces/${workspace}/crm/people`);
   await expect(page.getByRole("heading", { name: "You’re offline" })).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   const cached = await page.evaluate(async () => {

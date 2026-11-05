@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { Building2, ChevronRight, ChevronsUpDown, Files, LogOut, Palette, Sprout, UsersRound } from "lucide-react";
+import { Building, Building2, ChevronRight, ChevronsUpDown, Files, LogOut, Palette, Sprout, UsersRound } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { BrandThemeMenu, ThemeToggle, WorkspaceTheme } from "@/components/theme-controls";
@@ -49,7 +49,7 @@ function WorkspaceSwitcher({ workspaces, selected, container }: { workspaces: Wo
       <DropdownMenuLabel>{selected?.name ?? t("workspaces")}</DropdownMenuLabel>
       <DropdownMenuItem asChild><Link href="/workspaces" onClick={() => setOpenMobile(false)}>{t("yourWorkspaces")}</Link></DropdownMenuItem>
       <DropdownMenuSeparator />
-      {workspaces.map((item) => <DropdownMenuItem key={item.tenantId} asChild><Link href={`/workspaces/${item.tenantId}/contacts`} onClick={() => setOpenMobile(false)}>{item.name}</Link></DropdownMenuItem>)}
+      {workspaces.map((item) => <DropdownMenuItem key={item.tenantId} asChild><Link href={`/workspaces/${item.tenantId}/crm/people`} onClick={() => setOpenMobile(false)}>{item.name}</Link></DropdownMenuItem>)}
     </DropdownMenuContent>
   </DropdownMenu></SidebarMenuItem></SidebarMenu>;
 }
@@ -63,7 +63,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
   const [busy, setBusy] = useState(false);
   const [navigationContainer, setNavigationContainer] = useState<HTMLElement | null>(null);
   const workspace = workspaces.find((item) => item.tenantId === selected);
-  const section = pathname === "/profile" ? t("profile") : pathname.includes("/contacts") ? t("contacts") : pathname.includes("/files") ? t("files") : pathname.endsWith("/appearance") ? t("appearance") : t("workspaces");
+  const section = pathname === "/profile" ? t("profile") : pathname.includes("/crm/people") || pathname.includes("/contacts") ? t("people") : pathname.includes("/crm/companies") ? t("companies") : pathname.includes("/files") ? t("files") : pathname.endsWith("/appearance") ? t("appearance") : t("workspaces");
   async function signOut() {
     setBusy(true); setError("");
     try {
@@ -90,8 +90,11 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
             <SidebarMenu className="mt-px gap-px"><NavigationLink href="/workspaces" active={!selected} label={t("workspaces")} icon={<Building2 aria-hidden="true" />} /></SidebarMenu>
           </SidebarGroup>
           {selected && <>
-            <NavigationGroup label={t("people")}>
-              <NavigationLink href={`/workspaces/${selected}/contacts`} active={pathname.includes("/contacts")} label={t("contacts")} icon={<UsersRound aria-hidden="true" />} />
+            <NavigationGroup label={t("crm")}>
+              <NavigationLink href={`/workspaces/${selected}/crm/people`} active={pathname.includes("/crm/people")} label={t("people")} icon={<UsersRound aria-hidden="true" />} />
+              <NavigationLink href={`/workspaces/${selected}/crm/companies`} active={pathname.includes("/crm/companies")} label={t("companies")} icon={<Building aria-hidden="true" />} />
+            </NavigationGroup>
+            <NavigationGroup label={t("workspace")}>
               <NavigationLink href={`/workspaces/${selected}/files`} active={pathname.includes("/files")} label={t("files")} icon={<Files aria-hidden="true" />} />
             </NavigationGroup>
             <NavigationGroup label={t("settings")}><NavigationLink href={`/workspaces/${selected}/appearance`} active={pathname.endsWith("/appearance")} label={t("appearance")} icon={<Palette aria-hidden="true" />} /></NavigationGroup>
@@ -120,15 +123,18 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
       <SidebarRail />
     </Sidebar>
     <SidebarInset className="min-h-0 min-w-0 overflow-hidden">
-      <header data-shell-header className="flex h-12 shrink-0 items-center gap-2 px-3">
+      <header data-shell-header className="flex h-12 shrink-0 items-center gap-2 px-4 lg:px-6">
         <SidebarTrigger className="lg:hidden" />
         <Breadcrumb className="min-w-0"><BreadcrumbList className="flex-nowrap text-[13px]">
-          {workspace && <><BreadcrumbItem className="min-w-0"><BreadcrumbLink asChild className="truncate"><Link href={`/workspaces/${selected}/contacts`}>{workspace.name}</Link></BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator /></>}
+          {workspace && <><BreadcrumbItem className="min-w-0"><BreadcrumbLink asChild className="truncate"><Link href={`/workspaces/${selected}/crm/people`}>{workspace.name}</Link></BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator /></>}
           <BreadcrumbItem><BreadcrumbPage className="font-medium">{section}</BreadcrumbPage></BreadcrumbItem>
         </BreadcrumbList></Breadcrumb>
       </header>
       <main id="main-content" className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-[1040px] px-5 py-10 sm:px-8 lg:py-14">
+        {/* Workspace screens use the full width beside the sidebar with compact gutters
+            (16px, 24px from lg) that match the breadcrumb. Focused short forms opt into
+            their own narrow width; the shell never centres or caps the content column. */}
+        <div data-shell-content className="w-full max-w-none px-4 pt-1 pb-8 lg:px-6 lg:pb-10">
           {error && <Alert variant="destructive" className="mb-6"><AlertDescription>{error}</AlertDescription></Alert>}
           {children}
         </div>

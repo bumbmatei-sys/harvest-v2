@@ -1,6 +1,6 @@
 # Third-party licenses
 
-Generated from package-lock.json on 2026-11-04. No AGPL dependencies are present. The lockfile pins the exact dependency graph; this inventory includes development and optional platform packages. UI code is adapted only from the MIT-licensed official shadcn registry. Visual reference screenshots are not redistributed in the product.
+Generated from package-lock.json on 2026-11-04; `cmdk` added 2026-11-05 for the shadcn Command component (CRM-02). No AGPL dependencies are present. The lockfile pins the exact dependency graph; this inventory includes development and optional platform packages. UI code is adapted only from the MIT-licensed official shadcn registry. Visual reference screenshots are not redistributed in the product.
 
 The shadcn MIT notice is preserved in [licenses/shadcn-ui-MIT.txt](licenses/shadcn-ui-MIT.txt). Geist fonts use the SIL Open Font License (OFL-1.1); its notice is preserved in [licenses/Geist-OFL.txt](licenses/Geist-OFL.txt). Packages retain their upstream notices in npm distributions. PostgreSQL binaries used by embedded-postgres retain the PostgreSQL license in their distribution.
 
@@ -400,6 +400,7 @@ The shadcn MIT notice is preserved in [licenses/shadcn-ui-MIT.txt](licenses/shad
 | `class-variance-authority` | 0.7.1 | Apache-2.0 |
 | `client-only` | 0.0.1 | MIT |
 | `clsx` | 2.1.1 | MIT |
+| `cmdk` | 1.1.1 | MIT |
 | `color-convert` | 2.0.1 | MIT |
 | `color-name` | 1.1.4 | MIT |
 | `concat-map` | 0.0.1 | MIT |

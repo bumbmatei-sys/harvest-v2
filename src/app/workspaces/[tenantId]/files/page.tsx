@@ -32,10 +32,13 @@ export default async function FilesPage({ params }: { params: Promise<{ tenantId
       listFiles(getDb(), session.user.id, tenantId),
     ]);
   } catch (error) { if (error instanceof AccessError) notFound(); throw error; }
-  return <div className="space-y-6">
+  return <div className="space-y-4">
     <Button asChild variant="outline"><Link href="/workspaces">{t("backToWorkspaces")}</Link></Button>
     <div className="space-y-1"><p className="text-sm text-muted-foreground">{workspace.name}</p><h1 className="text-2xl font-semibold">{t("workspaceFiles")}</h1></div>
-    <Card><CardHeader><CardTitle>{t("uploadAFile")}</CardTitle></CardHeader><CardContent><UploadControl tenantId={tenantId} canUpload={workspace.canUpload} /></CardContent></Card>
-    <Card><CardHeader><CardTitle>{t("files")}</CardTitle></CardHeader><CardContent><FileList files={files} tenantId={tenantId} canUpload={workspace.canUpload} /></CardContent></Card>
+    {/* The short upload form keeps a readable width; the file list takes the rest on wide screens. */}
+    <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
+      <Card><CardHeader><CardTitle>{t("uploadAFile")}</CardTitle></CardHeader><CardContent><UploadControl tenantId={tenantId} canUpload={workspace.canUpload} /></CardContent></Card>
+      <Card><CardHeader><CardTitle>{t("files")}</CardTitle></CardHeader><CardContent><FileList files={files} tenantId={tenantId} canUpload={workspace.canUpload} /></CardContent></Card>
+    </div>
   </div>;
 }

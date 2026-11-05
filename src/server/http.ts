@@ -19,7 +19,7 @@ function isPermissionDenied(error: unknown): boolean {
   return ("code" in error && error.code === "42501") || ("cause" in error && isPermissionDenied(error.cause));
 }
 export function errorResponse(error: unknown) {
-  if (error instanceof AccessError) return Response.json({ error: error.message }, { status: error.status });
+  if (error instanceof AccessError) return Response.json({ error: error.message, ...(error.details ? { details: error.details } : {}) }, { status: error.status });
   if (error instanceof ZodError || error instanceof SyntaxError) return Response.json({ error: message("Errors.checkTheSuppliedDetails") }, { status: 400 });
   if (isPermissionDenied(error)) return Response.json({ error: message("Errors.workspaceAccessDenied") }, { status: 403 });
   console.error("request_failed");

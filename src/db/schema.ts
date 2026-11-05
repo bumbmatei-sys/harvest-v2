@@ -66,9 +66,14 @@ export const contacts = pgTable("contacts", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
   erasedAt: timestamp("erased_at", { withTimezone: true }),
   id: uuid("id").notNull().defaultRandom(), name: text("name").notNull(), notes: text("notes").notNull().default(""),
+  // Display-name key for duplicate suggestions only; never an identity or merge key.
+  normalizedName: text("normalized_name").notNull().generatedAlwaysAs(sql`lower(regexp_replace(btrim(name), '[[:space:]]+', ' ', 'g'))`),
+  version: integer("version").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }), index("contacts_tenant_name_idx").on(t.tenantId, t.name, t.id),
+  index("contacts_tenant_normalized_name_idx").on(t.tenantId, t.normalizedName), index("contacts_tenant_created_idx").on(t.tenantId, t.createdAt, t.id),
+  check("contact_version", sql`${t.version} >= 1`),
   check("contact_name_length", sql`length(trim(${t.name})) between 1 and 100`), check("contact_notes_length", sql`length(${t.notes}) <= 5000`)]);
 export const contactIdentifiers = pgTable("contact_identifiers", {
   tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), contactId: uuid("contact_id").notNull(),
@@ -98,6 +103,36 @@ export const contactConsents = pgTable("contact_consents", {
   check("consent_occurrence_bound", sql`${t.occurredAt} <= ${t.recordedAt} + interval '5 minutes'`),
   check("consent_notice_version", sql`${t.noticeVersion} in ('notice-v1', 'legacy-unversioned')`),
   check("consent_redaction", sql`(${t.redactedAt} is null and ${t.contactId} is not null and ${t.channel} is not null and ${t.source} is not null and ${t.evidence} is not null) or (${t.redactedAt} is not null and ${t.channel} is null and ${t.source} is null and ${t.evidence} is null and ${t.recordedBy} is null)`)]);
+// CRM-01: organizations and explicit, tenant-scoped person-organization links.
+export const companies = pgTable("companies", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  id: uuid("id").notNull().defaultRandom(), name: text("name").notNull(),
+  normalizedName: text("normalized_name").notNull().generatedAlwaysAs(sql`lower(regexp_replace(btrim(name), '[[:space:]]+', ' ', 'g'))`),
+  // Normalized registrable host (no scheme, www, port or path). Unique per tenant when present.
+  domain: text("domain"), description: text("description").notNull().default(""),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  uniqueIndex("companies_tenant_domain_idx").on(t.tenantId, t.domain).where(sql`${t.domain} is not null`),
+  index("companies_tenant_name_idx").on(t.tenantId, t.normalizedName, t.id),
+  index("companies_tenant_created_idx").on(t.tenantId, t.createdAt, t.id),
+  check("company_name_length", sql`length(btrim(${t.name})) between 1 and 100 and ${t.name} = btrim(${t.name})`),
+  check("company_description_length", sql`length(${t.description}) <= 2000`),
+  check("company_domain_format", sql`${t.domain} is null or (length(${t.domain}) <= 253 and ${t.domain} ~ '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?([.][a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$')`),
+  check("company_version", sql`${t.version} >= 1`)]);
+export const contactCompanyLinks = pgTable("contact_company_links", {
+  tenantId: uuid("tenant_id").notNull(), contactId: uuid("contact_id").notNull(), companyId: uuid("company_id").notNull(),
+  title: text("title").notNull().default(""), isPrimary: boolean("is_primary").notNull().default(false),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.contactId, t.companyId] }),
+  foreignKey({ columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }),
+  foreignKey({ columns: [t.tenantId, t.companyId], foreignColumns: [companies.tenantId, companies.id] }),
+  uniqueIndex("company_links_one_primary_idx").on(t.tenantId, t.contactId).where(sql`${t.isPrimary}`),
+  index("company_links_tenant_company_idx").on(t.tenantId, t.companyId, t.contactId),
+  check("company_link_title_length", sql`length(${t.title}) <= 100 and ${t.title} = btrim(${t.title})`)]);
 export const files = pgTable("files", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
