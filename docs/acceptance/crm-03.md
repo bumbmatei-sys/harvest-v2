@@ -1,6 +1,6 @@
 # CRM-03 acceptance record: custom fields, saved views, filters and the grid
 
-Date: 2026-11-05. Scope: PRD v2.5 §5A.4 CRM-03, companion PRD §5. Design: [ADR 0008](../decisions/0008-crm-fields-and-views.md), building on [ADR 0007](../decisions/0007-crm-companies-and-links.md). Reference study: [Twenty and v1 notes](../research/twenty-crm-reference.md#crm-03-fields-saved-views-filters-and-the-grid). Out of scope (unchanged): pipelines/deals (CRM-04), tasks/notes/timeline (CRM-05), CSV import/export/merge (CRM-06), Social Studio, scheduler, AI, email and calendar sync, workflow automation, custom objects, computed and formula fields, and CRM outbox producers.
+Date: 2026-11-06. Scope: PRD v2.5 §5A.4 CRM-03, companion PRD §5. Design: [ADR 0008](../decisions/0008-crm-fields-and-views.md), building on [ADR 0007](../decisions/0007-crm-companies-and-links.md). Reference study: [Twenty and v1 notes](../research/twenty-crm-reference.md#crm-03-fields-saved-views-filters-and-the-grid). Out of scope (unchanged): pipelines/deals (CRM-04), tasks/notes/timeline (CRM-05), CSV import/export/merge (CRM-06), Social Studio, scheduler, AI, email and calendar sync, workflow automation, custom objects, computed and formula fields, and CRM outbox producers.
 
 ## What a user can do
 
@@ -34,23 +34,26 @@ Date: 2026-11-05. Scope: PRD v2.5 §5A.4 CRM-03, companion PRD §5. Design: [ADR
 - **Erasure** deletes the person's custom values, relation values pointing at them, and saved-view filters that name them, before re-keying. This is tested on a fresh database and on an upgraded post-CRM-02 database.
 - **No CRM outbox events** are emitted. Activity reads the audit ledger only.
 
-## Commands and results (this branch, 2026-11-05)
+## Commands and results (this branch, 2026-11-06)
 
-Database-backed tests used `TEST_DATABASE_URL` against a local PostgreSQL 16 (embedded-postgres refuses to run as root in this container), as for CRM-01/02. CI uses its own PostgreSQL service and did not run here unless stated in the PR.
+Verification started from `2a8e31e` after `git pull --ff-only origin feat/crm-03-fields-views`. Environment: Node 24.22.1, npm 11.21.1, Next.js 16.4.5. Running as the non-root workspace user allows embedded-postgres to work. RLS tests used an explicit `TEST_DATABASE_URL` against a disposable embedded PostgreSQL 18.6 instance on a free loopback port. An additional run using the harness's default per-file embedded instances also passed all 149 integration tests. CI uses PostgreSQL 17 for its RLS job; the PR body records checks against the final pushed head.
 
 | Command | Result |
 | --- | --- |
+| `npm ci` | exit 0; 703 packages added, 710 audited; npm reports 15 moderate vulnerabilities in the existing dependency tree |
 | `npm run lint` | exit 0; ESLint clean; "Source guards: no hard-coded JSX copy, feedback, or component colors." |
 | `npm run typecheck` | exit 0 |
-| `npm test` (unit) | 11 files, **129 passed** (includes `crm-fields.test.ts`, 16) |
-| `TEST_DATABASE_URL=… npm run test:rls` (integration) | 16 files, **149 passed** (includes `crm-fields-views.test.ts`, 20, and `crm03-upgrade.test.ts`) |
-| `npx drizzle-kit check` / `npx drizzle-kit generate` | "Everything's fine" / "No schema changes, nothing to migrate" |
+| `npm test` (unit) | exit 0; 11 files, **129 passed** (includes `crm-fields.test.ts`, 16) |
+| `TEST_DATABASE_URL=… npm run test:rls` (integration) | exit 0; 16 files, **149 passed** (includes `crm-fields-views.test.ts`, 20, and `crm03-upgrade.test.ts`) |
+| `npx drizzle-kit check && npx drizzle-kit generate` | exits 0 / 0; "Everything's fine" / "No schema changes, nothing to migrate" |
 | `npm run build` (`next build --webpack`) | exit 0; `/workspaces/[tenantId]/crm/settings/fields` compiled |
-| `npx playwright test` (all 9 tests, 8 specs) | Full run: **7 passed, 2 failed** (`crm`, `foundation`). Both were test defects, fixed (see below). Reruns: `crm` **passed**, `foundation` ×2 **passed**. `crm03` passed in the full run and in two separate runs. |
+| `npx playwright test` (all 9 tests, 8 specs) | exit 0; **9 passed** in 8.5 minutes, one worker, no retries; includes `crm`, `crm03` and both `foundation` tests |
 
-Browser runs used the same uncommitted local Playwright config as CRM-01/02 (Chromium at `/opt/pw-browsers/chromium`) against `scripts/e2e-server.ts`. `npm run test:rls:neon` was **not** run (no Neon credentials; not authorized).
+Browser runs use the committed Playwright config without local overrides, with `PLAYWRIGHT_BROWSERS_PATH=/tmp/harvest-browsers` (cached Chromium 156.0.8078.4) and `NEXT_TELEMETRY_DISABLED=1`. `scripts/e2e-server.ts` starts its own disposable database, mock storage and mock email. `npm run test:rls:neon` was **not** run locally; production Neon, R2 and Vercel were not accessed.
 
-Test-only fixes made during verification:
+No further product or test changes were needed in this final verification. All 14 CRM-03 screenshots in `docs/screenshots/crm03/` were refreshed, along with existing full-suite evidence in `docs/screenshots/crm/`, `layout/`, `pr01b/`, `pr02/` and `pr03/`. The generated development-only `next-env.d.ts` path changes were discarded.
+
+Test-only fixes already included before the final verification (`cfe6a52`, `020630a`):
 - `crm.spec.ts`: follows the new view bar (filter builder, sort field and direction, "Clear filters"), the `grid` role, `%7E`-encoded filter URLs, and the grid focus model (focus lands on the cell, with an inset ring).
 - `foundation.spec.ts`: axe ran while the workspace form's pre-hydration disabled button was still fading in (computed opacity 0.59), which axe reports as low contrast. The test now waits for the button to be enabled and fully opaque. The page itself is unchanged by CRM-03.
 
