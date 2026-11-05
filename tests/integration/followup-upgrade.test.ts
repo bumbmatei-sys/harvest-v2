@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-import { testDatabase } from "../database";
+import { migrationCount, testDatabase } from "../database";
 
 it("upgrades 0007, scrubs previously erased audit targets and preserves live history", async () => {
   const tenant = "11111111-1111-4111-8111-111111111111";
@@ -17,7 +17,7 @@ it("upgrades 0007, scrubs previously erased audit targets and preserves live his
     finally { await admin.query("select set_config('app.tenant_id','',false),set_config('app.user_id','',false)"); }
   } });
   try {
-    expect((await fixture.admin.query("select count(*)::int as count from drizzle.__drizzle_migrations")).rows[0].count).toBe(10);
+    expect((await fixture.admin.query("select count(*)::int as count from drizzle.__drizzle_migrations")).rows[0].count).toBe(migrationCount);
     const audits = (await fixture.admin.query("select action,target_id,metadata from audit_logs where tenant_id=$1 order by action", [tenant])).rows;
     expect(audits).toEqual([
       { action: "contact.consent_record", target_id: null, metadata: {} },

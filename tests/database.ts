@@ -8,6 +8,9 @@ import { Pool, escapeLiteral } from "pg";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { migrate } from "drizzle-orm/node-postgres/migrator";
 import * as schema from "../src/db/schema";
+import migrationJournal from "../drizzle/meta/_journal.json";
+
+export const migrationCount = migrationJournal.entries.length;
 
 async function freePort() {
   const server = createServer();

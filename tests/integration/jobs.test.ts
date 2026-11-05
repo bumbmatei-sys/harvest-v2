@@ -3,6 +3,8 @@ import { and, eq, sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/node-postgres";
 import { Pool } from "pg";
 import { randomUUID } from "node:crypto";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { testDatabase } from "../database";
 import * as schema from "../../src/db/schema";
 import { auditLogs, externalWebhookEvents, jobs, outboxEvents, users, webhookResourceStates, workspaces } from "../../src/db/schema";
@@ -155,6 +157,25 @@ describe("durable jobs and transactional outbox", () => {
     await context(async (tx) => expect((await tx.select().from(auditLogs).where(eq(auditLogs.action, "job.replay"))).map((a) => a.targetId)).toContain(row.id));
     await expect(replayJob(fixture.db, owner, tenantA, row.id)).rejects.toMatchObject({ status: 409 });
   });
+  it("serializes concurrent runs of the same claim and commits exactly one database effect", async () => {
+    const row = await enqueue();
+    const claim = await claimJob(fixture.db, owner, tenantA, "concurrent-runners");
+    const handler = { "domain.receipt": async (tx: Parameters<Parameters<typeof context>[0]>[0]) => {
+      await tx.insert(auditLogs).values({ tenantId: tenantA, actorId: owner, action: "test.job_effect", targetId: row.id });
+    } };
+    const results = await Promise.all([
+      runClaimedJob(fixture.db, owner, tenantA, claim!, handler), runClaimedJob(parallelDb, owner, tenantA, claim!, handler),
+    ]);
+    expect(results.map((result) => result.status).sort()).toEqual(["stale_claim", "succeeded"]);
+    await context(async (tx) => expect(await tx.select().from(auditLogs).where(and(eq(auditLogs.action, "test.job_effect"), eq(auditLogs.targetId, row.id)))).toHaveLength(1));
+  });
+  it("recovers the outer transaction after a PostgreSQL handler error", async () => {
+    const row = await enqueue({ maxAttempts: 1 });
+    const claim = await claimJob(fixture.db, owner, tenantA, "sql-error");
+    const failing = { "domain.receipt": async (tx: Parameters<Parameters<typeof context>[0]>[0]) => { await tx.execute(sql`select 1/0`); } };
+    expect(await runClaimedJob(fixture.db, owner, tenantA, claim!, failing)).toEqual({ status: "dead_letter" });
+    expect(await getJob(row.id)).toMatchObject({ lastError: "HANDLER_FAILED", status: "dead_letter" });
+  });
   it("dead-letters an exhausted crashed lease and unknown handlers", async () => {
     const crashed = await enqueue({ maxAttempts: 1 });
     await claimJob(fixture.db, owner, tenantA, "crashed"); await expire(crashed.id);
@@ -220,6 +241,17 @@ describe("signed webhook audit, dedupe and ordering", () => {
       expect(await tx.select().from(externalWebhookEvents).where(eq(externalWebhookEvents.resourceId, resourceId))).toHaveLength(4);
     });
   });
+  it("drains a verified event through the actual local operator CLI", async () => {
+    const input = event();
+    await receive(signedRequest(input));
+    const { stdout } = await promisify(execFile)(process.execPath, ["node_modules/tsx/dist/cli.mjs", "scripts/drain-jobs.ts", owner, tenantA, "drain", "100"], {
+      env: { ...process.env, DATABASE_URL: fixture.appURL }, timeout: 20_000,
+    });
+    const result = JSON.parse(stdout);
+    expect(result.results.length).toBeGreaterThan(0);
+    expect(result.results.every((job: { status: string }) => job.status === "succeeded")).toBe(true);
+    await context(async (tx) => expect(await tx.select().from(webhookResourceStates).where(eq(webhookResourceStates.resourceId, input.resourceId))).toHaveLength(1));
+  });
   it("retains raw audit immutably, including against owner mutation", async () => {
     await expect(context((tx) => tx.execute(sql`update external_webhook_events set raw_body = '{}'`))).rejects.toThrow();
     await expect(fixture.admin.query("delete from external_webhook_events")).rejects.toThrow("append-only");
@@ -245,6 +277,8 @@ describe("jobs/webhook RLS and authorization", () => {
     });
     await expect(context((tx) => enqueueJob(tx, tenantB, { kind: "domain.receipt", idempotencyKey: "escape", payload: {} }))).rejects.toThrow();
     await expect(context((tx) => appendOutboxEvent(tx, tenantB, { kind: "domain.receipt", idempotencyKey: "escape", payload: {} }))).rejects.toThrow();
+    await expect(context((tx) => tx.insert(externalWebhookEvents).values({ tenantId: tenantB, provider: "synthetic", connectionId: "forged", providerEventId: "forged", resourceId: "forged", sequence: 1, rawBody: "{}", bodyHash: "a".repeat(64), payload: {}, occurredAt: new Date() }))).rejects.toThrow();
+    await expect(context((tx) => tx.insert(webhookResourceStates).values({ tenantId: tenantB, provider: "synthetic", connectionId: "forged", resourceId: "forged", sequence: 1, eventId: randomUUID(), payload: {} }))).rejects.toThrow();
     await expect(replayJob(fixture.db, owner, tenantA, foreign.id)).rejects.toMatchObject({ status: 404 });
     await expect(replayJob(fixture.db, owner, tenantB, foreign.id)).rejects.toMatchObject({ status: 403 });
     await expect(listJobs(fixture.db, owner, tenantB)).rejects.toMatchObject({ status: 403 });
