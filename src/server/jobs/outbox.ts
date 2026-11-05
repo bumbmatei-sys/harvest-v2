@@ -6,8 +6,13 @@ import { AccessError } from "../permissions";
 import { jobInput, workFingerprint, type JobInput } from "./primitives";
 
 // Only call with a tenant transaction; RLS rejects a missing/mismatched context.
-// Namespace application keys separately from the outbox dispatcher's keys.
+// Reserve infrastructure namespaces before attempting any application insert.
 export async function enqueueJob(tx: Transaction, tenantId: string, data: JobInput) {
+  if (/^(outbox|webhook):/.test(data.idempotencyKey)) throw new Error("RESERVED_JOB_KEY_PREFIX");
+  return insertJob(tx, tenantId, data);
+}
+// Private to the dispatcher: producers must use enqueueJob above.
+async function insertJob(tx: Transaction, tenantId: string, data: JobInput) {
   const input = jobInput.parse(data), fingerprint = workFingerprint(input.kind, input.payload);
   const [inserted] = await tx.insert(jobs).values({ ...input, tenantId, fingerprint }).onConflictDoNothing({ target: [jobs.tenantId, jobs.idempotencyKey] }).returning();
   const row = inserted ?? (await tx.select().from(jobs).where(and(eq(jobs.tenantId, tenantId), eq(jobs.idempotencyKey, input.idempotencyKey))))[0];
@@ -28,9 +33,19 @@ export async function appendOutboxEvent(tx: Transaction, tenantId: string, data:
 export async function dispatchOutbox(tx: Transaction, tenantId: string, limit: number) {
   const events = await tx.select().from(outboxEvents).where(and(eq(outboxEvents.tenantId, tenantId), isNull(outboxEvents.dispatchedAt)))
     .orderBy(asc(outboxEvents.createdAt), asc(outboxEvents.id)).limit(limit).for("update", { skipLocked: true });
+  let dispatched = 0;
   for (const event of events) {
-    await enqueueJob(tx, tenantId, { kind: event.kind, idempotencyKey: `outbox:${event.id}`, payload: event.payload as JobInput["payload"], scheduledFor: event.scheduledFor });
-    await tx.update(outboxEvents).set({ dispatchedAt: sql`now()` }).where(and(eq(outboxEvents.tenantId, tenantId), eq(outboxEvents.id, event.id)));
+    try {
+      // A failed enqueue or dispatch marker must roll back together without
+      // aborting the batch, including when PostgreSQL aborts the savepoint.
+      await tx.transaction(async (eventTx) => {
+        await insertJob(eventTx, tenantId, { kind: event.kind, idempotencyKey: `outbox:${event.id}`, payload: event.payload as JobInput["payload"], scheduledFor: event.scheduledFor });
+        await eventTx.update(outboxEvents).set({ dispatchedAt: sql`now()` }).where(and(eq(outboxEvents.tenantId, tenantId), eq(outboxEvents.id, event.id)));
+      });
+      dispatched++;
+    } catch {
+      // Leave this event pending for retry; never log its payload or error.
+    }
   }
-  return events.length;
+  return dispatched;
 }

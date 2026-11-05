@@ -34,9 +34,9 @@ await withTenant(db, verifiedUserId, workspaceHint, "settings:write", async (tx,
 
 This is an example integration point, not an extra PR 03 behavior change. The webhook receiver is a working producer: raw audit insertion and outbox insertion commit or roll back together. Avoid copying personal data into event payloads; deletion/export requirements must be designed before adding a domain consumer.
 
-Idempotency compares a SHA-256 fingerprint of kind and canonical JSON payload (including sorted nested object keys). An equivalent repeat returns the original row, including after success or DLQ/replay. Different content under the same key returns a conflict. The first accepted schedule/retry budget wins. Keys are tenant-scoped and retained; no cleanup in this phase removes dedupe history. Use distinct key namespaces per producer. Job keys are at most 200 characters, outbox keys at most 190; JSON objects are limited to 64 KiB in PostgreSQL. Job retry budgets are 1–20 attempts, default 5.
+Idempotency compares a SHA-256 fingerprint of kind and canonical JSON payload (including sorted nested object keys). An equivalent repeat returns the original row, including after success or DLQ/replay. Different content under the same key returns a conflict. The first accepted schedule/retry budget wins. Keys are tenant-scoped and retained; no cleanup in this phase removes dedupe history. Use distinct key namespaces per producer. `enqueueJob` rejects the reserved `outbox:` and `webhook:` prefixes before insertion; only the private dispatcher can create internal job keys. Job keys are at most 200 characters, outbox keys at most 190; JSON objects are limited to 64 KiB in PostgreSQL. Job retry budgets are 1–20 attempts, default 5.
 
-Outbox dispatch locks undispatched rows with `FOR UPDATE SKIP LOCKED`, creates jobs using `outbox:<outbox-event-uuid>`, and records dispatch in one transaction. Failure leaves the event undispatched and retryable. Repeated or concurrent dispatch cannot create duplicate jobs. Dispatching future events is safe: their jobs retain `scheduled_for` and cannot run early.
+Outbox dispatch locks undispatched rows with `FOR UPDATE SKIP LOCKED`, creates jobs using `outbox:<outbox-event-uuid>`, and records dispatch in one transaction. Each event uses its own savepoint: failure rolls back its job and dispatch marker, leaves the event pending for retry, and allows the rest of the selected batch to proceed. The returned count includes only successfully dispatched events. Repeated or concurrent dispatch cannot create duplicate jobs. Dispatching future events is safe: their jobs retain `scheduled_for` and cannot run early.
 
 ## Drain, retries, crashes and replay
 
@@ -49,6 +49,8 @@ npm run jobs:drain -- <operator-user-id> <workspace-uuid> drain 50
 ```
 
 Each invocation dispatches up to the requested batch size, then claims/runs at most that many jobs (1–100; default 50). It exits when no due jobs remain; rerun it after a scheduled retry is due. No resident daemon or cloud cron is configured.
+
+If the entire flush transaction fails, drain still attempts to claim already queued work in separate transactions and returns `flushFailed: true` with `dispatched: 0`. Authorization and input errors still propagate. Individual skipped events remain pending and must have their underlying cause repaired; they do not roll back other events in the batch. No raw exception or event payload is included in diagnostics.
 
 - Claims use `FOR UPDATE SKIP LOCKED` and a fresh UUID fencing token with `locked_at`/`locked_by`. The lease is 60 seconds. Active workers skip rows another transaction holds.
 - Claims increment lifetime `attempts` and per-run `run_attempts`. Expired claims can be reclaimed; the exhausted final claim goes to `dead_letter` with `LEASE_EXPIRED`.
@@ -78,7 +80,7 @@ The body is a strict JSON object:
 }
 ```
 
-IDs are 1–100 characters, sequence is an integer from 0 to 2147483647, and value is at most 200 characters. Unknown fields are rejected; the contract supports no real domain effects.
+IDs are 1–100 characters, sequence is an integer from 0 to 2147483647, and value is at most 200 characters. NUL and unpaired UTF-16 surrogates are rejected with 400 after signature verification and before opening a database transaction. Valid Unicode pairs and literal backslash-u text are accepted. Unknown fields are rejected; the contract supports no real domain effects.
 
 Required headers:
 
@@ -138,6 +140,6 @@ npm run test:pwa
 
 Unit tests cover canonical idempotency, backoff bounds, permissions, exact-byte signatures and malformed/timestamp boundaries. Integration tests migrate twice with the real `harvest_app` role and exercise domain/outbox rollback, dispatch rollback, concurrency/locks, scheduling, fencing, partial and PostgreSQL handler failures, retry/DLQ/replay, raw audit immutability, receiver rollback, dedupe, ordering, cross-tenant reads/writes/worker/replay denial, transaction context reset, and the actual drain CLI. Existing Playwright/accessibility/PWA and i18n/theme/source guards remain regression gates; no UI or new Playwright scenario is added.
 
-Tests use disposable local PostgreSQL (or an explicitly supplied local `harvest_test` database). Existing email tests mock delivery; no outbound email is needed. The Neon CI resource-creation job is skipped for `feat/pr04-jobs-webhooks`, while local PostgreSQL migration/RLS checks remain enabled. No Neon branch, cloud cron, deployment or merge is part of this PR.
+Tests use disposable local PostgreSQL (or an explicitly supplied local `harvest_test` database). Existing email tests mock delivery; no outbound email is needed. The Neon CI resource-creation job is skipped for `feat/pr04-jobs-webhooks` and the reviewer follow-up `feat/pr07-drain-fix`, while local PostgreSQL migration/RLS checks remain enabled. No Neon branch, cloud cron, deployment or merge is part of this PR.
 
 Before real provider rollout: define provider ordering and remote idempotency contracts, connection/credential rotation and revocation, event retention/export/erasure requirements, queue monitoring/alert thresholds and production scheduling. These are future release decisions; Phase 1 does not claim production adapter readiness.

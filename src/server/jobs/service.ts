@@ -101,12 +101,18 @@ export function runClaimedJob(db: Database, user: string, workspace: string, cla
 }
 export async function drainJobs(db: Database, user: string, workspace: string, worker: string, limit = 50) {
   batchSize.parse(limit);
-  const dispatched = await flushOutbox(db, user, workspace, limit);
+  let dispatched = 0, flushFailed = false;
+  try { dispatched = await flushOutbox(db, user, workspace, limit); }
+  catch (error) {
+    if (error instanceof AccessError || error instanceof z.ZodError) throw error;
+    // Flush has its own transaction. Already queued work can still progress.
+    flushFailed = true;
+  }
   const results = [];
   for (let i = 0; i < limit; i++) {
     const claim = await claimJob(db, user, workspace, worker);
     if (!claim) break;
     results.push({ id: claim.id, ...await runClaimedJob(db, user, workspace, claim) });
   }
-  return { dispatched, results };
+  return { dispatched, flushFailed, results };
 }
