@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { signIn, origin } from "./helpers/session";
 import AxeBuilder from "@axe-core/playwright";
+import { BRAND_THEMES, COLOR_MODES } from "../../src/lib/theme-registry";
 
 test("offline navigation uses a public fallback without caching workspace or API responses", async ({ page, context }) => {
   await page.goto("/sign-in");
@@ -28,4 +29,15 @@ test("offline navigation uses a public fallback without caching workspace or API
   expect(cached.sort()).toEqual(["/offline.css", "/icons/icon-192.png", "/icons/icon-512.png", "/offline.html"].sort());
   await mkdir("docs/screenshots/pr03", { recursive: true });
   await page.screenshot({ path: "docs/screenshots/pr03/offline.png", fullPage: true });
+  for (const brand of BRAND_THEMES) for (const mode of COLOR_MODES) {
+    await page.evaluate(({ brand, mode }) => {
+      localStorage.setItem("harvest-brand-theme", brand);
+      localStorage.setItem("harvest-color-mode", mode);
+    }, { brand, mode });
+    await page.reload();
+    await expect(page.locator("html")).toHaveAttribute("data-brand-theme", brand);
+    await expect(page.locator("html")).toHaveAttribute("data-theme", mode);
+    expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
+    await page.screenshot({ path: `docs/screenshots/pr03/offline-${brand}-${mode}.png`, fullPage: true });
+  }
 });

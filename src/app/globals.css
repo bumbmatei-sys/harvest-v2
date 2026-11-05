@@ -10,7 +10,7 @@
   --secondary: var(--surface-tint); --secondary-foreground: var(--text-strong);
   --muted: var(--surface-sunken); --muted-foreground: var(--text-muted);
   --accent: var(--surface-tint); --accent-foreground: var(--text-strong);
-  --border: var(--border-default); --input: var(--border-subtle); 
+  --border: var(--border-default); --input: var(--border-subtle);
   --sidebar-foreground: var(--text-body); --sidebar-accent-foreground: var(--text-strong);
   --sidebar-primary: var(--brand-color); --sidebar-primary-foreground: var(--earth); --sidebar-ring: var(--ring);
   --selected: color-mix(in srgb, var(--brand-color) 12%, transparent);

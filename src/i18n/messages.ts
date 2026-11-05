@@ -1,5 +1,5 @@
 import { createTranslator } from "next-intl";
-import messages from "../../messages/en.json";
+import messages from "../../messages/en.json" with { type: "json" };
 import type { Locale } from "./locale";
 
 const english = createTranslator({ locale: "en", messages });
