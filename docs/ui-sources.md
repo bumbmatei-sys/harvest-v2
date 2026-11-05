@@ -72,3 +72,15 @@ Added via `npx shadcn@latest add item calendar popover --yes`, New York v4, 2026
 ## 01b follow-up adaptations
 
 The workspace switcher and static brand header reuse the existing official SidebarMenu, SidebarMenuItem, SidebarMenuButton, DropdownMenu, Avatar and Tooltip components. TooltipContent now exposes Radix Portal’s optional `container` prop, matching the existing DropdownMenuContent adaptation, so workspace tooltip text remains inside the named sidebar landmark. No new component or dependency was added. The navigation landmark excludes footer controls. See [the follow-up acceptance record](acceptance/pr01b-followups.md).
+
+## CRM-01/02 (People and Companies)
+
+Owner: Harvest v2 maintainers. Reviewed 2026-11-05.
+
+| Source | Version/date | License | Dependencies | Changed files | Adaptations |
+| --- | --- | --- | --- | --- | --- |
+| shadcn Command, from [`shadcn-ui/ui` `apps/v4/registry/new-york-v4/ui/command.tsx`](https://github.com/shadcn-ui/ui/blob/8a3536678a528cc012b9e62484290e79d0be410f/apps/v4/registry/new-york-v4/ui/command.tsx) | commit `8a3536678a528cc012b9e62484290e79d0be410f` (2026-11-04) | MIT (existing notice in `licenses/shadcn-ui-MIT.txt`) | `cmdk` 1.1.1 (MIT), existing Dialog and Lucide | `src/components/ui/command.tsx` | Only the import aliases changed (`cn` → `@/lib/utils`, dialog → `@/components/ui/dialog`). It was copied from the registry's source repository because `ui.shadcn.com` is blocked by this environment's egress policy, so `npx shadcn add command` could not run. The content is the same New York v4 registry file. |
+| shadcn Tabs (existing file) | — | MIT | — | `src/components/ui/tabs.tsx` | Inactive trigger text changed from `text-foreground/60` to the semantic `text-muted-foreground` to meet AA contrast on Harvest surfaces (axe `color-contrast`), as earlier PRs did for the radio border and destructive foreground. |
+| Harvest-owned CRM compositions | 2026-11-05 | Private repository code | Existing shadcn Table, Card, Badge, Avatar, Button, Input, Textarea, Dialog, DropdownMenu, Popover, Command, Tabs, Item, Empty, Alert, Pagination, Skeleton, Field and InputGroup | `src/components/crm/*`, `src/app/workspaces/[tenantId]/crm/**`, `src/components/contact-form.tsx` | Original compositions: view bar, inline field, record title, record picker, activity timeline, skeletons. |
+| Twenty CRM (`twentyhq/twenty`, commit `8b622440`) | read 2026-11-05 | AGPL-3.0 (front-end and server packages read) | None | None | **Behaviour reference only.** No code, styles, copy, icons or assets were copied, translated or renamed. See [research notes](research/twenty-crm-reference.md). `twenty-ui` (MIT) was not used. |
+| Harvest v1 (`bumbmatei-sys/Harvest-agent`) | read 2026-11-05 | Private | None | None | Workflow lessons only (one CRM per tenant, no email-only identity, filter/export agreement, server-side erasure checks). No Firestore models or code. |
