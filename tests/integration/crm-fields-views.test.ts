@@ -8,6 +8,7 @@ import { createCompany, listCompanies } from "../../src/server/companies";
 import { createFieldDefinition, listFieldDefinitions, patchRecordFields, updateFieldDefinition } from "../../src/server/crm-fields";
 import { createView, deleteView, findView, listViews, updateView } from "../../src/server/crm-views";
 import { withTenant } from "../../src/server/tenancy";
+import { resolveListView } from "../../src/server/crm-list-view";
 import { fullState, serializeFilter, type Filter } from "../../src/lib/crm-fields";
 
 let fixture: Awaited<ReturnType<typeof testDatabase>>;
@@ -240,6 +241,34 @@ describe("saved views", () => {
     await expect(updateView(fixture.db, "member-a", tenantA, "person", "system:all-people", { name: "x", version: 1 })).rejects.toMatchObject({ status: 403 });
     expect(await findView(fixture.db, "viewer-a", tenantA, "person", "system:unknown")).toBeNull();
     expect(await findView(fixture.db, "viewer-a", tenantA, "company", shared.id)).toBeNull();
+  });
+});
+
+describe("list view resolution", () => {
+  const load = (user: string, tenant: string) => (params: Record<string, string | number | string[] | undefined>) => listContacts(fixture.db, user, tenant, params);
+  it("applies a view by id alone, lets explicit parameters win, and reports modification", async () => {
+    const view = await createView(fixture.db, "member-a", tenantA, { objectType: "person", name: "Ruth", state: fullState({ q: "ruth", columns: ["email"] }) });
+    const applied = await resolveListView(fixture.db, "member-a", tenantA, "person", { view: view.id }, true, load("member-a", tenantA));
+    expect(applied).toMatchObject({ notice: null, viewId: view.id, modified: false, list: { state: { q: "ruth", columns: ["email"] } } });
+    const changed = await resolveListView(fixture.db, "member-a", tenantA, "person", { view: view.id, q: "boaz" }, true, load("member-a", tenantA));
+    expect(changed).toMatchObject({ notice: null, viewId: view.id, modified: true, list: { state: { q: "boaz", columns: null } } });
+  });
+  it("falls back to the default view, whole, for missing, foreign or private views and stale state", async () => {
+    const foreign = await createView(fixture.db, "owner-b", tenantB, { objectType: "person", name: "B only", shared: true, state: fullState({ q: "naomi" }) });
+    const privateView = await createView(fixture.db, "member-a", tenantA, { objectType: "person", name: "Private", state: fullState({ q: "ruth" }) });
+    for (const [user, view] of [["member-a", foreign.id], ["member-a2", privateView.id], ["member-a", "00000000-0000-4000-8000-000000000000"], ["owner-b", privateView.id]] as const) {
+      const tenant = user === "owner-b" ? tenantB : tenantA;
+      const result = await resolveListView(fixture.db, user, tenant, "person", { view }, true, load(user, tenant));
+      expect(result).toMatchObject({ notice: "viewUnavailable", viewId: null, current: { id: "system:all-people" }, list: { state: { q: "" } } });
+    }
+    // A stored view whose field was archived later is rejected as a whole, not half-applied.
+    const temp = await createFieldDefinition(fixture.db, "owner-a", tenantA, { objectType: "person", label: "Temporary", type: "text" });
+    const stale = await createView(fixture.db, "member-a", tenantA, { objectType: "person", name: "Stale", shared: true, state: fullState({ q: "ruth", filters: [{ field: "cf:temporary", op: "is_not_empty", value: null }] }) });
+    await updateFieldDefinition(fixture.db, "owner-a", tenantA, temp.id, { archived: true, version: temp.version });
+    const fallback = await resolveListView(fixture.db, "member-a2", tenantA, "person", { view: stale.id }, true, load("member-a2", tenantA));
+    expect(fallback).toMatchObject({ notice: "invalidView", viewId: null, current: { id: "system:all-people" }, list: { state: { q: "", filters: [] } } });
+    expect((await resolveListView(fixture.db, "member-a", tenantA, "person", { sort: "sideways" }, true, load("member-a", tenantA))).notice).toBe("invalidView");
+    expect((await resolveListView(fixture.db, "member-a", tenantA, "person", { f: "cf:temporary~is_empty~" }, true, load("member-a", tenantA))).notice).toBe("invalidView");
   });
 });
 

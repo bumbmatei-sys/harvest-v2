@@ -39,7 +39,7 @@ export default async function CompaniesPage({ params, searchParams }: { params: 
     const cells: GridRow["cells"] = {
       domain: company.domain ? { text: company.domain, href: `https://${company.domain}`, external: true, muted: true, edit: { kind: "text", value: company.domain, target: "builtin", field: "domain", maxLength: 253 } }
         : { text: t("noDomain"), muted: true, edit: { kind: "text", value: "", target: "builtin", field: "domain", maxLength: 253 } },
-      people: { text: format.number(company.peopleCount, "integer"), muted: true, href: `${people}?${new URLSearchParams({ f: serializeFilter({ field: "company", op: "is", value: company.id }) })}`, title: t("viewPeopleAtCompany", { count: company.peopleCount, company: company.name }) },
+      people: { text: format.number(company.peopleCount, "integer"), muted: true, href: `${people}?${new URLSearchParams({ f: serializeFilter({ field: "company", op: "is", value: company.id }) })}`, label: t("viewPeopleAtCompany", { count: company.peopleCount, company: company.name }) },
       created: { text: format.dateTime(company.createdAt, "date"), muted: true },
       updated: { text: format.dateTime(company.updatedAt, "date"), muted: true },
     };

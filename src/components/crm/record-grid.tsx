@@ -15,7 +15,7 @@ import { initials } from "./format";
 import { useCrmRequest } from "./request";
 
 export type EditSpec = { kind: "text" | "email" | "tel" | "number" | "date" | "boolean" | "select"; value: string; options?: { value: string; label: string }[]; target: "builtin" | "custom"; field: string; maxLength?: number };
-export type GridCell = { text: string; muted?: boolean; href?: string; external?: boolean; badge?: "granted" | "withdrawn" | "none"; more?: number; title?: string; edit?: EditSpec };
+export type GridCell = { text: string; muted?: boolean; href?: string; external?: boolean; badge?: "granted" | "withdrawn" | "none"; more?: number; title?: string; label?: string; edit?: EditSpec };
 export type GridRow = { id: string; version: number; name: string; href: string; secondary: string; cells: Record<string, GridCell> };
 export type GridColumn = { key: string; label: string; width: number; numeric?: boolean };
 
@@ -147,7 +147,7 @@ export function RecordGrid({ tenantId, objectType, columns, rows, density, label
               : <Input autoFocus aria-label={t("editColumnForRecord", { column: column.label, name: row.name })} type={spec.kind} value={editing.draft} maxLength={spec.maxLength ?? 500} disabled={busy} onKeyDown={onEditorKeyDown} onChange={(event) => setEditing({ ...editing, draft: event.target.value })} onBlur={() => void commit()} className="h-7 text-xs" />)
               : cell.badge ? <Badge variant="secondary" className={cell.badge === "granted" ? "bg-success-tint text-success" : cell.badge === "withdrawn" ? "bg-warning-tint text-warning" : "text-muted-foreground"}>{cell.text}</Badge>
               : <span className="flex min-w-0 items-center gap-1.5">{cell.href
-                ? <a href={cell.href} tabIndex={-1} target={cell.external ? "_blank" : undefined} rel={cell.external ? "noreferrer" : undefined} className={cn("block min-w-0 truncate hover:underline", cell.muted && "text-muted-foreground")}>{cell.text}</a>
+                ? <a href={cell.href} tabIndex={-1} aria-label={cell.label} target={cell.external ? "_blank" : undefined} rel={cell.external ? "noreferrer" : undefined} className={cn("block min-w-0 truncate hover:underline", cell.muted && "text-muted-foreground")}>{cell.text}</a>
                 : <span className={cn("block min-w-0 truncate", cell.muted && "text-muted-foreground")}>{cell.text}</span>}
                 {cell.more ? <Badge variant="outline" className="h-5 shrink-0 rounded-md px-1.5 text-[11px] font-normal">{t("moreCount", { count: cell.more })}</Badge> : null}</span>}
           </TableCell>;

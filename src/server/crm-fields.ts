@@ -123,6 +123,16 @@ export async function loadRecordValues(tx: Transaction, tenantId: string, object
   return { values: result, related };
 }
 
+/** Active field definitions with one record's values and related-record names (record pages). */
+export function getRecordCustomFields(db: Database, userId: string, workspace: string, objectType: ObjectType, record: string) {
+  const type = objectInput.parse(objectType), id = uuidInput.parse(record);
+  return withTenant(db, userId, uuidInput.parse(workspace), readPermission(type), async (tx, tenantId) => {
+    const definitions = await loadDefinitions(tx, tenantId, type, false);
+    const { values, related } = await loadRecordValues(tx, tenantId, type, [id], definitions);
+    return { definitions, values: values.get(id) ?? {}, related: Object.fromEntries(related) };
+  });
+}
+
 /**
  * Set or clear custom values on one record, guarded by the record's own version (the
  * same 409 "stale" contract as built-in inline fields). Values are validated per type
