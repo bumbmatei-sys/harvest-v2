@@ -43,12 +43,12 @@ export default async function CompaniesPage({ params, searchParams }: { params: 
   const view = Object.fromEntries(viewKeys.flatMap((key) => { const value = key === "q" ? list.q : key === "sort" ? (list.sort === "name" ? "" : list.sort) : list.filters[key]; return value ? [[key, value]] : []; })) as Record<string, string>;
   const filtered = Object.keys(view).some((key) => key !== "sort");
   const sortLabels = { name: t("sorts.nameAsc"), "-name": t("sorts.nameDesc"), "-created": t("sorts.newest"), created: t("sorts.oldest"), "-people": t("sorts.mostPeople") } satisfies Record<typeof companySorts[number], string>;
-  return <div className="space-y-6">
-    <div className="flex flex-wrap items-start justify-between gap-4">
-      <div><div className="mb-3 flex items-center gap-2 text-xs text-muted-foreground"><Building2 className="size-3.5" aria-hidden="true" />{t("crm")}</div>
+  return <div className="space-y-4">
+    <div className="flex flex-wrap items-end justify-between gap-3">
+      <div><div className="mb-1.5 flex items-center gap-2 text-xs text-muted-foreground"><Building2 className="size-3.5" aria-hidden="true" />{t("crm")}</div>
         <h1 className="flex items-center gap-2.5 text-[28px] font-semibold tracking-tight">{t("companies")}<Badge variant="secondary" className="rounded-md tabular-nums">{format.number(list.total, "integer")}</Badge></h1>
-        <p className="mt-2 text-sm text-muted-foreground">{t("companiesDescription")}</p></div>
-      {writable && <div className="pt-6"><CompanyForm tenantId={tenantId} /></div>}
+        <p className="mt-1 text-sm text-muted-foreground">{t("companiesDescription")}</p></div>
+      {writable && <CompanyForm tenantId={tenantId} />}
     </div>
     {!parsed.success && <Alert variant="destructive"><AlertDescription>{t("checkTheViewSettings")}</AlertDescription></Alert>}
     {!writable && <Alert><AlertDescription>{t("viewOnlyCompanies")}</AlertDescription></Alert>}
@@ -59,9 +59,9 @@ export default async function CompaniesPage({ params, searchParams }: { params: 
           { key: "people", label: t("people"), options: [{ value: "any", label: t("hasPeople") }, { value: "none", label: t("noPeople") }] },
           { key: "domain", label: t("fields.domain"), options: [{ value: "with", label: t("hasDomain") }, { value: "without", label: t("noDomain") }] },
         ]} />
-      <div className="mt-4 space-y-4"><RecordResults>
+      <div className="mt-3 space-y-3"><RecordResults>
         {list.rows.length ? <Card className="gap-0 overflow-hidden py-0"><Table aria-label={t("companies")}>
-          <TableHeader><TableRow><TableHead className="pl-4">{t("name")}</TableHead><TableHead className="hidden sm:table-cell">{t("fields.domain")}</TableHead><TableHead className="text-right sm:text-left">{t("people")}</TableHead><TableHead className="hidden pr-4 lg:table-cell">{t("added")}</TableHead></TableRow></TableHeader>
+          <TableHeader><TableRow><TableHead className="pl-4">{t("name")}</TableHead><TableHead className="hidden sm:table-cell">{t("fields.domain")}</TableHead><TableHead className="w-px text-right whitespace-nowrap sm:w-auto sm:text-left">{t("people")}</TableHead><TableHead className="hidden pr-4 lg:table-cell">{t("added")}</TableHead></TableRow></TableHeader>
           <TableBody>{list.rows.map((company) => <TableRow key={company.id} className="h-12">
             <TableCell className="max-w-0 py-1.5 pl-4 sm:max-w-none"><Link href={`${base}/${company.id}`} className="flex min-w-0 items-center gap-3 rounded-sm font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">
               <Avatar className="size-8 rounded-md" aria-hidden="true"><AvatarFallback className="rounded-md text-xs text-muted-foreground">{initials(company.name)}</AvatarFallback></Avatar>

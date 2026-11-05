@@ -48,12 +48,12 @@ export default async function PeoplePage({ params, searchParams }: { params: Pro
   const sortLabels = { name: t("sorts.nameAsc"), "-name": t("sorts.nameDesc"), "-created": t("sorts.newest"), created: t("sorts.oldest"), "-updated": t("sorts.recentlyUpdated") } satisfies Record<typeof peopleSorts[number], string>;
   const companyChip = list.filters.company && list.filters.company !== "any" && list.filters.company !== "none"
     ? [{ key: "company", label: t("filterChip", { filter: t("company"), value: list.filterCompany?.name ?? t("unavailableCompany") }) }] : [];
-  return <div className="space-y-6">
-    <div className="flex flex-wrap items-start justify-between gap-4">
-      <div><div className="mb-3 flex items-center gap-2 text-xs text-muted-foreground"><UsersRound className="size-3.5" aria-hidden="true" />{t("crm")}</div>
+  return <div className="space-y-4">
+    <div className="flex flex-wrap items-end justify-between gap-3">
+      <div><div className="mb-1.5 flex items-center gap-2 text-xs text-muted-foreground"><UsersRound className="size-3.5" aria-hidden="true" />{t("crm")}</div>
         <h1 className="flex items-center gap-2.5 text-[28px] font-semibold tracking-tight">{t("people")}<Badge variant="secondary" className="rounded-md tabular-nums">{format.number(list.total, "integer")}</Badge></h1>
-        <p className="mt-2 text-sm text-muted-foreground">{t("peopleDescription")}</p></div>
-      {writable && <div className="pt-6"><ContactForm tenantId={tenantId} /></div>}
+        <p className="mt-1 text-sm text-muted-foreground">{t("peopleDescription")}</p></div>
+      {writable && <ContactForm tenantId={tenantId} />}
     </div>
     {!parsed.success && <Alert variant="destructive"><AlertDescription>{t("checkTheViewSettings")}</AlertDescription></Alert>}
     {!writable && <Alert><AlertDescription>{t("viewOnlyPeople")}</AlertDescription></Alert>}
@@ -66,7 +66,7 @@ export default async function PeoplePage({ params, searchParams }: { params: Pro
           { key: "marketing", label: t("emailMarketing"), options: [{ value: "granted", label: t("marketing.granted") }, { value: "withdrawn", label: t("marketing.withdrawn") }, { value: "none", label: t("marketing.none") }] },
         ]}
         extraFilter={<CompanyFilter tenantId={tenantId} />} />
-      <div className="mt-4 space-y-4"><RecordResults>
+      <div className="mt-3 space-y-3"><RecordResults>
         {list.rows.length ? <Card className="gap-0 overflow-hidden py-0"><Table aria-label={t("people")}>
           <TableHeader><TableRow>
             <TableHead className="pl-4">{t("name")}</TableHead><TableHead className="hidden sm:table-cell">{t("company")}</TableHead>

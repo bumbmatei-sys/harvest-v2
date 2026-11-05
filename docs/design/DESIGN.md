@@ -261,7 +261,7 @@ Component patterns below are measured from light-mode screenshots; dark behaviou
 - Primary nav items: icon 16px + 13px label, 28–32px row height, radius 8–10px, active = filled chip `#ebeae7`-ish.
 - Section label (12px muted), e.g. "Store"; collapsible groups with chevrons; sub-items with dot bullets indented under the parent.
 - Bottom: workspace switcher row (avatar square + name + chevron) and a collapse icon.
-- Optional RIGHT floating assistant pane in the same style. Content column is centred, comfortable max-width (~860–960px at 1440 wide), generous top padding.
+- Optional RIGHT floating assistant pane in the same style. ~~Content column is centred, comfortable max-width (~860–960px at 1440 wide), generous top padding.~~ **Superseded 2026-11-05:** workspace content uses the full width beside the sidebar with compact gutters (16px; 24px from lg) and tight top spacing; only focused short forms keep a narrow, left-aligned width (ADR 0004 note).
 
 ### Page header
 

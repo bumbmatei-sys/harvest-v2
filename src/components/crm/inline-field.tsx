@@ -48,7 +48,7 @@ export function InlineField({ field, label, icon, value, type = "text", multilin
   const empty = !shown.trim();
   // The accessible name always matches the visible text (WCAG 2.5.3).
   const visible = empty ? (emptyLabel ?? t("empty")) : shown;
-  return <div className={cn("group/field grid items-start gap-x-3 py-0.5", hideLabel ? "grid-cols-1" : "grid-cols-[minmax(0,7.5rem)_minmax(0,1fr)] sm:grid-cols-[minmax(0,9rem)_minmax(0,1fr)]")}>
+  return <div className={cn("group/field grid items-start gap-x-3 py-0.5", hideLabel ? "grid-cols-1" : "grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)] sm:grid-cols-[minmax(0,7.5rem)_minmax(0,1fr)]")}>
     <label htmlFor={editing ? id : undefined} className={cn("flex min-h-8 items-center gap-2 text-xs text-muted-foreground [&_svg]:size-3.5 [&_svg]:shrink-0", hideLabel && "sr-only")}>{icon}<span className="truncate">{label}</span></label>
     <div className="min-w-0">
       {editing ? <div className="space-y-1">
@@ -58,9 +58,9 @@ export function InlineField({ field, label, icon, value, type = "text", multilin
         {multiline && !error && <p id={`${id}-hint`} className="text-xs text-muted-foreground">{t("saveWithCtrlEnter")}</p>}
         {busy && <p role="status" className="text-xs text-muted-foreground">{t("saving")}</p>}
         {error && <p id={`${id}-error`} role="alert" className="text-xs text-destructive">{error}</p>}
-      </div> : href && !empty ? <div className="flex min-h-8 items-center gap-1">
-        <a href={href} className="min-w-0 rounded-sm px-2 py-1 text-sm break-all underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none" rel="noreferrer" target={href.startsWith("http") ? "_blank" : undefined}>{shown}</a>
-        {writable && <Button type="button" variant="ghost" size="icon-sm" onClick={start} aria-label={t("editField", { field: label })} className="shrink-0 opacity-0 transition-opacity group-hover/field:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"><Pencil aria-hidden="true" /></Button>}
+      </div> : href && !empty ? <div className="relative flex min-h-8 items-center gap-1">
+        <a href={href} className="min-w-0 rounded-sm px-2 py-1 text-sm [overflow-wrap:anywhere] underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none" rel="noreferrer" target={href.startsWith("http") ? "_blank" : undefined}>{shown}</a>
+        {writable && <Button type="button" variant="ghost" size="icon-sm" onClick={start} aria-label={t("editField", { field: label })} className="absolute right-0 shrink-0 bg-card opacity-0 transition-opacity group-hover/field:opacity-100 focus-visible:opacity-100 pointer-coarse:static pointer-coarse:opacity-100"><Pencil aria-hidden="true" /></Button>}
       </div> : writable ? <button type="button" onClick={start} aria-label={t("editFieldValue", { field: label, value: visible })}
         className={cn("flex min-h-8 w-full items-start rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none", multiline ? "whitespace-pre-wrap break-words" : "truncate", empty && "text-muted-foreground")}>
         {visible}

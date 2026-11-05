@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { getFormatter, getTranslations } from "next-intl/server";
 import Link from "next/link";
-import { ArrowLeft, AtSign, Building2, CalendarDays, Mail, Phone, ShieldCheck, StickyNote, UserRound } from "lucide-react";
+import { AtSign, Building2, CalendarDays, Mail, Phone, ShieldCheck, StickyNote, UserRound } from "lucide-react";
 import { getDb } from "@/db/client";
 import { pageSession } from "@/server/page-session";
 import { getWorkspace } from "@/server/workspaces";
@@ -21,10 +21,10 @@ import { initials } from "@/components/crm/format";
 import { PossibleDuplicates } from "@/components/crm/possible-duplicates";
 import { RecordProvider } from "@/components/crm/record-context";
 import { RecordTitle } from "@/components/crm/record-title";
+import { RecordBackLink, RecordGrid, RecordHeader } from "@/components/crm/record-layout";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Item, ItemContent, ItemGroup, ItemHeader, ItemTitle } from "@/components/ui/item";
@@ -50,11 +50,10 @@ export default async function PersonPage({ params }: { params: Promise<{ tenantI
   const value = (kind: "email" | "phone" | "social") => contact.identifiers.find((item) => item.kind === kind)?.value ?? "";
   const primary = contact.companies.find((item) => item.isPrimary);
   return <RecordProvider endpoint={`/api/workspaces/${tenantId}/contacts/${contactId}`} version={contact.version} writable={writable}>
-    <div className="space-y-6">
-      <Button asChild variant="ghost" size="sm" className="-ml-2 text-muted-foreground"><Link href={back}><ArrowLeft aria-hidden="true" />{t("allPeople")}</Link></Button>
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div className="flex min-w-0 flex-1 items-center gap-4">
-          <Avatar className="size-14 border" aria-hidden="true"><AvatarFallback className="bg-selected text-lg font-medium">{initials(contact.name)}</AvatarFallback></Avatar>
+    <div className="space-y-4">
+      <RecordHeader back={<RecordBackLink href={back} label={t("allPeople")} />}>
+        <div className="flex min-w-0 flex-1 items-center gap-3.5">
+          <Avatar className="size-12 border" aria-hidden="true"><AvatarFallback className="bg-selected text-lg font-medium">{initials(contact.name)}</AvatarFallback></Avatar>
           <div className="min-w-0 flex-1">
             <RecordTitle field="name" value={contact.name} label={t("fields.name")} maxLength={100} />
             <p className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -63,23 +62,27 @@ export default async function PersonPage({ params }: { params: Promise<{ tenantI
             </p>
           </div>
         </div>
-      </div>
+      </RecordHeader>
       {!writable && <Alert><AlertDescription>{t("viewOnlyRecord")}</AlertDescription></Alert>}
       <StaleNotice />
       <PossibleDuplicates items={contact.possibleDuplicates.map((item) => ({ id: item.id, name: item.name, href: `${back}/${item.id}`, hint: t("addedOn", { date: format.dateTime(item.createdAt, "date") }) }))} kind="person" />
-      <div className="grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.35fr)]">
-        <div className="space-y-4">
+      {/* Profile, context and history side by side on wide screens; history spans
+          the row below on medium screens; one column on phones. */}
+      <RecordGrid
+        profile={<>
           <Card className="gap-3"><CardHeader><CardTitle className="flex items-center gap-2 text-sm"><UserRound className="size-4 text-muted-foreground" aria-hidden="true" />{t("details")}</CardTitle></CardHeader>
             <CardContent><ContactFields email={value("email")} phone={value("phone")} social={value("social")} icons={{ email: <Mail aria-hidden="true" />, phone: <Phone aria-hidden="true" />, social: <AtSign aria-hidden="true" /> }} /></CardContent></Card>
           <Card className="gap-3"><CardHeader><CardTitle className="flex items-center gap-2 text-sm"><Building2 className="size-4 text-muted-foreground" aria-hidden="true" />{t("companies")}</CardTitle></CardHeader>
             <CardContent><CompanyLinks tenantId={tenantId} contactId={contactId} links={contact.companies} writable={writable} /></CardContent></Card>
+        </>}
+        context={<>
+          <Card className="gap-3"><CardHeader><CardTitle className="flex items-center gap-2 text-sm"><StickyNote className="size-4 text-muted-foreground" aria-hidden="true" />{t("fields.notes")}</CardTitle></CardHeader>
+            <CardContent><ContactNotes value={contact.notes} /></CardContent></Card>
           <Card className="gap-3"><CardHeader><CardTitle className="flex items-center gap-2 text-sm"><ShieldCheck className="size-4 text-muted-foreground" aria-hidden="true" />{old("marketingPreferences")}</CardTitle></CardHeader>
             <CardContent className="space-y-3"><ItemGroup className="gap-3">{(["email", "sms", "social"] as const).map((channel) => { const latest = contact.effectiveConsents.find((row) => row.channel === channel && row.purpose === "marketing"); return <Item role="listitem" key={channel} size="sm" className="justify-between p-0"><ItemTitle className="text-xs">{labels(channel as ConsentLabel)}</ItemTitle><Badge variant="secondary" className={latest?.status === "granted" ? "bg-success-tint text-success" : latest?.status === "withdrawn" ? "bg-warning-tint text-warning" : "text-muted-foreground"}>{latest ? labels(latest.status as ConsentLabel) : old("notRecorded")}</Badge></Item>; })}</ItemGroup>
               <p className="pt-2 text-[11px] leading-relaxed text-muted-foreground">{old("aContactRecordDoesNotImplyPermissionTo")}</p></CardContent></Card>
-        </div>
-        <div className="space-y-4">
-          <Card className="gap-3"><CardHeader><CardTitle className="flex items-center gap-2 text-sm"><StickyNote className="size-4 text-muted-foreground" aria-hidden="true" />{t("fields.notes")}</CardTitle></CardHeader>
-            <CardContent><ContactNotes value={contact.notes} /></CardContent></Card>
+        </>}
+        history={<>
           <Tabs defaultValue="activity" className="gap-3">
             <TabsList><TabsTrigger value="activity">{t("activityTab")}</TabsTrigger><TabsTrigger value="consent">{old("consentHistory")}</TabsTrigger></TabsList>
             <TabsContent value="activity"><Card><CardContent><ActivityTimeline items={activity} tenantId={tenantId} subject="person" currentUserId={session.user.id} /></CardContent></Card></TabsContent>
@@ -87,8 +90,7 @@ export default async function PersonPage({ params }: { params: Promise<{ tenantI
               <CardContent>{contact.consents.length ? <ItemGroup className="gap-5">{contact.consents.map((consent) => <Item role="listitem" key={consent.id} className="min-w-0 items-start rounded-none border-l-2 border-l-border p-0 pl-4"><ItemContent className="min-w-0"><ItemHeader><div className="flex flex-wrap items-center gap-2"><span className="text-xs font-medium capitalize">{consent.channel ? labels(consent.channel as ConsentLabel) : old("channelUnavailable")}</span><Badge variant="secondary" className={consent.status === "granted" ? "bg-success-tint text-success" : consent.status === "withdrawn" ? "bg-warning-tint text-warning" : ""}>{labels(consent.status as ConsentLabel)}</Badge>{consent.status === "granted" && contact.effectiveConsents.some((event) => event.channel === consent.channel && event.purpose === consent.purpose && event.status === "withdrawn") && <Badge variant="secondary" className="text-muted-foreground">{old("didNotOverrideWithdrawal")}</Badge>}<time className="ml-auto text-[11px] text-muted-foreground" dateTime={consent.occurredAt.toISOString()}>{format.dateTime(consent.occurredAt, "dateTime")}</time></div></ItemHeader><ItemTitle className="text-xs">{old("consentNotice", { purpose: labels(consent.purpose as ConsentLabel), version: labels(consent.noticeVersion as ConsentLabel) })}</ItemTitle><p className="mt-1 text-[11px] text-muted-foreground">{old("recordedBy", { date: format.dateTime(consent.recordedAt, "dateTime"), actor: consent.recordedBy ? consent.recordedBy === session.user.id ? old("you") : old("aWorkspaceMember") : old("legacyActorUnavailable") })}</p><p className="mt-2 break-words text-xs font-medium">{consent.source}</p><p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-muted-foreground">{consent.evidence}</p></ItemContent></Item>)}</ItemGroup>
                 : <Empty className="p-3 py-5 md:p-3"><EmptyHeader><EmptyMedia variant="icon"><ShieldCheck aria-hidden="true" /></EmptyMedia><EmptyTitle className="text-sm">{old("noConsentRecorded")}</EmptyTitle><EmptyDescription>{old("whenSomeoneSharesAChannelPreferenceRecordTheir")}</EmptyDescription></EmptyHeader></Empty>}</CardContent></Card></TabsContent>
           </Tabs>
-        </div>
-      </div>
+        </>} />
       {can(workspace.role, "contacts:erase") && <div className="flex justify-end"><EraseContact tenantId={tenantId} contactId={contactId} /></div>}
     </div>
   </RecordProvider>;

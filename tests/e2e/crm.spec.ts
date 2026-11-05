@@ -4,11 +4,12 @@ import { randomUUID } from "node:crypto";
 import { expect as baseExpect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { origin, signIn } from "./helpers/session";
+import { expectBackLinkAligned, expectFullWidthShell } from "./helpers/layout";
 
 // CRM-01/02 browser proof: real database, real routes, mocked email only.
 const expect = baseExpect.configure({ timeout: 20_000 });
 const evidence = "docs/screenshots/crm";
-const desktop = { width: 1440, height: 1000 }, mobile = { width: 390, height: 844 };
+const desktop = { width: 1440, height: 1000 }, wide = { width: 1920, height: 1080 }, mobile = { width: 390, height: 844 };
 test.use({ reducedMotion: "reduce", viewport: desktop, timezoneId: "Europe/Berlin" });
 
 type Report = { screen: string; violations: number };
@@ -260,12 +261,31 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
   await capture(page, "company-not-found-light");
   await viewerContext.close();
 
-  // Mobile layouts in both modes.
+  // Full-width layout: wide desktop and phone, both colour modes, with geometry checks.
+  const screens = [[`${root}/crm/people`, "people-list", null], [`${root}/crm/people/${personId}`, "person-detail", "All people"], [`${root}/crm/companies`, "companies-list", null], [`${root}/crm/companies/${companyId}`, "company-detail", "All companies"]] as const;
+  await page.setViewportSize(wide);
+  for (const [path, name, back] of screens) {
+    await page.goto(path);
+    await expect(page.locator("main h1").first()).toBeVisible();
+    await expectFullWidthShell(page);
+    if (back) await expectBackLinkAligned(page, back);
+    await both(page, `${name}-wide`);
+  }
+  // From 2xl (the 1920px capture) the record regions form three columns side by side.
+  await page.goto(`${root}/crm/people/${personId}`);
+  const regions = await page.locator("[data-record-region]").evaluateAll((elements) => elements.map((element) => Math.round(element.getBoundingClientRect().top)));
+  expect(new Set(regions).size).toBe(1);
+  // Between lg and 2xl, profile and context share a row and history spans the next.
+  await page.setViewportSize(desktop);
+  await expectFullWidthShell(page);
+  const twoColumn = await page.locator("[data-record-region]").evaluateAll((elements) => elements.map((element) => Math.round(element.getBoundingClientRect().top)));
+  expect(twoColumn[0]).toBe(twoColumn[1]); expect(twoColumn[2]).toBeGreaterThan(twoColumn[0]);
   await page.setViewportSize(mobile);
   for (const [path, name] of [[`${root}/crm/people`, "people-list-mobile"], [`${root}/crm/people/${personId}`, "person-detail-mobile"], [`${root}/crm/companies`, "companies-list-mobile"], [`${root}/crm/companies/${companyId}`, "company-detail-mobile"]] as const) {
     await page.goto(path);
     await expect(page.locator("main h1").first()).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await expectFullWidthShell(page);
     await both(page, name);
   }
   await page.goto(`${root}/crm/people/${personId}`);

@@ -123,7 +123,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
       <SidebarRail />
     </Sidebar>
     <SidebarInset className="min-h-0 min-w-0 overflow-hidden">
-      <header data-shell-header className="flex h-12 shrink-0 items-center gap-2 px-3">
+      <header data-shell-header className="flex h-12 shrink-0 items-center gap-2 px-4 lg:px-6">
         <SidebarTrigger className="lg:hidden" />
         <Breadcrumb className="min-w-0"><BreadcrumbList className="flex-nowrap text-[13px]">
           {workspace && <><BreadcrumbItem className="min-w-0"><BreadcrumbLink asChild className="truncate"><Link href={`/workspaces/${selected}/crm/people`}>{workspace.name}</Link></BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator /></>}
@@ -131,7 +131,10 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
         </BreadcrumbList></Breadcrumb>
       </header>
       <main id="main-content" className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-[1040px] px-5 py-10 sm:px-8 lg:py-14">
+        {/* Workspace screens use the full width beside the sidebar with compact gutters
+            (16px, 24px from lg) that match the breadcrumb. Focused short forms opt into
+            their own narrow width; the shell never centres or caps the content column. */}
+        <div data-shell-content className="w-full max-w-none px-4 pt-1 pb-8 lg:px-6 lg:pb-10">
           {error && <Alert variant="destructive" className="mb-6"><AlertDescription>{error}</AlertDescription></Alert>}
           {children}
         </div>

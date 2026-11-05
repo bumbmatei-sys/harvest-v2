@@ -88,6 +88,38 @@
     "violations": 0
   },
   {
+    "screen": "people-list-wide-light",
+    "violations": 0
+  },
+  {
+    "screen": "people-list-wide-dark",
+    "violations": 0
+  },
+  {
+    "screen": "person-detail-wide-light",
+    "violations": 0
+  },
+  {
+    "screen": "person-detail-wide-dark",
+    "violations": 0
+  },
+  {
+    "screen": "companies-list-wide-light",
+    "violations": 0
+  },
+  {
+    "screen": "companies-list-wide-dark",
+    "violations": 0
+  },
+  {
+    "screen": "company-detail-wide-light",
+    "violations": 0
+  },
+  {
+    "screen": "company-detail-wide-dark",
+    "violations": 0
+  },
+  {
     "screen": "people-list-mobile-light",
     "violations": 0
   },
