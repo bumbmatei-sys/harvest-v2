@@ -1,3 +1,4 @@
+import { message } from "../i18n/messages";
 import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import type { Database } from "../db/client";
@@ -5,16 +6,17 @@ import { auditLogs, users, workspaceMembers, workspaces } from "../db/schema";
 import { withTenant, withUser } from "./tenancy";
 import { AccessError, type Role } from "./permissions";
 import { z } from "zod";
+import { BRAND_THEMES } from "../lib/theme-registry";
 
 export function getWorkspace(db: Database, userId: string, workspace: string) {
   return withTenant(db, userId, z.uuid().parse(workspace), "workspace:read", async (tx, tenantId, role) => {
     const [row] = await tx.select().from(workspaces).where(eq(workspaces.tenantId, tenantId));
-    if (!row) throw new AccessError(404, "Workspace unavailable.");
+    if (!row) throw new AccessError(404, message("Errors.workspaceUnavailable"));
     return { ...row, role };
   });
 }
 export function updateWorkspaceTheme(db: Database, userId: string, workspace: string, data: unknown) {
-  const { brandTheme } = z.object({ brandTheme: z.enum(["harvest", "studio"]) }).strict().parse(data);
+  const { brandTheme } = z.object({ brandTheme: z.enum(BRAND_THEMES) }).strict().parse(data);
   return withTenant(db, userId, z.uuid().parse(workspace), "settings:write", async (tx, tenantId) => {
     const [row] = await tx.update(workspaces).set({ brandTheme }).where(eq(workspaces.tenantId, tenantId)).returning();
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "workspace.appearance_update", targetId: tenantId, metadata: { brandTheme } });
@@ -44,12 +46,12 @@ export function putMember(db: Database, actorId: string, workspaceHint: string, 
     // Serialize role changes to preserve at least one owner, including concurrent requests.
     await tx.execute(sql`select tenant_id from workspaces where tenant_id = ${tenantId} for update`);
     const [target] = await tx.select({ id: users.id }).from(users).where(eq(users.email, email));
-    if (!target) throw new AccessError(404, "Ask this person to sign in before adding them.");
+    if (!target) throw new AccessError(404, message("Errors.askThisPersonToSignInBeforeAdding"));
     const [previous] = await tx.select().from(workspaceMembers).where(and(eq(workspaceMembers.tenantId, tenantId), eq(workspaceMembers.userId, target.id)));
-    if (actorRole !== "owner" && (roleId === "owner" || previous?.roleId === "owner")) throw new AccessError(403, "Only owners can change ownership.");
+    if (actorRole !== "owner" && (roleId === "owner" || previous?.roleId === "owner")) throw new AccessError(403, message("Errors.onlyOwnersCanChangeOwnership"));
     if (previous?.roleId === "owner" && roleId !== "owner") {
       const owners = await tx.select().from(workspaceMembers).where(and(eq(workspaceMembers.tenantId, tenantId), eq(workspaceMembers.roleId, "owner")));
-      if (owners.length <= 1) throw new AccessError(409, "A workspace must keep at least one owner.");
+      if (owners.length <= 1) throw new AccessError(409, message("Errors.workspaceMustKeepOwner"));
     }
     await tx.insert(workspaceMembers).values({ tenantId, userId: target.id, roleId }).onConflictDoUpdate({ target: [workspaceMembers.tenantId, workspaceMembers.userId], set: { roleId } });
     await tx.insert(auditLogs).values({ tenantId, actorId, action: previous ? "member.role_change" : "member.add", targetId: target.id, metadata: { role: roleId, ...(previous ? { previousRole: previous.roleId } : {}) } });

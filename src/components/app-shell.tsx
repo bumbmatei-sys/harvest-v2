@@ -1,4 +1,5 @@
 "use client";
+import { useTranslations } from "next-intl";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
@@ -37,15 +38,16 @@ function NavigationGroup({ label, children }: { label: string; children: React.R
   </Collapsible>;
 }
 function WorkspaceSwitcher({ workspaces, selected, container }: { workspaces: Workspace[]; selected?: Workspace; container: HTMLElement | null }) {
-  const name = selected?.name ?? "Choose workspace";
+  const t = useTranslations("ComponentsAppShell");
+  const name = selected?.name ?? t("chooseWorkspace");
   const { setOpenMobile, state, isMobile } = useSidebar();
   return <SidebarMenu><SidebarMenuItem><DropdownMenu modal={false}>
-    <Tooltip><TooltipTrigger asChild><DropdownMenuTrigger asChild><SidebarMenuButton aria-label={`Switch workspace: ${name}`} className={menuButton}>
+    <Tooltip><TooltipTrigger asChild><DropdownMenuTrigger asChild><SidebarMenuButton aria-label={t("switchWorkspaceValue", { name: name })} className={menuButton}>
       <Avatar className="size-5 shrink-0 rounded-md" aria-hidden="true"><AvatarFallback className="rounded-md bg-sidebar-accent text-[10px] font-semibold"><Sprout className="size-3.5" /></AvatarFallback></Avatar><span data-workspace-name className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:sr-only">{name}</span><ChevronsUpDown aria-hidden="true" className="ml-auto group-data-[collapsible=icon]:hidden" />
     </SidebarMenuButton></DropdownMenuTrigger></TooltipTrigger><TooltipContent container={container} side="right" hidden={state !== "collapsed" || isMobile}>{name}</TooltipContent></Tooltip>
     <DropdownMenuContent container={container} side="bottom" align="start" className="w-60">
-      <DropdownMenuLabel>{selected?.name ?? "Workspaces"}</DropdownMenuLabel>
-      <DropdownMenuItem asChild><Link href="/workspaces" onClick={() => setOpenMobile(false)}>Your workspaces</Link></DropdownMenuItem>
+      <DropdownMenuLabel>{selected?.name ?? t("workspaces")}</DropdownMenuLabel>
+      <DropdownMenuItem asChild><Link href="/workspaces" onClick={() => setOpenMobile(false)}>{t("yourWorkspaces")}</Link></DropdownMenuItem>
       <DropdownMenuSeparator />
       {workspaces.map((item) => <DropdownMenuItem key={item.tenantId} asChild><Link href={`/workspaces/${item.tenantId}/contacts`} onClick={() => setOpenMobile(false)}>{item.name}</Link></DropdownMenuItem>)}
     </DropdownMenuContent>
@@ -54,57 +56,59 @@ function WorkspaceSwitcher({ workspaces, selected, container }: { workspaces: Wo
 export function AppShell({ children, workspaces, selected, email, brandTheme = "harvest", defaultOpen = true }: {
   children: React.ReactNode; workspaces: Workspace[]; selected?: string; email: string; brandTheme?: BrandTheme; defaultOpen?: boolean;
 }) {
+  const t = useTranslations("ComponentsAppShell");
   const pathname = usePathname(), router = useRouter();
   const hydrated = useHydrated();
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [navigationContainer, setNavigationContainer] = useState<HTMLElement | null>(null);
   const workspace = workspaces.find((item) => item.tenantId === selected);
-  const section = pathname.includes("/contacts") ? "Contacts" : pathname.includes("/files") ? "Files" : pathname.endsWith("/appearance") ? "Appearance" : "Workspaces";
+  const section = pathname === "/profile" ? t("profile") : pathname.includes("/contacts") ? t("contacts") : pathname.includes("/files") ? t("files") : pathname.endsWith("/appearance") ? t("appearance") : t("workspaces");
   async function signOut() {
     setBusy(true); setError("");
     try {
       const result = await authClient.signOut();
-      if (result.error) setError("Could not sign out. Try again.");
+      if (result.error) setError(t("couldNotSignOutTryAgain"));
       else { router.replace("/sign-in"); router.refresh(); }
-    } catch { setError("Could not connect. Please try again."); }
+    } catch { setError(t("couldNotConnectPleaseTryAgain")); }
     finally { setBusy(false); }
   }
   return <SidebarProvider defaultOpen={defaultOpen} data-hydrated={hydrated} className="h-dvh min-h-0 overflow-hidden bg-shell-canvas has-data-[variant=inset]:bg-shell-canvas" style={{ "--sidebar-width": "276px", "--sidebar-width-icon": "52px" } as React.CSSProperties}>
     <WorkspaceTheme brandTheme={brandTheme} />
-    <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-card focus:p-3">Skip to content</a>
+    <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-card focus:p-3">{t("skipToContent")}</a>
     <Sidebar variant="inset" collapsible="icon" className="p-[8px]">
-      <div ref={setNavigationContainer} role="complementary" aria-label="Workspace sidebar" className="flex h-full min-h-0 flex-col">
+      <div ref={setNavigationContainer} role="complementary" aria-label={t("workspaceSidebar")} className="flex h-full min-h-0 flex-col">
         <SidebarHeader className="gap-0 p-0 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:py-2">
           <SidebarMenu><SidebarMenuItem><SidebarMenuButton size="lg" asChild className="h-[52px] rounded-none hover:bg-transparent group-data-[collapsible=icon]:size-auto! group-data-[collapsible=icon]:p-0!"><Link href="/workspaces" className="flex h-[52px] items-center gap-1.5 pl-4 pr-3 group-data-[collapsible=icon]:h-auto group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
             <Image src="/brand/harvest-logo.png" width={24} height={24} alt="" className="size-6 shrink-0 object-contain" />
-            <span className="text-[17px] font-semibold text-sidebar-accent-foreground group-data-[collapsible=icon]:sr-only">Harvest</span>
+            <span className="text-[17px] font-semibold text-sidebar-accent-foreground group-data-[collapsible=icon]:sr-only">{t("harvest")}</span>
           </Link></SidebarMenuButton></SidebarMenuItem></SidebarMenu>
         </SidebarHeader>
-        <SidebarContent className="gap-0 pt-1"><nav aria-label="Workspace navigation">
+        <SidebarContent className="gap-0 pt-1"><nav aria-label={t("workspaceNavigation")}>
           <SidebarGroup className="px-[13px] py-0 group-data-[collapsible=icon]:px-0">
             <WorkspaceSwitcher workspaces={workspaces} selected={workspace} container={navigationContainer} />
-            <SidebarMenu className="mt-px gap-px"><NavigationLink href="/workspaces" active={!selected} label="Workspaces" icon={<Building2 aria-hidden="true" />} /></SidebarMenu>
+            <SidebarMenu className="mt-px gap-px"><NavigationLink href="/workspaces" active={!selected} label={t("workspaces")} icon={<Building2 aria-hidden="true" />} /></SidebarMenu>
           </SidebarGroup>
           {selected && <>
-            <NavigationGroup label="People">
-              <NavigationLink href={`/workspaces/${selected}/contacts`} active={pathname.includes("/contacts")} label="Contacts" icon={<UsersRound aria-hidden="true" />} />
-              <NavigationLink href={`/workspaces/${selected}/files`} active={pathname.includes("/files")} label="Files" icon={<Files aria-hidden="true" />} />
+            <NavigationGroup label={t("people")}>
+              <NavigationLink href={`/workspaces/${selected}/contacts`} active={pathname.includes("/contacts")} label={t("contacts")} icon={<UsersRound aria-hidden="true" />} />
+              <NavigationLink href={`/workspaces/${selected}/files`} active={pathname.includes("/files")} label={t("files")} icon={<Files aria-hidden="true" />} />
             </NavigationGroup>
-            <NavigationGroup label="Settings"><NavigationLink href={`/workspaces/${selected}/appearance`} active={pathname.endsWith("/appearance")} label="Appearance" icon={<Palette aria-hidden="true" />} /></NavigationGroup>
+            <NavigationGroup label={t("settings")}><NavigationLink href={`/workspaces/${selected}/appearance`} active={pathname.endsWith("/appearance")} label={t("appearance")} icon={<Palette aria-hidden="true" />} /></NavigationGroup>
           </>}
         </nav></SidebarContent>
         <SidebarFooter className="gap-1 p-0 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:py-2">
           <div className="flex h-[52px] items-center gap-1 pl-4 pr-3 group-data-[collapsible=icon]:h-auto group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:px-0">
             <div className="flex min-w-0 flex-1 items-center gap-2 group-data-[collapsible=icon]:flex-none">
             <DropdownMenu modal={false}><DropdownMenuTrigger asChild>
-              <Button variant="ghost" disabled={busy} aria-label="Account menu" className="size-8 shrink-0 p-0">
+              <Button variant="ghost" disabled={busy} aria-label={t("accountMenu")} className="size-8 shrink-0 p-0">
                 <Avatar className="size-8 shrink-0 border border-sidebar-border" aria-hidden="true"><AvatarFallback className="bg-transparent uppercase">{email.slice(0, 1)}</AvatarFallback></Avatar>
               </Button>
             </DropdownMenuTrigger><DropdownMenuContent container={navigationContainer} side="top" align="start" className="w-64 rounded-[12px]">
               <DropdownMenuLabel className="truncate text-xs">{email}</DropdownMenuLabel><DropdownMenuSeparator />
-              <BrandThemeMenu /><DropdownMenuSeparator />
-              <DropdownMenuItem disabled={busy} onSelect={() => void signOut()}><LogOut aria-hidden="true" />Sign out</DropdownMenuItem>
+              <DropdownMenuItem asChild><Link href="/profile">{t("profile")}</Link></DropdownMenuItem>
+              <DropdownMenuSeparator /><BrandThemeMenu /><DropdownMenuSeparator />
+              <DropdownMenuItem disabled={busy} onSelect={() => void signOut()}><LogOut aria-hidden="true" />{t("signOut")}</DropdownMenuItem>
             </DropdownMenuContent></DropdownMenu>
             <span className="truncate text-[13px] font-medium text-sidebar-accent-foreground group-data-[collapsible=icon]:sr-only">{email.split("@")[0]}</span>
             </div>

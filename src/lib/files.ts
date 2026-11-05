@@ -1,3 +1,4 @@
+import { message } from "../i18n/messages";
 import { z } from "zod";
 
 export const MAX_FILE_SIZE = 10 * 1024 * 1024;
@@ -11,12 +12,12 @@ export function filenameMatchesMime(name: string, mime: string) {
   return FILE_EXTENSIONS[mime as typeof FILE_MIME_TYPES[number]]?.includes(extension ?? "") ?? false;
 }
 export const uploadInput = z.object({
-  name: z.string().trim().min(1).max(200).refine((name) => !/[\x00-\x1f\x7f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069/\\]/.test(name), "Use a filename without paths or control characters."),
+  name: z.string().trim().min(1).max(200).refine((name) => !/[\x00-\x1f\x7f\u061c\u200e\u200f\u202a-\u202e\u2066-\u2069/\\]/.test(name), message("Errors.useAFilenameWithoutPathsOrControlCharacters")),
   mime: z.enum(FILE_MIME_TYPES),
   size: z.number().int().positive().max(MAX_FILE_SIZE),
   checksum: z.string().regex(/^[a-f0-9]{64}$/),
   visibility: z.enum(["private", "public"]).default("private"),
-}).strict().refine(({ name, mime }) => filenameMatchesMime(name, mime), { message: "The filename extension must match the file type.", path: ["name"] });
+}).strict().refine(({ name, mime }) => filenameMatchesMime(name, mime), { message: message("Errors.theFilenameExtensionMustMatchTheFileType"), path: ["name"] });
 export type UploadInput = z.infer<typeof uploadInput>;
 
 // Neither a filename nor a client-provided path participates in the object key.

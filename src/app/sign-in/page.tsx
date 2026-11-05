@@ -1,4 +1,6 @@
 "use client";
+import { errorMessage } from "@/i18n/messages";
+import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { REGEXP_ONLY_DIGITS } from "input-otp";
 import { authClient } from "@/lib/auth-client";
@@ -13,6 +15,7 @@ import { ThemeControls } from "@/components/theme-controls";
 import { Wheat } from "lucide-react";
 import { useHydrated } from "@/hooks/use-hydrated";
 export default function SignIn() {
+  const t = useTranslations("AppSignInPage");
   const hydrated = useHydrated();
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
@@ -25,46 +28,46 @@ export default function SignIn() {
     setBusy(true); setError(""); setMessage(""); setCodeInvalid(false);
     try {
       const result = await authClient.emailOtp.sendVerificationOtp({ email, type: "sign-in" });
-      if (result.error) setError(result.error.message ?? "Could not send your code.");
-      else { setSent(true); setMessage("Check your email for a six-digit code. It expires in 10 minutes. Wait 60 seconds before resending."); }
-    } catch { setError("Could not connect. Please try again."); }
+      if (result.error) setError(errorMessage(result.error, "AppSignInPage.couldNotSendYourCode"));
+      else { setSent(true); setMessage(t("checkYourEmailForASixDigitCode")); }
+    } catch { setError(t("couldNotConnectPleaseTryAgain")); }
     finally { setBusy(false); }
   }
   async function verify(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault(); setBusy(true); setError(""); setCodeInvalid(false);
     try {
       const result = await authClient.signIn.emailOtp({ email, otp });
-      if (result.error) { setError(result.error.message ?? "Check your code and try again."); setCodeInvalid(true); }
+      if (result.error) { setError(errorMessage(result.error, "AppSignInPage.checkYourCodeAndTryAgain")); setCodeInvalid(true); }
       else {
         // Start a fresh document after the session cookie changes. Overlapping
         // replace/refresh transitions can remount the signed-out route.
         window.location.replace("/workspaces");
       }
-    } catch { setError("Could not connect. Please try again."); }
+    } catch { setError(t("couldNotConnectPleaseTryAgain")); }
     finally { setBusy(false); }
   }
   return <main className="flex min-h-dvh items-center justify-center p-6">
     <div className="absolute right-5 top-5"><ThemeControls /></div>
     <Card className="w-full max-w-sm">
-      <CardHeader><p className="mb-6 flex items-center gap-2 text-lg font-semibold"><Wheat className="size-6" aria-hidden="true" />Harvest</p><CardTitle><h1 className="text-[28px] font-semibold leading-tight tracking-[-0.7px]">Sign in to Harvest</h1></CardTitle><CardDescription>Enter your email to receive a sign-in code.</CardDescription></CardHeader>
+      <CardHeader><p className="mb-6 flex items-center gap-2 text-lg font-semibold"><Wheat className="size-6" aria-hidden="true" />{t("harvest")}</p><CardTitle><h1 className="text-[28px] font-semibold leading-tight tracking-[-0.7px]">{t("signInToHarvest")}</h1></CardTitle><CardDescription>{t("enterYourEmailToReceiveASignIn")}</CardDescription></CardHeader>
       <CardContent className="space-y-5">
         {error && <Alert id="sign-in-error" variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
         {message && <Alert id="sign-in-status" role="status"><AlertDescription>{message}</AlertDescription></Alert>}
         <form className="space-y-4" onSubmit={sent ? verify : (event) => { event.preventDefault(); void send(); }}>
           <FieldGroup>
-            <Field><FieldLabel htmlFor="email">Email address</FieldLabel><Input id="email" type="email" autoComplete="email" required disabled={!hydrated || busy} value={email} readOnly={sent} onChange={(e) => setEmail(e.target.value)} /></Field>
+            <Field><FieldLabel htmlFor="email">{t("emailAddress")}</FieldLabel><Input id="email" type="email" autoComplete="email" required disabled={!hydrated || busy} value={email} readOnly={sent} onChange={(e) => setEmail(e.target.value)} /></Field>
             {sent && <Field data-invalid={codeInvalid}>
-              <FieldLabel htmlFor="code">Six-digit code</FieldLabel>
+              <FieldLabel htmlFor="code">{t("sixDigitCode")}</FieldLabel>
               <InputOTP id="code" inputMode="numeric" autoComplete="one-time-code" pattern={REGEXP_ONLY_DIGITS} minLength={6} maxLength={6} required disabled={busy} value={otp} onChange={setOtp} aria-invalid={codeInvalid} aria-describedby={[message && "sign-in-status", codeInvalid && "sign-in-error"].filter(Boolean).join(" ") || undefined}>
                 <InputOTPGroup>
                   {Array.from({ length: 6 }, (_, index) => <InputOTPSlot key={index} index={index} aria-invalid={codeInvalid} />)}
                 </InputOTPGroup>
               </InputOTP>
             </Field>}
-            <Button className="w-full" disabled={!hydrated || busy || (sent && otp.length !== 6)}>{busy ? "Please wait…" : sent ? "Sign in" : "Send sign-in code"}</Button>
+            <Button className="w-full" disabled={!hydrated || busy || (sent && otp.length !== 6)}>{busy ? t("pleaseWait") : sent ? t("signIn") : t("sendSignInCode")}</Button>
           </FieldGroup>
         </form>
-        {sent && <ButtonGroup aria-label="Sign-in options"><Button variant="outline" disabled={busy} onClick={() => void send()}>Resend code</Button><Button variant="ghost" disabled={busy} onClick={() => { setSent(false); setOtp(""); setMessage(""); setError(""); setCodeInvalid(false); }}>Change email</Button></ButtonGroup>}
+        {sent && <ButtonGroup aria-label={t("signInOptions")}><Button variant="outline" disabled={busy} onClick={() => void send()}>{t("resendCode")}</Button><Button variant="ghost" disabled={busy} onClick={() => { setSent(false); setOtp(""); setMessage(""); setError(""); setCodeInvalid(false); }}>{t("changeEmail")}</Button></ButtonGroup>}
       </CardContent>
     </Card>
   </main>;

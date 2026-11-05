@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { getAuth } from "@/server/auth-instance";
 import { getDb } from "@/db/client";
 import { users } from "@/db/schema";
+import { formats } from "./formats";
 import { resolveLocale } from "./locale";
 
 export default getRequestConfig(async () => {
@@ -19,5 +20,5 @@ export default getRequestConfig(async () => {
     }
   }
   const locale = resolveLocale(userLocale, cookieStore.get("locale")?.value, requestHeaders.get("accept-language"));
-  return { locale, messages: (await import(`../../messages/${locale}.json`)).default };
+  return { locale, formats, timeZone: "UTC", messages: (await import(`../../messages/${locale}.json`)).default };
 });

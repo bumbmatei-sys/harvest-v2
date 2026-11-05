@@ -39,3 +39,21 @@ describe("contact input and permissions", () => {
     expect(can("unknown", "contacts:read")).toBe(false);
   });
 });
+
+import { BRAND_THEMES, COLOR_MODES, isBrandTheme, themeRegistry, themeStyles } from "../../src/lib/theme-registry";
+describe("theme registry", () => {
+  it("defines complete palettes for each brand and color mode", () => {
+    const tokens = Object.keys(themeRegistry.harvest.light).sort();
+    for (const brand of BRAND_THEMES) for (const mode of COLOR_MODES) {
+      const palette = themeRegistry[brand][mode];
+      expect(Object.keys(palette).sort()).toEqual(tokens);
+      expect(themeStyles).toContain(`[data-brand-theme="${brand}"][data-theme="${mode}"]`);
+      expect(contrastRatio(palette["--brand-color"], palette["--earth"])).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(palette["--action-hover"], palette["--earth"])).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(palette["--text-strong"], palette["--surface"])).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(palette["--text-muted"], palette["--surface-card"])).toBeGreaterThanOrEqual(4.5);
+      expect(palette["--earth"].toLowerCase()).toBe("#2d2519");
+    }
+  });
+  it.each(["__proto__", "constructor", "<script>", null])("rejects unregistered theme %s", (value) => expect(isBrandTheme(value)).toBe(false));
+});

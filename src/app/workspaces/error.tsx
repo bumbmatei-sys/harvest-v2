@@ -1,6 +1,8 @@
 "use client";
+import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 export default function WorkspaceError({ reset }: { reset: () => void }) {
-  return <main className="mx-auto max-w-xl p-6"><Alert variant="destructive"><AlertTitle>Could not load workspaces</AlertTitle><AlertDescription>Please try again in a moment.</AlertDescription></Alert><Button className="mt-4" onClick={reset}>Try again</Button></main>;
+  const t = useTranslations("AppWorkspacesError");
+  return <main className="mx-auto max-w-xl p-6"><Alert variant="destructive"><AlertTitle>{t("couldNotLoadWorkspaces")}</AlertTitle><AlertDescription>{t("pleaseTryAgainInAMoment")}</AlertDescription></Alert><Button className="mt-4" onClick={reset}>{t("tryAgain")}</Button></main>;
 }
