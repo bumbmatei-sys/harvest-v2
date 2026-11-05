@@ -297,6 +297,38 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
   }
   await page.context().addCookies([{ name: "sidebar_state", value: "true", url: origin }]);
 
+  // Keyboard-focus regression (review B1-r3): the Domain link's own box and focus
+  // indicator must stay inside its table cell even for a very long domain. The cell
+  // clips overflow, so scrollWidth checks cannot see a clipped outline.
+  for (const [label, size] of [["tablet expanded", { width: 1024, height: 900 }], ["small tablet", { width: 768, height: 900 }]] as const) {
+    await page.setViewportSize(size);
+    await page.context().addCookies([{ name: "sidebar_state", value: "true", url: origin }]);
+    await page.goto(`${root}/crm/companies`);
+    const domainLink = page.getByRole("table").getByRole("link", { name: "stbartholomewscommunitydevelopmenttrust.org.uk" });
+    await expect(domainLink).toBeVisible();
+    await page.locator("main").getByRole("searchbox", { name: "Search companies" }).focus();
+    let focused = false;
+    for (let step = 0; step < 40 && !focused; step += 1) {
+      await page.keyboard.press("Tab");
+      focused = await domainLink.evaluate((link) => link === document.activeElement);
+    }
+    expect(focused, `${label}: Tab reaches the domain link`).toBe(true);
+    const focus = await domainLink.evaluate((link) => {
+      const cell = link.closest("td")!.getBoundingClientRect(), box = link.getBoundingClientRect(), style = getComputedStyle(link);
+      const outline = style.outlineStyle !== "none" ? parseFloat(style.outlineWidth) + Math.max(0, parseFloat(style.outlineOffset)) : 0;
+      const ring = style.boxShadow !== "none";
+      return { left: box.left - outline - cell.left, right: cell.right - (box.right + outline), top: box.top - outline - cell.top, bottom: cell.bottom - (box.bottom + outline), outline: style.outlineStyle !== "none", ring, inset: style.boxShadow.includes("inset"), truncated: link.scrollWidth > link.clientWidth, title: link.getAttribute("title") };
+    });
+    expect(focus.ring || focus.outline, `${label}: a visible focus indicator`).toBe(true);
+    if (focus.ring) expect(focus.inset, `${label}: ring is inset`).toBe(true);
+    for (const edge of ["left", "right", "top", "bottom"] as const) expect(focus[edge], `${label}: focus ${edge} edge inside the cell`).toBeGreaterThanOrEqual(0);
+    expect(focus.truncated, `${label}: the anchor text truncates`).toBe(true);
+    expect(focus.title).toBe("stbartholomewscommunitydevelopmenttrust.org.uk");
+    await expectFullWidthShell(page);
+    await capture(page, `companies-domain-focus-${size.width}-light`);
+  }
+  await page.context().addCookies([{ name: "sidebar_state", value: "true", url: origin }]);
+
   // Full-width layout: wide desktop and phone, both colour modes, with geometry checks.
   const screens = [[`${root}/crm/people`, "people-list", null], [`${root}/crm/people/${personId}`, "person-detail", "All people"], [`${root}/crm/companies`, "companies-list", null], [`${root}/crm/companies/${companyId}`, "company-detail", "All companies"]] as const;
   await page.setViewportSize(wide);
