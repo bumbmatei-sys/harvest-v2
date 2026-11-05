@@ -1,71 +1,62 @@
 import { message } from "../i18n/messages";
-import { and, asc, count, desc, eq, exists, getTableColumns, gt, ilike, inArray, isNull, ne, notExists, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, exists, getTableColumns, gt, ilike, inArray, isNull, ne, notExists, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Database, Transaction } from "../db/client";
 import { auditLogs, companies, contactCompanyLinks, contactConsents, contactIdentifiers, contacts } from "../db/schema";
 import { contactInput, consentInput, uuidInput, type ContactInput, type ConsentInput } from "../lib/contact-input";
-import { CRM_PAGE_SIZE, DUPLICATE_MIN_LENGTH, contactPatch, linkInput, linkPatch, newContactInput, peopleQuery, type ContactPatch, type LinkInput, type LinkPatch, type NewContactInput, type PeopleQuery } from "../lib/crm-input";
+import { CRM_PAGE_SIZE, DUPLICATE_MIN_LENGTH, contactPatch, linkInput, linkPatch, newContactInput, type ContactPatch, type LinkInput, type LinkPatch, type NewContactInput } from "../lib/crm-input";
+import { paramsToState } from "../lib/crm-fields";
+import { compileFilter, invalidView, likePattern, loadDefinitions, marketingEmailState, relatedFilterNames, resolveState, sortOrder } from "./crm-filters";
+import { loadRecordValues } from "./crm-fields";
 import { recordActivity } from "./activity";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
 
 const kinds = ["email", "phone", "social"] as const;
 type Kind = typeof kinds[number];
-export const likePattern = (q: string) => `%${q.replace(/[\\%_]/g, "\\$&")}%`;
+export { likePattern } from "./crm-filters";
 const contactMissing = () => new AccessError(404, message("Errors.thisContactIsNotAvailableInThisWorkspace"));
 const companyMissing = () => new AccessError(404, message("Errors.thisCompanyIsNotAvailableInThisWorkspace"));
 export const stale = () => new AccessError(409, message("Errors.thisRecordChangedReloadAndTryAgain"), { reason: "stale" });
 
-/**
- * Effective marketing-email state, computed in PostgreSQL with the same rule as the
- * consent ledger on the detail page: an outstanding withdrawal wins unless a grant is
- * strictly later on both clocks; otherwise the latest event decides. The outer
- * reference is written as contacts.id because Drizzle renders single-table select
- * columns unqualified, which would bind to the inner consent row's id instead.
- */
-export function marketingEmailState(tenantId: string) {
-  return sql<"granted" | "withdrawn" | "none">`(case
-    when exists (select 1 from contact_consents w where w.tenant_id = ${tenantId} and w.contact_id = contacts.id
-      and w.channel = 'email' and w.purpose = 'marketing' and w.status = 'withdrawn'
-      and not exists (select 1 from contact_consents g where g.tenant_id = w.tenant_id and g.contact_id = w.contact_id
-        and g.channel = w.channel and g.purpose = w.purpose and g.status = 'granted'
-        and g.recorded_at > w.recorded_at and g.occurred_at > w.occurred_at)) then 'withdrawn'
-    when (select l.status from contact_consents l where l.tenant_id = ${tenantId} and l.contact_id = contacts.id
-      and l.channel = 'email' and l.purpose = 'marketing' order by l.recorded_at desc, l.occurred_at desc, l.id desc limit 1) = 'granted' then 'granted'
-    else 'none' end)`;
-}
+export { marketingEmailState } from "./crm-filters";
+export type { RawParams as ListParams } from "../lib/crm-fields";
+type ListParams = import("../lib/crm-fields").RawParams;
 
-export function listContacts(db: Database, userId: string, workspace: string, query: PeopleQuery = {}) {
-  const { q, page, sort, company, email, marketing } = peopleQuery.parse(query);
+/**
+ * People list. The URL-style parameters are parsed, then validated against the
+ * tenant's live field definitions; anything unknown rejects the whole view (400).
+ * Every filter compiles to SQL; nothing is filtered on the client.
+ */
+export function listContacts(db: Database, userId: string, workspace: string, params: ListParams = {}) {
+  const parsed = paramsToState("person", params);
+  if (!parsed) throw invalidView();
   return withTenant(db, userId, uuidInput.parse(workspace), "contacts:read", async (tx, tenantId) => {
-    const pattern = likePattern(q);
-    const linkTo = (companyWhere?: SQL) => exists(tx.select({ one: sql`1` }).from(contactCompanyLinks).where(and(eq(contactCompanyLinks.tenantId, tenantId), eq(contactCompanyLinks.contactId, contacts.id), companyWhere)));
-    const hasEmail = exists(tx.select({ one: sql`1` }).from(contactIdentifiers).where(and(eq(contactIdentifiers.tenantId, tenantId), eq(contactIdentifiers.contactId, contacts.id), eq(contactIdentifiers.kind, "email"))));
-    const state = marketingEmailState(tenantId);
+    const definitions = await loadDefinitions(tx, tenantId, "person");
+    const state = resolveState("person", parsed.state, definitions), page = parsed.page;
+    const pattern = likePattern(state.q);
+    const marketing = marketingEmailState(tenantId);
     const where = and(eq(contacts.tenantId, tenantId), isNull(contacts.erasedAt),
-      q ? or(ilike(contacts.name, pattern),
+      state.q ? or(ilike(contacts.name, pattern),
         exists(tx.select({ one: sql`1` }).from(contactIdentifiers).where(and(eq(contactIdentifiers.tenantId, tenantId), eq(contactIdentifiers.contactId, contacts.id), ilike(contactIdentifiers.value, pattern)))),
         exists(tx.select({ one: sql`1` }).from(contactCompanyLinks).innerJoin(companies, and(eq(companies.tenantId, contactCompanyLinks.tenantId), eq(companies.id, contactCompanyLinks.companyId)))
           .where(and(eq(contactCompanyLinks.tenantId, tenantId), eq(contactCompanyLinks.contactId, contacts.id), ilike(companies.name, pattern))))) : undefined,
-      company === "any" ? linkTo() : company === "none" ? sql`not ${linkTo()}` : company ? linkTo(eq(contactCompanyLinks.companyId, company)) : undefined,
-      email === "with" ? hasEmail : email === "without" ? sql`not ${hasEmail}` : undefined,
-      marketing ? sql`${state} = ${marketing}` : undefined);
-    const order = { name: [asc(contacts.normalizedName), asc(contacts.id)], "-name": [desc(contacts.normalizedName), desc(contacts.id)],
-      "-created": [desc(contacts.createdAt), desc(contacts.id)], created: [asc(contacts.createdAt), asc(contacts.id)],
-      "-updated": [desc(contacts.updatedAt), desc(contacts.id)] }[sort];
+      ...state.filters.map((filter) => compileFilter(tenantId, "person", filter, definitions)));
+    const order = sortOrder("person", state.sort, tenantId, definitions, { name: sql.raw("contacts.normalized_name"), created: sql.raw("contacts.created_at"), updated: sql.raw("contacts.updated_at") }, sql.raw("contacts.id"));
     const [{ total }] = await tx.select({ total: count() }).from(contacts).where(where);
-    const rows = await tx.select({ ...getTableColumns(contacts), marketingEmail: state }).from(contacts).where(where).orderBy(...order).limit(CRM_PAGE_SIZE).offset((page - 1) * CRM_PAGE_SIZE);
+    const rows = await tx.select({ ...getTableColumns(contacts), marketingEmail: marketing }).from(contacts).where(where).orderBy(...order).limit(CRM_PAGE_SIZE).offset((page - 1) * CRM_PAGE_SIZE);
     const ids = rows.map((row) => row.id);
     const identifiers = ids.length ? await tx.select().from(contactIdentifiers).where(and(eq(contactIdentifiers.tenantId, tenantId), inArray(contactIdentifiers.contactId, ids))) : [];
     const links = ids.length ? await tx.select({ contactId: contactCompanyLinks.contactId, companyId: companies.id, name: companies.name, isPrimary: contactCompanyLinks.isPrimary, title: contactCompanyLinks.title })
       .from(contactCompanyLinks).innerJoin(companies, and(eq(companies.tenantId, contactCompanyLinks.tenantId), eq(companies.id, contactCompanyLinks.companyId)))
       .where(and(eq(contactCompanyLinks.tenantId, tenantId), inArray(contactCompanyLinks.contactId, ids)))
       .orderBy(desc(contactCompanyLinks.isPrimary), asc(contactCompanyLinks.createdAt), asc(companies.id)) : [];
-    const filterCompany = company && company !== "any" && company !== "none"
-      ? (await tx.select({ id: companies.id, name: companies.name }).from(companies).where(and(eq(companies.tenantId, tenantId), eq(companies.id, company))))[0] ?? null : null;
+    const active = definitions.filter((field) => !field.archivedAt);
+    const { values, related } = await loadRecordValues(tx, tenantId, "person", ids, active);
+    const filterNames = await relatedFilterNames(tx, tenantId, "person", state.filters, definitions);
     return {
-      rows: rows.map((row) => ({ ...row, identifiers: identifiers.filter((item) => item.contactId === row.id), companies: links.filter((link) => link.contactId === row.id) })),
-      total, page, q, sort, filters: { company: company ?? null, email: email ?? null, marketing: marketing ?? null }, filterCompany,
+      rows: rows.map((row) => ({ ...row, identifiers: identifiers.filter((item) => item.contactId === row.id), companies: links.filter((link) => link.contactId === row.id), custom: values.get(row.id) ?? {} })),
+      total, page, state, definitions: active, related: Object.fromEntries([...related, ...filterNames]),
     };
   });
 }

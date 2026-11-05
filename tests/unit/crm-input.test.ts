@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { companyInput, companyPatch, contactPatch, linkInput, linkPatch, newContactInput, normalizeDomain, normalizeName, peopleQuery, companyQuery } from "../../src/lib/crm-input";
+import { companyInput, companyPatch, contactPatch, linkInput, linkPatch, newContactInput, normalizeDomain, normalizeName } from "../../src/lib/crm-input";
+import { paramsToState } from "../../src/lib/crm-fields";
 import { can } from "../../src/server/permissions";
 
 describe("company domain normalization", () => {
@@ -41,10 +42,10 @@ describe("CRM input schemas", () => {
     expect(linkPatch.safeParse({ isPrimary: false }).success).toBe(false);
     expect(newContactInput.safeParse({ name: "x", companyId: "bad" }).success).toBe(false);
   });
-  it("rejects unknown sorts and filters instead of ignoring them", () => {
-    expect(peopleQuery.parse({})).toMatchObject({ q: "", page: 1, sort: "name" });
-    for (const query of [{ sort: "drop table" }, { company: "x" }, { email: "maybe" }, { marketing: "yes" }, { page: "0" }]) expect(peopleQuery.safeParse(query).success).toBe(false);
-    expect(companyQuery.safeParse({ people: "some" }).success).toBe(false);
+  it("rejects malformed list parameters instead of ignoring them", () => {
+    expect(paramsToState("person", {})).toMatchObject({ page: 1, state: { q: "", sort: "name" } });
+    for (const query of [{ sort: "drop table" }, { email: "maybe" }, { page: "0" }, { f: "name~drop~x" }]) expect(paramsToState("person", query)).toBeNull();
+    expect(paramsToState("company", { people: "some" })).toBeNull();
   });
 });
 describe("CRM permission matrix", () => {

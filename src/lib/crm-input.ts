@@ -64,21 +64,4 @@ export const linkPatch = z.object({ title: z.string().trim().max(100).optional()
   .refine((value) => value.title !== undefined || value.isPrimary !== undefined);
 export type LinkPatch = z.input<typeof linkPatch>;
 
-const page = z.coerce.number().int().min(1).max(100000).default(1);
-const q = z.string().trim().max(100).default("");
-export const peopleSorts = ["name", "-name", "-created", "created", "-updated"] as const;
 export const marketingStates = ["granted", "withdrawn", "none"] as const;
-export const peopleQuery = z.object({
-  q, page, sort: z.enum(peopleSorts).default("name"),
-  company: z.union([z.uuid(), z.enum(["any", "none"])]).optional(),
-  email: z.enum(["with", "without"]).optional(),
-  marketing: z.enum(marketingStates).optional(),
-});
-export type PeopleQuery = z.input<typeof peopleQuery>;
-export const companySorts = ["name", "-name", "-created", "created", "-people"] as const;
-export const companyQuery = z.object({
-  q, page, sort: z.enum(companySorts).default("name"),
-  people: z.enum(["any", "none"]).optional(),
-  domain: z.enum(["with", "without"]).optional(),
-});
-export type CompanyQuery = z.input<typeof companyQuery>;

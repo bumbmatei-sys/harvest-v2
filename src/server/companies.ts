@@ -1,11 +1,14 @@
 import { message } from "../i18n/messages";
-import { and, asc, count, desc, eq, exists, ilike, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, count, eq, ilike, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import type { Database } from "../db/client";
 import { companies, contactCompanyLinks, contactIdentifiers, contacts } from "../db/schema";
 import { uuidInput } from "../lib/contact-input";
-import { CRM_PAGE_SIZE, DUPLICATE_MIN_LENGTH, companyInput, companyPatch, companyQuery, type CompanyInput, type CompanyPatch, type CompanyQuery } from "../lib/crm-input";
+import { CRM_PAGE_SIZE, DUPLICATE_MIN_LENGTH, companyInput, companyPatch, type CompanyInput, type CompanyPatch } from "../lib/crm-input";
+import { paramsToState, type RawParams } from "../lib/crm-fields";
+import { compileFilter, invalidView, likePattern, loadDefinitions, peopleCountExpr, relatedFilterNames, resolveState, sortOrder } from "./crm-filters";
+import { loadRecordValues } from "./crm-fields";
 import { recordActivity } from "./activity";
-import { likePattern, pgCode, stale } from "./contacts";
+import { pgCode, stale } from "./contacts";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
 
@@ -22,23 +25,26 @@ async function domainConflict<T>(db: Database, userId: string, tenantHint: strin
   }
 }
 
-export function listCompanies(db: Database, userId: string, workspace: string, query: CompanyQuery = {}) {
-  const { q, page, sort, people, domain } = companyQuery.parse(query);
+/** Companies list on the same validated view-state model as People. */
+export function listCompanies(db: Database, userId: string, workspace: string, params: RawParams = {}) {
+  const parsed = paramsToState("company", params);
+  if (!parsed) throw invalidView();
   return withTenant(db, userId, uuidInput.parse(workspace), "companies:read", async (tx, tenantId) => {
-    const pattern = likePattern(q);
-    const peopleCount = sql<number>`(select count(*)::int from contact_company_links l where l.tenant_id = ${tenantId} and l.company_id = companies.id)`;
-    const hasPeople = exists(tx.select({ one: sql`1` }).from(contactCompanyLinks).where(and(eq(contactCompanyLinks.tenantId, tenantId), eq(contactCompanyLinks.companyId, companies.id))));
+    const definitions = await loadDefinitions(tx, tenantId, "company");
+    const state = resolveState("company", parsed.state, definitions), page = parsed.page;
+    const pattern = likePattern(state.q);
+    const peopleCount = peopleCountExpr(tenantId);
     const where = and(eq(companies.tenantId, tenantId),
-      q ? or(ilike(companies.name, pattern), ilike(companies.domain, pattern)) : undefined,
-      people === "any" ? hasPeople : people === "none" ? sql`not ${hasPeople}` : undefined,
-      domain === "with" ? isNotNull(companies.domain) : domain === "without" ? isNull(companies.domain) : undefined);
-    const order = { name: [asc(companies.normalizedName), asc(companies.id)], "-name": [desc(companies.normalizedName), desc(companies.id)],
-      "-created": [desc(companies.createdAt), desc(companies.id)], created: [asc(companies.createdAt), asc(companies.id)],
-      "-people": [desc(peopleCount), asc(companies.normalizedName), asc(companies.id)] }[sort];
+      state.q ? or(ilike(companies.name, pattern), ilike(companies.domain, pattern)) : undefined,
+      ...state.filters.map((filter) => compileFilter(tenantId, "company", filter, definitions)));
+    const order = sortOrder("company", state.sort, tenantId, definitions, { name: sql.raw("companies.normalized_name"), created: sql.raw("companies.created_at"), people: peopleCount }, sql.raw("companies.id"));
     const [{ total }] = await tx.select({ total: count() }).from(companies).where(where);
     const rows = await tx.select({ id: companies.id, name: companies.name, domain: companies.domain, description: companies.description, createdAt: companies.createdAt, updatedAt: companies.updatedAt, version: companies.version, peopleCount })
       .from(companies).where(where).orderBy(...order).limit(CRM_PAGE_SIZE).offset((page - 1) * CRM_PAGE_SIZE);
-    return { rows, total, page, q, sort, filters: { people: people ?? null, domain: domain ?? null } };
+    const active = definitions.filter((field) => !field.archivedAt);
+    const { values, related } = await loadRecordValues(tx, tenantId, "company", rows.map((row) => row.id), active);
+    const filterNames = await relatedFilterNames(tx, tenantId, "company", state.filters, definitions);
+    return { rows: rows.map((row) => ({ ...row, custom: values.get(row.id) ?? {} })), total, page, state, definitions: active, related: Object.fromEntries([...related, ...filterNames]) };
   });
 }
 

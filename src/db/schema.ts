@@ -1,6 +1,6 @@
 import type { BrandTheme } from "../lib/theme-registry";
 import { sql } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, integer, bigint, uuid, primaryKey, uniqueIndex, index, foreignKey, check, jsonb } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, bigint, uuid, primaryKey, uniqueIndex, index, foreignKey, check, jsonb, doublePrecision, date } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: text("id").primaryKey(), name: text("name").notNull(), email: text("email").notNull().unique(),
@@ -133,6 +133,76 @@ export const contactCompanyLinks = pgTable("contact_company_links", {
   uniqueIndex("company_links_one_primary_idx").on(t.tenantId, t.contactId).where(sql`${t.isPrimary}`),
   index("company_links_tenant_company_idx").on(t.tenantId, t.companyId, t.contactId),
   check("company_link_title_length", sql`length(${t.title}) <= 100 and ${t.title} = btrim(${t.title})`)]);
+// CRM-03: tenant-scoped custom field definitions and typed values for people and companies.
+export const crmObjectTypes = ["person", "company"] as const;
+export const crmFieldTypes = ["text", "number", "date", "boolean", "select", "multi_select", "relation"] as const;
+export type CrmFieldOption = { value: string; label: string };
+export const crmFieldDefinitions = pgTable("crm_field_definitions", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
+  objectType: text("object_type").$type<typeof crmObjectTypes[number]>().notNull(),
+  // Stable machine key: immutable after creation (column grant + trigger).
+  key: text("key").notNull(), label: text("label").notNull(), description: text("description").notNull().default(""),
+  type: text("type").$type<typeof crmFieldTypes[number]>().notNull(),
+  required: boolean("required").notNull().default(false),
+  options: jsonb("options").$type<CrmFieldOption[]>().notNull().default([]),
+  relationTarget: text("relation_target").$type<typeof crmObjectTypes[number]>(),
+  position: integer("position").notNull().default(0),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  uniqueIndex("crm_fields_tenant_object_key_idx").on(t.tenantId, t.objectType, t.key),
+  // Lets values reference (tenant, field, object type) so a value can never cross object types.
+  uniqueIndex("crm_fields_tenant_id_object_idx").on(t.tenantId, t.id, t.objectType),
+  index("crm_fields_tenant_object_position_idx").on(t.tenantId, t.objectType, t.position),
+  check("crm_field_object_type", sql`${t.objectType} in ('person', 'company')`),
+  check("crm_field_type", sql`${t.type} in ('text', 'number', 'date', 'boolean', 'select', 'multi_select', 'relation')`),
+  check("crm_field_key", sql`${t.key} ~ '^[a-z][a-z0-9_]{0,39}$'`),
+  check("crm_field_label", sql`length(btrim(${t.label})) between 1 and 60 and ${t.label} = btrim(${t.label})`),
+  check("crm_field_description", sql`length(${t.description}) <= 280`),
+  check("crm_field_relation_target", sql`(${t.type} = 'relation') = (${t.relationTarget} is not null) and (${t.relationTarget} is null or ${t.relationTarget} in ('person', 'company'))`),
+  check("crm_field_options", sql`jsonb_typeof(${t.options}) = 'array' and jsonb_array_length(${t.options}) <= 50 and (${t.type} in ('select', 'multi_select')) = (jsonb_array_length(${t.options}) > 0)`),
+  check("crm_field_version", sql`${t.version} >= 1`)]);
+export const crmFieldValues = pgTable("crm_field_values", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(),
+  fieldId: uuid("field_id").notNull(), objectType: text("object_type").$type<typeof crmObjectTypes[number]>().notNull(),
+  contactId: uuid("contact_id"), companyId: uuid("company_id"),
+  valueText: text("value_text"), valueNumber: doublePrecision("value_number"), valueDate: date("value_date", { mode: "string" }),
+  valueBoolean: boolean("value_boolean"), valueOptions: text("value_options").array(),
+  relationContactId: uuid("relation_contact_id"), relationCompanyId: uuid("relation_company_id"),
+  updatedBy: text("updated_by").notNull().references(() => users.id),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.fieldId, t.objectType], foreignColumns: [crmFieldDefinitions.tenantId, crmFieldDefinitions.id, crmFieldDefinitions.objectType] }),
+  foreignKey({ columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }),
+  foreignKey({ columns: [t.tenantId, t.companyId], foreignColumns: [companies.tenantId, companies.id] }),
+  foreignKey({ columns: [t.tenantId, t.relationContactId], foreignColumns: [contacts.tenantId, contacts.id] }),
+  foreignKey({ columns: [t.tenantId, t.relationCompanyId], foreignColumns: [companies.tenantId, companies.id] }),
+  uniqueIndex("crm_values_contact_field_idx").on(t.tenantId, t.contactId, t.fieldId).where(sql`${t.contactId} is not null`),
+  uniqueIndex("crm_values_company_field_idx").on(t.tenantId, t.companyId, t.fieldId).where(sql`${t.companyId} is not null`),
+  index("crm_values_tenant_field_idx").on(t.tenantId, t.fieldId),
+  index("crm_values_relation_contact_idx").on(t.tenantId, t.relationContactId).where(sql`${t.relationContactId} is not null`),
+  check("crm_value_record", sql`(${t.objectType} = 'person' and ${t.contactId} is not null and ${t.companyId} is null) or (${t.objectType} = 'company' and ${t.companyId} is not null and ${t.contactId} is null)`),
+  check("crm_value_single", sql`num_nonnulls(${t.valueText}, ${t.valueNumber}, ${t.valueDate}, ${t.valueBoolean}, ${t.valueOptions}, ${t.relationContactId}, ${t.relationCompanyId}) = 1`),
+  check("crm_value_text_length", sql`${t.valueText} is null or length(${t.valueText}) between 1 and 500`)]);
+// Saved list views. owner_user_id NULL = shared with the workspace; otherwise personal.
+export const crmSavedViews = pgTable("crm_saved_views", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
+  objectType: text("object_type").$type<typeof crmObjectTypes[number]>().notNull(),
+  name: text("name").notNull(), ownerUserId: text("owner_user_id").references(() => users.id),
+  state: jsonb("state").$type<Record<string, unknown>>().notNull(),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  index("crm_views_tenant_object_idx").on(t.tenantId, t.objectType, t.ownerUserId),
+  check("crm_view_object_type", sql`${t.objectType} in ('person', 'company')`),
+  check("crm_view_name", sql`length(btrim(${t.name})) between 1 and 60 and ${t.name} = btrim(${t.name})`),
+  check("crm_view_state", sql`jsonb_typeof(${t.state}) = 'object' and octet_length(${t.state}::text) <= 16384`),
+  check("crm_view_version", sql`${t.version} >= 1`)]);
 export const files = pgTable("files", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),

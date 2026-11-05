@@ -173,7 +173,7 @@ describe("CRM lists: search, filters, sorting and tenant scope", () => {
     const unlinked = await listContacts(fixture.db, "owner-a", tenantA, { company: "none" });
     expect(linked.total + unlinked.total).toBe(all.total);
     expect((await listContacts(fixture.db, "owner-a", tenantA, { company: companyA })).rows.map((row) => row.name).sort()).toEqual(["Synthetic Ada Lovelace", "Synthetic Charles"]);
-    expect((await listContacts(fixture.db, "owner-a", tenantA, { company: companyA })).filterCompany).toEqual({ id: companyA, name: "Analytical Engines" });
+    expect((await listContacts(fixture.db, "owner-a", tenantA, { company: companyA })).related[companyA]).toBe("Analytical Engines");
     const withEmail = await listContacts(fixture.db, "owner-a", tenantA, { email: "with" });
     expect(withEmail.rows.every((row) => row.identifiers.some((item) => item.kind === "email"))).toBe(true);
     expect(withEmail.total + (await listContacts(fixture.db, "owner-a", tenantA, { email: "without" })).total).toBe(all.total);
