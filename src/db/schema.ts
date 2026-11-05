@@ -119,3 +119,71 @@ export const files = pgTable("files", {
   check("files_key_scope", sql`${t.key} = 'workspaces/' || ${t.tenantId}::text || '/files/' || ${t.id}::text`),
   check("files_name", sql`length(${t.name}) BETWEEN 1 AND 200`),
 ]);
+
+// Phase 1 queues use the same composite tenant keys as the CRM spine.
+export const jobStatuses = ["queued", "running", "succeeded", "dead_letter"] as const;
+export const jobs = pgTable("jobs", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  id: uuid("id").notNull().defaultRandom(),
+  kind: text("kind").notNull(), idempotencyKey: text("idempotency_key").notNull(),
+  fingerprint: text("fingerprint").notNull(), payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+  status: text("status", { enum: jobStatuses }).notNull().default("queued"),
+  attempts: integer("attempts").notNull().default(0), runAttempts: integer("run_attempts").notNull().default(0),
+  maxAttempts: integer("max_attempts").notNull().default(5), replayCount: integer("replay_count").notNull().default(0),
+  scheduledFor: timestamp("scheduled_for", { withTimezone: true }).notNull().defaultNow(),
+  lockedAt: timestamp("locked_at", { withTimezone: true }), lockedBy: text("locked_by"), lockToken: uuid("lock_token"),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  uniqueIndex("jobs_tenant_idempotency_idx").on(t.tenantId, t.idempotencyKey),
+  index("jobs_tenant_due_idx").on(t.tenantId, t.status, t.scheduledFor),
+  index("jobs_tenant_created_idx").on(t.tenantId, t.createdAt, t.id),
+  check("jobs_status", sql`${t.status} in ('queued', 'running', 'succeeded', 'dead_letter')`),
+  check("jobs_attempts", sql`${t.attempts} >= ${t.runAttempts} and ${t.runAttempts} >= 0 and ${t.maxAttempts} between 1 and 20 and ${t.replayCount} >= 0`),
+  check("jobs_lock", sql`(${t.status} = 'running' and ${t.lockedAt} is not null and ${t.lockedBy} is not null and ${t.lockToken} is not null) or (${t.status} <> 'running' and ${t.lockedAt} is null and ${t.lockedBy} is null and ${t.lockToken} is null)`),
+  check("jobs_key", sql`length(${t.idempotencyKey}) between 1 and 200 and length(${t.kind}) between 1 and 100`),
+  check("jobs_fingerprint", sql`${t.fingerprint} ~ '^[a-f0-9]{64}$'`),
+  check("jobs_payload", sql`jsonb_typeof(${t.payload}) = 'object' and octet_length(${t.payload}::text) <= 65536`),
+  check("jobs_error", sql`${t.lastError} is null or ${t.lastError} in ('HANDLER_FAILED', 'INVALID_JOB_PAYLOAD', 'UNSUPPORTED_JOB_KIND', 'LEASE_EXPIRED')`),
+]);
+export const outboxEvents = pgTable("outbox_events", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
+  kind: text("kind").notNull(), idempotencyKey: text("idempotency_key").notNull(), fingerprint: text("fingerprint").notNull(),
+  payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+  scheduledFor: timestamp("scheduled_for", { withTimezone: true }).notNull().defaultNow(),
+  dispatchedAt: timestamp("dispatched_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  uniqueIndex("outbox_tenant_idempotency_idx").on(t.tenantId, t.idempotencyKey),
+  index("outbox_tenant_dispatch_idx").on(t.tenantId, t.dispatchedAt, t.createdAt),
+  check("outbox_key", sql`length(${t.idempotencyKey}) between 1 and 190 and length(${t.kind}) between 1 and 100`),
+  check("outbox_fingerprint", sql`${t.fingerprint} ~ '^[a-f0-9]{64}$'`),
+  check("outbox_payload", sql`jsonb_typeof(${t.payload}) = 'object' and octet_length(${t.payload}::text) <= 65536`),
+]);
+export const externalWebhookEvents = pgTable("external_webhook_events", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
+  provider: text("provider").notNull(), connectionId: text("connection_id").notNull(), providerEventId: text("provider_event_id").notNull(),
+  resourceId: text("resource_id").notNull(), sequence: integer("sequence").notNull(),
+  rawBody: text("raw_body").notNull(), bodyHash: text("body_hash").notNull(),
+  payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  uniqueIndex("webhooks_tenant_provider_event_idx").on(t.tenantId, t.provider, t.providerEventId),
+  index("webhooks_tenant_created_idx").on(t.tenantId, t.createdAt, t.id),
+  check("webhooks_provider", sql`${t.provider} = 'synthetic'`),
+  check("webhooks_sequence", sql`${t.sequence} >= 0`),
+  check("webhooks_fields", sql`length(${t.connectionId}) between 1 and 100 and length(${t.providerEventId}) between 1 and 100 and length(${t.resourceId}) between 1 and 100 and octet_length(${t.rawBody}) <= 65536`),
+  check("webhooks_body_hash", sql`${t.bodyHash} ~ '^[a-f0-9]{64}$'`),
+]);
+// A deliberately small synthetic projection proves ordered, idempotent handling.
+export const webhookResourceStates = pgTable("webhook_resource_states", {
+  tenantId: uuid("tenant_id").notNull(), provider: text("provider").notNull(), connectionId: text("connection_id").notNull(),
+  resourceId: text("resource_id").notNull(), sequence: integer("sequence").notNull(),
+  eventId: uuid("event_id").notNull(), payload: jsonb("payload").$type<Record<string, unknown>>().notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.provider, t.connectionId, t.resourceId] }),
+  foreignKey({ columns: [t.tenantId, t.eventId], foreignColumns: [externalWebhookEvents.tenantId, externalWebhookEvents.id] }),
+  check("webhook_state_sequence", sql`${t.sequence} >= 0`),
+]);

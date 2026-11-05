@@ -368,7 +368,14 @@
     "expiredCode": "Your code has expired. Request a new code.",
     "requestFailed": "Request failed. Please try again.",
     "sidebarProviderRequired": "useSidebar must be used within a SidebarProvider.",
-    "storageRequiresHttps": "S3 requires HTTPS outside localhost."
+    "storageRequiresHttps": "S3 requires HTTPS outside localhost.",
+    "jobIdempotencyConflict": "This idempotency key already identifies different work.",
+    "jobNotAvailable": "This job is not available in this workspace.",
+    "jobReplayRequiresDeadLetter": "Only dead-letter jobs can be replayed.",
+    "webhookUnavailable": "This webhook provider or connection is not available.",
+    "webhookSignatureInvalid": "The webhook signature is invalid or expired.",
+    "webhookPayloadTooLarge": "The webhook payload is too large.",
+    "webhookEventConflict": "This provider event ID already identifies a different event."
   },
   "LibEnv": {
     "missingRequiredEnvironmentVariableValue": "Missing required environment variable: {name}"

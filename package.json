@@ -18,7 +18,8 @@
     "generate:offline": "tsx scripts/generate-offline.ts",
     "predev": "npm run generate:offline",
     "prebuild": "npm run generate:offline",
-    "pretest:e2e": "npm run generate:offline"
+    "pretest:e2e": "npm run generate:offline",
+    "jobs:drain": "tsx scripts/drain-jobs.ts"
   },
   "engines": {
     "node": ">=22"
