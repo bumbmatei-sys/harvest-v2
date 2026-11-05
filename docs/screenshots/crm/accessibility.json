@@ -1,0 +1,122 @@
+[
+  {
+    "screen": "people-empty-light",
+    "violations": 0
+  },
+  {
+    "screen": "people-empty-dark",
+    "violations": 0
+  },
+  {
+    "screen": "companies-empty-light",
+    "violations": 0
+  },
+  {
+    "screen": "companies-empty-dark",
+    "violations": 0
+  },
+  {
+    "screen": "company-create-dialog-light",
+    "violations": 0
+  },
+  {
+    "screen": "company-detail-light",
+    "violations": 0
+  },
+  {
+    "screen": "company-detail-dark",
+    "violations": 0
+  },
+  {
+    "screen": "person-detail-light",
+    "violations": 0
+  },
+  {
+    "screen": "person-detail-dark",
+    "violations": 0
+  },
+  {
+    "screen": "person-inline-duplicate-error-light",
+    "violations": 0
+  },
+  {
+    "screen": "person-possible-duplicate-light",
+    "violations": 0
+  },
+  {
+    "screen": "person-stale-version-light",
+    "violations": 0
+  },
+  {
+    "screen": "people-list-light",
+    "violations": 0
+  },
+  {
+    "screen": "people-list-dark",
+    "violations": 0
+  },
+  {
+    "screen": "people-filtered-light",
+    "violations": 0
+  },
+  {
+    "screen": "people-no-results-light",
+    "violations": 0
+  },
+  {
+    "screen": "people-no-results-dark",
+    "violations": 0
+  },
+  {
+    "screen": "companies-list-light",
+    "violations": 0
+  },
+  {
+    "screen": "companies-list-dark",
+    "violations": 0
+  },
+  {
+    "screen": "company-duplicate-domain-light",
+    "violations": 0
+  },
+  {
+    "screen": "person-viewer-light",
+    "violations": 0
+  },
+  {
+    "screen": "company-not-found-light",
+    "violations": 0
+  },
+  {
+    "screen": "people-list-mobile-light",
+    "violations": 0
+  },
+  {
+    "screen": "people-list-mobile-dark",
+    "violations": 0
+  },
+  {
+    "screen": "person-detail-mobile-light",
+    "violations": 0
+  },
+  {
+    "screen": "person-detail-mobile-dark",
+    "violations": 0
+  },
+  {
+    "screen": "companies-list-mobile-light",
+    "violations": 0
+  },
+  {
+    "screen": "companies-list-mobile-dark",
+    "violations": 0
+  },
+  {
+    "screen": "company-detail-mobile-light",
+    "violations": 0
+  },
+  {
+    "screen": "company-detail-mobile-dark",
+    "violations": 0
+  }
+]

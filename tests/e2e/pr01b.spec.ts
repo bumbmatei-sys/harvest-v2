@@ -125,7 +125,7 @@ async function shellMatrix(page: Page) {
   await switcher.hover();
   await expect(page.getByRole("tooltip")).toHaveCount(0);
   await switcher.click();
-  await expect(page.getByRole("menuitem", { name: workspaceName, exact: true })).toHaveAttribute("href", /\/workspaces\/.+\/contacts$/);
+  await expect(page.getByRole("menuitem", { name: workspaceName, exact: true })).toHaveAttribute("href", /\/workspaces\/.+\/crm\/people$/);
   await page.keyboard.press("Escape");
   await page.mouse.move(1000, 0);
   const trigger = footer.locator('[data-sidebar="trigger"]');
@@ -153,7 +153,7 @@ async function shellMatrix(page: Page) {
   for (const brand of ["harvest", "studio"] as const) for (const mode of ["light", "dark"] as const) {
     await theme(page, brand, mode);
     await expect(sidebar.getByRole("link", { name: "Harvest", exact: true }).getByText("Harvest", { exact: true })).toHaveCSS("font-family", brand === "studio" ? /Geist/ : /Inter/);
-    await expect(page.getByRole("heading", { name: "Contacts", exact: true })).toHaveCSS("font-family", brand === "studio" ? /Geist/ : /Inter/);
+    await expect(page.getByRole("heading", { name: /^People/ })).toHaveCSS("font-family", brand === "studio" ? /Geist/ : /Inter/);
     shellSurfaces.push(await surfaces(page, `${brand}-${mode}`));
     await capture(page, `shell-expanded-${brand}-${mode}`);
     await footer.getByRole("button", { name: "Account menu" }).click();
@@ -167,7 +167,7 @@ async function shellMatrix(page: Page) {
     await expect(page.locator("html")).toHaveAttribute("data-theme", mode);
     await expect(page.locator("html")).toHaveAttribute("data-brand-theme", brand);
     await expect(logo).toBeVisible();
-    await expect(sidebar.getByRole("link", { name: "Contacts", exact: true })).toBeVisible();
+    await expect(sidebar.getByRole("link", { name: "People", exact: true })).toBeVisible();
     await expect(switcher.locator('[data-slot="avatar"]')).toBeVisible();
     await expect(switcher.locator('svg.lucide-building-2')).toHaveCount(0);
     await switcher.hover();
@@ -179,12 +179,12 @@ async function shellMatrix(page: Page) {
     await capture(page, `shell-collapsed-${brand}-${mode}`);
     // Closed groups must still expose their icon links in the collapsed rail.
     await trigger.click();
-    await sidebar.getByRole("button", { name: "People", exact: true }).click();
-    await expect(sidebar.getByRole("link", { name: "Contacts", exact: true })).toBeHidden();
+    await sidebar.getByRole("button", { name: "CRM", exact: true }).click();
+    await expect(sidebar.getByRole("link", { name: "People", exact: true })).toBeHidden();
     await page.keyboard.press("Control+b");
-    await expect(sidebar.getByRole("link", { name: "Contacts", exact: true })).toBeVisible();
+    await expect(sidebar.getByRole("link", { name: "People", exact: true })).toBeVisible();
     await page.keyboard.press("Control+b");
-    await sidebar.getByRole("button", { name: "People", exact: true }).click();
+    await sidebar.getByRole("button", { name: "CRM", exact: true }).click();
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(inset).toHaveCSS("margin-top", "0px");
     await expect(inset).toHaveCSS("border-radius", "0px");
@@ -192,7 +192,7 @@ async function shellMatrix(page: Page) {
     await expect(page.getByRole("dialog", { name: "Sidebar" })).toBeVisible();
     await capture(page, `shell-mobile-${brand}-${mode}`);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    await page.getByRole("link", { name: "Contacts", exact: true }).click();
+    await page.getByRole("dialog", { name: "Sidebar" }).getByRole("link", { name: "People", exact: true }).click();
     await expect(page.getByRole("dialog", { name: "Sidebar" })).toHaveCount(0);
     await page.setViewportSize({ width: 1280, height: 800 });
   }
@@ -221,25 +221,25 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
   await expect(page.getByText(workspaceName, { exact: true })).toBeVisible();
   await matrix(page, "workspace");
   await page.getByRole("link", { name: "Open workspace" }).click();
-  await expect(page.getByRole("heading", { name: "Contacts", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /^People/ })).toBeVisible();
   const base = new URL(page.url()).pathname, tenantId = base.split("/")[2], api = `/api/workspaces/${tenantId}/contacts`;
   await matrix(page, "contacts-empty");
   expect((await page.request.get("/api/workspaces/not-a-uuid/contacts")).status()).toBe(400);
   expect((await page.request.get(`${api}?page=-1`)).status()).toBe(400);
   expect((await page.request.post(api, { headers: { origin }, data: { name: "Injected", tenantId } })).status()).toBe(400);
   expect((await page.request.post(api, { headers: { origin: "https://untrusted.example.test" }, data: { name: "Forbidden" } })).status()).toBe(403);
-  await page.getByRole("button", { name: "Add contact", exact: true }).first().click();
+  await page.getByRole("button", { name: "Add person", exact: true }).first().click();
   await page.getByLabel("Full name").fill("Synthetic Ada Rivers");
   await page.getByLabel("Email address").fill(`ada-${marker}@example.test`);
   await page.getByLabel("Phone", { exact: false }).fill("+49 123 456789");
   await page.getByLabel("Social handle", { exact: false }).fill("@synthetic-ada");
   await page.getByLabel("Notes", { exact: false }).fill("Synthetic browser seed for the contacts workflow.");
   await page.route(`**${api}`, (route) => route.request().method() === "POST" ? route.abort("failed") : route.continue());
-  await page.getByRole("button", { name: "Save contact", exact: true }).click();
+  await page.getByRole("button", { name: "Save person", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("Could not connect");
   await capture(page, "contact-create-error-studio-dark");
   await page.unroute(`**${api}`);
-  await page.getByRole("button", { name: "Save contact", exact: true }).click();
+  await page.getByRole("button", { name: "Save person", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Synthetic Ada Rivers", exact: true })).toBeVisible();
   const detail = new URL(page.url()).pathname, contactId = detail.split("/").at(-1)!;
   const consentData = { purpose: "marketing", noticeVersion: "notice-v1", channel: "email", status: "granted", source: "Test", evidence: "Test" };
@@ -247,11 +247,13 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
   expect((await page.request.post(`${api}/${contactId}/consents`, { headers: { origin }, data: { ...consentData, tenantId } })).status()).toBe(400);
   expect((await page.request.patch(`/api/workspaces/${tenantId}/appearance`, { headers: { origin }, data: { brandTheme: "studio", tenantId } })).status()).toBe(400);
   expect((await page.request.post(`${api}/${contactId}/erase`, { headers: { origin }, data: { confirm: "erase", tenantId } })).status()).toBe(400);
+  // Notes are edited inline on the CRM record page (CRM-02); consent lives in its tab.
+  await page.getByRole("button", { name: /^Edit Notes: Synthetic browser seed/ }).click();
+  await page.getByRole("textbox", { name: "Notes" }).fill("Synthetic note updated through the real UI.");
+  await page.getByRole("textbox", { name: "Notes" }).press("Control+Enter");
+  await expect(page.getByRole("button", { name: "Edit Notes: Synthetic note updated through the real UI." })).toBeVisible();
+  await page.getByRole("tab", { name: "Consent history" }).click();
   await expect(page.getByText("No consent recorded", { exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "Edit contact", exact: true }).click();
-  await page.getByLabel("Notes", { exact: false }).fill("Synthetic note updated through the real UI.");
-  await page.getByRole("button", { name: "Save contact", exact: true }).click();
-  await expect(page.getByText("Synthetic note updated through the real UI.", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Record consent", exact: true }).click();
   await page.getByRole("combobox", { name: "Status", exact: true }).click();
   await page.getByRole("option", { name: "Granted", exact: true }).click();
@@ -286,20 +288,21 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
   expect(backdated.consents[0].status).toBe("granted");
   expect(backdated.effectiveConsents.find((row: { channel: string }) => row.channel === "email").status).toBe("withdrawn");
   await page.reload();
-  await expect(page.getByText("Consent history", { exact: true }).locator("../..").getByRole("listitem").first().getByText("Did not override withdrawal", { exact: true })).toBeVisible();
+  await page.getByRole("tab", { name: "Consent history" }).click();
+  await expect(page.getByRole("tabpanel").getByRole("listitem").first().getByText("Did not override withdrawal", { exact: true })).toBeVisible();
   await expect(page.getByText("Marketing preferences").locator("../..")).toContainText("Withdrawn");
   await matrix(page, "contact-detail");
   expect((await page.request.post(api, { headers: { origin }, data: { name: "Duplicate", email: `ADA-${marker}@example.test` } })).status()).toBe(409);
-  await page.getByRole("link", { name: "All contacts", exact: true }).click();
+  await page.getByRole("link", { name: "All people", exact: true }).click();
   await expect(page.getByRole("link", { name: "Synthetic Ada Rivers", exact: true })).toBeVisible();
   await matrix(page, "contacts-list");
   await shellMatrix(page);
 
-  await page.getByLabel("Search contacts").fill("no-such-contact");
-  await page.getByRole("button", { name: "Search", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "No matching contacts" })).toBeVisible();
+  await page.getByRole("searchbox", { name: "Search people" }).fill("no-such-contact");
+  await page.getByRole("searchbox", { name: "Search people" }).press("Enter");
+  await expect(page.getByRole("heading", { name: "No matching people" })).toBeVisible();
   await capture(page, "contacts-no-results-studio-dark");
-  await page.getByRole("link", { name: "Clear search" }).click();
+  await page.getByRole("link", { name: "Reset view" }).click();
   await page.getByRole("link", { name: "Appearance", exact: true }).click();
   const harvestRadio = page.getByRole("radio", { name: "Harvest", exact: true });
   await expect(harvestRadio).toBeEnabled();
@@ -329,7 +332,7 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
   const html = await (await page.request.get(base)).text();
   expect(html).toContain('w="studio"');
   await page.goto(`${base}/${randomUUID()}`);
-  await expect(page.getByRole("heading", { name: "Contact not found" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Person not found" })).toBeVisible();
   await capture(page, "contact-not-found-studio-dark");
   // A second verified account exercises reader permissions and its own isolated workspace.
   const viewerContext = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: "reduce" });
@@ -339,9 +342,9 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
   expect((await page.request.put(`/api/workspaces/${tenantId}/members`, { headers: { origin }, data: { email: viewerEmail, role: "viewer" } })).status()).toBe(200);
   await viewer.goto(base);
   await expect(viewer.getByText("You have view-only access.", { exact: false })).toBeVisible();
-  await expect(viewer.getByRole("button", { name: "Add contact", exact: true })).toHaveCount(0);
+  await expect(viewer.getByRole("button", { name: "Add person", exact: true })).toHaveCount(0);
   expect((await viewer.request.post(api, { headers: { origin }, data: { name: "Forbidden" } })).status()).toBe(403);
-  expect((await viewer.request.patch(`${api}/${contactId}`, { headers: { origin }, data: { name: "Forbidden" } })).status()).toBe(403);
+  expect((await viewer.request.patch(`${api}/${contactId}`, { headers: { origin }, data: { name: "Forbidden", version: 1 } })).status()).toBe(403);
   expect((await viewer.request.post(`${api}/${contactId}/consents`, { headers: { origin }, data: { purpose: "marketing", noticeVersion: "notice-v1", channel: "email", status: "granted", source: "Test", evidence: "Test" } })).status()).toBe(403);
   expect((await viewer.request.patch(`/api/workspaces/${tenantId}/appearance`, { headers: { origin }, data: { brandTheme: "harvest" } })).status()).toBe(403);
   expect((await viewer.request.post(`${api}/${contactId}/erase`, { headers: { origin }, data: { confirm: "erase" } })).status()).toBe(403);
@@ -358,7 +361,7 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
   expect((await page.request.get(foreignApi)).status()).toBe(403);
   expect((await page.request.get(`${foreignApi}/${contactId}`)).status()).toBe(403);
   expect((await page.request.post(foreignApi, { headers: { origin }, data: { name: "Forbidden" } })).status()).toBe(403);
-  expect((await page.request.patch(`${foreignApi}/${contactId}`, { headers: { origin }, data: { name: "Forbidden" } })).status()).toBe(403);
+  expect((await page.request.patch(`${foreignApi}/${contactId}`, { headers: { origin }, data: { name: "Forbidden", version: 1 } })).status()).toBe(403);
   expect((await page.request.post(`${foreignApi}/${contactId}/consents`, { headers: { origin }, data: consentData })).status()).toBe(403);
   expect((await page.request.post(`${foreignApi}/${contactId}/erase`, { headers: { origin }, data: { confirm: "erase" } })).status()).toBe(403);
   expect((await page.request.patch(`/api/workspaces/${other.tenantId}/appearance`, { headers: { origin }, data: { brandTheme: "studio" } })).status()).toBe(403);
@@ -377,12 +380,13 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await capture(page, `contact-detail-mobile-${brand}-${mode}`);
     await page.getByRole("button", { name: "Toggle Sidebar" }).click();
-    await expect(page.getByRole("link", { name: "Contacts", exact: true })).toBeVisible();
-    await page.getByRole("link", { name: "Contacts", exact: true }).click();
+    const people = page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "People", exact: true });
+    await expect(people).toBeVisible();
+    await people.click();
     await expect(page).toHaveURL(`${origin}${base}`);
-    await expect(page.getByRole("heading", { name: "Contacts", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: /^People/ })).toBeVisible();
     await capture(page, `contacts-list-mobile-${brand}-${mode}`);
-    await page.getByRole("link", { name: "Synthetic Ada Rivers", exact: true }).click();
+    await page.getByRole("link", { name: /^Synthetic Ada Rivers/ }).click();
     await expect(page.getByRole("heading", { name: "Synthetic Ada Rivers", exact: true })).toBeVisible();
   }
   await page.setViewportSize({ width: 1440, height: 1000 });

@@ -20,7 +20,7 @@ export function EraseContact({ tenantId, contactId }: { tenantId: string; contac
       });
       if (response.status === 401) { router.replace("/sign-in"); return; }
       if (!response.ok) { setError(errorMessage((await response.json()).error) ?? t("couldNotEraseThisContactTryAgain")); return; }
-      setOpen(false); router.replace(`/workspaces/${tenantId}/contacts`); router.refresh();
+      setOpen(false); router.replace(`/workspaces/${tenantId}/crm/people`); router.refresh();
     } catch { setError(t("couldNotConnectPleaseTryAgain")); }
     finally { setBusy(false); }
   }

@@ -20,9 +20,14 @@ export function normalizeDomain(value: string): string | null | undefined {
   const raw = value.trim();
   if (!raw) return null;
   if (/\s/.test(raw) || raw.length > 300) return undefined;
+  // Only web addresses: any other scheme (mailto:, javascript:, ...) or embedded credentials is not a domain.
+  if (/^[a-z][a-z0-9+.-]*:(?!\d)/i.test(raw) && !/^https?:\/\//i.test(raw)) return undefined;
   let host: string;
-  try { host = new URL(/^[a-z][a-z0-9+.-]*:\/\//i.test(raw) ? raw : `http://${raw}`).hostname; }
-  catch { return undefined; }
+  try {
+    const url = new URL(/^https?:\/\//i.test(raw) ? raw : `http://${raw}`);
+    if (url.username || url.password) return undefined;
+    host = url.hostname;
+  } catch { return undefined; }
   host = host.toLowerCase().replace(/\.$/, "").replace(/^www\./, "");
   if (host.length > 253 || /^\d+(\.\d+){3}$/.test(host) || host.startsWith("[")) return undefined;
   const label = "[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?";

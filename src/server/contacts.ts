@@ -14,7 +14,7 @@ type Kind = typeof kinds[number];
 export const likePattern = (q: string) => `%${q.replace(/[\\%_]/g, "\\$&")}%`;
 const contactMissing = () => new AccessError(404, message("Errors.thisContactIsNotAvailableInThisWorkspace"));
 const companyMissing = () => new AccessError(404, message("Errors.thisCompanyIsNotAvailableInThisWorkspace"));
-const stale = () => new AccessError(409, message("Errors.thisRecordChangedReloadAndTryAgain"));
+export const stale = () => new AccessError(409, message("Errors.thisRecordChangedReloadAndTryAgain"), { reason: "stale" });
 
 /**
  * Effective marketing-email state, computed in PostgreSQL with the same rule as the

@@ -63,7 +63,7 @@ test("PR03: each theme, semantic colors, profile locale persistence, screenshots
   await page.reload();
   await expect(page.getByRole("combobox", { name: "Language" })).toContainText("English");
   expect((await (await page.request.get("/api/profile")).json()).locale).toBe("en");
-  const screens = { workspaces: "/workspaces", contacts: `${base}/contacts`, "contact-detail": `${base}/contacts/${contactId}`, files: `${base}/files`, appearance: `${base}/appearance`, profile: "/profile" };
+  const screens = { workspaces: "/workspaces", contacts: `${base}/crm/people`, "contact-detail": `${base}/crm/people/${contactId}`, files: `${base}/files`, appearance: `${base}/appearance`, profile: "/profile" };
   for (const [screen, path] of Object.entries(screens)) {
     await page.goto(path);
     for (const brand of BRAND_THEMES) for (const mode of COLOR_MODES) {

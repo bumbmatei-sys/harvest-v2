@@ -5,7 +5,7 @@ import { companies, contactCompanyLinks, contactIdentifiers, contacts } from "..
 import { uuidInput } from "../lib/contact-input";
 import { CRM_PAGE_SIZE, DUPLICATE_MIN_LENGTH, companyInput, companyPatch, companyQuery, type CompanyInput, type CompanyPatch, type CompanyQuery } from "../lib/crm-input";
 import { recordActivity } from "./activity";
-import { likePattern, pgCode } from "./contacts";
+import { likePattern, pgCode, stale } from "./contacts";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
 
@@ -73,7 +73,7 @@ export function patchCompany(db: Database, userId: string, workspace: string, co
   return domainConflict(db, userId, hint, input.domain, () => withTenant(db, userId, hint, "companies:write", async (tx, tenantId) => {
     const [current] = await tx.select().from(companies).where(and(eq(companies.tenantId, tenantId), eq(companies.id, id))).for("update");
     if (!current) throw missing();
-    if (current.version !== version) throw new AccessError(409, message("Errors.thisRecordChangedReloadAndTryAgain"));
+    if (current.version !== version) throw stale();
     const changed = (["name", "domain", "description"] as const).filter((field) => input[field] !== undefined && input[field] !== current[field]);
     if (!changed.length) return current;
     const [row] = await tx.update(companies).set({ ...Object.fromEntries(changed.map((field) => [field, input[field]])), updatedAt: new Date(), version: sql`${companies.version} + 1` })
