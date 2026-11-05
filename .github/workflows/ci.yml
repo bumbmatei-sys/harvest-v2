@@ -78,8 +78,8 @@ jobs:
             docs/screenshots/pr03/
           retention-days: 7
   neon:
-    # PR 03 explicitly prohibits creating cloud resources during this draft.
-    if: github.head_ref != 'feat/pr03-i18n-themes-pwa'
+    # These foundation drafts explicitly prohibit creating cloud resources.
+    if: github.head_ref != 'feat/pr03-i18n-themes-pwa' && github.head_ref != 'feat/pr04-jobs-webhooks'
     name: Neon CI migrations
     runs-on: ubuntu-latest
     env:
