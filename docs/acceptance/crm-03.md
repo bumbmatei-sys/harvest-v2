@@ -38,7 +38,21 @@ Date: 2026-11-05. Scope: PRD v2.5 §5A.4 CRM-03, companion PRD §5. Design: [ADR
 
 Database-backed tests used `TEST_DATABASE_URL` against a local PostgreSQL 16 (embedded-postgres refuses to run as root in this container), as for CRM-01/02. CI uses its own PostgreSQL service and did not run here unless stated in the PR.
 
-RESULTS_TABLE
+| Command | Result |
+| --- | --- |
+| `npm run lint` | exit 0; ESLint clean; "Source guards: no hard-coded JSX copy, feedback, or component colors." |
+| `npm run typecheck` | exit 0 |
+| `npm test` (unit) | 11 files, **129 passed** (includes `crm-fields.test.ts`, 16) |
+| `TEST_DATABASE_URL=… npm run test:rls` (integration) | 16 files, **149 passed** (includes `crm-fields-views.test.ts`, 20, and `crm03-upgrade.test.ts`) |
+| `npx drizzle-kit check` / `npx drizzle-kit generate` | "Everything's fine" / "No schema changes, nothing to migrate" |
+| `npm run build` (`next build --webpack`) | exit 0; `/workspaces/[tenantId]/crm/settings/fields` compiled |
+| `npx playwright test` (all 9 tests, 8 specs) | Full run: **7 passed, 2 failed** (`crm`, `foundation`). Both were test defects, fixed (see below). Reruns: `crm` **passed**, `foundation` ×2 **passed**. `crm03` passed in the full run and in two separate runs. |
+
+Browser runs used the same uncommitted local Playwright config as CRM-01/02 (Chromium at `/opt/pw-browsers/chromium`) against `scripts/e2e-server.ts`. `npm run test:rls:neon` was **not** run (no Neon credentials; not authorized).
+
+Test-only fixes made during verification:
+- `crm.spec.ts`: follows the new view bar (filter builder, sort field and direction, "Clear filters"), the `grid` role, `%7E`-encoded filter URLs, and the grid focus model (focus lands on the cell, with an inset ring).
+- `foundation.spec.ts`: axe ran while the workspace form's pre-hydration disabled button was still fading in (computed opacity 0.59), which axe reports as low contrast. The test now waits for the button to be enabled and fully opaque. The page itself is unchanged by CRM-03.
 
 ## Defects found and fixed while testing
 
