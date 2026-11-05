@@ -266,13 +266,13 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
   await page.keyboard.press("ArrowLeft");
   await page.keyboard.press("Enter");
   await expect(calendar).toHaveCount(0);
-  const chosenDate = await page.getByLabel("Consent date (UTC)", { exact: true }).innerText();
+  const chosenDate = await page.getByLabel("Consent date (UTC)", { exact: true }).getAttribute("data-date");
   await page.getByLabel("Time (UTC)", { exact: true }).fill("12:30");
   await capture(page, "consent-dialog-studio-dark");
   await page.getByRole("button", { name: "Save consent record", exact: true }).click();
   await expect(page.getByText("Synthetic preference form", { exact: true })).toBeVisible();
   const storedConsent = await (await page.request.get(`${api}/${contactId}`)).json();
-  expect(storedConsent.consents[0].occurredAt).toBe(`${chosenDate.trim()}T12:30:00.000Z`);
+  expect(storedConsent.consents[0].occurredAt).toBe(`${chosenDate}T12:30:00.000Z`);
   await page.reload();
   expect((await page.request.post(`${api}/${contactId}/consents`, { headers: { origin }, data: { ...consentData, occurredAt: new Date(Date.now() + 6 * 60_000).toISOString() } })).status()).toBe(400);
   expect((await page.request.post(`${api}/${contactId}/consents`, { headers: { origin }, data: { ...consentData, status: "withdrawn", occurredAt: "2026-10-01T12:00:00Z" } })).status()).toBe(201);

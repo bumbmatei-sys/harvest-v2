@@ -1,0 +1,33 @@
+{
+  "lighthouseVersion": "13.6.0",
+  "fetchTime": "2026-11-05T09:58:05.559Z",
+  "url": "http://127.0.0.1:3200/sign-in",
+  "environment": {
+    "networkUserAgent": "Mozilla/5.0 (Linux; Android 11; moto g power (2022)) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/156.0.0.0 Mobile Safari/537.36",
+    "hostUserAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/156.0.0.0 Safari/537.36",
+    "benchmarkIndex": 3416.5,
+    "credits": {
+      "axe-core": "4.14.0"
+    }
+  },
+  "categories": {
+    "accessibility": 1,
+    "best-practices": 1,
+    "harvest-pwa": 1
+  },
+  "installability": {
+    "id": "harvest-installability",
+    "title": "Harvest is installable with an active service worker",
+    "description": "Chromium manifest and installability checks plus automatic production service-worker registration.",
+    "score": 1,
+    "scoreDisplayMode": "binary",
+    "details": {
+      "type": "debugdata",
+      "worker": true,
+      "manifestPresent": true,
+      "manifestErrors": [],
+      "installabilityErrors": []
+    }
+  },
+  "failedAudits": []
+}

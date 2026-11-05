@@ -1,3 +1,4 @@
+import { message } from "../i18n/messages";
 import { and, asc, count, desc, eq, exists, getTableColumns, gt, ilike, inArray, isNull, notExists, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Database, Transaction } from "../db/client";
@@ -21,7 +22,7 @@ export function getContact(db: Database, userId: string, workspace: string, cont
   return withTenant(db, userId, uuidInput.parse(workspace), "contacts:read", async (tx, tenantId) => {
     const id = uuidInput.parse(contact);
     const [row] = await tx.select().from(contacts).where(and(eq(contacts.tenantId, tenantId), eq(contacts.id, id), isNull(contacts.erasedAt)));
-    if (!row) throw new AccessError(404, "This contact is not available in this workspace.");
+    if (!row) throw new AccessError(404, message("Errors.thisContactIsNotAvailableInThisWorkspace"));
     const identifiers = await tx.select().from(contactIdentifiers).where(and(eq(contactIdentifiers.tenantId, tenantId), eq(contactIdentifiers.contactId, id)));
     const grants = alias(contactConsents, "later_grants");
     // Compare in PostgreSQL so strict ordering retains sub-millisecond precision.
@@ -59,7 +60,7 @@ function pgCode(error: unknown): string | undefined {
 }
 async function identityConflict<T>(operation: () => Promise<T>) {
   try { return await operation(); }
-  catch (error) { if (pgCode(error) === "23505") throw new AccessError(409, "An identifier already belongs to a contact in this workspace. Open that contact instead."); throw error; }
+  catch (error) { if (pgCode(error) === "23505") throw new AccessError(409, message("Errors.anIdentifierAlreadyBelongsToAContactIn")); throw error; }
 }
 export function createContact(db: Database, userId: string, workspace: string, data: ContactInput) {
   const input = contactInput.parse(data);
@@ -74,7 +75,7 @@ export function updateContact(db: Database, userId: string, workspace: string, c
   const input = contactInput.parse(data), id = uuidInput.parse(contact);
   return identityConflict(() => withTenant(db, userId, uuidInput.parse(workspace), "contacts:write", async (tx, tenantId) => {
     const [row] = await tx.update(contacts).set({ name: input.name, notes: input.notes, updatedAt: new Date() }).where(and(eq(contacts.tenantId, tenantId), eq(contacts.id, id), isNull(contacts.erasedAt))).returning();
-    if (!row) throw new AccessError(404, "This contact is not available in this workspace.");
+    if (!row) throw new AccessError(404, message("Errors.thisContactIsNotAvailableInThisWorkspace"));
     await tx.delete(contactIdentifiers).where(and(eq(contactIdentifiers.tenantId, tenantId), eq(contactIdentifiers.contactId, id)));
     await insertIdentifiers(tx, tenantId, id, input);
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "contact.update", targetId: id });
@@ -85,7 +86,7 @@ export function recordConsent(db: Database, userId: string, workspace: string, c
   const input = consentInput.parse(data), id = uuidInput.parse(contact);
   return withTenant(db, userId, uuidInput.parse(workspace), "contacts:write", async (tx, tenantId) => {
     const [parent] = await tx.select({ id: contacts.id }).from(contacts).where(and(eq(contacts.tenantId, tenantId), eq(contacts.id, id), isNull(contacts.erasedAt))).for("share");
-    if (!parent) throw new AccessError(404, "This contact is not available in this workspace.");
+    if (!parent) throw new AccessError(404, message("Errors.thisContactIsNotAvailableInThisWorkspace"));
     const [consent] = await tx.insert(contactConsents).values({ ...input, tenantId, contactId: id, recordedBy: userId, occurredAt: input.occurredAt ? new Date(input.occurredAt) : new Date() }).returning();
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "contact.consent_record", targetId: id, metadata: { consentId: consent.id, channel: input.channel, status: input.status } });
     return consent;
@@ -98,7 +99,7 @@ export function eraseContact(db: Database, userId: string, workspace: string, co
   const id = uuidInput.parse(contact);
   return withTenant(db, userId, uuidInput.parse(workspace), "contacts:erase", async (tx, tenantId) => {
     const result = await tx.execute(sql`select public.erase_contact(${tenantId}::uuid, ${id}::uuid) as erased`);
-    if (!result.rows[0]?.erased) throw new AccessError(404, "This contact is not available in this workspace.");
+    if (!result.rows[0]?.erased) throw new AccessError(404, message("Errors.thisContactIsNotAvailableInThisWorkspace"));
     return { erased: true };
   });
 }

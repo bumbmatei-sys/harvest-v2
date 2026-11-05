@@ -1,9 +1,11 @@
+import type { BrandTheme } from "../lib/theme-registry";
 import { sql } from "drizzle-orm";
 import { pgTable, text, timestamp, boolean, integer, bigint, uuid, primaryKey, uniqueIndex, index, foreignKey, check, jsonb } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: text("id").primaryKey(), name: text("name").notNull(), email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").notNull().default(false), image: text("image"),
+  locale: text("locale"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
@@ -41,7 +43,7 @@ export const otpCooldowns = pgTable("otp_cooldowns", {
 export const roles = pgTable("roles", { id: text("id").primaryKey() });
 export const workspaces = pgTable("workspaces", {
   tenantId: uuid("tenant_id").primaryKey().defaultRandom(), name: text("name").notNull(),
-  brandTheme: text("brand_theme").$type<"harvest" | "studio">().notNull().default("harvest"),
+  brandTheme: text("brand_theme").$type<BrandTheme>().notNull().default("harvest"),
   createdBy: text("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [check("workspace_name_length", sql`length(trim(${t.name})) BETWEEN 1 AND 100`), check("workspace_brand_theme", sql`${t.brandTheme} in ('harvest', 'studio')`)]);

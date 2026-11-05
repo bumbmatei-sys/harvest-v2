@@ -1,3 +1,4 @@
+import { message } from "../i18n/messages";
 export const roleIds = ["owner", "admin", "member", "viewer"] as const;
 export type Role = typeof roleIds[number];
 export type Permission = "workspace:read" | "members:write" | "roles:write" | "contacts:read" | "contacts:write" | "settings:write" | "contacts:erase";
@@ -10,5 +11,5 @@ export class AccessError extends Error {
   constructor(public status: 401 | 403 | 404 | 409, message: string) { super(message); }
 }
 export function requirePermission(role: string, permission: Permission) {
-  if (!can(role, permission)) throw new AccessError(403, "You do not have permission to do that.");
+  if (!can(role, permission)) throw new AccessError(403, message("Errors.youDoNotHavePermissionToDoThat"));
 }

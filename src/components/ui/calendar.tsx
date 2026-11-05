@@ -1,5 +1,6 @@
 "use client"
 
+import { useFormatter, useTranslations } from "next-intl"
 import * as React from "react"
 import { cn } from "@/lib/utils"
 import {
@@ -23,10 +24,12 @@ function Calendar({
   buttonVariant = "ghost",
   formatters,
   components,
+  labels,
   ...props
 }: React.ComponentProps<typeof DayPicker> & {
   buttonVariant?: React.ComponentProps<typeof Button>["variant"]
 }) {
+  const t = useTranslations("Calendar"), format = useFormatter()
   const defaultClassNames = getDefaultClassNames()
 
   return (
@@ -41,8 +44,24 @@ function Calendar({
       captionLayout={captionLayout}
       formatters={{
         formatMonthDropdown: (date) =>
-          date.toLocaleString("default", { month: "short" }),
+          format.dateTime(date, "shortMonth"),
+        formatCaption: (date) => format.dateTime(date, "month"),
+        formatDay: (date) => format.dateTime(date, "day"),
+        formatWeekdayName: (date) => format.dateTime(date, "weekday"),
+        formatYearDropdown: (date) => format.dateTime(date, "year"),
+        formatWeekNumber: (number) => format.number(number, "integer"),
         ...formatters,
+      }}
+      labels={{
+        labelPrevious: () => t("previousMonth"), labelNext: () => t("nextMonth"),
+        labelMonthDropdown: () => t("chooseMonth"), labelYearDropdown: () => t("chooseYear"),
+        labelNav: () => t("navigation"), labelWeekNumberHeader: () => t("weekHeader"),
+        labelWeekNumber: (number) => t("week", { number: format.number(number, "integer") }),
+        labelGrid: (date) => format.dateTime(date, "month"),
+        labelGridcell: (date) => format.dateTime(date, "dayLabel"),
+        labelWeekday: (date) => format.dateTime(date, "longWeekday"),
+        labelDayButton: (date, modifiers) => t("dayState", { date: format.dateTime(date, "dayLabel"), today: String(!!modifiers.today), selected: String(!!modifiers.selected) }),
+        ...labels,
       }}
       classNames={{
         root: cn("w-fit", defaultClassNames.root),
@@ -197,7 +216,7 @@ function CalendarDayButton({
       ref={ref}
       variant="ghost"
       size="icon"
-      data-day={day.date.toLocaleDateString()}
+      data-day={day.date.toISOString().slice(0, 10)}
       data-selected-single={
         modifiers.selected &&
         !modifiers.range_start &&

@@ -1,3 +1,4 @@
+import { message } from "../../i18n/messages";
 import "server-only";
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, sql } from "drizzle-orm";
@@ -18,7 +19,7 @@ function present(file: StoredFile) {
   };
 }
 function requireWriter(role: string) {
-  if (!["owner", "admin", "member"].includes(role)) throw new AccessError(403, "Your role cannot upload files.");
+  if (!["owner", "admin", "member"].includes(role)) throw new AccessError(403, message("Errors.yourRoleCannotUploadFiles"));
 }
 export function listFiles(db: Database, userId: string, workspaceHint: string) {
   return withTenant(db, userId, z.uuid().parse(workspaceHint), "workspace:read", async (tx, tenantId) => {
@@ -44,17 +45,17 @@ export async function confirmUpload(db: Database, storage: StorageAdapter, userI
   const pending = await withTenant(db, userId, workspaceHint, "workspace:read", async (tx, tenantId, role) => {
     requireWriter(role);
     const [file] = await tx.select().from(files).where(and(eq(files.tenantId, tenantId), eq(files.id, fileId)));
-    if (!file) throw new AccessError(404, "File not found.");
-    if (file.ownerId !== userId) throw new AccessError(403, "Only the uploader can confirm this file.");
+    if (!file) throw new AccessError(404, message("Errors.fileNotFound"));
+    if (file.ownerId !== userId) throw new AccessError(403, message("Errors.onlyTheUploaderCanConfirmThisFile"));
     return file;
   });
   if (pending.status === "pending") {
     let status: "uploaded" | "quarantined" = "uploaded";
     try {
       const actual = await storage.inspect(pending.key, pending);
-      if (actual.size !== pending.size || actual.mime !== pending.mime || actual.checksum !== pending.checksum) throw new InvalidStoredFile("Upload verification failed.");
+      if (actual.size !== pending.size || actual.mime !== pending.mime || actual.checksum !== pending.checksum) throw new InvalidStoredFile(message("Errors.uploadVerificationFailed"));
     } catch (error) {
-      if (!(error instanceof InvalidStoredFile)) throw new AccessError(409, "Upload is unavailable. Finish uploading and retry confirmation.");
+      if (!(error instanceof InvalidStoredFile)) throw new AccessError(409, message("Errors.uploadIsUnavailableFinishUploadingAndRetryConfirmation"));
       status = "quarantined";
     }
     await withTenant(db, userId, workspaceHint, "workspace:read", async (tx, tenantId, role) => {
@@ -67,8 +68,8 @@ export async function confirmUpload(db: Database, storage: StorageAdapter, userI
   return withTenant(db, userId, workspaceHint, "workspace:read", async (tx, tenantId, role) => {
     requireWriter(role);
     const [file] = await tx.select().from(files).where(and(eq(files.tenantId, tenantId), eq(files.id, fileId))).for("update");
-    if (!file) throw new AccessError(404, "File not found.");
-    if (file.ownerId !== userId) throw new AccessError(403, "Only the uploader can confirm this file.");
+    if (!file) throw new AccessError(404, message("Errors.fileNotFound"));
+    if (file.ownerId !== userId) throw new AccessError(403, message("Errors.onlyTheUploaderCanConfirmThisFile"));
     if (file.status !== "uploaded") return present(file);
     const verdict = await scanner.scan({ key: file.key, size: file.size, mime: file.mime, checksum: file.checksum });
     const status = verdict === "clean" || (verdict === "skipped" && file.visibility === "private" && !requirePrivateScan) ? "ready" : "quarantined";
@@ -80,8 +81,8 @@ export function fileDownload(db: Database, storage: StorageAdapter, userId: stri
   z.uuid().parse(fileId);
   return withTenant(db, userId, z.uuid().parse(workspaceHint), "workspace:read", async (tx, tenantId) => {
     const [file] = await tx.select().from(files).where(and(eq(files.tenantId, tenantId), eq(files.id, fileId)));
-    if (!file) throw new AccessError(404, "File not found.");
-    if (file.status !== "ready") throw new AccessError(409, "This file is not available for download.");
+    if (!file) throw new AccessError(404, message("Errors.fileNotFound"));
+    if (file.status !== "ready") throw new AccessError(409, message("Errors.thisFileIsNotAvailableForDownload"));
     if (file.visibility === "public") return { url: publicFilePath(tenantId, fileId), expiresIn: null };
     return { url: await storage.presignDownload(file.key, file.name), expiresIn: 60 };
   });
@@ -92,7 +93,7 @@ export function publicDownload(db: Database, storage: StorageAdapter, workspaceH
   return db.transaction(async (tx) => {
     await tx.execute(sql`select set_config('app.public_file_id', ${fileId}, true), set_config('app.public_file_tenant_id', ${workspaceHint}, true)`);
     const [file] = await tx.select().from(files).where(and(eq(files.id, fileId), eq(files.tenantId, workspaceHint), eq(files.visibility, "public"), eq(files.status, "ready")));
-    if (!file) throw new AccessError(404, "File not found.");
+    if (!file) throw new AccessError(404, message("Errors.fileNotFound"));
     return storage.presignDownload(file.key, file.name);
   });
 }

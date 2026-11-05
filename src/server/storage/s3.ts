@@ -1,3 +1,4 @@
+import { message } from "../../i18n/messages";
 import "server-only";
 import { createHash } from "node:crypto";
 import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
@@ -9,8 +10,8 @@ export class S3Storage implements StorageAdapter {
   private client: S3Client;
   constructor(private config: { endpoint: string; bucket: string; region: string; accessKeyId: string; secretAccessKey: string }) {
     const endpoint = new URL(config.endpoint);
-    if (endpoint.username || endpoint.password || !["http:", "https:"].includes(endpoint.protocol)) throw new Error("Invalid S3 endpoint.");
-    if (endpoint.protocol !== "https:" && !["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname)) throw new Error("S3 requires HTTPS outside localhost.");
+    if (endpoint.username || endpoint.password || !["http:", "https:"].includes(endpoint.protocol)) throw new Error(message("Errors.invalidS3Endpoint"));
+    if (endpoint.protocol !== "https:" && !["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname)) throw new Error(message("Errors.storageRequiresHttps"));
     this.client = new S3Client({ endpoint: config.endpoint, region: config.region, forcePathStyle: true,
       credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
       requestChecksumCalculation: "WHEN_REQUIRED", responseChecksumValidation: "WHEN_REQUIRED", maxAttempts: 2,
@@ -32,9 +33,9 @@ export class S3Storage implements StorageAdapter {
     const input = { Bucket: this.config.bucket, Key: key };
     const options = { abortSignal: AbortSignal.timeout(15_000) };
     const head = await this.client.send(new HeadObjectCommand(input), options);
-    if (head.ContentLength !== expectedSize || expectedSize > MAX_FILE_SIZE) throw new InvalidStoredFile("Stored size differs from upload intent.");
+    if (head.ContentLength !== expectedSize || expectedSize > MAX_FILE_SIZE) throw new InvalidStoredFile(message("Errors.storedSizeDiffersFromUploadIntent"));
     const object = await this.client.send(new GetObjectCommand({ ...input, IfMatch: head.ETag }), options);
-    if (!object.Body) throw new InvalidStoredFile("Missing upload body.");
+    if (!object.Body) throw new InvalidStoredFile(message("Errors.missingUploadBody"));
     const hash = createHash("sha256");
     let size = 0;
     let prefix = Buffer.alloc(0);
@@ -44,7 +45,7 @@ export class S3Storage implements StorageAdapter {
       size += chunk.byteLength;
       if (size > expectedSize) {
         (object.Body as { destroy?: () => void }).destroy?.();
-        throw new InvalidStoredFile("Stored file exceeds expected size.");
+        throw new InvalidStoredFile(message("Errors.storedFileExceedsExpectedSize"));
       }
       hash.update(chunk);
       if (prefix.length < 12) prefix = Buffer.concat([prefix, chunk.subarray(0, 12 - prefix.length)]);
@@ -60,7 +61,7 @@ export class S3Storage implements StorageAdapter {
       : prefix.subarray(0, 5).equals(Buffer.from("%PDF-")) ? "application/pdf"
       : validText ? "text/plain" : null;
     if (size !== expectedSize || mime !== expected.mime || mime !== head.ContentType || !filenameMatchesMime(expected.name, mime)) {
-      throw new InvalidStoredFile("Stored bytes, declared type and filename extension must agree.");
+      throw new InvalidStoredFile(message("Errors.storedBytesDeclaredTypeAndFilenameExtensionMust"));
     }
     return { size, mime, checksum: hash.digest("hex") };
   }

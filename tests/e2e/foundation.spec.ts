@@ -10,6 +10,9 @@ test.beforeEach(async ({ context }, testInfo) => {
 });
 
 test("email code → session → workspace persistence → sign out", async ({ page, context, request }, testInfo) => {
+  // This journey includes multiple axe runs, responsive screenshots and cold
+  // development route compilation; its complete flow exceeds the 30s default.
+  test.setTimeout(90_000);
   await page.goto("/workspaces");
   await expect(page).toHaveURL(/\/sign-in$/);
   expect((await request.post("/api/workspaces", { headers: { origin: "http://127.0.0.1:3100" }, data: { name: "Unauthorized" } })).status()).toBe(401);

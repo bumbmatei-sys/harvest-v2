@@ -1,0 +1,12 @@
+{
+  "automaticRegistration": true,
+  "controlled": true,
+  "fallback": true,
+  "cachedPaths": [
+    "/icons/icon-192.png",
+    "/icons/icon-512.png",
+    "/offline.css",
+    "/offline.html"
+  ],
+  "axeViolations": 0
+}

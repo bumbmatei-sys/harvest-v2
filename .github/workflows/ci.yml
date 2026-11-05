@@ -64,6 +64,10 @@ jobs:
       - run: npm ci
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+      - run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+      - run: npm run test:pwa
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -71,8 +75,11 @@ jobs:
           path: |
             playwright-report/
             test-results/
+            docs/screenshots/pr03/
           retention-days: 7
   neon:
+    # PR 03 explicitly prohibits creating cloud resources during this draft.
+    if: github.head_ref != 'feat/pr03-i18n-themes-pwa'
     name: Neon CI migrations
     runs-on: ubuntu-latest
     env:
