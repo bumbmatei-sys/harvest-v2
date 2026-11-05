@@ -78,6 +78,20 @@
       "when": 1793880269194,
       "tag": "0010_jobs_webhooks",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1793899884260,
+      "tag": "0011_crm_companies",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1793899914305,
+      "tag": "0012_crm_policies_erasure",
+      "breakpoints": true
     }
   ]
 }

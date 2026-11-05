@@ -375,7 +375,13 @@
     "webhookUnavailable": "This webhook provider or connection is not available.",
     "webhookSignatureInvalid": "The webhook signature is invalid or expired.",
     "webhookPayloadTooLarge": "The webhook payload is too large.",
-    "webhookEventConflict": "This provider event ID already identifies a different event."
+    "webhookEventConflict": "This provider event ID already identifies a different event.",
+    "enterAValidCompanyDomain": "Enter a domain such as example.com.",
+    "thisCompanyIsNotAvailableInThisWorkspace": "This company is not available in this workspace.",
+    "aCompanyWithThisDomainAlreadyExists": "A company with this domain already exists in this workspace. Open that company instead.",
+    "thisRecordChangedReloadAndTryAgain": "This record changed since you opened it. Reload to see the latest version, then try again.",
+    "thisPersonIsAlreadyLinkedToThatCompany": "This person is already linked to that company.",
+    "thisCompanyLinkIsNotAvailable": "This company link is not available."
   },
   "LibEnv": {
     "missingRequiredEnvironmentVariableValue": "Missing required environment variable: {name}"
