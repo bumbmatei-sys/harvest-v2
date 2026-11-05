@@ -261,6 +261,42 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
   await capture(page, "company-not-found-light");
   await viewerContext.close();
 
+  // Tablet regression (review blocker): at 1024px with the sidebar EXPANDED the list
+  // card is only ~688px wide. With realistic long names, emails and domains no table
+  // may scroll or clip; columns follow the card width, not the viewport.
+  const longCompany = (await api(page, "post", `${apiRoot}/companies`, { name: "St. Bartholomew's Community Development Trust and Mission Centre", domain: "https://www.stbartholomewscommunitydevelopmenttrust.org.uk/about" })).body.id as string;
+  expect((await api(page, "post", `${apiRoot}/contacts`, { name: "Dr. Oluwaseun Adebayo-Whitfield Castellanos-Rodríguez", email: "oluwaseun.adebayo-whitfield@stbartholomewscommunitydevelopmenttrust.org.uk", phone: "+44 20 7946 0999", companyId: longCompany, title: "Director of Community Partnerships and Outreach" })).status).toBe(201);
+  const sidebar = page.locator('[data-slot="sidebar"][data-state]');
+  for (const [label, size, expanded] of [["tablet", { width: 1024, height: 900 }, true], ["tablet-collapsed", { width: 1024, height: 900 }, false], ["laptop", { width: 1280, height: 900 }, true], ["laptop-wide", { width: 1366, height: 900 }, true], ["small-tablet", { width: 768, height: 900 }, true]] as const) {
+    await page.setViewportSize(size);
+    await page.context().addCookies([{ name: "sidebar_state", value: String(expanded), url: origin }]);
+    for (const [path, name, longName] of [[`${root}/crm/people`, "people-list", "Dr. Oluwaseun Adebayo-Whitfield Castellanos-Rodríguez"], [`${root}/crm/companies`, "companies-list", "St. Bartholomew's Community Development Trust and Mission Centre"]] as const) {
+      await page.goto(path);
+      await expect(page.getByRole("table")).toBeVisible();
+      if (size.width >= 1024) await expect(sidebar).toHaveAttribute("data-state", expanded ? "expanded" : "collapsed");
+      await expectFullWidthShell(page);
+      // The long name is truncated inside its cell instead of widening the table.
+      const nameLink = page.getByRole("table").getByRole("link").filter({ hasText: longName }).first();
+      await expect(nameLink).toBeVisible();
+      const fit = await nameLink.evaluate((link, full) => {
+        const cell = link.closest("td")!, text = [...link.querySelectorAll("span")].find((span) => span.textContent === full)!;
+        return { inCell: link.getBoundingClientRect().right <= cell.getBoundingClientRect().right + 1, truncated: text.scrollWidth > text.clientWidth };
+      }, longName);
+      expect(fit.inCell, `${label} ${name}`).toBe(true);
+      if (label === "tablet") expect(fit.truncated, `${label} ${name} truncates`).toBe(true);
+      if (label === "tablet") await both(page, `${name}-tablet`);
+    }
+    if (label === "tablet") {
+      // At ~688px People keeps Name, Company and Email; lower-priority columns wait for room.
+      await page.goto(`${root}/crm/people`);
+      await expect(page.getByRole("columnheader", { name: "Company" })).toBeVisible();
+      await expect(page.getByRole("columnheader", { name: "Email", exact: true })).toBeVisible();
+      await expect(page.getByRole("columnheader", { name: "Email marketing" })).toBeHidden();
+      await expectFullWidthShell(page);
+    }
+  }
+  await page.context().addCookies([{ name: "sidebar_state", value: "true", url: origin }]);
+
   // Full-width layout: wide desktop and phone, both colour modes, with geometry checks.
   const screens = [[`${root}/crm/people`, "people-list", null], [`${root}/crm/people/${personId}`, "person-detail", "All people"], [`${root}/crm/companies`, "companies-list", null], [`${root}/crm/companies/${companyId}`, "company-detail", "All companies"]] as const;
   await page.setViewportSize(wide);

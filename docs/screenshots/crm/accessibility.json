@@ -88,6 +88,22 @@
     "violations": 0
   },
   {
+    "screen": "people-list-tablet-light",
+    "violations": 0
+  },
+  {
+    "screen": "people-list-tablet-dark",
+    "violations": 0
+  },
+  {
+    "screen": "companies-list-tablet-light",
+    "violations": 0
+  },
+  {
+    "screen": "companies-list-tablet-dark",
+    "violations": 0
+  },
+  {
     "screen": "people-list-wide-light",
     "violations": 0
   },

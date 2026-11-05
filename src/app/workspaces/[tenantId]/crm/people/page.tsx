@@ -67,26 +67,29 @@ export default async function PeoplePage({ params, searchParams }: { params: Pro
         ]}
         extraFilter={<CompanyFilter tenantId={tenantId} />} />
       <div className="mt-3 space-y-3"><RecordResults>
-        {list.rows.length ? <Card className="gap-0 overflow-hidden py-0"><Table aria-label={t("people")}>
+        {/* Columns respond to the card's own width (container queries), not the viewport:
+            the sidebar state changes the space available. The fixed layout makes the
+            secondary columns exact and lets Name absorb the rest and truncate. */}
+        {list.rows.length ? <Card className="@container gap-0 overflow-hidden py-0"><Table aria-label={t("people")} className="table-fixed">
           <TableHeader><TableRow>
-            <TableHead className="pl-4">{t("name")}</TableHead><TableHead className="hidden sm:table-cell">{t("company")}</TableHead>
-            <TableHead className="hidden md:table-cell">{t("email")}</TableHead><TableHead className="hidden xl:table-cell">{t("phone")}</TableHead>
-            <TableHead className="hidden lg:table-cell">{t("emailMarketing")}</TableHead><TableHead className="hidden pr-4 lg:table-cell">{t("added")}</TableHead>
+            <TableHead className="pl-4">{t("name")}</TableHead><TableHead className="hidden w-48 @xl:table-cell">{t("company")}</TableHead>
+            <TableHead className="hidden w-56 @2xl:table-cell">{t("email")}</TableHead><TableHead className="hidden w-36 @7xl:table-cell">{t("phone")}</TableHead>
+            <TableHead className="hidden w-34 @4xl:table-cell">{t("emailMarketing")}</TableHead><TableHead className="hidden w-28 pr-4 @5xl:table-cell">{t("added")}</TableHead>
           </TableRow></TableHeader>
           <TableBody>{list.rows.map((person) => {
             const email = person.identifiers.find((item) => item.kind === "email")?.value, phone = person.identifiers.find((item) => item.kind === "phone")?.value;
             const [primary, ...others] = person.companies;
             return <TableRow key={person.id} className="h-12">
-              <TableCell className="max-w-0 py-1.5 pl-4 sm:max-w-none">
+              <TableCell className="overflow-hidden py-1.5 pl-4">
                 <Link href={`${base}/${person.id}`} className="flex min-w-0 items-center gap-3 rounded-sm font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">
                   <Avatar className="size-8" aria-hidden="true"><AvatarFallback className="text-xs text-muted-foreground">{initials(person.name)}</AvatarFallback></Avatar>
-                  <span className="min-w-0"><span className="block truncate">{person.name}</span><span className="block truncate text-xs font-normal text-muted-foreground sm:hidden">{primary?.name ?? email ?? t("notProvided")}</span></span>
+                  <span className="min-w-0"><span className="block truncate">{person.name}</span><span className="block truncate text-xs font-normal text-muted-foreground @xl:hidden">{primary?.name ?? email ?? t("notProvided")}</span></span>
                 </Link></TableCell>
-              <TableCell className="hidden max-w-52 text-xs sm:table-cell">{primary ? <span className="flex min-w-0 items-center gap-1.5"><Link href={`/workspaces/${tenantId}/crm/companies/${primary.companyId}`} className="truncate rounded-sm hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">{primary.name}</Link>{others.length > 0 && <Badge variant="outline" className="h-5 shrink-0 rounded-md px-1.5 text-[11px] font-normal" title={others.map((item) => item.name).join(", ")}>{t("moreCount", { count: others.length })}</Badge>}</span> : <span className="text-muted-foreground">{t("noCompany")}</span>}</TableCell>
-              <TableCell className="hidden max-w-56 truncate text-xs text-muted-foreground md:table-cell">{email ?? t("notProvided")}</TableCell>
-              <TableCell className="hidden text-xs text-muted-foreground tabular-nums xl:table-cell">{phone ?? t("notProvided")}</TableCell>
-              <TableCell className="hidden lg:table-cell"><MarketingBadge state={person.marketingEmail} /></TableCell>
-              <TableCell className="hidden pr-4 text-xs text-muted-foreground lg:table-cell">{format.dateTime(person.createdAt, "date")}</TableCell>
+              <TableCell className="hidden overflow-hidden text-xs @xl:table-cell">{primary ? <span className="flex min-w-0 items-center gap-1.5"><Link href={`/workspaces/${tenantId}/crm/companies/${primary.companyId}`} className="truncate rounded-sm hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">{primary.name}</Link>{others.length > 0 && <Badge variant="outline" className="h-5 shrink-0 rounded-md px-1.5 text-[11px] font-normal" title={others.map((item) => item.name).join(", ")}>{t("moreCount", { count: others.length })}</Badge>}</span> : <span className="text-muted-foreground">{t("noCompany")}</span>}</TableCell>
+              <TableCell className="hidden truncate text-xs text-muted-foreground @2xl:table-cell">{email ?? t("notProvided")}</TableCell>
+              <TableCell className="hidden truncate text-xs text-muted-foreground tabular-nums @7xl:table-cell">{phone ?? t("notProvided")}</TableCell>
+              <TableCell className="hidden overflow-hidden @4xl:table-cell"><MarketingBadge state={person.marketingEmail} /></TableCell>
+              <TableCell className="hidden truncate pr-4 text-xs text-muted-foreground @5xl:table-cell">{format.dateTime(person.createdAt, "date")}</TableCell>
             </TableRow>;
           })}</TableBody>
         </Table></Card> : <Empty className="min-h-[280px] border border-solid bg-card p-7 sm:p-10">

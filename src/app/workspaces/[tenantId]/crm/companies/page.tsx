@@ -60,15 +60,16 @@ export default async function CompaniesPage({ params, searchParams }: { params: 
           { key: "domain", label: t("fields.domain"), options: [{ value: "with", label: t("hasDomain") }, { value: "without", label: t("noDomain") }] },
         ]} />
       <div className="mt-3 space-y-3"><RecordResults>
-        {list.rows.length ? <Card className="gap-0 overflow-hidden py-0"><Table aria-label={t("companies")}>
-          <TableHeader><TableRow><TableHead className="pl-4">{t("name")}</TableHead><TableHead className="hidden sm:table-cell">{t("fields.domain")}</TableHead><TableHead className="w-px text-right whitespace-nowrap sm:w-auto sm:text-left">{t("people")}</TableHead><TableHead className="hidden pr-4 lg:table-cell">{t("added")}</TableHead></TableRow></TableHeader>
+        {/* Same responsive model as People: container queries plus a fixed layout. */}
+        {list.rows.length ? <Card className="@container gap-0 overflow-hidden py-0"><Table aria-label={t("companies")} className="table-fixed">
+          <TableHeader><TableRow><TableHead className="pl-4">{t("name")}</TableHead><TableHead className="hidden w-60 @xl:table-cell">{t("fields.domain")}</TableHead><TableHead className="w-22 text-right @xl:text-left">{t("people")}</TableHead><TableHead className="hidden w-28 pr-4 @3xl:table-cell">{t("added")}</TableHead></TableRow></TableHeader>
           <TableBody>{list.rows.map((company) => <TableRow key={company.id} className="h-12">
-            <TableCell className="max-w-0 py-1.5 pl-4 sm:max-w-none"><Link href={`${base}/${company.id}`} className="flex min-w-0 items-center gap-3 rounded-sm font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">
+            <TableCell className="overflow-hidden py-1.5 pl-4"><Link href={`${base}/${company.id}`} className="flex min-w-0 items-center gap-3 rounded-sm font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-ring">
               <Avatar className="size-8 rounded-md" aria-hidden="true"><AvatarFallback className="rounded-md text-xs text-muted-foreground">{initials(company.name)}</AvatarFallback></Avatar>
-              <span className="min-w-0"><span className="block truncate">{company.name}</span><span className="block truncate text-xs font-normal text-muted-foreground sm:hidden">{company.domain ?? t("noDomain")}</span></span></Link></TableCell>
-            <TableCell className="hidden max-w-56 truncate text-xs sm:table-cell">{company.domain ? <a href={`https://${company.domain}`} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground hover:underline">{company.domain}</a> : <span className="text-muted-foreground">{t("noDomain")}</span>}</TableCell>
-            <TableCell className="text-right text-xs tabular-nums sm:text-left"><Link href={`/workspaces/${tenantId}/crm/people?company=${company.id}`} className="rounded-sm text-muted-foreground hover:text-foreground hover:underline" aria-label={t("viewPeopleAtCompany", { count: company.peopleCount, company: company.name })}>{format.number(company.peopleCount, "integer")}</Link></TableCell>
-            <TableCell className="hidden pr-4 text-xs text-muted-foreground lg:table-cell">{format.dateTime(company.createdAt, "date")}</TableCell>
+              <span className="min-w-0"><span className="block truncate">{company.name}</span><span className="block truncate text-xs font-normal text-muted-foreground @xl:hidden">{company.domain ?? t("noDomain")}</span></span></Link></TableCell>
+            <TableCell className="hidden truncate text-xs @xl:table-cell">{company.domain ? <a href={`https://${company.domain}`} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-foreground hover:underline">{company.domain}</a> : <span className="text-muted-foreground">{t("noDomain")}</span>}</TableCell>
+            <TableCell className="truncate text-right text-xs tabular-nums @xl:text-left"><Link href={`/workspaces/${tenantId}/crm/people?company=${company.id}`} className="rounded-sm text-muted-foreground hover:text-foreground hover:underline" aria-label={t("viewPeopleAtCompany", { count: company.peopleCount, company: company.name })}>{format.number(company.peopleCount, "integer")}</Link></TableCell>
+            <TableCell className="hidden truncate pr-4 text-xs text-muted-foreground @3xl:table-cell">{format.dateTime(company.createdAt, "date")}</TableCell>
           </TableRow>)}</TableBody>
         </Table></Card> : <Empty className="min-h-[280px] border border-solid bg-card p-7 sm:p-10">
           <EmptyHeader><EmptyMedia variant="icon"><Building2 aria-hidden="true" /></EmptyMedia>
