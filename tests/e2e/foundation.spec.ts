@@ -96,6 +96,11 @@ test("email code → session → workspace persistence → sign out", async ({ p
   await page.reload();
   await expect(page.getByText("Browser workspace", { exact: true })).toBeVisible();
   await expect(page.getByText("Role: owner")).toBeVisible();
+  // Before hydration the form button is disabled (50% opacity) and then fades in;
+  // scan once it has settled, or axe measures a half-transparent button.
+  const create = page.getByRole("button", { name: "Create workspace" });
+  await expect(create).toBeEnabled();
+  await expect.poll(() => create.evaluate((button) => getComputedStyle(button).opacity)).toBe("1");
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath("workspaces-created.png"), fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });

@@ -319,7 +319,7 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
       inGrid = await page.evaluate(() => document.activeElement?.getAttribute("role") === "gridcell");
     }
     expect(inGrid, `${label}: Tab reaches the grid`).toBe(true);
-    const domainCell = page.getByRole("gridcell").filter({ has: domainLink });
+    const domainCell = page.getByRole("grid").getByRole("gridcell").filter({ hasText: "stbartholomewscommunitydevelopmenttrust.org.uk" });
     for (let step = 0; step < 10 && !(await domainCell.evaluate((cell) => cell.parentElement === document.activeElement?.parentElement)); step += 1) await page.keyboard.press("ArrowDown");
     await page.keyboard.press("ArrowRight");
     await expect(domainCell).toBeFocused();
