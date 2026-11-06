@@ -660,9 +660,6 @@
   .h-\[11px\] {
     height: 11px;
   }
-  .h-\[30px\] {
-    height: 30px;
-  }
   .h-\[52px\] {
     height: 52px;
   }
@@ -2572,6 +2569,9 @@
     clip-path: none;
     white-space: normal;
   }
+  .focus\:absolute:focus {
+    position: absolute;
+  }
   .focus\:fixed:focus {
     position: fixed;
   }
@@ -3357,8 +3357,20 @@
     .lg\:hidden {
       display: none;
     }
+    .lg\:h-9 {
+      height: calc(var(--spacing) * 9);
+    }
+    .lg\:h-\[30px\] {
+      height: 30px;
+    }
+    .lg\:min-h-0 {
+      min-height: 0px;
+    }
     .lg\:grid-cols-2 {
       grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+    .lg\:grid-cols-3 {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
     }
     .lg\:px-6 {
       padding-inline: calc(var(--spacing) * 6);
