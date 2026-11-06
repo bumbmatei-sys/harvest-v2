@@ -427,7 +427,22 @@
     "checkTheTaskDetails": "Check the task details.",
     "checkTheNote": "Write a note of up to 10,000 characters.",
     "restoreTheDealToAddTasksOrNotes": "This deal is archived. Restore it to add or change its tasks and notes.",
-    "onlyTheAuthorCanChangeThisNote": "Only the author, an owner or an admin can change this note."
+    "onlyTheAuthorCanChangeThisNote": "Only the author, an owner or an admin can change this note.",
+    "thisImportIsNotAvailable": "This import is not available in this workspace.",
+    "thisImportCanNoLongerBeChanged": "This import has already started, so its mapping can no longer change.",
+    "checkTheColumnMapping": "Check the column mapping: map Name, and use each field only once.",
+    "theFileHasNoRowsToImport": "The file has no rows to import.",
+    "theFileHasMoreThan5000Rows": "The file has more than 5,000 rows. Split it into smaller files.",
+    "theFileHasMoreThan100Columns": "The file has more than 100 columns.",
+    "theFileIsNotValidCsv": "The file is not valid CSV: a quoted cell is never closed.",
+    "aCellIsLongerThan5000Characters": "A cell in the file is longer than 5,000 characters.",
+    "theFileHasNoHeaderRow": "The first row of the file must name the columns.",
+    "theFileHasRepeatedColumnNames": "Two columns in the file have the same name.",
+    "theFileIsLargerThan5Mb": "The file is larger than 5 MB.",
+    "previewTheImportFirst": "Preview the import before running it.",
+    "thisImportCannotBeRolledBack": "Only a finished import can be rolled back, and only once.",
+    "aPersonCannotBeMergedIntoThemselves": "Choose a different person to merge.",
+    "thisExportIsTooLarge": "This view has more than 50,000 records. Narrow it with filters, then export."
   },
   "LibEnv": {
     "missingRequiredEnvironmentVariableValue": "Missing required environment variable: {name}"
@@ -635,7 +650,8 @@
       "recordedConsent": "recorded {channel} consent: {status}",
       "recordedConsentGeneric": "recorded a consent decision",
       "madePrimaryForPerson": "made this the primary company for <target></target>",
-      "updatedRoleForPerson": "updated the role of <target></target>"
+      "updatedRoleForPerson": "updated the role of <target></target>",
+      "mergedPerson": "merged another record into this person"
     },
     "loadingPeople": "Loading people",
     "loadingCompanies": "Loading companies",
@@ -1180,6 +1196,51 @@
       "contactId": "the person",
       "companyId": "the company",
       "opportunityId": "the deal"
+    }
+  },
+  "Imports": {
+    "report": {
+      "row": "Row",
+      "problem": "Problem"
+    },
+    "rowErrors": {
+      "missing_name": "Name is empty.",
+      "name_too_long": "Name is longer than 100 characters.",
+      "invalid_email": "The email address is not valid.",
+      "invalid_phone": "Use an international phone number starting with +.",
+      "invalid_social": "The handle has spaces or characters that are not allowed.",
+      "invalid_domain": "The domain is not a valid web address.",
+      "notes_too_long": "Notes are longer than 5,000 characters.",
+      "description_too_long": "The description is longer than 2,000 characters.",
+      "title_too_long": "The job title is longer than 100 characters.",
+      "duplicate_in_file": "An earlier row in this file has the same email, phone, handle or domain.",
+      "matches_several_records": "Its email, phone or handle belong to different people. Nothing was merged.",
+      "identifier_taken": "Its email, phone, handle or domain was taken by another record during the import.",
+      "changed_since_preview": "The record changed after the preview, so this row was not applied."
+    },
+    "rowWarnings": {
+      "possible_duplicate_name": "A record with the same name exists. A new one will be created; merge them later if they are the same.",
+      "company_not_found": "No company matches this name or domain, so no link will be made.",
+      "company_ambiguous": "Several companies have this name, so no link will be made. Use the company's domain."
+    }
+  },
+  "Exports": {
+    "yes": "Yes",
+    "no": "No",
+    "columns": {
+      "name": "Name",
+      "email": "Email",
+      "phone": "Phone",
+      "social": "Social handle",
+      "company": "Company",
+      "title": "Job title",
+      "emailMarketing": "Email marketing",
+      "created": "Created",
+      "updated": "Updated",
+      "notes": "Notes",
+      "domain": "Domain",
+      "description": "Description",
+      "people": "People"
     }
   }
 }

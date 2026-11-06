@@ -32,12 +32,8 @@ export function listCompanies(db: Database, userId: string, workspace: string, p
   return withTenant(db, userId, uuidInput.parse(workspace), "companies:read", async (tx, tenantId) => {
     const definitions = await loadDefinitions(tx, tenantId, "company");
     const state = resolveState("company", parsed.state, definitions), page = parsed.page;
-    const pattern = likePattern(state.q);
     const peopleCount = peopleCountExpr(tenantId);
-    const where = and(eq(companies.tenantId, tenantId),
-      state.q ? or(ilike(companies.name, pattern), ilike(companies.domain, pattern)) : undefined,
-      ...state.filters.map((filter) => compileFilter(tenantId, "company", filter, definitions)));
-    const order = sortOrder("company", state.sort, tenantId, definitions, { name: sql.raw("companies.normalized_name"), created: sql.raw("companies.created_at"), people: peopleCount }, sql.raw("companies.id"));
+    const { where, order } = companiesQuery(tenantId, state, definitions);
     const [{ total }] = await tx.select({ total: count() }).from(companies).where(where);
     const rows = await tx.select({ id: companies.id, name: companies.name, domain: companies.domain, description: companies.description, createdAt: companies.createdAt, updatedAt: companies.updatedAt, version: companies.version, peopleCount })
       .from(companies).where(where).orderBy(...order).limit(CRM_PAGE_SIZE).offset((page - 1) * CRM_PAGE_SIZE);
@@ -46,6 +42,16 @@ export function listCompanies(db: Database, userId: string, workspace: string, p
     const filterNames = await relatedFilterNames(tx, tenantId, "company", state.filters, definitions);
     return { rows: rows.map((row) => ({ ...row, custom: values.get(row.id) ?? {} })), total, page, state, definitions: active, related: Object.fromEntries([...related, ...filterNames]) };
   });
+}
+
+/** The Companies list predicate and order, shared with the CSV export (CRM-06). */
+export function companiesQuery(tenantId: string, state: ReturnType<typeof resolveState>, definitions: Awaited<ReturnType<typeof loadDefinitions>>) {
+  const pattern = likePattern(state.q);
+  const where = and(eq(companies.tenantId, tenantId),
+    state.q ? or(ilike(companies.name, pattern), ilike(companies.domain, pattern)) : undefined,
+    ...state.filters.map((filter) => compileFilter(tenantId, "company", filter, definitions)));
+  const order = sortOrder("company", state.sort, tenantId, definitions, { name: sql.raw("companies.normalized_name"), created: sql.raw("companies.created_at"), people: peopleCountExpr(tenantId) }, sql.raw("companies.id"));
+  return { where, order };
 }
 
 export function getCompany(db: Database, userId: string, workspace: string, company: string) {

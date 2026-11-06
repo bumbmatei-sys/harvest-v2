@@ -224,7 +224,7 @@ LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
 BEGIN
   IF current_user = pg_get_userbyid((SELECT proowner FROM pg_proc WHERE oid = 'public.merge_contacts(uuid,uuid,uuid)'::regprocedure))
     AND OLD.contact_id IS NOT NULL AND NEW.contact_id IS NOT NULL AND OLD.contact_id IS DISTINCT FROM NEW.contact_id
-    AND OLD.contact_id::text = current_setting('app.merge_source', true)
+    AND OLD.contact_id::text = coalesce(current_setting('app.merge_source', true), '')
     AND OLD.redacted_at IS NULL AND NEW.redacted_at IS NULL
     AND (NEW.tenant_id, NEW.id, NEW.recorded_by, NEW.purpose, NEW.notice_version, NEW.recorded_at, NEW.channel, NEW.status, NEW.source, NEW.evidence, NEW.occurred_at)
       IS NOT DISTINCT FROM (OLD.tenant_id, OLD.id, OLD.recorded_by, OLD.purpose, OLD.notice_version, OLD.recorded_at, OLD.channel, OLD.status, OLD.source, OLD.evidence, OLD.occurred_at)
@@ -262,10 +262,11 @@ BEGIN
   ELSIF (NEW.tenant_id, NEW.id, NEW.company_id, NEW.opportunity_id, NEW.created_by, NEW.created_at)
     IS DISTINCT FROM (OLD.tenant_id, OLD.id, OLD.company_id, OLD.opportunity_id, OLD.created_by, OLD.created_at)
     -- CRM-06: only the merge definer may move a person's note to the record it is merged into.
-    OR (NEW.contact_id IS DISTINCT FROM OLD.contact_id AND NOT (
+    -- coalesce: an unset merge setting must fail closed, never compare as NULL and slip through.
+    OR (NEW.contact_id IS DISTINCT FROM OLD.contact_id AND NOT coalesce(
       current_user = pg_get_userbyid((SELECT proowner FROM pg_proc WHERE oid = 'public.merge_contacts(uuid,uuid,uuid)'::regprocedure))
       AND OLD.contact_id IS NOT NULL AND NEW.contact_id IS NOT NULL
-      AND OLD.contact_id::text = current_setting('app.merge_source', true))) THEN
+      AND OLD.contact_id::text = coalesce(current_setting('app.merge_source', true), ''), false)) THEN
     RAISE EXCEPTION 'note identity is immutable';
   END IF;
   RETURN NEW;

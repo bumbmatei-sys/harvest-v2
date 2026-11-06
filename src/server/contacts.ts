@@ -34,15 +34,8 @@ export function listContacts(db: Database, userId: string, workspace: string, pa
   return withTenant(db, userId, uuidInput.parse(workspace), "contacts:read", async (tx, tenantId) => {
     const definitions = await loadDefinitions(tx, tenantId, "person");
     const state = resolveState("person", parsed.state, definitions), page = parsed.page;
-    const pattern = likePattern(state.q);
     const marketing = marketingEmailState(tenantId);
-    const where = and(eq(contacts.tenantId, tenantId), isNull(contacts.erasedAt),
-      state.q ? or(ilike(contacts.name, pattern),
-        exists(tx.select({ one: sql`1` }).from(contactIdentifiers).where(and(eq(contactIdentifiers.tenantId, tenantId), eq(contactIdentifiers.contactId, contacts.id), ilike(contactIdentifiers.value, pattern)))),
-        exists(tx.select({ one: sql`1` }).from(contactCompanyLinks).innerJoin(companies, and(eq(companies.tenantId, contactCompanyLinks.tenantId), eq(companies.id, contactCompanyLinks.companyId)))
-          .where(and(eq(contactCompanyLinks.tenantId, tenantId), eq(contactCompanyLinks.contactId, contacts.id), ilike(companies.name, pattern))))) : undefined,
-      ...state.filters.map((filter) => compileFilter(tenantId, "person", filter, definitions)));
-    const order = sortOrder("person", state.sort, tenantId, definitions, { name: sql.raw("contacts.normalized_name"), created: sql.raw("contacts.created_at"), updated: sql.raw("contacts.updated_at") }, sql.raw("contacts.id"));
+    const { where, order } = peopleQuery(tx, tenantId, state, definitions);
     const [{ total }] = await tx.select({ total: count() }).from(contacts).where(where);
     const rows = await tx.select({ ...getTableColumns(contacts), marketingEmail: marketing }).from(contacts).where(where).orderBy(...order).limit(CRM_PAGE_SIZE).offset((page - 1) * CRM_PAGE_SIZE);
     const ids = rows.map((row) => row.id);
@@ -59,6 +52,22 @@ export function listContacts(db: Database, userId: string, workspace: string, pa
       total, page, state, definitions: active, related: Object.fromEntries([...related, ...filterNames]),
     };
   });
+}
+
+/**
+ * The People list predicate and order. The CSV export (CRM-06) calls this same function, so
+ * a list and its export always select the same people (v1 lesson: filters and exports agree).
+ */
+export function peopleQuery(tx: Transaction, tenantId: string, state: ReturnType<typeof resolveState>, definitions: Awaited<ReturnType<typeof loadDefinitions>>) {
+  const pattern = likePattern(state.q);
+  const where = and(eq(contacts.tenantId, tenantId), isNull(contacts.erasedAt),
+    state.q ? or(ilike(contacts.name, pattern),
+      exists(tx.select({ one: sql`1` }).from(contactIdentifiers).where(and(eq(contactIdentifiers.tenantId, tenantId), eq(contactIdentifiers.contactId, contacts.id), ilike(contactIdentifiers.value, pattern)))),
+      exists(tx.select({ one: sql`1` }).from(contactCompanyLinks).innerJoin(companies, and(eq(companies.tenantId, contactCompanyLinks.tenantId), eq(companies.id, contactCompanyLinks.companyId)))
+        .where(and(eq(contactCompanyLinks.tenantId, tenantId), eq(contactCompanyLinks.contactId, contacts.id), ilike(companies.name, pattern))))) : undefined,
+    ...state.filters.map((filter) => compileFilter(tenantId, "person", filter, definitions)));
+  const order = sortOrder("person", state.sort, tenantId, definitions, { name: sql.raw("contacts.normalized_name"), created: sql.raw("contacts.created_at"), updated: sql.raw("contacts.updated_at") }, sql.raw("contacts.id"));
+  return { where, order };
 }
 
 async function loadLiveContact(tx: Transaction, tenantId: string, id: string, lock?: "update" | "share") {
