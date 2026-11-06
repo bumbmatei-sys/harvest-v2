@@ -8,4 +8,4 @@ export function proxy(request: NextRequest) {
   if (candidate) headers.set("x-harvest-workspace", candidate);
   return NextResponse.next({ request: { headers } });
 }
-export const config = { matcher: ["/", "/sign-in", "/workspaces/:path*"] };
+export const config = { matcher: ["/", "/sign-in", "/workspaces/:path*", "/c/:path*", "/resources/start/:path*"] };

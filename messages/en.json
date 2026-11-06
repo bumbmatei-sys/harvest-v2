@@ -1227,5 +1227,97 @@
     "draftNote": "This campaign is a private, unpublished draft.",
     "you": "You",
     "workspaceMember": "A workspace member"
+  },
+  "Connect": {
+    "brand": "Harvest Connect",
+    "language": "English",
+    "skipToContent": "Skip to content",
+    "freeNotice": "Resources are free. No signup required.",
+    "preview": "Starter preview",
+    "landingMetaTitle": "Welcome · Harvest Connect",
+    "resourcesMetaTitle": "Free starter resources · Harvest Connect",
+    "welcome": "A place to begin.",
+    "welcomeBody": "Welcome. Take a moment, explore at your own pace, and choose a next step whenever you’re ready.",
+    "resourceTitle": "Explore free resources",
+    "resourceBody": "A short reading guide, space for your questions, and simple ideas for what comes next.",
+    "browseResources": "Browse resources",
+    "connectionTitle": "Connect with someone",
+    "connectionBody": "An optional way to ask for a conversation. This option will be available later.",
+    "accountTitle": "Make yourself at home",
+    "accountBody": "An optional free account to continue your journey. This option will be available later.",
+    "comingSoon": "Coming soon",
+    "resourceEyebrow": "A small beginning",
+    "resourcesTitle": "Start where you are.",
+    "resourcesBody": "There’s no need to have everything figured out. Choose a guide below and take one small step.",
+    "lightweight": "Short, text-only guides. Open one at a time; no video or download needed.",
+    "allResources": "All resources",
+    "unavailableTitle": "This page isn’t available.",
+    "unavailableBody": "You can still explore the free starter resources. No account is needed.",
+    "resources": {
+      "first-reading": {
+        "title": "Your first Bible reading",
+        "description": "Three short readings about welcome, prayer, and caring for others.",
+        "format": "Reading guide · 3 small steps",
+        "action": "Open reading guide",
+        "sections": {
+          "begin": {
+            "title": "Begin with a few quiet minutes",
+            "body": "If you have a Bible, use any translation you find easy to read. The references below tell you the book, chapter, and verses. Read slowly. You can also begin with the short introductions here and return to the passages later."
+          },
+          "dayOne": {
+            "title": "1. A welcome home · Luke 15:11–32",
+            "body": "Jesus tells a story about a son who returns home and a father who welcomes him. Read the story and notice how each person responds. What surprises you about the welcome? You can sit with that question without needing an immediate answer."
+          },
+          "dayTwo": {
+            "title": "2. A simple prayer · Matthew 6:9–13",
+            "body": "Jesus gives his followers a prayer about daily needs, forgiveness, and guidance. Read it one line at a time. If you want to pray, you can begin in your own words with something you’re thankful for or something you need help with."
+          },
+          "dayThree": {
+            "title": "3. Care for a neighbour · Luke 10:25–37",
+            "body": "Jesus tells of someone who stops to care for an injured stranger. Notice who offers practical help. What is one small way you could care for someone today? Return to any of these readings whenever you wish."
+          }
+        }
+      },
+      "common-questions": {
+        "title": "Common questions",
+        "description": "A few starting points for exploring faith, with room to keep asking.",
+        "format": "Questions and answers · Short read",
+        "action": "Read common questions",
+        "sections": {
+          "start": {
+            "title": "Where do I start with the Bible?",
+            "body": "The Bible is a collection of books. A Gospel, such as Luke, is one place to begin reading about Jesus. Start with a short passage rather than trying to read everything at once. Our first reading guide offers three places to start."
+          },
+          "questions": {
+            "title": "What if I have questions or doubts?",
+            "body": "You can take time to think and ask questions. Write them down for yourself if that helps. If you choose to talk with someone you trust, you can decide what to share and what to keep private."
+          },
+          "pace": {
+            "title": "Do I need to sign up to keep reading?",
+            "body": "No. These starter guides are free to read without an email address, phone number, or account. You can leave and return whenever you like."
+          }
+        }
+      },
+      "keep-exploring": {
+        "title": "Keep exploring",
+        "description": "Simple next steps you can choose for yourself, online or away from a screen.",
+        "format": "Next-step ideas · Short read",
+        "action": "Explore next steps",
+        "sections": {
+          "reread": {
+            "title": "Return to a reading",
+            "body": "Try reading one of the passages in the first guide again. Notice a word, a question, or an action you missed the first time. There is no progress score or deadline."
+          },
+          "talk": {
+            "title": "Choose a conversation",
+            "body": "If you’d like to talk, consider someone you already trust. You decide whether to have the conversation and what to share. Connection requests and community discovery through Harvest Connect will be available in later releases."
+          },
+          "return": {
+            "title": "Keep these guides handy",
+            "body": "Bookmark the starter resources page in your browser to find it again. You can also use the All resources link above to open another guide. No account is needed to return."
+          }
+        }
+      }
+    }
   }
 }
