@@ -398,7 +398,21 @@
     "anOptionIsStillInUse": "An option you removed is still used by some records. Change those records first.",
     "thisViewIsNotAvailable": "This view is not available. The default view is shown instead.",
     "systemViewsCannotBeChanged": "Built-in views cannot be changed. Save a copy instead.",
-    "theRelatedRecordIsNotAvailable": "The related record is not available in this workspace."
+    "theRelatedRecordIsNotAvailable": "The related record is not available in this workspace.",
+    "thisDealIsNotAvailable": "This deal is not available in this workspace.",
+    "thisPipelineIsNotAvailable": "This pipeline is not available.",
+    "thisStageIsNotAvailable": "This stage is not available.",
+    "checkTheDealDetails": "Check the deal details.",
+    "moveTheDealsOutOfThisStageFirst": "Move the deals out of this stage before archiving it.",
+    "thisPipelineStillHasDeals": "This pipeline still has deals. Archive or move them first.",
+    "theOwnerMustBeAWorkspaceMember": "The owner must be a member of this workspace.",
+    "chooseAnotherDefaultPipelineFirst": "Make another pipeline the default before archiving this one.",
+    "aPipelineCanHaveAtMostTwentyStages": "A pipeline can have at most 20 stages.",
+    "aPipelineNeedsAnOpenStage": "A pipeline needs at least one open stage.",
+    "theStagesChangedReloadAndTryAgain": "The stages changed. Reload and try again.",
+    "linkADealToAPersonOrCompany": "Link the deal to a person or a company.",
+    "aReasonCanOnlyBeRecordedOnClosedDeals": "A reason can only be recorded on won or lost deals.",
+    "aDealCanOnlyMoveWithinItsPipeline": "A deal can only move between stages of its own pipeline."
   },
   "LibEnv": {
     "missingRequiredEnvironmentVariableValue": "Missing required environment variable: {name}"
@@ -746,6 +760,15 @@
     "archiveHelp": "Archiving hides a field from records, lists, filters and new views; its values are kept and come back when you restore it.",
     "requiredMark": "*",
     "relationTargetSuffix": " · {target}",
-    "aCustomField": "a custom field"
+    "aCustomField": "a custom field",
+    "defaultPipeline": "Pipeline",
+    "defaultStages": {
+      "new": "New",
+      "contacted": "Contacted",
+      "qualified": "Qualified",
+      "proposal": "Proposal",
+      "won": "Won",
+      "lost": "Lost"
+    }
   }
 }

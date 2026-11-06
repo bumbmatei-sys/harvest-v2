@@ -1,6 +1,6 @@
 import type { BrandTheme } from "../lib/theme-registry";
 import { sql } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, integer, bigint, uuid, primaryKey, uniqueIndex, index, foreignKey, check, jsonb, doublePrecision, date } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, bigint, uuid, primaryKey, uniqueIndex, index, foreignKey, check, jsonb, doublePrecision, date, numeric } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: text("id").primaryKey(), name: text("name").notNull(), email: text("email").notNull().unique(),
@@ -203,6 +203,77 @@ export const crmSavedViews = pgTable("crm_saved_views", {
   check("crm_view_name", sql`length(btrim(${t.name})) between 1 and 60 and ${t.name} = btrim(${t.name})`),
   check("crm_view_state", sql`jsonb_typeof(${t.state}) = 'object' and octet_length(${t.state}::text) <= 16384`),
   check("crm_view_version", sql`${t.version} >= 1`)]);
+// CRM-04: tenant pipelines, ordered stages with terminal kinds, and opportunities (deals).
+export const crmStageKinds = ["open", "won", "lost"] as const;
+export const crmStageColors = ["neutral", "primary", "success", "warning", "destructive"] as const;
+export const crmPipelines = pgTable("crm_pipelines", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
+  name: text("name").notNull(), isDefault: boolean("is_default").notNull().default(false),
+  position: integer("position").notNull().default(0),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  // At most one live default pipeline per workspace.
+  uniqueIndex("crm_pipelines_one_default_idx").on(t.tenantId).where(sql`${t.isDefault} and ${t.archivedAt} is null`),
+  index("crm_pipelines_tenant_position_idx").on(t.tenantId, t.position),
+  check("crm_pipeline_name", sql`length(btrim(${t.name})) between 1 and 60 and ${t.name} = btrim(${t.name})`),
+  check("crm_pipeline_default_live", sql`not (${t.isDefault} and ${t.archivedAt} is not null)`),
+  check("crm_pipeline_version", sql`${t.version} >= 1`)]);
+export const crmPipelineStages = pgTable("crm_pipeline_stages", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), pipelineId: uuid("pipeline_id").notNull(),
+  // Stable machine key: immutable after creation (column grant + trigger).
+  key: text("key").notNull(), name: text("name").notNull(),
+  kind: text("kind").$type<typeof crmStageKinds[number]>().notNull().default("open"),
+  probability: integer("probability"), color: text("color").$type<typeof crmStageColors[number]>().notNull().default("neutral"),
+  position: integer("position").notNull().default(0),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  // Opportunities reference (tenant, pipeline, stage) so a deal's stage always belongs to its pipeline.
+  uniqueIndex("crm_stages_tenant_pipeline_id_idx").on(t.tenantId, t.pipelineId, t.id),
+  uniqueIndex("crm_stages_pipeline_key_idx").on(t.tenantId, t.pipelineId, t.key),
+  index("crm_stages_pipeline_position_idx").on(t.tenantId, t.pipelineId, t.position),
+  foreignKey({ columns: [t.tenantId, t.pipelineId], foreignColumns: [crmPipelines.tenantId, crmPipelines.id] }),
+  check("crm_stage_key", sql`${t.key} ~ '^[a-z][a-z0-9_]{0,39}$'`),
+  check("crm_stage_name", sql`length(btrim(${t.name})) between 1 and 60 and ${t.name} = btrim(${t.name})`),
+  check("crm_stage_kind", sql`${t.kind} in ('open', 'won', 'lost')`),
+  check("crm_stage_probability", sql`${t.probability} is null or ${t.probability} between 0 and 100`),
+  check("crm_stage_color", sql`${t.color} in ('neutral', 'primary', 'success', 'warning', 'destructive')`),
+  check("crm_stage_version", sql`${t.version} >= 1`)]);
+export const opportunities = pgTable("opportunities", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
+  name: text("name").notNull(), pipelineId: uuid("pipeline_id").notNull(), stageId: uuid("stage_id").notNull(),
+  amount: numeric("amount", { precision: 14, scale: 2, mode: "string" }), currency: text("currency").notNull().default("USD"),
+  expectedCloseDate: date("expected_close_date", { mode: "string" }),
+  ownerUserId: text("owner_user_id").references(() => users.id),
+  companyId: uuid("company_id"), contactId: uuid("contact_id"),
+  position: doublePrecision("position").notNull().default(0),
+  closedReason: text("closed_reason"),
+  stageChangedAt: timestamp("stage_changed_at", { withTimezone: true }).notNull().defaultNow(),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.pipelineId], foreignColumns: [crmPipelines.tenantId, crmPipelines.id] }),
+  foreignKey({ columns: [t.tenantId, t.pipelineId, t.stageId], foreignColumns: [crmPipelineStages.tenantId, crmPipelineStages.pipelineId, crmPipelineStages.id] }),
+  foreignKey({ columns: [t.tenantId, t.companyId], foreignColumns: [companies.tenantId, companies.id] }),
+  foreignKey({ columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }),
+  index("opportunities_board_idx").on(t.tenantId, t.pipelineId, t.stageId, t.position),
+  index("opportunities_company_idx").on(t.tenantId, t.companyId).where(sql`${t.companyId} is not null`),
+  index("opportunities_contact_idx").on(t.tenantId, t.contactId).where(sql`${t.contactId} is not null`),
+  check("opportunity_name", sql`length(btrim(${t.name})) between 1 and 200 and ${t.name} = btrim(${t.name})`),
+  check("opportunity_amount", sql`${t.amount} is null or (${t.amount} >= 0 and ${t.amount} < 1000000000000)`),
+  check("opportunity_currency", sql`${t.currency} ~ '^[A-Z]{3}$'`),
+  check("opportunity_closed_reason", sql`${t.closedReason} is null or length(${t.closedReason}) between 1 and 500`),
+  check("opportunity_version", sql`${t.version} >= 1`)]);
 export const files = pgTable("files", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),

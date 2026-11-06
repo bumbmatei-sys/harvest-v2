@@ -20,7 +20,7 @@ beforeAll(async () => {
 afterAll(async () => {
   if (restrictedRoleCreated) {
     await fixture.admin.query("do $$ begin execute format('alter function public.erase_contact(uuid,uuid) owner to %I', current_user); end $$");
-    for (const table of ["contacts", "contact_consents", "contact_identifiers", "contact_company_links", "crm_field_values", "crm_saved_views", "workspace_members", "audit_logs"]) {
+    for (const table of ["contacts", "contact_consents", "contact_identifiers", "contact_company_links", "crm_field_values", "crm_saved_views", "opportunities", "crm_pipeline_stages", "workspace_members", "audit_logs"]) {
       await fixture.admin.query(`drop policy if exists test_restricted_erasure on ${table}`);
     }
     await fixture.admin.query("drop owned by harvest_test_eraser");
@@ -183,9 +183,10 @@ describe("controlled contact erasure", () => {
     await fixture.admin.query("grant usage, create on schema public to harvest_test_eraser");
     await fixture.admin.query("grant select,update on contacts,contact_consents,workspace_members to harvest_test_eraser");
     await fixture.admin.query("grant select,delete on contact_identifiers,contact_company_links,crm_field_values to harvest_test_eraser");
-    await fixture.admin.query("grant select,update on crm_saved_views to harvest_test_eraser");
+    await fixture.admin.query("grant select,update on crm_saved_views,opportunities to harvest_test_eraser");
+    await fixture.admin.query("grant select on crm_pipeline_stages to harvest_test_eraser");
     await fixture.admin.query("grant select,insert,update on audit_logs to harvest_test_eraser");
-    for (const table of ["contacts", "contact_consents", "contact_identifiers", "contact_company_links", "crm_field_values", "crm_saved_views", "workspace_members", "audit_logs"]) {
+    for (const table of ["contacts", "contact_consents", "contact_identifiers", "contact_company_links", "crm_field_values", "crm_saved_views", "opportunities", "crm_pipeline_stages", "workspace_members", "audit_logs"]) {
       await fixture.admin.query(`create policy test_restricted_erasure on ${table} to harvest_test_eraser using (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid) with check (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid)`);
     }
     await fixture.admin.query("alter function public.erase_contact(uuid,uuid) owner to harvest_test_eraser");
