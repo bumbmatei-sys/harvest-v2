@@ -32,10 +32,11 @@ async function signIn(page: Page, email: string) {
 async function selectBrand(page: Page, brand: string) {
   await page.locator('[data-sidebar="footer"]').or(page.getByRole("combobox", { name: "Brand theme", exact: true })).first().waitFor();
   if (await page.locator('[data-sidebar="footer"]').count()) {
-    const account = page.getByRole("button", { name: "Account menu", exact: true });
+    const account = page.getByRole("button", { name: /^Switch workspace:/ });
     // Exit-animating Radix items can remain mounted after selection. Wait on the
     // trigger state instead of treating a mounted item as an open menu.
     if (await account.getAttribute("aria-expanded") !== "true") await account.click();
+    await page.getByRole("menuitem", { name: "Theme", exact: true }).click();
     await page.getByRole("menuitemradio", { name: brand, exact: true }).click();
     await expect(account).toHaveAttribute("aria-expanded", "false");
   } else {
@@ -118,8 +119,8 @@ async function shellMatrix(page: Page) {
   const footer = page.locator('[data-sidebar="footer"]');
   const navigation = page.getByRole("navigation", { name: "Workspace navigation" });
   await expect(navigation.locator('[data-sidebar="footer"]')).toHaveCount(0);
-  await expect(navigation.getByRole("button", { name: "Account menu" })).toHaveCount(0);
-  const switcher = navigation.getByRole("button", { name: `Switch workspace: ${workspaceName}`, exact: true });
+  await expect(navigation.getByRole("button", { name: /^Switch workspace:/ })).toHaveCount(0);
+  const switcher = footer.getByRole("button", { name: `Switch workspace: ${workspaceName}`, exact: true });
   await expect(switcher.locator('[data-workspace-name]')).toHaveText(workspaceName);
   expect(await switcher.locator('[data-workspace-name]').evaluate((label) => label.scrollWidth > label.clientWidth)).toBe(true);
   await switcher.hover();
@@ -140,25 +141,29 @@ async function shellMatrix(page: Page) {
   await expect.poll(() => logo.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
   await expect(sidebar.getByRole("link", { name: "Harvest", exact: true })).toBeVisible();
   // Keyboard access to the relocated brand radio group.
-  await footer.getByRole("button", { name: "Account menu" }).click();
+  await footer.getByRole("button", { name: /^Switch workspace:/ }).click();
+  await page.getByRole("menuitem", { name: "Theme", exact: true }).click();
   await page.getByRole("menuitemradio", { name: "Harvest", exact: true }).focus();
   await page.keyboard.press("Enter");
   await expect(page.locator("html")).toHaveAttribute("data-brand-theme", "harvest");
-  await expect(footer.getByRole("button", { name: "Account menu" })).toHaveAttribute("aria-expanded", "false");
-  await footer.getByRole("button", { name: "Account menu" }).click();
+  await expect(footer.getByRole("button", { name: /^Switch workspace:/ })).toHaveAttribute("aria-expanded", "false");
+  await footer.getByRole("button", { name: /^Switch workspace:/ }).click();
+  await page.getByRole("menuitem", { name: "Theme", exact: true }).click();
   await page.getByRole("menuitemradio", { name: "Studio", exact: true }).focus();
   await page.keyboard.press("Enter");
   await expect(page.locator("html")).toHaveAttribute("data-brand-theme", "studio");
-  await expect(footer.getByRole("button", { name: "Account menu" })).toHaveAttribute("aria-expanded", "false");
+  await expect(footer.getByRole("button", { name: /^Switch workspace:/ })).toHaveAttribute("aria-expanded", "false");
   for (const brand of ["harvest", "studio"] as const) for (const mode of ["light", "dark"] as const) {
     await theme(page, brand, mode);
     await expect(sidebar.getByRole("link", { name: "Harvest", exact: true }).getByText("Harvest", { exact: true })).toHaveCSS("font-family", brand === "studio" ? /Geist/ : /Inter/);
     await expect(page.getByRole("heading", { name: /^People/ })).toHaveCSS("font-family", brand === "studio" ? /Geist/ : /Inter/);
     shellSurfaces.push(await surfaces(page, `${brand}-${mode}`));
     await capture(page, `shell-expanded-${brand}-${mode}`);
-    await footer.getByRole("button", { name: "Account menu" }).click();
+    await footer.getByRole("button", { name: /^Switch workspace:/ }).click();
+    await page.getByRole("menuitem", { name: "Theme", exact: true }).click();
     await expect(page.getByRole("group", { name: "Brand theme" })).toBeVisible();
     await capture(page, `shell-account-menu-${brand}-${mode}`);
+    await page.keyboard.press("Escape");
     await page.keyboard.press("Escape");
     await trigger.click();
     await expect(sidebar).toHaveAttribute("data-collapsible", "icon");
@@ -325,7 +330,7 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-brand-theme", "studio");
   await matrix(page, "appearance");
-  await page.getByRole("button", { name: "Account menu" }).click();
+  await page.getByRole("button", { name: /^Switch workspace:/ }).click();
   await capture(page, "account-menu-studio-dark");
   await page.keyboard.press("Escape");
   // The server sends the tenant default in the blocking head script, independent of hydration.
@@ -410,7 +415,7 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
   await expect(page.getByRole("link", { name: "Synthetic Ada Rivers", exact: true })).toHaveCount(0);
   expect((await page.request.get(`${api}/${contactId}`)).status()).toBe(404);
   await capture(page, "contacts-after-erasure-studio-dark");
-  await page.getByRole("button", { name: "Account menu" }).click();
+  await page.getByRole("button", { name: /^Switch workspace:/ }).click();
   await writeFile(`${evidence}/contrast-results.json`, `${JSON.stringify({ unselectedRadio: radioContrast, shellSurfaces }, null, 2)}\n`);
   await writeFile(`${evidence}/axe-results.json`, `${JSON.stringify(accessibility, null, 2)}\n`);
   await page.getByRole("menuitem", { name: "Sign out", exact: true }).click();
