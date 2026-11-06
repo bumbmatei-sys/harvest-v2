@@ -75,7 +75,18 @@ Both were reverted, and the files are byte-identical to their pre-mutation copie
 
 ## Commands and results
 
-RESULTS_TABLE
+Local runs used PostgreSQL 16 through `TEST_DATABASE_URL`. Integration tests connect as **`harvest_app`** (non-superuser, FORCE RLS); only fixture setup and inspection use the admin pool. Browser runs used the uncommitted local Playwright config (Chromium at `/opt/pw-browsers/chromium`) against `scripts/e2e-server.ts`.
+
+| Command | Result |
+| --- | --- |
+| `npm run lint` | exit 0; ESLint and source guards clean |
+| `npm run typecheck` | exit 0 |
+| `npm test` (unit) | 15 files, **169 passed** |
+| `TEST_DATABASE_URL=… npm run test:rls` (integration) | 23 files, **239 passed, 1 skipped**. New: `crm-associations.test.ts`, 9 passed and 1 skipped (the merge move, until #21). `erasure.test.ts` restricted definer extended to `crm_associations`. Two consent `TRUNCATE` assertions now use `CASCADE`, as `jobs.test.ts` already does, to reach the append-only trigger past the new foreign key. |
+| `npx drizzle-kit check` | "Everything's fine". `generate` is **not clean by design** until 0024 is created after #21. |
+| `npm run build` | exit 0; `public/offline.css` regenerated and committed |
+| `npx playwright test` (24 tests, with axe) | **24/24 passed** in one full run (10.5 min), including `crm07.spec.ts` |
+| GitHub "Foundation CI" | see the PR checks |
 
 ## Screenshots (`docs/screenshots/crm07/`)
 
