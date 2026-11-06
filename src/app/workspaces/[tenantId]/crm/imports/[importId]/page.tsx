@@ -74,8 +74,8 @@ export default async function ImportPage({ params, searchParams }: { params: Pro
           {item.status === "preview" && <><ImportRunner tenantId={tenantId} importId={item.id} total={ready} done={0} ready={ready} />
             <Button className="min-h-11" variant="outline" asChild><Link href={`${back}/${item.id}?step=map`}>{t("changeMapping")}</Link></Button></>}
           {item.status === "running" && <ImportRunner tenantId={tenantId} importId={item.id} total={ready} done={Math.max(0, ready - item.remaining)} ready={ready} resume />}
-          {finished && (stats.failed ?? 0) > 0 && <Button variant="outline" asChild><a href={`/api/workspaces/${tenantId}/crm/imports/${item.id}/report`} download><Download aria-hidden="true" />{t("downloadReport")}</a></Button>}
-          {finished && <Button variant="outline" asChild><Link href={`/workspaces/${tenantId}/crm/${item.entity === "person" ? "people" : "companies"}`}>{t("viewList", { list })}</Link></Button>}
+          {finished && (stats.failed ?? 0) > 0 && <Button className="min-h-11" variant="outline" asChild><a href={`/api/workspaces/${tenantId}/crm/imports/${item.id}/report`} download><Download aria-hidden="true" />{t("downloadReport")}</a></Button>}
+          {finished && <Button className="min-h-11" variant="outline" asChild><Link href={`/workspaces/${tenantId}/crm/${item.entity === "person" ? "people" : "companies"}`}>{t("viewList", { list })}</Link></Button>}
           {canRollBack && <RollbackButton tenantId={tenantId} importId={item.id} />}
         </div>
         <ImportRows tenantId={tenantId} importId={item.id} entity={item.entity} fileName={item.fileName} mapping={item.mapping} rows={item.rows}

@@ -46,6 +46,14 @@ async function api(page: Page, method: "get" | "post" | "put" | "patch", path: s
 }
 async function text(download: Download) { return (await readFile((await download.path())!, "utf8")).replace(/^﻿/, ""); }
 const lines = (csv: string) => csv.split(/\r\n/).filter(Boolean);
+/** Results-page actions must be comfortable to tap: at least 44px tall at every width. */
+async function expectResultTargets(page: Page) {
+  for (const link of [page.getByRole("link", { name: "Download problem report" }), page.getByRole("link", { name: "Open People" })]) {
+    await expect(link).toBeVisible();
+    const box = (await link.boundingBox())!;
+    expect(box.height, await link.innerText()).toBeGreaterThanOrEqual(44);
+  }
+}
 
 test("CRM-06: CSV import with mapping, preview and problem report; filtered export; rollback; merge", async ({ page, browser }) => {
   test.setTimeout(300_000);
@@ -130,6 +138,7 @@ test("CRM-06: CSV import with mapping, preview and problem report; filtered expo
   await expect(page.locator("dl")).toContainText("Created2");
   await expect(page.locator("dl")).toContainText("Not imported2");
   await both(page, "import-results");
+  await expectResultTargets(page);
   const reportDownload = page.waitForEvent("download");
   await page.getByRole("link", { name: "Download problem report" }).click();
   const report = lines(await text(await reportDownload));
@@ -217,6 +226,7 @@ test("CRM-06: CSV import with mapping, preview and problem report; filtered expo
     await gotoHydrated(page, `${root}/crm/imports/${imports[0].id}`);
     await expect(page.getByRole("heading", { name: "Results" })).toBeVisible();
     await expectFullWidthShell(page);
+    await expectResultTargets(page);
     if (viewport.width === 390) await capture(page, "import-390-light");
     for (const list of ["people", "companies", "tasks"]) { await gotoHydrated(page, `${root}/crm/${list}`); await expectFullWidthShell(page); }
   }
