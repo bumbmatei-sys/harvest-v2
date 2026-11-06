@@ -33,19 +33,23 @@ export type AssociationResult =
 
 /**
  * Effective consent for one purpose, from the append-only ledger: any outstanding withdrawal
- * (no later grant on both clocks for the same channel) wins; otherwise the latest grant allows.
+ * (no later grant on both clocks for the same channel) wins; otherwise a grant allows only while it is
+ * still the latest event on its channel, so a later "unknown" there replaces it (as on the record page).
  */
 export async function purposeConsent(tx: Transaction, tenantId: string, contactId: string, purpose: AssociationPurpose) {
-  const rows = await tx.execute<{ id: string; status: string; occurred_at: string; recorded_at: string; source: string | null; outstanding: boolean }>(sql`
-    select c.id, c.status, c.occurred_at, c.recorded_at, c.source,
+  const rows = await tx.execute<{ id: string; status: string; channel: string; occurred_at: string; recorded_at: string; source: string | null; outstanding: boolean }>(sql`
+    select c.id, c.status, c.channel, c.occurred_at, c.recorded_at, c.source,
       (c.status = 'withdrawn' and not exists (select 1 from contact_consents g where g.tenant_id = c.tenant_id and g.contact_id = c.contact_id
         and g.channel = c.channel and g.purpose = c.purpose and g.status = 'granted' and g.recorded_at > c.recorded_at and g.occurred_at > c.occurred_at)) as outstanding
     from contact_consents c
-    where c.tenant_id = ${tenantId}::uuid and c.contact_id = ${contactId}::uuid and c.purpose = ${purpose} and c.redacted_at is null and c.status in ('granted', 'withdrawn')
+    where c.tenant_id = ${tenantId}::uuid and c.contact_id = ${contactId}::uuid and c.purpose = ${purpose} and c.redacted_at is null
     order by c.recorded_at desc, c.occurred_at desc, c.id desc`);
   const withdrawal = rows.rows.find((row) => row.outstanding);
   if (withdrawal) return { allowed: false as const, reason: "consent_withdrawn" as const, event: withdrawal };
-  const grant = rows.rows.find((row) => row.status === "granted");
+  // Rows are newest first, so the first row per channel is that channel's effective event.
+  const latest = new Map<string, string>();
+  for (const row of rows.rows) if (!latest.has(row.channel)) latest.set(row.channel, row.id);
+  const grant = rows.rows.find((row) => row.status === "granted" && latest.get(row.channel) === row.id);
   return grant ? { allowed: true as const, consentId: grant.id, event: grant } : { allowed: false as const, reason: "consent_missing" as const, event: null };
 }
 
@@ -129,7 +133,9 @@ export function associationPermissions(db: Database, userId: string, workspace: 
     for (const purpose of associationPurposes) {
       const consent = await purposeConsent(tx, tenantId, id, purpose);
       result.push({ purpose, status: consent.allowed ? "granted" as const : consent.reason === "consent_withdrawn" ? "withdrawn" as const : "none" as const,
-        at: consent.event ? new Date(consent.event.occurred_at).toISOString() : null, source: consent.event?.source ?? null });
+        at: consent.event ? new Date(consent.event.occurred_at).toISOString() : null, source: consent.event?.source ?? null,
+        // The channel of the deciding event: a withdrawal is cleared only by a later grant on that same channel.
+        channel: (consent.event?.channel ?? null) as "email" | "sms" | "social" | null });
     }
     const [latest] = await tx.select({ count: sql<number>`count(*)::int` }).from(crmAssociations).where(and(eq(crmAssociations.tenantId, tenantId), eq(crmAssociations.contactId, id)));
     return { purposes: result, associations: latest?.count ?? 0 };

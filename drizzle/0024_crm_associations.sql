@@ -60,8 +60,13 @@ BEGIN
     IF NEW.created_by IS DISTINCT FROM nullif(current_setting('app.user_id', true), '') THEN RAISE EXCEPTION 'invalid association provenance'; END IF;
     PERFORM 1 FROM public.contacts WHERE tenant_id = NEW.tenant_id AND id = NEW.contact_id AND erased_at IS NULL FOR UPDATE;
     IF NOT FOUND THEN RAISE EXCEPTION 'contact is unavailable'; END IF;
+    -- The grant must still be in force on its channel: a later "unknown" or withdrawal there replaces it,
+    -- exactly as on the record page (latest event per channel, ordered by both clocks, then id).
     PERFORM 1 FROM public.contact_consents c WHERE c.tenant_id = NEW.tenant_id AND c.id = NEW.consent_id
-      AND c.contact_id = NEW.contact_id AND c.purpose = NEW.purpose AND c.status = 'granted' AND c.redacted_at IS NULL;
+      AND c.contact_id = NEW.contact_id AND c.purpose = NEW.purpose AND c.status = 'granted' AND c.redacted_at IS NULL
+      AND NOT EXISTS (SELECT 1 FROM public.contact_consents l WHERE l.tenant_id = c.tenant_id AND l.contact_id = c.contact_id
+        AND l.channel = c.channel AND l.purpose = c.purpose AND l.status <> 'granted' AND l.redacted_at IS NULL
+        AND (l.recorded_at, l.occurred_at, l.id) > (c.recorded_at, c.occurred_at, c.id));
     IF NOT FOUND THEN RAISE EXCEPTION 'consent required for this purpose'; END IF;
     IF EXISTS (SELECT 1 FROM public.contact_consents w WHERE w.tenant_id = NEW.tenant_id AND w.contact_id = NEW.contact_id
         AND w.purpose = NEW.purpose AND w.status = 'withdrawn' AND NOT EXISTS (
@@ -130,7 +135,8 @@ BEGIN
   RAISE EXCEPTION 'audit_logs are append-only except controlled contact unlinking';
 END $$;
 --> statement-breakpoint
--- 5) Erasure: 0023's erase_contact plus the CRM-07 delete and text scrub (marked "CRM-07") and
+-- 5) Erasure: 0023's erase_contact plus the CRM-07 delete and text scrub (email, phone, social handle;
+-- marked "CRM-07") and
 -- association.* rows in the audit strip.
 CREATE OR REPLACE FUNCTION public.erase_contact(p_tenant uuid, p_contact uuid) RETURNS boolean
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
@@ -176,7 +182,7 @@ BEGIN
                   AND (pos.n + length(i.normalized_value) = length(cell.value)
                     OR substring(cell.value FROM pos.n + length(i.normalized_value) + 1 FOR 1) !~ '[[:alnum:]_]')))) END))));
   -- CRM-07: the person's association events go, and any other association whose text or raw
-  -- payload contains their email (case-insensitive) or phone (digits only) is scrubbed. This runs
+  -- payload contains their email (case-insensitive), phone (digits only) or handle is scrubbed. This runs
   -- before the identifiers below are deleted, because it matches on them.
   DELETE FROM public.crm_associations WHERE tenant_id = p_tenant AND contact_id = p_contact;
   UPDATE public.crm_associations a SET summary = '', payload = '{}'::jsonb, redacted_at = now()
@@ -185,7 +191,14 @@ BEGIN
         (i.kind = 'email' AND (strpos(lower(a.summary), lower(i.normalized_value)) > 0 OR strpos(lower(a.payload::text), lower(i.normalized_value)) > 0))
         OR (i.kind = 'phone' AND length(regexp_replace(i.normalized_value, '[^0-9]', '', 'g')) >= 7 AND (
           strpos(regexp_replace(a.summary, '[^0-9]', '', 'g'), regexp_replace(i.normalized_value, '[^0-9]', '', 'g')) > 0
-          OR strpos(regexp_replace(a.payload::text, '[^0-9]', '', 'g'), regexp_replace(i.normalized_value, '[^0-9]', '', 'g')) > 0))));
+          OR strpos(regexp_replace(a.payload::text, '[^0-9]', '', 'g'), regexp_replace(i.normalized_value, '[^0-9]', '', 'g')) > 0))
+        -- Social handles, case-insensitive, as a whole token (optionally after "@"); a one-character
+        -- handle only with its "@", since a bare letter in prose is indistinguishable from a word.
+        OR (i.kind = 'social' AND length(i.normalized_value) > 0 AND (
+          a.summary ~* ('(^|[^[:alnum:]_@.+:-])' || CASE WHEN length(i.normalized_value) > 1 THEN '@?' ELSE '@' END
+            || regexp_replace(i.normalized_value, '([.:-])', '\\\1', 'g') || '($|[^[:alnum:]_@.+:-]|[.]($|[^[:alnum:]_]))')
+          OR a.payload::text ~* ('(^|[^[:alnum:]_@.+:-])' || CASE WHEN length(i.normalized_value) > 1 THEN '@?' ELSE '@' END
+            || regexp_replace(i.normalized_value, '([.:-])', '\\\1', 'g') || '($|[^[:alnum:]_@.+:-]|[.]($|[^[:alnum:]_]))')))));
   IF erased_time IS NULL THEN
     UPDATE public.contacts SET name = 'Erased contact', notes = '', erased_at = now(), updated_at = now() WHERE tenant_id = p_tenant AND id = p_contact;
     DELETE FROM public.contact_identifiers WHERE tenant_id = p_tenant AND contact_id = p_contact;
@@ -351,3 +364,91 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.merge_contacts(uuid, uuid, uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.merge_contacts(uuid, uuid, uuid) TO harvest_app;
+--> statement-breakpoint
+-- 7) Import rollback: 0023's rollback_crm_import, plus logged activity (CRM-07) counts as a dependant,
+-- so an imported person or organization that activity links to is kept rather than failing the
+-- whole rollback on the crm_associations foreign keys.
+-- Batch rollback. Records an import created are removed only if nobody has touched them
+-- since (same version, no children of their own); "Fill empty fields" changes are reverted
+-- only on records still at the version the import left. Everything else is kept and counted.
+CREATE OR REPLACE FUNCTION public.rollback_crm_import(p_tenant uuid, p_import uuid) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE actor text := nullif(current_setting('app.user_id', true), ''); actor_role text; imp record; r record; v integer;
+  removed integer := 0; reverted integer := 0; kept integer := 0;
+BEGIN
+  IF p_tenant IS DISTINCT FROM nullif(current_setting('app.tenant_id', true), '')::uuid OR actor IS NULL THEN
+    RAISE EXCEPTION 'rollback access denied' USING ERRCODE = '42501';
+  END IF;
+  SELECT role_id INTO actor_role FROM public.workspace_members WHERE tenant_id = p_tenant AND user_id = actor FOR SHARE;
+  SELECT * INTO imp FROM public.crm_imports WHERE tenant_id = p_tenant AND id = p_import FOR UPDATE;
+  IF NOT FOUND THEN RETURN NULL; END IF;
+  IF actor_role IS NULL OR NOT (actor_role IN ('owner', 'admin') OR (actor_role = 'member' AND imp.created_by = actor)) THEN
+    RAISE EXCEPTION 'rollback access denied' USING ERRCODE = '42501';
+  END IF;
+  IF imp.status NOT IN ('completed', 'failed') THEN RAISE EXCEPTION 'import cannot be rolled back' USING ERRCODE = '55000'; END IF;
+  FOR r IN SELECT * FROM public.crm_import_rows WHERE tenant_id = p_tenant AND import_id = p_import AND status = 'done' ORDER BY row_number DESC LOOP
+    IF imp.entity = 'person' AND r.contact_id IS NOT NULL THEN
+      SELECT version INTO v FROM public.contacts WHERE tenant_id = p_tenant AND id = r.contact_id AND erased_at IS NULL FOR UPDATE;
+      IF NOT FOUND OR v IS DISTINCT FROM r.result_version THEN kept := kept + 1; CONTINUE; END IF;
+      IF r.created THEN
+        IF EXISTS (SELECT 1 FROM public.contact_consents WHERE tenant_id = p_tenant AND contact_id = r.contact_id)
+          OR EXISTS (SELECT 1 FROM public.crm_tasks WHERE tenant_id = p_tenant AND contact_id = r.contact_id)
+          OR EXISTS (SELECT 1 FROM public.crm_associations WHERE tenant_id = p_tenant AND contact_id = r.contact_id)
+          OR EXISTS (SELECT 1 FROM public.crm_notes WHERE tenant_id = p_tenant AND contact_id = r.contact_id)
+          OR EXISTS (SELECT 1 FROM public.opportunities WHERE tenant_id = p_tenant AND contact_id = r.contact_id)
+          OR EXISTS (SELECT 1 FROM public.crm_field_values WHERE tenant_id = p_tenant AND (contact_id = r.contact_id OR relation_contact_id = r.contact_id))
+          OR EXISTS (SELECT 1 FROM public.contact_company_links WHERE tenant_id = p_tenant AND contact_id = r.contact_id AND company_id::text IS DISTINCT FROM r.applied->>'companyId')
+          OR EXISTS (SELECT 1 FROM public.crm_import_rows WHERE tenant_id = p_tenant AND contact_id = r.contact_id AND (import_id <> p_import OR row_number <> r.row_number)) THEN
+          kept := kept + 1; CONTINUE;
+        END IF;
+        UPDATE public.crm_import_rows SET contact_id = NULL, status = 'rolled_back' WHERE tenant_id = p_tenant AND import_id = p_import AND row_number = r.row_number;
+        DELETE FROM public.contact_company_links WHERE tenant_id = p_tenant AND contact_id = r.contact_id;
+        DELETE FROM public.contact_identifiers WHERE tenant_id = p_tenant AND contact_id = r.contact_id;
+        DELETE FROM public.contacts WHERE tenant_id = p_tenant AND id = r.contact_id;
+        removed := removed + 1;
+      ELSIF r.applied IS NOT NULL THEN
+        IF coalesce((r.applied->>'notes')::boolean, false) THEN
+          UPDATE public.contacts SET notes = '' WHERE tenant_id = p_tenant AND id = r.contact_id;
+        END IF;
+        DELETE FROM public.contact_identifiers WHERE tenant_id = p_tenant AND contact_id = r.contact_id
+          AND kind IN (SELECT jsonb_array_elements_text(coalesce(r.applied->'identifiers', '[]'::jsonb)));
+        IF coalesce((r.applied->>'linked')::boolean, false) THEN
+          DELETE FROM public.contact_company_links WHERE tenant_id = p_tenant AND contact_id = r.contact_id AND company_id::text = r.applied->>'companyId';
+        END IF;
+        UPDATE public.contacts SET version = version + 1, updated_at = now() WHERE tenant_id = p_tenant AND id = r.contact_id;
+        UPDATE public.crm_import_rows SET status = 'rolled_back' WHERE tenant_id = p_tenant AND import_id = p_import AND row_number = r.row_number;
+        reverted := reverted + 1;
+      END IF;
+    ELSIF imp.entity = 'company' AND r.company_id IS NOT NULL THEN
+      SELECT version INTO v FROM public.companies WHERE tenant_id = p_tenant AND id = r.company_id FOR UPDATE;
+      IF NOT FOUND OR v IS DISTINCT FROM r.result_version THEN kept := kept + 1; CONTINUE; END IF;
+      IF r.created THEN
+        IF EXISTS (SELECT 1 FROM public.contact_company_links WHERE tenant_id = p_tenant AND company_id = r.company_id)
+          OR EXISTS (SELECT 1 FROM public.opportunities WHERE tenant_id = p_tenant AND company_id = r.company_id)
+          OR EXISTS (SELECT 1 FROM public.crm_tasks WHERE tenant_id = p_tenant AND company_id = r.company_id)
+          OR EXISTS (SELECT 1 FROM public.crm_associations WHERE tenant_id = p_tenant AND company_id = r.company_id)
+          OR EXISTS (SELECT 1 FROM public.crm_notes WHERE tenant_id = p_tenant AND company_id = r.company_id)
+          OR EXISTS (SELECT 1 FROM public.crm_field_values WHERE tenant_id = p_tenant AND (company_id = r.company_id OR relation_company_id = r.company_id))
+          OR EXISTS (SELECT 1 FROM public.crm_import_rows WHERE tenant_id = p_tenant AND company_id = r.company_id AND (import_id <> p_import OR row_number <> r.row_number)) THEN
+          kept := kept + 1; CONTINUE;
+        END IF;
+        UPDATE public.crm_import_rows SET company_id = NULL, status = 'rolled_back' WHERE tenant_id = p_tenant AND import_id = p_import AND row_number = r.row_number;
+        DELETE FROM public.companies WHERE tenant_id = p_tenant AND id = r.company_id;
+        removed := removed + 1;
+      ELSIF coalesce((r.applied->>'description')::boolean, false) THEN
+        UPDATE public.companies SET description = '', version = version + 1, updated_at = now() WHERE tenant_id = p_tenant AND id = r.company_id;
+        UPDATE public.crm_import_rows SET status = 'rolled_back' WHERE tenant_id = p_tenant AND import_id = p_import AND row_number = r.row_number;
+        reverted := reverted + 1;
+      END IF;
+    END IF;
+  END LOOP;
+  UPDATE public.crm_imports SET status = 'rolled_back', rolled_back_at = now(), updated_at = now(), version = version + 1,
+    stats = stats || jsonb_build_object('removed', removed, 'reverted', reverted, 'kept', kept)
+    WHERE tenant_id = p_tenant AND id = p_import;
+  INSERT INTO public.audit_logs (tenant_id, actor_id, action, target_id, metadata)
+    VALUES (p_tenant, actor, 'crm.import.rolled_back', p_import::text,
+      jsonb_build_object('removed', removed::text, 'reverted', reverted::text, 'kept', kept::text));
+  RETURN jsonb_build_object('removed', removed, 'reverted', reverted, 'kept', kept);
+END $$;
+REVOKE ALL ON FUNCTION public.rollback_crm_import(uuid, uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.rollback_crm_import(uuid, uuid) TO harvest_app;

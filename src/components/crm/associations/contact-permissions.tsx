@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 
-type Permission = { purpose: "messaging" | "form_follow_up" | "newsletter"; status: "granted" | "withdrawn" | "none"; at: string | null; source: string | null };
+type Permission = { purpose: "messaging" | "form_follow_up" | "newsletter"; status: "granted" | "withdrawn" | "none"; at: string | null; source: string | null; channel: "email" | "sms" | "social" | null };
 const channels = { messaging: "social", form_follow_up: "email", newsletter: "email" } as const;
 const tone = { granted: "bg-success-tint text-success", withdrawn: "bg-warning-tint text-warning", none: "text-muted-foreground" } as const;
 
@@ -27,7 +27,9 @@ export async function ContactPermissions({ tenantId, contactId, permissions, wri
         <p className="mt-0.5 text-xs text-muted-foreground">{t(`purposeHelp.${item.purpose}`)}</p>
         {item.at && <p className="mt-0.5 text-xs [overflow-wrap:anywhere] text-muted-foreground">{t(item.status === "withdrawn" ? "withdrawnOn" : "grantedOn", { date: format.dateTime(new Date(item.at), "date"), source: item.source ?? t("unknownSource") })}</p>}
       </div>
-      {writable && <ConsentForm tenantId={tenantId} contactId={contactId} preset={{ purpose: item.purpose, status: item.status === "granted" ? "withdrawn" : "granted", channel: channels[item.purpose] }}
+      {writable && <ConsentForm tenantId={tenantId} contactId={contactId} preset={{ purpose: item.purpose, status: item.status === "granted" ? "withdrawn" : "granted",
+        // An opt-in must land on the withdrawn channel to clear that withdrawal; a withdrawal goes where the grant is.
+        channel: item.status !== "none" && item.channel ? item.channel : channels[item.purpose] }}
         trigger={<Button type="button" variant="outline" size="sm" className="min-h-11 sm:min-h-8" aria-label={t(item.status === "granted" ? "recordWithdrawalFor" : "recordOptInFor", { purpose: t(`purposes.${item.purpose}`) })}>
           {t(item.status === "granted" ? "recordWithdrawal" : "recordOptIn")}</Button>} />}
     </li>)}</ul></CardContent>

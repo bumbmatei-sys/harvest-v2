@@ -12,6 +12,8 @@ import { getTimeline, loadAssociations } from "../../src/server/activity";
 import { associationPermissions, recordAssociation, type AssociationInput } from "../../src/server/crm-associations";
 import { withTenant } from "../../src/server/tenancy";
 import { mergeContacts, previewMerge } from "../../src/server/crm-merge";
+import { commitImport, createImport, previewImport, rollbackImport } from "../../src/server/crm-imports";
+import { randomUUID } from "node:crypto";
 
 let fixture: Awaited<ReturnType<typeof testDatabase>>, tenantA: string, tenantB: string, ana: string, companyA: string;
 const later = (fn: () => unknown) => Promise.resolve().then(fn);
@@ -147,6 +149,55 @@ describe("consent per purpose (required test 3)", () => {
   });
 });
 
+describe("consent edge cases (review S2, S3)", () => {
+  it("treats a later \"unknown\" on the granted channel like the record page does: no new association, in the service and in SQL", async () => {
+    const una = (await createContact(fixture.db, "owner-a", tenantA, { name: "Synthetic Una", email: "una@example.test" })).id;
+    await grant("owner-a", tenantA, una, "newsletter", "granted", "email");
+    const before = await recordAssociation(fixture.db, "member-a", tenantA, { source: "form", kind: "signup", purpose: "newsletter", contactId: una, summary: "Before" });
+    expect(before).toMatchObject({ stored: true });
+    const grantId = (await getContact(fixture.db, "owner-a", tenantA, una)).consents.find((consent) => consent.purpose === "newsletter")!.id;
+    await recordConsent(fixture.db, "owner-a", tenantA, una, { channel: "email", status: "unknown", purpose: "newsletter", noticeVersion: "notice-v1", source: "Synthetic unknown", evidence: "Synthetic test evidence" });
+    expect((await getContact(fixture.db, "owner-a", tenantA, una)).effectiveConsents.filter((consent) => consent.purpose === "newsletter").map((consent) => consent.status)).toEqual(["unknown"]);
+    expect(await recordAssociation(fixture.db, "member-a", tenantA, { source: "form", kind: "signup", purpose: "newsletter", contactId: una, summary: "After" })).toMatchObject({ stored: false, reason: "consent_missing" });
+    expect((await associationPermissions(fixture.db, "viewer-a", tenantA, una)).purposes.find((item) => item.purpose === "newsletter")).toMatchObject({ status: "none" });
+    // The SQL guard refuses the superseded grant even when the service is bypassed.
+    await expect(withTenant(fixture.db, "member-a", tenantA, "contacts:write", (tx, tenantId) => tx.insert(crmAssociations).values({ tenantId, contactId: una, source: "form", kind: "signup", purpose: "newsletter", consentId: grantId, occurredAt: new Date(), createdBy: "member-a" })))
+      .rejects.toThrow();
+    // A grant on another channel still allows; the earlier association is kept.
+    await grant("owner-a", tenantA, una, "newsletter", "granted", "social");
+    expect(await recordAssociation(fixture.db, "member-a", tenantA, { source: "form", kind: "signup", purpose: "newsletter", contactId: una, summary: "Social" })).toMatchObject({ stored: true });
+    expect((await fixture.admin.query("select count(*)::int as n from crm_associations where contact_id = $1", [una])).rows[0].n).toBe(2);
+  });
+
+  it("reports the channel of an outstanding withdrawal, so an opt-in from the card can clear it", async () => {
+    const wen = (await createContact(fixture.db, "owner-a", tenantA, { name: "Synthetic Wen" })).id;
+    await grant("owner-a", tenantA, wen, "messaging", "granted", "social");
+    await grant("owner-a", tenantA, wen, "messaging", "withdrawn", "email");
+    expect((await associationPermissions(fixture.db, "viewer-a", tenantA, wen)).purposes.find((item) => item.purpose === "messaging")).toMatchObject({ status: "withdrawn", channel: "email" });
+    // A new grant on social (the usual messaging channel) does not clear an email withdrawal; one on email does.
+    await grant("owner-a", tenantA, wen, "messaging", "granted", "social");
+    expect(await recordAssociation(fixture.db, "member-a", tenantA, message({ contactId: wen }))).toMatchObject({ stored: false, reason: "consent_withdrawn" });
+    await grant("owner-a", tenantA, wen, "messaging", "granted", "email");
+    expect(await recordAssociation(fixture.db, "member-a", tenantA, message({ contactId: wen }))).toMatchObject({ stored: true });
+  });
+});
+
+describe("import rollback with linked activity (review B1)", () => {
+  it("keeps an imported organization that activity links to instead of failing the rollback", async () => {
+    const current = await createImport(fixture.db, "owner-a", tenantA, { entity: "company", clientKey: randomUUID(), fileName: "orgs.csv", csv: "Name,Domain\nSynthetic Rollback Org,rollback-org.example\nSynthetic Spare Org,spare-org.example" });
+    await previewImport(fixture.db, "owner-a", tenantA, current.id, { version: current.version });
+    let result = await commitImport(fixture.db, "owner-a", tenantA, current.id);
+    while (result.remaining > 0) result = await commitImport(fixture.db, "owner-a", tenantA, current.id);
+    const org = (await fixture.admin.query("select id from companies where tenant_id = $1 and domain = 'rollback-org.example'", [tenantA])).rows[0].id as string;
+    const ivy = (await createContact(fixture.db, "owner-a", tenantA, { name: "Synthetic Ivy" })).id;
+    await grant("owner-a", tenantA, ivy, "form_follow_up", "granted", "email");
+    expect(await recordAssociation(fixture.db, "member-a", tenantA, { source: "form", kind: "form_submission", purpose: "form_follow_up", contactId: ivy, companyDomain: "rollback-org.example", summary: "Synthetic" })).toMatchObject({ stored: true });
+    expect((await rollbackImport(fixture.db, "owner-a", tenantA, current.id)).result).toEqual({ removed: 1, reverted: 0, kept: 1 });
+    expect((await fixture.admin.query("select domain from companies where tenant_id = $1 and domain in ('rollback-org.example', 'spare-org.example')", [tenantA])).rows).toEqual([{ domain: "rollback-org.example" }]);
+    expect((await fixture.admin.query("select count(*)::int as n from crm_associations where company_id = $1", [org])).rows[0].n).toBe(1);
+  });
+});
+
 describe("erasure (required test 4)", () => {
   it("deletes the person's associations and scrubs other associations that contain their email or phone", async () => {
     const lia = (await createContact(fixture.db, "owner-a", tenantA, { name: "Synthetic Lia", email: "Lia.Private@Example.test", phone: "+4915123456789" })).id;
@@ -171,6 +222,21 @@ describe("erasure (required test 4)", () => {
     // The scrubbed association still shows on Tom's timeline, without the text.
     const timeline = (await getTimeline(fixture.db, "owner-a", tenantA, "person", tom)).items;
     expect(timeline.find((item) => item.kind === "association" && item.associationId === ids[1])).toMatchObject({ redacted: true, summary: "" });
+  });
+
+  it("also scrubs other associations that name the person's social handle as a whole token (review S1)", async () => {
+    const ali = (await createContact(fixture.db, "owner-a", tenantA, { name: "Synthetic Ali", social: "@Alice_Handle" })).id;
+    const ben = (await createContact(fixture.db, "owner-a", tenantA, { name: "Synthetic Ben" })).id;
+    await grant("owner-a", tenantA, ben, "messaging");
+    const stored = await Promise.all([
+      message({ contactId: ben, summary: "Ben replied to @alice_handle." }),
+      message({ contactId: ben, summary: "Mentioned in thread", payload: { author: "ALICE_HANDLE" } }),
+      message({ contactId: ben, summary: "Talked about alice_handlebar and malice_handle", payload: { tag: "x@alice_handle.example" } }),
+    ].map((input) => recordAssociation(fixture.db, "member-a", tenantA, input)));
+    const ids = stored.map((result) => (result.stored ? result.id : ""));
+    await eraseContact(fixture.db, "owner-a", tenantA, ali);
+    const rows = (await fixture.admin.query("select id, redacted_at is not null as redacted from crm_associations where id = any($1::uuid[])", [ids])).rows;
+    expect(ids.map((id) => rows.find((row) => row.id === id)?.redacted)).toEqual([true, true, false]);
   });
 });
 
