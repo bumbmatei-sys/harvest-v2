@@ -10,3 +10,11 @@ it("maps direct and Drizzle-wrapped SQL permission failures to 403 without expos
     expect(await response.json()).toEqual({ error: "Workspace access denied." });
   }
 });
+
+it.each(["40P01", "40001"])("maps direct and wrapped transaction conflict %s to a safe reloadable 409", async (code) => {
+  for (const error of [{ code, message: "internal SQL and parameters" }, { cause: { cause: { code } } }]) {
+    const response = errorResponse(error);
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({ error: "This record changed since you opened it. Reload to see the latest version, then try again.", details: { reason: "stale" } });
+  }
+});

@@ -7,7 +7,7 @@ import * as schema from "../../src/db/schema";
 import { users } from "../../src/db/schema";
 import { createWorkspace } from "../../src/server/workspaces";
 import { createCompany } from "../../src/server/companies";
-import { createDeal, createPipeline, createStage, getDeal, listDeals, listPipelines, moveDeal, updateDeal, updatePipeline, updateStage } from "../../src/server/crm-deals";
+import { createDeal, createPipeline, createStage, getDeal, listDeals, listPipelines, moveDeal, reorderStages, updateDeal, updatePipeline, updateStage } from "../../src/server/crm-deals";
 import { withTenant } from "../../src/server/tenancy";
 import { MAX_STAGES, dealQuery, type Pipeline } from "../../src/lib/crm-deals";
 import type { Database } from "../../src/db/client";
@@ -33,6 +33,56 @@ beforeAll(async () => {
   pipeline = (await listPipelines(db, "owner", tenant))[0];
 });
 afterAll(async () => { await wide?.end(); await fixture?.close(); });
+
+describe("stage -> pipeline lock order", () => {
+  it.each(["reorder", "create"] as const)("lets a raw deal restore finish while %s waits on its stage", async (operation) => {
+    const other = await createPipeline(db, "owner", tenant, { name: `Lock order ${operation}` });
+    // createStage shifts closed stages too; hold Won to cover that update path.
+    const target = stage(other, "won");
+    const deal = await createDeal(db, "owner", tenant, { name: "Restore contention", companyId: company, pipelineId: other.id, stageId: target.id });
+    await updateDeal(db, "owner", tenant, deal.id, { archived: true, version: deal.version });
+    let release!: () => void, ready!: (pid: number) => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    const locked = new Promise<number>((resolve) => { ready = resolve; });
+    const restore = withTenant(db, "owner", tenant, "opportunities:write", async (tx) => {
+      await tx.execute(sql`select id from crm_pipeline_stages where tenant_id = ${tenant}::uuid and id = ${target.id}::uuid for share`);
+      const pid = await tx.execute(sql`select pg_backend_pid() as pid`);
+      ready(Number(pid.rows[0].pid));
+      await gate;
+      // The real 0017 trigger now takes stage -> pipeline FOR SHARE. Before the
+      // fix, the other service already owned pipeline and waited on this stage.
+      await tx.execute(sql`update opportunities set archived_at = null where tenant_id = ${tenant}::uuid and id = ${deal.id}::uuid`);
+    });
+    // Attach rejection handlers before releasing either side of the contention.
+    let mutation: Promise<unknown> | undefined;
+    const outcomes = Promise.allSettled([restore, (async () => {
+      const pid = await locked;
+      mutation = operation === "reorder"
+        ? reorderStages(db, "owner", tenant, other.id, { stageIds: other.stages.map((item) => item.id).reverse() })
+        : createStage(db, "owner", tenant, other.id, { name: "Inserted before Won" });
+      const result = Promise.allSettled([mutation]);
+      try {
+        await expect.poll(async () => {
+          const waiting = await fixture.admin.query("select count(*)::int as n from pg_stat_activity where $1::int = any(pg_blocking_pids(pid))", [pid]);
+          return waiting.rows[0].n;
+        }, { timeout: 5_000 }).toBe(1);
+      } finally { release(); }
+      return (await result)[0];
+    })()]);
+    try {
+      const [restored, changed] = await outcomes;
+      expect(restored.status).toBe("fulfilled");
+      expect(changed).toMatchObject({ status: "fulfilled", value: { status: "fulfilled" } });
+      expect((await getDeal(db, "owner", tenant, deal.id)).deal.archivedAt).toBeNull();
+      const after = await fresh(other.id);
+      if (operation === "reorder") expect(after.stages.map((item) => item.id)).toEqual(other.stages.map((item) => item.id).reverse());
+      else expect(after.stages.findIndex((item) => item.name === "Inserted before Won")).toBeLessThan(after.stages.findIndex((item) => item.id === target.id));
+    } finally {
+      release();
+      await Promise.allSettled([restore, ...(mutation ? [mutation] : [])]);
+    }
+  });
+});
 
 describe("B1: a restored deal never lands under an archived stage or pipeline", () => {
   it("refuses restoring into an archived stage (409) until the stage is restored, then shows it on board and list", async () => {
