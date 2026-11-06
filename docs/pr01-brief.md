@@ -62,6 +62,10 @@ Social/Zernio, Link in Bio, CRM pipelines/deals, companies, commerce, newsletter
 7. Tested against the Neon staging branch with two seed tenants and separate roles (no app deploy in this PR; Vercel staging deploy only after Matei's go).
 8. Product owner sign-off on actual task completion.
 
+Post-Phase-1 status and public-release prerequisites are tracked in the
+[AC8 / public-release checklist](acceptance/public-release-ac8.md). Historical
+staging evidence does not itself provide product-owner sign-off.
+
 ## Proof of done
 - Real-UI Playwright screenshots of: sign-in, workspace, contacts list, contact detail — in light + dark AND both brand themes (`harvest`, `studio`).
 - Full test output: CI run links + local output.

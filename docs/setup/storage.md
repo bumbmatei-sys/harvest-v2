@@ -1,6 +1,10 @@
 # Files storage setup
 
-PR 02 implements PRD v2.5 §6 Files. **Cloudflare R2 is the selected provider, using a separate v2 bucket that has not yet been created.**
+PR 02 implements PRD v2.5 §6 Files. **Cloudflare R2 is the selected provider.**
+The 2026-11-05 exit gate subsequently verified the private `harvest-v2-staging`
+bucket on the isolated staging project; that historical pass does not establish
+production readiness. See the [AC8/public-release checklist](../acceptance/public-release-ac8.md)
+and [staging credential policy draft](r2-staging-credential-scope.md).
 The `StorageAdapter` interface has an AWS SDK v3 implementation for S3-compatible
 services. This implementation provisions no bucket or persistent cloud resource
 and does not change any deployed environment.
@@ -105,6 +109,10 @@ default); `true` quarantines them until a real scanner is wired. Public uploads
 always quarantine on `skipped`, regardless of this flag. Exposed uploads require
 an explicit `clean` verdict; `infected` always quarantines. No URL is issued for
 pending/uploaded/quarantined files. The current UI explains public quarantine.
+
+The [beta/launch scanner spike](../research/malware-scanner-spike.md) compares
+providers and documents the required async job/quarantine integration. It is a
+proposal, not scanner wiring or a change to the development deferral.
 
 Before enabling public uploads, implement `FileScanner`, wire a real malware
 service into confirmation, and add provider-specific integration tests. Move
