@@ -1,14 +1,15 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { eq, sql } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { testDatabase } from "../database";
 import { crmNotes, crmNotifications, crmTasks, users } from "../../src/db/schema";
 import { createWorkspace, putMember } from "../../src/server/workspaces";
 import { createContact, eraseContact, linkCompany, patchContact } from "../../src/server/contacts";
 import { createCompany } from "../../src/server/companies";
-import { createDeal, listPipelines, moveDeal } from "../../src/server/crm-deals";
+import { createDeal, getDeal, listPipelines, moveDeal, updateDeal } from "../../src/server/crm-deals";
 import { createNote, createTask, getTask, listNotifications, listRelatedTasks, listTasks, markNotificationsRead, updateNote, updateTask } from "../../src/server/crm-tasks";
 import { getTimeline } from "../../src/server/activity";
 import { appendOutboxEvent } from "../../src/server/jobs/outbox";
+import { flushOutbox } from "../../src/server/jobs/service";
 import { withTenant } from "../../src/server/tenancy";
 import { taskQuery, zonedToInstant } from "../../src/lib/crm-tasks";
 
@@ -17,6 +18,8 @@ let tenantA: string, tenantB: string, personA: string, companyA: string, dealA: 
 const query = (value: Record<string, unknown> = {}) => taskQuery.parse(value);
 const later = (fn: () => unknown) => Promise.resolve().then(fn);
 const hoursFromNow = (hours: number) => new Date(Date.now() + hours * 3_600_000).toISOString();
+/** The database's own message for a refused raw write (drizzle wraps it in `cause`). */
+const pgRefusal = (write: Promise<unknown>) => write.then(() => "", (error: { message?: string; cause?: { message?: string } }) => String(error?.cause?.message ?? error?.message));
 const outbox = (key: string) => fixture.admin.query("select kind, payload from outbox_events where idempotency_key = $1", [key]).then((result) => result.rows);
 
 beforeAll(async () => {
@@ -198,10 +201,18 @@ describe("unified timeline", () => {
     expect(new Set([...first.items, ...second.items].map((item) => item.id)).size).toBe(55);
     await expect(later(() => getTimeline(fixture.db, "viewer-a", tenantA, "company", company, "garbage"))).rejects.toMatchObject({ status: 400 });
   });
-  it("hides archived notes", async () => {
+  it("replaces an archived note with its note.archive event, and shows it again on restore", async () => {
     const note = await createNote(fixture.db, "owner-a", tenantA, { target: "deal", targetId: dealA, body: "To archive" });
     await updateNote(fixture.db, "owner-a", tenantA, note.id, { archived: true, version: 1 });
-    expect((await getTimeline(fixture.db, "viewer-a", tenantA, "deal", dealA)).items.some((item) => item.id === note.id)).toBe(false);
+    const archived = (await getTimeline(fixture.db, "viewer-a", tenantA, "deal", dealA)).items;
+    expect(archived.some((item) => item.id === note.id)).toBe(false);
+    expect(archived[0]).toMatchObject({ kind: "event", action: "note.archive", actor: { id: "owner-a" } });
+    expect(JSON.stringify(archived[0])).not.toContain("To archive");
+    await updateNote(fixture.db, "owner-a", tenantA, note.id, { archived: false, version: 2 });
+    const restored = (await getTimeline(fixture.db, "viewer-a", tenantA, "deal", dealA)).items;
+    expect(restored.slice(0, 3).map((item) => (item.kind === "note" ? `note:${item.id === note.id}` : item.action))).toEqual(["note.restore", "note.archive", "note:true"]);
+    // Note lifecycle events stay on the note's own record: the company and person timelines do not gain them.
+    expect((await getTimeline(fixture.db, "viewer-a", tenantA, "company", companyA)).items.some((item) => item.kind === "event" && item.action.startsWith("note."))).toBe(false);
   });
 });
 
@@ -215,6 +226,14 @@ describe("two-tenant isolation", () => {
     await expect(updateTask(fixture.db, "owner-b", tenantB, taskA.id, { title: "Hijack", version: taskA.version })).rejects.toMatchObject({ status: 404 });
     await expect(createTask(fixture.db, "owner-b", tenantB, { title: "Cross", contactId: personA })).rejects.toMatchObject({ status: 404 });
     await expect(createNote(fixture.db, "owner-b", tenantB, { target: "deal", targetId: dealA, body: "Cross" })).rejects.toMatchObject({ status: 404 });
+    // A task in B can never point at A's company or deal, on create or on update.
+    await expect(createTask(fixture.db, "owner-b", tenantB, { title: "Cross company", companyId: companyA })).rejects.toMatchObject({ status: 404 });
+    await expect(createTask(fixture.db, "owner-b", tenantB, { title: "Cross deal", opportunityId: dealA })).rejects.toMatchObject({ status: 404 });
+    await expect(updateTask(fixture.db, "owner-b", tenantB, taskB.id, { companyId: companyA, version: 1 })).rejects.toMatchObject({ status: 404 });
+    await expect(updateTask(fixture.db, "owner-b", tenantB, taskB.id, { opportunityId: dealA, version: 1 })).rejects.toMatchObject({ status: 404 });
+    expect(await getTask(fixture.db, "owner-b", tenantB, taskB.id)).toMatchObject({ companyId: null, opportunityId: null, version: 1 });
+    await expect(withTenant(fixture.db, "owner-b", tenantB, "tasks:write", (tx, tenantId) => tx.insert(crmTasks).values({ tenantId, title: "FK company", companyId: companyA, createdBy: "owner-b" }))).rejects.toThrow();
+    await expect(withTenant(fixture.db, "owner-b", tenantB, "tasks:write", (tx, tenantId) => tx.insert(crmTasks).values({ tenantId, title: "FK deal", opportunityId: dealA, createdBy: "owner-b" }))).rejects.toThrow();
     await expect(getTimeline(fixture.db, "owner-b", tenantB, "person", personA)).rejects.toMatchObject({ status: 404 });
     await expect(getTimeline(fixture.db, "owner-a", tenantB, "person", personB)).rejects.toMatchObject({ status: 403 });
     await withTenant(fixture.db, "owner-b", tenantB, "tasks:read", async (tx) => {
@@ -227,16 +246,48 @@ describe("two-tenant isolation", () => {
   });
 });
 
+describe("archived deals", () => {
+  it("refuse new tasks and notes (409 parent_archived) in the service and in SQL, and accept them again after restore", async () => {
+    const deal = (await createDeal(fixture.db, "owner-a", tenantA, { name: "Archived order", companyId: companyA })).id;
+    const task = await createTask(fixture.db, "owner-a", tenantA, { title: "Before archive", opportunityId: deal });
+    const note = await createNote(fixture.db, "owner-a", tenantA, { target: "deal", targetId: deal, body: "Before archive" });
+    const loose = await createTask(fixture.db, "owner-a", tenantA, { title: "Loose task" });
+    await updateDeal(fixture.db, "owner-a", tenantA, deal, { archived: true, version: (await getDeal(fixture.db, "owner-a", tenantA, deal)).deal.version });
+    const refused = { status: 409, details: { reason: "parent_archived" } };
+    await expect(createTask(fixture.db, "member-a", tenantA, { title: "After archive", opportunityId: deal })).rejects.toMatchObject(refused);
+    await expect(createNote(fixture.db, "member-a", tenantA, { target: "deal", targetId: deal, body: "After archive" })).rejects.toMatchObject(refused);
+    await expect(updateTask(fixture.db, "owner-a", tenantA, loose.id, { opportunityId: deal, version: 1 })).rejects.toMatchObject(refused);
+    await expect(updateNote(fixture.db, "owner-a", tenantA, note.id, { body: "Edited after archive", version: 1 })).rejects.toMatchObject(refused);
+    // The existing task keeps working (completion is not a new link), and nothing was written by the refusals.
+    expect(await updateTask(fixture.db, "owner-a", tenantA, task.id, { status: "done", version: 1 })).toMatchObject({ version: 2 });
+    expect((await fixture.admin.query("select count(*)::int as n from crm_tasks where tenant_id = $1 and opportunity_id = $2", [tenantA, deal])).rows[0].n).toBe(1);
+    // SQL backstop for any other writer.
+    expect(await pgRefusal(withTenant(fixture.db, "owner-a", tenantA, "tasks:write", (tx, tenantId) => tx.insert(crmTasks).values({ tenantId, title: "Raw", opportunityId: deal, createdBy: "owner-a" })))).toContain("deal is archived");
+    expect(await pgRefusal(withTenant(fixture.db, "owner-a", tenantA, "notes:write", (tx, tenantId) => tx.insert(crmNotes).values({ tenantId, body: "Raw", opportunityId: deal, createdBy: "owner-a" })))).toContain("deal is archived");
+    expect(await pgRefusal(withTenant(fixture.db, "owner-a", tenantA, "tasks:write", (tx, tenantId) => tx.update(crmTasks).set({ opportunityId: deal }).where(and(eq(crmTasks.tenantId, tenantId), eq(crmTasks.id, loose.id)))))).toContain("deal is archived");
+    await updateDeal(fixture.db, "owner-a", tenantA, deal, { archived: false, version: (await getDeal(fixture.db, "owner-a", tenantA, deal)).deal.version });
+    expect(await createTask(fixture.db, "member-a", tenantA, { title: "After restore", opportunityId: deal })).toMatchObject({ version: 1 });
+    expect(await createNote(fixture.db, "member-a", tenantA, { target: "deal", targetId: deal, body: "After restore" })).toMatchObject({ id: expect.any(String) });
+    expect(await updateNote(fixture.db, "owner-a", tenantA, note.id, { body: "Edited after restore", version: 1 })).toMatchObject({ version: 2 });
+  });
+});
+
 describe("erasure", () => {
   it("keeps tasks (unlinked, version bumped), deletes the person's notes and strips their id from task and note audit rows", async () => {
     const person = await createContact(fixture.db, "owner-a", tenantA, { name: "Synthetic Erased" });
     const task = await createTask(fixture.db, "owner-a", tenantA, { title: "Pray with them", contactId: person.id, companyId: companyA });
     await createNote(fixture.db, "owner-a", tenantA, { target: "person", targetId: person.id, body: "Private detail about the person" });
+    await flushOutbox(fixture.db, "owner-a", tenantA);
+    await updateTask(fixture.db, "owner-a", tenantA, task.id, { priority: "high", version: 1 });
+    expect(JSON.stringify((await fixture.admin.query("select payload from outbox_events where tenant_id = $1 union all select payload from jobs where tenant_id = $1", [tenantA])).rows)).toContain(person.id);
     await eraseContact(fixture.db, "owner-a", tenantA, person.id);
-    expect(await getTask(fixture.db, "owner-a", tenantA, task.id)).toMatchObject({ contactId: null, version: 2, companyName: "Corinth Tents" });
+    expect(await getTask(fixture.db, "owner-a", tenantA, task.id)).toMatchObject({ contactId: null, version: 3, companyName: "Corinth Tents" });
     const dump = JSON.stringify((await fixture.admin.query("select * from crm_notes where tenant_id = $1", [tenantA])).rows)
       + JSON.stringify((await fixture.admin.query("select metadata from audit_logs where tenant_id = $1 and (action like 'task.%' or action like 'note.%')", [tenantA])).rows)
-      + JSON.stringify((await fixture.admin.query("select * from crm_tasks where tenant_id = $1", [tenantA])).rows);
+      + JSON.stringify((await fixture.admin.query("select * from crm_tasks where tenant_id = $1", [tenantA])).rows)
+      // B1: outbox events (dispatched and pending) and the jobs made from them.
+      + JSON.stringify((await fixture.admin.query("select payload from outbox_events where tenant_id = $1", [tenantA])).rows)
+      + JSON.stringify((await fixture.admin.query("select payload from jobs where tenant_id = $1", [tenantA])).rows);
     expect(dump).not.toContain(person.id);
     expect(dump).not.toContain("Private detail about the person");
     // The task's history still shows on the company it is linked to.

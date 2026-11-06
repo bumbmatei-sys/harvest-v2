@@ -22,6 +22,7 @@ const icons: Record<string, typeof History> = {
   "contact.company_link": Link2, "contact.company_link_update": Building2, "contact.company_unlink": Link2Off, "contact.consent_record": ShieldCheck,
   "opportunity.move": Kanban, "opportunity.archive": Archive, "opportunity.restore": RotateCcw,
   "task.create": ListChecks, "task.update": PencilLine, "task.complete": CheckCircle2, "task.reopen": CircleDot, "task.reassign": UserRoundCheck, "task.archive": Archive, "task.restore": RotateCcw,
+  "note.archive": Archive, "note.restore": RotateCcw,
 };
 type Raw = Omit<TimelineItem, "createdAt" | "editedAt"> & { createdAt: string; editedAt?: string | null };
 const revive = (item: Raw): TimelineItem => ({ ...item, createdAt: new Date(item.createdAt), ...(item.kind === "note" ? { editedAt: item.editedAt ? new Date(item.editedAt) : null } : {}) } as TimelineItem);
@@ -83,6 +84,8 @@ export function ActivityTimeline({ items: first, nextCursor: firstCursor, endpoi
       case "task.update": return item.fields.length ? tl.rich("taskUpdatedFields", { task: task(item), fields: named(taskFields, "taskFields", item.fields) }) : tl.rich("taskUpdated", { task: task(item) });
       case "task.archive": return tl.rich("taskDeleted", { task: task(item) });
       case "task.restore": return tl.rich("taskRestored", { task: task(item) });
+      case "note.archive": return tl("noteDeleted");
+      case "note.restore": return tl("noteRestored");
     }
   }
   const actorName = (actor: TimelineItem["actor"]) => (actor.id === currentUserId ? t("you") : actor.isMember ? (actor.name ?? t("aWorkspaceMember")) : t("aFormerMember"));

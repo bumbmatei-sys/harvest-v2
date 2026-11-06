@@ -13,6 +13,8 @@ const missingTask = () => new AccessError(404, message("Errors.thisTaskIsNotAvai
 const missingNote = () => new AccessError(404, message("Errors.thisNoteIsNotAvailable"));
 const missingRelated = () => new AccessError(404, message("Errors.theRelatedRecordIsNotAvailable"));
 const notMember = () => new AccessError(400, message("Errors.theAssigneeMustBeAWorkspaceMember"));
+// Tasks and notes cannot be added to (or relinked onto) an archived deal; restore it first.
+const archivedDeal = () => new AccessError(409, message("Errors.restoreTheDealToAddTasksOrNotes"), { reason: "parent_archived" });
 const stale = () => new AccessError(409, message("Errors.thisRecordChangedReloadAndTryAgain"), { reason: "stale" });
 function pgMessage(error: unknown): string {
   if (!error || typeof error !== "object") return "";
@@ -23,6 +25,7 @@ function guarded(error: unknown): never {
   const text = pgMessage(error);
   if (text.includes("assignee is not a member")) throw notMember();
   if (text.includes("contact is unavailable")) throw missingRelated();
+  if (text.includes("deal is archived")) throw archivedDeal();
   throw error;
 }
 
@@ -41,8 +44,10 @@ async function checkRelations(tx: Transaction, tenantId: string, relations: Part
     if (!row) throw missingRelated();
   }
   if (relations.opportunityId) {
-    const [row] = await tx.select({ id: opportunities.id }).from(opportunities).where(and(eq(opportunities.tenantId, tenantId), eq(opportunities.id, relations.opportunityId)));
+    const [row] = await tx.select({ id: opportunities.id, archivedAt: opportunities.archivedAt }).from(opportunities)
+      .where(and(eq(opportunities.tenantId, tenantId), eq(opportunities.id, relations.opportunityId))).for("share");
     if (!row) throw missingRelated();
+    if (row.archivedAt) throw archivedDeal();
   }
 }
 async function checkMember(tx: Transaction, tenantId: string, userId: string | null | undefined) {
@@ -269,6 +274,10 @@ export function updateNote(db: Database, userId: string, workspace: string, note
     if (!current) throw missingNote();
     if (current.createdBy !== userId && role !== "owner" && role !== "admin") throw new AccessError(403, message("Errors.onlyTheAuthorCanChangeThisNote"));
     if (current.version !== version) throw stale();
+    if (current.opportunityId) {
+      const [deal] = await tx.select({ archivedAt: opportunities.archivedAt }).from(opportunities).where(and(eq(opportunities.tenantId, tenantId), eq(opportunities.id, current.opportunityId))).for("share");
+      if (deal?.archivedAt) throw archivedDeal();
+    }
     const edited = body !== undefined && body !== current.body;
     const archive = archived === undefined ? null : archived && !current.archivedAt ? "archive" : !archived && current.archivedAt ? "restore" : null;
     if (!edited && !archive) return { id, version: current.version };

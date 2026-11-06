@@ -13,16 +13,18 @@ import { TaskRows } from "./task-rows";
  * `prefill` adds further links to a new task (a deal passes its person and company, so a
  * follow-up from the deal also shows on those records); they can be removed in the dialog.
  */
-export async function RelatedTasks({ tenantId, userId, role, type, record, prefill = {} }: {
+export async function RelatedTasks({ tenantId, userId, role, type, record, prefill = {}, locked = false }: {
   tenantId: string; userId: string; role: string; type: "person" | "company" | "deal"; record: { id: string; name: string };
   prefill?: { contact?: Relation; company?: Relation };
+  /** An archived deal: its tasks are listed read-only and no task can be added (the API answers 409). */
+  locked?: boolean;
 }) {
   if (!can(role, "tasks:read")) return null;
   const t = await getTranslations("Tasks");
   const format = await getFormatter();
   const { tasks, members, now } = await listRelatedTasks(getDb(), userId, tenantId, type, record.id);
   const link: Relation = { id: record.id, label: record.name };
-  const writable = can(role, "tasks:write");
+  const writable = can(role, "tasks:write") && !locked;
   const open = tasks.filter((task) => task.status === "open").length;
   return <Card className="gap-3">
     <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><ListChecks className="size-4 text-muted-foreground" aria-hidden="true" />{t("tasks")}

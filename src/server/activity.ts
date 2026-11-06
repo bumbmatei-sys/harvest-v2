@@ -15,7 +15,9 @@ import { withTenant } from "./tenancy";
 export const crmActions = ["contact.create", "contact.update", "contact.consent_record", "contact.company_link", "contact.company_link_update", "contact.company_unlink", "company.create", "company.update"] as const;
 /** Ledger actions the unified timeline also shows (CRM-04 deals, CRM-05 tasks). Note text comes from the notes table. */
 export const timelineActions = [...crmActions, "opportunity.create", "opportunity.update", "opportunity.move", "opportunity.archive", "opportunity.restore",
-  "task.create", "task.update", "task.complete", "task.reopen", "task.reassign", "task.archive", "task.restore"] as const;
+  "task.create", "task.update", "task.complete", "task.reopen", "task.reassign", "task.archive", "task.restore",
+  // Note lifecycle events that the live note itself cannot show (create/update are represented by the note).
+  "note.archive", "note.restore"] as const;
 export type CrmAction = typeof crmActions[number];
 export type ActivityMetadata = { companyId?: string; fields?: string };
 
@@ -99,14 +101,14 @@ export function getTimeline(db: Database, userId: string, workspace: string, sub
         : await tx.select({ id: opportunities.id }).from(opportunities).where(and(eq(opportunities.tenantId, tenantId), eq(opportunities.id, id)));
     if (!exists.length) throw new AccessError(404, message(subject === "person" ? "Errors.thisContactIsNotAvailableInThisWorkspace" : subject === "company" ? "Errors.thisCompanyIsNotAvailableInThisWorkspace" : "Errors.thisDealIsNotAvailable"));
     const metaKey = subject === "person" ? "contactId" : subject === "company" ? "companyId" : "opportunityId";
-    const taskRows = sql`(${auditLogs.action} like 'task.%' and ${auditLogs.metadata}->>${metaKey} = ${id})`;
+    const relatedRows = sql`((${auditLogs.action} like 'task.%' or ${auditLogs.action} in ('note.archive', 'note.restore')) and ${auditLogs.metadata}->>${metaKey} = ${id})`;
     const own = subject === "person" ? and(eq(auditLogs.targetId, id), like(auditLogs.action, "contact.%"))
       : subject === "company" ? or(and(eq(auditLogs.targetId, id), like(auditLogs.action, "company.%")),
         and(inArray(auditLogs.action, ["contact.company_link", "contact.company_link_update", "contact.company_unlink"]), sql`${auditLogs.metadata}->>'companyId' = ${id}`))
         : and(eq(auditLogs.targetId, id), like(auditLogs.action, "opportunity.%"));
     const before = (at: typeof auditLogs.createdAt | typeof crmNotes.createdAt, key: typeof auditLogs.id | typeof crmNotes.id) => (after ? sql`(${at}, ${key}) < (${after.at}::timestamptz, ${after.id}::uuid)` : undefined);
     const stamp = (at: typeof auditLogs.createdAt | typeof crmNotes.createdAt) => sql<string>`to_char(${at} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
-    const events = await tx.select({ row: auditLogs, at: stamp(auditLogs.createdAt) }).from(auditLogs).where(and(eq(auditLogs.tenantId, tenantId), or(own, taskRows), before(auditLogs.createdAt, auditLogs.id)))
+    const events = await tx.select({ row: auditLogs, at: stamp(auditLogs.createdAt) }).from(auditLogs).where(and(eq(auditLogs.tenantId, tenantId), or(own, relatedRows), before(auditLogs.createdAt, auditLogs.id)))
       .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id)).limit(TIMELINE_PAGE_SIZE + 1);
     const noteColumn = subject === "person" ? crmNotes.contactId : subject === "company" ? crmNotes.companyId : crmNotes.opportunityId;
     const notes = await tx.select({ note: crmNotes, at: stamp(crmNotes.createdAt) }).from(crmNotes).where(and(eq(crmNotes.tenantId, tenantId), eq(noteColumn, id), isNull(crmNotes.archivedAt), before(crmNotes.createdAt, crmNotes.id)))

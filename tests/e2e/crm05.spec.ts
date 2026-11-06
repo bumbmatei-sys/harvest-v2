@@ -183,5 +183,25 @@ test("CRM-05: follow-up task from a deal, my tasks, completion, notes and the un
     await expect(page.getByRole("list", { name: "Timeline" })).toBeVisible();
     await expectFullWidthShell(page);
   }
+  // An archived deal takes no new tasks or notes (409 parent_archived) and shows no composers; restoring it reopens both.
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  const dealVersion = async () => (await api(page, "get", `${apiRoot}/crm/deals/${deal}`)).body.deal.version as number;
+  expect((await api(page, "patch", `${apiRoot}/crm/deals/${deal}`, { archived: true, version: await dealVersion() })).status).toBe(200);
+  for (const [path, body] of [["crm/tasks", { title: "Synthetic after archive", opportunityId: deal }], ["crm/notes", { target: "deal", targetId: deal, body: "After archive" }]] as const) {
+    const refused = await api(page, "post", `${apiRoot}/${path}`, body);
+    expect(refused.status).toBe(409);
+    expect(refused.body.details).toEqual({ reason: "parent_archived" });
+  }
+  await gotoHydrated(page, `${root}/crm/deals/${deal}`);
+  await expect(page.getByText("This deal is archived", { exact: false }).first()).toBeVisible();
+  await expect(page.getByLabel("New note")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Add", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("list", { name: "Timeline" }).getByRole("button", { name: "Edit", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Edit Synthetic follow-up call" })).toHaveCount(0);
+  await expect(page.getByRole("checkbox", { name: "Reopen Synthetic follow-up call" })).toBeDisabled();
+  await capture(page, "deal-archived-light");
+  expect((await api(page, "patch", `${apiRoot}/crm/deals/${deal}`, { archived: false, version: await dealVersion() })).status).toBe(200);
+  expect((await api(page, "post", `${apiRoot}/crm/tasks`, { title: "Synthetic after restore", opportunityId: deal })).status).toBe(201);
+  expect((await api(page, "post", `${apiRoot}/crm/notes`, { target: "deal", targetId: deal, body: "After restore" })).status).toBe(201);
   expect(pageErrors).toEqual([]);
 });
