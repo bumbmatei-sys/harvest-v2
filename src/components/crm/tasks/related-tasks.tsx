@@ -8,9 +8,14 @@ import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/componen
 import { TaskDialog, type Relation } from "./task-dialog";
 import { TaskRows } from "./task-rows";
 
-/** Tasks card on person, company and deal pages. Rendered only for roles that can read tasks. */
-export async function RelatedTasks({ tenantId, userId, role, type, record }: {
+/**
+ * Tasks card on person, company and deal pages. Rendered only for roles that can read tasks.
+ * `prefill` adds further links to a new task (a deal passes its person and company, so a
+ * follow-up from the deal also shows on those records); they can be removed in the dialog.
+ */
+export async function RelatedTasks({ tenantId, userId, role, type, record, prefill = {} }: {
   tenantId: string; userId: string; role: string; type: "person" | "company" | "deal"; record: { id: string; name: string };
+  prefill?: { contact?: Relation; company?: Relation };
 }) {
   if (!can(role, "tasks:read")) return null;
   const t = await getTranslations("Tasks");
@@ -23,7 +28,7 @@ export async function RelatedTasks({ tenantId, userId, role, type, record }: {
     <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><ListChecks className="size-4 text-muted-foreground" aria-hidden="true" />{t("tasks")}
       <Badge variant="secondary" className="rounded-md tabular-nums">{format.number(open, "integer")}</Badge></CardTitle>
       {writable && <CardAction><TaskDialog tenantId={tenantId} members={members} currentUserId={userId} variant="outline" compact
-        contact={type === "person" ? link : null} company={type === "company" ? link : null} deal={type === "deal" ? link : null} /></CardAction>}</CardHeader>
+        contact={type === "person" ? link : prefill.contact ?? null} company={type === "company" ? link : prefill.company ?? null} deal={type === "deal" ? link : null} /></CardAction>}</CardHeader>
     <CardContent>{tasks.length
       ? <TaskRows tenantId={tenantId} tasks={tasks} members={members} currentUserId={userId} writable={writable} now={now} label={t("tasksFor", { record: record.name })}
         hide={type === "person" ? ["contact"] : type === "company" ? ["company"] : ["deal"]} />

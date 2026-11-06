@@ -93,7 +93,7 @@ export function ActivityTimeline({ items: first, nextCursor: firstCursor, endpoi
         const heading = index === 0 || day(items[index - 1].createdAt) !== day(item.createdAt);
         const Icon = item.kind === "note" ? StickyNote : icons[item.action] ?? History;
         return <li key={item.id} className="relative">
-          {heading && <h3 className="mb-3 pt-1 text-xs font-medium text-muted-foreground first:pt-0">{day(item.createdAt)}</h3>}
+          {heading && <h2 className="mb-3 pt-1 text-xs font-medium text-muted-foreground first:pt-0">{day(item.createdAt)}</h2>}
           <div className="relative flex gap-3 pb-5">
             {index < items.length - 1 && <span aria-hidden="true" className="absolute top-8 bottom-0 left-[15px] w-px bg-border" />}
             <span className="relative flex size-8 shrink-0 items-center justify-center rounded-full border bg-card text-muted-foreground"><Icon aria-hidden="true" className="size-3.5" /></span>

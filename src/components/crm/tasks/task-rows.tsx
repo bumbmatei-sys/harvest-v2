@@ -54,7 +54,7 @@ export function TaskRows({ tenantId, tasks, members, currentUserId, writable, no
         !hide.includes("deal") && task.opportunityId && task.dealName ? { href: `${base}/deals/${task.opportunityId}`, label: task.dealName } : null,
       ].filter((item): item is { href: string; label: string } => !!item);
       return <li key={task.id} className="flex min-w-0 items-start gap-3 py-2.5 first:pt-0 last:pb-0">
-        <Checkbox className="mt-0.5" checked={status === "done"} disabled={!writable || task.id in pending} aria-label={status === "done" ? t("reopenTask", { task: task.title }) : t("completeTask", { task: task.title })}
+        <Checkbox className="mt-0.5 border-muted-foreground/50" checked={status === "done"} disabled={!writable || task.id in pending} aria-label={status === "done" ? t("reopenTask", { task: task.title }) : t("completeTask", { task: task.title })}
           onCheckedChange={(checked) => void toggle(task, checked === true)} />
         <div className="min-w-0 flex-1">
           <p className={cn("text-sm font-medium [overflow-wrap:anywhere]", status === "done" && "text-muted-foreground line-through")}>{task.title}</p>

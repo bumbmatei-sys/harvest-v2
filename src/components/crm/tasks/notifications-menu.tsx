@@ -48,7 +48,7 @@ export function NotificationsMenu({ tenantId }: { tenantId: string }) {
     <PopoverTrigger asChild><Button variant="ghost" size="icon-sm" className="relative" aria-label={label}>
       <Bell aria-hidden="true" />{unread > 0 && <span aria-hidden="true" className="absolute top-1 right-1 size-2 rounded-full bg-primary" />}
     </Button></PopoverTrigger>
-    <PopoverContent align="end" className="w-[min(22rem,calc(100vw-2rem))] p-0">
+    <PopoverContent align="end" aria-label={t("notifications")} className="w-[min(22rem,calc(100vw-2rem))] p-0">
       <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
         <p className="text-sm font-medium">{t("notifications")}</p>
         {unread > 0 && <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => void markAll()}>{t("markAllRead")}</Button>}

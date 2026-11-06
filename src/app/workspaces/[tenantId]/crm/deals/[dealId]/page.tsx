@@ -74,7 +74,8 @@ export default async function DealPage({ params }: { params: Promise<{ tenantId:
             {!deal.companyId && !deal.contactId && <p className="flex items-center gap-1.5 px-2 pt-2 text-xs text-muted-foreground"><UserRound className="size-3.5" aria-hidden="true" />{t("noRelationHelp")}</p>}
           </CardContent></Card>}
         history={<div className="space-y-4">
-          <RelatedTasks tenantId={tenantId} userId={session.user.id} role={workspace.role} type="deal" record={{ id: deal.id, name: deal.name }} />
+          <RelatedTasks tenantId={tenantId} userId={session.user.id} role={workspace.role} type="deal" record={{ id: deal.id, name: deal.name }}
+            prefill={{ contact: deal.contactId && deal.contactName ? { id: deal.contactId, label: deal.contactName } : null, company: deal.companyId && deal.companyName ? { id: deal.companyId, label: deal.companyName } : null }} />
           <Card className="gap-3"><CardHeader><CardTitle className="flex items-center gap-2 text-sm"><History className="size-4 text-muted-foreground" aria-hidden="true" />{t("activityTitle")}</CardTitle></CardHeader>
           <CardContent className="space-y-5">{can(workspace.role, "notes:write") && <NoteComposer tenantId={tenantId} target="deal" targetId={dealId} />}
             <ActivityTimeline items={timeline.items} nextCursor={timeline.nextCursor} endpoint={`/api/workspaces/${tenantId}/crm/deals/${dealId}/timeline`} tenantId={tenantId} subject="deal" currentUserId={session.user.id}

@@ -61,8 +61,7 @@ test("CRM-05: follow-up task from a deal, my tasks, completion, notes and the un
 
   // From the deal, add a follow-up assigned to me (the default) with a due date.
   await page.goto(`${root}/crm/deals/${deal}`);
-  const tasksCard = page.locator('[data-slot="card"]').filter({ has: page.getByText("Tasks", { exact: true }) });
-  await tasksCard.getByRole("button", { name: "Add" }).click();
+  await page.getByRole("button", { name: "Add", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByText("Synthetic building fund")).toBeVisible();
   await dialog.getByLabel("Title").fill("Synthetic follow-up call");
