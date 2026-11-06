@@ -57,10 +57,10 @@ as part of this follow-up.
 
 ## Validation and scope of this PR
 
-Documentation and one CI safety exemption only. The
-[Foundation CI workflow](../../.github/workflows/ci.yml) excludes this exact
-`docs/exit-gate-followups` branch from its Neon job, which otherwise creates
-and deletes a hosted CI branch on every PR. Existing local PostgreSQL
+The [Foundation CI workflow](../../.github/workflows/ci.yml) runs Neon migrations
+on every PR and on main. The former draft-branch exemptions are obsolete and
+have been removed. This job creates and deletes an isolated hosted CI branch;
+it does not deploy the application or mutate production data. Local PostgreSQL
 migration/RLS, lint, typecheck, unit, build and browser jobs remain enabled.
 No CI deployment job is added. Validation results and exact head SHA are
 recorded in the draft PR body; CI status is a snapshot, not release approval.
