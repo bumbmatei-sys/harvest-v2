@@ -28,10 +28,11 @@ Design: [ADR 0010](../decisions/0010-crm-tasks-notes-timeline.md). Reference stu
 - **Timeline** on person, company and deal pages: one list, grouped by Berlin day headings. It holds:
   - record events ("created this deal in New", "moved it from New to Contacted", "updated the email");
   - task events ("added task …", "completed …", "reassigned … to …");
-  - notes, in full with their line breaks.
+  - notes, in full with their line breaks. A deleted (archived) note leaves "deleted a note" in its place, without the text.
 
   The newest 50 items show first, with "Show older activity" for more.
 - **Notes:** a plain textarea ("New note"; Ctrl/⌘+Enter or Add note). Authors can edit or delete their own notes; owners and admins can moderate any note.
+- **Archived deals** are read-only for tasks and notes: no Add task, no note composer, no task or note edits on the page. The API answers 409 `parent_archived` until the deal is restored.
 - **Notifications:** a bell in the header with an unread count ("Notifications, 1 unread").
   - The popover lists "X assigned you *task*", plus a link to my overdue tasks when there are any, and "Mark all read".
   - Only assignment by someone else is stored; overdue is computed when the bell loads.
@@ -59,9 +60,11 @@ Design: [ADR 0010](../decisions/0010-crm-tasks-notes-timeline.md). Reference stu
 - **Erasure:**
   - tasks keep living with `contact_id = NULL` and a bumped version;
   - notes on the person are deleted;
-  - `contactId` is stripped from `task.*` and `note.*` audit metadata.
+  - `contactId` is stripped from `task.*` and `note.*` audit metadata;
+  - `contactId` is set to `null` in CRM outbox payloads (dispatched and pending) and in the jobs dispatched from them (review B1, migration 0020).
 
-  Afterwards no note body is readable, and nothing in the ledger points at the erased person. This holds on fresh and upgraded databases.
+  Afterwards no note body is readable, and nothing in the ledger, the outbox or the job queue points at the erased person. This holds on fresh and upgraded databases, and with the definer owned by a `NOSUPERUSER NOBYPASSRLS` role (`erasure.test.ts`).
+  - Accepted gap (review F1, soft follow-up): free-text task titles and details that *name* the person are kept.
 - **Timeline paging:** 54 notes plus the creation event page as 50 + 5, with no duplicates and no gaps. Cursors are microsecond-precise. A malformed cursor is a 400.
 
 ## Commands and results (this branch, 2026-11-06)
@@ -118,11 +121,16 @@ Screenshots (`docs/screenshots/crm05/`, light and dark where both are listed):
   - the `guard_crm_task`, `guard_crm_note` and `guard_crm_notification` triggers;
   - `CREATE OR REPLACE guard_audit_contact_unlinking`: the 0008 rule unchanged, plus the narrow `contactId` strip for `task.*`/`note.*` during erasure;
   - `CREATE OR REPLACE erase_contact`: 0016's version plus task unlinking, note deletion and the audit metadata strip.
+- `0020_crm05_erasure_outbox_archived_deals` (hand-written, review round 1). 0019 is left unchanged, so any preview database that already applied it upgrades cleanly. 0020 adds:
+  - `erasure_owner_tenant` policies on `outbox_events` and `jobs`;
+  - `CREATE OR REPLACE erase_contact`: 0019's version plus the outbox and job payload scrub;
+  - `CREATE OR REPLACE guard_crm_task` and `guard_crm_note`: 0019's versions plus the archived-deal checks.
 - Additive, and idempotent under the harness's double-apply. `tests/integration/crm05-upgrade.test.ts` seeds a database at 0017 (post-CRM-04) with a person, a company, a pipeline and a deal with its audit row. It then upgrades, moves the deal, adds a task and a note, checks the merged timeline order (note, task.create, opportunity.move, opportunity.create), and erases the person.
 - No backfill is needed.
 - Rollback before deploy:
   - drop the three tables and the three guard functions;
-  - restore `guard_audit_contact_unlinking` from 0008 and `erase_contact` from 0016.
+  - restore `guard_audit_contact_unlinking` from 0008 and `erase_contact` from 0016;
+  - drop the two `erasure_owner_tenant` policies that 0020 adds on `outbox_events` and `jobs`.
 
   No production data exists, and no production Neon, R2 or Vercel settings were touched.
 
@@ -134,3 +142,28 @@ Screenshots (`docs/screenshots/crm05/`, light and dark where both are listed):
 - Notifications store assignment only. Overdue is derived on read; there is no email, reminders or preferences (§24 later).
 - The CRM-03 `…/activity` endpoints remain for compatibility; the record pages now use `…/timeline`.
 - Times show in Europe/Berlin because there is no per-workspace time zone yet.
+
+## Review round 1 (PR #15, 2026-11-06)
+
+| Item | Outcome |
+| --- | --- |
+| **B1** erasure left `contactId` in `outbox_events` and `jobs` payloads | **Fixed** (0020). `erasure.test.ts` covers the restricted, non-superuser definer: before erasure the person's id is in a dispatched event, its job and a pending event; afterwards all three hold `contactId: null` and the id appears nowhere. Function owner asserted as `harvest_test_eraser` (`NOSUPERUSER NOBYPASSRLS`). The test fails with the scrub removed (checked). The `crm-tasks` erasure test also dumps outbox and job payloads. |
+| **Test 2** cross-tenant company and deal links on tasks | **Pinned.** `createTask` and `updateTask` from tenant B with A's `companyId` or `opportunityId` → 404, nothing changed; raw inserts fail on the composite FKs. |
+| **F1** task title or body naming an erased person | **Accepted as a soft follow-up** (product decision): not scrubbed now. |
+| **F2** archived notes vanish without trace | **Fixed.** `note.archive` / `note.restore` are on the record's timeline; the archived note's text is not. Test: archive → event replaces the note; restore → note returns, with both events. |
+| **F3** tasks and notes on archived deals | **Fixed.** 409 `parent_archived` for new tasks and notes, relinks, and note edits or deletes; SQL guards raise `deal is archived`; completing an existing task still works. After restore, creating works again. Integration test plus a browser probe (HTTP 409 with `details.reason`, read-only archived deal page, 201 after restore; screenshot `deal-archived-light`). |
+| **N1–N7** non-blocking notes | **Parked as soft follow-ups.** The review file (`v2-15-r1-REVIEW.md`) was not on the build machine, so they are listed by id only, to be carried into the soft follow-up pass. |
+
+Commands after the fixes, on the branch rebased onto `main` `e5d9752`:
+
+| Command | Result |
+| --- | --- |
+| `npm run lint` | exit 0; source guards clean |
+| `npm run typecheck` | exit 0 |
+| `npm test` (unit) | 13 files, **145 passed** |
+| `TEST_DATABASE_URL=… npm run test:rls` | 21 files, **211 passed** (new: archived-deal test; extended: archived-note, isolation, erasure, restricted-definer erasure) |
+| `npx drizzle-kit check` / `generate` | "Everything's fine" / "No schema changes, nothing to migrate" |
+| `npm run build` | exit 0 |
+| `npx playwright test crm05` | **1/1 passed** (1.0 min), including the archived-deal probe; axe clean at every capture |
+
+Not run: the full Playwright suite again (the round touched only CRM-05 surfaces; last full run 12/12), and `test:rls:neon` (no credentials).

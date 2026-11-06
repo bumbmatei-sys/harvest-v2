@@ -1,6 +1,6 @@
 # ADR 0010: CRM tasks, notes, the unified timeline and assignment notifications
 
-Accepted 2026-11-06 for CRM-05 (PRD v2.5 §5A.4 "Tasks, notes and a unified activity timeline on people, companies and deals"). Builds on [ADR 0007](0007-crm-companies-and-links.md), [ADR 0008](0008-crm-fields-and-views.md) and [ADR 0009](0009-crm-pipelines-and-deals.md). Twenty was studied for behaviour only ([notes](../research/twenty-crm-reference.md#crm-05-tasks-notes-the-unified-timeline-and-ownership)).
+Accepted 2026-11-06 for CRM-05 and amended the same day for review round 1 on PR #15 (B1, F2, F3; see "Review round 1" below) (PRD v2.5 §5A.4 "Tasks, notes and a unified activity timeline on people, companies and deals"). Builds on [ADR 0007](0007-crm-companies-and-links.md), [ADR 0008](0008-crm-fields-and-views.md) and [ADR 0009](0009-crm-pipelines-and-deals.md). Twenty was studied for behaviour only ([notes](../research/twenty-crm-reference.md#crm-05-tasks-notes-the-unified-timeline-and-ownership)).
 
 ## Decision
 
@@ -14,8 +14,8 @@ Accepted 2026-11-06 for CRM-05 (PRD v2.5 §5A.4 "Tasks, notes and a unified acti
 
    - All relations are optional on a task. A task with none is a personal to-do.
    - **Guards** (triggers):
-     - Tasks: provenance (`created_by` is the verified user); immutable identity; **the assignee must be a member of this workspace**; the linked person must not be erased. The service checks the same rules first, so users get a readable 400. The trigger is the backstop.
-     - Notes: provenance; a live person on insert; **immutable target**, so a note never moves between records.
+     - Tasks: provenance (`created_by` is the verified user); immutable identity; **the assignee must be a member of this workspace**; the linked person must not be erased; **a newly linked deal must not be archived** (0020). The service checks the same rules first, so users get a readable 400 or 409. The trigger is the backstop.
+     - Notes: provenance; a live person on insert; **no new note on an archived deal** (0020); **immutable target**, so a note never moves between records.
      - Notifications: the actor is the verified user; the recipient is a member; only `read_at` can change.
    - **Grants:** column-scoped UPDATE. There are **no DELETE grants**; tasks and notes are archived.
    - **Notification RLS** is tenant **and** recipient (`recipient_user_id = app.user_id`) for SELECT and UPDATE. INSERT is tenant-only, so an actor can notify a colleague but never read or mark another person's notifications.
@@ -45,8 +45,9 @@ Accepted 2026-11-06 for CRM-05 (PRD v2.5 §5A.4 "Tasks, notes and a unified acti
 
 5. **Unified timeline.** `GET …/contacts/:id/timeline`, `…/companies/:id/timeline` and `…/crm/deals/:id/timeline` call `getTimeline(subject, id, before?)`. It merges:
    - the record's own audit rows (`contact.*`/`consent.*`, `company.*` or `opportunity.*` for the record);
-   - `task.*` and `note.*` audit rows whose metadata links the record;
-   - **live notes** on the record. Note bodies come from `crm_notes`, never from the ledger. An archived note disappears from the timeline, while its `note.archive` event stays.
+   - `task.*` audit rows whose metadata links the record;
+   - `note.archive` and `note.restore` audit rows whose metadata links the record. `note.create` and `note.update` are not listed separately, because the live note itself shows them (its time, author and "(edited)");
+   - **live notes** on the record. Note bodies come from `crm_notes`, never from the ledger. **An archived note disappears from the timeline, and its `note.archive` event ("deleted a note") takes its place**, without the text. A restore brings the note back, plus a `note.restore` event.
 
    **Ordering and paging:**
    - Both sources are read with `(created_at, id) < cursor`, limited to 51 each, merged newest first and cut at **50**.
@@ -79,11 +80,14 @@ Accepted 2026-11-06 for CRM-05 (PRD v2.5 §5A.4 "Tasks, notes and a unified acti
    - The API is `GET /crm/notifications` and `POST /crm/notifications {ids | "all"}` (mark read).
    - The UI is a bell popover in the header.
 
-8. **Erasure** (`erase_contact`, SECURITY DEFINER, replaced in 0019). In the same transaction as the rest of the erasure:
+8. **Erasure** (`erase_contact`, SECURITY DEFINER, replaced in 0019 and again in 0020). In the same transaction as the rest of the erasure:
    - **Tasks** linked to the person get `contact_id = NULL` and a version bump. The task survives; it may still matter to the company or deal.
    - **Notes on the person are deleted.** A note's only target is the person, so it has nowhere else to live, and its text is personal data. The definer gets a narrow DELETE path through the `erasure_owner_tenant` policy; app roles still have no DELETE.
    - **`contactId` is stripped from `task.*` and `note.*` audit metadata.** The append-only audit guard (from 0008) gets a narrow extension: the definer may set `metadata = metadata - 'contactId'` on `task.*`/`note.*` rows for a contact erased in this tenant, with nothing else changing. Any other UPDATE still raises.
-   - The result is that after erasure no note body is readable, and nothing in the ledger points at the erased person.
+   - **`contactId` is set to `null` in CRM outbox and job payloads** (0020, review B1). Every `crm.task.*`/`crm.note.*` event carries the linked person's id, and dispatch copies the payload into `jobs`. The definer updates both tables in the tenant (dispatched or pending events, and their jobs) through new `erasure_owner_tenant` policies on `outbox_events` and `jobs`.
+     - Fingerprints are left as written. Outbox and job payloads are scrubbed identically, so a pending dispatch recomputes the same job fingerprint. Task and note keys include the version, which erasure bumps for tasks, so no producer re-emits a scrubbed key.
+   - The result is that after erasure no note body is readable, and nothing in the ledger, the outbox or the job queue points at the erased person.
+   - **Known gap, accepted (review F1, soft follow-up):** a task's title or details may *name* the erased person in free text. They are kept as written, because tasks are the organisation's work and a free-text scrub needs its own design. This is tracked as a soft follow-up, not done here.
 
 9. **UI** (shadcn only, English, light and dark, full-width shell).
    - **Tasks page** `/crm/tasks`, with "Tasks" in the CRM sidebar:
@@ -96,6 +100,21 @@ Accepted 2026-11-06 for CRM-05 (PRD v2.5 §5A.4 "Tasks, notes and a unified acti
    - **Timeline**: day headings (Berlin) and event sentences ("completed *Follow-up call*", "moved it from New to Contacted"). Notes have Edit and Delete for the author or moderators.
    - **Note composer**: a plain textarea; Ctrl/⌘+Enter submits.
    - **Notification bell** in the header.
+
+10. **Archived deals take no new tasks or notes** (review F3).
+    - Creating a task or note on an archived deal, linking an existing task to one, or editing or deleting a note on one returns **409 `parent_archived`**: "This deal is archived. Restore it to add or change its tasks and notes." The service locks the deal row `FOR SHARE` while it checks.
+    - The SQL guards raise `deal is archived` for raw inserts and relinks.
+    - Existing tasks on an archived deal can still be completed or edited elsewhere (for example from /crm/tasks), because that adds no new link.
+    - The archived deal page is read-only: no Add task, no task edit or checkbox, no note composer and no note edit or delete. Restoring the deal reopens all of them.
+
+## Review round 1 (PR #15)
+
+- **B1, blocker, fixed:** erasure left the person's id in outbox and job payloads (§8). It is covered by the restricted-definer erasure test, which runs the definer as a `NOSUPERUSER NOBYPASSRLS` owner, and by the CRM-05 erasure test.
+- **F1, accepted as a soft follow-up:** task titles and details may name an erased person; they are not scrubbed now (§8).
+- **F2, fixed:** archived notes leave `note.archive` on the timeline (§5).
+- **F3, fixed:** archived deals refuse new tasks and notes (§10).
+- **Pinned by tests:** cross-tenant company and deal links on task create and update return 404.
+- **N1–N7:** non-blocking notes, parked as soft follow-ups in the acceptance record. The full review file was not available on the build machine; the fix round followed the brief.
 
 ## Deviations and limits (intentional)
 
