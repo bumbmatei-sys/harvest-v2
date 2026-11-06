@@ -274,6 +274,72 @@ export const opportunities = pgTable("opportunities", {
   check("opportunity_currency", sql`${t.currency} ~ '^[A-Z]{3}$'`),
   check("opportunity_closed_reason", sql`${t.closedReason} is null or length(${t.closedReason}) between 1 and 500`),
   check("opportunity_version", sql`${t.version} >= 1`)]);
+// CRM-05: tasks (ownership), notes and per-recipient in-app notifications.
+export const crmTaskStatuses = ["open", "done"] as const;
+export const crmTaskPriorities = ["none", "low", "medium", "high"] as const;
+export const crmTasks = pgTable("crm_tasks", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
+  title: text("title").notNull(), body: text("body").notNull().default(""),
+  status: text("status").$type<typeof crmTaskStatuses[number]>().notNull().default("open"),
+  priority: text("priority").$type<typeof crmTaskPriorities[number]>().notNull().default("none"),
+  dueAt: timestamp("due_at", { withTimezone: true }),
+  assigneeUserId: text("assignee_user_id").references(() => users.id),
+  contactId: uuid("contact_id"), companyId: uuid("company_id"), opportunityId: uuid("opportunity_id"),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }),
+  foreignKey({ columns: [t.tenantId, t.companyId], foreignColumns: [companies.tenantId, companies.id] }),
+  foreignKey({ columns: [t.tenantId, t.opportunityId], foreignColumns: [opportunities.tenantId, opportunities.id] }),
+  index("crm_tasks_assignee_idx").on(t.tenantId, t.assigneeUserId, t.status, t.dueAt),
+  index("crm_tasks_due_idx").on(t.tenantId, t.status, t.dueAt),
+  index("crm_tasks_contact_idx").on(t.tenantId, t.contactId).where(sql`${t.contactId} is not null`),
+  index("crm_tasks_company_idx").on(t.tenantId, t.companyId).where(sql`${t.companyId} is not null`),
+  index("crm_tasks_opportunity_idx").on(t.tenantId, t.opportunityId).where(sql`${t.opportunityId} is not null`),
+  check("crm_task_title", sql`length(btrim(${t.title})) between 1 and 200 and ${t.title} = btrim(${t.title})`),
+  check("crm_task_body", sql`length(${t.body}) <= 5000`),
+  check("crm_task_status", sql`${t.status} in ('open', 'done')`),
+  check("crm_task_priority", sql`${t.priority} in ('none', 'low', 'medium', 'high')`),
+  check("crm_task_completed", sql`(${t.status} = 'done') = (${t.completedAt} is not null)`),
+  check("crm_task_version", sql`${t.version} >= 1`)]);
+export const crmNotes = pgTable("crm_notes", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
+  body: text("body").notNull(),
+  contactId: uuid("contact_id"), companyId: uuid("company_id"), opportunityId: uuid("opportunity_id"),
+  editedAt: timestamp("edited_at", { withTimezone: true }),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }),
+  foreignKey({ columns: [t.tenantId, t.companyId], foreignColumns: [companies.tenantId, companies.id] }),
+  foreignKey({ columns: [t.tenantId, t.opportunityId], foreignColumns: [opportunities.tenantId, opportunities.id] }),
+  index("crm_notes_contact_idx").on(t.tenantId, t.contactId, t.createdAt).where(sql`${t.contactId} is not null`),
+  index("crm_notes_company_idx").on(t.tenantId, t.companyId, t.createdAt).where(sql`${t.companyId} is not null`),
+  index("crm_notes_opportunity_idx").on(t.tenantId, t.opportunityId, t.createdAt).where(sql`${t.opportunityId} is not null`),
+  // A note belongs to exactly one record.
+  check("crm_note_target", sql`num_nonnulls(${t.contactId}, ${t.companyId}, ${t.opportunityId}) = 1`),
+  check("crm_note_body", sql`length(btrim(${t.body})) between 1 and 10000`),
+  check("crm_note_version", sql`${t.version} >= 1`)]);
+export const crmNotificationKinds = ["task_assigned"] as const;
+export const crmNotifications = pgTable("crm_notifications", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
+  recipientUserId: text("recipient_user_id").notNull().references(() => users.id),
+  actorUserId: text("actor_user_id").references(() => users.id),
+  kind: text("kind").$type<typeof crmNotificationKinds[number]>().notNull(),
+  taskId: uuid("task_id").notNull(),
+  readAt: timestamp("read_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.taskId], foreignColumns: [crmTasks.tenantId, crmTasks.id] }),
+  index("crm_notifications_recipient_idx").on(t.tenantId, t.recipientUserId, t.readAt, t.createdAt),
+  check("crm_notification_kind", sql`${t.kind} in ('task_assigned')`)]);
 export const files = pgTable("files", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),

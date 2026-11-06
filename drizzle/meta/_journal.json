@@ -127,6 +127,27 @@
       "when": 1793947590814,
       "tag": "0017_crm_deal_restore_guard",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793955288678,
+      "tag": "0018_crm_tasks_notes",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793955319661,
+      "tag": "0019_crm_tasks_notes_policies",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793967153389,
+      "tag": "0020_crm05_erasure_outbox_archived_deals",
+      "breakpoints": true
     }
   ]
 }

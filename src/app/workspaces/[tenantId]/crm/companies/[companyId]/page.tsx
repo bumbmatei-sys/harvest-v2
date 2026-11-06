@@ -5,13 +5,14 @@ import { getDb } from "@/db/client";
 import { pageSession } from "@/server/page-session";
 import { getWorkspace } from "@/server/workspaces";
 import { getCompany } from "@/server/companies";
-import { listCompanyActivity } from "@/server/activity";
+import { getTimeline } from "@/server/activity";
 import { getRecordCustomFields } from "@/server/crm-fields";
 import { listRelatedDeals } from "@/server/crm-deals";
 import { AccessError, can } from "@/server/permissions";
 import { uuidInput } from "@/lib/contact-input";
 import { AccessState } from "@/components/access-state";
-import { ActivityTimeline } from "@/components/crm/activity-timeline";
+import { ActivityTimeline, NoteComposer } from "@/components/crm/activity-timeline";
+import { RelatedTasks } from "@/components/crm/tasks/related-tasks";
 import { CompanyDescription, CompanyFields } from "@/components/crm/company-fields";
 import { CompanyPeople } from "@/components/crm/company-people";
 import { initials } from "@/components/crm/format";
@@ -39,7 +40,7 @@ export default async function CompanyPage({ params }: { params: Promise<{ tenant
   const session = await pageSession(), { tenantId, companyId } = await params;
   const back = `/workspaces/${tenantId}/crm/companies`;
   if (!uuidInput.safeParse(tenantId).success || !uuidInput.safeParse(companyId).success) return <AccessState missing kind="company" href={back} />;
-  const result = await Promise.all([getWorkspace(getDb(), session.user.id, tenantId), getCompany(getDb(), session.user.id, tenantId, companyId), listCompanyActivity(getDb(), session.user.id, tenantId, companyId), getRecordCustomFields(getDb(), session.user.id, tenantId, "company", companyId)])
+  const result = await Promise.all([getWorkspace(getDb(), session.user.id, tenantId), getCompany(getDb(), session.user.id, tenantId, companyId), getTimeline(getDb(), session.user.id, tenantId, "company", companyId), getRecordCustomFields(getDb(), session.user.id, tenantId, "company", companyId)])
     .catch((error: unknown) => { if (error instanceof AccessError) return { status: error.status }; throw error; });
   if (!Array.isArray(result)) return <AccessState missing={result.status === 404} kind="company" href={result.status === 404 ? back : "/workspaces"} />;
   const [workspace, company, activity, custom] = result, writable = can(workspace.role, "companies:write");
@@ -73,10 +74,13 @@ export default async function CompanyPage({ params }: { params: Promise<{ tenant
         </>}
         context={<><Card className="gap-3"><CardHeader><CardTitle className="flex items-center gap-2 text-sm"><UsersRound className="size-4 text-muted-foreground" aria-hidden="true" />{t("people")}<Badge variant="secondary" className="rounded-md tabular-nums">{format.number(company.people.length, "integer")}</Badge></CardTitle></CardHeader>
             <CardContent><CompanyPeople tenantId={tenantId} company={{ id: company.id, name: company.name }} people={company.people} writable={can(workspace.role, "contacts:write")} /></CardContent></Card>
+          <RelatedTasks tenantId={tenantId} userId={session.user.id} role={workspace.role} type="company" record={{ id: company.id, name: company.name }} />
           {related && <RelatedDeals tenantId={tenantId} deals={related.deals} today={related.today}
             action={can(workspace.role, "opportunities:write") ? <DealForm tenantId={tenantId} members={related.members} company={{ id: company.id, label: company.name }} variant="outline" /> : undefined} />}</>}
         history={<Card className="gap-3"><CardHeader><CardTitle className="text-sm">{t("activityTab")}</CardTitle></CardHeader>
-            <CardContent><ActivityTimeline items={activity} tenantId={tenantId} subject="company" currentUserId={session.user.id} customLabels={Object.fromEntries(custom.definitions.map((field) => [field.key, field.label]))} /></CardContent></Card>} />
+            <CardContent className="space-y-5">{can(workspace.role, "notes:write") && <NoteComposer tenantId={tenantId} target="company" targetId={companyId} />}
+              <ActivityTimeline items={activity.items} nextCursor={activity.nextCursor} endpoint={`/api/workspaces/${tenantId}/companies/${companyId}/timeline`} tenantId={tenantId} subject="company" currentUserId={session.user.id}
+                customLabels={Object.fromEntries(custom.definitions.map((field) => [field.key, field.label]))} canWriteNotes={can(workspace.role, "notes:write")} canModerate={workspace.role === "owner" || workspace.role === "admin"} /></CardContent></Card>} />
     </div>
   </RecordProvider>;
 }

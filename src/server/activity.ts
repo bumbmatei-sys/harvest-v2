@@ -1,6 +1,9 @@
 import { and, desc, eq, inArray, isNull, like, or, sql } from "drizzle-orm";
 import type { Database, Transaction } from "../db/client";
-import { auditLogs, companies, contacts, users, workspaceMembers } from "../db/schema";
+import { auditLogs, companies, contacts, crmNotes, crmPipelineStages, crmTasks, opportunities, users, workspaceMembers } from "../db/schema";
+import { TIMELINE_PAGE_SIZE, decodeCursor, encodeCursor } from "../lib/crm-tasks";
+import { AccessError } from "./permissions";
+import { message } from "../i18n/messages";
 import { uuidInput } from "../lib/contact-input";
 import { withTenant } from "./tenancy";
 
@@ -10,6 +13,11 @@ import { withTenant } from "./tenancy";
  * so the erasure definer unlinks them together with the rest of that person's history.
  */
 export const crmActions = ["contact.create", "contact.update", "contact.consent_record", "contact.company_link", "contact.company_link_update", "contact.company_unlink", "company.create", "company.update"] as const;
+/** Ledger actions the unified timeline also shows (CRM-04 deals, CRM-05 tasks). Note text comes from the notes table. */
+export const timelineActions = [...crmActions, "opportunity.create", "opportunity.update", "opportunity.move", "opportunity.archive", "opportunity.restore",
+  "task.create", "task.update", "task.complete", "task.reopen", "task.reassign", "task.archive", "task.restore",
+  // Note lifecycle events that the live note itself cannot show (create/update are represented by the note).
+  "note.archive", "note.restore"] as const;
 export type CrmAction = typeof crmActions[number];
 export type ActivityMetadata = { companyId?: string; fields?: string };
 
@@ -66,5 +74,69 @@ export function listCompanyActivity(db: Database, userId: string, workspace: str
       and(inArray(auditLogs.action, ["contact.company_link", "contact.company_link_update", "contact.company_unlink"]), sql`${auditLogs.metadata}->>'companyId' = ${id}`),
     ))).orderBy(desc(auditLogs.createdAt), desc(auditLogs.id)).limit(ACTIVITY_LIMIT);
     return shape(tx, tenantId, rows);
+  });
+}
+
+// ---------------------------------------------------------------------------
+// CRM-05 unified timeline. Sources, newest first:
+//   - the audit ledger (the single source of truth for events): the record's own
+//     actions, plus task.* rows whose metadata names the record;
+//   - the record's live notes (their text lives only in crm_notes).
+// Future sources (purchases, email, social, forms: CRM-07) add a new `kind` here.
+export type TimelineSubject = "person" | "company" | "deal";
+export type TimelineEvent = Omit<ActivityItem, "action"> & {
+  kind: "event"; action: typeof timelineActions[number]; task: { id: string; title: string } | null; fromStage: string | null; toStage: string | null; toUserName: string | null;
+};
+export type TimelineNote = { kind: "note"; id: string; createdAt: Date; actor: { id: string; name: string | null; isMember: boolean }; body: string; editedAt: Date | null; version: number };
+export type TimelineItem = TimelineEvent | TimelineNote;
+const subjectPermission = { person: "contacts:read", company: "companies:read", deal: "opportunities:read" } as const;
+
+export function getTimeline(db: Database, userId: string, workspace: string, subject: TimelineSubject, record: string, cursor?: string | null) {
+  const id = uuidInput.parse(record), after = decodeCursor(cursor);
+  if (after === undefined) throw new AccessError(400, message("Errors.requestFailed"));
+  return withTenant(db, userId, uuidInput.parse(workspace), subjectPermission[subject], async (tx, tenantId) => {
+    const exists = subject === "person"
+      ? await tx.select({ id: contacts.id }).from(contacts).where(and(eq(contacts.tenantId, tenantId), eq(contacts.id, id), isNull(contacts.erasedAt)))
+      : subject === "company" ? await tx.select({ id: companies.id }).from(companies).where(and(eq(companies.tenantId, tenantId), eq(companies.id, id)))
+        : await tx.select({ id: opportunities.id }).from(opportunities).where(and(eq(opportunities.tenantId, tenantId), eq(opportunities.id, id)));
+    if (!exists.length) throw new AccessError(404, message(subject === "person" ? "Errors.thisContactIsNotAvailableInThisWorkspace" : subject === "company" ? "Errors.thisCompanyIsNotAvailableInThisWorkspace" : "Errors.thisDealIsNotAvailable"));
+    const metaKey = subject === "person" ? "contactId" : subject === "company" ? "companyId" : "opportunityId";
+    const relatedRows = sql`((${auditLogs.action} like 'task.%' or ${auditLogs.action} in ('note.archive', 'note.restore')) and ${auditLogs.metadata}->>${metaKey} = ${id})`;
+    const own = subject === "person" ? and(eq(auditLogs.targetId, id), like(auditLogs.action, "contact.%"))
+      : subject === "company" ? or(and(eq(auditLogs.targetId, id), like(auditLogs.action, "company.%")),
+        and(inArray(auditLogs.action, ["contact.company_link", "contact.company_link_update", "contact.company_unlink"]), sql`${auditLogs.metadata}->>'companyId' = ${id}`))
+        : and(eq(auditLogs.targetId, id), like(auditLogs.action, "opportunity.%"));
+    const before = (at: typeof auditLogs.createdAt | typeof crmNotes.createdAt, key: typeof auditLogs.id | typeof crmNotes.id) => (after ? sql`(${at}, ${key}) < (${after.at}::timestamptz, ${after.id}::uuid)` : undefined);
+    const stamp = (at: typeof auditLogs.createdAt | typeof crmNotes.createdAt) => sql<string>`to_char(${at} at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"')`;
+    const events = await tx.select({ row: auditLogs, at: stamp(auditLogs.createdAt) }).from(auditLogs).where(and(eq(auditLogs.tenantId, tenantId), or(own, relatedRows), before(auditLogs.createdAt, auditLogs.id)))
+      .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id)).limit(TIMELINE_PAGE_SIZE + 1);
+    const noteColumn = subject === "person" ? crmNotes.contactId : subject === "company" ? crmNotes.companyId : crmNotes.opportunityId;
+    const notes = await tx.select({ note: crmNotes, at: stamp(crmNotes.createdAt) }).from(crmNotes).where(and(eq(crmNotes.tenantId, tenantId), eq(noteColumn, id), isNull(crmNotes.archivedAt), before(crmNotes.createdAt, crmNotes.id)))
+      .orderBy(desc(crmNotes.createdAt), desc(crmNotes.id)).limit(TIMELINE_PAGE_SIZE + 1);
+    // Merge both sources on (time, id), newest first, and keep one page.
+    const merged = [...events.map(({ row, at }) => ({ at, id: row.id, row, note: null })), ...notes.map(({ note, at }) => ({ at, id: note.id, row: null, note }))]
+      .sort((a, b) => (a.at === b.at ? (a.id < b.id ? 1 : -1) : a.at < b.at ? 1 : -1));
+    const page = merged.slice(0, TIMELINE_PAGE_SIZE);
+    const shaped = await shape(tx, tenantId, page.flatMap((item) => (item.row ? [item.row] : [])));
+    const taskIds = [...new Set(page.flatMap((item) => (item.row?.action.startsWith("task.") && item.row.targetId ? [item.row.targetId] : [])))];
+    const tasks = taskIds.length ? await tx.select({ id: crmTasks.id, title: crmTasks.title }).from(crmTasks).where(and(eq(crmTasks.tenantId, tenantId), inArray(crmTasks.id, taskIds))) : [];
+    const stageIds = [...new Set(page.flatMap((item) => (item.row ? [item.row.metadata.fromStageId, item.row.metadata.toStageId] : [])).filter((value): value is string => !!value && uuidInput.safeParse(value).success))];
+    const stages = stageIds.length ? await tx.select({ id: crmPipelineStages.id, name: crmPipelineStages.name }).from(crmPipelineStages).where(and(eq(crmPipelineStages.tenantId, tenantId), inArray(crmPipelineStages.id, stageIds))) : [];
+    const people = [...new Set([...page.flatMap((item) => (item.note ? [item.note.createdBy] : [])), ...page.flatMap((item) => (item.row?.metadata.toUserId ? [item.row.metadata.toUserId] : []))])];
+    const members = people.length ? await tx.select({ id: users.id, name: users.name, email: users.email }).from(workspaceMembers).innerJoin(users, eq(users.id, workspaceMembers.userId))
+      .where(and(eq(workspaceMembers.tenantId, tenantId), inArray(workspaceMembers.userId, people))) : [];
+    const memberName = (memberId: string) => { const found = members.find((item) => item.id === memberId); return found ? found.name || found.email : null; };
+    const items: TimelineItem[] = page.map((item) => {
+      if (item.note) return { kind: "note", id: item.note.id, createdAt: item.note.createdAt, body: item.note.body, editedAt: item.note.editedAt, version: item.note.version,
+        actor: { id: item.note.createdBy, name: memberName(item.note.createdBy), isMember: members.some((member) => member.id === item.note!.createdBy) } };
+      const base = shaped.find((entry) => entry.id === item.row!.id)!;
+      const stageName = (stageId?: string) => (stageId ? stages.find((stage) => stage.id === stageId)?.name ?? null : null);
+      return { ...base, kind: "event", action: item.row!.action as TimelineEvent["action"],
+        task: item.row!.action.startsWith("task.") ? tasks.find((task) => task.id === item.row!.targetId) ?? null : null,
+        fromStage: stageName(item.row!.metadata.fromStageId), toStage: stageName(item.row!.metadata.toStageId),
+        toUserName: item.row!.metadata.toUserId ? memberName(item.row!.metadata.toUserId) : null };
+    });
+    const last = page.at(-1);
+    return { items, nextCursor: merged.length > TIMELINE_PAGE_SIZE && last ? encodeCursor(last.at, last.id) : null };
   });
 }

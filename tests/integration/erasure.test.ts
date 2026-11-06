@@ -5,6 +5,8 @@ import { users } from "../../src/db/schema";
 import { createWorkspace, putMember } from "../../src/server/workspaces";
 import { createContact, eraseContact, getContact, listContacts, recordConsent, updateContact } from "../../src/server/contacts";
 import { withTenant } from "../../src/server/tenancy";
+import { createNote, createTask } from "../../src/server/crm-tasks";
+import { flushOutbox } from "../../src/server/jobs/service";
 
 let fixture: Awaited<ReturnType<typeof testDatabase>>, tenantA: string, tenantB: string;
 let restrictedRoleCreated = false;
@@ -20,7 +22,7 @@ beforeAll(async () => {
 afterAll(async () => {
   if (restrictedRoleCreated) {
     await fixture.admin.query("do $$ begin execute format('alter function public.erase_contact(uuid,uuid) owner to %I', current_user); end $$");
-    for (const table of ["contacts", "contact_consents", "contact_identifiers", "contact_company_links", "crm_field_values", "crm_saved_views", "opportunities", "crm_pipeline_stages", "workspace_members", "audit_logs"]) {
+    for (const table of ["contacts", "contact_consents", "contact_identifiers", "contact_company_links", "crm_field_values", "crm_saved_views", "opportunities", "crm_pipeline_stages", "crm_tasks", "crm_notes", "outbox_events", "jobs", "workspace_members", "audit_logs"]) {
       await fixture.admin.query(`drop policy if exists test_restricted_erasure on ${table}`);
     }
     await fixture.admin.query("drop owned by harvest_test_eraser");
@@ -178,6 +180,14 @@ describe("controlled contact erasure", () => {
   it("supports a non-superuser definer with FORCE RLS and tenant checks active", async () => {
     const a = await createContact(fixture.db, "eraser-a", tenantA, { name: "Restricted owner test", email: "restricted@example.test" });
     await recordConsent(fixture.db, "eraser-a", tenantA, a.id, proof);
+    // B1: a task event dispatched into a job, then a note event left undispatched; both payloads name the person.
+    await createTask(fixture.db, "eraser-a", tenantA, { title: "Restricted follow-up", contactId: a.id });
+    await flushOutbox(fixture.db, "eraser-a", tenantA);
+    await createNote(fixture.db, "eraser-a", tenantA, { target: "person", targetId: a.id, body: "Restricted note" });
+    const payloads = async () => (await fixture.admin.query(
+      "select 'outbox' as source, dispatched_at is not null as dispatched, payload from outbox_events where tenant_id=$1 and kind like 'crm.%' union all select 'job', true, payload from jobs where tenant_id=$1 and kind like 'crm.%'", [tenantA])).rows as { source: string; dispatched: boolean; payload: Record<string, unknown> }[];
+    const before = await payloads();
+    expect(before.filter((row) => row.payload.contactId === a.id).map((row) => `${row.source}:${row.dispatched}`).sort()).toEqual(["job:true", "outbox:false", "outbox:true"]);
     await fixture.admin.query("create role harvest_test_eraser nologin nosuperuser nobypassrls noinherit");
     restrictedRoleCreated = true;
     await fixture.admin.query("grant usage, create on schema public to harvest_test_eraser");
@@ -185,8 +195,11 @@ describe("controlled contact erasure", () => {
     await fixture.admin.query("grant select,delete on contact_identifiers,contact_company_links,crm_field_values to harvest_test_eraser");
     await fixture.admin.query("grant select,update on crm_saved_views,opportunities to harvest_test_eraser");
     await fixture.admin.query("grant select on crm_pipeline_stages to harvest_test_eraser");
+    await fixture.admin.query("grant select,update on crm_tasks to harvest_test_eraser");
+    await fixture.admin.query("grant select,delete on crm_notes to harvest_test_eraser");
+    await fixture.admin.query("grant select,update on outbox_events,jobs to harvest_test_eraser");
     await fixture.admin.query("grant select,insert,update on audit_logs to harvest_test_eraser");
-    for (const table of ["contacts", "contact_consents", "contact_identifiers", "contact_company_links", "crm_field_values", "crm_saved_views", "opportunities", "crm_pipeline_stages", "workspace_members", "audit_logs"]) {
+    for (const table of ["contacts", "contact_consents", "contact_identifiers", "contact_company_links", "crm_field_values", "crm_saved_views", "opportunities", "crm_pipeline_stages", "crm_tasks", "crm_notes", "outbox_events", "jobs", "workspace_members", "audit_logs"]) {
       await fixture.admin.query(`create policy test_restricted_erasure on ${table} to harvest_test_eraser using (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid) with check (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid)`);
     }
     await fixture.admin.query("alter function public.erase_contact(uuid,uuid) owner to harvest_test_eraser");
@@ -194,6 +207,17 @@ describe("controlled contact erasure", () => {
     expect(await eraseContact(fixture.db, "eraser-a", tenantA, a.id)).toEqual({ erased: true });
     const { rows } = await fixture.admin.query("select * from contact_consents where tenant_id=$1 and redacted_at is not null", [tenantA]);
     expect(rows.length).toBeGreaterThan(0);
+    const after = await payloads();
+    expect(after).toHaveLength(before.length);
+    expect(after.every((row) => row.payload.contactId === null)).toBe(true);
+    expect(JSON.stringify(after)).not.toContain(a.id);
+    expect((await fixture.admin.query("select proowner::regrole::text as owner from pg_proc where oid='public.erase_contact(uuid,uuid)'::regprocedure")).rows[0]).toEqual({ owner: "harvest_test_eraser" });
     expect((await fixture.admin.query("select rolbypassrls,rolsuper from pg_roles where rolname='harvest_test_eraser'")).rows[0]).toEqual({ rolbypassrls: false, rolsuper: false });
+  });
+
+  it("gives the migration role tenant-scoped erasure policies on outbox_events and jobs", async () => {
+    const { rows } = await fixture.admin.query("select tablename, qual, with_check from pg_policies where policyname = 'erasure_owner_tenant' and tablename in ('outbox_events', 'jobs') order by tablename");
+    expect(rows.map((row) => row.tablename)).toEqual(["jobs", "outbox_events"]);
+    for (const row of rows) { expect(row.qual).toContain("app.tenant_id"); expect(row.with_check).toContain("app.tenant_id"); }
   });
 });
