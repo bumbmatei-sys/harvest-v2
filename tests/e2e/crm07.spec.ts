@@ -211,8 +211,13 @@ test("CRM-07 copy: organizations wording and vendor-free screens at 390 and 1440
         await capture(page, `${screen.name}-${width}-${mode}`);
         if (screen.name === "person-record") {
           await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+          // The cards sit inside the scrolling <main>: grow the viewport so neither is clipped at the fold.
+          const size = page.viewportSize()!;
+          const overflow = await page.evaluate(() => { const main = document.querySelector("main"); return main ? main.scrollHeight - main.clientHeight : 0; });
+          if (overflow > 0) await page.setViewportSize({ width: size.width, height: size.height + overflow });
           await page.getByRole("list", { name: "Contact permissions" }).locator("xpath=ancestor::*[@data-slot='card'][1]").screenshot({ path: `${evidence}/consent-section-${width}-${mode}.png`, animations: "disabled" });
           await page.getByRole("list", { name: "Timeline" }).locator("xpath=ancestor::*[@data-slot='card'][1]").screenshot({ path: `${evidence}/activity-timeline-${width}-${mode}.png`, animations: "disabled" });
+          if (overflow > 0) await page.setViewportSize(size);
         }
       }
     }
