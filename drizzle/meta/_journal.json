@@ -148,6 +148,13 @@
       "when": 1793967153389,
       "tag": "0020_crm05_erasure_outbox_archived_deals",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793976731851,
+      "tag": "0021_campaigns",
+      "breakpoints": true
     }
   ]
 }
