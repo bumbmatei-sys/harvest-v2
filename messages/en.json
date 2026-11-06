@@ -982,6 +982,7 @@
     "loadingPipelines": "Loading pipelines",
     "loadingDeal": "Loading deal",
     "changeCompany": "Change company",
-    "changePerson": "Change person"
+    "changePerson": "Change person",
+    "you": "You"
   }
 }

@@ -38,7 +38,7 @@ export default async function DealPage({ params }: { params: Promise<{ tenantId:
   const stage = pipeline.stages.find((item) => item.id === deal.stageId)!;
   const board = pipeline.isDefault ? back : `${back}/${pipeline.id}`;
   const late = isStale(stage.kind, deal.expectedCloseDate, today);
-  const actor = (item: (typeof activity)[number]) => item.actor.name ?? (item.actor.isMember ? t("aWorkspaceMember") : t("aFormerMember"));
+  const actor = (item: (typeof activity)[number]) => (item.actor.id === session.user.id ? t("you") : item.actor.name ?? (item.actor.isMember ? t("aWorkspaceMember") : t("aFormerMember")));
   const describe = (item: (typeof activity)[number]) => {
     if (item.action === "opportunity.create") return t("activity.created", { actor: actor(item), stage: item.toStage ?? t("aStage") });
     if (item.action === "opportunity.move") return t("activity.moved", { actor: actor(item), from: item.fromStage ?? t("aStage"), to: item.toStage ?? t("aStage") });

@@ -204,8 +204,10 @@ test("CRM-04: pipelines, deals, board moves, list, deal detail, related deals, s
     expect((await expectBoardShell(page)).boardScrolls).toBe(true);
     await capture(page, `board-${viewport.width}-light`);
     await page.goto(`${root}/crm/pipelines?mode=list`);
+    await expect(page.getByRole("table", { name: "Deals" })).toBeVisible();
     await expectFullWidthShell(page);
     await page.goto(`${root}/crm/settings/pipelines`);
+    await expect(page.getByRole("table", { name: "Stages of Pipeline" })).toBeVisible();
     await expectFullWidthShell(page);
   }
   await page.setViewportSize({ width: 1440, height: 1000 });

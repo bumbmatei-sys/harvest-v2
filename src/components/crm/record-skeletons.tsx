@@ -22,7 +22,7 @@ export function BoardSkeleton({ label }: { label: string }) {
   return <div role="status" aria-label={label} className="space-y-4">
     <div className="space-y-2"><Skeleton className="h-3 w-12" /><Skeleton className="h-8 w-40" /><Skeleton className="h-4 w-72 max-w-full" /></div>
     <div className="flex gap-2"><Skeleton className="h-9 w-40" /><Skeleton className="h-9 flex-1" /><Skeleton className="h-9 w-24" /></div>
-    <div className="flex gap-3 overflow-hidden">{Array.from({ length: 5 }, (_, column) => <div key={column} className="w-72 shrink-0 space-y-2 rounded-xl border p-2"><Skeleton className="h-5 w-24" />{Array.from({ length: 3 - (column % 3) }, (_, card) => <Skeleton key={card} className="h-20 rounded-lg" />)}</div>)}</div>
+    <div className="flex gap-3">{Array.from({ length: 5 }, (_, column) => <div key={column} className={`min-w-0 flex-1 space-y-2 rounded-xl border p-2 ${column > 0 ? "hidden sm:block" : ""} ${column > 2 ? "sm:hidden lg:block" : ""}`}><Skeleton className="h-5 w-24" />{Array.from({ length: 3 - (column % 3) }, (_, card) => <Skeleton key={card} className="h-20 rounded-lg" />)}</div>)}</div>
   </div>;
 }
 export function PipelinesLoading() { const t = useTranslations("Deals"); return <BoardSkeleton label={t("loadingPipelines")} />; }

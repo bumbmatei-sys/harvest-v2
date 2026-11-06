@@ -391,7 +391,7 @@ export function moveDeal(db: Database, userId: string, workspace: string, deal: 
   });
 }
 
-export type DealActivity = { id: string; action: string; createdAt: Date; actor: { name: string | null; isMember: boolean }; fields: string[]; fromStage: string | null; toStage: string | null };
+export type DealActivity = { id: string; action: string; createdAt: Date; actor: { id: string; name: string | null; isMember: boolean }; fields: string[]; fromStage: string | null; toStage: string | null };
 
 /** A deal with its pipeline (live stages plus its own stage, even if archived), owners and ledger activity. */
 export function getDeal(db: Database, userId: string, workspace: string, deal: string) {
@@ -410,7 +410,7 @@ export function getDeal(db: Database, userId: string, workspace: string, deal: s
     const stageName = (stageId?: string) => (stageId ? pipeline.stages.find((stage) => stage.id === stageId)?.name ?? null : null);
     const activity: DealActivity[] = logs.map((log) => {
       const actor = actors.find((item) => item.id === log.actorId);
-      return { id: log.id, action: log.action, createdAt: log.createdAt, actor: { name: actor?.name ?? null, isMember: !!actor }, fields: log.metadata.fields ? log.metadata.fields.split(",").filter(Boolean) : [], fromStage: stageName(log.metadata.fromStageId), toStage: stageName(log.metadata.toStageId) };
+      return { id: log.id, action: log.action, createdAt: log.createdAt, actor: { id: log.actorId, name: actor?.name || null, isMember: !!actor }, fields: log.metadata.fields ? log.metadata.fields.split(",").filter(Boolean) : [], fromStage: stageName(log.metadata.fromStageId), toStage: stageName(log.metadata.toStageId) };
     });
     return { deal: named, pipeline: { ...pipeline, stages }, members: await loadMembers(tx, tenantId), activity, today: crmToday() };
   });
