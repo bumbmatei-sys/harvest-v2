@@ -69,7 +69,21 @@ Design: [ADR 0009](../decisions/0009-crm-pipelines-and-deals.md). Reference stud
 
 ## Commands and results (this branch, 2026-11-06)
 
-RESULTS_TABLE
+Database-backed tests used `TEST_DATABASE_URL` against a local PostgreSQL 16 (embedded-postgres refuses to run as root in this container), as in CRM-01/02/03. Browser runs used the same uncommitted local Playwright config (Chromium at `/opt/pw-browsers/chromium`) against `scripts/e2e-server.ts`.
+
+| Command | Result |
+| --- | --- |
+| `npm run lint` | exit 0; ESLint clean; "Source guards: no hard-coded JSX copy, feedback, or component colors." |
+| `npm run typecheck` | exit 0 |
+| `npm test` (unit) | 12 files, **136 passed** (new: `crm-deals.test.ts`, 7) |
+| `TEST_DATABASE_URL=… npm run test:rls` (integration) | 18 files, **182 passed** (new: `crm-deals.test.ts`, 19 tests; `crm04-upgrade.test.ts`) |
+| `npx drizzle-kit check` / `generate` | "Everything's fine" / "No schema changes, nothing to migrate" |
+| `npm run build` | exit 0; the new pages and API routes compiled |
+| `npx playwright test` (all 9 specs, 11 tests) | Full run: **8 passed, 3 failed**: `crm04` (the test read column headings before the board rendered), `foundation` (axe ran while the sign-in button was still fading back from its disabled state) and `layout` (contrast on the mobile dark profile page during the theme switch). The first two had test fixes. Rerun of the three: **4/4 passed**; `layout` passed with no change, so it was a flake. `crm04` also passed on its own before the full run. |
+
+`npm run test:rls:neon` was **not** run (no Neon credentials; not authorized).
+
+Test-only change outside CRM-04: `foundation.spec.ts` now waits for the sign-in button to be enabled and fully opaque before its accessibility scan, as CRM-03 did for the workspace button. The page is unchanged.
 
 ## Migration notes
 
