@@ -4,8 +4,9 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { Building, Building2, ChevronRight, ChevronsUpDown, Files, Kanban, LogOut, Palette, SlidersHorizontal, Sprout, UsersRound, Workflow } from "lucide-react";
+import { Building, Building2, ChevronRight, ChevronsUpDown, Files, Kanban, ListChecks, LogOut, Palette, SlidersHorizontal, Sprout, UsersRound, Workflow } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
+import { NotificationsMenu } from "@/components/crm/tasks/notifications-menu";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { BrandThemeMenu, ThemeToggle, WorkspaceTheme } from "@/components/theme-controls";
 import type { BrandTheme } from "@/lib/theme";
@@ -63,7 +64,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
   const [busy, setBusy] = useState(false);
   const [navigationContainer, setNavigationContainer] = useState<HTMLElement | null>(null);
   const workspace = workspaces.find((item) => item.tenantId === selected);
-  const section = pathname === "/profile" ? t("profile") : pathname.includes("/crm/people") || pathname.includes("/contacts") ? t("people") : pathname.includes("/crm/companies") ? t("companies") : pathname.includes("/files") ? t("files") : pathname.includes("/crm/settings/pipelines") ? t("pipelineSettings") : pathname.includes("/crm/pipelines") || pathname.includes("/crm/deals") ? t("pipelines"): pathname.includes("/crm/settings/fields") ? t("crmFields"): pathname.endsWith("/appearance") ? t("appearance") : t("workspaces");
+  const section = pathname === "/profile" ? t("profile") : pathname.includes("/crm/people") || pathname.includes("/contacts") ? t("people") : pathname.includes("/crm/companies") ? t("companies") : pathname.includes("/files") ? t("files") : pathname.includes("/crm/tasks") ? t("tasks"): pathname.includes("/crm/settings/pipelines") ? t("pipelineSettings") : pathname.includes("/crm/pipelines") || pathname.includes("/crm/deals") ? t("pipelines"): pathname.includes("/crm/settings/fields") ? t("crmFields"): pathname.endsWith("/appearance") ? t("appearance") : t("workspaces");
   async function signOut() {
     setBusy(true); setError("");
     try {
@@ -94,6 +95,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
               <NavigationLink href={`/workspaces/${selected}/crm/people`} active={pathname.includes("/crm/people")} label={t("people")} icon={<UsersRound aria-hidden="true" />} />
               <NavigationLink href={`/workspaces/${selected}/crm/companies`} active={pathname.includes("/crm/companies")} label={t("companies")} icon={<Building aria-hidden="true" />} />
               <NavigationLink href={`/workspaces/${selected}/crm/pipelines`} active={pathname.includes("/crm/pipelines") || pathname.includes("/crm/deals")} label={t("pipelines")} icon={<Kanban aria-hidden="true" />} />
+              <NavigationLink href={`/workspaces/${selected}/crm/tasks`} active={pathname.includes("/crm/tasks")} label={t("tasks")} icon={<ListChecks aria-hidden="true" />} />
             </NavigationGroup>
             <NavigationGroup label={t("workspace")}>
               <NavigationLink href={`/workspaces/${selected}/files`} active={pathname.includes("/files")} label={t("files")} icon={<Files aria-hidden="true" />} />
@@ -134,6 +136,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
           {workspace && <><BreadcrumbItem className="min-w-0"><BreadcrumbLink asChild className="truncate"><Link href={`/workspaces/${selected}/crm/people`}>{workspace.name}</Link></BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator /></>}
           <BreadcrumbItem><BreadcrumbPage className="font-medium">{section}</BreadcrumbPage></BreadcrumbItem>
         </BreadcrumbList></Breadcrumb>
+        {workspace && <div className="ml-auto flex items-center"><NotificationsMenu tenantId={workspace.tenantId} /></div>}
       </header>
       <main id="main-content" className="min-h-0 flex-1 overflow-y-auto">
         {/* Workspace screens use the full width beside the sidebar with compact gutters

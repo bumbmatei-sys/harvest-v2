@@ -6,7 +6,7 @@ import { getDb } from "@/db/client";
 import { pageSession } from "@/server/page-session";
 import { getWorkspace } from "@/server/workspaces";
 import { getContact } from "@/server/contacts";
-import { listContactActivity } from "@/server/activity";
+import { getTimeline } from "@/server/activity";
 import { getRecordCustomFields } from "@/server/crm-fields";
 import { listRelatedDeals } from "@/server/crm-deals";
 import { AccessError, can } from "@/server/permissions";
@@ -15,7 +15,8 @@ import type { ConsentLabel } from "@/lib/consent-labels";
 import { AccessState } from "@/components/access-state";
 import { ConsentForm } from "@/components/consent-form";
 import { EraseContact } from "@/components/erase-contact";
-import { ActivityTimeline } from "@/components/crm/activity-timeline";
+import { ActivityTimeline, NoteComposer } from "@/components/crm/activity-timeline";
+import { RelatedTasks } from "@/components/crm/tasks/related-tasks";
 import { CompanyLinks } from "@/components/crm/company-links";
 import { ContactFields, ContactNotes } from "@/components/crm/contact-fields";
 import { StaleNotice } from "@/components/crm/stale-notice";
@@ -48,7 +49,7 @@ export default async function PersonPage({ params }: { params: Promise<{ tenantI
   const session = await pageSession(), { tenantId, contactId } = await params;
   const back = `/workspaces/${tenantId}/crm/people`;
   if (!uuidInput.safeParse(tenantId).success || !uuidInput.safeParse(contactId).success) return <AccessState missing href={back} />;
-  const result = await Promise.all([getWorkspace(getDb(), session.user.id, tenantId), getContact(getDb(), session.user.id, tenantId, contactId), listContactActivity(getDb(), session.user.id, tenantId, contactId), getRecordCustomFields(getDb(), session.user.id, tenantId, "person", contactId)])
+  const result = await Promise.all([getWorkspace(getDb(), session.user.id, tenantId), getContact(getDb(), session.user.id, tenantId, contactId), getTimeline(getDb(), session.user.id, tenantId, "person", contactId), getRecordCustomFields(getDb(), session.user.id, tenantId, "person", contactId)])
     .catch((error: unknown) => { if (error instanceof AccessError) return { status: error.status }; throw error; });
   if (!Array.isArray(result)) return <AccessState missing={result.status === 404} href={result.status === 404 ? back : "/workspaces"} />;
   const [workspace, contact, activity, custom] = result, writable = can(workspace.role, "contacts:write");
@@ -82,6 +83,7 @@ export default async function PersonPage({ params }: { params: Promise<{ tenantI
             <CardContent><CustomFields fields={custom.definitions} values={custom.values} related={custom.related} tenantId={tenantId} manageHref={can(workspace.role, "crm:fields_write") ? `/workspaces/${tenantId}/crm/settings/fields?object=person` : null} /></CardContent></Card>}
           <Card className="gap-3"><CardHeader><CardTitle className="flex items-center gap-2 text-sm"><Building2 className="size-4 text-muted-foreground" aria-hidden="true" />{t("companies")}</CardTitle></CardHeader>
             <CardContent><CompanyLinks tenantId={tenantId} contactId={contactId} links={contact.companies} writable={writable} /></CardContent></Card>
+          <RelatedTasks tenantId={tenantId} userId={session.user.id} role={workspace.role} type="person" record={{ id: contact.id, name: contact.name }} />
           {related && <RelatedDeals tenantId={tenantId} deals={related.deals} today={related.today}
             action={can(workspace.role, "opportunities:write") ? <DealForm tenantId={tenantId} members={related.members} person={{ id: contact.id, label: contact.name }} variant="outline" /> : undefined} />}
         </>}
@@ -95,7 +97,10 @@ export default async function PersonPage({ params }: { params: Promise<{ tenantI
         history={<>
           <Tabs defaultValue="activity" className="gap-3">
             <TabsList><TabsTrigger value="activity">{t("activityTab")}</TabsTrigger><TabsTrigger value="consent">{old("consentHistory")}</TabsTrigger></TabsList>
-            <TabsContent value="activity"><Card><CardContent><ActivityTimeline items={activity} tenantId={tenantId} subject="person" currentUserId={session.user.id} customLabels={Object.fromEntries(custom.definitions.map((field) => [field.key, field.label]))} /></CardContent></Card></TabsContent>
+            <TabsContent value="activity"><Card><CardContent className="space-y-5">
+              {can(workspace.role, "notes:write") && <NoteComposer tenantId={tenantId} target="person" targetId={contactId} />}
+              <ActivityTimeline items={activity.items} nextCursor={activity.nextCursor} endpoint={`/api/workspaces/${tenantId}/contacts/${contactId}/timeline`} tenantId={tenantId} subject="person" currentUserId={session.user.id}
+                customLabels={Object.fromEntries(custom.definitions.map((field) => [field.key, field.label]))} canWriteNotes={can(workspace.role, "notes:write")} canModerate={workspace.role === "owner" || workspace.role === "admin"} /></CardContent></Card></TabsContent>
             <TabsContent value="consent"><Card><CardHeader className="flex flex-row items-center justify-between gap-3"><CardTitle className="text-sm">{old("consentHistory")}</CardTitle>{writable && <ConsentForm tenantId={tenantId} contactId={contactId} />}</CardHeader>
               <CardContent>{contact.consents.length ? <ItemGroup className="gap-5">{contact.consents.map((consent) => <Item role="listitem" key={consent.id} className="min-w-0 items-start rounded-none border-l-2 border-l-border p-0 pl-4"><ItemContent className="min-w-0"><ItemHeader><div className="flex flex-wrap items-center gap-2"><span className="text-xs font-medium capitalize">{consent.channel ? labels(consent.channel as ConsentLabel) : old("channelUnavailable")}</span><Badge variant="secondary" className={consent.status === "granted" ? "bg-success-tint text-success" : consent.status === "withdrawn" ? "bg-warning-tint text-warning" : ""}>{labels(consent.status as ConsentLabel)}</Badge>{consent.status === "granted" && contact.effectiveConsents.some((event) => event.channel === consent.channel && event.purpose === consent.purpose && event.status === "withdrawn") && <Badge variant="secondary" className="text-muted-foreground">{old("didNotOverrideWithdrawal")}</Badge>}<time className="ml-auto text-[11px] text-muted-foreground" dateTime={consent.occurredAt.toISOString()}>{format.dateTime(consent.occurredAt, "dateTime")}</time></div></ItemHeader><ItemTitle className="text-xs">{old("consentNotice", { purpose: labels(consent.purpose as ConsentLabel), version: labels(consent.noticeVersion as ConsentLabel) })}</ItemTitle><p className="mt-1 text-[11px] text-muted-foreground">{old("recordedBy", { date: format.dateTime(consent.recordedAt, "dateTime"), actor: consent.recordedBy ? consent.recordedBy === session.user.id ? old("you") : old("aWorkspaceMember") : old("legacyActorUnavailable") })}</p><p className="mt-2 break-words text-xs font-medium">{consent.source}</p><p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-muted-foreground">{consent.evidence}</p></ItemContent></Item>)}</ItemGroup>
                 : <Empty className="p-3 py-5 md:p-3"><EmptyHeader><EmptyMedia variant="icon"><ShieldCheck aria-hidden="true" /></EmptyMedia><EmptyTitle className="text-sm">{old("noConsentRecorded")}</EmptyTitle><EmptyDescription>{old("whenSomeoneSharesAChannelPreferenceRecordTheir")}</EmptyDescription></EmptyHeader></Empty>}</CardContent></Card></TabsContent>
