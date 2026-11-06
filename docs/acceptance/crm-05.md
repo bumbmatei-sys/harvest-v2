@@ -68,7 +68,24 @@ Design: [ADR 0010](../decisions/0010-crm-tasks-notes-timeline.md). Reference stu
 
 Database-backed tests used `TEST_DATABASE_URL` against a local PostgreSQL 16, as in CRM-01 to CRM-04. Browser runs used an uncommitted local Playwright config (Chromium at `/opt/pw-browsers/chromium`) against `scripts/e2e-server.ts`.
 
-RESULTS_TABLE
+| Command | Result |
+| --- | --- |
+| `npm run lint` | exit 0; ESLint clean; "Source guards: no hard-coded JSX copy, feedback, or component colors." |
+| `npm run typecheck` | exit 0 |
+| `npm test` (unit) | 13 files, **145 passed** (new: `crm-tasks.test.ts`, 7: DST, overdue and buckets, validation, query, cursor, permissions) |
+| `TEST_DATABASE_URL=… npm run test:rls` (integration) | 21 files, **210 passed** (new: `crm-tasks.test.ts`, 17, covering RLS, outbox and fingerprint 409, guards, filters, notifications, notes, timeline merge and paging, two-tenant isolation and erasure; `crm05-upgrade.test.ts`; `erasure.test.ts` extended) |
+| `npx drizzle-kit check` / `generate` | "Everything's fine" / "No schema changes, nothing to migrate" |
+| `npm run build` | exit 0; `public/offline.css` regenerated and committed |
+| `npx playwright test` (all 10 specs, 12 tests) | Final full run after rebasing onto `55076b2`: **12/12 passed** (7.9 min). Earlier full runs on this branch hit three intermittent test-timing failures, fixed or noted below. |
+
+Browser-test timing fixes (test-only; pages unchanged):
+- `crm05.spec.ts` waits for hydration before typing a note. Before that, keystrokes made before React hydrated were lost.
+- `layout.spec.ts` (not a CRM-05 file) waits for CSS colour transitions to finish after the light/dark switch before the accessibility scan. Its axe check had caught a primary button mid-fade on `/profile` and `/workspaces` (contrast 1.96 between interpolated colours); the fix passed 6 of 6 repeated runs.
+- `pr01b.spec.ts` failed in 2 of 4 full runs when Next's dev "issues" badge covered the sidebar's bottom-left toggle. It passed alone three times and in the last two full runs. Browser console capture during a full run showed no new errors from CRM-05 code. The badge comes from the dev-only hydration warning that Playwright's screenshot caret hiding causes. The spec is unchanged; this is a known dev-server flake, recorded here rather than masked.
+
+Two genuine accessibility fixes came out of the CRM-05 run:
+- the timeline's day headings went from `h3` to `h2`, fixing the heading order;
+- the notifications popover got an accessible name.
 
 `npm run test:rls:neon` was **not** run (no Neon credentials; not authorized).
 
