@@ -81,7 +81,7 @@ Database-backed tests used `TEST_DATABASE_URL` against a local PostgreSQL 16, as
 Browser-test timing fixes (test-only; pages unchanged):
 - `crm05.spec.ts` waits for hydration before typing a note. Before that, keystrokes made before React hydrated were lost.
 - `layout.spec.ts` (not a CRM-05 file) waits for CSS colour transitions to finish after the light/dark switch before the accessibility scan. Its axe check had caught a primary button mid-fade on `/profile` and `/workspaces` (contrast 1.96 between interpolated colours); the fix passed 6 of 6 repeated runs.
-- `pr01b.spec.ts` failed in 2 of 4 full runs when Next's dev "issues" badge covered the sidebar's bottom-left toggle. It passed alone three times and in the last two full runs. Browser console capture during a full run showed no new errors from CRM-05 code. The badge comes from the dev-only hydration warning that Playwright's screenshot caret hiding causes. The spec is unchanged; this is a known dev-server flake, recorded here rather than masked.
+- `pr01b.spec.ts` failed in 2 of 4 full runs when Next's dev "issues" badge covered the sidebar's bottom-left toggle. It passed alone twice and in the last two full runs. Browser console capture during a full run showed no new errors from CRM-05 code. The badge comes from the dev-only hydration warning that Playwright's screenshot caret hiding causes. The spec is unchanged; this is a known dev-server flake, recorded here rather than masked.
 
 Two genuine accessibility fixes came out of the CRM-05 run:
 - the timeline's day headings went from `h3` to `h2`, fixing the heading order;
