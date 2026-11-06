@@ -191,8 +191,7 @@ test("CRM-04: pipelines, deals, board moves, list, deal detail, related deals, s
   await expect(page.getByText("Move the deals out of this stage before archiving it.")).toBeVisible();
   await both(page, "pipeline-settings");
   await page.goto(`${root}/crm/pipelines`);
-  const headings = await page.getByRole("region", { name: "Deals board" }).getByRole("heading").allTextContents();
-  expect(headings).toEqual(["New", "Contacted", "Proposal", "Qualified", "Won", "Lost"]);
+  await expect(page.getByRole("region", { name: "Deals board" }).getByRole("heading")).toHaveText(["New", "Contacted", "Proposal", "Qualified", "Won", "Lost"]);
 
   // Responsive: tablet with the sidebar expanded, and a phone. The board scrolls inside itself only.
   for (const viewport of [{ width: 1024, height: 900 }, { width: 390, height: 844 }]) {
