@@ -246,7 +246,7 @@ export function listDeals(db: Database, userId: string, workspace: string, pipel
     const current = pickPipeline(pipelines, pipeline ? uuidInput.parse(pipeline) : null);
     const members = await loadMembers(tx, tenantId);
     const today = crmToday();
-    if (!current) return { pipelines, pipeline: null, deals: [], total: 0, page: 1, stageTotals: {} as Record<string, { count: number; amount: number }>, openTotal: 0, weightedTotal: 0, today, members, empty: true };
+    if (!current) return { pipelines, pipeline: null, deals: [], total: 0, page: 1, stageTotals: {} as Record<string, { count: number; amount: number }>, staleCount: 0, openTotal: 0, weightedTotal: 0, today, members, empty: true };
     const stageIds = current.stages.map((stage) => stage.id);
     if (query.stage && !stageIds.includes(query.stage)) throw missingStage();
     const pattern = likePattern(query.q);
@@ -283,7 +283,9 @@ export function listDeals(db: Database, userId: string, workspace: string, pipel
     const rows = await tx.select(dealColumns).from(opportunities).where(where).orderBy(...order)
       .limit(query.mode === "board" ? BOARD_LIMIT : DEAL_PAGE_SIZE).offset(query.mode === "board" ? 0 : (page - 1) * DEAL_PAGE_SIZE);
     const [{ any }] = await tx.select({ any: count() }).from(opportunities).where(base);
-    return { pipelines, pipeline: current, deals: await attachNames(tx, tenantId, rows), total, page, stageTotals, openTotal: Math.round(openTotal * 100) / 100, weightedTotal: Math.round(weightedTotal * 100) / 100, today, members, empty: any === 0 };
+    const [{ staleCount }] = await tx.select({ staleCount: count() }).from(opportunities)
+      .where(and(where, openStages.length ? inArray(opportunities.stageId, openStages) : sql`false`, sql`${opportunities.expectedCloseDate} < ${today}::date`));
+    return { pipelines, pipeline: current, deals: await attachNames(tx, tenantId, rows), total, page, stageTotals, staleCount, openTotal: Math.round(openTotal * 100) / 100, weightedTotal: Math.round(weightedTotal * 100) / 100, today, members, empty: any === 0 };
   });
 }
 
@@ -422,6 +424,6 @@ export function listRelatedDeals(db: Database, userId: string, workspace: string
       .from(opportunities).innerJoin(crmPipelineStages, and(eq(crmPipelineStages.tenantId, opportunities.tenantId), eq(crmPipelineStages.id, opportunities.stageId)))
       .where(and(eq(opportunities.tenantId, tenantId), isNull(opportunities.archivedAt), objectType === "company" ? eq(opportunities.companyId, id) : eq(opportunities.contactId, id)))
       .orderBy(desc(opportunities.updatedAt), asc(opportunities.id)).limit(50);
-    return { deals: rows, today: crmToday() };
+    return { deals: rows, today: crmToday(), members: await loadMembers(tx, tenantId) };
   });
 }

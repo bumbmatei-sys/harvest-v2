@@ -8,6 +8,7 @@ import { getWorkspace } from "@/server/workspaces";
 import { getContact } from "@/server/contacts";
 import { listContactActivity } from "@/server/activity";
 import { getRecordCustomFields } from "@/server/crm-fields";
+import { listRelatedDeals } from "@/server/crm-deals";
 import { AccessError, can } from "@/server/permissions";
 import { uuidInput } from "@/lib/contact-input";
 import type { ConsentLabel } from "@/lib/consent-labels";
@@ -21,6 +22,8 @@ import { StaleNotice } from "@/components/crm/stale-notice";
 import { initials } from "@/components/crm/format";
 import { PossibleDuplicates } from "@/components/crm/possible-duplicates";
 import { CustomFields } from "@/components/crm/custom-fields";
+import { DealForm } from "@/components/crm/deals/deal-form";
+import { RelatedDeals } from "@/components/crm/deals/related-deals";
 import { RecordProvider } from "@/components/crm/record-context";
 import { RecordTitle } from "@/components/crm/record-title";
 import { RecordBackLink, RecordGrid, RecordHeader } from "@/components/crm/record-layout";
@@ -49,6 +52,7 @@ export default async function PersonPage({ params }: { params: Promise<{ tenantI
     .catch((error: unknown) => { if (error instanceof AccessError) return { status: error.status }; throw error; });
   if (!Array.isArray(result)) return <AccessState missing={result.status === 404} href={result.status === 404 ? back : "/workspaces"} />;
   const [workspace, contact, activity, custom] = result, writable = can(workspace.role, "contacts:write");
+  const related = can(workspace.role, "opportunities:read") ? await listRelatedDeals(getDb(), session.user.id, tenantId, "person", contactId) : null;
   const value = (kind: "email" | "phone" | "social") => contact.identifiers.find((item) => item.kind === kind)?.value ?? "";
   const primary = contact.companies.find((item) => item.isPrimary);
   return <RecordProvider endpoint={`/api/workspaces/${tenantId}/contacts/${contactId}`} version={contact.version} writable={writable}>
@@ -78,6 +82,8 @@ export default async function PersonPage({ params }: { params: Promise<{ tenantI
             <CardContent><CustomFields fields={custom.definitions} values={custom.values} related={custom.related} tenantId={tenantId} manageHref={can(workspace.role, "crm:fields_write") ? `/workspaces/${tenantId}/crm/settings/fields?object=person` : null} /></CardContent></Card>}
           <Card className="gap-3"><CardHeader><CardTitle className="flex items-center gap-2 text-sm"><Building2 className="size-4 text-muted-foreground" aria-hidden="true" />{t("companies")}</CardTitle></CardHeader>
             <CardContent><CompanyLinks tenantId={tenantId} contactId={contactId} links={contact.companies} writable={writable} /></CardContent></Card>
+          {related && <RelatedDeals tenantId={tenantId} deals={related.deals} today={related.today}
+            action={can(workspace.role, "opportunities:write") ? <DealForm tenantId={tenantId} members={related.members} person={{ id: contact.id, label: contact.name }} variant="outline" /> : undefined} />}
         </>}
         context={<>
           <Card className="gap-3"><CardHeader><CardTitle className="flex items-center gap-2 text-sm"><StickyNote className="size-4 text-muted-foreground" aria-hidden="true" />{t("fields.notes")}</CardTitle></CardHeader>

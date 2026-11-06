@@ -1,6 +1,6 @@
 # Third-party licenses
 
-Generated from package-lock.json on 2026-11-04; `cmdk` added 2026-11-05 for the shadcn Command component (CRM-02). No AGPL dependencies are present. The lockfile pins the exact dependency graph; this inventory includes development and optional platform packages. UI code is adapted only from the MIT-licensed official shadcn registry. Visual reference screenshots are not redistributed in the product.
+Generated from package-lock.json on 2026-11-04; `cmdk` added 2026-11-05 for the shadcn Command component (CRM-02); `@dnd-kit/core` and its dependencies added 2026-11-06 for the CRM-04 deals board. No AGPL dependencies are present. The lockfile pins the exact dependency graph; this inventory includes development and optional platform packages. UI code is adapted only from the MIT-licensed official shadcn registry. Visual reference screenshots are not redistributed in the product.
 
 The shadcn MIT notice is preserved in [licenses/shadcn-ui-MIT.txt](licenses/shadcn-ui-MIT.txt). Geist fonts use the SIL Open Font License (OFL-1.1); its notice is preserved in [licenses/Geist-OFL.txt](licenses/Geist-OFL.txt). Packages retain their upstream notices in npm distributions. PostgreSQL binaries used by embedded-postgres retain the PostgreSQL license in their distribution.
 
@@ -52,6 +52,9 @@ The shadcn MIT notice is preserved in [licenses/shadcn-ui-MIT.txt](licenses/shad
 | `@better-auth/telemetry` | 1.7.16 | MIT |
 | `@better-auth/utils` | 0.5.1 | MIT |
 | `@better-fetch/fetch` | 1.3.3 | MIT |
+| `@dnd-kit/accessibility` | 3.1.1 | MIT |
+| `@dnd-kit/core` | 6.3.1 | MIT |
+| `@dnd-kit/utilities` | 3.2.2 | MIT |
 | `@drizzle-team/brocli` | 0.10.2 | Apache-2.0 |
 | `@embedded-postgres/darwin-arm64` | 18.6.0-beta.19 | MIT |
 | `@embedded-postgres/darwin-x64` | 18.6.0-beta.19 | MIT |

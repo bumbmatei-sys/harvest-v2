@@ -7,6 +7,7 @@ import { getWorkspace } from "@/server/workspaces";
 import { getCompany } from "@/server/companies";
 import { listCompanyActivity } from "@/server/activity";
 import { getRecordCustomFields } from "@/server/crm-fields";
+import { listRelatedDeals } from "@/server/crm-deals";
 import { AccessError, can } from "@/server/permissions";
 import { uuidInput } from "@/lib/contact-input";
 import { AccessState } from "@/components/access-state";
@@ -16,6 +17,8 @@ import { CompanyPeople } from "@/components/crm/company-people";
 import { initials } from "@/components/crm/format";
 import { PossibleDuplicates } from "@/components/crm/possible-duplicates";
 import { CustomFields } from "@/components/crm/custom-fields";
+import { DealForm } from "@/components/crm/deals/deal-form";
+import { RelatedDeals } from "@/components/crm/deals/related-deals";
 import { RecordProvider } from "@/components/crm/record-context";
 import { RecordTitle } from "@/components/crm/record-title";
 import { RecordBackLink, RecordGrid, RecordHeader } from "@/components/crm/record-layout";
@@ -40,6 +43,8 @@ export default async function CompanyPage({ params }: { params: Promise<{ tenant
     .catch((error: unknown) => { if (error instanceof AccessError) return { status: error.status }; throw error; });
   if (!Array.isArray(result)) return <AccessState missing={result.status === 404} kind="company" href={result.status === 404 ? back : "/workspaces"} />;
   const [workspace, company, activity, custom] = result, writable = can(workspace.role, "companies:write");
+  // Related deals are shown only to members who can read deals (every role today).
+  const related = can(workspace.role, "opportunities:read") ? await listRelatedDeals(getDb(), session.user.id, tenantId, "company", companyId) : null;
   return <RecordProvider endpoint={`/api/workspaces/${tenantId}/companies/${companyId}`} version={company.version} writable={writable}>
     <div className="space-y-4">
       <RecordHeader back={<RecordBackLink href={back} label={t("allCompanies")} />}>
@@ -66,8 +71,10 @@ export default async function CompanyPage({ params }: { params: Promise<{ tenant
           <Card className="gap-3"><CardHeader><CardTitle className="flex items-center gap-2 text-sm"><FileText className="size-4 text-muted-foreground" aria-hidden="true" />{t("fields.description")}</CardTitle></CardHeader>
             <CardContent><CompanyDescription value={company.description} /></CardContent></Card>
         </>}
-        context={<Card className="gap-3"><CardHeader><CardTitle className="flex items-center gap-2 text-sm"><UsersRound className="size-4 text-muted-foreground" aria-hidden="true" />{t("people")}<Badge variant="secondary" className="rounded-md tabular-nums">{format.number(company.people.length, "integer")}</Badge></CardTitle></CardHeader>
-            <CardContent><CompanyPeople tenantId={tenantId} company={{ id: company.id, name: company.name }} people={company.people} writable={can(workspace.role, "contacts:write")} /></CardContent></Card>}
+        context={<><Card className="gap-3"><CardHeader><CardTitle className="flex items-center gap-2 text-sm"><UsersRound className="size-4 text-muted-foreground" aria-hidden="true" />{t("people")}<Badge variant="secondary" className="rounded-md tabular-nums">{format.number(company.people.length, "integer")}</Badge></CardTitle></CardHeader>
+            <CardContent><CompanyPeople tenantId={tenantId} company={{ id: company.id, name: company.name }} people={company.people} writable={can(workspace.role, "contacts:write")} /></CardContent></Card>
+          {related && <RelatedDeals tenantId={tenantId} deals={related.deals} today={related.today}
+            action={can(workspace.role, "opportunities:write") ? <DealForm tenantId={tenantId} members={related.members} company={{ id: company.id, label: company.name }} variant="outline" /> : undefined} />}</>}
         history={<Card className="gap-3"><CardHeader><CardTitle className="text-sm">{t("activityTab")}</CardTitle></CardHeader>
             <CardContent><ActivityTimeline items={activity} tenantId={tenantId} subject="company" currentUserId={session.user.id} customLabels={Object.fromEntries(custom.definitions.map((field) => [field.key, field.label]))} /></CardContent></Card>} />
     </div>

@@ -92,7 +92,8 @@ export function isStale(kind: StageKind, expectedCloseDate: string | null, today
 // ---------------------------------------------------------------------------
 // Board and list state (URL-backed).
 export const dealSorts = ["name", "amount", "close", "created", "updated"] as const;
-export const DEAL_PAGE_SIZE = 25;
+/** Same page size as the People and Companies lists (RecordPagination). */
+export const DEAL_PAGE_SIZE = 20;
 /** The board renders at most this many deals; the list paginates everything. */
 export const BOARD_LIMIT = 500;
 const one = (value: unknown) => (Array.isArray(value) ? value[0] : value);
