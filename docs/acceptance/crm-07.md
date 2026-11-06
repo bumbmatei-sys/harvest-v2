@@ -76,6 +76,7 @@ The branch carried its SQL as staged files until #21 took 0022 and 0023. After #
 | person timeline without the current-owner subquery | merge test |
 | `rollback_crm_import` without the organization activity check | rollback test |
 | erasure without the social-handle scrub | handle-scrub test |
+| handle escape limited to `. : -` (follow-up review) | "never aborts erasure on a legacy handle full of regex metacharacters" |
 | guard without the "later non-grant on the channel" check | unknown-after-grant test (SQL part) |
 | service without latest-per-channel | unknown-after-grant test |
 
@@ -96,7 +97,7 @@ Local runs used PostgreSQL 16 through `TEST_DATABASE_URL`. Integration tests con
 | `npm run lint` | exit 0 (ESLint and source guards) |
 | `npm run typecheck` | exit 0 |
 | `npm test` (unit) | 17 files, **182 passed** |
-| `npm run test:rls` (integration, as `harvest_app`) | 26 files, **264 passed, 0 skipped** |
+| `npm run test:rls` (integration, as `harvest_app`) | 26 files, **265 passed, 0 skipped** |
 | `npx drizzle-kit generate` / `check` | "No schema changes" / "Everything's fine" |
 | `npm run build` | exit 0; `public/offline.css` regenerated and unchanged |
 | `npm run test:pwa` | Lighthouse installability PASS, accessibility 1, best practices 1; offline fallback, static-only cache and axe PASS |
@@ -118,7 +119,7 @@ It verified as correct:
 - timeline visibility after merge and erasure;
 - vendor-free copy and shadcn-only UI.
 
-The same session then re-checked the fixes (see the PR description for its result).
+The same session then re-checked the fixes at `6471eab` and verified B1, S2 and S3 (reproducers now pass; service and guard agree; 0024 vs 0023 unchanged apart from the intended edits; `drizzle-kit generate` clean). It found one new problem in the S1 fix: the handle regex escaped only `. : -`, so a legacy handle with other regex metacharacters (rows from before the format check) made `erase_contact` abort. Every non-alphanumeric character is now escaped, with a regression test.
 
 ## Screenshots (`docs/screenshots/crm07/`, regenerated on the merged branch)
 

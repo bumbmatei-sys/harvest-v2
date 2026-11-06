@@ -238,6 +238,19 @@ describe("erasure (required test 4)", () => {
     const rows = (await fixture.admin.query("select id, redacted_at is not null as redacted from crm_associations where id = any($1::uuid[])", [ids])).rows;
     expect(ids.map((id) => rows.find((row) => row.id === id)?.redacted)).toEqual([true, true, false]);
   });
+
+  it("never aborts erasure on a legacy handle full of regex metacharacters, and still scrubs it literally", async () => {
+    const leg = (await createContact(fixture.db, "owner-a", tenantA, { name: "Synthetic Legacy" })).id;
+    // Written before the handle format check existed (or by a path that skipped it).
+    await fixture.admin.query("insert into contact_identifiers (tenant_id, contact_id, kind, value, normalized_value) values ($1, $2, 'social', 'a+(b[c]{2}|$', 'a+(b[c]{2}|$')", [tenantA, leg]);
+    const kim = (await createContact(fixture.db, "owner-a", tenantA, { name: "Synthetic Kim" })).id;
+    await grant("owner-a", tenantA, kim, "messaging");
+    const hit = await recordAssociation(fixture.db, "member-a", tenantA, message({ contactId: kim, summary: "Reply to @a+(b[c]{2}|$ today" }));
+    const miss = await recordAssociation(fixture.db, "member-a", tenantA, message({ contactId: kim, summary: "Reply to abbc today" }));
+    await expect(eraseContact(fixture.db, "owner-a", tenantA, leg)).resolves.toBeTruthy();
+    const rows = (await fixture.admin.query("select id, redacted_at is not null as redacted from crm_associations where id = any($1::uuid[])", [[hit, miss].map((result) => (result.stored ? result.id : ""))])).rows;
+    expect([hit, miss].map((result) => rows.find((row) => result.stored && row.id === result.id)?.redacted)).toEqual([true, false]);
+  });
 });
 
 describe("merge (required test 5)", () => {

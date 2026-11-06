@@ -196,9 +196,9 @@ BEGIN
         -- handle only with its "@", since a bare letter in prose is indistinguishable from a word.
         OR (i.kind = 'social' AND length(i.normalized_value) > 0 AND (
           a.summary ~* ('(^|[^[:alnum:]_@.+:-])' || CASE WHEN length(i.normalized_value) > 1 THEN '@?' ELSE '@' END
-            || regexp_replace(i.normalized_value, '([.:-])', '\\\1', 'g') || '($|[^[:alnum:]_@.+:-]|[.]($|[^[:alnum:]_]))')
+            || regexp_replace(i.normalized_value, '([^[:alnum:]_])', '\\\1', 'g') || '($|[^[:alnum:]_@.+:-]|[.]($|[^[:alnum:]_]))')
           OR a.payload::text ~* ('(^|[^[:alnum:]_@.+:-])' || CASE WHEN length(i.normalized_value) > 1 THEN '@?' ELSE '@' END
-            || regexp_replace(i.normalized_value, '([.:-])', '\\\1', 'g') || '($|[^[:alnum:]_@.+:-]|[.]($|[^[:alnum:]_]))')))));
+            || regexp_replace(i.normalized_value, '([^[:alnum:]_])', '\\\1', 'g') || '($|[^[:alnum:]_@.+:-]|[.]($|[^[:alnum:]_]))')))));
   IF erased_time IS NULL THEN
     UPDATE public.contacts SET name = 'Erased contact', notes = '', erased_at = now(), updated_at = now() WHERE tenant_id = p_tenant AND id = p_contact;
     DELETE FROM public.contact_identifiers WHERE tenant_id = p_tenant AND contact_id = p_contact;
