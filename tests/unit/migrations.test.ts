@@ -16,6 +16,6 @@ it("keeps a single snapshot chain and an ordered migration journal (reserved num
   }
   expect(snapshots[3].id).toMatch(/^3eb73893/);
   expect(journal.entries[4].tag).toBe("0004_files");
-  // CW-01 reserves 0018–0020 for the open CRM-05 train, without placeholder SQL.
+  // CW-01 campaigns migration follows CRM-05 (0020) as 0021.
   expect(journal.entries.find((entry: { tag: string }) => entry.tag === "0021_campaigns")?.idx).toBe(21);
 });
