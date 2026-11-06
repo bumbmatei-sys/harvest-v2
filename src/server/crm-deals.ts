@@ -122,12 +122,25 @@ async function lockLivePipeline(tx: Transaction, tenantId: string, id: string) {
   return row;
 }
 
+/** Stage -> pipeline, matching updateStage and the deal restore guard (ADR 0009). */
+async function lockPipelineStages(tx: Transaction, tenantId: string, pipelineId: string) {
+  const stages = await tx.select().from(crmPipelineStages)
+    .where(and(eq(crmPipelineStages.tenantId, tenantId), eq(crmPipelineStages.pipelineId, pipelineId)))
+    .orderBy(asc(crmPipelineStages.id)).for("update");
+  await lockLivePipeline(tx, tenantId, pipelineId);
+  // A concurrent insert may have committed while the stage query waited. Never
+  // acquire that new stage's lock after the pipeline: refuse and let the user reload.
+  const current = await tx.select({ id: crmPipelineStages.id }).from(crmPipelineStages)
+    .where(and(eq(crmPipelineStages.tenantId, tenantId), eq(crmPipelineStages.pipelineId, pipelineId)));
+  if (current.length !== stages.length || current.some((row) => !stages.some((stage) => stage.id === row.id))) throw stale();
+  return stages;
+}
+
 /** New open stages go before the first closed stage, so Won and Lost stay at the end. */
 export function createStage(db: Database, userId: string, workspace: string, pipeline: string, data: StageInput) {
   const pipelineId = uuidInput.parse(pipeline), input = stageInput.parse(data);
   return withTenant(db, userId, uuidInput.parse(workspace), "crm:pipelines_write", async (tx, tenantId) => {
-    await lockLivePipeline(tx, tenantId, pipelineId);
-    const stages = await tx.select().from(crmPipelineStages).where(and(eq(crmPipelineStages.tenantId, tenantId), eq(crmPipelineStages.pipelineId, pipelineId))).orderBy(asc(crmPipelineStages.position));
+    const stages = (await lockPipelineStages(tx, tenantId, pipelineId)).sort((a, b) => a.position - b.position);
     if (stages.filter((stage) => !stage.archivedAt).length >= MAX_STAGES) throw new AccessError(409, message("Errors.aPipelineCanHaveAtMostTwentyStages"));
     const base = input.key ?? stageKey(input.name);
     let key = base, suffix = 2;
@@ -181,8 +194,7 @@ export function updateStage(db: Database, userId: string, workspace: string, sta
 export function reorderStages(db: Database, userId: string, workspace: string, pipeline: string, data: z.input<typeof stageOrder>) {
   const pipelineId = uuidInput.parse(pipeline), { stageIds } = stageOrder.parse(data);
   return withTenant(db, userId, uuidInput.parse(workspace), "crm:pipelines_write", async (tx, tenantId) => {
-    await lockLivePipeline(tx, tenantId, pipelineId);
-    const live = await tx.select({ id: crmPipelineStages.id }).from(crmPipelineStages).where(and(eq(crmPipelineStages.tenantId, tenantId), eq(crmPipelineStages.pipelineId, pipelineId), isNull(crmPipelineStages.archivedAt))).for("update");
+    const live = (await lockPipelineStages(tx, tenantId, pipelineId)).filter((stage) => !stage.archivedAt);
     if (live.length !== stageIds.length || new Set(stageIds).size !== stageIds.length || !live.every((stage) => stageIds.includes(stage.id))) throw new AccessError(409, message("Errors.theStagesChangedReloadAndTryAgain"), { reason: "stale" });
     for (const [position, stageId] of stageIds.entries()) {
       await tx.update(crmPipelineStages).set({ position, updatedAt: new Date(), version: sql`${crmPipelineStages.version} + 1` })
