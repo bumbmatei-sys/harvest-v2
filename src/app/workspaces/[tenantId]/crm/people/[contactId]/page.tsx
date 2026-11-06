@@ -8,6 +8,9 @@ import { getWorkspace } from "@/server/workspaces";
 import { getContact } from "@/server/contacts";
 import { getTimeline } from "@/server/activity";
 import { getRecordCustomFields } from "@/server/crm-fields";
+import { associationPermissions } from "@/server/crm-associations";
+import { ContactPermissions } from "@/components/crm/associations/contact-permissions";
+import { LogActivityDialog } from "@/components/crm/associations/log-activity-dialog";
 import { listRelatedDeals } from "@/server/crm-deals";
 import { AccessError, can } from "@/server/permissions";
 import { uuidInput } from "@/lib/contact-input";
@@ -49,10 +52,10 @@ export default async function PersonPage({ params }: { params: Promise<{ tenantI
   const session = await pageSession(), { tenantId, contactId } = await params;
   const back = `/workspaces/${tenantId}/crm/people`;
   if (!uuidInput.safeParse(tenantId).success || !uuidInput.safeParse(contactId).success) return <AccessState missing href={back} />;
-  const result = await Promise.all([getWorkspace(getDb(), session.user.id, tenantId), getContact(getDb(), session.user.id, tenantId, contactId), getTimeline(getDb(), session.user.id, tenantId, "person", contactId), getRecordCustomFields(getDb(), session.user.id, tenantId, "person", contactId)])
+  const result = await Promise.all([getWorkspace(getDb(), session.user.id, tenantId), getContact(getDb(), session.user.id, tenantId, contactId), getTimeline(getDb(), session.user.id, tenantId, "person", contactId), getRecordCustomFields(getDb(), session.user.id, tenantId, "person", contactId), associationPermissions(getDb(), session.user.id, tenantId, contactId)])
     .catch((error: unknown) => { if (error instanceof AccessError) return { status: error.status }; throw error; });
   if (!Array.isArray(result)) return <AccessState missing={result.status === 404} href={result.status === 404 ? back : "/workspaces"} />;
-  const [workspace, contact, activity, custom] = result, writable = can(workspace.role, "contacts:write");
+  const [workspace, contact, activity, custom, permissions] = result, writable = can(workspace.role, "contacts:write");
   const related = can(workspace.role, "opportunities:read") ? await listRelatedDeals(getDb(), session.user.id, tenantId, "person", contactId) : null;
   const value = (kind: "email" | "phone" | "social") => contact.identifiers.find((item) => item.kind === kind)?.value ?? "";
   const primary = contact.companies.find((item) => item.isPrimary);
@@ -93,11 +96,13 @@ export default async function PersonPage({ params }: { params: Promise<{ tenantI
           <Card className="gap-3"><CardHeader><CardTitle className="flex items-center gap-2 text-sm"><ShieldCheck className="size-4 text-muted-foreground" aria-hidden="true" />{old("marketingPreferences")}</CardTitle></CardHeader>
             <CardContent className="space-y-3"><ItemGroup className="gap-3">{(["email", "sms", "social"] as const).map((channel) => { const latest = contact.effectiveConsents.find((row) => row.channel === channel && row.purpose === "marketing"); return <Item role="listitem" key={channel} size="sm" className="justify-between p-0"><ItemTitle className="text-xs">{labels(channel as ConsentLabel)}</ItemTitle><Badge variant="secondary" className={latest?.status === "granted" ? "bg-success-tint text-success" : latest?.status === "withdrawn" ? "bg-warning-tint text-warning" : "text-muted-foreground"}>{latest ? labels(latest.status as ConsentLabel) : old("notRecorded")}</Badge></Item>; })}</ItemGroup>
               <p className="pt-2 text-[11px] leading-relaxed text-muted-foreground">{old("aContactRecordDoesNotImplyPermissionTo")}</p></CardContent></Card>
+          <ContactPermissions tenantId={tenantId} contactId={contactId} permissions={permissions.purposes} writable={writable} />
         </>}
         history={<>
           <Tabs defaultValue="activity" className="gap-3">
             <TabsList><TabsTrigger value="activity">{t("activityTab")}</TabsTrigger><TabsTrigger value="consent">{old("consentHistory")}</TabsTrigger></TabsList>
             <TabsContent value="activity"><Card><CardContent className="space-y-5">
+              {writable && <div className="flex justify-end"><LogActivityDialog tenantId={tenantId} contactId={contactId} /></div>}
               {can(workspace.role, "notes:write") && <NoteComposer tenantId={tenantId} target="person" targetId={contactId} />}
               <ActivityTimeline items={activity.items} nextCursor={activity.nextCursor} endpoint={`/api/workspaces/${tenantId}/contacts/${contactId}/timeline`} tenantId={tenantId} subject="person" currentUserId={session.user.id}
                 customLabels={Object.fromEntries(custom.definitions.map((field) => [field.key, field.label]))} canWriteNotes={can(workspace.role, "notes:write")} canModerate={workspace.role === "owner" || workspace.role === "admin"} /></CardContent></Card></TabsContent>

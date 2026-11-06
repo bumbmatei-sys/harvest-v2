@@ -16,7 +16,12 @@ import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-export function ConsentForm({ tenantId, contactId }: { tenantId: string; contactId: string }) {
+/**
+ * Records one consent event. CRM-07's per-purpose rows open it with `preset` (purpose, status and
+ * a sensible channel) and their own trigger; the person can still change every field.
+ */
+export function ConsentForm({ tenantId, contactId, preset, trigger }: { tenantId: string; contactId: string;
+  preset?: { purpose: string; status: "granted" | "withdrawn"; channel: "email" | "sms" | "social" }; trigger?: React.ReactNode }) {
   const t = useTranslations("ComponentsConsentForm");
   const format = useFormatter();
   const labels = useTranslations("ConsentLabels");
@@ -44,13 +49,13 @@ export function ConsentForm({ tenantId, contactId }: { tenantId: string; contact
     const now = new Date(), utc = now.toISOString();
     setDate(new Date(`${utc.slice(0, 10)}T12:00:00`)); setTime(utc.slice(11, 16)); setMaximum(new Date(now.getTime() + 5 * 60_000));
   } }}>
-    <DialogTrigger asChild><Button variant="outline" size="sm"><Plus aria-hidden="true" />{t("recordConsent")}</Button></DialogTrigger>
+    <DialogTrigger asChild>{trigger ?? <Button variant="outline" size="sm"><Plus aria-hidden="true" />{t("recordConsent")}</Button>}</DialogTrigger>
     <DialogContent className="max-h-[90dvh] overflow-y-auto rounded-xl sm:max-w-[460px]"><DialogHeader><DialogTitle>{t("recordConsent")}</DialogTitle><DialogDescription>{t("recordThePersonSChoiceAndSupportingEvidence")}</DialogDescription></DialogHeader>
       <form onSubmit={submit} className="space-y-4">
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-        <div className="grid grid-cols-2 gap-4"><Field className="gap-2"><FieldLabel htmlFor="consent-channel">{t("channel")}</FieldLabel><Select name="channel" defaultValue="email"><SelectTrigger id="consent-channel" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="email">{t("email")}</SelectItem><SelectItem value="sms">{t("sMS")}</SelectItem><SelectItem value="social">{t("social")}</SelectItem></SelectContent></Select></Field>
-        <Field className="gap-2"><FieldLabel htmlFor="consent-status">{t("status")}</FieldLabel><Select name="status" defaultValue="unknown"><SelectTrigger id="consent-status" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="unknown">{t("unknown")}</SelectItem><SelectItem value="granted">{t("granted")}</SelectItem><SelectItem value="withdrawn">{t("withdrawn")}</SelectItem></SelectContent></Select></Field></div>
-        <div className="grid grid-cols-2 gap-4"><Field className="gap-2"><FieldLabel htmlFor="consent-purpose">{t("purpose")}</FieldLabel><Select name="purpose" defaultValue="marketing"><SelectTrigger id="consent-purpose" className="w-full"><SelectValue /></SelectTrigger><SelectContent>{consentPurposes.map((purpose) => <SelectItem key={purpose} value={purpose}>{labels(purpose as ConsentLabel)}</SelectItem>)}</SelectContent></Select></Field><Field className="gap-2"><FieldLabel htmlFor="consent-version">{t("wordingVersion")}</FieldLabel><Select name="noticeVersion" defaultValue="notice-v1"><SelectTrigger id="consent-version" className="w-full"><SelectValue /></SelectTrigger><SelectContent>{consentNoticeVersions.map((version) => <SelectItem key={version} value={version}>{labels(version as ConsentLabel)}</SelectItem>)}</SelectContent></Select></Field></div>
+        <div className="grid grid-cols-2 gap-4"><Field className="gap-2"><FieldLabel htmlFor="consent-channel">{t("channel")}</FieldLabel><Select name="channel" defaultValue={preset?.channel ?? "email"}><SelectTrigger id="consent-channel" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="email">{t("email")}</SelectItem><SelectItem value="sms">{t("sMS")}</SelectItem><SelectItem value="social">{t("social")}</SelectItem></SelectContent></Select></Field>
+        <Field className="gap-2"><FieldLabel htmlFor="consent-status">{t("status")}</FieldLabel><Select name="status" defaultValue={preset?.status ?? "unknown"}><SelectTrigger id="consent-status" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="unknown">{t("unknown")}</SelectItem><SelectItem value="granted">{t("granted")}</SelectItem><SelectItem value="withdrawn">{t("withdrawn")}</SelectItem></SelectContent></Select></Field></div>
+        <div className="grid grid-cols-2 gap-4"><Field className="gap-2"><FieldLabel htmlFor="consent-purpose">{t("purpose")}</FieldLabel><Select name="purpose" defaultValue={preset?.purpose ?? "marketing"}><SelectTrigger id="consent-purpose" className="w-full"><SelectValue /></SelectTrigger><SelectContent>{consentPurposes.map((purpose) => <SelectItem key={purpose} value={purpose}>{labels(purpose as ConsentLabel)}</SelectItem>)}</SelectContent></Select></Field><Field className="gap-2"><FieldLabel htmlFor="consent-version">{t("wordingVersion")}</FieldLabel><Select name="noticeVersion" defaultValue="notice-v1"><SelectTrigger id="consent-version" className="w-full"><SelectValue /></SelectTrigger><SelectContent>{consentNoticeVersions.map((version) => <SelectItem key={version} value={version}>{labels(version as ConsentLabel)}</SelectItem>)}</SelectContent></Select></Field></div>
         <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-4">
           <Field className="gap-2"><FieldLabel htmlFor="consent-date">{t("consentDateUTC")}</FieldLabel>
             <Popover open={pickerOpen} onOpenChange={setPickerOpen}><PopoverTrigger asChild><Button id="consent-date" data-date={date ? dateKey(date) : undefined} type="button" variant="outline" className="justify-start font-normal"><CalendarIcon aria-hidden="true" />{date ? format.dateTime(date, "calendarDate") : t("chooseDate")}</Button></PopoverTrigger>

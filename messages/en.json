@@ -1350,5 +1350,70 @@
         }
       }
     }
+  },
+  "Associations": {
+    "permissionsTitle": "Contact permissions",
+    "permissionsDescription": "Each purpose is a separate opt-in. Activity is only linked to this person for a purpose they agreed to, and an unsubscribe always wins.",
+    "purposes": {
+      "messaging": "Messaging",
+      "form_follow_up": "Form follow-up",
+      "newsletter": "Newsletter"
+    },
+    "purposeHelp": {
+      "messaging": "Link Zernio messages, comments and mentions.",
+      "form_follow_up": "Link form submissions so we can follow up.",
+      "newsletter": "Link newsletter sign-ups."
+    },
+    "status": {
+      "granted": "Opted in",
+      "withdrawn": "Withdrawn",
+      "none": "No opt-in"
+    },
+    "grantedOn": "Opted in {date} · {source}",
+    "withdrawnOn": "Withdrawn {date} · {source}",
+    "unknownSource": "source not recorded",
+    "recordOptIn": "Record opt-in",
+    "recordWithdrawal": "Record withdrawal",
+    "recordOptInFor": "Record opt-in for {purpose}",
+    "recordWithdrawalFor": "Record withdrawal for {purpose}",
+    "logActivity": "Log activity",
+    "logActivityTitle": "Log activity for this person",
+    "logActivityDescription": "Link a Zernio conversation, a form or another touchpoint. It is saved only if the person opted in to the purpose you choose.",
+    "source": "Source",
+    "kind": "What happened",
+    "purpose": "Purpose",
+    "when": "When",
+    "sources": {
+      "zernio": "Zernio",
+      "form": "Form",
+      "touchpoint": "Other touchpoint"
+    },
+    "kinds": {
+      "message": "Message",
+      "comment": "Comment",
+      "mention": "Mention",
+      "form_submission": "Form submission",
+      "signup": "Sign-up",
+      "call": "Call",
+      "meeting": "Meeting",
+      "visit": "Visit",
+      "other": "Other"
+    },
+    "purposeFieldHelp": "The opt-in this activity relies on.",
+    "whenHelp": "Europe/Berlin time.",
+    "chooseAValidTime": "Choose a time that exists in Europe/Berlin.",
+    "summary": "Summary",
+    "summaryHelp": "A short note of what happened. Avoid sensitive details.",
+    "reference": "Reference",
+    "referenceHelp": "For example the Zernio message id, so the same activity is never linked twice.",
+    "optional": "(optional)",
+    "cancel": "Cancel",
+    "save": "Link activity",
+    "saving": "Saving…",
+    "notStored": {
+      "consent_missing": "Nothing was saved: this person has no {purpose} opt-in. Record their opt-in first.",
+      "consent_withdrawn": "Nothing was saved: this person withdrew their {purpose} opt-in.",
+      "no_match": "Nothing was saved: no person matches these details."
+    }
   }
 }
