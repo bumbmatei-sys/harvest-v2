@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { Building, Building2, ChevronRight, ChevronsUpDown, Files, Kanban, ListChecks, LogOut, Palette, SlidersHorizontal, Sprout, UsersRound, Workflow } from "lucide-react";
+import { Building, Building2, ChevronRight, ChevronsUpDown, FileUp, Files, Kanban, ListChecks, LogOut, Palette, SlidersHorizontal, Sprout, UsersRound, Workflow } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { NotificationsMenu } from "@/components/crm/tasks/notifications-menu";
 import { useHydrated } from "@/hooks/use-hydrated";
@@ -64,7 +64,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
   const [busy, setBusy] = useState(false);
   const [navigationContainer, setNavigationContainer] = useState<HTMLElement | null>(null);
   const workspace = workspaces.find((item) => item.tenantId === selected);
-  const section = pathname === "/profile" ? t("profile") : pathname.includes("/crm/people") || pathname.includes("/contacts") ? t("people") : pathname.includes("/crm/companies") ? t("companies") : pathname.includes("/files") ? t("files") : pathname.includes("/crm/tasks") ? t("tasks"): pathname.includes("/crm/settings/pipelines") ? t("pipelineSettings") : pathname.includes("/crm/pipelines") || pathname.includes("/crm/deals") ? t("pipelines"): pathname.includes("/crm/settings/fields") ? t("crmFields"): pathname.endsWith("/appearance") ? t("appearance") : t("workspaces");
+  const section = pathname === "/profile" ? t("profile") : pathname.includes("/crm/people") || pathname.includes("/contacts") ? t("people") : pathname.includes("/crm/companies") ? t("companies") : pathname.includes("/files") ? t("files") : pathname.includes("/crm/tasks") ? t("tasks") : pathname.includes("/crm/imports") ? t("imports"): pathname.includes("/crm/settings/pipelines") ? t("pipelineSettings") : pathname.includes("/crm/pipelines") || pathname.includes("/crm/deals") ? t("pipelines"): pathname.includes("/crm/settings/fields") ? t("crmFields"): pathname.endsWith("/appearance") ? t("appearance") : t("workspaces");
   async function signOut() {
     setBusy(true); setError("");
     try {
@@ -96,6 +96,8 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
               <NavigationLink href={`/workspaces/${selected}/crm/companies`} active={pathname.includes("/crm/companies")} label={t("companies")} icon={<Building aria-hidden="true" />} />
               <NavigationLink href={`/workspaces/${selected}/crm/pipelines`} active={pathname.includes("/crm/pipelines") || pathname.includes("/crm/deals")} label={t("pipelines")} icon={<Kanban aria-hidden="true" />} />
               <NavigationLink href={`/workspaces/${selected}/crm/tasks`} active={pathname.includes("/crm/tasks")} label={t("tasks")} icon={<ListChecks aria-hidden="true" />} />
+              {/* CRM-06: imports run for owners, admins and members; viewers never see a dead link. */}
+              {workspace && workspace.role !== "viewer" && <NavigationLink href={`/workspaces/${selected}/crm/imports`} active={pathname.includes("/crm/imports")} label={t("imports")} icon={<FileUp aria-hidden="true" />} />}
             </NavigationGroup>
             <NavigationGroup label={t("workspace")}>
               <NavigationLink href={`/workspaces/${selected}/files`} active={pathname.includes("/files")} label={t("files")} icon={<Files aria-hidden="true" />} />

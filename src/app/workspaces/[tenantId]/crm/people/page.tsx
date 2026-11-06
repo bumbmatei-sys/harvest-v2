@@ -13,6 +13,10 @@ import { AccessState } from "@/components/access-state";
 import { ContactForm } from "@/components/contact-form";
 import { customCell, listParts } from "@/components/crm/list-parts";
 import { ListPage } from "@/components/crm/list-page";
+import { ExportDialog } from "@/components/crm/export-dialog";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Upload } from "lucide-react";
 import type { GridRow } from "@/components/crm/record-grid";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -22,6 +26,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function PeoplePage({ params, searchParams }: { params: Promise<{ tenantId: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const t = await getTranslations("Crm");
+  const imports = await getTranslations("Imports");
   const format = await getFormatter();
   const session = await pageSession(), { tenantId } = await params;
   if (!uuidInput.safeParse(tenantId).success) return <AccessState />;
@@ -50,6 +55,8 @@ export default async function PeoplePage({ params, searchParams }: { params: Pro
     return { id: person.id, version: person.version, name: person.name, href: `${people}/${person.id}`, secondary: primary?.name ?? email ?? t("notProvided"), cells };
   });
   return <ListPage tenantId={tenantId} objectType="person" icon={UsersRound} title={t("people")} description={t("peopleDescription")} total={list.total} page={list.page}
+    actions={<>{can(workspace.role, "crm:import") && <Button variant="outline" asChild><Link href={`/workspaces/${tenantId}/crm/imports?entity=person`}><Upload aria-hidden="true" />{imports("importAction")}</Link></Button>}
+      {can(workspace.role, "crm:export") && <ExportDialog tenantId={tenantId} entity="person" query={query} listName={t("people")} />}</>}
     create={<ContactForm tenantId={tenantId} />} viewOnly={writable ? null : t("viewOnlyPeople")} notice={notice} state={list.state} viewId={viewId} query={query}
     parts={parts} related={list.related} views={parts.summaries} current={parts.summaries.find((view) => view.id === current.id)!} modified={modified} writable={writable} rows={rows}
     copy={{ searchLabel: t("searchPeople"), searchPlaceholder: t("searchPeoplePlaceholder"), noMatch: t("noMatchingPeople"), pageEmpty: t("noPeopleOnThisPage"), emptyTitle: t("everyConnectionStartsSomewhere"), emptyDescription: t("addYourFirstPerson"), pages: t("peoplePages"), privacy: t("privacyNote") }} />;

@@ -28,3 +28,5 @@ export function BoardSkeleton({ label }: { label: string }) {
 export function PipelinesLoading() { const t = useTranslations("Deals"); return <BoardSkeleton label={t("loadingPipelines")} />; }
 export function DealLoading() { const t = useTranslations("Deals"); return <RecordSkeleton label={t("loadingDeal")} />; }
 export function TasksLoading() { const t = useTranslations("Tasks"); return <ListSkeleton label={t("loadingTasks")} />; }
+export function ImportsLoading() { const t = useTranslations("Imports"); return <ListSkeleton label={t("loadingImports")} />; }
+export function ImportLoading() { const t = useTranslations("Imports"); return <RecordSkeleton label={t("loadingImport")} />; }

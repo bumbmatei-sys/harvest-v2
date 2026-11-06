@@ -87,8 +87,9 @@ export function getImport(db: Database, userId: string, workspace: string, impor
       .leftJoin(companies, and(eq(companies.tenantId, crmImportRows.tenantId), eq(companies.id, crmImportRows.companyId)))
       .where(where).orderBy(asc(crmImportRows.rowNumber)).limit(IMPORT_PREVIEW_PAGE).offset((page - 1) * IMPORT_PREVIEW_PAGE);
     const [creator] = await tx.select({ name: users.name, email: users.email }).from(users).where(eq(users.id, row.createdBy));
+    const [{ remaining }] = await tx.select({ remaining: count() }).from(crmImportRows).where(and(eq(crmImportRows.tenantId, tenantId), eq(crmImportRows.importId, id), eq(crmImportRows.status, "ready")));
     return {
-      ...summary(row), creatorName: creator ? creator.name || creator.email : null, outcome, page, total,
+      ...summary(row), creatorName: creator ? creator.name || creator.email : null, outcome, page, total, remaining,
       rows: rows.map(({ row: item, contactName, companyName }) => ({
         rowNumber: item.rowNumber, raw: item.raw, status: item.status, action: item.action, error: item.error, warning: item.warning, created: item.created,
         recordId: row.entity === "person" ? item.contactId : item.companyId, recordName: row.entity === "person" ? contactName : companyName,
