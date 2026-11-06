@@ -22,7 +22,7 @@ beforeAll(async () => {
 afterAll(async () => {
   if (restrictedRoleCreated) {
     await fixture.admin.query("do $$ begin execute format('alter function public.erase_contact(uuid,uuid) owner to %I', current_user); end $$");
-    for (const table of ["contacts", "contact_consents", "contact_identifiers", "contact_company_links", "crm_field_values", "crm_saved_views", "opportunities", "crm_pipeline_stages", "crm_tasks", "crm_notes", "outbox_events", "jobs", "crm_import_rows", "workspace_members", "audit_logs"]) {
+    for (const table of ["contacts", "contact_consents", "contact_identifiers", "contact_company_links", "crm_field_values", "crm_saved_views", "opportunities", "crm_pipeline_stages", "crm_tasks", "crm_notes", "outbox_events", "jobs", "crm_import_rows", "crm_associations", "workspace_members", "audit_logs"]) {
       await fixture.admin.query(`drop policy if exists test_restricted_erasure on ${table}`);
     }
     await fixture.admin.query("drop owned by harvest_test_eraser");
@@ -161,7 +161,8 @@ describe("controlled contact erasure", () => {
     })).rejects.toThrow();
     await expect(fixture.admin.query("update contact_consents set status='withdrawn'")).rejects.toThrow("append-only");
     await expect(fixture.admin.query("delete from contact_consents")).rejects.toThrow("append-only");
-    await expect(fixture.admin.query("truncate contact_consents")).rejects.toThrow("append-only");
+    // CASCADE reaches the append-only trigger past CRM-07's foreign key (as jobs.test.ts does); nothing is truncated.
+    await expect(fixture.admin.query("truncate contact_consents cascade")).rejects.toThrow("append-only");
   });
 
   it("rolls erasure back atomically when its audit insert fails", async () => {
@@ -199,8 +200,9 @@ describe("controlled contact erasure", () => {
     await fixture.admin.query("grant select,delete on crm_notes to harvest_test_eraser");
     await fixture.admin.query("grant select,update on outbox_events,jobs to harvest_test_eraser");
     await fixture.admin.query("grant select,update on crm_import_rows to harvest_test_eraser");
+    await fixture.admin.query("grant select,update,delete on crm_associations to harvest_test_eraser");
     await fixture.admin.query("grant select,insert,update on audit_logs to harvest_test_eraser");
-    for (const table of ["contacts", "contact_consents", "contact_identifiers", "contact_company_links", "crm_field_values", "crm_saved_views", "opportunities", "crm_pipeline_stages", "crm_tasks", "crm_notes", "outbox_events", "jobs", "crm_import_rows", "workspace_members", "audit_logs"]) {
+    for (const table of ["contacts", "contact_consents", "contact_identifiers", "contact_company_links", "crm_field_values", "crm_saved_views", "opportunities", "crm_pipeline_stages", "crm_tasks", "crm_notes", "outbox_events", "jobs", "crm_import_rows", "crm_associations", "workspace_members", "audit_logs"]) {
       await fixture.admin.query(`create policy test_restricted_erasure on ${table} to harvest_test_eraser using (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid) with check (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid)`);
     }
     await fixture.admin.query("alter function public.erase_contact(uuid,uuid) owner to harvest_test_eraser");

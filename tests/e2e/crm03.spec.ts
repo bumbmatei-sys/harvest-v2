@@ -85,7 +85,7 @@ test("CRM-03: custom fields, saved views, filters, columns and keyboard grid edi
   expect((await api(page, "post", `${apiRoot}/crm/fields`, { objectType: "company", label: "Partner since", type: "date" })).status).toBe(201);
   await page.reload();
   await both(page, "fields-settings");
-  await page.getByRole("tab", { name: "Companies" }).click();
+  await page.getByRole("tab", { name: "Organizations" }).click();
   await expect(page.getByRole("row").filter({ hasText: "Partner since" })).toBeVisible();
 
   // Record page: set custom values (select saves on change, text via the inline field).
@@ -141,10 +141,10 @@ test("CRM-03: custom fields, saved views, filters, columns and keyboard grid edi
 
   // Apply a built-in workspace view; Reset returns to the saved state.
   await page.getByRole("button", { name: /^Core volunteers/ }).click();
-  await page.getByRole("menuitem", { name: "No company" }).click();
-  await expect(page.getByRole("listitem").filter({ hasText: "Company is empty" })).toBeVisible();
+  await page.getByRole("menuitem", { name: "No organization" }).click();
+  await expect(page.getByRole("listitem").filter({ hasText: "Organization is empty" })).toBeVisible();
   await expect(grid.getByRole("row")).toHaveCount(3);
-  await page.getByRole("button", { name: /^No company/ }).click();
+  await page.getByRole("button", { name: /^No organization/ }).click();
   await page.getByRole("menuitem", { name: "Email subscribers" }).click();
   await expect(page.getByRole("heading", { name: "No matching people" })).toBeVisible();
   await expect(page.getByRole("link", { name: "Reset view" })).toBeVisible();
@@ -213,7 +213,7 @@ test("CRM-03: custom fields, saved views, filters, columns and keyboard grid edi
   // Built-in views still apply; viewers can browse but never save.
   await viewer.getByRole("button", { name: /^All people/ }).click();
   await expect(viewer.getByRole("menuitem", { name: "Save as new view" })).toHaveCount(0);
-  await viewer.getByRole("menuitem", { name: "No company" }).click();
+  await viewer.getByRole("menuitem", { name: "No organization" }).click();
   await expect(viewer.getByRole("grid", { name: "People" }).getByRole("row")).toHaveCount(3);
   await expect(viewer.getByRole("button", { name: "Save as new view" })).toHaveCount(0);
   await viewer.goto(`${root}/crm/people`);

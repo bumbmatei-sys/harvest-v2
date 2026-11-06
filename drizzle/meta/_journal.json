@@ -169,6 +169,13 @@
       "when": 1793977658934,
       "tag": "0023_crm_imports_policies_merge",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793998010292,
+      "tag": "0024_crm_associations",
+      "breakpoints": true
     }
   ]
 }

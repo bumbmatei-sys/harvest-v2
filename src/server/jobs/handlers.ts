@@ -42,4 +42,6 @@ export const jobHandlers: JobHandlers = {
   "crm.import.failed": async () => {},
   "crm.import.rolled_back": async () => {},
   "crm.merge.completed": async () => {},
+  // CRM-07: receipt only (ids and categories); consumers come later.
+  "crm.association.recorded": async () => {},
 };

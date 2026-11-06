@@ -337,7 +337,7 @@ describe("export", () => {
     }
     const member = await exportRecords(fixture.db, "member-a", tenant, "person");
     const memberLines = parseCsvRecords(member.body.replace(/^﻿/, "")) as string[][];
-    expect(memberLines[0]).toEqual(["Name", "Email", "Phone", "Social handle", "Company", "Job title", "Email marketing", "Created", "Updated", "Ministry"]);
+    expect(memberLines[0]).toEqual(["Name", "Email", "Phone", "Social handle", "Organization", "Job title", "Email marketing", "Created", "Updated", "Ministry"]);
     expect(member.body).toContain("'=SUM(A1:A9)");
     expect(member.body).toContain("'+4915177777777");
     expect(member.body).not.toContain("Private pastoral note");
@@ -434,7 +434,7 @@ describe("merge", () => {
 describe("definers without superuser or BYPASSRLS", () => {
   it("merge and rollback work when owned by a restricted role under FORCE RLS (as on Neon)", async () => {
     const role = "harvest_test_crm06", tables = ["contacts", "contact_identifiers", "contact_company_links", "contact_consents", "crm_tasks", "crm_notes", "opportunities",
-      "crm_field_values", "crm_field_definitions", "crm_import_rows", "crm_imports", "companies", "audit_logs", "workspace_members"];
+      "crm_field_values", "crm_field_definitions", "crm_import_rows", "crm_imports", "crm_associations", "companies", "audit_logs", "workspace_members"];
     await fixture.admin.query(`create role ${role} nologin nosuperuser nobypassrls noinherit`);
     try {
       await fixture.admin.query(`grant usage on schema public to ${role}`);

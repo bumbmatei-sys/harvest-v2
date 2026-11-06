@@ -3,9 +3,10 @@ import { useFormatter, useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Archive, Building2, CheckCircle2, CircleDot, History, Kanban, Link2, Link2Off, ListChecks, Merge, Pencil, PencilLine, RotateCcw, ShieldCheck, Sparkles, StickyNote, UserRoundCheck } from "lucide-react";
+import { Archive, Building2, CheckCircle2, CircleDot, ClipboardList, Handshake, History, Kanban, Link2, Link2Off, ListChecks, Merge, MessageCircle, Pencil, PencilLine, RotateCcw, ShieldCheck, Sparkles, StickyNote, UserRoundCheck } from "lucide-react";
 import { CRM_TIME_ZONE } from "@/lib/crm-deals";
-import type { TimelineEvent, TimelineItem, TimelineNote } from "@/server/activity";
+import type { TimelineAssociation, TimelineEvent, TimelineItem, TimelineNote } from "@/server/activity";
+import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
@@ -25,7 +26,9 @@ const icons: Record<string, typeof History> = {
   "note.archive": Archive, "note.restore": RotateCcw,
 };
 type Raw = Omit<TimelineItem, "createdAt" | "editedAt"> & { createdAt: string; editedAt?: string | null };
-const revive = (item: Raw): TimelineItem => ({ ...item, createdAt: new Date(item.createdAt), ...(item.kind === "note" ? { editedAt: item.editedAt ? new Date(item.editedAt) : null } : {}) } as TimelineItem);
+const occurred = (item: object) => { const value = (item as { occurredAt?: string | null }).occurredAt; return value ? new Date(value) : null; };
+const revive = (item: Raw): TimelineItem => ({ ...item, createdAt: new Date(item.createdAt), ...(item.kind === "note" ? { editedAt: item.editedAt ? new Date(item.editedAt) : null } : {}),
+  ...(item.kind === "association" ? { occurredAt: occurred(item) } : {}) } as TimelineItem);
 
 /**
  * The unified record timeline: audit-ledger events (record changes, deal moves, task
@@ -95,13 +98,14 @@ export function ActivityTimeline({ items: first, nextCursor: firstCursor, endpoi
     <ol className="relative space-y-0" aria-label={tl("timeline")}>
       {items.map((item, index) => {
         const heading = index === 0 || day(items[index - 1].createdAt) !== day(item.createdAt);
-        const Icon = item.kind === "note" ? StickyNote : icons[item.action] ?? History;
+        const Icon = item.kind === "note" ? StickyNote : item.kind === "association" ? sourceIcons[item.source] ?? Handshake : icons[item.action] ?? History;
         return <li key={item.id} className="relative">
           {heading && <h2 className="mb-3 pt-1 text-xs font-medium text-muted-foreground first:pt-0">{day(item.createdAt)}</h2>}
           <div className="relative flex gap-3 pb-5">
             {index < items.length - 1 && <span aria-hidden="true" className="absolute top-8 bottom-0 left-[15px] w-px bg-border" />}
             <span className="relative flex size-8 shrink-0 items-center justify-center rounded-full border bg-card text-muted-foreground"><Icon aria-hidden="true" className="size-3.5" /></span>
-            {item.kind === "note"
+            {item.kind === "association" ? <AssociationEntry item={item} actor={actorName(item.actor)} tenantId={tenantId} subject={subject} />
+              : item.kind === "note"
               ? <NoteEntry note={item} actor={actorName(item.actor)} editable={canWriteNotes && (item.actor.id === currentUserId || canModerate)} tenantId={tenantId} />
               : <div className="min-w-0 pt-1.5 text-sm">
                 <p className="text-muted-foreground"><span className="font-medium text-foreground">{actorName(item.actor)}</span> {sentence(item)}</p>
@@ -112,7 +116,29 @@ export function ActivityTimeline({ items: first, nextCursor: firstCursor, endpoi
       })}
     </ol>
     {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
-    {cursor && <Button variant="outline" size="sm" disabled={loading} onClick={() => void loadOlder()}>{loading ? tl("loading") : tl("showOlder")}</Button>}
+    {cursor && <Button variant="outline" size="sm" className="min-h-11 sm:min-h-8" disabled={loading} onClick={() => void loadOlder()}>{loading ? tl("loading") : tl("showOlder")}</Button>}
+  </div>;
+}
+
+const sourceIcons: Record<string, typeof History> = { zernio: MessageCircle, form: ClipboardList, touchpoint: Handshake };
+/** CRM-07: a Zernio, form or touchpoint event linked to this record, shown only while it is stored. */
+function AssociationEntry({ item, actor, tenantId, subject }: { item: TimelineAssociation; actor: string; tenantId: string; subject: "person" | "company" | "deal" }) {
+  const tl = useTranslations("Timeline");
+  const format = useFormatter();
+  const known = <T extends string>(list: readonly T[], value: string, fallback: T) => (list.includes(value as T) ? value as T : fallback);
+  const source = known(["zernio", "form", "touchpoint"] as const, item.source, "touchpoint");
+  const activity = known(["message", "comment", "mention", "form_submission", "signup", "call", "meeting", "visit", "other"] as const, item.activity, "other");
+  const purpose = known(["messaging", "form_follow_up", "newsletter"] as const, item.purpose, "messaging");
+  return <div className="min-w-0 flex-1 pt-1.5 text-sm">
+    <p className="text-muted-foreground"><span className="font-medium text-foreground">{actor}</span> {tl("associationRecorded", { activity: tl(`associationKinds.${activity}`), source: tl(`associationSources.${source}`) })}
+      {subject !== "person" && item.person && <> {tl.rich("associationFor", { person: () => <Link href={`/workspaces/${tenantId}/crm/people/${item.person!.id}`} className="font-medium text-foreground underline-offset-4 hover:underline">{item.person!.name}</Link> })}</>}</p>
+    <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
+      <Badge variant="secondary" className="h-5 rounded-md px-1.5 text-[11px] font-normal">{tl(`associationPurposes.${purpose}`)}</Badge>
+      {item.occurredAt && <time dateTime={item.occurredAt.toISOString()}>{tl("associationOccurred", { date: format.dateTime(item.occurredAt, { dateStyle: "medium", timeStyle: "short", timeZone: CRM_TIME_ZONE }) })}</time>}
+    </p>
+    {item.removed ? <p className="mt-2 text-xs text-muted-foreground">{tl("associationRemoved")}</p>
+      : item.redacted ? <p className="mt-2 text-xs text-muted-foreground">{tl("associationRedacted")}</p>
+        : item.summary && <div className="mt-2 rounded-lg border bg-muted/40 px-3 py-2 whitespace-pre-wrap [overflow-wrap:anywhere] text-foreground">{item.summary}</div>}
   </div>;
 }
 

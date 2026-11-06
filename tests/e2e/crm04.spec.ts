@@ -88,8 +88,8 @@ test("CRM-04: pipelines, deals, board moves, list, deal detail, related deals, s
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("Deal name").fill("Synthetic roof appeal");
   await dialog.getByLabel("Amount (USD)").fill("12000");
-  await dialog.getByRole("button", { name: "Choose company" }).click();
-  await page.getByPlaceholder("Search companies").fill("Grace");
+  await dialog.getByRole("button", { name: "Choose organization" }).click();
+  await page.getByPlaceholder("Search organizations").fill("Grace");
   await page.getByRole("option", { name: /Synthetic Grace Chapel/ }).click();
   await expect(dialog.getByText("Synthetic Grace Chapel")).toBeVisible();
   await capture(page, "deal-create-dialog-light");

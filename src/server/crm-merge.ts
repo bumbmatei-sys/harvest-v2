@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { message } from "../i18n/messages";
 import { and, count, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import type { Database, Transaction } from "../db/client";
-import { contactCompanyLinks, contactConsents, contactIdentifiers, contacts, crmFieldDefinitions, crmFieldValues, crmNotes, crmTasks, opportunities } from "../db/schema";
+import { contactCompanyLinks, contactConsents, contactIdentifiers, contacts, crmAssociations, crmFieldDefinitions, crmFieldValues, crmNotes, crmTasks, opportunities } from "../db/schema";
 import { uuidInput } from "../lib/contact-input";
 import { appendOutboxEvent } from "./jobs/outbox";
 import { AccessError } from "./permissions";
@@ -40,6 +40,8 @@ export function previewMerge(db: Database, userId: string, workspace: string, ta
     const tasks = await tally(tx.select({ value: count() }).from(crmTasks).where(and(eq(crmTasks.tenantId, tenantId), eq(crmTasks.contactId, sourceId))));
     const notes = await tally(tx.select({ value: count() }).from(crmNotes).where(and(eq(crmNotes.tenantId, tenantId), eq(crmNotes.contactId, sourceId))));
     const deals = await tally(tx.select({ value: count() }).from(opportunities).where(and(eq(opportunities.tenantId, tenantId), eq(opportunities.contactId, sourceId))));
+    // CRM-07: logged activities (associations) move with the person; the merge definer re-parents them.
+    const activities = await tally(tx.select({ value: count() }).from(crmAssociations).where(and(eq(crmAssociations.tenantId, tenantId), eq(crmAssociations.contactId, sourceId))));
     const keptFields = tx.select({ id: crmFieldValues.fieldId }).from(crmFieldValues).where(and(eq(crmFieldValues.tenantId, tenantId), eq(crmFieldValues.contactId, targetId)));
     const values = await tally(tx.select({ value: count() }).from(crmFieldValues)
       .innerJoin(crmFieldDefinitions, and(eq(crmFieldDefinitions.tenantId, crmFieldValues.tenantId), eq(crmFieldDefinitions.id, crmFieldValues.fieldId), isNull(crmFieldDefinitions.archivedAt)))
@@ -53,7 +55,7 @@ export function previewMerge(db: Database, userId: string, workspace: string, ta
         dropped: fromSource.filter((item) => keptKinds.has(item.kind)).map((item) => ({ kind: item.kind, value: item.value })),
       },
       links: linked.filter((item) => item.contactId === sourceId && !keptCompanies.has(item.companyId)).length,
-      consents, tasks, notes, deals, values,
+      consents, tasks, notes, deals, values, activities,
       notesText: !kept.notes && merged.notes ? "copied" as const : merged.notes ? "dropped" as const : "none" as const,
     };
   });

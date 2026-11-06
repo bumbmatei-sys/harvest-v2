@@ -133,7 +133,8 @@ export const contactConsents = pgTable("contact_consents", {
   index("consents_tenant_contact_time_idx").on(t.tenantId, t.contactId, t.occurredAt),
   check("consent_channel", sql`${t.channel} in ('email', 'sms', 'social')`), check("consent_status", sql`${t.status} in ('granted', 'withdrawn', 'unknown')`),
   check("consent_source_length", sql`length(trim(${t.source})) between 1 and 200`), check("consent_evidence_length", sql`length(trim(${t.evidence})) between 1 and 2000`),
-  check("consent_purpose", sql`${t.purpose} in ('marketing', 'outreach_follow_up', 'event_administration', 'account_communications', 'legacy_unspecified')`),
+  // CRM-07 adds messaging, form follow-up and newsletter: separate opt-ins, never one bundled box.
+  check("consent_purpose", sql`${t.purpose} in ('marketing', 'outreach_follow_up', 'event_administration', 'account_communications', 'legacy_unspecified', 'messaging', 'form_follow_up', 'newsletter')`),
   check("consent_occurrence_bound", sql`${t.occurredAt} <= ${t.recordedAt} + interval '5 minutes'`),
   check("consent_notice_version", sql`${t.noticeVersion} in ('notice-v1', 'legacy-unversioned')`),
   check("consent_redaction", sql`(${t.redactedAt} is null and ${t.contactId} is not null and ${t.channel} is not null and ${t.source} is not null and ${t.evidence} is not null) or (${t.redactedAt} is not null and ${t.channel} is null and ${t.source} is null and ${t.evidence} is null and ${t.recordedBy} is null)`)]);
@@ -462,6 +463,43 @@ export const files = pgTable("files", {
   check("files_key_scope", sql`${t.key} = 'workspaces/' || ${t.tenantId}::text || '/files/' || ${t.id}::text`),
   check("files_name", sql`length(${t.name}) BETWEEN 1 AND 200`),
 ]);
+
+// CRM-07: contact association events (Zernio, forms and other touchpoints). The event itself is an
+// `association.record` row in the audit ledger; this table keeps its content, like crm_notes does for
+// notes. A row exists only while the person's consent for its purpose allowed it (ADR 0013).
+export const associationSources = ["zernio", "form", "touchpoint"] as const;
+export const associationKinds = ["message", "comment", "mention", "form_submission", "signup", "call", "meeting", "visit", "other"] as const;
+export const associationPurposes = ["messaging", "form_follow_up", "newsletter"] as const;
+export const crmAssociations = pgTable("crm_associations", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
+  contactId: uuid("contact_id").notNull(), companyId: uuid("company_id"),
+  source: text("source").$type<typeof associationSources[number]>().notNull(),
+  kind: text("kind").$type<typeof associationKinds[number]>().notNull(),
+  purpose: text("purpose").$type<typeof associationPurposes[number]>().notNull(),
+  // The consent event that allowed storing this association (kept for the audit trail).
+  consentId: uuid("consent_id").notNull(),
+  // Provider event id (for example a Zernio message id) so redelivery is idempotent.
+  externalId: text("external_id"),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+  summary: text("summary").notNull().default(""),
+  payload: jsonb("payload").$type<Record<string, unknown>>().notNull().default({}),
+  // Set when erasure of another person scrubbed text that contained their email or phone.
+  redactedAt: timestamp("redacted_at", { withTimezone: true }),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }),
+  foreignKey({ columns: [t.tenantId, t.companyId], foreignColumns: [companies.tenantId, companies.id] }),
+  foreignKey({ columns: [t.tenantId, t.consentId], foreignColumns: [contactConsents.tenantId, contactConsents.id] }),
+  uniqueIndex("crm_associations_external_idx").on(t.tenantId, t.source, t.externalId).where(sql`${t.externalId} is not null`),
+  index("crm_associations_contact_idx").on(t.tenantId, t.contactId, t.occurredAt),
+  index("crm_associations_company_idx").on(t.tenantId, t.companyId, t.occurredAt),
+  check("crm_association_source", sql`${t.source} in ('zernio', 'form', 'touchpoint')`),
+  check("crm_association_kind", sql`${t.kind} in ('message', 'comment', 'mention', 'form_submission', 'signup', 'call', 'meeting', 'visit', 'other')`),
+  check("crm_association_purpose", sql`${t.purpose} in ('messaging', 'form_follow_up', 'newsletter')`),
+  check("crm_association_external_id", sql`${t.externalId} is null or length(${t.externalId}) between 1 and 200`),
+  check("crm_association_summary", sql`length(${t.summary}) <= 1000`),
+  check("crm_association_payload", sql`jsonb_typeof(${t.payload}) = 'object' and octet_length(${t.payload}::text) <= 16384`)]);
 
 // Phase 1 queues use the same composite tenant keys as the CRM spine.
 export const jobStatuses = ["queued", "running", "succeeded", "dead_letter"] as const;
