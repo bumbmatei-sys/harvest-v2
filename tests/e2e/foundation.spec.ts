@@ -69,6 +69,10 @@ test("email code → session → workspace persistence → sign out", async ({ p
   await expect(codeField).toHaveAttribute("aria-describedby", /sign-in-error/);
   await expect(page.getByRole("main").getByRole("alert")).toBeVisible();
   await expect(page.locator('[data-slot="input-otp-slot"][aria-invalid="true"]')).toHaveCount(6);
+  // The submit button is disabled (50% opacity) while the request runs, then fades
+  // back; scan once it has settled, or axe measures a half-transparent button.
+  await expect(signIn).toBeEnabled();
+  await expect.poll(() => signIn.evaluate((button) => getComputedStyle(button).opacity)).toBe("1");
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
   await page.screenshot({ path: testInfo.outputPath("sign-in-code-error.png"), fullPage: true });
   // Focus before clearing: InputOTP selects its last slot when focus returns.

@@ -18,3 +18,12 @@ export function RecordSkeleton({ label }: { label: string }) {
 export function PeopleLoading() { const t = useTranslations("Crm"); return <ListSkeleton label={t("loadingPeople")} />; }
 export function CompaniesLoading() { const t = useTranslations("Crm"); return <ListSkeleton label={t("loadingCompanies")} />; }
 export function RecordLoading() { const t = useTranslations("Crm"); return <RecordSkeleton label={t("loadingRecord")} />; }
+export function BoardSkeleton({ label }: { label: string }) {
+  return <div role="status" aria-label={label} className="space-y-4">
+    <div className="space-y-2"><Skeleton className="h-3 w-12" /><Skeleton className="h-8 w-40" /><Skeleton className="h-4 w-72 max-w-full" /></div>
+    <div className="flex gap-2"><Skeleton className="h-9 w-40" /><Skeleton className="h-9 flex-1" /><Skeleton className="h-9 w-24" /></div>
+    <div className="flex gap-3">{Array.from({ length: 5 }, (_, column) => <div key={column} className={`min-w-0 flex-1 space-y-2 rounded-xl border p-2 ${column > 0 ? "hidden sm:block" : ""} ${column > 2 ? "sm:hidden lg:block" : ""}`}><Skeleton className="h-5 w-24" />{Array.from({ length: 3 - (column % 3) }, (_, card) => <Skeleton key={card} className="h-20 rounded-lg" />)}</div>)}</div>
+  </div>;
+}
+export function PipelinesLoading() { const t = useTranslations("Deals"); return <BoardSkeleton label={t("loadingPipelines")} />; }
+export function DealLoading() { const t = useTranslations("Deals"); return <RecordSkeleton label={t("loadingDeal")} />; }

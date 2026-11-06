@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
-import { Building, Building2, ChevronRight, ChevronsUpDown, Files, LogOut, Palette, SlidersHorizontal, Sprout, UsersRound } from "lucide-react";
+import { Building, Building2, ChevronRight, ChevronsUpDown, Files, Kanban, LogOut, Palette, SlidersHorizontal, Sprout, UsersRound, Workflow } from "lucide-react";
 import { authClient } from "@/lib/auth-client";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { BrandThemeMenu, ThemeToggle, WorkspaceTheme } from "@/components/theme-controls";
@@ -63,7 +63,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
   const [busy, setBusy] = useState(false);
   const [navigationContainer, setNavigationContainer] = useState<HTMLElement | null>(null);
   const workspace = workspaces.find((item) => item.tenantId === selected);
-  const section = pathname === "/profile" ? t("profile") : pathname.includes("/crm/people") || pathname.includes("/contacts") ? t("people") : pathname.includes("/crm/companies") ? t("companies") : pathname.includes("/files") ? t("files") : pathname.includes("/crm/settings/fields") ? t("crmFields"): pathname.endsWith("/appearance") ? t("appearance") : t("workspaces");
+  const section = pathname === "/profile" ? t("profile") : pathname.includes("/crm/people") || pathname.includes("/contacts") ? t("people") : pathname.includes("/crm/companies") ? t("companies") : pathname.includes("/files") ? t("files") : pathname.includes("/crm/settings/pipelines") ? t("pipelineSettings") : pathname.includes("/crm/pipelines") || pathname.includes("/crm/deals") ? t("pipelines"): pathname.includes("/crm/settings/fields") ? t("crmFields"): pathname.endsWith("/appearance") ? t("appearance") : t("workspaces");
   async function signOut() {
     setBusy(true); setError("");
     try {
@@ -93,12 +93,14 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
             <NavigationGroup label={t("crm")}>
               <NavigationLink href={`/workspaces/${selected}/crm/people`} active={pathname.includes("/crm/people")} label={t("people")} icon={<UsersRound aria-hidden="true" />} />
               <NavigationLink href={`/workspaces/${selected}/crm/companies`} active={pathname.includes("/crm/companies")} label={t("companies")} icon={<Building aria-hidden="true" />} />
+              <NavigationLink href={`/workspaces/${selected}/crm/pipelines`} active={pathname.includes("/crm/pipelines") || pathname.includes("/crm/deals")} label={t("pipelines")} icon={<Kanban aria-hidden="true" />} />
             </NavigationGroup>
             <NavigationGroup label={t("workspace")}>
               <NavigationLink href={`/workspaces/${selected}/files`} active={pathname.includes("/files")} label={t("files")} icon={<Files aria-hidden="true" />} />
             </NavigationGroup>
             <NavigationGroup label={t("settings")}>
               <NavigationLink href={`/workspaces/${selected}/crm/settings/fields`} active={pathname.includes("/crm/settings/fields")} label={t("crmFields")} icon={<SlidersHorizontal aria-hidden="true" />} />
+              <NavigationLink href={`/workspaces/${selected}/crm/settings/pipelines`} active={pathname.includes("/crm/settings/pipelines")} label={t("pipelineSettings")} icon={<Workflow aria-hidden="true" />} />
               <NavigationLink href={`/workspaces/${selected}/appearance`} active={pathname.endsWith("/appearance")} label={t("appearance")} icon={<Palette aria-hidden="true" />} />
             </NavigationGroup>
           </>}

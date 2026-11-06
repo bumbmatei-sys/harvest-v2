@@ -1,10 +1,10 @@
 import { message } from "../i18n/messages";
 export const roleIds = ["owner", "admin", "member", "viewer"] as const;
 export type Role = typeof roleIds[number];
-export type Permission = "workspace:read" | "members:write" | "roles:write" | "contacts:read" | "contacts:write" | "settings:write" | "contacts:erase" | "jobs:read" | "jobs:operate" | "companies:read" | "companies:write" | "crm:fields_write";
+export type Permission = "workspace:read" | "members:write" | "roles:write" | "contacts:read" | "contacts:write" | "settings:write" | "contacts:erase" | "jobs:read" | "jobs:operate" | "companies:read" | "companies:write" | "crm:fields_write" | "opportunities:read" | "opportunities:write" | "crm:pipelines_write";
 export function can(role: string, permission: Permission): boolean {
-  if (permission === "workspace:read" || permission === "contacts:read" || permission === "companies:read") return roleIds.includes(role as Role);
-  if (permission === "contacts:write" || permission === "companies:write") return role === "owner" || role === "admin" || role === "member";
+  if (permission === "workspace:read" || permission === "contacts:read" || permission === "companies:read" || permission === "opportunities:read") return roleIds.includes(role as Role);
+  if (permission === "contacts:write" || permission === "companies:write" || permission === "opportunities:write") return role === "owner" || role === "admin" || role === "member";
   return role === "owner" || role === "admin";
 }
 export class AccessError extends Error {
