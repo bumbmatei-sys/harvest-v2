@@ -29,4 +29,12 @@ export const jobHandlers: JobHandlers = {
   // Domain events can safely enter the queue before consumers are released.
   // A deliberate no-op receipt is the entire Phase 1 domain handler.
   "domain.receipt": async () => {},
+  // CRM-05 domain events: receipts only until automation consumers exist (CRM-08).
+  "crm.task.created": async () => {},
+  "crm.task.updated": async () => {},
+  "crm.task.completed": async () => {},
+  "crm.task.reassigned": async () => {},
+  "crm.note.created": async () => {},
+  "crm.note.updated": async () => {},
+  "crm.note.archived": async () => {},
 };

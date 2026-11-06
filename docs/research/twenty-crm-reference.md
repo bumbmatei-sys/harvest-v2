@@ -82,3 +82,27 @@ Read 2026-11-06 at the same Twenty commit (`4635b83e82d041022f2a8f2d249af1f6a6b9
 - The board and the list read the same server query, so they cannot disagree.
 
 Firestore shapes were not carried over.
+
+## CRM-05: tasks, notes, the unified timeline and ownership
+
+Read 2026-11-06 at the same Twenty commit (`4635b83e82d041022f2a8f2d249af1f6a6b93c1d`), adding a sparse checkout of `twenty-server/src/modules/{task,note,timeline}/` and `twenty-front/src/modules/activities/`. All of these are in the AGPL-3.0 packages, so they were read for behaviour only. No code, styles, copy, icons or assets were copied, translated or renamed.
+
+| Area | Twenty (file at the commit above) | Harvest CRM-05 |
+| --- | --- | --- |
+| Task model | `task/standard-objects/task.workspace-entity.ts`: `title`, rich-text `bodyV2`, `dueAt` (timestamp), `status` (select **TODO / IN_PROGRESS / DONE**, default TODO, in `compute-task-standard-flat-field-metadata.util.ts`), `assignee` (workspace member), `position`, soft delete. The records a task targets live in a separate `task-target.workspace-entity.ts` junction (many targets of any type). There is no priority field. | `crm_tasks`: title, plain-text body, status **open / done** (IN_PROGRESS is left out deliberately, as the brief asks for a small set), priority **none / low / medium / high**, `due_at` (timestamptz), `assignee_user_id`, `completed_at`, `archived_at` and version. Instead of a junction, three nullable relations (`contact_id`, `company_id`, `opportunity_id`), each with a composite tenant FK. That covers "task on a person, a company or a deal" without a polymorphic table, and a task may also be unlinked (personal). |
+| Note model | `note/standard-objects/note.workspace-entity.ts`: `title`, rich-text `bodyV2`, and many targets through `note-target`. | `crm_notes`: one target only (exactly one of contact, company or opportunity, enforced by a CHECK), a plain-text body up to 10,000 characters with whitespace preserved, author, `edited_at` and `archived_at`. **No rich-text editor**: none is in the tree, and a textarea keeps notes portable and safe. |
+| Task list on a record | `activities/tasks/components/TaskGroupsContent.tsx` groups a record's tasks by status (Done last). `TaskRow.tsx` has a completion **checkbox** (TODO ↔ DONE), a struck-through title when done, and a due date shown in the danger colour when `hasDatePassed(dueAt) && status === 'TODO'`. | A Related tasks card on person, company and deal pages shows open tasks first, then recently done ones. Each row has a shadcn Checkbox to complete or reopen (keyboard: Space), a struck-through title when done, the due date with a calm **Overdue** badge (open and due in the past), and the assignee. |
+| "My tasks" | Twenty's Tasks object index can be filtered by assignee. | `/crm/tasks` defaults to **assigned to me, open** for writers (documented), with URL filters for assignee, status, due (overdue, today, upcoming, none), linked record type and search. An empty list and an empty filter result are distinct states. |
+| Timeline | `timeline/standard-objects/timeline-activity.workspace-entity.ts`: a **separate store** of `happensAt`, a type, `properties` (a diff), the linked record (its id and a cached name), the workspace member, and target person, company or opportunity. It is written by `jobs/upsert-timeline-activity-from-internal-event.job.ts` from internal events. The front end (`timeline-activities/components/EventList.tsx`) groups rows by month, newest first. | Harvest keeps **one source of truth**: the append-only `audit_logs` ledger (as in CRM-02/03/04). Task and note events become `task.*` and `note.*` audit rows that carry the related record ids. The timeline merges the record's ledger rows (its own actions, plus task and note events that name it) with its live note bodies, newest first, 50 per page with a cursor. Nothing new is copied into a second store, so erasure and the outbox stay consistent with one ledger. Rows are grouped by day rather than month, because CRM pages are short-lived and day headings read better. |
+| Completion and due signals | `useCompleteTask.ts` toggles status; the due colour is computed on read. | Completing sets `completed_at` and writes `task.complete`; reopening clears it. Overdue is computed on read (a due instant before now while open). Nothing completes or moves automatically. |
+
+### Harvest v1 lesson
+
+`Harvest-agent/src/hooks/queries/useCRMQueries.ts` defines `ContactActivity` (types `note`, `donation`, `email`, `call`, `meeting`, each with a free-text `description`), and `AdminCRM.tsx` renders it per contact. v1 had **no task model** and no assignee. Its own comments document a bug (THE-350): donation amounts stored on activity rows duplicated the invoice record ("one gift in two money-bearing documents"). Lessons for CRM-05:
+
+- Keep exactly one source of truth per fact. The timeline *reads* the audit ledger and notes and never copies amounts or other domain values into a second store.
+- Tasks are first-class records with an owner (assignee) and audited history.
+- Notifications go only to the person a task is assigned to.
+- Free text (notes, task bodies) never leaves the database in outbox events.
+
+No Firestore shapes were carried over.
