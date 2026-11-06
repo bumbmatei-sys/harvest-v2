@@ -83,12 +83,12 @@ test("CRM-07: per-purpose opt-in gates association events on the timeline", asyn
   await permissions.getByRole("button", { name: "Record opt-in for Messaging" }).click();
   const consentDialog = page.getByRole("dialog", { name: "Record consent" });
   await expect(consentDialog.locator('select[name="purpose"], [name="purpose"]').first()).toHaveValue("messaging");
-  await consentDialog.getByLabel("Source").fill("Synthetic Zernio opt-in reply");
+  await consentDialog.getByLabel("Source").fill("Synthetic opt-in reply");
   await consentDialog.getByLabel("Evidence").fill("Replied YES to the opt-in message");
   await consentDialog.getByRole("button", { name: "Save consent record" }).click();
   await expect(consentDialog).toBeHidden();
   await expect(permissions.getByText("Opted in", { exact: true })).toHaveCount(1);
-  await expect(permissions.getByText(/Synthetic Zernio opt-in reply/)).toBeVisible();
+  await expect(permissions.getByText(/Synthetic opt-in reply/)).toBeVisible();
 
   // Now the same activity is linked and appears on the timeline with its purpose.
   await page.getByRole("button", { name: "Log activity" }).click();
@@ -97,7 +97,7 @@ test("CRM-07: per-purpose opt-in gates association events on the timeline", asyn
   await dialog.getByRole("button", { name: "Link activity" }).click();
   await expect(dialog).toBeHidden();
   const timeline = page.getByRole("list", { name: "Timeline" });
-  await expect(timeline.getByText("recorded a message from Zernio")).toBeVisible();
+  await expect(timeline.getByText("recorded a message from a connected channel")).toBeVisible();
   await expect(timeline.getByText("Synthetic: asked about the youth trip")).toBeVisible();
   await expect(timeline.getByText("Messaging", { exact: true })).toBeVisible();
   // A form sign-up linked to the company through the API (as an adapter would) needs its own opt-in.
@@ -174,4 +174,52 @@ test("CRM-07: per-purpose opt-in gates association events on the timeline", asyn
     }
   }
   expect(pageErrors).toEqual([]);
+});
+
+// Copy review screens: person record, organizations list, organization record, consent section and
+// activity timeline, each at 390 and 1440 in light and dark. Pages are checked for vendor names and the
+// old "company" wording before every capture.
+test("CRM-07 copy: organizations wording and vendor-free screens at 390 and 1440", async ({ page }) => {
+  test.setTimeout(300_000);
+  await mkdir(evidence, { recursive: true });
+  await signIn(page);
+  const tenantId = (await api(page, "post", "/api/workspaces", { name: "Harvest copy review" })).body.tenantId as string, root = `/workspaces/${tenantId}`, apiRoot = `/api${root}`;
+  const organization = (await api(page, "post", `${apiRoot}/companies`, { name: "Synthetic Grace Chapel", domain: "grace.example", description: "Sunday services and youth work" })).body.id as string;
+  await api(page, "post", `${apiRoot}/companies`, { name: "Synthetic Hope Fellowship", domain: "hope.example" });
+  const person = (await api(page, "post", `${apiRoot}/contacts`, { name: "Synthetic Ana Costa", email: "ana@example.test", phone: "+4915112345678", companyId: organization, title: "Youth leader" })).body.id as string;
+  for (const purpose of ["messaging", "newsletter"]) expect((await api(page, "post", `${apiRoot}/contacts/${person}/consents`, consent(purpose, "granted"))).status).toBe(201);
+  expect((await api(page, "post", `${apiRoot}/crm/associations`, { source: "zernio", kind: "message", purpose: "messaging", contactId: person, summary: "Synthetic: asked about the youth trip" })).status).toBe(201);
+  expect((await api(page, "post", `${apiRoot}/crm/associations`, { source: "form", kind: "signup", purpose: "newsletter", contactId: person, companyId: organization, summary: "Synthetic newsletter form" })).status).toBe(201);
+  await api(page, "post", `${apiRoot}/crm/notes`, { target: "person", targetId: person, body: "Synthetic: prefers a call after the service." });
+  const screens = [
+    { name: "person-record", path: `${root}/crm/people/${person}`, ready: () => page.getByRole("list", { name: "Timeline" }) },
+    { name: "organizations-list", path: `${root}/crm/companies`, ready: () => page.getByRole("heading", { name: "Organizations", level: 1 }) },
+    { name: "organization-record", path: `${root}/crm/companies/${organization}`, ready: () => page.getByRole("list", { name: "Timeline" }) },
+  ];
+  for (const width of [390, 1440]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 1000 });
+    for (const mode of ["light", "dark"] as const) {
+      for (const screen of screens) {
+        await gotoHydrated(page, screen.path);
+        await expect(screen.ready()).toBeVisible();
+        await setMode(page, mode);
+        await expect(screen.ready()).toBeVisible();
+        const text = await page.locator("main").innerText();
+        expect(text).not.toMatch(/zernio/i);
+        expect(text.replace(/companies\//g, "")).not.toMatch(/\bcompan(y|ies)\b/i);
+        await expectFullWidthShell(page);
+        await capture(page, `${screen.name}-${width}-${mode}`);
+        if (screen.name === "person-record") {
+          await page.addStyleTag({ content: "nextjs-portal { display: none !important; }" });
+          await page.getByRole("list", { name: "Contact permissions" }).locator("xpath=ancestor::*[@data-slot='card'][1]").screenshot({ path: `${evidence}/consent-section-${width}-${mode}.png`, animations: "disabled" });
+          await page.getByRole("list", { name: "Timeline" }).locator("xpath=ancestor::*[@data-slot='card'][1]").screenshot({ path: `${evidence}/activity-timeline-${width}-${mode}.png`, animations: "disabled" });
+        }
+      }
+    }
+  }
+  // The sidebar and breadcrumb say Organizations too.
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await gotoHydrated(page, `${root}/crm/companies`);
+  await expect(page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Organizations" })).toBeVisible();
+  await expect(page.locator("[data-shell-header]").getByText("Organizations")).toBeVisible();
 });

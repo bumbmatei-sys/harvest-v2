@@ -105,7 +105,7 @@ test("CRM: company People tab truncates long names, roles and emails without sid
     await expect(actions).toBeInViewport();
     await actions.click();
     await expect(page.getByRole("menuitem", { name: "Open person" })).toHaveAttribute("href", `${root}/crm/people/${person.body.id}`);
-    await expect(page.getByRole("menuitem", { name: "Remove from company" })).toBeVisible();
+    await expect(page.getByRole("menuitem", { name: "Remove from organization" })).toBeVisible();
     await page.keyboard.press("Escape");
   });
 });
@@ -126,21 +126,21 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
   await expect(page.getByRole("heading", { name: "Every connection starts somewhere" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "People", exact: true })).toHaveAttribute("aria-current", "page");
   await both(page, "people-empty");
-  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Companies", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "No companies yet" })).toBeVisible();
+  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Organizations", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "No organizations yet" })).toBeVisible();
   await both(page, "companies-empty");
 
   // Create a company through the dialog; the pasted URL is reduced to a domain.
-  await page.getByRole("button", { name: "Add company" }).first().click();
+  await page.getByRole("button", { name: "Add organization" }).first().click();
   const dialog = page.getByRole("dialog");
-  await dialog.getByLabel("Company name").fill("Riverside Community Trust");
+  await dialog.getByLabel("Organization name").fill("Riverside Community Trust");
   await dialog.getByLabel("Domain").fill("https://www.Riverside-Trust.example/about");
   await capture(page, "company-create-dialog-light");
-  await dialog.getByRole("button", { name: "Save company" }).click();
+  await dialog.getByRole("button", { name: "Save organization" }).click();
   await expect(page).toHaveURL(new RegExp(`${root}/crm/companies/[0-9a-f-]{36}$`));
   const companyId = page.url().split("/").pop()!;
   await expect(page.getByRole("link", { name: "riverside-trust.example" })).toHaveAttribute("href", "https://riverside-trust.example");
-  await expect(page.getByText("No people at this company yet")).toBeVisible();
+  await expect(page.getByText("No people at this organization yet")).toBeVisible();
 
   // Inline edit: description saves on blur, Escape cancels.
   await page.getByRole("button", { name: /^Edit Description/ }).click();
@@ -175,9 +175,9 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
   await page.getByRole("textbox", { name: "Phone" }).fill("+44 20 7946 0123");
   await page.getByRole("textbox", { name: "Phone" }).press("Enter");
   await expect(page.getByRole("link", { name: "+442079460123" })).toBeVisible();
-  await page.getByRole("button", { name: "Link company" }).click();
-  await page.getByPlaceholder("Search companies").fill("Northgate Fellowship");
-  await page.getByRole("option", { name: "Create company “Northgate Fellowship”" }).click();
+  await page.getByRole("button", { name: "Link organization" }).click();
+  await page.getByPlaceholder("Search organizations").fill("Northgate Fellowship");
+  await page.getByRole("option", { name: "Create organization “Northgate Fellowship”" }).click();
   await expect(page.getByRole("link", { name: "Northgate Fellowship" }).first()).toBeVisible();
   await page.getByRole("button", { name: "Actions for Northgate Fellowship" }).click();
   await page.getByRole("menuitem", { name: "Make primary" }).click();
@@ -237,12 +237,12 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
   await expect(page).toHaveURL(/sort=-created/);
   await expect(page).not.toHaveURL(/page=2/);
   await page.getByRole("button", { name: /^Filter/ }).click();
-  await page.getByRole("option", { name: /^Company\s*Relation$/ }).click();
+  await page.getByRole("option", { name: /^Organization\s*Relation$/ }).click();
   await page.getByPlaceholder("Search records").fill("Riverside");
   await page.getByRole("option", { name: /Riverside Community Trust/ }).click();
   await page.getByRole("button", { name: "Apply filter" }).click();
   await expect(page).toHaveURL(new RegExp(`f=company(~|%7E)is(~|%7E)${companyId}`));
-  await expect(page.getByRole("listitem").filter({ hasText: "Company is Riverside Community Trust" })).toBeVisible();
+  await expect(page.getByRole("listitem").filter({ hasText: "Organization is Riverside Community Trust" })).toBeVisible();
   await expect(page.getByRole("grid", { name: "People" }).getByRole("row")).toHaveCount(8);
   await page.getByRole("button", { name: /^Filter/ }).click();
   await page.getByRole("option", { name: /^Email\s*Text$/ }).click();
@@ -264,14 +264,14 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
 
   // Companies list, duplicate domain conflict and its recovery link.
   await page.goto(`${root}/crm/companies`);
-  await expect(page.getByRole("grid", { name: "Companies" })).toBeVisible();
+  await expect(page.getByRole("grid", { name: "Organizations" })).toBeVisible();
   await expect(page.getByRole("link", { name: "View 7 people at Riverside Community Trust" })).toBeVisible();
   await both(page, "companies-list");
-  await page.getByRole("button", { name: "Add company" }).click();
-  await page.getByRole("dialog").getByLabel("Company name").fill("Riverside duplicate");
+  await page.getByRole("button", { name: "Add organization" }).click();
+  await page.getByRole("dialog").getByLabel("Organization name").fill("Riverside duplicate");
   await page.getByRole("dialog").getByLabel("Domain").fill("RIVERSIDE-TRUST.example");
-  await page.getByRole("dialog").getByRole("button", { name: "Save company" }).click();
-  await expect(page.getByRole("dialog").getByRole("link", { name: "Open the existing company" })).toHaveAttribute("href", `${root}/crm/companies/${companyId}`);
+  await page.getByRole("dialog").getByRole("button", { name: "Save organization" }).click();
+  await expect(page.getByRole("dialog").getByRole("link", { name: "Open the existing organization" })).toHaveAttribute("href", `${root}/crm/companies/${companyId}`);
   await capture(page, "company-duplicate-domain-light");
   await page.keyboard.press("Escape");
 
@@ -296,7 +296,7 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
   await viewer.goto(`${root}/crm/people/${personId}`);
   await expect(viewer.getByText("You have view-only access to this record.")).toBeVisible();
   await expect(viewer.getByRole("button", { name: /^Edit / })).toHaveCount(0);
-  await expect(viewer.getByRole("button", { name: "Link company" })).toHaveCount(0);
+  await expect(viewer.getByRole("button", { name: "Link organization" })).toHaveCount(0);
   await capture(viewer, "person-viewer-light");
   expect((await api(viewer, "patch", `${apiRoot}/contacts/${personId}`, { name: "Denied", version: 1 })).status).toBe(403);
   expect((await api(viewer, "post", `${apiRoot}/companies`, { name: "Denied" })).status).toBe(403);
@@ -324,7 +324,7 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
   await page.goto(`/workspaces/${tenantB}/crm/companies`);
   await expect(page.getByRole("heading", { name: "Workspace access denied" })).toBeVisible();
   await page.goto(`${root}/crm/companies/${companyB}`);
-  await expect(page.getByRole("heading", { name: "Company not found" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Organization not found" })).toBeVisible();
   await capture(page, "company-not-found-light");
   await viewerContext.close();
 
@@ -356,7 +356,7 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
     if (label === "tablet") {
       // At ~688px People keeps Name, Company and Email; lower-priority columns wait for room.
       await page.goto(`${root}/crm/people`);
-      await expect(page.getByRole("columnheader", { name: "Company" })).toBeVisible();
+      await expect(page.getByRole("columnheader", { name: "Organization" })).toBeVisible();
       await expect(page.getByRole("columnheader", { name: "Email", exact: true })).toBeVisible();
       await expect(page.getByRole("columnheader", { name: "Email marketing" })).toBeHidden();
       await expectFullWidthShell(page);
@@ -373,7 +373,7 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
     await page.goto(`${root}/crm/companies`);
     const domainLink = page.getByRole("grid").getByRole("link", { name: "stbartholomewscommunitydevelopmenttrust.org.uk" });
     await expect(domainLink).toBeVisible();
-    await page.locator("main").getByRole("searchbox", { name: "Search companies" }).focus();
+    await page.locator("main").getByRole("searchbox", { name: "Search organizations" }).focus();
     let inGrid = false;
     for (let step = 0; step < 40 && !inGrid; step += 1) {
       await page.keyboard.press("Tab");
@@ -399,7 +399,7 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
   await page.context().addCookies([{ name: "sidebar_state", value: "true", url: origin }]);
 
   // Full-width layout: wide desktop and phone, both colour modes, with geometry checks.
-  const screens = [[`${root}/crm/people`, "people-list", null], [`${root}/crm/people/${personId}`, "person-detail", "All people"], [`${root}/crm/companies`, "companies-list", null], [`${root}/crm/companies/${companyId}`, "company-detail", "All companies"]] as const;
+  const screens = [[`${root}/crm/people`, "people-list", null], [`${root}/crm/people/${personId}`, "person-detail", "All people"], [`${root}/crm/companies`, "companies-list", null], [`${root}/crm/companies/${companyId}`, "company-detail", "All organizations"]] as const;
   await page.setViewportSize(wide);
   for (const [path, name, back] of screens) {
     await page.goto(path);
