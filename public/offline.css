@@ -2572,9 +2572,6 @@
     clip-path: none;
     white-space: normal;
   }
-  .focus\:absolute:focus {
-    position: absolute;
-  }
   .focus\:fixed:focus {
     position: fixed;
   }

@@ -6,6 +6,33 @@ import { previewPublicCode } from "../../src/lib/connect-public";
 const landing = `/c/${previewPublicCode}`;
 const evidence = "docs/screenshots/connect/hc-04";
 
+for (const width of [320, 375, 390, 768, 1024, 1440]) {
+  test(`focused public skip links are at least 44px and inside the ${width}px viewport`, async ({ page }) => {
+    await page.setViewportSize({ width, height: 1000 });
+    for (const path of [landing, "/resources/start", "/resources/start/first-reading", "/c/unknown", "/resources/start/private"]) {
+      await page.goto(path);
+      // In dev, a 404 document loads before Next renders the unavailable boundary.
+      await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+      // Next's development error toolbar adds a Tab stop on 404s; it isn't public UI.
+      await page.addStyleTag({ content: "nextjs-portal { visibility: hidden !important; }" });
+      const skip = page.getByRole("link", { name: "Skip to content", exact: true });
+      await page.keyboard.press("Tab");
+      await expect(skip).toBeFocused();
+      const box = await skip.evaluate((link) => {
+        const { height, top, left, right, bottom } = link.getBoundingClientRect();
+        return { height, top, left, right, bottom };
+      });
+      expect(box.height, path).toBeGreaterThanOrEqual(44);
+      expect(box.top, path).toBeGreaterThanOrEqual(0);
+      expect(box.left, path).toBeGreaterThanOrEqual(0);
+      expect(box.right, path).toBeLessThanOrEqual(width);
+      expect(box.bottom, path).toBeLessThanOrEqual(1000);
+      await page.keyboard.press("Enter");
+      await expect(page.getByRole("main")).toBeFocused();
+    }
+  });
+}
+
 async function expectPublicLayout(page: Page) {
   await expect(page.locator('[data-slot="sidebar"]')).toHaveCount(0);
   await expect(page.locator("form, input, video, iframe, audio")).toHaveCount(0);
@@ -117,8 +144,10 @@ test("mobile guides work without JavaScript, media, or fonts on a slow connectio
 });
 
 test("unknown public codes and resource ids expose only a safe resource fallback", async ({ page }) => {
-  for (const path of ["/c/1", `/c/${"0".repeat(32)}`, "/resources/start/private"]) {
-    await page.goto(path);
+  const codes = ["unknown", "1", "0".repeat(32), previewPublicCode.toUpperCase(), "00000000-0000-4000-8000-000000000002", "draft", "unpublished", "disabled", "archived"];
+  for (const path of [...codes.map((code) => `/c/${code}`), "/resources/start/private"]) {
+    const response = await page.goto(path);
+    expect(response?.status(), path).toBe(404);
     await expect(page.getByRole("heading", { name: "This page isn’t available." })).toBeVisible();
     await expect(page.getByRole("link", { name: "Browse resources" })).toHaveAttribute("href", "/resources/start");
     await expect(page.locator("form, input")).toHaveCount(0);

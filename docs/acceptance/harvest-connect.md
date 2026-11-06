@@ -103,3 +103,42 @@ Accessibility results: [axe-results.json](../screenshots/connect/hc-04/axe-resul
 Static preview only; no real campaign/QR is published or launch approved. Production resources and locales need ministry/content review; legal/security/safeguarding gates remain pending. Community links/discovery await their own canonical module. No second locale is claimed.
 
 No migration number chosen: no schema change; preserve `0018`–`0021` for CRM-05 and start future Connect migrations at `0022` or higher only after rechecking branches/open PRs. No HC-02/03/05–20, CRM-05/06, Eden switcher, Soft FU, Connect finance, production Neon/R2/Vercel, merge, deploy, reviewer request or Cursor CloudAgent. Final head SHA and draft PR URL are recorded in the PR/handoff to avoid a self-referencing commit.
+
+### HC-04 r1 review fixes — 2026-11-06
+
+Review baseline: `6d6e3045c58c00ed1cac6bc4a3a87d9978fcc182`, draft [PR #20](https://github.com/bumbmatei-sys/harvest-v2/pull/20). The same feature branch was rebased onto latest main `708ed11` (merged CRM-05 #15). The shared catalogue retains main's entries plus Connect; offline CSS was regenerated. No changes relative to main in CRM code, schema, migration journal or dependencies; no CW-01 migration `0021` or CRM-06 work was imported. Fixes and verification run in `/tmp/harvest-connect-hc04-fix`.
+
+- [x] B1: public skip link matches the shell's plain anchor with `focus:p-3`, fixed viewport placement and existing card tokens.
+- [x] Required test 1: keyboard Tab focuses the skip link on landing, resource index, reading guide and both unavailable routes; its DOM rectangle must be at least 44px tall and fully within the viewport at 320, 375, 390, 768, 1024 and 1440px. Enter must focus main.
+- [x] Required test 2: deterministic generated hex, UUID and Unicode inputs plus single-character mutations/deletions and prefix/suffix variants reject every sampled non-exact code. Includes uppercase, empty/whitespace, and generated publication-state variants such as `unpublished-preview`.
+- [x] Required test 3: unknown, uppercase preview code, another tenant-shaped UUID, draft, unpublished, disabled and archived codes assert HTTP **404** and the same unavailable heading/resource fallback. Invalid resource IDs assert 404 too.
+- [x] Required test 4: recursive source guard forbids `dangerouslySetInnerHTML` in every JS/TS source under `src/app/c`, `src/app/resources` and `src/components/connect`, including future nested components.
+
+The original commands/captures above record initial delivery. Current r1 verification results are recorded below; existing screenshots are retained without committing suite-generated rewrites. Local database verification uses disposable embedded Postgres only. Neon credentials or a new Neon run are not claimed.
+
+| r1 command / check | Result |
+| --- | --- |
+| `npm run lint` | Passed, including source guards |
+| `npm run typecheck` | Passed |
+| `npm test` | Passed: 14 files, 149 tests |
+| `npm run test:rls` | Passed: 21 files, 213 tests; disposable embedded local Postgres |
+| `NEXT_TELEMETRY_DISABLED=1 npm run build` | Passed; public routes included, generated offline CSS removes the unused `focus:absolute` utility |
+| `PLAYWRIGHT_BROWSERS_PATH=/tmp/hc04-playwright npm run test:e2e -- tests/e2e/connect.spec.ts` | Passed: 9 tests, 33.3 seconds, zero retries |
+| `PLAYWRIGHT_BROWSERS_PATH=/tmp/hc04-playwright npm run test:e2e` | Passed: all 21 tests, 10.9 minutes, zero retries; screenshots/evidence rewrites and `next-env.d.ts` restored |
+| M5 / M6 mutation probes with `npx vitest run --project unit tests/unit/connect-public.test.ts` | Both rejected: each mutation caused its intended test to fail; original sources restored and all 149 unit tests passed afterward |
+| Schema / dependencies / whitespace | No diff relative to main in `drizzle`, `src/db`, `package.json` or lockfile; `git diff --check` passed |
+
+Initial browser runs exposed test setup issues on unavailable routes: the development 404 boundary renders after document load, and Next's error toolbar inserts a Tab stop. The geometry test waits for the heading and hides only `nextjs-portal`, following the existing browser-test convention. It uses real Tab/Enter presses and measures the actual public anchor; no application workaround or arbitrary delay was added.
+
+### Parked r1 soft follow-ups
+
+These remain acceptance items for later work; none is implemented by the r1 fix:
+
+- A future DB-backed resolver must filter non-published rows under `harvest_app` and select only an explicit public column allowlist; today's publication field is a static constant, not a database publication gate.
+- Future locale loading must take only `resolveLocale` output.
+- Add a regression for normalized `/c/../../workspaces` reaching the existing sign-in redirect.
+- Confirm intended indexing split: resource guides are indexable, landing is noindex.
+- Unknown `/c/*` document title currently falls back to “Harvest”.
+- Document responses have no CSP.
+- Review the `badge.tsx` Radix umbrella import and approximately 315 KB shared client graph.
+- E2E rewrites unrelated CRM/layout screenshots; keep those generated changes out of commits.
