@@ -88,7 +88,19 @@ Design: [ADR 0012](../decisions/0012-crm-csv-import-export.md). Reference study:
 
 ## Commands and results (this branch)
 
-RESULTS_TABLE
+Database-backed tests used `TEST_DATABASE_URL` against a local PostgreSQL 16, as in CRM-01 to CRM-05. Browser runs used an uncommitted local Playwright config (Chromium at `/opt/pw-browsers/chromium`) against `scripts/e2e-server.ts`.
+
+| Command | Result |
+| --- | --- |
+| `npm run lint` | exit 0; ESLint and source guards clean |
+| `npm run typecheck` | exit 0 |
+| `npm test` (unit) | 14 files, **156 passed** (new: `crm-import.test.ts`, 11: CSV reading and writing, formula safety and round trip, mapping, validation, identity keys, permissions) |
+| `TEST_DATABASE_URL=… npm run test:rls` | 23 files, **228 passed** (new: `crm-imports.test.ts`, 14; `crm06-upgrade.test.ts`, 1; `erasure.test.ts` restricted definer extended to `crm_import_rows`) |
+| `npx drizzle-kit check` / `generate` | "Everything's fine" / "No schema changes, nothing to migrate" |
+| `npm run build` | exit 0; `public/offline.css` regenerated and committed |
+| `npx playwright test` (13 tests) | full run: **12 passed, 1 failed**. The failure is `pr01b.spec.ts`, the known dev-only flake recorded in CRM-05: Next's dev "issues" badge covers the sidebar toggle. It passed when rerun alone. `crm06.spec.ts` passed in the full run and twice alone. |
+
+`npm run test:rls:neon` was **not** run (no Neon credentials; not authorized).
 
 ## Browser proof (`tests/e2e/crm06.spec.ts`)
 
