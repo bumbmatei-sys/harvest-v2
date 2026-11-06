@@ -62,7 +62,7 @@ async function expectBoardShell(page: Page) {
   expect(metrics.boardInside).toBe(true);
   return metrics;
 }
-const column = (page: Page, stage: string) => page.getByRole("region", { name: "Deals board" }).locator("section").filter({ has: page.getByRole("heading", { name: stage, exact: true }) });
+const column = (page: Page, stage: string) => page.getByRole("region", { name: "Deals board" }).locator("[data-board-column]").filter({ has: page.getByRole("heading", { name: stage, exact: true }) });
 const card = (page: Page, deal: string) => page.locator("[data-deal-card]").filter({ hasText: deal });
 
 test("CRM-04: pipelines, deals, board moves, list, deal detail, related deals, settings and isolation", async ({ page, browser }) => {
@@ -160,6 +160,7 @@ test("CRM-04: pipelines, deals, board moves, list, deal detail, related deals, s
   // Deal detail: edit the amount inline, see the stage history from the ledger.
   await page.getByRole("link", { name: "Synthetic roof appeal" }).click();
   await expect(page.getByRole("heading", { name: "Synthetic roof appeal" })).toBeVisible();
+  const dealId = page.url().split("/").pop()!;
   await page.getByRole("button", { name: "Edit Amount (USD): $12,000.00" }).click();
   await page.getByRole("textbox", { name: "Amount (USD)" }).fill("15000");
   await page.getByRole("textbox", { name: "Amount (USD)" }).press("Enter");
@@ -194,7 +195,7 @@ test("CRM-04: pipelines, deals, board moves, list, deal detail, related deals, s
   await expect(page.getByRole("region", { name: "Deals board" }).getByRole("heading")).toHaveText(["New", "Contacted", "Proposal", "Qualified", "Won", "Lost"]);
 
   // Responsive: tablet with the sidebar expanded, and a phone. The board scrolls inside itself only.
-  for (const viewport of [{ width: 1024, height: 900 }, { width: 390, height: 844 }]) {
+  for (const viewport of [{ width: 320, height: 800 }, { width: 390, height: 844 }, { width: 768, height: 900 }, { width: 1024, height: 900 }, { width: 1440, height: 1000 }]) {
     await page.setViewportSize(viewport);
     await page.context().addCookies([{ name: "sidebar_state", value: "true", url: origin }]);
     await page.goto(`${root}/crm/pipelines`);
@@ -207,6 +208,9 @@ test("CRM-04: pipelines, deals, board moves, list, deal detail, related deals, s
     await expectFullWidthShell(page);
     await page.goto(`${root}/crm/settings/pipelines`);
     await expect(page.getByRole("table", { name: "Stages of Pipeline" })).toBeVisible();
+    await expectFullWidthShell(page);
+    await page.goto(`${root}/crm/deals/${dealId}`);
+    await expect(page.getByRole("heading", { name: "Synthetic roof appeal" })).toBeVisible();
     await expectFullWidthShell(page);
   }
   await page.setViewportSize({ width: 1440, height: 1000 });

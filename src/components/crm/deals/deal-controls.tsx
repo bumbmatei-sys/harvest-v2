@@ -9,6 +9,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
+import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Textarea } from "@/components/ui/textarea";
 import { InlineField } from "../inline-field";
@@ -17,7 +18,7 @@ import { RecordPicker } from "../record-picker";
 
 function Row({ label, htmlFor, children }: { label: string; htmlFor?: string; children: React.ReactNode }) {
   return <div className="grid grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)] items-start gap-x-3 py-0.5 sm:grid-cols-[minmax(0,7.5rem)_minmax(0,1fr)]">
-    <label htmlFor={htmlFor} className="flex min-h-8 items-center text-xs text-muted-foreground"><span className="truncate">{label}</span></label><div className="min-w-0">{children}</div>
+    <Label htmlFor={htmlFor} className="flex min-h-8 items-center text-xs font-normal text-muted-foreground"><span className="truncate">{label}</span></Label><div className="min-w-0 *:data-[slot=native-select-wrapper]:w-full sm:*:data-[slot=native-select-wrapper]:max-w-64">{children}</div>
   </div>;
 }
 function Problem({ busy, error }: { busy: boolean; error: string }) {
@@ -43,7 +44,7 @@ export function DealStageControl({ stageId, stages }: { stageId: string; stages:
     if (stage.kind !== "open") setClosing({ stageId: target, reason: "" }); else void move(target, null);
   }
   return <Row label={t("stage")} htmlFor={writable ? "deal-stage-select" : undefined}>
-    {writable ? <NativeSelect id="deal-stage-select" size="sm" value={stageId} disabled={busy} onChange={(event) => choose(event.target.value)} className="min-w-44 text-sm">
+    {writable ? <NativeSelect id="deal-stage-select" size="sm" value={stageId} disabled={busy} onChange={(event) => choose(event.target.value)} className="w-full text-sm">
       {stages.map((stage) => <NativeSelectOption key={stage.id} value={stage.id} disabled={stage.archived}>{stage.archived ? t("archivedStage", { stage: stage.name }) : stage.name}</NativeSelectOption>)}
     </NativeSelect> : <p className="min-h-8 px-2 py-1.5 text-sm">{current?.name}</p>}
     <Problem busy={busy} error={error} />
@@ -83,7 +84,7 @@ export function DealOwnerControl({ ownerUserId, ownerName, members }: { ownerUse
   const [busy, setBusy] = useState(false), [error, setError] = useState("");
   async function change(value: string) { setBusy(true); setError(""); const failure = await save({ ownerUserId: value }); setBusy(false); if (failure) setError(failure); }
   return <Row label={t("owner")} htmlFor={writable ? "deal-owner-select" : undefined}>
-    {writable ? <NativeSelect id="deal-owner-select" size="sm" value={ownerUserId ?? ""} disabled={busy} onChange={(event) => void change(event.target.value)} className="min-w-44 text-sm">
+    {writable ? <NativeSelect id="deal-owner-select" size="sm" value={ownerUserId ?? ""} disabled={busy} onChange={(event) => void change(event.target.value)} className="w-full text-sm">
       <NativeSelectOption value="">{t("noOwner")}</NativeSelectOption>
       {members.map((member) => <NativeSelectOption key={member.id} value={member.id}>{member.name}</NativeSelectOption>)}
       {ownerUserId && !members.some((member) => member.id === ownerUserId) && <NativeSelectOption value={ownerUserId}>{t("formerMember")}</NativeSelectOption>}

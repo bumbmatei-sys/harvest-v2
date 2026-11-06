@@ -417,7 +417,9 @@
     "theStagesChangedReloadAndTryAgain": "The stages changed. Reload and try again.",
     "linkADealToAPersonOrCompany": "Link the deal to a person or a company.",
     "aReasonCanOnlyBeRecordedOnClosedDeals": "A reason can only be recorded on won or lost deals.",
-    "aDealCanOnlyMoveWithinItsPipeline": "A deal can only move between stages of its own pipeline."
+    "aDealCanOnlyMoveWithinItsPipeline": "A deal can only move between stages of its own pipeline.",
+    "restoreTheDealsStageFirst": "This deal's stage is archived. Restore the stage in pipeline settings first.",
+    "restoreTheDealsPipelineFirst": "This deal's pipeline is archived. Restore the pipeline first."
   },
   "LibEnv": {
     "missingRequiredEnvironmentVariableValue": "Missing required environment variable: {name}"

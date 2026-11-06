@@ -49,7 +49,8 @@ Design: [ADR 0009](../decisions/0009-crm-pipelines-and-deals.md). Reference stud
   - a closed reason only on Won or Lost stages;
   - the owner must be a workspace member;
   - there is no DELETE grant.
-- Archiving a stage or pipeline that still has deals is refused (409 `stage_has_deals`), so no deal is ever orphaned. The last open stage and the default pipeline cannot be archived.
+- Archiving a stage (409 `stage_has_deals`) or a non-default pipeline (409 `pipeline_has_deals`) that still has live deals is refused, so no deal is ever orphaned. The last open stage and the default pipeline cannot be archived.
+- **Restoring a deal under an archived parent is refused** (409 `parent_archived`) until the stage or pipeline is restored. After that the deal shows on the board and list again. This is enforced in the service and in the deal guard (raw SQL refused), and a restore racing a stage archive leaves no live deal under an archived parent (12 rounds, multi-connection pool). Restoring a stage also respects the 20-stage limit.
 - **Two tenants, both directions:**
   - **Services and SQL** (`tests/integration/crm-deals.test.ts`): get, move, update stage, list by foreign pipeline id, create with a foreign company, raw select, update and insert.
   - **HTTP** (`tests/e2e/crm04.spec.ts`): A's user against B's deal and workspace, and B's user against A's (403 for the foreign workspace, 404 for foreign ids in one's own workspace).
@@ -61,6 +62,8 @@ Design: [ADR 0009](../decisions/0009-crm-pipelines-and-deals.md). Reference stud
   - A same-stage move writes nothing.
   - Exactly one audit row is written per real transition.
   - Board moves are queued, so quick consecutive moves never race.
+  - Concurrent appends to one column (eight simultaneous moves, and eight simultaneous creates, on a 10-connection pool) get distinct positions that keep their order after a reload. A per-column advisory lock serializes the allocator, and the test fails without it.
+  - Two racing moves of the same deal: one succeeds, the other gets 409, and one audit row is written.
 - **Weighted value:** open stages only. A missing amount or probability contributes nothing. Won and Lost are excluded. Unit- and integration-tested.
 - **Stale:** open, with an expected close before today in Europe/Berlin. Won deals with past dates are never stale. Unit-tested across the UTC/Berlin day boundary.
 - **Erasure** keeps the deal, sets its person link to NULL and bumps its version, on fresh and upgraded databases. No row or audit metadata keeps the erased person's id.
@@ -92,9 +95,10 @@ Test-only change outside CRM-04: `foundation.spec.ts` now waits for the sign-in 
   - RLS, grants and erasure-owner policies (opportunities, plus stages for the guard);
   - three guard triggers;
   - `CREATE OR REPLACE erase_contact`: 0014 plus unlinking the person from deals.
+- `0017_crm_deal_restore_guard` (hand-written, review fix B1): `CREATE OR REPLACE guard_opportunity` with the restore-parent check; otherwise identical to 0016.
 - Additive, and idempotent under the harness's double-apply. `tests/integration/crm04-upgrade.test.ts` seeds a database at 0014 (post-CRM-03) with a person, a company, a custom field value and a saved view. It then upgrades, checks that they survive, lazily seeds the pipeline, creates and moves a deal, and erases the person.
 - No backfill: existing workspaces get their default pipeline on first use by a writer.
-- Rollback before deploy: drop the three tables and restore `erase_contact` from 0014. No production data exists, and no production Neon, R2 or Vercel settings were touched.
+- Rollback before deploy: drop the three tables (their triggers go with them), drop the functions `guard_crm_pipeline`, `guard_crm_pipeline_stage` and `guard_opportunity`, and restore `erase_contact` from 0014. No production data exists, and no production Neon, R2 or Vercel settings were touched.
 
 ## Deviations and limitations (documented)
 

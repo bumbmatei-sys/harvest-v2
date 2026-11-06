@@ -17,6 +17,7 @@ const missingPipeline = () => new AccessError(404, message("Errors.thisPipelineI
 const missingStage = () => new AccessError(404, message("Errors.thisStageIsNotAvailable"));
 const stale = () => new AccessError(409, message("Errors.thisRecordChangedReloadAndTryAgain"), { reason: "stale" });
 const invalidDeal = () => new AccessError(400, message("Errors.checkTheDealDetails"));
+const restoreParentFirst = (parent: "stage" | "pipeline") => new AccessError(409, message(parent === "stage" ? "Errors.restoreTheDealsStageFirst" : "Errors.restoreTheDealsPipelineFirst"), { reason: "parent_archived" });
 function pgMessage(error: unknown): string {
   if (!error || typeof error !== "object") return "";
   const own = "message" in error && typeof error.message === "string" ? error.message : "";
@@ -29,6 +30,8 @@ function guarded(error: unknown): never {
   if (text.includes("pipeline has deals")) throw new AccessError(409, message("Errors.thisPipelineStillHasDeals"), { reason: "pipeline_has_deals" });
   if (text.includes("owner is not a member")) throw new AccessError(400, message("Errors.theOwnerMustBeAWorkspaceMember"));
   if (text.includes("contact is unavailable")) throw new AccessError(404, message("Errors.theRelatedRecordIsNotAvailable"));
+  if (text.includes("restore the stage first")) throw restoreParentFirst("stage");
+  if (text.includes("restore the pipeline first")) throw restoreParentFirst("pipeline");
   if (text.includes("stage is archived") || text.includes("stage is unavailable")) throw missingStage();
   throw error;
 }
@@ -158,6 +161,8 @@ export function updateStage(db: Database, userId: string, workspace: string, sta
     if (!changed.length && !archive) return toStage(current);
     let position = current.position;
     if (archive === "restore") {
+      const [{ live }] = await tx.select({ live: count() }).from(crmPipelineStages).where(and(eq(crmPipelineStages.tenantId, tenantId), eq(crmPipelineStages.pipelineId, current.pipelineId), isNull(crmPipelineStages.archivedAt)));
+      if (live >= MAX_STAGES) throw new AccessError(409, message("Errors.aPipelineCanHaveAtMostTwentyStages"));
       const [{ max }] = await tx.select({ max: sql<number>`coalesce(max(${crmPipelineStages.position}), -1)::int` }).from(crmPipelineStages).where(and(eq(crmPipelineStages.tenantId, tenantId), eq(crmPipelineStages.pipelineId, current.pipelineId), isNull(crmPipelineStages.archivedAt)));
       position = max + 1;
     }
@@ -308,7 +313,14 @@ async function checkRelations(tx: Transaction, tenantId: string, companyId: stri
     if (!row) throw new AccessError(400, message("Errors.theOwnerMustBeAWorkspaceMember"));
   }
 }
+/**
+ * The next position at the end of a stage's column. A transaction-scoped advisory
+ * lock per (tenant, stage) serializes concurrent inserts and moves into the same
+ * column, so MAX()+1 never hands two deals the same position. Each caller takes at
+ * most one such lock, so they cannot deadlock with each other.
+ */
 async function nextPosition(tx: Transaction, tenantId: string, stageId: string) {
+  await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`crm_stage_column:${tenantId}:${stageId}`}))`);
   const [{ max }] = await tx.select({ max: sql<number>`coalesce(max(${opportunities.position}), 0)::float8` }).from(opportunities).where(and(eq(opportunities.tenantId, tenantId), eq(opportunities.stageId, stageId)));
   return max + 1;
 }
@@ -346,6 +358,17 @@ export function updateDeal(db: Database, userId: string, workspace: string, deal
     const changed = keys.filter((key) => input[key] !== undefined && input[key] !== current[key]);
     const archive = archived === undefined ? null : archived && !current.archivedAt ? "archive" : !archived && current.archivedAt ? "restore" : null;
     if (!changed.length && !archive) return { id, version: current.version };
+    if (archive === "restore") {
+      // A restored deal must land in a live stage of a live pipeline. Lock the stage, then
+      // the pipeline (the order archiving a stage uses), so a concurrent archive either
+      // waits for this restore and then sees a live deal, or wins and this restore fails.
+      const [stage] = await tx.select({ archivedAt: crmPipelineStages.archivedAt }).from(crmPipelineStages)
+        .where(and(eq(crmPipelineStages.tenantId, tenantId), eq(crmPipelineStages.id, current.stageId))).for("share");
+      if (!stage || stage.archivedAt) throw restoreParentFirst("stage");
+      const [pipeline] = await tx.select({ archivedAt: crmPipelines.archivedAt }).from(crmPipelines)
+        .where(and(eq(crmPipelines.tenantId, tenantId), eq(crmPipelines.id, current.pipelineId))).for("share");
+      if (!pipeline || pipeline.archivedAt) throw restoreParentFirst("pipeline");
+    }
     const next = { ...current, ...Object.fromEntries(changed.map((key) => [key, input[key]])) };
     if ((changed.includes("companyId") || changed.includes("contactId")) && !next.companyId && !next.contactId) throw new AccessError(400, message("Errors.linkADealToAPersonOrCompany"));
     if (changed.includes("closedReason") && next.closedReason !== null) {

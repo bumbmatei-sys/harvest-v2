@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { isStale, type StageColor, type StageKind } from "@/lib/crm-deals";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
@@ -125,7 +126,7 @@ export function DealBoard({ tenantId, stages, deals, totals, writable, today }: 
           </BoardColumn>;
         })}
       </div>
-      <DragOverlay dropAnimation={null}>{dragged ? <div className="w-64 rounded-lg border bg-card p-3 text-sm font-medium shadow-lg">{dragged.name}</div> : null}</DragOverlay>
+      <DragOverlay dropAnimation={null}>{dragged ? <Card className="w-64 gap-0 rounded-lg p-3 text-sm font-medium shadow-lg">{dragged.name}</Card> : null}</DragOverlay>
     </DndContext>
     <Dialog open={!!closing} onOpenChange={(open) => { if (!open) setClosing(null); }}>
       <DialogContent className="rounded-xl sm:max-w-[440px]">
@@ -142,16 +143,18 @@ export function DealBoard({ tenantId, stages, deals, totals, writable, today }: 
 
 function BoardColumn({ stage, index, count, sum, label, probability, empty, children }: { stage: BoardStage; index: number; count: number; sum: string | null; label: string; probability: string | null; empty: string; children: React.ReactNode[] }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
-  return <section ref={setNodeRef} data-board-column={index} aria-label={label}
-    className={cn("flex w-72 shrink-0 snap-start flex-col rounded-xl border bg-muted/40 transition-colors", isOver && "border-ring bg-selected")}>
-    <header className="flex items-center gap-2 px-3 pt-3 pb-2">
+  return <Card ref={setNodeRef} data-board-column={index} role="group" aria-label={label}
+    className={cn("w-72 shrink-0 snap-start gap-0 bg-muted/40 py-0 shadow-none transition-colors", isOver && "border-ring bg-selected")}>
+    <CardHeader className="flex items-center gap-2 px-3 pt-3 pb-2">
       <StageDot color={stage.color} />
-      <h2 className="min-w-0 truncate text-sm font-medium">{stage.name}</h2>
+      <CardTitle role="heading" aria-level={2} className="min-w-0 truncate text-sm font-medium">{stage.name}</CardTitle>
       <span className="text-xs text-muted-foreground tabular-nums">{count}</span>
       <span className="ml-auto flex shrink-0 items-center gap-2 text-xs text-muted-foreground tabular-nums">{sum}{probability && <span>{probability}</span>}</span>
-    </header>
-    <ul className="flex min-h-24 flex-1 flex-col gap-2 px-2 pb-2">{children.length ? children : <li className="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground">{empty}</li>}</ul>
-  </section>;
+    </CardHeader>
+    <CardContent className="flex min-h-24 flex-1 flex-col px-2 pb-2">
+      <ul className="flex flex-1 flex-col gap-2">{children.length ? children : <li className="rounded-lg border border-dashed px-3 py-6 text-center text-xs text-muted-foreground">{empty}</li>}</ul>
+    </CardContent>
+  </Card>;
 }
 
 function DealCard({ deal, href, writable, hintId, stale, amount, close, label, relation, dimmed, onKeyDown }: {
@@ -160,8 +163,8 @@ function DealCard({ deal, href, writable, hintId, stale, amount, close, label, r
 }) {
   const { setNodeRef, listeners } = useDraggable({ id: deal.id, disabled: !writable });
   return <li>
-    <div ref={setNodeRef} {...listeners} data-deal-card={deal.id} tabIndex={0} role="group" aria-label={label} aria-describedby={hintId} onKeyDown={onKeyDown}
-      className={cn("rounded-lg border bg-card p-3 shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring", writable && "cursor-grab touch-none active:cursor-grabbing", dimmed && "opacity-40")}>
+    <Card ref={setNodeRef} {...listeners} data-deal-card={deal.id} tabIndex={0} role="group" aria-label={label} aria-describedby={hintId} onKeyDown={onKeyDown}
+      className={cn("gap-0 rounded-lg p-3 shadow-xs outline-none focus-visible:ring-2 focus-visible:ring-ring", writable && "cursor-grab touch-none active:cursor-grabbing", dimmed && "opacity-40")}>
       <Link href={href} tabIndex={-1} className="block truncate text-sm font-medium hover:underline">{deal.name}</Link>
       <p className="mt-0.5 truncate text-xs text-muted-foreground">{relation}</p>
       {(amount || close || stale) && <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
@@ -169,6 +172,6 @@ function DealCard({ deal, href, writable, hintId, stale, amount, close, label, r
         {close && <span className="flex items-center gap-1 text-muted-foreground"><CalendarClock className="size-3" aria-hidden="true" />{close}</span>}
         {stale && <StaleBadge label={stale} />}
       </div>}
-    </div>
+    </Card>
   </li>;
 }
