@@ -15,8 +15,16 @@ test.use({ reducedMotion: "reduce", viewport: desktop, timezoneId: "Europe/Berli
 type Report = { screen: string; violations: number };
 const report: Report[] = [];
 
-async function setMode(page: Page, mode: "light" | "dark") {
+/**
+ * After a full document load (goto, reload, or a plain <a> such as the list's page links) the server HTML is
+ * visible before React hydrates. A click on a Radix trigger in that window is lost and nothing retries it,
+ * so wait for the shell to report hydration before using client-only controls.
+ */
+async function hydrated(page: Page) {
   await expect(page.locator('[data-slot="sidebar-wrapper"]')).toHaveAttribute("data-hydrated", "true");
+}
+async function setMode(page: Page, mode: "light" | "dark") {
+  await hydrated(page);
   if (await page.locator("html").getAttribute("data-theme") === mode) return;
   const toggle = page.getByRole("button", { name: new RegExp(`^Switch to ${mode}`) }).first();
   // Below 1024px the toggle lives in the closed sidebar sheet; use the stored preference it writes.
@@ -204,6 +212,7 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
   await page.getByRole("textbox", { name: "Email" }).press("Escape");
   await page.reload();
   await expect(page.getByText("Another person has the same name")).toBeVisible();
+  await hydrated(page);
   await capture(page, "person-possible-duplicate-light");
 
   // Stale writes: another tab changes the record first.
@@ -229,6 +238,8 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
   await both(page, "people-list");
   await page.getByRole("link", { name: "Page 2" }).click();
   await expect(page.getByText("Showing 21–24 of 24")).toBeVisible();
+  // Page links are plain anchors: this was a full load, so the Sort menu needs hydration first.
+  await hydrated(page);
   await page.getByRole("button", { name: /^Sort/ }).click();
   await page.getByRole("menuitemradio", { name: "Added" }).click();
   await expect(page).toHaveURL(/sort=created/);
@@ -426,6 +437,7 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
     await both(page, name);
   }
   await page.goto(`${root}/crm/people/${personId}`);
+  await hydrated(page);
   await page.getByRole("button", { name: "Edit Social handle: @grace" }).click();
   await page.getByRole("textbox", { name: "Social handle" }).fill("@grace.mobile");
   await page.getByRole("textbox", { name: "Social handle" }).press("Enter");
