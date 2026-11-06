@@ -214,4 +214,10 @@ describe("controlled contact erasure", () => {
     expect((await fixture.admin.query("select proowner::regrole::text as owner from pg_proc where oid='public.erase_contact(uuid,uuid)'::regprocedure")).rows[0]).toEqual({ owner: "harvest_test_eraser" });
     expect((await fixture.admin.query("select rolbypassrls,rolsuper from pg_roles where rolname='harvest_test_eraser'")).rows[0]).toEqual({ rolbypassrls: false, rolsuper: false });
   });
+
+  it("gives the migration role tenant-scoped erasure policies on outbox_events and jobs", async () => {
+    const { rows } = await fixture.admin.query("select tablename, qual, with_check from pg_policies where policyname = 'erasure_owner_tenant' and tablename in ('outbox_events', 'jobs') order by tablename");
+    expect(rows.map((row) => row.tablename)).toEqual(["jobs", "outbox_events"]);
+    for (const row of rows) { expect(row.qual).toContain("app.tenant_id"); expect(row.with_check).toContain("app.tenant_id"); }
+  });
 });

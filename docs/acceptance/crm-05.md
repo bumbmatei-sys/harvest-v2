@@ -167,3 +167,33 @@ Commands after the fixes, on the branch rebased onto `main` `e5d9752`:
 | `npx playwright test crm05` | **1/1 passed** (1.0 min), including the archived-deal probe; axe clean at every capture |
 
 Not run: the full Playwright suite again (the round touched only CRM-05 surfaces; last full run 12/12), and `test:rls:neon` (no credentials).
+
+## Fold-extras round (PR #15, box-local round folded onto review round 1)
+
+A second local round of this same review fixed the same four findings (B1, F2, F3, plus the migration policy) independently on another checkout, under migration `0020_crm_erasure_outbox_scrub_archived_guard`. That checkout's `0020` is **not** used here: this branch keeps its own `0020_crm05_erasure_outbox_archived_deals` (same policy name, same guard behaviour, already reviewed above) so the migration history on this PR stays a single line. The two migrations are equivalent; only the local one's extra *test coverage* was folded onto this tree.
+
+Folded onto this branch, additive only (no behaviour change — the fixes they test were already in `433b231`/`0020`):
+
+- **Policy catalog test** (`erasure.test.ts`): asserts via `pg_policies` that `erasure_owner_tenant` exists on both `outbox_events` and `jobs`, with `qual` and `with_check` containing `app.tenant_id`. Fails if the migration's policies are ever dropped or renamed.
+- **F3 note archive/restore refusal** (`crm-tasks.test.ts`, "archived deals" suite): `updateNote` already refused a body edit on an archived deal's note (round 1); this round adds explicit assertions that archiving (`{ archived: true }`) and restoring (`{ archived: false }`) a note are *also* refused with 409 `parent_archived` while the deal is archived — covered by the same service-layer check (`updateNote` reads the parent deal's `archivedAt` before computing any change, so edit, archive and restore all go through one guard). No SQL-level backstop migration was needed: `guard_crm_note` only needs to block the archived-deal case on `INSERT` (relinking), because the service always re-checks on every `UPDATE`; a new migration 0021 purely to duplicate that in SQL was judged unnecessary and was not added.
+- **Person-timeline test** (`crm-tasks.test.ts`, "unified timeline" suite): a `note.archive` event on a **person**-targeted note shows on that person's timeline and the live note disappears from it; the company timeline gains no `note.*` event. Confirms F2's fix is not deal-specific and does not regress the existing "company timeline gains no note lifecycle events" assertion from the deal-note test.
+- **E2E deleted-note step** (`crm05.spec.ts`): after the person-timeline capture, a temporary person note is archived via the API; the reload shows "deleted a note" and never the note's text, while the earlier note stays visible. Kept alongside (not instead of) this branch's stronger archived-deal assertions (disabled New-note field, disabled Add button, read-only timeline, 409 probes, restore).
+- **Mutation check documented, not automated:** dropping the restricted role's `erasure_owner_tenant` policy on `jobs` mid-test (so the owner update matches zero rows and the erased id stays in the job payload) is recorded here as a probe rather than wired into the suite, because it requires tearing down and recreating the test role's grants mid-test in a way that would leak into other tests in the file if the teardown ever threw. The policy catalog test above already fails loudly if the policy is ever missing, which covers the same regression at lower risk.
+
+Soft follow-ups unchanged by this round: **F1** (task title/body naming an erased person — left by decision, ADR 0010 §8/§10) and **N1–N7** (parked, review file unavailable on the build machine).
+
+### Commands and results (fold-extras round, rebased onto `origin/main` `3e38d45`)
+
+Database-backed tests ran on the embedded PostgreSQL that `tests/database.ts` starts (no `TEST_DATABASE_URL`). The browser run used an uncommitted local Playwright config (`playwright.local.config.ts`, same pattern as the prior round) that selects the system Chrome.
+
+| Command | Result |
+| --- | --- |
+| `npm run lint` | exit 0; source guards clean |
+| `npm run typecheck` | exit 0 |
+| `npm test` (unit) | 13 files, **145 passed** |
+| `npm run test:rls` | 21 files, **213 passed** (+2 over the prior round: the policy catalog test and the person-timeline test) |
+| `npx drizzle-kit check` | "Everything's fine" — no schema drift; confirms no migration 0021 was needed |
+| `npm run build` | exit 0 |
+| `npx playwright test --config=playwright.local.config.ts tests/e2e/crm05.spec.ts` | **1/1 passed** (59.6s), including the new deleted-note step |
+
+Not run: the full Playwright suite again (this round only extended CRM-05 test coverage, no new UI surfaces) and `test:rls:neon` (no credentials).

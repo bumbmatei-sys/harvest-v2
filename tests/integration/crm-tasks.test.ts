@@ -214,6 +214,15 @@ describe("unified timeline", () => {
     // Note lifecycle events stay on the note's own record: the company and person timelines do not gain them.
     expect((await getTimeline(fixture.db, "viewer-a", tenantA, "company", companyA)).items.some((item) => item.kind === "event" && item.action.startsWith("note."))).toBe(false);
   });
+  it("shows a person note's archive event on that person's timeline only", async () => {
+    const note = await createNote(fixture.db, "owner-a", tenantA, { target: "person", targetId: personA, body: "Person note to archive" });
+    await updateNote(fixture.db, "owner-a", tenantA, note.id, { archived: true, version: 1 });
+    const person = (await getTimeline(fixture.db, "viewer-a", tenantA, "person", personA)).items;
+    expect(person.some((item) => item.kind === "event" && item.action === "note.archive")).toBe(true);
+    expect(person.some((item) => item.kind === "note" && item.id === note.id)).toBe(false);
+    const company = (await getTimeline(fixture.db, "viewer-a", tenantA, "company", companyA)).items;
+    expect(company.some((item) => item.kind === "event" && item.action.startsWith("note."))).toBe(false);
+  });
 });
 
 describe("two-tenant isolation", () => {
@@ -251,6 +260,8 @@ describe("archived deals", () => {
     const deal = (await createDeal(fixture.db, "owner-a", tenantA, { name: "Archived order", companyId: companyA })).id;
     const task = await createTask(fixture.db, "owner-a", tenantA, { title: "Before archive", opportunityId: deal });
     const note = await createNote(fixture.db, "owner-a", tenantA, { target: "deal", targetId: deal, body: "Before archive" });
+    const archivedNote = await createNote(fixture.db, "owner-a", tenantA, { target: "deal", targetId: deal, body: "Already archived before deal archive" });
+    await updateNote(fixture.db, "owner-a", tenantA, archivedNote.id, { archived: true, version: 1 });
     const loose = await createTask(fixture.db, "owner-a", tenantA, { title: "Loose task" });
     await updateDeal(fixture.db, "owner-a", tenantA, deal, { archived: true, version: (await getDeal(fixture.db, "owner-a", tenantA, deal)).deal.version });
     const refused = { status: 409, details: { reason: "parent_archived" } };
@@ -258,6 +269,9 @@ describe("archived deals", () => {
     await expect(createNote(fixture.db, "member-a", tenantA, { target: "deal", targetId: deal, body: "After archive" })).rejects.toMatchObject(refused);
     await expect(updateTask(fixture.db, "owner-a", tenantA, loose.id, { opportunityId: deal, version: 1 })).rejects.toMatchObject(refused);
     await expect(updateNote(fixture.db, "owner-a", tenantA, note.id, { body: "Edited after archive", version: 1 })).rejects.toMatchObject(refused);
+    // Archiving (and restoring) a note is itself a write to the note, so it is also refused while the deal is archived.
+    await expect(updateNote(fixture.db, "owner-a", tenantA, note.id, { archived: true, version: 1 })).rejects.toMatchObject(refused);
+    await expect(updateNote(fixture.db, "owner-a", tenantA, archivedNote.id, { archived: false, version: 2 })).rejects.toMatchObject(refused);
     // The existing task keeps working (completion is not a new link), and nothing was written by the refusals.
     expect(await updateTask(fixture.db, "owner-a", tenantA, task.id, { status: "done", version: 1 })).toMatchObject({ version: 2 });
     expect((await fixture.admin.query("select count(*)::int as n from crm_tasks where tenant_id = $1 and opportunity_id = $2", [tenantA, deal])).rows[0].n).toBe(1);

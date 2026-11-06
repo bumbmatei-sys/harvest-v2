@@ -122,6 +122,14 @@ test("CRM-05: follow-up task from a deal, my tasks, completion, notes and the un
   await expect(page.getByRole("list", { name: "Tasks for Synthetic Lois Grant" }).getByText("Synthetic follow-up call")).toBeVisible();
   await both(page, "person-timeline");
 
+  // A deleted note leaves a "deleted a note" event and never its text; the prior note stays visible.
+  const temp = (await api(page, "post", `${apiRoot}/crm/notes`, { target: "person", targetId: person, body: "Synthetic: temporary note to delete" })).body as { id: string; version: number };
+  expect((await api(page, "patch", `${apiRoot}/crm/notes/${temp.id}`, { archived: true, version: temp.version })).status).toBe(200);
+  await page.reload();
+  await expect(personTimeline.getByText(/deleted a note/)).toBeVisible();
+  await expect(page.getByText("temporary note to delete")).toHaveCount(0);
+  await expect(personTimeline.getByText(/prefers a call after the service/)).toBeVisible();
+
   // A second account: isolation over HTTP first, then a member who assigns me a task.
   const otherContext = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: "reduce" });
   const other = await otherContext.newPage();

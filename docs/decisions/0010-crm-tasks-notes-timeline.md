@@ -116,6 +116,10 @@ Accepted 2026-11-06 for CRM-05 and amended the same day for review round 1 on PR
 - **Pinned by tests:** cross-tenant company and deal links on task create and update return 404.
 - **N1–N7:** non-blocking notes, parked as soft follow-ups in the acceptance record. The full review file was not available on the build machine; the fix round followed the brief.
 
+### Fold-extras round
+
+A parallel local round fixed the same B1/F2/F3 findings on another checkout under an equivalent (differently-named) migration. That migration was not merged — this branch's own `0020` already covers the same ground — but its *test coverage* (a policy catalog test, explicit note archive/restore refusal assertions, a person-timeline F2 test, and an E2E deleted-note step) was folded onto this tree's existing tests. See the acceptance record's "Fold-extras round" section for detail.
+
 ## Deviations and limits (intentional)
 
 - **The default filter is "assigned to me, open".** That is the "my tasks" view. There are no saved views for tasks; the CRM-03 views cover people and companies only.
