@@ -46,20 +46,20 @@ export default async function ImportsPage({ params, searchParams }: { params: Pr
         <EmptyTitle><h2>{t("noImportsYet")}</h2></EmptyTitle><EmptyDescription>{t("noImportsYetDescription")}</EmptyDescription></EmptyHeader>
         <EmptyContent><NewImportDialog tenantId={tenantId} entity={preset} /></EmptyContent></Empty>
       : <Card className="gap-3"><CardHeader><CardTitle className="text-sm"><h2>{t("history")}</h2></CardTitle></CardHeader>
-        <CardContent><Table aria-label={t("history")}>
+        <CardContent><Table className="table-fixed w-full" aria-label={t("history")}>
           <TableHeader><TableRow>
             <TableHead>{t("columns.file")}</TableHead><TableHead className="hidden sm:table-cell">{t("columns.type")}</TableHead><TableHead>{t("columns.status")}</TableHead>
-            <TableHead className="hidden md:table-cell">{t("columns.result")}</TableHead><TableHead className="hidden lg:table-cell">{t("columns.by")}</TableHead><TableHead className="hidden sm:table-cell">{t("columns.started")}</TableHead>
+            <TableHead className="hidden md:table-cell">{t("columns.result")}</TableHead><TableHead className="hidden xl:table-cell">{t("columns.by")}</TableHead><TableHead className="hidden sm:table-cell">{t("columns.started")}</TableHead>
           </TableRow></TableHeader>
           <TableBody>{imports.map((item) => <TableRow key={item.id}>
-            <TableCell className="max-w-[16rem]"><Link href={`${base}/${item.id}`} className="block truncate font-medium hover:underline">{item.fileName}</Link>
+            <TableCell className="max-w-[16rem]"><Link href={`${base}/${item.id}`} className="flex min-h-11 items-center truncate font-medium hover:underline">{item.fileName}</Link>
               <span className="text-xs text-muted-foreground sm:hidden">{item.entity === "person" ? t("people") : t("companies")}</span></TableCell>
             <TableCell className="hidden sm:table-cell">{item.entity === "person" ? t("people") : t("companies")}</TableCell>
             <TableCell><ImportStatusBadge status={item.status} /></TableCell>
             <TableCell className="hidden text-xs text-muted-foreground md:table-cell">{item.completedAt
               ? t("resultSummary", { created: item.stats.created ?? 0, updated: item.stats.updated ?? 0, skipped: item.stats.skipped ?? 0, failed: item.stats.failed ?? 0 })
               : t("notStarted")}</TableCell>
-            <TableCell className="hidden text-xs text-muted-foreground lg:table-cell">{item.creatorName}</TableCell>
+            <TableCell className="hidden text-xs text-muted-foreground xl:table-cell">{item.creatorName}</TableCell>
             <TableCell className="hidden text-xs text-muted-foreground sm:table-cell"><time dateTime={item.createdAt.toISOString()}>{format.dateTime(item.createdAt, "date")}</time></TableCell>
           </TableRow>)}</TableBody>
         </Table></CardContent></Card>}

@@ -25,7 +25,7 @@ describe("CSV reading", () => {
 
 describe("CSV writing is formula-safe", () => {
   it("prefixes cells starting with =, +, -, @, tab or CR and quotes delimiters", () => {
-    for (const risky of ["=SUM(A1)", "+4915112345678", "-2+3", "@cmd", "\tx", "\rx"]) expect(formulaSafe(risky)).toBe(`'${risky}`);
+    for (const risky of ["=SUM(A1)", "+4915112345678", "-2+3", "@cmd", "\tx", "\rx", " =1", "\n=1", "\u00a0=1", "\u3000=1", "＝1", "＋1", "－1", "＠x"]) expect(formulaSafe(risky)).toBe(`'${risky}`);
     expect(formulaSafe("Ada")).toBe("Ada");
     expect(csvCell("=HYPERLINK(\"http://x\",\"y\")")).toBe("\"'=HYPERLINK(\"\"http://x\"\",\"\"y\"\")\"");
     expect(csvLine(["a,b", 3, null, true])).toBe("\"a,b\",3,,true\r\n");

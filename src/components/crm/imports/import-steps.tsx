@@ -51,8 +51,8 @@ export function MappingStep({ tenantId, importId, entity, headers, samples, mapp
   }
   return <div className="space-y-5">
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-    <div className="overflow-x-auto rounded-lg border">
-      <Table aria-label={t("mapTitle")}>
+    <div className="rounded-lg border">
+      <Table className="table-fixed w-full" aria-label={t("mapTitle")}>
         <TableHeader><TableRow><TableHead>{t("column")}</TableHead><TableHead className="hidden md:table-cell">{t("samples")}</TableHead><TableHead className="w-[45%] sm:w-64">{t("field")}</TableHead></TableRow></TableHeader>
         <TableBody>{headers.map((header, index) => {
           const examples = samples.map((row) => row[index] ?? "").filter(Boolean).slice(0, 3);
@@ -61,7 +61,7 @@ export function MappingStep({ tenantId, importId, entity, headers, samples, mapp
               <span className="block truncate text-xs text-muted-foreground md:hidden">{examples.join(" · ")}</span></TableCell>
             <TableCell className="hidden max-w-[22rem] align-top text-xs text-muted-foreground md:table-cell"><span className="block truncate" title={examples.join(" · ")}>{examples.join(" · ")}</span></TableCell>
             <TableCell className="align-top">
-              <NativeSelect aria-label={t("fieldFor", { column: header })} value={mapping[index] ?? ""} className="w-full"
+              <NativeSelect aria-label={t("fieldFor", { column: header })} value={mapping[index] ?? ""} className="h-11 w-full"
                 onChange={(event) => { const next = mapping.map((value, position) => (position === index ? event.target.value || null : value)); setMapping(next); void save({ mapping: next }); }}>
                 <NativeSelectOption value="">{t("dontImport")}</NativeSelectOption>
                 {targetsFor(entity).map((target) => <NativeSelectOption key={target} value={target}>{t(`targets.${target}`)}</NativeSelectOption>)}
@@ -75,15 +75,15 @@ export function MappingStep({ tenantId, importId, entity, headers, samples, mapp
     <FieldSet><FieldLegend variant="label">{t("onMatch")}</FieldLegend>
       <FieldDescription className="text-xs">{t("onMatchHelp")}</FieldDescription>
       <RadioGroup value={onMatch} onValueChange={(value) => { setOnMatch(value as "skip" | "fill"); void save({ onMatch: value as "skip" | "fill" }); }} className="gap-3">
-        {(["skip", "fill"] as const).map((value) => <div key={value} className="flex items-start gap-2">
+        {(["skip", "fill"] as const).map((value) => <Label key={value} htmlFor={`on-match-${value}`} className="flex min-h-11 items-start gap-2">
           <RadioGroupItem id={`on-match-${value}`} value={value} aria-describedby={`on-match-${value}-help`} className="mt-0.5" />
-          <div><Label htmlFor={`on-match-${value}`}>{value === "skip" ? t("skipMatches") : t("fillEmpty")}</Label>
+          <div><span>{value === "skip" ? t("skipMatches") : t("fillEmpty")}</span>
             <p id={`on-match-${value}-help`} className="text-xs text-muted-foreground">{value === "skip" ? t("skipMatchesHelp") : t("fillEmptyHelp")}</p></div>
-        </div>)}
+        </Label>)}
       </RadioGroup>
     </FieldSet>
     <div className="flex flex-wrap items-center gap-3">
-      <Button onClick={() => void preview()} disabled={busy || problems.length > 0}><ScanSearch aria-hidden="true" />{busy ? t("previewing") : t("previewImport")}</Button>
+      <Button className="min-h-11" onClick={() => void preview()} disabled={busy || problems.length > 0}><ScanSearch aria-hidden="true" />{busy ? t("previewing") : t("previewImport")}</Button>
       <span className="text-xs text-muted-foreground" aria-live="polite">{saving === "saving" ? t("saving") : saving === "saved" ? t("saved") : ""}</span>
     </div>
   </div>;

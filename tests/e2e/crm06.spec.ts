@@ -83,6 +83,16 @@ test("CRM-06: CSV import with mapping, preview and problem report; filtered expo
     await expect(page.getByLabel(`Harvest field for ${column}`)).toHaveValue(value);
   }
   await both(page, "import-map");
+  const mapUrl = page.url();
+  for (const viewport of [{ width: 320, height: 844 }, { width: 1024, height: 900 }]) {
+    await page.setViewportSize(viewport);
+    await gotoHydrated(page, `${root}/crm/imports`);
+    if (viewport.width === 1024) await expect(page.locator('[data-slot="sidebar"][data-state]')).toHaveAttribute("data-state", "expanded");
+    await expectFullWidthShell(page);
+    await gotoHydrated(page, mapUrl);
+    await expectFullWidthShell(page);
+  }
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole("radio", { name: "Fill empty fields" }).focus();
   await page.keyboard.press("Space");
   await expect(page.getByText("Saved")).toBeVisible();
@@ -135,8 +145,13 @@ test("CRM-06: CSV import with mapping, preview and problem report; filtered expo
   await page.getByRole("button", { name: "Export" }).click();
   const exportDialog = page.getByRole("dialog", { name: "Export People" });
   await expect(exportDialog.getByText(`${listTotal} records will be exported.`)).toBeVisible();
-  await both(page, "export-dialog");
-  await page.getByRole("button", { name: "Export" }).click();
+  await capture(page, "export-dialog-light");
+  await setMode(page, "dark");
+  if (!(await exportDialog.isVisible())) await page.getByRole("button", { name: "Export" }).click();
+  await expect(exportDialog.getByText(`${listTotal} records will be exported.`)).toBeVisible();
+  await capture(page, "export-dialog-dark");
+  await setMode(page, "light");
+  if (!(await exportDialog.isVisible())) await page.getByRole("button", { name: "Export" }).click();
   await expect(exportDialog.getByText(`${listTotal} records will be exported.`)).toBeVisible();
   const exportDownload = page.waitForEvent("download");
   await exportDialog.getByRole("link", { name: "Download CSV" }).click();

@@ -50,7 +50,7 @@ export function MergeDialog({ tenantId, contactId, contactName, preset = null, c
   const counts = preview ? (["links", "consents", "tasks", "notes", "deals", "values"] as const).filter((key) => preview[key] > 0) : [];
   return <Dialog open={open} onOpenChange={change}>
     <DialogTrigger asChild>{compact
-      ? <Button type="button" size="sm" variant="outline" className="h-7" aria-label={t("mergeNamed", { name: preset?.name ?? "" })}><Merge aria-hidden="true" />{t("suggestion")}</Button>
+      ? <Button type="button" size="sm" variant="outline" className="min-h-11" aria-label={t("mergeNamed", { name: preset?.name ?? "" })}><Merge aria-hidden="true" />{t("suggestion")}</Button>
       : <Button type="button" variant="outline"><Merge aria-hidden="true" />{t("merge")}</Button>}</DialogTrigger>
     <DialogContent className="max-h-[90dvh] overflow-y-auto rounded-xl sm:max-w-[520px]">
       <DialogHeader><DialogTitle>{t("title", { name: contactName })}</DialogTitle><DialogDescription>{t("description")}</DialogDescription></DialogHeader>

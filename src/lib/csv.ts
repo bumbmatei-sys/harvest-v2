@@ -67,9 +67,9 @@ export function parseCsv(input: string): CsvParseResult {
   return { ok: true, headers: headers.map((header, index) => header || `Column ${index + 1}`), rows };
 }
 
-const RISKY = /^[=+\-@\t\r]/;
+const RISKY = /^(?:[\t\r]|[\s\p{White_Space}]*[=+\-@＝＋－＠])/u;
 /**
- * Neutralizes spreadsheet formulas: a cell starting with =, +, -, @, tab or CR gets a leading
+ * Neutralizes spreadsheet formulas: a cell starting with a formula marker (possibly after whitespace), tab or CR gets a leading
  * single quote, which spreadsheet apps display as text (OWASP CSV injection guidance).
  */
 export function formulaSafe(value: string): string {

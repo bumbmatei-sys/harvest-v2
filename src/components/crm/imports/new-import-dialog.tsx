@@ -36,7 +36,7 @@ export function NewImportDialog({ tenantId, entity: initial = "person", defaultO
     router.push(`/workspaces/${tenantId}/crm/imports/${result.data.id}`);
   }
   return <Dialog open={open} onOpenChange={(value) => { if (!busy) { setOpen(value); setError(""); } }}>
-    <DialogTrigger asChild><Button><FileUp aria-hidden="true" />{t("newImport")}</Button></DialogTrigger>
+    <DialogTrigger asChild><Button className="min-h-11"><FileUp aria-hidden="true" />{t("newImport")}</Button></DialogTrigger>
     <DialogContent className="rounded-xl sm:max-w-[480px]">
       <DialogHeader><DialogTitle>{t("newImportTitle")}</DialogTitle><DialogDescription>{t("newImportDescription")}</DialogDescription></DialogHeader>
       <form onSubmit={submit} className="space-y-4">
@@ -50,8 +50,8 @@ export function NewImportDialog({ tenantId, entity: initial = "person", defaultO
           <Input id="import-file" type="file" accept=".csv,text/csv" aria-describedby="import-file-help"
             onChange={(event) => { const chosen = event.currentTarget.files?.[0]; setFile(chosen ? { file: chosen, key: crypto.randomUUID() } : null); setError(""); }} />
           <FieldDescription id="import-file-help" className="text-xs">{t("fileHelp")}</FieldDescription></Field>
-        <DialogFooter><DialogClose asChild><Button type="button" variant="ghost" disabled={busy}>{t("cancel")}</Button></DialogClose>
-          <Button disabled={busy}>{busy ? t("uploading") : t("upload")}</Button></DialogFooter>
+        <DialogFooter><DialogClose asChild><Button className="min-h-11" type="button" variant="ghost" disabled={busy}>{t("cancel")}</Button></DialogClose>
+          <Button className="min-h-11" disabled={busy}>{busy ? t("uploading") : t("upload")}</Button></DialogFooter>
       </form>
     </DialogContent>
   </Dialog>;

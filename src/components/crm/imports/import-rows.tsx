@@ -26,7 +26,7 @@ export async function ImportRows({ tenantId, importId, entity, fileName, mapping
       {outcomes.map((value) => {
         const count = value === "all" ? counts.all : counts[value] ?? 0;
         return <Link key={value} href={value === "all" ? base : `${base}?outcome=${value}`} aria-current={value === outcome ? "page" : undefined}
-          className={cn("inline-flex h-8 items-center gap-1.5 rounded-md border px-2.5 text-xs transition-colors hover:bg-accent", value === outcome && "border-foreground/30 bg-selected font-medium")}>
+          className={cn("inline-flex min-h-11 items-center gap-1.5 rounded-md border px-2.5 text-xs transition-colors hover:bg-accent", value === outcome && "border-foreground/30 bg-selected font-medium")}>
           {t(`outcomes.${value}`)}<span className="tabular-nums text-muted-foreground">{format.number(count)}</span></Link>;
       })}
     </nav>

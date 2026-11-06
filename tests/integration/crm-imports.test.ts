@@ -54,6 +54,39 @@ describe("CRM-06 schema and RLS", () => {
   });
 });
 
+describe("import row erasure", () => {
+  it("scrubs draft and preview cells containing identifiers and scrubs a merged person before moving identifiers", async () => {
+    const person = await createContact(fixture.db, "owner-a", tenantA, { name: "Synthetic Erasure", email: "erase-draft@example.test", phone: "+4915199990004" });
+    const draft = await createImport(fixture.db, "owner-a", tenantA, { entity: "person", clientKey: randomUUID(), fileName: "draft.csv", csv: csv([["Name", "Email", "Phone"], ["Synthetic Erasure", "erase-draft@example.test", ""], ["Phone only", "", "+49 (151) 9999-0004"]]) });
+    const notes = await createImport(fixture.db, "owner-a", tenantA, { entity: "person", clientKey: randomUUID(), fileName: "notes.csv", csv: csv([["Name", "Unmapped"], ["Someone else", "Contact ERASE-DRAFT@example.test"]]) });
+    await previewImport(fixture.db, "owner-a", tenantA, notes.id, { version: notes.version });
+    await eraseContact(fixture.db, "owner-a", tenantA, person.id);
+    const erased = await fixture.admin.query("select raw, match_keys from crm_import_rows where import_id = any($1::uuid[]) order by import_id", [[draft.id, notes.id]]);
+    expect(erased.rows).toEqual([{ raw: [], match_keys: [] }, { raw: [], match_keys: [] }, { raw: [], match_keys: [] }]);
+
+    const kept = await createContact(fixture.db, "owner-a", tenantA, { name: "Synthetic Survivor" });
+    const loser = await createContact(fixture.db, "owner-a", tenantA, { name: "Synthetic Loser", email: "loser-scrub@example.test" });
+    const imported = await runImport("owner-a", tenantA, csv([["Name", "Email"], ["Synthetic Loser", "loser-scrub@example.test"]]));
+    await mergeContacts(fixture.db, "owner-a", tenantA, kept.id, { sourceId: loser.id, targetVersion: kept.version, sourceVersion: loser.version });
+    const merged = await fixture.admin.query("select raw, match_keys, contact_id from crm_import_rows where import_id = $1", [imported.id]);
+    expect(merged.rows).toEqual([{ raw: [], match_keys: [], contact_id: null }]);
+  });
+
+  it("fails closed with an empty tenant setting even when import rows exist", async () => {
+    const item = await createImport(fixture.db, "owner-a", tenantA, { entity: "person", clientKey: randomUUID(), fileName: "context.csv", csv: "Name\nContext person" });
+    const client = await fixture.pool.connect();
+    try {
+      await client.query("select set_config('app.user_id', 'owner-a', false), set_config('app.tenant_id', '', false)");
+      expect((await client.query("select * from crm_import_rows")).rows).toEqual([]);
+      for (const [query, params] of [
+        ["insert into crm_import_rows (tenant_id, import_id, row_number, raw) values ($1,$2,99,'[]')", [tenantA, item.id]],
+        ["select public.rollback_crm_import($1,$2)", [tenantA, item.id]],
+        ["select public.merge_contacts($1,$2,$3)", [tenantA, randomUUID(), randomUUID()]],
+      ] as [string, string[]][]) await expect(client.query(query, params)).rejects.toMatchObject({ code: "42501" });
+    } finally { await client.query("reset app.user_id; reset app.tenant_id"); client.release(); }
+  });
+});
+
 describe("upload and mapping", () => {
   it("suggests a deterministic mapping, is idempotent per client key and refuses broken files", async () => {
     const clientKey = randomUUID(), text = csv([["Full name", "E-mail", "Mobile", "Organisation", "Shoe size"], ["Synthetic Ada", "ada@example.test", "+4915112345678", "", "42"]]);

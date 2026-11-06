@@ -49,7 +49,9 @@ BEGIN
     RAISE EXCEPTION 'import row identity is immutable';
   END IF;
   IF NEW.raw IS DISTINCT FROM OLD.raw AND NOT (NEW.raw = '[]'::jsonb
-    AND current_user = pg_get_userbyid((SELECT proowner FROM pg_proc WHERE oid = 'public.erase_contact(uuid,uuid)'::regprocedure))) THEN
+    AND (current_user = pg_get_userbyid((SELECT proowner FROM pg_proc WHERE oid = 'public.erase_contact(uuid,uuid)'::regprocedure))
+      OR (current_user = pg_get_userbyid((SELECT proowner FROM pg_proc WHERE oid = 'public.merge_contacts(uuid,uuid,uuid)'::regprocedure))
+        AND nullif(current_setting('app.merge_source', true), '') IS NOT NULL))) THEN
     RAISE EXCEPTION 'import cells are immutable except controlled erasure';
   END IF;
   RETURN NEW;
@@ -161,6 +163,16 @@ BEGIN
   SELECT count(*) INTO n_live FROM public.contacts WHERE tenant_id = p_tenant AND id IN (p_target, p_source) AND erased_at IS NULL;
   IF n_live <> 2 THEN RETURN NULL; END IF;
   PERFORM set_config('app.merge_source', p_source::text, true);
+  UPDATE public.crm_import_rows r SET raw = '[]'::jsonb, match_keys = '{}'::text[], contact_id = NULL
+    WHERE r.tenant_id = p_tenant AND (r.contact_id = p_source OR EXISTS (
+      SELECT 1 FROM public.contact_identifiers i
+      WHERE i.tenant_id = p_tenant AND i.contact_id = p_source AND (
+        i.kind || ':' || i.normalized_value = ANY(r.match_keys) OR EXISTS (
+          SELECT 1 FROM jsonb_array_elements_text(r.raw) AS cell(value)
+          WHERE CASE WHEN i.kind = 'phone' THEN
+            length(regexp_replace(i.normalized_value, '[^0-9]', '', 'g')) > 0 AND
+            position(regexp_replace(i.normalized_value, '[^0-9]', '', 'g') IN regexp_replace(cell.value, '[^0-9]', '', 'g')) > 0
+          ELSE length(i.normalized_value) > 0 AND position(lower(i.normalized_value) IN lower(cell.value)) > 0 END))));
   WITH moved AS (
     UPDATE public.contact_identifiers s SET contact_id = p_target
     WHERE s.tenant_id = p_tenant AND s.contact_id = p_source
@@ -288,8 +300,15 @@ BEGIN
   -- carrying one of their identifiers) lose their cells, keys and link before the
   -- identifiers below are deleted; the row keeps only its number and outcome codes.
   UPDATE public.crm_import_rows r SET raw = '[]'::jsonb, match_keys = '{}'::text[], contact_id = NULL
-    WHERE r.tenant_id = p_tenant AND (r.contact_id = p_contact OR r.match_keys && ARRAY(
-      SELECT i.kind || ':' || i.normalized_value FROM public.contact_identifiers i WHERE i.tenant_id = p_tenant AND i.contact_id = p_contact));
+    WHERE r.tenant_id = p_tenant AND (r.contact_id = p_contact OR EXISTS (
+      SELECT 1 FROM public.contact_identifiers i
+      WHERE i.tenant_id = p_tenant AND i.contact_id = p_contact AND (
+        i.kind || ':' || i.normalized_value = ANY(r.match_keys) OR EXISTS (
+          SELECT 1 FROM jsonb_array_elements_text(r.raw) AS cell(value)
+          WHERE CASE WHEN i.kind = 'phone' THEN
+            length(regexp_replace(i.normalized_value, '[^0-9]', '', 'g')) > 0 AND
+            position(regexp_replace(i.normalized_value, '[^0-9]', '', 'g') IN regexp_replace(cell.value, '[^0-9]', '', 'g')) > 0
+          ELSE length(i.normalized_value) > 0 AND position(lower(i.normalized_value) IN lower(cell.value)) > 0 END))));
   IF erased_time IS NULL THEN
     UPDATE public.contacts SET name = 'Erased contact', notes = '', erased_at = now(), updated_at = now() WHERE tenant_id = p_tenant AND id = p_contact;
     DELETE FROM public.contact_identifiers WHERE tenant_id = p_tenant AND contact_id = p_contact;
