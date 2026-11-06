@@ -121,7 +121,7 @@ test("CRM-06: CSV import with mapping, preview and problem report; filtered expo
   expect((await api(page, "get", `${apiRoot}/contacts?q=ruth`)).body.total ?? 0).toBe(0);
   const rows = page.getByRole("table", { name: "Rows in synthetic-people.csv" });
   await expect(rows.getByText("Matches Synthetic Existing")).toBeVisible();
-  await expect(rows.getByText(/No company matches/).last()).toBeVisible();
+  await expect(rows.getByText(/No organization matches/).last()).toBeVisible();
   await both(page, "import-preview");
   await page.getByRole("navigation", { name: "Rows in synthetic-people.csv" }).getByRole("link", { name: /Problems/ }).click();
   await expect(page).toHaveURL(/outcome=problem/);
