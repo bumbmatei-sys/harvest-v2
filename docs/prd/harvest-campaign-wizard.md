@@ -24,6 +24,16 @@ The wizard should have **8 steps**, with **Back**, **Next**, and **Finish** butt
 
 ---
 
+---
+
+## Founder decisions (2026-11-06)
+
+Recorded from Matei in chat (Europe/Berlin). These lock the open product decisions below and adjust the CW slice plan.
+
+1. **Campaign gift / donations (was open decision 1):** **Config-only in v1.** Persist currency, budget estimate, fundraising goal, and related toggles. **No** live payment provider, checkout, or public donation pages in the first train. Choose the gift processor later (Dodo remains platform-billing placeholder per ADR 0005; Stripe stays closed).
+2. **Departments / boards (was open decision 2):** **New campaign-scoped department boards** in CW-05/CW-06. Do **not** extend CRM-05 `crm_tasks` with campaign/department links for this train.
+3. **AI-assisted setup (was open decision 3):** **Later.** CW-12 stays out of the first release train.
+
 ## Step 1 — Campaign Type
 
 **Question:** What type of campaign are you organizing?
@@ -369,11 +379,11 @@ Analysis only. Scope of this PR: docs. Repo facts below are `origin/main` @ `3e3
 | Jobs / outbox | `jobs`, `outbox_events` in `src/db/schema.ts` | Reuse for async activation / invitations |
 | CRM on main (CRM-01…04) | contacts, companies, fields/views, pipelines/deals ([ADR 0007](../decisions/0007-crm-companies-and-links.md)–[0009](../decisions/0009-crm-pipelines-and-deals.md); `docs/acceptance/crm-01-02.md`–`crm-04.md`) | Shared contact identity for later follow-up; not required for wizard shell |
 | CRM-05 tasks / notes / timeline | Draft [PR #15](https://github.com/bumbmatei-sys/harvest-v2/pull/15), ADR 0010 on `feat/crm-05-tasks-activity` (`crm_tasks`, `crm_notes`, `crm_notifications`; links = person / company / deal **only**) | No `campaignId` / department link today — do not silently reuse as department boards |
-| Payments | [ADR 0005](../decisions/0005-dodo-placeholder.md) Dodo placeholder (`DODO_PAYMENTS_API_KEY` reserved; adapter throws). Founder: Stripe closed; Dodo is **platform billing**. No live checkout or donations | Campaign **gift** provider still undecided (open decision 1) |
+| Payments | [ADR 0005](../decisions/0005-dodo-placeholder.md) Dodo placeholder (`DODO_PAYMENTS_API_KEY` reserved; adapter throws). Founder: Stripe closed; Dodo is **platform billing**. No live checkout or donations | **Locked 2026-11-06:** campaign gifts are **config-only in v1** (currency/budget/goal/toggles); provider decided later |
 | Harvest Connect | [Connect PRD](harvest-connect-qr-to-discipleship.md) (PR #17), [ADR 0011](../decisions/0011-harvest-connect.md), [HC-01…20 slices](harvest-connect-slices.md), HC-FIN finance slices, [threat model](../security/harvest-connect-threat-model.md); HC-01 docs merged (#18 @ `3e38d45`) | Wizard **configures** Connect; must not reimplement HC-03–HC-14 / HC-17–HC-18 |
 | Campaigns module | **Planned, not implemented.** ADR 0011 lists Campaigns as a canonical planned owner. No `campaigns` table in `drizzle/` on main (migrations through `0017_crm_deal_restore_guard.sql`) | New: `campaigns`, wizard drafts, templates, department records |
-| Departments / team boards | None in schema | New campaign-scoped structure (or later CRM extension — open decision 2) |
-| Fundraising / donations | None (`fundraising_drives` etc. only conceptual in Connect §21) | Step 6 maps to Connect campaign finance / HC-FIN — not a parallel money engine |
+| Departments / team boards | None in schema | **Locked 2026-11-06:** new campaign-scoped department boards (not CRM-05 task extension) |
+| Fundraising / donations | None (`fundraising_drives` etc. only conceptual in Connect §21) | Step 6 / CW-09 = **config only in v1**; CW-10 (live gifts / HC-FIN) deferred until provider decision |
 | Companion outreach (§13) | Illustrative only (`outreach_campaigns`, `/ministry/outreach/new`) — **not built** | Do **not** start an `outreach_*` stack; converge on workspace-scoped `campaigns` |
 | UI / stack | shadcn only; Next.js App Router; Neon + Drizzle; `AGENTS.md` | Reuse |
 
@@ -384,7 +394,7 @@ Analysis only. Scope of this PR: docs. Repo facts below are `origin/main` @ `3e3
 | Wizard step | Connect / finance owner | Rule |
 | --- | --- | --- |
 | Step 5 modules: QR Code Response Forms, Discipleship & Follow-Up, Church Location Maps, Fundraising & Donations | Feature flags / capability toggles that later activate Connect or finance surfaces | Toggle only; no duplicate public intake |
-| **Step 6 Budget & Fundraising** | Connect PRD §21 + HC-FIN-01… slices | Campaign-scoped finance, **separate** from General Fundraising; draft drives/pages only; **unpublished** until explicit activation; donation never grants religious-response or follow-up permission |
+| **Step 6 Budget & Fundraising** | Connect PRD §21 + HC-FIN-01… slices | **v1:** currency, budget estimate, goal, toggles only — no provider calls. Live gifts / draft donation pages wait for provider decision (CW-10). Donation never grants religious-response or follow-up permission |
 | **Step 7 Registration / Response / Follow-Up** | HC-03 QR admin, HC-04 landing, HC-05 forms/consent, HC-07–08 accounts, HC-09–12 communities, HC-13 follow-up, HC-17–18 church referral | Wizard writes **configuration + draft unpublished sources**; implementation stays in those HC PRs |
 | Post-create “Follow-Up” / “Response Forms” / “Fundraising” init | Same as above | Create **draft / disabled** artifacts only |
 
@@ -393,7 +403,7 @@ ADR 0011: settle Campaigns/Forms contracts before HC-02; **never create a second
 ### CRM dependencies
 
 - **Not blocked for early CW slices:** wizard shell, drafts, templates, Steps 1–5 capture, idempotent create of campaign + departments + campaign-local task boards.
-- **CRM-05 (PR #15)** must merge before treating CRM tasks as the department Kanban (and only after an ADR 0010 amendment if campaign/department links are added). Until then, campaign-local boards are preferred over forcing `crm_tasks`.
+- **Departments locked to campaign-scoped boards** (2026-11-06). CRM-05 remains person/company/deal tasks only; do not amend ADR 0010 for campaign links in this train. CW-05/06 own department Kanban.
 - **Connect follow-up → CRM association (HC-06 / HC-13)** waits for verified CRM-05+ identity/erasure and Connect intake — wizard Step 7 must not invent contacts from configuration alone.
 - Idempotent Finish must not create CRM contacts, consents, or cases by itself.
 
@@ -411,9 +421,9 @@ Aligned with ADR 0011 and `docs/security/harvest-connect-threat-model.md`:
 
 1. **“Campaign workspace” wording vs single-tenant workspaces.** Spec UX language vs `workspaces` table. Lead: one parent workspace; campaign is a scoped operational surface (`/workspaces/[tenantId]/campaigns/[id]/…`).
 2. **Route / naming:** companion PRD `/ministry/outreach` vs Connect `/w/…/campaigns/[id]`. Lead recommendation: `/workspaces/[tenantId]/campaigns/...` to match Connect ADR 0011 and existing app routes.
-3. **Departments vs CRM-05 tasks:** CRM tasks link person/company/deal only (`feat/crm-05-tasks-activity`). Department Kanban needs new campaign-scoped entities **or** an explicit CRM extension — do not invent silent FK hacks.
-4. **Donation provider:** platform billing (Dodo placeholder) ≠ campaign gifts; Stripe closed; no live donations exist.
-5. **AI Campaign Copilot:** [AI-assistant-architecture.md](AI-assistant-architecture.md) exists; no campaign copilot code. Keep out of first create path.
+3. **Departments vs CRM-05 tasks:** **Resolved** — new campaign-scoped department boards (CW-05/06). CRM tasks stay person/company/deal only; no silent FK hacks.
+4. **Donation provider:** **Resolved for v1** — config-only (no live checkout). Platform billing (Dodo placeholder) ≠ campaign gifts; Stripe closed; provider choice deferred.
+5. **AI Campaign Copilot:** **Deferred** — [AI-assistant-architecture.md](AI-assistant-architecture.md) exists; CW-12 out of first train.
 
 ### Proposed slice plan (CW-01…CW-12)
 
@@ -425,27 +435,31 @@ CW numbering is independent of HC. **“Before CRM done?”** means the slice ca
 | **CW-02** | Wizard shell at `/workspaces/[tenantId]/campaigns/new` — 8 steps, Back/Next/Finish chrome, progress, shadcn only | CW-01 | **Yes** | All steps navigable; in-memory/local draft state only |
 | **CW-03** | Automatic draft saving + resume + create idempotency key | CW-02 | **Yes** | Close/reopen restores answers; Finish with same key is idempotent |
 | **CW-04** | Templates catalog + **Steps 1–3** (type, basic info, location/dates) with conditional defaults | CW-03 | **Yes** | Template apply fills draft; Steps 1–3 validate and persist |
-| **CW-05** | **Steps 4–5** — departments/leadership invites (memberships only) + feature module toggles | CW-03 | **Yes** | Departments recorded as campaign-scoped structure; modules stored as flags; no Connect/finance side effects |
-| **CW-06** | **Step 8 Finish** — idempotent create of campaign + departments + campaign-local boards/tasks/milestones + post-create checklist; everything **unpublished** | CW-04–05; open decision 2 | **Yes** | One campaign per idempotency key; checklist rendered; no public forms/donations live |
+| **CW-05** | **Steps 4–5** — **campaign-scoped department boards** + leadership invites (memberships only) + feature module toggles | CW-03 | **Yes** | Department entities + boards recorded under the campaign; modules stored as flags; no CRM-05 task reuse; no Connect/finance side effects |
+| **CW-06** | **Step 8 Finish** — idempotent create of campaign + campaign-scoped departments/boards/tasks/milestones + post-create checklist; everything **unpublished** | CW-04–05 | **Yes** | One campaign per idempotency key; checklist rendered; no public forms/donations live |
 | **CW-07** | Campaign dashboard readiness (aggregate shell, department progress placeholders) + acceptance doc for CW-01…06 | CW-06 | **Yes** | Manager sees operational overview without Connect metrics or donor PII |
 | **CW-08** | **Step 7** Connect configuration — draft unpublished QR/registration/follow-up/community/referral flags; wires to HC contracts | CW-06; HC-01; Campaigns contract settled for HC-02+ | **No** (also needs Connect HC-02/03 progress for real QR) | Step 7 writes config only; activation remains explicit; no duplicate intake code |
-| **CW-09** | **Step 6** budget estimate + fundraising toggles + draft budget categories (no provider calls) | CW-06; Connect §21 policy | **Partial / No for live money** — estimates/categories can follow CW-06; **online donations wait** | Config persisted; donation pages remain unpublished; no checkout |
-| **CW-10** | Live campaign fundraising / donations (HC-FIN path) | CW-09; **open decision 1**; HC-FIN-01+ | **No** | Provider webhook reconciles a test gift into campaign ledger only; never into general fundraising by default |
+| **CW-09** | **Step 6** budget estimate + fundraising toggles + draft budget categories — **config-only v1** (no provider calls, no live donation pages) | CW-06; Connect §21 policy | **Yes** for config | Currency/budget/goal/toggles persisted; donation pages stay unpublished; no checkout |
+| **CW-10** | Live campaign fundraising / donations (HC-FIN path) — **deferred** until gift provider decided | CW-09; founder provider decision; HC-FIN-01+ | **No** | Provider webhook reconciles a test gift into campaign ledger only; never into general fundraising by default |
 | **CW-11** | Restricted CRM follow-up pipeline wiring for campaign (pastor assignment / cases) | CW-08; CRM-05+; HC-13 | **No** | Cases scoped; no campaign-wide roster; erasure/outbox scrub aligned with CRM-05 B1 lesson |
-| **CW-12** | AI-assisted campaign setup (optional NL → draft suggestions) | CW-04; [AI-assistant-architecture.md](AI-assistant-architecture.md); open decision 3 | **No** | Suggestions require human accept; never auto-publish |
+| **CW-12** | AI-assisted campaign setup (optional NL → draft suggestions) — **deferred / out of first train** | CW-04; [AI-assistant-architecture.md](AI-assistant-architecture.md) | **No** | Suggestions require human accept; never auto-publish |
 
-**Start now (parallel to finishing CRM-05 / early Connect):** CW-01…CW-07.  
-**Wait:** CW-08 (Connect), CW-09 live-donation half + CW-10 (payments), CW-11 (CRM follow-up), CW-12 (AI).
+**Start now (parallel to finishing CRM-05 / early Connect):** CW-01…CW-07, plus CW-09 **config-only**.  
+**Wait:** CW-08 (Connect), CW-10 (live gifts after provider decision), CW-11 (CRM follow-up), CW-12 (AI — deferred).
 
-### Top open product decisions for Matei
+### Product decisions — locked 2026-11-06
 
-1. **Campaign gift payment provider** — Dodo platform billing is a placeholder ([ADR 0005](../decisions/0005-dodo-placeholder.md)); Stripe is closed. Use Dodo for donations too, pick another processor, or ship v1 with **budget/fundraising config only** (no live checkout)?
-2. **Departments** — new campaign-scoped teams/boards/tasks now (CW-05/06), or wait and extend CRM-05 `crm_tasks` with campaign/department links (requires ADR 0010 change)?
-3. **AI-assisted setup** — include a thin CW-12 in the first release train, or keep AI out until after wizard + Connect pilot (Lead default: **later**)?
+See **Founder decisions (2026-11-06)** above. Summary:
+
+1. **Campaign gifts:** config-only in v1; provider later. CW-09 ships config; CW-10 waits.
+2. **Departments:** new campaign-scoped boards (CW-05/06); not CRM-05 extension.
+3. **AI setup:** later; CW-12 out of first train.
+
+No further Matei calls required to start CW-01…CW-07 (+ CW-09 config).
 
 ### Non-goals for this PRD PR
 
 - Docs only: adds `docs/prd/harvest-campaign-wizard.md`. **No app code, migrations, routes, Craft, or ClickUp edits.**
 - No second campaign system, no `outreach_*` parallel stack, no second `workspaces` tenant.
-- No live payments, no published public pages, no Connect reimplementation, no CRM-06 import/merge work.
+- No live payments / donation pages in v1 (config-only per founder decision), no published public pages, no Connect reimplementation, no CRM-06 import/merge work, no AI setup in first train.
 
