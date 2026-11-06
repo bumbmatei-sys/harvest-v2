@@ -859,9 +859,6 @@
   .min-w-40 {
     min-width: calc(var(--spacing) * 40);
   }
-  .min-w-44 {
-    min-width: calc(var(--spacing) * 44);
-  }
   .min-w-\[8rem\] {
     min-width: 8rem;
   }
@@ -2973,6 +2970,9 @@
   :is(.\*\*\:data-\[slot\=command-input-wrapper\]\:h-12 *)[data-slot="command-input-wrapper"] {
     height: calc(var(--spacing) * 12);
   }
+  :is(.\*\:data-\[slot\=native-select-wrapper\]\:w-full > *)[data-slot="native-select-wrapper"] {
+    width: 100%;
+  }
   :is(.\*\:data-\[slot\=select-value\]\:line-clamp-1 > *)[data-slot="select-value"] {
     overflow: hidden;
     display: -webkit-box;
@@ -3209,6 +3209,9 @@
     }
     .data-\[size\=default\]\:sm\:max-w-lg[data-size="default"] {
       max-width: var(--container-lg);
+    }
+    :is(.sm\:\*\:data-\[slot\=native-select-wrapper\]\:max-w-64 > *)[data-slot="native-select-wrapper"] {
+      max-width: calc(var(--spacing) * 64);
     }
   }
   @media (width >= 48rem) {

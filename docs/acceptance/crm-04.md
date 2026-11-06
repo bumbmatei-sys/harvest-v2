@@ -79,10 +79,10 @@ Database-backed tests used `TEST_DATABASE_URL` against a local PostgreSQL 16 (em
 | `npm run lint` | exit 0; ESLint clean; "Source guards: no hard-coded JSX copy, feedback, or component colors." |
 | `npm run typecheck` | exit 0 |
 | `npm test` (unit) | 12 files, **136 passed** (new: `crm-deals.test.ts`, 7) |
-| `TEST_DATABASE_URL=… npm run test:rls` (integration) | 18 files, **182 passed** (new: `crm-deals.test.ts`, 19 tests; `crm04-upgrade.test.ts`) |
+| `TEST_DATABASE_URL=… npm run test:rls` (integration) | 19 files, **190 passed** (new: `crm-deals.test.ts`, 19 tests; `crm-deals-concurrency.test.ts`, 8 tests on a 10-connection pool: restore sequences, raw SQL, restore/archive race, stage-restore limit, concurrent moves and creates, same-deal race; `crm04-upgrade.test.ts`) |
 | `npx drizzle-kit check` / `generate` | "Everything's fine" / "No schema changes, nothing to migrate" |
 | `npm run build` | exit 0; the new pages and API routes compiled |
-| `npx playwright test` (all 9 specs, 11 tests) | Full run: **8 passed, 3 failed**: `crm04` (the test read column headings before the board rendered), `foundation` (axe ran while the sign-in button was still fading back from its disabled state) and `layout` (contrast on the mobile dark profile page during the theme switch). The first two had test fixes. Rerun of the three: **4/4 passed**; `layout` passed with no change, so it was a flake. `crm04` also passed on its own before the full run. |
+| `npx playwright test` (all 9 specs, 11 tests) | After the review fixes (B1–B3): **11/11 passed** in one full run (7.4 min). The CRM-04 spec also checks layout at 320, 390, 768, 1024 (sidebar expanded) and 1440. The first round had three test-timing failures, fixed and noted below. |
 
 `npm run test:rls:neon` was **not** run (no Neon credentials; not authorized).
 
