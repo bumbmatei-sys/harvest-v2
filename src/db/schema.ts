@@ -374,6 +374,73 @@ export const crmNotifications = pgTable("crm_notifications", {
   foreignKey({ columns: [t.tenantId, t.taskId], foreignColumns: [crmTasks.tenantId, crmTasks.id] }),
   index("crm_notifications_recipient_idx").on(t.tenantId, t.recipientUserId, t.readAt, t.createdAt),
   check("crm_notification_kind", sql`${t.kind} in ('task_assigned')`)]);
+// CRM-06: tenant-scoped CSV imports. One row per CSV data line keeps the preview,
+// the error report and batch rollback on the server (ADR 0012).
+export const crmImportEntities = ["person", "company"] as const;
+export const crmImportStatuses = ["draft", "preview", "running", "completed", "failed", "rolled_back"] as const;
+export const crmImportRowStatuses = ["pending", "ready", "done", "error", "skipped", "rolled_back"] as const;
+export const crmImportActions = ["create", "update", "skip", "error", "conflict"] as const;
+export type CrmImportStats = Partial<Record<"total" | "create" | "update" | "skip" | "error" | "conflict" | "created" | "updated" | "skipped" | "failed" | "removed" | "reverted" | "kept", number>>;
+/** What "Fill empty fields" changed on a matched record, so a rollback can revert exactly that. */
+export type CrmImportApplied = { notes?: boolean; description?: boolean; identifiers?: string[]; companyId?: string; linked?: boolean };
+export const crmImports = pgTable("crm_imports", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
+  entity: text("entity").$type<typeof crmImportEntities[number]>().notNull(),
+  status: text("status").$type<typeof crmImportStatuses[number]>().notNull().default("draft"),
+  // Client-generated per file selection: re-sending the same upload returns the same import.
+  clientKey: uuid("client_key").notNull(),
+  fileName: text("file_name").notNull(),
+  headers: jsonb("headers").$type<string[]>().notNull(),
+  // One target per header, aligned by position; null means "Don't import".
+  mapping: jsonb("mapping").$type<(string | null)[]>().notNull(),
+  onMatch: text("on_match").$type<"skip" | "fill">().notNull().default("skip"),
+  rowCount: integer("row_count").notNull(),
+  stats: jsonb("stats").$type<CrmImportStats>().notNull().default({}),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  previewedAt: timestamp("previewed_at", { withTimezone: true }),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  rolledBackAt: timestamp("rolled_back_at", { withTimezone: true }),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  uniqueIndex("crm_imports_client_key_idx").on(t.tenantId, t.clientKey),
+  index("crm_imports_tenant_created_idx").on(t.tenantId, t.createdAt, t.id),
+  check("crm_import_entity", sql`${t.entity} in ('person', 'company')`),
+  check("crm_import_status", sql`${t.status} in ('draft', 'preview', 'running', 'completed', 'failed', 'rolled_back')`),
+  check("crm_import_on_match", sql`${t.onMatch} in ('skip', 'fill')`),
+  check("crm_import_rows_bound", sql`${t.rowCount} between 1 and 5000`),
+  check("crm_import_file_name", sql`length(btrim(${t.fileName})) between 1 and 200`),
+  check("crm_import_shape", sql`jsonb_typeof(${t.headers}) = 'array' and jsonb_typeof(${t.mapping}) = 'array' and jsonb_array_length(${t.headers}) between 1 and 100 and jsonb_array_length(${t.mapping}) = jsonb_array_length(${t.headers})`),
+  check("crm_import_version", sql`${t.version} >= 1`)]);
+export const crmImportRows = pgTable("crm_import_rows", {
+  tenantId: uuid("tenant_id").notNull(), importId: uuid("import_id").notNull(),
+  rowNumber: integer("row_number").notNull(),
+  // The CSV cells, aligned with the import's headers. Scrubbed to [] when the person is erased.
+  raw: jsonb("raw").$type<string[]>().notNull(),
+  // "kind:normalized" identifiers parsed from the row, so erasure can find rows about a person.
+  matchKeys: text("match_keys").array().notNull().default(sql`'{}'::text[]`),
+  status: text("status").$type<typeof crmImportRowStatuses[number]>().notNull().default("pending"),
+  action: text("action").$type<typeof crmImportActions[number]>(),
+  error: text("error"), warning: text("warning"),
+  contactId: uuid("contact_id"), companyId: uuid("company_id"),
+  created: boolean("created").notNull().default(false),
+  applied: jsonb("applied").$type<CrmImportApplied>(),
+  resultVersion: integer("result_version"),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.importId, t.rowNumber] }),
+  foreignKey({ columns: [t.tenantId, t.importId], foreignColumns: [crmImports.tenantId, crmImports.id] }),
+  foreignKey({ columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }),
+  foreignKey({ columns: [t.tenantId, t.companyId], foreignColumns: [companies.tenantId, companies.id] }),
+  index("crm_import_rows_status_idx").on(t.tenantId, t.importId, t.status, t.rowNumber),
+  index("crm_import_rows_contact_idx").on(t.tenantId, t.contactId),
+  index("crm_import_rows_company_idx").on(t.tenantId, t.companyId),
+  index("crm_import_rows_keys_idx").using("gin", t.matchKeys),
+  check("crm_import_row_number", sql`${t.rowNumber} between 1 and 5000`),
+  check("crm_import_row_status", sql`${t.status} in ('pending', 'ready', 'done', 'error', 'skipped', 'rolled_back')`),
+  check("crm_import_row_action", sql`${t.action} is null or ${t.action} in ('create', 'update', 'skip', 'error', 'conflict')`),
+  check("crm_import_row_raw", sql`jsonb_typeof(${t.raw}) = 'array' and octet_length(${t.raw}::text) <= 20000`),
+  check("crm_import_row_codes", sql`(${t.error} is null or length(${t.error}) <= 80) and (${t.warning} is null or length(${t.warning}) <= 80)`)]);
+
 export const files = pgTable("files", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),

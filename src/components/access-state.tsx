@@ -3,12 +3,12 @@ import Link from "next/link";
 import { LockKeyhole, SearchX } from "lucide-react";
 import { Empty, EmptyHeader, EmptyMedia, EmptyTitle, EmptyDescription, EmptyContent } from "@/components/ui/empty";
 import { Button } from "@/components/ui/button";
-export function AccessState({ missing = false, href = "/workspaces", kind = "person" }: { missing?: boolean; href?: string; kind?: "person" | "company" | "deal" }) {
+export function AccessState({ missing = false, href = "/workspaces", kind = "person" }: { missing?: boolean; href?: string; kind?: "person" | "company" | "deal" | "import" }) {
   const t = useTranslations("ComponentsAccessState");
   return <Empty className="border border-solid bg-card py-16"><EmptyHeader>
     <EmptyMedia variant="icon">{missing ? <SearchX aria-hidden="true" /> : <LockKeyhole aria-hidden="true" />}</EmptyMedia>
-    <EmptyTitle><h1>{missing ? kind === "company" ? t("companyNotFound") : kind === "deal" ? t("dealNotFound") : t("contactNotFound") : t("workspaceAccessDenied")}</h1></EmptyTitle>
-    <EmptyDescription>{missing ? kind === "company" ? t("thisCompanyIsNotAvailableInThisWorkspace") : kind === "deal" ? t("thisDealIsNotAvailableInThisWorkspace") : t("thisContactIsNotAvailableInThisWorkspace") : t("yourAccountDoesnTHaveAccessToThis")}</EmptyDescription>
-    </EmptyHeader><EmptyContent><Button variant="outline" asChild><Link href={href}>{missing ? kind === "company" ? t("backToCompanies") : kind === "deal" ? t("backToPipelines") : t("backToContacts") : t("yourWorkspaces")}</Link></Button></EmptyContent>
+    <EmptyTitle><h1>{missing ? kind === "company" ? t("companyNotFound") : kind === "deal" ? t("dealNotFound") : kind === "import" ? t("importNotFound") : t("contactNotFound") : t("workspaceAccessDenied")}</h1></EmptyTitle>
+    <EmptyDescription>{missing ? kind === "company" ? t("thisCompanyIsNotAvailableInThisWorkspace") : kind === "deal" ? t("thisDealIsNotAvailableInThisWorkspace") : kind === "import" ? t("thisImportIsNotAvailableInThisWorkspace") : t("thisContactIsNotAvailableInThisWorkspace") : t("yourAccountDoesnTHaveAccessToThis")}</EmptyDescription>
+    </EmptyHeader><EmptyContent><Button variant="outline" asChild><Link href={href}>{missing ? kind === "company" ? t("backToCompanies") : kind === "deal" ? t("backToPipelines") : kind === "import" ? t("backToImports") : t("backToContacts") : t("yourWorkspaces")}</Link></Button></EmptyContent>
   </Empty>;
 }

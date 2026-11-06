@@ -44,7 +44,7 @@ test("CW-01: mobile shell Tab reaches every navigation link and campaign targets
     const navigation = sheet.getByRole("navigation", { name: "Workspace navigation" });
     const links = navigation.getByRole("link");
     // Workspace entry plus all CRM, Workspace and Settings links.
-    await expect(links).toHaveCount(10);
+    await expect(links).toHaveCount(11);
     const expected = new Set(await links.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href"))));
     await sheet.getByRole("link", { name: "Harvest", exact: true }).focus();
     for (let tab = 0; tab < 30 && expected.size; tab++) {
