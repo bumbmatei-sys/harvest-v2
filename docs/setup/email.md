@@ -1,5 +1,18 @@
 # Email-code sign-in setup
 
+## Current staging / release status (2026-11-06)
+
+The paragraphs below record the original foundation setup session. The later
+2026-11-05 exit gate proved actual safe test-recipient sign-in on temporary
+deployments, then removed the mail key and invalidated test sessions. Final
+staging intentionally cannot issue fresh codes. No sender, credential or
+delivery authorization for public release is established by those tests.
+See the [AC8 checklist](../acceptance/public-release-ac8.md) for evidence and
+the remaining release configuration gate. This documentation task changes no
+mail settings and sends no email.
+
+## Original foundation setup record
+
 The environment contains `RESEND_API_KEY`. No Resend API request was made and no email was sent during this setup session.
 
 ## EMAIL_FROM
