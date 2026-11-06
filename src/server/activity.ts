@@ -1,6 +1,6 @@
 import { and, desc, eq, inArray, isNull, like, or, sql } from "drizzle-orm";
 import type { Database, Transaction } from "../db/client";
-import { auditLogs, companies, contacts, crmNotes, crmPipelineStages, crmTasks, opportunities, users, workspaceMembers } from "../db/schema";
+import { auditLogs, companies, contacts, crmAssociations, crmNotes, crmPipelineStages, crmTasks, opportunities, users, workspaceMembers } from "../db/schema";
 import { TIMELINE_PAGE_SIZE, decodeCursor, encodeCursor } from "../lib/crm-tasks";
 import { AccessError } from "./permissions";
 import { message } from "../i18n/messages";
@@ -17,7 +17,9 @@ export const crmActions = ["contact.create", "contact.update", "contact.consent_
 export const timelineActions = [...crmActions, "opportunity.create", "opportunity.update", "opportunity.move", "opportunity.archive", "opportunity.restore",
   "task.create", "task.update", "task.complete", "task.reopen", "task.reassign", "task.archive", "task.restore",
   // Note lifecycle events that the live note itself cannot show (create/update are represented by the note).
-  "note.archive", "note.restore"] as const;
+  "note.archive", "note.restore",
+  // CRM-07: an association event (Zernio, form or touchpoint); its content comes from crm_associations.
+  "association.record"] as const;
 export type CrmAction = typeof crmActions[number];
 export type ActivityMetadata = { companyId?: string; fields?: string };
 
@@ -83,12 +85,29 @@ export function listCompanyActivity(db: Database, userId: string, workspace: str
 //     actions, plus task.* rows whose metadata names the record;
 //   - the record's live notes (their text lives only in crm_notes).
 // Future sources (purchases, email, social, forms: CRM-07) add a new `kind` here.
+/**
+ * CRM-07 association content by id. The tenant filter is in the query itself, not left to RLS
+ * alone, so a broken policy can never widen what a timeline returns (tested with RLS bypassed).
+ */
+export async function loadAssociations(tx: Transaction, tenantId: string, ids: string[]) {
+  if (!ids.length) return [];
+  return tx.select().from(crmAssociations).where(and(eq(crmAssociations.tenantId, tenantId), inArray(crmAssociations.id, ids)));
+}
 export type TimelineSubject = "person" | "company" | "deal";
 export type TimelineEvent = Omit<ActivityItem, "action"> & {
   kind: "event"; action: typeof timelineActions[number]; task: { id: string; title: string } | null; fromStage: string | null; toStage: string | null; toUserName: string | null;
 };
 export type TimelineNote = { kind: "note"; id: string; createdAt: Date; actor: { id: string; name: string | null; isMember: boolean }; body: string; editedAt: Date | null; version: number };
-export type TimelineItem = TimelineEvent | TimelineNote;
+/**
+ * CRM-07 association: a ledger row `association.record` joined to its content. `removed` means the
+ * content is gone (the person was erased); `redacted` means erasure of someone else scrubbed its text.
+ */
+export type TimelineAssociation = {
+  kind: "association"; action: "association.record"; id: string; createdAt: Date; actor: { id: string; name: string | null; isMember: boolean };
+  associationId: string; source: string; activity: string; purpose: string; occurredAt: Date | null; summary: string;
+  redacted: boolean; removed: boolean; person: { id: string; name: string } | null;
+};
+export type TimelineItem = TimelineEvent | TimelineNote | TimelineAssociation;
 const subjectPermission = { person: "contacts:read", company: "companies:read", deal: "opportunities:read" } as const;
 
 export function getTimeline(db: Database, userId: string, workspace: string, subject: TimelineSubject, record: string, cursor?: string | null) {
@@ -101,7 +120,7 @@ export function getTimeline(db: Database, userId: string, workspace: string, sub
         : await tx.select({ id: opportunities.id }).from(opportunities).where(and(eq(opportunities.tenantId, tenantId), eq(opportunities.id, id)));
     if (!exists.length) throw new AccessError(404, message(subject === "person" ? "Errors.thisContactIsNotAvailableInThisWorkspace" : subject === "company" ? "Errors.thisCompanyIsNotAvailableInThisWorkspace" : "Errors.thisDealIsNotAvailable"));
     const metaKey = subject === "person" ? "contactId" : subject === "company" ? "companyId" : "opportunityId";
-    const relatedRows = sql`((${auditLogs.action} like 'task.%' or ${auditLogs.action} in ('note.archive', 'note.restore')) and ${auditLogs.metadata}->>${metaKey} = ${id})`;
+    const relatedRows = sql`((${auditLogs.action} like 'task.%' or ${auditLogs.action} in ('note.archive', 'note.restore', 'association.record')) and ${auditLogs.metadata}->>${metaKey} = ${id})`;
     const own = subject === "person" ? and(eq(auditLogs.targetId, id), like(auditLogs.action, "contact.%"))
       : subject === "company" ? or(and(eq(auditLogs.targetId, id), like(auditLogs.action, "company.%")),
         and(inArray(auditLogs.action, ["contact.company_link", "contact.company_link_update", "contact.company_unlink"]), sql`${auditLogs.metadata}->>'companyId' = ${id}`))
@@ -126,7 +145,19 @@ export function getTimeline(db: Database, userId: string, workspace: string, sub
     const members = people.length ? await tx.select({ id: users.id, name: users.name, email: users.email }).from(workspaceMembers).innerJoin(users, eq(users.id, workspaceMembers.userId))
       .where(and(eq(workspaceMembers.tenantId, tenantId), inArray(workspaceMembers.userId, people))) : [];
     const memberName = (memberId: string) => { const found = members.find((item) => item.id === memberId); return found ? found.name || found.email : null; };
+    const associationIds = page.flatMap((item) => (item.row?.action === "association.record" && item.row.targetId && uuidInput.safeParse(item.row.targetId).success ? [item.row.targetId] : []));
+    const associations = await loadAssociations(tx, tenantId, associationIds);
+    const associationPeople = [...new Set(associations.map((row) => row.contactId))];
+    const peopleNames = associationPeople.length ? await tx.select({ id: contacts.id, name: contacts.name }).from(contacts)
+      .where(and(eq(contacts.tenantId, tenantId), inArray(contacts.id, associationPeople), isNull(contacts.erasedAt))) : [];
     const items: TimelineItem[] = page.map((item) => {
+      if (item.row?.action === "association.record") {
+        const base = shaped.find((entry) => entry.id === item.row!.id)!, content = associations.find((row) => row.id === item.row!.targetId);
+        const person = content ? peopleNames.find((row) => row.id === content.contactId) ?? null : null;
+        return { kind: "association", action: "association.record", id: item.row.id, createdAt: base.createdAt, actor: base.actor, associationId: item.row.targetId ?? "",
+          source: content?.source ?? item.row.metadata.source ?? "", activity: content?.kind ?? item.row.metadata.kind ?? "", purpose: content?.purpose ?? item.row.metadata.purpose ?? "",
+          occurredAt: content?.occurredAt ?? null, summary: content?.summary ?? "", redacted: !!content?.redactedAt, removed: !content, person };
+      }
       if (item.note) return { kind: "note", id: item.note.id, createdAt: item.note.createdAt, body: item.note.body, editedAt: item.note.editedAt, version: item.note.version,
         actor: { id: item.note.createdBy, name: memberName(item.note.createdBy), isMember: members.some((member) => member.id === item.note!.createdBy) } };
       const base = shaped.find((entry) => entry.id === item.row!.id)!;

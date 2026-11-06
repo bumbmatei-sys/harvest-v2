@@ -10,7 +10,7 @@ export const contactInput = z.object({
   phone: z.string().default("").pipe(phoneField), social: z.string().default("").pipe(socialField),
 }).strict();
 export type ContactInput = z.input<typeof contactInput>;
-export const consentPurposes = ["marketing", "outreach_follow_up", "event_administration", "account_communications"] as const;
+export const consentPurposes = ["marketing", "outreach_follow_up", "event_administration", "account_communications", "messaging", "form_follow_up", "newsletter"] as const;
 export const consentNoticeVersions = ["notice-v1"] as const;
 export const erasureInput = z.object({ confirm: z.literal("erase") }).strict();
 export const consentInput = z.object({

@@ -428,7 +428,9 @@
     "checkTheTaskDetails": "Check the task details.",
     "checkTheNote": "Write a note of up to 10,000 characters.",
     "restoreTheDealToAddTasksOrNotes": "This deal is archived. Restore it to add or change its tasks and notes.",
-    "onlyTheAuthorCanChangeThisNote": "Only the author, an owner or an admin can change this note."
+    "onlyTheAuthorCanChangeThisNote": "Only the author, an owner or an admin can change this note.",
+    "checkTheActivityDetails": "Check the activity details: choose a source, kind and purpose, and a person.",
+    "theseDetailsBelongToDifferentPeople": "These details belong to different people, so the activity was not linked."
   },
   "LibEnv": {
     "missingRequiredEnvironmentVariableValue": "Missing required environment variable: {name}"
@@ -465,7 +467,10 @@
     "account_communications": "Account communications",
     "notice-v1": "Notice version 1",
     "legacy_unspecified": "Legacy purpose unavailable",
-    "legacy-unversioned": "Legacy wording unavailable"
+    "legacy-unversioned": "Legacy wording unavailable",
+    "messaging": "Messaging",
+    "form_follow_up": "Form follow-up",
+    "newsletter": "Newsletter"
   },
   "Calendar": {
     "previousMonth": "Go to previous month",
@@ -1181,6 +1186,32 @@
       "contactId": "the person",
       "companyId": "the company",
       "opportunityId": "the deal"
+    },
+    "associationRecorded": "recorded {activity} from {source}",
+    "associationFor": "for <person></person>",
+    "associationOccurred": "Happened {date}",
+    "associationRemoved": "This activity's details were removed when the person was erased.",
+    "associationRedacted": "The details were removed because they named a person who was erased.",
+    "associationSources": {
+      "zernio": "Zernio",
+      "form": "a form",
+      "touchpoint": "a touchpoint"
+    },
+    "associationKinds": {
+      "message": "a message",
+      "comment": "a comment",
+      "mention": "a mention",
+      "form_submission": "a form submission",
+      "signup": "a sign-up",
+      "call": "a call",
+      "meeting": "a meeting",
+      "visit": "a visit",
+      "other": "an activity"
+    },
+    "associationPurposes": {
+      "messaging": "Messaging",
+      "form_follow_up": "Form follow-up",
+      "newsletter": "Newsletter"
     }
   },
   "Campaigns": {

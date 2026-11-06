@@ -1,4 +1,4 @@
-import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
@@ -69,6 +69,11 @@ export async function testDatabase(options: { beforeFilesMigration?: (admin: Poo
   await migrate(drizzle(admin), { migrationsFolder: "drizzle" });
   // Applying the same migrations twice must be a no-op.
   await migrate(drizzle(admin), { migrationsFolder: "drizzle" });
+  // Staged SQL for a slice whose migration number is not free yet (CRM-07 waits for CRM-06's 0022/0023).
+  // Applied once, after every real migration, in file-name order; see sql/pending-migrations/README.md.
+  for (const file of (await readdir("sql/pending-migrations").catch(() => [] as string[])).filter((name) => name.endsWith(".sql")).sort()) {
+    await admin.query(await readFile(join("sql/pending-migrations", file), "utf8"));
+  }
   const appPassword = randomBytes(24).toString("hex");
   await admin.query(`ALTER ROLE harvest_app LOGIN PASSWORD ${escapeLiteral(appPassword)}`);
   url.username = "harvest_app"; url.password = appPassword;

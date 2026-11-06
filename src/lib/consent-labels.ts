@@ -1,1 +1,1 @@
-export type ConsentLabel = "email" | "sms" | "social" | "granted" | "withdrawn" | "unknown" | "marketing" | "outreach_follow_up" | "event_administration" | "account_communications" | "notice-v1" | "legacy_unspecified" | "legacy-unversioned";
+export type ConsentLabel = "email" | "sms" | "social" | "granted" | "withdrawn" | "unknown" | "marketing" | "outreach_follow_up" | "event_administration" | "account_communications" | "messaging" | "form_follow_up" | "newsletter" | "notice-v1" | "legacy_unspecified" | "legacy-unversioned";

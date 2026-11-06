@@ -70,7 +70,8 @@ describe("contact persistence, evidence and tenant isolation", () => {
     expect(detail.consents.map((row) => row.status)).toEqual(["withdrawn", "granted"]);
     await expect(fixture.pool.query("update contact_consents set status = 'granted'")).rejects.toThrow();
     await expect(fixture.admin.query("delete from contact_consents")).rejects.toThrow("append-only");
-    await expect(fixture.admin.query("truncate contact_consents")).rejects.toThrow("append-only");
+    // CASCADE reaches the append-only trigger past CRM-07's foreign key (as jobs.test.ts does); nothing is truncated.
+    await expect(fixture.admin.query("truncate contact_consents cascade")).rejects.toThrow("append-only");
     await withTenant(fixture.db, "owner-a", tenantA, "contacts:read", async (tx) => {
       const events = await tx.select().from(auditLogs).where(eq(auditLogs.action, "contact.consent_record"));
       expect(events).toHaveLength(2); expect(events.every((row) => !JSON.stringify(row.metadata).includes("evidence"))).toBe(true);

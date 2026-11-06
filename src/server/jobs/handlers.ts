@@ -37,4 +37,6 @@ export const jobHandlers: JobHandlers = {
   "crm.note.created": async () => {},
   "crm.note.updated": async () => {},
   "crm.note.archived": async () => {},
+  // CRM-07: receipt only (ids and categories); consumers come later.
+  "crm.association.recorded": async () => {},
 };
