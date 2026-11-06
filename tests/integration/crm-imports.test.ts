@@ -72,6 +72,30 @@ describe("import row erasure", () => {
     expect(merged.rows).toEqual([{ raw: [], match_keys: [], contact_id: null }]);
   });
 
+  it("preserves unrelated rows when identifiers are only substrings", async () => {
+    const phone = await createContact(fixture.db, "owner-a", tenantA, { name: "Phone target", phone: "+4915199990004" });
+    const email = await createContact(fixture.db, "owner-a", tenantA, { name: "Email target", email: "ed@example.test" });
+    const handle = await createContact(fixture.db, "owner-a", tenantA, { name: "Handle target", social: "a" });
+    const imported = await runImport("owner-a", tenantA, csv([["Name", "Email", "Notes"], ["Synthetic Ada", "fred@example.test", "Needed a volunteer; ref 149151999900041; ed@example.test.evil"]]));
+    const before = (await fixture.admin.query("select raw, match_keys, contact_id from crm_import_rows where import_id = $1", [imported.id])).rows;
+    expect(before[0].contact_id).toBeTruthy();
+    for (const person of [phone, email, handle]) await eraseContact(fixture.db, "owner-a", tenantA, person.id);
+    const after = (await fixture.admin.query("select raw, match_keys, contact_id from crm_import_rows where import_id = $1", [imported.id])).rows;
+    expect(after).toEqual(before);
+  });
+
+  it("keeps another imported person's link when scrubbing a mention so rollback removes them", async () => {
+    const mentioned = await createContact(fixture.db, "owner-a", tenantA, { name: "Mentioned person", email: "mentioned-probe@example.test" });
+    const imported = await runImport("owner-a", tenantA, csv([["Name", "Email", "Notes"], ["Synthetic Collateral", "collateral-probe@example.test", "email them at mentioned-probe@example.test"]]));
+    const before = (await fixture.admin.query("select contact_id, match_keys from crm_import_rows where import_id = $1", [imported.id])).rows[0];
+    expect(before.contact_id).toBeTruthy();
+    await eraseContact(fixture.db, "owner-a", tenantA, mentioned.id);
+    const after = (await fixture.admin.query("select raw, match_keys, contact_id from crm_import_rows where import_id = $1", [imported.id])).rows[0];
+    expect(after).toEqual({ raw: [], match_keys: before.match_keys, contact_id: before.contact_id });
+    await expect(rollbackImport(fixture.db, "owner-a", tenantA, imported.id)).resolves.toMatchObject({ result: { removed: 1 } });
+    expect((await fixture.admin.query("select count(*)::int as n from contacts where id = $1", [before.contact_id])).rows[0].n).toBe(0);
+  });
+
   it("fails closed with an empty tenant setting even when import rows exist", async () => {
     const item = await createImport(fixture.db, "owner-a", tenantA, { entity: "person", clientKey: randomUUID(), fileName: "context.csv", csv: "Name\nContext person" });
     const client = await fixture.pool.connect();

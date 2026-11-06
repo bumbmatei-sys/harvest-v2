@@ -43,11 +43,11 @@ export function NewImportDialog({ tenantId, entity: initial = "person", defaultO
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
         <FieldSet><FieldLegend variant="label">{t("importInto")}</FieldLegend>
           <RadioGroup value={entity} onValueChange={(value) => setEntity(value as "person" | "company")} className="flex gap-6">
-            {(["person", "company"] as const).map((value) => <div key={value} className="flex items-center gap-2"><RadioGroupItem id={`import-entity-${value}`} value={value} /><Label htmlFor={`import-entity-${value}`}>{value === "person" ? t("people") : t("companies")}</Label></div>)}
+            {(["person", "company"] as const).map((value) => <Label key={value} htmlFor={`import-entity-${value}`} className="flex min-h-11 items-center gap-2"><RadioGroupItem id={`import-entity-${value}`} value={value} />{value === "person" ? t("people") : t("companies")}</Label>)}
           </RadioGroup>
         </FieldSet>
         <Field className="gap-2"><FieldLabel htmlFor="import-file">{t("file")}</FieldLabel>
-          <Input id="import-file" type="file" accept=".csv,text/csv" aria-describedby="import-file-help"
+          <Input className="min-h-11" id="import-file" type="file" accept=".csv,text/csv" aria-describedby="import-file-help"
             onChange={(event) => { const chosen = event.currentTarget.files?.[0]; setFile(chosen ? { file: chosen, key: crypto.randomUUID() } : null); setError(""); }} />
           <FieldDescription id="import-file-help" className="text-xs">{t("fileHelp")}</FieldDescription></Field>
         <DialogFooter><DialogClose asChild><Button className="min-h-11" type="button" variant="ghost" disabled={busy}>{t("cancel")}</Button></DialogClose>

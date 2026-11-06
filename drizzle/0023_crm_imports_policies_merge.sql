@@ -163,7 +163,12 @@ BEGIN
   SELECT count(*) INTO n_live FROM public.contacts WHERE tenant_id = p_tenant AND id IN (p_target, p_source) AND erased_at IS NULL;
   IF n_live <> 2 THEN RETURN NULL; END IF;
   PERFORM set_config('app.merge_source', p_source::text, true);
-  UPDATE public.crm_import_rows r SET raw = '[]'::jsonb, match_keys = '{}'::text[], contact_id = NULL
+  UPDATE public.crm_import_rows r SET raw = '[]'::jsonb,
+    match_keys = CASE WHEN r.contact_id = p_source THEN '{}'::text[] ELSE ARRAY(
+      SELECT key FROM unnest(r.match_keys) AS key WHERE NOT EXISTS (
+        SELECT 1 FROM public.contact_identifiers i WHERE i.tenant_id = p_tenant AND i.contact_id = p_source
+          AND i.kind || ':' || i.normalized_value = key)) END,
+    contact_id = CASE WHEN r.contact_id = p_source THEN NULL ELSE r.contact_id END
     WHERE r.tenant_id = p_tenant AND (r.contact_id = p_source OR EXISTS (
       SELECT 1 FROM public.contact_identifiers i
       WHERE i.tenant_id = p_tenant AND i.contact_id = p_source AND (
@@ -171,8 +176,22 @@ BEGIN
           SELECT 1 FROM jsonb_array_elements_text(r.raw) AS cell(value)
           WHERE CASE WHEN i.kind = 'phone' THEN
             length(regexp_replace(i.normalized_value, '[^0-9]', '', 'g')) > 0 AND
-            position(regexp_replace(i.normalized_value, '[^0-9]', '', 'g') IN regexp_replace(cell.value, '[^0-9]', '', 'g')) > 0
-          ELSE length(i.normalized_value) > 0 AND position(lower(i.normalized_value) IN lower(cell.value)) > 0 END))));
+            regexp_replace(i.normalized_value, '[^0-9]', '', 'g') = regexp_replace(cell.value, '[^0-9]', '', 'g')
+          ELSE length(i.normalized_value) > 0 AND EXISTS (
+            SELECT 1 FROM generate_series(1, length(cell.value) - length(i.normalized_value) + 1) AS pos(n)
+            WHERE lower(substring(cell.value FROM pos.n FOR length(i.normalized_value))) = lower(i.normalized_value)
+              -- A bare one-character handle in prose is indistinguishable from a word.
+              AND (i.kind <> 'social' OR length(i.normalized_value) > 1
+                OR lower(btrim(cell.value)) = lower(i.normalized_value)
+                OR (pos.n > 1 AND substring(cell.value FROM pos.n - 1 FOR 1) = '@'))
+              AND (pos.n = 1 OR substring(cell.value FROM pos.n - 1 FOR 1) !~ '[[:alnum:]_@.+:-]'
+                OR (i.kind = 'social' AND substring(cell.value FROM pos.n - 1 FOR 1) = '@'
+                  AND (pos.n = 2 OR substring(cell.value FROM pos.n - 2 FOR 1) !~ '[[:alnum:]_@.+:-]')))
+              AND (pos.n + length(i.normalized_value) > length(cell.value)
+                OR substring(cell.value FROM pos.n + length(i.normalized_value) FOR 1) !~ '[[:alnum:]_@.+:-]'
+                OR (substring(cell.value FROM pos.n + length(i.normalized_value) FOR 1) = '.'
+                  AND (pos.n + length(i.normalized_value) = length(cell.value)
+                    OR substring(cell.value FROM pos.n + length(i.normalized_value) + 1 FOR 1) !~ '[[:alnum:]_]')))) END))));
   WITH moved AS (
     UPDATE public.contact_identifiers s SET contact_id = p_target
     WHERE s.tenant_id = p_tenant AND s.contact_id = p_source
@@ -299,7 +318,12 @@ BEGIN
   -- CRM-06: CSV import rows about the person (matched or created by an import, or
   -- carrying one of their identifiers) lose their cells, keys and link before the
   -- identifiers below are deleted; the row keeps only its number and outcome codes.
-  UPDATE public.crm_import_rows r SET raw = '[]'::jsonb, match_keys = '{}'::text[], contact_id = NULL
+  UPDATE public.crm_import_rows r SET raw = '[]'::jsonb,
+    match_keys = CASE WHEN r.contact_id = p_contact THEN '{}'::text[] ELSE ARRAY(
+      SELECT key FROM unnest(r.match_keys) AS key WHERE NOT EXISTS (
+        SELECT 1 FROM public.contact_identifiers i WHERE i.tenant_id = p_tenant AND i.contact_id = p_contact
+          AND i.kind || ':' || i.normalized_value = key)) END,
+    contact_id = CASE WHEN r.contact_id = p_contact THEN NULL ELSE r.contact_id END
     WHERE r.tenant_id = p_tenant AND (r.contact_id = p_contact OR EXISTS (
       SELECT 1 FROM public.contact_identifiers i
       WHERE i.tenant_id = p_tenant AND i.contact_id = p_contact AND (
@@ -307,8 +331,22 @@ BEGIN
           SELECT 1 FROM jsonb_array_elements_text(r.raw) AS cell(value)
           WHERE CASE WHEN i.kind = 'phone' THEN
             length(regexp_replace(i.normalized_value, '[^0-9]', '', 'g')) > 0 AND
-            position(regexp_replace(i.normalized_value, '[^0-9]', '', 'g') IN regexp_replace(cell.value, '[^0-9]', '', 'g')) > 0
-          ELSE length(i.normalized_value) > 0 AND position(lower(i.normalized_value) IN lower(cell.value)) > 0 END))));
+            regexp_replace(i.normalized_value, '[^0-9]', '', 'g') = regexp_replace(cell.value, '[^0-9]', '', 'g')
+          ELSE length(i.normalized_value) > 0 AND EXISTS (
+            SELECT 1 FROM generate_series(1, length(cell.value) - length(i.normalized_value) + 1) AS pos(n)
+            WHERE lower(substring(cell.value FROM pos.n FOR length(i.normalized_value))) = lower(i.normalized_value)
+              -- A bare one-character handle in prose is indistinguishable from a word.
+              AND (i.kind <> 'social' OR length(i.normalized_value) > 1
+                OR lower(btrim(cell.value)) = lower(i.normalized_value)
+                OR (pos.n > 1 AND substring(cell.value FROM pos.n - 1 FOR 1) = '@'))
+              AND (pos.n = 1 OR substring(cell.value FROM pos.n - 1 FOR 1) !~ '[[:alnum:]_@.+:-]'
+                OR (i.kind = 'social' AND substring(cell.value FROM pos.n - 1 FOR 1) = '@'
+                  AND (pos.n = 2 OR substring(cell.value FROM pos.n - 2 FOR 1) !~ '[[:alnum:]_@.+:-]')))
+              AND (pos.n + length(i.normalized_value) > length(cell.value)
+                OR substring(cell.value FROM pos.n + length(i.normalized_value) FOR 1) !~ '[[:alnum:]_@.+:-]'
+                OR (substring(cell.value FROM pos.n + length(i.normalized_value) FOR 1) = '.'
+                  AND (pos.n + length(i.normalized_value) = length(cell.value)
+                    OR substring(cell.value FROM pos.n + length(i.normalized_value) + 1 FOR 1) !~ '[[:alnum:]_]')))) END))));
   IF erased_time IS NULL THEN
     UPDATE public.contacts SET name = 'Erased contact', notes = '', erased_at = now(), updated_at = now() WHERE tenant_id = p_tenant AND id = p_contact;
     DELETE FROM public.contact_identifiers WHERE tenant_id = p_tenant AND contact_id = p_contact;

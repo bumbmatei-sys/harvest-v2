@@ -27,7 +27,7 @@ export function ExportDialog({ tenantId, entity, query, listName }: { tenantId: 
   }
   const tooMany = !!count && count.total > count.max;
   return <Dialog onOpenChange={(value) => void open(value)}>
-    <DialogTrigger asChild><Button variant="outline"><Download aria-hidden="true" />{t("export")}</Button></DialogTrigger>
+    <DialogTrigger asChild><Button className="min-h-11" variant="outline"><Download aria-hidden="true" />{t("export")}</Button></DialogTrigger>
     <DialogContent className="rounded-xl sm:max-w-[480px]">
       <DialogHeader><DialogTitle>{t("exportTitle", { list: listName })}</DialogTitle><DialogDescription>{t("exportDescription")}</DialogDescription></DialogHeader>
       <div className="space-y-3 text-sm" aria-live="polite">
@@ -40,10 +40,10 @@ export function ExportDialog({ tenantId, entity, query, listName }: { tenantId: 
             </>}
       </div>
       <DialogFooter>
-        <DialogClose asChild><Button variant="ghost">{t("close")}</Button></DialogClose>
+        <DialogClose asChild><Button className="min-h-11" variant="ghost">{t("close")}</Button></DialogClose>
         {count && !tooMany && count.total > 0
-          ? <Button asChild><a href={`/api/workspaces/${tenantId}/crm/export?${params}`} download><Download aria-hidden="true" />{t("download")}</a></Button>
-          : <Button disabled><Download aria-hidden="true" />{t("download")}</Button>}
+          ? <Button className="min-h-11" asChild><a href={`/api/workspaces/${tenantId}/crm/export?${params}`} download><Download aria-hidden="true" />{t("download")}</a></Button>
+          : <Button className="min-h-11" disabled><Download aria-hidden="true" />{t("download")}</Button>}
       </DialogFooter>
     </DialogContent>
   </Dialog>;

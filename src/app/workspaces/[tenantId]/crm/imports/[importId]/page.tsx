@@ -72,7 +72,7 @@ export default async function ImportPage({ params, searchParams }: { params: Pro
         </dl>
         <div className="flex flex-wrap items-start gap-2">
           {item.status === "preview" && <><ImportRunner tenantId={tenantId} importId={item.id} total={ready} done={0} ready={ready} />
-            <Button variant="outline" asChild><Link href={`${back}/${item.id}?step=map`}>{t("changeMapping")}</Link></Button></>}
+            <Button className="min-h-11" variant="outline" asChild><Link href={`${back}/${item.id}?step=map`}>{t("changeMapping")}</Link></Button></>}
           {item.status === "running" && <ImportRunner tenantId={tenantId} importId={item.id} total={ready} done={Math.max(0, ready - item.remaining)} ready={ready} resume />}
           {finished && (stats.failed ?? 0) > 0 && <Button variant="outline" asChild><a href={`/api/workspaces/${tenantId}/crm/imports/${item.id}/report`} download><Download aria-hidden="true" />{t("downloadReport")}</a></Button>}
           {finished && <Button variant="outline" asChild><Link href={`/workspaces/${tenantId}/crm/${item.entity === "person" ? "people" : "companies"}`}>{t("viewList", { list })}</Link></Button>}

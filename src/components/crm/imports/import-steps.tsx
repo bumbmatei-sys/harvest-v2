@@ -118,7 +118,7 @@ export function ImportRunner({ tenantId, importId, total, done: initialDone, res
     {(running || resume) && <div className="space-y-1.5"><Progress value={value} aria-label={t("progressLabel")} />
       <p className="text-xs text-muted-foreground" aria-live="polite">{t("progress", { done: format.number(done), total: format.number(total) })}</p></div>}
     {ready === 0 && !resume ? <p className="text-sm text-muted-foreground">{t("nothingToImport")}</p>
-      : <Button onClick={() => void run()} disabled={running}><Play aria-hidden="true" />{running ? t("importing") : resume ? t("resume") : t("startImport", { count: ready })}</Button>}
+      : <Button className="min-h-11" onClick={() => void run()} disabled={running}><Play aria-hidden="true" />{running ? t("importing") : resume ? t("resume") : t("startImport", { count: ready })}</Button>}
   </div>;
 }
 
@@ -137,10 +137,10 @@ export function RollbackButton({ tenantId, importId }: { tenantId: string; impor
   }
   return <>
     <AlertDialog>
-      <AlertDialogTrigger asChild><Button variant="outline" disabled={busy}><RotateCcw aria-hidden="true" />{busy ? t("rollingBack") : t("rollBack")}</Button></AlertDialogTrigger>
+      <AlertDialogTrigger asChild><Button className="min-h-11" variant="outline" disabled={busy}><RotateCcw aria-hidden="true" />{busy ? t("rollingBack") : t("rollBack")}</Button></AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader><AlertDialogTitle>{t("rollBackTitle")}</AlertDialogTitle><AlertDialogDescription>{t("rollBackDescription")}</AlertDialogDescription></AlertDialogHeader>
-        <AlertDialogFooter><AlertDialogCancel>{t("cancel")}</AlertDialogCancel><AlertDialogAction onClick={() => void rollback()}>{t("rollBack")}</AlertDialogAction></AlertDialogFooter>
+        <AlertDialogFooter><AlertDialogCancel className="min-h-11">{t("cancel")}</AlertDialogCancel><AlertDialogAction className="min-h-11" onClick={() => void rollback()}>{t("rollBack")}</AlertDialogAction></AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
     {error && <p role="alert" className="text-xs text-destructive">{error}</p>}

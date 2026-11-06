@@ -1404,7 +1404,7 @@
     "tooMany": "This view has more than {max} records. Narrow it with filters first.",
     "notesIncluded": "Notes are included because you are an owner or admin.",
     "notesExcluded": "Notes are left out; only owners and admins can export them.",
-    "safety": "Erased people are never included. Cells that start with =, +, - or @ get a leading apostrophe so spreadsheets show them as text.",
+    "safety": "Erased people are never included. A leading apostrophe is added before cells that start with =, +, - or @ (including the fullwidth versions ＝, ＋, － and ＠), even after leading whitespace, or that start with a tab or carriage return, so spreadsheets show them as text.",
     "download": "Download CSV",
     "close": "Close"
   },

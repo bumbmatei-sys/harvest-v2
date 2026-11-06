@@ -74,6 +74,9 @@ test("CRM-06: CSV import with mapping, preview and problem report; filtered expo
     "Synthetic Ruth Again,ruth@example.test,,,"].join("\n");
   await upload.getByLabel("CSV file").setInputFiles({ name: "synthetic-people.csv", mimeType: "text/csv", buffer: Buffer.from(csv) });
   await capture(page, "import-upload-light");
+  await page.setViewportSize({ width: 320, height: 844 });
+  await capture(page, "import-upload-320-light");
+  await page.setViewportSize({ width: 1440, height: 1000 });
   // Keyboard from here: focus the button and press Enter.
   await upload.getByRole("button", { name: "Upload and map" }).focus();
   await page.keyboard.press("Enter");
@@ -84,10 +87,10 @@ test("CRM-06: CSV import with mapping, preview and problem report; filtered expo
   }
   await both(page, "import-map");
   const mapUrl = page.url();
-  for (const viewport of [{ width: 320, height: 844 }, { width: 1024, height: 900 }]) {
+  for (const viewport of [{ width: 320, height: 844 }, { width: 1024, height: 900 }, { width: 1440, height: 1000 }]) {
     await page.setViewportSize(viewport);
     await gotoHydrated(page, `${root}/crm/imports`);
-    if (viewport.width === 1024) await expect(page.locator('[data-slot="sidebar"][data-state]')).toHaveAttribute("data-state", "expanded");
+    if (viewport.width >= 1024) await expect(page.locator('[data-slot="sidebar"][data-state]')).toHaveAttribute("data-state", "expanded");
     await expectFullWidthShell(page);
     await gotoHydrated(page, mapUrl);
     await expectFullWidthShell(page);
