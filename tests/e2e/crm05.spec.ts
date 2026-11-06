@@ -31,6 +31,11 @@ async function capture(page: Page, name: string) {
   const result = await new AxeBuilder({ page }).analyze();
   expect(result.violations.map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(" ")).join(", ")}`), name).toEqual([]);
 }
+/** Navigate and wait for the header bell's first fetch: it runs in an effect, so the page has hydrated. */
+async function gotoHydrated(page: Page, url: string) {
+  const ready = page.waitForResponse((response) => response.url().includes("/crm/notifications") && response.request().method() === "GET");
+  await page.goto(url); await ready;
+}
 async function both(page: Page, name: string) {
   for (const mode of ["light", "dark"] as const) { await setMode(page, mode); await capture(page, `${name}-${mode}`); }
   await setMode(page, "light");
@@ -60,7 +65,7 @@ test("CRM-05: follow-up task from a deal, my tasks, completion, notes and the un
   const deal = (await api(page, "post", `${apiRoot}/crm/deals`, { name: "Synthetic building fund", companyId: company, contactId: person, amount: "5000" })).body.id as string;
 
   // From the deal, add a follow-up assigned to me (the default) with a due date.
-  await page.goto(`${root}/crm/deals/${deal}`);
+  await gotoHydrated(page, `${root}/crm/deals/${deal}`);
   await page.getByRole("button", { name: "Add", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog.getByText("Synthetic building fund")).toBeVisible();
@@ -94,7 +99,7 @@ test("CRM-05: follow-up task from a deal, my tasks, completion, notes and the un
   await expect(page.getByRole("checkbox", { name: "Reopen Synthetic follow-up call" })).toBeChecked();
 
   // A note on the deal, typed and saved from the keyboard (Ctrl+Enter).
-  await page.goto(`${root}/crm/deals/${deal}`);
+  await gotoHydrated(page, `${root}/crm/deals/${deal}`);
   await page.getByLabel("New note").focus();
   await page.keyboard.type("Synthetic: board approved the match.");
   await page.keyboard.press("Control+Enter");
@@ -106,7 +111,7 @@ test("CRM-05: follow-up task from a deal, my tasks, completion, notes and the un
   await both(page, "deal-timeline");
 
   // A note on the person survives a reload and sits in the person's timeline with the task history.
-  await page.goto(`${root}/crm/people/${person}`);
+  await gotoHydrated(page, `${root}/crm/people/${person}`);
   await page.getByLabel("New note").fill("Synthetic: prefers a call after the service.\nAsk about the youth trip.");
   await page.getByRole("button", { name: "Add note" }).click();
   await expect(page.getByRole("list", { name: "Timeline" }).getByText(/prefers a call after the service/)).toBeVisible();
