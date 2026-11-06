@@ -13,12 +13,14 @@ const icons = { "contact.create": Sparkles, "company.create": Sparkles, "contact
  * A chronological, read-only view of the audit ledger for one record. It shows what
  * changed (field names) and who did it, never the old or new personal values.
  */
-export function ActivityTimeline({ items, tenantId, subject, currentUserId }: { items: ActivityItem[]; tenantId: string; subject: "person" | "company"; currentUserId: string }) {
+export function ActivityTimeline({ items, tenantId, subject, currentUserId, customLabels = {} }: { items: ActivityItem[]; tenantId: string; subject: "person" | "company"; currentUserId: string; customLabels?: Record<string, string> }) {
   const t = useTranslations("Crm");
   const labels = useTranslations("ConsentLabels");
   const format = useFormatter();
   if (!items.length) return <Empty className="p-3 py-6 md:p-3"><EmptyHeader><EmptyMedia variant="icon"><History aria-hidden="true" /></EmptyMedia><EmptyTitle className="text-sm">{t("noActivityYet")}</EmptyTitle><EmptyDescription>{t("changesWillAppearHere")}</EmptyDescription></EmptyHeader></Empty>;
-  const fields = (list: string[]) => format.list(list.filter((field): field is FieldKey => (fieldKeys as readonly string[]).includes(field)).map((field) => t(`fields.${field}`)), { type: "conjunction" });
+  // Custom fields are logged as cf:<key>; an archived or unknown key reads as "a custom field".
+  const fieldName = (field: string) => field.startsWith("cf:") ? customLabels[field.slice(3)] ?? t("aCustomField") : (fieldKeys as readonly string[]).includes(field) ? t(`fields.${field as FieldKey}`) : null;
+  const fields = (list: string[]) => format.list([...new Set(list.map(fieldName).filter((name): name is string => !!name))], { type: "conjunction" });
   const companyLink = (item: ActivityItem) => item.company ? <Link className="font-medium text-foreground hover:underline" href={`/workspaces/${tenantId}/crm/companies/${item.company.id}`}>{item.company.name}</Link> : <span>{t("aCompany")}</span>;
   const personLink = (item: ActivityItem) => item.contact ? <Link className="font-medium text-foreground hover:underline" href={`/workspaces/${tenantId}/crm/people/${item.contact.id}`}>{item.contact.name}</Link> : <span>{t("aPerson")}</span>;
   const target = (item: ActivityItem) => subject === "person" ? companyLink(item) : personLink(item);

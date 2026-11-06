@@ -13,8 +13,10 @@ import { useRecord } from "./record-context";
  * Enter, Tab and blur save; Escape cancels (Twenty saves on Escape too — Harvest
  * treats it as a safe way out). Multiline values save with Ctrl/Cmd+Enter or blur.
  */
-export function InlineField({ field, label, icon, value, type = "text", multiline = false, maxLength, href, placeholder, validate, required = false, hideLabel = false, emptyLabel }: {
-  field: string; label: string; icon?: React.ReactNode; value: string; type?: "text" | "email" | "tel" | "url";
+export function InlineField({ field, label, icon, value, type = "text", multiline = false, maxLength, href, placeholder, validate, required = false, hideLabel = false, emptyLabel, onSave, display, description }: {
+  field: string; label: string; icon?: React.ReactNode; value: string; type?: "text" | "email" | "tel" | "url" | "number" | "date";
+  /** Custom fields save through their own endpoint; built-ins use the record PATCH. */
+  onSave?: (value: string) => Promise<string | null>; display?: (value: string) => string; description?: string;
   multiline?: boolean; maxLength: number; href?: string; placeholder?: string; required?: boolean; hideLabel?: boolean; emptyLabel?: string;
   validate?: (value: string) => string | null;
 }) {
@@ -36,7 +38,7 @@ export function InlineField({ field, label, icon, value, type = "text", multilin
     const problem = validate?.(next);
     if (problem) { setError(problem); return; }
     pending.current = true; setBusy(true);
-    const failure = await save({ [field]: next });
+    const failure = onSave ? await onSave(next) : await save({ [field]: next });
     pending.current = false; setBusy(false);
     if (failure) { setError(failure); return; }
     setShown(next); setEditing(false);
@@ -47,9 +49,9 @@ export function InlineField({ field, label, icon, value, type = "text", multilin
   }
   const empty = !shown.trim();
   // The accessible name always matches the visible text (WCAG 2.5.3).
-  const visible = empty ? (emptyLabel ?? t("empty")) : shown;
+  const visible = empty ? (emptyLabel ?? t("empty")) : display ? display(shown) : shown;
   return <div className={cn("group/field grid items-start gap-x-3 py-0.5", hideLabel ? "grid-cols-1" : "grid-cols-[minmax(0,6.5rem)_minmax(0,1fr)] sm:grid-cols-[minmax(0,7.5rem)_minmax(0,1fr)]")}>
-    <label htmlFor={editing ? id : undefined} className={cn("flex min-h-8 items-center gap-2 text-xs text-muted-foreground [&_svg]:size-3.5 [&_svg]:shrink-0", hideLabel && "sr-only")}>{icon}<span className="truncate">{label}</span></label>
+    <label htmlFor={editing ? id : undefined} title={description || undefined} className={cn("flex min-h-8 items-center gap-2 text-xs text-muted-foreground [&_svg]:size-3.5 [&_svg]:shrink-0", hideLabel && "sr-only")}>{icon}<span className="truncate">{label}</span>{required && <span aria-hidden="true" className="text-destructive">{t("requiredMark")}</span>}</label>
     <div className="min-w-0">
       {editing ? <div className="space-y-1">
         {multiline
@@ -64,7 +66,7 @@ export function InlineField({ field, label, icon, value, type = "text", multilin
       </div> : writable ? <button type="button" onClick={start} aria-label={t("editFieldValue", { field: label, value: visible })}
         className={cn("flex min-h-8 w-full items-start rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none", multiline ? "whitespace-pre-wrap break-words" : "truncate", empty && "text-muted-foreground")}>
         {visible}
-      </button> : <p className={cn("min-h-8 px-2 py-1.5 text-sm", multiline ? "whitespace-pre-wrap break-words" : "truncate", empty && "text-muted-foreground")}>{empty ? t("empty") : shown}</p>}
+      </button> : <p className={cn("min-h-8 px-2 py-1.5 text-sm", multiline ? "whitespace-pre-wrap break-words" : "truncate", empty && "text-muted-foreground")}>{visible}</p>}
     </div>
   </div>;
 }

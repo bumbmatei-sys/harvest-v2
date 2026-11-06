@@ -3,7 +3,7 @@ import { CRM_PAGE_SIZE } from "@/lib/crm-input";
 import { Pagination, PaginationContent, PaginationEllipsis, PaginationItem, PaginationLink, PaginationNext, PaginationPrevious } from "@/components/ui/pagination";
 
 /** Page links keep every active search, filter and sort parameter. */
-export function RecordPagination({ base, params, page, total, label }: { base: string; params: Record<string, string>; page: number; total: number; label: string }) {
+export function RecordPagination({ base, params, page, total, label }: { base: string; params: Record<string, string> | string; page: number; total: number; label: string }) {
   const t = useTranslations("Crm");
   const format = useFormatter();
   const pages = Math.max(1, Math.ceil(total / CRM_PAGE_SIZE));

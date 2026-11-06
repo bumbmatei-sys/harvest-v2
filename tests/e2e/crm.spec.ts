@@ -163,27 +163,33 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
     expect((await api(page, "post", `${apiRoot}/contacts`, { name: `Synthetic Member ${String(index).padStart(2, "0")}`, ...(index % 3 ? { email: `member${index}@example.test` } : {}), ...(index % 4 === 0 ? { companyId } : {}) })).status).toBe(201);
   }
   await page.goto(`${root}/crm/people`);
-  await expect(page.getByRole("table", { name: "People" })).toBeVisible();
+  await expect(page.getByRole("grid", { name: "People" })).toBeVisible();
   await expect(page.getByText("Showing 1–20 of 24")).toBeVisible();
   await both(page, "people-list");
   await page.getByRole("link", { name: "Page 2" }).click();
   await expect(page.getByText("Showing 21–24 of 24")).toBeVisible();
   await page.getByRole("button", { name: /^Sort/ }).click();
-  await page.getByRole("menuitemradio", { name: "Newest first" }).click();
+  await page.getByRole("menuitemradio", { name: "Added" }).click();
+  await expect(page).toHaveURL(/sort=created/);
+  await page.getByRole("button", { name: /^Sort/ }).click();
+  await page.getByRole("menuitemradio", { name: "Descending" }).click();
   await expect(page).toHaveURL(/sort=-created/);
   await expect(page).not.toHaveURL(/page=2/);
-  await page.getByRole("button", { name: "Company", exact: true }).click();
-  await page.getByPlaceholder("Search companies").fill("Riverside");
-  await page.getByRole("option", { name: /Riverside Community Trust/ }).click();
-  await expect(page).toHaveURL(new RegExp(`company=${companyId}`));
-  await expect(page.getByRole("listitem").filter({ hasText: "Company: Riverside Community Trust" })).toBeVisible();
-  await expect(page.getByRole("table", { name: "People" }).getByRole("row")).toHaveCount(8);
   await page.getByRole("button", { name: /^Filter/ }).click();
-  await page.getByRole("menuitem", { name: "Email", exact: true }).hover();
-  await page.getByRole("menuitemradio", { name: "No email" }).click();
-  await expect(page).toHaveURL(/email=without/);
+  await page.getByRole("option", { name: /^Company\s*Relation$/ }).click();
+  await page.getByPlaceholder("Search records").fill("Riverside");
+  await page.getByRole("option", { name: /Riverside Community Trust/ }).click();
+  await page.getByRole("button", { name: "Apply filter" }).click();
+  await expect(page).toHaveURL(new RegExp(`f=company(~|%7E)is(~|%7E)${companyId}`));
+  await expect(page.getByRole("listitem").filter({ hasText: "Company is Riverside Community Trust" })).toBeVisible();
+  await expect(page.getByRole("grid", { name: "People" }).getByRole("row")).toHaveCount(8);
+  await page.getByRole("button", { name: /^Filter/ }).click();
+  await page.getByRole("option", { name: /^Email\s*Text$/ }).click();
+  await page.getByLabel("Condition").selectOption("is_empty");
+  await page.getByRole("button", { name: "Apply filter" }).click();
+  await expect(page).toHaveURL(/f=email(~|%7E)is_empty(~|%7E)/);
   await capture(page, "people-filtered-light");
-  await page.getByRole("button", { name: "Reset view" }).click();
+  await page.getByRole("button", { name: "Clear filters" }).click();
   await expect(page).toHaveURL(`${root}/crm/people?sort=-created`);
   await page.getByRole("searchbox", { name: "Search people" }).fill("northgate");
   await page.getByRole("searchbox", { name: "Search people" }).press("Enter");
@@ -193,11 +199,11 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
   await expect(page.getByRole("heading", { name: "No matching people" })).toBeVisible();
   await both(page, "people-no-results");
   await page.goto(`${root}/crm/people?sort=sideways`);
-  await expect(page.getByText("Some view settings in the address were not valid")).toBeVisible();
+  await expect(page.getByText("This view has settings that are no longer valid, so the default view is shown.")).toBeVisible();
 
   // Companies list, duplicate domain conflict and its recovery link.
   await page.goto(`${root}/crm/companies`);
-  await expect(page.getByRole("table", { name: "Companies" })).toBeVisible();
+  await expect(page.getByRole("grid", { name: "Companies" })).toBeVisible();
   await expect(page.getByRole("link", { name: "View 7 people at Riverside Community Trust" })).toBeVisible();
   await both(page, "companies-list");
   await page.getByRole("button", { name: "Add company" }).click();
@@ -219,7 +225,7 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
   await capture(page, "people-loading-light", { axe: false });
   await lock.query("rollback"); await lock.end();
   await navigation;
-  await expect(page.getByRole("table", { name: "People" })).toBeVisible();
+  await expect(page.getByRole("grid", { name: "People" })).toBeVisible();
 
   // A second account: viewer access, then two-way tenant isolation through the HTTP API.
   const viewerContext = await browser.newContext({ viewport: desktop, reducedMotion: "reduce" });
@@ -272,11 +278,11 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
     await page.context().addCookies([{ name: "sidebar_state", value: String(expanded), url: origin }]);
     for (const [path, name, longName] of [[`${root}/crm/people`, "people-list", "Dr. Oluwaseun Adebayo-Whitfield Castellanos-Rodríguez"], [`${root}/crm/companies`, "companies-list", "St. Bartholomew's Community Development Trust and Mission Centre"]] as const) {
       await page.goto(path);
-      await expect(page.getByRole("table")).toBeVisible();
+      await expect(page.getByRole("grid")).toBeVisible();
       if (size.width >= 1024) await expect(sidebar).toHaveAttribute("data-state", expanded ? "expanded" : "collapsed");
       await expectFullWidthShell(page);
       // The long name is truncated inside its cell instead of widening the table.
-      const nameLink = page.getByRole("table").getByRole("link").filter({ hasText: longName }).first();
+      const nameLink = page.getByRole("grid").getByRole("link").filter({ hasText: longName }).first();
       await expect(nameLink).toBeVisible();
       const fit = await nameLink.evaluate((link, full) => {
         const cell = link.closest("td")!, text = [...link.querySelectorAll("span")].find((span) => span.textContent === full)!;
@@ -297,31 +303,33 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
   }
   await page.context().addCookies([{ name: "sidebar_state", value: "true", url: origin }]);
 
-  // Keyboard-focus regression (review B1-r3): the Domain link's own box and focus
-  // indicator must stay inside its table cell even for a very long domain. The cell
-  // clips overflow, so scrollWidth checks cannot see a clipped outline.
+  // Keyboard-focus regression (review B1-r3, CRM-03 grid): keyboard focus lands on the
+  // grid cell itself (roving tabindex) with an inset ring, so it can never be clipped;
+  // the long domain inside truncates and keeps its full text in the cell title.
   for (const [label, size] of [["tablet expanded", { width: 1024, height: 900 }], ["small tablet", { width: 768, height: 900 }]] as const) {
     await page.setViewportSize(size);
     await page.context().addCookies([{ name: "sidebar_state", value: "true", url: origin }]);
     await page.goto(`${root}/crm/companies`);
-    const domainLink = page.getByRole("table").getByRole("link", { name: "stbartholomewscommunitydevelopmenttrust.org.uk" });
+    const domainLink = page.getByRole("grid").getByRole("link", { name: "stbartholomewscommunitydevelopmenttrust.org.uk" });
     await expect(domainLink).toBeVisible();
     await page.locator("main").getByRole("searchbox", { name: "Search companies" }).focus();
-    let focused = false;
-    for (let step = 0; step < 40 && !focused; step += 1) {
+    let inGrid = false;
+    for (let step = 0; step < 40 && !inGrid; step += 1) {
       await page.keyboard.press("Tab");
-      focused = await domainLink.evaluate((link) => link === document.activeElement);
+      inGrid = await page.evaluate(() => document.activeElement?.getAttribute("role") === "gridcell");
     }
-    expect(focused, `${label}: Tab reaches the domain link`).toBe(true);
-    const focus = await domainLink.evaluate((link) => {
-      const cell = link.closest("td")!.getBoundingClientRect(), box = link.getBoundingClientRect(), style = getComputedStyle(link);
-      const outline = style.outlineStyle !== "none" ? parseFloat(style.outlineWidth) + Math.max(0, parseFloat(style.outlineOffset)) : 0;
-      const ring = style.boxShadow !== "none";
-      return { left: box.left - outline - cell.left, right: cell.right - (box.right + outline), top: box.top - outline - cell.top, bottom: cell.bottom - (box.bottom + outline), outline: style.outlineStyle !== "none", ring, inset: style.boxShadow.includes("inset"), truncated: link.scrollWidth > link.clientWidth, title: link.getAttribute("title") };
+    expect(inGrid, `${label}: Tab reaches the grid`).toBe(true);
+    const domainCell = page.getByRole("grid").locator(`td[role="gridcell"][title="stbartholomewscommunitydevelopmenttrust.org.uk"]`);
+    for (let step = 0; step < 10 && !(await domainCell.evaluate((cell) => cell.parentElement === document.activeElement?.parentElement)); step += 1) await page.keyboard.press("ArrowDown");
+    await page.keyboard.press("ArrowRight");
+    await expect(domainCell).toBeFocused();
+    const focus = await domainCell.evaluate((cell) => {
+      const style = getComputedStyle(cell), link = cell.querySelector("a")!;
+      return { ring: style.boxShadow !== "none", inset: style.boxShadow.includes("inset"), truncated: link.scrollWidth > link.clientWidth, title: cell.getAttribute("title"), inside: link.getBoundingClientRect().right <= cell.getBoundingClientRect().right + 1 };
     });
-    expect(focus.ring || focus.outline, `${label}: a visible focus indicator`).toBe(true);
-    if (focus.ring) expect(focus.inset, `${label}: ring is inset`).toBe(true);
-    for (const edge of ["left", "right", "top", "bottom"] as const) expect(focus[edge], `${label}: focus ${edge} edge inside the cell`).toBeGreaterThanOrEqual(0);
+    expect(focus.ring, `${label}: a visible focus indicator`).toBe(true);
+    expect(focus.inset, `${label}: ring is inset`).toBe(true);
+    expect(focus.inside, `${label}: the link stays inside the cell`).toBe(true);
     expect(focus.truncated, `${label}: the anchor text truncates`).toBe(true);
     expect(focus.title).toBe("stbartholomewscommunitydevelopmenttrust.org.uk");
     await expectFullWidthShell(page);

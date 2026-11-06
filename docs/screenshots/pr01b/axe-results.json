@@ -67,57 +67,57 @@
   {
     "screen": "consent-calendar-studio-dark",
     "violations": 0,
-    "checks": 40
+    "checks": 41
   },
   {
     "screen": "consent-dialog-studio-dark",
     "violations": 0,
-    "checks": 32
+    "checks": 33
   },
   {
     "screen": "contact-detail-harvest-light",
     "violations": 0,
-    "checks": 45
+    "checks": 46
   },
   {
     "screen": "contact-detail-harvest-dark",
     "violations": 0,
-    "checks": 45
+    "checks": 46
   },
   {
     "screen": "contact-detail-studio-light",
     "violations": 0,
-    "checks": 45
+    "checks": 46
   },
   {
     "screen": "contact-detail-studio-dark",
     "violations": 0,
-    "checks": 45
+    "checks": 46
   },
   {
     "screen": "contacts-list-harvest-light",
     "violations": 0,
-    "checks": 49
+    "checks": 51
   },
   {
     "screen": "contacts-list-harvest-dark",
     "violations": 0,
-    "checks": 49
+    "checks": 51
   },
   {
     "screen": "contacts-list-studio-light",
     "violations": 0,
-    "checks": 49
+    "checks": 51
   },
   {
     "screen": "contacts-list-studio-dark",
     "violations": 0,
-    "checks": 49
+    "checks": 51
   },
   {
     "screen": "shell-expanded-harvest-light",
     "violations": 0,
-    "checks": 49
+    "checks": 51
   },
   {
     "screen": "shell-account-menu-harvest-light",
@@ -127,17 +127,17 @@
   {
     "screen": "shell-collapsed-harvest-light",
     "violations": 0,
-    "checks": 48
+    "checks": 50
   },
   {
     "screen": "shell-mobile-harvest-light",
     "violations": 0,
-    "checks": 37
+    "checks": 39
   },
   {
     "screen": "shell-expanded-harvest-dark",
     "violations": 0,
-    "checks": 49
+    "checks": 51
   },
   {
     "screen": "shell-account-menu-harvest-dark",
@@ -147,17 +147,17 @@
   {
     "screen": "shell-collapsed-harvest-dark",
     "violations": 0,
-    "checks": 48
+    "checks": 50
   },
   {
     "screen": "shell-mobile-harvest-dark",
     "violations": 0,
-    "checks": 37
+    "checks": 39
   },
   {
     "screen": "shell-expanded-studio-light",
     "violations": 0,
-    "checks": 49
+    "checks": 51
   },
   {
     "screen": "shell-account-menu-studio-light",
@@ -167,17 +167,17 @@
   {
     "screen": "shell-collapsed-studio-light",
     "violations": 0,
-    "checks": 48
+    "checks": 50
   },
   {
     "screen": "shell-mobile-studio-light",
     "violations": 0,
-    "checks": 37
+    "checks": 39
   },
   {
     "screen": "shell-expanded-studio-dark",
     "violations": 0,
-    "checks": 49
+    "checks": 51
   },
   {
     "screen": "shell-account-menu-studio-dark",
@@ -187,17 +187,17 @@
   {
     "screen": "shell-workspace-tooltip-studio-dark",
     "violations": 0,
-    "checks": 49
+    "checks": 51
   },
   {
     "screen": "shell-collapsed-studio-dark",
     "violations": 0,
-    "checks": 48
+    "checks": 50
   },
   {
     "screen": "shell-mobile-studio-dark",
     "violations": 0,
-    "checks": 37
+    "checks": 39
   },
   {
     "screen": "contacts-no-results-studio-dark",
@@ -237,7 +237,7 @@
   {
     "screen": "contacts-viewer-studio-light",
     "violations": 0,
-    "checks": 49
+    "checks": 51
   },
   {
     "screen": "contacts-unauthorized-harvest-dark",
@@ -247,56 +247,56 @@
   {
     "screen": "contact-detail-mobile-harvest-light",
     "violations": 0,
-    "checks": 39
+    "checks": 43
   },
   {
     "screen": "contacts-list-mobile-harvest-light",
     "violations": 0,
-    "checks": 45
+    "checks": 46
   },
   {
     "screen": "contact-detail-mobile-harvest-dark",
     "violations": 0,
-    "checks": 39
+    "checks": 43
   },
   {
     "screen": "contacts-list-mobile-harvest-dark",
     "violations": 0,
-    "checks": 45
+    "checks": 46
   },
   {
     "screen": "contact-detail-mobile-studio-light",
     "violations": 0,
-    "checks": 39
+    "checks": 43
   },
   {
     "screen": "contacts-list-mobile-studio-light",
     "violations": 0,
-    "checks": 45
+    "checks": 46
   },
   {
     "screen": "contact-detail-mobile-studio-dark",
     "violations": 0,
-    "checks": 39
+    "checks": 43
   },
   {
     "screen": "contacts-list-mobile-studio-dark",
     "violations": 0,
-    "checks": 45
+    "checks": 46
   },
   {
     "screen": "contacts-pagination-studio-dark",
     "violations": 0,
-    "checks": 49
+    "checks": 51
   },
   {
     "screen": "contact-erasure-dialog-studio-dark",
     "violations": 0,
-    "checks": 29
+    "checks": 30
   },
   {
     "screen": "contacts-after-erasure-studio-dark",
     "violations": 0,
-    "checks": 50
+    "checks": 52
   }
 ]

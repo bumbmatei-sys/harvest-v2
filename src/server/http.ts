@@ -25,3 +25,9 @@ export function errorResponse(error: unknown) {
   console.error("request_failed");
   return Response.json({ error: message("Errors.somethingWentWrongPleaseTryAgain") }, { status: 500 });
 }
+/** Search params as a record, keeping repeated keys (such as f=) as arrays. */
+export function searchParamsRecord(url: string) {
+  const record: Record<string, string | string[]> = {};
+  for (const [key, value] of new URL(url).searchParams) { const previous = record[key]; record[key] = previous === undefined ? value : Array.isArray(previous) ? [...previous, value] : [previous, value]; }
+  return record;
+}
