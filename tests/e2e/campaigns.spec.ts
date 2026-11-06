@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { origin, signIn } from "./helpers/session";
 import { expectFullWidthShell } from "./helpers/layout";
@@ -11,6 +11,66 @@ async function capture(page: Page, name: string) {
   await expectFullWidthShell(page);
   await page.screenshot({ path: `${evidence}/${name}.png`, fullPage: true });
 }
+
+async function expectTouchTarget(link: Locator) {
+  await expect(link).toBeVisible();
+  const box = await link.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.width).toBeGreaterThanOrEqual(44);
+  expect(box!.height).toBeGreaterThanOrEqual(44);
+  return { label: await link.innerText(), width: box!.width, height: box!.height };
+}
+
+test("CW-01: mobile shell Tab reaches every navigation link and campaign targets are at least 44px", async ({ page }) => {
+  test.setTimeout(180_000);
+  await mkdir(evidence, { recursive: true });
+  await signIn(page);
+  const workspace = await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Mobile campaign checks" } });
+  expect(workspace.status()).toBe(201);
+  const root = `/workspaces/${(await workspace.json()).tenantId}/campaigns`;
+  let campaignId = "";
+  for (let index = 0; index < 21; index++) {
+    const created = await page.request.post(`/api${root}`, { headers: { origin, "Idempotency-Key": `mobile-${index}` }, data: { name: `Mobile draft ${index}`, type: "conference" } });
+    expect(created.status()).toBe(201);
+    campaignId = (await created.json()).id;
+  }
+  for (const width of [320, 375]) {
+    const measurements = [];
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto(root);
+    await page.getByRole("button", { name: "Toggle Sidebar" }).click();
+    const sheet = page.getByRole("dialog", { name: "Sidebar", exact: true });
+    await expect(sheet).toBeVisible();
+    const navigation = sheet.getByRole("navigation", { name: "Workspace navigation" });
+    const links = navigation.getByRole("link");
+    // Workspace entry plus all CRM, Workspace and Settings links.
+    await expect(links).toHaveCount(10);
+    const expected = new Set(await links.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href"))));
+    await sheet.getByRole("link", { name: "Harvest", exact: true }).focus();
+    for (let tab = 0; tab < 30 && expected.size; tab++) {
+      await page.keyboard.press("Tab");
+      const href = await navigation.evaluate((nav) => nav.contains(document.activeElement) ? document.activeElement?.getAttribute("href") : null);
+      if (href === root) await expect(navigation.getByRole("link", { name: "Campaigns", exact: true })).toBeFocused();
+      if (href) expected.delete(href);
+    }
+    expect([...expected], `unreachable navigation links at ${width}px`).toEqual([]);
+    for (const link of await links.all()) measurements.push(await expectTouchTarget(link));
+    await page.screenshot({ path: `${evidence}/mobile-sidebar-${width}.png`, fullPage: true });
+    await page.keyboard.press("Escape");
+    await expect(sheet).toBeHidden();
+    measurements.push(await expectTouchTarget(page.getByRole("link", { name: "Next", exact: true })));
+    await page.getByRole("link", { name: "Next", exact: true }).click();
+    await expect(page).toHaveURL(`${origin}${root}?page=2`);
+    measurements.push(await expectTouchTarget(page.getByRole("link", { name: "Previous", exact: true })));
+    await page.getByRole("link", { name: "Previous", exact: true }).click();
+    await expect(page).toHaveURL(`${origin}${root}?page=1`);
+    await expectFullWidthShell(page);
+    await page.goto(`${root}/${campaignId}`);
+    measurements.push(await expectTouchTarget(page.getByRole("link", { name: "Back to campaigns", exact: true })));
+    await expectFullWidthShell(page);
+    console.log(`CW-01 ${width}px touch targets: ${JSON.stringify(measurements)}`);
+  }
+});
 
 test("CW-01: private list, API create, draft dashboard and two-tenant denials", async ({ page, browser }) => {
   test.setTimeout(180_000);

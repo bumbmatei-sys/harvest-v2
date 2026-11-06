@@ -14,6 +14,22 @@ let fixture: Awaited<ReturnType<typeof testDatabase>>;
 let tenantA: string, tenantB: string, campaignA: string, campaignB: string;
 const input = { name: "Synthetic summer outreach", type: "local_outreach" };
 const raw = (tenantId: string, ownerUserId: string) => ({ tenantId, ownerUserId, name: "Raw draft", type: "conference" as const, idempotencyKey: randomUUID(), fingerprint: "a".repeat(64) });
+// RLS can mask a removed service predicate. Inspect the real executed SQL and
+// its bound tenant value independently of what PostgreSQL allows it to return.
+function serviceQueries() {
+  const reads: { query: string; params: unknown[] }[] = [];
+  const db = drizzle(fixture.pool, { schema, logger: { logQuery(query, params) {
+    if (query.startsWith("select ") && query.includes('from "campaigns"')) reads.push({ query, params });
+  } } });
+  return { db, expectTenantReads(count: number) {
+    expect(reads).toHaveLength(count);
+    for (const { query, params } of reads) {
+      const predicate = query.split(" where ")[1]?.match(/"campaigns"\."tenant_id" = \$(\d+)/);
+      expect(predicate, "every campaign service SELECT must bind its tenant in WHERE").toBeTruthy();
+      expect(params[Number(predicate![1]) - 1]).toBe(tenantA);
+    }
+  } };
+}
 beforeAll(async () => {
   fixture = await testDatabase();
   await fixture.db.insert(users).values(["owner-a", "owner-b", "member-a", "admin-a", "viewer-a", "outsider"].map((id) => ({ id, name: id, email: `${id}@example.test` })));
@@ -41,6 +57,21 @@ describe("CW-01 campaign tenancy and creation", () => {
     expect((await fixture.admin.query("select count(*)::int as count from workspaces")).rows[0].count).toBe(2);
     expect((await fixture.admin.query("select actor_id, metadata from audit_logs where action='campaign.create' and target_id=$1", [campaignA])).rows)
       .toEqual([{ actor_id: "member-a", metadata: {} }]);
+  });
+  it("binds the tenant filter on both campaign list and count service queries", async () => {
+    const queries = serviceQueries();
+    expect((await listCampaigns(queries.db, "owner-a", tenantA)).campaigns.map((row) => row.id)).toEqual([campaignA]);
+    queries.expectTenantReads(2);
+  });
+  it("binds the tenant filter on the campaign get service query", async () => {
+    const queries = serviceQueries();
+    expect((await getCampaign(queries.db, "owner-a", tenantA, campaignA)).id).toBe(campaignA);
+    queries.expectTenantReads(1);
+  });
+  it("binds the tenant filter on the campaign idempotency service reread", async () => {
+    const queries = serviceQueries();
+    expect((await createCampaign(queries.db, "member-a", tenantA, input, "same-key")).id).toBe(campaignA);
+    queries.expectTenantReads(1);
   });
   it("isolates list/get in both directions and denies hostile workspace hints", async () => {
     for (const [user, own, foreign, ownId, foreignId] of [["owner-a", tenantA, tenantB, campaignA, campaignB], ["owner-b", tenantB, tenantA, campaignB, campaignA]]) {
@@ -76,6 +107,19 @@ describe("CW-01 campaign tenancy and creation", () => {
       expect(await tx.select().from(campaigns)).toEqual([]);
       await expect(tx.insert(campaigns).values(raw(tenantA, user || "owner-a"))).rejects.toThrow();
     });
+  });
+  it("reads zero campaigns with a member user context but an empty tenant context", async () => {
+    await fixture.db.transaction(async (tx) => {
+      await tx.execute(sql`select set_config('app.user_id', 'owner-a', true), set_config('app.tenant_id', '', true)`);
+      expect(await tx.select().from(campaigns)).toEqual([]);
+    });
+  });
+  it("rejects campaign inserts with a member user context but an empty tenant context", async () => {
+    // Assert the PostgreSQL RLS code, not an unrelated validation/permission error.
+    await expect(fixture.db.transaction(async (tx) => {
+      await tx.execute(sql`select set_config('app.user_id', 'owner-a', true), set_config('app.tenant_id', '', true)`);
+      await tx.insert(campaigns).values(raw(tenantA, "owner-a"));
+    })).rejects.toMatchObject({ cause: { code: "42501", message: 'new row violates row-level security policy for table "campaigns"' } });
   });
   it("refuses owner spoofing, activation, updating, deletion and invalid SQL values", async () => {
     await expect(withTenant(fixture.db, "owner-a", tenantA, "campaigns:write", (tx) => tx.insert(campaigns).values(raw(tenantA, "owner-b")))).rejects.toThrow();
@@ -132,7 +176,7 @@ describe("CW-01 campaign tenancy and creation", () => {
   });
 });
 
-it("upgrades the 0017 baseline without changing existing workspaces or contacts", async () => {
+it("upgrades the 0020 baseline without changing existing workspaces or contacts", async () => {
   const tenant = randomUUID(), contact = randomUUID();
   const upgraded = await testDatabase({ beforeCampaignMigration: async (admin) => {
     await admin.query("insert into users (id,name,email) values ('upgrade-owner','Synthetic owner','upgrade@example.test')");

@@ -12,6 +12,9 @@ it("keeps a single snapshot chain and an ordered migration journal (reserved num
     if (index > 0) {
       expect(entry.when).toBeGreaterThan(journal.entries[index - 1].when);
       expect(snapshots[index].prevId).toBe(snapshots[index - 1].id);
+      const previousTables = Object.keys(snapshots[index - 1].tables);
+      expect(Object.keys(snapshots[index].tables), `snapshot ${entry.idx} must retain every table from its predecessor`)
+        .toEqual(expect.arrayContaining(previousTables));
     }
   }
   expect(snapshots[3].id).toMatch(/^3eb73893/);

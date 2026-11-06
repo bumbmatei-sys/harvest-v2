@@ -32,7 +32,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ tenan
     [t("owner"), campaign.ownerUserId === session.user.id ? t("you") : campaign.ownerName.trim() || t("workspaceMember")],
   ];
   return <div className="space-y-4">
-    <Button variant="link" asChild className="h-auto px-0 text-muted-foreground"><Link href={`/workspaces/${tenantId}/campaigns`}><ArrowLeft className="size-4" aria-hidden="true" />{t("backToCampaigns")}</Link></Button>
+    <Button variant="link" asChild className="h-auto min-h-11 px-0 text-muted-foreground lg:min-h-0"><Link href={`/workspaces/${tenantId}/campaigns`}><ArrowLeft className="size-4" aria-hidden="true" />{t("backToCampaigns")}</Link></Button>
     <div><h1 className="break-words text-2xl font-semibold tracking-tight">{campaign.name}</h1>
       <div className="mt-2 flex flex-wrap items-center gap-2"><Badge variant="outline">{t(`types.${campaign.type}`)}</Badge><Badge variant="secondary">{t(`statuses.${campaign.status}`)}</Badge></div>
       {campaign.description && <p className="mt-3 whitespace-pre-wrap break-words text-sm text-muted-foreground">{campaign.description}</p>}

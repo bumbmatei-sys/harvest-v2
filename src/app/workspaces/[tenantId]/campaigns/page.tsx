@@ -48,9 +48,9 @@ export default async function CampaignsPage({ params, searchParams }: {
       </EmptyHeader>
     </Empty>}
     {(result.total > result.pageSize || result.page > 1) && <Pagination aria-label={t("title")}><PaginationContent>
-      {result.page > 1 && <PaginationItem><Button variant="outline" asChild><Link href={`${root}?page=${result.page - 1}`}>{t("previous")}</Link></Button></PaginationItem>}
+      {result.page > 1 && <PaginationItem><Button variant="outline" className="h-11 lg:h-9" asChild><Link href={`${root}?page=${result.page - 1}`}>{t("previous")}</Link></Button></PaginationItem>}
       <PaginationItem><span className="px-3 text-sm text-muted-foreground">{t("page", { page: result.page })}</span></PaginationItem>
-      {result.page * result.pageSize < result.total && <PaginationItem><Button variant="outline" asChild><Link href={`${root}?page=${result.page + 1}`}>{t("next")}</Link></Button></PaginationItem>}
+      {result.page * result.pageSize < result.total && <PaginationItem><Button variant="outline" className="h-11 lg:h-9" asChild><Link href={`${root}?page=${result.page + 1}`}>{t("next")}</Link></Button></PaginationItem>}
     </PaginationContent></Pagination>}
     <p className="flex items-center gap-1.5 text-xs text-muted-foreground"><LockKeyhole className="size-3.5" aria-hidden="true" />{t("private")}</p>
   </div>;

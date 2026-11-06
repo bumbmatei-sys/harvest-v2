@@ -20,19 +20,23 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 
 type Workspace = { tenantId: string; name: string; role: string };
-const menuButton = "h-[30px] gap-2 rounded-[8px] py-0 pl-2 pr-3 text-[14px] font-normal text-sidebar-foreground data-[active=true]:font-normal [&_svg]:size-[17px] [&_svg]:stroke-[1.7] group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0!";
+const menuButton = "min-h-11 lg:min-h-0 lg:h-[30px] gap-2 rounded-[8px] py-0 pl-2 pr-3 text-[14px] font-normal text-sidebar-foreground data-[active=true]:font-normal [&_svg]:size-[17px] [&_svg]:stroke-[1.7] group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0!";
 function NavigationLink({ href, label, icon, active }: { href: string; label: string; icon: React.ReactNode; active: boolean }) {
-  const { setOpenMobile } = useSidebar();
-  return <SidebarMenuItem><SidebarMenuButton asChild isActive={active} tooltip={label} className={menuButton}><Link href={href} aria-current={active ? "page" : undefined} onClick={() => setOpenMobile(false)}>{icon}<span className="group-data-[collapsible=icon]:sr-only">{label}</span></Link></SidebarMenuButton></SidebarMenuItem>;
+  const { setOpenMobile, isMobile } = useSidebar();
+  return <SidebarMenuItem><SidebarMenuButton asChild isActive={active} tooltip={isMobile ? undefined : label} className={menuButton}><Link href={href} aria-current={active ? "page" : undefined} onClick={() => setOpenMobile(false)}>{icon}<span className="group-data-[collapsible=icon]:sr-only">{label}</span></Link></SidebarMenuButton></SidebarMenuItem>;
 }
 function NavigationGroup({ label, children }: { label: string; children: React.ReactNode }) {
   const { state, isMobile } = useSidebar();
+  if (isMobile) return <SidebarGroup className="mt-6 px-[13px] py-0">
+    <SidebarGroupLabel className="h-6 px-2 text-[12px] font-normal text-sidebar-foreground/85">{label}</SidebarGroupLabel>
+    <SidebarGroupContent><SidebarMenu className="gap-px">{children}</SidebarMenu></SidebarGroupContent>
+  </SidebarGroup>;
   return <Collapsible defaultOpen className="group/collapsible">
     <SidebarGroup className="mt-6 px-[13px] py-0 group-data-[collapsible=icon]:mt-3 group-data-[collapsible=icon]:px-0">
       <SidebarGroupLabel asChild className="h-6 gap-1 px-2 text-[12px] font-normal text-sidebar-foreground/85 group-data-[collapsible=icon]:hidden">
         <CollapsibleTrigger>{label}<ChevronRight aria-hidden="true" className="size-[11px] transition-transform group-data-[state=open]/collapsible:rotate-90" /></CollapsibleTrigger>
       </SidebarGroupLabel>
-      <CollapsibleContent forceMount={state === "collapsed" && !isMobile ? true : undefined}>
+      <CollapsibleContent forceMount={state === "collapsed" ? true : undefined}>
         <SidebarGroupContent><SidebarMenu className="gap-px">{children}</SidebarMenu></SidebarGroupContent>
       </CollapsibleContent>
     </SidebarGroup>
@@ -42,8 +46,10 @@ function WorkspaceSwitcher({ workspaces, selected, container }: { workspaces: Wo
   const t = useTranslations("ComponentsAppShell");
   const name = selected?.name ?? t("chooseWorkspace");
   const { setOpenMobile, state, isMobile } = useSidebar();
+  // Closing hidden tooltip content on Tab can reset the sheet's focus trap.
+  // Mobile already shows the workspace name, so keep its tooltip closed.
   return <SidebarMenu><SidebarMenuItem><DropdownMenu modal={false}>
-    <Tooltip><TooltipTrigger asChild><DropdownMenuTrigger asChild><SidebarMenuButton aria-label={t("switchWorkspaceValue", { name: name })} className={menuButton}>
+    <Tooltip open={isMobile ? false : undefined}><TooltipTrigger asChild><DropdownMenuTrigger asChild><SidebarMenuButton aria-label={t("switchWorkspaceValue", { name: name })} className={menuButton}>
       <Avatar className="size-5 shrink-0 rounded-md" aria-hidden="true"><AvatarFallback className="rounded-md bg-sidebar-accent text-[10px] font-semibold"><Sprout className="size-3.5" /></AvatarFallback></Avatar><span data-workspace-name className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:sr-only">{name}</span><ChevronsUpDown aria-hidden="true" className="ml-auto group-data-[collapsible=icon]:hidden" />
     </SidebarMenuButton></DropdownMenuTrigger></TooltipTrigger><TooltipContent container={container} side="right" hidden={state !== "collapsed" || isMobile}>{name}</TooltipContent></Tooltip>
     <DropdownMenuContent container={container} side="bottom" align="start" className="w-60">
