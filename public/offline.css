@@ -257,6 +257,9 @@
   .top-0 {
     top: 0px;
   }
+  .top-1 {
+    top: var(--spacing);
+  }
   .top-1\.5 {
     top: calc(var(--spacing) * 1.5);
   }
@@ -684,6 +687,9 @@
   }
   .max-h-72 {
     max-height: calc(var(--spacing) * 72);
+  }
+  .max-h-80 {
+    max-height: calc(var(--spacing) * 80);
   }
   .max-h-\[90dvh\] {
     max-height: 90dvh;
@@ -1297,6 +1303,12 @@
   .border-muted-foreground {
     border-color: var(--muted-foreground);
   }
+  .border-muted-foreground\/50 {
+    border-color: var(--muted-foreground);
+    @supports (color: color-mix(in lab, red, red)) {
+      border-color: color-mix(in oklab, var(--muted-foreground) 50%, transparent);
+    }
+  }
   .border-ring {
     border-color: var(--ring);
   }
@@ -1380,6 +1392,12 @@
   }
   .bg-selected {
     background-color: var(--selected);
+  }
+  .bg-selected\/50 {
+    background-color: var(--selected);
+    @supports (color: color-mix(in lab, red, red)) {
+      background-color: color-mix(in oklab, var(--selected) 50%, transparent);
+    }
   }
   .bg-shell-canvas {
     background-color: var(--shell-canvas);
@@ -1492,8 +1510,14 @@
   .py-2 {
     padding-block: calc(var(--spacing) * 2);
   }
+  .py-2\.5 {
+    padding-block: calc(var(--spacing) * 2.5);
+  }
   .py-3 {
     padding-block: calc(var(--spacing) * 3);
+  }
+  .py-4 {
+    padding-block: calc(var(--spacing) * 4);
   }
   .py-5 {
     padding-block: calc(var(--spacing) * 5);
@@ -1798,6 +1822,9 @@
   .tabular-nums {
     --tw-numeric-spacing: tabular-nums;
     font-variant-numeric: var(--tw-ordinal, ) var(--tw-slashed-zero, ) var(--tw-numeric-figure, ) var(--tw-numeric-spacing, ) var(--tw-numeric-fraction, );
+  }
+  .line-through {
+    text-decoration-line: line-through;
   }
   .underline {
     text-decoration-line: underline;
@@ -3135,6 +3162,9 @@
       clip-path: none;
       white-space: normal;
     }
+    .sm\:col-span-2 {
+      grid-column: span 2 / span 2;
+    }
     .sm\:block {
       display: block;
     }
@@ -3155,6 +3185,9 @@
     }
     .sm\:max-w-\[480px\] {
       max-width: 480px;
+    }
+    .sm\:max-w-\[520px\] {
+      max-width: 520px;
     }
     .sm\:max-w-lg {
       max-width: var(--container-lg);
