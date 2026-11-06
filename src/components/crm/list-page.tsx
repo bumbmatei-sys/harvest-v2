@@ -15,8 +15,10 @@ import { RecordPagination } from "./record-pagination";
 import type { ViewSummary } from "./view-menu";
 
 /** The shared People / Companies list: header, view bar, configurable grid, empty states, pages. */
-export async function ListPage({ tenantId, objectType, icon: Icon, title, description, total, page, create, viewOnly, notice, state, viewId, query, parts, related, views, current, modified, writable, rows, copy }: {
+export async function ListPage({ tenantId, objectType, icon: Icon, title, description, total, page, create, actions, viewOnly, notice, state, viewId, query, parts, related, views, current, modified, writable, rows, copy }: {
   tenantId: string; objectType: ObjectType; icon: LucideIcon; title: string; description: string; total: number; page: number; create: React.ReactNode;
+  /** Extra header actions (CRM-06 import and export), already permission-filtered by the page. */
+  actions?: React.ReactNode;
   viewOnly: string | null; notice: ViewNotice; state: ViewState; viewId: string | null; query: string;
   parts: { fields: FieldMeta[]; sorts: { value: string; label: string }[]; available: { key: string; label: string }[]; visible: string[]; gridColumns: GridColumn[] };
   related: Record<string, string>; views: ViewSummary[]; current: ViewSummary; modified: boolean; writable: boolean; rows: GridRow[];
@@ -31,7 +33,7 @@ export async function ListPage({ tenantId, objectType, icon: Icon, title, descri
       <div><div className="mb-1.5 flex items-center gap-2 text-xs text-muted-foreground"><Icon className="size-3.5" aria-hidden="true" />{t("crm")}</div>
         <h1 className="flex items-center gap-2.5 text-[28px] font-semibold tracking-tight">{title}<Badge variant="secondary" className="rounded-md tabular-nums">{format.number(total, "integer")}</Badge></h1>
         <p className="mt-1 text-sm text-muted-foreground">{description}</p></div>
-      {writable && create}
+      <div className="flex flex-wrap items-center gap-2">{actions}{writable && create}</div>
     </div>
     {notice && <Alert variant="destructive"><AlertDescription>{t(notice === "viewUnavailable" ? "viewUnavailableNotice" : "invalidViewNotice")}</AlertDescription></Alert>}
     {viewOnly && <Alert><AlertDescription>{viewOnly}</AlertDescription></Alert>}

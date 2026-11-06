@@ -12,7 +12,7 @@ import { withTenant } from "./tenancy";
  * Contact-related actions stay in the contact.* namespace and target the contact,
  * so the erasure definer unlinks them together with the rest of that person's history.
  */
-export const crmActions = ["contact.create", "contact.update", "contact.consent_record", "contact.company_link", "contact.company_link_update", "contact.company_unlink", "company.create", "company.update"] as const;
+export const crmActions = ["contact.create", "contact.update", "contact.consent_record", "contact.company_link", "contact.company_link_update", "contact.company_unlink", "company.create", "company.update", "contact.merge"] as const;
 /** Ledger actions the unified timeline also shows (CRM-04 deals, CRM-05 tasks). Note text comes from the notes table. */
 export const timelineActions = [...crmActions, "opportunity.create", "opportunity.update", "opportunity.move", "opportunity.archive", "opportunity.restore",
   "task.create", "task.update", "task.complete", "task.reopen", "task.reassign", "task.archive", "task.restore",

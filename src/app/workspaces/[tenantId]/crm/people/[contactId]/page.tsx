@@ -24,6 +24,7 @@ import { CompanyLinks } from "@/components/crm/company-links";
 import { ContactFields, ContactNotes } from "@/components/crm/contact-fields";
 import { StaleNotice } from "@/components/crm/stale-notice";
 import { initials } from "@/components/crm/format";
+import { MergeDialog } from "@/components/crm/merge-dialog";
 import { PossibleDuplicates } from "@/components/crm/possible-duplicates";
 import { CustomFields } from "@/components/crm/custom-fields";
 import { DealForm } from "@/components/crm/deals/deal-form";
@@ -72,10 +73,12 @@ export default async function PersonPage({ params }: { params: Promise<{ tenantI
             </p>
           </div>
         </div>
+        {can(workspace.role, "contacts:merge") && <MergeDialog tenantId={tenantId} contactId={contact.id} contactName={contact.name} />}
       </RecordHeader>
       {!writable && <Alert><AlertDescription>{t("viewOnlyRecord")}</AlertDescription></Alert>}
       <StaleNotice />
-      <PossibleDuplicates items={contact.possibleDuplicates.map((item) => ({ id: item.id, name: item.name, href: `${back}/${item.id}`, hint: t("addedOn", { date: format.dateTime(item.createdAt, "date") }) }))} kind="person" />
+      <PossibleDuplicates items={contact.possibleDuplicates.map((item) => ({ id: item.id, name: item.name, href: `${back}/${item.id}`, hint: t("addedOn", { date: format.dateTime(item.createdAt, "date") }) }))} kind="person"
+        action={can(workspace.role, "contacts:merge") ? (item) => <MergeDialog tenantId={tenantId} contactId={contact.id} contactName={contact.name} preset={item} compact /> : undefined} />
       {/* Profile, context and history side by side on wide screens; history spans
           the row below on medium screens; one column on phones. */}
       <RecordGrid

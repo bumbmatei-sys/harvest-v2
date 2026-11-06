@@ -13,6 +13,10 @@ import { AccessState } from "@/components/access-state";
 import { CompanyForm } from "@/components/crm/company-form";
 import { customCell, listParts } from "@/components/crm/list-parts";
 import { ListPage } from "@/components/crm/list-page";
+import { ExportDialog } from "@/components/crm/export-dialog";
+import { Button } from "@/components/ui/button";
+import Link from "next/link";
+import { Upload } from "lucide-react";
 import type { GridRow } from "@/components/crm/record-grid";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -22,6 +26,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function CompaniesPage({ params, searchParams }: { params: Promise<{ tenantId: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const t = await getTranslations("Crm");
+  const imports = await getTranslations("Imports");
   const format = await getFormatter();
   const session = await pageSession(), { tenantId } = await params;
   if (!uuidInput.safeParse(tenantId).success) return <AccessState />;
@@ -47,6 +52,8 @@ export default async function CompaniesPage({ params, searchParams }: { params: 
     return { id: company.id, version: company.version, name: company.name, href: `${companies}/${company.id}`, secondary: company.domain ?? t("noDomain"), cells };
   });
   return <ListPage tenantId={tenantId} objectType="company" icon={Building2} title={t("companies")} description={t("companiesDescription")} total={list.total} page={list.page}
+    actions={<>{can(workspace.role, "crm:import") && <Button variant="outline" asChild><Link href={`/workspaces/${tenantId}/crm/imports?entity=company`}><Upload aria-hidden="true" />{imports("importAction")}</Link></Button>}
+      {can(workspace.role, "crm:export") && <ExportDialog tenantId={tenantId} entity="company" query={query} listName={t("companies")} />}</>}
     create={<CompanyForm tenantId={tenantId} />} viewOnly={writable ? null : t("viewOnlyCompanies")} notice={notice} state={list.state} viewId={viewId} query={query}
     parts={parts} related={list.related} views={parts.summaries} current={parts.summaries.find((view) => view.id === current.id)!} modified={modified} writable={writable} rows={rows}
     copy={{ searchLabel: t("searchCompanies"), searchPlaceholder: t("searchCompaniesPlaceholder"), noMatch: t("noMatchingCompanies"), pageEmpty: t("noCompaniesOnThisPage"), emptyTitle: t("noCompaniesYet"), emptyDescription: t("addYourFirstCompany"), pages: t("companyPages"), privacy: t("companiesPrivacyNote") }} />;

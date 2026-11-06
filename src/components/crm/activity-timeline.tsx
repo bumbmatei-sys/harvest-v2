@@ -3,7 +3,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Archive, Building2, CheckCircle2, CircleDot, ClipboardList, Handshake, History, Kanban, Link2, Link2Off, ListChecks, MessageCircle, Pencil, PencilLine, RotateCcw, ShieldCheck, Sparkles, StickyNote, UserRoundCheck } from "lucide-react";
+import { Archive, Building2, CheckCircle2, CircleDot, ClipboardList, Handshake, History, Kanban, Link2, Link2Off, ListChecks, Merge, MessageCircle, Pencil, PencilLine, RotateCcw, ShieldCheck, Sparkles, StickyNote, UserRoundCheck } from "lucide-react";
 import { CRM_TIME_ZONE } from "@/lib/crm-deals";
 import type { TimelineAssociation, TimelineEvent, TimelineItem, TimelineNote } from "@/server/activity";
 import { Badge } from "@/components/ui/badge";
@@ -19,7 +19,7 @@ type FieldKey = typeof fieldKeys[number];
 const dealFields = ["name", "amount", "expectedCloseDate", "ownerUserId", "companyId", "contactId", "closedReason", "currency"] as const;
 const taskFields = ["title", "body", "priority", "dueAt", "contactId", "companyId", "opportunityId"] as const;
 const icons: Record<string, typeof History> = {
-  "contact.create": Sparkles, "company.create": Sparkles, "opportunity.create": Sparkles, "contact.update": PencilLine, "company.update": PencilLine, "opportunity.update": PencilLine,
+  "contact.merge": Merge, "contact.create": Sparkles, "company.create": Sparkles, "opportunity.create": Sparkles, "contact.update": PencilLine, "company.update": PencilLine, "opportunity.update": PencilLine,
   "contact.company_link": Link2, "contact.company_link_update": Building2, "contact.company_unlink": Link2Off, "contact.consent_record": ShieldCheck,
   "opportunity.move": Kanban, "opportunity.archive": Archive, "opportunity.restore": RotateCcw,
   "task.create": ListChecks, "task.update": PencilLine, "task.complete": CheckCircle2, "task.reopen": CircleDot, "task.reassign": UserRoundCheck, "task.archive": Archive, "task.restore": RotateCcw,
@@ -68,6 +68,7 @@ export function ActivityTimeline({ items: first, nextCursor: firstCursor, endpoi
   function sentence(item: TimelineEvent) {
     switch (item.action) {
       case "contact.create": return t("activity.createdPerson");
+      case "contact.merge": return t("activity.mergedPerson");
       case "company.create": return t("activity.createdCompany");
       case "contact.update": case "company.update": return item.fields.length ? t("activity.updatedFields", { fields: fields(item.fields) }) : t("activity.updatedDetails");
       case "contact.company_link": return t.rich(subject === "person" ? "activity.linkedCompany" : "activity.linkedPerson", { target: () => target(item) });
