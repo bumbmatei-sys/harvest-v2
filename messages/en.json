@@ -1460,6 +1460,7 @@
     "notes": "{count, plural, one {# note} other {# notes}}",
     "deals": "{count, plural, one {# deal} other {# deals}}",
     "values": "{count, plural, one {# custom field value} other {# custom field values}}",
+    "activities": "{count, plural, one {# logged activity} other {# logged activities}}",
     "notesCopied": "The other person's notes text is copied (this person has none).",
     "notesDropped": "The other person's notes text is not kept (this person already has notes).",
     "nothingElse": "Nothing else to move.",

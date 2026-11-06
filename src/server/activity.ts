@@ -120,7 +120,12 @@ export function getTimeline(db: Database, userId: string, workspace: string, sub
         : await tx.select({ id: opportunities.id }).from(opportunities).where(and(eq(opportunities.tenantId, tenantId), eq(opportunities.id, id)));
     if (!exists.length) throw new AccessError(404, message(subject === "person" ? "Errors.thisContactIsNotAvailableInThisWorkspace" : subject === "company" ? "Errors.thisCompanyIsNotAvailableInThisWorkspace" : "Errors.thisDealIsNotAvailable"));
     const metaKey = subject === "person" ? "contactId" : subject === "company" ? "companyId" : "opportunityId";
-    const relatedRows = sql`((${auditLogs.action} like 'task.%' or ${auditLogs.action} in ('note.archive', 'note.restore', 'association.record')) and ${auditLogs.metadata}->>${metaKey} = ${id})`;
+    // A person's associations are also found through the association row itself: a merge moves the row to the
+    // kept person while its ledger entry keeps the merged person's id (which erasure then strips).
+    const currentAssociations = subject === "person"
+      ? sql` or (${auditLogs.action} = 'association.record' and ${auditLogs.targetId} in (select ${crmAssociations.id}::text from ${crmAssociations} where ${crmAssociations.tenantId} = ${tenantId} and ${crmAssociations.contactId} = ${id}))`
+      : sql``;
+    const relatedRows = sql`(((${auditLogs.action} like 'task.%' or ${auditLogs.action} in ('note.archive', 'note.restore', 'association.record')) and ${auditLogs.metadata}->>${metaKey} = ${id})${currentAssociations})`;
     const own = subject === "person" ? and(eq(auditLogs.targetId, id), like(auditLogs.action, "contact.%"))
       : subject === "company" ? or(and(eq(auditLogs.targetId, id), like(auditLogs.action, "company.%")),
         and(inArray(auditLogs.action, ["contact.company_link", "contact.company_link_update", "contact.company_unlink"]), sql`${auditLogs.metadata}->>'companyId' = ${id}`))

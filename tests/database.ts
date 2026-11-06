@@ -1,4 +1,4 @@
-import { cp, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
+import { cp, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { randomBytes } from "node:crypto";
@@ -21,7 +21,7 @@ async function freePort() {
   await new Promise<void>((resolve) => server.close(() => resolve()));
   return port;
 }
-export async function testDatabase(options: { beforeFilesMigration?: (admin: Pool) => Promise<void>; beforeShellMigration?: (admin: Pool) => Promise<void>; beforeFollowupMigration?: (admin: Pool) => Promise<void>; beforeCrmMigration?: (admin: Pool) => Promise<void>; beforeCrm03Migration?: (admin: Pool) => Promise<void>; beforeCrm04Migration?: (admin: Pool) => Promise<void>; beforeCrm05Migration?: (admin: Pool) => Promise<void>; beforeCampaignMigration?: (admin: Pool) => Promise<void>; beforeCrm06Migration?: (admin: Pool) => Promise<void> } = {}) {
+export async function testDatabase(options: { beforeFilesMigration?: (admin: Pool) => Promise<void>; beforeShellMigration?: (admin: Pool) => Promise<void>; beforeFollowupMigration?: (admin: Pool) => Promise<void>; beforeCrmMigration?: (admin: Pool) => Promise<void>; beforeCrm03Migration?: (admin: Pool) => Promise<void>; beforeCrm04Migration?: (admin: Pool) => Promise<void>; beforeCrm05Migration?: (admin: Pool) => Promise<void>; beforeCampaignMigration?: (admin: Pool) => Promise<void>; beforeCrm06Migration?: (admin: Pool) => Promise<void>; beforeCrm07Migration?: (admin: Pool) => Promise<void> } = {}) {
   let embedded: EmbeddedPostgres | undefined;
   let stoppingEmbedded = false;
   const poolErrors: Error[] = [];
@@ -53,7 +53,7 @@ export async function testDatabase(options: { beforeFilesMigration?: (admin: Poo
   await root.query(`CREATE DATABASE ${name}`);
   const url = new URL(adminURL); url.pathname = `/${name}`;
   const admin = observePool(new Pool({ connectionString: url.toString(), max: 1 }));
-  for (const [lastIndex, seed] of [[3, options.beforeFilesMigration], [4, options.beforeShellMigration], [7, options.beforeFollowupMigration], [10, options.beforeCrmMigration], [12, options.beforeCrm03Migration], [14, options.beforeCrm04Migration], [17, options.beforeCrm05Migration], [20, options.beforeCampaignMigration], [21, options.beforeCrm06Migration]] as const) {
+  for (const [lastIndex, seed] of [[3, options.beforeFilesMigration], [4, options.beforeShellMigration], [7, options.beforeFollowupMigration], [10, options.beforeCrmMigration], [12, options.beforeCrm03Migration], [14, options.beforeCrm04Migration], [17, options.beforeCrm05Migration], [20, options.beforeCampaignMigration], [21, options.beforeCrm06Migration], [23, options.beforeCrm07Migration]] as const) {
     if (!seed) continue;
     const mainFolder = await mkdtemp(join(tmpdir(), "harvest-main-migrations-"));
     try {
@@ -69,11 +69,6 @@ export async function testDatabase(options: { beforeFilesMigration?: (admin: Poo
   await migrate(drizzle(admin), { migrationsFolder: "drizzle" });
   // Applying the same migrations twice must be a no-op.
   await migrate(drizzle(admin), { migrationsFolder: "drizzle" });
-  // Staged SQL for a slice whose migration number is not free yet (CRM-07 waits for CRM-06's 0022/0023).
-  // Applied once, after every real migration, in file-name order; see sql/pending-migrations/README.md.
-  for (const file of (await readdir("sql/pending-migrations").catch(() => [] as string[])).filter((name) => name.endsWith(".sql")).sort()) {
-    await admin.query(await readFile(join("sql/pending-migrations", file), "utf8"));
-  }
   const appPassword = randomBytes(24).toString("hex");
   await admin.query(`ALTER ROLE harvest_app LOGIN PASSWORD ${escapeLiteral(appPassword)}`);
   url.username = "harvest_app"; url.password = appPassword;

@@ -12,7 +12,7 @@ import { useCrmRequest } from "./request";
 type Preview = {
   kept: { id: string; name: string; version: number }; merged: { id: string; name: string; version: number };
   identifiers: { moved: { kind: string; value: string }[]; dropped: { kind: string; value: string }[] };
-  links: number; consents: number; tasks: number; notes: number; deals: number; values: number; notesText: "copied" | "dropped" | "none";
+  links: number; consents: number; tasks: number; notes: number; deals: number; values: number; activities: number; notesText: "copied" | "dropped" | "none";
 };
 
 /**
@@ -47,7 +47,7 @@ export function MergeDialog({ tenantId, contactId, contactName, preset = null, c
     if (!result.ok) { setError(result.error); return; }
     setOpen(false); router.refresh();
   }
-  const counts = preview ? (["links", "consents", "tasks", "notes", "deals", "values"] as const).filter((key) => preview[key] > 0) : [];
+  const counts = preview ? (["links", "consents", "tasks", "notes", "deals", "values", "activities"] as const).filter((key) => preview[key] > 0) : [];
   return <Dialog open={open} onOpenChange={change}>
     <DialogTrigger asChild>{compact
       ? <Button type="button" size="sm" variant="outline" className="min-h-11" aria-label={t("mergeNamed", { name: preset?.name ?? "" })}><Merge aria-hidden="true" />{t("suggestion")}</Button>

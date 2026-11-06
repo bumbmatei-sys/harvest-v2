@@ -11,6 +11,7 @@ import { createNote } from "../../src/server/crm-tasks";
 import { getTimeline, loadAssociations } from "../../src/server/activity";
 import { associationPermissions, recordAssociation, type AssociationInput } from "../../src/server/crm-associations";
 import { withTenant } from "../../src/server/tenancy";
+import { mergeContacts, previewMerge } from "../../src/server/crm-merge";
 
 let fixture: Awaited<ReturnType<typeof testDatabase>>, tenantA: string, tenantB: string, ana: string, companyA: string;
 const later = (fn: () => unknown) => Promise.resolve().then(fn);
@@ -179,15 +180,24 @@ describe("merge (required test 5)", () => {
     await expect(fixture.admin.query("update crm_associations set contact_id = $1 where contact_id = $2", [other, ana])).rejects.toThrow(/immutable/);
   });
 
-  it("moves associations to the surviving person when merge_contacts (CRM-06, PR #21) is installed", async (context) => {
-    const installed = (await fixture.admin.query("select to_regprocedure('public.merge_contacts(uuid,uuid,uuid)') is not null as present")).rows[0].present;
-    if (!installed) { context.skip(); return; }
+  it("moves associations to the surviving person on merge, shows them in the preview and on the kept person's timeline", async () => {
     const kept = (await createContact(fixture.db, "owner-a", tenantA, { name: "Synthetic Kept", email: "kept@example.test" })).id;
-    const dup = (await createContact(fixture.db, "owner-a", tenantA, { name: "Synthetic Kept" })).id;
+    const dup = (await createContact(fixture.db, "owner-a", tenantA, { name: "Synthetic Kept", phone: "+1 555 010 7788" })).id;
     await grant("owner-a", tenantA, dup, "messaging");
-    const stored = await recordAssociation(fixture.db, "member-a", tenantA, message({ contactId: dup }));
-    await withTenant(fixture.db, "owner-a", tenantA, "contacts:read", (tx, tenantId) => tx.execute(sql`select public.merge_contacts(${tenantId}::uuid, ${kept}::uuid, ${dup}::uuid)`));
-    expect((await fixture.admin.query("select contact_id from crm_associations where id = $1", [stored.stored ? stored.id : ""])).rows[0].contact_id).toBe(kept);
+    const stored = await recordAssociation(fixture.db, "member-a", tenantA, message({ contactId: dup, summary: "Synthetic: merged-away note" }));
+    if (!stored.stored) throw new Error("association was not stored");
+    expect(await previewMerge(fixture.db, "owner-a", tenantA, kept, dup)).toMatchObject({ activities: 1, consents: 1 });
+    const [k, d] = [await getContact(fixture.db, "owner-a", tenantA, kept), await getContact(fixture.db, "owner-a", tenantA, dup)];
+    const merged = await mergeContacts(fixture.db, "owner-a", tenantA, kept, { sourceId: dup, targetVersion: k.version, sourceVersion: d.version });
+    expect(merged.moved).toMatchObject({ activities: 1, consents: 1 });
+    // The row survives the merged person's erasure, unredacted, now on the kept person with its consent row (which moved too).
+    const row = (await fixture.admin.query("select a.contact_id, a.summary, a.redacted_at, c.contact_id as consent_contact from crm_associations a join contact_consents c on c.tenant_id = a.tenant_id and c.id = a.consent_id where a.id = $1", [stored.id])).rows[0];
+    expect(row).toMatchObject({ contact_id: kept, consent_contact: kept, summary: "Synthetic: merged-away note", redacted_at: null });
+    const timeline = (await getTimeline(fixture.db, "viewer-a", tenantA, "person", kept)).items;
+    expect(timeline.some((item) => item.kind === "association" && item.associationId === stored.id)).toBe(true);
+    // Later erasure of the kept person still removes it.
+    await eraseContact(fixture.db, "owner-a", tenantA, kept);
+    expect((await fixture.admin.query("select count(*)::int as n from crm_associations where id = $1", [stored.id])).rows[0].n).toBe(0);
   });
 });
 
