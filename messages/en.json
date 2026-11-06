@@ -131,6 +131,8 @@
   },
   "ComponentsAppShell": {
     "chooseWorkspace": "Choose workspace",
+    "newWorkspace": "New workspace",
+    "newWorkspaceDescription": "Give your people and work a new place to grow.",
     "switchWorkspaceValue": "Switch workspace: {name}",
     "yourWorkspaces": "Your workspaces",
     "contacts": "Contacts",

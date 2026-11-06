@@ -8,10 +8,11 @@ test.use({ reducedMotion: "reduce", viewport: { width: 1440, height: 1000 } });
 
 async function setTheme(page: Page, brand: string, mode: string) {
   const name = brand[0].toUpperCase() + brand.slice(1);
-  const account = page.getByRole("button", { name: "Account menu", exact: true });
+  const account = page.getByRole("button", { name: /^Switch workspace:/ });
   if (await account.count()) {
     await expect(page.locator('[data-slot="sidebar-wrapper"]')).toHaveAttribute("data-hydrated", "true");
     await account.click();
+    await page.getByRole("menuitem", { name: "Theme", exact: true }).click();
     await page.getByRole("menuitemradio", { name, exact: true }).click();
     await expect(account).toHaveAttribute("aria-expanded", "false");
   } else {

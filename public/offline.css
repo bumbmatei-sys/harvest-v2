@@ -619,6 +619,9 @@
   .h-12 {
     height: calc(var(--spacing) * 12);
   }
+  .h-14 {
+    height: calc(var(--spacing) * 14);
+  }
   .h-20 {
     height: calc(var(--spacing) * 20);
   }
@@ -784,9 +787,6 @@
   .w-56 {
     width: calc(var(--spacing) * 56);
   }
-  .w-60 {
-    width: calc(var(--spacing) * 60);
-  }
   .w-64 {
     width: calc(var(--spacing) * 64);
   }
@@ -831,6 +831,9 @@
   }
   .max-w-\[calc\(100\%-2rem\)\] {
     max-width: calc(100% - 2rem);
+  }
+  .max-w-\[calc\(100vw-2rem\)\] {
+    max-width: calc(100vw - 2rem);
   }
   .max-w-full {
     max-width: 100%;
@@ -1209,9 +1212,6 @@
   }
   .rounded-\[10px\] {
     border-radius: 10px;
-  }
-  .rounded-\[12px\] {
-    border-radius: 12px;
   }
   .rounded-\[20px\] {
     border-radius: 20px;
@@ -1621,9 +1621,6 @@
   }
   .text-\[0\.74rem\] {
     font-size: 0.74rem;
-  }
-  .text-\[10px\] {
-    font-size: 10px;
   }
   .text-\[11px\] {
     font-size: 11px;
@@ -2091,9 +2088,6 @@
   :is(:where(.group)[data-collapsible="icon"] .group-data-\[collapsible\=icon\]\:w-\[calc\(var\(--sidebar-width-icon\)\+\(--spacing\(4\)\)\+2px\)\]) {
     width: calc(var(--sidebar-width-icon) + (calc(var(--spacing) * 4)) + 2px);
   }
-  :is(:where(.group)[data-collapsible="icon"] .group-data-\[collapsible\=icon\]\:flex-none) {
-    flex: none;
-  }
   :is(:where(.group)[data-collapsible="icon"] .group-data-\[collapsible\=icon\]\:flex-col) {
     flex-direction: column;
   }
@@ -2511,11 +2505,17 @@
   .focus\:bg-card:focus {
     background-color: var(--card);
   }
+  .focus\:bg-primary:focus {
+    background-color: var(--primary);
+  }
   .focus\:p-3:focus {
     padding: calc(var(--spacing) * 3);
   }
   .focus\:text-accent-foreground:focus {
     color: var(--accent-foreground);
+  }
+  .focus\:text-primary-foreground:focus {
+    color: var(--primary-foreground);
   }
   .focus\:ring-2:focus {
     --tw-ring-shadow: var(--tw-ring-inset, ) 0 0 0 calc(2px + var(--tw-ring-offset-width)) var(--tw-ring-color, currentcolor);
@@ -3531,6 +3531,15 @@
   }
   .\[\&_\[cmdk-item\]_svg\]\:w-5 [cmdk-item] svg {
     width: calc(var(--spacing) * 5);
+  }
+  .\[\&_\[data-slot\=dropdown-menu-item\]\]\:min-h-11 [data-slot=dropdown-menu-item] {
+    min-height: calc(var(--spacing) * 11);
+  }
+  .\[\&_\[data-slot\=dropdown-menu-radio-item\]\]\:min-h-11 [data-slot=dropdown-menu-radio-item] {
+    min-height: calc(var(--spacing) * 11);
+  }
+  .\[\&_\[data-slot\=dropdown-menu-sub-trigger\]\]\:min-h-11 [data-slot=dropdown-menu-sub-trigger] {
+    min-height: calc(var(--spacing) * 11);
   }
   .\[\&_img\]\:size-full img {
     width: 100%;
