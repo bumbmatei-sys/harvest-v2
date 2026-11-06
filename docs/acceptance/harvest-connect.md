@@ -1,6 +1,6 @@
 # Harvest Connect acceptance record
 
-Date: 2026-11-06. Scope: **HC-01 only — organize and architecture**. Implementation/release acceptance stub for later HC slices; no application behavior is delivered here.
+Date: 2026-11-06. Current scope: **HC-04 public landing and starter resources**. HC-01 architecture evidence below is historical; later-slice and production release gates remain pending.
 
 Source of truth: [Connect PRD](../prd/harvest-connect-qr-to-discipleship.md), merged via [#17](https://github.com/bumbmatei-sys/harvest-v2/pull/17) at `e5d9752`. Architecture: [ADR 0011](../decisions/0011-harvest-connect.md). Privacy: [threat model and J1–J8 inventory](../security/harvest-connect-threat-model.md). Plan: [HC-01–HC-20 index](../prd/harvest-connect-slices.md).
 
@@ -44,6 +44,62 @@ The Python checker is a session-only validation aid outside the repository, not 
 - [ ] Future slices supply actual two-tenant, assignment/recipient, idempotency, claim, consent/erasure and accessibility evidence, plus crowd/load and runbooks for HC-16.
 - [ ] Full QR → community release passes PRD §16 with working Communities and voluntary membership; an early limited pilot is not full-launch approval.
 
-## Explicitly outside this PR
+## Explicitly outside the historical HC-01 PR
 
 No app UI or feature code; no HC-02+ schema generated/applied beyond conceptual ADR naming; no CRM-06 or CRM-05 branch changes; no Eden switcher, Soft FU or Connect finance code. No secrets printed or committed; no production Neon/R2/Vercel actions, deployment, merge, main force-push, Cursor CloudAgent or outbound messages to people. Delivery stops at the draft PR.
+
+## HC-04 public landing and starter resources
+
+Baseline: `3e38d45f26e5d3e4e77904ff0d372c7072dc770c`. Branch: `feat/hc-04-public-landing` → `main`, draft only. Design and handoff: [minimal public presentation contract](../decisions/hc-04-public-presentation.md). Architecture/privacy/dependency links at the top remain authoritative. HC-02 is skipped because it depends on merged/verified CRM-05+; HC-03 production QR publishing is also deferred.
+
+The supplied worktree's Git metadata is read-only. Implementation, checks and screenshots run in `/tmp/harvest-connect-hc02`; an isolated checkout at `/tmp/harvest-connect-hc04-delivery` commits/pushes the same requested branch. No edits to CRM-05 or the switcher branch.
+
+### Checklist
+
+- [x] Mobile guest landing `/c/9f4c2a71d8e64b30a6f9c1057b2d8e43`, outside AppShell, with welcome and immediate resource access.
+- [x] Three next-step cards; connection/account actions disabled and marked coming soon. No compulsory form, identification, sign-in, claim or invitation.
+- [x] `/resources/start` and three individual original text guides: introductory readings, common questions and next steps; no external media/download prerequisite.
+- [x] Exact opaque-code lookup exposes only the static public preview; unknown codes/resource IDs receive a safe general-resource fallback. Forged workspace hints are stripped.
+- [x] English next-intl copy/metadata, existing unsupported-language fallback, English label. Existing app supports only English; additional reviewed catalogues remain future work.
+- [x] Separate choices stay separate: no marketing/follow-up opt-in, response, classification, CRM contact, subscription, membership, shared roster or analytics from a view.
+- [x] No tables/schema/migrations/dependencies added; no new RLS surface. Existing two-tenant suite rerun locally.
+- [x] Native link fallback and no prefetch: navigation works with JavaScript/fonts/media blocked at 50 KiB/s download, 20 KiB/s upload and 150 ms latency.
+- [x] Full Playwright suite: 14 passed; all new mobile/desktop/320px dark-mode axe checks clean; six final captures saved.
+- [ ] Human ministry/content/localization review and legal/privacy/security/safeguarding release gates. No signoff asserted.
+
+### Commands and proof
+
+| Check | Result |
+| --- | --- |
+| `npm ci` | Passed; existing lockfile, no new npm dependencies |
+| `npm run lint` | Passed: ESLint plus i18n/semantic-color source guards |
+| `npm run typecheck` | Passed |
+| `npm test` | Passed: 13 files, 140 tests (including public lookup/allowlist boundary) |
+| `npm run test:rls` | Passed: 19 files, 192 tests; disposable embedded local Postgres, no Neon |
+| `npx drizzle-kit check` | Passed; no schema change, so generate not run; journal remains at `0017` |
+| `NEXT_TELEMETRY_DISABLED=1 npm run build` | Passed; includes all public routes; expected generated `public/offline.css` utility additions committed |
+| `PLAYWRIGHT_BROWSERS_PATH=/tmp/hc04-playwright npm run test:e2e` | Passed: all 14 tests, new + existing suite, 5.8 minutes; zero retries |
+| Local production guest smoke, database pointed at unreachable loopback port 1 | Passed: all five public pages return 200 without a database; zero API/non-GET/third-party requests, cookies or browser/server errors. [Evidence](../screenshots/connect/hc-04/production-smoke.json); session-only harness `/tmp/hc04-production-smoke.mjs` |
+| `CHROME_PATH=/tmp/hc04-playwright/chromium-1248/chrome-linux64/chrome PLAYWRIGHT_BROWSERS_PATH=/tmp/hc04-playwright npm run test:pwa` | Passed: Lighthouse installability; accessibility / best practices 100; production offline fallback, static-only cache and axe |
+| Relative Markdown links in acceptance/contract | Passed: 19 file links resolve |
+| `git diff --check` / delivery staged review | Passed: only 23 intended slice files; no schema/journal, dependency, existing screenshot or generated Next type-path changes |
+
+The new browser test covers guest landing → every guide → leave, keyboard skip link, 44px link targets, no horizontal overflow at 390/1440px plus 320px dark mode, axe checks, no identification controls, no auth/API calls or third-party requests, no cookies and no prefetched guides. Next.js retains hidden prior pages and streams metadata separately; test assertions inspect the visible main and wait for the document title before scanning. No application behavior is changed to mask test timing.
+
+### Captures
+
+Real browser captures, not mockups, at 390×844 and 1440×1000 (full page):
+
+| Page | Mobile | Desktop |
+| --- | --- | --- |
+| Landing | [landing-mobile.png](../screenshots/connect/hc-04/landing-mobile.png) | [landing-desktop.png](../screenshots/connect/hc-04/landing-desktop.png) |
+| Resources | [resources-mobile.png](../screenshots/connect/hc-04/resources-mobile.png) | [resources-desktop.png](../screenshots/connect/hc-04/resources-desktop.png) |
+| Reading guide | [reading-mobile.png](../screenshots/connect/hc-04/reading-mobile.png) | [reading-desktop.png](../screenshots/connect/hc-04/reading-desktop.png) |
+
+Accessibility results: [axe-results.json](../screenshots/connect/hc-04/axe-results.json). Existing suite screenshots outside `connect/hc-04` are generated during verification and excluded from the slice diff.
+
+### Remaining and exclusions
+
+Static preview only; no real campaign/QR is published or launch approved. Production resources and locales need ministry/content review; legal/security/safeguarding gates remain pending. Community links/discovery await their own canonical module. No second locale is claimed.
+
+No migration number chosen: no schema change; preserve `0018`–`0021` for CRM-05 and start future Connect migrations at `0022` or higher only after rechecking branches/open PRs. No HC-02/03/05–20, CRM-05/06, Eden switcher, Soft FU, Connect finance, production Neon/R2/Vercel, merge, deploy, reviewer request or Cursor CloudAgent. Final head SHA and draft PR URL are recorded in the PR/handoff to avoid a self-referencing commit.
