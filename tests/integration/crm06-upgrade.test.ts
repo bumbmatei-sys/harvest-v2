@@ -7,10 +7,10 @@ import { commitImport, createImport, previewImport, rollbackImport } from "../..
 import { exportRecords } from "../../src/server/crm-export";
 import { mergeContacts } from "../../src/server/crm-merge";
 
-it("upgrades a post-CRM-05 database: people, tasks and notes survive, then import, export, merge and rollback work", async () => {
+it("upgrades a post-campaigns database: people, tasks and notes survive, then import, export, merge and rollback work", async () => {
   const tenant = "13131313-1313-4313-8313-131313131313", person = "24242424-2424-4424-8424-242424242424", twin = "35353535-3535-4535-8535-353535353535", task = "46464646-4646-4646-8646-464646464646";
   const fixture = await testDatabase({ beforeCrm06Migration: async (admin) => {
-    expect((await admin.query("select count(*)::int as count from drizzle.__drizzle_migrations")).rows[0].count).toBe(21);
+    expect((await admin.query("select count(*)::int as count from drizzle.__drizzle_migrations")).rows[0].count).toBe(22);
     await admin.query("insert into users (id,name,email) values ('crm06-upgrade','Owner','crm06-upgrade@example.test')");
     await admin.query("insert into workspaces (tenant_id,name,created_by) values ($1,'CRM-06 upgrade','crm06-upgrade')", [tenant]);
     await admin.query("insert into workspace_members (tenant_id,user_id,role_id) values ($1,'crm06-upgrade','owner')", [tenant]);

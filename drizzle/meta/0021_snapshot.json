@@ -1,5 +1,5 @@
 {
-  "id": "ce52887d-5e57-4be5-bfc7-73225382d006",
+  "id": "0228b207-6f38-4b55-a8ce-3938525f2747",
   "prevId": "30cd107b-e250-402f-8347-39236417020d",
   "version": "7",
   "dialect": "postgresql",
@@ -1729,514 +1729,6 @@
         "crm_value_text_length": {
           "name": "crm_value_text_length",
           "value": "\"crm_field_values\".\"value_text\" is null or length(\"crm_field_values\".\"value_text\") between 1 and 500"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.crm_import_rows": {
-      "name": "crm_import_rows",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "import_id": {
-          "name": "import_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "row_number": {
-          "name": "row_number",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "raw": {
-          "name": "raw",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "match_keys": {
-          "name": "match_keys",
-          "type": "text[]",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::text[]"
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'pending'"
-        },
-        "action": {
-          "name": "action",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "error": {
-          "name": "error",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "warning": {
-          "name": "warning",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "contact_id": {
-          "name": "contact_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "company_id": {
-          "name": "company_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created": {
-          "name": "created",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "applied": {
-          "name": "applied",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "result_version": {
-          "name": "result_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "crm_import_rows_status_idx": {
-          "name": "crm_import_rows_status_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "import_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "row_number",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "crm_import_rows_contact_idx": {
-          "name": "crm_import_rows_contact_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "contact_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "crm_import_rows_company_idx": {
-          "name": "crm_import_rows_company_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "company_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "crm_import_rows_keys_idx": {
-          "name": "crm_import_rows_keys_idx",
-          "columns": [
-            {
-              "expression": "match_keys",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "gin",
-          "concurrently": false
-        }
-      },
-      "foreignKeys": {
-        "crm_import_rows_tenant_id_import_id_crm_imports_tenant_id_id_fk": {
-          "name": "crm_import_rows_tenant_id_import_id_crm_imports_tenant_id_id_fk",
-          "tableFrom": "crm_import_rows",
-          "columnsFrom": [
-            "tenant_id",
-            "import_id"
-          ],
-          "tableTo": "crm_imports",
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "crm_import_rows_tenant_id_contact_id_contacts_tenant_id_id_fk": {
-          "name": "crm_import_rows_tenant_id_contact_id_contacts_tenant_id_id_fk",
-          "tableFrom": "crm_import_rows",
-          "columnsFrom": [
-            "tenant_id",
-            "contact_id"
-          ],
-          "tableTo": "contacts",
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "crm_import_rows_tenant_id_company_id_companies_tenant_id_id_fk": {
-          "name": "crm_import_rows_tenant_id_company_id_companies_tenant_id_id_fk",
-          "tableFrom": "crm_import_rows",
-          "columnsFrom": [
-            "tenant_id",
-            "company_id"
-          ],
-          "tableTo": "companies",
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "crm_import_rows_tenant_id_import_id_row_number_pk": {
-          "name": "crm_import_rows_tenant_id_import_id_row_number_pk",
-          "columns": [
-            "tenant_id",
-            "import_id",
-            "row_number"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "crm_import_row_number": {
-          "name": "crm_import_row_number",
-          "value": "\"crm_import_rows\".\"row_number\" between 1 and 5000"
-        },
-        "crm_import_row_status": {
-          "name": "crm_import_row_status",
-          "value": "\"crm_import_rows\".\"status\" in ('pending', 'ready', 'done', 'error', 'skipped', 'rolled_back')"
-        },
-        "crm_import_row_action": {
-          "name": "crm_import_row_action",
-          "value": "\"crm_import_rows\".\"action\" is null or \"crm_import_rows\".\"action\" in ('create', 'update', 'skip', 'error', 'conflict')"
-        },
-        "crm_import_row_raw": {
-          "name": "crm_import_row_raw",
-          "value": "jsonb_typeof(\"crm_import_rows\".\"raw\") = 'array' and octet_length(\"crm_import_rows\".\"raw\"::text) <= 20000"
-        },
-        "crm_import_row_codes": {
-          "name": "crm_import_row_codes",
-          "value": "(\"crm_import_rows\".\"error\" is null or length(\"crm_import_rows\".\"error\") <= 80) and (\"crm_import_rows\".\"warning\" is null or length(\"crm_import_rows\".\"warning\") <= 80)"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.crm_imports": {
-      "name": "crm_imports",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "entity": {
-          "name": "entity",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'draft'"
-        },
-        "client_key": {
-          "name": "client_key",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "file_name": {
-          "name": "file_name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "headers": {
-          "name": "headers",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "mapping": {
-          "name": "mapping",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "on_match": {
-          "name": "on_match",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'skip'"
-        },
-        "row_count": {
-          "name": "row_count",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "stats": {
-          "name": "stats",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::jsonb"
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "previewed_at": {
-          "name": "previewed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "completed_at": {
-          "name": "completed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "rolled_back_at": {
-          "name": "rolled_back_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "crm_imports_client_key_idx": {
-          "name": "crm_imports_client_key_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "client_key",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        },
-        "crm_imports_tenant_created_idx": {
-          "name": "crm_imports_tenant_created_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "with": {},
-          "method": "btree",
-          "concurrently": false
-        }
-      },
-      "foreignKeys": {
-        "crm_imports_tenant_id_workspaces_tenant_id_fk": {
-          "name": "crm_imports_tenant_id_workspaces_tenant_id_fk",
-          "tableFrom": "crm_imports",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "tableTo": "workspaces",
-          "columnsTo": [
-            "tenant_id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        },
-        "crm_imports_created_by_users_id_fk": {
-          "name": "crm_imports_created_by_users_id_fk",
-          "tableFrom": "crm_imports",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "tableTo": "users",
-          "columnsTo": [
-            "id"
-          ],
-          "onUpdate": "no action",
-          "onDelete": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "crm_imports_tenant_id_id_pk": {
-          "name": "crm_imports_tenant_id_id_pk",
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "crm_import_entity": {
-          "name": "crm_import_entity",
-          "value": "\"crm_imports\".\"entity\" in ('person', 'company')"
-        },
-        "crm_import_status": {
-          "name": "crm_import_status",
-          "value": "\"crm_imports\".\"status\" in ('draft', 'preview', 'running', 'completed', 'failed', 'rolled_back')"
-        },
-        "crm_import_on_match": {
-          "name": "crm_import_on_match",
-          "value": "\"crm_imports\".\"on_match\" in ('skip', 'fill')"
-        },
-        "crm_import_rows_bound": {
-          "name": "crm_import_rows_bound",
-          "value": "\"crm_imports\".\"row_count\" between 1 and 5000"
-        },
-        "crm_import_file_name": {
-          "name": "crm_import_file_name",
-          "value": "length(btrim(\"crm_imports\".\"file_name\")) between 1 and 200"
-        },
-        "crm_import_shape": {
-          "name": "crm_import_shape",
-          "value": "jsonb_typeof(\"crm_imports\".\"headers\") = 'array' and jsonb_typeof(\"crm_imports\".\"mapping\") = 'array' and jsonb_array_length(\"crm_imports\".\"headers\") between 1 and 100 and jsonb_array_length(\"crm_imports\".\"mapping\") = jsonb_array_length(\"crm_imports\".\"headers\")"
-        },
-        "crm_import_version": {
-          "name": "crm_import_version",
-          "value": "\"crm_imports\".\"version\" >= 1"
         }
       },
       "isRLSEnabled": false
@@ -5351,6 +4843,291 @@
         "workspace_brand_theme": {
           "name": "workspace_brand_theme",
           "value": "\"workspaces\".\"brand_theme\" in ('harvest', 'studio')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.campaigns": {
+      "name": "campaigns",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "owner_user_id": {
+          "name": "owner_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "type": {
+          "name": "type",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "mission": {
+          "name": "mission",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "country": {
+          "name": "country",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "city_region": {
+          "name": "city_region",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "start_date": {
+          "name": "start_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "end_date": {
+          "name": "end_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "time_zone": {
+          "name": "time_zone",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "structure": {
+          "name": "structure",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fingerprint": {
+          "name": "fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "archived_at": {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "campaigns_tenant_idempotency_idx": {
+          "name": "campaigns_tenant_idempotency_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "idempotency_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "campaigns_tenant_created_idx": {
+          "name": "campaigns_tenant_created_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "campaigns_tenant_owner_idx": {
+          "name": "campaigns_tenant_owner_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "owner_user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "campaigns_tenant_id_workspaces_tenant_id_fk": {
+          "name": "campaigns_tenant_id_workspaces_tenant_id_fk",
+          "tableFrom": "campaigns",
+          "tableTo": "workspaces",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "tenant_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "campaigns_owner_user_id_users_id_fk": {
+          "name": "campaigns_owner_user_id_users_id_fk",
+          "tableFrom": "campaigns",
+          "tableTo": "users",
+          "columnsFrom": [
+            "owner_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "campaigns_tenant_id_id_pk": {
+          "name": "campaigns_tenant_id_id_pk",
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "campaign_type": {
+          "name": "campaign_type",
+          "value": "\"campaigns\".\"type\" in ('evangelistic_crusade', 'mission_trip', 'conference', 'local_outreach', 'custom_project')"
+        },
+        "campaign_status": {
+          "name": "campaign_status",
+          "value": "\"campaigns\".\"status\" in ('draft', 'active')"
+        },
+        "campaign_name": {
+          "name": "campaign_name",
+          "value": "length(btrim(\"campaigns\".\"name\")) between 1 and 200 and \"campaigns\".\"name\" = btrim(\"campaigns\".\"name\")"
+        },
+        "campaign_description": {
+          "name": "campaign_description",
+          "value": "length(\"campaigns\".\"description\") <= 5000"
+        },
+        "campaign_mission": {
+          "name": "campaign_mission",
+          "value": "length(\"campaigns\".\"mission\") <= 5000"
+        },
+        "campaign_country": {
+          "name": "campaign_country",
+          "value": "length(\"campaigns\".\"country\") between 1 and 100"
+        },
+        "campaign_city_region": {
+          "name": "campaign_city_region",
+          "value": "length(\"campaigns\".\"city_region\") between 1 and 200"
+        },
+        "campaign_time_zone": {
+          "name": "campaign_time_zone",
+          "value": "length(\"campaigns\".\"time_zone\") between 1 and 100"
+        },
+        "campaign_dates": {
+          "name": "campaign_dates",
+          "value": "\"campaigns\".\"end_date\" >= \"campaigns\".\"start_date\""
+        },
+        "campaign_structure": {
+          "name": "campaign_structure",
+          "value": "\"campaigns\".\"structure\" in ('single', 'multi', 'online_hybrid')"
+        },
+        "campaign_idempotency_key": {
+          "name": "campaign_idempotency_key",
+          "value": "length(\"campaigns\".\"idempotency_key\") between 1 and 200 and \"campaigns\".\"idempotency_key\" ~ '^[A-Za-z0-9._:-]+$'"
+        },
+        "campaign_fingerprint": {
+          "name": "campaign_fingerprint",
+          "value": "\"campaigns\".\"fingerprint\" ~ '^[a-f0-9]{64}$'"
         }
       },
       "isRLSEnabled": false

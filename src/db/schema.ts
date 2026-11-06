@@ -1,4 +1,5 @@
 import type { BrandTheme } from "../lib/theme-registry";
+import type { campaignStructures, campaignTypes } from "../lib/campaigns";
 import { sql } from "drizzle-orm";
 import { pgTable, text, timestamp, boolean, integer, bigint, uuid, primaryKey, uniqueIndex, index, foreignKey, check, jsonb, doublePrecision, date, numeric } from "drizzle-orm/pg-core";
 
@@ -61,6 +62,39 @@ export const auditLogs = pgTable("audit_logs", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("audit_logs_tenant_created_idx").on(t.tenantId, t.createdAt), foreignKey({ columns: [t.tenantId], foreignColumns: [workspaces.tenantId] })]);
 export const authSchema = { user: users, session: sessions, account: accounts, verification: verifications, rateLimit: rateLimits };
+
+// A campaign belongs to its parent workspace; it never creates another tenant.
+export const campaigns = pgTable("campaigns", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  id: uuid("id").notNull().defaultRandom(),
+  ownerUserId: text("owner_user_id").notNull().references(() => users.id),
+  type: text("type").$type<typeof campaignTypes[number]>().notNull(),
+  status: text("status").$type<"draft" | "active">().notNull().default("draft"),
+  name: text("name").notNull(), description: text("description"), mission: text("mission"),
+  country: text("country"), cityRegion: text("city_region"),
+  startDate: date("start_date"), endDate: date("end_date"), timeZone: text("time_zone"),
+  structure: text("structure").$type<typeof campaignStructures[number]>(),
+  idempotencyKey: text("idempotency_key").notNull(), fingerprint: text("fingerprint").notNull(),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  uniqueIndex("campaigns_tenant_idempotency_idx").on(t.tenantId, t.idempotencyKey),
+  index("campaigns_tenant_created_idx").on(t.tenantId, t.createdAt, t.id),
+  index("campaigns_tenant_owner_idx").on(t.tenantId, t.ownerUserId),
+  check("campaign_type", sql`${t.type} in ('evangelistic_crusade', 'mission_trip', 'conference', 'local_outreach', 'custom_project')`),
+  check("campaign_status", sql`${t.status} in ('draft', 'active')`),
+  check("campaign_name", sql`length(btrim(${t.name})) between 1 and 200 and ${t.name} = btrim(${t.name})`),
+  check("campaign_description", sql`length(${t.description}) <= 5000`),
+  check("campaign_mission", sql`length(${t.mission}) <= 5000`),
+  check("campaign_country", sql`length(${t.country}) between 1 and 100`),
+  check("campaign_city_region", sql`length(${t.cityRegion}) between 1 and 200`),
+  check("campaign_time_zone", sql`length(${t.timeZone}) between 1 and 100`),
+  check("campaign_dates", sql`${t.endDate} >= ${t.startDate}`),
+  check("campaign_structure", sql`${t.structure} in ('single', 'multi', 'online_hybrid')`),
+  check("campaign_idempotency_key", sql`length(${t.idempotencyKey}) between 1 and 200 and ${t.idempotencyKey} ~ '^[A-Za-z0-9._:-]+$'`),
+  check("campaign_fingerprint", sql`${t.fingerprint} ~ '^[a-f0-9]{64}$'`),
+]);
 
 export const contacts = pgTable("contacts", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),

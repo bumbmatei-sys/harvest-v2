@@ -152,12 +152,19 @@
     {
       "idx": 21,
       "version": "7",
+      "when": 1793976731851,
+      "tag": "0021_campaigns",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
       "when": 1793977586574,
       "tag": "0022_crm_imports",
       "breakpoints": true
     },
     {
-      "idx": 22,
+      "idx": 23,
       "version": "7",
       "when": 1793977658934,
       "tag": "0023_crm_imports_policies_merge",

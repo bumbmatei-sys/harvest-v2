@@ -158,7 +158,8 @@
     "pipelines": "Pipelines",
     "pipelineSettings": "Pipeline settings",
     "tasks": "Tasks",
-    "imports": "Imports"
+    "imports": "Imports",
+    "campaigns": "Campaigns"
   },
   "ComponentsAppearanceForm": {
     "couldNotSaveAppearanceTryAgain": "Could not save appearance. Try again.",
@@ -1528,5 +1529,50 @@
         }
       }
     }
+  },
+  "Campaigns": {
+    "title": "Campaigns",
+    "pageTitle": "Campaigns · Harvest",
+    "description": "Campaigns organized within this workspace.",
+    "emptyTitle": "No campaigns yet",
+    "emptyDescription": "Campaigns will appear here once created. Guided setup is coming in a later release.",
+    "emptyPage": "No campaigns on this page",
+    "backToCampaigns": "Back to campaigns",
+    "private": "Private to this workspace",
+    "count": "{count, plural, one {# campaign} other {# campaigns}}",
+    "page": "Page {page}",
+    "previous": "Previous",
+    "next": "Next",
+    "notFound": "Campaign not found",
+    "idempotencyConflict": "This idempotency key was already used for a different campaign request.",
+    "types": {
+      "evangelistic_crusade": "Evangelistic Crusade",
+      "mission_trip": "Mission Trip",
+      "conference": "Conference",
+      "local_outreach": "Local Outreach",
+      "custom_project": "Custom Project"
+    },
+    "statuses": {
+      "draft": "Draft",
+      "active": "Active"
+    },
+    "structures": {
+      "single": "Single location",
+      "multi": "Multiple locations",
+      "online_hybrid": "Online / Hybrid"
+    },
+    "details": "Campaign details",
+    "location": "Location",
+    "dates": "Dates",
+    "timeZone": "Time zone",
+    "structure": "Structure",
+    "owner": "Owner",
+    "mission": "Goal or mission",
+    "notSet": "Not set",
+    "dashboardTitle": "Your campaign starts here",
+    "dashboardDescription": "This dashboard is ready for campaign planning. Setup and tools will arrive in later releases.",
+    "draftNote": "This campaign is a private, unpublished draft.",
+    "you": "You",
+    "workspaceMember": "A workspace member"
   }
 }
