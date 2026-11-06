@@ -42,13 +42,13 @@ export async function ImportRows({ tenantId, importId, entity, fileName, mapping
           const ids = keys.map((key) => cell(row, key)).filter(Boolean).join(" · ");
           return <TableRow key={row.rowNumber}>
             <TableCell className="align-top tabular-nums text-muted-foreground">{row.rowNumber}</TableCell>
-            <TableCell className="max-w-[18rem] align-top">
+            <TableCell className="w-full max-w-0 whitespace-normal align-top md:max-w-[18rem] md:w-auto">
               <span className="block truncate font-medium">{cell(row, "name") || t("noName")}</span>
               {ids && <span className="block truncate text-xs text-muted-foreground">{ids}</span>}
-              <span className="block text-xs text-muted-foreground md:hidden">{detail}</span>
+              <span className="block text-xs break-words text-muted-foreground md:hidden">{detail}</span>
             </TableCell>
             <TableCell className="align-top"><Badge variant="secondary" className={cn("h-5 rounded-md px-1.5 text-[11px] font-normal", tone(row))}>{label}</Badge></TableCell>
-            <TableCell className="hidden max-w-[28rem] align-top text-xs text-muted-foreground md:table-cell">
+            <TableCell className="hidden max-w-[28rem] whitespace-normal align-top text-xs text-muted-foreground md:table-cell">
               {row.recordId && row.recordName && row.action !== "create" && !row.created
                 ? <Link href={`${records}/${row.recordId}`} className="text-foreground underline-offset-4 hover:underline">{t("matchedWith", { name: row.recordName })}</Link>
                 : row.recordId && row.recordName && row.created ? <Link href={`${records}/${row.recordId}`} className="text-foreground underline-offset-4 hover:underline">{row.recordName}</Link> : null}

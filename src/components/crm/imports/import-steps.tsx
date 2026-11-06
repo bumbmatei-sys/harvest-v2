@@ -57,7 +57,7 @@ export function MappingStep({ tenantId, importId, entity, headers, samples, mapp
         <TableBody>{headers.map((header, index) => {
           const examples = samples.map((row) => row[index] ?? "").filter(Boolean).slice(0, 3);
           return <TableRow key={`${index}-${header}`}>
-            <TableCell className="max-w-[12rem] align-top"><span className="block truncate font-medium" title={header}>{header}</span>
+            <TableCell className="w-full max-w-0 whitespace-normal align-top md:w-auto md:max-w-[12rem]"><span className="block truncate font-medium" title={header}>{header}</span>
               <span className="block truncate text-xs text-muted-foreground md:hidden">{examples.join(" · ")}</span></TableCell>
             <TableCell className="hidden max-w-[22rem] align-top text-xs text-muted-foreground md:table-cell"><span className="block truncate" title={examples.join(" · ")}>{examples.join(" · ")}</span></TableCell>
             <TableCell className="align-top">
