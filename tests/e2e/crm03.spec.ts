@@ -160,16 +160,25 @@ test("CRM-03: custom fields, saved views, filters, columns and keyboard grid edi
   // Keyboard: arrow to the Email cell, Enter edits, Escape cancels, Tab commits and moves.
   await page.goto(`${root}/crm/people`);
   await grid.getByRole("gridcell").first().focus();
+  await expect(grid.getByRole("gridcell").first()).toBeFocused();
   await page.keyboard.press("ArrowRight");
+  await expect(grid.getByRole("gridcell", { name: "Synthetic Riverside Fellowship", exact: true }).first()).toBeFocused();
   await page.keyboard.press("ArrowRight");
-  await page.keyboard.press("Enter");
+  const emailCell = grid.getByRole("gridcell", { name: "person0@example.test", exact: true });
+  await expect(emailCell).toBeFocused();
+  // Arrow navigation schedules focus in requestAnimationFrame; wait for each
+  // destination before Enter so a pending focus callback cannot steal editor focus.
+  await emailCell.press("Enter");
   const editor = page.getByRole("textbox", { name: "Edit Email for Synthetic Ada Mensah" });
+  await expect(editor).toBeEditable();
   await expect(editor).toBeFocused();
   await editor.fill("discard@example.test");
   await page.keyboard.press("Escape");
   await expect(editor).toBeHidden();
   await expect(grid.getByRole("gridcell", { name: "person0@example.test" })).toBeFocused();
   await page.keyboard.press("Enter");
+  await expect(editor).toBeEditable();
+  await expect(editor).toBeFocused();
   await editor.fill("ada@example.test");
   await page.keyboard.press("Tab");
   await expect(editor).toBeHidden();
