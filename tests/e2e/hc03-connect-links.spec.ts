@@ -236,6 +236,8 @@ test("HC-03: organizer lifecycle, exports and guest revocation in a real browser
   await card.getByRole("button", { name: "Archive" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Archive link" }).click();
   await expect(page.getByRole("heading", { name: "Archived links" })).toBeVisible();
+  // Archiving retires a code but does not rotate it again.
+  await expect(card.getByText("Rotated once", { exact: true })).toBeVisible();
   for (const path of [`/c/${rotated.publicCode}`, `/s/${rotated.shortCode}`, `/c/${link.publicCode}`]) expect((await guestStatus(browser, path)).status, path).toBe(404);
   expect((await page.request.get(`${api}/${link.id}/export?format=png`)).status()).toBe(409);
   await guestContext.close();

@@ -61,7 +61,7 @@ export default async function ConnectLinksPage({ params }: { params: Promise<{ t
             <li>{link.formVersionId ? (link.formStatus === "retired" ? t("formRetired", { version: link.formVersion ?? 0 }) : t("formLine", { name: link.formName ?? "", version: link.formVersion ?? 0 })) : t("noForm")}</li>
             <li>{t("locales.en")}</li>
             <li>{link.expiresAt ? t("expires", { date: date(link.expiresAt) }) : t("noExpiry")}</li>
-            <li>{t("rotations", { count: link.retiredCodes })}</li>
+            <li>{t("rotations", { count: link.codeGeneration - 1 })}</li>
           </ul>
           {link.status !== "archived" && <div className="flex flex-wrap gap-2">
             {permissions.manage && <>
