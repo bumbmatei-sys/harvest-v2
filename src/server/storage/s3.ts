@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { filenameMatchesMime, MAX_FILE_SIZE, type UploadInput } from "../../lib/files";
+import { downloadDisposition } from "../../lib/download-filename";
 import { InvalidStoredFile, type StorageAdapter } from "./adapter";
 
 export class S3Storage implements StorageAdapter {
@@ -67,7 +68,7 @@ export class S3Storage implements StorageAdapter {
   }
   presignDownload(key: string, name: string) {
     return getSignedUrl(this.client, new GetObjectCommand({ Bucket: this.config.bucket, Key: key,
-      ResponseContentDisposition: `attachment; filename*=UTF-8''${encodeURIComponent(name).replace(/'/g, "%27")}`,
+      ResponseContentDisposition: downloadDisposition(name),
       ResponseContentType: "application/octet-stream", ResponseCacheControl: "private, no-store",
     }), { expiresIn: 60 });
   }
