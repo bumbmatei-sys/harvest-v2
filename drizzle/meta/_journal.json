@@ -183,6 +183,13 @@
       "when": 1794027514824,
       "tag": "0025_crm_webhooks_ai_approvals",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1794051396393,
+      "tag": "0026_hc02_connect_intake",
+      "breakpoints": true
     }
   ]
 }
