@@ -126,7 +126,26 @@ describe("CRM-06 RLS evidence (unfiltered SQL, separate from service assertions)
   });
 });
 
+// These tests mutate shared state and rely on source order (vitest runs a file's tests in order, no shuffle).
+// The role-gate test restores the state it changes, so the later rollback tests still start from 1 person per workspace.
 describe("CRM-06 authorized rollback across two workspaces (runs last: it changes data)", () => {
+  it("enforces the rollback role gate: a member of both workspaces who did not create an import is refused, an admin is allowed", async () => {
+    for (const local of workspaces) {
+      // Created by the workspace owner. `member` and `admin` belong to both workspaces, but only `admin` may roll back someone else's import.
+      const item = await createImport(fixture.db, local.owner, local.tenant, {
+        entity: "person", clientKey: randomUUID(), fileName: "role-gate.csv", csv: `Name,Email\n${local.name} Role Gate,role-gate-${local.tenant}@example.test`,
+      });
+      await previewImport(fixture.db, local.owner, local.tenant, item.id, { version: item.version });
+      await expect(commitImport(fixture.db, local.owner, local.tenant, item.id)).resolves.toMatchObject({ status: "completed", stats: { created: 1 } });
+      expect((await exportCount(fixture.db, local.owner, local.tenant, "person")).total).toBe(2);
+      await expect(rollbackImport(fixture.db, member, local.tenant, item.id)).rejects.toMatchObject({ status: 403 });
+      expect(await getImport(fixture.db, member, local.tenant, item.id)).toMatchObject({ status: "completed" });
+      expect((await exportCount(fixture.db, local.owner, local.tenant, "person")).total).toBe(2);
+      expect(await rollbackImport(fixture.db, admin, local.tenant, item.id)).toMatchObject({ status: "rolled_back", result: { removed: 1, reverted: 0, kept: 0 } });
+      expect((await exportCount(fixture.db, local.owner, local.tenant, "person")).total).toBe(1);
+    }
+  });
+
   it("refuses a mismatched tenant argument and a foreign import ID at the SQL definer itself", async () => {
     const [a, b] = workspaces;
     // The session is workspace A. Calling the definer directly (bypassing the service) must still
@@ -163,7 +182,8 @@ describe("CRM-06 authorized rollback across two workspaces (runs last: it change
       await expect(rollbackImport(fixture.db, workspace.owner, workspace.tenant, workspace.importId)).rejects.toMatchObject({ status: 409 });
       const foreign = workspaces.find((other) => other !== workspace)!;
       await expect(rollbackImport(fixture.db, workspace.owner, workspace.tenant, foreign.importId)).rejects.toMatchObject({ status: 404 });
-      // Each rollback event carries only its own workspace.
+      // Each rollback event carries only its own workspace. This one read deliberately uses the privileged
+      // pool to inspect the outbox; it is not part of the application-role isolation proof above.
       const events = await fixture.admin.query("select payload from outbox_events where idempotency_key = $1", [`crm:import:${workspace.importId}:rolled_back`]);
       expect(events.rows).toHaveLength(1);
       expect(events.rows[0].payload).toMatchObject({ tenantId: workspace.tenant, importId: workspace.importId, removed: 1 });
