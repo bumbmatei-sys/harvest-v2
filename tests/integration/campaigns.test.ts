@@ -49,9 +49,13 @@ describe("CW-01 campaign tenancy and creation", () => {
       .toEqual([{ definition: "PRIMARY KEY (tenant_id, id)" }]);
     const grants = await fixture.admin.query("select has_table_privilege('harvest_app','campaigns','UPDATE') as update, has_table_privilege('harvest_app','campaigns','DELETE') as delete");
     expect(grants.rows).toEqual([{ update: false, delete: false }]);
-    expect((await fixture.admin.query("select roles = ARRAY['harvest_app']::name[] as runtime_only from pg_policies where tablename='campaigns' and policyname <> 'connect_definer_campaign_read'")).rows)
+    expect((await fixture.admin.query("select roles = ARRAY['harvest_app']::name[] as runtime_only from pg_policies where tablename='campaigns' and policyname not in ('connect_definer_campaign_read','intake_campaign_lock')")).rows)
       .toEqual([{ runtime_only: true }, { runtime_only: true }]);
-    // HC-03: the only other policy is the link definers' read-only, tenant/code-scoped one for the
+    // HC-05 needs an exact-campaign owner UPDATE policy for PostgreSQL shared row locks,
+    // not an UPDATE grant/policy for harvest_app.
+    expect((await fixture.admin.query("select cmd,roles=ARRAY[current_user]::name[] as owner_only,qual like '%app.connect_campaign%' as exact_campaign from pg_policies where tablename='campaigns' and policyname='intake_campaign_lock'")).rows)
+      .toEqual([{cmd:"UPDATE",owner_only:true,exact_campaign:true}]);
+    // HC-03: the other SELECT policy is the link definers' read-only, tenant/code-scoped one for the
     // migration owner (who obeys FORCE RLS); never harvest_app or PUBLIC, never a write.
     expect((await fixture.admin.query("select cmd, roles = ARRAY[current_user]::name[] as owner_only, qual like '%current_setting%' as scoped from pg_policies where tablename='campaigns' and policyname = 'connect_definer_campaign_read'")).rows)
       .toEqual([{ cmd: "SELECT", owner_only: true, scoped: true }]);

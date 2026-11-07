@@ -822,3 +822,31 @@ export const campaignResponseConsents = pgTable("campaign_response_consents", {
   check("campaign_response_consent_grantor", sql`${t.status} = 'withdrawn' or ${t.actorKind} = 'subject'`),
   check("campaign_response_consent_occurrence", sql`${t.occurredAt} <= ${t.recordedAt} + interval '5 minutes'`),
   check("campaign_response_consent_redaction", sql`${t.redactedAt} is null or (${t.channel} is null and ${t.recordedBy} is null)`)]);
+
+// HC-05: one restricted, encrypted pending envelope and revocation-only receipt per response.
+// No app table grants; narrow definers derive tenant context from the code or receipt hash.
+export const connectIntakeReceipts = pgTable("connect_intake_receipts", {
+  tenantId: uuid("tenant_id").notNull(), responseId: uuid("response_id").notNull(),
+  receiptHash: text("receipt_hash").notNull(), fingerprint: text("fingerprint").notNull(),
+  sealedData: jsonb("sealed_data").$type<Record<string, unknown>>().notNull(),
+  replayUntil: timestamp("replay_until", { withTimezone: true }).notNull(),
+}, t => [primaryKey({ columns: [t.tenantId, t.responseId] }),
+  foreignKey({ columns: [t.tenantId, t.responseId], foreignColumns: [campaignResponses.tenantId, campaignResponses.id] }),
+  uniqueIndex("connect_intake_receipt_hash_idx").on(t.receiptHash),
+  check("connect_intake_receipt_hash", sql`${t.receiptHash} ~ '^[a-f0-9]{64}$' and ${t.fingerprint} ~ '^[a-f0-9]{64}$'`),
+  check("connect_intake_sealed", sql`jsonb_typeof(${t.sealedData}) = 'object' and octet_length(${t.sealedData}::text) <= 4096`)]);
+// Opaque, short-lived SOURCE/receipt quotas; no IP address or contact value is stored.
+export const connectIntakeLimits = pgTable("connect_intake_limits", {
+  key: text("key").primaryKey(), count: integer("count").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+}, t => [index("connect_intake_limits_expiry_idx").on(t.expiresAt), check("connect_intake_limit_count", sql`${t.count} > 0`)]);
+
+// Restricted, purpose-specific audit for guest/expiry operations. Never impersonates a users row.
+export const connectIntakeEvents = pgTable("connect_intake_events", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), responseId: uuid("response_id"),
+  event: text("event").notNull(), actor: text("actor").notNull(), purpose: text("purpose"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t=>[primaryKey({columns:[t.tenantId,t.id]}),
+  foreignKey({columns:[t.tenantId,t.responseId],foreignColumns:[campaignResponses.tenantId,campaignResponses.id]}),
+  check("connect_intake_event_kind",sql`${t.event} in ('submit','withdraw','erase','purge') and ${t.actor} in ('guest','worker')`),
+  check("connect_intake_event_purpose",sql`(${t.event}='withdraw' and ${t.purpose} in ('outreach_follow_up','newsletter')) or (${t.event}<>'withdraw' and ${t.purpose} is null)`)]);

@@ -42,7 +42,7 @@ describe("Connect public presentation boundary", () => {
 
   it("keeps all Connect public copy consumers free of raw HTML injection", () => {
     const repo = fileURLToPath(new URL("../../", import.meta.url));
-    for (const directory of ["src/app/c", "src/app/s", "src/app/resources", "src/components/connect", "src/components/connect-admin", "src/app/workspaces/[tenantId]/campaigns/[campaignId]/connect"]) {
+    for (const directory of ["src/app/c", "src/app/s", "src/app/connect/rights", "src/app/resources", "src/components/connect", "src/components/connect-admin", "src/app/workspaces/[tenantId]/campaigns/[campaignId]/connect"]) {
       const root = join(repo, directory);
       const files = readdirSync(root, { recursive: true, encoding: "utf8" }).filter((file) => /\.[cm]?[jt]sx?$/.test(file));
       expect(files.length, directory).toBeGreaterThan(0);

@@ -1,6 +1,8 @@
 # HC-05 readiness and decision brief
 
-Date: 2026-11-07. Baseline: merged `main` at `b1da5a4` (HC-03 #29). **Planning only: no implementation or activation approved by this brief.**
+Date: 2026-11-07. Baseline: merged `main` at `b1da5a4` (HC-03 #29). **This brief originally covered planning. Matei subsequently authorized the bounded implementation in PR #30; real collection and activation remain unapproved.**
+
+Implementation record: [HC-05 acceptance](../acceptance/hc-05.md). Both purposes are implemented only for local synthetic tests. The current preset supports email and optional preferred name; phone is deferred because the existing consent contract distinguishes email/SMS and does not authorize voice calls. Changing published fields creates a new version and requires a new QR link; existing links/evidence are immutable. No general Forms builder or live collection is enabled.
 
 Goal: make the optional response step ready to implement as one bounded PR. Resource access remains free and requires no identity. Sources: [Connect PRD J2 and §§5, 10–11](harvest-connect-qr-to-discipleship.md), [slice plan](harvest-connect-slices.md), [HC-02 acceptance](../acceptance/hc-02.md), [HC-03 acceptance](../acceptance/hc-03.md), [activation register](../decisions/hc-02-activation-gates.md).
 
@@ -14,7 +16,7 @@ Goal: make the optional response step ready to implement as one bounded PR. Reso
 | Owner/admin withdrawal, erasure, expiry recheck and purge hooks | Usable guest rights procedure, scheduling/operational ownership and end-to-end intake/rights tests |
 | Tenant-composite references, FORCE RLS, transactional audit/outbox primitives | Public abuse controls and idempotent submission under concurrency |
 
-`src/lib/connect-public.ts` currently fixes `acceptsResponses: false`; `resolve_connect_link` returns only locale/public title. HC-05 must deliberately extend this boundary, not make private Forms or pending rows public. HC-03 link settings/form attachment are immutable after creation; any per-link form switch is an explicit HC-05 design item, not an assumed existing editor.
+On the merged HC-03 baseline, `src/lib/connect-public.ts` fixes `acceptsResponses: false`; `resolve_connect_link` returns only locale/public title. HC-05 must deliberately extend this boundary, not make private Forms or pending rows public. HC-03 link settings/form attachment are immutable after creation; any per-link form switch is an explicit HC-05 design item, not an assumed existing editor.
 
 ## Founder input and proposed field configuration
 
@@ -75,7 +77,7 @@ The scheduled retention sweep also needs an explicit reviewed execution identity
 
 ## Sequence and exclusions
 
-Current work: this brief and decisions. Then one scoped HC-05 PR with synthetic fixtures until activation prerequisites are satisfied. A separate fresh session reviews implementation. No merge/deploy without explicit founder approval.
+Current work: one scoped HC-05 implementation in PR #30 with synthetic fixtures while activation prerequisites remain unresolved. A separate fresh session reviews implementation. No merge/deploy without explicit founder approval.
 
 HC-07 subsequently owns verified delivery and one-use identity claims; HC-06 consumes that verified claim for canonical tenant CRM association. HC-06 must also settle notice-ledger transfer, pending-method removal and merge-move before erasure. This order follows the dependency contract; it does not authorize a combined HC-05/06/07 PR. HC-08 onboarding and HC-13 counselor cases remain separate.
 
@@ -85,4 +87,4 @@ Excluded: real sends, phone verification, automatic CRM matching, newsletter del
 
 A separate fresh review session checked this brief against HC-05/J2, the PRD and HC-02 boundaries: no blocking inconsistency or invented approval. Its two clarifications (first-form provisioning and narrowly authorized guest/purge execution) are included above. Documentation checks cover relative links, table shape and whitespace. No application tests, database/provider actions, migrations or implementation changes were needed or run for this planning-only change.
 
-**Ready:** documented scope and existing foundations. **Blocked for activation:** actual decisions and required evidence above. **Next input:** Matei confirms the proposed allowed-field/channel choices and supplies launch context; privacy/legal/security reviewers resolve their assigned policy questions. No gate is checked off by publishing this planning brief.
+**Ready:** documented scope and a bounded synthetic implementation for review in PR #30. **Blocked for activation:** actual decisions and required operational evidence above. **Next input for launch:** launch context and reviewed field/channel policy; privacy/legal/security reviewers resolve their assigned questions. No gate is checked off by implementing or merging the synthetic slice.
