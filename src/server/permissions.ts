@@ -5,7 +5,9 @@ export type Permission = "workspace:read" | "members:write" | "roles:write" | "c
   // CRM-06: imports and exports run for writers; merging and the sensitive export columns are owner/admin.
   | "campaigns:read" | "campaigns:write" | "crm:import" | "crm:export" | "crm:export_sensitive" | "contacts:merge"
   // CRM-08: outbound webhook endpoints are owner/admin configuration.
-  | "webhooks:manage";
+  | "webhooks:manage"
+  // HC-02: restricted pending Connect responses (metadata, withdrawal, erasure, retention) are owner/admin.
+  | "connect:privacy";
 export function can(role: string, permission: Permission): boolean {
   if (permission === "workspace:read" || permission === "contacts:read" || permission === "companies:read" || permission === "opportunities:read" || permission === "tasks:read" || permission === "notes:read" || permission === "campaigns:read") return roleIds.includes(role as Role);
   if (permission === "contacts:write" || permission === "companies:write" || permission === "opportunities:write" || permission === "tasks:write" || permission === "notes:write"

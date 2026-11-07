@@ -30,4 +30,9 @@ it("keeps a single snapshot chain and an ordered migration journal (reserved num
   expect(snapshots[22].tables["public.crm_imports"]).toBeDefined();
   expect(snapshots[22].tables["public.crm_import_rows"]).toBeDefined();
   expect(snapshots[23].tables).toEqual(snapshots[22].tables);
+  // HC-02 Connect data foundation follows CRM-08 (0025) as 0026 and only adds tables.
+  expect(journal.entries[26].tag).toBe("0026_hc02_connect_intake");
+  const hc02Tables = ["public.privacy_notice_versions", "public.forms", "public.form_versions", "public.campaign_response_links", "public.campaign_responses", "public.campaign_response_contact_methods", "public.campaign_response_consents"];
+  expect(Object.keys(snapshots[26].tables).sort()).toEqual([...Object.keys(snapshots[25].tables), ...hc02Tables].sort());
+  for (const table of Object.keys(snapshots[25].tables)) expect(snapshots[26].tables[table], table).toEqual(snapshots[25].tables[table]);
 });

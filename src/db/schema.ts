@@ -1,7 +1,8 @@
 import type { BrandTheme } from "../lib/theme-registry";
 import type { campaignStructures, campaignTypes } from "../lib/campaigns";
+import type { ConnectPurpose, formVersionStatuses, responseConsentActors, responseConsentStatuses, responseContactKinds, responseLinkStatuses, responseStatuses } from "../lib/connect-data";
 import { sql } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, integer, bigint, uuid, primaryKey, uniqueIndex, index, foreignKey, check, jsonb, doublePrecision, date, numeric } from "drizzle-orm/pg-core";
+import { pgTable, text, timestamp, boolean, integer, bigint, uuid, primaryKey, uniqueIndex, unique, index, foreignKey, check, jsonb, doublePrecision, date, numeric } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: text("id").primaryKey(), name: text("name").notNull(), email: text("email").notNull().unique(),
@@ -635,3 +636,154 @@ export const aiToolApprovals = pgTable("ai_tool_approvals", {
   check("ai_tool_approval_hash", sql`${t.argsHash} ~ '^[a-f0-9]{64}$'`),
   check("ai_tool_approval_status", sql`${t.status} in ('pending', 'approved', 'rejected', 'consumed')`),
   check("ai_tool_approval_expiry", sql`${t.expiresAt} > ${t.createdAt} and ${t.expiresAt} <= ${t.createdAt} + interval '1 hour'`)]);
+
+// HC-02: canonical Forms storage (owned by Forms, reused by Connect and later registration forms)
+// and immutable privacy notice versions. Notice copy is supplied and published by the workspace;
+// Harvest stores exactly what was presented and its SHA-256, never generated legal text.
+export const privacyNoticeVersions = pgTable("privacy_notice_versions", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
+  noticeKey: text("notice_key").notNull(), version: integer("version").notNull(), locale: text("locale").notNull(),
+  body: text("body").notNull(),
+  // Computed by the insert trigger from body; a caller-supplied value is overwritten.
+  bodySha256: text("body_sha256").notNull(),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  uniqueIndex("privacy_notice_versions_key_idx").on(t.tenantId, t.noticeKey, t.locale, t.version),
+  check("privacy_notice_key", sql`${t.noticeKey} ~ '^[a-z0-9][a-z0-9._-]{0,63}$'`),
+  check("privacy_notice_version", sql`${t.version} >= 1`),
+  check("privacy_notice_locale", sql`${t.locale} ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' and length(${t.locale}) <= 35`),
+  check("privacy_notice_body", sql`length(btrim(${t.body})) between 1 and 20000`),
+  check("privacy_notice_hash", sql`${t.bodySha256} ~ '^[a-f0-9]{64}$'`)]);
+export const forms = pgTable("forms", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
+  name: text("name").notNull(),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  index("forms_tenant_created_idx").on(t.tenantId, t.createdAt, t.id),
+  check("form_name", sql`length(btrim(${t.name})) between 1 and 200 and ${t.name} = btrim(${t.name})`)]);
+export const formVersions = pgTable("form_versions", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), formId: uuid("form_id").notNull(),
+  version: integer("version").notNull(),
+  status: text("status").$type<typeof formVersionStatuses[number]>().notNull().default("draft"),
+  definition: jsonb("definition").$type<Record<string, unknown>>().notNull().default({}),
+  // Each offered purpose is a separate, unchecked opt-in on the published form.
+  offeredPurposes: text("offered_purposes").array().$type<ConnectPurpose[]>().notNull().default(sql`ARRAY[]::text[]`),
+  noticeVersionId: uuid("notice_version_id"),
+  // Workspace-configured, legally reviewed pending-data retention. No platform default exists:
+  // a version cannot publish until it is set. The upper bound only prevents date overflow.
+  pendingRetentionDays: integer("pending_retention_days"),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  publishedAt: timestamp("published_at", { withTimezone: true }), publishedBy: text("published_by").references(() => users.id),
+  retiredAt: timestamp("retired_at", { withTimezone: true }),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.formId], foreignColumns: [forms.tenantId, forms.id] }),
+  foreignKey({ columns: [t.tenantId, t.noticeVersionId], foreignColumns: [privacyNoticeVersions.tenantId, privacyNoticeVersions.id] }),
+  uniqueIndex("form_versions_form_version_idx").on(t.tenantId, t.formId, t.version),
+  check("form_version_number", sql`${t.version} >= 1`),
+  check("form_version_status", sql`${t.status} in ('draft', 'published', 'retired')`),
+  check("form_version_definition", sql`jsonb_typeof(${t.definition}) = 'object' and octet_length(${t.definition}::text) <= 65536`),
+  check("form_version_purposes", sql`${t.offeredPurposes} <@ ARRAY['account_communications', 'outreach_follow_up', 'newsletter']::text[] and array_position(${t.offeredPurposes}, null) is null`),
+  check("form_version_retention", sql`${t.pendingRetentionDays} between 1 and 36500`),
+  check("form_version_publication", sql`(${t.status} = 'draft' and ${t.publishedAt} is null and ${t.publishedBy} is null and ${t.retiredAt} is null)
+    or (${t.status} in ('published', 'retired') and ${t.noticeVersionId} is not null and ${t.pendingRetentionDays} is not null
+      and cardinality(${t.offeredPurposes}) >= 1 and ${t.publishedAt} is not null and ${t.publishedBy} is not null
+      and (${t.status} = 'retired') = (${t.retiredAt} is not null))`)]);
+
+// HC-02: a campaign's public response source (QR code / short URL). HC-03 owns publishing,
+// rotation and disabling; this slice provides draft creation and the constraints.
+export const campaignResponseLinks = pgTable("campaign_response_links", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), campaignId: uuid("campaign_id").notNull(),
+  // Null for a resource-only source: it can never accept a response.
+  formVersionId: uuid("form_version_id"),
+  publicCode: text("public_code").notNull(),
+  status: text("status").$type<typeof responseLinkStatuses[number]>().notNull().default("draft"),
+  locale: text("locale"),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.campaignId], foreignColumns: [campaigns.tenantId, campaigns.id] }),
+  foreignKey({ columns: [t.tenantId, t.formVersionId], foreignColumns: [formVersions.tenantId, formVersions.id] }),
+  // Public resolution is by code alone, so codes are unique across all workspaces.
+  uniqueIndex("campaign_response_links_code_idx").on(t.publicCode),
+  // Target for responses: the link, its campaign and its form version must agree.
+  unique("campaign_response_links_parent_key").on(t.tenantId, t.campaignId, t.id, t.formVersionId),
+  check("campaign_response_link_code", sql`${t.publicCode} ~ '^[a-f0-9]{32}$'`),
+  check("campaign_response_link_status", sql`${t.status} in ('draft', 'published', 'disabled', 'archived')`),
+  check("campaign_response_link_locale", sql`${t.locale} ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' and length(${t.locale}) <= 35`)]);
+
+// HC-02: restricted pending guest intake. Separate from CRM contacts until HC-06 performs an
+// authorized, verified association; nothing here creates a contact, consent or membership.
+export const campaignResponses = pgTable("campaign_responses", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(),
+  campaignId: uuid("campaign_id").notNull(), linkId: uuid("link_id").notNull(), formVersionId: uuid("form_version_id").notNull(),
+  // Client-generated retry key; unique per campaign so a retried submission is one response.
+  publicSubmissionId: uuid("public_submission_id").notNull(),
+  status: text("status").$type<typeof responseStatuses[number]>().notNull().default("pending"),
+  preferredName: text("preferred_name"), locale: text("locale"),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+  // Computed at insert from the form version's retention; never caller-supplied.
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+  // Reserved for HC-06. No role can set it in HC-02.
+  contactId: uuid("contact_id"), associatedAt: timestamp("associated_at", { withTimezone: true }),
+  erasedAt: timestamp("erased_at", { withTimezone: true }),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.campaignId], foreignColumns: [campaigns.tenantId, campaigns.id] }),
+  foreignKey({ columns: [t.tenantId, t.formVersionId], foreignColumns: [formVersions.tenantId, formVersions.id] }),
+  foreignKey({ name: "campaign_responses_link_fk", columns: [t.tenantId, t.campaignId, t.linkId, t.formVersionId], foreignColumns: [campaignResponseLinks.tenantId, campaignResponseLinks.campaignId, campaignResponseLinks.id, campaignResponseLinks.formVersionId] }),
+  foreignKey({ columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }),
+  uniqueIndex("campaign_responses_submission_idx").on(t.tenantId, t.campaignId, t.publicSubmissionId),
+  index("campaign_responses_campaign_idx").on(t.tenantId, t.campaignId, t.submittedAt),
+  index("campaign_responses_expiry_idx").on(t.tenantId, t.expiresAt).where(sql`${t.status} = 'pending'`),
+  index("campaign_responses_contact_idx").on(t.tenantId, t.contactId).where(sql`${t.contactId} is not null`),
+  check("campaign_response_status", sql`${t.status} in ('pending', 'associated', 'erased')`),
+  check("campaign_response_name", sql`${t.preferredName} is null or (length(btrim(${t.preferredName})) between 1 and 100 and ${t.preferredName} = btrim(${t.preferredName}))`),
+  check("campaign_response_locale", sql`${t.locale} ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$' and length(${t.locale}) <= 35`),
+  check("campaign_response_state", sql`(${t.status} = 'pending' and ${t.expiresAt} is not null and ${t.contactId} is null and ${t.associatedAt} is null and ${t.erasedAt} is null)
+    or (${t.status} = 'associated' and ${t.contactId} is not null and ${t.associatedAt} is not null and ${t.erasedAt} is null)
+    or (${t.status} = 'erased' and ${t.erasedAt} is not null and ${t.expiresAt} is null and ${t.contactId} is null and ${t.associatedAt} is null
+      and ${t.preferredName} is null and ${t.locale} is null)`)]);
+// Contact methods awaiting verification. The application role has no grant on this table.
+export const campaignResponseContactMethods = pgTable("campaign_response_contact_methods", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), responseId: uuid("response_id").notNull(),
+  kind: text("kind").$type<typeof responseContactKinds[number]>().notNull(),
+  value: text("value").notNull(), normalizedValue: text("normalized_value").notNull(),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.responseId], foreignColumns: [campaignResponses.tenantId, campaignResponses.id] }).onUpdate("cascade"),
+  uniqueIndex("campaign_response_contact_kind_idx").on(t.tenantId, t.responseId, t.kind),
+  check("campaign_response_contact_kind", sql`${t.kind} in ('email', 'phone')`),
+  check("campaign_response_contact_value", sql`length(${t.value}) between 1 and 254 and length(${t.normalizedValue}) between 1 and 254`)]);
+// Append-only, per-purpose evidence for a pending response: one grant and at most one withdrawal.
+export const campaignResponseConsents = pgTable("campaign_response_consents", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), responseId: uuid("response_id").notNull(),
+  purpose: text("purpose").$type<ConnectPurpose>().notNull(),
+  status: text("status").$type<typeof responseConsentStatuses[number]>().notNull(),
+  channel: text("channel").$type<"email" | "sms">(),
+  // What was presented: the published form version and its immutable notice version.
+  formVersionId: uuid("form_version_id").notNull(), noticeVersionId: uuid("notice_version_id").notNull(),
+  actorKind: text("actor_kind").$type<typeof responseConsentActors[number]>().notNull(),
+  recordedBy: text("recorded_by").references(() => users.id),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  recordedAt: timestamp("recorded_at", { withTimezone: true }).notNull().defaultNow(),
+  redactedAt: timestamp("redacted_at", { withTimezone: true }),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.responseId], foreignColumns: [campaignResponses.tenantId, campaignResponses.id] }).onUpdate("cascade"),
+  foreignKey({ columns: [t.tenantId, t.formVersionId], foreignColumns: [formVersions.tenantId, formVersions.id] }),
+  foreignKey({ columns: [t.tenantId, t.noticeVersionId], foreignColumns: [privacyNoticeVersions.tenantId, privacyNoticeVersions.id] }),
+  uniqueIndex("campaign_response_consents_grant_idx").on(t.tenantId, t.responseId, t.purpose).where(sql`${t.status} = 'granted'`),
+  uniqueIndex("campaign_response_consents_withdrawal_idx").on(t.tenantId, t.responseId, t.purpose).where(sql`${t.status} = 'withdrawn'`),
+  check("campaign_response_consent_purpose", sql`${t.purpose} in ('account_communications', 'outreach_follow_up', 'newsletter')`),
+  check("campaign_response_consent_status", sql`${t.status} in ('granted', 'withdrawn')`),
+  check("campaign_response_consent_channel", sql`${t.channel} in ('email', 'sms')`),
+  check("campaign_response_consent_actor", sql`(${t.actorKind} = 'subject' and ${t.recordedBy} is null)
+    or (${t.actorKind} = 'staff' and (${t.recordedBy} is not null or ${t.redactedAt} is not null))`),
+  // Grants come only from the person; staff can record a withdrawal on their behalf, never a grant.
+  check("campaign_response_consent_grantor", sql`${t.status} = 'withdrawn' or ${t.actorKind} = 'subject'`),
+  check("campaign_response_consent_occurrence", sql`${t.occurredAt} <= ${t.recordedAt} + interval '5 minutes'`),
+  check("campaign_response_consent_redaction", sql`${t.redactedAt} is null or (${t.channel} is null and ${t.recordedBy} is null)`)]);

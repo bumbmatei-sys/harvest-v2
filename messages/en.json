@@ -1479,6 +1479,9 @@
     "cancel": "Cancel",
     "suggestion": "Merge"
   },
+  "ConnectData": {
+    "responseNotFound": "Response not found"
+  },
   "Connect": {
     "brand": "Harvest Connect",
     "language": "English",
