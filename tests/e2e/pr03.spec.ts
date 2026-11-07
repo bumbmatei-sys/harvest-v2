@@ -36,6 +36,9 @@ test("PR03: each theme, semantic colors, profile locale persistence, screenshots
     }));
     expect(hardcoded).toEqual([]);
     expect((await page.locator("body").innerText())).not.toContain("MISSING_MESSAGE");
+    // A theme switch animates colors (for example transition-colors on grid rows); measuring contrast mid-transition
+    // reads a blend of the old and new theme. Wait until no CSS transition is running, as crm07.spec.ts does.
+    await page.waitForFunction(() => document.getAnimations().every((animation) => !(animation instanceof CSSTransition) || animation.playState !== "running"));
     const axe = await new AxeBuilder({ page }).analyze();
     results.push({ screen, violations: axe.violations.length });
     expect(axe.violations, screen).toEqual([]);

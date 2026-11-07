@@ -219,6 +219,7 @@ A fresh, separate Claude session reviewed the PR read-only at `034f222`. It foun
 | **S4.** The approval gate cannot tell the person from a model acting under their session. The approval stores only a hash, so a review screen cannot show what is being approved from server-held data. | Deferred to the runtime as a hard requirement (see "Deferred"). Nothing calls `decideToolApproval` today. |
 | Nit: queued deliveries ignored later subscription changes. | Fixed (cancelled at send time). Test. |
 | Nit: `3fff::/20` and `5f00::/16` were not blocked. | Fixed. Unit test. |
+| Follow-up review (at `42919ae`): S1, S2, the subscription cancel and the IPv6 ranges verified, and the S3/S4 corrections are accurate. Two nits remain. If recording an outcome fails after a send, the lease later expires and the delivery is sent once more, so delivery is at-least-once (receivers dedupe on `harvest-event-id`). A cancel for an unsubscribed type reuses the code `ENDPOINT_INACTIVE`. | Both documented and accepted. |
 | Nits: no cap on approval requests; tool outputs contain free text (names, titles, an Organization description) that a model must treat as untrusted data; outbox events still pending when the first endpoint is created will be delivered to it. | Recorded under "Deferred". |
 
 ## Deferred (exact remaining work)
@@ -236,7 +237,7 @@ A fresh, separate Claude session reviewed the PR read-only at `034f222`. It foun
 - **Scheduled webhook delivery and a settings UI.**
   - There is no production scheduler for the job drain or the delivery pass; both are operator-run.
   - Enabling delivery needs: a scheduler, `HARVEST_WEBHOOK_SIGNING_KEY` from the secret store, `HARVEST_WEBHOOK_DELIVERY=enabled` per environment, an egress policy review, and then an owner/admin settings screen (endpoints, secret shown once, delivery history).
-  - Receivers verify the signature and should reject timestamps older than 5 minutes.
+  - Receivers verify the signature, should reject timestamps older than 5 minutes, and must dedupe on `harvest-event-id`: delivery is at-least-once.
 - **Public API keys and OAuth for third-party callers.** The CRM API is session-authenticated only.
 - **More events** if consumers need them:
   - per-record People/Organization events for **CSV imports** (today only `crm.import.*` counts);
