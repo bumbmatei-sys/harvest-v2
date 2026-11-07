@@ -568,3 +568,70 @@ export const webhookResourceStates = pgTable("webhook_resource_states", {
   foreignKey({ columns: [t.tenantId, t.eventId], foreignColumns: [externalWebhookEvents.tenantId, externalWebhookEvents.id] }),
   check("webhook_state_sequence", sql`${t.sequence} >= 0`),
 ]);
+
+// CRM-08: outbound CRM webhooks (endpoints and per-event deliveries) and AI tool approvals.
+export const crmWebhookEndpointStatuses = ["active", "disabled"] as const;
+export const crmWebhookEndpoints = pgTable("crm_webhook_endpoints", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
+  // HTTPS destination, validated on save and re-validated (with DNS) before every delivery.
+  url: text("url").notNull(),
+  // CRM event types this endpoint receives (see src/server/crm-events.ts).
+  eventTypes: text("event_types").array().notNull(),
+  status: text("status").$type<typeof crmWebhookEndpointStatuses[number]>().notNull().default("active"),
+  // The signing secret is derived from a server key and this counter; rotating bumps it. No secret is stored.
+  secretVersion: integer("secret_version").notNull().default(1),
+  version: integer("version").notNull().default(1),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  check("crm_webhook_endpoint_url", sql`length(${t.url}) between 12 and 2000 and ${t.url} like 'https://%'`),
+  check("crm_webhook_endpoint_events", sql`cardinality(${t.eventTypes}) between 1 and 50`),
+  check("crm_webhook_endpoint_status", sql`${t.status} in ('active', 'disabled')`),
+  check("crm_webhook_endpoint_versions", sql`${t.secretVersion} >= 1 and ${t.version} >= 1`)]);
+
+export const crmWebhookDeliveryStatuses = ["pending", "in_flight", "succeeded", "dead", "cancelled"] as const;
+export const crmWebhookDeliveryErrors = ["TIMEOUT", "NETWORK", "BLOCKED_DESTINATION", "INVALID_DESTINATION", "HTTP_STATUS", "REDIRECT", "ENDPOINT_INACTIVE", "EVENT_UNAVAILABLE", "LEASE_EXPIRED"] as const;
+export const crmWebhookDeliveries = pgTable("crm_webhook_deliveries", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
+  endpointId: uuid("endpoint_id").notNull(),
+  // The outbox row is the event; its id is the stable event id sent on every attempt.
+  eventId: uuid("event_id").notNull(), eventType: text("event_type").notNull(),
+  status: text("status").$type<typeof crmWebhookDeliveryStatuses[number]>().notNull().default("pending"),
+  attempts: integer("attempts").notNull().default(0), maxAttempts: integer("max_attempts").notNull().default(6),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }).notNull().defaultNow(),
+  lockedAt: timestamp("locked_at", { withTimezone: true }), lockToken: uuid("lock_token"),
+  // Outcome codes only: never the URL, request body, response body or headers.
+  lastStatusCode: integer("last_status_code"), lastError: text("last_error").$type<typeof crmWebhookDeliveryErrors[number]>(),
+  deliveredAt: timestamp("delivered_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.endpointId], foreignColumns: [crmWebhookEndpoints.tenantId, crmWebhookEndpoints.id] }).onDelete("cascade"),
+  foreignKey({ columns: [t.tenantId, t.eventId], foreignColumns: [outboxEvents.tenantId, outboxEvents.id] }),
+  uniqueIndex("crm_webhook_deliveries_event_idx").on(t.tenantId, t.endpointId, t.eventId),
+  index("crm_webhook_deliveries_due_idx").on(t.tenantId, t.status, t.nextAttemptAt),
+  check("crm_webhook_delivery_status", sql`${t.status} in ('pending', 'in_flight', 'succeeded', 'dead', 'cancelled')`),
+  check("crm_webhook_delivery_attempts", sql`${t.attempts} >= 0 and ${t.maxAttempts} between 1 and 20 and ${t.attempts} <= ${t.maxAttempts}`),
+  check("crm_webhook_delivery_error", sql`${t.lastError} is null or ${t.lastError} in ('TIMEOUT', 'NETWORK', 'BLOCKED_DESTINATION', 'INVALID_DESTINATION', 'HTTP_STATUS', 'REDIRECT', 'ENDPOINT_INACTIVE', 'EVENT_UNAVAILABLE', 'LEASE_EXPIRED')`),
+  check("crm_webhook_delivery_status_code", sql`${t.lastStatusCode} is null or ${t.lastStatusCode} between 100 and 599`),
+  check("crm_webhook_delivery_type", sql`length(${t.eventType}) between 1 and 100`)]);
+
+export const aiToolApprovalStatuses = ["pending", "approved", "rejected", "consumed"] as const;
+export const aiToolApprovals = pgTable("ai_tool_approvals", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
+  tool: text("tool").notNull(),
+  // SHA-256 of the canonical, validated arguments. The arguments themselves are not stored.
+  argsHash: text("args_hash").notNull(),
+  // The person on whose behalf the tool runs; only they can approve it and only they can use the approval.
+  requestedBy: text("requested_by").notNull().references(() => users.id),
+  status: text("status").$type<typeof aiToolApprovalStatuses[number]>().notNull().default("pending"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  decidedAt: timestamp("decided_at", { withTimezone: true }), consumedAt: timestamp("consumed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  index("ai_tool_approvals_requester_idx").on(t.tenantId, t.requestedBy, t.createdAt),
+  check("ai_tool_approval_tool", sql`${t.tool} ~ '^crm_[a-z_]{1,60}$'`),
+  check("ai_tool_approval_hash", sql`${t.argsHash} ~ '^[a-f0-9]{64}$'`),
+  check("ai_tool_approval_status", sql`${t.status} in ('pending', 'approved', 'rejected', 'consumed')`),
+  check("ai_tool_approval_expiry", sql`${t.expiresAt} > ${t.createdAt} and ${t.expiresAt} <= ${t.createdAt} + interval '1 hour'`)]);

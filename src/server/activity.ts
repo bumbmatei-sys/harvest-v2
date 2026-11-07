@@ -6,6 +6,7 @@ import { AccessError } from "./permissions";
 import { message } from "../i18n/messages";
 import { uuidInput } from "../lib/contact-input";
 import { withTenant } from "./tenancy";
+import { emitCrmEvent } from "./crm-events";
 
 /**
  * CRM activity is the append-only audit ledger, not a second copy of events.
@@ -23,8 +24,28 @@ export const timelineActions = [...crmActions, "opportunity.create", "opportunit
 export type CrmAction = typeof crmActions[number];
 export type ActivityMetadata = { companyId?: string; fields?: string };
 
+/**
+ * Writes the ledger row and, in the same transaction, the matching CRM-08 lifecycle event. The
+ * ledger row id keys the outbox entry, so each audited People/Organization change emits exactly once.
+ */
 export async function recordActivity(tx: Transaction, event: { tenantId: string; actorId: string; action: CrmAction; targetId: string; metadata?: ActivityMetadata }) {
-  await tx.insert(auditLogs).values({ tenantId: event.tenantId, actorId: event.actorId, action: event.action, targetId: event.targetId, metadata: { ...event.metadata } });
+  const [row] = await tx.insert(auditLogs).values({ tenantId: event.tenantId, actorId: event.actorId, action: event.action, targetId: event.targetId, metadata: { ...event.metadata } }).returning({ id: auditLogs.id });
+  const key = `crm:activity:${row.id}`, base = { tenantId: event.tenantId, actorId: event.actorId };
+  // Field names recorded by the writer (never values); the contract rejects any name it does not list.
+  const fields = () => (event.metadata?.fields ? event.metadata.fields.split(",").filter(Boolean) : []) as never[];
+  switch (event.action) {
+    case "contact.create": return emitCrmEvent(tx, event.tenantId, "crm.person.created", key, { ...base, contactId: event.targetId });
+    case "contact.update": return emitCrmEvent(tx, event.tenantId, "crm.person.updated", key, { ...base, contactId: event.targetId,
+      // A full-form save does not record field names; it may have changed any of them.
+      fields: event.metadata?.fields ? fields() : ["name", "notes", "email", "phone", "social"] });
+    case "contact.company_link": return emitCrmEvent(tx, event.tenantId, "crm.person.organization_linked", key, { ...base, contactId: event.targetId, companyId: event.metadata!.companyId! });
+    case "contact.company_link_update": return emitCrmEvent(tx, event.tenantId, "crm.person.organization_link_updated", key, { ...base, contactId: event.targetId, companyId: event.metadata!.companyId!, fields: fields() });
+    case "contact.company_unlink": return emitCrmEvent(tx, event.tenantId, "crm.person.organization_unlinked", key, { ...base, contactId: event.targetId, companyId: event.metadata!.companyId! });
+    case "company.create": return emitCrmEvent(tx, event.tenantId, "crm.organization.created", key, { ...base, companyId: event.targetId });
+    case "company.update": return emitCrmEvent(tx, event.tenantId, "crm.organization.updated", key, { ...base, companyId: event.targetId, fields: fields() });
+    // contact.consent_record and contact.merge are written by their own paths, which emit their own events.
+    default: return undefined;
+  }
 }
 
 export type ActivityItem = {

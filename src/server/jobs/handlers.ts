@@ -1,7 +1,9 @@
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Transaction } from "../../db/client";
-import { externalWebhookEvents, jobs, webhookResourceStates } from "../../db/schema";
+import { externalWebhookEvents, jobs, outboxEvents, webhookResourceStates } from "../../db/schema";
+import { crmEnvelope, crmEventTypes, type CrmEventEnvelope, type CrmEventType } from "../crm-events";
+import { fanOutWebhookDeliveries } from "../crm-webhooks";
 import { JobFailure } from "./primitives";
 
 export type Job = typeof jobs.$inferSelect;
@@ -10,7 +12,36 @@ export type Job = typeof jobs.$inferSelect;
 export type JobHandler = (tx: Transaction, job: Job) => Promise<void>;
 export type JobHandlers = Readonly<Record<string, JobHandler>>;
 const webhookPayload = z.object({ eventId: z.uuid() }).strict();
-export const jobHandlers: JobHandlers = {
+/**
+ * CRM-08 consumer boundary. Every CRM event type has one job handler that rebuilds the typed envelope
+ * from the outbox row (the stable event id), validates it against its contract, and hands it to each
+ * subscriber that accepts the type, inside the job's transaction (so a failing subscriber retries the
+ * whole event and no subscriber sees a half-applied one).
+ *
+ * Subscribers today: outbound CRM webhooks. Workflow automation and AI/context consumers are NOT
+ * implemented yet; they register here when they exist (docs/acceptance/crm-08.md).
+ */
+export type CrmEventSubscriber = { name: string; accepts: (type: CrmEventType) => boolean; handle: (tx: Transaction, event: CrmEventEnvelope) => Promise<unknown> };
+export const crmEventSubscribers: readonly CrmEventSubscriber[] = [
+  { name: "crm-webhooks", accepts: () => true, handle: fanOutWebhookDeliveries },
+];
+export function crmEventHandler(subscribers: readonly CrmEventSubscriber[] = crmEventSubscribers): JobHandler {
+  return async (tx, job) => {
+    // Dispatched jobs are keyed outbox:<event id>; anything else did not come from the outbox.
+    const source = /^outbox:([0-9a-f-]{36})$/.exec(job.idempotencyKey);
+    if (!source) throw new JobFailure("INVALID_JOB_PAYLOAD");
+    const [event] = await tx.select().from(outboxEvents).where(and(eq(outboxEvents.tenantId, job.tenantId), eq(outboxEvents.id, source[1])));
+    // The job payload is the one that ran; the outbox supplies identity and time.
+    const envelope = event && event.kind === job.kind ? crmEnvelope({ ...event, payload: job.payload as Record<string, unknown> }) : null;
+    if (!envelope) throw new JobFailure("INVALID_JOB_PAYLOAD");
+    for (const subscriber of subscribers) if (subscriber.accepts(envelope.type)) await subscriber.handle(tx, envelope);
+  };
+}
+export function buildJobHandlers(subscribers: readonly CrmEventSubscriber[] = crmEventSubscribers): JobHandlers {
+  const crm = crmEventHandler(subscribers);
+  return { ...baseHandlers, ...Object.fromEntries(crmEventTypes.map((type) => [type, crm])) };
+}
+const baseHandlers: JobHandlers = {
   "webhook.synthetic": async (tx, job) => {
     const input = webhookPayload.safeParse(job.payload);
     if (!input.success) throw new JobFailure("INVALID_JOB_PAYLOAD");
@@ -29,19 +60,5 @@ export const jobHandlers: JobHandlers = {
   // Domain events can safely enter the queue before consumers are released.
   // A deliberate no-op receipt is the entire Phase 1 domain handler.
   "domain.receipt": async () => {},
-  // CRM-05 domain events: receipts only until automation consumers exist (CRM-08).
-  "crm.task.created": async () => {},
-  "crm.task.updated": async () => {},
-  "crm.task.completed": async () => {},
-  "crm.task.reassigned": async () => {},
-  "crm.note.created": async () => {},
-  "crm.note.updated": async () => {},
-  "crm.note.archived": async () => {},
-  // CRM-06: receipts only (counts and ids); consumers come later.
-  "crm.import.completed": async () => {},
-  "crm.import.failed": async () => {},
-  "crm.import.rolled_back": async () => {},
-  "crm.merge.completed": async () => {},
-  // CRM-07: receipt only (ids and categories); consumers come later.
-  "crm.association.recorded": async () => {},
 };
+export const jobHandlers: JobHandlers = buildJobHandlers();

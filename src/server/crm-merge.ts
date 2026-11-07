@@ -4,7 +4,7 @@ import { and, count, eq, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import type { Database, Transaction } from "../db/client";
 import { contactCompanyLinks, contactConsents, contactIdentifiers, contacts, crmAssociations, crmFieldDefinitions, crmFieldValues, crmNotes, crmTasks, opportunities } from "../db/schema";
 import { uuidInput } from "../lib/contact-input";
-import { appendOutboxEvent } from "./jobs/outbox";
+import { emitCrmEvent } from "./crm-events";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
 
@@ -79,8 +79,7 @@ export function mergeContacts(db: Database, userId: string, workspace: string, t
     if (!moved) throw missing();
     // Counts and the kept person's id only (erasure scrubs contactId). Neither the merged person's id
     // nor any contact id goes into the key, which erasure cannot scrub; a merge happens once anyway.
-    await appendOutboxEvent(tx, tenantId, { kind: "crm.merge.completed", idempotencyKey: `crm:merge:${randomUUID()}`,
-      payload: { contactId: targetId, tenantId, actorId: userId, moved } });
+    await emitCrmEvent(tx, tenantId, "crm.merge.completed", `crm:merge:${randomUUID()}`, { contactId: targetId, tenantId, actorId: userId, moved });
     return { id: targetId, moved };
   });
 }

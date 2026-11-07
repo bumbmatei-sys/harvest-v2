@@ -176,6 +176,13 @@
       "when": 1793998010292,
       "tag": "0024_crm_associations",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1794027514824,
+      "tag": "0025_crm_webhooks_ai_approvals",
+      "breakpoints": true
     }
   ]
 }

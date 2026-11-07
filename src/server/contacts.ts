@@ -11,6 +11,7 @@ import { loadRecordValues } from "./crm-fields";
 import { recordActivity } from "./activity";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
+import { emitCrmEvent } from "./crm-events";
 
 const kinds = ["email", "phone", "social"] as const;
 type Kind = typeof kinds[number];
@@ -253,6 +254,8 @@ export function recordConsent(db: Database, userId: string, workspace: string, c
     if (!parent) throw contactMissing();
     const [consent] = await tx.insert(contactConsents).values({ ...input, tenantId, contactId: id, recordedBy: userId, occurredAt: input.occurredAt ? new Date(input.occurredAt) : new Date() }).returning();
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "contact.consent_record", targetId: id, metadata: { consentId: consent.id, channel: input.channel, status: input.status } });
+    // Purpose, channel and status only: the source and evidence stay in the consent ledger.
+    await emitCrmEvent(tx, tenantId, "crm.person.consent_recorded", `crm:consent:${consent.id}`, { tenantId, actorId: userId, contactId: id, consentId: consent.id, purpose: input.purpose, channel: input.channel, status: input.status });
     return consent;
   });
 }

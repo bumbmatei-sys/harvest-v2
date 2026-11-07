@@ -10,6 +10,7 @@ import {
 import { likePattern } from "./crm-filters";
 import { AccessError, can } from "./permissions";
 import { withTenant } from "./tenancy";
+import { emitCrmEvent } from "./crm-events";
 import { z } from "zod";
 
 const missingDeal = () => new AccessError(404, message("Errors.thisDealIsNotAvailable"));
@@ -354,6 +355,8 @@ export function createDeal(db: Database, userId: string, workspace: string, data
       position: await nextPosition(tx, tenantId, stage.id), createdBy: userId,
     }).returning({ id: opportunities.id, version: opportunities.version }).catch(guarded);
     await audit(tx, tenantId, userId, "opportunity.create", row.id, { toStageId: stage.id });
+    await emitCrmEvent(tx, tenantId, "crm.deal.created", `crm:deal:${row.id}:created`, { tenantId, actorId: userId, opportunityId: row.id, pipelineId: pipeline.id, stageId: stage.id,
+      contactId: input.contactId ?? null, companyId: input.companyId ?? null });
     return row;
   });
 }
@@ -396,6 +399,10 @@ export function updateDeal(db: Database, userId: string, workspace: string, deal
     if (!row) throw stale();
     // Field names only, never amounts, names or reasons.
     await audit(tx, tenantId, userId, archive === "archive" ? "opportunity.archive" : archive === "restore" ? "opportunity.restore" : "opportunity.update", id, changed.length ? { fields: changed.join(",") } : {});
+    // Keyed by the version this write produced, so each committed change emits exactly once.
+    const event = { tenantId, actorId: userId, opportunityId: id };
+    if (changed.length) await emitCrmEvent(tx, tenantId, "crm.deal.updated", `crm:deal:${id}:v${row.version}:updated`, { ...event, fields: changed });
+    if (archive) await emitCrmEvent(tx, tenantId, archive === "archive" ? "crm.deal.archived" : "crm.deal.restored", `crm:deal:${id}:v${row.version}:${archive}`, event);
     return row;
   });
 }
@@ -422,6 +429,9 @@ export function moveDeal(db: Database, userId: string, workspace: string, deal: 
     }).where(and(eq(opportunities.tenantId, tenantId), eq(opportunities.id, id), eq(opportunities.version, input.version))).returning({ id: opportunities.id, version: opportunities.version, stageId: opportunities.stageId }).catch(guarded);
     if (!row) throw stale();
     await audit(tx, tenantId, userId, "opportunity.move", id, { fromStageId: current.stageId, toStageId: target.id, ...(closedReason ? { fields: "closedReason" } : {}) });
+    // The stage kind lets consumers react to won/lost without reading stage names; the reason text stays private.
+    await emitCrmEvent(tx, tenantId, "crm.deal.stage_changed", `crm:deal:${id}:v${row.version}:stage`, { tenantId, actorId: userId, opportunityId: id, pipelineId: current.pipelineId,
+      fromStageId: current.stageId, toStageId: target.id, toStageKind: target.kind, contactId: current.contactId, companyId: current.companyId });
     return row;
   });
 }
