@@ -5,7 +5,7 @@ import { auditLogs, companies, contacts, crmNotes, crmNotifications, crmTasks, o
 import { uuidInput } from "../lib/contact-input";
 import { RELATED_TASKS_LIMIT, TASK_PAGE_SIZE, noteInput, notePatch, taskInput, taskPatch, zonedDay, zonedToInstant, type NoteInput, type NotePatch, type TaskInput, type TaskPatch, type TaskQuery } from "../lib/crm-tasks";
 import { likePattern } from "./crm-filters";
-import { appendOutboxEvent } from "./jobs/outbox";
+import { emitCrmEvent } from "./crm-events";
 import { AccessError, can } from "./permissions";
 import { withTenant } from "./tenancy";
 
@@ -74,7 +74,7 @@ function taskPayload(task: TaskRow, actorId: string) {
     taskId: task.id, tenantId: task.tenantId, actorId, version: task.version, status: task.status, priority: task.priority,
     dueAt: task.dueAt ? task.dueAt.toISOString() : null, assigneeId: task.assigneeUserId,
     contactId: task.contactId, companyId: task.companyId, opportunityId: task.opportunityId,
-    body: { redacted: true, length: task.body.length },
+    body: { redacted: true as const, length: task.body.length },
   };
 }
 
@@ -92,7 +92,7 @@ export function createTask(db: Database, userId: string, workspace: string, data
     }).returning().catch(guarded);
     await audit(tx, tenantId, userId, "task.create", task.id, relationMetadata(relations));
     await notifyAssignee(tx, tenantId, userId, task.id, task.assigneeUserId);
-    await appendOutboxEvent(tx, tenantId, { kind: "crm.task.created", idempotencyKey: `crm:task:${task.id}:created`, payload: taskPayload(task, userId) });
+    await emitCrmEvent(tx, tenantId, "crm.task.created", `crm:task:${task.id}:created`, taskPayload(task, userId));
     return { id: task.id, version: task.version };
   });
 }
@@ -131,19 +131,19 @@ export function updateTask(db: Database, userId: string, workspace: string, task
     const key = (event: string) => `crm:task:${id}:v${row.version}:${event}`;
     if (changed.includes("status")) {
       await audit(tx, tenantId, userId, status === "done" ? "task.complete" : "task.reopen", id, relations);
-      if (status === "done") await appendOutboxEvent(tx, tenantId, { kind: "crm.task.completed", idempotencyKey: key("completed"), payload: taskPayload(row, userId) });
+      if (status === "done") await emitCrmEvent(tx, tenantId, "crm.task.completed", key("completed"), taskPayload(row, userId));
     }
     if (changed.includes("assigneeUserId")) {
       await audit(tx, tenantId, userId, "task.reassign", id, { ...relations, ...(row.assigneeUserId ? { toUserId: row.assigneeUserId } : {}), ...(current.assigneeUserId ? { fromUserId: current.assigneeUserId } : {}) });
       await notifyAssignee(tx, tenantId, userId, id, row.assigneeUserId);
-      await appendOutboxEvent(tx, tenantId, { kind: "crm.task.reassigned", idempotencyKey: key("reassigned"), payload: { ...taskPayload(row, userId), previousAssigneeId: current.assigneeUserId } });
+      await emitCrmEvent(tx, tenantId, "crm.task.reassigned", key("reassigned"), { ...taskPayload(row, userId), previousAssigneeId: current.assigneeUserId });
     }
     const other = changed.filter((item) => item !== "status" && item !== "assigneeUserId");
     if (other.length || archive) {
       await audit(tx, tenantId, userId, archive === "archive" ? "task.archive" : archive === "restore" ? "task.restore" : "task.update", id, { ...relations, ...(other.length ? { fields: other.join(",") } : {}) });
     }
     if (other.length || archive || (changed.includes("status") && status === "open")) {
-      await appendOutboxEvent(tx, tenantId, { kind: "crm.task.updated", idempotencyKey: key("updated"), payload: { ...taskPayload(row, userId), fields: [...other, ...(changed.includes("status") ? ["status"] : []), ...(archive ? ["archived"] : [])].join(",") } });
+      await emitCrmEvent(tx, tenantId, "crm.task.updated", key("updated"), { ...taskPayload(row, userId), fields: [...other, ...(changed.includes("status") ? ["status"] : []), ...(archive ? ["archived"] : [])].join(",") });
     }
     return { id, version: row.version };
   });
@@ -253,7 +253,7 @@ export function createNote(db: Database, userId: string, workspace: string, data
     await checkRelations(tx, tenantId, relations);
     const [note] = await tx.insert(crmNotes).values({ tenantId, body: input.body, ...relations, createdBy: userId }).returning().catch(guarded);
     await audit(tx, tenantId, userId, "note.create", note.id, relationMetadata(relations));
-    await appendOutboxEvent(tx, tenantId, { kind: "crm.note.created", idempotencyKey: `crm:note:${note.id}:created`, payload: notePayload(note, userId) });
+    await emitCrmEvent(tx, tenantId, "crm.note.created", `crm:note:${note.id}:created`, notePayload(note, userId));
     return { id: note.id, version: note.version };
   });
 }
@@ -261,7 +261,7 @@ type NoteRow = typeof crmNotes.$inferSelect;
 /** Note bodies never leave the database in events: length only. */
 function notePayload(note: NoteRow, actorId: string) {
   return { noteId: note.id, tenantId: note.tenantId, actorId, version: note.version, contactId: note.contactId, companyId: note.companyId, opportunityId: note.opportunityId,
-    archived: !!note.archivedAt, body: { redacted: true, length: note.body.length } };
+    archived: !!note.archivedAt, body: { redacted: true as const, length: note.body.length } };
 }
 /** Authors edit or archive their own notes; owners and admins can moderate any note. */
 export function updateNote(db: Database, userId: string, workspace: string, note: string, data: NotePatch) {
@@ -288,7 +288,7 @@ export function updateNote(db: Database, userId: string, workspace: string, note
     if (!row) throw stale();
     const relations = relationMetadata({ contactId: row.contactId, companyId: row.companyId, opportunityId: row.opportunityId });
     await audit(tx, tenantId, userId, archive === "archive" ? "note.archive" : archive === "restore" ? "note.restore" : "note.update", id, relations);
-    await appendOutboxEvent(tx, tenantId, { kind: archive === "archive" ? "crm.note.archived" : "crm.note.updated", idempotencyKey: `crm:note:${id}:v${row.version}:${archive === "archive" ? "archived" : "updated"}`, payload: notePayload(row, userId) });
+    await emitCrmEvent(tx, tenantId, archive === "archive" ? "crm.note.archived" : "crm.note.updated", `crm:note:${id}:v${row.version}:${archive === "archive" ? "archived" : "updated"}`, notePayload(row, userId));
     return { id, version: row.version };
   });
 }

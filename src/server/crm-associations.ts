@@ -5,7 +5,7 @@ import type { Database, Transaction } from "../db/client";
 import { associationKinds, associationPurposes, associationSources, auditLogs, companies, contactIdentifiers, contacts, crmAssociations } from "../db/schema";
 import { phoneField, socialField, uuidInput } from "../lib/contact-input";
 import { normalizeDomain } from "../lib/crm-input";
-import { appendOutboxEvent } from "./jobs/outbox";
+import { emitCrmEvent } from "./crm-events";
 import { pgCode } from "./contacts";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
@@ -115,10 +115,10 @@ export function recordAssociation(db: Database, userId: string, workspace: strin
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "association.record", targetId: row.id,
       metadata: { contactId, ...(companyId ? { companyId } : {}), source: row.source, kind: row.kind, purpose: row.purpose } });
     // Ids and categories only: the summary and raw payload never leave the table.
-    await appendOutboxEvent(tx, tenantId, { kind: "crm.association.recorded", idempotencyKey: `crm:association:${row.id}:recorded`, payload: {
+    await emitCrmEvent(tx, tenantId, "crm.association.recorded", `crm:association:${row.id}:recorded`, {
       associationId: row.id, tenantId, actorId: userId, contactId, companyId, source: row.source, kind: row.kind, purpose: row.purpose,
       occurredAt: row.occurredAt.toISOString(), summary: { redacted: true, length: row.summary.length }, payload: { redacted: true },
-    } });
+    });
     return { stored: true, duplicate: false, id: row.id, contactId };
   });
 }

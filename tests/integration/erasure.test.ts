@@ -186,9 +186,13 @@ describe("controlled contact erasure", () => {
     await flushOutbox(fixture.db, "eraser-a", tenantA);
     await createNote(fixture.db, "eraser-a", tenantA, { target: "person", targetId: a.id, body: "Restricted note" });
     const payloads = async () => (await fixture.admin.query(
-      "select 'outbox' as source, dispatched_at is not null as dispatched, payload from outbox_events where tenant_id=$1 and kind like 'crm.%' union all select 'job', true, payload from jobs where tenant_id=$1 and kind like 'crm.%'", [tenantA])).rows as { source: string; dispatched: boolean; payload: Record<string, unknown> }[];
+      "select 'outbox' as source, id, kind, dispatched_at is not null as dispatched, payload from outbox_events where tenant_id=$1 and kind like 'crm.%' union all select 'job', id, kind, true, payload from jobs where tenant_id=$1 and kind like 'crm.%'", [tenantA])).rows as { source: string; id: string; kind: string; dispatched: boolean; payload: Record<string, unknown> }[];
     const before = await payloads();
-    expect(before.filter((row) => row.payload.contactId === a.id).map((row) => `${row.source}:${row.dispatched}`).sort()).toEqual(["job:true", "outbox:false", "outbox:true"]);
+    // CRM-08: person.created and consent_recorded also name the person, next to CRM-05's task and note events.
+    const named = before.filter((row) => row.payload.contactId === a.id);
+    expect(named.map((row) => `${row.source}:${row.kind}:${row.dispatched}`).sort()).toEqual([
+      "job:crm.person.consent_recorded:true", "job:crm.person.created:true", "job:crm.task.created:true",
+      "outbox:crm.note.created:false", "outbox:crm.person.consent_recorded:true", "outbox:crm.person.created:true", "outbox:crm.task.created:true"]);
     await fixture.admin.query("create role harvest_test_eraser nologin nosuperuser nobypassrls noinherit");
     restrictedRoleCreated = true;
     await fixture.admin.query("grant usage, create on schema public to harvest_test_eraser");
@@ -212,7 +216,8 @@ describe("controlled contact erasure", () => {
     expect(rows.length).toBeGreaterThan(0);
     const after = await payloads();
     expect(after).toHaveLength(before.length);
-    expect(after.every((row) => row.payload.contactId === null)).toBe(true);
+    const key = (row: { source: string; id: string }) => `${row.source}:${row.id}`, namedKeys = new Set(named.map(key));
+    expect(after.filter((row) => namedKeys.has(key(row))).every((row) => row.payload.contactId === null)).toBe(true);
     expect(JSON.stringify(after)).not.toContain(a.id);
     expect((await fixture.admin.query("select proowner::regrole::text as owner from pg_proc where oid='public.erase_contact(uuid,uuid)'::regprocedure")).rows[0]).toEqual({ owner: "harvest_test_eraser" });
     expect((await fixture.admin.query("select rolbypassrls,rolsuper from pg_roles where rolname='harvest_test_eraser'")).rows[0]).toEqual({ rolbypassrls: false, rolsuper: false });

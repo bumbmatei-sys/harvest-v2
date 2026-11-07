@@ -9,7 +9,7 @@ import {
   IMPORT_CHUNK, IMPORT_PREVIEW_PAGE, companyReference, importCreate, importPatch, mappingSchema, parseCompanyRow, parsePersonRow, suggestMapping,
   type CompanyRow, type ImportCreate, type ImportEntity, type ImportPatch, type PersonRow, type RowError, type RowWarning,
 } from "../lib/crm-import";
-import { appendOutboxEvent } from "./jobs/outbox";
+import { emitCrmEvent } from "./crm-events";
 import { pgCode } from "./contacts";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
@@ -321,8 +321,7 @@ async function finalize(tx: Transaction, tenantId: string, userId: string, curre
   const metadata = Object.fromEntries(Object.entries(counts).map(([key, value]) => [key, String(value)]));
   await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: `crm.import.${status}`, targetId: current.id, metadata: { entity: current.entity, ...metadata } });
   // Counts and ids only: no cell, name or identifier ever reaches the outbox.
-  await appendOutboxEvent(tx, tenantId, { kind: `crm.import.${status}`, idempotencyKey: `crm:import:${current.id}:${status}`,
-    payload: { importId: current.id, tenantId, actorId: userId, entity: current.entity, total: current.rowCount, ...counts } });
+  await emitCrmEvent(tx, tenantId, `crm.import.${status}` as "crm.import.completed" | "crm.import.failed", `crm:import:${current.id}:${status}`, { importId: current.id, tenantId, actorId: userId, entity: current.entity, total: current.rowCount, ...counts });
   return row;
 }
 
@@ -341,8 +340,7 @@ export function rollbackImport(db: Database, userId: string, workspace: string, 
     }
     if (!result) throw missing();
     const [current] = await tx.select().from(crmImports).where(and(eq(crmImports.tenantId, tenantId), eq(crmImports.id, id)));
-    await appendOutboxEvent(tx, tenantId, { kind: "crm.import.rolled_back", idempotencyKey: `crm:import:${id}:rolled_back`,
-      payload: { importId: id, tenantId, actorId: userId, entity: current.entity, ...result } });
+    await emitCrmEvent(tx, tenantId, "crm.import.rolled_back", `crm:import:${id}:rolled_back`, { importId: id, tenantId, actorId: userId, entity: current.entity, ...result });
     return { ...summary(current), result };
   });
 }
