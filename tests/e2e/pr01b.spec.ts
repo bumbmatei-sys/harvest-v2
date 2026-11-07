@@ -210,6 +210,13 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
   test.setTimeout(600_000);
   const pageErrors: string[] = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
+  // Next's dev-only issues badge sits in the bottom-left corner, over the collapsed sidebar's footer trigger, and
+  // swallows clicks whenever a dev warning has been logged. It is tooling, not the app (page errors are still asserted).
+  await page.addInitScript(() => document.addEventListener("DOMContentLoaded", () => {
+    const style = document.createElement("style");
+    style.textContent = "nextjs-portal { display: none !important; }";
+    document.head.append(style);
+  }));
   await mkdir(evidence, { recursive: true });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.goto("/sign-in");
