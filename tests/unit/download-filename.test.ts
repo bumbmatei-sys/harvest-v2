@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { downloadDisposition } from "../../src/lib/download-filename";
 import { csvResponse } from "../../src/server/csv-response";
 import { S3Storage } from "../../src/server/storage/s3";
 
@@ -21,6 +22,7 @@ const cases = [
   ["می\u200cخواهم.csv", "می\u200cخواهم.csv"], ["👨\u200d👩\u200d👧 family.csv", "👨\u200d👩\u200d👧 family.csv"],
   ["a\u2028b\u2029c.csv", "a_b_c.csv"], ["\ufeffbom\u200b.csv", "_bom_.csv"], ["lone\ud800.csv", "lone\ufffd.csv"],
   ["semi;colon=\"x\".csv", "semi;colon=_x_.csv"],
+  ["\u200d", "download"], ["\u200c\u200d\u200d", "download"],
   ["../input-problems.csv", "__input-problems.csv"],
 ] as const;
 
@@ -48,5 +50,13 @@ describe("actual download header boundaries", () => {
     // The signer is mocked: no storage request, credentials, or delivery.
     const storage = new S3Storage({ endpoint: "http://localhost:9000", bucket: "test", region: "test", accessKeyId: "test", secretAccessKey: "test" });
     check(await storage.presignDownload("workspaces/test/files/test", name), expected);
+  });
+
+  it("pins the quoted ASCII fallback next to the exact filename* value", () => {
+    expect(downloadDisposition("München 日本 🌱.csv")).toBe(
+      `attachment; filename="M_nchen __ __.csv"; filename*=UTF-8''M%C3%BCnchen%20%E6%97%A5%E6%9C%AC%20%F0%9F%8C%B1.csv`);
+    expect(downloadDisposition("O'Brien (final).csv")).toBe(
+      `attachment; filename="O'Brien (final).csv"; filename*=UTF-8''O%27Brien%20%28final%29.csv`);
+    expect(downloadDisposition("../a\r\nb.csv")).toBe(`attachment; filename="__a__b.csv"; filename*=UTF-8''__a__b.csv`);
   });
 });

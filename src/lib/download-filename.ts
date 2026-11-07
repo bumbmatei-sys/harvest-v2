@@ -7,7 +7,7 @@ export function downloadDisposition(name: string) {
     .replace(/[/\\:"<>|?*%]/g, "_")
     .replace(/\.{2,}/g, "_")
     .replace(/^[.\s]+|[.\s]+$/g, "");
-  const filename = /[^_\s]/u.test(safe) ? safe : "download";
+  const filename = /[^_\s\u200c\u200d]/u.test(safe) ? safe : "download";
   const ascii = filename.replace(/[^\x20-\x7e]/g, "_");
   const encoded = encodeURIComponent(filename).replace(/['()*]/g, (char) => `%${char.charCodeAt(0).toString(16).toUpperCase()}`);
   return `attachment; filename="${ascii}"; filename*=UTF-8''${encoded}`;
