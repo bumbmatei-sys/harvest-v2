@@ -187,6 +187,47 @@ describe("fan-out and delivery", () => {
     expect((await deliveries(tenant))[0]).toMatchObject({ status: "dead", last_error: "BLOCKED_DESTINATION" });
   });
 
+  it("never sends a delivery twice when passes overlap, and retries a failed DNS lookup instead of giving up (review S1, S2)", async () => {
+    const tenant = (await createWorkspace(fixture.db, "owner-a", "CRM-08 overlap")).tenantId;
+    await createWebhookEndpoint(fixture.db, "owner-a", tenant, { url: "https://hooks.example.org/overlap", eventTypes: ["crm.person.created"] }, KEY);
+    await createContact(fixture.db, "owner-a", tenant, { name: "Synthetic Overlap One" });
+    await createContact(fixture.db, "owner-a", tenant, { name: "Synthetic Overlap Two" });
+    await drainJobs(fixture.db, "owner-a", tenant, "test");
+    // While pass 1 is in the middle of its first send, pass 2 runs to completion.
+    const sent: string[] = [];
+    let second: Promise<unknown> | null = null;
+    const transport: Transport = async (request) => {
+      sent.push(request.headers["harvest-event-id"]);
+      if (!second) { second = run(tenant, { transport }); await second; }
+      return { status: 204 };
+    };
+    const first = await run(tenant, { transport });
+    expect(sent).toHaveLength(2);
+    expect(new Set(sent).size).toBe(2);
+    expect(first).toMatchObject({ attempted: 1, succeeded: 1 });
+    expect(await second).toMatchObject({ attempted: 1, succeeded: 1 });
+    expect((await deliveries(tenant)).map((row) => [row.status, row.attempts])).toEqual([["succeeded", 1], ["succeeded", 1]]);
+    // A lookup that fails (or hangs past its limit) is retried later; it is not a reason to give up.
+    await createContact(fixture.db, "owner-a", tenant, { name: "Synthetic Overlap Three" });
+    await drainJobs(fixture.db, "owner-a", tenant, "test");
+    const calls: TransportRequest[] = [];
+    await run(tenant, { transport: async (request) => { calls.push(request); return { status: 204 }; }, resolve: async () => { throw new Error("SERVFAIL"); } });
+    expect(calls).toHaveLength(0);
+    expect((await deliveries(tenant)).at(-1)).toMatchObject({ status: "pending", attempts: 1, last_error: "NETWORK" });
+  });
+
+  it("does not send queued deliveries for an event type the endpoint no longer subscribes to", async () => {
+    const tenant = (await createWorkspace(fixture.db, "owner-a", "CRM-08 unsubscribe")).tenantId;
+    const hook = await createWebhookEndpoint(fixture.db, "owner-a", tenant, { url: "https://hooks.example.org/types", eventTypes: ["crm.person.created", "crm.organization.created"] }, KEY);
+    await createContact(fixture.db, "owner-a", tenant, { name: "Synthetic Unsubscribe" });
+    await drainJobs(fixture.db, "owner-a", tenant, "test");
+    await updateWebhookEndpoint(fixture.db, "owner-a", tenant, hook.endpoint.id, { version: 1, eventTypes: ["crm.organization.created"] }, KEY);
+    const { calls, transport } = recorder();
+    await run(tenant, { transport });
+    expect(calls).toHaveLength(0);
+    expect((await deliveries(tenant))[0]).toMatchObject({ status: "cancelled", last_error: "ENDPOINT_INACTIVE" });
+  });
+
   it("cancels deliveries for disabled endpoints, recovers expired leases, keeps workspaces apart and sends erased ids as null", async () => {
     const tenant = (await createWorkspace(fixture.db, "owner-a", "CRM-08 edges")).tenantId;
     const hook = await createWebhookEndpoint(fixture.db, "owner-a", tenant, { url: "https://hooks.example.org/edges", eventTypes: ["crm.person.created"] }, KEY);

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, count, desc, eq, inArray, lte, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, lte, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
 import { auditLogs, crmWebhookDeliveries, crmWebhookEndpoints, outboxEvents } from "../db/schema";
@@ -22,6 +22,7 @@ import {
  */
 export const MAX_ENDPOINTS_PER_WORKSPACE = 10;
 export const DELIVERY_TIMEOUT_MS = 10_000;
+// One attempt is at most DNS_TIMEOUT_MS + DELIVERY_TIMEOUT_MS; the lease leaves ample margin over that.
 export const DELIVERY_LEASE_MS = 60_000;
 const eventTypes = z.array(z.enum(crmEventTypes as [CrmEventType, ...CrmEventType[]])).min(1).max(50)
   .refine((list) => new Set(list).size === list.length, "DUPLICATE_EVENT_TYPE");
@@ -148,60 +149,66 @@ type Outcome = { ok: true; status: number } | { ok: false; error: "TIMEOUT" | "N
 export type DeliveryOptions = { transport?: Transport; resolve?: Resolver; signingKey?: string | null; enabled?: boolean; limit?: number; now?: () => Date };
 
 /**
- * One delivery pass (operator-run, like the job drain). Claims due deliveries in a short transaction,
- * sends them with no transaction open, then records each outcome against its lease token.
+ * One delivery pass (operator-run, like the job drain). Deliveries go ONE AT A TIME: claim one in a short
+ * transaction, send it with no transaction open, record its outcome against the lease token, then claim the
+ * next. A lease therefore only has to cover a single bounded attempt (DNS + timeout), so an overlapping pass
+ * cannot take over an item this pass is about to send.
  */
 export async function runWebhookDeliveries(db: Database, userId: string, workspace: string, options: DeliveryOptions = {}) {
   const enabled = options.enabled ?? webhookDeliveryEnabled(), signingKey = options.signingKey === undefined ? webhookSigningKey() : options.signingKey;
   const limit = z.number().int().min(1).max(100).parse(options.limit ?? 25), hint = uuidInput.parse(workspace);
   // Membership and permission are checked even when sending is off.
-  const claimed = await withTenant(db, userId, hint, "jobs:operate", async (tx, tenantId) => {
-    if (!enabled || !signingKey) return null;
-    // A crashed pass leaves leases behind; those attempts count, then the delivery is retried or dead.
-    const expired = await tx.select().from(crmWebhookDeliveries).where(and(eq(crmWebhookDeliveries.tenantId, tenantId), eq(crmWebhookDeliveries.status, "in_flight"),
-      sql`${crmWebhookDeliveries.lockedAt} <= now() - ${DELIVERY_LEASE_MS} * interval '1 millisecond'`)).limit(100).for("update", { skipLocked: true });
-    for (const row of expired) await tx.update(crmWebhookDeliveries).set(failure(row.attempts, row.maxAttempts, "LEASE_EXPIRED"))
-      .where(and(eq(crmWebhookDeliveries.tenantId, tenantId), eq(crmWebhookDeliveries.id, row.id)));
-    const due = await tx.select().from(crmWebhookDeliveries).where(and(eq(crmWebhookDeliveries.tenantId, tenantId), eq(crmWebhookDeliveries.status, "pending"),
-      lte(crmWebhookDeliveries.nextAttemptAt, sql`now()`))).orderBy(asc(crmWebhookDeliveries.nextAttemptAt), asc(crmWebhookDeliveries.id)).limit(limit).for("update", { skipLocked: true });
-    if (!due.length) return { tenantId, items: [] as Claimed[] };
-    const endpoints = await tx.select().from(crmWebhookEndpoints).where(and(eq(crmWebhookEndpoints.tenantId, tenantId), inArray(crmWebhookEndpoints.id, [...new Set(due.map((row) => row.endpointId))])));
-    const events = await tx.select().from(outboxEvents).where(and(eq(outboxEvents.tenantId, tenantId), inArray(outboxEvents.id, [...new Set(due.map((row) => row.eventId))])));
-    const items: Claimed[] = [];
-    for (const row of due) {
-      const endpoint = endpoints.find((item) => item.id === row.endpointId);
-      const event = events.find((item) => item.id === row.eventId);
-      const envelope = event ? crmEnvelope(event) : null;
-      const where = and(eq(crmWebhookDeliveries.tenantId, tenantId), eq(crmWebhookDeliveries.id, row.id));
-      if (!endpoint || endpoint.status !== "active") { await tx.update(crmWebhookDeliveries).set({ status: "cancelled", lastError: "ENDPOINT_INACTIVE", updatedAt: sql`now()` }).where(where); continue; }
-      // The event is read at send time, so an erasure that ran after the write is already reflected.
-      if (!envelope) { await tx.update(crmWebhookDeliveries).set({ status: "dead", lastError: "EVENT_UNAVAILABLE", updatedAt: sql`now()` }).where(where); continue; }
-      const token = randomUUID();
-      await tx.update(crmWebhookDeliveries).set({ status: "in_flight", attempts: sql`${crmWebhookDeliveries.attempts} + 1`, lockedAt: sql`now()`, lockToken: token, updatedAt: sql`now()` }).where(where);
-      items.push({ id: row.id, token, url: endpoint.url, endpointId: endpoint.id, secretVersion: endpoint.secretVersion, body: JSON.stringify(envelope),
-        eventId: envelope.id, eventType: envelope.type, attempts: row.attempts + 1, maxAttempts: row.maxAttempts });
-    }
-    return { tenantId, items };
-  });
-  if (!claimed) return { disabled: true as const, attempted: 0, succeeded: 0, retrying: 0, dead: 0 };
+  const tenantId = await withTenant(db, userId, hint, "jobs:operate", async (_tx, tenant) => tenant);
+  if (!enabled || !signingKey) return { disabled: true as const, attempted: 0, succeeded: 0, retrying: 0, dead: 0 };
   const now = options.now ?? (() => new Date()), transport = options.transport ?? httpsTransport, resolve = options.resolve ?? systemResolver;
-  const outcomes: { item: Claimed; outcome: Outcome }[] = [];
-  for (const item of claimed.items) {
-    outcomes.push({ item, outcome: await attempt(item, claimed.tenantId, signingKey!, transport, resolve, now) });
-  }
-  const summary = { disabled: false as const, attempted: outcomes.length, succeeded: 0, retrying: 0, dead: 0 };
-  if (!outcomes.length) return summary;
-  await withTenant(db, userId, hint, "jobs:operate", async (tx, tenantId) => {
-    for (const { item, outcome } of outcomes) {
+  const summary = { disabled: false as const, attempted: 0, succeeded: 0, retrying: 0, dead: 0 };
+  for (let i = 0; i < limit; i++) {
+    const item = await withTenant(db, userId, hint, "jobs:operate", (tx) => claimNext(tx, tenantId));
+    if (item === "none") break;
+    if (item === "skipped") continue;
+    summary.attempted++;
+    const outcome = await attempt(item, tenantId, signingKey, transport, resolve, now);
+    const status = await withTenant(db, userId, hint, "jobs:operate", async (tx) => {
       const values = outcome.ok
         ? { status: "succeeded" as const, lastStatusCode: outcome.status, lastError: null, deliveredAt: sql`now()`, lockedAt: null, lockToken: null, updatedAt: sql`now()` }
         : { ...failure(item.attempts, outcome.permanent ? item.attempts : item.maxAttempts, outcome.error), lastStatusCode: outcome.status ?? null };
       const [row] = await tx.update(crmWebhookDeliveries).set(values).where(and(eq(crmWebhookDeliveries.tenantId, tenantId), eq(crmWebhookDeliveries.id, item.id),
         eq(crmWebhookDeliveries.status, "in_flight"), eq(crmWebhookDeliveries.lockToken, item.token))).returning({ status: crmWebhookDeliveries.status });
-      if (row?.status === "succeeded") summary.succeeded++; else if (row?.status === "dead") summary.dead++; else if (row) summary.retrying++;
-    }
-  });
+      return row?.status;
+    });
+    if (status === "succeeded") summary.succeeded++; else if (status === "dead") summary.dead++; else if (status) summary.retrying++;
+  }
   return summary;
+}
+
+/** Recovers expired leases, then claims the next due delivery (or settles it without sending). */
+async function claimNext(tx: Transaction, tenantId: string): Promise<Claimed | "none" | "skipped"> {
+  // A crashed pass leaves leases behind; those attempts count, then the delivery is retried or dead.
+  const expired = await tx.select().from(crmWebhookDeliveries).where(and(eq(crmWebhookDeliveries.tenantId, tenantId), eq(crmWebhookDeliveries.status, "in_flight"),
+    sql`${crmWebhookDeliveries.lockedAt} <= now() - ${DELIVERY_LEASE_MS} * interval '1 millisecond'`)).limit(100).for("update", { skipLocked: true });
+  for (const row of expired) await tx.update(crmWebhookDeliveries).set(failure(row.attempts, row.maxAttempts, "LEASE_EXPIRED"))
+    .where(and(eq(crmWebhookDeliveries.tenantId, tenantId), eq(crmWebhookDeliveries.id, row.id)));
+  const [row] = await tx.select().from(crmWebhookDeliveries).where(and(eq(crmWebhookDeliveries.tenantId, tenantId), eq(crmWebhookDeliveries.status, "pending"),
+    lte(crmWebhookDeliveries.nextAttemptAt, sql`now()`))).orderBy(asc(crmWebhookDeliveries.nextAttemptAt), asc(crmWebhookDeliveries.id)).limit(1).for("update", { skipLocked: true });
+  if (!row) return "none";
+  const where = and(eq(crmWebhookDeliveries.tenantId, tenantId), eq(crmWebhookDeliveries.id, row.id));
+  const [endpoint] = await tx.select().from(crmWebhookEndpoints).where(and(eq(crmWebhookEndpoints.tenantId, tenantId), eq(crmWebhookEndpoints.id, row.endpointId)));
+  // Endpoint changes apply to queued deliveries: disabled, or no longer subscribed to this type, means not sent.
+  if (!endpoint || endpoint.status !== "active" || !endpoint.eventTypes.includes(row.eventType)) {
+    await tx.update(crmWebhookDeliveries).set({ status: "cancelled", lastError: "ENDPOINT_INACTIVE", updatedAt: sql`now()` }).where(where);
+    return "skipped";
+  }
+  const [event] = await tx.select().from(outboxEvents).where(and(eq(outboxEvents.tenantId, tenantId), eq(outboxEvents.id, row.eventId)));
+  // The event is read at send time, so an erasure that ran after the write is already reflected.
+  const envelope = event ? crmEnvelope(event) : null;
+  if (!envelope) {
+    await tx.update(crmWebhookDeliveries).set({ status: "dead", lastError: "EVENT_UNAVAILABLE", updatedAt: sql`now()` }).where(where);
+    return "skipped";
+  }
+  const token = randomUUID();
+  await tx.update(crmWebhookDeliveries).set({ status: "in_flight", attempts: sql`${crmWebhookDeliveries.attempts} + 1`, lockedAt: sql`now()`, lockToken: token, updatedAt: sql`now()` }).where(where);
+  return { id: row.id, token, url: endpoint.url, endpointId: endpoint.id, secretVersion: endpoint.secretVersion, body: JSON.stringify(envelope),
+    eventId: envelope.id, eventType: envelope.type, attempts: row.attempts + 1, maxAttempts: row.maxAttempts };
 }
 
 function failure(attempts: number, maxAttempts: number, error: NonNullable<typeof crmWebhookDeliveries.$inferInsert["lastError"]>) {
@@ -213,7 +220,7 @@ function failure(attempts: number, maxAttempts: number, error: NonNullable<typeo
 async function attempt(item: Claimed, tenantId: string, signingKey: string, transport: Transport, resolve: Resolver, now: () => Date): Promise<Outcome> {
   // Re-validated on every attempt: DNS may have changed since the endpoint was saved.
   const target = await resolveDestination(item.url, resolve);
-  if (!target.ok) return { ok: false, error: target.error, permanent: true };
+  if (!target.ok) return { ok: false, error: target.error, permanent: target.error !== "NETWORK" };
   const timestamp = Math.floor(now().getTime() / 1000).toString();
   const secret = endpointSecret(signingKey, tenantId, item.endpointId, item.secretVersion);
   try {

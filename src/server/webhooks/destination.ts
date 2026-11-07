@@ -20,7 +20,7 @@ for (const [network, prefix] of [
 ] as const) blocked.addSubnet(network, prefix, "ipv4");
 for (const [network, prefix] of [
   // (::/96 and ::ffff:0:0/96 are handled in isBlockedAddress: a BlockList IPv6 rule for them would also match every IPv4 address.)
-  ["::", 127], ["64:ff9b::", 96], ["64:ff9b:1::", 48], ["100::", 64], ["2001::", 23], ["2001:db8::", 32], ["2002::", 16],
+  ["::", 127], ["64:ff9b::", 96], ["3fff::", 20], ["5f00::", 16], ["64:ff9b:1::", 48], ["100::", 64], ["2001::", 23], ["2001:db8::", 32], ["2002::", 16],
   ["fc00::", 7], ["fe80::", 10], ["fec0::", 10], ["ff00::", 8],
 ] as const) blocked.addSubnet(network, prefix, "ipv6");
 
@@ -61,14 +61,20 @@ export function parseDestination(raw: string): URL | null {
 
 export type Resolver = (hostname: string) => Promise<{ address: string; family: number }[]>;
 export const systemResolver: Resolver = (hostname) => dnsLookup(hostname, { all: true, verbatim: true });
-export type ResolvedDestination = { ok: true; url: URL; address: string; family: 4 | 6 } | { ok: false; error: "INVALID_DESTINATION" | "BLOCKED_DESTINATION" };
+export type ResolvedDestination = { ok: true; url: URL; address: string; family: 4 | 6 } | { ok: false; error: "INVALID_DESTINATION" | "BLOCKED_DESTINATION" | "NETWORK" };
+export const DNS_TIMEOUT_MS = 5_000;
 
 /** Full check right before sending: syntax, then every resolved address must be public. */
 export async function resolveDestination(raw: string, resolve: Resolver = systemResolver): Promise<ResolvedDestination> {
   const url = parseDestination(raw);
   if (!url) return { ok: false, error: "INVALID_DESTINATION" };
   let addresses: { address: string; family: number }[];
-  try { addresses = await resolve(url.hostname); } catch { return { ok: false, error: "INVALID_DESTINATION" }; }
+  // A failed or slow lookup is temporary (retried later), never a reason to call some other address.
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    addresses = await Promise.race([resolve(url.hostname), new Promise<never>((_, reject) => { timer = setTimeout(() => reject(new Error("DNS_TIMEOUT")), DNS_TIMEOUT_MS); })]);
+  } catch { return { ok: false, error: "NETWORK" }; }
+  finally { clearTimeout(timer); }
   if (!addresses.length || addresses.some((entry) => isBlockedAddress(entry.address))) return { ok: false, error: "BLOCKED_DESTINATION" };
   const chosen = addresses[0];
   return { ok: true, url, address: chosen.address, family: isIP(chosen.address) === 6 ? 6 : 4 };

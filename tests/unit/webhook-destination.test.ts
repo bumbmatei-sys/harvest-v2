@@ -17,7 +17,7 @@ describe("CRM webhook destinations (SSRF guard)", () => {
   it("blocks private, loopback, link-local, metadata, CGNAT, multicast and mapped addresses", () => {
     for (const address of ["127.0.0.1", "10.1.2.3", "172.16.0.1", "172.31.255.255", "192.168.1.1", "169.254.169.254", "100.64.0.1", "0.0.0.0", "224.0.0.1",
       "255.255.255.255", "198.18.0.1", "::1", "::", "fe80::1", "fc00::1", "fd12:3456::1", "::ffff:127.0.0.1", "::ffff:7f00:1", "::ffff:169.254.169.254",
-      "64:ff9b::a9fe:a9fe", "2001:db8::1", "ff02::1", "0:0:0:0:0:0:0:1", "0:0:0:0:0:0:0:0", "::127.0.0.1", "not-an-ip"]) expect(isBlockedAddress(address), address).toBe(true);
+      "64:ff9b::a9fe:a9fe", "2001:db8::1", "ff02::1", "0:0:0:0:0:0:0:1", "0:0:0:0:0:0:0:0", "::127.0.0.1", "3fff::1", "5f00::1", "not-an-ip"]) expect(isBlockedAddress(address), address).toBe(true);
     for (const address of ["93.184.216.34", "8.8.8.8", "2606:4700:4700::1111", "2a00:1450:4001:80b::200e"]) expect(isBlockedAddress(address), address).toBe(false);
   });
 
@@ -26,7 +26,7 @@ describe("CRM webhook destinations (SSRF guard)", () => {
     expect(await resolveDestination("https://hooks.example.org/x", resolver(["93.184.216.34", "10.0.0.5"]))).toEqual({ ok: false, error: "BLOCKED_DESTINATION" });
     expect(await resolveDestination("https://hooks.example.org/x", resolver(["::ffff:10.0.0.5"]))).toEqual({ ok: false, error: "BLOCKED_DESTINATION" });
     expect(await resolveDestination("https://hooks.example.org/x", resolver([]))).toEqual({ ok: false, error: "BLOCKED_DESTINATION" });
-    expect(await resolveDestination("https://hooks.example.org/x", async () => { throw new Error("ENOTFOUND"); })).toEqual({ ok: false, error: "INVALID_DESTINATION" });
+    expect(await resolveDestination("https://hooks.example.org/x", async () => { throw new Error("ENOTFOUND"); })).toEqual({ ok: false, error: "NETWORK" });
     expect(await resolveDestination("http://hooks.example.org/x", resolver(["93.184.216.34"]))).toEqual({ ok: false, error: "INVALID_DESTINATION" });
     const ok = await resolveDestination("https://hooks.example.org/x", resolver(["93.184.216.34"]));
     expect(ok).toMatchObject({ ok: true, address: "93.184.216.34", family: 4 });

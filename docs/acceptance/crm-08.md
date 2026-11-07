@@ -40,7 +40,8 @@ It does not build a workflow designer, an AI chat or model gateway, a general in
 
 - **Single emission path.** `emitCrmEvent(tx, …)` is the only way CRM code emits an event. It validates the payload against its **strict** schema, so an extra key fails the write instead of leaking. It also refuses a tenant mismatch. It then writes the outbox row in the caller's transaction.
 - **Where events come from.**
-  - People and Organization events come from `recordActivity`. The ledger row id is the idempotency key, so each audited write emits exactly once. No route emits anything.
+  - People and Organization events come from `recordActivity`. The ledger row id is the idempotency key, so each write that goes through it emits exactly once. No route emits anything.
+  - **Not covered by per-record events:** People and Organizations created or filled by a CSV import, and custom field edits (CRM-03). Those paths write their ledger rows directly. An import is visible only as the aggregate `crm.import.completed` (counts); custom field edits emit nothing. See "Deferred".
   - Consent events come from `recordConsent`.
   - Deal events come from `createDeal`, `updateDeal` and `moveDeal`, keyed by the version they produced.
   - Existing CRM-05/06/07 emitters now call `emitCrmEvent` too.
@@ -85,12 +86,13 @@ It does not build a workflow designer, an AI chat or model gateway, a general in
 
 **Delivery** (`src/server/crm-webhooks.ts`, `src/server/webhooks/destination.ts`)
 - **Fan-out.** The webhook subscriber writes one `crm_webhook_deliveries` row per active endpoint subscribed to the type. A unique `(endpoint, event)` key makes job retries and replays create nothing new.
-- **Sending** is an operator pass, `runWebhookDeliveries`, also available as `npm run jobs:drain -- <user> <workspace> deliver`, and needs `jobs:operate`. It:
-  1. claims due deliveries in a short transaction (`SKIP LOCKED`, lease token);
-  2. sends with **no transaction open**;
-  3. records each outcome against the lease token.
+- **Sending** is an operator pass, `runWebhookDeliveries`, also available as `npm run jobs:drain -- <user> <workspace> deliver`, and needs `jobs:operate`. It works **one delivery at a time**:
+  1. claim it in a short transaction (`SKIP LOCKED`, lease token);
+  2. send it with **no transaction open**;
+  3. record the outcome against the lease token;
+  4. then claim the next one.
 
-  Crashed leases are recovered (`LEASE_EXPIRED`, which counts as an attempt).
+  A lease (60 s) only ever covers one attempt, which is at most a 5-second lookup plus a 10-second send. So an overlapping pass cannot take over, and re-send, an item this pass is still working on. Crashed leases are recovered (`LEASE_EXPIRED`, which counts as an attempt).
 - **Payload.** The JSON envelope is read from the outbox **at send time**, so an erasure that ran after the write is already reflected.
 - **Headers and signing.** Requests carry `harvest-event-id`, `harvest-event-type`, `harvest-timestamp` and `harvest-signature: v1=<hex>`. The signature is HMAC-SHA256 over `"<event id>.<timestamp>.<body>"`. The per-endpoint secret is **derived** from a server key (`HARVEST_WEBHOOK_SIGNING_KEY`, at least 32 characters), the endpoint id and a rotation counter. No secret is stored in the database.
 - **Destination safety (SSRF).**
@@ -99,15 +101,15 @@ It does not build a workflow designer, an AI chat or model gateway, a general in
     - private, loopback and link-local (including 169.254.169.254 metadata);
     - CGNAT and documentation ranges;
     - multicast and reserved;
-    - IPv6 unique-local, link-local and NAT64;
+    - IPv6 unique-local, link-local, NAT64, 6to4 and documentation ranges (including 3fff::/20 and 5f00::/16);
     - IPv4-mapped and IPv4-compatible IPv6, judged by the embedded IPv4.
   - The connection is **pinned** to the checked address, so a second DNS answer cannot rebind it.
   - **Redirects are never followed:** a 3xx is a failure (`REDIRECT`).
 - **Bounds.**
   - 10-second timeout per attempt; the response body is discarded after 4 KB.
   - At most 6 attempts with exponential backoff, then `dead`.
-  - Blocked or invalid destinations go straight to `dead`.
-  - Disabled or deleted endpoints are `cancelled`.
+  - Blocked or invalid destinations go straight to `dead`. A failed or slow address lookup (5-second limit) is a retryable `NETWORK` failure.
+  - Disabled or deleted endpoints, and event types the endpoint no longer subscribes to, are `cancelled` at send time.
 - **Redacted records.** Only status and error codes are stored, never the URL, body, headers or response.
 - **No real deliveries in development.**
   - Sending happens only when `HARVEST_WEBHOOK_DELIVERY=enabled` **and** a signing key is set. Otherwise the pass returns `{ disabled: true }` and claims nothing.
@@ -184,6 +186,7 @@ No visible copy changed apart from new error messages in `messages/en.json` (pro
 | Consumer boundary | Subscribers get the validated envelope (`id` = outbox id). A payload outside its contract retries, then dead-letters without calling subscribers. Jobs not dispatched from the outbox are refused. Erased ids are null. |
 | Webhooks | `crm08-webhooks.test.ts` covers FORCE RLS, exact grants, and no rows without a tenant context; owner/admin only (member, viewer and other workspaces denied, foreign ids 404); and unsafe URLs, unknown or duplicate event types, a missing key and the 10-endpoint cap. |
 | Delivery | Idempotent fan-out, and nothing sent while delivery is off. The body is an envelope signed with the derived secret, sent to the pinned address with a stable event id; the delivery list has no URL or body. Retries with backoff (500, redirect, timeout, then 503 and dead). |
+| Overlap and retries (review) | Overlapping passes send each delivery once. A failed DNS lookup is retried, not dead. An unsubscribed type is cancelled. Both new tests fail on the previous implementation. |
 | Delivery edge cases | A destination that rebinds to the metadata address or IPv4-mapped loopback is never called. Leases are recovered. Workspace B's operator cannot touch A. Erased ids are sent as null. Disabled endpoints are cancelled. |
 | AI tools | `crm08-ai-tools.test.ts` covers role-filtered tool lists with JSON schemas; reads through services with no sensitive fields or activity content; and cross-workspace, unknown-record, unknown-tool and extra-argument denial. |
 | Approvals | Fail closed (none, pending, viewer). Bound to person, tool, arguments and workspace. Single use (replay → 409). Rejected and expired refused. Permissions rechecked after a role change. A failed write doesn't spend the approval. The SQL guard holds under RLS. |
@@ -204,6 +207,20 @@ No visible copy changed apart from new error messages in `messages/en.json` (pro
 
 See the PR description for the final head SHA and the GitHub "Foundation CI" results.
 
+## Independent review
+
+A fresh, separate Claude session reviewed the PR read-only at `034f222`. It found no blockers. Every should-fix item is either fixed or explicitly deferred:
+
+| Finding | Outcome |
+| --- | --- |
+| **S1.** A pass claimed a batch, then sent its items one by one. Later items could outlive their lease, and an overlapping pass would re-send them; the first pass's results were dropped. | Fixed: one-at-a-time claim, send and record, plus a 5-second lookup limit. Regression test. |
+| **S2.** A temporary DNS failure marked the delivery dead on the first attempt. | Fixed: it is now a retryable `NETWORK` failure. Regression test. |
+| **S3.** This record overclaimed: imports and custom field edits emit no per-record People events. | Record corrected (section 1 and "Deferred"). |
+| **S4.** The approval gate cannot tell the person from a model acting under their session. The approval stores only a hash, so a review screen cannot show what is being approved from server-held data. | Deferred to the runtime as a hard requirement (see "Deferred"). Nothing calls `decideToolApproval` today. |
+| Nit: queued deliveries ignored later subscription changes. | Fixed (cancelled at send time). Test. |
+| Nit: `3fff::/20` and `5f00::/16` were not blocked. | Fixed. Unit test. |
+| Nits: no cap on approval requests; tool outputs contain free text (names, titles, an Organization description) that a model must treat as untrusted data; outbox events still pending when the first endpoint is created will be delivered to it. | Recorded under "Deferred". |
+
 ## Deferred (exact remaining work)
 
 - **Workflow automation.** Rules, a trigger/condition/action model, execution logs and a designer. The event contracts and subscriber boundary are ready; no workflow subscriber exists, and nothing executes workflows.
@@ -211,11 +228,21 @@ See the PR description for the final head SHA and the GitHub "Foundation CI" res
   - The model gateway (Vercel AI SDK adapter), conversations and memory, usage ledger, budgets, model routing and fallbacks.
   - A context subscriber that indexes CRM events.
   - The **human approval screen** that calls `decideToolApproval`. Until it exists, write tools cannot run in the product; that is deny-by-default by design.
+  - Requirements for that screen (from the review):
+    - The decision must come from a signal only a person can produce, such as a UI-only route with an origin check plus a one-time nonce or step-up confirmation. It must never be reachable from tool dispatch or by the model, which runs under the same user identity.
+    - The approval must hold the canonical arguments, or a server-made summary, so the person sees what they approve from server-held data. If it holds personal data, erasure must cover it.
+    - Cap or rate-limit pending approvals per person.
+    - Treat every tool output as untrusted data, not instructions (PRD 8.-05). Names, titles and descriptions are free text.
 - **Scheduled webhook delivery and a settings UI.**
   - There is no production scheduler for the job drain or the delivery pass; both are operator-run.
   - Enabling delivery needs: a scheduler, `HARVEST_WEBHOOK_SIGNING_KEY` from the secret store, `HARVEST_WEBHOOK_DELIVERY=enabled` per environment, an egress policy review, and then an owner/admin settings screen (endpoints, secret shown once, delivery history).
   - Receivers verify the signature and should reject timestamps older than 5 minutes.
 - **Public API keys and OAuth for third-party callers.** The CRM API is session-authenticated only.
-- **More events** if consumers need them: person erasure (it cannot carry the id), field-value changes (CRM-03), pipeline and stage configuration changes, import row detail.
+- **More events** if consumers need them:
+  - per-record People/Organization events for **CSV imports** (today only `crm.import.*` counts);
+  - **custom field** value changes (CRM-03; field names are `cf:<key>`, so the field-name contract must allow them);
+  - person erasure (it cannot carry the id);
+  - pipeline and stage configuration changes.
+- **First endpoint backlog.** Outbox events not yet dispatched when the first endpoint is created will be delivered to it. Decide whether to start subscriptions from the creation time.
 - **Delivery retention.** Delivery rows and outbox rows are never pruned.
 - Email/calendar sync remains out of scope.
