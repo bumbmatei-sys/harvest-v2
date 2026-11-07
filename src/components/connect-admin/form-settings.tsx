@@ -30,7 +30,7 @@ export function IntakeFormSettings({endpoint,versions}:{endpoint:string;versions
    purposes:[...(followUp?["outreach_follow_up"]:[]),...(newsletter?["newsletter"]:[])]}});
   setBusy(false);if(!result.ok){setError(result.error);return;}setDone(true);router.refresh();
  }
- return <form action={()=>void submit()}><FieldGroup>
+ return <form onSubmit={event=>{event.preventDefault();if(!busy)void submit();}}><FieldGroup>
   <Alert><AlertDescription>{t("testNotice")}</AlertDescription></Alert>
   {error&&<Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
   <Field><FieldLabel htmlFor={`${id}-revision`}>{t("revision")}</FieldLabel><NativeSelect id={`${id}-revision`} value={revision} onChange={e=>choose(e.target.value)} className="min-h-11"><NativeSelectOption value="">{t("newForm")}</NativeSelectOption>{versions.map(v=><NativeSelectOption key={v.id} value={v.id}>{t("version",{name:v.name,version:v.version})}</NativeSelectOption>)}</NativeSelect></Field>

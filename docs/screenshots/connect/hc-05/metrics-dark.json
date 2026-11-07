@@ -1,0 +1,31 @@
+{
+  "scheme": "dark",
+  "geometry": {
+    "width": 768,
+    "overflow": 0,
+    "controls": [
+      {
+        "width": 44,
+        "height": 44
+      },
+      {
+        "width": 44,
+        "height": 44
+      },
+      {
+        "width": 686,
+        "height": 44
+      },
+      {
+        "width": 686,
+        "height": 44
+      },
+      {
+        "width": 686,
+        "height": 44
+      }
+    ]
+  },
+  "axeViolations": 0,
+  "scans": 6
+}

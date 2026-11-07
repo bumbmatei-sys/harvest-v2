@@ -28,6 +28,11 @@ for(const scheme of ["light","dark"] as const) {
   const publishedResponse=await published;expect(publishedResponse.status()).toBe(201);const version=(await publishedResponse.json()).id as string;
   await expect(page.getByRole("status")).toContainText("Test revision published");
   expect((await new AxeBuilder({page}).withTags(["wcag2a","wcag2aa","wcag21aa","wcag22aa"]).analyze()).violations).toEqual([]);
+  await page.getByLabel("Test retention (days)",{exact:true}).scrollIntoViewIfNeeded();
+  await expect(page.getByLabel("Internal form name",{exact:true})).toHaveValue("Synthetic field preset");
+  await page.screenshot({path:join(evidence,`settings-details-mobile-${scheme}.png`),fullPage:true});
+  await page.getByRole("heading",{name:"Response form settings"}).scrollIntoViewIfNeeded();
+  expect((await new AxeBuilder({page}).withTags(["wcag2a","wcag2aa","wcag21aa","wcag22aa"]).analyze()).violations).toEqual([]);
   await page.screenshot({path:join(evidence,`settings-mobile-${scheme}.png`),fullPage:true});
   const linkRes=await page.request.post(`${api}/links`,{headers:{origin},data:{label:"Synthetic guest source",publicTitle:"Synthetic resource event",formVersionId:version}});
   expect(linkRes.status()).toBe(201);const link=await linkRes.json();
@@ -40,12 +45,13 @@ for(const scheme of ["light","dark"] as const) {
    expect(sideEffects).toEqual([]);expect(await guest.cookies()).toEqual([]);
    const followUp=visitor.getByRole("checkbox",{name:"I would like pastoral follow-up",exact:true}),newsletter=visitor.getByRole("checkbox",{name:"I would like to sign up for the newsletter",exact:true});
    await expect(followUp).not.toBeChecked();await expect(newsletter).not.toBeChecked();await expect(visitor.getByRole("button",{name:"Save test request"})).toBeDisabled();
-   await followUp.check();await newsletter.check();await expect(visitor.getByLabel("Email",{exact:true})).toHaveCount(1);
+   await followUp.focus();await visitor.keyboard.press("Space");await expect(followUp).toBeChecked();await newsletter.check();await expect(visitor.getByLabel("Email",{exact:true})).toHaveCount(1);
    await visitor.getByLabel("Preferred name (optional)",{exact:true}).fill("Synthetic Guest");
    await visitor.getByLabel("Email",{exact:true}).fill("real@example.com");
    const invalid=visitor.waitForResponse(r=>r.url().endsWith("/responses")&&r.request().method()==="POST");
    await visitor.getByRole("button",{name:"Save test request",exact:true}).click();expect((await invalid).status()).toBe(400);
    await expect(visitor.getByLabel("Email",{exact:true})).toBeEnabled();await expect(followUp).toBeEnabled();
+   await expect(visitor.getByRole("alert").filter({hasText:"Check your choices and use synthetic contact details only."})).toBeVisible();
    await visitor.getByLabel("Email",{exact:true}).fill("browser@example.test");
    await visitor.getByRole("button",{name:"Save test request",exact:true}).scrollIntoViewIfNeeded();
    expect((await new AxeBuilder({page:visitor}).withTags(["wcag2a","wcag2aa","wcag21aa","wcag22aa"]).analyze()).violations).toEqual([]);
@@ -81,7 +87,7 @@ for(const scheme of ["light","dark"] as const) {
    expect(geometry.overflow).toBeLessThanOrEqual(0);for(const control of geometry.controls.filter(v=>v.width>0)){expect(control.height).toBeGreaterThanOrEqual(44);expect(control.width).toBeGreaterThanOrEqual(44);}
    await visitor.screenshot({path:join(evidence,`form-tablet-${scheme}.png`),fullPage:true});
    expect((await new AxeBuilder({page:visitor}).withTags(["wcag2a","wcag2aa","wcag21aa","wcag22aa"]).analyze()).violations).toEqual([]);
-   await writeFile(join(evidence,`metrics-${scheme}.json`),JSON.stringify({scheme,geometry,axeViolations:0,scans:5},null,2)+"\n");
+   await writeFile(join(evidence,`metrics-${scheme}.json`),JSON.stringify({scheme,geometry,axeViolations:0,scans:6},null,2)+"\n");
   }finally{await guest.close();}
  });
 }

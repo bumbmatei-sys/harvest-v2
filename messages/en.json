@@ -1876,6 +1876,8 @@
     "completed": "Completed",
     "phoneUnavailable": "Email is supported in this test slice. Phone contact needs a separate reviewed consent contract.",
     "adminNotice": "Test forms accept synthetic details only. Real visitor response collection remains disabled.",
-    "retryHelp": "Your submitted details are kept for a safe retry. Keep this recovery code if the outcome is uncertain. If the form changed or expired, reload to start a new request."
+    "retryHelp": "Your submitted details are kept for a safe retry. Keep this recovery code if the outcome is uncertain. If the form changed or expired, reload to start a new request.",
+    "connectionBody": "An optional test form for pastoral follow-up or newsletter requests. Choose either, both, or continue with free resources.",
+    "rightsInvalid": "Check the private recovery code and selected action."
   }
 }

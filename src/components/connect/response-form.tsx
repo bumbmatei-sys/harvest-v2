@@ -31,13 +31,13 @@ export function ResponseForm({ manifest, endpoint }: { manifest: IntakeManifest;
   setBusy(false);if(!result.ok){
    // A validation refusal persists no response. Permit correction; unknown outcomes retain the exact request and proof.
    if(result.status===400){retry.current=null;setAttempt(null);setLocked(false);}
-   setError(result.error);return;
+   setError(result.status===400?t("checkDetails"):result.status===409?t("changed"):result.status===429?t("limited"):result.status===404?t("unavailable"):result.error);return;
   }setReceipt(retry.current.receiptToken);
  }
  async function rights(action:"withdraw"|"erase",purpose?:IntakePurpose) {
   setBusy(true);setError("");setAck(false);
   const result=await request("/api/public/connect/rights",{method:"POST",body:{receiptToken:receipt,action,...(purpose?{purpose}:{})}});
-  setBusy(false);if(!result.ok){setError(result.error);return;}setAck(true);
+  setBusy(false);if(!result.ok){setError(result.status===429?t("limited"):result.status===400?t("rightsInvalid"):result.status===404?t("unavailable"):result.error);return;}setAck(true);
  }
  return <section id="response-form" className="mt-10 space-y-4" aria-labelledby={`${id}-title`}>
   <Alert><AlertDescription>{t("testNotice")}</AlertDescription></Alert>
@@ -45,7 +45,7 @@ export function ResponseForm({ manifest, endpoint }: { manifest: IntakeManifest;
    <CardContent className="space-y-5">
     {error&&<Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
     {error&&!receipt&&attempt&&<Alert><AlertTitle>{t("recovery")}</AlertTitle><AlertDescription><p>{t("retryHelp")}</p><p>{t("recoveryHelp")}</p><code className="block break-all">{attempt.receiptToken}</code></AlertDescription></Alert>}
-    {!receipt?<form action={form=>void submit(form)}><FieldGroup>
+    {!receipt?<form onSubmit={event=>{event.preventDefault();if(!busy)void submit(new FormData(event.currentTarget));}}><FieldGroup>
      <p>{t("formBody")}</p>
      {manifest.purposes.includes("outreach_follow_up")&&<label className="flex min-h-11 items-center gap-3" htmlFor={`${id}-followup`}>
       <Checkbox id={`${id}-followup`} disabled={locked} checked={followUp} onCheckedChange={v=>setFollowUp(v===true)} className="size-11 shrink-0"/>{t("followUp")}</label>}

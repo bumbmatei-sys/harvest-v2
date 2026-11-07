@@ -13,9 +13,9 @@ export function IntakeRightsForm() {
  async function submit(form:FormData) {
   setBusy(true);setError("");setDone(false);const action=form.get("action");
   const result=await request("/api/public/connect/rights",{method:"POST",body:{receiptToken:form.get("receiptToken"),action,...(action==="withdraw"?{purpose:form.get("purpose")}:{})}});
-  setBusy(false);if(!result.ok){setError(result.error);return;}setDone(true);
+  setBusy(false);if(!result.ok){setError(result.status===429?t("limited"):result.status===400?t("rightsInvalid"):result.status===404?t("unavailable"):result.error);return;}setDone(true);
  }
- return <form action={data=>void submit(data)}><FieldGroup>
+ return <form onSubmit={event=>{event.preventDefault();if(!busy)void submit(new FormData(event.currentTarget));}}><FieldGroup>
   <p>{t("rightsBody")}</p>{error&&<Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
   <Field><FieldLabel htmlFor={`${id}-token`}>{t("recovery")}</FieldLabel><Input id={`${id}-token`} name="receiptToken" autoComplete="off" spellCheck={false} required minLength={64} maxLength={64} className="min-h-11"/></Field>
   <Field><FieldLabel htmlFor={`${id}-action`}>{t("action")}</FieldLabel><NativeSelect id={`${id}-action`} name="action" className="min-h-11"><NativeSelectOption value="withdraw">{t("withdraw")}</NativeSelectOption><NativeSelectOption value="erase">{t("erase")}</NativeSelectOption></NativeSelect></Field>

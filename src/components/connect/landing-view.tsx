@@ -26,7 +26,7 @@ export async function LandingContent({ landing, responseHref }: { landing: Landi
         <CardFooter className="mt-auto"><Button asChild className="min-h-11 w-full justify-between whitespace-normal text-start"><Link prefetch={false} href="/resources/start">{t("browseResources")}<ArrowRight aria-hidden="true" /></Link></Button></CardFooter>
       </Card>
       {([{ key: "connection", Icon: MessageCircle }, { key: "account", Icon: UserRound }] as const).map(({ key, Icon }) => <Card key={key}>
-        <CardHeader><Icon className="mb-3 size-6" aria-hidden="true" /><CardTitle><h2 className="text-xl leading-snug">{t(`${key}Title`)}</h2></CardTitle><CardDescription className="text-base leading-relaxed">{t(`${key}Body`)}</CardDescription></CardHeader>
+        <CardHeader><Icon className="mb-3 size-6" aria-hidden="true" /><CardTitle><h2 className="text-xl leading-snug">{t(`${key}Title`)}</h2></CardTitle><CardDescription className="text-base leading-relaxed">{key === "connection" && responseHref ? intake("connectionBody") : t(`${key}Body`)}</CardDescription></CardHeader>
         <CardFooter className="mt-auto">{key === "connection" && responseHref ? <Button asChild variant="outline" className="min-h-11 w-full"><Link prefetch={false} href={responseHref}>{intake("openForm")}</Link></Button> : <Button disabled variant="outline" className="min-h-11 w-full">{t("comingSoon")}</Button>}</CardFooter>
       </Card>)}
     </div>
