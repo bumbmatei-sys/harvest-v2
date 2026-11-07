@@ -1,6 +1,12 @@
 # Harvest Connect acceptance record
 
-Date: 2026-11-06. Current scope: **HC-04 public landing and starter resources**. HC-01 architecture evidence below is historical; later-slice and production release gates remain pending.
+## Current-state reconciliation — 2026-11-07
+
+The HC-01/HC-04 baseline and evidence below are historical, not a current implementation checklist. CRM-01–08 foundation, CW-01 campaigns and HC-02 are now merged (PRs #25, #22 and #28 include migrations 0025–0026). HC-03 is open as draft PR #29 with migration 0027: QR lifecycle administration and a published-only database resolver. It is not merged or deployed. See [HC-02 acceptance](../acceptance/hc-02.md), [HC-03 acceptance](../acceptance/hc-03.md) and [closeout review](../reviews/hc-03-closeout.md). Follow the live GitHub head/checks, not historical migration reservations or statements that CRM-05 is unmerged.
+
+HC-05 intake, HC-06/07 verified claims/CRM association and later Communities/follow-up remain future work. The [five activation decisions](../decisions/hc-02-activation-gates.md) remain unapproved; technical review is not collection or launch approval. Historical review checkboxes record the scope of their original slice only.
+
+Historical delivery date: 2026-11-06. Scope of the evidence below: **HC-04 public landing and starter resources**. HC-01 architecture evidence below is historical; later-slice and production release gates remain pending.
 
 Source of truth: [Connect PRD](../prd/harvest-connect-qr-to-discipleship.md), merged via [#17](https://github.com/bumbmatei-sys/harvest-v2/pull/17) at `e5d9752`. Architecture: [ADR 0011](../decisions/0011-harvest-connect.md). Privacy: [threat model and J1–J8 inventory](../security/harvest-connect-threat-model.md). Plan: [HC-01–HC-20 index](../prd/harvest-connect-slices.md).
 

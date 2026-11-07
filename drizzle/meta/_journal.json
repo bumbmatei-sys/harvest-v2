@@ -190,6 +190,13 @@
       "when": 1794051396393,
       "tag": "0026_hc02_connect_intake",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1794062763944,
+      "tag": "0027_hc03_connect_links",
+      "breakpoints": true
     }
   ]
 }

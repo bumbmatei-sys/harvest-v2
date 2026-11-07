@@ -35,4 +35,11 @@ it("keeps a single snapshot chain and an ordered migration journal (reserved num
   const hc02Tables = ["public.privacy_notice_versions", "public.forms", "public.form_versions", "public.campaign_response_links", "public.campaign_responses", "public.campaign_response_contact_methods", "public.campaign_response_consents"];
   expect(Object.keys(snapshots[26].tables).sort()).toEqual([...Object.keys(snapshots[25].tables), ...hc02Tables].sort());
   for (const table of Object.keys(snapshots[25].tables)) expect(snapshots[26].tables[table], table).toEqual(snapshots[25].tables[table]);
+  // HC-03 follows HC-02 (0026) as 0027: one new table (the code registry); only campaign_response_links changes.
+  expect(journal.entries[27].tag).toBe("0027_hc03_connect_links");
+  expect(Object.keys(snapshots[27].tables).sort()).toEqual([...Object.keys(snapshots[26].tables), "public.campaign_response_link_codes"].sort());
+  for (const table of Object.keys(snapshots[26].tables)) if (table !== "public.campaign_response_links") expect(snapshots[27].tables[table], table).toEqual(snapshots[26].tables[table]);
+  const links = snapshots[27].tables["public.campaign_response_links"];
+  expect(Object.keys(links.columns)).toEqual(expect.arrayContaining(Object.keys(snapshots[26].tables["public.campaign_response_links"].columns)));
+  expect(links.columns.short_code.notNull).toBe(true);
 });

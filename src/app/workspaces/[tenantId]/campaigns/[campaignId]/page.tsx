@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
-import { ArrowLeft, Flag } from "lucide-react";
+import { ArrowLeft, Flag, QrCode } from "lucide-react";
 import { getDb } from "@/db/client";
 import { getCampaign } from "@/server/campaigns";
 import { pageSession } from "@/server/page-session";
@@ -18,7 +18,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function CampaignPage({ params }: { params: Promise<{ tenantId: string; campaignId: string }> }) {
-  const t = await getTranslations("Campaigns"), session = await pageSession(), { tenantId, campaignId } = await params;
+  const t = await getTranslations("Campaigns"), links = await getTranslations("ConnectLinks"), session = await pageSession(), { tenantId, campaignId } = await params;
   if (!uuidInput.safeParse(tenantId).success || !uuidInput.safeParse(campaignId).success) notFound();
   const campaign = await getCampaign(getDb(), session.user.id, tenantId, campaignId)
     .catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; });
@@ -40,6 +40,11 @@ export default async function CampaignPage({ params }: { params: Promise<{ tenan
     <Card><CardHeader><CardTitle>{t("details")}</CardTitle></CardHeader><CardContent>
       <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{details.map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 break-words text-sm">{value}</dd></div>)}</dl>
       {campaign.mission && <div className="mt-4"><h2 className="text-xs text-muted-foreground">{t("mission")}</h2><p className="mt-1 whitespace-pre-wrap break-words text-sm">{campaign.mission}</p></div>}
+    </CardContent></Card>
+    <Card><CardContent className="flex flex-wrap items-center justify-between gap-4">
+      <div className="flex min-w-0 items-start gap-3"><QrCode className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
+        <div className="min-w-0"><h2 className="text-base font-semibold">{links("openLinks")}</h2><p className="text-sm text-muted-foreground">{links("openLinksDescription")}</p></div></div>
+      <Button asChild variant="outline" className="min-h-11"><Link href={`/workspaces/${tenantId}/campaigns/${campaignId}/connect`}>{links("openLinks")}</Link></Button>
     </CardContent></Card>
     <Empty className="border border-solid bg-card py-16"><EmptyHeader><EmptyMedia variant="icon"><Flag aria-hidden="true" /></EmptyMedia>
       <EmptyTitle><h2>{t("dashboardTitle")}</h2></EmptyTitle><EmptyDescription>{t("dashboardDescription")}</EmptyDescription>

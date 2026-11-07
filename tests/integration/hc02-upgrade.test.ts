@@ -22,7 +22,8 @@ it("upgrades a post-CRM-08 database: existing campaigns, people and erasure keep
   } });
   try {
     expect((await fixture.admin.query("select count(*)::int as count from drizzle.__drizzle_migrations")).rows[0].count).toBe(migrationCount);
-    expect(migrationCount).toBe(27);
+    // HC-03 (0027) and later migrations apply on top of this upgrade.
+    expect(migrationCount).toBeGreaterThanOrEqual(27);
     expect(await getCampaign(fixture.db, "hc02-upgrade", tenant, campaign)).toMatchObject({ name: "Existing crusade", status: "draft" });
     expect((await getContact(fixture.db, "hc02-upgrade", tenant, person)).name).toBe("Existing Person");
     const { rows: forced } = await fixture.admin.query("select count(*)::int as count from pg_class where relname in ('forms','form_versions','privacy_notice_versions','campaign_response_links','campaign_responses','campaign_response_contact_methods','campaign_response_consents') and relforcerowsecurity");

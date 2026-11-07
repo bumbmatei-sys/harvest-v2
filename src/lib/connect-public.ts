@@ -33,6 +33,27 @@ export function getPublicLanding(code: string): PublicLanding | undefined {
   return code === preview.publicCode ? preview : undefined;
 }
 
+/**
+ * HC-03: what the DB-backed resolver may expose for a published campaign link. Only these fields:
+ * no tenant, campaign, link, form, response or person identifier, and no internal campaign name.
+ */
+export type CampaignLanding = Readonly<{
+  version: 1;
+  source: "campaign-link";
+  publication: "published";
+  locale: Locale;
+  /** Organizer-entered public title, or null for the generic welcome. */
+  title: string | null;
+  resourceIds: readonly StarterResourceId[];
+  /** HC-05 owns intake: no campaign link accepts a submission in HC-03. */
+  acceptsResponses: false;
+}>;
+export type LandingView = PublicLanding | CampaignLanding;
+export function campaignLanding(locale: Locale, title: string | null): CampaignLanding {
+  return Object.freeze({ version: 1, source: "campaign-link", publication: "published", locale, title,
+    resourceIds: Object.freeze(starterResources.map(({ id }) => id)), acceptsResponses: false });
+}
+
 export function getStarterResource(id: string) {
   return starterResources.find((resource) => resource.id === id);
 }

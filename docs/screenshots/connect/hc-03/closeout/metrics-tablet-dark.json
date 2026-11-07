@@ -1,0 +1,458 @@
+{
+  "shell": {
+    "main": 768,
+    "content": 768,
+    "maxWidth": "none",
+    "padLeft": 16,
+    "padRight": 16,
+    "contentLeft": 16,
+    "crumbLeft": 52,
+    "overflow": 0,
+    "scrollingTables": 0,
+    "clipped": 0
+  },
+  "create-top": {
+    "viewport": {
+      "name": "tablet",
+      "width": 768,
+      "height": 1024
+    },
+    "scheme": "dark",
+    "geometry": {
+      "left": 124,
+      "top": 146.5,
+      "right": 644,
+      "bottom": 877.5,
+      "width": 520,
+      "overflow": 0,
+      "innerOverflow": 0
+    },
+    "targets": [
+      {
+        "label": null,
+        "width": 470,
+        "height": 44
+      },
+      {
+        "label": null,
+        "width": 470,
+        "height": 44
+      },
+      {
+        "label": "English",
+        "width": 470,
+        "height": 44
+      },
+      {
+        "label": "None: welcome and resources only",
+        "width": 470,
+        "height": 44
+      },
+      {
+        "label": "Cancel",
+        "width": 78.484375,
+        "height": 44
+      },
+      {
+        "label": "Create draft",
+        "width": 111.84375,
+        "height": 44
+      },
+      {
+        "label": "Close",
+        "width": 44,
+        "height": 44
+      }
+    ],
+    "axeViolations": [],
+    "screenshot": "create-top-tablet-dark.png"
+  },
+  "create-footer": {
+    "viewport": {
+      "name": "tablet",
+      "width": 768,
+      "height": 1024
+    },
+    "scheme": "dark",
+    "geometry": {
+      "left": 124,
+      "top": 146.5,
+      "right": 644,
+      "bottom": 877.5,
+      "width": 520,
+      "overflow": 0,
+      "innerOverflow": 0
+    },
+    "targets": [
+      {
+        "label": null,
+        "width": 470,
+        "height": 44
+      },
+      {
+        "label": null,
+        "width": 470,
+        "height": 44
+      },
+      {
+        "label": "English",
+        "width": 470,
+        "height": 44
+      },
+      {
+        "label": "None: welcome and resources only",
+        "width": 470,
+        "height": 44
+      },
+      {
+        "label": "Cancel",
+        "width": 78.484375,
+        "height": 44
+      },
+      {
+        "label": "Create draft",
+        "width": 111.84375,
+        "height": 44
+      },
+      {
+        "label": "Close",
+        "width": 44,
+        "height": 44
+      }
+    ],
+    "axeViolations": [],
+    "screenshot": "create-footer-tablet-dark.png"
+  },
+  "publish-top": {
+    "viewport": {
+      "name": "tablet",
+      "width": 768,
+      "height": 1024
+    },
+    "scheme": "dark",
+    "geometry": {
+      "left": 104,
+      "top": 252.875,
+      "right": 664,
+      "bottom": 771.125,
+      "width": 560,
+      "overflow": 0,
+      "innerOverflow": 0
+    },
+    "targets": [
+      {
+        "label": null,
+        "width": 510,
+        "height": 44
+      },
+      {
+        "label": "Cancel",
+        "width": 78.484375,
+        "height": 44
+      },
+      {
+        "label": "Publish link",
+        "width": 108.125,
+        "height": 44
+      },
+      {
+        "label": "Close",
+        "width": 44,
+        "height": 44
+      }
+    ],
+    "axeViolations": [],
+    "screenshot": "publish-top-tablet-dark.png"
+  },
+  "publish-footer": {
+    "viewport": {
+      "name": "tablet",
+      "width": 768,
+      "height": 1024
+    },
+    "scheme": "dark",
+    "geometry": {
+      "left": 104,
+      "top": 252.875,
+      "right": 664,
+      "bottom": 771.125,
+      "width": 560,
+      "overflow": 0,
+      "innerOverflow": 0
+    },
+    "targets": [
+      {
+        "label": null,
+        "width": 510,
+        "height": 44
+      },
+      {
+        "label": "Cancel",
+        "width": 78.484375,
+        "height": 44
+      },
+      {
+        "label": "Publish link",
+        "width": 108.125,
+        "height": 44
+      },
+      {
+        "label": "Close",
+        "width": 44,
+        "height": 44
+      }
+    ],
+    "axeViolations": [],
+    "screenshot": "publish-footer-tablet-dark.png"
+  },
+  "liveShell": {
+    "main": 768,
+    "content": 768,
+    "maxWidth": "none",
+    "padLeft": 16,
+    "padRight": 16,
+    "contentLeft": 16,
+    "crumbLeft": 52,
+    "overflow": 0,
+    "scrollingTables": 0,
+    "clipped": 0
+  },
+  "owner-actions": {
+    "viewport": {
+      "name": "tablet",
+      "width": 768,
+      "height": 1024
+    },
+    "scheme": "dark",
+    "geometry": {
+      "left": 16,
+      "top": 374,
+      "right": 752,
+      "bottom": 764,
+      "width": 736,
+      "overflow": 0,
+      "innerOverflow": 0
+    },
+    "targets": [
+      {
+        "label": "Copy link",
+        "width": 104.203125,
+        "height": 44
+      },
+      {
+        "label": "Preview",
+        "width": 97.265625,
+        "height": 44
+      },
+      {
+        "label": "Present",
+        "width": 95.3125,
+        "height": 44
+      },
+      {
+        "label": "Download",
+        "width": 133.09375,
+        "height": 44
+      },
+      {
+        "label": "Change expiry",
+        "width": 141.296875,
+        "height": 44
+      },
+      {
+        "label": "Pause",
+        "width": 85.0625,
+        "height": 44
+      },
+      {
+        "label": "Rotate code",
+        "width": 124.125,
+        "height": 44
+      },
+      {
+        "label": "Archive",
+        "width": 95.109375,
+        "height": 44
+      }
+    ],
+    "axeViolations": [],
+    "screenshot": "owner-actions-tablet-dark.png"
+  },
+  "rotate-top": {
+    "viewport": {
+      "name": "tablet",
+      "width": 768,
+      "height": 1024
+    },
+    "scheme": "dark",
+    "geometry": {
+      "left": 128,
+      "top": 410,
+      "right": 640,
+      "bottom": 614,
+      "width": 512,
+      "overflow": 0,
+      "innerOverflow": 0
+    },
+    "targets": [
+      {
+        "label": "Cancel",
+        "width": 80.484375,
+        "height": 44
+      },
+      {
+        "label": "Rotate code",
+        "width": 114.125,
+        "height": 44
+      }
+    ],
+    "axeViolations": [],
+    "screenshot": "rotate-top-tablet-dark.png"
+  },
+  "rotate-footer": {
+    "viewport": {
+      "name": "tablet",
+      "width": 768,
+      "height": 1024
+    },
+    "scheme": "dark",
+    "geometry": {
+      "left": 128,
+      "top": 410,
+      "right": 640,
+      "bottom": 614,
+      "width": 512,
+      "overflow": 0,
+      "innerOverflow": 0
+    },
+    "targets": [
+      {
+        "label": "Cancel",
+        "width": 80.484375,
+        "height": 44
+      },
+      {
+        "label": "Rotate code",
+        "width": 114.125,
+        "height": 44
+      }
+    ],
+    "axeViolations": [],
+    "screenshot": "rotate-footer-tablet-dark.png"
+  },
+  "memberShell": {
+    "main": 768,
+    "content": 768,
+    "maxWidth": "none",
+    "padLeft": 16,
+    "padRight": 16,
+    "contentLeft": 16,
+    "crumbLeft": 52,
+    "overflow": 0,
+    "scrollingTables": 0,
+    "clipped": 0
+  },
+  "member-actions": {
+    "viewport": {
+      "name": "tablet",
+      "width": 768,
+      "height": 1024
+    },
+    "scheme": "dark",
+    "geometry": {
+      "left": 16,
+      "top": 418,
+      "right": 752,
+      "bottom": 720,
+      "width": 736,
+      "overflow": 0,
+      "innerOverflow": 0
+    },
+    "targets": [
+      {
+        "label": "Copy link",
+        "width": 104.203125,
+        "height": 44
+      },
+      {
+        "label": "Preview",
+        "width": 97.265625,
+        "height": 44
+      },
+      {
+        "label": "Present",
+        "width": 95.3125,
+        "height": 44
+      },
+      {
+        "label": "Download",
+        "width": 133.09375,
+        "height": 44
+      }
+    ],
+    "axeViolations": [],
+    "screenshot": "member-actions-tablet-dark.png"
+  },
+  "archive-top": {
+    "viewport": {
+      "name": "tablet",
+      "width": 768,
+      "height": 1024
+    },
+    "scheme": "dark",
+    "geometry": {
+      "left": 128,
+      "top": 420,
+      "right": 640,
+      "bottom": 604,
+      "width": 512,
+      "overflow": 0,
+      "innerOverflow": 0
+    },
+    "targets": [
+      {
+        "label": "Cancel",
+        "width": 80.484375,
+        "height": 44
+      },
+      {
+        "label": "Archive link",
+        "width": 110.15625,
+        "height": 44
+      }
+    ],
+    "axeViolations": [],
+    "screenshot": "archive-top-tablet-dark.png"
+  },
+  "archive-footer": {
+    "viewport": {
+      "name": "tablet",
+      "width": 768,
+      "height": 1024
+    },
+    "scheme": "dark",
+    "geometry": {
+      "left": 128,
+      "top": 420,
+      "right": 640,
+      "bottom": 604,
+      "width": 512,
+      "overflow": 0,
+      "innerOverflow": 0
+    },
+    "targets": [
+      {
+        "label": "Cancel",
+        "width": 80.484375,
+        "height": 44
+      },
+      {
+        "label": "Archive link",
+        "width": 110.15625,
+        "height": 44
+      }
+    ],
+    "axeViolations": [],
+    "screenshot": "archive-footer-tablet-dark.png"
+  }
+}

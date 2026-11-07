@@ -1,6 +1,12 @@
 # Harvest Connect implementation slices
 
-Date: 2026-11-06. Status: HC-01 organization and dependency proposal; no HC-02+ implementation in this PR.
+## Current-state reconciliation — 2026-11-07
+
+The HC-01/HC-04 baseline and evidence below are historical, not a current implementation checklist. CRM-01–08 foundation, CW-01 campaigns and HC-02 are now merged (PRs #25, #22 and #28 include migrations 0025–0026). HC-03 is open as draft PR #29 with migration 0027: QR lifecycle administration and a published-only database resolver. It is not merged or deployed. See [HC-02 acceptance](../acceptance/hc-02.md), [HC-03 acceptance](../acceptance/hc-03.md) and [closeout review](../reviews/hc-03-closeout.md). Follow the live GitHub head/checks, not historical migration reservations or statements that CRM-05 is unmerged.
+
+HC-05 intake, HC-06/07 verified claims/CRM association and later Communities/follow-up remain future work. The [five activation decisions](../decisions/hc-02-activation-gates.md) remain unapproved; technical review is not collection or launch approval. Historical review checkboxes record the scope of their original slice only.
+
+Historical HC-01 baseline: 2026-11-06; the original proposal below contained no HC-02+ implementation. Current status is in the reconciliation above.
 
 Source of truth: [Connect PRD](harvest-connect-qr-to-discipleship.md), especially §§15–19. Architecture: [ADR 0011](../decisions/0011-harvest-connect.md). Privacy: [threat model and inventory](../security/harvest-connect-threat-model.md). Evidence: [acceptance](../acceptance/harvest-connect.md).
 

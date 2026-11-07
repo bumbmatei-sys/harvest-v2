@@ -1,5 +1,11 @@
 # ADR 0011: Harvest Connect as the outreach organizer
 
+## Current-state reconciliation — 2026-11-07
+
+The HC-01/HC-04 baseline and evidence below are historical, not a current implementation checklist. CRM-01–08 foundation, CW-01 campaigns and HC-02 are now merged (PRs #25, #22 and #28 include migrations 0025–0026). HC-03 is open as draft PR #29 with migration 0027: QR lifecycle administration and a published-only database resolver. It is not merged or deployed. See [HC-02 acceptance](../acceptance/hc-02.md), [HC-03 acceptance](../acceptance/hc-03.md) and [closeout review](../reviews/hc-03-closeout.md). Follow the live GitHub head/checks, not historical migration reservations or statements that CRM-05 is unmerged.
+
+HC-05 intake, HC-06/07 verified claims/CRM association and later Communities/follow-up remain future work. The [five activation decisions](../decisions/hc-02-activation-gates.md) remain unapproved; technical review is not collection or launch approval. Historical review checkboxes record the scope of their original slice only.
+
 Date: 2026-11-06. Status: proposed for HC-01; product, legal/privacy and security review pending. This records architecture requirements, not implemented behavior or launch approval.
 
 Source of truth: [Harvest Connect PRD v1.1](../prd/harvest-connect-qr-to-discipleship.md), merged in [PR #17](https://github.com/bumbmatei-sys/harvest-v2/pull/17) at `e5d9752`. Delivery plan: [HC-01–HC-20 slices](../prd/harvest-connect-slices.md). Privacy design: [threat model and processing inventory](../security/harvest-connect-threat-model.md). Evidence: [HC-01 acceptance](../acceptance/harvest-connect.md).
