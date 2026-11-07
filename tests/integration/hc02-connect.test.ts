@@ -340,6 +340,30 @@ describe("withdrawal, erasure and retention hooks", () => {
     await expect(as("owner-b", tenantB, (tx) => tx.execute(sql`select public.connect_response_purpose_active(${tenantA}::uuid, ${response.id}::uuid, 'outreach_follow_up')`))).rejects.toMatchObject({ cause: { code: "42501" } });
   });
 
+  it("answers the purpose recheck only to live owners/admins of the response's workspace, in direct SQL too (review B1)", async () => {
+    const response = await seedA({ grants: [{ purpose: "outreach_follow_up", channel: "email" }] });
+    const check = sql`select public.connect_response_purpose_active(${tenantA}::uuid, ${response.id}::uuid, 'outreach_follow_up') as active`;
+    for (const user of ["owner-a", "admin-a"]) expect(await as(user, tenantA, async (tx) => rows(await tx.execute(check)))).toEqual([{ active: true }]);
+    for (const user of ["member-a", "viewer-a"]) await expect(as(user, tenantA, (tx) => tx.execute(check))).rejects.toMatchObject({ cause: { code: "42501" } });
+    await fixture.db.insert(users).values(["outsider-b1", "revoked-b1"].map((id) => ({ id, name: id, email: `${id}@example.test` })));
+    const forged = (user: string) => withUser(fixture.db, user, async (tx) => {
+      await tx.execute(sql`select set_config('app.tenant_id', ${tenantA}, true)`);
+      return tx.execute(check);
+    });
+    // A non-member with a forged tenant setting.
+    await expect(forged("outsider-b1")).rejects.toMatchObject({ cause: { code: "42501" } });
+    // Tenant context without any authenticated actor.
+    await expect(fixture.db.transaction(async (tx) => {
+      await tx.execute(sql`select set_config('app.tenant_id', ${tenantA}, true)`);
+      return tx.execute(check);
+    })).rejects.toMatchObject({ cause: { code: "42501" } });
+    // An administrator whose membership was revoked, still holding the response id.
+    await putMember(fixture.db, "owner-a", tenantA, "revoked-b1@example.test", "admin");
+    expect(await as("revoked-b1", tenantA, async (tx) => rows(await tx.execute(check)))).toEqual([{ active: true }]);
+    await fixture.admin.query("delete from workspace_members where tenant_id = $1 and user_id = 'revoked-b1'", [tenantA]);
+    await expect(forged("revoked-b1")).rejects.toMatchObject({ cause: { code: "42501" } });
+  });
+
   it("erases a pending response: contact methods, evidence detail, payload references and audit links", async () => {
     const response = await seedA({ name: "Erase Me Guest", email: "erase-me@example.test", grants: [{ purpose: "newsletter", channel: "email" }, { purpose: "account_communications", channel: "email" }] });
     const keep = await seedResponse({ tenant: tenantB, campaign: campaignB, link: linkB, version: versionB, notice: noticeB, name: "Erase Me Guest", email: "erase-me@example.test", grants: [{ purpose: "newsletter", channel: "email" }] });
@@ -349,6 +373,10 @@ describe("withdrawal, erasure and retention hooks", () => {
     await fixture.admin.query("insert into jobs (tenant_id, kind, idempotency_key, fingerprint, payload) values ($1, 'connect.response_submitted', $2, $3, $4)", [tenantA, key, "a".repeat(64), { responseId: response.id }]);
     await fixture.admin.query("insert into outbox_events (tenant_id, kind, idempotency_key, fingerprint, payload) values ($1, 'connect.response_submitted', $2, $3, $4)", [tenantB, key, "a".repeat(64), { responseId: keep.id }]);
 
+    // What an authorized owner could observe and cache before erasure (review B3).
+    const observedResponse = await as("owner-a", tenantA, async (tx) => rows(await tx.execute(sql`select * from (select tenant_id, id, campaign_id, link_id, form_version_id, status, submitted_at, expires_at from campaign_responses) r where id = ${response.id}`)));
+    const observedEvidence = await as("owner-a", tenantA, async (tx) => rows<{ id: string; recorded_at: Date; occurred_at: Date }>(await tx.execute(sql`select * from campaign_response_consents where response_id = ${response.id}`)));
+    expect(observedResponse).toHaveLength(1); expect(observedEvidence).toHaveLength(3);
     await expect(eraseConnectResponse(fixture.db, "member-a", tenantA, response.id)).rejects.toMatchObject({ status: 403 });
     await expect(as("viewer-a", tenantA, (tx) => tx.execute(sql`select public.erase_connect_response(${tenantA}::uuid, ${response.id}::uuid)`))).rejects.toMatchObject({ cause: { code: "42501" } });
     await expect(eraseConnectResponse(fixture.db, "owner-b", tenantB, response.id)).rejects.toMatchObject({ status: 404 });
@@ -356,6 +384,15 @@ describe("withdrawal, erasure and retention hooks", () => {
     expect(await eraseConnectResponse(fixture.db, "admin-a", tenantA, response.id)).toEqual({ erased: true });
     await expect(eraseConnectResponse(fixture.db, "admin-a", tenantA, response.id)).rejects.toMatchObject({ status: 404 });
 
+    // No app-readable key or exact time survives to join the cached view to the tombstone.
+    const visibleAfter = await as("owner-a", tenantA, async (tx) => JSON.stringify([
+      rows(await tx.execute(sql`select tenant_id, id, campaign_id, link_id, form_version_id, status, submitted_at, expires_at, associated_at, erased_at from campaign_responses`)),
+      rows(await tx.execute(sql`select * from campaign_response_consents`))]));
+    for (const value of [response.id, ...observedEvidence.map((row) => row.id), ...observedEvidence.flatMap((row) => [row.recorded_at, row.occurred_at]).map((time) => new Date(time).toISOString())]) {
+      expect(visibleAfter).not.toContain(value);
+    }
+    expect(await as("owner-a", tenantA, async (tx) => rows(await tx.execute(sql`select id from campaign_response_consents where id in (${sql.join(observedEvidence.map((row) => sql`${row.id}::uuid`), sql`, `)})`)))).toEqual([]);
+    expect(await as("owner-a", tenantA, async (tx) => rows(await tx.execute(sql`select id from campaign_responses where id = ${response.id}`)))).toEqual([]);
     const dump = async (tenant: string) => JSON.stringify(await Promise.all(["campaign_responses", "campaign_response_contact_methods", "campaign_response_consents", "outbox_events", "jobs", "audit_logs"].map(async (table) => (await fixture.admin.query(`select * from ${table} where tenant_id = $1`, [tenant])).rows)));
     const after = await dump(tenantA);
     for (const secret of [response.id, response.submission, "Erase Me Guest", "erase-me@example.test"]) expect(after).not.toContain(secret);
@@ -382,6 +419,9 @@ describe("withdrawal, erasure and retention hooks", () => {
     // Retention elapsed (simulated clock): only a controlled writer may move expiry.
     await fixture.admin.query("update campaign_responses set expires_at = now() - interval '1 second' where id = $1", [expired.id]);
     expect(await isConnectResponsePurposeActive(fixture.db, "owner-a", tenantA, expired.id, "outreach_follow_up")).toBe(false);
+    // The summary agrees with the authoritative recheck: nothing is in force after expiry (review N1).
+    const summaries = await listPendingResponseSummaries(fixture.db, "owner-a", tenantA, campaignA);
+    expect(summaries.find((row) => row.id === expired.id)?.activePurposes).toEqual([]);
     await expect(purgeExpiredConnectResponses(fixture.db, "member-a", tenantA)).rejects.toMatchObject({ status: 403 });
     expect(await purgeExpiredConnectResponses(fixture.db, "owner-b", tenantB)).toEqual({ purged: 0 });
     expect(await purgeExpiredConnectResponses(fixture.db, "owner-a", tenantA)).toEqual({ purged: 1 });

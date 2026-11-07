@@ -13,7 +13,7 @@ import { withTenant } from "./tenancy";
 // preferred name, contact method, submission key or CRM link: the database withholds them.
 const responseMissing = () => new AccessError(404, message("ConnectData.responseNotFound"));
 
-/** Metadata only: status, timing and the purposes currently in force for each response. */
+/** Metadata only: status, timing and the purposes currently in force (none once expired). */
 export function listPendingResponseSummaries(db: Database, userId: string, workspace: string, campaign: string) {
   const campaignId = uuidInput.parse(campaign);
   return withTenant(db, userId, uuidInput.parse(workspace), "connect:privacy", async (tx, tenantId) => {
@@ -24,7 +24,10 @@ export function listPendingResponseSummaries(db: Database, userId: string, works
       .orderBy(asc(campaignResponses.submittedAt), asc(campaignResponses.id));
     const evidence = rows.length ? await tx.select({ responseId: campaignResponseConsents.responseId, purpose: campaignResponseConsents.purpose, status: campaignResponseConsents.status })
       .from(campaignResponseConsents).where(and(eq(campaignResponseConsents.tenantId, tenantId), inArray(campaignResponseConsents.responseId, rows.map((row) => row.id)), isNull(campaignResponseConsents.redactedAt))) : [];
+    const now = Date.now();
     return rows.map((row) => {
+      // After expiry nothing is in force, matching connect_response_purpose_active (review N1).
+      if (!row.expiresAt || row.expiresAt.getTime() <= now) return { ...row, activePurposes: [] as string[] };
       const mine = evidence.filter((event) => event.responseId === row.id);
       const withdrawn = new Set(mine.filter((event) => event.status === "withdrawn").map((event) => event.purpose));
       const activePurposes = mine.filter((event) => event.status === "granted" && !withdrawn.has(event.purpose)).map((event) => event.purpose).sort();

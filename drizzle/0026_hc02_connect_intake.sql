@@ -279,6 +279,9 @@ DO $$ DECLARE relation_name text; BEGIN
   FOREACH relation_name IN ARRAY ARRAY['campaign_responses', 'campaign_response_contact_methods', 'campaign_response_consents'] LOOP
     EXECUTE format($policy$CREATE POLICY erasure_owner_tenant ON public.%I TO %I USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid) WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)$policy$, relation_name, current_user);
   END LOOP;
+  -- The withdrawal definer's evidence guard joins the response to its form version: read-only,
+  -- same tenant, so a definer owner without BYPASSRLS can validate provenance (review B2).
+  EXECUTE format($policy$CREATE POLICY connect_definer_read ON public.form_versions FOR SELECT TO %I USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)$policy$, current_user);
 END $$;
 
 --> statement-breakpoint
@@ -457,8 +460,10 @@ BEGIN
     RETURN NEW;
   END IF;
   IF NOT public.connect_erasure_writer() THEN RAISE EXCEPTION 'consent evidence is append-only'; END IF;
-  IF (NEW.tenant_id, NEW.id, NEW.purpose, NEW.status, NEW.form_version_id, NEW.notice_version_id, NEW.actor_kind)
-    IS DISTINCT FROM (OLD.tenant_id, OLD.id, OLD.purpose, OLD.status, OLD.form_version_id, OLD.notice_version_id, OLD.actor_kind) THEN
+  -- Erasure re-keys redacted evidence (as erase_contact re-keys CRM consent events); nothing else may.
+  IF NEW.id IS DISTINCT FROM OLD.id AND NEW.redacted_at IS NULL THEN RAISE EXCEPTION 'consent evidence is append-only'; END IF;
+  IF (NEW.tenant_id, NEW.purpose, NEW.status, NEW.form_version_id, NEW.notice_version_id, NEW.actor_kind)
+    IS DISTINCT FROM (OLD.tenant_id, OLD.purpose, OLD.status, OLD.form_version_id, OLD.notice_version_id, OLD.actor_kind) THEN
     RAISE EXCEPTION 'consent evidence is append-only';
   END IF;
   RETURN NEW;
@@ -469,12 +474,13 @@ CREATE TRIGGER campaign_response_consent_guard BEFORE INSERT OR UPDATE OR DELETE
 --> statement-breakpoint
 -- 4) Scrub: one pending response loses its contact methods, evidence detail, durable payload
 -- references and audit link, then becomes a re-keyed tombstone (campaign, link, form version, day).
+-- Every surviving app-readable key is new: response id, submission key and evidence ids.
 -- Invoker rights and no EXECUTE for harvest_app: only the erasure definers call it.
 CREATE FUNCTION public.connect_scrub_response(p_tenant uuid, p_response uuid) RETURNS void
 LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
 BEGIN
   DELETE FROM public.campaign_response_contact_methods WHERE tenant_id = p_tenant AND response_id = p_response;
-  UPDATE public.campaign_response_consents SET channel = NULL, recorded_by = NULL,
+  UPDATE public.campaign_response_consents SET id = gen_random_uuid(), channel = NULL, recorded_by = NULL,
     recorded_at = date_trunc('day', recorded_at, 'UTC'),
     occurred_at = least(date_trunc('day', occurred_at, 'UTC'), date_trunc('day', recorded_at, 'UTC')),
     redacted_at = date_trunc('day', now(), 'UTC')
@@ -544,11 +550,17 @@ REVOKE ALL ON FUNCTION public.withdraw_connect_response_purpose(uuid, uuid, text
 GRANT EXECUTE ON FUNCTION public.withdraw_connect_response_purpose(uuid, uuid, text) TO harvest_app;
 
 -- The recheck every future sender/assigner must make immediately before acting: pending, not
--- expired, granted for this purpose and not withdrawn. Returns only a boolean.
+-- expired, granted for this purpose and not withdrawn. Returns only a boolean, and only to the
+-- same owners/admins who may read the evidence (review B1). A future worker needs its own
+-- separately constrained capability rather than a wider grant here.
 CREATE FUNCTION public.connect_response_purpose_active(p_tenant uuid, p_response uuid, p_purpose text) RETURNS boolean
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE actor text := nullif(current_setting('app.user_id', true), '');
 BEGIN
-  IF p_tenant IS DISTINCT FROM nullif(current_setting('app.tenant_id', true), '')::uuid THEN
+  IF p_tenant IS DISTINCT FROM nullif(current_setting('app.tenant_id', true), '')::uuid OR actor IS NULL THEN
+    RAISE EXCEPTION 'response access denied' USING ERRCODE = '42501';
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM public.workspace_members WHERE tenant_id = p_tenant AND user_id = actor AND role_id IN ('owner', 'admin')) THEN
     RAISE EXCEPTION 'response access denied' USING ERRCODE = '42501';
   END IF;
   RETURN EXISTS (SELECT 1 FROM public.campaign_responses r JOIN public.campaign_response_consents g
@@ -754,4 +766,3 @@ BEGIN
     VALUES (p_tenant, actor, 'contact.erase', NULL);
   RETURN true;
 END $$;
-
