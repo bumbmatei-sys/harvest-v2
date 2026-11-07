@@ -130,6 +130,15 @@ describe("approval gate for write tools", () => {
       insert into ai_tool_approvals (tenant_id, tool, args_hash, requested_by, status, expires_at, created_at) select $1, 'crm_create_task', $2, 'member-a', 'pending', now() - interval '10 minutes', now() - interval '20 minutes' from ctx returning id`, [tenantA, hash])).rows;
     await expect(decideToolApproval(fixture.db, "member-a", tenantA, id, "approve")).rejects.toMatchObject({ status: 409 });
     await expect(executeCrmTool(fixture.db, "member-a", tenantA, "crm_create_task", taskArgs, { approvalId: id })).rejects.toMatchObject({ status: 403, details: { reason: "approval_pending" } });
+    // Approved in time, used too late. (Seeded with the guard off: the guard itself refuses to write an expired approval.)
+    await fixture.admin.query("alter table ai_tool_approvals disable trigger ai_tool_approval_guard");
+    let late: string;
+    try {
+      late = (await fixture.admin.query(`insert into ai_tool_approvals (tenant_id, tool, args_hash, requested_by, status, decided_at, expires_at, created_at)
+        values ($1, 'crm_create_task', $2, 'member-a', 'approved', now() - interval '15 minutes', now() - interval '1 second', now() - interval '20 minutes') returning id`, [tenantA, hash])).rows[0].id;
+    } finally { await fixture.admin.query("alter table ai_tool_approvals enable trigger ai_tool_approval_guard"); }
+    await expect(executeCrmTool(fixture.db, "member-a", tenantA, "crm_create_task", taskArgs, { approvalId: late })).rejects.toMatchObject({ status: 409, details: { reason: "approval_expired" } });
+    expect((await fixture.admin.query("select status from ai_tool_approvals where id = $1", [late])).rows[0].status).toBe("approved");
   });
 
   it("checks permissions again at execution and does not spend the approval when the action fails", async () => {
