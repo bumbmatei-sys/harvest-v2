@@ -10,7 +10,7 @@ import { expectFullWidthShell } from "./helpers/layout";
 // downloads, publishes, pauses, rotates and archives a campaign link; a signed-out guest sees each
 // change on the very next request; a member organizer cannot publish. Synthetic data only.
 test.use({ reducedMotion: "reduce" });
-const evidence = "docs/screenshots/connect/hc-03";
+const evidence = process.env.HC03_QA_DIR ?? "docs/screenshots/connect/hc-03";
 const axeResults: Record<string, unknown> = {};
 
 async function axe(page: Page, name: string) {

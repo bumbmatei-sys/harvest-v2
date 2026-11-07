@@ -69,10 +69,11 @@ INSERT INTO public.campaign_response_link_codes (tenant_id, link_id, kind, code,
   SELECT tenant_id, id, 'qr', public_code, created_at, CASE WHEN status = 'archived' THEN updated_at END FROM public.campaign_response_links
   UNION ALL
   SELECT tenant_id, id, 'short', short_code, created_at, CASE WHEN status = 'archived' THEN updated_at END FROM public.campaign_response_links;
-DROP POLICY hc03_backfill ON public.campaign_response_links;
 ALTER TABLE public.campaign_response_links ALTER COLUMN short_code SET NOT NULL;
 --> statement-breakpoint
 ALTER TABLE "campaign_response_link_codes" ADD CONSTRAINT "campaign_response_link_codes_tenant_id_link_id_campaign_response_links_tenant_id_id_fk" FOREIGN KEY ("tenant_id","link_id") REFERENCES "public"."campaign_response_links"("tenant_id","id") ON DELETE no action ON UPDATE no action;
+-- FK validation must still see existing parents under FORCE RLS for the restricted owner.
+DROP POLICY hc03_backfill ON public.campaign_response_links;
 --> statement-breakpoint
 CREATE UNIQUE INDEX "campaign_response_link_codes_code_idx" ON "campaign_response_link_codes" USING btree ("code");
 --> statement-breakpoint
