@@ -739,3 +739,34 @@ The shadcn MIT notice is preserved in [licenses/shadcn-ui-MIT.txt](licenses/shad
 | `yocto-queue` | 0.1.0 | MIT |
 | `zod` | 4.6.7 | MIT |
 | `zod-validation-error` | 4.0.2 | MIT |
+
+## HC-03 additions (2026-11-07)
+
+Exact pins in `package.json`; the lockfile carries the transitive graph. No AGPL or copyleft-network license. `qrcode` is used only as a library (`QRCode.create` → module matrix); PNG/SVG/PDF are written by Harvest code (`src/server/connect-qr.ts`) with Node's built-in `zlib`. `jsqr` is a development dependency used only by tests to decode exports independently.
+
+| Package | Version | License |
+| --- | --- | --- |
+| `qrcode` | 1.5.4 | MIT |
+| `dijkstrajs` | 1.0.3 | MIT |
+| `pngjs` | 5.0.0 | MIT |
+| `qrcode/node_modules/yargs` (CLI only) | 15.4.1 | MIT |
+| `qrcode/node_modules/yargs-parser` | 18.1.3 | ISC |
+| `qrcode/node_modules/cliui` | 6.0.0 | ISC |
+| `qrcode/node_modules/y18n` | 4.0.3 | ISC |
+| `qrcode/node_modules/find-up` | 4.1.0 | MIT |
+| `qrcode/node_modules/locate-path` | 5.0.0 | MIT |
+| `qrcode/node_modules/p-limit` | 2.3.0 | MIT |
+| `qrcode/node_modules/p-locate` | 4.1.0 | MIT |
+| `qrcode/node_modules/string-width` | 4.2.3 | MIT |
+| `qrcode/node_modules/emoji-regex` | 8.0.0 | MIT |
+| `qrcode/node_modules/wrap-ansi` | 6.2.0 | MIT |
+| `camelcase` | 5.3.1 | MIT |
+| `decamelize` | 1.2.0 | MIT |
+| `is-fullwidth-code-point` | 3.0.0 | MIT |
+| `p-try` | 2.2.0 | MIT |
+| `require-directory` | 2.1.1 | MIT |
+| `require-main-filename` | 2.0.0 | ISC |
+| `set-blocking` | 2.0.0 | ISC |
+| `which-module` | 2.0.1 | ISC |
+| `@types/qrcode` (dev) | 1.5.5 | MIT |
+| `jsqr` (dev, tests only) | 1.4.0 | Apache-2.0 |

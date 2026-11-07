@@ -186,3 +186,6 @@ export const themeStyles = BRAND_THEMES.flatMap((brand) => COLOR_MODES.map((mode
   const tokens = Object.entries(themeRegistry[brand][mode]).map(([name, value]) => `${name}:${value}`).join(";");
   return `${selectors}{color-scheme:${mode};${tokens}}`;
 })).join("\n");
+
+/** HC-03 printable QR exports: the quiet zone is always white; the standard ink is black. */
+export const qrExportColors = { background: "#ffffff", standardInk: "#000000" } as const;
