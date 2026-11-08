@@ -21,5 +21,5 @@ export default async function ShortLinkLanding({ params }: { params: Promise<{ s
   const landing = await findLandingByShortCode(code);
   if (!landing) notFound();
   const manifest = syntheticIntakeEnabled() && landing.source === "campaign-link" ? await readIntakeManifest(getDb(),"short",code).catch(()=>null) : null;
-  return <PublicFrame><LandingContent landing={landing} responseHref={manifest?"#response-form":undefined} />{manifest&&<ResponseForm key={`${code}:${manifest.stamp}`} manifest={manifest} endpoint={`/api/public/connect/short/${encodeURIComponent(code)}/responses`}/>}</PublicFrame>;
+  return <PublicFrame><LandingContent landing={landing} responseHref={manifest?"#response-form":undefined} invitationAvailable={Boolean(manifest?.purposes.includes("account_communications"))} />{manifest&&<ResponseForm key={`${code}:${manifest.stamp}`} manifest={manifest} endpoint={`/api/public/connect/short/${encodeURIComponent(code)}/responses`}/>}</PublicFrame>;
 }

@@ -1909,6 +1909,8 @@
     "accountHome": "Back to your account",
     "signOut": "Sign out",
     "pendingBody": "Your choices are recorded as pending requests. No newsletter subscription was activated and no counselor was assigned. If you requested an account invitation, delivery is queued; it has not been confirmed.",
-    "personalBrand": "Harvest"
+    "personalBrand": "Harvest",
+    "landingBody": "A free personal Harvest account. Request an invitation below; your other choices stay separate.",
+    "landingAction": "Request a free account"
   }
 }

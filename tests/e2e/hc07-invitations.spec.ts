@@ -31,6 +31,7 @@ for(const scheme of ["light","dark"] as const){
    const visitor=await context.newPage(),email=`hc07-${randomUUID()}@example.test`,metrics=[];
    await visitor.goto("/account/welcome");await expect(visitor).toHaveURL(/\/sign-in\?personal=1$/);
    await visitor.goto(`/s/${link.shortCode}`);await expect(visitor.locator("#response-form")).toBeVisible();
+   await expect(visitor.getByRole("link",{name:"Request a free account",exact:true})).toHaveAttribute("href","#response-form");
    const choices=visitor.locator("#response-form").getByRole("checkbox");await expect(choices).toHaveCount(3);for(const choice of await choices.all())await expect(choice).not.toBeChecked();
    await visitor.getByRole("checkbox",{name:"Send me an invitation to a personal Harvest account",exact:true}).focus();await visitor.keyboard.press("Space");await visitor.getByLabel("Email",{exact:true}).fill(email);
    metrics.push(await capture(visitor,`invitation-form-mobile-${scheme}`));
