@@ -147,10 +147,31 @@ test("landing editor: history warning without the Navigation API", async ({ page
   await expect(page.getByRole("alertdialog")).toBeVisible(); await page.getByRole("button", { name: "Keep editing", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`${link.id}/landing$`)); await expect(page.getByLabel("Welcome heading (optional)", { exact: true })).toHaveValue("Keep this draft");
   await page.getByRole("button", { name: "Save draft", exact: true }).click(); await expect(page.getByRole("status").filter({ hasText: "Draft saved privately." })).toBeVisible();
-  // Saving removes only the guard entry. A clean Back reaches the QR list normally.
+  // A clean Back reaches the QR list normally; no synthetic entry is added while editing.
   await page.goBack(); await expect(page).toHaveURL(new RegExp(`${root}$`));
   await page.getByRole("link", { name: "Edit landing page", exact: true }).click();
   await page.getByLabel("Welcome heading (optional)", { exact: true }).fill("Discard this change");
   await page.goBack({ timeout: 1500 }).catch(() => {}); await expect(page.getByRole("alertdialog")).toBeVisible();
+  await page.getByRole("button", { name: "Leave page", exact: true }).click(); await expect(page).toHaveURL(new RegExp(`${root}$`));
+});
+
+
+test("landing editor: fallback preserves multi-entry and forward destinations", async ({ page }) => {
+  test.setTimeout(90000);
+  await page.addInitScript(() => Object.defineProperty(window, "navigation", { value: undefined, configurable: true }));
+  const { root, link } = await setup(page), editor = `${root}/${link.id}/landing`;
+  await page.goto(`/workspaces`); await page.goto(root); await page.getByRole("link", { name: "Edit landing page", exact: true }).click();
+  await page.getByLabel("Welcome heading (optional)", { exact: true }).fill("Multi-step draft");
+  await page.evaluate(() => history.go(-2)); await expect(page.getByRole("alertdialog")).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`${link.id}/landing$`)); await page.getByRole("button", { name: "Keep editing", exact: true }).click();
+  await expect(page.getByLabel("Welcome heading (optional)", { exact: true })).toHaveValue("Multi-step draft");
+  await page.evaluate(() => history.back()); await expect(page.getByRole("alertdialog")).toBeVisible();
+  await page.getByRole("button", { name: "Leave page", exact: true }).click(); await expect(page).toHaveURL(/\/workspaces$/);
+  // Create a forward destination, return cleanly to the editor, then edit before Forward.
+  await page.goto(editor); await page.getByRole("main").getByRole("link", { name: "QR codes and short links", exact: true }).click(); await page.goBack();
+  await expect(page).toHaveURL(new RegExp(`${link.id}/landing$`));
+  await page.getByLabel("Welcome heading (optional)", { exact: true }).fill("Forward draft");
+  await page.evaluate(() => history.forward()); await expect(page.getByRole("alertdialog")).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`${link.id}/landing$`));
   await page.getByRole("button", { name: "Leave page", exact: true }).click(); await expect(page).toHaveURL(new RegExp(`${root}$`));
 });
