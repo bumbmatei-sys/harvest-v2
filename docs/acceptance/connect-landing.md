@@ -30,9 +30,9 @@ All responses, including failures, are private/no-store. Writes verify same orig
 
 `resolve_connect_link` is unchanged. New constrained `resolve_connect_landing(kind, code)` derives ownership from the current opaque QR/short code and returns only locale, public title and current published definition. No draft, revision, actor or internal identifier is returned. Both public routes use it per request without cross-request caching, preserving pause/expiry/archive/retired-code unavailability. Resource-only links work without form or intake availability.
 
-## Verification
+## Initial delivery verification
 
-Final application implementation: `6b1b27f7d0408787055c27f1d73c5190a130821e`. Subsequent delivery changes contain evidence/documentation and the generated offline stylesheet only; the PR records its exact final head and final delta review. Validation used Node 24.22.1, PostgreSQL 18.6 and local Chromium 156.0.8078.79. Browser email used the existing mock mailbox; no live database or provider was contacted.
+Initial validated application implementation: `6b1b27f7d0408787055c27f1d73c5190a130821e`. The initial delivery at `ac25c38` added evidence/documentation and generated CSS. The non-technical editor follow-up below records the latest application changes; the PR records the latest exact delivery head and delta review. Validation used Node 24.22.1, PostgreSQL 18.6 and local Chromium 156.0.8078.79. Browser email used the existing mock mailbox; no live database or provider was contacted.
 
 | Check | Author result |
 | --- | --- |
@@ -56,3 +56,14 @@ Reproduction uses the repository browser dependency by default. This environment
 A newly created non-author session independently reviewed the complete implementation and corrections: **MERGE-OK for bounded source scope, no unresolved blocking finding** at `6b1b27f`. [Independent report](../reviews/connect-landing-independent.md) records exact reviewed commits, resolved P2 history gaps and independently executed unit/static/bridge probes. The reviewer did not execute DB/browser/build suites or inspect screenshots; those are author evidence. Runtime exposed Next's synchronous router-listener teardown after initial source review; the final pre-hydration bridge and real compatibility regressions resolve it. Visual QA also corrected back-link contrast and intrinsic long-text wrapping; JSONB key-order dirty comparison and keyboard focus were corrected during author testing.
 
 The fallback for browsers without Navigation API deliberately replaces the forward history branch when a dirty editor is restored. It preserves the mounted draft and the visitor's actual chosen destination before explicit discard; it does not claim exact preservation of the browser stack. No production intake, real invitation send, merge or deployment occurred. All five activation decisions remain unapproved.
+
+
+## Non-technical organizer follow-up
+
+Matei noted that the original screenshots’ adversarial HTML-like strings looked like something an organizer needed to write. The product never required HTML; the screenshots mixed safety fixtures with the normal walkthrough. The revised walkthrough uses a warm welcome and a readable course title. A separate browser case retains invalid-address and literal-markup/execution coverage without producing product screenshots.
+
+The editor now provides ordinary writing examples, “Website link” and “Cost for visitors” labels, clear guidance for adding Harvest resources or website links, and visible Move up / Move down / Remove actions. The numbered accessible names include those visible phrases for voice navigation. Human-readable private/saved/published states replace internal revision counters; unsaved changes take precedence over saved-version status. Community links explain why their cost remains free. The shared preview still updates as the organizer types; validation, publication, permissions, QR lifecycle and consent behavior are unchanged.
+
+Application follow-up: `1d1da1838b900bb72842f272fd7e9a5d363b0b92`. On that source, the author reran lint, typecheck, production build and all 290 unit tests successfully (zero skipped). All five editor browser cases passed in 1.9 minutes, including separate unsafe-input coverage and both history fallback cases. The run regenerated all 24 screenshots: author inspection confirmed normal readable content, axe scans were clean, document/main overflow was zero and measured controls remained at least 44 × 44px. There are now **26 unique browser cases across runs** (21 existing Connect/auth regressions plus five editor cases), not one 26-case final command.
+
+The existing newly created non-author session independently reviewed both UI follow-up commits and resolved its accessible-name finding; **MERGE-OK at exact application head `1d1da1838b900bb72842f272fd7e9a5d363b0b92`**, with runtime/visual execution still attributed to the author. The PR records the read-only final evidence-delta review. The earlier 394-test integration/RLS result remains applicable to unchanged SQL/service/schema files. No migration or capability was added by this usability refinement.

@@ -1,17 +1,19 @@
 {
-  "implementation": "6b1b27f7d0408787055c27f1d73c5190a130821e",
+  "implementation": "1d1da1838b900bb72842f272fd7e9a5d363b0b92",
   "authorEvidence": true,
   "unit": {
     "passed": 290,
     "failed": 0,
     "skipped": 0,
-    "files": 25
+    "files": 25,
+    "provenance": "Rerun on current application implementation; /tmp/landing-friendly-final-unit.json"
   },
   "integration": {
     "passed": 394,
     "failed": 0,
     "skipped": 0,
-    "files": 43
+    "files": 43,
+    "provenance": "Initial delivery result; SQL/service/schema unchanged in usability refinement"
   },
   "visual": {
     "states": 24,
@@ -19,6 +21,13 @@
     "maxDocumentOverflow": 0,
     "maxMainOverflow": 0,
     "minimumControlWidth": 44,
-    "minimumControlHeight": 44
+    "minimumControlHeight": 44,
+    "provenance": "Regenerated and author-inspected on current application implementation"
+  },
+  "initialImplementation": "6b1b27f7d0408787055c27f1d73c5190a130821e",
+  "browser": {
+    "editorCasesPassed": 5,
+    "uniqueCasesAcrossRuns": 26,
+    "provenance": "Five final editor cases plus 21 earlier Connect/auth regressions; not one final 26-case run"
   }
 }
