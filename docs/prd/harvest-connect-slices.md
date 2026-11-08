@@ -1,10 +1,10 @@
 # Harvest Connect implementation slices
 
-## Current-state reconciliation — 2026-11-07
+## Current-state reconciliation — 2026-11-08
 
-The HC-01/HC-04 baseline and evidence below are historical, not a current implementation checklist. CRM-01–08 foundation, CW-01 campaigns and HC-02 are now merged (PRs #25, #22 and #28 include migrations 0025–0026). HC-03 is open as draft PR #29 with migration 0027: QR lifecycle administration and a published-only database resolver. It is not merged or deployed. See [HC-02 acceptance](../acceptance/hc-02.md), [HC-03 acceptance](../acceptance/hc-03.md) and [closeout review](../reviews/hc-03-closeout.md). Follow the live GitHub head/checks, not historical migration reservations or statements that CRM-05 is unmerged.
+The HC-01/HC-04 baseline and evidence below are historical, not a current implementation checklist. CRM-01–08 foundation, CW-01 campaigns and HC-02 are now merged (PRs #25, #22 and #28 include migrations 0025–0026). HC-03 merged as PR #29 with migration 0027: QR lifecycle administration and a published-only database resolver. HC-05 merged as PR #30 (bbe2141), migration 0028, for bounded synthetic intake. No production collection or deployment is approved. See [HC-02 acceptance](../acceptance/hc-02.md), [HC-03 acceptance](../acceptance/hc-03.md) and [closeout review](../reviews/hc-03-closeout.md). Follow the live GitHub head/checks, not historical migration reservations or statements that CRM-05 is unmerged.
 
-HC-05 intake is implemented for bounded local synthetic review in PR #30 (not yet merged or activated); see [acceptance](../acceptance/hc-05.md). HC-06/07 verified claims/CRM association and later Communities/follow-up remain future work. The [five activation decisions](../decisions/hc-02-activation-gates.md) remain unapproved; technical review is not collection or launch approval. Historical review checkboxes record the scope of their original slice only.
+HC-05 intake is merged for bounded local synthetic use in PR #30 (not activated for real collection); see [acceptance](../acceptance/hc-05.md). HC-07 is the current bounded implementation for personal-account invitations and verified claims; see [HC-07 acceptance](../acceptance/hc-07.md). HC-06 CRM association and later Communities/follow-up remain separate future work. The [five activation decisions](../decisions/hc-02-activation-gates.md) remain unapproved; technical review is not collection or launch approval. Historical review checkboxes record the scope of their original slice only.
 
 Historical HC-01 baseline: 2026-11-06; the original proposal below contained no HC-02+ implementation. Current status is in the reconciliation above.
 

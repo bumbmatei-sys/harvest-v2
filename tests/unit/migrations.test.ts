@@ -41,6 +41,9 @@ it("keeps a single snapshot chain and an ordered migration journal (reserved num
   for (const table of Object.keys(snapshots[26].tables)) if (table !== "public.campaign_response_links") expect(snapshots[27].tables[table], table).toEqual(snapshots[26].tables[table]);
   expect(journal.entries[28].tag).toBe("0028_hc05_connect_intake");
   expect(Object.keys(snapshots[28].tables).sort()).toEqual([...Object.keys(snapshots[27].tables), "public.connect_intake_receipts", "public.connect_intake_limits", "public.connect_intake_events"].sort());
+  expect(journal.entries[29].tag).toBe("0029_hc07_personal_account_claims");
+  expect(Object.keys(snapshots[29].tables).sort()).toEqual([...Object.keys(snapshots[28].tables),"public.connect_invitations","public.connect_invitation_flows","public.response_account_claims"].sort());
+  for(const table of Object.keys(snapshots[28].tables))expect(snapshots[29].tables[table],table).toEqual(snapshots[28].tables[table]);
   const links = snapshots[27].tables["public.campaign_response_links"];
   expect(Object.keys(links.columns)).toEqual(expect.arrayContaining(Object.keys(snapshots[26].tables["public.campaign_response_links"].columns)));
   expect(links.columns.short_code.notNull).toBe(true);

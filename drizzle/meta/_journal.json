@@ -204,6 +204,13 @@
       "when": 1794088704999,
       "tag": "0028_hc05_connect_intake",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1794124041368,
+      "tag": "0029_hc07_personal_account_claims",
+      "breakpoints": true
     }
   ]
 }

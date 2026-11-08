@@ -2,6 +2,8 @@
 
 Date: 2026-11-07. Baseline: merged `main` at `b1da5a4` (HC-03 #29). **This brief originally covered planning. Matei subsequently authorized the bounded implementation in PR #30; real collection and activation remain unapproved.**
 
+HC-05 is now merged as PR #30 (bbe2141); its activation decisions remain unapproved. HC-07 continues the separate account-invitation scope.
+
 Implementation record: [HC-05 acceptance](../acceptance/hc-05.md). Both purposes are implemented only for local synthetic tests. The current preset supports email and optional preferred name; phone is deferred because the existing consent contract distinguishes email/SMS and does not authorize voice calls. Changing published fields creates a new version and requires a new QR link; existing links/evidence are immutable. No general Forms builder or live collection is enabled.
 
 Goal: make the optional response step ready to implement as one bounded PR. Resource access remains free and requires no identity. Sources: [Connect PRD J2 and §§5, 10–11](harvest-connect-qr-to-discipleship.md), [slice plan](harvest-connect-slices.md), [HC-02 acceptance](../acceptance/hc-02.md), [HC-03 acceptance](../acceptance/hc-03.md), [activation register](../decisions/hc-02-activation-gates.md).

@@ -850,3 +850,35 @@ export const connectIntakeEvents = pgTable("connect_intake_events", {
   foreignKey({columns:[t.tenantId,t.responseId],foreignColumns:[campaignResponses.tenantId,campaignResponses.id]}),
   check("connect_intake_event_kind",sql`${t.event} in ('submit','withdraw','erase','purge') and ${t.actor} in ('guest','worker')`),
   check("connect_intake_event_purpose",sql`(${t.event}='withdraw' and ${t.purpose} in ('outreach_follow_up','newsletter')) or (${t.event}<>'withdraw' and ${t.purpose} is null)`)]);
+
+// HC-07: private delivery queue and one-use personal-account claim. No direct app grants.
+export const connectInvitations = pgTable("connect_invitations", {
+ tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), responseId: uuid("response_id").notNull(),
+ sourceCode: text("source_code").notNull(), tokenHash: text("token_hash").notNull(), recipientHash: text("recipient_hash").notNull(),
+ envelope: jsonb("envelope").$type<Record<string, unknown>>(), expiresAt: timestamp("expires_at",{withTimezone:true}).notNull(),
+ issuedAt: timestamp("issued_at",{withTimezone:true}).array().notNull(), generation: integer("generation").notNull().default(1),
+ status: text("status").notNull().default("queued"), attempts: integer("attempts").notNull().default(0),
+ availableAt: timestamp("available_at",{withTimezone:true}).notNull().defaultNow(), lockedAt: timestamp("locked_at",{withTimezone:true}),
+ lease: uuid("lease"), consumedAt: timestamp("consumed_at",{withTimezone:true}),
+}, t=>[primaryKey({columns:[t.tenantId,t.id]}),
+ foreignKey({columns:[t.tenantId,t.responseId],foreignColumns:[campaignResponses.tenantId,campaignResponses.id]}),
+ uniqueIndex("connect_invitation_response_idx").on(t.tenantId,t.responseId),uniqueIndex("connect_invitation_token_idx").on(t.tokenHash),
+ index("connect_invitation_due_idx").on(t.status,t.availableAt),
+ check("connect_invitation_fields",sql`${t.tokenHash} ~ '^[a-f0-9]{64}$' and ${t.recipientHash} ~ '^[a-f0-9]{64}$' and ${t.sourceCode} ~ '^[a-f0-9]{32}$' and ${t.generation}>0 and ${t.attempts}>=0 and cardinality(${t.issuedAt}) between 1 and 20`),
+ check("connect_invitation_status",sql`${t.status} in ('queued','running','sent','failed') and ((${t.status}='running' and ${t.lease} is not null and ${t.lockedAt} is not null) or (${t.status}<>'running' and ${t.lease} is null and ${t.lockedAt} is null))`),
+ check("connect_invitation_envelope",sql`${t.envelope} is null or (jsonb_typeof(${t.envelope})='object' and octet_length(${t.envelope}::text)<=4096)`)]);
+export const connectInvitationFlows = pgTable("connect_invitation_flows", {
+ hash: text("hash").primaryKey(), tenantId: uuid("tenant_id").notNull(), invitationId: uuid("invitation_id").notNull(),
+ generation: integer("generation").notNull(), expiresAt: timestamp("expires_at",{withTimezone:true}).notNull(),
+},t=>[foreignKey({columns:[t.tenantId,t.invitationId],foreignColumns:[connectInvitations.tenantId,connectInvitations.id]}).onDelete("cascade"),
+ check("connect_invitation_flow_hash",sql`${t.hash} ~ '^[a-f0-9]{64}$' and ${t.generation}>0`),index("connect_invitation_flow_expiry_idx").on(t.expiresAt)]);
+// HC-06 must consume this verified grant once, in the CRM association transaction. HC-07 never associates.
+export const responseAccountClaims = pgTable("response_account_claims", {
+ tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), responseId: uuid("response_id").notNull(),
+ invitationId: uuid("invitation_id").notNull(), userId: text("user_id").notNull().references(()=>users.id,{onDelete:"cascade"}),
+ verifiedAt: timestamp("verified_at",{withTimezone:true}).notNull().defaultNow(), expiresAt: timestamp("expires_at",{withTimezone:true}).notNull(),
+ associationConsumedAt: timestamp("association_consumed_at",{withTimezone:true}),
+},t=>[primaryKey({columns:[t.tenantId,t.id]}),
+ foreignKey({columns:[t.tenantId,t.responseId],foreignColumns:[campaignResponses.tenantId,campaignResponses.id]}),
+ foreignKey({columns:[t.tenantId,t.invitationId],foreignColumns:[connectInvitations.tenantId,connectInvitations.id]}).onDelete("cascade"),
+ uniqueIndex("response_account_claim_response_idx").on(t.tenantId,t.responseId),check("response_account_claim_expiry",sql`${t.expiresAt}>${t.verifiedAt}`)]);
