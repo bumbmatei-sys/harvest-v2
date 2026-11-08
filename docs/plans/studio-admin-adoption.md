@@ -22,6 +22,10 @@
 - `src/lib/theme-registry.ts`, `src/lib/theme.ts`, `src/app/globals.css`: preserve workspace-specific theme mechanics and light/dark behavior while making Studio Admin's default visual palette the target; defer Harvest gold to a separate optional theme. Do not silently discard existing workspace brand values.
 - Read `docs/design-system.md`, `docs/plans/design-system-foundation.md`, `AGENTS.md`, `CLAUDE.md`, module PRDs and acceptance records before implementation.
 
+## Founder-selected default sidebar: Floating
+
+Set Studio Admin's **Floating** sidebar style as Harvest's default desktop shell presentation: an inset, rounded sidebar separated visually from the viewport edges. Implement in the existing reusable AppShell, preserving its permission-aware navigation, workspace switcher, collapse controls, mobile drawer, focus behavior and responsive layouts. This is the approved default, not merely one of several undecided sidebar styles. Keep layout preference extensibility without multiplying shell implementations.
+
 ## Why this adoption exists: reusable systems, not screen-by-screen copying
 
 The founder's primary architectural goal is **build once, reuse across Harvest**. Studio Admin is the visual specification for the shared systems; copying its pages individually would defeat the purpose. Implement the existing Harvest AppShell, shared page templates, resource lists/details, creation wizard, EditorShell, form engine, inbox composition and semantic theme registry as configurable, reusable systems. Before adding a screen, inspect and reuse existing shared patterns; extend them only for real consumer needs. No module-specific duplicate dashboards, sidebar shells, wizards or styling forks.
