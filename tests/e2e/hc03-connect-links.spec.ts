@@ -122,7 +122,7 @@ test("HC-03: organizer lifecycle, exports and guest revocation in a real browser
   await card.getByRole("button", { name: "Publish", exact: true }).click();
   const publish = page.getByRole("dialog", { name: "Before you publish" });
   await expect(publish.getByText("The campaign is not archived")).toBeVisible();
-  await expect(publish.getByText("No response is collected. Response forms arrive in a later release")).toBeVisible();
+  await expect(publish.getByText("Response collection is not enabled for real visitors")).toBeVisible();
   await axe(page, "admin-publish-dialog");
   await page.screenshot({ path: `${evidence}/admin-publish-dialog.png` });
   await publish.getByRole("button", { name: "Publish link" }).click();

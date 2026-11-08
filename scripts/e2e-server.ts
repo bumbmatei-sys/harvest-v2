@@ -10,6 +10,7 @@ if (process.env.HARVEST_E2E_MAILBOX) await writeFile(`${process.env.HARVEST_E2E_
 const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--turbopack", "--hostname", "127.0.0.1", "--port", "3100"], {
   stdio: ["ignore", "inherit", "inherit"], env: { ...process.env,
     // Override any real credentials and avoid reading live .env.local during browser tests.
+    HARVEST_CONNECT_INTAKE: "synthetic", HARVEST_CONNECT_TEST_KEY: randomBytes(32).toString("hex"),
     DATABASE_URL: database.appURL, DATABASE_URL_UNPOOLED: "", BETTER_AUTH_SECRET: randomBytes(48).toString("base64url"),
     BETTER_AUTH_URL: "http://127.0.0.1:3100", RESEND_API_KEY: "re_e2e_mock_only", EMAIL_FROM: "Harvest <test@example.test>",
     HARVEST_E2E_MOCK_EMAIL: "1", NEXT_TELEMETRY_DISABLED: "1",

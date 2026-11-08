@@ -5,6 +5,7 @@ import { getFormatter, getTranslations } from "next-intl/server";
 import { ArrowLeft, Eye, Info, MonitorPlay, QrCode } from "lucide-react";
 import { getDb } from "@/db/client";
 import { listConnectLinks, type ConnectLink } from "@/server/connect-links";
+import { syntheticIntakeEnabled } from "@/server/connect-intake-mode";
 import { pageSession } from "@/server/page-session";
 import { AccessError } from "@/server/permissions";
 import { uuidInput } from "@/lib/contact-input";
@@ -26,6 +27,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function ConnectLinksPage({ params }: { params: Promise<{ tenantId: string; campaignId: string }> }) {
+  const intakeT = await getTranslations("Intake");
   const t = await getTranslations("ConnectLinks"), session = await pageSession(), { tenantId, campaignId } = await params;
   if (!uuidInput.safeParse(tenantId).success || !uuidInput.safeParse(campaignId).success) notFound();
   const data = await listConnectLinks(getDb(), session.user.id, tenantId, campaignId)
@@ -85,9 +87,9 @@ export default async function ConnectLinksPage({ params }: { params: Promise<{ t
         <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
         <p className="text-sm text-muted-foreground">{t("description")}</p>
       </div>
-      {data.permissions.manage && <CreateLinkDialog endpoint={api} formVersions={data.formVersions} />}
+      <div className="flex flex-wrap gap-2">{permissions.publish && syntheticIntakeEnabled() && <Button asChild variant="outline" className="min-h-11"><Link href={`${root}/forms`}>{intakeT("settingsLink")}</Link></Button>}{data.permissions.manage && <CreateLinkDialog endpoint={api} formVersions={data.formVersions} />}</div>
     </div>
-    <Alert><Info aria-hidden="true" /><AlertDescription>{t("responsesNotice")}</AlertDescription></Alert>
+    <Alert><Info aria-hidden="true" /><AlertDescription>{syntheticIntakeEnabled()?intakeT("adminNotice"):t("responsesNotice")}</AlertDescription></Alert>
     {!data.permissions.publish && <p className="text-sm text-muted-foreground">{t("viewerNote")}</p>}
     {active.length === 0 ? <Empty className="border border-solid bg-card py-16"><EmptyHeader><EmptyMedia variant="icon"><QrCode aria-hidden="true" /></EmptyMedia>
       <EmptyTitle><h2>{t("emptyTitle")}</h2></EmptyTitle><EmptyDescription>{t("emptyDescription")}</EmptyDescription></EmptyHeader></Empty>

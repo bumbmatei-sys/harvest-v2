@@ -19,7 +19,8 @@
     "predev": "npm run generate:offline",
     "prebuild": "npm run generate:offline",
     "pretest:e2e": "npm run generate:offline",
-    "jobs:drain": "tsx scripts/drain-jobs.ts"
+    "jobs:drain": "tsx scripts/drain-jobs.ts",
+    "connect:purge:test": "tsx scripts/purge-connect-intake.ts"
   },
   "engines": {
     "node": ">=22"

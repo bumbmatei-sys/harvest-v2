@@ -14,7 +14,7 @@ import { eraseConnectResponse, isConnectResponsePurposeActive, listPendingRespon
 const role = "harvest_test_connect_owner";
 const definers = ["public.withdraw_connect_response_purpose(uuid,uuid,text)", "public.erase_connect_response(uuid,uuid)",
   "public.purge_expired_connect_responses(uuid)", "public.connect_response_purpose_active(uuid,uuid,text)"];
-const tables = ["workspace_members", "audit_logs", "outbox_events", "jobs", "form_versions", "campaign_responses", "campaign_response_contact_methods", "campaign_response_consents"];
+const tables = ["workspace_members", "audit_logs", "outbox_events", "jobs", "form_versions", "campaign_responses", "campaign_response_contact_methods", "campaign_response_consents", "connect_intake_receipts", "connect_intake_limits", "connect_intake_events"];
 let fixture: Awaited<ReturnType<typeof testDatabase>>, tenant: string, other: string, campaign: string, link: string, version: string, notice: string;
 let roleCreated = false;
 const copied: { table: string; name: string }[] = [];
