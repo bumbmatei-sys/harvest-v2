@@ -9,3 +9,17 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 <!-- END:nextjs-agent-rules -->
 
 UI uses shadcn components only (npx shadcn add ...); do not build from scratch anything shadcn provides.
+
+## Harvest shared UI architecture
+
+Harvest uses [OpenShadcnBlocks](https://openshadcnblocks.pages.dev/) as a selected UI source. Read [installation/provenance status](docs/design/openshadcnblocks.md), inspect the registry item/license and use the configured `npm run ui:add` command. Search existing components first; do not add a parallel runtime UI framework or claim a block is installed merely because registry aliases exist.
+
+Theme work must read [the founder's requested palette shortlist](docs/design/theme-candidates.md). Implement through the existing registry; Honey Glow Gold is a possible official default, not a decided rebrand.
+
+Before UI work, read [the master design-system specification](docs/design-system.md), [the foundation/adoption plan](docs/plans/design-system-foundation.md), `CLAUDE.md`, the relevant module PRD and current acceptance evidence. The specification is a target, not a claim that shared engines already exist.
+
+Search the component registry before generating UI. Until `docs/component-registry.md` is established, search `src/components`, `src/lib/theme-registry.ts`, `src/app/globals.css` and `docs/design/`; record reusable components in the first foundation pass. Extend the existing AppShell, theme tokens and CRM patterns rather than duplicating them. Keep domain permissions, consent and lifecycle rules in their owning services.
+
+Use concise labels and useful placeholders. Do not add routine descriptions below every field (including welcome heading/message); reserve help text for consequential constraints, consent/privacy notices and actionable validation. The planned CRM filter trigger is icon-only, with an accessible “Filters” name/tooltip; its ReUI reference and behavior are recorded in `docs/plans/hc-06.md`.
+
+Adapt external UI sources to Harvest's tokens and shadcn primitives, and record source/license evidence. Do not treat this architectural specification as authorization to enable integrations, payment processing, production intake or invitation delivery, or to merge/deploy.
