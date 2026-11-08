@@ -1,6 +1,6 @@
 # Studio Admin visual adoption roadmap for Harvest V2
 
-**Decision (founder, 2026-11-08; updated):** Studio Admin is the sole primary visual reference for Harvest's authenticated shell, pages, dashboards, forms, editors, and Harvest Studio unified inbox. Shadboard is not a design reference. Premium, restrained, professional UI is the target; avoid playful theme presets. **Match Studio Admin's actual default color palette, surfaces, typography, borders, spacing and dark mode as closely as feasible.** Harvest gold must not dominate the default theme; keep it for a later optional separate theme.
+**Decision (founder, 2026-11-08; updated):** Studio Admin is the sole primary visual reference for Harvest's authenticated shell, pages, dashboards, forms, editors, and Harvest Studio unified inbox. Shadboard is not a design reference. Premium, restrained, professional UI is the target; avoid playful theme presets. **Match Studio Admin's actual default color palette, surfaces, typography, borders, spacing and dark mode as closely as feasible.** Harvest gold must not dominate the default theme; keep it for a later optional separate theme. **All 12 founder-selected palettes in `docs/design/theme-candidates.md` are approved future selectable themes, deferred until the Studio Admin baseline is implemented—not canceled.**
 
 **Scope of this PR:** planning only. No application UI, providers, routes, auth, database, or production behavior changes. Do not infer that the source template's example social-media imagery implements platform integrations.
 
@@ -21,6 +21,16 @@
 - `src/components/connect-admin/landing-editor.tsx`: working draft/preview/save/publish/unsaved-change semantics; preserve these while adopting a premium editor layout.
 - `src/lib/theme-registry.ts`, `src/lib/theme.ts`, `src/app/globals.css`: preserve workspace-specific theme mechanics and light/dark behavior while making Studio Admin's default visual palette the target; defer Harvest gold to a separate optional theme. Do not silently discard existing workspace brand values.
 - Read `docs/design-system.md`, `docs/plans/design-system-foundation.md`, `AGENTS.md`, `CLAUDE.md`, module PRDs and acceptance records before implementation.
+
+## Founder-selected default sidebar: Floating
+
+Set Studio Admin's **Floating** sidebar style as Harvest's default desktop shell presentation: an inset, rounded sidebar separated visually from the viewport edges. Implement in the existing reusable AppShell, preserving its permission-aware navigation, workspace switcher, collapse controls, mobile drawer, focus behavior and responsive layouts. This is the approved default, not merely one of several undecided sidebar styles. Keep layout preference extensibility without multiplying shell implementations.
+
+## Why this adoption exists: reusable systems, not screen-by-screen copying
+
+The founder's primary architectural goal is **build once, reuse across Harvest**. Studio Admin is the visual specification for the shared systems; copying its pages individually would defeat the purpose. Implement the existing Harvest AppShell, shared page templates, resource lists/details, creation wizard, EditorShell, form engine, inbox composition and semantic theme registry as configurable, reusable systems. Before adding a screen, inspect and reuse existing shared patterns; extend them only for real consumer needs. No module-specific duplicate dashboards, sidebar shells, wizards or styling forks.
+
+For each implementation PR, document (1) the shared primitive/template/engine reused or introduced, (2) the real module consumers, (3) why any exception cannot be composed from shared parts, (4) regression/responsive/light-dark checks. Prove newly generalized systems with at least two real consumers before declaring them universal. Keep backend authorization and domain workflows separate from UI composition. The 12 founder-selected future themes and optional Harvest Gold must reuse the same semantic tokens and layouts.
 
 ## Visual direction and acceptance
 
@@ -58,7 +68,7 @@ Model channel capabilities independently: read, reply, attachments, templates, w
 ## Ordered, reviewable delivery
 
 1. **Source audit and visual inventory (documentation):** pin upstream commit, inspect actual shell, email/chat, dashboard, list, detail, form, mobile source; screenshot/route matrix and license/dependency register. Identify exact candidate files and Harvest counterparts. No visual implementation until this audit.
-2. **Foundation + showcase:** register existing components and tokens, make Studio Admin's colors and styling the default design target using Harvest's existing theme infrastructure, create internal showcase; no wholesale global CSS replacement. Preserve old gold token values for a later optional theme.
+2. **Foundation + showcase:** register existing components and tokens, make Studio Admin's colors and styling the default design target using Harvest's existing theme infrastructure, create internal showcase; no wholesale global CSS replacement. Preserve old gold token values for a later optional theme. Add the 12 founder-selected optional palettes in a later dedicated workstream after baseline stabilization, preserving the Studio Admin shell and layout across all themes.
 3. **Shell proof-of-concept:** adapt existing AppShell and mobile drawer; preserve permissions, workspace switching, route selection, next-intl, notifications, themes. Verify 360/390/768/1280/1440 widths and both themes.
 4. **Shared page primitives:** header, actions, section panels, list/toolbar/grid, detail tabs, status and settings composition. Migrate one CRM list and one Connect/other page as real consumers before wider rollout.
 5. **Unified inbox UI prototype:** verified Studio Admin inbox visual treatment wired to typed mock *presentation* fixtures in internal/dev-only showcase; define capability contracts. Integrate live providers only in separately approved, security-reviewed PRs.

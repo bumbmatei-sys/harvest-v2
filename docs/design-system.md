@@ -6,6 +6,20 @@
 
 ---
 
+## Mandatory architectural rule — reuse is the reason for this work
+
+**The primary purpose of adopting Studio Admin is to implement a reusable Harvest application system, not to reskin independent screens.** Studio Admin supplies the consistent visual reference; Harvest must own the reusable implementation. Every new or redesigned module must compose existing shared primitives, AppShell, page templates, resource-list/detail patterns, creation wizard, EditorShell, form engine, and theme tokens wherever the capability fits.
+
+**Before creating a new dashboard, list, form, wizard, editor, settings page, or inbox view:** inspect the existing component registry and relevant consumers; extend an appropriate shared abstraction rather than cloning a page or building a parallel module-specific implementation. Configure the shared system with typed domain-specific steps, fields, actions, permissions, and state; keep authorization, tenancy, data fetching, persistence, and business workflows in their owning services. **Do not force unrelated workflows into one giant component**: where reuse is inappropriate, document the concrete difference and use smaller composable primitives.
+
+**Enforcement / PR acceptance:** each UI PR must name the shared system(s) reused or introduced, show at least two representative real consumers before declaring a new abstraction universal, identify any deliberate exception and why, and include responsive light/dark and behavior/regression evidence. Reject copy-pasted dashboard shells, duplicated creation flows, hardcoded theme styles, or a separate component library merely to reproduce a Studio Admin screenshot. Preserve existing working logic and avoid speculative abstractions without real consumers.
+
+**Theme boundary:** Studio Admin's default appearance is the initial baseline. The 12 founder-selected future palettes and optional Harvest Gold must change semantic theme tokens through the same registry, **not** fork layouts, widgets, navigation, wizards, or editors.
+
+### Default navigation presentation — Floating Sidebar
+
+**Founder-selected Studio Admin preference:** use **Floating** as the default desktop sidebar style throughout Harvest. The sidebar is inset from viewport edges with rounded, separate surface treatment; implement it once in the shared permission-aware AppShell. Retain collapse/expand and mobile off-canvas drawer behavior, accessibility, keyboard focus, workspace switching, and responsive layouts. Other sidebar layouts may remain future user preferences if supported, but Floating is the initial default. This is a visual/layout configuration of the shared shell, not a separate sidebar per module.
+
 ## 1. Core Objective
 
 Harvest must function and feel like **one unified application**, even though it contains Social Studio, CRM, AI Chat, communities, courses, coaching, products, newsletters, campaigns, and ministry management.
@@ -33,6 +47,14 @@ Use high-quality existing libraries for tables, calendars, drag-and-drop, file u
 Do not introduce competing design systems without explicit justification.
 
 ## 3. Harvest Design System
+
+### Approved visual baseline and future selectable themes (8 November 2026)
+
+**Studio Admin is the mandatory baseline for the complete authenticated application**, not just dashboards: shell/sidebar/header, navigation, CRM lists and details, settings, tables, analytics, editors, forms, creation wizards, responsive views and Harvest Studio's unified inbox. Match Studio Admin's default semantic colors, surfaces, typography, spacing, borders, radii and light/dark behavior first, adapting its patterns to Harvest's existing shadcn architecture and permission-aware workflows. See [adoption plan](plans/studio-admin-adoption.md).
+
+**Founder-selected optional themes are a committed future product requirement, not discarded design research.** After the Studio Admin baseline is stable, add all **12 named palettes** in [the theme specification](design/theme-candidates.md) as user-selectable options in Harvest's existing theme registry and picker, including appropriate light/dark variants. Preserve Studio Admin as the default. Harvest Gold is also a future optional theme; the founder has not selected it as the default. Theme selection changes tokens, not navigation architecture, component contracts or permissions. No competing per-theme layout systems. Do not claim themes are implemented until actually shipped.
+
+
 
 Establish a centralized design system covering:
 
