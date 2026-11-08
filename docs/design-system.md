@@ -6,6 +6,16 @@
 
 ---
 
+## Mandatory architectural rule — reuse is the reason for this work
+
+**The primary purpose of adopting Studio Admin is to implement a reusable Harvest application system, not to reskin independent screens.** Studio Admin supplies the consistent visual reference; Harvest must own the reusable implementation. Every new or redesigned module must compose existing shared primitives, AppShell, page templates, resource-list/detail patterns, creation wizard, EditorShell, form engine, and theme tokens wherever the capability fits.
+
+**Before creating a new dashboard, list, form, wizard, editor, settings page, or inbox view:** inspect the existing component registry and relevant consumers; extend an appropriate shared abstraction rather than cloning a page or building a parallel module-specific implementation. Configure the shared system with typed domain-specific steps, fields, actions, permissions, and state; keep authorization, tenancy, data fetching, persistence, and business workflows in their owning services. **Do not force unrelated workflows into one giant component**: where reuse is inappropriate, document the concrete difference and use smaller composable primitives.
+
+**Enforcement / PR acceptance:** each UI PR must name the shared system(s) reused or introduced, show at least two representative real consumers before declaring a new abstraction universal, identify any deliberate exception and why, and include responsive light/dark and behavior/regression evidence. Reject copy-pasted dashboard shells, duplicated creation flows, hardcoded theme styles, or a separate component library merely to reproduce a Studio Admin screenshot. Preserve existing working logic and avoid speculative abstractions without real consumers.
+
+**Theme boundary:** Studio Admin's default appearance is the initial baseline. The 12 founder-selected future palettes and optional Harvest Gold must change semantic theme tokens through the same registry, **not** fork layouts, widgets, navigation, wizards, or editors.
+
 ## 1. Core Objective
 
 Harvest must function and feel like **one unified application**, even though it contains Social Studio, CRM, AI Chat, communities, courses, coaching, products, newsletters, campaigns, and ministry management.
