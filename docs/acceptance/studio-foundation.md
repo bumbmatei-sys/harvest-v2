@@ -8,7 +8,7 @@ Saved preference IDs and API/database constraints are preserved. Both existing I
 
 The shared sidebar uses the existing desktop floating/icon variant and mobile Sheet. Its existing responsive breakpoint remains 1024px (tablet drawer), avoiding a second sidebar/state system. Header toggle is available in both desktop and mobile. No upstream app, RBAC, mock data, telemetry or provider integrations copied.
 
-Validation in progress: lint, typecheck, unit suite, production build, responsive shell and Connect editor browser regressions. Final results will be recorded before delivery. Source review is separate from author runtime evidence.
+Author validation: lint, typecheck, all 290 unit tests and production build passed. The added secondary-surface contrast assertion also passed in the targeted theme rerun. All 7 browser cases passed: five Connect editor workflows, the existing full-width layout case, and the new responsive shell case. The shell case checks CRM/Connect at 360/390/768/1280/1440px in light/dark (20 captures and axe scans), no document overflow, desktop collapse/expand and mobile Escape/focus restoration. Captures are in `docs/screenshots/studio-foundation/`; the layout case also refreshes its existing captures. Author visually inspected mobile Connect light/dark and desktop CRM light. This is not physical-device or full populated-CRM certification. Source review is separate from author runtime evidence.
 
 Remaining Phase 0A work: internal component showcase, typed navigation registry, broader shared control sizing, concise QR field-copy cleanup and richer theme previews. Phase 0B/C wizard/editor/form engines and HC-06 are not delivered by this PR.
 
