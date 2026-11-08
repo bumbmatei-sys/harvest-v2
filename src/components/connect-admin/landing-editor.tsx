@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { ArrowLeft, ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -28,7 +28,7 @@ export function LandingEditor({ initial, endpoint, backHref, manifest }: { initi
   const [conflict, setConflict] = useState(false), [destination, setDestination] = useState<string | null>(null);
   const definition: LandingDefinition = { heading, message: welcome, cards: cards.map(({ card }) => card) };
   const dirty = !sameLandingDefinition(definition, data.definition), dirtyRef = useRef(dirty);
-  useEffect(() => { dirtyRef.current = dirty || busy !== null; }, [dirty, busy]);
+  useLayoutEffect(() => { dirtyRef.current = dirty || busy !== null; }, [dirty, busy]);
   useEffect(() => {
     function unload(event: BeforeUnloadEvent) { if (dirtyRef.current) { event.preventDefault(); event.returnValue = ""; } }
     function click(event: MouseEvent) {
@@ -46,7 +46,7 @@ export function LandingEditor({ initial, endpoint, backHref, manifest }: { initi
       if (dirtyRef.current && e.navigationType === "traverse" && e.cancelable && e.destination) { e.preventDefault(); setDestination(e.destination.url); }
     }
     const editorUrl = location.href, editorState = history.state;
-    function pop(event: PopStateEvent) {
+    function pop(event: Event) {
       if (navigation || !dirtyRef.current) return;
       const destination = new URL(location.href), editor = new URL(editorUrl);
       if (destination.pathname === editor.pathname && destination.search === editor.search) return;
@@ -54,11 +54,11 @@ export function LandingEditor({ initial, endpoint, backHref, manifest }: { initi
       // asking; explicit Leave navigates to the actual destination, regardless of
       // how many entries Back/Forward traversed. The compatibility fallback replaces
       // the forward branch while preserving the draft and chosen destination.
-      event.stopImmediatePropagation(); history.pushState(editorState, "", editorUrl); setDestination(destination.href);
+      event.preventDefault(); history.pushState(editorState, "", editorUrl); setDestination(destination.href);
     }
-    window.addEventListener("popstate", pop, true);
+    window.addEventListener("harvest-before-history", pop);
     window.addEventListener("beforeunload", unload); document.addEventListener("click", click, true); navigation?.addEventListener("navigate", navigate);
-    return () => { window.removeEventListener("popstate", pop, true); window.removeEventListener("beforeunload", unload); document.removeEventListener("click", click, true); navigation?.removeEventListener("navigate", navigate); };
+    return () => { window.removeEventListener("harvest-before-history", pop); window.removeEventListener("beforeunload", unload); document.removeEventListener("click", click, true); navigation?.removeEventListener("navigate", navigate); };
   }, []);
   async function persist(publish: boolean) {
     setError(""); setNotice("");

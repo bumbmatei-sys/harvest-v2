@@ -20,8 +20,8 @@ export function LandingContent({ landing, responseHref, invitationAvailable=fals
     <div className="mb-10 max-w-2xl space-y-5 sm:mb-14">
       {landing.source === "starter-preview" && <Badge variant="secondary">{t("preview")}</Badge>}
       {title && <p className="break-words text-base font-medium text-muted-foreground">{title}</p>}
-      <h1 className="whitespace-pre-wrap break-words text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">{definition?.heading || t("welcome")}</h1>
-      <p className="whitespace-pre-wrap break-words text-lg leading-relaxed text-muted-foreground">{definition?.message || t("welcomeBody")}</p>
+      <h1 className="whitespace-pre-wrap [overflow-wrap:anywhere] text-4xl font-semibold leading-tight tracking-tight sm:text-5xl">{definition?.heading || t("welcome")}</h1>
+      <p className="whitespace-pre-wrap [overflow-wrap:anywhere] text-lg leading-relaxed text-muted-foreground">{definition?.message || t("welcomeBody")}</p>
       <p className="text-sm text-muted-foreground">{definition ? editor("offersNotice") : t("freeNotice")}</p>
       {definition && <Button asChild className="min-h-11 whitespace-normal"><Link prefetch={false} href="/resources/start">{editor("freeAction")}<ArrowRight aria-hidden="true" /></Link></Button>}
     </div>

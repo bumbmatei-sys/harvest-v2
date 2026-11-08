@@ -17,8 +17,8 @@ export function PersonalizedCards({ definition }: { definition: LandingDefinitio
         <Badge variant={card.kind === "external" && card.price === "paid" ? "default" : "secondary"} className="h-auto whitespace-normal">
           {card.kind === "resource" ? t("resourceBadge") : t("externalBadge", { category: t(card.category), price: t(card.price) })}
         </Badge>
-        <CardTitle><h3 className="whitespace-pre-wrap break-words text-xl">{card.kind === "resource" ? resources(`resources.${card.resourceId}.title`) : card.title}</h3></CardTitle>
-        <CardDescription className="whitespace-pre-wrap break-words">{card.kind === "resource" ? resources(`resources.${card.resourceId}.description`) : card.description}</CardDescription>
+        <CardTitle className="min-w-0"><h3 className="whitespace-pre-wrap text-xl [overflow-wrap:anywhere]">{card.kind === "resource" ? resources(`resources.${card.resourceId}.title`) : card.title}</h3></CardTitle>
+        <CardDescription className="min-w-0 whitespace-pre-wrap [overflow-wrap:anywhere]">{card.kind === "resource" ? resources(`resources.${card.resourceId}.description`) : card.description}</CardDescription>
       </CardHeader>
       <CardFooter className="mt-auto">{card.kind === "resource" ? <Button asChild variant="outline" className="min-h-11 w-full whitespace-normal"><Link prefetch={false} href={`/resources/start/${card.resourceId}`}>{resources(`resources.${card.resourceId}.action`)}</Link></Button>
         : safeLandingUrl(card.url) ? <Button asChild variant="outline" className="min-h-11 w-full whitespace-normal"><a href={card.url} target="_blank" rel="noopener noreferrer" referrerPolicy="no-referrer">{t("externalAction")}<ArrowUpRight aria-hidden="true" /></a></Button>

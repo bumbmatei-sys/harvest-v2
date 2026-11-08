@@ -77,6 +77,7 @@ test("landing editor: private draft, shared preview, keyboard ordering, publishi
       expect(await suggestions.getByRole("heading", { level: 3 }).allTextContents()).toEqual(["Optional learning <script>window.bad=1</script>", "Common questions"]);
       await expect(suggestions.getByText("External · Course · Paid", { exact: true })).toBeVisible(); await expect(suggestions.getByText("Free Harvest resource", { exact: true })).toBeVisible();
       await expect(suggestions.locator("script")).toHaveCount(0);
+      for (const header of await suggestions.locator('[data-slot="card-header"]').all()) expect(await header.evaluate(e => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(0);
       const external = guest.getByRole("link", { name: "Visit external website", exact: true }); await expect(external).toHaveAttribute("href", "https://example.org/learn?lang=en#start"); await expect(external).toHaveAttribute("target", "_blank"); await expect(external).toHaveAttribute("rel", "noopener noreferrer"); await expect(external).toHaveAttribute("referrerpolicy", "no-referrer");
       expect(await guest.evaluate(() => (window as unknown as { bad?: number }).bad)).toBeUndefined();
       await expect(guest.getByRole("link", { name: "Explore free Harvest resources", exact: true }).first()).toBeVisible();
@@ -140,7 +141,10 @@ test("landing editor: history warning without the Navigation API", async ({ page
   test.setTimeout(90000);
   await page.addInitScript(() => Object.defineProperty(window, "navigation", { value: undefined, configurable: true }));
   const { root, link } = await setup(page);
-  await page.goto(root); await page.getByRole("link", { name: "Edit landing page", exact: true }).click();
+  await page.goto(root); await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
+  const documentTime = await page.evaluate(() => performance.timeOrigin);
+  await page.getByRole("link", { name: "Edit landing page", exact: true }).click();
+  expect(await page.evaluate(() => performance.timeOrigin)).toBe(documentTime);
   expect(await page.evaluate(() => typeof (window as unknown as { navigation?: unknown }).navigation)).toBe("undefined");
   await page.getByLabel("Welcome heading (optional)", { exact: true }).fill("Keep this draft");
   await page.goBack({ timeout: 1500 }).catch(() => {});
@@ -159,16 +163,20 @@ test("landing editor: history warning without the Navigation API", async ({ page
 test("landing editor: fallback preserves multi-entry and forward destinations", async ({ page }) => {
   test.setTimeout(90000);
   await page.addInitScript(() => Object.defineProperty(window, "navigation", { value: undefined, configurable: true }));
-  const { root, link } = await setup(page), editor = `${root}/${link.id}/landing`;
-  await page.goto(`/workspaces`); await page.goto(root); await page.getByRole("link", { name: "Edit landing page", exact: true }).click();
+  const { root, link, tenant } = await setup(page), editor = `${root}/${link.id}/landing`, campaignList = `/workspaces/${tenant}/campaigns`;
+  // All intermediate entries are real Next client navigations in one document.
+  await page.goto(campaignList); await expect(page.locator('[data-hydrated="true"]')).toBeVisible(); await page.getByRole("main").getByRole("link", { name: /Welcome campaign/ }).click();
+  await page.getByRole("main").getByRole("link", { name: "QR codes and short links", exact: true }).click();
+  await page.getByRole("link", { name: "Edit landing page", exact: true }).click();
   await page.getByLabel("Welcome heading (optional)", { exact: true }).fill("Multi-step draft");
-  await page.evaluate(() => history.go(-2)); await expect(page.getByRole("alertdialog")).toBeVisible();
+  await page.evaluate(() => history.go(-3)); await expect(page.getByRole("alertdialog")).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`${link.id}/landing$`)); await page.getByRole("button", { name: "Keep editing", exact: true }).click();
   await expect(page.getByLabel("Welcome heading (optional)", { exact: true })).toHaveValue("Multi-step draft");
   await page.evaluate(() => history.back()); await expect(page.getByRole("alertdialog")).toBeVisible();
-  await page.getByRole("button", { name: "Leave page", exact: true }).click(); await expect(page).toHaveURL(/\/workspaces$/);
+  await page.getByRole("button", { name: "Leave page", exact: true }).click(); await expect(page).toHaveURL(new RegExp(`${campaignList}$`));
   // Create a forward destination, return cleanly to the editor, then edit before Forward.
-  await page.goto(editor); await page.getByRole("main").getByRole("link", { name: "QR codes and short links", exact: true }).click(); await page.goBack();
+  await page.goto(editor); await expect(page.locator('[data-hydrated="true"]')).toBeVisible();
+  await page.getByRole("main").getByRole("link", { name: "QR codes and short links", exact: true }).click(); await expect(page).toHaveURL(new RegExp(`${root}$`)); await page.goBack();
   await expect(page).toHaveURL(new RegExp(`${link.id}/landing$`));
   await page.getByLabel("Welcome heading (optional)", { exact: true }).fill("Forward draft");
   await page.evaluate(() => history.forward()); await expect(page.getByRole("alertdialog")).toBeVisible();
