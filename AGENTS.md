@@ -12,6 +12,8 @@ UI uses shadcn components only (npx shadcn add ...); do not build from scratch a
 
 ## Harvest shared UI architecture
 
+Theme work must read [the founder's requested palette shortlist](docs/design/theme-candidates.md). Implement through the existing registry; Honey Glow Gold is a possible official default, not a decided rebrand.
+
 Before UI work, read [the master design-system specification](docs/design-system.md), [the foundation/adoption plan](docs/plans/design-system-foundation.md), `CLAUDE.md`, the relevant module PRD and current acceptance evidence. The specification is a target, not a claim that shared engines already exist.
 
 Search the component registry before generating UI. Until `docs/component-registry.md` is established, search `src/components`, `src/lib/theme-registry.ts`, `src/app/globals.css` and `docs/design/`; record reusable components in the first foundation pass. Extend the existing AppShell, theme tokens and CRM patterns rather than duplicating them. Keep domain permissions, consent and lifecycle rules in their owning services.

@@ -30,6 +30,8 @@ The inventory is not certification of a universal component registry, wizard, fo
 
 ## First foundation slice
 
+Requested selectable palettes and theme-delivery checks are in [the theme shortlist](../design/theme-candidates.md). Honey Glow Gold is only a possible official default; preserve the current default until Matei chooses.
+
 1. Create `docs/component-registry.md` with real source paths, purpose, states, typed interfaces, consumers, accessibility and source-license evidence. Inventory before extraction. Make missing and candidate components distinguishable from delivered ones.
 2. Document and consolidate existing spacing, typography, surfaces, elevation, responsive behavior, feedback and tokens in the relevant design records. Preserve Harvest branding, default Harvest/optional Studio themes and the existing gold action-color decision. Avoid a visual reset of working modules.
 3. Establish concise UI copy as a shared rule: label and useful placeholder by default; no explanation below every field. Specifically remove routine welcome heading/message descriptions in a small reviewed Connect cleanup. Keep necessary consent/privacy notices, actionable validation and consequential guidance. Do not replace descriptions with a proliferation of info icons or tooltips.
