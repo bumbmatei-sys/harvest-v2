@@ -48,10 +48,11 @@ describe("theme registry", () => {
       const palette = themeRegistry[brand][mode];
       expect(Object.keys(palette).sort()).toEqual(tokens);
       expect(themeStyles).toContain(`[data-brand-theme="${brand}"][data-theme="${mode}"]`);
-      expect(contrastRatio(palette["--brand-color"], palette["--earth"])).toBeGreaterThanOrEqual(4.5);
-      expect(contrastRatio(palette["--action-hover"], palette["--earth"])).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(palette["--brand-color"], palette["--action-foreground"])).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(palette["--action-hover"], palette["--action-foreground"])).toBeGreaterThanOrEqual(4.5);
       expect(contrastRatio(palette["--text-strong"], palette["--surface"])).toBeGreaterThanOrEqual(4.5);
       expect(contrastRatio(palette["--text-muted"], palette["--surface-card"])).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(palette["--text-muted"], palette["--surface-tint"])).toBeGreaterThanOrEqual(4.5);
       expect(palette["--earth"].toLowerCase()).toBe("#2d2519");
     }
   });

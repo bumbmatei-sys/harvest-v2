@@ -1,0 +1,62 @@
+{
+  "unselectedRadio": [
+    {
+      "palette": "harvest-light",
+      "ratio": 5.32921162976606
+    },
+    {
+      "palette": "harvest-dark",
+      "ratio": 7.107152417908661
+    },
+    {
+      "palette": "studio-light",
+      "ratio": 5.32921162976606
+    },
+    {
+      "palette": "studio-dark",
+      "ratio": 7.107152417908661
+    }
+  ],
+  "shellSurfaces": [
+    {
+      "palette": "harvest-light",
+      "canvas": "#ffffff",
+      "panel": "#ffffff",
+      "card": "#ffffff",
+      "foreground": "#171717",
+      "panelToCanvas": 1,
+      "cardToPanel": 1,
+      "foregroundToPanel": 17.9278402530276
+    },
+    {
+      "palette": "harvest-dark",
+      "canvas": "#0a0a0a",
+      "panel": "#0a0a0a",
+      "card": "#171717",
+      "foreground": "#fafafa",
+      "panelToCanvas": 1,
+      "cardToPanel": 1.1043240809322448,
+      "foregroundToPanel": 18.96800669384249
+    },
+    {
+      "palette": "studio-light",
+      "canvas": "#ffffff",
+      "panel": "#ffffff",
+      "card": "#ffffff",
+      "foreground": "#171717",
+      "panelToCanvas": 1,
+      "cardToPanel": 1,
+      "foregroundToPanel": 17.9278402530276
+    },
+    {
+      "palette": "studio-dark",
+      "canvas": "#0a0a0a",
+      "panel": "#0a0a0a",
+      "card": "#171717",
+      "foreground": "#fafafa",
+      "panelToCanvas": 1,
+      "cardToPanel": 1.1043240809322448,
+      "foregroundToPanel": 18.96800669384249
+    }
+  ]
+}

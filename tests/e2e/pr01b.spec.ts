@@ -48,8 +48,8 @@ async function theme(page: Page, brand: "harvest" | "studio", mode: "light" | "d
   await expect(page.locator("html")).toHaveAttribute("data-brand-theme", brand);
   if (await page.locator("html").getAttribute("data-theme") !== mode) await page.getByRole("button", { name: new RegExp(`^Switch to ${mode}`) }).click();
   await expect(page.locator("html")).toHaveAttribute("data-theme", mode);
-  await expect(page.locator("body")).toHaveCSS("font-family", brand === "studio" ? /Geist/ : /Inter/);
-  await expect(page.locator("body")).toHaveCSS("background-color", { harvest: { light: "rgb(250, 250, 248)", dark: "rgb(23, 23, 23)" }, studio: { light: "rgb(247, 247, 245)", dark: "rgb(26, 26, 26)" } }[brand][mode]);
+  await expect(page.locator("body")).toHaveCSS("font-family", /Geist/);
+  await expect(page.locator("body")).toHaveCSS("background-color", { light: "rgb(255, 255, 255)", dark: "rgb(10, 10, 10)" }[mode]);
 }
 async function capture(page: Page, name: string) {
   const shell = page.locator('[data-slot="sidebar-wrapper"]');
@@ -74,13 +74,13 @@ async function surfaces(page: Page, palette: string) {
     };
   });
   if (palette === "harvest-light") {
-    expect(colors.panel).toBe("#f3f2ef");
-    expect(colors.canvas).toBe("#f9f9f7");
-    await expect(page.locator('[data-sidebar="sidebar"]').first()).toHaveCSS("background-color", "rgb(243, 242, 239)");
+    expect(colors.panel).toBe("#ffffff");
+    expect(colors.canvas).toBe("#ffffff");
+    await expect(page.locator('[data-sidebar="sidebar"]').first()).toHaveCSS("background-color", "rgb(250, 250, 250)");
   }
   expect(colors.cards.length).toBeGreaterThan(0);
   for (const card of colors.cards) {
-    expect(contrastRatio(card.color, colors.panel), `${palette}: card on content surface`).toBeGreaterThanOrEqual(1.1);
+    // The neutral baseline uses borders to separate white cards from white content.
     expect(card.borderWidth).toBeGreaterThanOrEqual(1);
     expect(card.borderStyle).toBe("solid");
     expect(card.border).not.toBe("rgba(0, 0, 0, 0)");
@@ -94,7 +94,7 @@ async function matrix(page: Page, screen: string) {
     await theme(page, brand, mode);
     if (screen === "contact-detail") await surfaces(page, `${brand}-${mode}`);
     if (screen === "appearance") {
-      const colors = await page.getByRole("radio", { name: "Harvest", exact: true }).evaluate((radio) => ({
+      const colors = await page.getByRole("radio", { name: "Studio Admin", exact: true }).evaluate((radio) => ({
         border: getComputedStyle(radio).borderTopColor,
         background: getComputedStyle(radio.closest('[data-slot="card"]')!).backgroundColor,
       }));
@@ -113,7 +113,7 @@ async function matrix(page: Page, screen: string) {
 
 async function shellMatrix(page: Page) {
   await page.setViewportSize({ width: 1280, height: 800 });
-  const sidebar = page.locator('[data-slot="sidebar"][data-variant="inset"]');
+  const sidebar = page.locator('[data-slot="sidebar"][data-variant="floating"]');
   const inset = page.locator('[data-slot="sidebar-inset"]');
   const footer = page.locator('[data-sidebar="footer"]');
   const navigation = page.getByRole("navigation", { name: "Workspace navigation" });
@@ -130,10 +130,10 @@ async function shellMatrix(page: Page) {
   await page.mouse.move(1000, 0);
   const trigger = footer.locator('[data-sidebar="trigger"]');
   await expect(sidebar).toHaveAttribute("data-state", "expanded");
-  await expect(inset).toHaveCSS("border-radius", "12px");
+  await expect(inset).toHaveCSS("border-radius", "14px");
   for (const edge of ["top", "right", "bottom"]) await expect(inset).toHaveCSS(`margin-${edge}`, "8px");
-  await expect(inset).not.toHaveCSS("box-shadow", "none");
-  await expect(page.locator('[data-shell-header] [data-sidebar="trigger"]')).toBeHidden();
+  await expect(inset).toHaveCSS("border-top-width", "1px");
+  await expect(page.locator('[data-shell-header] [data-sidebar="trigger"]')).toBeVisible();
   await expect(trigger).toBeVisible();
   await expect(footer.getByRole("button", { name: /^Switch to/ })).toBeVisible();
   const logo = sidebar.locator('img');
@@ -152,8 +152,8 @@ async function shellMatrix(page: Page) {
   await expect(footer.getByRole("button", { name: "Account menu" })).toHaveAttribute("aria-expanded", "false");
   for (const brand of ["harvest", "studio"] as const) for (const mode of ["light", "dark"] as const) {
     await theme(page, brand, mode);
-    await expect(sidebar.getByRole("link", { name: "Harvest", exact: true }).getByText("Harvest", { exact: true })).toHaveCSS("font-family", brand === "studio" ? /Geist/ : /Inter/);
-    await expect(page.getByRole("heading", { name: /^People/ })).toHaveCSS("font-family", brand === "studio" ? /Geist/ : /Inter/);
+    await expect(sidebar.getByRole("link", { name: "Harvest", exact: true }).getByText("Harvest", { exact: true })).toHaveCSS("font-family", /Geist/);
+    await expect(page.getByRole("heading", { name: /^People/ })).toHaveCSS("font-family", /Geist/);
     shellSurfaces.push(await surfaces(page, `${brand}-${mode}`));
     await capture(page, `shell-expanded-${brand}-${mode}`);
     await footer.getByRole("button", { name: "Account menu" }).click();
@@ -311,22 +311,19 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
   await capture(page, "contacts-no-results-studio-dark");
   await page.getByRole("link", { name: "Reset view" }).click();
   await page.getByRole("link", { name: "Appearance", exact: true }).click();
-  const harvestRadio = page.getByRole("radio", { name: "Harvest", exact: true });
+  const harvestRadio = page.getByRole("radio", { name: "Studio Admin", exact: true });
   await expect(harvestRadio).toBeEnabled();
   await harvestRadio.focus();
   await expect(harvestRadio).toBeChecked();
-  // Hold the key through the Radix roving-focus task before releasing it.
-  await page.keyboard.down("ArrowRight");
-  await expect(page.getByRole("radio", { name: "Studio", exact: true })).toBeFocused();
-  await expect(page.getByRole("radio", { name: "Studio", exact: true })).toBeChecked();
-  await page.keyboard.up("ArrowRight");
-  await page.getByRole("button", { name: "Save appearance" }).click();
-  await expect(page.getByRole("status")).toContainText("Workspace appearance saved");
+  // One approved visual baseline; preserve the existing API preference contract.
+  await expect(page.getByRole("radio")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Save appearance" })).toBeDisabled();
+  expect((await page.request.patch(`/api/workspaces/${tenantId}/appearance`, { headers: { origin }, data: { brandTheme: "studio" } })).status()).toBe(200);
   await selectBrand(page, "Harvest");
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-brand-theme", "harvest");
   await expect(page.locator("html")).toHaveAttribute("data-workspace-theme", "studio");
-  await expect(page.getByRole("radio", { name: "Studio", exact: true })).toBeChecked();
+  await expect(page.getByRole("radio", { name: "Studio Admin", exact: true })).toBeChecked();
   await selectBrand(page, "Workspace default");
   await expect(page.locator("html")).toHaveAttribute("data-brand-theme", "studio");
   await page.reload();

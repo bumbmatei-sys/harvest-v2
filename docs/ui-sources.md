@@ -114,3 +114,16 @@ Owner: Harvest v2 maintainers. Reviewed 2026-11-07.
 | Harvest-owned HC-03 compositions | 2026-11-07 | Private repository code | Existing shadcn Card, Badge, Button, Dialog, AlertDialog, DropdownMenu, Field, Input, NativeSelect, Alert, Empty | `src/components/connect-admin/*`, `src/components/connect/landing-view.tsx`, `src/app/workspaces/[tenantId]/campaigns/[campaignId]/connect/**`, `src/app/s/**` | Original compositions. No new shadcn registry files. The QR is drawn as inline SVG paths from the same renderer as the downloads (no injected markup). |
 | Local Eden reference screenshots `docs/design/reference/26-editor-publish-checklist.jpg` and `28-editor-publish-share-links.jpg` | viewed 2026-11-07 | Visual reference only | None | None | Layout/feel only: a "Before you publish" checklist and share rows with a monospace link, copy and open actions. No code, copy, icons or assets copied; no vendor name in the product. |
 | [`qrcode`](https://github.com/soldair/node-qrcode) | 1.5.4 (exact pin) | MIT | see [third-party licenses](third-party-licenses.md#hc-03-additions-2026-11-07) | `src/server/connect-qr.ts` | Library use for the module matrix only (error correction Q). |
+
+## Phase 0A — Studio Admin shell baseline
+
+Pinned source: `arhamkhnz/next-shadcn-admin-dashboard` at `05b2b927f556e0dce18c9023afa23f8219f39c93`, inspected 2026-11-08. MIT, copyright 2024 Mohammed Arham Khan; full notice in `docs/licenses/studio-admin-MIT.txt`.
+
+| Inspected source | Harvest adaptation |
+| --- | --- |
+| `src/app/globals.css` | Neutral light/dark semantic scale mapped to existing registry slots, Geist, 10px base radius; neutral OKLCH values represented as rounded sRGB hex for existing contrast tooling |
+| `src/app/(main)/dashboard/layout.tsx` | 48px bordered header, 16/24px content gutters; retain full-width Harvest content |
+| `src/app/(main)/dashboard/_components/sidebar/{app-sidebar,nav-main,nav-user}.tsx`, `src/components/ui/sidebar.tsx` | Floating variant on existing shadcn Sidebar, icon collapse and mobile Sheet; retain Harvest workspace/account/permission logic |
+| `src/app/(main)/{chat,mail}/` | Inspected as future composition references only; no copied inbox, mock messages or provider capability claims |
+
+Upstream dependencies inspected in package.json: Next/React/Tailwind/shadcn/Radix/Geist/Lucide overlap Harvest. Zustand, next-themes, table/form/chart engines and the rest of the template dependency graph are not imported. No upstream application, auth, telemetry, sample data, logos or imagery copied. Existing shadcn sidebar implementation retained rather than replacing it with upstream's current primitive stack.

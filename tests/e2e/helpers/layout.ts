@@ -14,6 +14,7 @@ export async function expectFullWidthShell(page: Page) {
       maxWidth: style.maxWidth, padLeft: parseFloat(style.paddingLeft), padRight: parseFloat(style.paddingRight),
       contentLeft: content.getBoundingClientRect().left + parseFloat(style.paddingLeft),
       crumbLeft: crumb?.getBoundingClientRect().left ?? null,
+      headerTriggerWidth: document.querySelector("[data-shell-header] [data-sidebar=trigger]")?.getBoundingClientRect().width ?? 0,
       overflow: document.documentElement.scrollWidth - window.innerWidth,
       // A table that scrolls sideways inside its card hides columns (for example row actions).
       scrollingTables: [...content.querySelectorAll('[data-slot="table-container"]')].filter((element) => element.scrollWidth > element.clientWidth + 1).length,
@@ -30,7 +31,7 @@ export async function expectFullWidthShell(page: Page) {
   expect(metrics.overflow).toBeLessThanOrEqual(0);
   expect(metrics.clipped).toBe(0);
   expect(metrics.scrollingTables).toBe(0);
-  if (metrics.crumbLeft !== null && page.viewportSize()!.width >= 1024) expect(Math.abs(metrics.crumbLeft - metrics.contentLeft)).toBeLessThanOrEqual(1);
+  if (metrics.crumbLeft !== null && page.viewportSize()!.width >= 1024) expect(Math.abs(metrics.crumbLeft - metrics.headerTriggerWidth - 8 - metrics.contentLeft)).toBeLessThanOrEqual(1);
   return metrics;
 }
 /** The record back link's icon starts at the content edge, right under the breadcrumb. */
@@ -42,5 +43,5 @@ export async function expectBackLinkAligned(page: Page, label: string) {
     return { icon: icon.left, edge: content.getBoundingClientRect().left + parseFloat(getComputedStyle(content).paddingLeft), gap: link.getBoundingClientRect().top - header.bottom };
   }, label);
   expect(Math.abs(box.icon - box.edge)).toBeLessThanOrEqual(1);
-  expect(box.gap).toBeLessThanOrEqual(8);
+  expect(box.gap).toBeLessThanOrEqual(24);
 }
