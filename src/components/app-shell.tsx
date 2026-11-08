@@ -120,7 +120,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
           <div className="flex h-[52px] items-center gap-1 pl-4 pr-3 group-data-[collapsible=icon]:h-auto group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:px-0">
             <div className="flex min-w-0 flex-1 items-center gap-2 group-data-[collapsible=icon]:flex-none">
             <DropdownMenu modal={false}><DropdownMenuTrigger asChild>
-              <Button variant="ghost" disabled={busy} aria-label={t("accountMenu")} className="size-11 shrink-0 p-0">
+              <Button variant="ghost" size="icon-responsive" disabled={busy} aria-label={t("accountMenu")} className="shrink-0 p-0">
                 <Avatar className="size-8 shrink-0 border border-sidebar-border" aria-hidden="true"><AvatarFallback className="bg-transparent uppercase">{email.slice(0, 1)}</AvatarFallback></Avatar>
               </Button>
             </DropdownMenuTrigger><DropdownMenuContent container={navigationContainer} side="top" align="start" className="w-64 rounded-[12px]">
@@ -132,7 +132,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
             <span className="truncate text-[13px] font-medium text-sidebar-accent-foreground group-data-[collapsible=icon]:sr-only">{email.split("@")[0]}</span>
             </div>
             <ThemeToggle />
-            <SidebarTrigger className="size-8 shrink-0 text-sidebar-foreground [&_svg]:size-[17px] [&_svg]:stroke-[1.7]" />
+            <SidebarTrigger size="icon-responsive" className="shrink-0 text-sidebar-foreground [&_svg]:size-[17px] [&_svg]:stroke-[1.7]" />
           </div>
         </SidebarFooter>
       </div>
@@ -140,7 +140,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
     </Sidebar>
     <SidebarInset className="min-h-0 min-w-0 overflow-hidden lg:my-2 lg:mr-2 lg:rounded-xl lg:border">
       <header data-shell-header className="flex h-12 shrink-0 items-center gap-2 border-b px-4 lg:px-6">
-        <SidebarTrigger className="size-11 shrink-0" />
+        <SidebarTrigger size="icon-responsive" className="shrink-0" />
         <Breadcrumb className="min-w-0"><BreadcrumbList className="flex-nowrap text-[13px]">
           {workspace && <><BreadcrumbItem className="min-w-0"><BreadcrumbLink asChild className="truncate"><Link href={`/workspaces/${selected}/crm/people`}>{workspace.name}</Link></BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator /></>}
           <BreadcrumbItem><BreadcrumbPage className="font-medium">{section}</BreadcrumbPage></BreadcrumbItem>

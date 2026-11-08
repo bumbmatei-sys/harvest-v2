@@ -45,7 +45,7 @@ export function NotificationsMenu({ tenantId }: { tenantId: string }) {
   const unread = data?.unread ?? 0, overdue = data?.overdue ?? 0;
   const label = unread ? t("notificationsUnread", { count: unread }) : t("notifications");
   return <Popover open={open} onOpenChange={(value) => { setOpen(value); if (value) void load(); }}>
-    <PopoverTrigger asChild><Button variant="ghost" size="icon-sm" className="relative" aria-label={label}>
+    <PopoverTrigger asChild><Button variant="ghost" size="icon-responsive" className="relative" aria-label={label}>
       <Bell aria-hidden="true" />{unread > 0 && <span aria-hidden="true" className="absolute top-1 right-1 size-2 rounded-full bg-primary" />}
     </Button></PopoverTrigger>
     <PopoverContent align="end" aria-label={t("notifications")} className="w-[min(22rem,calc(100vw-2rem))] p-0">

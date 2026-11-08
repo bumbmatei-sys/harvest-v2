@@ -3500,6 +3500,10 @@
     .lg\:flex {
       display: flex;
     }
+    .lg\:size-9 {
+      width: calc(var(--spacing) * 9);
+      height: calc(var(--spacing) * 9);
+    }
     .lg\:h-9 {
       height: calc(var(--spacing) * 9);
     }
@@ -3906,6 +3910,9 @@
         background-color: color-mix(in oklab, var(--accent) 50%, transparent);
       }
     }
+  }
+  .\[data-size\=\"icon-responsive\"\]\:visible:is(data-size="icon-responsive") {
+    visibility: visible;
   }
   :is(.\*\:\[span\]\:last\:flex > *):is(span):last-child {
     display: flex;

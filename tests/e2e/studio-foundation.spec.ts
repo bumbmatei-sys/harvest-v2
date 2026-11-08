@@ -1,8 +1,19 @@
 import { mkdir } from "node:fs/promises";
 import { randomUUID } from "node:crypto";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { origin, signIn } from "./helpers/session";
+
+async function expectActionSizes(page: Page, width: number) {
+  const expected = width < 1024 ? 44 : 36;
+  const actions = page.locator('[data-size="icon-responsive"]:visible');
+  expect(await actions.count()).toBeGreaterThan(0);
+  for (const action of await actions.all()) {
+    const box = await action.boundingBox();
+    expect(box?.width).toBe(expected);
+    expect(box?.height).toBe(expected);
+  }
+}
 
 test("Studio foundation: shared CRM and Connect shell across responsive modes", async ({ page }) => {
   test.setTimeout(240000);
@@ -25,6 +36,7 @@ test("Studio foundation: shared CRM and Connect shell across responsive modes", 
       await expect(page.locator('[data-hydrated=true]')).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
       expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations).toEqual([]);
+      await expectActionSizes(page, width);
       await page.screenshot({ path: `/tmp/studio-foundation/${name}-${width}-${mode}.png` });
     }
     const trigger = page.locator('[data-shell-header] [data-sidebar=trigger]');
@@ -32,11 +44,13 @@ test("Studio foundation: shared CRM and Connect shell across responsive modes", 
     if (width < 1024) {
       const drawer = page.getByRole('dialog');
       await expect(drawer).toBeVisible();
+      await expectActionSizes(page, width);
       await page.keyboard.press('Escape');
       await expect(drawer).not.toBeVisible();
       await expect(trigger).toBeFocused();
     } else {
       await expect(page.locator('[data-variant=floating][data-state=collapsed]')).toBeVisible();
+      await expectActionSizes(page, width);
       await trigger.click();
       await expect(page.locator('[data-variant=floating][data-state=expanded]')).toBeVisible();
     }

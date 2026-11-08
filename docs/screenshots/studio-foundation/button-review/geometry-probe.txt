@@ -1,0 +1,18 @@
+import {test,expect} from '/workspace/harvest-v2/node_modules/@playwright/test/index.mjs';
+import {signIn,origin} from '/workspace/harvest-v2/tests/e2e/helpers/session.ts';
+import {writeFile} from 'node:fs/promises';
+test('geometry independent review',async({page})=>{
+ test.setTimeout(180000);await page.emulateMedia({reducedMotion:'reduce'});await signIn(page);
+ const w=await page.request.post('/api/workspaces',{headers:{origin},data:{name:'Independent review workspace'}});expect(w.status()).toBe(201);
+ const base='/workspaces/'+(await w.json()).tenantId;
+ const results=[];
+ for(const width of [1440,1280,768,390,360]){
+ await page.setViewportSize({width,height:1000});await page.context().addCookies([{name:'sidebar_state',value:'true',url:origin}]);await page.goto(base+'/crm/people');await expect(page.locator('[data-hydrated=true]')).toBeVisible();
+ if(width<1024) {await page.locator('[data-shell-header] [data-sidebar=trigger]').click();await expect(page.getByRole('dialog')).toBeVisible();await expect.poll(async()=>Math.round((await page.getByRole('dialog').boundingBox())!.x)).toBe(0);}
+ const geometry=async()=>await page.locator('button:visible,a[data-slot=button]:visible').evaluateAll(es=>es.map(e=>{const b=e.getBoundingClientRect();return {text:e.getAttribute('aria-label')||e.textContent?.trim(),width:b.width,height:b.height,x:b.x,y:b.y,slot:e.getAttribute('data-slot'),class:e.className}}));
+ results.push({width,state:'expanded',controls:await geometry()});
+ await page.screenshot({path:'/tmp/button-review/'+width+'-expanded.png'});
+ if(width>=1024){await page.locator('[data-shell-header] [data-sidebar=trigger]').click();await expect.poll(async()=>Math.round((await page.locator('[data-slot=sidebar-container]').boundingBox())!.width)).toBe(66);results.push({width,state:'collapsed',controls:await geometry()});await page.screenshot({path:'/tmp/button-review/'+width+'-collapsed.png'});}
+ }
+ await writeFile('/tmp/button-review/geometry.json',JSON.stringify(results,null,2));
+});
