@@ -1,6 +1,6 @@
-# Historical theme candidates (deferred)
+# Founder-selected optional application themes (future implementation)
 
-These previously requested palettes are archived as design research, **not** the current implementation direction. Founder decision, 8 November 2026: reproduce Studio Admin's visual system and default colors first across all Harvest pages. Harvest gold may be added later as a separate optional theme. Do not implement these palettes in the Studio Admin adoption phase.
+**Founder decision, 8 November 2026:** All 12 palettes below were deliberately selected and **must remain on the product roadmap as future selectable themes**. They are deferred in sequence, **not canceled**: first implement Studio Admin's full default visual system across Harvest, then add these palettes as user-selectable options without changing the unified shell/page/component design. Studio Admin remains the default. Harvest Gold is also a separate optional future theme; Honey Glow Gold is not approved as the default. No optional theme is claimed implemented.
 
 | Requested theme | Source |
 | --- | --- |
@@ -14,7 +14,7 @@ These previously requested palettes are archived as design research, **not** the
 | Meridian Blue | https://21st.dev/@serafimcloud/themes/meridian-blue |
 | Discord Linen | https://21st.dev/@serafimcloud/themes/discord-linen |
 | Honey Glow | https://21st.dev/@serafimcloud/themes/honey-glow |
-| Honey Glow Gold — possible official Harvest default | https://21st.dev/@serafimcloud/themes/honey-glow-gold |
+| Honey Glow Gold | https://21st.dev/@serafimcloud/themes/honey-glow-gold |
 | Taranom Emerald Gold | https://21st.dev/@rashidhamedas/themes/taranom-emerald-gold-1784716637053 |
 
 URLs are preserved as supplied; display names normalize the founder's shorthand. Validate source metadata before importing. Public text retrieval confirmed Sage Garden exposes light/dark shadcn tokens; Honey Glow Gold and Taranom returned retrieval errors in the browsing tool, so their token contents and availability are not certified here. No source license or contrast approval is inferred from a gallery listing.
