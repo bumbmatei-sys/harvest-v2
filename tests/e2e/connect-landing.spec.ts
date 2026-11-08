@@ -19,8 +19,8 @@ async function capture(page: Page, name: string) {
 }
 async function setup(page: Page) {
   await signIn(page);
-  const w = await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Synthetic landing QA" } }); expect(w.status()).toBe(201); const tenant = (await w.json()).tenantId;
-  const c = await page.request.post(`/api/workspaces/${tenant}/campaigns`, { headers: { origin, "Idempotency-Key": randomUUID() }, data: { name: "Welcome campaign", type: "conference" } }); expect(c.status()).toBe(201); const campaign = (await c.json()).id;
+  const w = await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Hope Community" } }); expect(w.status()).toBe(201); const tenant = (await w.json()).tenantId;
+  const c = await page.request.post(`/api/workspaces/${tenant}/campaigns`, { headers: { origin, "Idempotency-Key": randomUUID() }, data: { name: "Welcome Evening", type: "conference" } }); expect(c.status()).toBe(201); const campaign = (await c.json()).id;
   const root = `/workspaces/${tenant}/campaigns/${campaign}/connect`, api = `/api${root}`;
   const f = await page.request.post(`${api}/forms`, { headers: { origin }, data: { name: "Synthetic invitation preset", notice: "Synthetic test notice only", retentionDays: 1, purposes: ["newsletter", "outreach_follow_up", "account_communications"], definition: { kind: "connect-intake-v2", syntheticOnly: true, preferredName: true, followUpChannel: "email" } } }); expect(f.status()).toBe(201);
   const l = await page.request.post(`${api}/links`, { headers: { origin }, data: { label: "Screen A", formVersionId: (await f.json()).id } }); expect(l.status()).toBe(201); const link = await l.json();
@@ -32,21 +32,20 @@ test("landing editor: private draft, shared preview, keyboard ordering, publishi
   const { root, api, link, endpoint } = await setup(page), metrics = [];
   await page.goto(root); await page.getByRole("link", { name: "Edit landing page", exact: true }).click();
   const heading = page.getByLabel("Welcome heading (optional)", { exact: true });
-  await heading.fill("Welcome <friends> & guests"); await page.getByLabel("Welcome message (optional)", { exact: true }).fill("Explore freely.\nChoose your next step.");
-  await page.getByRole("button", { name: "Add starter resource", exact: true }).click();
-  await page.getByLabel("Starter resource", { exact: true }).selectOption("common-questions");
-  await page.getByRole("button", { name: "Add external link", exact: true }).click();
-  await page.getByLabel("Link type", { exact: true }).selectOption("course");
-  await page.getByLabel("Title", { exact: true }).fill("Optional learning <script>window.bad=1</script>");
-  await page.getByLabel("Description (optional)", { exact: true }).fill("Learn at your pace. This is an external paid offer.");
-  await page.getByLabel("HTTPS destination", { exact: true }).fill("http://localhost/course");
-  await page.getByLabel("Free or paid", { exact: true }).selectOption("paid");
-  await page.getByRole("button", { name: "Save draft", exact: true }).click(); await expect(page.getByRole("alert").filter({ hasText: "Check the heading" })).toBeVisible();
-  await page.getByLabel("HTTPS destination", { exact: true }).fill("https://example.org/learn?lang=en#start");
+  await heading.fill("We’re glad you’re here"); await page.getByLabel("Welcome message (optional)", { exact: true }).fill("Explore at your own pace.\nChoose a next step whenever you’re ready.");
+  await page.getByRole("button", { name: "Add a free Harvest resource", exact: true }).click();
+  await page.getByLabel("Choose a Harvest resource", { exact: true }).selectOption("common-questions");
+  await page.getByRole("button", { name: "Add a website link", exact: true }).click();
+  await page.getByLabel("What are you sharing?", { exact: true }).selectOption("course");
+  await page.getByLabel("Link title", { exact: true }).fill("Getting started with the Bible");
+  await page.getByLabel("Description (optional)", { exact: true }).fill("A self-paced course for your first steps. This optional course is provided on another website.");
+  await page.getByLabel("Website link", { exact: true }).fill("https://example.org/learn?lang=en#start");
+  await page.getByLabel("Cost for visitors", { exact: true }).selectOption("paid");
+  await expect(page.getByText(/Draft revision|Published revision|Plain text|HTTPS destination/)).toHaveCount(0);
   await page.getByRole("button", { name: "Move card 2 up", exact: true }).focus(); await page.keyboard.press("Enter");
   await expect(page.getByRole("button", { name: "Move card 1 down", exact: true })).toBeFocused();
-  const preview = page.getByRole("region", { name: "Guest-page preview", exact: true });
-  await expect(preview.getByRole("heading", { name: "Welcome <friends> & guests", exact: true })).toBeVisible();
+  const preview = page.getByRole("region", { name: "Preview your page", exact: true });
+  await expect(preview.getByRole("heading", { name: "We’re glad you’re here", exact: true })).toBeVisible();
   const previewChoices = preview.getByRole("checkbox"); await expect(previewChoices).toHaveCount(3); for (const choice of await previewChoices.all()) await expect(choice).not.toBeChecked();
   await previewChoices.first().check(); await expect(preview.getByRole("button", { name: "Save test request", exact: true })).toBeDisabled();
   // Unsaved navigation guard protects app links, browser Back and reload.
@@ -60,26 +59,25 @@ test("landing editor: private draft, shared preview, keyboard ordering, publishi
       await page.setViewportSize({ width, height }); await page.getByRole("main").evaluate(e => e.scrollTop = 0);
       metrics.push(await capture(page, `editor-${size}-${scheme}`));
       await page.getByRole("button", { name: "Save draft", exact: true }).scrollIntoViewIfNeeded(); metrics.push(await capture(page, `editor-actions-${size}-${scheme}`));
-      await preview.getByRole("heading", { name: "Welcome <friends> & guests", exact: true }).evaluate(e => e.scrollIntoView({ block: "start" })); metrics.push(await capture(page, `editor-preview-${size}-${scheme}`));
+      await preview.getByRole("heading", { name: "We’re glad you’re here", exact: true }).evaluate(e => e.scrollIntoView({ block: "start" })); metrics.push(await capture(page, `editor-preview-${size}-${scheme}`));
     }
   }
   await page.getByRole("button", { name: "Save draft", exact: true }).click(); await expect(page.getByRole("status").filter({ hasText: "Draft saved privately." })).toBeVisible();
-  await page.reload(); await expect(heading).toHaveValue("Welcome <friends> & guests");
+  await page.reload(); await expect(heading).toHaveValue("We’re glad you’re here");
   const guestContext = await browser.newContext(), guest = await guestContext.newPage();
   try {
     await guest.goto(`/c/${link.publicCode}`); await expect(guest.getByRole("heading", { name: "This page isn’t available.", exact: true })).toBeVisible();
     expect((await page.request.post(`${api}/links/${link.id}/actions`, { headers: { origin }, data: { action: "publish" } })).status()).toBe(200);
-    await guest.reload(); await expect(guest.getByRole("heading", { name: "A place to begin.", exact: true })).toBeVisible(); await expect(guest.getByText("Welcome <friends> & guests", { exact: true })).toHaveCount(0);
+    await guest.reload(); await expect(guest.getByRole("heading", { name: "A place to begin.", exact: true })).toBeVisible(); await expect(guest.getByText("We’re glad you’re here", { exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "Publish changes", exact: true }).click(); await expect(page.getByRole("status").filter({ hasText: "Changes published" })).toBeVisible();
     for (const path of [`/c/${link.publicCode}`, `/s/${link.shortCode}`]) {
-      await guest.goto(path); await expect(guest.getByRole("heading", { name: "Welcome <friends> & guests", exact: true })).toBeVisible();
+      await guest.goto(path); await expect(guest.getByRole("heading", { name: "We’re glad you’re here", exact: true })).toBeVisible();
       const suggestions = guest.getByRole("region", { name: "Organizer suggestions", exact: true });
-      expect(await suggestions.getByRole("heading", { level: 3 }).allTextContents()).toEqual(["Optional learning <script>window.bad=1</script>", "Common questions"]);
+      expect(await suggestions.getByRole("heading", { level: 3 }).allTextContents()).toEqual(["Getting started with the Bible", "Common questions"]);
       await expect(suggestions.getByText("External · Course · Paid", { exact: true })).toBeVisible(); await expect(suggestions.getByText("Free Harvest resource", { exact: true })).toBeVisible();
       await expect(suggestions.locator("script")).toHaveCount(0);
       for (const header of await suggestions.locator('[data-slot="card-header"]').all()) expect(await header.evaluate(e => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(0);
       const external = guest.getByRole("link", { name: "Visit external website", exact: true }); await expect(external).toHaveAttribute("href", "https://example.org/learn?lang=en#start"); await expect(external).toHaveAttribute("target", "_blank"); await expect(external).toHaveAttribute("rel", "noopener noreferrer"); await expect(external).toHaveAttribute("referrerpolicy", "no-referrer");
-      expect(await guest.evaluate(() => (window as unknown as { bad?: number }).bad)).toBeUndefined();
       await expect(guest.getByRole("link", { name: "Explore free Harvest resources", exact: true }).first()).toBeVisible();
       for (const choice of await guest.locator("#response-form").getByRole("checkbox").all()) await expect(choice).not.toBeChecked();
     }
@@ -95,7 +93,7 @@ test("landing editor: private draft, shared preview, keyboard ordering, publishi
     const saved = await page.request.put(endpoint, { headers: { origin }, data: { expectedRevision: current.revision, expectedCode: current.expectedCode, definition: { ...current.definition, heading: "Next private revision" } } }); expect(saved.status()).toBe(200);
     expect((await page.request.post(`${endpoint}/publish`, { headers: { origin }, data: { expectedRevision: current.revision, expectedCode: current.expectedCode } })).status()).toBe(409);
     expect((await page.request.put(endpoint, { headers: { origin: "https://evil.example.org" }, data: {} })).status()).toBe(403);
-    await guest.goto(`/c/${link.publicCode}`); await expect(guest.getByRole("heading", { name: "Welcome <friends> & guests", exact: true })).toBeVisible();
+    await guest.goto(`/c/${link.publicCode}`); await expect(guest.getByRole("heading", { name: "We’re glad you’re here", exact: true })).toBeVisible();
     expect((await guest.request.get(endpoint)).status()).toBe(401);
     expect((await page.request.post(`${api}/links/${link.id}/actions`, { headers: { origin }, data: { action: "disable" } })).status()).toBe(200);
     for (const path of [`/c/${link.publicCode}`, `/s/${link.shortCode}`]) { await guest.goto(path); await expect(guest.getByRole("heading", { name: "This page isn’t available.", exact: true })).toBeVisible(); }
@@ -114,8 +112,8 @@ test("landing editor: member drafts, eight-card limit, stale edits and live publ
     expect((await page.request.put(`/api/workspaces/${tenant}/members`, { headers: { origin }, data: { email, role: "member" } })).status()).toBe(200);
     await member.goto(`${root}/${link.id}/landing`); await expect(member.getByRole("button", { name: "Publish changes", exact: true })).toHaveCount(0);
     await expect(member.getByText("Only an owner or admin can publish.", { exact: true })).toBeVisible();
-    for (let i = 0; i < 8; i++) await member.getByRole("button", { name: "Add starter resource", exact: true }).click();
-    await expect(member.getByRole("button", { name: "Add starter resource", exact: true })).toBeDisabled(); await expect(member.getByRole("button", { name: "Add external link", exact: true })).toBeDisabled();
+    for (let i = 0; i < 8; i++) await member.getByRole("button", { name: "Add a free Harvest resource", exact: true }).click();
+    await expect(member.getByRole("button", { name: "Add a free Harvest resource", exact: true })).toBeDisabled(); await expect(member.getByRole("button", { name: "Add a website link", exact: true })).toBeDisabled();
     await member.getByRole("button", { name: "Remove card 4", exact: true }).click();
     await expect(member.getByRole("button", { name: "Remove card 4", exact: true })).toBeFocused();
     await member.getByRole("button", { name: "Save draft", exact: true }).click(); await expect(member.getByRole("status").filter({ hasText: "Draft saved privately." })).toBeVisible();
@@ -124,7 +122,7 @@ test("landing editor: member drafts, eight-card limit, stale edits and live publ
     // Owner changes the saved draft while member still edits the earlier revision.
     expect((await page.request.put(endpoint, { headers: { origin }, data: { expectedRevision: state.revision, expectedCode: state.expectedCode, definition: { ...state.definition, heading: "Owner edit" } } })).status()).toBe(200);
     await member.getByLabel("Welcome heading (optional)", { exact: true }).fill("Member edit");
-    await member.getByRole("button", { name: "Save draft", exact: true }).click(); await expect(member.getByRole("alert").filter({ hasText: "This draft, QR code or campaign changed." })).toBeVisible();
+    await member.getByRole("button", { name: "Save draft", exact: true }).click(); await expect(member.getByRole("alert").filter({ hasText: "Someone changed this page or its QR code." })).toBeVisible();
     await expect(member.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
     await member.getByRole("button", { name: "Reload latest version", exact: true }).click(); await expect(member.getByRole("alertdialog")).toBeVisible();
     await member.getByRole("button", { name: "Leave page", exact: true }).click(); await expect(member.getByLabel("Welcome heading (optional)", { exact: true })).toHaveValue("Owner edit");
@@ -165,7 +163,7 @@ test("landing editor: fallback preserves multi-entry and forward destinations", 
   await page.addInitScript(() => Object.defineProperty(window, "navigation", { value: undefined, configurable: true }));
   const { root, link, tenant } = await setup(page), editor = `${root}/${link.id}/landing`, campaignList = `/workspaces/${tenant}/campaigns`;
   // All intermediate entries are real Next client navigations in one document.
-  await page.goto(campaignList); await expect(page.locator('[data-hydrated="true"]')).toBeVisible(); await page.getByRole("main").getByRole("link", { name: /Welcome campaign/ }).click();
+  await page.goto(campaignList); await expect(page.locator('[data-hydrated="true"]')).toBeVisible(); await page.getByRole("main").getByRole("link", { name: /Welcome Evening/ }).click();
   await page.getByRole("main").getByRole("link", { name: "QR codes and short links", exact: true }).click();
   await page.getByRole("link", { name: "Edit landing page", exact: true }).click();
   await page.getByLabel("Welcome heading (optional)", { exact: true }).fill("Multi-step draft");
@@ -182,4 +180,42 @@ test("landing editor: fallback preserves multi-entry and forward destinations", 
   await page.evaluate(() => history.forward()); await expect(page.getByRole("alertdialog")).toBeVisible();
   await expect(page).toHaveURL(new RegExp(`${link.id}/landing$`));
   await page.getByRole("button", { name: "Leave page", exact: true }).click(); await expect(page).toHaveURL(new RegExp(`${root}$`));
+});
+
+// Adversarial input belongs in a dedicated safety regression, never in the organizer walkthrough
+// or the screenshots used to explain the product.
+test("landing editor: unsafe addresses are rejected and HTML-like input remains harmless text", async ({ page, browser }) => {
+  test.setTimeout(90000);
+  await page.setViewportSize({ width: 390, height: 844 });
+  const { root, api, link } = await setup(page);
+  const heading = "<script>window.landingUnsafe=1</script>", title = "<img src=x onerror=window.landingUnsafe=1>";
+  await page.goto(`${root}/${link.id}/landing`);
+  await page.getByLabel("Welcome heading (optional)", { exact: true }).fill(heading);
+  await page.getByRole("button", { name: "Add a website link", exact: true }).click();
+  await expect(page.getByLabel("Cost for visitors", { exact: true })).toBeDisabled();
+  await expect(page.getByText("Community links are always free.", { exact: true })).toBeVisible();
+  await page.getByLabel("Link title", { exact: true }).fill(title);
+  await page.getByLabel("Description (optional)", { exact: true }).fill("A".repeat(300));
+  await page.getByLabel("Website link", { exact: true }).fill("http://localhost/course");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "Check your page details before saving." })).toBeVisible();
+  await page.getByLabel("Website link", { exact: true }).fill("https://example.org/community");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Draft saved privately." })).toBeVisible();
+  expect((await page.request.post(`${api}/links/${link.id}/actions`, { headers: { origin }, data: { action: "publish" } })).status()).toBe(200);
+  await page.getByRole("button", { name: "Publish changes", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Changes published." })).toBeVisible();
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  try {
+    const guest = await context.newPage();
+    for (const path of [`/c/${link.publicCode}`, `/s/${link.shortCode}`]) {
+      await guest.goto(path);
+      await expect(guest.getByRole("heading", { name: heading, exact: true })).toBeVisible();
+      const suggestions = guest.getByRole("region", { name: "Organizer suggestions", exact: true });
+      await expect(suggestions.getByRole("heading", { name: title, exact: true })).toBeVisible();
+      await expect(suggestions.locator("script, img")).toHaveCount(0);
+      expect(await guest.evaluate(() => (window as unknown as { landingUnsafe?: number }).landingUnsafe)).toBeUndefined();
+      for (const header of await suggestions.locator('[data-slot="card-header"]').all()) expect(await header.evaluate(e => e.scrollWidth - e.clientWidth)).toBeLessThanOrEqual(0);
+    }
+  } finally { await context.close(); }
 });
