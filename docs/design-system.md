@@ -16,6 +16,10 @@
 
 **Theme boundary:** Studio Admin's default appearance is the initial baseline. The 12 founder-selected future palettes and optional Harvest Gold must change semantic theme tokens through the same registry, **not** fork layouts, widgets, navigation, wizards, or editors.
 
+### Default navigation presentation — Floating Sidebar
+
+**Founder-selected Studio Admin preference:** use **Floating** as the default desktop sidebar style throughout Harvest. The sidebar is inset from viewport edges with rounded, separate surface treatment; implement it once in the shared permission-aware AppShell. Retain collapse/expand and mobile off-canvas drawer behavior, accessibility, keyboard focus, workspace switching, and responsive layouts. Other sidebar layouts may remain future user preferences if supported, but Floating is the initial default. This is a visual/layout configuration of the shared shell, not a separate sidebar per module.
+
 ## 1. Core Objective
 
 Harvest must function and feel like **one unified application**, even though it contains Social Studio, CRM, AI Chat, communities, courses, coaching, products, newsletters, campaigns, and ministry management.
