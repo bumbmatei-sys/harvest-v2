@@ -60,7 +60,7 @@ test("landing editor: private draft, shared preview, keyboard ordering, publishi
       await page.setViewportSize({ width, height }); await page.getByRole("main").evaluate(e => e.scrollTop = 0);
       metrics.push(await capture(page, `editor-${size}-${scheme}`));
       await page.getByRole("button", { name: "Save draft", exact: true }).scrollIntoViewIfNeeded(); metrics.push(await capture(page, `editor-actions-${size}-${scheme}`));
-      await preview.getByRole("heading", { name: "Welcome <friends> & guests", exact: true }).scrollIntoViewIfNeeded(); metrics.push(await capture(page, `editor-preview-${size}-${scheme}`));
+      await preview.getByRole("heading", { name: "Welcome <friends> & guests", exact: true }).evaluate(e => e.scrollIntoView({ block: "start" })); metrics.push(await capture(page, `editor-preview-${size}-${scheme}`));
     }
   }
   await page.getByRole("button", { name: "Save draft", exact: true }).click(); await expect(page.getByRole("status").filter({ hasText: "Draft saved privately." })).toBeVisible();
@@ -133,4 +133,24 @@ test("landing editor: member drafts, eight-card limit, stale edits and live publ
     expect((await page.request.put(endpoint, { headers: { origin }, data: { definition: state.definition, expectedRevision: 2 } })).status()).toBe(400);
     const huge = await page.request.put(endpoint, { headers: { origin, "Content-Type": "application/json" }, data: " ".repeat(32769) }); expect(huge.status()).toBe(400);
   } finally { await context.close(); }
+});
+
+
+test("landing editor: history warning without the Navigation API", async ({ page }) => {
+  test.setTimeout(90000);
+  await page.addInitScript(() => Object.defineProperty(window, "navigation", { value: undefined, configurable: true }));
+  const { root, link } = await setup(page);
+  await page.goto(root); await page.getByRole("link", { name: "Edit landing page", exact: true }).click();
+  expect(await page.evaluate(() => typeof (window as unknown as { navigation?: unknown }).navigation)).toBe("undefined");
+  await page.getByLabel("Welcome heading (optional)", { exact: true }).fill("Keep this draft");
+  await page.goBack({ timeout: 1500 }).catch(() => {});
+  await expect(page.getByRole("alertdialog")).toBeVisible(); await page.getByRole("button", { name: "Keep editing", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`${link.id}/landing$`)); await expect(page.getByLabel("Welcome heading (optional)", { exact: true })).toHaveValue("Keep this draft");
+  await page.getByRole("button", { name: "Save draft", exact: true }).click(); await expect(page.getByRole("status").filter({ hasText: "Draft saved privately." })).toBeVisible();
+  // Saving removes only the guard entry. A clean Back reaches the QR list normally.
+  await page.goBack(); await expect(page).toHaveURL(new RegExp(`${root}$`));
+  await page.getByRole("link", { name: "Edit landing page", exact: true }).click();
+  await page.getByLabel("Welcome heading (optional)", { exact: true }).fill("Discard this change");
+  await page.goBack({ timeout: 1500 }).catch(() => {}); await expect(page.getByRole("alertdialog")).toBeVisible();
+  await page.getByRole("button", { name: "Leave page", exact: true }).click(); await expect(page).toHaveURL(new RegExp(`${root}$`));
 });

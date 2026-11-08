@@ -26,6 +26,8 @@ export function LandingEditor({ initial, endpoint, backHref, manifest }: { initi
   const [cards, setCards] = useState(() => initial.definition.cards.map((card, index) => ({ id: `${id}-${index}`, card })));
   const [busy, setBusy] = useState<"save" | "publish" | null>(null), [error, setError] = useState(""), [notice, setNotice] = useState("");
   const [conflict, setConflict] = useState(false), [destination, setDestination] = useState<string | null>(null);
+  const [historyBack, setHistoryBack] = useState(false);
+  const historyGuard = useRef({ active: false, restoring: false, bypass: false });
   const definition: LandingDefinition = { heading, message: welcome, cards: cards.map(({ card }) => card) };
   const dirty = !sameLandingDefinition(definition, data.definition), dirtyRef = useRef(dirty);
   useEffect(() => { dirtyRef.current = dirty || busy !== null; }, [dirty, busy]);
@@ -36,18 +38,40 @@ export function LandingEditor({ initial, endpoint, backHref, manifest }: { initi
       if (!dirtyRef.current || !anchor || anchor.target === "_blank" || anchor.hasAttribute("download") || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0) return;
       const url = new URL(anchor.href, location.href);
       if (url.href === location.href || (url.pathname === location.pathname && url.search === location.search && url.hash)) return;
-      event.preventDefault(); event.stopPropagation(); setDestination(url.href);
+      event.preventDefault(); event.stopPropagation(); setHistoryBack(false); setDestination(url.href);
     }
-    // Navigation API covers browser Back/Forward before leaving. beforeunload protects reloads
-    // and browsers without this API; same-origin links are guarded in capture phase as well.
+    // Navigation API cancels history before the route changes. Older browsers use the
+    // guarded same-URL history entry below; beforeunload protects full-document navigation.
     const navigation = (window as unknown as { navigation?: EventTarget }).navigation;
     function navigate(event: Event) {
       const e = event as Event & { navigationType?: string; destination?: { url: string }; canIntercept?: boolean };
-      if (dirtyRef.current && e.navigationType === "traverse" && e.cancelable && e.destination) { e.preventDefault(); setDestination(e.destination.url); }
+      if (dirtyRef.current && e.navigationType === "traverse" && e.cancelable && e.destination) { e.preventDefault(); setHistoryBack(false); setDestination(e.destination.url); }
     }
+    function pop(event: PopStateEvent) {
+      if (navigation) return;
+      const guard = historyGuard.current;
+      if (guard.bypass) { guard.bypass = false; return; }
+      if (!dirtyRef.current || !guard.active) return;
+      // Run before Next's bubbling popstate handler. Restore the guarded entry before
+      // asking, so canceling leaves both the URL and draft in place.
+      event.stopImmediatePropagation();
+      if (guard.restoring) { guard.restoring = false; return; }
+      guard.restoring = true; history.go(1); setHistoryBack(true); setDestination(location.href);
+    }
+    window.addEventListener("popstate", pop, true);
     window.addEventListener("beforeunload", unload); document.addEventListener("click", click, true); navigation?.addEventListener("navigate", navigate);
-    return () => { window.removeEventListener("beforeunload", unload); document.removeEventListener("click", click, true); navigation?.removeEventListener("navigate", navigate); };
+    return () => { window.removeEventListener("popstate", pop, true); window.removeEventListener("beforeunload", unload); document.removeEventListener("click", click, true); navigation?.removeEventListener("navigate", navigate); };
   }, []);
+  useEffect(() => {
+    if ((window as unknown as { navigation?: EventTarget }).navigation) return;
+    const guard = historyGuard.current;
+    if (dirty && !guard.active) {
+      history.pushState({ ...history.state, harvestLandingGuard: id }, "", location.href); guard.active = true;
+    } else if (!dirty && guard.active) {
+      guard.active = false;
+      if (history.state?.harvestLandingGuard === id) { guard.bypass = true; history.back(); }
+    }
+  }, [dirty, id]);
   async function persist(publish: boolean) {
     setError(""); setNotice("");
     if (!publish && !landingDefinition.safeParse(definition).success) { setError(t("invalid")); return; }
@@ -122,6 +146,6 @@ export function LandingEditor({ initial, endpoint, backHref, manifest }: { initi
         </div>
       </section>
     </div>
-    <AlertDialog open={destination !== null} onOpenChange={open => { if (!open) setDestination(null); }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{t("leaveTitle")}</AlertDialogTitle><AlertDialogDescription>{t("leaveBody")}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel className="min-h-11">{t("stay")}</AlertDialogCancel><AlertDialogAction className="min-h-11" onClick={() => { dirtyRef.current = false; if (destination) location.assign(destination); }}>{t("leave")}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+    <AlertDialog open={destination !== null} onOpenChange={open => { if (!open) { setDestination(null); setHistoryBack(false); } }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{t("leaveTitle")}</AlertDialogTitle><AlertDialogDescription>{t("leaveBody")}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel className="min-h-11">{t("stay")}</AlertDialogCancel><AlertDialogAction className="min-h-11" onClick={() => { dirtyRef.current = false; if (historyBack) { historyGuard.current.active = false; history.go(-2); } else if (destination) location.assign(destination); }}>{t("leave")}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </div>;
 }
