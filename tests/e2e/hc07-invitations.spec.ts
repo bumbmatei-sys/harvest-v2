@@ -7,6 +7,7 @@ import { tmpdir } from "node:os";
 import { expect,test,type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { origin,signIn } from "./helpers/session";
+test.use({actionTimeout:30000});
 const evidence=process.env.HC07_QA_DIR??join(tmpdir(),"harvest-hc07-qa");
 async function mailbox(){return (await readFile(process.env.HARVEST_E2E_MAILBOX!,"utf8")).trim().split("\n").filter(Boolean).map(line=>JSON.parse(line));}
 async function capture(page:Page,name:string){

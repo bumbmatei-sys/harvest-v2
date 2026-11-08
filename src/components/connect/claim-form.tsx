@@ -5,13 +5,16 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Alert,AlertDescription } from "@/components/ui/alert";
 import { authClient } from "@/lib/auth-client";
-// The URL fragment is an external browser source. Capture once per mounted page, remove it
+// The URL fragment is an external browser source. Capture each new link in this page, remove it
 // before interaction, and retain it only in this client store (never storage or server HTML).
 function fragmentStore(){
  let value:string|null=null;
  return {snapshot:()=>value,server:()=>null,subscribe:(notify:()=>void)=>{
-  if(value===null){value=new URLSearchParams(location.hash.slice(1)).get("token")??"";history.replaceState(null,"",location.pathname);}
-  notify();return ()=>{};
+  const capture=()=>{const incoming=new URLSearchParams(location.hash.slice(1)).get("token");
+   if(value===null||incoming!==null){value=incoming??"";history.replaceState(null,"",location.pathname);notify();}
+  };
+  capture();window.addEventListener("hashchange",capture);
+  return ()=>window.removeEventListener("hashchange",capture);
  }};
 }
 async function post<T>(path:string,body:unknown){
