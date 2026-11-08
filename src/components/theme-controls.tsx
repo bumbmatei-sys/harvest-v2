@@ -6,23 +6,18 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { applyTheme, BRAND_THEMES, themeRegistry, type BrandTheme } from "@/lib/theme";
-import { isBrandTheme } from "@/lib/theme-registry";
+import { applyTheme, type BrandTheme } from "@/lib/theme";
+import type { ColorMode } from "@/lib/theme-registry";
 import { useHydrated } from "@/hooks/use-hydrated";
 
 function subscribe(callback: () => void) {
-  const refresh = () => applyTheme();
-  const media = matchMedia("(prefers-color-scheme: dark)");
   window.addEventListener("harvest-theme-change", callback);
-  window.addEventListener("storage", refresh);
-  media.addEventListener("change", refresh);
-  return () => { window.removeEventListener("harvest-theme-change", callback); window.removeEventListener("storage", refresh); media.removeEventListener("change", refresh); };
+  return () => window.removeEventListener("harvest-theme-change", callback);
 }
 function snapshot() {
-  let preference = "default";
-  const stored = document.documentElement.dataset.brandOverride;
-  if (isBrandTheme(stored)) preference = stored;
-  return `${preference}|${document.documentElement.dataset.theme ?? "light"}`;
+  const root = document.documentElement;
+  const stored = root.dataset.modeOverride;
+  return `${stored === "light" || stored === "dark" ? stored : "system"}|${root.dataset.theme ?? "light"}`;
 }
 export function WorkspaceTheme({ brandTheme }: { brandTheme: BrandTheme }) {
   useLayoutEffect(() => { applyTheme(brandTheme); }, [brandTheme]);
@@ -30,22 +25,21 @@ export function WorkspaceTheme({ brandTheme }: { brandTheme: BrandTheme }) {
 }
 function useThemeControls() {
   const hydrated = useHydrated();
-  const [brand, mode] = useSyncExternalStore(subscribe, snapshot, () => "default|light").split("|");
-  function save(key: "harvest-brand-theme" | "harvest-color-mode", value: string) {
-    try { if (value === "default") localStorage.removeItem(key); else localStorage.setItem(key, value); } catch { /* Keep controls usable without storage. */ }
-    applyTheme(undefined, key === "harvest-brand-theme" ? { brand: isBrandTheme(value) ? value : "default" } : { mode: value === "dark" ? "dark" : "light" });
+  const [preference, mode] = useSyncExternalStore(subscribe, snapshot, () => "system|light").split("|");
+  function save(value: string) {
+    const next: ColorMode | "system" = value === "dark" ? "dark" : value === "light" ? "light" : "system";
+    try { if (next === "system") localStorage.removeItem("harvest-color-mode"); else localStorage.setItem("harvest-color-mode", next); } catch { /* Controls remain usable when storage is blocked. */ }
+    applyTheme(undefined, { mode: next });
   }
-  return { hydrated, brand, mode, save };
+  return { hydrated, preference, mode, save };
 }
-export function BrandThemeMenu() {
+export function AppearanceMenu() {
   const t = useTranslations("ComponentsThemeControls");
-  const names = useTranslations("ThemeNames");
-  const { hydrated, brand, save } = useThemeControls();
+  const { hydrated, preference, save } = useThemeControls();
   return <>
-    <DropdownMenuLabel>{t("theme")}</DropdownMenuLabel>
-    <DropdownMenuRadioGroup aria-label={t("brandTheme")} value={brand} onValueChange={(value) => save("harvest-brand-theme", value)}>
-      <DropdownMenuRadioItem disabled={!hydrated} value="default">{t("workspaceDefault")}</DropdownMenuRadioItem>
-      {BRAND_THEMES.map((id) => <DropdownMenuRadioItem key={id} disabled={!hydrated} value={id}>{names(themeRegistry[id].labelKey)}</DropdownMenuRadioItem>)}
+    <DropdownMenuLabel>{t("studioAdmin")}</DropdownMenuLabel>
+    <DropdownMenuRadioGroup aria-label={t("colorMode")} value={preference} onValueChange={save}>
+      {(["system", "light", "dark"] as const).map(mode => <DropdownMenuRadioItem key={mode} disabled={!hydrated} value={mode}>{t(mode)}</DropdownMenuRadioItem>)}
     </DropdownMenuRadioGroup>
   </>;
 }
@@ -54,21 +48,20 @@ export function ThemeToggle() {
   const { hydrated, mode, save } = useThemeControls();
   const label = mode === "dark" ? t("switchToLight") : t("switchToDark");
   return <Tooltip><TooltipTrigger asChild>
-    <Button variant="ghost" size="icon-responsive" className="shrink-0 text-sidebar-foreground [&_svg]:size-[17px] [&_svg]:stroke-[1.7]" disabled={!hydrated} aria-label={label} onClick={() => save("harvest-color-mode", mode === "dark" ? "light" : "dark")}>
+    <Button variant="ghost" size="icon-responsive" className="shrink-0 text-sidebar-foreground [&_svg]:size-[17px] [&_svg]:stroke-[1.7]" disabled={!hydrated} aria-label={label} onClick={() => save(mode === "dark" ? "light" : "dark")}>
       {mode === "dark" ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
     </Button>
   </TooltipTrigger><TooltipContent side="top">{label}</TooltipContent></Tooltip>;
 }
-export function ThemeControls({ touchTargets=false }: { touchTargets?:boolean }) {
+export function ThemeControls({ touchTargets = false }: { touchTargets?: boolean }) {
   const t = useTranslations("ComponentsThemeControls");
-  const names = useTranslations("ThemeNames");
-  const { hydrated, brand, mode, save } = useThemeControls();
+  const { hydrated, preference, mode, save } = useThemeControls();
   return <div className="flex items-center gap-2">
-    <Select value={brand} onValueChange={(value) => save("harvest-brand-theme", value)} disabled={!hydrated}>
-      <SelectTrigger aria-label={t("brandTheme")} className={touchTargets?"min-h-11 w-40 bg-card text-xs":"h-8 w-40 bg-card text-xs"}><SelectValue /></SelectTrigger>
-      <SelectContent><SelectItem value="default">{t("workspaceDefault")}</SelectItem>{BRAND_THEMES.map((id) => <SelectItem key={id} value={id}>{names(themeRegistry[id].labelKey)}</SelectItem>)}</SelectContent>
+    <Select value={preference} onValueChange={save} disabled={!hydrated}>
+      <SelectTrigger aria-label={t("colorMode")} className={touchTargets ? "min-h-11 w-40 bg-card text-xs" : "h-11 w-40 bg-card text-xs lg:h-9"}><SelectValue /></SelectTrigger>
+      <SelectContent>{(["system", "light", "dark"] as const).map(value => <SelectItem key={value} value={value}>{t(value)}</SelectItem>)}</SelectContent>
     </Select>
-    <Button className={touchTargets?"size-11":undefined} variant="ghost" size="icon-sm" disabled={!hydrated} aria-label={mode === "dark" ? t("switchToLightMode") : t("switchToDarkMode")} onClick={() => save("harvest-color-mode", mode === "dark" ? "light" : "dark")}>
+    <Button className={touchTargets ? "size-11 lg:size-11" : undefined} variant="ghost" size="icon-responsive" disabled={!hydrated} aria-label={mode === "dark" ? t("switchToLightMode") : t("switchToDarkMode")} onClick={() => save(mode === "dark" ? "light" : "dark")}>
       {mode === "dark" ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
     </Button>
   </div>;

@@ -8,7 +8,7 @@ import { Building, Building2, ChevronRight, ChevronsUpDown, FileUp, Files, Flag,
 import { authClient } from "@/lib/auth-client";
 import { NotificationsMenu } from "@/components/crm/tasks/notifications-menu";
 import { useHydrated } from "@/hooks/use-hydrated";
-import { BrandThemeMenu, ThemeToggle, WorkspaceTheme } from "@/components/theme-controls";
+import { AppearanceMenu, ThemeToggle, WorkspaceTheme } from "@/components/theme-controls";
 import type { BrandTheme } from "@/lib/theme";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -126,7 +126,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
             </DropdownMenuTrigger><DropdownMenuContent container={navigationContainer} side="top" align="start" className="w-64 rounded-[12px]">
               <DropdownMenuLabel className="truncate text-xs">{email}</DropdownMenuLabel><DropdownMenuSeparator />
               <DropdownMenuItem asChild><Link href="/profile">{t("profile")}</Link></DropdownMenuItem>
-              <DropdownMenuSeparator /><BrandThemeMenu /><DropdownMenuSeparator />
+              <DropdownMenuSeparator /><AppearanceMenu /><DropdownMenuSeparator />
               <DropdownMenuItem disabled={busy} onSelect={() => void signOut()}><LogOut aria-hidden="true" />{t("signOut")}</DropdownMenuItem>
             </DropdownMenuContent></DropdownMenu>
             <span className="truncate text-[13px] font-medium text-sidebar-accent-foreground group-data-[collapsible=icon]:sr-only">{email.split("@")[0]}</span>
