@@ -59,7 +59,7 @@ export function FilterBuilder({ fields, tenantId, onApply, activeCount }: { fiel
   }
   const inputType: Partial<Record<FieldType, string>> = { number: "number", date: "date" };
   return <Popover open={open} onOpenChange={reset}>
-    <PopoverTrigger asChild><Button variant="outline" size="sm" className="h-9"><ListFilter aria-hidden="true" />{t("filter")}{activeCount > 0 && <Badge variant="secondary" className="ml-0.5 h-5 min-w-5 rounded-full px-1.5 tabular-nums">{activeCount}</Badge>}</Button></PopoverTrigger>
+    <PopoverTrigger asChild><Button variant="outline" size="responsive"><ListFilter aria-hidden="true" />{t("filter")}{activeCount > 0 && <Badge variant="secondary" className="ml-0.5 h-5 min-w-5 rounded-full px-1.5 tabular-nums">{activeCount}</Badge>}</Button></PopoverTrigger>
     <PopoverContent align="end" className="w-[min(22rem,calc(100vw-2rem))] p-0">
       {!field ? <Command label={t("filterBy")}>
         <CommandInput placeholder={t("searchFields")} />

@@ -61,7 +61,7 @@ export function ViewMenu({ tenantId, objectType, views, current, modified, writa
   return <div className="flex flex-wrap items-center gap-2">
     <ButtonGroup>
       <DropdownMenu modal={false}>
-        <DropdownMenuTrigger asChild><Button variant="outline" size="sm" className="h-9 max-w-64"><Layers aria-hidden="true" /><span className="truncate">{name(current)}</span>{modified && <Badge variant="secondary" className="h-5 rounded-md px-1.5 text-[11px] font-normal">{t("edited")}</Badge>}<ChevronDown aria-hidden="true" /></Button></DropdownMenuTrigger>
+        <DropdownMenuTrigger asChild><Button variant="outline" size="responsive" className="max-w-64"><Layers aria-hidden="true" /><span className="truncate">{name(current)}</span>{modified && <Badge variant="secondary" className="h-5 rounded-md px-1.5 text-[11px] font-normal">{t("edited")}</Badge>}<ChevronDown aria-hidden="true" /></Button></DropdownMenuTrigger>
         <DropdownMenuContent align="start" className="w-64">
           {groups.map(([kind, heading]) => { const list = views.filter((view) => view.kind === kind); return list.length ? <DropdownMenuGroup key={kind}>
             <DropdownMenuLabel className="text-xs text-muted-foreground">{heading}</DropdownMenuLabel>
@@ -75,9 +75,9 @@ export function ViewMenu({ tenantId, objectType, views, current, modified, writa
       </DropdownMenu>
     </ButtonGroup>
     {modified && <>
-      {ownedEditable && <Button size="sm" variant="outline" className="h-9" disabled={busy} onClick={() => void update()}><Save aria-hidden="true" />{t("updateView")}</Button>}
-      {writable && !ownedEditable && <Button size="sm" variant="outline" className="h-9" onClick={() => { setError(""); setSaveOpen(true); }}><Save aria-hidden="true" />{t("saveAsNewView")}</Button>}
-      <Button size="sm" variant="ghost" className="h-9 text-muted-foreground" onClick={() => navigate(current.state, { view: current.id })}><RotateCcw aria-hidden="true" />{t("resetToView")}</Button>
+      {ownedEditable && <Button size="responsive" variant="outline" disabled={busy} onClick={() => void update()}><Save aria-hidden="true" />{t("updateView")}</Button>}
+      {writable && !ownedEditable && <Button size="responsive" variant="outline" onClick={() => { setError(""); setSaveOpen(true); }}><Save aria-hidden="true" />{t("saveAsNewView")}</Button>}
+      <Button size="responsive" variant="ghost" className="text-muted-foreground" onClick={() => navigate(current.state, { view: current.id })}><RotateCcw aria-hidden="true" />{t("resetToView")}</Button>
     </>}
     {error && !saveOpen && !deleteOpen && <p role="alert" className="basis-full text-xs text-destructive">{error}</p>}
     <Dialog open={saveOpen} onOpenChange={(value) => { if (!busy) setSaveOpen(value); }}>

@@ -1992,5 +1992,83 @@
     "unpublishedChanges": "Your saved changes are ready to publish. Visitors still see the previous version.",
     "publishedCurrent": "Your published page is up to date.",
     "unsavedDraft": "Your changes aren’t saved yet. Save a draft to keep them, then publish when you’re ready."
+  },
+  "UiShowcase": {
+    "title": "Component showcase",
+    "description": "Development examples only. All interactions use local synthetic fixtures and do not save application records.",
+    "entries": {
+      "actions": {
+        "title": "Actions",
+        "description": "Button variants, consistent responsive peers, busy and disabled states."
+      },
+      "fields": {
+        "title": "Fields",
+        "description": "Labels, validation, optional choices and read-only controls."
+      },
+      "overlays": {
+        "title": "Overlays",
+        "description": "Dialogs, drawers, confirmations and searchable choices."
+      },
+      "feedback": {
+        "title": "Feedback",
+        "description": "Loading, empty, error, permission and selected states."
+      }
+    },
+    "actions": {
+      "default": "Primary",
+      "secondary": "Secondary",
+      "outline": "Outline",
+      "ghost": "Ghost",
+      "destructive": "Destructive"
+    },
+    "increment": "Add example",
+    "busy": "Working…",
+    "disabled": "Disabled",
+    "groupedActions": "Grouped example actions",
+    "reset": "Reset example",
+    "actionCount": "Local actions: {count}",
+    "email": "Example email",
+    "emailPlaceholder": "alex@example.test",
+    "emailError": "Enter a valid example email.",
+    "readOnly": "Read-only name",
+    "sampleName": "Alex Rivers",
+    "note": "Example note",
+    "notePlaceholder": "Write an example note",
+    "category": "Category",
+    "categoryFilter": "Component category",
+    "sampleOption": "First option",
+    "otherOption": "Second option",
+    "fixtureOnly": "This example changes local fixture state only.",
+    "optionalChoice": "Optional example choice",
+    "exampleChoice": "Example options",
+    "disabledField": "Disabled field",
+    "validate": "Validate example",
+    "dialog": "Example dialog",
+    "sheet": "Example drawer",
+    "confirmation": "Example confirmation",
+    "exampleInput": "Dialog example input",
+    "close": "Close example",
+    "cancel": "Cancel",
+    "removeFixture": "Remove fixture",
+    "fixtureRemoved": "Fixture removed locally.",
+    "searchOptions": "Search example options",
+    "noMatches": "No matching examples",
+    "menu": "Example menu",
+    "selectedOption": "Selected: {option}",
+    "error": "Example error",
+    "success": "Example success",
+    "retry": "Retry example",
+    "retryComplete": "Local retry complete.",
+    "empty": "No example records",
+    "emptyHelp": "Add an example when you are ready.",
+    "searchHelp": "Try another search or remove filters.",
+    "permissionDenied": "Example access denied",
+    "permissionHelp": "This is a presentation example, not a permission grant.",
+    "loading": "Loading example",
+    "initials": "AR",
+    "unknown": "Unknown",
+    "searchRegistry": "Search components",
+    "all": "All categories",
+    "sourceAndConsumers": "Source and real consumers"
   }
 }
