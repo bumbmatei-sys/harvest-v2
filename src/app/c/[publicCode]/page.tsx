@@ -21,5 +21,5 @@ export default async function ConnectLanding({ params }: { params: Promise<{ pub
   const landing = await findLandingByPublicCode(code);
   if (!landing) notFound();
   const manifest = syntheticIntakeEnabled() && landing.source === "campaign-link" ? await readIntakeManifest(getDb(),"qr",code).catch(()=>null) : null;
-  return <PublicFrame><LandingContent landing={landing} responseHref={manifest?"#response-form":undefined} invitationAvailable={Boolean(manifest?.purposes.includes("account_communications"))} />{manifest&&<ResponseForm key={`${code}:${manifest.stamp}`} manifest={manifest} endpoint={`/api/public/connect/qr/${encodeURIComponent(code)}/responses`}/>}</PublicFrame>;
+  return <PublicFrame externalOffers={landing.source === "campaign-link" && Boolean(landing.definition)}><LandingContent landing={landing} responseHref={manifest?"#response-form":undefined} invitationAvailable={Boolean(manifest?.purposes.includes("account_communications"))} />{manifest&&<ResponseForm key={`${code}:${manifest.stamp}`} manifest={manifest} endpoint={`/api/public/connect/qr/${encodeURIComponent(code)}/responses`}/>}</PublicFrame>;
 }

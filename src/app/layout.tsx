@@ -5,6 +5,7 @@ import { getLocale, getTranslations } from "next-intl/server";
 import "@fontsource/inter/latin-400.css";
 import "@fontsource/inter/latin-500.css";
 import "@fontsource/inter/latin-600.css";
+import { historyGuardBootstrap } from "@/lib/history-guard";
 import { themeBootstrap } from "@/lib/theme";
 import { headers } from "next/headers";
 import { getAuth } from "@/server/auth-instance";
@@ -32,5 +33,5 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       if (!(error instanceof AccessError)) console.error("workspace_theme_load_failed");
     }
   }
-  return <html lang={locale} className={GeistSans.variable} suppressHydrationWarning><head><style dangerouslySetInnerHTML={{ __html: themeStyles }} /><script dangerouslySetInnerHTML={{ __html: themeBootstrap(brandTheme) }} /></head><body><NextIntlClientProvider><RegisterServiceWorker />{children}</NextIntlClientProvider></body></html>;
+  return <html lang={locale} className={GeistSans.variable} suppressHydrationWarning><head><script dangerouslySetInnerHTML={{ __html: historyGuardBootstrap }} /><style dangerouslySetInnerHTML={{ __html: themeStyles }} /><script dangerouslySetInnerHTML={{ __html: themeBootstrap(brandTheme) }} /></head><body><NextIntlClientProvider><RegisterServiceWorker />{children}</NextIntlClientProvider></body></html>;
 }

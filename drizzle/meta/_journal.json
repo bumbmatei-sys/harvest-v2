@@ -211,6 +211,13 @@
       "when": 1794124041368,
       "tag": "0029_hc07_personal_account_claims",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1794133539473,
+      "tag": "0030_connect_landing",
+      "breakpoints": true
     }
   ]
 }

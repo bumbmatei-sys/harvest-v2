@@ -1,3 +1,4 @@
+import type { LandingDefinition } from "../lib/connect-landing";
 import type { BrandTheme } from "../lib/theme-registry";
 import type { campaignStructures, campaignTypes } from "../lib/campaigns";
 import type { ConnectPurpose, formVersionStatuses, responseConsentActors, responseConsentStatuses, responseContactKinds, responseLinkStatuses, responseStatuses } from "../lib/connect-data";
@@ -882,3 +883,25 @@ export const responseAccountClaims = pgTable("response_account_claims", {
  foreignKey({columns:[t.tenantId,t.responseId],foreignColumns:[campaignResponses.tenantId,campaignResponses.id]}),
  foreignKey({columns:[t.tenantId,t.invitationId],foreignColumns:[connectInvitations.tenantId,connectInvitations.id]}).onDelete("cascade"),
  uniqueIndex("response_account_claim_response_idx").on(t.tenantId,t.responseId),check("response_account_claim_expiry",sql`${t.expiresAt}>${t.verifiedAt}`)]);
+
+// Personalized QR landing drafts and immutable publication snapshots. Publication writes use
+// connect_landing_write only; tenant/link references prevent cross-QR snapshot pointers.
+export const connectLandingVersions = pgTable("connect_landing_versions", {
+  tenantId: uuid("tenant_id").notNull(), linkId: uuid("link_id").notNull(), revision: integer("revision").notNull(),
+  definition: jsonb("definition").$type<LandingDefinition>().notNull(),
+  publishedAt: timestamp("published_at", { withTimezone: true }).notNull().defaultNow(),
+  publishedBy: text("published_by").notNull().references(() => users.id),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.linkId, t.revision] }),
+  foreignKey({ name: "connect_landing_versions_link_fk", columns: [t.tenantId, t.linkId], foreignColumns: [campaignResponseLinks.tenantId, campaignResponseLinks.id] }),
+  check("connect_landing_versions_revision_check", sql`${t.revision} > 0`),
+  check("connect_landing_versions_definition_check", sql`public.valid_connect_landing(${t.definition})`)]);
+export const connectLandingStates = pgTable("connect_landing_states", {
+  tenantId: uuid("tenant_id").notNull(), linkId: uuid("link_id").notNull(), revision: integer("revision").notNull(),
+  definition: jsonb("definition").$type<LandingDefinition>().notNull(), publishedRevision: integer("published_revision"),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.linkId] }),
+  foreignKey({ name: "connect_landing_states_link_fk", columns: [t.tenantId, t.linkId], foreignColumns: [campaignResponseLinks.tenantId, campaignResponseLinks.id] }),
+  foreignKey({ name: "connect_landing_states_published_fk", columns: [t.tenantId, t.linkId, t.publishedRevision], foreignColumns: [connectLandingVersions.tenantId, connectLandingVersions.linkId, connectLandingVersions.revision] }),
+  check("connect_landing_states_revision_check", sql`${t.revision} > 0`),
+  check("connect_landing_states_definition_check", sql`public.valid_connect_landing(${t.definition})`),
+  check("connect_landing_states_check", sql`${t.publishedRevision} is null or ${t.publishedRevision} <= ${t.revision}`)]);
