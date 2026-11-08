@@ -54,7 +54,7 @@ export function ThemeToggle() {
   const { hydrated, mode, save } = useThemeControls();
   const label = mode === "dark" ? t("switchToLight") : t("switchToDark");
   return <Tooltip><TooltipTrigger asChild>
-    <Button variant="ghost" size="icon" className="size-8 shrink-0 text-sidebar-foreground [&_svg]:size-[17px] [&_svg]:stroke-[1.7]" disabled={!hydrated} aria-label={label} onClick={() => save("harvest-color-mode", mode === "dark" ? "light" : "dark")}>
+    <Button variant="ghost" size="icon" className="size-11 shrink-0 text-sidebar-foreground [&_svg]:size-[17px] [&_svg]:stroke-[1.7]" disabled={!hydrated} aria-label={label} onClick={() => save("harvest-color-mode", mode === "dark" ? "light" : "dark")}>
       {mode === "dark" ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
     </Button>
   </TooltipTrigger><TooltipContent side="top">{label}</TooltipContent></Tooltip>;

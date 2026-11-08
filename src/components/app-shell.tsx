@@ -20,7 +20,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 
 type Workspace = { tenantId: string; name: string; role: string };
-const menuButton = "min-h-11 lg:min-h-0 lg:h-[30px] gap-2 rounded-[8px] py-0 pl-2 pr-3 text-[14px] font-normal text-sidebar-foreground data-[active=true]:font-normal [&_svg]:size-[17px] [&_svg]:stroke-[1.7] group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0!";
+const menuButton = "min-h-11 lg:min-h-0 lg:h-9 gap-2 rounded-[8px] py-0 pl-2 pr-3 text-sm font-medium text-sidebar-foreground data-[active=true]:font-normal [&_svg]:size-[17px] [&_svg]:stroke-[1.7] group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0!";
 function NavigationLink({ href, label, icon, active }: { href: string; label: string; icon: React.ReactNode; active: boolean }) {
   const { setOpenMobile, isMobile } = useSidebar();
   return <SidebarMenuItem><SidebarMenuButton asChild isActive={active} tooltip={isMobile ? undefined : label} className={menuButton}><Link href={href} aria-current={active ? "page" : undefined} onClick={() => setOpenMobile(false)}>{icon}<span className="group-data-[collapsible=icon]:sr-only">{label}</span></Link></SidebarMenuButton></SidebarMenuItem>;
@@ -80,10 +80,10 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
     } catch { setError(t("couldNotConnectPleaseTryAgain")); }
     finally { setBusy(false); }
   }
-  return <SidebarProvider defaultOpen={defaultOpen} data-hydrated={hydrated} className="h-dvh min-h-0 overflow-hidden bg-shell-canvas has-data-[variant=inset]:bg-shell-canvas" style={{ "--sidebar-width": "276px", "--sidebar-width-icon": "52px" } as React.CSSProperties}>
+  return <SidebarProvider defaultOpen={defaultOpen} data-hydrated={hydrated} className="h-dvh min-h-0 overflow-hidden bg-shell-canvas has-data-[variant=inset]:bg-shell-canvas" style={{ "--sidebar-width": "272px", "--sidebar-width-icon": "48px" } as React.CSSProperties}>
     <WorkspaceTheme brandTheme={brandTheme} />
     <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-card focus:p-3">{t("skipToContent")}</a>
-    <Sidebar variant="inset" collapsible="icon" className="p-[8px]">
+    <Sidebar variant="floating" collapsible="icon" className="p-[8px]">
       <div ref={setNavigationContainer} role="complementary" aria-label={t("workspaceSidebar")} className="flex h-full min-h-0 flex-col">
         <SidebarHeader className="gap-0 p-0 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:py-2">
           <SidebarMenu><SidebarMenuItem><SidebarMenuButton size="lg" asChild className="h-[52px] rounded-none hover:bg-transparent group-data-[collapsible=icon]:size-auto! group-data-[collapsible=icon]:p-0!"><Link href="/workspaces" className="flex h-[52px] items-center gap-1.5 pl-4 pr-3 group-data-[collapsible=icon]:h-auto group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
@@ -120,7 +120,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
           <div className="flex h-[52px] items-center gap-1 pl-4 pr-3 group-data-[collapsible=icon]:h-auto group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:px-0">
             <div className="flex min-w-0 flex-1 items-center gap-2 group-data-[collapsible=icon]:flex-none">
             <DropdownMenu modal={false}><DropdownMenuTrigger asChild>
-              <Button variant="ghost" disabled={busy} aria-label={t("accountMenu")} className="size-8 shrink-0 p-0">
+              <Button variant="ghost" disabled={busy} aria-label={t("accountMenu")} className="size-11 shrink-0 p-0">
                 <Avatar className="size-8 shrink-0 border border-sidebar-border" aria-hidden="true"><AvatarFallback className="bg-transparent uppercase">{email.slice(0, 1)}</AvatarFallback></Avatar>
               </Button>
             </DropdownMenuTrigger><DropdownMenuContent container={navigationContainer} side="top" align="start" className="w-64 rounded-[12px]">
@@ -138,9 +138,9 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
       </div>
       <SidebarRail />
     </Sidebar>
-    <SidebarInset className="min-h-0 min-w-0 overflow-hidden">
-      <header data-shell-header className="flex h-12 shrink-0 items-center gap-2 px-4 lg:px-6">
-        <SidebarTrigger className="lg:hidden" />
+    <SidebarInset className="min-h-0 min-w-0 overflow-hidden lg:my-2 lg:mr-2 lg:rounded-xl lg:border">
+      <header data-shell-header className="flex h-12 shrink-0 items-center gap-2 border-b px-4 lg:px-6">
+        <SidebarTrigger className="size-11 shrink-0" />
         <Breadcrumb className="min-w-0"><BreadcrumbList className="flex-nowrap text-[13px]">
           {workspace && <><BreadcrumbItem className="min-w-0"><BreadcrumbLink asChild className="truncate"><Link href={`/workspaces/${selected}/crm/people`}>{workspace.name}</Link></BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator /></>}
           <BreadcrumbItem><BreadcrumbPage className="font-medium">{section}</BreadcrumbPage></BreadcrumbItem>
@@ -151,7 +151,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
         {/* Workspace screens use the full width beside the sidebar with compact gutters
             (16px, 24px from lg) that match the breadcrumb. Focused short forms opt into
             their own narrow width; the shell never centres or caps the content column. */}
-        <div data-shell-content className="w-full max-w-none px-4 pt-1 pb-8 lg:px-6 lg:pb-10">
+        <div data-shell-content className="w-full max-w-none p-4 lg:p-6">
           {error && <Alert variant="destructive" className="mb-6"><AlertDescription>{error}</AlertDescription></Alert>}
           {children}
         </div>

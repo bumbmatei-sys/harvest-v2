@@ -770,3 +770,7 @@ Exact pins in `package.json`; the lockfile carries the transitive graph. No AGPL
 | `which-module` | 2.0.1 | ISC |
 | `@types/qrcode` (dev) | 1.5.5 | MIT |
 | `jsqr` (dev, tests only) | 1.4.0 | Apache-2.0 |
+
+## Studio Admin Phase 0A
+
+Visual tokens and shell patterns adapted from `arhamkhnz/next-shadcn-admin-dashboard`, commit `05b2b927f556e0dce18c9023afa23f8219f39c93`. MIT, copyright (c) 2024 Mohammed Arham Khan. Notice: [studio-admin-MIT.txt](licenses/studio-admin-MIT.txt). See [exact source mapping](ui-sources.md#phase-0a--studio-admin-shell-baseline). No new package dependency.

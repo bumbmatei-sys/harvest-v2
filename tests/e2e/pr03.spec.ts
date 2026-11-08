@@ -75,7 +75,7 @@ test("PR03: each theme, semantic colors, profile locale persistence, screenshots
         const css = getComputedStyle(document.documentElement);
         return { background: css.getPropertyValue("--primary").trim(), foreground: css.getPropertyValue("--primary-foreground").trim() };
       });
-      expect(primary).toEqual({ background: themeRegistry[brand][mode]["--brand-color"], foreground: themeRegistry[brand][mode]["--earth"] });
+      expect(primary).toEqual({ background: themeRegistry[brand][mode]["--brand-color"], foreground: themeRegistry[brand][mode]["--action-foreground"] });
       await capture(`${screen}-${brand}-${mode}`);
     }
   }

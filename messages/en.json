@@ -165,11 +165,12 @@
     "couldNotSaveAppearanceTryAgain": "Could not save appearance. Try again.",
     "workspaceAppearanceSaved": "Workspace appearance saved.",
     "couldNotConnectPleaseTryAgain": "Could not connect. Please try again.",
+    "studioAdmin": "Studio Admin",
     "defaultBrandTheme": "Default brand theme",
     "usedWhenAPersonHasNoAppearanceOverride": "Used when a person has no appearance override.",
     "harvest": "Harvest",
     "studio": "Studio",
-    "harvestBringsWarmNeutralsAndSofterCardsStudio": "Harvest brings warm neutrals and softer cards. Studio offers crisp surfaces and compact curves. Both keep Harvest’s gold actions, and work in light and dark.",
+    "harvestBringsWarmNeutralsAndSofterCardsStudio": "Both saved theme choices now use the shared neutral appearance in light and dark.",
     "saving": "Saving…",
     "saveAppearance": "Save appearance",
     "onlyOwnersAndAdminsCanChangeTheWorkspace": "Only owners and admins can change the workspace default. You can still choose your own theme in the toolbar."

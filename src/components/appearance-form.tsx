@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { useRouter } from "next/navigation";
-import { applyTheme, BRAND_THEMES, themeRegistry, type BrandTheme } from "@/lib/theme";
+import { applyTheme, BRAND_THEMES, type BrandTheme } from "@/lib/theme";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -14,7 +14,6 @@ import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 export function AppearanceForm({ tenantId, current, writable }: { tenantId: string; current: BrandTheme; writable: boolean }) {
   const t = useTranslations("ComponentsAppearanceForm");
-  const names = useTranslations("ThemeNames");
   const router = useRouter(), hydrated = useHydrated();
   const [theme, setTheme] = useState(current), [busy, setBusy] = useState(false), [error, setError] = useState(""), [message, setMessage] = useState("");
   async function save(event: React.SubmitEvent<HTMLFormElement>) {
@@ -31,9 +30,9 @@ export function AppearanceForm({ tenantId, current, writable }: { tenantId: stri
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
     <div className="space-y-1"><p id="workspace-brand-label" className="text-sm font-medium">{t("defaultBrandTheme")}</p><p id="workspace-brand-help" className="text-xs text-muted-foreground">{t("usedWhenAPersonHasNoAppearanceOverride")}</p></div>
     <RadioGroup orientation="horizontal" value={theme} onValueChange={(value) => setTheme(value as BrandTheme)} disabled={!hydrated || !writable || busy} aria-labelledby="workspace-brand-label" aria-describedby="workspace-brand-help" className="grid grid-cols-2 gap-3">
-      {BRAND_THEMES.map((brand) => <Card key={brand} className={`gap-0 py-0 ${theme === brand ? "border-ring" : ""}`}><CardContent className="p-3">
+      {BRAND_THEMES.filter(brand => brand === current).map((brand) => <Card key={brand} className={`gap-0 py-0 ${theme === brand ? "border-ring" : ""}`}><CardContent className="p-3">
         <div aria-hidden="true" data-preview-brand={brand} className="theme-preview mb-3 flex h-24 gap-2 rounded-md bg-background p-2"><Skeleton className="h-full w-1/4 rounded-sm" /><div className="flex flex-1 flex-col justify-center gap-2"><Card className="h-9 gap-0 rounded-md py-0" /><Skeleton className="h-2 w-1/2" /></div></div>
-        <div className="flex items-center gap-2"><RadioGroupItem id={`brand-${brand}`} value={brand} /><Label htmlFor={`brand-${brand}`} className="flex-1">{names(themeRegistry[brand].labelKey)}</Label></div>
+        <div className="flex items-center gap-2"><RadioGroupItem id={`brand-${brand}`} value={brand} /><Label htmlFor={`brand-${brand}`} className="flex-1">{t("studioAdmin")}</Label></div>
       </CardContent></Card>)}
     </RadioGroup>
     <p className="text-xs leading-relaxed text-muted-foreground">{t("harvestBringsWarmNeutralsAndSofterCardsStudio")}</p>
