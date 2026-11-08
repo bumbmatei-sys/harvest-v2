@@ -32,4 +32,27 @@ All responses, including failures, are private/no-store. Writes verify same orig
 
 ## Verification
 
-Validation is in progress. Final command results, screenshot inspection and exact-head independent review will be recorded before PR delivery. Runtime tests use disposable local PostgreSQL and fabricated contacts; browser email uses the existing mock mailbox. No live database, provider send, merge or deployment is involved.
+Final application implementation: `6b1b27f7d0408787055c27f1d73c5190a130821e`. Subsequent delivery changes contain evidence/documentation and the generated offline stylesheet only; the PR records its exact final head and final delta review. Validation used Node 24.22.1, PostgreSQL 18.6 and local Chromium 156.0.8078.79. Browser email used the existing mock mailbox; no live database or provider was contacted.
+
+| Check | Author result |
+| --- | --- |
+| `npm run lint`, `npm run typecheck` | Passed on final application source |
+| `npm run test -- --reporter=json --outputFile=/tmp/landing-unit-exact.json` | 290 passed, 25 files, zero skipped, on final application head |
+| `npm run test:rls -- --reporter=json --outputFile=/tmp/landing-integration-final.json` | 394 passed, 43 files, zero skipped; SQL/service/test source unchanged in final UI-only correction |
+| `npm run build` | Passed on final application head (Next 16.4.5, webpack) |
+| `CHROME_PATH=/usr/bin/chromium npm run test:pwa` | Passed: installability, accessibility/best-practices 100, offline fallback/static-only cache and axe |
+| `npx drizzle-kit check`, `npx drizzle-kit generate --name verify_landing` | Passed; no further schema change to generate |
+| Snapshot/journal/whitespace comparison | Existing table metadata and merged migration prefix unchanged; 0030 follows 0029; diff checks passed |
+| Connect/auth browser regressions | Combined 23-case run passed; includes two editor cases and 21 existing Connect/auth cases |
+| Final `connect-landing.spec.ts` rerun | All 4 passed on final application source in 1.7 minutes, including both history compatibility cases |
+| Visual/keyboard/accessibility | 24 clean axe scans and 24 inspected mobile/tablet/desktop light/dark captures; zero document/main overflow; measured controls at least 44 × 44px |
+
+The integration suite covers cross-tenant and forged-parent access, live role downgrade, private drafts, immutable snapshots, stale saves/publishes, duplicate concurrent publication, current-code rotation, link/campaign archive races for both save and publish, expiry without extension, and both public URL kinds. Two dedicated cases apply real migrations under an actual non-superuser/non-BYPASSRLS owner on fresh and populated-0029 databases, replay migrations, preserve two tenants' existing published links and exercise draft/publication/resolution through `harvest_app`. Existing HC-05/07 restricted-owner and consent/claim/withdrawal/erasure cases also pass in the full suite.
+
+The combined browser command selected `connect-landing`, `hc07-invitations`, `hc05-intake`, `hc03-connect-links`, `hc03-responsive`, `connect` and `foundation`. All 23 passed in 7.4 minutes. The later four-case editor run exercises final text wrapping, root bridge order, same-document cancel/save/discard without Navigation API, multi-entry Back and Forward. This is **25 unique browser cases across runs**, not a claim that all 25 ran in one final command. It covers unchecked consent, guest rights, verified claim continuation/mismatch/switch/decline, existing Organization preservation and free no-identity resources. The final application-only corrections are fully covered by the four editor cases; existing regression evidence precedes that UI-only delta.
+
+Reproduction uses the repository browser dependency by default. This environment's package-download policy denied Playwright's CDN, so local runs set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium`; the config leaves its normal bundled-browser behavior unchanged when that variable is absent. `LANDING_QA_DIR=docs/screenshots/connect/landing` persists the final captures. [Screenshot index](../screenshots/connect/landing/README.md), [geometry/axe measurements](../screenshots/connect/landing/metrics.json) and [compact validation totals](../screenshots/connect/landing/validation.json), [production Lighthouse](../screenshots/connect/landing/pwa-lighthouse.json) and [offline checks](../screenshots/connect/landing/production-offline.json) are committed. Browser emulation is not physical-device or venue-load certification.
+
+A newly created non-author session independently reviewed the complete implementation and corrections: **MERGE-OK for bounded source scope, no unresolved blocking finding** at `6b1b27f`. [Independent report](../reviews/connect-landing-independent.md) records exact reviewed commits, resolved P2 history gaps and independently executed unit/static/bridge probes. The reviewer did not execute DB/browser/build suites or inspect screenshots; those are author evidence. Runtime exposed Next's synchronous router-listener teardown after initial source review; the final pre-hydration bridge and real compatibility regressions resolve it. Visual QA also corrected back-link contrast and intrinsic long-text wrapping; JSONB key-order dirty comparison and keyboard focus were corrected during author testing.
+
+The fallback for browsers without Navigation API deliberately replaces the forward history branch when a dirty editor is restored. It preserves the mounted draft and the visitor's actual chosen destination before explicit discard; it does not claim exact preservation of the browser stack. No production intake, real invitation send, merge or deployment occurred. All five activation decisions remain unapproved.

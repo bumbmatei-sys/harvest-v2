@@ -1,0 +1,3962 @@
+[
+  {
+    "name": "editor-mobile-light",
+    "geometry": {
+      "overflow": 0,
+      "mainOverflow": 0,
+      "controls": [
+        {
+          "label": "",
+          "width": 214.421875,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-heading",
+          "width": 358,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-message",
+          "width": 358,
+          "height": 66
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-category",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-title",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-description",
+          "width": 308,
+          "height": 66
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-url",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-price",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 1",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "f05cd608-ff02-4188-add1-ea3833d239e3-resource",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 2",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-add-resource",
+          "width": 188.078125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 162.21875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 100.046875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 144.125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 255.453125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-followup",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-newsletter",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-invitation",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-name",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-email",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 212.484375,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 241.90625,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "editor-actions-mobile-light",
+    "geometry": {
+      "overflow": 0,
+      "mainOverflow": 0,
+      "controls": [
+        {
+          "label": "",
+          "width": 214.421875,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-heading",
+          "width": 358,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-message",
+          "width": 358,
+          "height": 66
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-category",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-title",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-description",
+          "width": 308,
+          "height": 66
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-url",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-price",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 1",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "f05cd608-ff02-4188-add1-ea3833d239e3-resource",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 2",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-add-resource",
+          "width": 188.078125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 162.21875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 100.046875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 144.125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 255.453125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-followup",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-newsletter",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-invitation",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-name",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-email",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 212.484375,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 241.90625,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "editor-preview-mobile-light",
+    "geometry": {
+      "overflow": 0,
+      "mainOverflow": 0,
+      "controls": [
+        {
+          "label": "",
+          "width": 214.421875,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-heading",
+          "width": 358,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-message",
+          "width": 358,
+          "height": 66
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-category",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-title",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-description",
+          "width": 308,
+          "height": 66
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-url",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-price",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 1",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "f05cd608-ff02-4188-add1-ea3833d239e3-resource",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 2",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-add-resource",
+          "width": 188.078125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 162.21875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 100.046875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 144.125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 255.453125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-followup",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-newsletter",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-invitation",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-name",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-email",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 212.484375,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 241.90625,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "editor-tablet-light",
+    "geometry": {
+      "overflow": 0,
+      "mainOverflow": 0,
+      "controls": [
+        {
+          "label": "",
+          "width": 214.421875,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-heading",
+          "width": 788,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-message",
+          "width": 788,
+          "height": 64
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-category",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-title",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-description",
+          "width": 738,
+          "height": 64
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-url",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-price",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 1",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "f05cd608-ff02-4188-add1-ea3833d239e3-resource",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 2",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-add-resource",
+          "width": 188.078125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 162.21875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 100.046875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 144.125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 255.453125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 311,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 311,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-followup",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-newsletter",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-invitation",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-name",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-email",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 212.484375,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 241.90625,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "editor-actions-tablet-light",
+    "geometry": {
+      "overflow": 0,
+      "mainOverflow": 0,
+      "controls": [
+        {
+          "label": "",
+          "width": 214.421875,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-heading",
+          "width": 788,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-message",
+          "width": 788,
+          "height": 64
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-category",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-title",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-description",
+          "width": 738,
+          "height": 64
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-url",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-price",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 1",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "f05cd608-ff02-4188-add1-ea3833d239e3-resource",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 2",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-add-resource",
+          "width": 188.078125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 162.21875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 100.046875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 144.125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 255.453125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 311,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 311,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-followup",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-newsletter",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-invitation",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-name",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-email",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 212.484375,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 241.90625,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "editor-preview-tablet-light",
+    "geometry": {
+      "overflow": 0,
+      "mainOverflow": 0,
+      "controls": [
+        {
+          "label": "",
+          "width": 214.421875,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-heading",
+          "width": 788,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-message",
+          "width": 788,
+          "height": 64
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-category",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-title",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-description",
+          "width": 738,
+          "height": 64
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-url",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-price",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 1",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "f05cd608-ff02-4188-add1-ea3833d239e3-resource",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 2",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-add-resource",
+          "width": 188.078125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 162.21875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 100.046875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 144.125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 255.453125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 311,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 311,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-followup",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-newsletter",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-invitation",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-name",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-email",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 212.484375,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 241.90625,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "editor-desktop-light",
+    "geometry": {
+      "overflow": 0,
+      "mainOverflow": 0,
+      "controls": [
+        {
+          "label": "",
+          "width": 214.421875,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-heading",
+          "width": 537,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-message",
+          "width": 537,
+          "height": 64
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-category",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-title",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-description",
+          "width": 487,
+          "height": 64
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-url",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-price",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 1",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "f05cd608-ff02-4188-add1-ea3833d239e3-resource",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 2",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-add-resource",
+          "width": 188.078125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 162.21875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 100.046875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 144.125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 255.453125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-followup",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-newsletter",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-invitation",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-name",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-email",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 212.484375,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 241.90625,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "editor-actions-desktop-light",
+    "geometry": {
+      "overflow": 0,
+      "mainOverflow": 0,
+      "controls": [
+        {
+          "label": "",
+          "width": 214.421875,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-heading",
+          "width": 537,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-message",
+          "width": 537,
+          "height": 64
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-category",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-title",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-description",
+          "width": 487,
+          "height": 64
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-url",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-price",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 1",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "f05cd608-ff02-4188-add1-ea3833d239e3-resource",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 2",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-add-resource",
+          "width": 188.078125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 162.21875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 100.046875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 144.125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 255.453125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-followup",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-newsletter",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-invitation",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-name",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-email",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 212.484375,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 241.90625,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "editor-preview-desktop-light",
+    "geometry": {
+      "overflow": 0,
+      "mainOverflow": 0,
+      "controls": [
+        {
+          "label": "",
+          "width": 214.421875,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-heading",
+          "width": 537,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-message",
+          "width": 537,
+          "height": 64
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-category",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-title",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-description",
+          "width": 487,
+          "height": 64
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-url",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-price",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 1",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "f05cd608-ff02-4188-add1-ea3833d239e3-resource",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 2",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-add-resource",
+          "width": 188.078125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 162.21875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 100.046875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 144.125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 255.453125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-followup",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-newsletter",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-invitation",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-name",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-email",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 212.484375,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 241.90625,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "editor-mobile-dark",
+    "geometry": {
+      "overflow": 0,
+      "mainOverflow": 0,
+      "controls": [
+        {
+          "label": "",
+          "width": 214.421875,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-heading",
+          "width": 358,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-message",
+          "width": 358,
+          "height": 66
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-category",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-title",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-description",
+          "width": 308,
+          "height": 66
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-url",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-price",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 1",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "f05cd608-ff02-4188-add1-ea3833d239e3-resource",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 2",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-add-resource",
+          "width": 188.078125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 162.21875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 100.046875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 144.125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 255.453125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-followup",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-newsletter",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-invitation",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-name",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-email",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 212.484375,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 241.90625,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "editor-actions-mobile-dark",
+    "geometry": {
+      "overflow": 0,
+      "mainOverflow": 0,
+      "controls": [
+        {
+          "label": "",
+          "width": 214.421875,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-heading",
+          "width": 358,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-message",
+          "width": 358,
+          "height": 66
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-category",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-title",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-description",
+          "width": 308,
+          "height": 66
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-url",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-price",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 1",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "f05cd608-ff02-4188-add1-ea3833d239e3-resource",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 2",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-add-resource",
+          "width": 188.078125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 162.21875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 100.046875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 144.125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 255.453125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-followup",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-newsletter",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-invitation",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-name",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-email",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 212.484375,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 241.90625,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "editor-preview-mobile-dark",
+    "geometry": {
+      "overflow": 0,
+      "mainOverflow": 0,
+      "controls": [
+        {
+          "label": "",
+          "width": 214.421875,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-heading",
+          "width": 358,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-message",
+          "width": 358,
+          "height": 66
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-category",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-title",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-description",
+          "width": 308,
+          "height": 66
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-url",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-price",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 1",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "f05cd608-ff02-4188-add1-ea3833d239e3-resource",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 2",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-add-resource",
+          "width": 188.078125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 162.21875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 100.046875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 144.125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 255.453125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-followup",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-newsletter",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-invitation",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-name",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-email",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 274,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 212.484375,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 241.90625,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "editor-tablet-dark",
+    "geometry": {
+      "overflow": 0,
+      "mainOverflow": 0,
+      "controls": [
+        {
+          "label": "",
+          "width": 214.421875,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-heading",
+          "width": 788,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-message",
+          "width": 788,
+          "height": 64
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-category",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-title",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-description",
+          "width": 738,
+          "height": 64
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-url",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-price",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 1",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "f05cd608-ff02-4188-add1-ea3833d239e3-resource",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 2",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-add-resource",
+          "width": 188.078125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 162.21875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 100.046875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 144.125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 255.453125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 311,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 311,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-followup",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-newsletter",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-invitation",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-name",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-email",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 212.484375,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 241.90625,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "editor-actions-tablet-dark",
+    "geometry": {
+      "overflow": 0,
+      "mainOverflow": 0,
+      "controls": [
+        {
+          "label": "",
+          "width": 214.421875,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-heading",
+          "width": 788,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-message",
+          "width": 788,
+          "height": 64
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-category",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-title",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-description",
+          "width": 738,
+          "height": 64
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-url",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-price",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 1",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "f05cd608-ff02-4188-add1-ea3833d239e3-resource",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 2",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-add-resource",
+          "width": 188.078125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 162.21875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 100.046875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 144.125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 255.453125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 311,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 311,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-followup",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-newsletter",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-invitation",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-name",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-email",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 212.484375,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 241.90625,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "editor-preview-tablet-dark",
+    "geometry": {
+      "overflow": 0,
+      "mainOverflow": 0,
+      "controls": [
+        {
+          "label": "",
+          "width": 214.421875,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-heading",
+          "width": 788,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-message",
+          "width": 788,
+          "height": 64
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-category",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-title",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-description",
+          "width": 738,
+          "height": 64
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-url",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-price",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 1",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "f05cd608-ff02-4188-add1-ea3833d239e3-resource",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 2",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-add-resource",
+          "width": 188.078125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 162.21875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 100.046875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 144.125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 255.453125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 311,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 311,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-followup",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-newsletter",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-invitation",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-name",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-email",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 688,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 212.484375,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 241.90625,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "editor-desktop-dark",
+    "geometry": {
+      "overflow": 0,
+      "mainOverflow": 0,
+      "controls": [
+        {
+          "label": "",
+          "width": 214.421875,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-heading",
+          "width": 537,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-message",
+          "width": 537,
+          "height": 64
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-category",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-title",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-description",
+          "width": 487,
+          "height": 64
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-url",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-price",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 1",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "f05cd608-ff02-4188-add1-ea3833d239e3-resource",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 2",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-add-resource",
+          "width": 188.078125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 162.21875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 100.046875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 144.125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 255.453125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-followup",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-newsletter",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-invitation",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-name",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-email",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 212.484375,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 241.90625,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "editor-actions-desktop-dark",
+    "geometry": {
+      "overflow": 0,
+      "mainOverflow": 0,
+      "controls": [
+        {
+          "label": "",
+          "width": 214.421875,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-heading",
+          "width": 537,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-message",
+          "width": 537,
+          "height": 64
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-category",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-title",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-description",
+          "width": 487,
+          "height": 64
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-url",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-price",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 1",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "f05cd608-ff02-4188-add1-ea3833d239e3-resource",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 2",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-add-resource",
+          "width": 188.078125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 162.21875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 100.046875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 144.125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 255.453125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-followup",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-newsletter",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-invitation",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-name",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-email",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 212.484375,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 241.90625,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "editor-preview-desktop-dark",
+    "geometry": {
+      "overflow": 0,
+      "mainOverflow": 0,
+      "controls": [
+        {
+          "label": "",
+          "width": 214.421875,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-heading",
+          "width": 537,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-message",
+          "width": 537,
+          "height": 64
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-category",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-title",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-description",
+          "width": 487,
+          "height": 64
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-url",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "6d11461b-59a9-4022-ab34-a4c6cbeedcc9-price",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 1 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 1",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "f05cd608-ff02-4188-add1-ea3833d239e3-resource",
+          "width": 487,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 up",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Move card 2 down",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "Remove card 2",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_0_-add-resource",
+          "width": 188.078125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 162.21875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 100.046875,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 144.125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 255.453125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-followup",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-newsletter",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-invitation",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-name",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "_r_1_-email",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 437,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 212.484375,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 241.90625,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "guest-mobile-light",
+    "geometry": {
+      "overflow": 0,
+      "mainOverflow": 0,
+      "controls": [
+        {
+          "label": "",
+          "width": 255.453125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-followup",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-newsletter",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-invitation",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-name",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 212.484375,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 241.90625,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "guest-tablet-light",
+    "geometry": {
+      "overflow": 0,
+      "mainOverflow": 0,
+      "controls": [
+        {
+          "label": "",
+          "width": 255.453125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 336,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 336,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 202,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 202,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 202,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-followup",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-newsletter",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-invitation",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-name",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 212.484375,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 241.90625,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "guest-desktop-light",
+    "geometry": {
+      "overflow": 0,
+      "mainOverflow": 0,
+      "controls": [
+        {
+          "label": "",
+          "width": 255.453125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 307.328125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 307.328125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 307.328125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 307.328125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 307.34375,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-followup",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-newsletter",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-invitation",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-name",
+          "width": 1054,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 1054,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 212.484375,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 241.90625,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "guest-mobile-dark",
+    "geometry": {
+      "overflow": 0,
+      "mainOverflow": 0,
+      "controls": [
+        {
+          "label": "",
+          "width": 255.453125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-followup",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-newsletter",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-invitation",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-name",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 212.484375,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 241.90625,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "guest-tablet-dark",
+    "geometry": {
+      "overflow": 0,
+      "mainOverflow": 0,
+      "controls": [
+        {
+          "label": "",
+          "width": 255.453125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 336,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 336,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 202,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 202,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 202,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-followup",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-newsletter",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-invitation",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-name",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 738,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 212.484375,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 241.90625,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "guest-desktop-dark",
+    "geometry": {
+      "overflow": 0,
+      "mainOverflow": 0,
+      "controls": [
+        {
+          "label": "",
+          "width": 255.453125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 307.328125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 307.328125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 307.328125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 307.328125,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 307.34375,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-followup",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-newsletter",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-invitation",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-name",
+          "width": 1054,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 1054,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 212.484375,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 241.90625,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  }
+]
