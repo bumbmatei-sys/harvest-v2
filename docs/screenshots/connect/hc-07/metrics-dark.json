@@ -1,0 +1,357 @@
+[
+  {
+    "name": "invitation-form-mobile-dark",
+    "geometry": {
+      "overflow": 0,
+      "controls": [
+        {
+          "label": "Browse resources",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "Open optional response form",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "Request a free account",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-followup",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-newsletter",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-invitation",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-name",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "_R_9pbn5ritqlb_-email",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "Save test request",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "Continue to free resources",
+          "width": 212.484375,
+          "height": 44
+        },
+        {
+          "label": "Manage or erase a test request",
+          "width": 241.90625,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "pending-mobile-dark",
+    "geometry": {
+      "overflow": 0,
+      "controls": [
+        {
+          "label": "Browse resources",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "Open optional response form",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "Request a free account",
+          "width": 308,
+          "height": 44
+        },
+        {
+          "label": "Copy recovery code",
+          "width": 169.375,
+          "height": 44
+        },
+        {
+          "label": "Withdraw account invitation request",
+          "width": 275.9375,
+          "height": 44
+        },
+        {
+          "label": "Request another invitation",
+          "width": 209.109375,
+          "height": 44
+        },
+        {
+          "label": "Erase test request",
+          "width": 153.109375,
+          "height": 44
+        },
+        {
+          "label": "Continue to free resources",
+          "width": 212.484375,
+          "height": 44
+        },
+        {
+          "label": "Manage or erase a test request",
+          "width": 241.90625,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "prepare-mobile-dark",
+    "geometry": {
+      "overflow": 0,
+      "controls": [
+        {
+          "label": "Continue securely",
+          "width": 153.5625,
+          "height": 44
+        },
+        {
+          "label": "Continue to free resources",
+          "width": 212.484375,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "sign-in-mobile-dark",
+    "geometry": {
+      "overflow": 0,
+      "controls": [
+        {
+          "label": "Brand theme",
+          "width": 160,
+          "height": 44
+        },
+        {
+          "label": "Switch to light mode",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "email",
+          "width": 292,
+          "height": 44
+        },
+        {
+          "label": "Send sign-in code",
+          "width": 292,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "verification-mobile-dark",
+    "geometry": {
+      "overflow": 0,
+      "controls": [
+        {
+          "label": "Brand theme",
+          "width": 160,
+          "height": 44
+        },
+        {
+          "label": "Switch to light mode",
+          "width": 44,
+          "height": 44
+        },
+        {
+          "label": "email",
+          "width": 292,
+          "height": 44
+        },
+        {
+          "label": "code",
+          "width": 292,
+          "height": 44
+        },
+        {
+          "label": "Sign in",
+          "width": 292,
+          "height": 44
+        },
+        {
+          "label": "Resend code",
+          "width": 121.09375,
+          "height": 44
+        },
+        {
+          "label": "Change email",
+          "width": 123.359375,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "confirm-mobile-dark",
+    "geometry": {
+      "overflow": 0,
+      "controls": [
+        {
+          "label": "Confirm this request for my account",
+          "width": 273.21875,
+          "height": 44
+        },
+        {
+          "label": "Continue without linking",
+          "width": 195.875,
+          "height": 44
+        },
+        {
+          "label": "Use another account",
+          "width": 173.4375,
+          "height": 44
+        },
+        {
+          "label": "Continue to free resources",
+          "width": 212.484375,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "welcome-mobile-dark",
+    "geometry": {
+      "overflow": 0,
+      "controls": [
+        {
+          "label": "Continue to free resources",
+          "width": 210.484375,
+          "height": 44
+        },
+        {
+          "label": "Manage my profile",
+          "width": 158.625,
+          "height": 44
+        },
+        {
+          "label": "Return to the outreach page",
+          "width": 220.984375,
+          "height": 44
+        },
+        {
+          "label": "Sign out",
+          "width": 89.046875,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "welcome-tablet-dark",
+    "geometry": {
+      "overflow": 0,
+      "controls": [
+        {
+          "label": "Continue to free resources",
+          "width": 210.484375,
+          "height": 44
+        },
+        {
+          "label": "Manage my profile",
+          "width": 158.625,
+          "height": 44
+        },
+        {
+          "label": "Return to the outreach page",
+          "width": 220.984375,
+          "height": 44
+        },
+        {
+          "label": "Sign out",
+          "width": 89.046875,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "profile-tablet-dark",
+    "geometry": {
+      "overflow": 0,
+      "controls": [
+        {
+          "label": "profile-locale",
+          "width": 576,
+          "height": 44
+        },
+        {
+          "label": "Save profile",
+          "width": 111.40625,
+          "height": 44
+        },
+        {
+          "label": "Back to your account",
+          "width": 175.59375,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  },
+  {
+    "name": "replay-tablet-dark",
+    "geometry": {
+      "overflow": 0,
+      "controls": [
+        {
+          "label": "Continue securely",
+          "width": 153.5625,
+          "height": 44
+        },
+        {
+          "label": "Continue to free resources",
+          "width": 212.484375,
+          "height": 44
+        }
+      ]
+    },
+    "axeViolations": 0
+  }
+]

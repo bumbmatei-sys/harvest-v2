@@ -14,13 +14,15 @@ import type { IntakeManifest, IntakePurpose } from "@/lib/connect-intake";
 import { useCrmRequest } from "@/components/crm/request";
 
 export function ResponseForm({ manifest, endpoint }: { manifest: IntakeManifest; endpoint: string }) {
+ const invite=useTranslations("Invitations");
  const t=useTranslations("Intake"),id=useId(),request=useCrmRequest();
  const [followUp,setFollowUp]=useState(false),[newsletter,setNewsletter]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState("");
+ const [invitation,setInvitation]=useState(false),[invitationAck,setInvitationAck]=useState(false);
  const [receipt,setReceipt]=useState<string|null>(null),[ack,setAck]=useState(false),[copied,setCopied]=useState(false);
  const retry=useRef<z.infer<typeof intakeSubmission>|null>(null);
  const [locked,setLocked]=useState(false),[attempt,setAttempt]=useState<z.infer<typeof intakeSubmission>|null>(null);
- const selected: IntakePurpose[]=[...(followUp?["outreach_follow_up" as const]:[]),...(newsletter?["newsletter" as const]:[])];
- const emailNeeded=newsletter||(followUp&&manifest.definition.followUpChannel==="email"),phoneNeeded=followUp&&manifest.definition.followUpChannel==="phone";
+ const selected: IntakePurpose[]=[...(followUp?["outreach_follow_up" as const]:[]),...(newsletter?["newsletter" as const]:[]),...(invitation?["account_communications" as const]:[])];
+ const emailNeeded=invitation||newsletter||(followUp&&manifest.definition.followUpChannel==="email"),phoneNeeded=followUp&&manifest.definition.followUpChannel==="phone";
  async function submit(form:FormData) {
   setBusy(true);setError("");
   if(!retry.current)retry.current={submissionId:crypto.randomUUID(),receiptToken:manifest.receiptToken,
@@ -33,6 +35,11 @@ export function ResponseForm({ manifest, endpoint }: { manifest: IntakeManifest;
    if(result.status===400){retry.current=null;setAttempt(null);setLocked(false);}
    setError(result.status===400?t("checkDetails"):result.status===409?t("changed"):result.status===429?t("limited"):result.status===404?t("unavailable"):result.error);return;
   }setReceipt(retry.current.receiptToken);
+ }
+ async function resend(){
+  setBusy(true);setError("");setInvitationAck(false);
+  const result=await request("/api/public/connect/invitations",{method:"POST",body:{receiptToken:receipt}});
+  setBusy(false);if(!result.ok){setError(result.status===429?t("limited"):invite("failed"));return;}setInvitationAck(true);
  }
  async function rights(action:"withdraw"|"erase",purpose?:IntakePurpose) {
   setBusy(true);setError("");setAck(false);
@@ -51,6 +58,8 @@ export function ResponseForm({ manifest, endpoint }: { manifest: IntakeManifest;
       <Checkbox id={`${id}-followup`} disabled={locked} checked={followUp} onCheckedChange={v=>setFollowUp(v===true)} className="size-11 shrink-0"/>{t("followUp")}</label>}
      {manifest.purposes.includes("newsletter")&&<label className="flex min-h-11 items-center gap-3" htmlFor={`${id}-newsletter`}>
       <Checkbox id={`${id}-newsletter`} disabled={locked} checked={newsletter} onCheckedChange={v=>setNewsletter(v===true)} className="size-11 shrink-0"/>{t("newsletter")}</label>}
+     {manifest.purposes.includes("account_communications")&&<><label className="flex min-h-11 items-center gap-3" htmlFor={`${id}-invitation`}>
+      <Checkbox id={`${id}-invitation`} disabled={locked} checked={invitation} onCheckedChange={v=>setInvitation(v===true)} className="size-11 shrink-0"/>{invite("choice")}</label><p className="text-sm text-muted-foreground">{invite("formHelp")}</p></>}
      {manifest.definition.preferredName&&<Field><FieldLabel htmlFor={`${id}-name`}>{t("name")}</FieldLabel><Input disabled={locked} id={`${id}-name`} name="preferredName" autoComplete="off" maxLength={80} className="min-h-11"/></Field>}
      {emailNeeded&&<Field><FieldLabel htmlFor={`${id}-email`}>{t("email")}</FieldLabel><Input disabled={locked} id={`${id}-email`} name="email" type="email" autoComplete="off" required maxLength={254} className="min-h-11"/></Field>}
      {phoneNeeded&&<Field><FieldLabel htmlFor={`${id}-phone`}>{t("phone")}</FieldLabel><Input disabled={locked} id={`${id}-phone`} name="phone" type="tel" autoComplete="off" required maxLength={32} className="min-h-11"/></Field>}
@@ -58,12 +67,14 @@ export function ResponseForm({ manifest, endpoint }: { manifest: IntakeManifest;
      <div className="space-y-2 rounded-lg border p-4"><h3 className="font-semibold">{t("notice")}</h3><p className="whitespace-pre-wrap break-words text-sm">{manifest.notice}</p><p className="text-sm text-muted-foreground">{t("retention",{days:manifest.retentionDays})}</p></div>
      <Button disabled={busy||selected.length===0} className="min-h-11" type="submit">{t(busy?"saving":"submit")}</Button>
     </FieldGroup></form>:<div className="space-y-4">
-     <p>{t("pendingBody")}</p><Alert><AlertTitle>{t("recovery")}</AlertTitle><AlertDescription>{t("recoveryHelp")}</AlertDescription></Alert>
+     <p>{attempt?.purposes.includes("account_communications")?invite("pendingBody"):t("pendingBody")}</p><Alert><AlertTitle>{t("recovery")}</AlertTitle><AlertDescription>{t("recoveryHelp")}</AlertDescription></Alert>
      <code className="block break-all rounded-lg border p-3 text-sm">{receipt}</code>
      <Button variant="outline" className="min-h-11" onClick={()=>void navigator.clipboard.writeText(receipt).then(()=>setCopied(true)).catch(()=>setCopied(false))}>{t(copied?"copied":"copy")}</Button>
      <div className="flex flex-wrap gap-3">{attempt?.purposes.includes("outreach_follow_up")&&<Button variant="outline" className="min-h-11" disabled={busy} onClick={()=>void rights("withdraw","outreach_follow_up")}>{t("withdrawFollowUp")}</Button>}
       {attempt?.purposes.includes("newsletter")&&<Button variant="outline" className="min-h-11" disabled={busy} onClick={()=>void rights("withdraw","newsletter")}>{t("withdrawNewsletter")}</Button>}
+      {attempt?.purposes.includes("account_communications")&&<><Button variant="outline" className="min-h-11" disabled={busy} onClick={()=>void rights("withdraw","account_communications")}>{invite("withdraw")}</Button><Button variant="outline" className="min-h-11" disabled={busy} onClick={()=>void resend()}>{invite("resend")}</Button></>}
       <Button variant="destructive" className="min-h-11" disabled={busy} onClick={()=>void rights("erase")}>{t("erase")}</Button></div>
+     {invitationAck&&<p role="status">{invite("ack")}</p>}
      {ack&&<p role="status">{t("rightsAck")}</p>}
     </div>}
     <div className="flex flex-wrap gap-3"><Button asChild variant="outline" className="min-h-11"><Link prefetch={false} href="/resources/start">{t("resources")}</Link></Button>

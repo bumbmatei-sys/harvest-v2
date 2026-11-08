@@ -41,13 +41,16 @@ export default function SignIn() {
       else {
         // Start a fresh document after the session cookie changes. Overlapping
         // replace/refresh transitions can remount the signed-out route.
-        window.location.replace("/workspaces");
+        if(new URLSearchParams(window.location.search).get("connect")==="1"){
+          const continuation=await fetch("/api/connect/invitations/continuation",{cache:"no-store"}).then(r=>r.ok?r.json():null).catch(()=>null);
+          window.location.replace(continuation?.next==="/connect/claim"?"/connect/claim":"/account/welcome");
+        }else window.location.replace(new URLSearchParams(window.location.search).get("personal")==="1"?"/account/welcome":"/workspaces");
       }
     } catch { setError(t("couldNotConnectPleaseTryAgain")); }
     finally { setBusy(false); }
   }
   return <main className="flex min-h-dvh items-center justify-center p-6">
-    <div className="absolute right-5 top-5"><ThemeControls /></div>
+    <div className="absolute right-5 top-5"><ThemeControls touchTargets /></div>
     <Card className="w-full max-w-sm">
       <CardHeader><p className="mb-6 flex items-center gap-2 text-lg font-semibold"><Wheat className="size-6" aria-hidden="true" />{t("harvest")}</p><CardTitle><h1 className="text-[28px] font-semibold leading-tight tracking-[-0.7px]">{t("signInToHarvest")}</h1></CardTitle><CardDescription>{t("enterYourEmailToReceiveASignIn")}</CardDescription></CardHeader>
       <CardContent className="space-y-5">
@@ -55,19 +58,19 @@ export default function SignIn() {
         {message && <Alert id="sign-in-status" role="status"><AlertDescription>{message}</AlertDescription></Alert>}
         <form className="space-y-4" onSubmit={sent ? verify : (event) => { event.preventDefault(); void send(); }}>
           <FieldGroup>
-            <Field><FieldLabel htmlFor="email">{t("emailAddress")}</FieldLabel><Input id="email" type="email" autoComplete="email" required disabled={!hydrated || busy} value={email} readOnly={sent} onChange={(e) => setEmail(e.target.value)} /></Field>
+            <Field><FieldLabel htmlFor="email">{t("emailAddress")}</FieldLabel><Input className="min-h-11" id="email" type="email" autoComplete="email" required disabled={!hydrated || busy} value={email} readOnly={sent} onChange={(e) => setEmail(e.target.value)} /></Field>
             {sent && <Field data-invalid={codeInvalid}>
               <FieldLabel htmlFor="code">{t("sixDigitCode")}</FieldLabel>
               <InputOTP id="code" inputMode="numeric" autoComplete="one-time-code" pattern={REGEXP_ONLY_DIGITS} minLength={6} maxLength={6} required disabled={busy} value={otp} onChange={setOtp} aria-invalid={codeInvalid} aria-describedby={[message && "sign-in-status", codeInvalid && "sign-in-error"].filter(Boolean).join(" ") || undefined}>
                 <InputOTPGroup>
-                  {Array.from({ length: 6 }, (_, index) => <InputOTPSlot key={index} index={index} aria-invalid={codeInvalid} />)}
+                  {Array.from({ length: 6 }, (_, index) => <InputOTPSlot className="min-h-11" key={index} index={index} aria-invalid={codeInvalid} />)}
                 </InputOTPGroup>
               </InputOTP>
             </Field>}
-            <Button className="w-full" disabled={!hydrated || busy || (sent && otp.length !== 6)}>{busy ? t("pleaseWait") : sent ? t("signIn") : t("sendSignInCode")}</Button>
+            <Button className="min-h-11 w-full" disabled={!hydrated || busy || (sent && otp.length !== 6)}>{busy ? t("pleaseWait") : sent ? t("signIn") : t("sendSignInCode")}</Button>
           </FieldGroup>
         </form>
-        {sent && <ButtonGroup aria-label={t("signInOptions")}><Button variant="outline" disabled={busy} onClick={() => void send()}>{t("resendCode")}</Button><Button variant="ghost" disabled={busy} onClick={() => { setSent(false); setOtp(""); setMessage(""); setError(""); setCodeInvalid(false); }}>{t("changeEmail")}</Button></ButtonGroup>}
+        {sent && <ButtonGroup aria-label={t("signInOptions")}><Button className="min-h-11" variant="outline" disabled={busy} onClick={() => void send()}>{t("resendCode")}</Button><Button className="min-h-11" variant="ghost" disabled={busy} onClick={() => { setSent(false); setOtp(""); setMessage(""); setError(""); setCodeInvalid(false); }}>{t("changeEmail")}</Button></ButtonGroup>}
       </CardContent>
     </Card>
   </main>;

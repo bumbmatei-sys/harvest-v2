@@ -2,8 +2,8 @@ import "server-only";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { getAuth } from "./auth-instance";
-export async function pageSession() {
+export async function pageSession(context:"default"|"personal"="default") {
   const session = await getAuth().api.getSession({ headers: await headers() });
-  if (!session) redirect("/sign-in");
+  if (!session) redirect(context==="personal"?"/sign-in?personal=1":"/sign-in");
   return session;
 }

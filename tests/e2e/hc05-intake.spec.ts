@@ -22,7 +22,7 @@ for(const scheme of ["light","dark"] as const) {
   await page.getByLabel("Internal form name",{exact:true}).fill("Synthetic field preset");
   await page.getByLabel("Synthetic notice text",{exact:true}).fill("Synthetic notice only. Select each purpose separately. Use the private receipt to withdraw or erase.");
   await page.getByLabel("Test retention (days)",{exact:true}).fill("2");
-  const checkboxes=page.getByRole("checkbox");expect(await checkboxes.count()).toBe(3);await expect(checkboxes.nth(0)).toBeChecked();
+  const checkboxes=page.getByRole("checkbox");expect(await checkboxes.count()).toBe(4);await expect(checkboxes.nth(0)).toBeChecked();
   const published=page.waitForResponse(r=>r.url().endsWith(`${api}/forms`)&&r.request().method()==="POST");
   await page.getByRole("button",{name:"Publish test revision",exact:true}).click();
   const publishedResponse=await published;expect(publishedResponse.status()).toBe(201);const version=(await publishedResponse.json()).id as string;

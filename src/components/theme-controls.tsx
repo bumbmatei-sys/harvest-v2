@@ -59,16 +59,16 @@ export function ThemeToggle() {
     </Button>
   </TooltipTrigger><TooltipContent side="top">{label}</TooltipContent></Tooltip>;
 }
-export function ThemeControls() {
+export function ThemeControls({ touchTargets=false }: { touchTargets?:boolean }) {
   const t = useTranslations("ComponentsThemeControls");
   const names = useTranslations("ThemeNames");
   const { hydrated, brand, mode, save } = useThemeControls();
   return <div className="flex items-center gap-2">
     <Select value={brand} onValueChange={(value) => save("harvest-brand-theme", value)} disabled={!hydrated}>
-      <SelectTrigger aria-label={t("brandTheme")} className="h-8 w-40 bg-card text-xs"><SelectValue /></SelectTrigger>
+      <SelectTrigger aria-label={t("brandTheme")} className={touchTargets?"min-h-11 w-40 bg-card text-xs":"h-8 w-40 bg-card text-xs"}><SelectValue /></SelectTrigger>
       <SelectContent><SelectItem value="default">{t("workspaceDefault")}</SelectItem>{BRAND_THEMES.map((id) => <SelectItem key={id} value={id}>{names(themeRegistry[id].labelKey)}</SelectItem>)}</SelectContent>
     </Select>
-    <Button variant="ghost" size="icon-sm" disabled={!hydrated} aria-label={mode === "dark" ? t("switchToLightMode") : t("switchToDarkMode")} onClick={() => save("harvest-color-mode", mode === "dark" ? "light" : "dark")}>
+    <Button className={touchTargets?"size-11":undefined} variant="ghost" size="icon-sm" disabled={!hydrated} aria-label={mode === "dark" ? t("switchToLightMode") : t("switchToDarkMode")} onClick={() => save("harvest-color-mode", mode === "dark" ? "light" : "dark")}>
       {mode === "dark" ? <Sun aria-hidden="true" /> : <Moon aria-hidden="true" />}
     </Button>
   </div>;

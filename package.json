@@ -20,6 +20,7 @@
     "prebuild": "npm run generate:offline",
     "pretest:e2e": "npm run generate:offline",
     "jobs:drain": "tsx scripts/drain-jobs.ts",
+    "connect:drain:test": "tsx scripts/drain-connect-invitations.ts",
     "connect:purge:test": "tsx scripts/purge-connect-intake.ts"
   },
   "engines": {

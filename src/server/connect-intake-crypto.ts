@@ -1,4 +1,4 @@
-import { createCipheriv, createHmac, createHash, hkdfSync, randomBytes, timingSafeEqual } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHmac, createHash, hkdfSync, randomBytes, timingSafeEqual } from "node:crypto";
 
 function key(purpose: string) {
   const secret = process.env.HARVEST_CONNECT_TEST_KEY;
@@ -29,3 +29,12 @@ export function verifyIntakeCapability(token: string, kind: string, code: string
   const mac = createHmac("sha256", key("submission-capability:v1")).update(`${kind}:${code}:${stamp}:${parts[0]}.${parts[1]}`).digest();
   return timingSafeEqual(mac,Buffer.from(parts[2],"hex")) ? new Date(until).toISOString() : null;
 }
+
+// Only the invitation dispatcher/request service opens envelopes; no public decrypt endpoint.
+export function openIntake(envelope: ReturnType<typeof sealIntake>, expectedBinding: string) {
+ if(envelope.version!==1 || envelope.binding!==expectedBinding)throw new Error("INVALID_ENVELOPE");
+ const cipher=createDecipheriv("aes-256-gcm",key("pending-intake:v1"),Buffer.from(envelope.iv,"base64"));
+ cipher.setAAD(Buffer.from(expectedBinding));cipher.setAuthTag(Buffer.from(envelope.tag,"base64"));
+ return JSON.parse(Buffer.concat([cipher.update(Buffer.from(envelope.ciphertext,"base64")),cipher.final()]).toString("utf8")) as unknown;
+}
+export const invitationRecipientHash=(email:string,binding:string)=>createHmac("sha256",key("invitation-recipient:v1")).update(JSON.stringify([binding,email.toLowerCase()])).digest("hex");

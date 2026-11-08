@@ -1,5 +1,5 @@
 import { and, desc, eq, isNull, max, sql } from "drizzle-orm";
-import type { Database, Transaction } from "../db/client";
+import type { Database } from "../db/client";
 import { auditLogs, campaigns, forms, formVersions, privacyNoticeVersions } from "../db/schema";
 import { uuidInput } from "../lib/contact-input";
 import { intakeDefinition, intakeRights, intakeSetup, intakeSubmission, type IntakeManifest } from "../lib/connect-intake";
@@ -8,22 +8,17 @@ import { message } from "../i18n/messages";
 import { syntheticIntakeEnabled } from "./connect-intake-mode";
 import { intakeFingerprint, receiptHash, sealIntake, issueIntakeCapability, verifyIntakeCapability } from "./connect-intake-crypto";
 import { AccessError } from "./permissions";
+import { enqueueInvitation } from "./connect-invitations";
 import { withTenant } from "./tenancy";
 
 const unavailable = () => new AccessError(404, message("Intake.unavailable"));
-export function requireSyntheticIntake() { if (!syntheticIntakeEnabled()) throw unavailable(); }
+export { requireSyntheticIntake, withSyntheticIntake } from "./connect-intake-context";
+import { requireSyntheticIntake, withSyntheticIntake } from "./connect-intake-context";
 function source(kind: string, code: string) {
   if (kind === "qr" && publicCodePattern.test(code)) return { kind, code };
   const normalized = kind === "short" ? normalizeShortCode(code) : undefined;
   if (normalized) return { kind, code: normalized };
   throw unavailable();
-}
-export async function withSyntheticIntake<T>(db: Database, run: (tx: Transaction) => Promise<T>) {
-  requireSyntheticIntake();
-  return db.transaction(async tx => {
-    await tx.execute(sql`select set_config('app.connect_intake_mode','synthetic',true)`);
-    return run(tx);
-  });
 }
 export async function readIntakeManifest(db: Database, kind: string, code: string): Promise<IntakeManifest | null> {
   if (!syntheticIntakeEnabled()) return null;
@@ -46,7 +41,7 @@ export async function submitIntake(db: Database, kind: string, code: string, raw
   const manifest = await readIntakeManifest(db, kind, code);
   if (!manifest) throw unavailable();
   if (manifest.stamp !== input.stamp) throw new AccessError(409, message("Intake.changed"));
-  const emailNeeded = input.purposes.includes("newsletter") || (input.purposes.includes("outreach_follow_up") && manifest.definition.followUpChannel === "email");
+  const emailNeeded = input.purposes.includes("account_communications") || input.purposes.includes("newsletter") || (input.purposes.includes("outreach_follow_up") && manifest.definition.followUpChannel === "email");
   const phoneNeeded = input.purposes.includes("outreach_follow_up") && manifest.definition.followUpChannel === "phone";
   // Reserved synthetic contacts only. There is deliberately no path accepting real addresses.
   if ((emailNeeded ? !/^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@example\.test$/i.test(input.email) : Boolean(input.email))
@@ -59,7 +54,9 @@ export async function submitIntake(db: Database, kind: string, code: string, raw
   const sealed = sealIntake(data, `${publicSource.kind}:${publicSource.code}:${input.submissionId}:${hash}`);
   const outcome = await withSyntheticIntake(db, async tx => {
     const result = await tx.execute<{ outcome: string }>(sql`select public.submit_connect_intake(${publicSource.kind},${publicSource.code},${input.submissionId}::uuid,${input.stamp},${hash},${fingerprint},${sql.param(data.purposes)}::text[],${emailNeeded},${phoneNeeded},${JSON.stringify(sealed)}::jsonb,${replayUntil}::timestamptz) as outcome`);
-    return result.rows[0]?.outcome;
+    const outcome=result.rows[0]?.outcome;
+    if((outcome==="created"||outcome==="replayed")&&data.purposes.includes("account_communications"))await enqueueInvitation(tx,hash,data.email);
+    return outcome;
   });
   // Quota writes commit even on a refused submit; never throw from inside that transaction.
   if (outcome === "limited") return { limited: true } as const;
@@ -91,7 +88,7 @@ export async function listIntakeForms(db: Database, userId: string, workspace: s
       definition: formVersions.definition, purposes: formVersions.offeredPurposes, notice: privacyNoticeVersions.body, retentionDays: formVersions.pendingRetentionDays })
       .from(formVersions).innerJoin(forms,and(eq(forms.tenantId,formVersions.tenantId),eq(forms.id,formVersions.formId)))
       .innerJoin(privacyNoticeVersions,and(eq(privacyNoticeVersions.tenantId,formVersions.tenantId),eq(privacyNoticeVersions.id,formVersions.noticeVersionId)))
-      .where(and(eq(formVersions.tenantId,tenantId),isNull(forms.archivedAt),sql`${formVersions.definition}->>'kind'='connect-intake-v1'`)).orderBy(desc(formVersions.createdAt)).limit(100);
+      .where(and(eq(formVersions.tenantId,tenantId),isNull(forms.archivedAt),sql`${formVersions.definition}->>'kind' in ('connect-intake-v1','connect-intake-v2')`)).orderBy(desc(formVersions.createdAt)).limit(100);
   });
 }
 export async function publishIntakeForm(db: Database, userId: string, workspace: string, campaign: string, raw: unknown) {
