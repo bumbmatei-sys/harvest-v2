@@ -30,7 +30,7 @@ The inventory is not certification of a universal component registry, wizard, fo
 
 ## First foundation slice
 
-Requested selectable palettes and theme-delivery checks are in [the theme shortlist](../design/theme-candidates.md). Honey Glow Gold is only a possible official default; preserve the current default until Matei chooses.
+Historical palette options are recorded in [the deferred theme shortlist](../design/theme-candidates.md). The approved direction is Studio Admin's default colors and styling first; Harvest gold is a separate possible later theme. Follow [the Studio Admin adoption roadmap](studio-admin-adoption.md).
 
 1. Create `docs/component-registry.md` with real source paths, purpose, states, typed interfaces, consumers, accessibility and source-license evidence. Inventory before extraction. Make missing and candidate components distinguishable from delivered ones.
 2. Document and consolidate existing spacing, typography, surfaces, elevation, responsive behavior, feedback and tokens in the relevant design records. Preserve Harvest branding, default Harvest/optional Studio themes and the existing gold action-color decision. Avoid a visual reset of working modules.
