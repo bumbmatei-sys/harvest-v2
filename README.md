@@ -1,5 +1,7 @@
 # Harvest v2
 
+UI and agent starting point: [master design-system specification](docs/design-system.md), [foundation/adoption plan](docs/plans/design-system-foundation.md), [agent rules](AGENTS.md) and [current handoff](CLAUDE.md). The master specification describes the target architecture; implementation status and the proposed order are recorded separately. [HC-06 planning](docs/plans/hc-06.md) includes automatic verified CRM association, source history and the icon-only filter interface.
+
 PR 01a / 01b: Next.js App Router, strict TypeScript, Tailwind/shadcn, Drizzle/PostgreSQL, Better Auth email codes, workspaces, roles, append-only audit and transaction-scoped RLS.
 
 Use Node.js 24 and `npm ci`. Copy `.env.example` to an ignored `.env.local` and configure names privately; see [Neon setup](docs/setup/neon.md). Never put secrets in commits or logs.
