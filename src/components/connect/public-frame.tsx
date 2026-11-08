@@ -4,8 +4,9 @@ import { Wheat } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 
-export async function PublicFrame({ children,personal=false }: { children: React.ReactNode;personal?:boolean }) {
+export async function PublicFrame({ children,personal=false,externalOffers=false }: { children: React.ReactNode;personal?:boolean;externalOffers?:boolean }) {
   const t = await getTranslations("Connect");
+  const landing=await getTranslations("LandingEditor");
   const brand=personal?(await getTranslations("Invitations"))("personalBrand"):t("brand");
   return <div className="min-h-dvh bg-background">
     <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-card focus:p-3">{t("skipToContent")}</a>
@@ -16,7 +17,7 @@ export async function PublicFrame({ children,personal=false }: { children: React
       </div>
     </header>
     <main id="main-content" tabIndex={-1} className="mx-auto max-w-6xl px-4 py-10 outline-none sm:py-16 lg:px-6">{children}</main>
-    <footer className="mx-auto max-w-6xl border-t px-4 py-6 text-sm text-muted-foreground lg:px-6"><p>{t("freeNotice")}</p></footer>
+    <footer className="mx-auto max-w-6xl border-t px-4 py-6 text-sm text-muted-foreground lg:px-6"><p>{externalOffers?landing("offersNotice"):t("freeNotice")}</p></footer>
   </div>;
 }
 

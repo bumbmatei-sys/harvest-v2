@@ -27,6 +27,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function ConnectLinksPage({ params }: { params: Promise<{ tenantId: string; campaignId: string }> }) {
+  const landingT = await getTranslations("LandingEditor");
   const intakeT = await getTranslations("Intake");
   const t = await getTranslations("ConnectLinks"), session = await pageSession(), { tenantId, campaignId } = await params;
   if (!uuidInput.safeParse(tenantId).success || !uuidInput.safeParse(campaignId).success) notFound();
@@ -67,6 +68,7 @@ export default async function ConnectLinksPage({ params }: { params: Promise<{ t
           </ul>
           {link.status !== "archived" && <div className="flex flex-wrap gap-2">
             {permissions.manage && <>
+              <Button asChild variant="outline" size="sm" className="min-h-11"><Link href={`${root}/${link.id}/landing`}>{landingT("edit")}</Link></Button>
               <Button asChild variant="outline" size="sm" className="min-h-11"><Link href={`${root}/${link.id}/preview`}><Eye aria-hidden="true" />{t("preview")}</Link></Button>
               <Button asChild variant="outline" size="sm" className="min-h-11"><Link href={`${root}/${link.id}/present`}><MonitorPlay aria-hidden="true" />{t("present")}</Link></Button>
               <DownloadMenu endpoint={`${api}/${link.id}/export`} />
