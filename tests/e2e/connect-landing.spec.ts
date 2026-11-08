@@ -42,8 +42,9 @@ test("landing editor: private draft, shared preview, keyboard ordering, publishi
   await page.getByLabel("Website link", { exact: true }).fill("https://example.org/learn?lang=en#start");
   await page.getByLabel("Cost for visitors", { exact: true }).selectOption("paid");
   await expect(page.getByText(/Draft revision|Published revision|Plain text|HTTPS destination/)).toHaveCount(0);
-  await page.getByRole("button", { name: "Move card 2 up", exact: true }).focus(); await page.keyboard.press("Enter");
-  await expect(page.getByRole("button", { name: "Move card 1 down", exact: true })).toBeFocused();
+  await expect(page.getByText("Your changes aren’t saved yet. Save a draft to keep them, then publish when you’re ready.", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Move up card 2", exact: true }).focus(); await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: "Move down card 1", exact: true })).toBeFocused();
   const preview = page.getByRole("region", { name: "Preview your page", exact: true });
   await expect(preview.getByRole("heading", { name: "We’re glad you’re here", exact: true })).toBeVisible();
   const previewChoices = preview.getByRole("checkbox"); await expect(previewChoices).toHaveCount(3); for (const choice of await previewChoices.all()) await expect(choice).not.toBeChecked();
@@ -70,6 +71,10 @@ test("landing editor: private draft, shared preview, keyboard ordering, publishi
     expect((await page.request.post(`${api}/links/${link.id}/actions`, { headers: { origin }, data: { action: "publish" } })).status()).toBe(200);
     await guest.reload(); await expect(guest.getByRole("heading", { name: "A place to begin.", exact: true })).toBeVisible(); await expect(guest.getByText("We’re glad you’re here", { exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "Publish changes", exact: true }).click(); await expect(page.getByRole("status").filter({ hasText: "Changes published" })).toBeVisible();
+    await heading.fill("Welcome to our community");
+    await expect(page.getByText("Your changes aren’t saved yet. Save a draft to keep them, then publish when you’re ready.", { exact: true })).toBeVisible();
+    await expect(page.getByText("Your published page is up to date.", { exact: true })).toHaveCount(0);
+    await heading.fill("We’re glad you’re here");
     for (const path of [`/c/${link.publicCode}`, `/s/${link.shortCode}`]) {
       await guest.goto(path); await expect(guest.getByRole("heading", { name: "We’re glad you’re here", exact: true })).toBeVisible();
       const suggestions = guest.getByRole("region", { name: "Organizer suggestions", exact: true });
@@ -122,6 +127,7 @@ test("landing editor: member drafts, eight-card limit, stale edits and live publ
     // Owner changes the saved draft while member still edits the earlier revision.
     expect((await page.request.put(endpoint, { headers: { origin }, data: { expectedRevision: state.revision, expectedCode: state.expectedCode, definition: { ...state.definition, heading: "Owner edit" } } })).status()).toBe(200);
     await member.getByLabel("Welcome heading (optional)", { exact: true }).fill("Member edit");
+    await expect(member.getByText("Your changes aren’t saved yet. Save a draft to keep them, then publish when you’re ready.", { exact: true })).toBeVisible();
     await member.getByRole("button", { name: "Save draft", exact: true }).click(); await expect(member.getByRole("alert").filter({ hasText: "Someone changed this page or its QR code." })).toBeVisible();
     await expect(member.getByRole("button", { name: "Save draft", exact: true })).toBeDisabled();
     await member.getByRole("button", { name: "Reload latest version", exact: true }).click(); await expect(member.getByRole("alertdialog")).toBeVisible();

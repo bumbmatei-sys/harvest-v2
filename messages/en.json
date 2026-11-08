@@ -1941,8 +1941,8 @@
     "addResource": "Add a free Harvest resource",
     "addExternal": "Add a website link",
     "remove": "Remove card {number}",
-    "up": "Move card {number} up",
-    "down": "Move card {number} down",
+    "up": "Move up card {number}",
+    "down": "Move down card {number}",
     "moved": "Card moved to position {number}.",
     "removed": "Card removed.",
     "added": "Card added at position {number}.",
@@ -1989,6 +1989,7 @@
     "removeAction": "Remove",
     "privateDraft": "Your draft is private. Visitors will see it after it is published.",
     "unpublishedChanges": "Your saved changes are ready to publish. Visitors still see the previous version.",
-    "publishedCurrent": "Your published page is up to date."
+    "publishedCurrent": "Your published page is up to date.",
+    "unsavedDraft": "Your changes aren’t saved yet. Save a draft to keep them, then publish when you’re ready."
   }
 }
