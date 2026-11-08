@@ -1,6 +1,6 @@
 # Studio Admin visual adoption roadmap for Harvest V2
 
-**Decision (founder, 2026-11-08):** Studio Admin is the sole primary visual reference for Harvest's authenticated shell, pages, dashboards, forms, editors, and Harvest Studio unified inbox. Shadboard is not a design reference. Premium, restrained, professional UI is the target; avoid playful theme presets.
+**Decision (founder, 2026-11-08; updated):** Studio Admin is the sole primary visual reference for Harvest's authenticated shell, pages, dashboards, forms, editors, and Harvest Studio unified inbox. Shadboard is not a design reference. Premium, restrained, professional UI is the target; avoid playful theme presets. **Match Studio Admin's actual default color palette, surfaces, typography, borders, spacing and dark mode as closely as feasible.** Harvest gold must not dominate the default theme; keep it for a later optional separate theme.
 
 **Scope of this PR:** planning only. No application UI, providers, routes, auth, database, or production behavior changes. Do not infer that the source template's example social-media imagery implements platform integrations.
 
@@ -19,7 +19,7 @@
 - `src/components/ui/`: canonical shadcn primitives; avoid parallel primitive libraries.
 - `src/components/crm/list-page.tsx`, `list-toolbar.tsx`, `record-grid.tsx`, `record-layout.tsx`: working list/detail and filter composition; adapt styling without weakening server-authoritative filters or exports.
 - `src/components/connect-admin/landing-editor.tsx`: working draft/preview/save/publish/unsaved-change semantics; preserve these while adopting a premium editor layout.
-- `src/lib/theme-registry.ts`, `src/lib/theme.ts`, `src/app/globals.css`: preserve existing workspace branding, light/dark behavior and current default until explicitly changed.
+- `src/lib/theme-registry.ts`, `src/lib/theme.ts`, `src/app/globals.css`: preserve workspace-specific theme mechanics and light/dark behavior while making Studio Admin's default visual palette the target; defer Harvest gold to a separate optional theme. Do not silently discard existing workspace brand values.
 - Read `docs/design-system.md`, `docs/plans/design-system-foundation.md`, `AGENTS.md`, `CLAUDE.md`, module PRDs and acceptance records before implementation.
 
 ## Visual direction and acceptance
@@ -58,7 +58,7 @@ Model channel capabilities independently: read, reply, attachments, templates, w
 ## Ordered, reviewable delivery
 
 1. **Source audit and visual inventory (documentation):** pin upstream commit, inspect actual shell, email/chat, dashboard, list, detail, form, mobile source; screenshot/route matrix and license/dependency register. Identify exact candidate files and Harvest counterparts. No visual implementation until this audit.
-2. **Foundation + showcase:** register existing components and tokens, map Studio Admin styling to Harvest themes, create internal showcase; no wholesale global CSS replacement.
+2. **Foundation + showcase:** register existing components and tokens, make Studio Admin's colors and styling the default design target using Harvest's existing theme infrastructure, create internal showcase; no wholesale global CSS replacement. Preserve old gold token values for a later optional theme.
 3. **Shell proof-of-concept:** adapt existing AppShell and mobile drawer; preserve permissions, workspace switching, route selection, next-intl, notifications, themes. Verify 360/390/768/1280/1440 widths and both themes.
 4. **Shared page primitives:** header, actions, section panels, list/toolbar/grid, detail tabs, status and settings composition. Migrate one CRM list and one Connect/other page as real consumers before wider rollout.
 5. **Unified inbox UI prototype:** verified Studio Admin inbox visual treatment wired to typed mock *presentation* fixtures in internal/dev-only showcase; define capability contracts. Integrate live providers only in separately approved, security-reviewed PRs.
@@ -72,7 +72,7 @@ These are **workstreams**, not a promise of exactly eight PRs. Break larger work
 
 - Existing workflows and backend authorization unchanged unless separately approved.
 - Upstream source/commit/license and exact adapted files recorded in `docs/ui-sources.md` and relevant license records.
-- No duplicate runtime design system, no unverified upstream code or blocked OpenShadcnBlocks registry reliance.
+- No duplicate runtime design system, no unverified upstream code. Remove the nonfunctional OpenShadcnBlocks registry aliases and retire its selected-source instructions; retain the generic shadcn CLI because Harvest uses it for verified primitives.
 - Responsive screenshots for phone/tablet/desktop; keyboard/focus and axe checks; no overflow.
 - Tests/lint/typecheck/build and targeted CRM/Connect E2E where relevant; independent code review before merge.
 - No deployment, merge, payment processing, outbound messaging, or production intake activation implied by a design approval.
