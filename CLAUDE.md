@@ -2,6 +2,8 @@ Continue Harvest v2 in bumbmatei-sys/harvest-v2. Read the Craft Roadmap, reposit
 
 Before frontend work, read `docs/design-system.md` (Matei's complete master specification) and `docs/plans/design-system-foundation.md` (current inventory and recommended staged adoption). Search existing components before creating new UI. The master specification is an implementation target, not evidence that the registry, universal wizard, form engine or EditorShell are delivered. Keep UI copy concise: no routine explanatory paragraph below each field; retain necessary privacy/consent, consequential constraints and validation.
 
+Selected UI source: https://openshadcnblocks.pages.dev/. Installation uses the pinned shadcn CLI and project registry aliases; read `docs/design/openshadcnblocks.md` for commands, current registry-access limitation and the next Phase 0A delivery plan. No upstream visual block has been verified installed yet.
+
 State reconciled on 2026-11-08:
 - CRM-01 through CRM-08's planned foundation is merged into main. CRM-06 merged as PR #21; filename hardening and import/export isolation follow-ups merged as #26 and #27. CRM-07 merged as #23. Acceptance records: docs/acceptance/crm-0*.md.
 - CRM-08 merged as PR #25 (63607c8, migration 0025). It is a phase-ready foundation, not a completed workflow engine or assistant product. See docs/acceptance/crm-08.md "Deferred". Approval TTL/concurrency follow-ups remain parked before assistant activation.

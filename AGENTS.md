@@ -12,6 +12,8 @@ UI uses shadcn components only (npx shadcn add ...); do not build from scratch a
 
 ## Harvest shared UI architecture
 
+Harvest uses [OpenShadcnBlocks](https://openshadcnblocks.pages.dev/) as a selected UI source. Read [installation/provenance status](docs/design/openshadcnblocks.md), inspect the registry item/license and use the configured `npm run ui:add` command. Search existing components first; do not add a parallel runtime UI framework or claim a block is installed merely because registry aliases exist.
+
 Theme work must read [the founder's requested palette shortlist](docs/design/theme-candidates.md). Implement through the existing registry; Honey Glow Gold is a possible official default, not a decided rebrand.
 
 Before UI work, read [the master design-system specification](docs/design-system.md), [the foundation/adoption plan](docs/plans/design-system-foundation.md), `CLAUDE.md`, the relevant module PRD and current acceptance evidence. The specification is a target, not a claim that shared engines already exist.

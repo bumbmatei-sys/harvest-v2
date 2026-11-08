@@ -1,5 +1,7 @@
 # Harvest v2
 
+**Selected UI block source: [OpenShadcnBlocks](https://openshadcnblocks.pages.dev/).** See [installation and adoption status](docs/design/openshadcnblocks.md). Use `npm run ui:add -- @openshadcnblocks/<component>` to import reviewed source through the configured shadcn registry; keep Harvest's existing components and tokens authoritative.
+
 UI and agent starting point: [master design-system specification](docs/design-system.md), [foundation/adoption plan](docs/plans/design-system-foundation.md), [agent rules](AGENTS.md) and [current handoff](CLAUDE.md). The master specification describes the target architecture; implementation status and the proposed order are recorded separately. [HC-06 planning](docs/plans/hc-06.md) includes automatic verified CRM association, source history and the icon-only filter interface.
 
 PR 01a / 01b: Next.js App Router, strict TypeScript, Tailwind/shadcn, Drizzle/PostgreSQL, Better Auth email codes, workspaces, roles, append-only audit and transaction-scoped RLS.

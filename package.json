@@ -21,7 +21,8 @@
     "pretest:e2e": "npm run generate:offline",
     "jobs:drain": "tsx scripts/drain-jobs.ts",
     "connect:drain:test": "tsx scripts/drain-connect-invitations.ts",
-    "connect:purge:test": "tsx scripts/purge-connect-intake.ts"
+    "connect:purge:test": "tsx scripts/purge-connect-intake.ts",
+    "ui:add": "shadcn add"
   },
   "engines": {
     "node": ">=22"
@@ -79,6 +80,7 @@
     "jsqr": "1.4.0",
     "lighthouse": "^13.6.0",
     "postcss": "^8.5.32",
+    "shadcn": "4.23.0",
     "tailwindcss": "^4.3.4",
     "tsx": "^4.23.15",
     "typescript": "^6.0.3",
