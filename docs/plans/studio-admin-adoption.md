@@ -22,6 +22,12 @@
 - `src/lib/theme-registry.ts`, `src/lib/theme.ts`, `src/app/globals.css`: preserve workspace-specific theme mechanics and light/dark behavior while making Studio Admin's default visual palette the target; defer Harvest gold to a separate optional theme. Do not silently discard existing workspace brand values.
 - Read `docs/design-system.md`, `docs/plans/design-system-foundation.md`, `AGENTS.md`, `CLAUDE.md`, module PRDs and acceptance records before implementation.
 
+## Why this adoption exists: reusable systems, not screen-by-screen copying
+
+The founder's primary architectural goal is **build once, reuse across Harvest**. Studio Admin is the visual specification for the shared systems; copying its pages individually would defeat the purpose. Implement the existing Harvest AppShell, shared page templates, resource lists/details, creation wizard, EditorShell, form engine, inbox composition and semantic theme registry as configurable, reusable systems. Before adding a screen, inspect and reuse existing shared patterns; extend them only for real consumer needs. No module-specific duplicate dashboards, sidebar shells, wizards or styling forks.
+
+For each implementation PR, document (1) the shared primitive/template/engine reused or introduced, (2) the real module consumers, (3) why any exception cannot be composed from shared parts, (4) regression/responsive/light-dark checks. Prove newly generalized systems with at least two real consumers before declaring them universal. Keep backend authorization and domain workflows separate from UI composition. The 12 founder-selected future themes and optional Harvest Gold must reuse the same semantic tokens and layouts.
+
 ## Visual direction and acceptance
 
 One coherent Studio Admin-inspired system across every module, not one dashboard style plus unrelated internal pages. Use restrained neutral surfaces, deliberate hierarchy, precise spacing, legible typography, consistent border radii, subtle active states and compact but touch-accessible controls. Avoid playful gradients, cartoonish icons, Neo Brutalism/Soft Pop presets, excessive decorative cards or per-module styling forks.
