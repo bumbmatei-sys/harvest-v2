@@ -35,7 +35,7 @@ export function ListToolbar({ tenantId, objectType, fields, sorts, columns, visi
     <ViewMenu tenantId={tenantId} objectType={objectType} views={views} current={currentView} modified={modified} writable={writable} />
     <div className="flex flex-wrap items-center gap-2">
       <form role="search" className="min-w-0 flex-1 basis-60" onSubmit={(event) => { event.preventDefault(); navigate({ q: query.trim() }); }}>
-        <InputGroup className="h-9 border-transparent bg-muted">
+        <InputGroup className="h-11 border-transparent bg-muted lg:h-9">
           <InputGroupAddon><Search aria-hidden="true" /></InputGroupAddon>
           <InputGroupInput type="search" name="q" aria-label={searchLabel} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={searchPlaceholder} maxLength={100} />
           {query && <InputGroupAddon align="inline-end"><InputGroupButton size="icon-xs" aria-label={t("clearSearch")} onClick={() => { setQuery(""); navigate({ q: "" }); }}><X aria-hidden="true" /></InputGroupButton></InputGroupAddon>}
@@ -44,7 +44,7 @@ export function ListToolbar({ tenantId, objectType, fields, sorts, columns, visi
       <div className="flex flex-wrap items-center gap-2">
         <FilterBuilder fields={fields} tenantId={tenantId} activeCount={state.filters.length} onApply={(filter, name) => { if (name && typeof filter.value === "string") setNames((list) => ({ ...list, [filter.value as string]: name })); navigate({ filters: [...state.filters, filter] }); }} />
         <DropdownMenu modal={false}>
-          <DropdownMenuTrigger asChild><Button variant="outline" size="sm" className="h-9"><ArrowDownUp aria-hidden="true" /><span className="sr-only sm:not-sr-only">{t("sortLabel", { sort: `${sorts.find((item) => item.value === sortKey)?.label ?? sortKey} ${descending ? "↓" : "↑"}` })}</span></Button></DropdownMenuTrigger>
+          <DropdownMenuTrigger asChild><Button variant="outline" size="responsive"><ArrowDownUp aria-hidden="true" /><span className="sr-only sm:not-sr-only">{t("sortLabel", { sort: `${sorts.find((item) => item.value === sortKey)?.label ?? sortKey} ${descending ? "↓" : "↑"}` })}</span></Button></DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             <DropdownMenuLabel className="text-xs text-muted-foreground">{t("sortBy")}</DropdownMenuLabel>
             <DropdownMenuRadioGroup value={sortKey} onValueChange={(value) => navigate({ sort: descending ? `-${value}` : value })}>

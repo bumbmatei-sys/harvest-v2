@@ -23,7 +23,7 @@ export function ColumnsMenu({ available, visible, density, onChange }: {
     onChange({ columns: next });
   }
   return <Popover>
-    <PopoverTrigger asChild><Button variant="outline" size="sm" className="h-9"><Columns3 aria-hidden="true" /><span className="sr-only sm:not-sr-only">{t("columns")}</span></Button></PopoverTrigger>
+    <PopoverTrigger asChild><Button variant="outline" size="responsive"><Columns3 aria-hidden="true" /><span className="sr-only sm:not-sr-only">{t("columns")}</span></Button></PopoverTrigger>
     <PopoverContent align="end" className="w-[min(20rem,calc(100vw-2rem))] p-0">
       <div className="max-h-[min(28rem,70vh)] overflow-y-auto p-3">
         <p className="mb-2 text-xs font-medium text-muted-foreground">{t("shownColumns")}</p>
