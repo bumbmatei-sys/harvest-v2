@@ -34,6 +34,14 @@ Do not introduce competing design systems without explicit justification.
 
 ## 3. Harvest Design System
 
+### Approved visual baseline and future selectable themes (8 November 2026)
+
+**Studio Admin is the mandatory baseline for the complete authenticated application**, not just dashboards: shell/sidebar/header, navigation, CRM lists and details, settings, tables, analytics, editors, forms, creation wizards, responsive views and Harvest Studio's unified inbox. Match Studio Admin's default semantic colors, surfaces, typography, spacing, borders, radii and light/dark behavior first, adapting its patterns to Harvest's existing shadcn architecture and permission-aware workflows. See [adoption plan](plans/studio-admin-adoption.md).
+
+**Founder-selected optional themes are a committed future product requirement, not discarded design research.** After the Studio Admin baseline is stable, add all **12 named palettes** in [the theme specification](design/theme-candidates.md) as user-selectable options in Harvest's existing theme registry and picker, including appropriate light/dark variants. Preserve Studio Admin as the default. Harvest Gold is also a future optional theme; the founder has not selected it as the default. Theme selection changes tokens, not navigation architecture, component contracts or permissions. No competing per-theme layout systems. Do not claim themes are implemented until actually shipped.
+
+
+
 Establish a centralized design system covering:
 
 - Color palette, semantic colors, and light/dark themes
