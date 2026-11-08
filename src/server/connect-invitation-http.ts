@@ -17,6 +17,8 @@ export async function invitationHttp(request:Request,action:"request"|"prepare"|
    return result.limited?Response.json({error:message("Intake.limited")},{status:429,headers:{...intakeHeaders,"Retry-After":"60"}}):Response.json(result,{headers:intakeHeaders});
   }
   if(action==="prepare"){
+   // A failed new-token attempt must not silently resume an unrelated older browser flow.
+   jar.delete(invitationFlowCookie);
    const flow=await prepareInvitation(db,await intakeBody(request));
    jar.set(invitationFlowCookie,flow,{httpOnly:true,sameSite:"lax",secure:new URL(request.url).protocol==="https:",path:"/",maxAge:600});
    return Response.json({ready:true},{headers:intakeHeaders});

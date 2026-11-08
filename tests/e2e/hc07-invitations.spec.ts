@@ -80,6 +80,10 @@ test("HC-07 existing personal account, mismatch, switch and decline stay indepen
   const mail=(await mailbox()).find(m=>m.to===email&&m.idempotencyKey),url=mail.text.match(/http:\/\/127\.0\.0\.1:3100\/connect\/claim#token=[a-f0-9]{64}/)[0];
   const wrongPage=await wrong.newPage();await signIn(wrongPage);await wrongPage.goto(url);await wrongPage.getByRole("button",{name:"Continue securely",exact:true}).click();await wrongPage.getByRole("button",{name:"Confirm this request for my account",exact:true}).click();
   await expect(wrongPage.getByRole("alert").filter({hasText:"This invitation cannot be confirmed with the current account."})).toBeVisible();await capture(wrongPage,"mismatch-mobile-light");
+  const invalid=await wrongPage.request.post("/api/connect/invitations/prepare",{headers:{origin},data:{token:"f".repeat(64)}});expect(invalid.status()).toBe(409);
+  expect((await wrong.cookies()).some(c=>c.name==="harvest_connect_flow")).toBe(false);
+  await wrongPage.reload();await expect(wrongPage.getByRole("button",{name:"Confirm this request for my account",exact:true})).toHaveCount(0);
+  await wrongPage.goto(url);await wrongPage.getByRole("button",{name:"Continue securely",exact:true}).click();
   await wrongPage.getByRole("button",{name:"Use another account",exact:true}).click();await expect(wrongPage).toHaveURL(/\/sign-in\?connect=1$/);
   // Advance only this disposable fixture's cooldown clock; the original existing-account
   // sign-in above used a code moments ago. Production limits and rolling issuance stay intact.
