@@ -15,9 +15,5 @@
     "ui": "@/components/ui",
     "lib": "@/lib",
     "hooks": "@/hooks"
-  },
-  "registries": {
-    "@openshadcnblocks": "https://openshadcnblocks.pages.dev/r/component/{name}",
-    "@openshadcnblocks-blocks": "https://openshadcnblocks.pages.dev/r/block/{name}"
   }
 }

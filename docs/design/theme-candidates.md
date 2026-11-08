@@ -1,6 +1,6 @@
-# Requested Harvest themes
+# Historical theme candidates (deferred)
 
-Founder selections, 8 November 2026. Add these as selectable palettes through the existing theme registry during Phase 0A; this document records requested work, not installed themes. The official default remains undecided. Honey Glow Gold is a candidate for the official Harvest theme, not an approved replacement.
+These previously requested palettes are archived as design research, **not** the current implementation direction. Founder decision, 8 November 2026: reproduce Studio Admin's visual system and default colors first across all Harvest pages. Harvest gold may be added later as a separate optional theme. Do not implement these palettes in the Studio Admin adoption phase.
 
 | Requested theme | Source |
 | --- | --- |

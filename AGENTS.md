@@ -12,9 +12,9 @@ UI uses shadcn components only (npx shadcn add ...); do not build from scratch a
 
 ## Harvest shared UI architecture
 
-Harvest uses [OpenShadcnBlocks](https://openshadcnblocks.pages.dev/) as a selected UI source. Read [installation/provenance status](docs/design/openshadcnblocks.md), inspect the registry item/license and use the configured `npm run ui:add` command. Search existing components first; do not add a parallel runtime UI framework or claim a block is installed merely because registry aliases exist.
+Studio Admin is the founder-approved primary visual reference for the entire application (shell, pages, tables, forms, editors, dashboards and Harvest Studio inbox). Follow `docs/plans/studio-admin-adoption.md`. Use Harvest's existing shadcn primitives and shared architecture; verify upstream file licenses before adaptation. Do not use OpenShadcnBlocks or reintroduce its registry aliases.
 
-Theme work must read [the founder's requested palette shortlist](docs/design/theme-candidates.md). Implement through the existing registry; Honey Glow Gold is a possible official default, not a decided rebrand.
+Theme direction: faithfully match Studio Admin's default colors, typography, spacing and surfaces first, across light/dark modes. Keep existing Harvest gold tokens available for a later optional theme, but do not make gold the default or add the prior palette shortlist as part of this adoption. See `docs/plans/studio-admin-adoption.md`.
 
 Before UI work, read [the master design-system specification](docs/design-system.md), [the foundation/adoption plan](docs/plans/design-system-foundation.md), `CLAUDE.md`, the relevant module PRD and current acceptance evidence. The specification is a target, not a claim that shared engines already exist.
 
