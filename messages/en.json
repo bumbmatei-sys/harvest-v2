@@ -1823,7 +1823,7 @@
     "limited": "Please wait a minute before trying again.",
     "testNotice": "Test form only. Do not enter real personal information. Use an email at example.test. Nothing will be sent.",
     "formTitle": "Your next step",
-    "formBody": "Choose either option, both, or continue with the free resources. Each choice is separate.",
+    "formBody": "Select any choices you want, or continue with the free resources. Each choice is separate.",
     "followUp": "I would like pastoral follow-up",
     "newsletter": "I would like to sign up for the newsletter",
     "name": "Preferred name (optional)",
@@ -1877,7 +1877,7 @@
     "phoneUnavailable": "Email is supported in this test slice. Phone contact needs a separate reviewed consent contract.",
     "adminNotice": "Test forms accept synthetic details only. Real visitor response collection remains disabled.",
     "retryHelp": "Your submitted details are kept for a safe retry. Keep this recovery code if the outcome is uncertain. If the form changed or expired, reload to start a new request.",
-    "connectionBody": "An optional test form for pastoral follow-up or newsletter requests. Choose either, both, or continue with free resources.",
+    "connectionBody": "Choose an optional next step with the choices in the test form, or continue with free resources. Each choice is separate.",
     "rightsInvalid": "Check the private recovery code and selected action."
   },
   "Invitations": {
