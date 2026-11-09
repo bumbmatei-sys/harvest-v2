@@ -15,3 +15,7 @@ Observations resolved during review:
 Final reviewer statement: “No blockers or remaining source-review findings. Tooltip state is now consistently controlled, suppressed while the filter panel is open, and portaled within the local landmark. Prior relation-label and saved-view regression observations remain resolved.”
 
 Final runtime validation and screenshots are parent-executed and recorded in [acceptance](../acceptance/crm-filters.md). Subsequent evidence-only commits must not be described as independently runtime-certified. Hosted CI and founder merge/deploy approval remain separate.
+
+## Header sizing follow-up
+
+Independent review of exact source `027770bf672cc223caba076be00bee28318f77c8`: no blockers. Five one-line changes use the existing responsive variant (36px desktop / 44px below 1024px), removing Export's competing minimum-height override. Shared ContactForm also grows consistently in the Organization People section. Dialog footers, permissions, actions and filter behavior are unchanged. Browser measurements are author-executed; `git diff --check` passed.
