@@ -52,6 +52,8 @@ async function capture(page: Page, name: string) {
   if (await shell.count()) await expect(shell).toHaveAttribute("data-hydrated", "true");
   await page.evaluate(() => document.fonts.ready);
   await page.screenshot({ path: `${evidence}/${name}.png`, fullPage: true, animations: "disabled" });
+  // Wait for Next.js metadata to settle after navigation before scanning the document.
+  await expect.poll(() => page.title()).not.toBe("");
   const result = await new AxeBuilder({ page }).analyze();
   accessibility.push({ screen: name, violations: result.violations.length, checks: result.passes.length });
   expect(result.violations, `axe: ${name}`).toEqual([]);
