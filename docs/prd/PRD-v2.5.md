@@ -1,4 +1,7 @@
 # HARVEST v2.5 — SOCIAL STUDIO + TWENTY-INSPIRED CRM PRD
+
+> **Professional V1 release classification (2026-11-09):** `docs/prd/professional-v1-launch-scope.md` is the founder-approved authority for initial paid launch scope and feature freeze. This PRD retains its detailed long-term requirements; any earlier P0/P1 labels, creator-first sequencing or broad modules conflicting with the six-system contract are **Post-launch / Future Vision** until explicitly approved. No features are deleted. Preserve consent, security and activation gates.
+
 ## Product requirements, Neon architecture, design system and AI-assisted implementation roadmap
 
 **Date:** 4 November 2026  
