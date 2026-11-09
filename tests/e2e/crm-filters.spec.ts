@@ -49,6 +49,7 @@ test("shared filters: staged changes, edit/remove, saved views, exports and resp
     await expect(grid.getByRole("row")).toHaveCount(2);
     await expect(page).toHaveURL(/f=/);
     const filteredURL = page.url();
+    expect((await new AxeBuilder({ page }).analyze()).violations.map((item) => item.id)).toEqual([]);
     // Edit directly through a chip, validate locally, then cancel via Escape.
     await page.getByRole("button", { name: `Edit filter ${valueField} is not empty`, exact: true }).click();
     await panel.getByLabel("Condition").selectOption("contains");
