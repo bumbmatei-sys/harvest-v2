@@ -10,12 +10,26 @@ Draft changes may be added, edited or removed, with local validation and the exi
 
 Browser testing found clearing the last saved-view filter could produce only `view=id` and restore the saved condition. `stateToParams` now includes an explicit `q=` for URLs with a view ID, distinguishing default-state override from an intentional view-only load. A unit regression plus browser saved-view clear/reload/export checks protect this fix. Server authorization and predicate compilation are unchanged.
 
-## Evidence (updated at closeout)
+## Evidence
 
 - Lint/source guards passed; initial sandbox runs could not create tsx IPC sockets. Reran with local socket permission.
-- Unit suite before final serializer regression: 297/297 passed outside sandbox. Final unit/build/browser results pending below.
+- Final unit suite: 26 files, **298/298 passed**, including the serializer regression. Focused integration: **27/27 passed** (`crm-fields-views`, `crm-import-export-isolation`) against disposable local PostgreSQL. Typecheck passed.
 - New `tests/e2e/crm-filters.spec.ts` exercises staged/cancel/outside/Escape, invalid input, chip editing/removal, limit/overflow, saved view, export count/file agreement, foreign-tenant denial, viewer empty-result browsing, and both consumers at 360/390/768/1280/1440 in light/dark with axe.
 - Existing CRM and CRM-03 browser suites cover relation/custom-field rules, persisted views and permission regressions. Relevant existing integration tests are reused.
 - Screenshots: `docs/screenshots/crm-filters/`. Browser tests use disposable PostgreSQL, mock email/storage, synthetic identities only. No Neon/provider call or production data.
 
 Independent review, final CI and founder merge approval are separate gates. No deployment, production intake activation, real invitations/payments/messages or HC-06 implementation. Five HC activation decisions remain unapproved.
+
+
+## Final runtime closeout
+
+Runtime source: `84d62b0e0c65f1bd5bb840b7bf50d0055d55e8e9`; independent source review at that exact head found no blockers ([review](../reviews/crm-filters-independent.md)). Subsequent commits contain evidence only.
+
+- Final browser invocation: `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH=/usr/bin/chromium npx playwright test tests/e2e/crm.spec.ts:121 tests/e2e/crm-filters.spec.ts tests/e2e/ui-showcase.spec.ts` — **4/4 passed**, no retries, 7.0 minutes. Shared filters (two tests), full CRM create/edit/link/filter/isolation/accessibility flow, and showcase exposure guard. The showcase flag was off; no claim of full interactive showcase validation in this invocation.
+- Prior combined invocation: 4/5 passed, including CRM-03 custom fields/saved views/keyboard grid and company People-tab overflow. The failed full CRM flow identified a real body-portaled tooltip landmark issue; final code keeps the tooltip within the list landmark and consistently controls its state. That previously failing flow passes in the final invocation. No test assertion was relaxed.
+- Earlier new-filter-only invocation found the last-filter saved-view restoration bug, fixed in shared URL serialization; final saved-view clear, reload, export count/file tests pass for both consumers.
+- 40 panel/editor screenshots, 20 viewport/theme/consumer combinations with axe and geometry checks; implementation session inspected full contact sheets and representative full-size images. Source review is independent; browser/visual evidence is author-executed.
+- Test harness uses synthetic local fixtures, mocked storage/mail and a disposable database. Existing note-textarea caret-style hydration warning and a destination-stream diagnostic appeared in dev-server logs; suite passed with no captured browser page errors. Cause of the latter was not established; no claim of globally clean logs.
+- Production build: `NEXT_TELEMETRY_DISABLED=1 npm run build` — **passed**, including TypeScript, static page generation and build tracing. Final lint/source guards passed. No schema/dependency change; migrations and hosted Neon/provider suites were not rerun beyond the focused local integration setup. PWA/Lighthouse/complete unrelated browser suite and live CircleCI certification are not claimed.
+
+Draft PR: [#44](https://github.com/bumbmatei-sys/harvest-v2/pull/44). Craft launch decisions and existing Now filter task reconciled. Hosted exact-head CI remains a separate requirement before merge; no workflow mutation or infrastructure merge was made to bypass it.
