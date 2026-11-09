@@ -28,7 +28,7 @@ export function themeBootstrap(workspace: BrandTheme = "harvest") {
   return `(function(){var brands=${JSON.stringify(BRAND_THEMES)},d=document.documentElement,w=${JSON.stringify(resolveBrandTheme(null, workspace))},u=null,m=null;try{u=localStorage.getItem('harvest-brand-theme');m=localStorage.getItem('harvest-color-mode')}catch(e){}d.dataset.workspaceTheme=w;d.dataset.brandOverride=brands.includes(u)?u:'';d.dataset.modeOverride=m==='light'||m==='dark'?m:'';d.dataset.brandTheme=brands.includes(u)?u:w;d.dataset.theme=m==='light'||m==='dark'?m:(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light');d.classList.toggle('dark',d.dataset.theme==='dark')})()`;
 }
 
-export function applyTheme(workspace?: BrandTheme, preference?: { brand?: BrandTheme | "default"; mode?: ColorMode }) {
+export function applyTheme(workspace?: BrandTheme, preference?: { brand?: BrandTheme | "default"; mode?: ColorMode | "system" }) {
   const root = document.documentElement;
   if (workspace) root.dataset.workspaceTheme = workspace;
   let user: string | null = root.dataset.brandOverride ?? null, mode: string | null = root.dataset.modeOverride ?? null;

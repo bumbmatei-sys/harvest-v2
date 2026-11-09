@@ -41,7 +41,9 @@ test("non-CRM workspace screens use the full-width shell; short forms stay narro
         await expectFullWidthShell(page);
         // Theme changes animate button colours; scan only after transitions settle (avoids mid-fade contrast readings).
         await page.waitForFunction(() => document.getAnimations().every((animation) => !(animation instanceof CSSTransition) || animation.playState !== "running"));
-        expect((await new AxeBuilder({ page }).analyze()).violations.map((violation) => violation.id), `${name}-${viewport}-${value}`).toEqual([]);
+        await expect.poll(() => page.title()).not.toBe("");
+        const violations = (await new AxeBuilder({ page }).analyze()).violations;
+        expect(violations.map((violation) => ({ id: violation.id, targets: violation.nodes.map((node) => node.target) })), `${name}-${viewport}-${value}`).toEqual([]);
         await page.screenshot({ path: `${evidence}/${name}-${viewport}-${value}.png`, fullPage: true, animations: "disabled" });
       }
     }

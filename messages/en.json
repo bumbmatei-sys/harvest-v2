@@ -25,9 +25,9 @@
   },
   "AppWorkspacesAppearancePage": {
     "appearance": "Appearance",
-    "makeThisWorkspaceFeelLikeYours": "Make this workspace feel like yours.",
-    "workspaceTheme": "Workspace theme",
-    "yourToolbarPreferenceTakesPriorityOverTheWorkspace": "Your toolbar preference takes priority over the workspace default on this browser. Choose “Workspace default” to follow the setting above. Light and dark mode are independent."
+    "makeThisWorkspaceFeelLikeYours": "Preview the application in light and dark.",
+    "workspaceTheme": "Application appearance",
+    "yourToolbarPreferenceTakesPriorityOverTheWorkspace": "Your color-mode preference follows you on this device. System mode follows your device settings."
   },
   "AppWorkspacesContactsPage": {
     "allContacts": "All contacts",
@@ -173,7 +173,9 @@
     "harvestBringsWarmNeutralsAndSofterCardsStudio": "Both saved theme choices now use the shared neutral appearance in light and dark.",
     "saving": "Saving…",
     "saveAppearance": "Save appearance",
-    "onlyOwnersAndAdminsCanChangeTheWorkspace": "Only owners and admins can change the workspace default. You can still choose your own theme in the toolbar."
+    "onlyOwnersAndAdminsCanChangeTheWorkspace": "Only owners and admins can change the workspace default. You can still choose your own theme in the toolbar.",
+    "baselineHelp": "Light and dark share the same Studio Admin design. Choose your color mode from the appearance controls.",
+    "managedByAdmins": "Workspace settings are managed by an owner or admin."
   },
   "ComponentsConsentForm": {
     "chooseTheConsentDateAndTime": "Choose the consent date and time.",
@@ -305,7 +307,12 @@
     "switchToLight": "Switch to light",
     "switchToDark": "Switch to dark",
     "switchToLightMode": "Switch to light mode",
-    "switchToDarkMode": "Switch to dark mode"
+    "switchToDarkMode": "Switch to dark mode",
+    "studioAdmin": "Studio Admin",
+    "colorMode": "Color mode",
+    "system": "System",
+    "light": "Light",
+    "dark": "Dark"
   },
   "ComponentsUiBreadcrumb": {
     "breadcrumb": "breadcrumb",
@@ -1707,9 +1714,9 @@
     "createTitle": "New QR link",
     "createDescription": "Starts as a draft. Nothing is public until an owner or admin publishes it.",
     "label": "Internal name",
-    "labelHelp": "For your team only, for example the night, venue or screen. Never shown publicly.",
+    "labelHelp": "For your team only, such as a night, venue or screen.",
     "publicTitle": "Public title",
-    "publicTitleHelp": "Optional. Shown above the welcome on the public page once published. Don't include personal details.",
+    "publicTitleHelp": "Shown publicly. Leave blank for the default. Avoid personal details.",
     "locale": "Language",
     "localeHelp": "More languages appear here once their reviewed translations exist.",
     "locales": {
@@ -2070,5 +2077,13 @@
     "searchRegistry": "Search components",
     "all": "All categories",
     "sourceAndConsumers": "Source and real consumers"
+  },
+  "AppearancePreview": {
+    "light": "Light preview",
+    "dark": "Dark preview",
+    "sampleTitle": "Your workspace",
+    "sampleStatus": "Draft",
+    "sampleField": "Welcome evening",
+    "sampleAction": "Continue"
   }
 }

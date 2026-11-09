@@ -93,8 +93,8 @@ export function LandingEditor({ initial, endpoint, backHref, manifest }: { initi
       <form className="min-w-0" onSubmit={event => { event.preventDefault(); if (!busy && !conflict) void persist(false); }}>
         <fieldset disabled={Boolean(busy) || !data.permissions.edit || conflict} className="min-w-0 space-y-6">
           <FieldGroup>
-            <Field><FieldLabel htmlFor={`${id}-heading`}>{t("heading")}</FieldLabel><Input id={`${id}-heading`} placeholder={t("headingPlaceholder")} value={heading} onChange={e => setHeading(e.target.value)} maxLength={120} className="min-h-11" aria-describedby={`${id}-heading-help`} /><FieldDescription id={`${id}-heading-help`}>{t("headingHelp")}</FieldDescription></Field>
-            <Field><FieldLabel htmlFor={`${id}-message`}>{t("message")}</FieldLabel><Textarea id={`${id}-message`} placeholder={t("messagePlaceholder")} value={welcome} onChange={e => setWelcome(e.target.value)} maxLength={600} rows={5} aria-describedby={`${id}-message-help`} /><FieldDescription id={`${id}-message-help`}>{t("messageHelp")}</FieldDescription></Field>
+            <Field><FieldLabel htmlFor={`${id}-heading`}>{t("heading")}</FieldLabel><Input id={`${id}-heading`} placeholder={t("headingPlaceholder")} value={heading} onChange={e => setHeading(e.target.value)} maxLength={120} className="min-h-11" /></Field>
+            <Field><FieldLabel htmlFor={`${id}-message`}>{t("message")}</FieldLabel><Textarea id={`${id}-message`} placeholder={t("messagePlaceholder")} value={welcome} onChange={e => setWelcome(e.target.value)} maxLength={600} rows={5} /></Field>
           </FieldGroup>
           <div className="flex flex-wrap items-center justify-between gap-3"><h2 className="text-lg font-semibold">{t("cards")}</h2><p className="text-sm text-muted-foreground">{t("cardCount", { count: cards.length })}</p></div>
           <p className="text-sm text-muted-foreground">{t("cardsHelp")}</p>

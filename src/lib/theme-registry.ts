@@ -186,7 +186,7 @@ export function isBrandTheme(value: unknown): value is BrandTheme {
 
 export const themeStyles = BRAND_THEMES.flatMap((brand) => COLOR_MODES.map((mode) => {
   const fallback = brand === "harvest" && mode === "light" ? ":root," : "";
-  const selectors = fallback + ` :root[data-brand-theme="${brand}"][data-theme="${mode}"], [data-theme="${mode}"] .theme-preview[data-preview-brand="${brand}"]`;
+  const selectors = fallback + ` :root[data-brand-theme="${brand}"][data-theme="${mode}"], .theme-preview[data-preview-brand="${brand}"][data-preview-mode="${mode}"]`;
   const tokens = Object.entries(themeRegistry[brand][mode]).map(([name, value]) => `${name}:${value}`).join(";");
   return `${selectors}{color-scheme:${mode};${tokens}}`;
 })).join("\n");

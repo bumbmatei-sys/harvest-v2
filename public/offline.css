@@ -666,9 +666,6 @@
   .h-20 {
     height: calc(var(--spacing) * 20);
   }
-  .h-24 {
-    height: calc(var(--spacing) * 24);
-  }
   .h-28 {
     height: calc(var(--spacing) * 28);
   }
@@ -782,9 +779,6 @@
   }
   .w-1\/2 {
     width: calc(1 / 2 * 100%);
-  }
-  .w-1\/4 {
-    width: calc(1 / 4 * 100%);
   }
   .w-3\/4 {
     width: calc(3 / 4 * 100%);
@@ -3522,6 +3516,10 @@
       width: calc(var(--spacing) * 9);
       height: calc(var(--spacing) * 9);
     }
+    .lg\:size-11 {
+      width: calc(var(--spacing) * 11);
+      height: calc(var(--spacing) * 11);
+    }
     .lg\:h-9 {
       height: calc(var(--spacing) * 9);
     }
@@ -3675,6 +3673,9 @@
   }
   .dark\:border-input:is(.dark *) {
     border-color: var(--input);
+  }
+  .dark\:bg-background:is(.dark *) {
+    background-color: var(--background);
   }
   .dark\:bg-destructive\/60:is(.dark *) {
     background-color: var(--destructive);
@@ -4334,7 +4335,7 @@ body {
     animation-duration: 0.01ms !important;
   }
 }
-:root, :root[data-brand-theme="harvest"][data-theme="light"], [data-theme="light"] .theme-preview[data-preview-brand="harvest"] {
+:root, :root[data-brand-theme="harvest"][data-theme="light"], .theme-preview[data-preview-brand="harvest"][data-preview-mode="light"] {
   color-scheme: light;
   --shell-canvas: #ffffff;
   --shell-panel: #ffffff;
@@ -4377,7 +4378,7 @@ body {
   --shadow-color: #000000;
   --action-foreground: #fafafa;
 }
-:root[data-brand-theme="harvest"][data-theme="dark"], [data-theme="dark"] .theme-preview[data-preview-brand="harvest"] {
+:root[data-brand-theme="harvest"][data-theme="dark"], .theme-preview[data-preview-brand="harvest"][data-preview-mode="dark"] {
   color-scheme: dark;
   --shell-canvas: #0a0a0a;
   --shell-panel: #0a0a0a;
@@ -4420,7 +4421,7 @@ body {
   --shadow-color: #000000;
   --action-foreground: #171717;
 }
-:root[data-brand-theme="studio"][data-theme="light"], [data-theme="light"] .theme-preview[data-preview-brand="studio"] {
+:root[data-brand-theme="studio"][data-theme="light"], .theme-preview[data-preview-brand="studio"][data-preview-mode="light"] {
   color-scheme: light;
   --shell-canvas: #ffffff;
   --shell-panel: #ffffff;
@@ -4463,7 +4464,7 @@ body {
   --shadow-color: #000000;
   --action-foreground: #fafafa;
 }
-:root[data-brand-theme="studio"][data-theme="dark"], [data-theme="dark"] .theme-preview[data-preview-brand="studio"] {
+:root[data-brand-theme="studio"][data-theme="dark"], .theme-preview[data-preview-brand="studio"][data-preview-mode="dark"] {
   color-scheme: dark;
   --shell-canvas: #0a0a0a;
   --shell-panel: #0a0a0a;

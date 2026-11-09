@@ -10,7 +10,6 @@ const origin = "http://127.0.0.1:3100";
 const accessibility: { screen: string; violations: number; checks: number }[] = [];
 const shellSurfaces: Record<string, string | number>[] = [];
 const workspaceName = "PR 01b browser seed — a workspace with a deliberately long name for switcher truncation";
-const radioContrast: { palette: string; ratio: number }[] = [];
 test.use({ actionTimeout: 30_000, reducedMotion: "reduce", timezoneId: "Europe/Berlin" });
 async function signIn(page: Page, email: string) {
   const [a, b, c] = createHash("sha256").update(email).digest();
@@ -30,18 +29,15 @@ async function signIn(page: Page, email: string) {
   await expect(page).toHaveURL(/\/workspaces$/);
 }
 async function selectBrand(page: Page, brand: string) {
-  await page.locator('[data-sidebar="footer"]').or(page.getByRole("combobox", { name: "Brand theme", exact: true })).first().waitFor();
-  if (await page.locator('[data-sidebar="footer"]').count()) {
-    const account = page.getByRole("button", { name: "Account menu", exact: true });
-    // Exit-animating Radix items can remain mounted after selection. Wait on the
-    // trigger state instead of treating a mounted item as an open menu.
-    if (await account.getAttribute("aria-expanded") !== "true") await account.click();
-    await page.getByRole("menuitemradio", { name: brand, exact: true }).click();
-    await expect(account).toHaveAttribute("aria-expanded", "false");
-  } else {
-    await page.getByRole("combobox", { name: "Brand theme", exact: true }).click();
-    await page.getByRole("option", { name: brand, exact: true }).click();
-  }
+  // Simulate a persisted preference arriving from another tab, preserving an open mobile drawer.
+  const shell = page.locator('[data-slot="sidebar-wrapper"]');
+  if (await shell.count()) await expect(shell).toHaveAttribute("data-hydrated", "true");
+  else await expect(page.getByRole("combobox", { name: "Color mode", exact: true })).toBeEnabled();
+  await page.evaluate(value => {
+    if (value === "Workspace default") localStorage.removeItem("harvest-brand-theme");
+    else localStorage.setItem("harvest-brand-theme", value.toLowerCase());
+    window.dispatchEvent(new Event("storage"));
+  }, brand);
 }
 async function theme(page: Page, brand: "harvest" | "studio", mode: "light" | "dark") {
   await selectBrand(page, brand === "harvest" ? "Harvest" : "Studio");
@@ -56,6 +52,8 @@ async function capture(page: Page, name: string) {
   if (await shell.count()) await expect(shell).toHaveAttribute("data-hydrated", "true");
   await page.evaluate(() => document.fonts.ready);
   await page.screenshot({ path: `${evidence}/${name}.png`, fullPage: true, animations: "disabled" });
+  // Wait for Next.js metadata to settle after navigation before scanning the document.
+  await expect.poll(() => page.title()).not.toBe("");
   const result = await new AxeBuilder({ page }).analyze();
   accessibility.push({ screen: name, violations: result.violations.length, checks: result.passes.length });
   expect(result.violations, `axe: ${name}`).toEqual([]);
@@ -94,18 +92,9 @@ async function matrix(page: Page, screen: string) {
     await theme(page, brand, mode);
     if (screen === "contact-detail") await surfaces(page, `${brand}-${mode}`);
     if (screen === "appearance") {
-      const colors = await page.getByRole("radio", { name: "Studio Admin", exact: true }).evaluate((radio) => ({
-        border: getComputedStyle(radio).borderTopColor,
-        background: getComputedStyle(radio.closest('[data-slot="card"]')!).backgroundColor,
-      }));
-      const luminance = (color: string) => {
-        const channels = color.match(/[\d.]+/g)!.slice(0, 3).map(Number).map((value) => { const c = value / 255; return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4; });
-        return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
-      };
-      const a = luminance(colors.border), b = luminance(colors.background);
-      const ratio = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
-      expect(ratio, `${brand}-${mode} unselected radio contrast`).toBeGreaterThanOrEqual(3);
-      radioContrast.push({ palette: `${brand}-${mode}`, ratio });
+      await expect(page.getByRole("figure", { name: "Light preview" })).toBeVisible();
+      await expect(page.getByRole("figure", { name: "Dark preview" })).toBeVisible();
+      await expect(page.locator('[data-theme-preview][inert]')).toHaveCount(2);
     }
     await capture(page, `${screen}-${brand}-${mode}`);
   }
@@ -139,16 +128,11 @@ async function shellMatrix(page: Page) {
   const logo = sidebar.locator('img');
   await expect.poll(() => logo.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
   await expect(sidebar.getByRole("link", { name: "Harvest", exact: true })).toBeVisible();
-  // Keyboard access to the relocated brand radio group.
+  // Keyboard access to the current appearance menu; choices are color modes.
   await footer.getByRole("button", { name: "Account menu" }).click();
-  await page.getByRole("menuitemradio", { name: "Harvest", exact: true }).focus();
+  await page.getByRole("menuitemradio", { name: "Dark", exact: true }).focus();
   await page.keyboard.press("Enter");
-  await expect(page.locator("html")).toHaveAttribute("data-brand-theme", "harvest");
-  await expect(footer.getByRole("button", { name: "Account menu" })).toHaveAttribute("aria-expanded", "false");
-  await footer.getByRole("button", { name: "Account menu" }).click();
-  await page.getByRole("menuitemradio", { name: "Studio", exact: true }).focus();
-  await page.keyboard.press("Enter");
-  await expect(page.locator("html")).toHaveAttribute("data-brand-theme", "studio");
+  await expect(page.locator("html")).toHaveAttribute("data-theme", "dark");
   await expect(footer.getByRole("button", { name: "Account menu" })).toHaveAttribute("aria-expanded", "false");
   for (const brand of ["harvest", "studio"] as const) for (const mode of ["light", "dark"] as const) {
     await theme(page, brand, mode);
@@ -157,7 +141,7 @@ async function shellMatrix(page: Page) {
     shellSurfaces.push(await surfaces(page, `${brand}-${mode}`));
     await capture(page, `shell-expanded-${brand}-${mode}`);
     await footer.getByRole("button", { name: "Account menu" }).click();
-    await expect(page.getByRole("group", { name: "Brand theme" })).toBeVisible();
+    await expect(page.getByRole("group", { name: "Color mode" })).toBeVisible();
     await capture(page, `shell-account-menu-${brand}-${mode}`);
     await page.keyboard.press("Escape");
     await trigger.click();
@@ -311,19 +295,16 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
   await capture(page, "contacts-no-results-studio-dark");
   await page.getByRole("link", { name: "Reset view" }).click();
   await page.getByRole("link", { name: "Appearance", exact: true }).click();
-  const harvestRadio = page.getByRole("radio", { name: "Studio Admin", exact: true });
-  await expect(harvestRadio).toBeEnabled();
-  await harvestRadio.focus();
-  await expect(harvestRadio).toBeChecked();
-  // One approved visual baseline; preserve the existing API preference contract.
-  await expect(page.getByRole("radio")).toHaveCount(1);
-  await expect(page.getByRole("button", { name: "Save appearance" })).toBeDisabled();
+  await expect(page.getByRole("figure", { name: "Light preview" })).toBeVisible();
+  await expect(page.getByRole("figure", { name: "Dark preview" })).toBeVisible();
+  await expect(page.getByRole("radio")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Save appearance" })).toHaveCount(0);
   expect((await page.request.patch(`/api/workspaces/${tenantId}/appearance`, { headers: { origin }, data: { brandTheme: "studio" } })).status()).toBe(200);
   await selectBrand(page, "Harvest");
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-brand-theme", "harvest");
   await expect(page.locator("html")).toHaveAttribute("data-workspace-theme", "studio");
-  await expect(page.getByRole("radio", { name: "Studio Admin", exact: true })).toBeChecked();
+  await expect(page.getByRole("figure", { name: "Light preview" })).toBeVisible();
   await selectBrand(page, "Workspace default");
   await expect(page.locator("html")).toHaveAttribute("data-brand-theme", "studio");
   await page.reload();
@@ -415,7 +396,7 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
   expect((await page.request.get(`${api}/${contactId}`)).status()).toBe(404);
   await capture(page, "contacts-after-erasure-studio-dark");
   await page.getByRole("button", { name: "Account menu" }).click();
-  await writeFile(`${evidence}/contrast-results.json`, `${JSON.stringify({ unselectedRadio: radioContrast, shellSurfaces }, null, 2)}\n`);
+  await writeFile(`${evidence}/contrast-results.json`, `${JSON.stringify({ shellSurfaces }, null, 2)}\n`);
   await writeFile(`${evidence}/axe-results.json`, `${JSON.stringify(accessibility, null, 2)}\n`);
   await page.getByRole("menuitem", { name: "Sign out", exact: true }).click();
   await expect(page).toHaveURL(/\/sign-in$/);

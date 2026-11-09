@@ -7,17 +7,9 @@ const evidence = "docs/screenshots/pr03";
 test.use({ reducedMotion: "reduce", viewport: { width: 1440, height: 1000 } });
 
 async function setTheme(page: Page, brand: string, mode: string) {
-  const name = brand[0].toUpperCase() + brand.slice(1);
-  const account = page.getByRole("button", { name: "Account menu", exact: true });
-  if (await account.count()) {
-    await expect(page.locator('[data-slot="sidebar-wrapper"]')).toHaveAttribute("data-hydrated", "true");
-    await account.click();
-    await page.getByRole("menuitemradio", { name, exact: true }).click();
-    await expect(account).toHaveAttribute("aria-expanded", "false");
-  } else {
-    await page.getByRole("combobox", { name: "Brand theme", exact: true }).click();
-    await page.getByRole("option", { name, exact: true }).click();
-  }
+  // Exercise compatibility with persisted IDs without presenting duplicate palettes.
+  await page.evaluate(value => localStorage.setItem("harvest-brand-theme", value), brand);
+  await page.reload();
   if (await page.locator("html").getAttribute("data-theme") !== mode) await page.getByRole("button", { name: new RegExp(`^Switch to ${mode}`) }).click();
   await expect(page.locator("html")).toHaveAttribute("data-brand-theme", brand);
   await expect(page.locator("html")).toHaveAttribute("data-theme", mode);

@@ -32,6 +32,9 @@ test("landing editor: private draft, shared preview, keyboard ordering, publishi
   const { root, api, link, endpoint } = await setup(page), metrics = [];
   await page.goto(root); await page.getByRole("link", { name: "Edit landing page", exact: true }).click();
   const heading = page.getByLabel("Welcome heading (optional)", { exact: true });
+  expect(await heading.getAttribute("aria-describedby")).toBeNull();
+  await expect(heading).toHaveAttribute("maxlength", "120");
+  expect(await page.getByLabel("Welcome message (optional)", { exact: true }).getAttribute("aria-describedby")).toBeNull();
   await heading.fill("We’re glad you’re here"); await page.getByLabel("Welcome message (optional)", { exact: true }).fill("Explore at your own pace.\nChoose a next step whenever you’re ready.");
   await page.getByRole("button", { name: "Add a free Harvest resource", exact: true }).click();
   await page.getByLabel("Choose a Harvest resource", { exact: true }).selectOption("common-questions");
