@@ -1,4 +1,6 @@
 # Harvest Professional V1 — creator commerce and first eight PRs
+
+> **Latest founder payment decision (2026-11-09; supersedes blanket Stripe-first statements below):** **Dodo Payments = Harvest SaaS subscriptions**. **Creator product sales = provider undecided**. **Donations/fundraising = provider undecided**. Stripe is only a candidate for latter two. PR-04 must become **multi-rail payments architecture + provider eligibility ADR** (Dodo SaaS rail confirmed; donation/commerce provider selection pending); PR-07 sandbox checkout must wait for creator-commerce provider approval. 'Shop' was a reference to **Whop**, not Dodo. See [payment decision](../decisions/0012-payment-provider-separation.md).
 **Founder decisions 9 Nov 2026. Documentation-only proposal; no implementation, merge, deployment or production activation.** [Launch scope](../prd/professional-v1-launch-scope.md) prevails over historical sequencing. Preserve all future requirements.
 
 ## Audience and six-system interpretation
