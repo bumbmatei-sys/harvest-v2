@@ -70,7 +70,9 @@ jobs:
   browser_review:
     docker:
       - image: cimg/node:24-browsers
-    resource_class: medium
+    # The full dev-server + Chromium suite approached 4 GiB and lost its server
+    # on medium. Gen1 large (8 GiB, 20 credits/min) is available on Free.
+    resource_class: large
     environment:
       CI: "true"
       NEXT_TELEMETRY_DISABLED: "1"
