@@ -1,0 +1,211 @@
+# Harvest V2 — CircleCI Free. No jobs deploy or send real messages.
+# Push/PR pipelines run the fast workflow. The expensive final workflow is
+# MANUAL ONLY: select the exact PR head branch, set full_review=true and
+# expected_sha=<40-character SHA> and pr_number=<open PR number> in CircleCI's Trigger Pipeline dialog.
+version: 2.1
+
+orbs:
+  browser-tools: circleci/browser-tools@2.4.2
+
+parameters:
+  full_review:
+    type: boolean
+    default: false
+  expected_sha:
+    type: string
+    default: ""
+  pr_number:
+    type: integer
+    default: 0
+
+jobs:
+  fast_checks:
+    docker:
+      - image: cimg/node:24
+      - image: cimg/postgres:17.11
+        environment:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: local-ci-only
+          POSTGRES_DB: harvest_test
+    resource_class: medium
+    environment:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      DATABASE_URL_UNPOOLED: postgresql://postgres:local-ci-only@127.0.0.1:5432/harvest_test
+      TEST_DATABASE_URL: postgresql://postgres:local-ci-only@127.0.0.1:5432/harvest_test
+    steps:
+      - checkout
+      - run:
+          name: Skip docs-only commits/PRs before installing dependencies
+          command: |
+            set -euo pipefail
+            # Fetch main to calculate a branch's merge-base. The initial
+            # checkout is owned by CircleCI and this fetch is read-only.
+            git fetch --no-tags origin main:refs/remotes/origin/main --depth=100
+            if [ "${CIRCLE_BRANCH:-}" = "main" ]; then
+              if git rev-parse HEAD^ >/dev/null 2>&1; then
+                changed="$(git diff --name-only HEAD^ HEAD)"
+              else
+                changed="bootstrap"
+              fi
+            elif git merge-base origin/main HEAD >/dev/null 2>&1; then
+              changed="$(git diff --name-only "$(git merge-base origin/main HEAD)" HEAD)"
+            else
+              # Ambiguous shallow history must not silently skip real code.
+              changed="unknown-code"
+            fi
+            if [ -n "$changed" ] && ! printf '%s\n' "$changed" | grep -Ev '^(docs/|.*\.md$)' >/dev/null; then
+              echo "Documentation-only change: skipping hosted test work."
+              circleci-agent step halt
+            fi
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test
+      - run:
+          name: Apply and replay Postgres migrations
+          command: |
+            npm run db:migrate
+            npm run db:migrate
+      - run: npm run test:rls
+      - run: npm run build
+
+  browser_review:
+    docker:
+      - image: cimg/node:24-browsers
+    # The full dev-server + Chromium suite approached 4 GiB and lost its server
+    # on medium. Gen1 large (8 GiB, 20 credits/min) is available on Free.
+    resource_class: large
+    environment:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      REVIEW_EXPECTED_SHA: << pipeline.parameters.expected_sha >>
+      REVIEW_PR_NUMBER: << pipeline.parameters.pr_number >>
+    steps:
+      - checkout
+      - run:
+          name: Require explicitly selected exact PR head
+          command: |
+            set -euo pipefail
+            if ! [[ "$REVIEW_EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "Set expected_sha to the full, lowercase 40-character PR head SHA."
+              exit 1
+            fi
+            if [ "$(git rev-parse HEAD)" != "$REVIEW_EXPECTED_SHA" ] || [ "${CIRCLE_SHA1:-}" != "$REVIEW_EXPECTED_SHA" ]; then
+              echo "The selected checkout does not match the intended PR HEAD; refusing stale validation."
+              exit 1
+            fi
+            if [ -z "${CIRCLE_BRANCH:-}" ] || [ "$CIRCLE_BRANCH" = "main" ]; then
+              echo "Select an open PR head branch, not main or a detached commit."
+              exit 1
+            fi
+            if ! [[ "$REVIEW_PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+              echo "Provide an open PR number for the final-review branch."
+              exit 1
+            fi
+            pr_sha="$(git ls-remote origin "refs/pull/${REVIEW_PR_NUMBER}/head" | cut -f1)"
+            branch_sha="$(git ls-remote origin "refs/heads/${CIRCLE_BRANCH}" | cut -f1)"
+            if [ "$pr_sha" != "$REVIEW_EXPECTED_SHA" ] || [ "$branch_sha" != "$REVIEW_EXPECTED_SHA" ]; then
+              echo "PR head or branch has changed; refusing stale final review."
+              exit 1
+            fi
+            echo "Exact SHA selected for final review: $REVIEW_EXPECTED_SHA"
+      - run: npm ci
+      - browser-tools/install_chrome
+      - run: npx playwright install chromium
+      - run: npm run test:e2e
+      - run: npm run build
+      - run: npm run test:pwa
+      # Store only failure evidence. An ordinary store_artifacts step always
+      # executes; the run step packages files only if an earlier step failed.
+      - run:
+          name: Package failed browser test traces
+          when: on_fail
+          command: |
+            mkdir -p /tmp/harvest-browser-failures
+            if [ -d test-results ]; then
+              tar -czf /tmp/harvest-browser-failures/test-results.tar.gz test-results
+            fi
+            if [ -d playwright-report ]; then
+              tar -czf /tmp/harvest-browser-failures/playwright-report.tar.gz playwright-report
+            fi
+      - store_artifacts:
+          path: /tmp/harvest-browser-failures
+          destination: browser-failures
+
+  neon_review:
+    docker:
+      - image: cimg/node:24
+    resource_class: medium
+    environment:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      REVIEW_EXPECTED_SHA: << pipeline.parameters.expected_sha >>
+      REVIEW_PR_NUMBER: << pipeline.parameters.pr_number >>
+    steps:
+      - checkout
+      - run:
+          name: Reject stale or wrong final-review source
+          command: |
+            set -euo pipefail
+            test "$REVIEW_EXPECTED_SHA" = "${CIRCLE_SHA1:-}"
+            test "$REVIEW_EXPECTED_SHA" = "$(git rev-parse HEAD)"
+            test -n "${CIRCLE_BRANCH:-}"
+            test "$CIRCLE_BRANCH" != "main"
+            [[ "$REVIEW_PR_NUMBER" =~ ^[1-9][0-9]*$ ]]
+            test "$(git ls-remote origin "refs/pull/${REVIEW_PR_NUMBER}/head" | cut -f1)" = "$REVIEW_EXPECTED_SHA"
+            test "$(git ls-remote origin "refs/heads/${CIRCLE_BRANCH}" | cut -f1)" = "$REVIEW_EXPECTED_SHA"
+      - run:
+          name: Use trusted CI scripts and package dependencies; only PR migration files
+          command: |
+            set -euo pipefail
+            # Fetch the reviewed, immutable Neon helper. Do not execute the PR's
+            # package scripts, dependencies, JS/TS or CircleCI helper here.
+            # After this PR merges the reviewed helper can move to main.
+            git fetch --no-tags origin "8a440e60df973d1ed11fcb48462d5ab234452317" --depth=1
+            git show "8a440e60df973d1ed11fcb48462d5ab234452317:scripts/neon-ci.ts" > /tmp/harvest-reviewed-neon-ci.ts
+            git fetch --no-tags origin main:refs/remotes/origin/main --depth=100
+            git checkout --detach --force origin/main
+            cp /tmp/harvest-reviewed-neon-ci.ts scripts/neon-ci.ts
+            # Candidate SQL + Drizzle journal only. Never copy package.json,
+            # executable code or scripts from a PR into this privileged job.
+            git restore --source="$REVIEW_EXPECTED_SHA" --worktree --staged -- drizzle
+            npm ci --ignore-scripts
+            touch /tmp/harvest-neon-trusted-ready
+      - run:
+          name: Confirm restricted Neon context (do not print secrets)
+          command: |
+            if [ -z "${NEON_API_KEY:-}" ] || [ -z "${NEON_PROJECT_ID:-}" ]; then
+              echo "Required harvest-neon-ci context is missing NEON_API_KEY or NEON_PROJECT_ID."
+              exit 1
+            fi
+      - run:
+          name: Create disposable Neon CI branch
+          command: npx tsx scripts/neon-ci.ts create
+      - run:
+          name: Apply Neon migration chain
+          command: npm run db:migrate
+      - run:
+          name: Delete this job's disposable Neon CI branch
+          when: always
+          command: |
+            # Trusted setup must finish before cleanup may execute. The pinned
+            # helper can recover run-owned branches even if its marker is lost.
+            if [ -f /tmp/harvest-neon-trusted-ready ]; then
+              npx tsx scripts/neon-ci.ts delete
+            fi
+
+workflows:
+  routine:
+    unless: << pipeline.parameters.full_review >>
+    jobs:
+      - fast_checks
+
+  final_review:
+    when: << pipeline.parameters.full_review >>
+    jobs:
+      - browser_review
+      - neon_review:
+          requires:
+            - browser_review
+          context: harvest-neon-ci

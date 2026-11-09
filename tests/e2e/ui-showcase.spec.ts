@@ -76,7 +76,7 @@ test("showcase exposure and local component interactions", async ({ page }) => {
   expect(workspace.status()).toBe(201); const tenant = (await workspace.json()).tenantId;
   for(const width of [390,1440]) for(const resource of ['people','companies']) {
     await page.setViewportSize({width,height:1000});await page.goto(`/workspaces/${tenant}/crm/${resource}`);
-    for(const label of [/^Filter$/, /^Sort:/, /^Columns$/]) {
+    for(const label of [/^Filters$/, /^Sort:/, /^Columns$/]) {
       const button=page.getByRole('button',{name:label});
       expect((await button.boundingBox())?.height).toBe(width<1024?44:36);
     }

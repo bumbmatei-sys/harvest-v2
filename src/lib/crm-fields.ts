@@ -204,7 +204,9 @@ export function fullState(state: Partial<ViewState>): ViewState { return viewSta
 export function stateToParams(state: ViewState, view?: string | null) {
   const params = new URLSearchParams();
   if (view) params.set("view", view);
-  if (state.q) params.set("q", state.q);
+  // A view id alone restores saved state. Keep an explicit state key even when
+  // clearing the final condition returns every setting to its default.
+  if (state.q || view) params.set("q", state.q);
   if (state.sort !== defaultSort) params.set("sort", state.sort);
   for (const filter of state.filters) params.append("f", serializeFilter(filter));
   if (state.columns) params.set("cols", state.columns.join(","));

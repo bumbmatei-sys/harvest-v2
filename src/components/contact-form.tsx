@@ -36,7 +36,7 @@ export function ContactForm({ tenantId, company, variant = "default" }: { tenant
     if (company) router.refresh(); else router.push(`/workspaces/${tenantId}/crm/people/${result.data.id}`);
   }
   return <Dialog open={open} onOpenChange={(value) => { setOpen(value); if (value) setError(""); }}>
-    <DialogTrigger asChild><Button size="sm" variant={variant}><Plus aria-hidden="true" />{company ? t("newPerson") : t("addContact")}</Button></DialogTrigger>
+    <DialogTrigger asChild><Button size="responsive" variant={variant}><Plus aria-hidden="true" />{company ? t("newPerson") : t("addContact")}</Button></DialogTrigger>
     <DialogContent className="max-h-[90dvh] overflow-y-auto rounded-xl sm:max-w-[460px]">
       <DialogHeader><DialogTitle>{company ? t("addAPersonAtCompany", { company: company.name }) : t("addAContact")}</DialogTitle><DialogDescription>{t("keepTheDetailsThatHelpYouStayConnected")}</DialogDescription></DialogHeader>
       <form onSubmit={submit} className="space-y-4">

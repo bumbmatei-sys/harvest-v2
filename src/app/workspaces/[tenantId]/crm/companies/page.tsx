@@ -52,7 +52,7 @@ export default async function CompaniesPage({ params, searchParams }: { params: 
     return { id: company.id, version: company.version, name: company.name, href: `${companies}/${company.id}`, secondary: company.domain ?? t("noDomain"), cells };
   });
   return <ListPage tenantId={tenantId} objectType="company" icon={Building2} title={t("companies")} description={t("companiesDescription")} total={list.total} page={list.page}
-    actions={<>{can(workspace.role, "crm:import") && <Button variant="outline" asChild><Link href={`/workspaces/${tenantId}/crm/imports?entity=company`}><Upload aria-hidden="true" />{imports("importAction")}</Link></Button>}
+    actions={<>{can(workspace.role, "crm:import") && <Button size="responsive" variant="outline" asChild><Link href={`/workspaces/${tenantId}/crm/imports?entity=company`}><Upload aria-hidden="true" />{imports("importAction")}</Link></Button>}
       {can(workspace.role, "crm:export") && <ExportDialog tenantId={tenantId} entity="company" query={query} listName={t("companies")} />}</>}
     create={<CompanyForm tenantId={tenantId} />} viewOnly={writable ? null : t("viewOnlyCompanies")} notice={notice} state={list.state} viewId={viewId} query={query}
     parts={parts} related={list.related} views={parts.summaries} current={parts.summaries.find((view) => view.id === current.id)!} modified={modified} writable={writable} rows={rows}

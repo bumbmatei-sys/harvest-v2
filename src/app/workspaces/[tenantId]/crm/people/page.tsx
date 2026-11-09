@@ -55,7 +55,7 @@ export default async function PeoplePage({ params, searchParams }: { params: Pro
     return { id: person.id, version: person.version, name: person.name, href: `${people}/${person.id}`, secondary: primary?.name ?? email ?? t("notProvided"), cells };
   });
   return <ListPage tenantId={tenantId} objectType="person" icon={UsersRound} title={t("people")} description={t("peopleDescription")} total={list.total} page={list.page}
-    actions={<>{can(workspace.role, "crm:import") && <Button variant="outline" asChild><Link href={`/workspaces/${tenantId}/crm/imports?entity=person`}><Upload aria-hidden="true" />{imports("importAction")}</Link></Button>}
+    actions={<>{can(workspace.role, "crm:import") && <Button size="responsive" variant="outline" asChild><Link href={`/workspaces/${tenantId}/crm/imports?entity=person`}><Upload aria-hidden="true" />{imports("importAction")}</Link></Button>}
       {can(workspace.role, "crm:export") && <ExportDialog tenantId={tenantId} entity="person" query={query} listName={t("people")} />}</>}
     create={<ContactForm tenantId={tenantId} />} viewOnly={writable ? null : t("viewOnlyPeople")} notice={notice} state={list.state} viewId={viewId} query={query}
     parts={parts} related={list.related} views={parts.summaries} current={parts.summaries.find((view) => view.id === current.id)!} modified={modified} writable={writable} rows={rows}

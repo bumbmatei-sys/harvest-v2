@@ -21,12 +21,13 @@ export function ListToolbar({ tenantId, objectType, fields, sorts, columns, visi
   const { state, navigate } = useListState();
   const [query, setQuery] = useState(state.q), [seen, setSeen] = useState(state.q);
   if (state.q !== seen) { setSeen(state.q); setQuery(state.q); }
+  const [filterOpen, setFilterOpen] = useState(false), [editing, setEditing] = useState<number | null>(null);
   const [names, setNames] = useState<Record<string, string>>({});
-  function chipText(filter: Filter) {
+  function chipText(filter: Filter, draftNames: Record<string, string> = {}) {
     const field = fields.find((item) => item.key === filter.field);
     const values = Array.isArray(filter.value) ? filter.value : filter.value === null ? [] : [filter.value];
     const shown = values.map((value) => field?.options?.find((option) => option.value === value)?.label
-      ?? (field?.type === "relation" ? related[value] ?? names[value] ?? t("unavailableRecord") : field?.type === "boolean" ? t(value === "true" ? "yes" : "no") : value)).join(", ");
+      ?? (field?.type === "relation" ? related[value] ?? draftNames[value] ?? names[value] ?? t("unavailableRecord") : field?.type === "boolean" ? t(value === "true" ? "yes" : "no") : value)).join(", ");
     const op = t(`operands.${filter.op}`);
     return valuelessOperands.includes(filter.op) ? t("filterChipNoValue", { field: field?.label ?? filter.field, op }) : t("filterChipText", { field: field?.label ?? filter.field, op, value: shown });
   }
@@ -42,7 +43,9 @@ export function ListToolbar({ tenantId, objectType, fields, sorts, columns, visi
         </InputGroup>
       </form>
       <div className="flex flex-wrap items-center gap-2">
-        <FilterBuilder fields={fields} tenantId={tenantId} activeCount={state.filters.length} onApply={(filter, name) => { if (name && typeof filter.value === "string") setNames((list) => ({ ...list, [filter.value as string]: name })); navigate({ filters: [...state.filters, filter] }); }} />
+        <FilterBuilder fields={fields} tenantId={tenantId} filters={state.filters} open={filterOpen} editing={editing} relatedNames={{ ...names, ...related }} chipText={chipText}
+          onOpenChange={(open) => { setFilterOpen(open); if (!open) setEditing(null); }}
+          onApply={(filters, addedNames) => { setNames((current) => ({ ...current, ...addedNames })); navigate({ filters }); }} />
         <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild><Button variant="outline" size="responsive"><ArrowDownUp aria-hidden="true" /><span className="sr-only sm:not-sr-only">{t("sortLabel", { sort: `${sorts.find((item) => item.value === sortKey)?.label ?? sortKey} ${descending ? "↓" : "↑"}` })}</span></Button></DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
@@ -60,11 +63,12 @@ export function ListToolbar({ tenantId, objectType, fields, sorts, columns, visi
       </div>
     </div>
     {(state.filters.length > 0 || state.q) && <ul aria-label={t("activeFilters")} className="flex flex-wrap items-center gap-1.5">
-      {state.filters.map((filter, index) => { const text = chipText(filter); return <li key={`${filter.field}-${index}`}><Badge variant="secondary" className="h-7 max-w-full gap-1 rounded-md pr-1 pl-2.5 text-xs font-normal">
-        <span className="truncate">{text}</span>
-        <Button variant="ghost" size="icon-xs" className="size-5 rounded-sm" aria-label={t("removeFilter", { filter: text })} onClick={() => navigate({ filters: state.filters.filter((_, item) => item !== index) })}><X aria-hidden="true" /></Button>
+      {state.filters.slice(0, 3).map((filter, index) => { const text = chipText(filter); return <li key={`${filter.field}-${index}`}><Badge variant="secondary" className="max-w-full gap-0 rounded-md p-0 text-xs font-normal">
+        <Button variant="ghost" className="h-11 min-w-0 max-w-64 justify-start px-2 text-xs font-normal lg:h-8" aria-label={t("editFilter", { filter: text })} onClick={() => { setEditing(index); setFilterOpen(true); }}><span className="truncate">{text}</span></Button>
+        <Button variant="ghost" size="icon-responsive" className="rounded-l-none lg:size-8" aria-label={t("removeFilter", { filter: text })} onClick={() => navigate({ filters: state.filters.filter((_, item) => item !== index) })}><X aria-hidden="true" /></Button>
       </Badge></li>; })}
-      <li><Button variant="ghost" size="sm" className="h-7 text-xs text-muted-foreground" onClick={() => navigate({ filters: [], q: "" })}>{t("clearFilters")}</Button></li>
+      {state.filters.length > 3 && <li><Button variant="ghost" size="responsive" onClick={() => { setEditing(null); setFilterOpen(true); }}>{t("moreFilters", { count: state.filters.length - 3 })}</Button></li>}
+      <li><Button variant="ghost" size="responsive" className="text-xs text-muted-foreground" onClick={() => navigate({ filters: [], q: "" })}>{t("clearFilters")}</Button></li>
     </ul>}
   </div>;
 }

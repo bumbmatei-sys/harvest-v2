@@ -85,6 +85,13 @@ describe("columns and view state", () => {
     expect(sameState(back!.state, state)).toBe(true);
     expect(viewState.safeParse({ ...state, extra: 1 }).success).toBe(false);
   });
+  it("marks an explicitly cleared saved view as URL state", () => {
+    const params = stateToParams(fullState({}), "system:email-subscribers");
+    expect(params.has("q")).toBe(true);
+    expect(params.get("q")).toBe("");
+    expect(paramsToState("person", Object.fromEntries(params))?.state.filters).toEqual([]);
+    expect(stateToParams(fullState({})).toString()).toBe("");
+  });
   it("defines the built-in audience views", () => {
     expect(systemViews.person.map((view) => view.name)).toEqual(["allPeople", "emailSubscribers", "unsubscribed", "noEmailDecision", "noCompany"]);
     expect(systemViews.company.map((view) => view.name)).toEqual(["allCompanies", "withPeople", "noDomain"]);
