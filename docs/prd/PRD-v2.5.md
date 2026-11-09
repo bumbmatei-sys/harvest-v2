@@ -1,5 +1,7 @@
 # HARVEST v2.5 — SOCIAL STUDIO + TWENTY-INSPIRED CRM PRD
 
+> **Founder Professional V1 clarification (2026-11-09):** Individual missionaries and Christian influencers are launch audiences alongside churches and ministry organizations. Skool-style Communities + public Discovery, Harvest-native creator storefront/products and shared Eden-style creation patterns are launch-critical, not later creator-beta-only features. Stripe-first replaces older provider preferences **only subject to written fundraising/platform/Connect eligibility**. Zernio prioritizes Facebook/Instagram/Threads/TikTok/YouTube, all eligible Auto-DMs, and blog distribution to WordPress/Shopify/Wix/Webflow. See [`professional-v1-launch-scope.md`](professional-v1-launch-scope.md) and [`../plans/professional-v1-first-eight-prs.md`](../plans/professional-v1-first-eight-prs.md). Preserve this PRD's historical/future detail.
+
 > **Professional V1 release classification (2026-11-09):** `docs/prd/professional-v1-launch-scope.md` is the founder-approved authority for initial paid launch scope and feature freeze. This PRD retains its detailed long-term requirements; any earlier P0/P1 labels, creator-first sequencing or broad modules conflicting with the six-system contract are **Post-launch / Future Vision** until explicitly approved. No features are deleted. Preserve consent, security and activation gates.
 
 ## Product requirements, Neon architecture, design system and AI-assisted implementation roadmap
