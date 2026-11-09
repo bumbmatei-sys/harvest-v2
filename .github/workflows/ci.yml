@@ -1,34 +1,31 @@
-name: Foundation CI
+name: PR Fast CI
+
+# Documentation-only changes do not consume hosted runner minutes. Mixed code/docs
+# changes still trigger checks. This is NOT a substitute for final review CI.
 on:
   pull_request:
+    types: [opened, reopened, synchronize, ready_for_review]
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
   push:
-    branches: [main, feat/pr01a-foundation]
+    branches: [main]
+    paths-ignore:
+      - 'docs/**'
+      - '**/*.md'
+
 permissions:
   contents: read
+
 concurrency:
-  group: foundation-${{ github.ref }}
+  group: harvest-fast-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
+
 jobs:
-  quality:
-    name: ${{ matrix.check }}
+  verify:
+    name: Lint, types, unit, RLS, build
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        check: [lint, typecheck, test, build]
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: npm
-      - run: npm ci
-      - run: npm run ${{ matrix.check }}
-        env:
-          NEXT_TELEMETRY_DISABLED: '1'
-  database:
-    name: migrations and RLS
-    runs-on: ubuntu-latest
+    timeout-minutes: 40
     services:
       postgres:
         image: postgres:17
@@ -42,68 +39,22 @@ jobs:
     env:
       DATABASE_URL_UNPOOLED: postgresql://postgres:local-ci-only@127.0.0.1:5432/harvest_test
       TEST_DATABASE_URL: postgresql://postgres:local-ci-only@127.0.0.1:5432/harvest_test
+      NEXT_TELEMETRY_DISABLED: '1'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
+      # One dependency installation and one runner rather than five parallel
+      # copies of npm ci. Every previous fast check remains mandatory here.
       - run: npm ci
-      - run: npm run db:migrate
-      - run: npm run db:migrate
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm run test
+      - name: Apply/reapply migrations
+        run: |
+          npm run db:migrate
+          npm run db:migrate
       - run: npm run test:rls
-  browser:
-    name: Playwright and accessibility
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: npm
-      - run: npm ci
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
       - run: npm run build
-        env:
-          NEXT_TELEMETRY_DISABLED: '1'
-      - run: npm run test:pwa
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: foundation-browser-evidence
-          path: |
-            playwright-report/
-            test-results/
-            docs/screenshots/pr03/
-          retention-days: 7
-  neon:
-    name: Neon CI migrations
-    runs-on: ubuntu-latest
-    env:
-      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
-      NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: npm
-      - run: npm ci
-      - name: Check Neon CI configuration
-        id: configured
-        run: |
-          if [ -n "$NEON_API_KEY" ] && [ -n "$NEON_PROJECT_ID" ]; then
-            echo 'ready=true' >> "$GITHUB_OUTPUT"
-          else
-            echo '::error::Neon CI requires NEON_API_KEY and NEON_PROJECT_ID repository secrets.'
-            exit 1
-          fi
-      - if: steps.configured.outputs.ready == 'true'
-        run: npx tsx scripts/neon-ci.ts create
-      - if: steps.configured.outputs.ready == 'true'
-        run: npm run db:migrate
-      - name: Remove this run's CI branch
-        if: always() && steps.configured.outputs.ready == 'true'
-        run: |
-          if [ -f .neon-ci-branch ]; then npx tsx scripts/neon-ci.ts delete; fi
