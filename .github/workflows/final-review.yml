@@ -1,0 +1,125 @@
+name: Final Review CI
+
+# Full verification is intentionally separate from every-push fast CI.
+# Trigger before merging by adding the ci:full label to the PR, or use
+# Actions → Final Review CI → Run workflow, choose the PR HEAD branch and
+# provide its number. Pushing more code while ci:full remains attached
+# triggers a new full run. See docs/ci-cost-control.md.
+on:
+  pull_request:
+    types: [labeled, synchronize, reopened, ready_for_review]
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'Open Harvest PR number whose head equals the selected branch'
+        required: true
+        type: number
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: harvest-final-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser:
+    name: Playwright, accessibility and production PWA
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        (
+          github.event_name == 'pull_request' &&
+          contains(github.event.pull_request.labels.*.name, 'ci:full') &&
+          (github.event.action != 'labeled' || github.event.label.name == 'ci:full')
+        )
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Verify the current, same-repository PR head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          pr=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")
+          test "$(jq -r '.state' <<< "$pr")" = "open"
+          test "$(jq -r '.base.ref' <<< "$pr")" = "main"
+          test "$(jq -r '.head.repo.full_name' <<< "$pr")" = "$GITHUB_REPOSITORY"
+          test "$(jq -r '.head.ref' <<< "$pr")" = "$EXPECTED_BRANCH"
+          test "$(jq -r '.head.sha' <<< "$pr")" = "$EXPECTED_HEAD"
+          echo "Verified PR #${PR_NUMBER} at head ${EXPECTED_HEAD}"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - run: npm run build
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+      - run: npm run test:pwa
+      # Traces and reports are needed on failures, not on every successful
+      # run. Previous uploads regularly exceeded 100 MB each.
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: harvest-final-browser-failure
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 3
+          if-no-files-found: ignore
+
+  neon:
+    name: Neon migration integration
+    needs: browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+      NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+    steps:
+      - name: Verify PR head has not changed during browser tests
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number || inputs.pr_number }}
+          EXPECTED_HEAD: ${{ github.event.pull_request.head.sha || github.sha }}
+          EXPECTED_BRANCH: ${{ github.event.pull_request.head.ref || github.ref_name }}
+        run: |
+          set -euo pipefail
+          pr=$(gh api "repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}")
+          test "$(jq -r '.state' <<< "$pr")" = "open"
+          test "$(jq -r '.base.ref' <<< "$pr")" = "main"
+          test "$(jq -r '.head.repo.full_name' <<< "$pr")" = "$GITHUB_REPOSITORY"
+          test "$(jq -r '.head.ref' <<< "$pr")" = "$EXPECTED_BRANCH"
+          test "$(jq -r '.head.sha' <<< "$pr")" = "$EXPECTED_HEAD"
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Check Neon CI configuration
+        id: configured
+        run: |
+          if [ -n "$NEON_API_KEY" ] && [ -n "$NEON_PROJECT_ID" ]; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo '::error::Neon CI requires NEON_API_KEY and NEON_PROJECT_ID repository secrets.'
+            exit 1
+          fi
+      - if: steps.configured.outputs.ready == 'true'
+        run: npx tsx scripts/neon-ci.ts create
+      - if: steps.configured.outputs.ready == 'true'
+        run: npm run db:migrate
+      - name: Remove this run's CI branch
+        if: always() && steps.configured.outputs.ready == 'true'
+        run: |
+          if [ -f .neon-ci-branch ]; then npx tsx scripts/neon-ci.ts delete; fi
