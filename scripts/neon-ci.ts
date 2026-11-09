@@ -16,21 +16,56 @@ async function api(path: string, method = "GET", body?: unknown) {
   if (!response.ok) throw new Error(`Neon CI request failed: HTTP ${response.status}`);
   return response.status === 204 ? {} : response.json();
 }
+async function findBranchByExactName(name: string) {
+  // The list API supports name search; use it to recover branches created by
+  // a POST whose response was lost before .neon-ci-branch could be written.
+  const { branches } = await api(`/branches?search=${encodeURIComponent(name)}&limit=100`);
+  return (branches as Array<{ id: string; name: string; parent_id?: string; protected?: boolean; default?: boolean }>)
+    .filter((branch) => branch.name === name);
+}
+
 async function main() {
   const { project } = await api("");
   if (project.name !== "harvest-v2") throw new Error("CI is restricted to the harvest-v2 project.");
+  const parents = await findBranchByExactName("dev");
+  if (parents.length !== 1) throw new Error("Expected exactly one harvest-v2 dev branch");
+  const parent = parents[0];
   if (process.argv[2] === "delete") {
-    const id = await readFile(".neon-ci-branch", "utf8");
-    const { branch } = await api(`/branches/${id}`);
-    if (branch.name !== branchName) throw new Error("Refusing to delete a branch outside this CI job.");
-    await api(`/branches/${id}`, "DELETE"); return;
+    const matches = await findBranchByExactName(branchName);
+    if (matches.length === 0) {
+      console.info("No disposable branch remains for this CI job.");
+      return;
+    }
+    if (matches.length !== 1) throw new Error("Refusing ambiguous CI branch cleanup");
+    const candidate = matches[0];
+    if (candidate.parent_id !== parent.id || candidate.protected || candidate.default) {
+      throw new Error("Refusing deletion of a non-disposable branch.");
+    }
+    // An existing marker must agree with the branch found by name.
+    const marker = await readFile(".neon-ci-branch", "utf8").catch((error: NodeJS.ErrnoException) => {
+      if (error.code === "ENOENT") return null;
+      throw error;
+    });
+    if (marker !== null && marker.trim() !== candidate.id) {
+      throw new Error("Refusing deletion: stored CI branch ID differs.");
+    }
+    const { branch: verified } = await api(`/branches/${candidate.id}`);
+    if (verified.name !== branchName || verified.parent_id !== parent.id || verified.protected || verified.default) {
+      throw new Error("Refusing deletion of a branch outside this CI job.");
+    }
+    await api(`/branches/${candidate.id}`, "DELETE");
+    console.info("Deleted this run's disposable Neon CI branch.");
+    return;
   }
-  const { branches } = await api("/branches");
-  const parent = branches.find((b: { name: string }) => b.name === "dev");
-  if (!parent) throw new Error("harvest-v2 dev branch is missing");
-  const name = branchName;
-  const { branch, endpoints } = await api("/branches", "POST", { branch: { name, parent_id: parent.id }, endpoints: [{ type: "read_write" }] });
-  await writeFile(".neon-ci-branch", branch.id);
+  if (process.argv[2] !== "create") throw new Error("Use create or delete.");
+  if ((await findBranchByExactName(branchName)).length !== 0) {
+    throw new Error("Refusing to create duplicate CI branch; use cleanup first.");
+  }
+  const { branch, endpoints } = await api("/branches", "POST", {
+    branch: { name: branchName, parent_id: parent.id, protected: false },
+    endpoints: [{ type: "read_write" }],
+  });
+  await writeFile(".neon-ci-branch", branch.id, { mode: 0o600 });
   // Allow Neon to finish branch creation; no schema or app deploy occurs here.
   for (let i = 0; i < 90; i++) {
     const { operations } = await api("/operations");
@@ -40,11 +75,9 @@ async function main() {
   const params = new URLSearchParams({ branch_id: branch.id, endpoint_id: endpoints[0].id, database_name: "harvest", role_name: "harvest_owner", pooled: "false" });
   const { uri } = await api(`/connection_uri?${params}`);
   if (process.env.GITHUB_ENV) {
-    // GitHub Actions treats each line as a literal environment assignment.
     await appendFile(process.env.GITHUB_ENV, `DATABASE_URL_UNPOOLED=${uri}\n`);
   } else if (process.env.BASH_ENV) {
-    // CircleCI sources BASH_ENV for each subsequent run step. Quote a URL as
-    // shell data, never print it or interpolate it into the workflow YAML.
+    // CircleCI sources BASH_ENV for the next step; never print the URI.
     const quoted = "'" + uri.replace(/'/g, "'\\''") + "'";
     await appendFile(process.env.BASH_ENV, `export DATABASE_URL_UNPOOLED=${quoted}\n`);
   } else {
