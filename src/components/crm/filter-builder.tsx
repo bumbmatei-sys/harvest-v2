@@ -54,9 +54,9 @@ type FilterBuilderProps = {
 /** One shared, transactional filter panel. Closing unmounts the draft without changing URL state. */
 export function FilterBuilder(props: FilterBuilderProps) {
   const t = useTranslations("Crm");
-  const [container, setContainer] = useState<HTMLDivElement | null>(null);
+  const [container, setContainer] = useState<HTMLDivElement | null>(null), [tooltipOpen, setTooltipOpen] = useState(false);
   return <div ref={setContainer} className="inline-flex"><Popover open={props.open} onOpenChange={props.onOpenChange}>
-    <Tooltip open={props.open ? false : undefined}><TooltipTrigger asChild><PopoverTrigger asChild>
+    <Tooltip open={!props.open && tooltipOpen} onOpenChange={setTooltipOpen}><TooltipTrigger asChild><PopoverTrigger asChild>
       <Button variant="outline" size="icon-responsive" aria-label={t("filters")} data-active={props.filters.length > 0} className="data-[active=true]:bg-accent"><ListFilter aria-hidden="true" /></Button>
     </PopoverTrigger></TooltipTrigger><TooltipContent container={container}>{t("filters")}</TooltipContent></Tooltip>
     <PopoverContent aria-label={t("filters")} align="end" collisionPadding={16} className="flex max-h-[min(38rem,var(--radix-popover-content-available-height))] w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden p-0">
