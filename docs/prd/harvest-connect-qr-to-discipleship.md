@@ -1,5 +1,7 @@
 # Harvest Connect — QR-to-Discipleship Product Requirements Document
 
+> **Latest payment clarification (2026-11-09):** Dodo handles **Harvest platform subscriptions**. The provider for donations to churches, evangelistic organizations and individual missionaries is **undecided**, as is the provider for creator products; Stripe is a candidate, not an approved solution. Keep QR response/discipleship consent separate from giving. See [payment decision](../decisions/0012-payment-provider-separation.md).
+
 > **Professional V1 Discovery/creator clarification (2026-11-09):** The Skool/Eden-style Discovery described here is a launch requirement. Public discovery covers opt-in communities by churches, missionary ministries, individual missionaries and Christian influencers; creators can sell Harvest-native courses, downloads and memberships inside communities through reusable shared product/checkout/entitlement systems. Never auto-enroll QR responders or expose sensitive CRM/religious decisions. Stripe-first donations/commerce require platform eligibility and proper recipient-of-funds approval. See [`../plans/professional-v1-first-eight-prs.md`](../plans/professional-v1-first-eight-prs.md).
 
 **Document ID:** HARVEST-CONNECT-PRD-001  
