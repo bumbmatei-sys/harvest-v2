@@ -1,5 +1,7 @@
 # Harvest — New Campaign Creation Wizard
 
+> **Professional V1 payment clarification (2026-11-09):** Campaign fundraising is part of six-system launch scope, but earlier CW-09 config-only / CW-10 later sequencing remains a historical implementation-slice decision, not a permanent prohibition on live donations in paid V1. Stripe-first is provisional pending written platform fundraising approval, merchant/recipient eligibility and separate HC production activation decisions. Reuse shared wizard/editor patterns rather than creating a campaign-only framework. See [`../plans/professional-v1-first-eight-prs.md`](../plans/professional-v1-first-eight-prs.md).
+
 > **Professional V1 release classification (2026-11-09):** `docs/prd/professional-v1-launch-scope.md` is the founder-approved authority for initial paid launch scope and feature freeze. This PRD retains its detailed long-term requirements; any earlier P0/P1 labels, creator-first sequencing or broad modules conflicting with the six-system contract are **Post-launch / Future Vision** until explicitly approved. No features are deleted. Preserve consent, security and activation gates.
 
 
