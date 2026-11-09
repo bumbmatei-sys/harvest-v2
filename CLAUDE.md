@@ -1,5 +1,7 @@
 Continue Harvest v2 in bumbmatei-sys/harvest-v2. Read the Craft Roadmap, repository PRDs, acceptance records, and open PRs before choosing work. Treat Craft as planning guidance, not proof that code is finished. Check actual current GitHub state, because the details below may have changed since they were written.
 
+> **Founder clarification 2026-11-09:** Read `docs/plans/professional-v1-first-eight-prs.md` before selecting work. Creator/individual missionary onboarding, Skool-style Communities + Discovery, Harvest-native product commerce, Stripe-first **subject to platform fundraising/creator eligibility**, and Zernio Blogs (WordPress/Shopify/Wix/Webflow) are launch requirements within six systems. The first eight PRs are proposed tickets, not completed code. Do not process third-party donations via an unapproved merchant arrangement.
+
 **Launch scope update (2026-11-09):** Read `docs/prd/professional-v1-launch-scope.md` before planning or coding. Founder froze initial paid Professional V1 at six systems (CRM; donations/finances; campaigns; communities; courses/products; Zernio social scheduler + unified inbox including provider-supported Auto-DMs). Three audiences share architecture and tailored onboarding. Older P0/P1 and creator-first release order do not override this launch contract; preserve future scope. No seventh system without documented exception and founder approval. Do not mistake scope freeze for deployment or HC activation approval.
 
 
