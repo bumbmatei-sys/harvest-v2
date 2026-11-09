@@ -38,7 +38,7 @@ export default async function PeoplePage({ params, searchParams }: { params: Pro
     .catch((error: unknown) => { if (error instanceof AccessError && error.status !== 400) return null; throw error; });
   if (!resolved) return <AccessState />;
   const { list, views, current, viewId, notice, modified, query } = resolved;
-  const parts = listParts(t, "person", list.definitions, list.state, views);
+  const parts = listParts(t, "person", list.definitions, list.state, views, can(workspace.role, "contacts:sources_read"));
   const people = `/workspaces/${tenantId}/crm/people`, companies = `/workspaces/${tenantId}/crm/companies`;
   const rows: GridRow[] = list.rows.map((person) => {
     const email = person.identifiers.find((item) => item.kind === "email")?.value, phone = person.identifiers.find((item) => item.kind === "phone")?.value;
@@ -48,6 +48,7 @@ export default async function PeoplePage({ params, searchParams }: { params: Pro
       email: { text: email ?? t("notProvided"), muted: true, edit: { kind: "email", value: email ?? "", target: "builtin", field: "email", maxLength: 254 } },
       phone: { text: phone ?? t("notProvided"), muted: true, edit: { kind: "tel", value: phone ?? "", target: "builtin", field: "phone", maxLength: 40 } },
       marketing: { text: t(`marketing.${person.marketingEmail}`), badge: person.marketingEmail },
+      ...(can(workspace.role, "contacts:sources_read") ? {source: {text: person.sourceKinds?.length ? person.sourceKinds.map(kind => t(`sourceHistory.${kind}`)).join(", ") : t("sourceHistory.unknown"), muted: true}} : {}),
       created: { text: format.dateTime(person.createdAt, "date"), muted: true },
       updated: { text: format.dateTime(person.updatedAt, "date"), muted: true },
     };

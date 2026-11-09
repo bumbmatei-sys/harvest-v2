@@ -10,7 +10,7 @@ export type Permission = "workspace:read" | "members:write" | "roles:write" | "c
   | "connect:privacy"
   // HC-03: publishing, disabling, rotating and archiving a public QR/short-URL link is owner/admin,
   // like publishing Forms versions and privacy notices. Drafts, preview and export use campaigns:write.
-  | "connect:publish";
+  | "connect:publish" | "contacts:sources_read";
 export function can(role: string, permission: Permission): boolean {
   if (permission === "workspace:read" || permission === "contacts:read" || permission === "companies:read" || permission === "opportunities:read" || permission === "tasks:read" || permission === "notes:read" || permission === "campaigns:read") return roleIds.includes(role as Role);
   if (permission === "contacts:write" || permission === "companies:write" || permission === "opportunities:write" || permission === "tasks:write" || permission === "notes:write"

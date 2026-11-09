@@ -75,7 +75,7 @@ describe("columns and view state", () => {
     expect(parseColumns("")).toEqual([]);
     expect(parseColumns("email,email")).toBeNull();
     expect(parseColumns(undefined)).toBeNull();
-    expect(columnSpecs("person", definitions).map((column) => column.key)).toEqual(["company", "email", "phone", "marketing", "created", "updated", "cf:stage", "cf:gifts"]);
+    expect(columnSpecs("person", definitions).map((column) => column.key)).toEqual(["source", "company", "email", "phone", "marketing", "created", "updated", "cf:stage", "cf:gifts"]);
   });
   it("round-trips a full state through URL parameters", () => {
     const state = fullState({ q: "ruth", sort: "-cf:gifts", filters: [{ field: "cf:stage", op: "any_of", value: ["member"] }], columns: ["email", "cf:stage"], density: "compact" });

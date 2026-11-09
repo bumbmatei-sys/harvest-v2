@@ -831,6 +831,19 @@
       "proposal": "Proposal",
       "won": "Won",
       "lost": "Lost"
+    },
+    "sourceHistory": {
+      "column": "Source",
+      "title": "Source history",
+      "manual": "Manual",
+      "csv_import": "CSV import",
+      "unknown": "Unknown",
+      "created": "Created",
+      "updated": "Updated",
+      "reverted": "Reverted",
+      "recentLimit": "Showing the 50 most recent events.",
+      "event": "{source} · {outcome}",
+      "revertedSuffix": " · Reverted"
     }
   },
   "Deals": {

@@ -905,3 +905,17 @@ export const connectLandingStates = pgTable("connect_landing_states", {
   check("connect_landing_states_revision_check", sql`${t.revision} > 0`),
   check("connect_landing_states_definition_check", sql`public.valid_connect_landing(${t.definition})`),
   check("connect_landing_states_check", sql`${t.publishedRevision} is null or ${t.publishedRevision} <= ${t.revision}`)]);
+
+// HC-06A: minimal provenance; trusted database writers own all mutations.
+export const contactSourceEvents = pgTable("contact_source_events", {
+  id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id").notNull(), contactId: uuid("contact_id").notNull(),
+  kind: text("kind").$type<"manual" | "csv_import">().notNull(),
+  outcome: text("outcome").$type<"created" | "updated">().notNull(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
+  importId: uuid("import_id"), rowNumber: integer("row_number"),
+  revertedAt: timestamp("reverted_at", { withTimezone: true }),
+}, t => [foreignKey({ columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }).onDelete("cascade"),
+  foreignKey({ columns: [t.tenantId, t.importId], foreignColumns: [crmImports.tenantId, crmImports.id] }),
+  uniqueIndex("contact_sources_import_unique").on(t.tenantId, t.importId, t.rowNumber).where(sql`${t.kind} = 'csv_import'`),
+  index("contact_sources_history").on(t.tenantId, t.contactId, t.occurredAt, t.id),
+  check("contact_sources_contract", sql`(${t.kind} = 'manual' and ${t.outcome} = 'created' and ${t.importId} is null and ${t.rowNumber} is null and ${t.revertedAt} is null) or (${t.kind} = 'csv_import' and ${t.outcome} in ('created','updated') and ${t.importId} is not null and ${t.rowNumber} is not null and ${t.rowNumber} > 0)`)]);

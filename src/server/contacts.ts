@@ -2,14 +2,14 @@ import { message } from "../i18n/messages";
 import { and, asc, count, desc, eq, exists, getTableColumns, gt, ilike, inArray, isNull, ne, notExists, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Database, Transaction } from "../db/client";
-import { auditLogs, companies, contactCompanyLinks, contactConsents, contactIdentifiers, contacts } from "../db/schema";
+import { auditLogs, companies, contactCompanyLinks, contactConsents, contactIdentifiers, contactSourceEvents, contacts } from "../db/schema";
 import { contactInput, consentInput, uuidInput, type ContactInput, type ConsentInput } from "../lib/contact-input";
 import { CRM_PAGE_SIZE, DUPLICATE_MIN_LENGTH, contactPatch, linkInput, linkPatch, newContactInput, type ContactPatch, type LinkInput, type LinkPatch, type NewContactInput } from "../lib/crm-input";
 import { paramsToState } from "../lib/crm-fields";
 import { compileFilter, invalidView, likePattern, loadDefinitions, marketingEmailState, relatedFilterNames, resolveState, sortOrder } from "./crm-filters";
 import { loadRecordValues } from "./crm-fields";
 import { recordActivity } from "./activity";
-import { AccessError } from "./permissions";
+import { AccessError, can } from "./permissions";
 import { withTenant } from "./tenancy";
 import { emitCrmEvent } from "./crm-events";
 
@@ -32,7 +32,7 @@ type ListParams = import("../lib/crm-fields").RawParams;
 export function listContacts(db: Database, userId: string, workspace: string, params: ListParams = {}) {
   const parsed = paramsToState("person", params);
   if (!parsed) throw invalidView();
-  return withTenant(db, userId, uuidInput.parse(workspace), "contacts:read", async (tx, tenantId) => {
+  return withTenant(db, userId, uuidInput.parse(workspace), "contacts:read", async (tx, tenantId, role) => {
     const definitions = await loadDefinitions(tx, tenantId, "person");
     const state = resolveState("person", parsed.state, definitions), page = parsed.page;
     const marketing = marketingEmailState(tenantId);
@@ -47,9 +47,11 @@ export function listContacts(db: Database, userId: string, workspace: string, pa
       .orderBy(desc(contactCompanyLinks.isPrimary), asc(contactCompanyLinks.createdAt), asc(companies.id)) : [];
     const active = definitions.filter((field) => !field.archivedAt);
     const { values, related } = await loadRecordValues(tx, tenantId, "person", ids, active);
+    const sourceKinds = can(role, "contacts:sources_read") && ids.length ? await tx.selectDistinct({contactId: contactSourceEvents.contactId, kind: contactSourceEvents.kind}).from(contactSourceEvents)
+      .where(and(eq(contactSourceEvents.tenantId, tenantId), inArray(contactSourceEvents.contactId, ids), isNull(contactSourceEvents.revertedAt))) : [];
     const filterNames = await relatedFilterNames(tx, tenantId, "person", state.filters, definitions);
     return {
-      rows: rows.map((row) => ({ ...row, identifiers: identifiers.filter((item) => item.contactId === row.id), companies: links.filter((link) => link.contactId === row.id), custom: values.get(row.id) ?? {} })),
+      rows: rows.map((row) => ({ ...row, identifiers: identifiers.filter((item) => item.contactId === row.id), companies: links.filter((link) => link.contactId === row.id), custom: values.get(row.id) ?? {}, ...(can(role, "contacts:sources_read") ? { sourceKinds: sourceKinds.filter(event => event.contactId === row.id).map(event => event.kind) } : {}) })),
       total, page, state, definitions: active, related: Object.fromEntries([...related, ...filterNames]),
     };
   });
@@ -79,7 +81,7 @@ async function loadLiveContact(tx: Transaction, tenantId: string, id: string, lo
 }
 
 export function getContact(db: Database, userId: string, workspace: string, contact: string) {
-  return withTenant(db, userId, uuidInput.parse(workspace), "contacts:read", async (tx, tenantId) => {
+  return withTenant(db, userId, uuidInput.parse(workspace), "contacts:read", async (tx, tenantId, role) => {
     const id = uuidInput.parse(contact);
     const row = await loadLiveContact(tx, tenantId, id);
     const identifiers = await tx.select().from(contactIdentifiers).where(and(eq(contactIdentifiers.tenantId, tenantId), eq(contactIdentifiers.contactId, id)));
@@ -113,7 +115,9 @@ export function getContact(db: Database, userId: string, workspace: string, cont
     const possibleDuplicates = row.normalizedName.length >= DUPLICATE_MIN_LENGTH ? await tx.select({ id: contacts.id, name: contacts.name, createdAt: contacts.createdAt }).from(contacts)
       .where(and(eq(contacts.tenantId, tenantId), isNull(contacts.erasedAt), eq(contacts.normalizedName, row.normalizedName), ne(contacts.id, id)))
       .orderBy(asc(contacts.createdAt), asc(contacts.id)).limit(5) : [];
-    return { ...row, identifiers, consents, effectiveConsents, companies: companyLinks, possibleDuplicates };
+    const sourceHistory = can(role, "contacts:sources_read") ? await tx.select({ id: contactSourceEvents.id, kind: contactSourceEvents.kind, outcome: contactSourceEvents.outcome, occurredAt: contactSourceEvents.occurredAt, revertedAt: contactSourceEvents.revertedAt }).from(contactSourceEvents)
+      .where(and(eq(contactSourceEvents.tenantId, tenantId), eq(contactSourceEvents.contactId, id))).orderBy(desc(contactSourceEvents.occurredAt), desc(contactSourceEvents.id)).limit(51) : undefined;
+    return { ...row, identifiers, consents, effectiveConsents, companies: companyLinks, possibleDuplicates, ...(sourceHistory ? {sourceHistory: sourceHistory.slice(0,50), sourceHistoryHasMore: sourceHistory.length > 50} : {}) };
   });
 }
 
