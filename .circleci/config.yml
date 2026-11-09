@@ -38,7 +38,7 @@ jobs:
             set -euo pipefail
             # Fetch main to calculate a branch's merge-base. The initial
             # checkout is owned by CircleCI and this fetch is read-only.
-            git fetch --no-tags origin main --depth=100
+            git fetch --no-tags origin main:refs/remotes/origin/main --depth=100
             if [ "${CIRCLE_BRANCH:-}" = "main" ]; then
               if git rev-parse HEAD^ >/dev/null 2>&1; then
                 changed="$(git diff --name-only HEAD^ HEAD)"
@@ -100,14 +100,22 @@ jobs:
       - run: npm run test:e2e
       - run: npm run build
       - run: npm run test:pwa
-      - store_artifacts:
-          path: playwright-report
-          destination: playwright-report
+      # Store only failure evidence. An ordinary store_artifacts step always
+      # executes; the run step packages files only if an earlier step failed.
+      - run: mkdir -p /tmp/harvest-browser-failures
+      - run:
+          name: Package failed browser test traces
           when: on_fail
+          command: |
+            if [ -d test-results ]; then
+              tar -czf /tmp/harvest-browser-failures/test-results.tar.gz test-results
+            fi
+            if [ -d playwright-report ]; then
+              tar -czf /tmp/harvest-browser-failures/playwright-report.tar.gz playwright-report
+            fi
       - store_artifacts:
-          path: test-results
-          destination: test-results
-          when: on_fail
+          path: /tmp/harvest-browser-failures
+          destination: browser-failures
 
   neon_review:
     docker:
