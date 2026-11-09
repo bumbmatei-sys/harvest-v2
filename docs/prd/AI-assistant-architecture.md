@@ -1,5 +1,8 @@
 # AI Assistant Architecture: Provider-Agnostic and Future-Proof
 
+> **Professional V1 release classification (2026-11-09):** `docs/prd/professional-v1-launch-scope.md` is the founder-approved authority for initial paid launch scope and feature freeze. This PRD retains its detailed long-term requirements; any earlier P0/P1 labels, creator-first sequencing or broad modules conflicting with the six-system contract are **Post-launch / Future Vision** until explicitly approved. No features are deleted. Preserve consent, security and activation gates.
+
+
 **Founder requirement (Matei, 4 Nov 2026).** Binding for every AI feature in Harvest v2 (AI assistant, custom AI assistants, AI Chat, ministry copilot, auto-replies). Read it alongside PRD-v2.5 and PRD-v2.7-companion; where they differ on AI architecture, this document wins.
 
 **Library decision:** the assistant is built on the **Vercel AI SDK** (`ai` package and its provider packages). The AI SDK is open source and runs on any Node host, so it doesn't break the portability rule. Don't depend on Vercel-only AI products (for example AI Gateway) as the only path; any gateway stays behind our own adapter interface.
