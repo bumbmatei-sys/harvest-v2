@@ -102,11 +102,11 @@ jobs:
       - run: npm run test:pwa
       # Store only failure evidence. An ordinary store_artifacts step always
       # executes; the run step packages files only if an earlier step failed.
-      - run: mkdir -p /tmp/harvest-browser-failures
       - run:
           name: Package failed browser test traces
           when: on_fail
           command: |
+            mkdir -p /tmp/harvest-browser-failures
             if [ -d test-results ]; then
               tar -czf /tmp/harvest-browser-failures/test-results.tar.gz test-results
             fi
