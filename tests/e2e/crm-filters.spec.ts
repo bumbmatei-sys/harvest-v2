@@ -114,6 +114,14 @@ test("shared filters: staged changes, edit/remove, saved views, exports and resp
     await panel.getByRole("button", { name: "Clear all", exact: true }).click();
     await panel.getByRole("button", { name: "Apply filter", exact: true }).click();
     await expect(grid.getByRole("row")).toHaveCount(3);
+    await page.reload();
+    await expect(grid.getByRole("row")).toHaveCount(3);
+    const clearedQuery = new URL(page.url()).searchParams;
+    clearedQuery.set("entity", route === "people" ? "person" : "company");
+    const clearedCount = await page.request.get(`${api}/crm/export/count?${clearedQuery}`);
+    expect((await clearedCount.json()).total).toBe(2);
+    const clearedCSV = await page.request.get(`${api}/crm/export?${clearedQuery}`);
+    expect(await clearedCSV.text()).toContain("Synthetic South");
   }
   // Foreign workspace and unauthorized export remain denied.
   const context = await browser.newContext();

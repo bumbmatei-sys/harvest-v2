@@ -43,7 +43,7 @@ export function ListToolbar({ tenantId, objectType, fields, sorts, columns, visi
         </InputGroup>
       </form>
       <div className="flex flex-wrap items-center gap-2">
-        <FilterBuilder fields={fields} tenantId={tenantId} filters={state.filters} open={filterOpen} editing={editing} chipText={chipText}
+        <FilterBuilder fields={fields} tenantId={tenantId} filters={state.filters} open={filterOpen} editing={editing} relatedNames={{ ...names, ...related }} chipText={chipText}
           onOpenChange={(open) => { setFilterOpen(open); if (!open) setEditing(null); }}
           onApply={(filters, addedNames) => { setNames((current) => ({ ...current, ...addedNames })); navigate({ filters }); }} />
         <DropdownMenu modal={false}>

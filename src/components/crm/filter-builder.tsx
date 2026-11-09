@@ -45,7 +45,7 @@ function RelationSearch({ endpoint, value, onChange }: { endpoint: string; value
 }
 
 type FilterBuilderProps = {
-  fields: FieldMeta[]; tenantId: string; filters: Filter[]; open: boolean; editing: number | null;
+  fields: FieldMeta[]; tenantId: string; filters: Filter[]; open: boolean; editing: number | null; relatedNames: Record<string, string>;
   onOpenChange: (open: boolean) => void;
   onApply: (filters: Filter[], names: Record<string, string>) => void;
   chipText: (filter: Filter, names?: Record<string, string>) => string;
@@ -64,21 +64,21 @@ export function FilterBuilder(props: FilterBuilderProps) {
   </Popover>;
 }
 
-function FilterSession({ fields, tenantId, filters, editing, onOpenChange, onApply, chipText }: FilterBuilderProps) {
+function FilterSession({ fields, tenantId, filters, editing, relatedNames, onOpenChange, onApply, chipText }: FilterBuilderProps) {
   const t = useTranslations("Crm"), id = useId();
   const initial = editing === null ? undefined : filters[editing];
   const [draft, setDraft] = useState(filters), [index, setIndex] = useState<number | null>(editing);
   const [field, setField] = useState<FieldMeta | null>(() => fields.find((item) => item.key === initial?.field) ?? null);
   const [op, setOp] = useState<Operand>(initial?.op ?? "contains"), [text, setText] = useState(typeof initial?.value === "string" ? initial.value : "");
   const [choices, setChoices] = useState<string[]>(Array.isArray(initial?.value) ? initial.value : initial?.value ? initial.value.split(",") : []);
-  const [names, setNames] = useState<Record<string, string>>({}), [relatedName, setRelatedName] = useState(""), [error, setError] = useState("");
+  const [names, setNames] = useState<Record<string, string>>({}), [relatedName, setRelatedName] = useState(typeof initial?.value === "string" ? relatedNames[initial.value] ?? "" : ""), [error, setError] = useState("");
   function pick(next: FieldMeta) { setField(next); setOp(operandsByType[next.type][0]); setText(""); setChoices([]); setRelatedName(""); setError(""); }
   function edit(at: number) {
     const filter = draft[at];
     setIndex(at); setField(fields.find((item) => item.key === filter.field) ?? null); setOp(filter.op);
     setText(typeof filter.value === "string" ? filter.value : "");
     setChoices(Array.isArray(filter.value) ? filter.value : filter.value ? filter.value.split(",") : []);
-    setRelatedName(""); setError("");
+    setRelatedName(typeof filter.value === "string" ? names[filter.value] ?? relatedNames[filter.value] ?? "" : ""); setError("");
   }
   function candidate() {
     if (!field) return draft;
