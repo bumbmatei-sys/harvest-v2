@@ -1,4 +1,7 @@
 > **Founder decisions that override this document (Matei, 4 Nov 2026):**
+
+> **Professional V1 release classification (2026-11-09):** `docs/prd/professional-v1-launch-scope.md` is the founder-approved authority for initial paid launch scope and feature freeze. This PRD retains its detailed long-term requirements; any earlier P0/P1 labels, creator-first sequencing or broad modules conflicting with the six-system contract are **Post-launch / Future Vision** until explicitly approved. No features are deleted. Preserve consent, security and activation gates.
+
 > - Auth is decided: Better Auth with email one-time code only via Resend (no Google sign-in, no passwords). Section 32 item 1 is closed.
 > - Object storage is Cloudflare R2 (separate v2 bucket). Payments are Dodo, not Stripe.
 > - UI uses shadcn components only; never hand-build anything shadcn provides.
