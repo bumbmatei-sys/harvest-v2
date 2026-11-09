@@ -30,7 +30,7 @@ export function CompanyForm({ tenantId, variant = "default" }: { tenantId: strin
     setOpen(false); router.push(`/workspaces/${tenantId}/crm/companies/${result.data.id}`);
   }
   return <Dialog open={open} onOpenChange={(value) => { setOpen(value); if (value) { setError(""); setExisting(""); } }}>
-    <DialogTrigger asChild><Button size="sm" variant={variant}><Plus aria-hidden="true" />{t("addCompany")}</Button></DialogTrigger>
+    <DialogTrigger asChild><Button size="responsive" variant={variant}><Plus aria-hidden="true" />{t("addCompany")}</Button></DialogTrigger>
     <DialogContent className="max-h-[90dvh] overflow-y-auto rounded-xl sm:max-w-[460px]">
       <DialogHeader><DialogTitle>{t("addACompany")}</DialogTitle><DialogDescription>{t("companiesGroupThePeopleYouWorkWith")}</DialogDescription></DialogHeader>
       <form onSubmit={submit} className="space-y-4">

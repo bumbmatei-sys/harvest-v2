@@ -27,7 +27,7 @@ export function ExportDialog({ tenantId, entity, query, listName }: { tenantId: 
   }
   const tooMany = !!count && count.total > count.max;
   return <Dialog onOpenChange={(value) => void open(value)}>
-    <DialogTrigger asChild><Button className="min-h-11" variant="outline"><Download aria-hidden="true" />{t("export")}</Button></DialogTrigger>
+    <DialogTrigger asChild><Button size="responsive" variant="outline"><Download aria-hidden="true" />{t("export")}</Button></DialogTrigger>
     <DialogContent className="rounded-xl sm:max-w-[480px]">
       <DialogHeader><DialogTitle>{t("exportTitle", { list: listName })}</DialogTitle><DialogDescription>{t("exportDescription")}</DialogDescription></DialogHeader>
       <div className="space-y-3 text-sm" aria-live="polite">
