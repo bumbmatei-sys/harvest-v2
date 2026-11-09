@@ -171,6 +171,7 @@ jobs:
             # executable code or scripts from a PR into this privileged job.
             git restore --source="$REVIEW_EXPECTED_SHA" --worktree --staged -- drizzle
             npm ci --ignore-scripts
+            touch /tmp/harvest-neon-trusted-ready
       - run:
           name: Confirm restricted Neon context (do not print secrets)
           command: |
@@ -188,7 +189,9 @@ jobs:
           name: Delete this job's disposable Neon CI branch
           when: always
           command: |
-            if [ -f .neon-ci-branch ]; then
+            # Trusted setup must finish before cleanup may execute. The pinned
+            # helper can recover run-owned branches even if its marker is lost.
+            if [ -f /tmp/harvest-neon-trusted-ready ]; then
               npx tsx scripts/neon-ci.ts delete
             fi
 
