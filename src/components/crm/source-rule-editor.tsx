@@ -78,7 +78,7 @@ export function SourceRuleEditor({ initial, options, error: loadError, onRetry, 
   return <form className="space-y-3 p-3" onSubmit={(event) => { event.preventDefault(); stage(); }}>
     <div className="flex items-center gap-1.5"><Button type="button" variant="ghost" size="icon-responsive" aria-label={t("chooseAnotherField")} onClick={onBack}><ArrowLeft aria-hidden="true" /></Button><p className="truncate text-sm font-medium">{t("sourceFilters.rule")}</p></div>
     <fieldset className="space-y-1.5"><legend className="mb-1.5 text-xs font-medium">{t("sourceFilters.mode")}</legend>
-      <ButtonGroup className="w-full">{(["include", "exclude"] as const).map((mode) => <Button key={mode} type="button" variant={rule.mode === mode ? "secondary" : "outline"} aria-pressed={rule.mode === mode}
+      <ButtonGroup className="w-full">{(["include", "exclude"] as const).map((mode) => <Button key={mode} type="button" variant={rule.mode === mode ? "default" : "outline"} aria-pressed={rule.mode === mode}
         className="h-11 flex-1 lg:h-9" onClick={() => update({ mode })}>{label(mode)}</Button>)}</ButtonGroup>
     </fieldset>
     {!unknown && <Field className="gap-1.5"><FieldLabel htmlFor={`${id}-match`} className="text-xs">{t("sourceFilters.match")}</FieldLabel>

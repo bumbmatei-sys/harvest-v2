@@ -20,6 +20,7 @@ async function check(page: Page) {
 async function shoot(page: Page, name: string) {
   for (const scheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+    await page.waitForTimeout(300);
     for (const [label, width, height] of sizes) {
       await page.setViewportSize({ width, height });
       await check(page);
@@ -62,6 +63,7 @@ test("HC-06C+D: Connect claim, source rules, channel consent filters and a clear
     const url = mail.text.match(/http:\/\/127\.0\.0\.1:3100\/connect\/claim#token=[a-f0-9]{64}/)[0];
     await visitor.goto(url);
     await visitor.getByRole("button", { name: "Continue securely", exact: true }).click();
+    await expect(visitor.getByRole("button", { name: "Confirm this request for my account", exact: true })).toBeVisible();
     expect((await context.cookies()).some((cookie) => cookie.name === "harvest_connect_flow")).toBe(true);
     await visitor.getByRole("button", { name: "Confirm this request for my account", exact: true }).click();
     await expect(visitor.getByRole("heading", { name: "Welcome to Harvest", exact: true })).toBeVisible();
@@ -116,6 +118,7 @@ test("HC-06C+D: Connect claim, source rules, channel consent filters and a clear
   await page.goto(`${root}/crm/people?s=${encodeURIComponent(`include~any~connect~${randomUUID()}~~~~~`)}`);
   await expect(page.getByRole("alert")).toBeVisible();
   await expect(page.getByText("Synthetic Manual Person")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Export", exact: true })).toBeDisabled();
   await shoot(page, "source-invalid-notice");
 
   // Channel-specific follow-up permission filters.

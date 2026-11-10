@@ -13,7 +13,7 @@ type Count = { total: number; notes: boolean; sources?: boolean; max: number };
  * Export the current view. The count and the file use the same URL view state as the list,
  * and the server applies the list's own SQL predicate, so the three always agree.
  */
-export function ExportDialog({ tenantId, entity, query, listName }: { tenantId: string; entity: "person" | "company"; query: string; listName: string }) {
+export function ExportDialog({ tenantId, entity, query, listName, disabled = false }: { tenantId: string; entity: "person" | "company"; query: string; listName: string; disabled?: boolean }) {
   const t = useTranslations("Exports");
   const format = useFormatter();
   const crmRequest = useCrmRequest();
@@ -27,7 +27,7 @@ export function ExportDialog({ tenantId, entity, query, listName }: { tenantId: 
   }
   const tooMany = !!count && count.total > count.max;
   return <Dialog onOpenChange={(value) => void open(value)}>
-    <DialogTrigger asChild><Button size="responsive" variant="outline"><Download aria-hidden="true" />{t("export")}</Button></DialogTrigger>
+    <DialogTrigger asChild><Button size="responsive" variant="outline" disabled={disabled}><Download aria-hidden="true" />{t("export")}</Button></DialogTrigger>
     <DialogContent className="rounded-xl sm:max-w-[480px]">
       <DialogHeader><DialogTitle>{t("exportTitle", { list: listName })}</DialogTitle><DialogDescription>{t("exportDescription")}</DialogDescription></DialogHeader>
       <div className="space-y-3 text-sm" aria-live="polite">
