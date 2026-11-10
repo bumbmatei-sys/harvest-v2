@@ -344,3 +344,22 @@ it("keeps the HC-03 response guard refusing an expired link after 0032 rebuilds 
   await expect(f.admin.query("insert into campaign_responses(tenant_id,campaign_id,link_id,form_version_id,public_submission_id,locale) values($1,$2,$3,$4,$5,'en')",
     [tenant,campaign,link.id,version.id,randomUUID()])).rejects.toThrow(/not accepting responses/);
 });
+
+it("lets the surviving email's account keep claiming after an admin merges two claimed contacts",async()=>{
+ const kept={id:"b-merge-kept",email:"b-merge-kept@example.test",emailVerified:true},other={id:"b-merge-other",email:"b-merge-other@example.test",emailVerified:true};
+ await f.db.insert(users).values([{...kept,name:"Kept"},{...other,name:"Other"}]);
+ const first=await automaticFlow(["account_communications"],"Kept",kept.email);await consumeInvitation(f.db,first.flow,kept,{action:"confirm"});
+ const second=await automaticFlow(["account_communications"],"Other",other.email);await consumeInvitation(f.db,second.flow,other,{action:"confirm"});
+ const contactOf=async(response:string)=>(await f.admin.query("select contact_id from campaign_responses where id=$1",[response])).rows[0].contact_id as string;
+ const target=await contactOf(first.invitation.response_id),source=await contactOf(second.invitation.response_id);
+ const [t,s]=[await getContact(f.db,"hc06b-owner",tenant,target),await getContact(f.db,"hc06b-owner",tenant,source)];
+ await mergeContacts(f.db,"hc06b-owner",tenant,target,{sourceId:source,sourceVersion:s.version,targetVersion:t.version});
+ // The merged contact now carries both accounts' bindings; the account whose email it kept must not be locked out.
+ const third=await automaticFlow(["account_communications"],"Kept",kept.email);
+ expect((await consumeInvitation(f.db,third.flow,kept,{action:"confirm"})).next).toContain("/account/welcome");
+ expect(await contactOf(third.invitation.response_id)).toBe(target);
+ // Each account still sees only its own responses.
+ const {listSubjectResponses}=await import("../../src/server/connect-subject-rights");
+ expect((await listSubjectResponses(f.db,kept.id)).items).toHaveLength(2);
+ expect((await listSubjectResponses(f.db,other.id)).items).toHaveLength(1);
+});

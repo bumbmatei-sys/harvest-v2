@@ -294,9 +294,9 @@ BEGIN
   INSERT INTO public.contact_identifiers(tenant_id,contact_id,kind,value,normalized_value) VALUES(p_tenant,person,'email',u.email,lower(u.email));
   created:=true;
  ELSE
-  IF NOT EXISTS(SELECT 1 FROM public.contact_identifiers WHERE tenant_id=p_tenant AND contact_id=person AND kind='email' AND normalized_value=lower(u.email))
-   OR EXISTS(SELECT 1 FROM public.connect_response_subjects subject JOIN public.campaign_responses rr
-   ON rr.tenant_id=subject.tenant_id AND rr.id=subject.response_id WHERE rr.tenant_id=p_tenant AND rr.contact_id=person AND subject.user_id<>actor) THEN
+  -- Reuse is keyed on the verified email identifier alone. Response rights stay per-response and user-bound,
+  -- so a contact that already holds another account's responses (for example after an admin merge) is reusable.
+  IF NOT EXISTS(SELECT 1 FROM public.contact_identifiers WHERE tenant_id=p_tenant AND contact_id=person AND kind='email' AND normalized_value=lower(u.email)) THEN
    RAISE EXCEPTION 'association unavailable' USING ERRCODE='42501'; END IF;
  END IF;
  IF public.connect_invitation_eligible(p_tenant,p_response,i.source_code) IS NULL OR i.expires_at<=clock_timestamp()
