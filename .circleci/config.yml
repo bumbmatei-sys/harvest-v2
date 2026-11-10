@@ -1,7 +1,11 @@
 # Harvest V2 — CircleCI Free. No jobs deploy or send real messages.
-# Push/PR pipelines run the fast workflow. The expensive final workflow is
+# Push/PR pipelines run the fast workflow. The expensive final workflows are
 # MANUAL ONLY: select the exact PR head branch, set full_review=true and
 # expected_sha=<40-character SHA> and pr_number=<open PR number> in CircleCI's Trigger Pipeline dialog.
+# The browser suite is sharded across parallel containers and build/PWA runs beside it.
+# Neon migration verification is its own workflow and runs alongside the browser jobs; leave
+# run_neon=true (the default) for any PR that changes drizzle/, and set run_neon=false for PRs that
+# do not, which also keeps the restricted harvest-neon-ci context out of the run.
 version: 2.1
 
 orbs:
@@ -17,6 +21,41 @@ parameters:
   pr_number:
     type: integer
     default: 0
+  run_neon:
+    type: boolean
+    default: true
+
+commands:
+  require_exact_head:
+    description: Refuse any checkout that is not the explicitly selected, current PR head.
+    steps:
+      - run:
+          name: Require explicitly selected exact PR head
+          command: |
+            set -euo pipefail
+            if ! [[ "$REVIEW_EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+              echo "Set expected_sha to the full, lowercase 40-character PR head SHA."
+              exit 1
+            fi
+            if [ "$(git rev-parse HEAD)" != "$REVIEW_EXPECTED_SHA" ] || [ "${CIRCLE_SHA1:-}" != "$REVIEW_EXPECTED_SHA" ]; then
+              echo "The selected checkout does not match the intended PR HEAD; refusing stale validation."
+              exit 1
+            fi
+            if [ -z "${CIRCLE_BRANCH:-}" ] || [ "$CIRCLE_BRANCH" = "main" ]; then
+              echo "Select an open PR head branch, not main or a detached commit."
+              exit 1
+            fi
+            if ! [[ "$REVIEW_PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
+              echo "Provide an open PR number for the final-review branch."
+              exit 1
+            fi
+            pr_sha="$(git ls-remote origin "refs/pull/${REVIEW_PR_NUMBER}/head" | cut -f1)"
+            branch_sha="$(git ls-remote origin "refs/heads/${CIRCLE_BRANCH}" | cut -f1)"
+            if [ "$pr_sha" != "$REVIEW_EXPECTED_SHA" ] || [ "$branch_sha" != "$REVIEW_EXPECTED_SHA" ]; then
+              echo "PR head or branch has changed; refusing stale final review."
+              exit 1
+            fi
+            echo "Exact SHA selected for final review: $REVIEW_EXPECTED_SHA"
 
 jobs:
   fast_checks:
@@ -76,6 +115,9 @@ jobs:
     # The full dev-server + Chromium suite approached 4 GiB and lost its server
     # on medium. Gen1 large (8 GiB, 20 credits/min) is available on Free.
     resource_class: large
+    # Playwright splits the spec files across these containers (each runs its own
+    # server and disposable database), so wall-clock time shrinks as the suite grows.
+    parallelism: 4
     environment:
       CI: "true"
       NEXT_TELEMETRY_DISABLED: "1"
@@ -83,39 +125,12 @@ jobs:
       REVIEW_PR_NUMBER: << pipeline.parameters.pr_number >>
     steps:
       - checkout
-      - run:
-          name: Require explicitly selected exact PR head
-          command: |
-            set -euo pipefail
-            if ! [[ "$REVIEW_EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-              echo "Set expected_sha to the full, lowercase 40-character PR head SHA."
-              exit 1
-            fi
-            if [ "$(git rev-parse HEAD)" != "$REVIEW_EXPECTED_SHA" ] || [ "${CIRCLE_SHA1:-}" != "$REVIEW_EXPECTED_SHA" ]; then
-              echo "The selected checkout does not match the intended PR HEAD; refusing stale validation."
-              exit 1
-            fi
-            if [ -z "${CIRCLE_BRANCH:-}" ] || [ "$CIRCLE_BRANCH" = "main" ]; then
-              echo "Select an open PR head branch, not main or a detached commit."
-              exit 1
-            fi
-            if ! [[ "$REVIEW_PR_NUMBER" =~ ^[1-9][0-9]*$ ]]; then
-              echo "Provide an open PR number for the final-review branch."
-              exit 1
-            fi
-            pr_sha="$(git ls-remote origin "refs/pull/${REVIEW_PR_NUMBER}/head" | cut -f1)"
-            branch_sha="$(git ls-remote origin "refs/heads/${CIRCLE_BRANCH}" | cut -f1)"
-            if [ "$pr_sha" != "$REVIEW_EXPECTED_SHA" ] || [ "$branch_sha" != "$REVIEW_EXPECTED_SHA" ]; then
-              echo "PR head or branch has changed; refusing stale final review."
-              exit 1
-            fi
-            echo "Exact SHA selected for final review: $REVIEW_EXPECTED_SHA"
+      - require_exact_head
       - run: npm ci
-      - browser-tools/install_chrome
       - run: npx playwright install chromium
-      - run: npm run test:e2e
-      - run: npm run build
-      - run: npm run test:pwa
+      - run:
+          name: Browser tests (this container's shard)
+          command: npx playwright test --shard="$((CIRCLE_NODE_INDEX + 1))/${CIRCLE_NODE_TOTAL}"
       # Store only failure evidence. An ordinary store_artifacts step always
       # executes; the run step packages files only if an earlier step failed.
       - run:
@@ -124,14 +139,32 @@ jobs:
           command: |
             mkdir -p /tmp/harvest-browser-failures
             if [ -d test-results ]; then
-              tar -czf /tmp/harvest-browser-failures/test-results.tar.gz test-results
+              tar -czf "/tmp/harvest-browser-failures/test-results-${CIRCLE_NODE_INDEX}.tar.gz" test-results
             fi
             if [ -d playwright-report ]; then
-              tar -czf /tmp/harvest-browser-failures/playwright-report.tar.gz playwright-report
+              tar -czf "/tmp/harvest-browser-failures/playwright-report-${CIRCLE_NODE_INDEX}.tar.gz" playwright-report
             fi
       - store_artifacts:
           path: /tmp/harvest-browser-failures
           destination: browser-failures
+
+  build_pwa_review:
+    docker:
+      - image: cimg/node:24-browsers
+    resource_class: large
+    environment:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      REVIEW_EXPECTED_SHA: << pipeline.parameters.expected_sha >>
+      REVIEW_PR_NUMBER: << pipeline.parameters.pr_number >>
+    steps:
+      - checkout
+      - require_exact_head
+      - run: npm ci
+      - browser-tools/install_chrome
+      - run: npx playwright install chromium
+      - run: npm run build
+      - run: npm run test:pwa
 
   neon_review:
     docker:
@@ -205,7 +238,15 @@ workflows:
     when: << pipeline.parameters.full_review >>
     jobs:
       - browser_review
+      - build_pwa_review
+
+  # Independent of the browser jobs: it never executes PR code (candidate SQL and the journal only),
+  # so it does not need to wait for them. Skipped with run_neon=false for PRs that leave drizzle/ alone.
+  neon_migrations:
+    when:
+      and:
+        - << pipeline.parameters.full_review >>
+        - << pipeline.parameters.run_neon >>
+    jobs:
       - neon_review:
-          requires:
-            - browser_review
           context: harvest-neon-ci
