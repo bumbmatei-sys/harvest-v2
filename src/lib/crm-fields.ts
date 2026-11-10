@@ -143,7 +143,7 @@ export function validateFilter(filter: Filter, fields: FilterField[]): Filter | 
 // Columns. Name is always first and not configurable.
 export type ColumnSpec = { key: string; width: number };
 export const builtinColumns: Record<ObjectType, ColumnSpec[]> = {
-  person: [{ key: "company", width: 192 }, { key: "email", width: 224 }, { key: "phone", width: 144 }, { key: "marketing", width: 136 }, { key: "created", width: 112 }, { key: "updated", width: 112 }],
+  person: [{ key: "source", width: 160 }, { key: "company", width: 192 }, { key: "email", width: 224 }, { key: "phone", width: 144 }, { key: "marketing", width: 136 }, { key: "created", width: 112 }, { key: "updated", width: 112 }],
   company: [{ key: "domain", width: 240 }, { key: "people", width: 88 }, { key: "created", width: 112 }, { key: "updated", width: 112 }],
 };
 export const defaultColumns: Record<ObjectType, string[]> = { person: ["company", "email", "phone", "marketing", "created"], company: ["domain", "people", "created"] };

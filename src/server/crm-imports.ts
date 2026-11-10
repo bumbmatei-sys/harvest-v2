@@ -228,34 +228,6 @@ async function decideAll(tx: Transaction, tenantId: string, entity: ImportEntity
   return decisions.map((decision, index) => ({ ...(inFile[index] ? { action: "conflict" as const, error: "duplicate_in_file" as const } : decision), keys: parsed[index].keys, value: parsed[index].ok ? (parsed[index] as { value: PersonRow | CompanyRow }).value : null }));
 }
 
-const identifierValue = (kind: "email" | "phone" | "social", value: string) => ({ kind, value, normalizedValue: kind === "social" ? value.replace(/^@/, "").toLowerCase() : value });
-async function applyPerson(tx: Transaction, tenantId: string, userId: string, importId: string, decision: Decision, value: PersonRow) {
-  if (decision.action === "create") {
-    const [contact] = await tx.insert(contacts).values({ tenantId, name: value.name, notes: value.notes }).returning();
-    const identifiers = (["email", "phone", "social"] as const).filter((kind) => value[kind]).map((kind) => ({ tenantId, contactId: contact.id, ...identifierValue(kind, value[kind]) }));
-    if (identifiers.length) await tx.insert(contactIdentifiers).values(identifiers);
-    await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "contact.create", targetId: contact.id, metadata: { importId } });
-    let applied: CrmImportApplied | null = null;
-    if (decision.companyId) {
-      await tx.insert(contactCompanyLinks).values({ tenantId, contactId: contact.id, companyId: decision.companyId, title: value.title, isPrimary: true, createdBy: userId });
-      await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "contact.company_link", targetId: contact.id, metadata: { companyId: decision.companyId, importId } });
-      applied = { companyId: decision.companyId, linked: true };
-    }
-    return { recordId: contact.id, created: true, applied, version: contact.version };
-  }
-  const id = decision.recordId!, fill = decision.fill!;
-  if (fill.identifiers?.length) await tx.insert(contactIdentifiers).values(fill.identifiers.map((kind) => ({ tenantId, contactId: id, ...identifierValue(kind as "email", value[kind as "email"]) })));
-  if (fill.linked && fill.companyId) {
-    const [primary] = await tx.select({ one: sql`1` }).from(contactCompanyLinks).where(and(eq(contactCompanyLinks.tenantId, tenantId), eq(contactCompanyLinks.contactId, id), eq(contactCompanyLinks.isPrimary, true)));
-    await tx.insert(contactCompanyLinks).values({ tenantId, contactId: id, companyId: fill.companyId, title: value.title, isPrimary: !primary, createdBy: userId });
-    await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "contact.company_link", targetId: id, metadata: { companyId: fill.companyId, importId } });
-  }
-  const [row] = await tx.update(contacts).set({ ...(fill.notes ? { notes: value.notes } : {}), updatedAt: new Date(), version: sql`${contacts.version} + 1` })
-    .where(and(eq(contacts.tenantId, tenantId), eq(contacts.id, id), isNull(contacts.erasedAt))).returning();
-  const fields = [...(fill.notes ? ["notes"] : []), ...(fill.identifiers ?? [])];
-  if (fields.length) await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "contact.update", targetId: id, metadata: { fields: fields.join(","), importId } });
-  return { recordId: id, created: false, applied: fill, version: row.version };
-}
 async function applyCompany(tx: Transaction, tenantId: string, userId: string, importId: string, decision: Decision, value: CompanyRow) {
   if (decision.action === "create") {
     const [company] = await tx.insert(companies).values({ tenantId, name: value.name, domain: value.domain, description: value.description, createdBy: userId }).returning();
@@ -293,11 +265,14 @@ export function commitImport(db: Database, userId: string, workspace: string, im
         continue;
       }
       try {
-        const result = await tx.transaction((sp) => current.entity === "person"
-          ? applyPerson(sp, tenantId, userId, id, decision, decision.value as PersonRow)
-          : applyCompany(sp, tenantId, userId, id, decision, decision.value as CompanyRow));
-        await mark({ status: "done", action: decision.action, created: result.created, applied: result.applied, resultVersion: result.version,
-          ...(current.entity === "person" ? { contactId: result.recordId } : { companyId: result.recordId }) });
+        await tx.transaction(async (sp) => {
+          if (current.entity === "person") {
+            await sp.execute(sql`select public.apply_person_import_row(${tenantId}::uuid,${id}::uuid,${row.rowNumber}::integer,${decision.companyId ?? null}::uuid)`);
+          } else {
+            const result = await applyCompany(sp, tenantId, userId, id, decision, decision.value as CompanyRow);
+            await mark({ status: "done", action: decision.action, created: result.created, applied: result.applied, resultVersion: result.version, companyId: result.recordId });
+          }
+        });
       } catch (error) {
         if (pgCode(error) !== "23505" && !(error instanceof ChangedSincePreview)) throw error;
         await mark({ status: "error", action: "error", error: pgCode(error) === "23505" ? "identifier_taken" : "changed_since_preview" });

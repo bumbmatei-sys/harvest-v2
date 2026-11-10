@@ -10,7 +10,7 @@ type Format = Awaited<ReturnType<typeof getFormatter>>;
 
 export function builtinLabel(t: T, objectType: ObjectType, key: string) {
   const labels: Record<string, string> = objectType === "person"
-    ? { name: t("name"), email: t("email"), phone: t("phone"), company: t("company"), marketing: t("emailMarketing"), created: t("added"), updated: t("updatedColumn") }
+    ? { source: t("sourceHistory.column"), name: t("name"), email: t("email"), phone: t("phone"), company: t("company"), marketing: t("emailMarketing"), created: t("added"), updated: t("updatedColumn") }
     : { name: t("name"), domain: t("fields.domain"), people: t("people"), created: t("added"), updated: t("updatedColumn") };
   return labels[key] ?? key;
 }
@@ -46,7 +46,7 @@ export function customCell(t: T, format: Format, tenantId: string, field: FieldD
 }
 
 /** Everything the toolbar and grid need that depends on the tenant's field definitions. */
-export function listParts(t: T, objectType: ObjectType, definitions: FieldDefinition[], state: ViewState, views: SavedView[]) {
+export function listParts(t: T, objectType: ObjectType, definitions: FieldDefinition[], state: ViewState, views: SavedView[], sourceAccess = false) {
   const fields: FieldMeta[] = [
     ...builtinFields[objectType].map((field) => ({ ...field, label: builtinLabel(t, objectType, field.key), options: field.key === "marketing" ? field.options?.map((option) => ({ value: option.value, label: t(`marketing.${option.value as "granted"}`) })) : field.options })),
     ...definitions.map((field) => ({ key: customFieldKey(field.key), type: field.type, options: field.options, relationTarget: field.relationTarget, builtin: false, label: field.label })),
@@ -55,7 +55,7 @@ export function listParts(t: T, objectType: ObjectType, definitions: FieldDefini
     ...builtinSorts[objectType].map((key) => ({ value: key, label: builtinLabel(t, objectType, key) })),
     ...definitions.filter((field) => sortableTypes.includes(field.type)).map((field) => ({ value: customFieldKey(field.key), label: field.label })),
   ];
-  const specs = columnSpecs(objectType, definitions);
+  const specs = columnSpecs(objectType, definitions).filter(spec => spec.key !== "source" || sourceAccess);
   const label = (key: string) => (key.startsWith("cf:") ? definitions.find((field) => customFieldKey(field.key) === key)?.label ?? key : builtinLabel(t, objectType, key));
   const available = specs.map((spec) => ({ key: spec.key, label: label(spec.key) }));
   // Columns that no longer exist (an archived field) are simply left out of the grid.
