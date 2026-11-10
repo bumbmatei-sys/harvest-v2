@@ -1,5 +1,5 @@
 import type { getFormatter, getTranslations } from "next-intl/server";
-import { builtinFields, builtinSorts, columnSpecs, customFieldKey, defaultColumns, sortableTypes, type FieldDefinition, type FieldValue, type ObjectType, type ViewState } from "@/lib/crm-fields";
+import { builtinFields, builtinSorts, columnSpecs, customFieldKey, defaultColumns, permissionFields, sortableTypes, type FieldDefinition, type FieldValue, type ObjectType, type ViewState } from "@/lib/crm-fields";
 import type { SavedView } from "@/server/crm-views";
 import type { FieldMeta } from "./filter-builder";
 import type { EditSpec, GridCell, GridColumn } from "./record-grid";
@@ -10,7 +10,8 @@ type Format = Awaited<ReturnType<typeof getFormatter>>;
 
 export function builtinLabel(t: T, objectType: ObjectType, key: string) {
   const labels: Record<string, string> = objectType === "person"
-    ? { source: t("sourceHistory.column"), name: t("name"), email: t("email"), phone: t("phone"), company: t("company"), marketing: t("emailMarketing"), created: t("added"), updated: t("updatedColumn") }
+    ? { source: t("sourceHistory.column"), name: t("name"), email: t("email"), phone: t("phone"), company: t("company"), marketing: t("emailMarketing"), created: t("added"), updated: t("updatedColumn"),
+      ...Object.fromEntries(permissionFields.map((key) => [key, t(`permissionFields.${key}`)])) }
     : { name: t("name"), domain: t("fields.domain"), people: t("people"), created: t("added"), updated: t("updatedColumn") };
   return labels[key] ?? key;
 }
@@ -45,10 +46,17 @@ export function customCell(t: T, format: Format, tenantId: string, field: FieldD
   return { text: text ?? t("empty"), muted: text === null, href, edit };
 }
 
+/** Consent states read as subscriptions for email marketing and newsletters, as permissions for follow-up. */
+function optionLabels(t: T, key: string, options: FieldDefinition["options"] | undefined) {
+  if (key === "marketing" || key === "newsletter") return options?.map((option) => ({ value: option.value, label: t(`marketing.${option.value as "granted"}`) }));
+  if (key === "followup_email" || key === "followup_sms") return options?.map((option) => ({ value: option.value, label: t(`permission.${option.value as "granted"}`) }));
+  return options;
+}
+
 /** Everything the toolbar and grid need that depends on the tenant's field definitions. */
 export function listParts(t: T, objectType: ObjectType, definitions: FieldDefinition[], state: ViewState, views: SavedView[], sourceAccess = false) {
   const fields: FieldMeta[] = [
-    ...builtinFields[objectType].map((field) => ({ ...field, label: builtinLabel(t, objectType, field.key), options: field.key === "marketing" ? field.options?.map((option) => ({ value: option.value, label: t(`marketing.${option.value as "granted"}`) })) : field.options })),
+    ...builtinFields[objectType].map((field) => ({ ...field, label: builtinLabel(t, objectType, field.key), options: optionLabels(t, field.key, field.options) })),
     ...definitions.map((field) => ({ key: customFieldKey(field.key), type: field.type, options: field.options, relationTarget: field.relationTarget, builtin: false, label: field.label })),
   ];
   const sorts = [

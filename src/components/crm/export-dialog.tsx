@@ -7,13 +7,13 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useCrmRequest } from "./request";
 
-type Count = { total: number; notes: boolean; max: number };
+type Count = { total: number; notes: boolean; sources?: boolean; max: number };
 
 /**
  * Export the current view. The count and the file use the same URL view state as the list,
  * and the server applies the list's own SQL predicate, so the three always agree.
  */
-export function ExportDialog({ tenantId, entity, query, listName }: { tenantId: string; entity: "person" | "company"; query: string; listName: string }) {
+export function ExportDialog({ tenantId, entity, query, listName, disabled = false }: { tenantId: string; entity: "person" | "company"; query: string; listName: string; disabled?: boolean }) {
   const t = useTranslations("Exports");
   const format = useFormatter();
   const crmRequest = useCrmRequest();
@@ -27,7 +27,7 @@ export function ExportDialog({ tenantId, entity, query, listName }: { tenantId: 
   }
   const tooMany = !!count && count.total > count.max;
   return <Dialog onOpenChange={(value) => void open(value)}>
-    <DialogTrigger asChild><Button size="responsive" variant="outline"><Download aria-hidden="true" />{t("export")}</Button></DialogTrigger>
+    <DialogTrigger asChild><Button size="responsive" variant="outline" disabled={disabled}><Download aria-hidden="true" />{t("export")}</Button></DialogTrigger>
     <DialogContent className="rounded-xl sm:max-w-[480px]">
       <DialogHeader><DialogTitle>{t("exportTitle", { list: listName })}</DialogTitle><DialogDescription>{t("exportDescription")}</DialogDescription></DialogHeader>
       <div className="space-y-3 text-sm" aria-live="polite">
@@ -36,6 +36,7 @@ export function ExportDialog({ tenantId, entity, query, listName }: { tenantId: 
             : <>
               <p className="font-medium">{tooMany ? t("tooMany", { max: format.number(count.max) }) : t("count", { count: count.total })}</p>
               {entity === "person" && <p className="text-muted-foreground">{count.notes ? t("notesIncluded") : t("notesExcluded")}</p>}
+              {count.sources && <p className="text-muted-foreground">{t("sourcesIncluded")}</p>}
               <p className="text-muted-foreground">{t("safety")}</p>
             </>}
       </div>

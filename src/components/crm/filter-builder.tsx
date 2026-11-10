@@ -2,7 +2,7 @@
 import { useTranslations } from "next-intl";
 import { useEffect, useId, useRef, useState } from "react";
 import { ArrowLeft, ListFilter, X } from "lucide-react";
-import { MAX_FILTERS, operandsByType, valuelessOperands, validateFilter, type FieldType, type Filter, type FilterField, type Operand } from "@/lib/crm-fields";
+import { MAX_FILTERS, MAX_SOURCE_RULES, consentFilterFields, operandsByType, valuelessOperands, validateFilter, type FieldType, type Filter, type FilterField, type Operand, type SourceRule } from "@/lib/crm-fields";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -14,6 +14,7 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useCrmRequest } from "./request";
+import { SourceRuleEditor, useSourceOptions } from "./source-rule-editor";
 
 /** A filterable field with its display label and, for choices, labelled options. */
 export type FieldMeta = FilterField & { label: string };
@@ -44,11 +45,16 @@ function RelationSearch({ endpoint, value, onChange }: { endpoint: string; value
   </Command>;
 }
 
+/** What the panel opens on: a condition, a source rule, or the field list. */
+export type FilterTarget = { kind: "filter" | "source"; index: number } | null;
 type FilterBuilderProps = {
-  fields: FieldMeta[]; tenantId: string; filters: Filter[]; open: boolean; editing: number | null; relatedNames: Record<string, string>;
+  fields: FieldMeta[]; tenantId: string; filters: Filter[]; open: boolean; editing: FilterTarget; relatedNames: Record<string, string>;
+  /** HC-06C: source rules, offered only to owners and admins (the server enforces the same). */
+  sources: SourceRule[]; sourceAccess: boolean;
   onOpenChange: (open: boolean) => void;
-  onApply: (filters: Filter[], names: Record<string, string>) => void;
+  onApply: (filters: Filter[], sources: SourceRule[], names: Record<string, string>) => void;
   chipText: (filter: Filter, names?: Record<string, string>) => string;
+  sourceChipText: (rule: SourceRule, names?: Record<string, string>) => string;
 };
 
 /** One shared, transactional filter panel. Closing unmounts the draft without changing URL state. */
@@ -57,7 +63,7 @@ export function FilterBuilder(props: FilterBuilderProps) {
   const [container, setContainer] = useState<HTMLDivElement | null>(null), [tooltipOpen, setTooltipOpen] = useState(false);
   return <div ref={setContainer} className="inline-flex"><Popover open={props.open} onOpenChange={props.onOpenChange}>
     <Tooltip open={!props.open && tooltipOpen} onOpenChange={setTooltipOpen}><TooltipTrigger asChild><PopoverTrigger asChild>
-      <Button variant="outline" size="icon-responsive" aria-label={t("filters")} data-active={props.filters.length > 0} className="data-[active=true]:bg-accent"><ListFilter aria-hidden="true" /></Button>
+      <Button variant="outline" size="icon-responsive" aria-label={t("filters")} data-active={props.filters.length + props.sources.length > 0} className="data-[active=true]:border-primary data-[active=true]:bg-accent"><ListFilter aria-hidden="true" /></Button>
     </PopoverTrigger></TooltipTrigger><TooltipContent container={container}>{t("filters")}</TooltipContent></Tooltip>
     <PopoverContent aria-label={t("filters")} align="end" collisionPadding={16} className="flex max-h-[min(38rem,var(--radix-popover-content-available-height))] w-[min(24rem,calc(100vw-2rem))] flex-col overflow-hidden p-0">
       {props.open && <FilterSession {...props} />}
@@ -65,10 +71,14 @@ export function FilterBuilder(props: FilterBuilderProps) {
   </Popover></div>;
 }
 
-function FilterSession({ fields, tenantId, filters, editing, relatedNames, onOpenChange, onApply, chipText }: FilterBuilderProps) {
+function FilterSession({ fields, tenantId, filters, sources, sourceAccess, editing, relatedNames, onOpenChange, onApply, chipText, sourceChipText }: FilterBuilderProps) {
   const t = useTranslations("Crm"), id = useId();
-  const initial = editing === null ? undefined : filters[editing];
-  const [draft, setDraft] = useState(filters), [index, setIndex] = useState<number | null>(editing);
+  const initial = editing?.kind === "filter" ? filters[editing.index] : undefined;
+  const [draft, setDraft] = useState(filters), [index, setIndex] = useState<number | null>(editing?.kind === "filter" ? editing.index : null);
+  const [draftSources, setDraftSources] = useState(sources);
+  // null: not editing a source rule; "new": adding one; a number: editing that staged rule.
+  const [sourceAt, setSourceAt] = useState<number | "new" | null>(editing?.kind === "source" ? editing.index : null);
+  const sourceChoices = useSourceOptions(tenantId, sourceAccess && sourceAt !== null);
   const [field, setField] = useState<FieldMeta | null>(() => fields.find((item) => item.key === initial?.field) ?? null);
   const [op, setOp] = useState<Operand>(initial?.op ?? "contains"), [text, setText] = useState(typeof initial?.value === "string" ? initial.value : "");
   const [choices, setChoices] = useState<string[]>(Array.isArray(initial?.value) ? initial.value : initial?.value ? initial.value.split(",") : []);
@@ -94,18 +104,26 @@ function FilterSession({ fields, tenantId, filters, editing, relatedNames, onOpe
     setDraft(next); setField(null); setIndex(null); setError("");
   }
   function apply() {
-    const next = candidate(); if (!next) return;
+    // A source rule still being edited is staged by its own form; Apply keeps what is staged.
+    const next = sourceAt === null ? candidate() : draft; if (!next) return;
     if (next.some((filter) => !validateFilter(filter, fields))) { setError(t("completeTheFilter")); return; }
-    onApply(next, names); onOpenChange(false);
+    onApply(next, draftSources, names); onOpenChange(false);
   }
+  function stageSource(rule: SourceRule, picked: Record<string, string>) {
+    if (sourceAt === "new" && draftSources.length >= MAX_SOURCE_RULES) return t("sourceFilters.limit", { max: MAX_SOURCE_RULES });
+    setDraftSources((list) => sourceAt === "new" || sourceAt === null ? [...list, rule] : list.map((item, at) => at === sourceAt ? rule : item));
+    setNames((current) => ({ ...current, ...picked })); setSourceAt(null); setError("");
+    return null;
+  }
+  const total = draft.length + draftSources.length;
   const groups = [
-    { label: t("contactDetails"), fields: fields.filter((item) => item.builtin && item.key !== "marketing") },
-    { label: t("contactPermissions"), fields: fields.filter((item) => item.key === "marketing") },
+    { label: t("contactDetails"), fields: fields.filter((item) => item.builtin && !consentFilterFields.includes(item.key)) },
+    { label: t("contactPermissions"), fields: fields.filter((item) => consentFilterFields.includes(item.key)) },
     { label: t("customFields"), fields: fields.filter((item) => !item.builtin) },
   ];
   const inputType: Partial<Record<FieldType, string>> = { number: "number", date: "date" };
   return <>
-    <div className="flex items-center justify-between border-b px-4 py-3"><h2 className="text-sm font-semibold">{t("filters")}</h2><Badge variant="secondary" className="tabular-nums">{t("filterCount", { count: draft.length })}</Badge></div>
+    <div className="flex items-center justify-between border-b px-4 py-3"><h2 className="text-sm font-semibold">{t("filters")}</h2><Badge variant="secondary" className="tabular-nums">{t("filterCount", { count: total })}</Badge></div>
     <div className="min-h-0 overflow-y-auto">
       {draft.length > 0 && <ul aria-label={t("draftFilters")} className="space-y-1 border-b p-2">{draft.map((filter, at) => {
         const label = chipText(filter, names);
@@ -114,12 +132,24 @@ function FilterSession({ fields, tenantId, filters, editing, relatedNames, onOpe
           <Button variant="ghost" size="icon-responsive" aria-label={t("removeFilter", { filter: label })} onClick={() => { setDraft(draft.filter((_, item) => item !== at)); setField(null); setIndex(null); setError(""); }}><X aria-hidden="true" /></Button>
         </li>;
       })}</ul>}
-      {!field ? <Command label={t("filterBy")}>
+      {draftSources.length > 0 && <ul aria-label={t("sourceFilters.group")} className="space-y-1 border-b p-2">{draftSources.map((rule, at) => {
+        const label = sourceChipText(rule, names);
+        return <li key={at} className="flex items-center gap-1 rounded-md bg-muted/50">
+          <Button variant="ghost" className="h-auto min-h-11 min-w-0 flex-1 justify-start whitespace-normal px-2 py-2 text-left text-xs font-normal lg:min-h-9" aria-label={t("sourceFilters.editRule", { rule: label })} onClick={() => { setField(null); setIndex(null); setSourceAt(at); setError(""); }}>{label}</Button>
+          <Button variant="ghost" size="icon-responsive" aria-label={t("sourceFilters.removeRule", { rule: label })} onClick={() => { setDraftSources(draftSources.filter((_, item) => item !== at)); setSourceAt(null); setError(""); }}><X aria-hidden="true" /></Button>
+        </li>;
+      })}</ul>}
+      {sourceAt !== null ? <SourceRuleEditor key={String(sourceAt)} initial={sourceAt === "new" ? undefined : draftSources[sourceAt]} options={sourceChoices.options} error={sourceChoices.error} onRetry={sourceChoices.retry}
+        names={{ ...relatedNames, ...names }} submitLabel={t(sourceAt === "new" ? "sourceFilters.addRule" : "sourceFilters.updateRule")} onBack={() => { setSourceAt(null); setError(""); }} onStage={stageSource} />
+      : !field ? <Command label={t("filterBy")}>
         <CommandInput aria-label={t("searchFields")} placeholder={t("searchFields")} />
         <CommandList className="max-h-60"><CommandEmpty>{t("noFieldsFound")}</CommandEmpty>
           {groups.filter((group) => group.fields.length > 0).map((group) => <CommandGroup key={group.label} heading={group.label}>{group.fields.map((item) => <CommandItem className="min-h-11 gap-3 lg:min-h-9" key={item.key} value={`${item.label} ${item.key}`} disabled={draft.length >= MAX_FILTERS} onSelect={() => pick(item)}>
             <span className="min-w-0 flex-1 truncate">{item.label}</span><span className="text-xs text-muted-foreground">{t(`fieldTypes.${item.type}`)}</span>
           </CommandItem>)}</CommandGroup>)}
+          {sourceAccess && <CommandGroup heading={t("sourceFilters.group")}><CommandItem className="min-h-11 gap-3 lg:min-h-9" value={`${t("sourceFilters.rule")} source`} disabled={draftSources.length >= MAX_SOURCE_RULES} onSelect={() => { setSourceAt("new"); setError(""); }}>
+            <span className="min-w-0 flex-1 truncate">{t("sourceFilters.rule")}</span><span className="text-xs text-muted-foreground">{t("sourceFilters.ruleType")}</span>
+          </CommandItem></CommandGroup>}
         </CommandList>
       </Command> : <form className="space-y-3 p-3" onSubmit={(event) => { event.preventDefault(); apply(); }}>
         <div className="flex items-center gap-1.5"><Button type="button" variant="ghost" size="icon-responsive" aria-label={t("chooseAnotherField")} onClick={() => { setField(null); setIndex(null); setError(""); }}><ArrowLeft aria-hidden="true" /></Button><p className="truncate text-sm font-medium">{field.label}</p></div>
@@ -139,11 +169,11 @@ function FilterSession({ fields, tenantId, filters, editing, relatedNames, onOpe
 
         <Button type="button" variant="outline" size="responsive" className="w-full" onClick={stage}>{t(index === null ? "addCondition" : "updateCondition")}</Button>
       </form>}
-      {draft.length >= MAX_FILTERS && !field && <p className="px-3 py-2 text-xs text-muted-foreground">{t("filterLimit", { max: MAX_FILTERS })}</p>}
+      {draft.length >= MAX_FILTERS && !field && sourceAt === null && <p className="px-3 py-2 text-xs text-muted-foreground">{t("filterLimit", { max: MAX_FILTERS })}</p>}
       {error && <p role="alert" className="px-3 py-2 text-xs text-destructive">{error}</p>}
     </div>
     <div className="flex flex-wrap items-center gap-2 border-t p-3">
-      <Button variant="ghost" size="responsive" className="mr-auto px-2" onClick={() => { setDraft([]); setField(null); setIndex(null); setError(""); }}>{t("clearAll")}</Button>
+      <Button variant="ghost" size="responsive" className="mr-auto px-2" onClick={() => { setDraft([]); setDraftSources([]); setField(null); setIndex(null); setSourceAt(null); setError(""); }}>{t("clearAll")}</Button>
       <Button variant="outline" size="responsive" onClick={() => onOpenChange(false)}>{t("cancel")}</Button>
       <Button size="responsive" onClick={apply}>{t("applyFilter")}</Button>
     </div>

@@ -90,11 +90,24 @@ export const MAX_FILTERS = 10;
 /** A filterable field as the filter builder and compiler see it. */
 export type FilterField = { key: string; type: FieldType; options?: FieldOption[]; relationTarget?: ObjectType | null; builtin: boolean; label?: string };
 
+const consentOptions = () => [{ value: "granted", label: "granted" }, { value: "withdrawn", label: "withdrawn" }, { value: "none", label: "none" }];
+/** Purpose/channel permission filters. Each maps to exactly one consent ledger scope. */
+export const permissionScopes = {
+  newsletter: { purpose: "newsletter", channel: "email" },
+  followup_email: { purpose: "outreach_follow_up", channel: "email" },
+  followup_sms: { purpose: "outreach_follow_up", channel: "sms" },
+} as const;
+export type PermissionField = keyof typeof permissionScopes;
+export const permissionFields = Object.keys(permissionScopes) as PermissionField[];
+export const consentFilterFields: readonly string[] = ["marketing", ...permissionFields];
+
 export const builtinFields: Record<ObjectType, FilterField[]> = {
   person: [
     { key: "name", type: "text", builtin: true }, { key: "email", type: "text", builtin: true }, { key: "phone", type: "text", builtin: true },
     { key: "company", type: "relation", relationTarget: "company", builtin: true },
-    { key: "marketing", type: "select", builtin: true, options: [{ value: "granted", label: "granted" }, { value: "withdrawn", label: "withdrawn" }, { value: "none", label: "none" }] },
+    { key: "marketing", type: "select", builtin: true, options: consentOptions() },
+    // HC-06C: distinct operational purposes, one filter per channel (consent is per channel).
+    ...permissionFields.map((key) => ({ key, type: "select" as const, builtin: true, options: consentOptions() })),
     { key: "created", type: "date", builtin: true }, { key: "updated", type: "date", builtin: true },
   ],
   company: [
@@ -167,6 +180,55 @@ export const sortableTypes: readonly FieldType[] = ["text", "number", "date", "b
 export const defaultSort = "name";
 
 // ---------------------------------------------------------------------------
+// HC-06C source rules. Each rule's conditions must hold on the SAME recorded source
+// event; included rules form a union and any matching excluded rule removes a contact.
+// Pure syntax here: the server checks capability and tenant references before any SQL.
+export const sourceKinds = ["connect", "manual", "csv_import", "unknown"] as const;
+export type SourceKind = typeof sourceKinds[number];
+export const sourceMatches = ["any", "first", "latest"] as const;
+export type SourceMatch = typeof sourceMatches[number];
+export const sourceRoutes = ["qr", "short"] as const;
+export const MAX_SOURCE_RULES = 5;
+const MAX_SOURCE_REFS = 20;
+const unique = <T,>(values: T[]) => new Set(values).size === values.length;
+export const sourceRule = z.object({
+  mode: z.enum(["include", "exclude"]),
+  match: z.enum(sourceMatches).default("any"),
+  kinds: z.array(z.enum(sourceKinds)).max(sourceKinds.length).default([]),
+  campaigns: z.array(z.uuid()).max(MAX_SOURCE_REFS).default([]),
+  links: z.array(z.uuid()).max(MAX_SOURCE_REFS).default([]),
+  forms: z.array(z.uuid()).max(MAX_SOURCE_REFS).default([]),
+  route: z.enum(sourceRoutes).nullable().default(null),
+  from: z.iso.date().nullable().default(null),
+  to: z.iso.date().nullable().default(null),
+}).strict().refine((rule) => unique(rule.kinds) && unique(rule.campaigns) && unique(rule.links) && unique(rule.forms))
+  .refine((rule) => !rule.from || !rule.to || rule.from <= rule.to)
+  // Unknown means no retained source event at all: it cannot be combined with event conditions.
+  .refine((rule) => !rule.kinds.includes("unknown") || (rule.kinds.length === 1 && rule.match === "any" && !hasEventConditions(rule)))
+  // Campaign, link, form and route only exist on Connect events.
+  .refine((rule) => !hasConnectConditions(rule) || rule.kinds.every((kind) => kind === "connect"));
+export type SourceRule = z.output<typeof sourceRule>;
+type RuleConditions = { campaigns: string[]; links: string[]; forms: string[]; route: string | null; from: string | null; to: string | null };
+function hasConnectConditions(rule: RuleConditions): boolean { return rule.campaigns.length > 0 || rule.links.length > 0 || rule.forms.length > 0 || rule.route !== null; }
+function hasEventConditions(rule: RuleConditions): boolean { return hasConnectConditions(rule) || rule.from !== null || rule.to !== null; }
+export function sourceRuleReferences(rules: SourceRule[]) {
+  return { campaigns: [...new Set(rules.flatMap((rule) => rule.campaigns))], links: [...new Set(rules.flatMap((rule) => rule.links))], forms: [...new Set(rules.flatMap((rule) => rule.forms))] };
+}
+/** Canonical URL form: mode~match~kinds~campaigns~links~forms~route~from~to. */
+export function serializeSourceRule(rule: SourceRule) {
+  return [rule.mode, rule.match, rule.kinds.join(","), rule.campaigns.join(","), rule.links.join(","), rule.forms.join(","), rule.route ?? "", rule.from ?? "", rule.to ?? ""].join("~");
+}
+export function parseSourceRule(raw: string): SourceRule | null {
+  if (raw.length > 3000) return null;
+  const parts = raw.split("~");
+  if (parts.length !== 9) return null;
+  const list = (value: string) => (value === "" ? [] : value.split(","));
+  const [mode, match, kinds, campaigns, links, forms, route, from, to] = parts;
+  const parsed = sourceRule.safeParse({ mode, match, kinds: list(kinds), campaigns: list(campaigns), links: list(links), forms: list(forms), route: route || null, from: from || null, to: to || null });
+  return parsed.success ? parsed.data : null;
+}
+
+// ---------------------------------------------------------------------------
 // Saved views.
 export const densities = ["comfortable", "compact"] as const;
 export type Density = typeof densities[number];
@@ -176,6 +238,8 @@ export const viewState = z.object({
   filters: z.array(z.object({ field: z.string().max(43), op: z.enum(operands), value: z.union([z.string().max(500), z.array(z.string().max(40)).max(50), z.null()]) }).strict()).max(MAX_FILTERS).default([]),
   columns: z.array(z.string().regex(/^(cf:)?[a-z][a-z0-9_]{0,39}$/)).max(MAX_COLUMNS).nullable().default(null),
   density: z.enum(densities).default("comfortable"),
+  // HC-06C, additive: views saved before source rules existed keep their meaning.
+  sources: z.array(sourceRule).max(MAX_SOURCE_RULES).default([]),
 }).strict();
 export type ViewState = z.output<typeof viewState>;
 export const viewInput = z.object({ objectType: z.enum(objectTypes), name: z.string().trim().min(1).max(60), shared: z.boolean().default(false), state: viewState }).strict();
@@ -209,6 +273,7 @@ export function stateToParams(state: ViewState, view?: string | null) {
   if (state.q || view) params.set("q", state.q);
   if (state.sort !== defaultSort) params.set("sort", state.sort);
   for (const filter of state.filters) params.append("f", serializeFilter(filter));
+  for (const rule of state.sources) params.append("s", serializeSourceRule(rule));
   if (state.columns) params.set("cols", state.columns.join(","));
   if (state.density !== "comfortable") params.set("density", state.density);
   return params;
@@ -245,9 +310,11 @@ export function paramsToState(objectType: ObjectType, raw: RawParams): { state: 
     if (legacy.domain !== "with" && legacy.domain !== "without") return null;
     filters.push({ field: "domain", op: legacy.domain === "with" ? "is_not_empty" : "is_empty", value: null });
   }
+  const sources: SourceRule[] = [];
+  for (const entry of many(raw.s)) { const rule = objectType === "person" ? parseSourceRule(entry) : null; if (!rule) return null; sources.push(rule); }
   const columns = parseColumns(one(raw.cols));
   if (one(raw.cols) !== undefined && columns === null) return null;
-  const parsed = viewState.safeParse({ q: one(raw.q) ?? "", sort: one(raw.sort) ?? defaultSort, filters, columns, density: one(raw.density) ?? "comfortable" });
+  const parsed = viewState.safeParse({ q: one(raw.q) ?? "", sort: one(raw.sort) ?? defaultSort, filters, columns, density: one(raw.density) ?? "comfortable", sources });
   const page = z.coerce.number().int().min(1).max(100000).safeParse(one(raw.page) ?? "1");
   const view = one(raw.view);
   if (!parsed.success || !page.success || (view !== undefined && !/^(system:[a-z-]{1,40}|[0-9a-f-]{36})$/.test(view))) return null;

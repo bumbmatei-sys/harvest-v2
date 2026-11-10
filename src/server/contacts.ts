@@ -6,7 +6,7 @@ import { auditLogs, companies, contactCompanyLinks, contactConsents, contactIden
 import { contactInput, consentInput, uuidInput, type ContactInput, type ConsentInput } from "../lib/contact-input";
 import { CRM_PAGE_SIZE, DUPLICATE_MIN_LENGTH, contactPatch, linkInput, linkPatch, newContactInput, type ContactPatch, type LinkInput, type LinkPatch, type NewContactInput } from "../lib/crm-input";
 import { paramsToState } from "../lib/crm-fields";
-import { compileFilter, invalidView, likePattern, loadDefinitions, marketingEmailState, relatedFilterNames, resolveState, sortOrder } from "./crm-filters";
+import { compileFilter, compileSourceRules, invalidView, isSourceLock, likePattern, loadDefinitions, marketingEmailState, relatedFilterNames, resolveSourceReferences, resolveState, sortOrder } from "./crm-filters";
 import { loadRecordValues } from "./crm-fields";
 import { recordActivity } from "./activity";
 import { AccessError, can } from "./permissions";
@@ -23,6 +23,14 @@ export const stale = () => new AccessError(409, message("Errors.thisRecordChange
 export { marketingEmailState } from "./crm-filters";
 export type { RawParams as ListParams } from "../lib/crm-fields";
 type ListParams = import("../lib/crm-fields").RawParams;
+/** One People list row as the page renders it. */
+export type ListRow = typeof contacts.$inferSelect & {
+  marketingEmail: "granted" | "withdrawn" | "none";
+  identifiers: (typeof contactIdentifiers.$inferSelect)[];
+  companies: { contactId: string; companyId: string; name: string; isPrimary: boolean; title: string | null }[];
+  custom: Record<string, import("../lib/crm-fields").FieldValue>;
+  sourceKinds?: ("manual" | "csv_import" | "connect")[];
+};
 
 /**
  * People list. The URL-style parameters are parsed, then validated against the
@@ -35,8 +43,17 @@ export function listContacts(db: Database, userId: string, workspace: string, pa
   return withTenant(db, userId, uuidInput.parse(workspace), "contacts:read", async (tx, tenantId, role) => {
     const definitions = await loadDefinitions(tx, tenantId, "person");
     const state = resolveState("person", parsed.state, definitions), page = parsed.page;
+    const sourceAccess = can(role, "contacts:sources_read");
+    // HC-06C: a source rule the caller may not use, or one naming a reference that is gone, shows
+    // an empty locked list. It never falls back to the default view and never drops the rule.
+    let sourceNames = new Map<string, string>();
+    if (state.sources.length) {
+      const locked = !sourceAccess ? "source_access" as const : await resolveSourceReferences(tx, tenantId, state.sources).then((names) => { sourceNames = names; return null; },
+        (error: unknown) => { if (isSourceLock(error)) return "invalid_source" as const; throw error; });
+      if (locked) return { rows: [] as ListRow[], total: 0, page, state, definitions: definitions.filter((field) => !field.archivedAt), related: {} as Record<string, string>, locked };
+    }
     const marketing = marketingEmailState(tenantId);
-    const { where, order } = peopleQuery(tx, tenantId, state, definitions);
+    const { where, order } = peopleQuery(tx, tenantId, state, definitions, sourceAccess);
     const [{ total }] = await tx.select({ total: count() }).from(contacts).where(where);
     const rows = await tx.select({ ...getTableColumns(contacts), marketingEmail: marketing }).from(contacts).where(where).orderBy(...order).limit(CRM_PAGE_SIZE).offset((page - 1) * CRM_PAGE_SIZE);
     const ids = rows.map((row) => row.id);
@@ -47,13 +64,11 @@ export function listContacts(db: Database, userId: string, workspace: string, pa
       .orderBy(desc(contactCompanyLinks.isPrimary), asc(contactCompanyLinks.createdAt), asc(companies.id)) : [];
     const active = definitions.filter((field) => !field.archivedAt);
     const { values, related } = await loadRecordValues(tx, tenantId, "person", ids, active);
-    const sourceKinds = can(role, "contacts:sources_read") && ids.length ? await tx.selectDistinct({contactId: contactSourceEvents.contactId, kind: contactSourceEvents.kind}).from(contactSourceEvents)
+    const sourceKinds = sourceAccess && ids.length ? await tx.selectDistinct({contactId: contactSourceEvents.contactId, kind: contactSourceEvents.kind}).from(contactSourceEvents)
       .where(and(eq(contactSourceEvents.tenantId, tenantId), inArray(contactSourceEvents.contactId, ids), isNull(contactSourceEvents.revertedAt))) : [];
     const filterNames = await relatedFilterNames(tx, tenantId, "person", state.filters, definitions);
-    return {
-      rows: rows.map((row) => ({ ...row, identifiers: identifiers.filter((item) => item.contactId === row.id), companies: links.filter((link) => link.contactId === row.id), custom: values.get(row.id) ?? {}, ...(can(role, "contacts:sources_read") ? { sourceKinds: sourceKinds.filter(event => event.contactId === row.id).map(event => event.kind) } : {}) })),
-      total, page, state, definitions: active, related: Object.fromEntries([...related, ...filterNames]),
-    };
+    const listRows: ListRow[] = rows.map((row) => ({ ...row, identifiers: identifiers.filter((item) => item.contactId === row.id), companies: links.filter((link) => link.contactId === row.id), custom: values.get(row.id) ?? {}, ...(sourceAccess ? { sourceKinds: sourceKinds.filter(event => event.contactId === row.id).map(event => event.kind) } : {}) }));
+    return { rows: listRows, total, page, state, definitions: active, related: Object.fromEntries([...related, ...filterNames, ...sourceNames]) as Record<string, string>, locked: null as "source_access" | "invalid_source" | null };
   });
 }
 
@@ -61,14 +76,15 @@ export function listContacts(db: Database, userId: string, workspace: string, pa
  * The People list predicate and order. The CSV export (CRM-06) calls this same function, so
  * a list and its export always select the same people (v1 lesson: filters and exports agree).
  */
-export function peopleQuery(tx: Transaction, tenantId: string, state: ReturnType<typeof resolveState>, definitions: Awaited<ReturnType<typeof loadDefinitions>>) {
+export function peopleQuery(tx: Transaction, tenantId: string, state: ReturnType<typeof resolveState>, definitions: Awaited<ReturnType<typeof loadDefinitions>>, sourceAccess: boolean) {
   const pattern = likePattern(state.q);
   const where = and(eq(contacts.tenantId, tenantId), isNull(contacts.erasedAt),
     state.q ? or(ilike(contacts.name, pattern),
       exists(tx.select({ one: sql`1` }).from(contactIdentifiers).where(and(eq(contactIdentifiers.tenantId, tenantId), eq(contactIdentifiers.contactId, contacts.id), ilike(contactIdentifiers.value, pattern)))),
       exists(tx.select({ one: sql`1` }).from(contactCompanyLinks).innerJoin(companies, and(eq(companies.tenantId, contactCompanyLinks.tenantId), eq(companies.id, contactCompanyLinks.companyId)))
         .where(and(eq(contactCompanyLinks.tenantId, tenantId), eq(contactCompanyLinks.contactId, contacts.id), ilike(companies.name, pattern))))) : undefined,
-    ...state.filters.map((filter) => compileFilter(tenantId, "person", filter, definitions)));
+    ...state.filters.map((filter) => compileFilter(tenantId, "person", filter, definitions)),
+    compileSourceRules(tenantId, state.sources, sourceAccess));
   const order = sortOrder("person", state.sort, tenantId, definitions, { name: sql.raw("contacts.normalized_name"), created: sql.raw("contacts.created_at"), updated: sql.raw("contacts.updated_at") }, sql.raw("contacts.id"));
   return { where, order };
 }
