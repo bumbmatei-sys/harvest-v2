@@ -32,6 +32,9 @@ export async function invitationHttp(request:Request,action:"request"|"prepare"|
   if(!session)throw new AccessError(401,message("Errors.signInToContinue"));
   if(!flow)throw new AccessError(409,message("Invitations.unavailable"));
   const result=await consumeInvitation(db,flow,session.user,await intakeBody(request));
+  // HC-06D: a claimed or declined flow is finished, so the browser keeps no handle to it. Errors
+  // (a mismatched account, a lost race) return before this line and keep the cookie for a retry.
+  jar.delete(invitationFlowCookie);
   return Response.json(result,{headers:intakeHeaders});
  }catch(e){const r=errorResponse(e);for(const [key,value]of Object.entries(intakeHeaders))r.headers.set(key,value);return r;}
 }

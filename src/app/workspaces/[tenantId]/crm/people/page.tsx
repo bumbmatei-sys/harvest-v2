@@ -57,8 +57,9 @@ export default async function PeoplePage({ params, searchParams }: { params: Pro
   });
   return <ListPage tenantId={tenantId} objectType="person" icon={UsersRound} title={t("people")} description={t("peopleDescription")} total={list.total} page={list.page}
     actions={<>{can(workspace.role, "crm:import") && <Button size="responsive" variant="outline" asChild><Link href={`/workspaces/${tenantId}/crm/imports?entity=person`}><Upload aria-hidden="true" />{imports("importAction")}</Link></Button>}
-      {can(workspace.role, "crm:export") && <ExportDialog tenantId={tenantId} entity="person" query={query} listName={t("people")} />}</>}
+      {can(workspace.role, "crm:export") && <ExportDialog tenantId={tenantId} entity="person" query={query} listName={t("people")} disabled={Boolean(list.locked)} />}</>}
     create={<ContactForm tenantId={tenantId} />} viewOnly={writable ? null : t("viewOnlyPeople")} notice={notice} state={list.state} viewId={viewId} query={query}
     parts={parts} related={list.related} views={parts.summaries} current={parts.summaries.find((view) => view.id === current.id)!} modified={modified} writable={writable} rows={rows}
+    sourceAccess={can(workspace.role, "contacts:sources_read")}
     copy={{ searchLabel: t("searchPeople"), searchPlaceholder: t("searchPeoplePlaceholder"), noMatch: t("noMatchingPeople"), pageEmpty: t("noPeopleOnThisPage"), emptyTitle: t("everyConnectionStartsSomewhere"), emptyDescription: t("addYourFirstPerson"), pages: t("peoplePages"), privacy: t("privacyNote") }} />;
 }

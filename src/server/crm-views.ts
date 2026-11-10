@@ -4,12 +4,20 @@ import type { Database, Transaction } from "../db/client";
 import { auditLogs, crmSavedViews } from "../db/schema";
 import { uuidInput } from "../lib/contact-input";
 import { fullState, objectTypes, systemViews, viewInput, viewPatch, viewState, type ObjectType, type ViewInput, type ViewPatch, type ViewState } from "../lib/crm-fields";
-import { loadDefinitions, resolveState } from "./crm-filters";
-import { AccessError, type Permission } from "./permissions";
+import { loadDefinitions, resolveSourceReferences, resolveState, sourceAccessDenied } from "./crm-filters";
+import { AccessError, can, type Permission } from "./permissions";
 import { withTenant } from "./tenancy";
 import { z } from "zod";
 
-export type SavedView = { id: string; name: string; objectType: ObjectType; kind: "system" | "workspace" | "personal"; state: ViewState; version: number; editable: boolean };
+export type SavedView = { id: string; name: string; objectType: ObjectType; kind: "system" | "workspace" | "personal"; state: ViewState; version: number; editable: boolean; locked?: boolean };
+/** A view with source rules is owner/admin only: hidden from everyone else, never editable by them. */
+const sourceLocked = (role: string, state: ViewState) => state.sources.length > 0 && !can(role, "contacts:sources_read");
+/** Saving a view with source rules needs the capability and live references in this tenant. */
+async function checkSources(tx: Transaction, tenantId: string, role: string, state: ViewState) {
+  if (!state.sources.length) return;
+  if (!can(role, "contacts:sources_read")) throw sourceAccessDenied();
+  await resolveSourceReferences(tx, tenantId, state.sources);
+}
 const writePermission = (objectType: ObjectType): Permission => (objectType === "person" ? "contacts:write" : "companies:write");
 const readPermission = (objectType: ObjectType): Permission => (objectType === "person" ? "contacts:read" : "companies:read");
 const missing = () => new AccessError(404, message("Errors.thisViewIsNotAvailable"));
@@ -26,14 +34,21 @@ function visibleRows(tx: Transaction, tenantId: string, userId: string, objectTy
     or(isNull(crmSavedViews.ownerUserId), eq(crmSavedViews.ownerUserId, userId)))).orderBy(asc(crmSavedViews.name), asc(crmSavedViews.id));
 }
 
-export function listViews(db: Database, userId: string, workspace: string, objectType: ObjectType, role?: { writable: boolean }) {
+/**
+ * The caller's views. Views with source rules are left out for callers without the source
+ * capability; `includeLocked` returns them marked `locked` (state intact, not editable) so the list
+ * page can show a direct link as an empty locked list instead of falling back to all people.
+ */
+export function listViews(db: Database, userId: string, workspace: string, objectType: ObjectType, options?: { writable: boolean; includeLocked?: boolean }) {
   const type = z.enum(objectTypes).parse(objectType);
-  return withTenant(db, userId, uuidInput.parse(workspace), readPermission(type), async (tx, tenantId) => {
-    const writable = role?.writable ?? false;
+  return withTenant(db, userId, uuidInput.parse(workspace), readPermission(type), async (tx, tenantId, role) => {
+    const writable = options?.writable ?? false;
     const rows = await visibleRows(tx, tenantId, userId, type);
+    const saved = rows.map((row) => toView(row, writable)).flatMap((view) => !sourceLocked(role, view.state) ? [view]
+      : options?.includeLocked ? [{ ...view, editable: false, locked: true }] : []);
     return [
       ...systemViews[type].map((view): SavedView => ({ id: view.id, name: view.name, objectType: type, kind: "system", state: fullState(view.state), version: 1, editable: false })),
-      ...rows.map((row) => toView(row, writable)),
+      ...saved,
     ];
   });
 }
@@ -41,43 +56,46 @@ export function listViews(db: Database, userId: string, workspace: string, objec
 /** Resolve a view id for the caller. Unknown, foreign or another user's personal view → null. */
 export function findView(db: Database, userId: string, workspace: string, objectType: ObjectType, id: string) {
   const type = z.enum(objectTypes).parse(objectType);
-  return withTenant(db, userId, uuidInput.parse(workspace), readPermission(type), async (tx, tenantId) => {
+  return withTenant(db, userId, uuidInput.parse(workspace), readPermission(type), async (tx, tenantId, role) => {
     const system = systemViews[type].find((view) => view.id === id);
     if (system) return { id: system.id, name: system.name, objectType: type, kind: "system", state: fullState(system.state), version: 1, editable: false } satisfies SavedView;
     if (!uuidInput.safeParse(id).success) return null;
     const [row] = await tx.select().from(crmSavedViews).where(and(eq(crmSavedViews.tenantId, tenantId), eq(crmSavedViews.id, id), eq(crmSavedViews.objectType, type),
       or(isNull(crmSavedViews.ownerUserId), eq(crmSavedViews.ownerUserId, userId))));
-    return row ? toView(row, false) : null;
+    const view = row ? toView(row, false) : null;
+    return view && !sourceLocked(role, view.state) ? view : null;
   });
 }
 
 /** Views are saved only by writers; the stored state must be valid for this tenant now. */
 export function createView(db: Database, userId: string, workspace: string, data: ViewInput) {
   const input = viewInput.parse(data);
-  return withTenant(db, userId, uuidInput.parse(workspace), writePermission(input.objectType), async (tx, tenantId) => {
+  return withTenant(db, userId, uuidInput.parse(workspace), writePermission(input.objectType), async (tx, tenantId, role) => {
     resolveState(input.objectType, input.state, await loadDefinitions(tx, tenantId, input.objectType));
+    await checkSources(tx, tenantId, role, input.state);
     const [row] = await tx.insert(crmSavedViews).values({ tenantId, objectType: input.objectType, name: input.name, ownerUserId: input.shared ? null : userId, state: input.state, createdBy: userId }).returning();
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "crm.view_create", targetId: row.id, metadata: { objectType: row.objectType, shared: String(input.shared) } });
     return toView(row, true);
   });
 }
 
-async function lockOwned(tx: Transaction, tenantId: string, userId: string, id: string) {
+async function lockOwned(tx: Transaction, tenantId: string, userId: string, id: string, role: string) {
   if (id.startsWith("system:")) throw systemReadOnly();
   const viewId = uuidInput.safeParse(id);
   if (!viewId.success) throw missing();
   const [row] = await tx.select().from(crmSavedViews).where(and(eq(crmSavedViews.tenantId, tenantId), eq(crmSavedViews.id, viewId.data),
     or(isNull(crmSavedViews.ownerUserId), eq(crmSavedViews.ownerUserId, userId)))).for("update");
-  if (!row) throw missing();
+  // A view the caller cannot see (source rules without the capability) is not theirs to change.
+  if (!row || sourceLocked(role, toView(row, false).state)) throw missing();
   return row;
 }
 export function updateView(db: Database, userId: string, workspace: string, objectType: ObjectType, id: string, data: ViewPatch) {
   const type = z.enum(objectTypes).parse(objectType), { version, ...input } = viewPatch.parse(data);
-  return withTenant(db, userId, uuidInput.parse(workspace), writePermission(type), async (tx, tenantId) => {
-    const current = await lockOwned(tx, tenantId, userId, id);
+  return withTenant(db, userId, uuidInput.parse(workspace), writePermission(type), async (tx, tenantId, role) => {
+    const current = await lockOwned(tx, tenantId, userId, id, role);
     if (current.objectType !== type) throw missing();
     if (current.version !== version) throw stale();
-    if (input.state) resolveState(type, input.state, await loadDefinitions(tx, tenantId, type));
+    if (input.state) { resolveState(type, input.state, await loadDefinitions(tx, tenantId, type)); await checkSources(tx, tenantId, role, input.state); }
     const ownerUserId = input.shared === undefined ? current.ownerUserId : input.shared ? null : userId;
     const [row] = await tx.update(crmSavedViews).set({ ...(input.name ? { name: input.name } : {}), ...(input.state ? { state: input.state } : {}), ownerUserId, updatedAt: new Date(), version: sql`${crmSavedViews.version} + 1` })
       .where(and(eq(crmSavedViews.tenantId, tenantId), eq(crmSavedViews.id, current.id), eq(crmSavedViews.version, version))).returning();
@@ -88,8 +106,8 @@ export function updateView(db: Database, userId: string, workspace: string, obje
 }
 export function deleteView(db: Database, userId: string, workspace: string, objectType: ObjectType, id: string) {
   const type = z.enum(objectTypes).parse(objectType);
-  return withTenant(db, userId, uuidInput.parse(workspace), writePermission(type), async (tx, tenantId) => {
-    const current = await lockOwned(tx, tenantId, userId, id);
+  return withTenant(db, userId, uuidInput.parse(workspace), writePermission(type), async (tx, tenantId, role) => {
+    const current = await lockOwned(tx, tenantId, userId, id, role);
     if (current.objectType !== type) throw missing();
     await tx.delete(crmSavedViews).where(and(eq(crmSavedViews.tenantId, tenantId), eq(crmSavedViews.id, current.id)));
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "crm.view_delete", targetId: current.id });
