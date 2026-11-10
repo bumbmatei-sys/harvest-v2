@@ -49,7 +49,9 @@ export async function resolveListView<T extends { state: ViewState; locked?: "so
     list = await request(fallback.state, 1);
   }
   if (list.locked) notice = list.locked === "source_access" ? "sourceLocked" : "sourceInvalid";
-  // A locked view stays out of the menu unless it is the one being shown.
-  const shown = current.locked ? [...views, current] : views;
-  return { list, views: shown, current, viewId, notice, modified: !sameState(list.state, current.state), query: stateToParams(list.state, viewId).toString() };
+  // A shared view the caller may not use still shows as an empty locked list (never everyone), but its
+  // name and source rules never reach them: the default view stands in, so the menu, header and chips
+  // carry nothing of the locked view.
+  if (current.locked) { list = { ...list, state: fallback.state }; current = fallback; viewId = null; }
+  return { list, views, current, viewId, notice, modified: !sameState(list.state, current.state), query: stateToParams(list.state, viewId).toString() };
 }

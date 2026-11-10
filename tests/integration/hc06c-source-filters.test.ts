@@ -163,13 +163,35 @@ it("hides shared source views from members and shows a direct link as an empty l
   await expect(updateView(f.db, "s-member", tenant, "person", view.id, { version: view.version, state: fullState({}) })).rejects.toMatchObject({ status: 404 });
   const load = (actor: string) => (raw: RawParams) => listContacts(f.db, actor, tenant, raw);
   const member = await resolveListView(f.db, "s-member", tenant, "person", { view: view.id }, true, load("s-member"));
-  expect(member).toMatchObject({ notice: "sourceLocked", viewId: view.id });
+  expect(member).toMatchObject({ notice: "sourceLocked", viewId: null });
   expect(member.list.rows).toEqual([]);
+  // The locked view's name and rules never reach the member: the default view stands in.
+  expect(member.current.id).not.toBe(view.id);
+  expect(JSON.stringify(member)).not.toContain("Connect people");
+  expect(member.list.state.sources).toEqual([]);
+  expect(member.views.some((item) => item.id === view.id)).toBe(false);
+  expect(member.query).not.toContain("s=");
   const owner = await resolveListView(f.db, "s-owner", tenant, "person", { view: view.id }, true, load("s-owner"));
   expect(owner.notice).toBeNull(); expect(owner.list.total).toBe(3);
   // Old views without source rules keep their meaning.
   expect(fullState({ q: "x" }).sources).toEqual([]);
   expect(toRawParams(stateToParams(state)).s).toBe(serializeSourceRule(state.sources[0]));
+});
+
+it("never exposes a public short code: an unlabeled link is named from its campaign", async () => {
+  const campaign = (await createCampaign(f.db, "s-owner", tenant, { name: "Unlabeled link campaign", type: "conference" }, randomUUID())).id;
+  const version = await publishIntakeForm(f.db, "s-owner", tenant, campaign, { name: "Unlabeled form", notice: "Synthetic separate choices", retentionDays: 1, purposes: ["account_communications"],
+    definition: { kind: "connect-intake-v3", syntheticOnly: true, preferredName: true, followUpChannel: "email" } });
+  const link = await createConnectLink(f.db, "s-owner", tenant, campaign, { formVersionId: version.id });
+  const options = await sourceOptions(f.db, "s-owner", tenant);
+  const option = options.links.find((item) => item.id === link.id)!;
+  expect(option.name).toBe("Untitled link · Unlabeled link campaign");
+  expect(JSON.stringify(options)).not.toContain(link.shortCode);
+  expect(JSON.stringify(options)).not.toContain(link.publicCode);
+  // Chips resolve through the same naming.
+  const listed = await listContacts(f.db, "s-owner", tenant, params([rule({ mode: "include", kinds: ["connect"], links: [link.id] })]));
+  expect(listed.related[link.id]).toBe("Untitled link · Unlabeled link campaign");
+  expect(JSON.stringify(listed.related)).not.toContain(link.shortCode);
 });
 
 it("filters newsletter and follow-up permissions per channel with the ledger's own rule", async () => {

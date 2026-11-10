@@ -3,6 +3,7 @@ import { and, asc, eq, sql, type SQL } from "drizzle-orm";
 import type { Transaction } from "../db/client";
 import { crmFieldDefinitions } from "../db/schema";
 import { customFieldKey, filterFields, permissionScopes, sortableTypes, builtinSorts, sourceRuleReferences, validateFilter, type FieldDefinition, type Filter, type FilterField, type ObjectType, type PermissionField, type SourceRule, type ViewState } from "../lib/crm-fields";
+import { linkDisplayName } from "./crm-sources";
 import { AccessError } from "./permissions";
 
 export const likePattern = (q: string) => `%${q.replace(/[\\%_]/g, "\\$&")}%`;
@@ -217,9 +218,10 @@ export async function resolveSourceReferences(tx: Transaction, tenantId: string,
     for (const row of rows) names.set(row.id, row.archived ? message("Crm.sourceFilters.archivedName", { name: row.name }) : row.name);
   }
   if (refs.links.length) {
-    const rows = (await tx.execute(sql`select id::text, coalesce(nullif(btrim(label), ''), short_code) as name, archived_at is not null as archived from campaign_response_links where tenant_id = ${tenantId} and id in (${ids(refs.links)})`)).rows as { id: string; name: string; archived: boolean }[];
+    const rows = (await tx.execute(sql`select l.id::text, nullif(btrim(l.label), '') as label, c.name as campaign, l.archived_at is not null as archived from campaign_response_links l
+      join campaigns c on c.tenant_id = l.tenant_id and c.id = l.campaign_id where l.tenant_id = ${tenantId} and l.id in (${ids(refs.links)})`)).rows as { id: string; label: string | null; campaign: string; archived: boolean }[];
     if (rows.length !== refs.links.length) throw invalidSourceRule();
-    for (const row of rows) names.set(row.id, row.archived ? message("Crm.sourceFilters.archivedName", { name: row.name }) : row.name);
+    for (const row of rows) { const name = linkDisplayName(row.label, row.campaign); names.set(row.id, row.archived ? message("Crm.sourceFilters.archivedName", { name }) : name); }
   }
   if (refs.forms.length) {
     const rows = (await tx.execute(sql`select v.id::text, f.name, v.version from form_versions v join forms f on f.tenant_id = v.tenant_id and f.id = v.form_id where v.tenant_id = ${tenantId} and v.id in (${ids(refs.forms)})`)).rows as { id: string; name: string; version: number }[];

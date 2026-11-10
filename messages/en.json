@@ -887,6 +887,7 @@
       "from": "On or after",
       "to": "On or before",
       "archivedName": "{name} (archived)",
+      "untitledLink": "Untitled link · {campaign}",
       "formVersion": "{name} · v{version}",
       "loading": "Loading sources…",
       "none": "None yet",

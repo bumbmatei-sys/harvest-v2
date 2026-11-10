@@ -7,7 +7,7 @@ Implementation date: 10 November 2026. Combined slice approved by the founder in
 1. One PR for C and D.
 2. Source rules are for Organization owners and admins only (`contacts:sources_read`), the same capability that already protects source history.
 3. Newsletter and follow-up permission filters are available to every CRM reader, like the existing Marketing email filter.
-4. A shared saved view that carries source rules is hidden from members. A direct link to it shows an empty, locked list with a notice, never every contact.
+4. A shared saved view that carries source rules is hidden from members. A direct link to it shows an empty, locked list with a notice, never every contact. The view's name and rules never reach the member: the default view stands in for it in the menu, header and chips.
 5. Export adds a Sources column only when the Source column is shown, and only for owners and admins.
 6. Merged contacts keep the existing fail-safe newsletter suppression (an opt-out on either merged record survives the merge). Documented and covered by a test; no behavior change.
 
@@ -21,7 +21,7 @@ Implementation date: 10 November 2026. Combined slice approved by the founder in
 - Reverted events and Connect evidence whose response is expired or no longer associated never match (the existing RLS policy is the only reader).
 - Fail closed: the capability is checked before any source SQL runs; a rule that names a campaign, link or form outside the Organization or no longer present returns an empty locked list with a notice instead of falling back to the default view. Companies reject source rules.
 - UI: an icon-only Filters popover (shadcn Popover, Command, Checkbox, ButtonGroup, NativeSelect). A "Source" group with a "Source rule" entry appears only for owners and admins. The rule editor shows campaign, link, form and route only when Connect is the only type chosen; links narrow to the chosen campaigns. Archived campaigns and links stay choosable and are labelled as archived. Draft rules are staged with the other filters and applied together. Active rules show as chips with edit and remove. No "Advanced filters" wording, no per-field helper text, 44px tap targets below `lg`.
-- Source choices load from `GET /api/workspaces/:id/crm/sources/options` (owner/admin, `private, no-store`, at most 500 of each, public codes never returned).
+- Source choices load from `GET /api/workspaces/:id/crm/sources/options` (owner/admin, `private, no-store`, at most 500 of each, public codes never returned: an unlabeled link is named "Untitled link · campaign name", never its short code).
 
 ### Permission filters (HC-06C)
 
@@ -41,7 +41,7 @@ Implementation date: 10 November 2026. Combined slice approved by the founder in
 
 All evidence below is author-executed in the writing session. Independent review must be a separate, fresh session.
 
-- `tests/integration/hc06c-source-filters.test.ts`: 9 tests passed (real Connect flow fixture; kinds, campaign/link/form/route, same-event correlation, first/latest, union and exclude, UTC dates, list = count = export, Sources column rule, member/viewer/revoked-admin refusals, foreign and missing references, companies, locked shared views and notices, consent withdrawal/re-grant/SMS-only/redaction, merged-contact newsletter suppression).
+- `tests/integration/hc06c-source-filters.test.ts`: 10 tests passed (real Connect flow fixture; kinds, campaign/link/form/route, same-event correlation, first/latest, union and exclude, UTC dates, list = count = export, Sources column rule, member/viewer/revoked-admin refusals, foreign and missing references, companies, locked shared views and notices (name and rules not exposed to members), unlabeled links never show their short code, consent withdrawal/re-grant/SMS-only/redaction, merged-contact newsletter suppression).
 - `tests/integration/hc06b-foundation.test.ts`: 27 tests passed with the rewritten expiry fixture.
 - New unit tests: `hc06c-source-rules` (4) and `hc06d-claim-cookie` (2) passed.
 - Full suite, lint, typecheck: see the PR description for the final run on the pushed head.
