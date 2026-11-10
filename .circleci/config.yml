@@ -113,7 +113,33 @@ jobs:
       - run: npm ci
       - browser-tools/install_chrome
       - run: npx playwright install chromium
+      # Marks the start of the browser run so only screenshots this run wrote are kept.
+      - run: touch /tmp/harvest-e2e-start
       - run: npm run test:e2e
+      # Keep the screenshots the browser specs write, pass or fail, so reviewers can
+      # see the UI without a local browser. Only PNGs written during this run are
+      # copied; committed screenshots that were not regenerated are left out.
+      - run:
+          name: Collect browser screenshots from this run
+          when: always
+          command: |
+            [ -f /tmp/harvest-e2e-start ] || { echo "Browser tests did not start; no screenshots."; exit 0; }
+            mkdir -p /tmp/harvest-screenshots
+            for dir in docs/screenshots /tmp/harvest-*-qa; do
+              [ -d "$dir" ] || continue
+              find "$dir" -name '*.png' -newer /tmp/harvest-e2e-start -print0 | while IFS= read -r -d '' file; do
+                case "$dir" in
+                  docs/screenshots) target="/tmp/harvest-screenshots/${file#docs/screenshots/}" ;;
+                  *) target="/tmp/harvest-screenshots/$(basename "$dir")/${file#"$dir"/}" ;;
+                esac
+                mkdir -p "$(dirname "$target")"
+                cp "$file" "$target"
+              done
+            done
+            echo "Screenshots kept: $(find /tmp/harvest-screenshots -name '*.png' | wc -l)"
+      - store_artifacts:
+          path: /tmp/harvest-screenshots
+          destination: screenshots
       - run: npm run build
       - run: npm run test:pwa
       # Store only failure evidence. An ordinary store_artifacts step always
