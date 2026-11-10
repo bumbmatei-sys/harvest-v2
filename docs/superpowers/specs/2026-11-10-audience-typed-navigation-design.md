@@ -10,8 +10,9 @@ Position in the approved sequence: item 4 of the first proposed sequence in [the
 2. **Audience effect now:** stored and wired, minimal visible change. The registry can filter items and override labels per audience, but today's configuration shows the same items to everyone. No audience terminology is invented; any future wording is specified by the founder.
 3. **Existing workspaces:** audience is nullable. Existing workspaces stay unspecified and behave exactly as today. Owners and admins can set or change it later.
 4. **Approach:** a pure registry in `src/lib/navigation.ts` resolved inside `AppShell`. Rejected: a server-resolved navigation model (touches every page, no security gain) and per-workspace module flags in the database (native module selection).
-5. **Delivery:** two PRs, A then B, each with independent exact-head review under the current workflow.
+5. **Delivery:** PR A, then PR B, then PR C (terminology), each with exact-head review under the current workflow.
 6. **Order:** this work first, then HC-08. The five HC activation decisions and production migrations 0031 then 0032 remain the founder's separate approvals and are not part of this work.
+7. **Terminology (10 Nov):** user-facing "workspace" becomes "ministry" (Christian terminology). Internal code, routes, API paths and database names keep `workspace`. CRM organizations keep "Organizations".
 
 ## Current state (inspected at main `3b6ce19`)
 
@@ -36,7 +37,14 @@ Position in the approved sequence: item 4 of the first proposed sequence in [the
 - **Change later:** a new Workspace settings page (same pattern as the Appearance page) with one audience field. Owners and admins can edit it through a new route guarded by `settings:write`; others see it read-only. Each change writes a `workspace.audience_update` audit row.
 - **UI:** a shadcn RadioGroup with three short labels (Church; Ministry or nonprofit; Evangelist or missionary), required at creation, no helper text. One shared audience field component serves creation and settings. 44px targets below `lg`, full-width layout, light/dark tokens.
 - **Navigation:** `AppShell` receives the workspace's audience and passes it to `resolveNavigation`. A new Settings item links to the Workspace settings page.
-- **Terminology:** the interface keeps its current "workspace" wording in this slice; the founder's "Organizations" rule is currently applied to CRM organizations and is not changed here. Whether "workspace" itself should become "organization" is an open founder question, not decided by this design.
+- **Terminology:** new strings in this PR say "ministry" (for example "Create a ministry", "Ministry settings"). Existing strings are renamed in PR C.
+
+## PR C: user-facing workspace → ministry
+
+- Change message values only (about 130 occurrences in `messages/en.json`): Workspace → Ministry, Workspaces → Ministries, workspace → ministry. Message keys, routes, API paths, database names and code identifiers are unchanged.
+- Update browser-test selectors that match visible text. Keep "Organizations" for CRM organizations.
+- The audience label "Ministry or nonprofit" sits beside the container word "ministry"; the onboarding radio group is labelled by its question, so the wording stays as decided.
+- Evidence: lint source guards, unit and browser suites, screenshots of the shell, switcher and creation screen.
 
 ## Security and error handling
 
