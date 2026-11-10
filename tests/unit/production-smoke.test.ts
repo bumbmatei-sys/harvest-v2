@@ -41,3 +41,21 @@ describe("production smoke configuration", () => {
     expect(["POST", "PUT", "PATCH", "DELETE"].some(isReadOnlyMethod)).toBe(false);
   });
 });
+
+describe("smoke GET helper", () => {
+  it("sends the secrets but never puts them in an error", async () => {
+    const { createServer } = await import("node:http");
+    const { smokeGet } = await import("../smoke/smoke-http");
+    const seen: Record<string, string | string[] | undefined>[] = [];
+    const server = createServer((request) => { seen.push(request.headers); request.socket.destroy(); });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const port = (server.address() as { port: number }).port;
+    const config = smokeConfig({ HARVEST_SMOKE_BASE_URL: `http://127.0.0.1:${port}`, HARVEST_SMOKE_ALLOW_HTTP: "1", ...signedIn, HARVEST_SMOKE_SESSION_TOKEN: "very-secret-token", VERCEL_AUTOMATION_BYPASS_SECRET: "bypass-secret" });
+    try {
+      const error = await smokeGet(config, "/api/workspaces", { signedIn: true }).catch((caught: unknown) => caught);
+      expect(String(error)).toBe("Error: GET /api/workspaces did not complete (network error or timeout).");
+      expect(seen[0].cookie).toBe("better-auth.session_token=very-secret-token");
+      expect(seen[0]["x-vercel-protection-bypass"]).toBe("bypass-secret");
+    } finally { await new Promise((resolve) => server.close(resolve)); }
+  });
+});

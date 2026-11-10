@@ -224,7 +224,9 @@ jobs:
           name: Wait for the deployed site to serve this commit
           no_output_timeout: 25m
           command: scripts/smoke-wait-for-deploy.sh "$CIRCLE_SHA1"
-      - run: npm ci
+      - run:
+          name: Install dependencies without package install scripts
+          command: npm ci --ignore-scripts
       - run: npx playwright install chromium
       - run:
           name: Read-only production smoke tests

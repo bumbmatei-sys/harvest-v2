@@ -1,24 +1,25 @@
 import { expect, test } from "@playwright/test";
 import { isReadOnlyMethod, smokeConfig } from "./smoke-config";
-import { signedInConfig, signedInRequest, verifiedSmokeWorkspace, type SmokeWorkspace } from "./signed-in";
+import { signedInConfig, verifiedSmokeWorkspace, type SmokeWorkspace } from "./signed-in";
 
 const config = signedInConfig(smokeConfig());
 test.describe("smoke church, signed in (read-only pages)", () => {
   test.skip(!config, "Signed-in smoke settings are not configured.");
   let workspace: SmokeWorkspace;
-  test.beforeAll(async () => {
-    const api = await signedInRequest(config!);
-    try { workspace = await verifiedSmokeWorkspace(api, config!); } finally { await api.dispose(); }
-  });
+  test.beforeAll(async () => { workspace = await verifiedSmokeWorkspace(config!); });
 
   let blocked: string[] = [], crashes: string[] = [];
   test.beforeEach(async ({ context, page }) => {
     blocked = []; crashes = [];
     // Any request that could change data is aborted, and the test then fails.
     await context.route("**/*", (route) => {
-      const method = route.request().method();
-      if (isReadOnlyMethod(method)) return route.continue();
-      blocked.push(`${method} ${new URL(route.request().url()).pathname}`);
+      const request = route.request(), method = request.method();
+      if (isReadOnlyMethod(method)) {
+        // The deployment-protection bypass goes only to the smoke site, never to other origins.
+        if (!config!.bypassSecret || new URL(request.url()).origin !== config!.origin) return route.continue();
+        return route.continue({ headers: { ...request.headers(), "x-vercel-protection-bypass": config!.bypassSecret } });
+      }
+      blocked.push(`${method} ${new URL(request.url()).pathname}`);
       return route.abort("blockedbyclient");
     });
     await context.addCookies([{ ...config!.sessionCookie, url: config!.origin, httpOnly: true, secure: config!.origin.startsWith("https:"), sameSite: "Lax" }]);

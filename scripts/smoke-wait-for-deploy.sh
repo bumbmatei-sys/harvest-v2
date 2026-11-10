@@ -10,14 +10,19 @@ base="${HARVEST_SMOKE_BASE_URL:?HARVEST_SMOKE_BASE_URL is required}"
 base="${base%/}"
 timeout="${HARVEST_SMOKE_DEPLOY_TIMEOUT_SECONDS:-1200}"
 interval="${HARVEST_SMOKE_POLL_SECONDS:-20}"
-headers=()
-if [ -n "${VERCEL_AUTOMATION_BYPASS_SECRET:-}" ]; then
-  headers=(-H "x-vercel-protection-bypass: ${VERCEL_AUTOMATION_BYPASS_SECRET}")
+bypass="${VERCEL_AUTOMATION_BYPASS_SECRET:-}"
+if [ -n "$bypass" ] && ! [[ "$bypass" =~ ^[A-Za-z0-9_-]+$ ]]; then
+  echo "VERCEL_AUTOMATION_BYPASS_SECRET has unexpected characters."; exit 2
 fi
+# The header goes to curl on stdin, never on its command line.
+fetch_version() {
+  { if [ -n "$bypass" ]; then printf 'header = "x-vercel-protection-bypass: %s"\n' "$bypass"; fi; } \
+    | curl -fsS --max-time 10 --config - "${base}/api/version" 2>/dev/null
+}
 deadline=$((SECONDS + timeout))
 last="none-yet"
 while :; do
-  live="$(curl -fsS --max-time 10 "${headers[@]}" "${base}/api/version" 2>/dev/null \
+  live="$(fetch_version \
     | node -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{try{const c=JSON.parse(s).commit;process.stdout.write(typeof c==="string"&&/^[0-9a-f]{40}$/.test(c)?c:"")}catch{}})' || true)"
   if [ "$live" = "$expected" ]; then echo "The deployed site serves $expected."; exit 0; fi
   if [ -n "$live" ]; then
