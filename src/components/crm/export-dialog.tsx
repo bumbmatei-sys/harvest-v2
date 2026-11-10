@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { useCrmRequest } from "./request";
 
-type Count = { total: number; notes: boolean; max: number };
+type Count = { total: number; notes: boolean; sources?: boolean; max: number };
 
 /**
  * Export the current view. The count and the file use the same URL view state as the list,
@@ -36,6 +36,7 @@ export function ExportDialog({ tenantId, entity, query, listName }: { tenantId: 
             : <>
               <p className="font-medium">{tooMany ? t("tooMany", { max: format.number(count.max) }) : t("count", { count: count.total })}</p>
               {entity === "person" && <p className="text-muted-foreground">{count.notes ? t("notesIncluded") : t("notesExcluded")}</p>}
+              {count.sources && <p className="text-muted-foreground">{t("sourcesIncluded")}</p>}
               <p className="text-muted-foreground">{t("safety")}</p>
             </>}
       </div>

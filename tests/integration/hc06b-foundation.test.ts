@@ -338,8 +338,16 @@ it("keeps the HC-03 response guard refusing an expired link after 0032 rebuilds 
   const version=await publishIntakeForm(f.db,"hc06b-owner",tenant,campaign,{name:"Expiry",notice:"Synthetic only",retentionDays:1,
     purposes:["newsletter"],definition:{kind:"connect-intake-v3",syntheticOnly:true,preferredName:false,followUpChannel:"email"}});
   const link=await createConnectLink(f.db,"hc06b-owner",tenant,campaign,{formVersionId:version.id});
-  await transitionConnectLink(f.db,"hc06b-owner",tenant,campaign,link.id,{action:"publish",expiresAt:new Date(Date.now()+1200).toISOString()});
-  await new Promise(resolve=>setTimeout(resolve,1500));
+  await transitionConnectLink(f.db,"hc06b-owner",tenant,campaign,link.id,{action:"publish",expiresAt:new Date(Date.now()+3_600_000).toISOString()});
+  // Move the expiry into the past directly (no wall-clock sleep, so the test cannot race CI load).
+  // The link's own write guard refuses a past expiry, so bypass it for this one fixture update only.
+  await f.admin.query("begin");
+  try {
+    await f.admin.query("alter table campaign_response_links disable trigger user");
+    await f.admin.query("update campaign_response_links set expires_at=clock_timestamp()-interval '1 second' where tenant_id=$1 and id=$2",[tenant,link.id]);
+    await f.admin.query("alter table campaign_response_links enable trigger user");
+    await f.admin.query("commit");
+  } catch (error) { await f.admin.query("rollback"); throw error; }
   // Even a privileged direct insert must be refused once the link has expired.
   await expect(f.admin.query("insert into campaign_responses(tenant_id,campaign_id,link_id,form_version_id,public_submission_id,locale) values($1,$2,$3,$4,$5,'en')",
     [tenant,campaign,link.id,version.id,randomUUID()])).rejects.toThrow(/not accepting responses/);

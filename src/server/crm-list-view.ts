@@ -4,8 +4,8 @@ import { listViews, type SavedView } from "./crm-views";
 import { AccessError } from "./permissions";
 
 /** Why the list fell back to the default view, if it did. */
-export type ViewNotice = "viewUnavailable" | "invalidView" | null;
-const stateKeys = ["q", "sort", "f", "cols", "density", "company", "email", "marketing", "people", "domain"];
+export type ViewNotice = "viewUnavailable" | "invalidView" | "sourceLocked" | "sourceInvalid" | null;
+const stateKeys = ["q", "sort", "f", "s", "cols", "density", "company", "email", "marketing", "people", "domain"];
 
 export function toRawParams(params: URLSearchParams): RawParams {
   const raw: RawParams = {};
@@ -18,15 +18,18 @@ export function toRawParams(params: URLSearchParams): RawParams {
  * explicit parameters win over it (the URL is the source of truth). A missing, foreign
  * or unauthorized view, or any state the tenant's fields no longer support, falls back
  * to the default view as a whole, with a notice: never half-applied, never leaking.
+ * Source rules are the exception (HC-06C): a rule the caller may not use, or one whose reference is
+ * gone, shows an empty locked list with a notice, never the default view and never all people.
  */
-export async function resolveListView<T extends { state: ViewState }>(db: Database, userId: string, tenantId: string, objectType: ObjectType, raw: RawParams, writable: boolean, load: (params: RawParams) => Promise<T>) {
-  const views = await listViews(db, userId, tenantId, objectType, { writable });
+export async function resolveListView<T extends { state: ViewState; locked?: "source_access" | "invalid_source" | null }>(db: Database, userId: string, tenantId: string, objectType: ObjectType, raw: RawParams, writable: boolean, load: (params: RawParams) => Promise<T>) {
+  const all = await listViews(db, userId, tenantId, objectType, { writable, includeLocked: true });
+  const views = all.filter((view) => !view.locked);
   const fallback = views[0];
   const parsed = paramsToState(objectType, raw);
   let notice: ViewNotice = null, current: SavedView = fallback, state = fallback.state, page = 1, viewId: string | null = null;
   if (!parsed) notice = "invalidView";
   else {
-    const view = parsed.view ? views.find((item) => item.id === parsed.view) : undefined;
+    const view = parsed.view ? all.find((item) => item.id === parsed.view) : undefined;
     if (parsed.view && !view) notice = "viewUnavailable";
     else {
       current = view ?? fallback; viewId = view?.id ?? null; page = parsed.page;
@@ -45,5 +48,8 @@ export async function resolveListView<T extends { state: ViewState }>(db: Databa
     notice = "invalidView"; current = fallback; viewId = null; page = 1;
     list = await request(fallback.state, 1);
   }
-  return { list, views, current, viewId, notice, modified: !sameState(list.state, current.state), query: stateToParams(list.state, viewId).toString() };
+  if (list.locked) notice = list.locked === "source_access" ? "sourceLocked" : "sourceInvalid";
+  // A locked view stays out of the menu unless it is the one being shown.
+  const shown = current.locked ? [...views, current] : views;
+  return { list, views: shown, current, viewId, notice, modified: !sameState(list.state, current.state), query: stateToParams(list.state, viewId).toString() };
 }

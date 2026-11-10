@@ -2,18 +2,18 @@
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { ArrowDownUp, Search, X } from "lucide-react";
-import { valuelessOperands, type Filter, type ObjectType } from "@/lib/crm-fields";
+import { valuelessOperands, type Filter, type ObjectType, type SourceRule } from "@/lib/crm-fields";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuLabel, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupInput } from "@/components/ui/input-group";
 import { ColumnsMenu } from "./columns-menu";
-import { FilterBuilder, type FieldMeta } from "./filter-builder";
+import { FilterBuilder, type FieldMeta, type FilterTarget } from "./filter-builder";
 import { useListState } from "./list-state";
 import { ViewMenu, type ViewSummary } from "./view-menu";
 
-export function ListToolbar({ tenantId, objectType, fields, sorts, columns, visibleColumns, related, views, currentView, modified, writable, searchLabel, searchPlaceholder }: {
-  tenantId: string; objectType: ObjectType; fields: FieldMeta[]; sorts: { value: string; label: string }[];
+export function ListToolbar({ tenantId, objectType, fields, sorts, columns, visibleColumns, related, views, currentView, modified, writable, searchLabel, searchPlaceholder, sourceAccess = false }: {
+  tenantId: string; objectType: ObjectType; fields: FieldMeta[]; sorts: { value: string; label: string }[]; sourceAccess?: boolean;
   columns: { key: string; label: string }[]; visibleColumns: string[]; related: Record<string, string>;
   views: ViewSummary[]; currentView: ViewSummary; modified: boolean; writable: boolean; searchLabel: string; searchPlaceholder: string;
 }) {
@@ -21,7 +21,7 @@ export function ListToolbar({ tenantId, objectType, fields, sorts, columns, visi
   const { state, navigate } = useListState();
   const [query, setQuery] = useState(state.q), [seen, setSeen] = useState(state.q);
   if (state.q !== seen) { setSeen(state.q); setQuery(state.q); }
-  const [filterOpen, setFilterOpen] = useState(false), [editing, setEditing] = useState<number | null>(null);
+  const [filterOpen, setFilterOpen] = useState(false), [editing, setEditing] = useState<FilterTarget>(null);
   const [names, setNames] = useState<Record<string, string>>({});
   function chipText(filter: Filter, draftNames: Record<string, string> = {}) {
     const field = fields.find((item) => item.key === filter.field);
@@ -31,6 +31,20 @@ export function ListToolbar({ tenantId, objectType, fields, sorts, columns, visi
     const op = t(`operands.${filter.op}`);
     return valuelessOperands.includes(filter.op) ? t("filterChipNoValue", { field: field?.label ?? filter.field, op }) : t("filterChipText", { field: field?.label ?? filter.field, op, value: shown });
   }
+  function sourceChipText(rule: SourceRule, draftNames: Record<string, string> = {}) {
+    const name = (id: string) => related[id] ?? draftNames[id] ?? names[id] ?? t("sourceFilters.unavailable");
+    const conditions = [
+      rule.kinds.map((kind) => t(`sourceHistory.${kind}`)).join(", "),
+      ...[...rule.campaigns, ...rule.links, ...rule.forms].map(name),
+      rule.route ? t(`sourceHistory.${rule.route}`) : "",
+      rule.from ? t("sourceFilters.fromChip", { date: rule.from }) : "", rule.to ? t("sourceFilters.toChip", { date: rule.to }) : "",
+    ].filter(Boolean).join(" · ");
+    const values = { mode: t(`sourceFilters.${rule.mode}`), source: t(rule.match === "any" ? "sourceFilters.anySourceLower" : rule.match === "first" ? "sourceFilters.firstLower" : "sourceFilters.latestLower") };
+    return conditions ? t("sourceFilters.chip", { ...values, conditions }) : t("sourceFilters.chipNoConditions", values);
+  }
+  // One chip row for conditions and source rules; the first three show, the rest open the panel.
+  const chips = [...state.filters.map((filter, index) => ({ kind: "filter" as const, index, text: chipText(filter) })),
+    ...state.sources.map((rule, index) => ({ kind: "source" as const, index, text: sourceChipText(rule) }))];
   const sortKey = state.sort.replace(/^-/, ""), descending = state.sort.startsWith("-");
   return <div className="space-y-3">
     <ViewMenu tenantId={tenantId} objectType={objectType} views={views} current={currentView} modified={modified} writable={writable} />
@@ -43,9 +57,10 @@ export function ListToolbar({ tenantId, objectType, fields, sorts, columns, visi
         </InputGroup>
       </form>
       <div className="flex flex-wrap items-center gap-2">
-        <FilterBuilder fields={fields} tenantId={tenantId} filters={state.filters} open={filterOpen} editing={editing} relatedNames={{ ...names, ...related }} chipText={chipText}
+        <FilterBuilder fields={fields} tenantId={tenantId} filters={state.filters} sources={state.sources} sourceAccess={sourceAccess && objectType === "person"} open={filterOpen} editing={editing}
+          relatedNames={{ ...names, ...related }} chipText={chipText} sourceChipText={sourceChipText}
           onOpenChange={(open) => { setFilterOpen(open); if (!open) setEditing(null); }}
-          onApply={(filters, addedNames) => { setNames((current) => ({ ...current, ...addedNames })); navigate({ filters }); }} />
+          onApply={(filters, sources, addedNames) => { setNames((current) => ({ ...current, ...addedNames })); navigate({ filters, sources }); }} />
         <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild><Button variant="outline" size="responsive"><ArrowDownUp aria-hidden="true" /><span className="sr-only sm:not-sr-only">{t("sortLabel", { sort: `${sorts.find((item) => item.value === sortKey)?.label ?? sortKey} ${descending ? "↓" : "↑"}` })}</span></Button></DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
@@ -62,13 +77,15 @@ export function ListToolbar({ tenantId, objectType, fields, sorts, columns, visi
         <ColumnsMenu available={columns} visible={visibleColumns} density={state.density} onChange={(next) => navigate(next)} />
       </div>
     </div>
-    {(state.filters.length > 0 || state.q) && <ul aria-label={t("activeFilters")} className="flex flex-wrap items-center gap-1.5">
-      {state.filters.slice(0, 3).map((filter, index) => { const text = chipText(filter); return <li key={`${filter.field}-${index}`}><Badge variant="secondary" className="max-w-full gap-0 rounded-md p-0 text-xs font-normal">
-        <Button variant="ghost" className="h-11 min-w-0 max-w-64 justify-start px-2 text-xs font-normal lg:h-8" aria-label={t("editFilter", { filter: text })} onClick={() => { setEditing(index); setFilterOpen(true); }}><span className="truncate">{text}</span></Button>
-        <Button variant="ghost" size="icon-responsive" className="rounded-l-none lg:size-8" aria-label={t("removeFilter", { filter: text })} onClick={() => navigate({ filters: state.filters.filter((_, item) => item !== index) })}><X aria-hidden="true" /></Button>
+    {(chips.length > 0 || state.q) && <ul aria-label={t("activeFilters")} className="flex flex-wrap items-center gap-1.5">
+      {chips.slice(0, 3).map((chip) => { const source = chip.kind === "source"; return <li key={`${chip.kind}-${chip.index}`}><Badge variant="secondary" className="max-w-full gap-0 rounded-md p-0 text-xs font-normal">
+        <Button variant="ghost" className="h-11 min-w-0 max-w-64 justify-start px-2 text-xs font-normal lg:h-8" aria-label={source ? t("sourceFilters.editRule", { rule: chip.text }) : t("editFilter", { filter: chip.text })}
+          onClick={() => { setEditing({ kind: chip.kind, index: chip.index }); setFilterOpen(true); }}><span className="truncate">{chip.text}</span></Button>
+        <Button variant="ghost" size="icon-responsive" className="rounded-l-none lg:size-8" aria-label={source ? t("sourceFilters.removeRule", { rule: chip.text }) : t("removeFilter", { filter: chip.text })}
+          onClick={() => navigate(source ? { sources: state.sources.filter((_, item) => item !== chip.index) } : { filters: state.filters.filter((_, item) => item !== chip.index) })}><X aria-hidden="true" /></Button>
       </Badge></li>; })}
-      {state.filters.length > 3 && <li><Button variant="ghost" size="responsive" onClick={() => { setEditing(null); setFilterOpen(true); }}>{t("moreFilters", { count: state.filters.length - 3 })}</Button></li>}
-      <li><Button variant="ghost" size="responsive" className="text-xs text-muted-foreground" onClick={() => navigate({ filters: [], q: "" })}>{t("clearFilters")}</Button></li>
+      {chips.length > 3 && <li><Button variant="ghost" size="responsive" onClick={() => { setEditing(null); setFilterOpen(true); }}>{t("moreFilters", { count: chips.length - 3 })}</Button></li>}
+      <li><Button variant="ghost" size="responsive" className="text-xs text-muted-foreground" onClick={() => navigate({ filters: [], sources: [], q: "" })}>{t("clearFilters")}</Button></li>
     </ul>}
   </div>;
 }

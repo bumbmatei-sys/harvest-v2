@@ -38,8 +38,10 @@ for(const scheme of ["light","dark"] as const)test(`HC-06B automatic claim, orga
   await capture(visitor,`claim-mobile-${scheme}`);
   await visitor.getByRole("button",{name:"Confirm this request for my account",exact:true}).click();await expect(visitor.getByRole("heading",{name:"Welcome to Harvest",exact:true})).toBeVisible();
   expect(await (await visitor.request.get("/api/workspaces")).json()).toEqual([]);
-  // Simulate losing the initial HTTP success: repeat the exact cookie-bound action.
-  const replay=await visitor.request.post("/api/connect/invitations/claim",{headers:{origin},data:{action:"confirm"}});expect(replay.status()).toBe(200);expect(await replay.json()).toEqual({next:"/account/welcome"});
+  // HC-06D: a finished claim clears the flow cookie, so repeating the action finds no flow and changes nothing.
+  expect((await context.cookies()).some(c=>c.name==="harvest_connect_flow")).toBe(false);
+  const replay=await visitor.request.post("/api/connect/invitations/claim",{headers:{origin},data:{action:"confirm"}});expect(replay.status()).toBe(409);
+  expect(await (await visitor.request.get("/api/connect/invitations/continuation")).json()).toEqual({next:"/account/welcome"});
   await visitor.getByRole("link",{name:"Response preferences",exact:true}).click();
   await expect(visitor.getByRole("heading",{name:"Your responses",exact:true})).toBeVisible();
   for(const [label,width,height] of [["mobile-small",360,800],["mobile",390,844],["tablet",768,1024],["desktop",1280,900],["desktop-wide",1440,1000]] as const){await visitor.setViewportSize({width,height});await capture(visitor,`rights-${label}-${scheme}`);}

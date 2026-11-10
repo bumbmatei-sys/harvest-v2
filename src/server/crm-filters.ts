@@ -2,7 +2,7 @@ import { message } from "../i18n/messages";
 import { and, asc, eq, sql, type SQL } from "drizzle-orm";
 import type { Transaction } from "../db/client";
 import { crmFieldDefinitions } from "../db/schema";
-import { customFieldKey, filterFields, sortableTypes, builtinSorts, validateFilter, type FieldDefinition, type Filter, type FilterField, type ObjectType, type ViewState } from "../lib/crm-fields";
+import { customFieldKey, filterFields, permissionScopes, sortableTypes, builtinSorts, sourceRuleReferences, validateFilter, type FieldDefinition, type Filter, type FilterField, type ObjectType, type PermissionField, type SourceRule, type ViewState } from "../lib/crm-fields";
 import { AccessError } from "./permissions";
 
 export const likePattern = (q: string) => `%${q.replace(/[\\%_]/g, "\\$&")}%`;
@@ -27,18 +27,25 @@ export function customExpr(tenantId: string, objectType: ObjectType, field: Pick
   const owner = objectType === "person" ? "contact_id" : "company_id";
   return sql`(select v.${sql.raw(column)} from crm_field_values v where v.tenant_id = ${tenantId} and v.field_id = ${field.id} and v.${sql.raw(owner)} = ${recordRef(objectType)})`;
 }
-/** Effective marketing-email state; the same rule as the consent ledger and list badge. */
-export function marketingEmailState(tenantId: string) {
+/**
+ * Effective consent state for one purpose and channel: an unsuperseded withdrawal wins (a later
+ * grant must beat it on both clocks), otherwise the latest decision. The same rule as the consent
+ * ledger, the contact detail and the list badge. Redacted evidence never counts.
+ */
+export function consentState(tenantId: string, purpose: string, channel: string) {
   return sql<"granted" | "withdrawn" | "none">`(case
     when exists (select 1 from contact_consents w where w.tenant_id = ${tenantId} and w.contact_id = contacts.id
-      and w.channel = 'email' and w.purpose = 'marketing' and w.status = 'withdrawn'
+      and w.channel = ${channel} and w.purpose = ${purpose} and w.status = 'withdrawn' and w.redacted_at is null
       and not exists (select 1 from contact_consents g where g.tenant_id = w.tenant_id and g.contact_id = w.contact_id
-        and g.channel = w.channel and g.purpose = w.purpose and g.status = 'granted'
+        and g.channel = w.channel and g.purpose = w.purpose and g.status = 'granted' and g.redacted_at is null
         and g.recorded_at > w.recorded_at and g.occurred_at > w.occurred_at)) then 'withdrawn'
     when (select l.status from contact_consents l where l.tenant_id = ${tenantId} and l.contact_id = contacts.id
-      and l.channel = 'email' and l.purpose = 'marketing' order by l.recorded_at desc, l.occurred_at desc, l.id desc limit 1) = 'granted' then 'granted'
+      and l.channel = ${channel} and l.purpose = ${purpose} and l.redacted_at is null
+      order by l.recorded_at desc, l.occurred_at desc, l.id desc limit 1) = 'granted' then 'granted'
     else 'none' end)`;
 }
+/** Effective marketing-email state; the same rule as the consent ledger and list badge. */
+export function marketingEmailState(tenantId: string) { return consentState(tenantId, "marketing", "email"); }
 export function peopleCountExpr(tenantId: string) {
   return sql<number>`(select count(*)::int from contact_company_links l where l.tenant_id = ${tenantId} and l.company_id = companies.id)`;
 }
@@ -105,8 +112,9 @@ export function compileFilter(tenantId: string, objectType: ObjectType, filter: 
       case "phone": return textCondition(identifier("phone"), filter);
       case "created": return scalarCondition(utcDate("contacts.created_at"), filter, "date");
       case "updated": return scalarCondition(utcDate("contacts.updated_at"), filter, "date");
-      case "marketing": {
-        const state = marketingEmailState(tenantId);
+      case "marketing": case "newsletter": case "followup_email": case "followup_sms": {
+        const scope = filter.field === "marketing" ? { purpose: "marketing", channel: "email" } : permissionScopes[filter.field as PermissionField];
+        const state = consentState(tenantId, scope.purpose, scope.channel);
         if (filter.op === "is_empty") return sql`${state} = 'none'`;
         if (filter.op === "is_not_empty") return sql`${state} <> 'none'`;
         const values = Array.isArray(filter.value) ? filter.value : [];
@@ -183,4 +191,78 @@ export async function relatedFilterNames(tx: Transaction, tenantId: string, obje
     for (const row of rows.rows as { id: string; name: string }[]) names.set(row.id, row.name);
   }
   return names;
+}
+
+// ---------------------------------------------------------------------------
+// HC-06C source rules.
+
+/** Source rules need the owner/admin source capability. Raised before any SQL is built. */
+export const sourceAccessDenied = () => new AccessError(403, message("Errors.sourceFiltersUnavailable"), { reason: "source_access" });
+/** A rule names a campaign, link or form version that is not in this workspace (any more). */
+export const invalidSourceRule = () => new AccessError(400, message("Errors.sourceFiltersUnavailable"), { reason: "invalid_source" });
+export const isSourceLock = (error: unknown) => error instanceof AccessError && (error.details?.reason === "source_access" || error.details?.reason === "invalid_source");
+
+/**
+ * Check every campaign, link and form version a rule names against this tenant, and return
+ * display names for chips. Missing references fail closed: an exclusion of a source that is no
+ * longer resolvable must never silently become "exclude nothing".
+ */
+export async function resolveSourceReferences(tx: Transaction, tenantId: string, rules: SourceRule[]) {
+  const names = new Map<string, string>();
+  const refs = sourceRuleReferences(rules);
+  const ids = (values: string[]) => sql.join(values.map((id) => sql`${id}::uuid`), sql`, `);
+  if (refs.campaigns.length) {
+    const rows = (await tx.execute(sql`select id::text, name, archived_at is not null as archived from campaigns where tenant_id = ${tenantId} and id in (${ids(refs.campaigns)})`)).rows as { id: string; name: string; archived: boolean }[];
+    if (rows.length !== refs.campaigns.length) throw invalidSourceRule();
+    for (const row of rows) names.set(row.id, row.archived ? message("Crm.sourceFilters.archivedName", { name: row.name }) : row.name);
+  }
+  if (refs.links.length) {
+    const rows = (await tx.execute(sql`select id::text, coalesce(nullif(btrim(label), ''), short_code) as name, archived_at is not null as archived from campaign_response_links where tenant_id = ${tenantId} and id in (${ids(refs.links)})`)).rows as { id: string; name: string; archived: boolean }[];
+    if (rows.length !== refs.links.length) throw invalidSourceRule();
+    for (const row of rows) names.set(row.id, row.archived ? message("Crm.sourceFilters.archivedName", { name: row.name }) : row.name);
+  }
+  if (refs.forms.length) {
+    const rows = (await tx.execute(sql`select v.id::text, f.name, v.version from form_versions v join forms f on f.tenant_id = v.tenant_id and f.id = v.form_id where v.tenant_id = ${tenantId} and v.id in (${ids(refs.forms)})`)).rows as { id: string; name: string; version: number }[];
+    if (rows.length !== refs.forms.length) throw invalidSourceRule();
+    for (const row of rows) names.set(row.id, message("Crm.sourceFilters.formVersion", { name: row.name, version: row.version }));
+  }
+  return names;
+}
+
+/**
+ * Retained, unreverted source events of the current contact. Row security already limits
+ * contact_source_events and campaign_responses to owners/admins and hides Connect evidence whose
+ * response is no longer associated and unexpired, so this is exactly what the Source column shows.
+ */
+function sourceEvents(tenantId: string, order: "first" | "latest" | "any") {
+  const base = sql`select s.id, s.kind, s.occurred_at, s.entry_route, r.campaign_id, r.link_id, r.form_version_id
+    from contact_source_events s left join campaign_responses r on r.tenant_id = s.tenant_id and r.id = s.response_id
+    where s.tenant_id = ${tenantId} and s.contact_id = contacts.id and s.reverted_at is null`;
+  if (order === "any") return base;
+  const direction = sql.raw(order === "first" ? "asc" : "desc");
+  return sql`${base} order by s.occurred_at ${direction}, s.id ${direction} limit 1`;
+}
+function ruleMatches(tenantId: string, rule: SourceRule): SQL {
+  if (rule.kinds.includes("unknown")) return sql`not exists (${sourceEvents(tenantId, "any")})`;
+  const list = (values: string[], cast: string) => sql.join(values.map((value) => sql`${value}::${sql.raw(cast)}`), sql`, `);
+  const conditions: SQL[] = [sql`true`];
+  if (rule.kinds.length) conditions.push(sql`e.kind in (${list(rule.kinds, "text")})`);
+  if (rule.campaigns.length) conditions.push(sql`e.campaign_id in (${list(rule.campaigns, "uuid")})`);
+  if (rule.links.length) conditions.push(sql`e.link_id in (${list(rule.links, "uuid")})`);
+  if (rule.forms.length) conditions.push(sql`e.form_version_id in (${list(rule.forms, "uuid")})`);
+  if (rule.route) conditions.push(sql`e.entry_route = ${rule.route}`);
+  if (rule.from) conditions.push(sql`(e.occurred_at at time zone 'UTC')::date >= ${rule.from}::date`);
+  if (rule.to) conditions.push(sql`(e.occurred_at at time zone 'UTC')::date <= ${rule.to}::date`);
+  return sql`exists (select 1 from (${sourceEvents(tenantId, rule.match)}) e where ${sql.join(conditions, sql` and `)})`;
+}
+/**
+ * One WHERE condition for all source rules: any included rule (a union), minus every contact
+ * matching any excluded rule (NOT EXISTS, so several events never duplicate or leak a contact).
+ */
+export function compileSourceRules(tenantId: string, rules: SourceRule[], sourceAccess: boolean): SQL | undefined {
+  if (!rules.length) return undefined;
+  if (!sourceAccess) throw sourceAccessDenied();
+  const included = rules.filter((rule) => rule.mode === "include").map((rule) => ruleMatches(tenantId, rule));
+  const excluded = rules.filter((rule) => rule.mode === "exclude").map((rule) => sql`not ${ruleMatches(tenantId, rule)}`);
+  return and(...(included.length ? [sql`(${sql.join(included, sql` or `)})`] : []), ...excluded);
 }

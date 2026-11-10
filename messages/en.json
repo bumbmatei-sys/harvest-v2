@@ -461,7 +461,8 @@
     "aPersonCannotBeMergedIntoThemselves": "Choose a different person to merge.",
     "thisExportIsTooLarge": "This view has more than 50,000 records. Narrow it with filters, then export.",
     "checkTheActivityDetails": "Check the activity details: choose a source, kind and purpose, and a person.",
-    "theseDetailsBelongToDifferentPeople": "These details belong to different people, so the activity was not linked."
+    "theseDetailsBelongToDifferentPeople": "These details belong to different people, so the activity was not linked.",
+    "sourceFiltersUnavailable": "Source filters in this view are not available."
   },
   "LibEnv": {
     "missingRequiredEnvironmentVariableValue": "Missing required environment variable: {name}"
@@ -852,6 +853,60 @@
       "qr": "QR route",
       "short": "Short link",
       "route": " · {route}"
+    },
+    "permissionFields": {
+      "newsletter": "Newsletter",
+      "followup_email": "Follow-up email",
+      "followup_sms": "Follow-up SMS"
+    },
+    "permission": {
+      "granted": "Granted",
+      "withdrawn": "Withdrawn",
+      "none": "No decision"
+    },
+    "sourceLockedNotice": "This view uses source filters, which only owners and admins can use, so no people are shown.",
+    "sourceInvalidNotice": "A source filter in this view refers to a campaign, link or form that is no longer available, so no people are shown.",
+    "sourceFilters": {
+      "group": "Source",
+      "rule": "Source rule",
+      "ruleType": "Rule",
+      "mode": "Rule",
+      "include": "Include",
+      "exclude": "Exclude",
+      "match": "Which source",
+      "any": "Any source",
+      "first": "First source",
+      "latest": "Latest source",
+      "kinds": "Source type",
+      "campaigns": "Campaigns",
+      "links": "Links",
+      "forms": "Forms",
+      "route": "Entry route",
+      "anyRoute": "Any route",
+      "dates": "Source date",
+      "from": "On or after",
+      "to": "On or before",
+      "archivedName": "{name} (archived)",
+      "formVersion": "{name} · v{version}",
+      "loading": "Loading sources…",
+      "none": "None yet",
+      "loadFailed": "Sources could not be loaded. Try again.",
+      "addRule": "Add rule",
+      "updateRule": "Update rule",
+      "complete": "Choose at least one source condition.",
+      "dateOrder": "The start date must be on or before the end date.",
+      "limit": "Use up to {max} source rules.",
+      "chip": "{mode} {source}: {conditions}",
+      "chipNoConditions": "{mode} {source}",
+      "anySourceLower": "any source",
+      "firstLower": "first source",
+      "latestLower": "latest source",
+      "fromChip": "from {date}",
+      "toChip": "to {date}",
+      "editRule": "Edit source rule {rule}",
+      "removeRule": "Remove source rule {rule}",
+      "unavailable": "Unavailable",
+      "retry": "Try again"
     }
   },
   "Deals": {
@@ -1467,7 +1522,8 @@
       "notes": "Notes",
       "domain": "Domain",
       "description": "Description",
-      "people": "People"
+      "people": "People",
+      "sources": "Sources"
     },
     "export": "Export",
     "exportTitle": "Export {list}",
@@ -1479,7 +1535,8 @@
     "notesExcluded": "Notes are left out; only owners and admins can export them.",
     "safety": "Erased people are never included. A leading apostrophe is added before cells that start with =, +, - or @ (including the fullwidth versions ＝, ＋, － and ＠), even after leading whitespace, or that start with a tab or carriage return, so spreadsheets show them as text.",
     "download": "Download CSV",
-    "close": "Close"
+    "close": "Close",
+    "sourcesIncluded": "The Sources column is included because it is shown in this view."
   },
   "Merge": {
     "merge": "Merge…",

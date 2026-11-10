@@ -60,5 +60,6 @@ export default async function PeoplePage({ params, searchParams }: { params: Pro
       {can(workspace.role, "crm:export") && <ExportDialog tenantId={tenantId} entity="person" query={query} listName={t("people")} />}</>}
     create={<ContactForm tenantId={tenantId} />} viewOnly={writable ? null : t("viewOnlyPeople")} notice={notice} state={list.state} viewId={viewId} query={query}
     parts={parts} related={list.related} views={parts.summaries} current={parts.summaries.find((view) => view.id === current.id)!} modified={modified} writable={writable} rows={rows}
+    sourceAccess={can(workspace.role, "contacts:sources_read")}
     copy={{ searchLabel: t("searchPeople"), searchPlaceholder: t("searchPeoplePlaceholder"), noMatch: t("noMatchingPeople"), pageEmpty: t("noPeopleOnThisPage"), emptyTitle: t("everyConnectionStartsSomewhere"), emptyDescription: t("addYourFirstPerson"), pages: t("peoplePages"), privacy: t("privacyNote") }} />;
 }
