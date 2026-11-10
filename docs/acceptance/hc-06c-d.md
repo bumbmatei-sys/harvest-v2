@@ -48,7 +48,7 @@ All evidence below is author-executed in the writing session. Independent review
 
 ## Known limits
 
-- **Browser tests and screenshots were not run in the writing environment**: it has no browser and browser downloads are disabled. The browser specs run in CI; CI keeps artifacts only on failure, so screenshots need a local run (`npx playwright test tests/e2e/hc06c-d-integrated.spec.ts`) or a CI artifact change.
+- **Browser tests and screenshots were not run in the writing environment**: it has no browser and browser downloads are disabled. The browser specs run only in CircleCI's manual final review (`full_review=true`), not on routine PR pushes. That job kept artifacts only on failure; PR #49 keeps the screenshots from every run. Until then, screenshots need a local run (`npx playwright test tests/e2e/hc06c-d-integrated.spec.ts`).
 - No 50k-contact query benchmark was run. Source predicates are correlated `exists` subqueries per contact on `contact_sources_history (tenant_id, contact_id, occurred_at, id)`, which already exists; add an index in a later migration only if a measured plan needs one.
 - A saved view whose stored state is corrupt still falls back to its full default state (pre-existing behavior).
 - Persistent global Do not contact remains out of scope.
