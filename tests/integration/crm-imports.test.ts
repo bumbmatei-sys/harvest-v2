@@ -434,7 +434,7 @@ describe("merge", () => {
 describe("definers without superuser or BYPASSRLS", () => {
   it("merge and rollback work when owned by a restricted role under FORCE RLS (as on Neon)", async () => {
     const role = "harvest_test_crm06", tables = ["contacts", "contact_identifiers", "contact_company_links", "contact_consents", "crm_tasks", "crm_notes", "opportunities",
-      "crm_field_values", "crm_field_definitions", "crm_import_rows", "crm_imports", "crm_associations", "companies", "audit_logs", "workspace_members", "contact_source_events"];
+      "crm_field_values", "crm_field_definitions", "crm_import_rows", "crm_imports", "crm_associations", "companies", "audit_logs", "workspace_members", "contact_source_events", "campaign_responses"];
     await fixture.admin.query(`create role ${role} nologin nosuperuser nobypassrls noinherit`);
     try {
       await fixture.admin.query(`grant usage on schema public to ${role}`);

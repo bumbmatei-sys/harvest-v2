@@ -93,7 +93,7 @@ export function getContact(db: Database, userId: string, workspace: string, cont
         tx.select({ one: sql`1` }).from(grants).where(and(
           eq(grants.tenantId, contactConsents.tenantId), eq(grants.contactId, contactConsents.contactId),
           eq(grants.channel, contactConsents.channel), eq(grants.purpose, contactConsents.purpose),
-          eq(grants.status, "granted"), gt(grants.recordedAt, contactConsents.recordedAt), gt(grants.occurredAt, contactConsents.occurredAt),
+          eq(grants.status, "granted"), isNull(grants.redactedAt), gt(grants.recordedAt, contactConsents.recordedAt), gt(grants.occurredAt, contactConsents.occurredAt),
         )),
       ))}`,
     }).from(contactConsents).where(and(eq(contactConsents.tenantId, tenantId), eq(contactConsents.contactId, id)))
@@ -102,6 +102,7 @@ export function getContact(db: Database, userId: string, workspace: string, cont
     // Any unsuperseded unsubscribe wins over grants and unknowns for its scope.
     const effective = new Map<string, typeof events[number]>();
     for (const entry of events) {
+      if (entry.event.redactedAt || !entry.event.channel) continue;
       const key = `${entry.event.channel}:${entry.event.purpose}`;
       const previous = effective.get(key);
       if (!previous || (!previous.outstandingWithdrawal && entry.outstandingWithdrawal)) effective.set(key, entry);
@@ -115,7 +116,7 @@ export function getContact(db: Database, userId: string, workspace: string, cont
     const possibleDuplicates = row.normalizedName.length >= DUPLICATE_MIN_LENGTH ? await tx.select({ id: contacts.id, name: contacts.name, createdAt: contacts.createdAt }).from(contacts)
       .where(and(eq(contacts.tenantId, tenantId), isNull(contacts.erasedAt), eq(contacts.normalizedName, row.normalizedName), ne(contacts.id, id)))
       .orderBy(asc(contacts.createdAt), asc(contacts.id)).limit(5) : [];
-    const sourceHistory = can(role, "contacts:sources_read") ? await tx.select({ id: contactSourceEvents.id, kind: contactSourceEvents.kind, outcome: contactSourceEvents.outcome, occurredAt: contactSourceEvents.occurredAt, revertedAt: contactSourceEvents.revertedAt }).from(contactSourceEvents)
+    const sourceHistory = can(role, "contacts:sources_read") ? await tx.select({ id: contactSourceEvents.id, kind: contactSourceEvents.kind, outcome: contactSourceEvents.outcome, sourceLabel: sql<string|null>`public.contact_connect_source_label(${tenantId}::uuid,${contactSourceEvents.id})`, entryRoute: contactSourceEvents.entryRoute, occurredAt: contactSourceEvents.occurredAt, revertedAt: contactSourceEvents.revertedAt }).from(contactSourceEvents)
       .where(and(eq(contactSourceEvents.tenantId, tenantId), eq(contactSourceEvents.contactId, id))).orderBy(desc(contactSourceEvents.occurredAt), desc(contactSourceEvents.id)).limit(51) : undefined;
     return { ...row, identifiers, consents, effectiveConsents, companies: companyLinks, possibleDuplicates, ...(sourceHistory ? {sourceHistory: sourceHistory.slice(0,50), sourceHistoryHasMore: sourceHistory.length > 50} : {}) };
   });

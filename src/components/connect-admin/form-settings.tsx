@@ -19,6 +19,7 @@ export function IntakeFormSettings({endpoint,versions}:{endpoint:string;versions
  const [invitation,setInvitation]=useState(false);
  const [busy,setBusy]=useState(false),[error,setError]=useState(""),[done,setDone]=useState(false);
  const selected=versions.find(v=>v.id===revision);
+ const automatic=invitation&&selected?.definition.kind!=="connect-intake-v2";
  function choose(value:string) {
   setRevision(value);setDone(false);const v=versions.find(v=>v.id===value);
   setName(v?.name??"");setNotice(v?.notice?.replace(/^Synthetic test notice: /,"")??"");setDays(v?.retentionDays?.toString()??"");
@@ -28,7 +29,7 @@ export function IntakeFormSettings({endpoint,versions}:{endpoint:string;versions
  async function submit() {
   setBusy(true);setError("");setDone(false);
   const result=await request(endpoint,{method:"POST",body:{...(selected?{formId:selected.formId}:{}),name,notice,retentionDays:Number(days),
-   definition:{kind:invitation?"connect-intake-v2":(selected?.definition.kind??"connect-intake-v1"),syntheticOnly:true,preferredName:includeName,followUpChannel:channel},
+   definition:{kind:invitation?(selected?.definition.kind==="connect-intake-v2"?"connect-intake-v2":"connect-intake-v3"):(selected?.definition.kind??"connect-intake-v1"),syntheticOnly:true,preferredName:includeName,followUpChannel:channel},
    purposes:[...(followUp?["outreach_follow_up"]:[]),...(newsletter?["newsletter"]:[]),...(invitation?["account_communications"]:[])]}});
   setBusy(false);if(!result.ok){setError(result.error);return;}setDone(true);router.refresh();
  }
@@ -42,7 +43,7 @@ export function IntakeFormSettings({endpoint,versions}:{endpoint:string;versions
    <label className="flex min-h-11 items-center gap-3" htmlFor={`${id}-followup`}><Checkbox id={`${id}-followup`} checked={followUp} onCheckedChange={v=>setFollowUp(v===true)} className="size-11 shrink-0"/>{t("followUp")}</label>
    <label className="flex min-h-11 items-center gap-3" htmlFor={`${id}-newsletter`}><Checkbox id={`${id}-newsletter`} checked={newsletter} onCheckedChange={v=>setNewsletter(v===true)} className="size-11 shrink-0"/>{t("newsletter")}</label>
    <label className="flex min-h-11 items-center gap-3" htmlFor={`${id}-invitation`}><Checkbox id={`${id}-invitation`} checked={invitation} onCheckedChange={v=>setInvitation(v===true)} className="size-11 shrink-0"/>{invite("choice")}</label>
-   <FieldDescription>{invite("formHelp")}</FieldDescription>
+   <FieldDescription>{invite(automatic?"automaticFormHelp":"formHelp")}</FieldDescription>
   </fieldset>
   {followUp&&<Field><FieldLabel htmlFor={`${id}-channel`}>{t("channel")}</FieldLabel><NativeSelect id={`${id}-channel`} value={channel} onChange={e=>setChannel(e.target.value)} className="min-h-11"><NativeSelectOption value="email">{t("emailChannel")}</NativeSelectOption></NativeSelect><FieldDescription>{t("phoneUnavailable")}</FieldDescription></Field>}
   <Field><FieldLabel htmlFor={`${id}-notice`}>{t("noticeLabel")}</FieldLabel><Textarea id={`${id}-notice`} value={notice} onChange={e=>setNotice(e.target.value)} required maxLength={19000} aria-describedby={`${id}-notice-help`}/><FieldDescription id={`${id}-notice-help`}>{t("noticeHelp")}</FieldDescription></Field>

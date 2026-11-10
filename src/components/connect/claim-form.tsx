@@ -22,7 +22,7 @@ async function post<T>(path:string,body:unknown){
   return {ok:r.ok,status:r.status,data:await r.json() as T&{details?:{reason?:string}}};
  }catch{return {ok:false,status:0,data:null};}
 }
-export function ClaimForm({ready,email}:{ready:boolean;email:string|null}) {
+export function ClaimForm({ready,email,automatic=false,organizer=""}:{ready:boolean;email:string|null;automatic?:boolean;organizer?:string}) {
  const t=useTranslations("Invitations"),[store]=useState(fragmentStore);
  const token=useSyncExternalStore(store.subscribe,store.snapshot,store.server);
  const [busy,setBusy]=useState(false),[error,setError]=useState("");
@@ -39,7 +39,7 @@ export function ClaimForm({ready,email}:{ready:boolean;email:string|null}) {
  return <div className="space-y-5">
   {error&&<Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
   {token===null?<p>{t("saving")}</p>:token?<><p>{t("claimBody")}</p><Button disabled={busy} className="min-h-11" onClick={()=>void prepare()}>{t(busy?"saving":"prepare")}</Button></>:ready?<>
-   {email?<><p>{t("confirmBody",{email})}</p><div className="flex flex-wrap gap-3"><Button disabled={busy} className="min-h-11" onClick={()=>void consume("confirm")}>{t("confirm")}</Button><Button variant="outline" disabled={busy} className="min-h-11" onClick={()=>void consume("decline")}>{t("decline")}</Button><Button variant="outline" disabled={busy} className="min-h-11" onClick={()=>void switchAccount()}>{t("switchAccount")}</Button></div></>:<Button asChild className="min-h-11"><Link href="/sign-in?connect=1" prefetch={false}>{t("signIn")}</Link></Button>}
+   {email?<><p>{automatic?t("automaticConfirm",{email,organizer}):t("confirmBody",{email})}</p><div className="flex flex-wrap gap-3"><Button disabled={busy} className="min-h-11" onClick={()=>void consume("confirm")}>{t("confirm")}</Button><Button variant="outline" disabled={busy} className="min-h-11" onClick={()=>void consume("decline")}>{t("decline")}</Button><Button variant="outline" disabled={busy} className="min-h-11" onClick={()=>void switchAccount()}>{t("switchAccount")}</Button></div></>:<Button asChild className="min-h-11"><Link href="/sign-in?connect=1" prefetch={false}>{t("signIn")}</Link></Button>}
   </>:<p>{t("unavailable")}</p>}
   <Button asChild variant="outline" className="min-h-11"><Link href="/resources/start" prefetch={false}>{t("resources")}</Link></Button>
  </div>;

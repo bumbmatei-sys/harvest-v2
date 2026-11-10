@@ -1,3 +1,4 @@
+import { retryConnectTransaction } from "./connect-retry";
 import { randomBytes, randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -46,23 +47,44 @@ export async function prepareInvitation(db:Database,raw:unknown) {
  });
  if(!ok)throw unavailable();return flow;
 }
-export type InvitationFlow={recipientHash:string;recipientBinding:string;sourcePath:string};
+export type InvitationFlow={recipientHash:string;recipientBinding:string;sourcePath:string;automatic?:boolean;organizer?:string};
 export async function readInvitationFlow(db:Database,flow:string):Promise<InvitationFlow|null> {
  if(!secret.safeParse(flow).success)return null;
  return withSyntheticIntake(db,async tx=>{
   const r=await tx.execute<{flow:InvitationFlow|null}>(sql`select public.connect_invitation_flow(${receiptHash(flow)}) as flow`);return r.rows[0]?.flow??null;
  });
 }
-export async function consumeInvitation(db:Database,flow:string,user:{id:string;email:string;emailVerified:boolean},raw:unknown) {
+async function consumeInvitationOnce(db:Database,flow:string,user:{id:string;email:string;emailVerified:boolean},raw:unknown) {
  requireSyntheticIntake();secret.parse(flow);const {action}=invitationClaim.parse(raw);
  return withUser(db,user.id,async tx=>{
   const [current]=await tx.select({email:users.email,verified:users.emailVerified}).from(users).where(eq(users.id,user.id)).for("share");
   if(!current?.verified)throw unavailable();
   await tx.execute(sql`select set_config('app.connect_intake_mode','synthetic',true)`);
+  if(action==="confirm"){
+   const completed=await tx.execute<{completed:boolean}>(sql`select public.connect_claim_completed(${receiptHash(flow)}) as completed`);
+   if(completed.rows[0]?.completed)return {next:"/account/welcome"};
+  }
   const f=await tx.execute<{flow:InvitationFlow|null}>(sql`select public.connect_invitation_flow(${receiptHash(flow)}) as flow`);
-  const info=f.rows[0]?.flow;if(!info)throw unavailable();
+  const info=f.rows[0]?.flow;
+  if(!info){
+   if(action==="confirm"){
+    const committed=await tx.execute<{completed:boolean}>(sql`select public.connect_claim_completed(${receiptHash(flow)}) as completed`);
+    if(committed.rows[0]?.completed)return {next:"/account/welcome"};
+   }
+   throw unavailable();
+  }
   const sourcePath=info.sourcePath;
-  const result=await tx.execute<{outcome:string}>(sql`select public.connect_invitation_consume(${receiptHash(flow)},${user.id},${invitationRecipientHash(current.email,info.recipientBinding)},${action==="decline"}) as outcome`);
+  let preferredName:string|null=null;
+  if(info.automatic&&action==="confirm"){
+   const envelope=await tx.execute<{envelope:Envelope|null}>(sql`select public.connect_claim_envelope(${receiptHash(flow)}) as envelope`);
+   const sealed=envelope.rows[0]?.envelope;if(!sealed)throw unavailable();
+   const payload=z.object({email:z.string(),preferredName:z.string().trim().max(80).optional()}).parse(openIntake(sealed,sealed.binding));
+   if(payload.email.toLowerCase()!==current.email.toLowerCase())throw unavailable();
+   preferredName=payload.preferredName??null;
+  }
+  const result=info.automatic
+   ?await tx.execute<{outcome:string}>(sql`select public.connect_invitation_consume_verified(${receiptHash(flow)},${user.id},${invitationRecipientHash(current.email,info.recipientBinding)},${current.email},${preferredName},${action==="decline"}) as outcome`)
+   :await tx.execute<{outcome:string}>(sql`select public.connect_invitation_consume(${receiptHash(flow)},${user.id},${invitationRecipientHash(current.email,info.recipientBinding)},${action==="decline"}) as outcome`);
   const outcome=result.rows[0]?.outcome;if(outcome==="mismatch")throw new AccessError(409,message("Invitations.mismatch"),{reason:"mismatch"});
   if(outcome!=="claimed"&&outcome!=="declined")throw unavailable();
   return {next:`/account/welcome${sourcePath?`?from=${encodeURIComponent(sourcePath)}`:""}`};
@@ -97,3 +119,18 @@ export async function purgeInvitations(db:Database) {
  return withSyntheticIntake(db,async tx=>{const r=await tx.execute<{count:number}>(sql`select public.purge_connect_invitations() as count`);return {purged:r.rows[0]?.count??0};});
 }
 export const safeSourcePath=(value:unknown)=>typeof value==="string"&&/^\/c\/[a-f0-9]{32}$/.test(value)?value:"/resources/start";
+
+// Retry only transaction conflicts. Every attempt reloads and locks the live verified user,
+// recomputes recipient proof and reruns the entire transaction; never retry a partial write.
+export async function consumeInvitation(db:Database,flow:string,user:{id:string;email:string;emailVerified:boolean},raw:unknown) {
+ return retryConnectTransaction(()=>consumeInvitationOnce(db,flow,user,raw),true);
+}
+
+export async function invitationCompleted(db:Database,flow:string,userId:string){
+ requireSyntheticIntake();if(!secret.safeParse(flow).success)return false;
+ return withUser(db,userId,async tx=>{
+  await tx.execute(sql`select set_config('app.connect_intake_mode','synthetic',true)`);
+  const result=await tx.execute<{completed:boolean}>(sql`select public.connect_claim_completed(${receiptHash(flow)}) as completed`);
+  return result.rows[0]?.completed===true;
+ });
+}
