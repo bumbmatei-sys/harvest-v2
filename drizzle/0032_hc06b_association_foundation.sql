@@ -200,20 +200,21 @@ CREATE CONSTRAINT TRIGGER connect_consent_origin_required AFTER INSERT ON public
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION public.guard_campaign_response() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
-DECLARE link_status text; version_status text; retention integer; campaign_archived timestamptz;
+DECLARE link_status text; version_status text; retention integer; campaign_archived timestamptz; link_expires timestamptz;
 BEGIN
   IF TG_OP = 'DELETE' THEN RAISE EXCEPTION 'responses are erased, not deleted'; END IF;
   IF TG_OP = 'INSERT' THEN
     IF NEW.status <> 'pending' OR NEW.contact_id IS NOT NULL OR NEW.associated_at IS NOT NULL OR NEW.erased_at IS NOT NULL THEN
       RAISE EXCEPTION 'responses start pending and unassociated';
     END IF;
-    SELECT l.status, v.status, v.pending_retention_days, c.archived_at INTO link_status, version_status, retention, campaign_archived
+    SELECT l.status, v.status, v.pending_retention_days, c.archived_at, l.expires_at INTO link_status, version_status, retention, campaign_archived, link_expires
       FROM public.campaign_response_links l
       JOIN public.form_versions v ON v.tenant_id = l.tenant_id AND v.id = l.form_version_id
       JOIN public.campaigns c ON c.tenant_id = l.tenant_id AND c.id = l.campaign_id
       WHERE l.tenant_id = NEW.tenant_id AND l.id = NEW.link_id AND l.campaign_id = NEW.campaign_id AND l.form_version_id = NEW.form_version_id
       FOR SHARE OF l, v;
-    IF NOT FOUND OR link_status <> 'published' OR version_status <> 'published' OR campaign_archived IS NOT NULL THEN
+    IF NOT FOUND OR link_status <> 'published' OR version_status <> 'published' OR campaign_archived IS NOT NULL
+      OR link_expires <= now() THEN -- HC-03
       RAISE EXCEPTION 'response source is not accepting responses';
     END IF;
     NEW.submitted_at := now();
