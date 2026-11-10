@@ -18,7 +18,7 @@ export function can(role: string, permission: Permission): boolean {
   return role === "owner" || role === "admin";
 }
 export class AccessError extends Error {
-  constructor(public status: 400 | 401 | 403 | 404 | 409, message: string, public details?: Record<string, string | number>) { super(message); }
+  constructor(public status: 400 | 401 | 403 | 404 | 409 | 429, message: string, public details?: Record<string, string | number>) { super(message); }
 }
 export function requirePermission(role: string, permission: Permission) {
   if (!can(role, permission)) throw new AccessError(403, message("Errors.youDoNotHavePermissionToDoThat"));

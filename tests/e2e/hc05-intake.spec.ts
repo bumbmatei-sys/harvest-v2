@@ -72,7 +72,7 @@ for(const scheme of ["light","dark"] as const) {
    expect((await visitor.request.post(saved.url(),{headers:{origin},data:savedBody})).status()).toBe(404);
    expect((await new AxeBuilder({page:visitor}).withTags(["wcag2a","wcag2aa","wcag21aa","wcag22aa"]).analyze()).violations).toEqual([]);
    await visitor.screenshot({path:join(evidence,`receipt-mobile-${scheme}.png`),fullPage:true});
-   await visitor.goto("/connect/rights");await expect(visitor.getByRole("heading",{name:"Manage a pending test request"})).toBeVisible();
+   await visitor.goto("/connect/rights");await expect(visitor.getByRole("heading",{name:"Manage a test response"})).toBeVisible();
    await visitor.getByLabel("Private recovery code",{exact:true}).fill(savedBody.receiptToken);await visitor.getByRole("button",{name:"Apply action"}).click();await expect(visitor.getByRole("status")).toContainText("Request acknowledged");
    expect((await new AxeBuilder({page:visitor}).withTags(["wcag2a","wcag2aa","wcag21aa","wcag22aa"]).analyze()).violations).toEqual([]);
    await visitor.screenshot({path:join(evidence,`rights-mobile-${scheme}.png`),fullPage:true});

@@ -1,3 +1,4 @@
+import { retryConnectTransaction } from "./connect-retry";
 import { and, desc, eq, isNull, max, sql } from "drizzle-orm";
 import type { Database } from "../db/client";
 import { auditLogs, campaigns, forms, formVersions, privacyNoticeVersions } from "../db/schema";
@@ -67,7 +68,7 @@ export async function submitIntake(db: Database, kind: string, code: string, raw
 }
 export async function applyIntakeRights(db: Database, raw: unknown) {
   const input = intakeRights.parse(raw);
-  const result = await withSyntheticIntake(db, tx => tx.execute<{ applied: boolean | null }>(sql`select public.connect_intake_rights(${receiptHash(input.receiptToken)},${input.action},${input.purpose ?? null}) as applied`));
+  const result = await retryConnectTransaction(()=>withSyntheticIntake(db, tx => tx.execute<{ applied: boolean | null }>(sql`select public.connect_intake_rights(${receiptHash(input.receiptToken)},${input.action},${input.purpose ?? null}) as applied`)));
   if (result.rows[0]?.applied === null) return { limited: true } as const;
   // Unknown/replayed/expired proof gets the same acknowledgement, never response data.
   return { acknowledged: true };
@@ -107,7 +108,7 @@ export async function publishIntakeForm(db: Database, userId: string, workspace:
     const [{ latest }] = await tx.select({ latest: max(formVersions.version) }).from(formVersions).where(and(eq(formVersions.tenantId,tenantId),eq(formVersions.formId,formId)));
     const version = (latest ?? 0)+1;
     const [notice] = await tx.insert(privacyNoticeVersions).values({ tenantId,noticeKey:`hc05-${formId}`,version,locale:"en",
-      body:`Synthetic test notice: ${input.notice}`,bodySha256:"0".repeat(64),createdBy:userId }).returning({id:privacyNoticeVersions.id});
+      body:`Synthetic test notice: ${input.notice}${input.definition.kind === "connect-intake-v3" ? " After your verified account claim, your name and verified email are automatically added to this organizer’s contact list. Newsletter and follow-up choices remain separate; a contact record grants no messaging permission, membership or enrollment." : ""}`,bodySha256:"0".repeat(64),createdBy:userId }).returning({id:privacyNoticeVersions.id});
     const [created] = await tx.insert(formVersions).values({ tenantId,formId,version,definition:input.definition,offeredPurposes:input.purposes,
       noticeVersionId:notice.id,pendingRetentionDays:input.retentionDays,createdBy:userId }).returning({id:formVersions.id});
     await tx.update(formVersions).set({status:"published",publishedBy:userId}).where(and(eq(formVersions.tenantId,tenantId),eq(formVersions.id,created.id)));

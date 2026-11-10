@@ -138,7 +138,7 @@ export const contactConsents = pgTable("contact_consents", {
   // CRM-07 adds messaging, form follow-up and newsletter: separate opt-ins, never one bundled box.
   check("consent_purpose", sql`${t.purpose} in ('marketing', 'outreach_follow_up', 'event_administration', 'account_communications', 'legacy_unspecified', 'messaging', 'form_follow_up', 'newsletter')`),
   check("consent_occurrence_bound", sql`${t.occurredAt} <= ${t.recordedAt} + interval '5 minutes'`),
-  check("consent_notice_version", sql`${t.noticeVersion} in ('notice-v1', 'legacy-unversioned')`),
+  check("consent_notice_version", sql`${t.noticeVersion} in ('notice-v1', 'legacy-unversioned', 'connect-immutable', 'subject-withdrawal')`),
   check("consent_redaction", sql`(${t.redactedAt} is null and ${t.contactId} is not null and ${t.channel} is not null and ${t.source} is not null and ${t.evidence} is not null) or (${t.redactedAt} is not null and ${t.channel} is null and ${t.source} is null and ${t.evidence} is null and ${t.recordedBy} is null)`)]);
 // CRM-01: organizations and explicit, tenant-scoped person-organization links.
 export const companies = pgTable("companies", {
@@ -764,7 +764,7 @@ export const campaignResponses = pgTable("campaign_responses", {
   submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
   // Computed at insert from the form version's retention; never caller-supplied.
   expiresAt: timestamp("expires_at", { withTimezone: true }),
-  // Reserved for HC-06. No role can set it in HC-02.
+  // Set only by the controlled verified-claim transaction; no direct app write grant.
   contactId: uuid("contact_id"), associatedAt: timestamp("associated_at", { withTimezone: true }),
   erasedAt: timestamp("erased_at", { withTimezone: true }),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
@@ -873,7 +873,7 @@ export const connectInvitationFlows = pgTable("connect_invitation_flows", {
  generation: integer("generation").notNull(), expiresAt: timestamp("expires_at",{withTimezone:true}).notNull(),
 },t=>[foreignKey({columns:[t.tenantId,t.invitationId],foreignColumns:[connectInvitations.tenantId,connectInvitations.id]}).onDelete("cascade"),
  check("connect_invitation_flow_hash",sql`${t.hash} ~ '^[a-f0-9]{64}$' and ${t.generation}>0`),index("connect_invitation_flow_expiry_idx").on(t.expiresAt)]);
-// HC-06 must consume this verified grant once, in the CRM association transaction. HC-07 never associates.
+// HC-06 v3 consumes this grant in the association transaction; legacy HC-07 leaves it unconsumed.
 export const responseAccountClaims = pgTable("response_account_claims", {
  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), responseId: uuid("response_id").notNull(),
  invitationId: uuid("invitation_id").notNull(), userId: text("user_id").notNull().references(()=>users.id,{onDelete:"cascade"}),
@@ -909,13 +909,41 @@ export const connectLandingStates = pgTable("connect_landing_states", {
 // HC-06A: minimal provenance; trusted database writers own all mutations.
 export const contactSourceEvents = pgTable("contact_source_events", {
   id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id").notNull(), contactId: uuid("contact_id").notNull(),
-  kind: text("kind").$type<"manual" | "csv_import">().notNull(),
+  kind: text("kind").$type<"manual" | "csv_import" | "connect">().notNull(),
   outcome: text("outcome").$type<"created" | "updated">().notNull(),
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
   importId: uuid("import_id"), rowNumber: integer("row_number"),
+  responseId: uuid("response_id"), entryRoute: text("entry_route").$type<"qr" | "short">(),
   revertedAt: timestamp("reverted_at", { withTimezone: true }),
 }, t => [foreignKey({ columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }).onDelete("cascade"),
   foreignKey({ columns: [t.tenantId, t.importId], foreignColumns: [crmImports.tenantId, crmImports.id] }),
+  foreignKey({ name: "contact_sources_response_fk", columns: [t.tenantId, t.responseId], foreignColumns: [campaignResponses.tenantId, campaignResponses.id] }).onUpdate("cascade"),
+  uniqueIndex("contact_sources_response_unique").on(t.tenantId, t.responseId).where(sql`${t.kind} = 'connect'`),
   uniqueIndex("contact_sources_import_unique").on(t.tenantId, t.importId, t.rowNumber).where(sql`${t.kind} = 'csv_import'`),
   index("contact_sources_history").on(t.tenantId, t.contactId, t.occurredAt, t.id),
-  check("contact_sources_contract", sql`(${t.kind} = 'manual' and ${t.outcome} = 'created' and ${t.importId} is null and ${t.rowNumber} is null and ${t.revertedAt} is null) or (${t.kind} = 'csv_import' and ${t.outcome} in ('created','updated') and ${t.importId} is not null and ${t.rowNumber} is not null and ${t.rowNumber} > 0)`)]);
+  check("contact_sources_contract", sql`(${t.kind} = 'manual' and ${t.outcome} = 'created' and ${t.importId} is null and ${t.rowNumber} is null and ${t.revertedAt} is null and ${t.responseId} is null and ${t.entryRoute} is null) or (${t.kind} = 'csv_import' and ${t.outcome} in ('created','updated') and ${t.importId} is not null and ${t.rowNumber} is not null and ${t.rowNumber} > 0 and ${t.responseId} is null and ${t.entryRoute} is null) or (${t.kind} = 'connect' and ${t.outcome} in ('created','updated') and ${t.importId} is null and ${t.rowNumber} is null and ${t.revertedAt} is null and ${t.responseId} is not null and ${t.entryRoute} is not null and ${t.entryRoute} in ('qr','short'))`)]);
+
+// HC-06B restricted persistence; app access goes through scoped capability services.
+export const connectResponseSubjects = pgTable("connect_response_subjects", {
+  tenantId: uuid("tenant_id").notNull(), responseId: uuid("response_id").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  handle: uuid("handle").notNull().defaultRandom().unique(), boundAt: timestamp("bound_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [primaryKey({ columns: [t.tenantId, t.responseId] }),
+  foreignKey({ columns: [t.tenantId, t.responseId], foreignColumns: [campaignResponses.tenantId, campaignResponses.id] }).onUpdate("cascade"),
+  index("connect_subject_user").on(t.userId, t.handle)]);
+export const connectConsentOrigins = pgTable("connect_consent_origins", {
+  tenantId: uuid("tenant_id").notNull(), consentId: uuid("consent_id").notNull(), responseId: uuid("response_id").notNull(),
+  responseConsentId: uuid("response_consent_id").notNull(), formVersionId: uuid("form_version_id").notNull(), noticeVersionId: uuid("notice_version_id").notNull(),
+}, t => [primaryKey({ columns: [t.tenantId, t.consentId] }),
+  uniqueIndex("connect_consent_origins_response_unique").on(t.tenantId, t.responseConsentId),
+  foreignKey({ columns: [t.tenantId, t.consentId], foreignColumns: [contactConsents.tenantId, contactConsents.id] }),
+  foreignKey({ columns: [t.tenantId, t.responseId], foreignColumns: [campaignResponses.tenantId, campaignResponses.id] }).onUpdate("cascade"),
+  foreignKey({ columns: [t.tenantId, t.responseConsentId], foreignColumns: [campaignResponseConsents.tenantId, campaignResponseConsents.id] }),
+  foreignKey({ columns: [t.tenantId, t.formVersionId], foreignColumns: [formVersions.tenantId, formVersions.id] }),
+  foreignKey({ columns: [t.tenantId, t.noticeVersionId], foreignColumns: [privacyNoticeVersions.tenantId, privacyNoticeVersions.id] })]);
+export const connectClaimCompletions = pgTable("connect_claim_completions", {
+  flowHash: text("flow_hash").primaryKey(), tenantId: uuid("tenant_id").notNull(), responseId: uuid("response_id").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+}, t => [foreignKey({ columns: [t.tenantId, t.responseId], foreignColumns: [campaignResponses.tenantId, campaignResponses.id] }).onUpdate("cascade"),
+  index("connect_completion_expiry").on(t.expiresAt), check("connect_completion_hash", sql`${t.flowHash} ~ '^[a-f0-9]{64}$'`)]);

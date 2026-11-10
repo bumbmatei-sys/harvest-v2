@@ -21,7 +21,7 @@ async function freePort() {
   await new Promise<void>((resolve) => server.close(() => resolve()));
   return port;
 }
-export async function testDatabase(options: { beforeHc06aMigration?: (admin: Pool) => Promise<void>; beforeFilesMigration?: (admin: Pool) => Promise<void>; beforeShellMigration?: (admin: Pool) => Promise<void>; beforeFollowupMigration?: (admin: Pool) => Promise<void>; beforeCrmMigration?: (admin: Pool) => Promise<void>; beforeCrm03Migration?: (admin: Pool) => Promise<void>; beforeCrm04Migration?: (admin: Pool) => Promise<void>; beforeCrm05Migration?: (admin: Pool) => Promise<void>; beforeCampaignMigration?: (admin: Pool) => Promise<void>; beforeCrm06Migration?: (admin: Pool) => Promise<void>; beforeCrm07Migration?: (admin: Pool) => Promise<void>; beforeHc02Migration?: (admin: Pool) => Promise<void>; beforeHc03Migration?: (admin: Pool) => Promise<void> } = {}) {
+export async function testDatabase(options: { migrationOwner?: boolean; beforeHc06bMigration?: (admin: Pool) => Promise<void>; beforeHc06aMigration?: (admin: Pool) => Promise<void>; beforeFilesMigration?: (admin: Pool) => Promise<void>; beforeShellMigration?: (admin: Pool) => Promise<void>; beforeFollowupMigration?: (admin: Pool) => Promise<void>; beforeCrmMigration?: (admin: Pool) => Promise<void>; beforeCrm03Migration?: (admin: Pool) => Promise<void>; beforeCrm04Migration?: (admin: Pool) => Promise<void>; beforeCrm05Migration?: (admin: Pool) => Promise<void>; beforeCampaignMigration?: (admin: Pool) => Promise<void>; beforeCrm06Migration?: (admin: Pool) => Promise<void>; beforeCrm07Migration?: (admin: Pool) => Promise<void>; beforeHc02Migration?: (admin: Pool) => Promise<void>; beforeHc03Migration?: (admin: Pool) => Promise<void> } = {}) {
   let embedded: EmbeddedPostgres | undefined;
   let stoppingEmbedded = false;
   const poolErrors: Error[] = [];
@@ -50,10 +50,16 @@ export async function testDatabase(options: { beforeHc06aMigration?: (admin: Poo
   }
   const root = observePool(new Pool({ connectionString: adminURL, max: 1 }));
   const name = `harvest_test_${randomBytes(8).toString("hex")}`;
-  await root.query(`CREATE DATABASE ${name}`);
+  const migrationOwner = options.migrationOwner ? `hc06b_owner_${randomBytes(8).toString("hex")}` : null;
+  if (migrationOwner) {
+    await root.query(`CREATE ROLE ${migrationOwner} NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS`);
+    await root.query("DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='harvest_app') THEN CREATE ROLE harvest_app NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS; END IF; END $$");
+  }
+  await root.query(`CREATE DATABASE ${name}${migrationOwner ? ` OWNER ${migrationOwner}` : ""}`);
   const url = new URL(adminURL); url.pathname = `/${name}`;
   const admin = observePool(new Pool({ connectionString: url.toString(), max: 1 }));
-  for (const [lastIndex, seed] of [[3, options.beforeFilesMigration], [4, options.beforeShellMigration], [7, options.beforeFollowupMigration], [10, options.beforeCrmMigration], [12, options.beforeCrm03Migration], [14, options.beforeCrm04Migration], [17, options.beforeCrm05Migration], [20, options.beforeCampaignMigration], [21, options.beforeCrm06Migration], [23, options.beforeCrm07Migration], [25, options.beforeHc02Migration], [26, options.beforeHc03Migration], [30, options.beforeHc06aMigration]] as const) {
+  if (migrationOwner) await admin.query(`SET ROLE ${migrationOwner}`);
+  for (const [lastIndex, seed] of [[3, options.beforeFilesMigration], [4, options.beforeShellMigration], [7, options.beforeFollowupMigration], [10, options.beforeCrmMigration], [12, options.beforeCrm03Migration], [14, options.beforeCrm04Migration], [17, options.beforeCrm05Migration], [20, options.beforeCampaignMigration], [21, options.beforeCrm06Migration], [23, options.beforeCrm07Migration], [25, options.beforeHc02Migration], [26, options.beforeHc03Migration], [30, options.beforeHc06aMigration], [31, options.beforeHc06bMigration]] as const) {
     if (!seed) continue;
     const mainFolder = await mkdtemp(join(tmpdir(), "harvest-main-migrations-"));
     try {
@@ -63,21 +69,26 @@ export async function testDatabase(options: { beforeHc06aMigration?: (admin: Poo
       journal.entries = journal.entries.filter((entry: { idx: number }) => entry.idx <= lastIndex);
       await writeFile(journalPath, JSON.stringify(journal));
       await migrate(drizzle(admin), { migrationsFolder: mainFolder });
+      if (migrationOwner) await admin.query("RESET ROLE");
       await seed(admin);
+      if (migrationOwner) await admin.query(`SET ROLE ${migrationOwner}`);
     } finally { await rm(mainFolder, { recursive: true, force: true }); }
   }
   await migrate(drizzle(admin), { migrationsFolder: "drizzle" });
   // Applying the same migrations twice must be a no-op.
   await migrate(drizzle(admin), { migrationsFolder: "drizzle" });
+  if (migrationOwner) await admin.query("RESET ROLE");
   const appPassword = randomBytes(24).toString("hex");
   await admin.query(`ALTER ROLE harvest_app LOGIN PASSWORD ${escapeLiteral(appPassword)}`);
   url.username = "harvest_app"; url.password = appPassword;
   // max:1 guarantees physical backend reuse, rather than merely hoping a pool reuses it.
   const pool = observePool(new Pool({ connectionString: url.toString(), max: 1 }));
   const db = drizzle(pool, { schema });
-  return { db, pool, admin, appURL: url.toString(), async close() {
+  return { db, pool, admin, migrationOwner, appURL: url.toString(), async close() {
     await pool.end(); await admin.end();
-    await root.query(`DROP DATABASE ${name}`); await root.end();
+    await root.query(`DROP DATABASE ${name}`);
+    if (migrationOwner) await root.query(`DROP ROLE ${migrationOwner}`);
+    await root.end();
     stoppingEmbedded = true; await embedded?.stop();
     if (poolErrors.length) throw new AggregateError(poolErrors, "Test database pool failed");
   } };

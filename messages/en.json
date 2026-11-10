@@ -81,7 +81,9 @@
     "contactDetailsAndMarketingConsentAreSeparateAdding": "Contact details and marketing consent are separate. Adding a person never subscribes them to a channel.",
     "addedOn": "Added {date}",
     "consentNotice": "{purpose} · {version}",
-    "recordedBy": "Recorded {date} · by {actor}"
+    "recordedBy": "Recorded {date} · by {actor}",
+    "responseChoice": "response choice",
+    "privacyRequest": "privacy request"
   },
   "AppWorkspacesError": {
     "couldnTLoadThisPage": "Couldn’t load this page",
@@ -499,7 +501,9 @@
     "legacy-unversioned": "Legacy wording unavailable",
     "messaging": "Messaging",
     "form_follow_up": "Form follow-up",
-    "newsletter": "Newsletter"
+    "newsletter": "Newsletter",
+    "connect-immutable": "Immutable response notice",
+    "subject-withdrawal": "Response evidence erased; withdrawal retained"
   },
   "Calendar": {
     "previousMonth": "Go to previous month",
@@ -843,7 +847,11 @@
       "reverted": "Reverted",
       "recentLimit": "Showing the 50 most recent events.",
       "event": "{source} · {outcome}",
-      "revertedSuffix": " · Reverted"
+      "revertedSuffix": " · Reverted",
+      "connect": "Connect",
+      "qr": "QR route",
+      "short": "Short link",
+      "route": " · {route}"
     }
   },
   "Deals": {
@@ -1867,7 +1875,7 @@
     "withdrawNewsletter": "Withdraw newsletter request",
     "erase": "Erase test request",
     "rightsAck": "Request acknowledged. If this code identifies a pending test request, the selected action has been applied.",
-    "rightsTitle": "Manage a pending test request",
+    "rightsTitle": "Manage a test response",
     "rightsBody": "Use the private recovery code from your receipt. Do not enter an email address or response identifier.",
     "resources": "Continue to free resources",
     "rightsLink": "Manage or erase a test request",
@@ -1936,7 +1944,10 @@
     "pendingBody": "Your choices are recorded as pending requests. No newsletter subscription was activated and no counselor was assigned. If you requested an account invitation, delivery is queued; it has not been confirmed.",
     "personalBrand": "Harvest",
     "landingBody": "A free personal Harvest account. Request an invitation below; your other choices stay separate.",
-    "landingAction": "Request a free account"
+    "landingAction": "Request a free account",
+    "automaticConfirm": "You are signed in as {email}. Confirming this request adds your name and verified email to {organizer}’s contact list. Your newsletter and follow-up choices stay separate.",
+    "automaticFormHelp": "Verified account claims automatically create or reuse an organizer contact. A new immutable notice explains this; earlier versions keep their original behavior.",
+    "responseRights": "Response preferences"
   },
   "LandingEditor": {
     "edit": "Edit landing page",
@@ -2094,5 +2105,22 @@
     "searchRegistry": "Search components",
     "all": "All categories",
     "sourceAndConsumers": "Source and real consumers"
+  },
+  "SubjectRights": {
+    "title": "Your responses",
+    "empty": "No retained responses are linked to this account.",
+    "withdraw": "Withdraw {purpose}",
+    "erase": "Delete response",
+    "confirmErase": "Confirm response deletion",
+    "cancel": "Cancel",
+    "erasureNotice": "This deletes your response and its linked evidence. It does not delete your account or the organizer’s independent contact record.",
+    "newsletter": "Newsletter",
+    "outreach_follow_up": "Follow-up",
+    "next": "More responses",
+    "signIn": "Sign in to manage your linked responses",
+    "receipt": "Use a recovery code",
+    "done": "Your request has been received.",
+    "failed": "Unable to apply this request. Try again.",
+    "organizerCampaign": "{organizer} · {campaign}"
   }
 }
