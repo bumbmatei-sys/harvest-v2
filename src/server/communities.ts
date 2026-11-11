@@ -1,8 +1,9 @@
-import { and, eq, gt, isNull, lte, or } from "drizzle-orm";
+import { and, asc, eq, gt, isNull, lte, or } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
-import { auditLogs, communities, communityMemberships, entitlements, reservedCommunitySlugs } from "../db/schema";
+import { auditLogs, communities, communityMemberships, entitlements, reservedCommunitySlugs, users } from "../db/schema";
 import { communityStaffRoles, type CommunityRole } from "../lib/community-permissions";
+import { readyToPublish } from "../lib/community-editor";
 import { message } from "../i18n/messages";
 import { AccessError } from "./permissions";
 import { withTenant, withUser } from "./tenancy";
@@ -117,5 +118,40 @@ export function communityAccess(db: Database, viewerId: string, communityId: str
       isNull(entitlements.revokedAt), lte(entitlements.validFrom, now), or(isNull(entitlements.validUntil), gt(entitlements.validUntil, now))));
     const role = membership.role as CommunityRole, sources = grants.map((g) => g.source).sort();
     return { allowed: communityStaffRoles.includes(role) || sources.length > 0, role, sources };
+  });
+}
+
+const publishInput = z.object({ version: z.number().int().min(1), published: z.boolean() }).strict();
+
+export function getCommunity(db: Database, userId: string, workspace: string, communityId: string) {
+  const id = z.uuid().parse(communityId);
+  return withTenant(db, userId, z.uuid().parse(workspace), "communities:read", (tx, tenantId) => ownCommunity(tx, tenantId, id));
+}
+
+/** Members of one community for its ministry's staff: display name, role and status only, never contact details. */
+export function listCommunityMembers(db: Database, userId: string, workspace: string, communityId: string) {
+  const id = z.uuid().parse(communityId);
+  return withTenant(db, userId, z.uuid().parse(workspace), "communities:read", async (tx, tenantId) => {
+    await ownCommunity(tx, tenantId, id);
+    return tx.select({ userId: communityMemberships.userId, name: users.name, role: communityMemberships.role, status: communityMemberships.status })
+      .from(communityMemberships).innerJoin(users, eq(users.id, communityMemberships.userId))
+      .where(and(eq(communityMemberships.tenantId, tenantId), eq(communityMemberships.communityId, id)))
+      .orderBy(asc(communityMemberships.createdAt));
+  });
+}
+
+/** Publishes or unpublishes after the server-side checklist; archived communities cannot be published. */
+export async function publishCommunity(db: Database, userId: string, workspace: string, communityId: string, raw: unknown) {
+  const { version, published } = publishInput.parse(raw);
+  const id = z.uuid().parse(communityId);
+  return withTenant(db, userId, z.uuid().parse(workspace), "communities:manage", async (tx, tenantId) => {
+    const current = await ownCommunity(tx, tenantId, id);
+    if (current.version !== version) throw new AccessError(409, message("Errors.communityChanged"));
+    if (published && (current.status === "archived" || !readyToPublish(current))) throw new AccessError(409, message("Errors.communityNotReady"));
+    const [row] = await tx.update(communities).set({ status: published ? "published" : "draft", version: version + 1, updatedAt: new Date() })
+      .where(and(eq(communities.tenantId, tenantId), eq(communities.id, id), eq(communities.version, version))).returning();
+    if (!row) throw new AccessError(409, message("Errors.communityChanged"));
+    await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: published ? "community.publish" : "community.unpublish", targetId: id });
+    return row;
   });
 }

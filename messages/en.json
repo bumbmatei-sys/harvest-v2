@@ -376,6 +376,7 @@
     "paidCommunitiesUnavailable": "Paid communities are not available yet.",
     "communityMemberBanned": "This person is banned from the community.",
     "entitlementNotFound": "Access grant not found or already revoked.",
+    "communityNotReady": "Finish the publish checklist first.",
     "requestOriginDenied": "Request origin denied.",
     "checkTheSuppliedDetails": "Check the supplied details.",
     "workspaceAccessDenied": "Ministry access denied.",
