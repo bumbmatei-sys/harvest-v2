@@ -81,7 +81,7 @@ test("CRM-05: follow-up task from a deal, my tasks, completion, notes and the un
   await both(page, "deal-task-on-record");
 
   // My tasks: the sidebar entry opens "assigned to me, open".
-  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Tasks" }).click();
+  await page.getByRole("navigation", { name: "Ministry navigation" }).getByRole("link", { name: "Tasks" }).click();
   await expect(page).toHaveURL(`${root}/crm/tasks`);
   const list = page.getByRole("list", { name: "Tasks" });
   await expect(list.getByText("Synthetic follow-up call")).toBeVisible();
@@ -162,7 +162,7 @@ test("CRM-05: follow-up task from a deal, my tasks, completion, notes and the un
   // Viewer: reads tasks and timelines; cannot add, complete or write notes.
   expect((await api(page, "put", `${apiRoot}/members`, { email: otherEmail, role: "viewer" })).status).toBe(200);
   await other.goto(`${root}/crm/tasks?assignee=any&status=all`);
-  await expect(other.getByText("You have view-only access. Ask a workspace owner, admin or member to add or complete tasks.")).toBeVisible();
+  await expect(other.getByText("You have view-only access. Ask a ministry owner, admin or member to add or complete tasks.")).toBeVisible();
   await expect(other.getByRole("button", { name: "Add task" })).toHaveCount(0);
   await expect(other.getByRole("checkbox").first()).toBeDisabled();
   await capture(other, "tasks-viewer-light");

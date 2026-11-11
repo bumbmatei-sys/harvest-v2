@@ -132,9 +132,9 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
   await page.goto(`${root}/contacts`);
   await expect(page).toHaveURL(`${root}/crm/people`);
   await expect(page.getByRole("heading", { name: "Every connection starts somewhere" })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "People", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(page.getByRole("navigation", { name: "Ministry navigation" }).getByRole("link", { name: "People", exact: true })).toHaveAttribute("aria-current", "page");
   await both(page, "people-empty");
-  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Organizations", exact: true }).click();
+  await page.getByRole("navigation", { name: "Ministry navigation" }).getByRole("link", { name: "Organizations", exact: true }).click();
   await expect(page.getByRole("heading", { name: "No organizations yet" })).toBeVisible();
   await both(page, "companies-empty");
 
@@ -333,7 +333,7 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
   expect((await api(viewer, "get", `${apiB}/companies/${companyB}`)).body.people).toEqual([]);
     expect((await page.request.post(`${apiRoot}/companies`, { headers: { origin: "https://untrusted.example.test" }, data: { name: "Bad origin" } })).status()).toBe(403);
   await page.goto(`/workspaces/${tenantB}/crm/companies`);
-  await expect(page.getByRole("heading", { name: "Workspace access denied" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ministry access denied" })).toBeVisible();
   await page.goto(`${root}/crm/companies/${companyB}`);
   await expect(page.getByRole("heading", { name: "Organization not found" })).toBeVisible();
   await capture(page, "company-not-found-light");

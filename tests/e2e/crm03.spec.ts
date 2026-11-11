@@ -63,7 +63,7 @@ test("CRM-03: custom fields, saved views, filters, columns and keyboard grid edi
 
   // Fields settings: empty state, then create a select field through the dialog.
   await page.goto(`${root}/crm/people`);
-  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "CRM fields" }).click();
+  await page.getByRole("navigation", { name: "Ministry navigation" }).getByRole("link", { name: "CRM fields" }).click();
   await expect(page).toHaveURL(`${root}/crm/settings/fields`);
   await expect(page.getByRole("heading", { name: "No custom fields for People" })).toBeVisible();
   await page.getByRole("button", { name: "New field" }).first().click();
@@ -223,7 +223,7 @@ test("CRM-03: custom fields, saved views, filters, columns and keyboard grid edi
   await expect(viewer.getByRole("button", { name: /^Edit Home group/ })).toHaveCount(0);
   await capture(viewer, "record-custom-fields-viewer-light");
   await viewer.goto(`${root}/crm/settings/fields`);
-  await expect(viewer.getByText("Only workspace owners and admins can change custom fields.")).toBeVisible();
+  await expect(viewer.getByText("Only ministry owners and admins can change custom fields.")).toBeVisible();
   await expect(viewer.getByRole("button", { name: "New field" })).toHaveCount(0);
   const person = (await api(viewer, "get", `${apiRoot}/contacts?q=Ada`)).body.rows[0];
   expect((await api(viewer, "patch", `${apiRoot}/contacts/${person.id}/fields`, { version: person.version, values: { home_group: "Denied" } })).status).toBe(403);

@@ -5,14 +5,14 @@ import { navEntries, resolveNavigation, sectionLabel, type NavEntry } from "../.
 const tenantId = "00000000-0000-4000-8000-000000000001";
 const root = `/workspaces/${tenantId}`;
 const shape = (role?: string) => resolveNavigation({ tenantId, role, pathname: root }).map((group) => [group.id, group.items.map((item) => item.id)]);
-const writers = [["crm", ["people", "companies", "pipelines", "tasks", "imports"]], ["workspace", ["campaigns", "files"]], ["settings", ["crmFields", "pipelineSettings", "appearance"]]];
+const writers = [["crm", ["people", "companies", "pipelines", "tasks", "imports"]], ["workspace", ["campaigns", "files"]], ["settings", ["crmFields", "pipelineSettings", "appearance", "ministrySettings"]]];
 
-// The breadcrumb chain AppShell used before the registry, kept here as the parity oracle.
+// The breadcrumb chain AppShell used before the registry (plus the Ministry settings route from PR B), kept as the parity oracle.
 function legacySection(pathname: string) {
-  return pathname.includes("/campaigns") ? "campaigns" : pathname.includes("/crm/people") || pathname.includes("/contacts") ? "people" : pathname.includes("/crm/companies") ? "companies" : pathname.includes("/files") ? "files" : pathname.includes("/crm/tasks") ? "tasks" : pathname.includes("/crm/imports") ? "imports" : pathname.includes("/crm/settings/pipelines") ? "pipelineSettings" : pathname.includes("/crm/pipelines") || pathname.includes("/crm/deals") ? "pipelines" : pathname.includes("/crm/settings/fields") ? "crmFields" : pathname.endsWith("/appearance") ? "appearance" : null;
+  return pathname.includes("/campaigns") ? "campaigns" : pathname.includes("/crm/people") || pathname.includes("/contacts") ? "people" : pathname.includes("/crm/companies") ? "companies" : pathname.includes("/files") ? "files" : pathname.includes("/crm/tasks") ? "tasks" : pathname.includes("/crm/imports") ? "imports" : pathname.includes("/crm/settings/pipelines") ? "pipelineSettings" : pathname.includes("/crm/pipelines") || pathname.includes("/crm/deals") ? "pipelines" : pathname.includes("/crm/settings/fields") ? "crmFields" : pathname.endsWith("/appearance") ? "appearance" : pathname.endsWith("/settings") ? "ministrySettings" : null;
 }
 const id = "00000000-0000-4000-8000-0000000000aa";
-const routes = ["", "/appearance", "/campaigns", `/campaigns/${id}`, `/campaigns/${id}/connect`, `/campaigns/${id}/connect/${id}/landing`, `/campaigns/${id}/connect/${id}/present`, `/campaigns/${id}/connect/${id}/preview`, `/campaigns/${id}/connect/forms`, "/contacts", `/contacts/${id}`, "/crm/companies", `/crm/companies/${id}`, `/crm/deals/${id}`, "/crm/imports", `/crm/imports/${id}`, "/crm/people", `/crm/people/${id}`, "/crm/pipelines", `/crm/pipelines/${id}`, "/crm/settings/fields", "/crm/settings/pipelines", "/crm/tasks", "/files"].map((path) => `${root}${path}`);
+const routes = ["", "/appearance", "/campaigns", `/campaigns/${id}`, `/campaigns/${id}/connect`, `/campaigns/${id}/connect/${id}/landing`, `/campaigns/${id}/connect/${id}/present`, `/campaigns/${id}/connect/${id}/preview`, `/campaigns/${id}/connect/forms`, "/contacts", `/contacts/${id}`, "/crm/companies", `/crm/companies/${id}`, `/crm/deals/${id}`, "/crm/imports", `/crm/imports/${id}`, "/crm/people", `/crm/people/${id}`, "/crm/pipelines", `/crm/pipelines/${id}`, "/crm/settings/fields", "/crm/settings/pipelines", "/crm/tasks", "/files", "/settings"].map((path) => `${root}${path}`);
 
 describe("module registry parity", () => {
   it.each(["owner", "admin", "member"])("shows today's sidebar to %s", (role) => { expect(shape(role)).toEqual(writers); });
@@ -27,7 +27,7 @@ describe("module registry parity", () => {
     expect(groups.flatMap((group) => group.items.map((item) => [item.label, item.href]))).toEqual([
       ["people", `${root}/crm/people`], ["companies", `${root}/crm/companies`], ["pipelines", `${root}/crm/pipelines`], ["tasks", `${root}/crm/tasks`], ["imports", `${root}/crm/imports`],
       ["campaigns", `${root}/campaigns`], ["files", `${root}/files`],
-      ["crmFields", `${root}/crm/settings/fields`], ["pipelineSettings", `${root}/crm/settings/pipelines`], ["appearance", `${root}/appearance`],
+      ["crmFields", `${root}/crm/settings/fields`], ["pipelineSettings", `${root}/crm/settings/pipelines`], ["appearance", `${root}/appearance`], ["ministrySettings", `${root}/settings`],
     ]);
   });
   it.each(routes)("marks at most one item active and keeps the breadcrumb for %s", (pathname) => {

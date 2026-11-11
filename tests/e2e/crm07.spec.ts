@@ -149,7 +149,7 @@ test("CRM-07: per-purpose opt-in gates association events on the timeline", asyn
   await page.keyboard.press("Escape");
   await page.getByRole("button", { name: "Toggle Sidebar" }).click();
   const sheet = page.getByRole("dialog", { name: "Sidebar", exact: true });
-  const navigation = sheet.getByRole("navigation", { name: "Workspace navigation" });
+  const navigation = sheet.getByRole("navigation", { name: "Ministry navigation" });
   const expected = new Set(await navigation.getByRole("link").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href"))));
   await sheet.getByRole("link", { name: "Harvest", exact: true }).focus();
   for (let tab = 0; tab < 40 && expected.size; tab++) {
@@ -225,6 +225,6 @@ test("CRM-07 copy: organizations wording and vendor-free screens at 390 and 1440
   // The sidebar and breadcrumb say Organizations too.
   await page.setViewportSize({ width: 1440, height: 1000 });
   await gotoHydrated(page, `${root}/crm/companies`);
-  await expect(page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Organizations" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Ministry navigation" }).getByRole("link", { name: "Organizations" })).toBeVisible();
   await expect(page.locator("[data-shell-header]").getByText("Organizations")).toBeVisible();
 });

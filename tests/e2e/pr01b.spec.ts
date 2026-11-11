@@ -116,10 +116,10 @@ async function shellMatrix(page: Page) {
   const sidebar = page.locator('[data-slot="sidebar"][data-variant="floating"]');
   const inset = page.locator('[data-slot="sidebar-inset"]');
   const footer = page.locator('[data-sidebar="footer"]');
-  const navigation = page.getByRole("navigation", { name: "Workspace navigation" });
+  const navigation = page.getByRole("navigation", { name: "Ministry navigation" });
   await expect(navigation.locator('[data-sidebar="footer"]')).toHaveCount(0);
   await expect(navigation.getByRole("button", { name: "Account menu" })).toHaveCount(0);
-  const switcher = navigation.getByRole("button", { name: `Switch workspace: ${workspaceName}`, exact: true });
+  const switcher = navigation.getByRole("button", { name: `Switch ministry: ${workspaceName}`, exact: true });
   await expect(switcher.locator('[data-workspace-name]')).toHaveText(workspaceName);
   expect(await switcher.locator('[data-workspace-name]').evaluate((label) => label.scrollWidth > label.clientWidth)).toBe(true);
   await switcher.hover();
@@ -223,11 +223,12 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
   await matrix(page, "sign-in");
   const marker = Date.now(), ownerEmail = `pr01b-owner-${marker}@example.test`, viewerEmail = `pr01b-viewer-${marker}@example.test`;
   await signIn(page, ownerEmail);
-  await page.getByLabel("Workspace name").fill(workspaceName);
-  await page.getByRole("button", { name: "Create workspace" }).click();
+  await page.getByLabel("Ministry name").fill(workspaceName);
+  await page.getByRole("radio", { name: "Church", exact: true }).check();
+  await page.getByRole("button", { name: "Create ministry" }).click();
   await expect(page.getByText(workspaceName, { exact: true })).toBeVisible();
   await matrix(page, "workspace");
-  await page.getByRole("link", { name: "Open workspace" }).click();
+  await page.getByRole("link", { name: "Open ministry" }).click();
   await expect(page.getByRole("heading", { name: /^People/ })).toBeVisible();
   const base = new URL(page.url()).pathname, tenantId = base.split("/")[2], api = `/api/workspaces/${tenantId}/contacts`;
   await matrix(page, "contacts-empty");
@@ -324,7 +325,7 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
   await expect(page.locator("html")).toHaveAttribute("data-brand-theme", "harvest");
   await expect(page.locator("html")).toHaveAttribute("data-workspace-theme", "studio");
   await expect(page.getByRole("radio", { name: "Studio Admin", exact: true })).toBeChecked();
-  await selectBrand(page, "Workspace default");
+  await selectBrand(page, "Ministry default");
   await expect(page.locator("html")).toHaveAttribute("data-brand-theme", "studio");
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-brand-theme", "studio");
@@ -354,8 +355,9 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
   expect((await viewer.request.post(`${api}/${contactId}/erase`, { headers: { origin }, data: { confirm: "erase" } })).status()).toBe(403);
   await capture(viewer, "contacts-viewer-studio-light");
   await viewer.goto("/workspaces");
-  await viewer.getByLabel("Workspace name").fill("PR 01b isolated browser seed");
-  await viewer.getByRole("button", { name: "Create workspace" }).click();
+  await viewer.getByLabel("Ministry name").fill("PR 01b isolated browser seed");
+  await viewer.getByRole("radio", { name: "Church", exact: true }).check();
+  await viewer.getByRole("button", { name: "Create ministry" }).click();
   await expect(viewer.getByText("PR 01b isolated browser seed", { exact: true })).toBeVisible();
   const otherWorkspaces = await (await viewer.request.get("/api/workspaces")).json();
   const other = otherWorkspaces.find((workspace: { name: string }) => workspace.name === "PR 01b isolated browser seed");
@@ -371,7 +373,7 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
   expect((await page.request.patch(`/api/workspaces/${other.tenantId}/appearance`, { headers: { origin }, data: { brandTheme: "studio" } })).status()).toBe(403);
   expect((await viewer.request.get(`/api/workspaces/${other.tenantId}/contacts/${contactId}`)).status()).toBe(404);
   await page.goto(`/workspaces/${other.tenantId}/contacts`);
-  await expect(page.getByRole("heading", { name: "Workspace access denied" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Ministry access denied" })).toBeVisible();
   await capture(page, "contacts-unauthorized-harvest-dark");
   await viewerContext.close();
   await page.goto(detail);
@@ -384,7 +386,7 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await capture(page, `contact-detail-mobile-${brand}-${mode}`);
     await page.getByRole("button", { name: "Toggle Sidebar" }).click();
-    const people = page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "People", exact: true });
+    const people = page.getByRole("navigation", { name: "Ministry navigation" }).getByRole("link", { name: "People", exact: true });
     await expect(people).toBeVisible();
     await people.click();
     await expect(page).toHaveURL(`${origin}${base}`);

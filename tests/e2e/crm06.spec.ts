@@ -213,7 +213,7 @@ test("CRM-06: CSV import with mapping, preview and problem report; filtered expo
   await gotoHydrated(other, `${root}/crm/people`);
   await expect(other.getByRole("button", { name: "Export" })).toHaveCount(0);
   await expect(other.getByRole("link", { name: "Import", exact: true })).toHaveCount(0);
-  await expect(other.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Imports" })).toHaveCount(0);
+  await expect(other.getByRole("navigation", { name: "Ministry navigation" }).getByRole("link", { name: "Imports" })).toHaveCount(0);
   expect((await api(other, "get", `${apiRoot}/crm/imports`)).status).toBe(403);
   expect((await api(other, "post", `${apiRoot}/crm/imports`, { entity: "person", clientKey: randomUUID(), fileName: "v.csv", csv: "Name\nX" })).status).toBe(403);
   expect((await other.request.get(`${apiRoot}/crm/export?entity=person`)).status()).toBe(403);

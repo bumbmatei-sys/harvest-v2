@@ -30,10 +30,11 @@ test("workspace upload → progress → verified file → private download; publ
   });
   await mkdir("docs/screenshots/pr02", { recursive: true });
   await signIn(page, `files-${randomUUID()}@example.test`);
-  await page.getByLabel("Workspace name").fill("Harvest files workspace");
-  await page.getByRole("button", { name: "Create workspace" }).click();
+  await page.getByLabel("Ministry name").fill("Harvest files workspace");
+  await page.getByRole("radio", { name: "Church", exact: true }).check();
+  await page.getByRole("button", { name: "Create ministry" }).click();
   await page.getByRole("link", { name: "Files", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Workspace files" })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "Ministry files" })).toBeVisible({ timeout: 30_000 });
   const tenantId = page.url().match(/workspaces\/([^/]+)/)![1];
   const base = `/api/workspaces/${tenantId}/files`;
   await expect(page.getByText("No files yet.", { exact: false })).toBeVisible();

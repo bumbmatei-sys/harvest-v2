@@ -41,7 +41,7 @@ test("CW-01: mobile shell Tab reaches every navigation link and campaign targets
     await page.getByRole("button", { name: "Toggle Sidebar" }).click();
     const sheet = page.getByRole("dialog", { name: "Sidebar", exact: true });
     await expect(sheet).toBeVisible();
-    const navigation = sheet.getByRole("navigation", { name: "Workspace navigation" });
+    const navigation = sheet.getByRole("navigation", { name: "Ministry navigation" });
     const links = navigation.getByRole("link");
     // Workspace entry plus all CRM, Workspace and Settings links.
     await expect(links).toHaveCount(11);
@@ -89,7 +89,7 @@ test("CW-01: private list, API create, draft dashboard and two-tenant denials", 
   const tenantId = (await workspace.json()).tenantId as string;
   const root = `/workspaces/${tenantId}/campaigns`, api = `/api${root}`;
   await page.goto(`/workspaces/${tenantId}/crm/people`);
-  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Campaigns", exact: true }).click();
+  await page.getByRole("navigation", { name: "Ministry navigation" }).getByRole("link", { name: "Campaigns", exact: true }).click();
   await expect(page.getByRole("heading", { name: "No campaigns yet" })).toBeVisible();
   await capture(page, "empty-desktop");
   const data = { name: "Synthetic Bangkok Outreach 2027", type: "evangelistic_crusade", description: "A shared plan for our local outreach team.", mission: "Serve the city together.", country: "Thailand", cityRegion: "Bangkok", startDate: "2027-02-01", endDate: "2027-02-05", timeZone: "Asia/Bangkok", structure: "single" };

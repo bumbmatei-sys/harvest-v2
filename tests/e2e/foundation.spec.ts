@@ -90,19 +90,20 @@ test("email code → session → workspace persistence → sign out", async ({ p
   await expect(slots).toHaveText(code.split(""));
   await signIn.click();
   await expect(page).toHaveURL(/\/workspaces$/);
-  await expect(page.getByText("You don’t have a workspace yet.", { exact: false })).toBeVisible();
+  await expect(page.getByText("You don’t have a ministry yet.", { exact: false })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("workspaces-empty.png"), fullPage: true });
   expect((await page.request.post("/api/workspaces", { headers: { origin: "https://untrusted.example.test" }, data: { audience: "church", name: "Forbidden origin" } })).status()).toBe(403);
   expect((await page.request.post("/api/workspaces", { headers: { origin: "http://127.0.0.1:3100" }, data: { audience: "church", name: "Injected", tenantId: "client-controlled" } })).status()).toBe(400);
-  await page.getByLabel("Workspace name").fill("Browser workspace");
-  await page.getByRole("button", { name: "Create workspace" }).click();
+  await page.getByLabel("Ministry name").fill("Browser workspace");
+  await page.getByRole("radio", { name: "Church", exact: true }).check();
+  await page.getByRole("button", { name: "Create ministry" }).click();
   await expect(page.getByText("Browser workspace", { exact: true })).toBeVisible();
   await page.reload();
   await expect(page.getByText("Browser workspace", { exact: true })).toBeVisible();
   await expect(page.getByText("Role: owner")).toBeVisible();
   // Before hydration the form button is disabled (50% opacity) and then fades in;
   // scan once it has settled, or axe measures a half-transparent button.
-  const create = page.getByRole("button", { name: "Create workspace" });
+  const create = page.getByRole("button", { name: "Create ministry" });
   await expect(create).toBeEnabled();
   await expect.poll(() => create.evaluate((button) => getComputedStyle(button).opacity)).toBe("1");
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);

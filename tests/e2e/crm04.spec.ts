@@ -79,7 +79,7 @@ test("CRM-04: pipelines, deals, board moves, list, deal detail, related deals, s
 
   // First visit by a writer sets up the default pipeline; the empty board is its own state.
   await page.goto(`${root}/crm/people`);
-  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Pipelines" }).click();
+  await page.getByRole("navigation", { name: "Ministry navigation" }).getByRole("link", { name: "Pipelines" }).click();
   await expect(page).toHaveURL(`${root}/crm/pipelines`);
   await expect(page.getByRole("heading", { name: "No deals yet" })).toBeVisible();
 
@@ -179,7 +179,7 @@ test("CRM-04: pipelines, deals, board moves, list, deal detail, related deals, s
   await expect(page.getByRole("list", { name: "Deals" }).getByRole("link", { name: "Synthetic youth camp sponsor" })).toBeVisible();
 
   // Pipeline settings: reorder a stage, and see it hold after a reload and on the board.
-  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Pipeline settings" }).click();
+  await page.getByRole("navigation", { name: "Ministry navigation" }).getByRole("link", { name: "Pipeline settings" }).click();
   await expect(page).toHaveURL(`${root}/crm/settings/pipelines`);
   const stages = page.getByRole("table", { name: "Stages of Pipeline" });
   await stages.getByRole("button", { name: "Move Proposal up" }).click();
@@ -233,7 +233,7 @@ test("CRM-04: pipelines, deals, board moves, list, deal detail, related deals, s
   // Viewer in A: reads the board, cannot create, move or change settings.
   expect((await api(page, "put", `${apiRoot}/members`, { email: otherEmail, role: "viewer" })).status).toBe(200);
   await other.goto(`${root}/crm/pipelines`);
-  await expect(other.getByText("You have view-only access. Ask a workspace owner, admin or member to add or move deals.")).toBeVisible();
+  await expect(other.getByText("You have view-only access. Ask a ministry owner, admin or member to add or move deals.")).toBeVisible();
   await expect(other.getByRole("button", { name: "New deal" })).toHaveCount(0);
   await expect(other.locator("[data-deal-card]")).toHaveCount(3);
   await capture(other, "board-viewer-light");
@@ -241,7 +241,7 @@ test("CRM-04: pipelines, deals, board moves, list, deal detail, related deals, s
   expect((await api(other, "post", `${apiRoot}/crm/deals`, { name: "Denied", companyId: company })).status).toBe(403);
   expect((await api(other, "post", `${apiRoot}/crm/pipelines`, { name: "Denied" })).status).toBe(403);
   await other.goto(`${root}/crm/settings/pipelines`);
-  await expect(other.getByText("Only workspace owners and admins can change pipelines and stages.")).toBeVisible();
+  await expect(other.getByText("Only ministry owners and admins can change pipelines and stages.")).toBeVisible();
   await expect(other.getByRole("button", { name: "Add stage" })).toHaveCount(0);
   await otherContext.close();
   expect(pageErrors).toEqual([]);
