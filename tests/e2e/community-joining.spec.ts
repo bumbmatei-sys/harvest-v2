@@ -67,8 +67,8 @@ test("discover, join with rules, invitations and my communities", async ({ page,
     await expect(join).toBeDisabled();
     await dialog.getByLabel("I confirm I am 18 or older").click();
     await join.click();
-    await expect(member.page).toHaveURL(new RegExp(`/communities/${studySlug}/home$`));
-    await expect(member.page.getByText("You're in.")).toBeVisible();
+    await expect(member.page).toHaveURL(new RegExp(`/communities/${studySlug}/forum$`));
+    await expect(member.page.getByRole("heading", { name: "All posts", level: 2 })).toBeVisible();
     await shoot(member.page, "home");
   } finally { await member.context.close(); }
 
@@ -86,7 +86,7 @@ test("discover, join with rules, invitations and my communities", async ({ page,
     await expect(dialog.getByText("No selling.")).toBeVisible();
     await dialog.getByLabel("I accept the community rules").click();
     await dialog.getByRole("button", { name: "Join", exact: true }).click();
-    await expect(late.page).toHaveURL(new RegExp(`/communities/${studySlug}/home$`));
+    await expect(late.page).toHaveURL(new RegExp(`/communities/${studySlug}/forum$`));
   } finally { await late.context.close(); }
 
   // A hidden community: the owner invites one address from the editor; only that account can use the link, once.
@@ -126,7 +126,7 @@ test("discover, join with rules, invitations and my communities", async ({ page,
     const accept = invited.page.getByRole("dialog");
     await accept.getByLabel("I confirm I am 18 or older").click();
     await accept.getByRole("button", { name: "Accept invitation", exact: true }).click();
-    await expect(invited.page).toHaveURL(new RegExp(`/communities/${teamSlug}/home$`));
+    await expect(invited.page).toHaveURL(new RegExp(`/communities/${teamSlug}/forum$`));
     await invited.page.goto(link);
     expect((await invited.page.goto(link))?.status()).toBe(404);
     await invited.page.goto("/account/communities");

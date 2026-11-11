@@ -34,7 +34,7 @@ export default async function MyCommunities() {
       </div>
       <div className="grid gap-6 lg:grid-cols-2">
         {section(t("joined"), t("joinedEmpty"), joined.map((c) => row(c.slug, c.name, null,
-          <Button asChild variant="outline" className="min-h-11 w-full sm:w-auto"><Link href={`/communities/${c.slug}/home`} prefetch={false}>{t("open")}</Link></Button>)))}
+          <Button asChild variant="outline" className="min-h-11 w-full sm:w-auto"><Link href={`/communities/${c.slug}/forum`} prefetch={false}>{t("open")}</Link></Button>)))}
         {section(t("invited"), t("invitedEmpty"), invited.map((invite) => row(invite.inviteId, invite.name,
           <Badge variant="secondary">{t("expires", { date: new Date(invite.expiresAt) })}</Badge>,
           <JoinDialog slug={invite.slug} name={invite.name} rules={invite.rulesList} rulesVersion={invite.rulesVersion} questions={invite.joinQuestions}

@@ -2,12 +2,13 @@ import { getFormatter, getTranslations } from "next-intl/server";
 import { getDb } from "@/db/client";
 import { memberDirectory } from "@/server/community-forum";
 import { pageSession } from "@/server/page-session";
+import { orPublicPage } from "@/server/community-member-page";
 import { Badge } from "@/components/ui/badge";
 
 // C09: members of the community, names and roles only.
 export default async function MembersPage({ params }: { params: Promise<{ slug: string }> }) {
   const session = await pageSession("personal"), { slug } = await params;
-  const { members } = await memberDirectory(getDb(), session.user.id, slug);
+  const { members } = await memberDirectory(getDb(), session.user.id, slug).catch(orPublicPage(slug));
   const t = await getTranslations("CommunityForum"), roles = await getTranslations("CommunityEditor.roles"), format = await getFormatter();
   return <section className="mx-auto w-full max-w-3xl space-y-4 p-4 lg:p-6" aria-labelledby="members-title">
     <h2 id="members-title" className="text-xl font-semibold">{t("members", { count: members.length })}</h2>

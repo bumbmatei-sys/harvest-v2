@@ -4,6 +4,8 @@ import { ArrowLeft, FileText, Pin } from "lucide-react";
 import { getDb } from "@/db/client";
 import { getPost } from "@/server/community-forum";
 import { pageSession } from "@/server/page-session";
+import { AccessError } from "@/server/permissions";
+import { notFound } from "next/navigation";
 import { RichTextView } from "@/components/rich-text/rich-text-view";
 import { VideoEmbedView } from "@/components/forum/video-embed";
 import { LikeButton } from "@/components/forum/like-button";
@@ -11,9 +13,12 @@ import { CommentActions, PostActions, ReplyForm } from "@/components/forum/forum
 import { PostComposer } from "@/components/forum/post-composer";
 import { Badge } from "@/components/ui/badge";
 
+// A missing or removed post is not found; a non-member never gets here (the member layout redirects).
+const missingPost = (error: unknown): never => { if (error instanceof AccessError && error.status === 404) notFound(); throw error; };
+
 export default async function PostPage({ params }: { params: Promise<{ slug: string; postId: string }> }) {
   const session = await pageSession("personal"), { slug, postId } = await params, me = session.user.id;
-  const { context, post, attachments, comments } = await getPost(getDb(), me, slug, postId);
+  const { context, post, attachments, comments } = await getPost(getDb(), me, slug, postId).catch(missingPost);
   const t = await getTranslations("CommunityForum"), format = await getFormatter(), files = `/api/communities/${context.slug}/files`;
   const isAuthor = post.authorId === me, author = post.authorName?.trim() || t("unnamed");
   return <article className="mx-auto w-full max-w-3xl space-y-6 p-4 lg:p-6">

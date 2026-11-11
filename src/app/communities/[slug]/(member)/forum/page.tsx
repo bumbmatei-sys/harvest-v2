@@ -4,6 +4,7 @@ import { Lock, MessageSquare, Pin, PlayCircle } from "lucide-react";
 import { getDb } from "@/db/client";
 import { listPosts } from "@/server/community-forum";
 import { pageSession } from "@/server/page-session";
+import { orPublicPage } from "@/server/community-member-page";
 import { PostComposer } from "@/components/forum/post-composer";
 import { LikeButton } from "@/components/forum/like-button";
 import { Badge } from "@/components/ui/badge";
@@ -16,7 +17,7 @@ type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ catego
 export default async function ForumPage({ params, searchParams }: Props) {
   const session = await pageSession("personal"), { slug } = await params, query = await searchParams;
   const category = query.category && /^[0-9a-f-]{36}$/.test(query.category) ? query.category : undefined, sort = query.sort === "best" ? "best" : "new";
-  const { context, posts } = await listPosts(getDb(), session.user.id, slug, { category, sort });
+  const { context, posts } = await listPosts(getDb(), session.user.id, slug, { category, sort }).catch(orPublicPage(slug));
   const t = await getTranslations("CommunityForum"), format = await getFormatter(), base = `/communities/${context.slug}/forum`;
   const href = (next: { category?: string; sort?: string }) => { const q = new URLSearchParams(); const c = "category" in next ? next.category : category, s = next.sort ?? sort;
     if (c) q.set("category", c); if (s === "best") q.set("sort", "best"); return q.size ? `${base}?${q}` : base; };
