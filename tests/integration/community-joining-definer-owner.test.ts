@@ -12,9 +12,12 @@ import { emailHash, emailHint, hashSecret, newInviteToken } from "../../src/lib/
 // table privileges but only copies of the row policies the migration installs for its own owner, so a missing or
 // too-wide owner policy shows up here (HC-03 pattern).
 const role = "harvest_test_community_owner";
-const definers = ["public.community_definer_reset()", "public.community_public(text,text)", "public.community_enter(text,integer,integer,jsonb,boolean,text,uuid)", "public.community_my_applications()", "public.community_application_update(uuid,text,jsonb,integer)", "public.community_purge_applications()", "public.community_answers_valid(jsonb,jsonb)",
+const definers = ["public.community_definer_reset()", "public.community_public(text,text)", "public.community_enter(text,integer,integer,jsonb,boolean,text,uuid)", "public.community_my_applications()", "public.community_application_update(uuid,text,jsonb,integer)", "public.community_purge_applications()", "public.community_answers_valid(jsonb,jsonb)", "public.community_forum_actor(text)", "public.community_forum_done(text,uuid)", "public.community_can_read(uuid,uuid)",
+  "public.community_post_save(text,uuid,uuid,text,jsonb,text,text,uuid,uuid[],boolean,boolean)", "public.community_post_delete(text,uuid)", "public.community_comment_save(text,uuid,uuid,text)",
+  "public.community_comment_delete(text,uuid)", "public.community_like_toggle(text,text,uuid)", "public.community_moderate(text,text,uuid)",
+  "public.community_file_create(text,uuid,text,text,text,integer,text)", "public.community_file_set_status(text,uuid,text)",
   "public.discover_communities(text,boolean,timestamptz,uuid,integer)", "public.community_my_invites()"];
-const tables = ["communities", "community_memberships", "entitlements", "community_invites", "audit_logs", "workspaces", "discover_listings", "community_applications"];
+const tables = ["communities", "community_memberships", "entitlements", "community_invites", "audit_logs", "workspaces", "discover_listings", "community_applications", "community_categories", "community_files", "community_posts", "community_comments", "community_likes"];
 let fixture: Awaited<ReturnType<typeof testDatabase>>, tenant: string, open: string, hidden: string;
 let roleCreated = false;
 const copied: { table: string; name: string }[] = [];
@@ -95,4 +98,21 @@ it("applies, lists, resubmits, withdraws and purges applications with a non-bypa
   expect(await update("withdraw")).toBe("updated");
   await fixture.admin.query("update community_applications set decided_at = now() - interval '91 days' where id = $1", [mine.id]);
   expect(await fixture.db.transaction(async (tx) => (await tx.execute<{ n: number }>(sql`select public.community_purge_applications() as n`)).rows[0].n)).toBe(1);
+});
+
+it("posts, replies, likes, moderates and uploads with a non-bypass definer owner", async () => {
+  const run = async <T,>(user: string, statement: ReturnType<typeof sql>) => withUser(fixture.db, user, async (tx) => (await tx.execute<{ v: T }>(statement)).rows[0].v);
+  const category = (await fixture.admin.query("select id from community_categories where community_id = $1 limit 1", [open])).rows[0].id;
+  const body = JSON.stringify({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Hi" }] }] });
+  const file = crypto.randomUUID();
+  expect((await run<{ outcome: string }>("o-joiner", sql`select public.community_file_create('owner-open', ${file}::uuid, 'attachment', 'a.pdf', 'application/pdf', 10, ${"a".repeat(64)}) as v`)).outcome).toBe("ok");
+  for (const status of ["uploaded", "ready"]) expect((await run<{ outcome: string }>("o-joiner", sql`select public.community_file_set_status('owner-open', ${file}::uuid, ${status}) as v`)).outcome).toBe("ok");
+  const post = await run<{ outcome: string; id: string }>("o-joiner", sql`select public.community_post_save('owner-open', null, ${category}::uuid, 'Hello', ${body}::jsonb, 'Hi', null, null, ${`{${file}}`}::uuid[], false, false) as v`);
+  expect(post.outcome).toBe("ok");
+  const comment = await run<{ outcome: string; id: string }>("o-owner", sql`select public.community_comment_save('owner-open', ${post.id}::uuid, null, 'Welcome') as v`);
+  expect(comment.outcome).toBe("ok");
+  expect((await run<{ outcome: string }>("o-owner", sql`select public.community_like_toggle('owner-open', 'post', ${post.id}::uuid) as v`)).outcome).toBe("liked");
+  expect((await run<{ outcome: string }>("o-owner", sql`select public.community_moderate('owner-open', 'pin', ${post.id}::uuid) as v`)).outcome).toBe("ok");
+  expect((await run<{ outcome: string }>("o-joiner", sql`select public.community_comment_delete('owner-open', ${comment.id}::uuid) as v`)).outcome).toBe("forbidden");
+  expect((await run<{ outcome: string }>("o-joiner", sql`select public.community_post_delete('owner-open', ${post.id}::uuid) as v`)).outcome).toBe("ok");
 });

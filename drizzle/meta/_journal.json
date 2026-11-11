@@ -267,6 +267,13 @@
       "when": 1794423184137,
       "tag": "0037_community_applications",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1794427851415,
+      "tag": "0038_community_forum",
+      "breakpoints": true
     }
   ]
 }

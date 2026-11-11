@@ -1,7 +1,7 @@
 import { and, asc, desc, eq, gt, isNull, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
-import { auditLogs, communities, communityInvites, communityMemberships, discoverListings, entitlements, reservedCommunitySlugs, users, workspaces } from "../db/schema";
+import { auditLogs, communities, communityCategories, communityInvites, communityMemberships, discoverListings, entitlements, reservedCommunitySlugs, users, workspaces } from "../db/schema";
 import { questionSet } from "../lib/questions";
 import { discoverEligible, emailHash, emailHint, hashSecret, listingFor, newInviteToken } from "../lib/community-listing";
 import { communityStaffRoles, type CommunityRole } from "../lib/community-permissions";
@@ -50,6 +50,8 @@ export async function createCommunity(db: Database, userId: string, workspace: s
       if (n >= communityLimit) throw new AccessError(409, message("Errors.communityDraftLimit"));
       const [row] = await tx.insert(communities).values({ tenantId, slug: input.slug, name: input.name, tagline: input.tagline ?? null, createdBy: userId }).returning();
       await tx.insert(communityMemberships).values({ tenantId, communityId: row.id, userId, role: "owner", status: "active", joinedAt: new Date() });
+      // Every community starts with a "General" forum category (PR 4b).
+      await tx.insert(communityCategories).values({ tenantId, communityId: row.id, name: message("CommunityForum.defaultCategory"), position: 0 });
       await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "community.create", targetId: row.id });
       return row;
     });

@@ -2521,5 +2521,8 @@
     "approve": "Approve",
     "requestInfo": "Send request",
     "decline": "Decline"
+  },
+  "CommunityForum": {
+    "defaultCategory": "General"
   }
 }
