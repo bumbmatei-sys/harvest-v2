@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { Building2, ChevronRight, ChevronsUpDown, LogOut, Sprout } from "lucide-react";
 import { resolveNavigation, sectionLabel } from "@/lib/navigation";
+import type { Audience } from "@/lib/audience";
 import { authClient } from "@/lib/auth-client";
 import { NotificationsMenu } from "@/components/crm/tasks/notifications-menu";
 import { useHydrated } from "@/hooks/use-hydrated";
@@ -20,7 +21,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 
-type Workspace = { tenantId: string; name: string; role: string };
+type Workspace = { tenantId: string; name: string; role: string; audience?: Audience | null };
 const menuButton = "min-h-11 lg:min-h-0 lg:h-9 gap-2 rounded-[8px] py-0 pl-2 pr-3 text-sm font-medium text-sidebar-foreground data-[active=true]:font-normal [&_svg]:size-[17px] [&_svg]:stroke-[1.7] group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0!";
 function NavigationLink({ href, label, icon, active }: { href: string; label: string; icon: React.ReactNode; active: boolean }) {
   const { setOpenMobile, isMobile } = useSidebar();
@@ -71,7 +72,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
   const [busy, setBusy] = useState(false);
   const [navigationContainer, setNavigationContainer] = useState<HTMLElement | null>(null);
   const workspace = workspaces.find((item) => item.tenantId === selected);
-  const sectionKey = sectionLabel(pathname);
+  const sectionKey = sectionLabel(pathname, workspace?.audience);
   const section = pathname === "/profile" ? t("profile") : sectionKey ? t(sectionKey) : t("workspaces");
   async function signOut() {
     setBusy(true); setError("");
@@ -98,7 +99,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
             <WorkspaceSwitcher workspaces={workspaces} selected={workspace} container={navigationContainer} />
             <SidebarMenu className="mt-px gap-px"><NavigationLink href="/workspaces" active={!selected} label={t("workspaces")} icon={<Building2 aria-hidden="true" />} /></SidebarMenu>
           </SidebarGroup>
-          {selected && resolveNavigation({ tenantId: selected, role: workspace?.role, pathname }).map((group) => <NavigationGroup key={group.id} label={t(group.label)}>
+          {selected && resolveNavigation({ tenantId: selected, role: workspace?.role, audience: workspace?.audience, pathname }).map((group) => <NavigationGroup key={group.id} label={t(group.label)}>
             {group.items.map(({ id, href, active, label, icon: Icon }) => <NavigationLink key={id} href={href} active={active} label={t(label)} icon={<Icon aria-hidden="true" />} />)}
           </NavigationGroup>)}
         </nav></SidebarContent>

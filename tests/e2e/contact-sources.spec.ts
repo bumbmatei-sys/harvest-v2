@@ -4,7 +4,7 @@ import { origin, signIn } from "./helpers/session";
 test('contact source history reuses the responsive CRM record', async ({page})=>{
  test.setTimeout(180_000);
  await signIn(page);
- const response=await page.request.post('/api/workspaces',{data:{name:'Synthetic source history'},headers:{origin}});
+ const response=await page.request.post('/api/workspaces',{data:{audience:'church',name:'Synthetic source history'},headers:{origin}});
  expect(response.status()).toBe(201);
  const {tenantId}=await response.json();
  const created=await page.request.post(`/api/workspaces/${tenantId}/contacts`,{data:{name:'Synthetic source volunteer'},headers:{origin}});
@@ -15,8 +15,9 @@ test('contact source history reuses the responsive CRM record', async ({page})=>
   await page.emulateMedia({colorScheme});
   await page.setViewportSize({width,height:1000});
   await page.goto(`/workspaces/${tenantId}/crm/people/${person.id}`);
-  await expect(page.getByText('Source history',{exact:true})).toBeVisible();
-  await expect(page.getByText('Manual · Created',{exact:true})).toBeVisible();
+  // The record layout can hold a hidden responsive copy of the card while it re-renders; assert the visible one.
+  await expect(page.getByText('Source history',{exact:true}).filter({visible:true})).toBeVisible();
+  await expect(page.getByText('Manual · Created',{exact:true}).filter({visible:true})).toBeVisible();
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
   await page.screenshot({path:`docs/screenshots/hc06a/history-${width}-${colorScheme}.png`,fullPage:true});
  }

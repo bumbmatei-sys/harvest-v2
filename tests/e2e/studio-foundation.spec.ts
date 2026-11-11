@@ -19,7 +19,7 @@ test("Studio foundation: shared CRM and Connect shell across responsive modes", 
   test.setTimeout(240000);
   await mkdir('/tmp/studio-foundation', { recursive: true });
   await signIn(page);
-  const response = await page.request.post('/api/workspaces', { headers: { origin }, data: { name: 'Hope Community' } });
+  const response = await page.request.post('/api/workspaces', { headers: { origin }, data: { audience: 'church', name: 'Hope Community' } });
   expect(response.status()).toBe(201);
   const base = `/workspaces/${(await response.json()).tenantId}`;
   const campaign = await page.request.post(`/api${base}/campaigns`, { headers: { origin, 'Idempotency-Key': randomUUID() }, data: { name: 'Welcome Evening', type: 'conference' } });

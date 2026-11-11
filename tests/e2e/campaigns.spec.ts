@@ -25,7 +25,7 @@ test("CW-01: mobile shell Tab reaches every navigation link and campaign targets
   test.setTimeout(180_000);
   await mkdir(evidence, { recursive: true });
   await signIn(page);
-  const workspace = await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Mobile campaign checks" } });
+  const workspace = await page.request.post("/api/workspaces", { headers: { origin }, data: { audience: "church", name: "Mobile campaign checks" } });
   expect(workspace.status()).toBe(201);
   const root = `/workspaces/${(await workspace.json()).tenantId}/campaigns`;
   let campaignId = "";
@@ -41,10 +41,10 @@ test("CW-01: mobile shell Tab reaches every navigation link and campaign targets
     await page.getByRole("button", { name: "Toggle Sidebar" }).click();
     const sheet = page.getByRole("dialog", { name: "Sidebar", exact: true });
     await expect(sheet).toBeVisible();
-    const navigation = sheet.getByRole("navigation", { name: "Workspace navigation" });
+    const navigation = sheet.getByRole("navigation", { name: "Ministry navigation" });
     const links = navigation.getByRole("link");
-    // Workspace entry plus all CRM, Workspace and Settings links.
-    await expect(links).toHaveCount(11);
+    // Ministries entry plus all CRM, Ministry and Settings links (Ministry settings added in PR B).
+    await expect(links).toHaveCount(12);
     const expected = new Set(await links.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href"))));
     await sheet.getByRole("link", { name: "Harvest", exact: true }).focus();
     for (let tab = 0; tab < 30 && expected.size; tab++) {
@@ -84,12 +84,12 @@ test("CW-01: private list, API create, draft dashboard and two-tenant denials", 
   await page.goto(`/workspaces/${fakeTenant}/campaigns`);
   await expect(page).toHaveURL(/\/sign-in/);
   await signIn(page);
-  const workspace = await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Harvest CW-01 workspace" } });
+  const workspace = await page.request.post("/api/workspaces", { headers: { origin }, data: { audience: "church", name: "Harvest CW-01 workspace" } });
   expect(workspace.status()).toBe(201);
   const tenantId = (await workspace.json()).tenantId as string;
   const root = `/workspaces/${tenantId}/campaigns`, api = `/api${root}`;
   await page.goto(`/workspaces/${tenantId}/crm/people`);
-  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Campaigns", exact: true }).click();
+  await page.getByRole("navigation", { name: "Ministry navigation" }).getByRole("link", { name: "Campaigns", exact: true }).click();
   await expect(page.getByRole("heading", { name: "No campaigns yet" })).toBeVisible();
   await capture(page, "empty-desktop");
   const data = { name: "Synthetic Bangkok Outreach 2027", type: "evangelistic_crusade", description: "A shared plan for our local outreach team.", mission: "Serve the city together.", country: "Thailand", cityRegion: "Bangkok", startDate: "2027-02-01", endDate: "2027-02-05", timeZone: "Asia/Bangkok", structure: "single" };
@@ -130,7 +130,7 @@ test("CW-01: private list, API create, draft dashboard and two-tenant denials", 
   const otherContext = await browser.newContext(), other = await otherContext.newPage();
   try {
     const email = await signIn(other);
-    const own = await other.request.post("/api/workspaces", { headers: { origin }, data: { name: "CW-01 other workspace" } });
+    const own = await other.request.post("/api/workspaces", { headers: { origin }, data: { audience: "church", name: "CW-01 other workspace" } });
     const otherTenant = (await own.json()).tenantId as string, otherApi = `/api/workspaces/${otherTenant}/campaigns`;
     const second = await other.request.post(otherApi, { headers, data: { name: "Other private campaign", type: "conference" } });
     expect(second.status()).toBe(201);

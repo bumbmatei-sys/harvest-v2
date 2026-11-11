@@ -56,7 +56,7 @@ test("CRM-05: follow-up task from a deal, my tasks, completion, notes and the un
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await mkdir(evidence, { recursive: true });
   await signIn(page);
-  const workspace = await api(page, "post", "/api/workspaces", { name: "Harvest CRM-05 browser workspace" });
+  const workspace = await api(page, "post", "/api/workspaces", { audience: "church", name: "Harvest CRM-05 browser workspace" });
   expect(workspace.status).toBe(201);
   const tenantId = workspace.body.tenantId as string, root = `/workspaces/${tenantId}`, apiRoot = `/api${root}`;
   const company = (await api(page, "post", `${apiRoot}/companies`, { name: "Synthetic Hope Chapel" })).body.id as string;
@@ -81,7 +81,7 @@ test("CRM-05: follow-up task from a deal, my tasks, completion, notes and the un
   await both(page, "deal-task-on-record");
 
   // My tasks: the sidebar entry opens "assigned to me, open".
-  await page.getByRole("navigation", { name: "Workspace navigation" }).getByRole("link", { name: "Tasks" }).click();
+  await page.getByRole("navigation", { name: "Ministry navigation" }).getByRole("link", { name: "Tasks" }).click();
   await expect(page).toHaveURL(`${root}/crm/tasks`);
   const list = page.getByRole("list", { name: "Tasks" });
   await expect(list.getByText("Synthetic follow-up call")).toBeVisible();
@@ -134,7 +134,7 @@ test("CRM-05: follow-up task from a deal, my tasks, completion, notes and the un
   const otherContext = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: "reduce" });
   const other = await otherContext.newPage();
   const otherEmail = await signIn(other);
-  const own = (await api(other, "post", "/api/workspaces", { name: `CRM-05 second tenant ${randomUUID().slice(0, 8)}` })).body.tenantId as string;
+  const own = (await api(other, "post", "/api/workspaces", { audience: "church", name: `CRM-05 second tenant ${randomUUID().slice(0, 8)}` })).body.tenantId as string;
   const otherTask = (await api(other, "post", `/api/workspaces/${own}/crm/tasks`, { title: "B task" })).body.id as string;
   const myTask = (await api(page, "get", `${apiRoot}/crm/tasks?status=all`)).body.tasks[0] as { id: string; version: number; assigneeUserId: string };
   expect((await api(other, "get", `${apiRoot}/crm/tasks/${myTask.id}`)).status).toBe(403);
@@ -162,7 +162,7 @@ test("CRM-05: follow-up task from a deal, my tasks, completion, notes and the un
   // Viewer: reads tasks and timelines; cannot add, complete or write notes.
   expect((await api(page, "put", `${apiRoot}/members`, { email: otherEmail, role: "viewer" })).status).toBe(200);
   await other.goto(`${root}/crm/tasks?assignee=any&status=all`);
-  await expect(other.getByText("You have view-only access. Ask a workspace owner, admin or member to add or complete tasks.")).toBeVisible();
+  await expect(other.getByText("You have view-only access. Ask a ministry owner, admin or member to add or complete tasks.")).toBeVisible();
   await expect(other.getByRole("button", { name: "Add task" })).toHaveCount(0);
   await expect(other.getByRole("checkbox").first()).toBeDisabled();
   await capture(other, "tasks-viewer-light");

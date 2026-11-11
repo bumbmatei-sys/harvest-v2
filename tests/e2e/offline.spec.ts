@@ -13,7 +13,7 @@ test("offline navigation uses a public fallback without caching workspace or API
   await page.reload();
   await expect.poll(() => page.evaluate(() => !!navigator.serviceWorker.controller)).toBe(true);
   await signIn(page);
-  const response = await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Private offline test workspace" } });
+  const response = await page.request.post("/api/workspaces", { headers: { origin }, data: { audience: "church", name: "Private offline test workspace" } });
   expect(response.status()).toBe(201);
   const workspace = (await response.json()).tenantId;
   await page.goto(`/workspaces/${workspace}/crm/people`);

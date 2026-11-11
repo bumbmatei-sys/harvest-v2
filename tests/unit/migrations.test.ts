@@ -47,4 +47,12 @@ it("keeps a single snapshot chain and an ordered migration journal (reserved num
   const links = snapshots[27].tables["public.campaign_response_links"];
   expect(Object.keys(links.columns)).toEqual(expect.arrayContaining(Object.keys(snapshots[26].tables["public.campaign_response_links"].columns)));
   expect(links.columns.short_code.notNull).toBe(true);
+  // PR B: 0033 adds only the nullable ministry audience to workspaces.
+  const audienceIndex = journal.entries.findIndex((entry: { tag: string }) => entry.tag === "0033_workspace_audience");
+  expect(audienceIndex).toBeGreaterThan(0);
+  const [before, after] = [snapshots[audienceIndex - 1], snapshots[audienceIndex]];
+  expect(Object.keys(after.tables).sort()).toEqual(Object.keys(before.tables).sort());
+  for (const table of Object.keys(before.tables)) if (table !== "public.workspaces") expect(after.tables[table], table).toEqual(before.tables[table]);
+  expect(after.tables["public.workspaces"].columns.audience).toMatchObject({ type: "text", notNull: false });
+  expect(Object.keys(after.tables["public.workspaces"].checkConstraints)).toContain("workspace_audience");
 });
