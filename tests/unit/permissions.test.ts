@@ -11,3 +11,14 @@ describe("workspace permission matrix", () => {
   it("fails closed for unknown roles", () => { expect(can("superadmin", "workspace:read")).toBe(false); });
   it("keeps payment integration unavailable", async () => { await expect(payments.createCheckout({ tenantId: "test", priceId: "test", returnUrl: "https://example.test" })).rejects.toThrow("not available"); });
 });
+import { can as libCan, roleIds as libRoleIds } from "../../src/lib/permissions";
+import { roleIds } from "../../src/server/permissions";
+describe("shared permission rules", () => {
+  it("server and client use the same rule function and roles", () => {
+    expect(can).toBe(libCan);
+    expect(roleIds).toBe(libRoleIds);
+  });
+  it("keeps imports for writers only", () => {
+    expect(["owner", "admin", "member", "viewer"].map((role) => libCan(role, "crm:import"))).toEqual([true, true, true, false]);
+  });
+});
