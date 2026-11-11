@@ -32,7 +32,7 @@ beforeAll(async () => {
 afterAll(async () => { await f?.close(); });
 
 it("keeps the Discover listing in step with publishing, visibility and opt-in", async () => {
-  await edit(study, { allowOpen: true, visibility: "listed", rules: "Be kind.", description: "Weekly study.", discoverOptIn: true });
+  await edit(study, { allowOpen: true, visibility: "listed", rulesList: ["Be kind."], description: "Weekly study.", discoverOptIn: true });
   expect(await slugs()).toEqual([]);
   await publish(study, true);
   expect(await slugs()).toEqual(["grace-study"]);
@@ -50,14 +50,14 @@ it("keeps the Discover listing in step with publishing, visibility and opt-in", 
   expect(await slugs()).toEqual([]);
   await edit(study, { discoverOptIn: true, visibility: "unlisted" });
   expect(await slugs()).toEqual([]);
-  expect(await getPublicCommunity(f.db, "grace-study")).toMatchObject({ name: "Grace study", description: "Weekly study.", rules: "Be kind.", rulesVersion: 1 });
+  expect(await getPublicCommunity(f.db, "grace-study")).toMatchObject({ name: "Grace study", description: "Weekly study.", rulesList: ["Be kind."], rulesVersion: 1 });
   await edit(study, { visibility: "listed" });
   expect(await slugs()).toEqual(["grace-study"]);
   expect(await getPublicCommunity(f.db, "../etc")).toBeNull();
 });
 
 it("joins with the current rules and asks again when they change", async () => {
-  await edit(study, { rules: "Be kind. Pray daily." });
+  await edit(study, { rulesList: ["Be kind.", "Pray daily."] });
   expect((await getPublicCommunity(f.db, "grace-study"))?.rulesVersion).toBe(2);
   await expect(enterCommunity(f.db, "s-joiner", "grace-study", { rulesVersion: 1, adult: true })).rejects.toMatchObject({ status: 409 });
   await expect(enterCommunity(f.db, "s-joiner", "grace-study", { rulesVersion: 2, adult: false })).rejects.toMatchObject({ status: 409 });

@@ -260,6 +260,13 @@
       "when": 1794409595693,
       "tag": "0036_community_joining",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1794423184137,
+      "tag": "0037_community_applications",
+      "breakpoints": true
     }
   ]
 }

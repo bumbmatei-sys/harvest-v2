@@ -966,7 +966,7 @@ export const communityVisibilities = ["listed", "unlisted", "hidden"] as const;
 export const communityPricings = ["free", "paid"] as const;
 export const communityMembershipRoles = ["owner", "admin", "moderator", "contributor", "member"] as const;
 export const communityMembershipStatuses = ["active", "pending", "banned", "left", "removed"] as const;
-export const entitlementSources = ["community_free_join", "admin_grant", "invitation", "product_purchase", "bundle", "subscription"] as const;
+export const entitlementSources = ["community_free_join", "admin_grant", "invitation", "application", "product_purchase", "bundle", "subscription"] as const;
 export const reservedCommunitySlugs = ["new", "discover", "search", "create", "settings", "admin", "api", "me", "account"] as const;
 const reservedSlugSql = sql.raw(reservedCommunitySlugs.map((slug) => `'${slug}'`).join(", "));
 
@@ -984,9 +984,13 @@ export const communities = pgTable("communities", {
   allowInvite: boolean("allow_invite").notNull().default(true),
   allowEntitlement: boolean("allow_entitlement").notNull().default(false),
   description: text("description"),
-  rules: text("rules"),
+  // Individual rules (PR 4a replaced the single free-text field).
+  rulesList: text("rules_list").array().notNull().default(sql`ARRAY[]::text[]`),
   // Bumped whenever the rules change; joiners must accept the current version (PR 3).
   rulesVersion: integer("rules_version").notNull().default(0),
+  // Shared question set (src/lib/questions.ts), bumped by questionsVersion on every change.
+  joinQuestions: jsonb("join_questions").$type<import("../lib/questions").Question[]>().notNull().default(sql`'[]'::jsonb`),
+  questionsVersion: integer("questions_version").notNull().default(0),
   discoverOptIn: boolean("discover_opt_in").notNull().default(false),
   // Cleared if the creator's account is deleted, so account erasure is never blocked by a community.
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
@@ -1003,7 +1007,9 @@ export const communities = pgTable("communities", {
   check("community_pricing", sql`${t.pricing} in ('free', 'paid')`),
   check("community_version", sql`${t.version} >= 1`),
   check("community_description", sql`${t.description} is null or length(${t.description}) between 1 and 2000`),
-  check("community_rules", sql`${t.rules} is null or length(${t.rules}) between 1 and 5000`),
+  check("community_rules_list", sql`cardinality(${t.rulesList}) <= 20`),
+  check("community_join_questions", sql`jsonb_typeof(${t.joinQuestions}) = 'array' and jsonb_array_length(${t.joinQuestions}) <= 10`),
+  check("community_questions_version", sql`${t.questionsVersion} >= 0`),
   check("community_rules_version", sql`${t.rulesVersion} >= 0`)]);
 
 export const communityMemberships = pgTable("community_memberships", {
@@ -1015,6 +1021,7 @@ export const communityMemberships = pgTable("community_memberships", {
   joinedAt: timestamp("joined_at", { withTimezone: true }),
   rulesVersionAccepted: integer("rules_version_accepted"),
   adultConfirmedAt: timestamp("adult_confirmed_at", { withTimezone: true }),
+  joinAnswers: jsonb("join_answers").$type<import("../lib/questions").Answers>(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.communityId, t.userId] }),
@@ -1041,7 +1048,7 @@ export const entitlements = pgTable("entitlements", {
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
   index("entitlements_subject_idx").on(t.userId, t.resourceType, t.resourceId),
   check("entitlement_resource_type", sql`${t.resourceType} in ('community')`),
-  check("entitlement_source", sql`${t.source} in ('community_free_join', 'admin_grant', 'invitation', 'product_purchase', 'bundle', 'subscription')`),
+  check("entitlement_source", sql`${t.source} in ('community_free_join', 'admin_grant', 'invitation', 'application', 'product_purchase', 'bundle', 'subscription')`),
   check("entitlement_window", sql`${t.validUntil} is null or ${t.validUntil} > ${t.validFrom}`),
   check("entitlement_tier", sql`${t.tier} is null or length(${t.tier}) between 1 and 80`),
   check("entitlement_reason", sql`${t.reason} is null or length(${t.reason}) between 1 and 200`),
@@ -1068,6 +1075,33 @@ export const communityInvites = pgTable("community_invites", {
   index("community_invites_email_idx").on(t.emailHash),
   check("community_invite_hashes", sql`${t.emailHash} ~ '^[a-f0-9]{64}$' and ${t.tokenHash} ~ '^[a-f0-9]{64}$'`),
   check("community_invite_hint", sql`length(${t.emailHint}) between 3 and 320`)]);
+
+// PR 4a (C07): applications to join. Staff-only table; applicants act through definers (migration 0037).
+export const communityApplicationStatuses = ["pending", "info_requested", "approved", "declined", "withdrawn"] as const;
+export const communityApplications = pgTable("community_applications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(),
+  communityId: uuid("community_id").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  status: text("status", { enum: communityApplicationStatuses }).notNull().default("pending"),
+  answers: jsonb("answers").$type<import("../lib/questions").Answers>().notNull().default(sql`'{}'::jsonb`),
+  questionsVersion: integer("questions_version").notNull(),
+  rulesVersion: integer("rules_version").notNull(),
+  adultConfirmedAt: timestamp("adult_confirmed_at", { withTimezone: true }).notNull(),
+  infoRequest: text("info_request"),
+  reviewerNote: text("reviewer_note"),
+  decidedBy: text("decided_by").references(() => users.id, { onDelete: "set null" }),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  uniqueIndex("community_applications_open_idx").on(t.communityId, t.userId).where(sql`${t.status} in ('pending', 'info_requested')`),
+  index("community_applications_queue_idx").on(t.tenantId, t.communityId, t.status, t.createdAt),
+  check("community_application_status", sql`${t.status} in ('pending', 'info_requested', 'approved', 'declined', 'withdrawn')`),
+  check("community_application_answers", sql`jsonb_typeof(${t.answers}) = 'object'`),
+  check("community_application_info", sql`${t.infoRequest} is null or length(${t.infoRequest}) between 1 and 500`),
+  check("community_application_note", sql`${t.reviewerNote} is null or length(${t.reviewerNote}) between 1 and 1000`)]);
 
 // PR 3 (C05): Discover read projection (ADR 0013 §7). A row exists only while the resource qualifies.
 export const discoverListings = pgTable("discover_listings", {

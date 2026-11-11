@@ -15,6 +15,9 @@ describe("listingFor", () => {
     ["hidden", { visibility: "hidden" }], ["not opted in", { discoverOptIn: false }],
   ] as const)("does not list a %s community", (_label, change) => { expect(listingFor({ ...base, ...change }, "Grace Church", true)).toBeNull(); });
   it("does not list when the ministry is not eligible", () => { expect(listingFor(base, "Grace Church", false)).toBeNull(); });
+  it("does not call a community open when people must apply first", () => {
+    expect(listingFor({ ...base, allowApply: true }, "Grace Church", true)?.admission).toEqual(["apply", "invite"]);
+  });
 });
 
 describe("invite helpers", () => {

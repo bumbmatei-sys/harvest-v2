@@ -19,25 +19,38 @@ import { EditorShell } from "@/components/editor/editor-shell";
 import { CommunityJoinCard } from "@/components/communities/join-card";
 import { CommunityInvites, type CommunityInvite } from "@/components/communities/community-invites";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { QuestionFields } from "@/components/forms/question-fields";
+import { QuestionListEditor } from "@/components/forms/question-list-editor";
+import { RulesListEditor } from "@/components/communities/rules-list-editor";
+import { CommunityApplications, type ApplicationQueue } from "@/components/communities/community-applications";
+import type { Question } from "@/lib/questions";
 import { useCrmRequest } from "@/components/crm/request";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
 import { comingSoonSteps, communityEditorSteps, publishChecklist, type CommunityEditorStep } from "@/lib/community-editor";
 
 export type EditableCommunity = { id: string; slug: string; name: string; tagline: string | null; status: "draft" | "published" | "archived";
   visibility: "listed" | "unlisted" | "hidden"; allowOpen: boolean; allowApply: boolean; allowInvite: boolean; allowEntitlement: boolean; version: number;
-  description: string | null; rules: string | null; discoverOptIn: boolean };
+  description: string | null; rulesList: string[]; joinQuestions: Question[]; discoverOptIn: boolean };
 export type CommunityMember = { userId: string; name: string; role: string; status: string };
-type Fields = Pick<EditableCommunity, "name" | "tagline" | "visibility" | "allowOpen" | "allowApply" | "allowInvite" | "allowEntitlement" | "description" | "rules" | "discoverOptIn">;
-const optionalText = ["tagline", "description", "rules"] as const;
+type Fields = Pick<EditableCommunity, "name" | "tagline" | "visibility" | "allowOpen" | "allowApply" | "allowInvite" | "allowEntitlement" | "description" | "rulesList" | "joinQuestions" | "discoverOptIn">;
+const optionalText = ["tagline", "description"] as const;
+const equal = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
+// What is sent: trimmed rules and questions, with blank rules and blank options dropped.
+const cleanRules = (rules: string[]) => rules.map((r) => r.trim()).filter(Boolean);
+const cleanQuestions = (questions: Question[]) => questions.map((q) => ({ ...q, label: q.label.trim(), ...(q.options ? { options: q.options.map((o) => o.trim()).filter(Boolean) } : {}) }));
 const admissionKeys = ["allowOpen", "allowApply", "allowInvite", "allowEntitlement"] as const;
 const fieldsOf = (c: EditableCommunity): Fields => ({ name: c.name, tagline: c.tagline, visibility: c.visibility, allowOpen: c.allowOpen, allowApply: c.allowApply,
-  allowInvite: c.allowInvite, allowEntitlement: c.allowEntitlement, description: c.description, rules: c.rules, discoverOptIn: c.discoverOptIn });
-const same = (a: Fields, b: Fields) => (Object.keys(a) as (keyof Fields)[]).every((key) => (a[key] ?? null) === (b[key] ?? null));
+  allowInvite: c.allowInvite, allowEntitlement: c.allowEntitlement, description: c.description, rulesList: c.rulesList, joinQuestions: c.joinQuestions, discoverOptIn: c.discoverOptIn });
+const same = (a: Fields, b: Fields) => (Object.keys(a) as (keyof Fields)[]).every((key) => equal(a[key], b[key]));
 
-export function CommunityEditor({ initial, members, invites, endpoint, listHref, host, writable }: { initial: EditableCommunity; members: CommunityMember[]; invites: CommunityInvite[]; endpoint: string; listHref: string; host: string; writable: boolean }) {
+export function CommunityEditor({ initial, members, invites, applications, endpoint, listHref, host, writable }: { initial: EditableCommunity; members: CommunityMember[]; invites: CommunityInvite[];
+  applications: ApplicationQueue | null; endpoint: string; listHref: string; host: string; writable: boolean }) {
   const t = useTranslations("CommunityEditor"), request = useCrmRequest();
   const [data, setData] = useState(initial), [fields, setFields] = useState(() => fieldsOf(initial));
   const [step, setStep] = useState<CommunityEditorStep>("basics");
+  const [rulesOn, setRulesOn] = useState(initial.rulesList.length > 0), [questionsOn, setQuestionsOn] = useState(initial.joinQuestions.length > 0);
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [notice, setNotice] = useState(""), [conflict, setConflict] = useState(false);
   const dirty = !same(fields, fieldsOf(data));
   const { destination, setDestination, leave } = useUnsavedChangesGuard(dirty || busy);
@@ -47,8 +60,9 @@ export function CommunityEditor({ initial, members, invites, endpoint, listHref,
   function fail(result: { status: number; error: string }) { setConflict(result.status === 409); setError(result.error); }
   async function save(): Promise<EditableCommunity | null> {
     if (!dirty) return data;
-    const changes = Object.fromEntries((Object.keys(fields) as (keyof Fields)[]).filter((key) => (fields[key] ?? null) !== (data[key] ?? null))
-      .map((key) => [key, (optionalText as readonly string[]).includes(key) ? ((fields[key] as string | null)?.trim() || null) : key === "name" ? fields.name.trim() : fields[key]]));
+    const changes = Object.fromEntries((Object.keys(fields) as (keyof Fields)[]).filter((key) => !equal(fields[key], data[key]))
+      .map((key) => [key, (optionalText as readonly string[]).includes(key) ? ((fields[key] as string | null)?.trim() || null) : key === "name" ? fields.name.trim()
+        : key === "rulesList" ? cleanRules(fields.rulesList) : key === "joinQuestions" ? cleanQuestions(fields.joinQuestions) : fields[key]]));
     const result = await request<EditableCommunity>(endpoint, { method: "PATCH", body: { version: data.version, ...changes } });
     if (!result.ok) { fail(result); return null; }
     setData(result.data); setFields(fieldsOf(result.data)); return result.data;
@@ -75,7 +89,13 @@ export function CommunityEditor({ initial, members, invites, endpoint, listHref,
   const breadcrumb = <Breadcrumb><BreadcrumbList><BreadcrumbItem><BreadcrumbLink asChild><Link href={listHref}>{t("back")}</Link></BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator /><BreadcrumbItem><BreadcrumbPage>{data.name}</BreadcrumbPage></BreadcrumbItem></BreadcrumbList></Breadcrumb>;
 
   return <EditorShell breadcrumb={breadcrumb} title={data.name} status={status} actions={actions} steps={steps} current={step} onStep={(id) => setStep(id as CommunityEditorStep)}
-    stepsLabel={t("stepsLabel")} previewLabel={t("preview")} preview={<CommunityJoinCard name={fields.name} tagline={fields.tagline} host={host} preview />}>
+    stepsLabel={t("stepsLabel")} previewLabel={t("preview")} preview={<Tabs defaultValue="page"><TabsList className="mb-3"><TabsTrigger value="page" className="min-h-9">{t("previewPage")}</TabsTrigger><TabsTrigger value="join" className="min-h-9">{t("previewJoin")}</TabsTrigger></TabsList>
+      <TabsContent value="page"><CommunityJoinCard name={fields.name} tagline={fields.tagline} host={host} preview /></TabsContent>
+      <TabsContent value="join"><Card><CardContent className="space-y-5 pt-6">
+        {fields.joinQuestions.length > 0 && <QuestionFields questions={cleanQuestions(fields.joinQuestions).filter((q) => q.label)} values={{}} disabled idPrefix="preview-question" />}
+        {cleanRules(fields.rulesList).length > 0 && <ol className="list-decimal space-y-1 pl-5 text-sm">{cleanRules(fields.rulesList).map((rule, i) => <li key={i} className="break-words">{rule}</li>)}</ol>}
+        <Button className="min-h-11 w-full" disabled>{t(fields.allowApply ? "previewApply" : "previewJoinButton")}</Button>
+      </CardContent></Card></TabsContent></Tabs>}>
     {!writable && <Alert><AlertDescription>{t("readOnly")}</AlertDescription></Alert>}
     {error && <Alert variant="destructive" role="alert"><AlertDescription className="flex flex-wrap items-center gap-3">{error}{conflict && <Button variant="outline" className="min-h-11" onClick={() => { if (dirty) setDestination(location.href); else location.reload(); }}>{t("reload")}</Button>}</AlertDescription></Alert>}
     {notice && <Alert role="status"><AlertDescription>{notice}</AlertDescription></Alert>}
@@ -102,13 +122,21 @@ export function CommunityEditor({ initial, members, invites, endpoint, listHref,
         <Label htmlFor="community-discover" className="flex min-h-11 items-center gap-3 rounded-md border px-3 font-normal">
           <Checkbox id="community-discover" checked={fields.discoverOptIn && fields.visibility === "listed"} disabled={!writable || fields.visibility !== "listed"}
             onCheckedChange={(checked) => set("discoverOptIn", checked === true)} />{t("showInDiscover")}</Label>
-        <Field><FieldLabel htmlFor="community-rules">{t("rules")}</FieldLabel><Textarea id="community-rules" rows={6} value={fields.rules ?? ""} maxLength={5000} disabled={!writable} onChange={(e) => set("rules", e.target.value)} /></Field>
+        <Card><CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3"><CardTitle><h3 className="text-base font-semibold">{t("rulesTitle")}</h3></CardTitle>
+          <Label htmlFor="community-rules-on" className="flex min-h-11 items-center gap-3 font-normal"><Switch id="community-rules-on" checked={rulesOn} disabled={!writable}
+            onCheckedChange={(on) => { setRulesOn(on); set("rulesList", on ? (fields.rulesList.length ? fields.rulesList : [""]) : []); }} />{t("rulesSwitch")}</Label></CardHeader>
+          {rulesOn && <CardContent><RulesListEditor rules={fields.rulesList} onChange={(next) => set("rulesList", next)} disabled={!writable} /></CardContent>}</Card>
+        <Card><CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3"><CardTitle><h3 className="text-base font-semibold">{t("questionsTitle")}</h3></CardTitle>
+          <Label htmlFor="community-questions-on" className="flex min-h-11 items-center gap-3 font-normal"><Switch id="community-questions-on" checked={questionsOn} disabled={!writable}
+            onCheckedChange={(on) => { setQuestionsOn(on); if (!on) set("joinQuestions", []); }} />{t("questionsSwitch")}</Label></CardHeader>
+          {questionsOn && <CardContent><QuestionListEditor questions={fields.joinQuestions} onChange={(next) => set("joinQuestions", next)} disabled={!writable} /></CardContent>}</Card>
       </>}
       {step === "people" && !writable && <p className="text-sm text-muted-foreground">{t("membersManagersOnly")}</p>}
       {step === "people" && writable && <div className="space-y-4">
         <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>{t("memberName")}</TableHead><TableHead>{t("memberRole")}</TableHead><TableHead>{t("memberStatus")}</TableHead></TableRow></TableHeader>
           <TableBody>{members.map((member) => <TableRow key={member.userId}><TableCell>{member.name.trim() || <span className="text-muted-foreground">{t("unnamed")}</span>}</TableCell><TableCell>{t(`roles.${member.role}`)}</TableCell><TableCell>{t(`memberStatuses.${member.status}`)}</TableCell></TableRow>)}</TableBody></Table></div>
         <CommunityInvites endpoint={endpoint} initial={invites} />
+        {applications && (fields.allowApply || applications.applications.length > 0) && <CommunityApplications endpoint={endpoint} initial={applications} />}
       </div>}
       {step === "publish" && <ul className="space-y-2" aria-label={t("checklist")}>
         {checklist.map((item) => <li key={item.key} className="flex min-h-11 items-center gap-3 rounded-md border px-3">

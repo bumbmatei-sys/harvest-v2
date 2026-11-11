@@ -478,7 +478,12 @@
     "thisExportIsTooLarge": "This view has more than 50,000 records. Narrow it with filters, then export.",
     "checkTheActivityDetails": "Check the activity details: choose a source, kind and purpose, and a person.",
     "theseDetailsBelongToDifferentPeople": "These details belong to different people, so the activity was not linked.",
-    "sourceFiltersUnavailable": "Source filters in this view are not available."
+    "sourceFiltersUnavailable": "Source filters in this view are not available.",
+    "communityQuestionsChanged": "The questions changed. Please review them again.",
+    "communityAnswersInvalid": "Check your answers and try again.",
+    "communityAlreadyApplied": "You already applied to this community.",
+    "applicationNotFound": "Application not found.",
+    "applicationChanged": "This application has changed. Reload and try again."
   },
   "LibEnv": {
     "missingRequiredEnvironmentVariableValue": "Missing required environment variable: {name}"
@@ -2353,8 +2358,15 @@
     "checkDone": "Done",
     "checkOpen": "Not done",
     "description": "Description (optional)",
-    "rules": "Rules (optional)",
-    "showInDiscover": "Show in Discover"
+    "showInDiscover": "Show in Discover",
+    "rulesTitle": "Rules",
+    "rulesSwitch": "Ask new members to agree",
+    "questionsTitle": "Join questions",
+    "questionsSwitch": "Ask new members a few questions",
+    "previewPage": "Page",
+    "previewJoin": "Join",
+    "previewApply": "Apply",
+    "previewJoinButton": "Join"
   },
   "CommunityPage": {
     "rules": "Community rules",
@@ -2367,7 +2379,10 @@
     "rules": "Community rules",
     "acceptRules": "I accept the community rules",
     "adult": "I confirm I am 18 or older",
-    "joining": "Joining…"
+    "joining": "Joining…",
+    "apply": "Apply",
+    "applied": "Application sent. You'll see the decision in My communities.",
+    "myCommunities": "My communities"
   },
   "CommunityHome": {
     "welcome": "You're in.",
@@ -2408,7 +2423,18 @@
       "draft": "Draft",
       "published": "Published",
       "archived": "Archived"
-    }
+    },
+    "pending": "Applications",
+    "pendingEmpty": "No applications.",
+    "applicationStatus": {
+      "pending": "Pending",
+      "info_requested": "More info needed",
+      "declined": "Declined"
+    },
+    "askedFor": "The community asked:",
+    "editAnswers": "Edit answers",
+    "resubmit": "Send",
+    "withdraw": "Withdraw"
   },
   "CommunityInvites": {
     "invite": "Invite people",
@@ -2432,5 +2458,68 @@
       "revoked": "Revoked",
       "expired": "Expired"
     }
+  },
+  "Questions": {
+    "required": "(required)",
+    "listLabel": "Questions",
+    "add": "Add question",
+    "types": {
+      "short": "Short answer",
+      "paragraph": "Paragraph",
+      "choice": "Single choice",
+      "checkboxes": "Checkboxes"
+    },
+    "defaults": {
+      "short": "New question",
+      "paragraph": "New question",
+      "choice": "New question",
+      "checkboxes": "New question"
+    },
+    "moveUp": "Move \"{label}\" up",
+    "moveDown": "Move \"{label}\" down",
+    "edit": "Edit \"{label}\"",
+    "remove": "Remove \"{label}\"",
+    "question": "Question",
+    "type": "Type",
+    "options": "Options",
+    "optionNumber": "Option {number}",
+    "removeOption": "Remove option {number}",
+    "addOption": "Add option",
+    "requiredSwitch": "Required",
+    "requiredMark": " *"
+  },
+  "CommunityRules": {
+    "listLabel": "Rules",
+    "placeholder": "Write a rule",
+    "ruleNumber": "Rule {number}",
+    "remove": "Remove rule {number}",
+    "add": "Add rule"
+  },
+  "CommunityApplications": {
+    "title": "Applications",
+    "empty": "No applications waiting.",
+    "name": "Name",
+    "applied": "Applied",
+    "status": "Status",
+    "actions": "Actions",
+    "unnamed": "No name",
+    "view": "Review",
+    "viewNamed": "Review application from {name}",
+    "statuses": {
+      "pending": "Pending",
+      "info_requested": "More info requested",
+      "approved": "Approved",
+      "declined": "Declined",
+      "withdrawn": "Withdrawn"
+    },
+    "removedQuestion": "Question no longer asked",
+    "noAnswers": "No answers.",
+    "askedFor": "You asked:",
+    "note": "Private note",
+    "saveNote": "Save note",
+    "message": "Ask for more information",
+    "approve": "Approve",
+    "requestInfo": "Send request",
+    "decline": "Decline"
   }
 }

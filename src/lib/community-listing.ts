@@ -12,7 +12,8 @@ export function discoverEligible(tenantId: string): boolean { void tenantId; ret
 
 export function listingFor(c: ListingSource, hostName: string, eligible: boolean): Listing | null {
   if (!eligible || c.status !== "published" || c.visibility !== "listed" || !c.discoverOptIn) return null;
-  const admission = ([["open", c.allowOpen], ["apply", c.allowApply], ["invite", c.allowInvite], ["entitlement", c.allowEntitlement]] as const)
+  // Approval wins when both are on (community_enter), so "open" is listed only without approval.
+  const admission = ([["open", c.allowOpen && !c.allowApply], ["apply", c.allowApply], ["invite", c.allowInvite], ["entitlement", c.allowEntitlement]] as const)
     .filter(([, on]) => on).map(([key]) => key);
   return { resourceType: "community", resourceId: c.id, tenantId: c.tenantId, slug: c.slug, name: c.name, tagline: c.tagline, hostName, pricing: c.pricing,
     admission, searchText: [c.name, c.tagline ?? "", hostName].join(" ").toLowerCase().replace(/\s+/g, " ").trim() };

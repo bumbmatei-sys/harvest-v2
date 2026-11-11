@@ -12,9 +12,9 @@ import { emailHash, emailHint, hashSecret, newInviteToken } from "../../src/lib/
 // table privileges but only copies of the row policies the migration installs for its own owner, so a missing or
 // too-wide owner policy shows up here (HC-03 pattern).
 const role = "harvest_test_community_owner";
-const definers = ["public.community_definer_reset()", "public.community_public(text,text)", "public.community_enter(text,integer,boolean,text,uuid)",
+const definers = ["public.community_definer_reset()", "public.community_public(text,text)", "public.community_enter(text,integer,integer,jsonb,boolean,text,uuid)", "public.community_my_applications()", "public.community_application_update(uuid,text,jsonb,integer)", "public.community_purge_applications()", "public.community_answers_valid(jsonb,jsonb)",
   "public.discover_communities(text,boolean,timestamptz,uuid,integer)", "public.community_my_invites()"];
-const tables = ["communities", "community_memberships", "entitlements", "community_invites", "audit_logs", "workspaces", "discover_listings"];
+const tables = ["communities", "community_memberships", "entitlements", "community_invites", "audit_logs", "workspaces", "discover_listings", "community_applications"];
 let fixture: Awaited<ReturnType<typeof testDatabase>>, tenant: string, open: string, hidden: string;
 let roleCreated = false;
 const copied: { table: string; name: string }[] = [];
@@ -64,7 +64,7 @@ it("resolves, lists, joins, redeems and lists invites with a non-bypass definer 
     from pg_roles r where r.rolname = $2`, [definers, role]);
   expect(owner).toEqual({ rolsuper: false, rolbypassrls: false, owners: 1 });
   const view = (slug: string, hash: string | null = null) => fixture.db.transaction(async (tx) => (await tx.execute<{ v: { name: string; hostName: string } | null }>(sql`select public.community_public(${slug}, ${hash}) as v`)).rows[0].v);
-  const enter = (user: string, slug: string, hash: string | null) => withUser(fixture.db, user, async (tx) => (await tx.execute<{ o: string }>(sql`select public.community_enter(${slug}, 0, true, ${hash}, null) as o`)).rows[0].o);
+  const enter = (user: string, slug: string, hash: string | null) => withUser(fixture.db, user, async (tx) => (await tx.execute<{ o: string }>(sql`select public.community_enter(${slug}, 0, 0, '{}'::jsonb, true, ${hash}, null) as o`)).rows[0].o);
   expect(await view("owner-open")).toMatchObject({ name: "Open", hostName: "Owner test" });
   expect(await view("owner-hidden")).toBeNull();
   expect((await fixture.db.transaction((tx) => tx.execute(sql`select public.discover_communities('', false, null, null, 24) as v`))).rows).toHaveLength(1);
@@ -77,4 +77,22 @@ it("resolves, lists, joins, redeems and lists invites with a non-bypass definer 
   expect(await enter("o-invited", "owner-hidden", hashSecret(token))).toBe("joined");
   expect((await fixture.admin.query("select action from audit_logs where tenant_id = $1 and action in ('community.join', 'community.invite_redeem') order by created_at", [tenant])).rows.map((r) => r.action))
     .toEqual(["community.join", "community.invite_redeem"]);
+});
+
+it("applies, lists, resubmits, withdraws and purges applications with a non-bypass definer owner", async () => {
+  await fixture.admin.query(`update communities set allow_apply = true, join_questions = '[{"id":"aaaaaaaa","type":"short","label":"City","required":true}]'::jsonb,
+    questions_version = 1 where id = $1`, [open]);
+  const apply = (answers: unknown) => withUser(fixture.db, "o-applicant", async (tx) =>
+    (await tx.execute<{ o: string }>(sql`select public.community_enter('owner-open', 0, 1, ${JSON.stringify(answers)}::jsonb, true, null, null) as o`)).rows[0].o);
+  await fixture.db.insert(users).values({ id: "o-applicant", name: "o-applicant", email: "o-applicant@example.test", emailVerified: true });
+  expect(await apply({})).toBe("answers_invalid");
+  expect(await apply({ aaaaaaaa: "Cluj" })).toBe("applied");
+  const [mine] = await withUser(fixture.db, "o-applicant", async (tx) => (await tx.execute<{ v: { id: string } }>(sql`select public.community_my_applications() as v`)).rows.map((r) => r.v));
+  await fixture.admin.query("update community_applications set status = 'info_requested', info_request = 'More?' where id = $1", [mine.id]);
+  const update = (action: string) => withUser(fixture.db, "o-applicant", async (tx) =>
+    (await tx.execute<{ o: string }>(sql`select public.community_application_update(${mine.id}::uuid, ${action}, '{"aaaaaaaa":"Iasi"}'::jsonb, 1) as o`)).rows[0].o);
+  expect(await update("resubmit")).toBe("updated");
+  expect(await update("withdraw")).toBe("updated");
+  await fixture.admin.query("update community_applications set decided_at = now() - interval '91 days' where id = $1", [mine.id]);
+  expect(await fixture.db.transaction(async (tx) => (await tx.execute<{ n: number }>(sql`select public.community_purge_applications() as n`)).rows[0].n)).toBe(1);
 });
