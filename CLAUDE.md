@@ -13,6 +13,8 @@ Continue Harvest v2 in bumbmatei-sys/harvest-v2. Read the Craft Roadmap, reposit
 
 Selected UI reference: Studio Admin (https://github.com/arhamkhnz/next-shadcn-admin-dashboard). Read `docs/plans/studio-admin-adoption.md`. Match its shell, internal pages, forms, editors, inbox, and default colors across the whole app; preserve Harvest business logic and permissions. Do not use OpenShadcnBlocks, which was inaccessible, or its registry aliases. Gold remains a possible separate future theme.
 
+**Design vs style (founder decision, 11 Nov):** "Design of Eden, style of Studio Admin." For Communities and other Eden-pattern modules, take the *design* (layout, information architecture, screens, flows, step contents) from the Eden reference screens in `bumbmatei-sys/Harvest-agent` `docs/prd/screenshots/` (read-only reference; do not copy the images into this repo), and the *style* (floating sidebar shell, colours, typography, spacing, cards, tables, forms, light/dark) from Studio Admin through Harvest's shared shadcn components. Do not reproduce Eden's visuals, branding, imagery or copy. Eden's social-content Discover feed is not a reference for community discovery.
+
 State reconciled on 2026-11-10:
 - CRM-01 through CRM-08's planned foundation is merged into main. CRM-06 merged as PR #21; filename hardening and import/export isolation follow-ups merged as #26 and #27. CRM-07 merged as #23. Acceptance records: docs/acceptance/crm-0*.md.
 - CRM-08 merged as PR #25 (63607c8, migration 0025). It is a phase-ready foundation, not a completed workflow engine or assistant product. See docs/acceptance/crm-08.md "Deferred". Approval TTL/concurrency follow-ups remain parked before assistant activation.
