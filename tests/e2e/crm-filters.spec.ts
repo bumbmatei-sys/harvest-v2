@@ -15,7 +15,7 @@ test("shared filters: staged changes, edit/remove, saved views, exports and resp
     expect(response.status()).toBe(201);
     return response.json();
   }
-  const { tenantId } = await post("/api/workspaces", { name: "Synthetic shared filter QA" });
+  const { tenantId } = await post("/api/workspaces", { audience: "church", name: "Synthetic shared filter QA" });
   const root = `/workspaces/${tenantId}`, api = `/api${root}`;
   await post(`${api}/companies`, { name: "Synthetic North Fellowship", domain: "north.example" });
   await post(`${api}/companies`, { name: "Synthetic South Ministry" });
@@ -145,7 +145,7 @@ test("shared filters: staged changes, edit/remove, saved views, exports and resp
 test("shared filters: limit, overflow chips, staged removal and successful editing", async ({ page }) => {
   test.setTimeout(120_000);
   await signIn(page);
-  const workspace = await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Synthetic filter limits" } });
+  const workspace = await page.request.post("/api/workspaces", { headers: { origin }, data: { audience: "church", name: "Synthetic filter limits" } });
   const { tenantId } = await workspace.json();
   const root = `/workspaces/${tenantId}/crm/people`;
   const params = new URLSearchParams();

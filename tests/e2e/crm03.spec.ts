@@ -52,7 +52,7 @@ test("CRM-03: custom fields, saved views, filters, columns and keyboard grid edi
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await mkdir(evidence, { recursive: true });
   await signIn(page);
-  const workspace = await api(page, "post", "/api/workspaces", { name: "Harvest CRM-03 browser workspace" });
+  const workspace = await api(page, "post", "/api/workspaces", { audience: "church", name: "Harvest CRM-03 browser workspace" });
   expect(workspace.status).toBe(201);
   const tenantId = workspace.body.tenantId as string, root = `/workspaces/${tenantId}`, apiRoot = `/api${root}`;
   const company = await api(page, "post", `${apiRoot}/companies`, { name: "Synthetic Riverside Fellowship", domain: "riverside.example" });

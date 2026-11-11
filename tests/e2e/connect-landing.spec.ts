@@ -19,7 +19,7 @@ async function capture(page: Page, name: string) {
 }
 async function setup(page: Page) {
   await signIn(page);
-  const w = await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Hope Community" } }); expect(w.status()).toBe(201); const tenant = (await w.json()).tenantId;
+  const w = await page.request.post("/api/workspaces", { headers: { origin }, data: { audience: "church", name: "Hope Community" } }); expect(w.status()).toBe(201); const tenant = (await w.json()).tenantId;
   const c = await page.request.post(`/api/workspaces/${tenant}/campaigns`, { headers: { origin, "Idempotency-Key": randomUUID() }, data: { name: "Welcome Evening", type: "conference" } }); expect(c.status()).toBe(201); const campaign = (await c.json()).id;
   const root = `/workspaces/${tenant}/campaigns/${campaign}/connect`, api = `/api${root}`;
   const f = await page.request.post(`${api}/forms`, { headers: { origin }, data: { name: "Synthetic invitation preset", notice: "Synthetic test notice only", retentionDays: 1, purposes: ["newsletter", "outreach_follow_up", "account_communications"], definition: { kind: "connect-intake-v2", syntheticOnly: true, preferredName: true, followUpChannel: "email" } } }); expect(f.status()).toBe(201);

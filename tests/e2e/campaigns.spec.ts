@@ -25,7 +25,7 @@ test("CW-01: mobile shell Tab reaches every navigation link and campaign targets
   test.setTimeout(180_000);
   await mkdir(evidence, { recursive: true });
   await signIn(page);
-  const workspace = await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Mobile campaign checks" } });
+  const workspace = await page.request.post("/api/workspaces", { headers: { origin }, data: { audience: "church", name: "Mobile campaign checks" } });
   expect(workspace.status()).toBe(201);
   const root = `/workspaces/${(await workspace.json()).tenantId}/campaigns`;
   let campaignId = "";
@@ -84,7 +84,7 @@ test("CW-01: private list, API create, draft dashboard and two-tenant denials", 
   await page.goto(`/workspaces/${fakeTenant}/campaigns`);
   await expect(page).toHaveURL(/\/sign-in/);
   await signIn(page);
-  const workspace = await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Harvest CW-01 workspace" } });
+  const workspace = await page.request.post("/api/workspaces", { headers: { origin }, data: { audience: "church", name: "Harvest CW-01 workspace" } });
   expect(workspace.status()).toBe(201);
   const tenantId = (await workspace.json()).tenantId as string;
   const root = `/workspaces/${tenantId}/campaigns`, api = `/api${root}`;
@@ -130,7 +130,7 @@ test("CW-01: private list, API create, draft dashboard and two-tenant denials", 
   const otherContext = await browser.newContext(), other = await otherContext.newPage();
   try {
     const email = await signIn(other);
-    const own = await other.request.post("/api/workspaces", { headers: { origin }, data: { name: "CW-01 other workspace" } });
+    const own = await other.request.post("/api/workspaces", { headers: { origin }, data: { audience: "church", name: "CW-01 other workspace" } });
     const otherTenant = (await own.json()).tenantId as string, otherApi = `/api/workspaces/${otherTenant}/campaigns`;
     const second = await other.request.post(otherApi, { headers, data: { name: "Other private campaign", type: "conference" } });
     expect(second.status()).toBe(201);

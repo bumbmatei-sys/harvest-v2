@@ -19,7 +19,7 @@ async function capture(page:Page,name:string){
 for(const scheme of ["light","dark"] as const){
  test(`HC-07 personal account invitation, verified claim and welcome: ${scheme}`,async({page,browser})=>{
   test.setTimeout(240000);await mkdir(evidence,{recursive:true});await page.setViewportSize({width:390,height:844});await page.emulateMedia({colorScheme:scheme,reducedMotion:"reduce"});await signIn(page);
-  const workspace=await page.request.post("/api/workspaces",{headers:{origin},data:{name:"HC07 synthetic QA"}});expect(workspace.status()).toBe(201);const tenant=(await workspace.json()).tenantId;
+  const workspace=await page.request.post("/api/workspaces",{headers:{origin},data:{audience:"church",name:"HC07 synthetic QA"}});expect(workspace.status()).toBe(201);const tenant=(await workspace.json()).tenantId;
   const campaign=await page.request.post(`/api/workspaces/${tenant}/campaigns`,{headers:{origin,"Idempotency-Key":randomUUID()},data:{name:"Personal account test",type:"conference"}});expect(campaign.status()).toBe(201);const campaignId=(await campaign.json()).id;
   const api=`/api/workspaces/${tenant}/campaigns/${campaignId}/connect`;
   await page.goto(`/workspaces/${tenant}/campaigns/${campaignId}/connect/forms`);
@@ -68,14 +68,14 @@ for(const scheme of ["light","dark"] as const){
 
 test("HC-07 existing personal account, mismatch, switch and decline stay independent of Organizations",async({page,browser})=>{
  test.setTimeout(240000);await mkdir(evidence,{recursive:true});await signIn(page);
- const workspace=await page.request.post("/api/workspaces",{headers:{origin},data:{name:"HC07 existing account source"}});const tenant=(await workspace.json()).tenantId;
+ const workspace=await page.request.post("/api/workspaces",{headers:{origin},data:{audience:"church",name:"HC07 existing account source"}});const tenant=(await workspace.json()).tenantId;
  const campaign=await page.request.post(`/api/workspaces/${tenant}/campaigns`,{headers:{origin,"Idempotency-Key":randomUUID()},data:{name:"Existing account campaign",type:"conference"}});const campaignId=(await campaign.json()).id;
  const api=`/api/workspaces/${tenant}/campaigns/${campaignId}/connect`;
  const version=await page.request.post(`${api}/forms`,{headers:{origin},data:{name:"Existing account preset",notice:"Synthetic account invitation",retentionDays:1,purposes:["account_communications"],definition:{kind:"connect-intake-v2",syntheticOnly:true,preferredName:false,followUpChannel:"email"}}});expect(version.status()).toBe(201);
  const linkRes=await page.request.post(`${api}/links`,{headers:{origin},data:{label:"Existing account source",formVersionId:(await version.json()).id}});const link=await linkRes.json();expect((await page.request.post(`${api}/links/${link.id}/actions`,{headers:{origin},data:{action:"publish"}})).status()).toBe(200);
  const recipient=await browser.newContext({viewport:{width:390,height:844},reducedMotion:"reduce"}),wrong=await browser.newContext({viewport:{width:390,height:844},reducedMotion:"reduce"});
  try{
-  const recipientPage=await recipient.newPage(),email=await signIn(recipientPage);const own=await recipientPage.request.post("/api/workspaces",{headers:{origin},data:{name:"Existing own Organization"}});const ownTenant=(await own.json()).tenantId;
+  const recipientPage=await recipient.newPage(),email=await signIn(recipientPage);const own=await recipientPage.request.post("/api/workspaces",{headers:{origin},data:{audience:"church",name:"Existing own Organization"}});const ownTenant=(await own.json()).tenantId;
   await recipientPage.goto(`/c/${link.publicCode}`);await recipientPage.getByRole("checkbox",{name:"Send me an invitation to a personal Harvest account",exact:true}).check();await recipientPage.getByLabel("Email",{exact:true}).fill(email);
   await recipientPage.getByRole("button",{name:"Save test request",exact:true}).click();await expect(recipientPage.getByRole("heading",{name:"Test request saved",exact:true})).toBeVisible();
   const config=JSON.parse(await readFile(`${process.env.HARVEST_E2E_MAILBOX}.connect-worker`,"utf8"));await promisify(execFile)(process.execPath,["node_modules/tsx/dist/cli.mjs","scripts/drain-connect-invitations.ts"],{env:{...process.env,...config,NODE_ENV:"test",HARVEST_CONNECT_INTAKE:"synthetic",HARVEST_CONNECT_TEST_MAILBOX:process.env.HARVEST_E2E_MAILBOX,BETTER_AUTH_URL:origin},timeout:20000});

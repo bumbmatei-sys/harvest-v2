@@ -12,7 +12,7 @@ for(const scheme of ["light","dark"] as const) {
  test(`HC-05 admin setup, both opt-ins and guest rights: ${scheme}`,async({page,browser})=>{
   test.setTimeout(240000);await mkdir(evidence,{recursive:true});await page.emulateMedia({colorScheme:scheme});
   await page.setViewportSize({width:390,height:844});await signIn(page);
-  const workspace=await page.request.post("/api/workspaces",{headers:{origin},data:{name:"Synthetic intake QA"}});expect(workspace.status()).toBe(201);
+  const workspace=await page.request.post("/api/workspaces",{headers:{origin},data:{audience:"church",name:"Synthetic intake QA"}});expect(workspace.status()).toBe(201);
   const tenant=(await workspace.json()).tenantId as string;
   const campaign=await page.request.post(`/api/workspaces/${tenant}/campaigns`,{headers:{origin,"Idempotency-Key":randomUUID()},data:{name:"Synthetic request campaign",type:"conference"}});
   expect(campaign.status()).toBe(201);const campaignId=(await campaign.json()).id as string;

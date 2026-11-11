@@ -50,7 +50,7 @@ test("PR03: each theme, semantic colors, profile locale persistence, screenshots
   }
   expect((await request.patch("/api/profile", { headers: { origin }, data: { locale: "en" } })).status()).toBe(401);
   await signIn(page);
-  const workspace = await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Harvest PR03 workspace" } });
+  const workspace = await page.request.post("/api/workspaces", { headers: { origin }, data: { audience: "church", name: "Harvest PR03 workspace" } });
   expect(workspace.status()).toBe(201);
   const tenantId = (await workspace.json()).tenantId, base = `/workspaces/${tenantId}`;
   const contact = await page.request.post(`${base.replace("/workspaces", "/api/workspaces")}/contacts`, { headers: { origin }, data: { name: "Synthetic Alex Rivers", email: "alex@example.test", notes: "Synthetic contact for theme verification." } });

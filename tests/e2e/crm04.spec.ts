@@ -71,7 +71,7 @@ test("CRM-04: pipelines, deals, board moves, list, deal detail, related deals, s
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await mkdir(evidence, { recursive: true });
   await signIn(page);
-  const workspace = await api(page, "post", "/api/workspaces", { name: "Harvest CRM-04 browser workspace" });
+  const workspace = await api(page, "post", "/api/workspaces", { audience: "church", name: "Harvest CRM-04 browser workspace" });
   expect(workspace.status).toBe(201);
   const tenantId = workspace.body.tenantId as string, root = `/workspaces/${tenantId}`, apiRoot = `/api${root}`;
   const company = (await api(page, "post", `${apiRoot}/companies`, { name: "Synthetic Grace Chapel", domain: "grace-chapel.example" })).body.id as string;
@@ -219,7 +219,7 @@ test("CRM-04: pipelines, deals, board moves, list, deal detail, related deals, s
   const otherContext = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: "reduce" });
   const other = await otherContext.newPage();
   const otherEmail = await signIn(other);
-  const own = (await api(other, "post", "/api/workspaces", { name: `CRM-04 second tenant ${randomUUID().slice(0, 8)}` })).body.tenantId as string;
+  const own = (await api(other, "post", "/api/workspaces", { audience: "church", name: `CRM-04 second tenant ${randomUUID().slice(0, 8)}` })).body.tenantId as string;
   const otherCompany = (await api(other, "post", `/api/workspaces/${own}/companies`, { name: "Synthetic Other Org" })).body.id as string;
   const dealB = (await api(other, "post", `/api/workspaces/${own}/crm/deals`, { name: "B deal", companyId: otherCompany })).body as { id: string; version: number };
   const dealA = moves.deals[0] as { id: string; version: number };

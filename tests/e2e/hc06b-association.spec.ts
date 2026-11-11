@@ -16,7 +16,7 @@ async function capture(page:Page,name:string){
 }
 for(const scheme of ["light","dark"] as const)test(`HC-06B automatic claim, organizer source and subject rights: ${scheme}`,async({page,browser})=>{
  test.setTimeout(240000);await mkdir(evidence,{recursive:true});await page.emulateMedia({colorScheme:scheme,reducedMotion:"reduce"});await signIn(page);
- const tenant=(await (await page.request.post("/api/workspaces",{headers:{origin},data:{name:"Welcome organizer"}})).json()).tenantId;
+ const tenant=(await (await page.request.post("/api/workspaces",{headers:{origin},data:{audience:"church",name:"Welcome organizer"}})).json()).tenantId;
  const campaign=(await (await page.request.post(`/api/workspaces/${tenant}/campaigns`,{headers:{origin,"Idempotency-Key":randomUUID()},data:{name:"Welcome evening",type:"conference"}})).json()).id;
  const api=`/api/workspaces/${tenant}/campaigns/${campaign}/connect`;
  const published=await page.request.post(`${api}/forms`,{headers:{origin},data:{name:"Welcome request",notice:"Synthetic choices",retentionDays:1,purposes:["account_communications","newsletter"],definition:{kind:"connect-intake-v3",syntheticOnly:true,preferredName:true,followUpChannel:"email"}}});expect(published.status()).toBe(201);

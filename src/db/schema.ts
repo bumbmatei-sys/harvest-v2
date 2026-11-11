@@ -1,5 +1,6 @@
 import type { LandingDefinition } from "../lib/connect-landing";
 import type { BrandTheme } from "../lib/theme-registry";
+import type { Audience } from "../lib/audience";
 import type { campaignStructures, campaignTypes } from "../lib/campaigns";
 import type { ConnectPurpose, formVersionStatuses, responseConsentActors, responseConsentStatuses, responseContactKinds, responseLinkStatuses, responseStatuses } from "../lib/connect-data";
 import { sql } from "drizzle-orm";
@@ -47,9 +48,12 @@ export const roles = pgTable("roles", { id: text("id").primaryKey() });
 export const workspaces = pgTable("workspaces", {
   tenantId: uuid("tenant_id").primaryKey().defaultRandom(), name: text("name").notNull(),
   brandTheme: text("brand_theme").$type<BrandTheme>().notNull().default("harvest"),
+  // Ministry audience; null means unspecified (ministries created before it existed).
+  audience: text("audience").$type<Audience>(),
   createdBy: text("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [check("workspace_name_length", sql`length(trim(${t.name})) BETWEEN 1 AND 100`), check("workspace_brand_theme", sql`${t.brandTheme} in ('harvest', 'studio')`)]);
+}, (t) => [check("workspace_name_length", sql`length(trim(${t.name})) BETWEEN 1 AND 100`), check("workspace_brand_theme", sql`${t.brandTheme} in ('harvest', 'studio')`),
+  check("workspace_audience", sql`${t.audience} is null or ${t.audience} in ('church', 'ministry_nonprofit', 'evangelist_missionary')`)]);
 export const workspaceMembers = pgTable("workspace_members", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
   userId: text("user_id").notNull().references(() => users.id),

@@ -232,6 +232,13 @@
       "when": 1794302851296,
       "tag": "0032_hc06b_association_foundation",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1794359781821,
+      "tag": "0033_workspace_audience",
+      "breakpoints": true
     }
   ]
 }

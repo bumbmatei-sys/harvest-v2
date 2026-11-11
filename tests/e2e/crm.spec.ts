@@ -60,7 +60,7 @@ async function api(page: Page, method: "get" | "post" | "put" | "patch" | "delet
 test("CRM: company People tab truncates long names, roles and emails without sideways scrolling", async ({ page }) => {
   test.setTimeout(120_000);
   await signIn(page);
-  const workspace = await api(page, "post", "/api/workspaces", { name: "Company People layout regression" });
+  const workspace = await api(page, "post", "/api/workspaces", { audience: "church", name: "Company People layout regression" });
   expect(workspace.status).toBe(201);
   const root = `/workspaces/${workspace.body.tenantId}`, apiRoot = `/api${root}`;
   const company = await api(page, "post", `${apiRoot}/companies`, { name: "Riverside Community Trust" });
@@ -124,7 +124,7 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await mkdir(evidence, { recursive: true });
   await signIn(page);
-  const workspace = await api(page, "post", "/api/workspaces", { name: "Harvest CRM browser workspace" });
+  const workspace = await api(page, "post", "/api/workspaces", { audience: "church", name: "Harvest CRM browser workspace" });
   expect(workspace.status).toBe(201);
   const tenantId = workspace.body.tenantId as string, root = `/workspaces/${tenantId}`, apiRoot = `/api${root}`;
 
@@ -312,7 +312,7 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
   expect((await api(viewer, "patch", `${apiRoot}/contacts/${personId}`, { name: "Denied", version: 1 })).status).toBe(403);
   expect((await api(viewer, "post", `${apiRoot}/companies`, { name: "Denied" })).status).toBe(403);
   expect((await api(viewer, "post", `${apiRoot}/contacts/${personId}/companies`, { companyId })).status).toBe(403);
-  const own = await api(viewer, "post", "/api/workspaces", { name: `Second CRM tenant ${randomUUID().slice(0, 8)}` });
+  const own = await api(viewer, "post", "/api/workspaces", { audience: "church", name: `Second CRM tenant ${randomUUID().slice(0, 8)}` });
   const tenantB = own.body.tenantId as string, apiB = `/api/workspaces/${tenantB}`;
   const companyB = (await api(viewer, "post", `${apiB}/companies`, { name: "Riverside Community Trust", domain: "riverside-trust.example" })).body.id as string;
   const personB = (await api(viewer, "post", `${apiB}/contacts`, { name: "Synthetic Grace Okafor", email: "grace@example.test" })).body.id as string;

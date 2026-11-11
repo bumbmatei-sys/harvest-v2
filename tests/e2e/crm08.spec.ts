@@ -12,7 +12,7 @@ async function api(page: Page, method: "get" | "post" | "patch" | "put" | "delet
 test("CRM-08: webhook endpoint routes enforce session, origin, role and workspace, and stay off in development", async ({ page, browser }) => {
   test.setTimeout(120_000);
   await signIn(page);
-  const workspace = await api(page, "post", "/api/workspaces", { name: "CRM-08 routes" });
+  const workspace = await api(page, "post", "/api/workspaces", { audience: "church", name: "CRM-08 routes" });
   expect(workspace.status).toBe(201);
   const root = `/api/workspaces/${workspace.body.tenantId}/crm/webhooks`;
   const listed = await api(page, "get", root);

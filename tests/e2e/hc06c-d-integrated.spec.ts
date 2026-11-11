@@ -37,7 +37,7 @@ test("HC-06C+D: Connect claim, source rules, channel consent filters and a clear
   page.on("pageerror", (error) => errors.push(error.message));
   await page.setViewportSize({ width: 1440, height: 1000 });
   await signIn(page);
-  const tenant = (await (await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Synthetic source filter QA" } })).json()).tenantId;
+  const tenant = (await (await page.request.post("/api/workspaces", { headers: { origin }, data: { audience: "church", name: "Synthetic source filter QA" } })).json()).tenantId;
   const root = `/workspaces/${tenant}`, api = `/api${root}`;
   const campaign = (await (await page.request.post(`${api}/campaigns`, { headers: { origin, "Idempotency-Key": randomUUID() }, data: { name: "Autumn welcome", type: "conference" } })).json()).id;
   const connect = `${api}/campaigns/${campaign}/connect`;

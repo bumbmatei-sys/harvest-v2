@@ -15,7 +15,7 @@ test("email code → session → workspace persistence → sign out", async ({ p
   test.setTimeout(90_000);
   await page.goto("/workspaces");
   await expect(page).toHaveURL(/\/sign-in$/);
-  expect((await request.post("/api/workspaces", { headers: { origin: "http://127.0.0.1:3100" }, data: { name: "Unauthorized" } })).status()).toBe(401);
+  expect((await request.post("/api/workspaces", { headers: { origin: "http://127.0.0.1:3100" }, data: { audience: "church", name: "Unauthorized" } })).status()).toBe(401);
   expect((await request.post("/api/auth/sign-in/email", { data: { email: "test@example.test", password: "unused" } })).status()).toBe(404);
   await expect(page.getByRole("heading", { name: "Sign in to Harvest" })).toBeVisible();
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
@@ -92,8 +92,8 @@ test("email code → session → workspace persistence → sign out", async ({ p
   await expect(page).toHaveURL(/\/workspaces$/);
   await expect(page.getByText("You don’t have a workspace yet.", { exact: false })).toBeVisible();
   await page.screenshot({ path: testInfo.outputPath("workspaces-empty.png"), fullPage: true });
-  expect((await page.request.post("/api/workspaces", { headers: { origin: "https://untrusted.example.test" }, data: { name: "Forbidden origin" } })).status()).toBe(403);
-  expect((await page.request.post("/api/workspaces", { headers: { origin: "http://127.0.0.1:3100" }, data: { name: "Injected", tenantId: "client-controlled" } })).status()).toBe(400);
+  expect((await page.request.post("/api/workspaces", { headers: { origin: "https://untrusted.example.test" }, data: { audience: "church", name: "Forbidden origin" } })).status()).toBe(403);
+  expect((await page.request.post("/api/workspaces", { headers: { origin: "http://127.0.0.1:3100" }, data: { audience: "church", name: "Injected", tenantId: "client-controlled" } })).status()).toBe(400);
   await page.getByLabel("Workspace name").fill("Browser workspace");
   await page.getByRole("button", { name: "Create workspace" }).click();
   await expect(page.getByText("Browser workspace", { exact: true })).toBeVisible();

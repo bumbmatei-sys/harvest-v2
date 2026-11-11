@@ -61,7 +61,7 @@ test("CRM-06: CSV import with mapping, preview and problem report; filtered expo
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await mkdir(evidence, { recursive: true });
   await signIn(page);
-  const workspace = await api(page, "post", "/api/workspaces", { name: "Harvest CRM-06 browser workspace" });
+  const workspace = await api(page, "post", "/api/workspaces", { audience: "church", name: "Harvest CRM-06 browser workspace" });
   expect(workspace.status).toBe(201);
   const tenantId = workspace.body.tenantId as string, root = `/workspaces/${tenantId}`, apiRoot = `/api${root}`;
   expect((await api(page, "post", `${apiRoot}/companies`, { name: "Synthetic Hope Chapel", domain: "hope.example" })).status).toBe(201);
@@ -202,7 +202,7 @@ test("CRM-06: CSV import with mapping, preview and problem report; filtered expo
   const otherContext = await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: "reduce", timezoneId: "Europe/Berlin" });
   const other = await otherContext.newPage();
   const otherEmail = await signIn(other);
-  const own = (await api(other, "post", "/api/workspaces", { name: `CRM-06 second tenant ${randomUUID().slice(0, 8)}` })).body.tenantId as string;
+  const own = (await api(other, "post", "/api/workspaces", { audience: "church", name: `CRM-06 second tenant ${randomUUID().slice(0, 8)}` })).body.tenantId as string;
   const otherImport = (await api(other, "post", `/api/workspaces/${own}/crm/imports`, { entity: "person", clientKey: randomUUID(), fileName: "b.csv", csv: "Name\nSynthetic B" })).body.id as string;
   expect((await api(other, "get", `${apiRoot}/crm/imports/${imports[0].id}`)).status).toBe(403);
   expect((await api(other, "get", `/api/workspaces/${own}/crm/imports/${imports[0].id}`)).status).toBe(404);

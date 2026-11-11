@@ -56,7 +56,7 @@ test("CRM-07: per-purpose opt-in gates association events on the timeline", asyn
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await mkdir(evidence, { recursive: true });
   await signIn(page);
-  const workspace = await api(page, "post", "/api/workspaces", { name: "Harvest CRM-07 browser workspace" });
+  const workspace = await api(page, "post", "/api/workspaces", { audience: "church", name: "Harvest CRM-07 browser workspace" });
   const tenantId = workspace.body.tenantId as string, root = `/workspaces/${tenantId}`, apiRoot = `/api${root}`;
   const company = (await api(page, "post", `${apiRoot}/companies`, { name: "Synthetic Grace Chapel", domain: "grace.example" })).body.id as string;
   const person = (await api(page, "post", `${apiRoot}/contacts`, { name: "Synthetic Ana Costa", email: "ana@example.test", phone: "+4915112345678", companyId: company })).body.id as string;
@@ -129,7 +129,7 @@ test("CRM-07: per-purpose opt-in gates association events on the timeline", asyn
   const otherContext = await browser.newContext({ viewport: { width: 1440, height: 1000 } });
   const other = await otherContext.newPage();
   await signIn(other);
-  const own = (await api(other, "post", "/api/workspaces", { name: `CRM-07 second ${randomUUID().slice(0, 8)}` })).body.tenantId as string;
+  const own = (await api(other, "post", "/api/workspaces", { audience: "church", name: `CRM-07 second ${randomUUID().slice(0, 8)}` })).body.tenantId as string;
   expect((await api(other, "post", `${apiRoot}/crm/associations`, { source: "zernio", kind: "message", purpose: "messaging", contactId: person })).status).toBe(403);
   expect((await api(other, "post", `/api/workspaces/${own}/crm/associations`, { source: "zernio", kind: "message", purpose: "messaging", contactId: person })).status).toBe(404);
   expect((await api(other, "get", `/api/workspaces/${own}/contacts/${person}/timeline`)).status).toBe(404);
@@ -183,7 +183,7 @@ test("CRM-07 copy: organizations wording and vendor-free screens at 390 and 1440
   test.setTimeout(300_000);
   await mkdir(evidence, { recursive: true });
   await signIn(page);
-  const tenantId = (await api(page, "post", "/api/workspaces", { name: "Harvest copy review" })).body.tenantId as string, root = `/workspaces/${tenantId}`, apiRoot = `/api${root}`;
+  const tenantId = (await api(page, "post", "/api/workspaces", { audience: "church", name: "Harvest copy review" })).body.tenantId as string, root = `/workspaces/${tenantId}`, apiRoot = `/api${root}`;
   const organization = (await api(page, "post", `${apiRoot}/companies`, { name: "Synthetic Grace Chapel", domain: "grace.example", description: "Sunday services and youth work" })).body.id as string;
   await api(page, "post", `${apiRoot}/companies`, { name: "Synthetic Hope Fellowship", domain: "hope.example" });
   const person = (await api(page, "post", `${apiRoot}/contacts`, { name: "Synthetic Ana Costa", email: "ana@example.test", phone: "+4915112345678", companyId: organization, title: "Youth leader" })).body.id as string;
