@@ -983,6 +983,11 @@ export const communities = pgTable("communities", {
   allowApply: boolean("allow_apply").notNull().default(false),
   allowInvite: boolean("allow_invite").notNull().default(true),
   allowEntitlement: boolean("allow_entitlement").notNull().default(false),
+  description: text("description"),
+  rules: text("rules"),
+  // Bumped whenever the rules change; joiners must accept the current version (PR 3).
+  rulesVersion: integer("rules_version").notNull().default(0),
+  discoverOptIn: boolean("discover_opt_in").notNull().default(false),
   // Cleared if the creator's account is deleted, so account erasure is never blocked by a community.
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   version: integer("version").notNull().default(1),
@@ -996,7 +1001,10 @@ export const communities = pgTable("communities", {
   check("community_status", sql`${t.status} in ('draft', 'published', 'archived')`),
   check("community_visibility", sql`${t.visibility} in ('listed', 'unlisted', 'hidden')`),
   check("community_pricing", sql`${t.pricing} in ('free', 'paid')`),
-  check("community_version", sql`${t.version} >= 1`)]);
+  check("community_version", sql`${t.version} >= 1`),
+  check("community_description", sql`${t.description} is null or length(${t.description}) between 1 and 2000`),
+  check("community_rules", sql`${t.rules} is null or length(${t.rules}) between 1 and 5000`),
+  check("community_rules_version", sql`${t.rulesVersion} >= 0`)]);
 
 export const communityMemberships = pgTable("community_memberships", {
   tenantId: uuid("tenant_id").notNull(),
@@ -1005,6 +1013,8 @@ export const communityMemberships = pgTable("community_memberships", {
   role: text("role", { enum: communityMembershipRoles }).notNull().default("member"),
   status: text("status", { enum: communityMembershipStatuses }).notNull().default("pending"),
   joinedAt: timestamp("joined_at", { withTimezone: true }),
+  rulesVersionAccepted: integer("rules_version_accepted"),
+  adultConfirmedAt: timestamp("adult_confirmed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.communityId, t.userId] }),
@@ -1037,3 +1047,41 @@ export const entitlements = pgTable("entitlements", {
   check("entitlement_reason", sql`${t.reason} is null or length(${t.reason}) between 1 and 200`),
   // revoked_by may become null if that account is deleted, but never names a revoker without a revocation time.
   check("entitlement_revocation", sql`${t.revokedBy} is null or ${t.revokedAt} is not null`)]);
+
+// PR 3 (C08): personal invitation links. Only hashes of the email and the token are stored.
+export const communityInvites = pgTable("community_invites", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(),
+  communityId: uuid("community_id").notNull(),
+  emailHash: text("email_hash").notNull(),
+  emailHint: text("email_hint").notNull(),
+  tokenHash: text("token_hash").notNull().unique(),
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  redeemedAt: timestamp("redeemed_at", { withTimezone: true }),
+  redeemedBy: text("redeemed_by").references(() => users.id, { onDelete: "set null" }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  uniqueIndex("community_invites_open_idx").on(t.communityId, t.emailHash).where(sql`${t.redeemedAt} is null and ${t.revokedAt} is null`),
+  index("community_invites_email_idx").on(t.emailHash),
+  check("community_invite_hashes", sql`${t.emailHash} ~ '^[a-f0-9]{64}$' and ${t.tokenHash} ~ '^[a-f0-9]{64}$'`),
+  check("community_invite_hint", sql`length(${t.emailHint}) between 3 and 320`)]);
+
+// PR 3 (C05): Discover read projection (ADR 0013 §7). A row exists only while the resource qualifies.
+export const discoverListings = pgTable("discover_listings", {
+  resourceType: text("resource_type").notNull(),
+  resourceId: uuid("resource_id").notNull(),
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId, { onDelete: "cascade" }),
+  slug: text("slug").notNull(),
+  name: text("name").notNull(),
+  tagline: text("tagline"),
+  hostName: text("host_name").notNull(),
+  pricing: text("pricing").notNull(),
+  admission: text("admission").array().notNull(),
+  searchText: text("search_text").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.resourceType, t.resourceId] }),
+  index("discover_listings_order_idx").on(t.resourceType, t.updatedAt, t.resourceId),
+  check("discover_resource_type", sql`${t.resourceType} in ('community')`)]);

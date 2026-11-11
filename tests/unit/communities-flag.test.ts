@@ -1,7 +1,7 @@
 import { afterEach, expect, it, vi } from "vitest";
 import { navEntries, resolveNavigation } from "../../src/lib/navigation";
 
-// C04 review on #58: with the production default (no HARVEST_COMMUNITIES) every Communities API returns 404
+// C04 review on #58 and PR 3: with the production default (no HARVEST_COMMUNITIES) every Communities API returns 404
 // before authentication or the database is touched.
 vi.mock("server-only", () => ({}));
 const touched = vi.fn();
@@ -13,7 +13,7 @@ vi.mock("@/server/http", () => ({
 }));
 afterEach(() => { vi.unstubAllEnvs(); touched.mockClear(); });
 
-const ids = { tenantId: "00000000-0000-4000-8000-000000000001", communityId: "00000000-0000-4000-8000-000000000002" };
+const ids = { tenantId: "00000000-0000-4000-8000-000000000001", communityId: "00000000-0000-4000-8000-000000000002", inviteId: "00000000-0000-4000-8000-000000000003", slug: "grace-study" };
 const context = { params: Promise.resolve(ids) };
 const request = (method: string) => new Request("https://example.test/api", { method, headers: { origin: "https://example.test" }, body: method === "GET" ? undefined : "{}" });
 
@@ -22,7 +22,12 @@ it("returns 404 from every Communities route in production unless activated", as
   const list = await import("../../src/app/api/workspaces/[tenantId]/communities/route");
   const one = await import("../../src/app/api/workspaces/[tenantId]/communities/[communityId]/route");
   const publish = await import("../../src/app/api/workspaces/[tenantId]/communities/[communityId]/publish/route");
-  const calls = [list.GET(request("GET"), context), list.POST(request("POST"), context), one.GET(request("GET"), context), one.PATCH(request("PATCH"), context), publish.POST(request("POST"), context)];
+  const join = await import("../../src/app/api/communities/[slug]/join/route");
+  const discover = await import("../../src/app/api/discover/route");
+  const invites = await import("../../src/app/api/workspaces/[tenantId]/communities/[communityId]/invites/route");
+  const invite = await import("../../src/app/api/workspaces/[tenantId]/communities/[communityId]/invites/[inviteId]/route");
+  const calls = [list.GET(request("GET"), context), list.POST(request("POST"), context), one.GET(request("GET"), context), one.PATCH(request("PATCH"), context), publish.POST(request("POST"), context),
+    join.POST(request("POST"), context), discover.GET(request("GET")), invites.GET(request("GET"), context), invites.POST(request("POST"), context), invite.DELETE(request("DELETE"), context)];
   for (const response of await Promise.all(calls)) expect(response.status).toBe(404);
   expect(touched).not.toHaveBeenCalled();
 });

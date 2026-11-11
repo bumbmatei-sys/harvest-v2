@@ -1,0 +1,22 @@
+import { getDb } from "@/db/client";
+import { createInvite, listInvites } from "@/server/communities";
+import { communitiesEnabled } from "@/server/communities-mode";
+import { errorResponse, verifiedUser, verifyOrigin } from "@/server/http";
+export const runtime = "nodejs";
+type Params = { params: Promise<{ tenantId: string; communityId: string }> };
+const off = () => new Response(null, { status: 404 });
+export async function GET(request: Request, context: Params) {
+  if (!communitiesEnabled()) return off();
+  try {
+    const user = await verifiedUser(request), { tenantId, communityId } = await context.params;
+    return Response.json(await listInvites(getDb(), user, tenantId, communityId), { headers: { "Cache-Control": "private, no-store" } });
+  } catch (error) { return errorResponse(error); }
+}
+export async function POST(request: Request, context: Params) {
+  if (!communitiesEnabled()) return off();
+  try {
+    verifyOrigin(request);
+    const user = await verifiedUser(request), { tenantId, communityId } = await context.params;
+    return Response.json(await createInvite(getDb(), user, tenantId, communityId, await request.json()), { status: 201, headers: { "Cache-Control": "private, no-store" } });
+  } catch (error) { return errorResponse(error); }
+}

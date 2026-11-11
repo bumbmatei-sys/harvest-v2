@@ -17,19 +17,24 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EditorShell } from "@/components/editor/editor-shell";
 import { CommunityJoinCard } from "@/components/communities/join-card";
+import { CommunityInvites, type CommunityInvite } from "@/components/communities/community-invites";
+import { Textarea } from "@/components/ui/textarea";
 import { useCrmRequest } from "@/components/crm/request";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
 import { comingSoonSteps, communityEditorSteps, publishChecklist, type CommunityEditorStep } from "@/lib/community-editor";
 
 export type EditableCommunity = { id: string; slug: string; name: string; tagline: string | null; status: "draft" | "published" | "archived";
-  visibility: "listed" | "unlisted" | "hidden"; allowOpen: boolean; allowApply: boolean; allowInvite: boolean; allowEntitlement: boolean; version: number };
+  visibility: "listed" | "unlisted" | "hidden"; allowOpen: boolean; allowApply: boolean; allowInvite: boolean; allowEntitlement: boolean; version: number;
+  description: string | null; rules: string | null; discoverOptIn: boolean };
 export type CommunityMember = { userId: string; name: string; role: string; status: string };
-type Fields = Pick<EditableCommunity, "name" | "tagline" | "visibility" | "allowOpen" | "allowApply" | "allowInvite" | "allowEntitlement">;
+type Fields = Pick<EditableCommunity, "name" | "tagline" | "visibility" | "allowOpen" | "allowApply" | "allowInvite" | "allowEntitlement" | "description" | "rules" | "discoverOptIn">;
+const optionalText = ["tagline", "description", "rules"] as const;
 const admissionKeys = ["allowOpen", "allowApply", "allowInvite", "allowEntitlement"] as const;
-const fieldsOf = (c: EditableCommunity): Fields => ({ name: c.name, tagline: c.tagline, visibility: c.visibility, allowOpen: c.allowOpen, allowApply: c.allowApply, allowInvite: c.allowInvite, allowEntitlement: c.allowEntitlement });
+const fieldsOf = (c: EditableCommunity): Fields => ({ name: c.name, tagline: c.tagline, visibility: c.visibility, allowOpen: c.allowOpen, allowApply: c.allowApply,
+  allowInvite: c.allowInvite, allowEntitlement: c.allowEntitlement, description: c.description, rules: c.rules, discoverOptIn: c.discoverOptIn });
 const same = (a: Fields, b: Fields) => (Object.keys(a) as (keyof Fields)[]).every((key) => (a[key] ?? null) === (b[key] ?? null));
 
-export function CommunityEditor({ initial, members, endpoint, listHref, host, writable }: { initial: EditableCommunity; members: CommunityMember[]; endpoint: string; listHref: string; host: string; writable: boolean }) {
+export function CommunityEditor({ initial, members, invites, endpoint, listHref, host, writable }: { initial: EditableCommunity; members: CommunityMember[]; invites: CommunityInvite[]; endpoint: string; listHref: string; host: string; writable: boolean }) {
   const t = useTranslations("CommunityEditor"), request = useCrmRequest();
   const [data, setData] = useState(initial), [fields, setFields] = useState(() => fieldsOf(initial));
   const [step, setStep] = useState<CommunityEditorStep>("basics");
@@ -43,7 +48,7 @@ export function CommunityEditor({ initial, members, endpoint, listHref, host, wr
   async function save(): Promise<EditableCommunity | null> {
     if (!dirty) return data;
     const changes = Object.fromEntries((Object.keys(fields) as (keyof Fields)[]).filter((key) => (fields[key] ?? null) !== (data[key] ?? null))
-      .map((key) => [key, key === "tagline" ? (fields.tagline?.trim() || null) : key === "name" ? fields.name.trim() : fields[key]]));
+      .map((key) => [key, (optionalText as readonly string[]).includes(key) ? ((fields[key] as string | null)?.trim() || null) : key === "name" ? fields.name.trim() : fields[key]]));
     const result = await request<EditableCommunity>(endpoint, { method: "PATCH", body: { version: data.version, ...changes } });
     if (!result.ok) { fail(result); return null; }
     setData(result.data); setFields(fieldsOf(result.data)); return result.data;
@@ -82,6 +87,7 @@ export function CommunityEditor({ initial, members, endpoint, listHref, host, wr
       {step === "basics" && <>
         <Field><FieldLabel htmlFor="community-name">{t("name")}</FieldLabel><Input id="community-name" className="min-h-11" value={fields.name} maxLength={80} required disabled={!writable} onChange={(e) => set("name", e.target.value)} /></Field>
         <Field><FieldLabel htmlFor="community-tagline">{t("tagline")}</FieldLabel><Input id="community-tagline" className="min-h-11" value={fields.tagline ?? ""} maxLength={160} disabled={!writable} onChange={(e) => set("tagline", e.target.value)} /></Field>
+        <Field><FieldLabel htmlFor="community-description">{t("description")}</FieldLabel><Textarea id="community-description" rows={4} value={fields.description ?? ""} maxLength={2000} disabled={!writable} onChange={(e) => set("description", e.target.value)} /></Field>
         <Field><FieldLabel htmlFor="community-address">{t("address")}</FieldLabel><Input id="community-address" className="min-h-11" value={`/communities/${data.slug}`} readOnly /></Field>
       </>}
       {step === "joining" && <>
@@ -93,12 +99,16 @@ export function CommunityEditor({ initial, members, endpoint, listHref, host, wr
           {admissionKeys.map((key) => <Label key={key} htmlFor={`community-${key}`} className="flex min-h-11 items-center gap-3 rounded-md border px-3 font-normal">
             <Checkbox id={`community-${key}`} checked={fields[key]} disabled={!writable} onCheckedChange={(checked) => set(key, checked === true)} />{t(`admissions.${key}`)}</Label>)}
         </fieldset>
+        <Label htmlFor="community-discover" className="flex min-h-11 items-center gap-3 rounded-md border px-3 font-normal">
+          <Checkbox id="community-discover" checked={fields.discoverOptIn && fields.visibility === "listed"} disabled={!writable || fields.visibility !== "listed"}
+            onCheckedChange={(checked) => set("discoverOptIn", checked === true)} />{t("showInDiscover")}</Label>
+        <Field><FieldLabel htmlFor="community-rules">{t("rules")}</FieldLabel><Textarea id="community-rules" rows={6} value={fields.rules ?? ""} maxLength={5000} disabled={!writable} onChange={(e) => set("rules", e.target.value)} /></Field>
       </>}
       {step === "people" && !writable && <p className="text-sm text-muted-foreground">{t("membersManagersOnly")}</p>}
       {step === "people" && writable && <div className="space-y-4">
         <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>{t("memberName")}</TableHead><TableHead>{t("memberRole")}</TableHead><TableHead>{t("memberStatus")}</TableHead></TableRow></TableHeader>
           <TableBody>{members.map((member) => <TableRow key={member.userId}><TableCell>{member.name.trim() || <span className="text-muted-foreground">{t("unnamed")}</span>}</TableCell><TableCell>{t(`roles.${member.role}`)}</TableCell><TableCell>{t(`memberStatuses.${member.status}`)}</TableCell></TableRow>)}</TableBody></Table></div>
-        <Button variant="outline" className="min-h-11" disabled>{t("invite")}<Badge variant="secondary">{t("comingSoon")}</Badge></Button>
+        <CommunityInvites endpoint={endpoint} initial={invites} />
       </div>}
       {step === "publish" && <ul className="space-y-2" aria-label={t("checklist")}>
         {checklist.map((item) => <li key={item.key} className="flex min-h-11 items-center gap-3 rounded-md border px-3">
