@@ -52,7 +52,7 @@ test("HC-03: organizer lifecycle, exports and guest revocation in a real browser
   await mkdir(evidence, { recursive: true });
   await page.setViewportSize({ width: 1440, height: 1000 });
   await signIn(page);
-  const workspace = await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Synthetic outreach" } });
+  const workspace = await page.request.post("/api/workspaces", { headers: { origin }, data: { audience: "church", name: "Synthetic outreach" } });
   const tenantId = (await workspace.json()).tenantId as string;
   const created = await page.request.post(`/api/workspaces/${tenantId}/campaigns`, { headers: { origin, "Idempotency-Key": `hc03-${randomUUID()}` }, data: { name: "Synthetic city crusade", type: "evangelistic_crusade" } });
   const campaignId = (await created.json()).id as string;

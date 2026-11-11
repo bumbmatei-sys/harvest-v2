@@ -1,9 +1,9 @@
-import { Building, FileUp, Files, Flag, Kanban, ListChecks, Palette, SlidersHorizontal, UsersRound, Workflow, type LucideIcon } from "lucide-react";
+import { Building, Church, FileUp, Files, Flag, Kanban, ListChecks, Palette, SlidersHorizontal, UsersRound, Workflow, type LucideIcon } from "lucide-react";
 import type { Audience } from "./audience";
 import { can, type Permission } from "./permissions";
 
 /** Message keys in `ComponentsAppShell` that the sidebar and breadcrumb may show. */
-export type NavLabelKey = "crm" | "workspace" | "settings" | "people" | "companies" | "pipelines" | "tasks" | "imports" | "campaigns" | "files" | "crmFields" | "pipelineSettings" | "appearance" | "profile";
+export type NavLabelKey = "crm" | "workspace" | "settings" | "people" | "companies" | "pipelines" | "tasks" | "imports" | "campaigns" | "files" | "crmFields" | "pipelineSettings" | "appearance" | "ministrySettings" | "profile";
 export type NavGroupId = "crm" | "workspace" | "settings";
 export type NavEntry = {
   id: string; group: NavGroupId; label: NavLabelKey; icon: LucideIcon;
@@ -37,6 +37,8 @@ export const navEntries: readonly NavEntry[] = [
   { id: "crmFields", group: "settings", label: "crmFields", icon: SlidersHorizontal, path: "/crm/settings/fields", match: has("/crm/settings/fields") },
   { id: "pipelineSettings", group: "settings", label: "pipelineSettings", icon: Workflow, path: "/crm/settings/pipelines", match: has("/crm/settings/pipelines") },
   { id: "appearance", group: "settings", label: "appearance", icon: Palette, path: "/appearance", match: (p) => p.endsWith("/appearance") },
+  // Every member can open it; only owners and admins can change the ministry type (enforced by the API).
+  { id: "ministrySettings", group: "settings", label: "ministrySettings", icon: Church, path: "/settings", match: (p) => p.endsWith("/settings") },
 ];
 
 const visibleTo = (entry: NavEntry, role: string | undefined, audience: Audience | null | undefined) =>

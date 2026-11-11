@@ -18,7 +18,7 @@ test("non-CRM workspace screens use the full-width shell; short forms stay narro
   test.setTimeout(180_000);
   await mkdir(evidence, { recursive: true });
   await signIn(page);
-  const workspace = await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Layout check workspace" } });
+  const workspace = await page.request.post("/api/workspaces", { headers: { origin }, data: { audience: "church", name: "Layout check workspace" } });
   const base = `/workspaces/${(await workspace.json()).tenantId}`;
   const screens = { workspaces: "/workspaces", files: `${base}/files`, appearance: `${base}/appearance`, profile: "/profile" };
   for (const [viewport, size] of [["wide", { width: 1920, height: 1080 }], ["mobile", { width: 390, height: 844 }]] as const) {

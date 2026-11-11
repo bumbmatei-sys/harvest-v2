@@ -73,7 +73,7 @@ for (const viewport of [{ name: "mobile", width: 390, height: 844 }, { name: "ta
         await capture(page, `${state}-footer`, dialog);
       }
       await signIn(page);
-      const workspace = await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Synthetic responsive QA" } });
+      const workspace = await page.request.post("/api/workspaces", { headers: { origin }, data: { audience: "church", name: "Synthetic responsive QA" } });
       expect(workspace.status()).toBe(201);
       const tenant = (await workspace.json()).tenantId as string;
       const campaign = await page.request.post(`/api/workspaces/${tenant}/campaigns`, { headers: { origin, "Idempotency-Key": randomUUID() }, data: { name: "Synthetic local QA", type: "conference" } });

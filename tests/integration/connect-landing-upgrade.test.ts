@@ -38,7 +38,12 @@ it.each(["fresh", "populated 0029"])("0030 restricted-owner migration and replay
       await migrate(db, { migrationsFolder: folder });
       for (let i = 0; i < 2; i++) {
         const actor = `old-${i}`; await app.insert(schema.users).values({ id: actor, name: actor, email: `${actor}@example.test` });
-        const tenant = (await createWorkspace(app, actor, `Existing ${i}`)).tenantId;
+        // Seed with SQL that matches the 0029 schema: today's createWorkspace names columns added later (0033 audience).
+        const tenant = randomUUID(), seed = pg.getPgClient("harvest_test_landing_owner", "127.0.0.1"); await seed.connect();
+        try {
+          await seed.query("insert into workspaces (tenant_id,name,created_by) values ($1,$2,$3)", [tenant, `Existing ${i}`, actor]);
+          await seed.query("insert into workspace_members (tenant_id,user_id,role_id) values ($1,$2,'owner')", [tenant, actor]);
+        } finally { await seed.end(); }
         const campaign = (await createCampaign(app, actor, tenant, { name: "Existing campaign", type: "conference" }, randomUUID())).id;
         const l = await createConnectLink(app, actor, tenant, campaign, {}); await transitionConnectLink(app, actor, tenant, campaign, l.id, { action: "publish" });
         old.push({ tenant, campaign, id: l.id, code: l.publicCode, short: l.shortCode, actor });

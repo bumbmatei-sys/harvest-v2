@@ -7,6 +7,7 @@ import { withTenant, withUser } from "./tenancy";
 import { AccessError, type Role } from "./permissions";
 import { z } from "zod";
 import { BRAND_THEMES } from "../lib/theme-registry";
+import { audiences, type Audience } from "../lib/audience";
 
 export function getWorkspace(db: Database, userId: string, workspace: string) {
   return withTenant(db, userId, z.uuid().parse(workspace), "workspace:read", async (tx, tenantId, role) => {
@@ -24,11 +25,23 @@ export function updateWorkspaceTheme(db: Database, userId: string, workspace: st
   });
 }
 
-export function createWorkspace(db: Database, userId: string, name: string) {
+/** Creates a ministry (internally a workspace). `audience` is required by the HTTP route; null means unspecified. */
+export async function updateWorkspaceAudience(db: Database, userId: string, workspace: string, data: unknown) {
+  const { audience } = z.object({ audience: z.enum(audiences) }).strict().parse(data);
+  return withTenant(db, userId, z.uuid().parse(workspace), "settings:write", async (tx, tenantId) => {
+    const [previous] = await tx.select({ audience: workspaces.audience }).from(workspaces).where(eq(workspaces.tenantId, tenantId)).for("update");
+    const [row] = await tx.update(workspaces).set({ audience }).where(eq(workspaces.tenantId, tenantId)).returning();
+    await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "workspace.audience_update", targetId: tenantId, metadata: { audience, ...(previous?.audience ? { previousAudience: previous.audience } : {}) } });
+    return row;
+  });
+}
+
+export async function createWorkspace(db: Database, userId: string, name: string, audience: Audience | null = null) {
+  const chosen = z.enum(audiences).nullable().parse(audience);
   return withUser(db, userId, async (tx) => {
     const tenantId = randomUUID();
     await tx.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
-    const [workspace] = await tx.insert(workspaces).values({ tenantId, name, createdBy: userId }).returning();
+    const [workspace] = await tx.insert(workspaces).values({ tenantId, name, audience: chosen, createdBy: userId }).returning();
     await tx.insert(workspaceMembers).values({ tenantId, userId, roleId: "owner" });
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "workspace.create", targetId: tenantId });
     return workspace;

@@ -72,7 +72,7 @@ test("showcase exposure and local component interactions", async ({ page }) => {
     await page.screenshot({path:`/tmp/ui-showcase/group-${id}.png`});
   }
   // Measure shared toolbar consumers, preserving server-backed search/navigation.
-  const workspace = await page.request.post('/api/workspaces',{headers:{origin},data:{name:'UI control check'}});
+  const workspace = await page.request.post('/api/workspaces',{headers:{origin},data:{audience:'church',name:'UI control check'}});
   expect(workspace.status()).toBe(201); const tenant = (await workspace.json()).tenantId;
   for(const width of [390,1440]) for(const resource of ['people','companies']) {
     await page.setViewportSize({width,height:1000});await page.goto(`/workspaces/${tenant}/crm/${resource}`);

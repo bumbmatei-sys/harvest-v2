@@ -1,0 +1,2 @@
+ALTER TABLE "workspaces" ADD COLUMN "audience" text;--> statement-breakpoint
+ALTER TABLE "workspaces" ADD CONSTRAINT "workspace_audience" CHECK ("workspaces"."audience" is null or "workspaces"."audience" in ('church', 'ministry_nonprofit', 'evangelist_missionary'));
