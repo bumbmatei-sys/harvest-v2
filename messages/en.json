@@ -370,6 +370,12 @@
     "thisFileIsNotAvailableForDownload": "This file is not available for download.",
     "signInToContinue": "Sign in to continue.",
     "accountNotFound": "Account not found.",
+    "communityNotFound": "Community not found.",
+    "communitySlugTaken": "That community address is taken. Choose another.",
+    "communityChanged": "This community was changed by someone else. Reload and try again.",
+    "paidCommunitiesUnavailable": "Paid communities are not available yet.",
+    "communityMemberBanned": "This person is banned from the community.",
+    "entitlementNotFound": "Access grant not found or already revoked.",
     "requestOriginDenied": "Request origin denied.",
     "checkTheSuppliedDetails": "Check the supplied details.",
     "workspaceAccessDenied": "Ministry access denied.",
@@ -2209,7 +2215,8 @@
     "ministryType": "Ministry type",
     "church": "Church",
     "ministry_nonprofit": "Ministry or nonprofit",
-    "evangelist_missionary": "Evangelist or missionary"
+    "evangelist_missionary": "Evangelist or missionary",
+    "creator": "Creator"
   },
   "ComponentsMinistrySettingsForm": {
     "save": "Save",

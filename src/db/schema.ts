@@ -60,7 +60,7 @@ export const workspaces = pgTable("workspaces", {
   createdBy: text("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [check("workspace_name_length", sql`length(trim(${t.name})) BETWEEN 1 AND 100`), check("workspace_brand_theme", sql`${t.brandTheme} in ('harvest', 'studio')`),
-  check("workspace_audience", sql`${t.audience} is null or ${t.audience} in ('church', 'ministry_nonprofit', 'evangelist_missionary')`)]);
+  check("workspace_audience", sql`${t.audience} is null or ${t.audience} in ('church', 'ministry_nonprofit', 'evangelist_missionary', 'creator')`)]);
 export const workspaceMembers = pgTable("workspace_members", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
   userId: text("user_id").notNull().references(() => users.id),
@@ -958,3 +958,82 @@ export const connectClaimCompletions = pgTable("connect_claim_completions", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 }, t => [foreignKey({ columns: [t.tenantId, t.responseId], foreignColumns: [campaignResponses.tenantId, campaignResponses.id] }).onUpdate("cascade"),
   index("connect_completion_expiry").on(t.expiresAt), check("connect_completion_hash", sql`${t.flowHash} ~ '^[a-f0-9]{64}$'`)]);
+
+// Communities (ADR 0013, C02/C03). Visibility, admission and pricing are independent settings.
+// Member access is enforced by RLS through an active community_memberships row; staff access by tenant.
+export const communityStatuses = ["draft", "published", "archived"] as const;
+export const communityVisibilities = ["listed", "unlisted", "hidden"] as const;
+export const communityPricings = ["free", "paid"] as const;
+export const communityMembershipRoles = ["owner", "admin", "moderator", "contributor", "member"] as const;
+export const communityMembershipStatuses = ["active", "pending", "banned", "left", "removed"] as const;
+export const entitlementSources = ["community_free_join", "admin_grant", "invitation", "product_purchase", "bundle", "subscription"] as const;
+export const reservedCommunitySlugs = ["new", "discover", "search", "create", "settings", "admin", "api", "me", "account"] as const;
+const reservedSlugSql = sql.raw(reservedCommunitySlugs.map((slug) => `'${slug}'`).join(", "));
+
+export const communities = pgTable("communities", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  id: uuid("id").notNull().defaultRandom(),
+  slug: text("slug").notNull(),
+  name: text("name").notNull(),
+  tagline: text("tagline"),
+  status: text("status", { enum: communityStatuses }).notNull().default("draft"),
+  visibility: text("visibility", { enum: communityVisibilities }).notNull().default("hidden"),
+  pricing: text("pricing", { enum: communityPricings }).notNull().default("free"),
+  allowOpen: boolean("allow_open").notNull().default(false),
+  allowApply: boolean("allow_apply").notNull().default(false),
+  allowInvite: boolean("allow_invite").notNull().default(true),
+  allowEntitlement: boolean("allow_entitlement").notNull().default(false),
+  // Cleared if the creator's account is deleted, so account erasure is never blocked by a community.
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  uniqueIndex("communities_slug_idx").on(t.slug),
+  check("community_slug", sql`${t.slug} ~ '^[a-z0-9](?:[a-z0-9-]{1,46}[a-z0-9])$' and ${t.slug} not in (${reservedSlugSql})`),
+  check("community_name", sql`length(${t.name}) between 1 and 80`),
+  check("community_tagline", sql`${t.tagline} is null or length(${t.tagline}) between 1 and 160`),
+  check("community_status", sql`${t.status} in ('draft', 'published', 'archived')`),
+  check("community_visibility", sql`${t.visibility} in ('listed', 'unlisted', 'hidden')`),
+  check("community_pricing", sql`${t.pricing} in ('free', 'paid')`),
+  check("community_version", sql`${t.version} >= 1`)]);
+
+export const communityMemberships = pgTable("community_memberships", {
+  tenantId: uuid("tenant_id").notNull(),
+  communityId: uuid("community_id").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  role: text("role", { enum: communityMembershipRoles }).notNull().default("member"),
+  status: text("status", { enum: communityMembershipStatuses }).notNull().default("pending"),
+  joinedAt: timestamp("joined_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.communityId, t.userId] }),
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }),
+  index("community_memberships_user_idx").on(t.userId, t.status),
+  check("community_membership_role", sql`${t.role} in ('owner', 'admin', 'moderator', 'contributor', 'member')`),
+  check("community_membership_status", sql`${t.status} in ('active', 'pending', 'banned', 'left', 'removed')`)]);
+
+export const entitlements = pgTable("entitlements", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  id: uuid("id").notNull().defaultRandom(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  resourceType: text("resource_type").notNull(),
+  resourceId: uuid("resource_id").notNull(),
+  tier: text("tier"),
+  source: text("source", { enum: entitlementSources }).notNull(),
+  grantedBy: text("granted_by").references(() => users.id, { onDelete: "set null" }),
+  validFrom: timestamp("valid_from", { withTimezone: true }).notNull().defaultNow(),
+  validUntil: timestamp("valid_until", { withTimezone: true }),
+  revokedAt: timestamp("revoked_at", { withTimezone: true }),
+  revokedBy: text("revoked_by").references(() => users.id, { onDelete: "set null" }),
+  reason: text("reason"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  index("entitlements_subject_idx").on(t.userId, t.resourceType, t.resourceId),
+  check("entitlement_resource_type", sql`${t.resourceType} in ('community')`),
+  check("entitlement_source", sql`${t.source} in ('community_free_join', 'admin_grant', 'invitation', 'product_purchase', 'bundle', 'subscription')`),
+  check("entitlement_window", sql`${t.validUntil} is null or ${t.validUntil} > ${t.validFrom}`),
+  check("entitlement_tier", sql`${t.tier} is null or length(${t.tier}) between 1 and 80`),
+  check("entitlement_reason", sql`${t.reason} is null or length(${t.reason}) between 1 and 200`),
+  // revoked_by may become null if that account is deleted, but never names a revoker without a revocation time.
+  check("entitlement_revocation", sql`${t.revokedBy} is null or ${t.revokedAt} is not null`)]);

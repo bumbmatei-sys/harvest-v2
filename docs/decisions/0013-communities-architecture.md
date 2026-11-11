@@ -1,6 +1,6 @@
 # ADR 0013 — Communities architecture (C01)
 
-- **Status:** Accepted by the founder, 11 Nov 2026 (design approved in session; this record awaits review).
+- **Status:** Accepted by the founder, 11 Nov 2026. C02 and C03 are implemented in the same PR (#57); see `docs/acceptance/communities-c02-c03.md`.
 - **Scope:** Architecture, ownership boundaries and slice order for Harvest Communities. Documentation only: no code, migration, route or feature is added by this ADR.
 - **Inputs:** `docs/prd/harvest-communities.md` (PRD v1.1), `CLAUDE.md` founder decisions of 11 Nov (Discover + creators at launch; `/communities/:slug`; design of Eden, style of Studio Admin), ADR 0003 (RLS tenancy), ADR 0011 (Harvest Connect), `docs/plans/studio-admin-adoption.md`.
 
@@ -114,7 +114,7 @@ C13, C14 and C16 follow the Courses, Products and Events modules. C11 (realtime 
 - Member access is enforced in the database for every content table, at the cost of more complex policies and mandatory adversarial tests per slice.
 - The `entitlements` and `discover_listings` tables become shared infrastructure; changes to them need the same review bar as tenancy changes.
 - The first release is deliberately narrower than the full PRD (no course/product/event links) until the canonical modules exist.
-- Migrations follow the journal on main; the next free number at the time of writing is 0035.
+- Migrations follow the journal on main; C02/C03 use 0035, so the next candidate is 0036.
 
 ## Open items (not blocking C02)
 
