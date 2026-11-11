@@ -239,6 +239,13 @@
       "when": 1794359781821,
       "tag": "0033_workspace_audience",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794397944623,
+      "tag": "0034_user_profiles",
+      "breakpoints": true
     }
   ]
 }

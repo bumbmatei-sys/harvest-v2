@@ -55,4 +55,10 @@ it("keeps a single snapshot chain and an ordered migration journal (reserved num
   for (const table of Object.keys(before.tables)) if (table !== "public.workspaces") expect(after.tables[table], table).toEqual(before.tables[table]);
   expect(after.tables["public.workspaces"].columns.audience).toMatchObject({ type: "text", notNull: false });
   expect(Object.keys(after.tables["public.workspaces"].checkConstraints)).toContain("workspace_audience");
+  // HC-08: 0034 adds only the owner-only user_profiles table.
+  const profilesIndex = journal.entries.findIndex((entry: { tag: string }) => entry.tag === "0034_user_profiles");
+  expect(profilesIndex).toBeGreaterThan(0);
+  const profilesNew = Object.keys(snapshots[profilesIndex].tables).filter((name) => !(name in snapshots[profilesIndex - 1].tables));
+  expect(profilesNew).toEqual(["public.user_profiles"]);
+  for (const table of Object.keys(snapshots[profilesIndex - 1].tables)) expect(snapshots[profilesIndex].tables[table], table).toEqual(snapshots[profilesIndex - 1].tables[table]);
 });
