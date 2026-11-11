@@ -38,7 +38,8 @@ beforeAll(async () => {
     where schemaname = 'public' and tablename = any($1) and $2 = any(roles)`, [tables, owner]);
   // The migration owner has policies on every table its definers touch, and none of them is unconditional.
   expect([...new Set(policies.map((policy) => policy.tablename))].sort()).toEqual([...tables].sort());
-  for (const policy of policies) expect(policy.qual, `${policy.tablename}.${policy.policyname}`).toMatch(/current_setting/);
+  // INSERT-only policies (e.g. the PR 3 community audit policy) have a WITH CHECK but no USING clause.
+  for (const policy of policies) expect(policy.qual ?? policy.with_check, `${policy.tablename}.${policy.policyname}`).toMatch(/current_setting/);
   for (const policy of policies) {
     const name = `test_owner_${policy.policyname}`;
     await fixture.admin.query(`create policy ${name} on public.${policy.tablename} for ${policy.cmd} to ${role}`

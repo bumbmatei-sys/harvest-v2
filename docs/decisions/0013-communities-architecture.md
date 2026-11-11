@@ -1,6 +1,6 @@
 # ADR 0013 — Communities architecture (C01)
 
-- **Status:** Accepted by the founder, 11 Nov 2026. C02 and C03 are implemented in the same PR (#57); see `docs/acceptance/communities-c02-c03.md`.
+- **Status:** Accepted by the founder, 11 Nov 2026. C02 and C03 are implemented in #57, C04 in #58, and C05, C06 and C08 in PR 3 (migration 0036); see `docs/acceptance/communities-c05-c06-c08.md`.
 - **Scope:** Architecture, ownership boundaries and slice order for Harvest Communities. Documentation only: no code, migration, route or feature is added by this ADR.
 - **Inputs:** `docs/prd/harvest-communities.md` (PRD v1.1), `CLAUDE.md` founder decisions of 11 Nov (Discover + creators at launch; `/communities/:slug`; design of Eden, style of Studio Admin), ADR 0003 (RLS tenancy), ADR 0011 (Harvest Connect), `docs/plans/studio-admin-adoption.md`.
 
@@ -56,7 +56,7 @@ Tests must include two-ministry, two-community adversarial fixtures: a member of
 - **Staff RLS is ministry-wide by design.** Any role of the owning ministry passes the staff policy; finer limits (viewers cannot edit) are enforced by `can()` in the services. Ministry viewers can therefore list draft and hidden communities of their own ministry. This is intended: they are ministry staff, not community members.
 - **Member-initiated writes** (joining, posting, reporting) need audited paths that members cannot reach directly (`audit_logs`, `jobs` and `outbox_events` are tenant-only). They go through narrow `SECURITY DEFINER` functions introduced with C06, never through member write policies on the base tables.
 - **No contact details through community paths.** `users` has no RLS; member-facing lists must never join it beyond a display name, and staff lists show name, role and status only.
-- **Global slugs reveal that an address is taken.** This is accepted: public addresses are public. Hidden or draft communities still occupy their slug. A per-ministry draft limit and request rate limits arrive with the public pages (C05).
+- **Global slugs reveal that an address is taken.** This is accepted: public addresses are public. Hidden or draft communities still occupy their slug. PR 3 adds a per-ministry limit of 50 communities. Request rate limits for the public pages, Discover and joining are **deferred**: no reusable request limiter exists outside sign-in, and building one is separate work to schedule before activation.
 - **Reactivation never restores a staff role.** Re-granting access to a former admin or moderator makes them a member; staff roles are granted explicitly.
 
 ### 5. Community roles and capabilities
@@ -75,8 +75,8 @@ Tests must include two-ministry, two-community adversarial fixtures: a member of
 ### 7. Discover projection
 
 - A `discover_listings` table is a **read projection**, not a second owner of data: resource type, resource id, `tenant_id`, sanitized public metadata, owner opt-in, platform approval state, locale, category, search text, version.
-- A listing is visible only when the resource is published **and** `listed` **and** the owner opted in **and** Harvest approved it. Default for new resources: not listed.
-- Updates arrive through idempotent jobs enqueued via the existing `outbox_events`/`jobs` infrastructure on publish, settings change, delist, suspension and deletion.
+- A listing is visible only when the resource is published **and** `listed` **and** the owner opted in **and** the owning ministry has an active Harvest subscription (founder decision, 11 Nov: no pre-approval; a platform-admin tool to remove a listing and email the reason comes later). Subscription billing does not exist yet, so `discoverEligible()` treats every ministry as eligible until it does. Default for new resources: not listed.
+- PR 3 maintains the projection in the same transaction as create/update/publish/unpublish (`syncListing`), which is simpler and immediately consistent. Jobs can replace this when other resource types or external indexes join.
 - The first release lists **communities only**. The table and API shape (`resource_type`) are ready for courses and products, which join when those modules exist. Eden's social-content Discover feed is not a model for this.
 
 ### 8. Creators
