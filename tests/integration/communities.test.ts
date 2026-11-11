@@ -65,7 +65,7 @@ it("grants access, keeps it while any valid grant remains, and ends it when none
   // The member path reaches only this community, not the other one in the same ministry or another ministry's.
   expect((await withUser(f.db, "c-mem1", (tx) => tx.select({ id: communities.id }).from(communities))).map((c) => c.id)).toEqual([a1]);
   expect(await communityAccess(f.db, "c-mem1", a2)).toEqual({ allowed: false, role: null, sources: [] });
-  await revokeEntitlement(f.db, "c-a-owner", a, first.id, { reason: "Test" });
+  await revokeEntitlement(f.db, "c-a-owner", a, first.id, {});
   expect((await communityAccess(f.db, "c-mem1", a1)).allowed).toBe(true);
   await revokeEntitlement(f.db, "c-a-owner", a, second.id, {});
   expect(await communityAccess(f.db, "c-mem1", a1)).toEqual({ allowed: false, role: "member", sources: [] });
@@ -95,4 +95,54 @@ it("gives the runtime role no delete right on community tables", async () => {
     await expect(withTenant(f.db, "c-a-owner", a, "communities:manage", (tx) => tx.execute(sql.raw(`delete from ${table}`)))).rejects.toThrow();
   }
   expect((await f.admin.query("select count(*)::int as n from communities")).rows[0].n).toBe(3);
+});
+
+it("keeps staff paths inside their own ministry for every community table, and refuses cross-ministry writes", async () => {
+  const seen = await withTenant(f.db, "c-b-owner", b, "communities:read", async (tx) => ({
+    communities: (await tx.execute(sql`select tenant_id from communities`)).rows,
+    memberships: (await tx.execute(sql`select tenant_id from community_memberships`)).rows,
+    grants: (await tx.execute(sql`select tenant_id from entitlements`)).rows,
+  }));
+  for (const rows of Object.values(seen)) expect(rows.every((row) => row.tenant_id === b)).toBe(true);
+  expect(seen.communities.length).toBeGreaterThan(0);
+  const deny = (statement: ReturnType<typeof sql>) => expect(withTenant(f.db, "c-b-owner", b, "communities:manage", (tx) => tx.execute(statement))).rejects.toMatchObject({ cause: { code: "42501" } });
+  await deny(sql`insert into communities (tenant_id, slug, name) values (${a}::uuid, 'b-into-a', 'X')`);
+  await deny(sql`insert into community_memberships (tenant_id, community_id, user_id, status) values (${a}::uuid, ${a1}::uuid, 'c-b-owner', 'active')`);
+  // The grant guard runs before the policy check, so this one is refused by the guard (23503) instead.
+  await expect(withTenant(f.db, "c-b-owner", b, "communities:manage", (tx) => tx.execute(sql`insert into entitlements (tenant_id, user_id, resource_type, resource_id, source) values (${a}::uuid, 'c-b-owner', 'community', ${a1}::uuid, 'admin_grant')`))).rejects.toMatchObject({ cause: { code: "23503" } });
+});
+
+it("does not count a grant issued by another ministry, and the database refuses to create one", async () => {
+  await grantCommunityAccess(f.db, "c-a-owner", a, a2, { userId: "c-mem2" });
+  const [grant] = (await f.admin.query("select id from entitlements where user_id = 'c-mem2' and resource_id = $1", [a2])).rows;
+  await revokeEntitlement(f.db, "c-a-owner", a, grant.id, {});
+  // Ministry B, in its own tenant context, tries to grant access to ministry A's community.
+  await expect(withTenant(f.db, "c-b-owner", b, "communities:manage", (tx) => tx.execute(sql`insert into entitlements (tenant_id, user_id, resource_type, resource_id, source) values (${b}::uuid, 'c-mem2', 'community', ${a2}::uuid, 'admin_grant')`))).rejects.toMatchObject({ cause: { code: "23503" } });
+  // Even a row placed by a superuser outside the guard does not count for A's community.
+  await f.admin.query("alter table entitlements disable trigger entitlements_guard");
+  try { await f.admin.query("insert into entitlements (tenant_id, user_id, resource_type, resource_id, source) values ($1, 'c-mem2', 'community', $2, 'admin_grant')", [b, a2]); }
+  finally { await f.admin.query("alter table entitlements enable trigger entitlements_guard"); }
+  expect((await communityAccess(f.db, "c-mem2", a2)).allowed).toBe(false);
+});
+
+it("makes revocation final", async () => {
+  const [revoked] = (await f.admin.query("select id from entitlements where revoked_at is not null limit 1")).rows;
+  await expect(withTenant(f.db, "c-a-owner", a, "communities:manage", (tx) => tx.execute(sql`update entitlements set revoked_at = null, revoked_by = null where id = ${revoked.id}::uuid`))).rejects.toMatchObject({ cause: { code: "23514" } });
+});
+
+it("gives members no write path to community tables", async () => {
+  const attempt = (statement: ReturnType<typeof sql>) => withUser(f.db, "c-mem1", async (tx) => (await tx.execute(statement)).rowCount ?? 0).catch((error) => (error as { cause?: { code?: string } }).cause?.code);
+  expect(await attempt(sql`update community_memberships set role = 'owner' where user_id = 'c-mem1'`)).toBe(0);
+  expect(await attempt(sql`update communities set name = 'Hijacked' where id = ${a1}::uuid`)).toBe(0);
+  expect(await attempt(sql`update entitlements set valid_until = null where user_id = 'c-mem1'`)).toBe(0);
+  expect(await attempt(sql`insert into entitlements (tenant_id, user_id, resource_type, resource_id, source) values (${a}::uuid, 'c-mem1', 'community', ${a1}::uuid, 'admin_grant')`)).toBe("42501");
+  expect(await attempt(sql`insert into community_memberships (tenant_id, community_id, user_id, role, status) values (${a}::uuid, ${a2}::uuid, 'c-mem1', 'owner', 'active')`)).toBe("42501");
+  expect((await f.admin.query("select role from community_memberships where user_id = 'c-mem1' and community_id = $1", [a1])).rows).toEqual([{ role: "member" }]);
+});
+
+it("reinstates a former staff member as an ordinary member, never with their old role", async () => {
+  await grantCommunityAccess(f.db, "c-a-owner", a, a1, { userId: "c-mem2" });
+  await f.admin.query("update community_memberships set role = 'admin', status = 'removed' where user_id = 'c-mem2' and community_id = $1", [a1]);
+  await grantCommunityAccess(f.db, "c-a-owner", a, a1, { userId: "c-mem2" });
+  expect((await f.admin.query("select role, status from community_memberships where user_id = 'c-mem2' and community_id = $1", [a1])).rows).toEqual([{ role: "member", status: "active" }]);
 });

@@ -49,6 +49,16 @@ Anonymous visitors never query community tables directly. Public landing metadat
 
 Tests must include two-ministry, two-community adversarial fixtures: a member of community A cannot read community B; a ministry viewer who is not a community member cannot read member-only content unless their role grants staff access; banned, pending and rejected users read nothing gated.
 
+### 4a. Implementation rules from the C02/C03 review
+
+- **Content tables must be grant-aware.** The `communities_member` policy only needs an active membership, which is enough for the community row itself. Every member-readable *content* table (posts, channels, files) must use a shared predicate that also requires a valid grant from the community's own ministry (or a staff community role), implemented as a fixed-`search_path` SQL function used by each policy, not copied by hand.
+- **Grants are ministry-bound in the database.** An `entitlements_guard` trigger refuses a community grant whose community does not belong to the same ministry, and makes revocation final. `communityAccess` also filters grants by the community's ministry.
+- **Staff RLS is ministry-wide by design.** Any role of the owning ministry passes the staff policy; finer limits (viewers cannot edit) are enforced by `can()` in the services. Ministry viewers can therefore list draft and hidden communities of their own ministry. This is intended: they are ministry staff, not community members.
+- **Member-initiated writes** (joining, posting, reporting) need audited paths that members cannot reach directly (`audit_logs`, `jobs` and `outbox_events` are tenant-only). They go through narrow `SECURITY DEFINER` functions introduced with C06, never through member write policies on the base tables.
+- **No contact details through community paths.** `users` has no RLS; member-facing lists must never join it beyond a display name, and staff lists show name, role and status only.
+- **Global slugs reveal that an address is taken.** This is accepted: public addresses are public. Hidden or draft communities still occupy their slug. A per-ministry draft limit and request rate limits arrive with the public pages (C05).
+- **Reactivation never restores a staff role.** Re-granting access to a former admin or moderator makes them a member; staff roles are granted explicitly.
+
 ### 5. Community roles and capabilities
 
 - Community roles: `owner`, `admin`, `moderator`, `contributor` (teacher/pastor), `member`, plus `applicant`/`guest` states. Billing manager is a separate delegated capability, not a role.
