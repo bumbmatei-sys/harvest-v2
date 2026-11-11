@@ -198,6 +198,11 @@ jobs:
             # Never copy package.json, executable code or scripts from a PR into this privileged job.
             rm -rf drizzle
             git restore --source="$REVIEW_EXPECTED_SHA" --worktree --staged -- drizzle
+            # Migration files must be plain files: no symlinks, at the top level or inside.
+            if [ -L drizzle ] || find drizzle -type l | grep -q .; then
+              echo "drizzle/ contains a symlink; refusing."
+              exit 1
+            fi
             npm ci --ignore-scripts
             touch /tmp/harvest-neon-trusted-ready
       - run:

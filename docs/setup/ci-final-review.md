@@ -26,7 +26,7 @@ Only for PRs that change `drizzle/`. In the Trigger Pipeline dialog or through t
 - `expected_sha=<40-character PR head SHA>`
 - `pr_number=<open PR number>`
 
-The job refuses to run unless the pipeline is on `main` and `expected_sha` is still the PR's current head. The older per-PR and per-SHA expression rules on `harvest-neon-ci` are no longer needed and can be removed; keep the `refs/heads/main` clause and the repo-name and no-SSH conditions. The `run_neon` parameter was removed.
+The job refuses to run unless the pipeline is on `main` and `expected_sha` is still the PR's current head. Keep the older per-PR and per-SHA expression rules on `harvest-neon-ci` until the first successful `neon_only` run from `main` has confirmed the `refs/heads/main` clause matches; after that they can be removed (keep that clause and the repo-name and no-SSH conditions). The `run_neon` parameter was removed.
 
 Every job refuses to run if the checkout is not the selected head, the branch is `main`, or the PR head or branch has moved.
 
