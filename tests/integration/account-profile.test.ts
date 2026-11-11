@@ -14,7 +14,7 @@ beforeAll(async () => {
       await admin.query("insert into users (id, name, email, email_verified) values ('old-1', 'Old One', 'old-1@example.test', true)");
     },
   });
-  await f.db.insert(users).values(["p-a", "p-b", "p-c"].map((id) => ({ id, name: id, email: `${id}@example.test`, emailVerified: true })));
+  await f.db.insert(users).values(["p-a", "p-b", "p-c", "p-d"].map((id) => ({ id, name: id, email: `${id}@example.test`, emailVerified: true })));
 });
 afterAll(async () => { await f?.close(); });
 
@@ -31,6 +31,9 @@ it("saves onboarding: name, language, city, and marks it completed", async () =>
 
 it("skips onboarding without touching the profile, and a completed account stays completed", async () => {
   expect((await skipOnboarding(f.db, "p-b")).onboarding).toBe("skipped");
+  const first = (await f.admin.query("select onboarding_skipped_at from user_profiles where user_id = 'p-b'")).rows[0].onboarding_skipped_at;
+  await skipOnboarding(f.db, "p-b");
+  expect((await f.admin.query("select onboarding_skipped_at from user_profiles where user_id = 'p-b'")).rows[0].onboarding_skipped_at).toEqual(first);
   expect((await skipOnboarding(f.db, "p-a")).onboarding).toBe("completed");
 });
 
@@ -53,7 +56,9 @@ it("rejects invalid input in the service and in the database", async () => {
 it("lets a person read and write only their own row", async () => {
   expect(await withUser(f.db, "p-b", (tx) => tx.select().from(userProfiles).where(eq(userProfiles.userId, "p-a")))).toEqual([]);
   expect(await withUser(f.db, "p-b", (tx) => tx.update(userProfiles).set({ cityRegion: "Hijack" }).where(eq(userProfiles.userId, "p-a")).returning())).toEqual([]);
-  await expect(withUser(f.db, "p-b", (tx) => tx.insert(userProfiles).values({ userId: "p-a" }))).rejects.toThrow();
+  // p-d has no row yet, so only the policy's WITH CHECK (not the primary key) can stop this insert.
+  await expect(withUser(f.db, "p-b", (tx) => tx.insert(userProfiles).values({ userId: "p-d" }))).rejects.toMatchObject({ cause: { code: "42501" } });
+  expect((await f.admin.query("select 1 from user_profiles where user_id = 'p-d'")).rows).toEqual([]);
   expect((await f.admin.query("select city_region from user_profiles where user_id = 'p-a'")).rows[0]).toEqual({ city_region: "Berlin" });
 });
 
