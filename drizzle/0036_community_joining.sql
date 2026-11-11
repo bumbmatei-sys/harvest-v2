@@ -128,19 +128,24 @@ BEGIN
   via_invite := p_invite_hash IS NOT NULL OR p_invite_id IS NOT NULL;
   PERFORM set_config('app.community_resolve_slug', coalesce(p_slug, ''), true);
   SELECT * INTO c FROM public.communities WHERE communities.slug = p_slug AND communities.status = 'published';
-  IF NOT FOUND THEN PERFORM public.community_definer_reset(); RETURN 'not_found'; END IF;
+  -- With an invitation, a missing community answers exactly like a bad invitation, so a guessed slug plus a
+  -- fake token cannot reveal that a hidden community exists (review B1 on #59).
+  IF NOT FOUND THEN PERFORM public.community_definer_reset(); RETURN CASE WHEN via_invite THEN 'invite_invalid' ELSE 'not_found' END; END IF;
   PERFORM set_config('app.community_definer_tenant', c.tenant_id::text, true);
   IF via_invite THEN
     SELECT encode(sha256(convert_to(lower(btrim(u.email)), 'UTF8')), 'hex') INTO mine FROM public.users u WHERE u.id = actor AND u.email_verified;
     SELECT * INTO inv FROM public.community_invites i WHERE i.tenant_id = c.tenant_id AND i.community_id = c.id
       AND (i.token_hash = p_invite_hash OR i.id = p_invite_id) AND i.email_hash = mine
       AND i.redeemed_at IS NULL AND i.revoked_at IS NULL AND i.expires_at > now() FOR UPDATE;
-    IF NOT FOUND THEN PERFORM public.community_definer_reset(); RETURN 'invite_invalid'; END IF;
+    -- Turning invitations off stops outstanding links too.
+    IF NOT FOUND OR NOT c.allow_invite THEN PERFORM public.community_definer_reset(); RETURN 'invite_invalid'; END IF;
     inviter := inv.created_by; invite_id := inv.id;
   ELSE
     IF c.visibility = 'hidden' THEN PERFORM public.community_definer_reset(); RETURN 'not_found'; END IF;
     IF NOT c.allow_open THEN PERFORM public.community_definer_reset(); RETURN 'not_allowed'; END IF;
   END IF;
+  -- Free access only until the Commerce gate (C17): neither an open join nor an invitation bypasses a price.
+  IF c.pricing <> 'free' THEN PERFORM public.community_definer_reset(); RETURN 'not_allowed'; END IF;
   IF NOT coalesce(p_adult, false) THEN PERFORM public.community_definer_reset(); RETURN 'adult_required'; END IF;
   IF p_rules_version IS DISTINCT FROM c.rules_version THEN PERFORM public.community_definer_reset(); RETURN 'rules_changed'; END IF;
   SELECT * INTO m FROM public.community_memberships WHERE tenant_id = c.tenant_id AND community_id = c.id AND user_id = actor FOR UPDATE;
@@ -149,8 +154,11 @@ BEGIN
   IF via_invite THEN UPDATE public.community_invites SET redeemed_at = now(), redeemed_by = actor WHERE id = invite_id; END IF;
   IF had_membership AND m.status = 'active' THEN PERFORM public.community_definer_reset(); RETURN 'already_member'; END IF;
   IF NOT had_membership THEN
+    -- A concurrent first join by the same person waits on the key and then finds the row: report already_member, not an error.
     INSERT INTO public.community_memberships (tenant_id, community_id, user_id, role, status, joined_at, rules_version_accepted, adult_confirmed_at)
-      VALUES (c.tenant_id, c.id, actor, 'member', 'active', now(), c.rules_version, now());
+      VALUES (c.tenant_id, c.id, actor, 'member', 'active', now(), c.rules_version, now())
+      ON CONFLICT (tenant_id, community_id, user_id) DO NOTHING;
+    IF NOT FOUND THEN PERFORM public.community_definer_reset(); RETURN 'already_member'; END IF;
   ELSE
     -- Re-entry never restores a staff role (ADR 0013 §4a).
     UPDATE public.community_memberships SET status = 'active', role = 'member', joined_at = now(), updated_at = now(),

@@ -65,3 +65,16 @@ Design: `docs/superpowers/specs/2026-11-11-communities-pr3-public-join-invites-d
 ## Gates
 
 No merge, deployment or activation is authorized by this PR. Production migrations 0031–0036 are not applied. The HC-02 activation decisions are unchanged.
+
+## Review follow-up (non-author review of `d5206d2`: CHANGES-REQUESTED)
+
+- **B1, hidden-community oracle (fixed):** with an invitation, a missing community now answers `invite_invalid`, the same as a bad invitation. A guessed slug plus a fake token can no longer tell whether a hidden community exists. Tests compare the full response (status and message) for a missing slug and for a hidden one.
+- **Pricing and closed invitations (fixed):** neither an open join nor an invitation works unless the community is free, so no grant can bypass a price. Turning "By invitation" off stops outstanding links.
+- **Concurrent first joins (fixed):** the membership insert uses `ON CONFLICT DO NOTHING`. A second simultaneous join reports `already_member` instead of an error; a test runs two joins at once.
+- **LIKE escaping:** a test now searches `%`, `_` and a backslash.
+- **Ineligible ministry:** already covered by the unit test `listingFor(..., eligible=false)` in `tests/unit/community-listing.test.ts`.
+- **Optional items not taken:**
+  - **Email-hash pepper:** it needs a database setting shared with SQL. Revisit before activation.
+  - **The opt-in flag** persisting across visibility changes is harmless, because listing requires Listed.
+  - **The listing order** moving to the top on edit is accepted for now.
+  - **Host-name sync** is not needed until ministries can be renamed.

@@ -97,3 +97,26 @@ it("keeps invites and listings out of reach of members, visitors and other minis
   expect(await withTenant(f.db, "j-b-owner", b, "communities:manage", async (tx) => (await tx.execute(sql`select * from community_invites`)).rows)).toEqual([]);
   expect((await f.admin.query("select count(*)::int as n from community_invites where token_hash !~ '^[a-f0-9]{64}$' or email_hash !~ '^[a-f0-9]{64}$'")).rows[0].n).toBe(0);
 });
+
+it("answers a fake invitation identically for a missing and a hidden community, refuses paid and closed-invite paths, and survives concurrent joins", async () => {
+  const fake = hashSecret(newInviteToken());
+  expect(await enter("j-other", "no-such-community", 0, true, fake)).toBe("invite_invalid");
+  expect(await enter("j-other", "secret-team", 0, true, fake)).toBe("invite_invalid");
+  // Neither an open join nor an invitation bypasses a price.
+  const token = newInviteToken();
+  await f.admin.query(`insert into community_invites (tenant_id, community_id, email_hash, email_hint, token_hash, expires_at) values ($1, $2, $3, 'j•••@example.test', $4, now() + interval '1 day')`,
+    [a, hidden, emailHash("j-b-owner@example.test"), hashSecret(token)]);
+  await f.admin.query("update communities set pricing = 'paid' where id = any($1)", [[open, hidden]]);
+  expect(await enter("j-b-owner", "open-study", 1, true)).toBe("not_allowed");
+  expect(await enter("j-b-owner", "secret-team", 0, true, hashSecret(token))).toBe("not_allowed");
+  await f.admin.query("update communities set pricing = 'free' where id = any($1)", [[open, hidden]]);
+  // Turning invitations off stops outstanding links.
+  await f.admin.query("update communities set allow_invite = false where id = $1", [hidden]);
+  expect(await enter("j-b-owner", "secret-team", 0, true, hashSecret(token))).toBe("invite_invalid");
+  await f.admin.query("update communities set allow_invite = true where id = $1", [hidden]);
+  // Two simultaneous first joins by one person: one joins, the other reports already_member (no error).
+  await f.db.insert(users).values({ id: "j-twice", name: "j-twice", email: "j-twice@example.test", emailVerified: true });
+  expect((await Promise.all([enter("j-twice", "open-study", 1, true), enter("j-twice", "open-study", 1, true)])).sort()).toEqual(["already_member", "joined"]);
+  expect((await f.admin.query("select count(*)::int as n from community_memberships where user_id = 'j-twice'")).rows[0].n).toBe(1);
+});
+

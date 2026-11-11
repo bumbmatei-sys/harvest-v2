@@ -38,6 +38,10 @@ it("keeps the Discover listing in step with publishing, visibility and opt-in", 
   expect(await slugs()).toEqual(["grace-study"]);
   expect(await slugs({ q: "GRACE church" })).toEqual(["grace-study"]);
   expect(await slugs({ q: "zzz" })).toEqual([]);
+  // LIKE wildcards in a search are literal characters, never patterns.
+  expect(await slugs({ q: "%" })).toEqual([]);
+  expect(await slugs({ q: "_" })).toEqual([]);
+  expect(await slugs({ q: "\\" })).toEqual([]);
   expect(await slugs({ open: true })).toEqual(["grace-study"]);
   await publish(study, false);
   expect(await slugs()).toEqual([]);
@@ -91,6 +95,13 @@ it("creates, lists, redeems and revokes personal invitations to a hidden communi
   await expect(revokeInvite(f.db, "s-owner", a, team, replaced.id, {})).rejects.toMatchObject({ status: 404 });
   await expect(enterCommunity(f.db, "s-stranger", "prayer-team", { rulesVersion: 0, adult: true, inviteId: replaced.id })).rejects.toMatchObject({ status: 404 });
   expect((await myCommunities(f.db, "s-stranger")).invited).toEqual([]);
+});
+
+it("gives the same answer to a fake invitation whether or not a hidden community exists", async () => {
+  const fake = "a".repeat(64);
+  const answer = (slug: string) => enterCommunity(f.db, "s-stranger", slug, { rulesVersion: 0, adult: true, invite: fake }).catch((error) => [error.status, error.message]);
+  expect(await answer("prayer-team")).toEqual(await answer("no-such-community"));
+  expect(await answer("prayer-team")).toEqual([404, "This invitation isn't valid for your account."]);
 });
 
 it("limits invitations to the community's managers", async () => {
