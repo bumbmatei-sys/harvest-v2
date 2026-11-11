@@ -350,6 +350,11 @@
     "legacyWordingUnavailable": "Legacy wording unavailable"
   },
   "Errors": {
+    "communityDraftLimit": "This ministry has reached its community limit.",
+    "inviteInvalid": "This invitation isn't valid for your account.",
+    "communityJoinUnavailable": "You can't join this community right now.",
+    "communityRulesChanged": "The community rules changed. Please review them again.",
+    "adultConfirmationRequired": "Confirm you are 18 or older to join.",
     "useAnInternationalPhoneNumberStartingWith": "Use an international phone number, starting with +.",
     "useAHandleWithoutSpacesOptionallyStartingWith": "Use a handle without spaces, optionally starting with @.",
     "consentTimeCannotBeMoreThanFiveMinutes": "Consent time cannot be more than five minutes in the future.",
