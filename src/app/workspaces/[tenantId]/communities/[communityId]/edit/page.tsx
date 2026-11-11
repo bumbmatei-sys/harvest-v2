@@ -5,6 +5,7 @@ import { pageSession } from "@/server/page-session";
 import { getWorkspace } from "@/server/workspaces";
 import { getCommunity, listCommunityMembers, listInvites } from "@/server/communities";
 import { communitiesEnabled } from "@/server/communities-mode";
+import { listApplications } from "@/server/community-applications";
 import { AccessError, can } from "@/server/permissions";
 import { AccessState } from "@/components/access-state";
 import { CommunityEditor } from "@/components/communities/community-editor";
@@ -22,6 +23,7 @@ export default async function CommunityEditPage({ params }: { params: Promise<{ 
   // Only managers see the roster; an access change between the two reads shows an empty roster rather than an error page.
   const members = writable ? (await listCommunityMembers(db, session.user.id, tenantId, communityId).catch(denied)) ?? [] : [];
   const invites = writable ? (await listInvites(db, session.user.id, tenantId, communityId).catch(denied)) ?? [] : [];
-  return <CommunityEditor initial={community} members={members} invites={invites} host={workspace.name}
+  const applications = writable ? (await listApplications(db, session.user.id, tenantId, communityId).catch(denied)) : null;
+  return <CommunityEditor initial={community} members={members} invites={invites} applications={applications} host={workspace.name}
     endpoint={`/api/workspaces/${tenantId}/communities/${communityId}`} listHref={`/workspaces/${tenantId}/communities`} writable={writable} />;
 }

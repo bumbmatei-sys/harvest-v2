@@ -27,7 +27,7 @@ export default async function CommunityPage({ params, searchParams }: Props) {
   const community = await getPublicCommunity(getDb(), slug, invite);
   if (!community) notFound();
   const session = await optionalSession(), t = await getTranslations("CommunityPage");
-  const invited = community.invited ? invite : undefined, canJoin = Boolean(invited) || community.allowOpen;
+  const invited = community.invited ? invite : undefined, canJoin = Boolean(invited) || community.allowOpen || community.allowApply;
   const back = `/communities/${community.slug}${invited ? `?invite=${invited}` : ""}`;
   return <PublicFrame personal notice={false}>
     <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
@@ -37,14 +37,15 @@ export default async function CommunityPage({ params, searchParams }: Props) {
           {community.tagline && <p className="text-muted-foreground break-words">{community.tagline}</p>}
         </header>
         {community.description && <p className="max-w-prose whitespace-pre-line break-words">{community.description}</p>}
-        {community.rules && <details className="rounded-md border px-4">
+        {community.rulesList.length > 0 && <details className="rounded-md border px-4">
           <summary className="flex min-h-11 cursor-pointer items-center font-medium">{t("rules")}</summary>
-          <p className="pb-4 text-sm whitespace-pre-line break-words">{community.rules}</p>
+          <ol className="list-decimal space-y-1 pb-4 pl-5 text-sm">{community.rulesList.map((rule, i) => <li key={i} className="break-words">{rule}</li>)}</ol>
         </details>}
       </section>
       <aside className="min-w-0">
         <CommunityJoinCard name={community.name} tagline={null} host={community.hostName}
-          action={canJoin ? <JoinDialog slug={community.slug} name={community.name} rules={community.rules} rulesVersion={community.rulesVersion} invite={invited}
+          action={canJoin ? <JoinDialog slug={community.slug} name={community.name} rules={community.rulesList} rulesVersion={community.rulesVersion}
+            questions={community.joinQuestions} questionsVersion={community.questionsVersion} apply={community.allowApply} invite={invited}
             signedIn={Boolean(session)} signInHref={`/sign-in?personal=1&next=${encodeURIComponent(back)}`} />
             : <p className="text-sm text-muted-foreground">{t("closed")}</p>} />
       </aside>

@@ -30,7 +30,7 @@ export default async function CommunityHome({ params }: { params: Promise<{ slug
         <EmptyHeader><EmptyMedia variant="icon"><MessagesSquare aria-hidden="true" /></EmptyMedia><EmptyTitle>{t("feedSoon")}</EmptyTitle></EmptyHeader>
       </Empty>
       <div className="flex flex-wrap gap-3">
-        {community.rules && <Button asChild variant="outline" className="min-h-11"><Link href={`/communities/${community.slug}`} prefetch={false}>{t("rules")}</Link></Button>}
+        {community.rulesList.length > 0 && <Button asChild variant="outline" className="min-h-11"><Link href={`/communities/${community.slug}`} prefetch={false}>{t("rules")}</Link></Button>}
         <Button asChild variant="outline" className="min-h-11"><Link href="/account/communities" prefetch={false}>{t("myCommunities")}</Link></Button>
       </div>
     </div>
