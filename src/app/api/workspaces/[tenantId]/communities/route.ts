@@ -6,7 +6,7 @@ export const runtime = "nodejs";
 const off = () => new Response(null, { status: 404 });
 export async function GET(request: Request, context: { params: Promise<{ tenantId: string }> }) {
   if (!communitiesEnabled()) return off();
-  try { const user = await verifiedUser(request), { tenantId } = await context.params; return Response.json(await listCommunities(getDb(), user, tenantId)); }
+  try { const user = await verifiedUser(request), { tenantId } = await context.params; return Response.json(await listCommunities(getDb(), user, tenantId), { headers: { "Cache-Control": "private, no-store" } }); }
   catch (error) { return errorResponse(error); }
 }
 export async function POST(request: Request, context: { params: Promise<{ tenantId: string }> }) {

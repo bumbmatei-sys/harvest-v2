@@ -24,3 +24,12 @@ Public page, Discover, joining, invitations, applications, member shell, feed, m
 ## Gates
 
 No merge, deployment or activation is authorized. No migration in C04.
+
+## Review follow-up (non-author review of `e0813978`: MERGE-OK with four should-fix items)
+
+- **Flag off:** handler-level unit test (`tests/unit/communities-flag.test.ts`) proves every Communities API returns 404 in production before auth or the database; navigation test proves the entry needs the `communities` feature. `HARVEST_COMMUNITIES` documented in `docs/setup/feature-flags.md`.
+- **Archived:** unpublish no longer turns an archived community into a draft (409).
+- **Live checklist:** editing a published community so it fails the publish checklist is refused (409).
+- **Evidence:** `editor-published-*` screenshots added (People step, light/dark, three sizes, axe clean).
+- **Roster (author decision):** member roster now requires `communities:manage`; viewers and members see "Only owners and admins can see members." Members without a display name show "No name" (never an email).
+- Optional items taken: `Cache-Control: private, no-store` on the GET routes; roster read on the edit page caught like the other access errors. Not taken: the duplicate in-page breadcrumb (kept for the editor's own back path).

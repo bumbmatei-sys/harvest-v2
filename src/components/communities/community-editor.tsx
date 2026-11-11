@@ -94,9 +94,10 @@ export function CommunityEditor({ initial, members, endpoint, listHref, host, wr
             <Checkbox id={`community-${key}`} checked={fields[key]} disabled={!writable} onCheckedChange={(checked) => set(key, checked === true)} />{t(`admissions.${key}`)}</Label>)}
         </fieldset>
       </>}
-      {step === "people" && <div className="space-y-4">
+      {step === "people" && !writable && <p className="text-sm text-muted-foreground">{t("membersManagersOnly")}</p>}
+      {step === "people" && writable && <div className="space-y-4">
         <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>{t("memberName")}</TableHead><TableHead>{t("memberRole")}</TableHead><TableHead>{t("memberStatus")}</TableHead></TableRow></TableHeader>
-          <TableBody>{members.map((member) => <TableRow key={member.userId}><TableCell>{member.name}</TableCell><TableCell>{t(`roles.${member.role}`)}</TableCell><TableCell>{t(`memberStatuses.${member.status}`)}</TableCell></TableRow>)}</TableBody></Table></div>
+          <TableBody>{members.map((member) => <TableRow key={member.userId}><TableCell>{member.name.trim() || <span className="text-muted-foreground">{t("unnamed")}</span>}</TableCell><TableCell>{t(`roles.${member.role}`)}</TableCell><TableCell>{t(`memberStatuses.${member.status}`)}</TableCell></TableRow>)}</TableBody></Table></div>
         <Button variant="outline" className="min-h-11" disabled>{t("invite")}<Badge variant="secondary">{t("comingSoon")}</Badge></Button>
       </div>}
       {step === "publish" && <ul className="space-y-2" aria-label={t("checklist")}>

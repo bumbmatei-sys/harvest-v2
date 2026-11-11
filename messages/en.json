@@ -2293,6 +2293,8 @@
     "unpublishedNotice": "Moved back to draft.",
     "reload": "Reload",
     "readOnly": "Only owners and admins can edit communities.",
+    "membersManagersOnly": "Only owners and admins can see members.",
+    "unnamed": "No name",
     "leaveTitle": "Leave without saving?",
     "leaveBody": "Your unsaved changes will be lost.",
     "stay": "Stay",

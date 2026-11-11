@@ -18,7 +18,9 @@ export default async function CommunityEditPage({ params }: { params: Promise<{ 
   if (!workspace) return <AccessState />;
   const community = await getCommunity(db, session.user.id, tenantId, communityId).catch(denied);
   if (!community) return <AccessState />;
-  const members = await listCommunityMembers(db, session.user.id, tenantId, communityId);
+  const writable = can(workspace.role, "communities:manage");
+  // Only managers see the roster; an access change between the two reads shows an empty roster rather than an error page.
+  const members = writable ? (await listCommunityMembers(db, session.user.id, tenantId, communityId).catch(denied)) ?? [] : [];
   return <CommunityEditor initial={community} members={members} host={workspace.name}
-    endpoint={`/api/workspaces/${tenantId}/communities/${communityId}`} listHref={`/workspaces/${tenantId}/communities`} writable={can(workspace.role, "communities:manage")} />;
+    endpoint={`/api/workspaces/${tenantId}/communities/${communityId}`} listHref={`/workspaces/${tenantId}/communities`} writable={writable} />;
 }

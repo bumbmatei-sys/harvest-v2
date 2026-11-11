@@ -8,11 +8,12 @@ test.use({ actionTimeout: 30000, reducedMotion: "reduce" });
 const evidence = "docs/screenshots/communities-c04";
 const sizes = [["phone", 390, 844], ["tablet", 768, 1024], ["desktop", 1440, 1000]] as const;
 
-async function shoot(page: Page, name: string) {
+async function shoot(page: Page, name: string, prepare?: () => Promise<void>) {
   for (const scheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
     // These pages choose their colour scheme at load, so reload to capture the real dark and light renders.
     await page.reload(); await page.waitForTimeout(500);
+    await prepare?.();
     for (const [label, width, height] of sizes) {
       await page.setViewportSize({ width, height });
       expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
@@ -77,9 +78,9 @@ test("create, edit, guard, conflict and publish a community; viewers are read-on
   await header.getByRole("button", { name: "Publish", exact: true }).click();
   await expect(page.getByText("Published.", { exact: true })).toBeVisible();
   await expect(header.getByRole("button", { name: "Unpublish", exact: true })).toBeVisible();
-  await steps.getByRole("button", { name: /People/ }).click();
-  await expect(page.getByRole("cell", { name: "Owner", exact: true })).toBeVisible();
-  await shoot(page, "editor-published");
+  const people = async () => { await steps.getByRole("button", { name: /People/ }).click(); await expect(page.getByRole("cell", { name: "Owner", exact: true })).toBeVisible(); await expect(page.getByRole("cell", { name: "No name", exact: true })).toBeVisible(); };
+  await people();
+  await shoot(page, "editor-published", people);
 
   // A stale edit is refused with a reload option.
   const current = await (await page.request.get(`/api/workspaces/${tenant}/communities/${communityId}`)).json();
@@ -102,6 +103,11 @@ test("create, edit, guard, conflict and publish a community; viewers are read-on
     await expect(viewer.getByText("Only owners and admins can edit communities.")).toBeVisible();
     await expect(viewer.getByRole("button", { name: "Save draft", exact: true })).toHaveCount(0);
     await expect(viewer.getByLabel("Name", { exact: true })).toBeDisabled();
+    // The member roster is for owners and admins only.
+    await viewer.getByRole("navigation", { name: "Community setup" }).getByRole("button", { name: /People/ }).click();
+    await expect(viewer.getByText("Only owners and admins can see members.", { exact: true })).toBeVisible();
+    await expect(viewer.getByRole("cell", { name: "Owner", exact: true })).toHaveCount(0);
+    await viewer.getByRole("navigation", { name: "Community setup" }).getByRole("button", { name: /Basics/ }).click();
     expect((await viewer.request.patch(`/api/workspaces/${tenant}/communities/${communityId}`, { headers: { origin }, data: { version: 99, name: "Viewer" } })).status()).toBe(403);
     expect((await viewer.request.post(`/api/workspaces/${tenant}/communities`, { headers: { origin }, data: { name: "No", slug: "viewer-no" } })).status()).toBe(403);
     await shoot(viewer, "editor-viewer");

@@ -60,7 +60,9 @@ export async function updateCommunity(db: Database, userId: string, workspace: s
   if (changes.pricing === "paid") throw new AccessError(409, message("Errors.paidCommunitiesUnavailable"));
   const id = z.uuid().parse(communityId);
   return withTenant(db, userId, z.uuid().parse(workspace), "communities:manage", async (tx, tenantId) => {
-    await ownCommunity(tx, tenantId, id);
+    const current = await ownCommunity(tx, tenantId, id);
+    // A published community must keep meeting the publish checklist (review finding on #58).
+    if (current.status === "published" && !readyToPublish({ ...current, ...changes })) throw new AccessError(409, message("Errors.communityNotReady"));
     const [row] = await tx.update(communities).set({ ...changes, version: version + 1, updatedAt: new Date() })
       .where(and(eq(communities.tenantId, tenantId), eq(communities.id, id), eq(communities.version, version))).returning();
     if (!row) throw new AccessError(409, message("Errors.communityChanged"));
@@ -130,10 +132,11 @@ export function getCommunity(db: Database, userId: string, workspace: string, co
   return withTenant(db, userId, z.uuid().parse(workspace), "communities:read", (tx, tenantId) => ownCommunity(tx, tenantId, id));
 }
 
-/** Members of one community for its ministry's staff: display name, role and status only, never contact details. */
+/** Members of one community for its ministry's owners and admins: display name, role and status only, never contact details. */
 export function listCommunityMembers(db: Database, userId: string, workspace: string, communityId: string) {
   const id = z.uuid().parse(communityId);
-  return withTenant(db, userId, z.uuid().parse(workspace), "communities:read", async (tx, tenantId) => {
+  // The roster (including pending and banned people) is limited to managers, not every ministry role (review on #58).
+  return withTenant(db, userId, z.uuid().parse(workspace), "communities:manage", async (tx, tenantId) => {
     await ownCommunity(tx, tenantId, id);
     return tx.select({ userId: communityMemberships.userId, name: users.name, role: communityMemberships.role, status: communityMemberships.status })
       .from(communityMemberships).innerJoin(users, eq(users.id, communityMemberships.userId))
@@ -142,14 +145,14 @@ export function listCommunityMembers(db: Database, userId: string, workspace: st
   });
 }
 
-/** Publishes or unpublishes after the server-side checklist; archived communities cannot be published. */
+/** Publishes or unpublishes after the server-side checklist; archived communities can be neither published nor unpublished. */
 export async function publishCommunity(db: Database, userId: string, workspace: string, communityId: string, raw: unknown) {
   const { version, published } = publishInput.parse(raw);
   const id = z.uuid().parse(communityId);
   return withTenant(db, userId, z.uuid().parse(workspace), "communities:manage", async (tx, tenantId) => {
     const current = await ownCommunity(tx, tenantId, id);
     if (current.version !== version) throw new AccessError(409, message("Errors.communityChanged"));
-    if (published && (current.status === "archived" || !readyToPublish(current))) throw new AccessError(409, message("Errors.communityNotReady"));
+    if (current.status === "archived" || (published && !readyToPublish(current))) throw new AccessError(409, message("Errors.communityNotReady"));
     const [row] = await tx.update(communities).set({ status: published ? "published" : "draft", version: version + 1, updatedAt: new Date() })
       .where(and(eq(communities.tenantId, tenantId), eq(communities.id, id), eq(communities.version, version))).returning();
     if (!row) throw new AccessError(409, message("Errors.communityChanged"));
