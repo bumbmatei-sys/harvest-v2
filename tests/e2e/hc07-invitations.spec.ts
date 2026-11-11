@@ -55,6 +55,7 @@ for(const scheme of ["light","dark"] as const){
    await visitor.getByLabel("Six-digit code",{exact:true}).fill(code);await visitor.getByRole("button",{name:"Sign in",exact:true}).click();
    await expect(visitor.getByRole("button",{name:"Confirm this request for my account",exact:true})).toBeVisible();await expect(visitor.getByText(`You are signed in as ${email}.`,{exact:false})).toBeVisible();
    metrics.push(await capture(visitor,`confirm-mobile-${scheme}`));await visitor.getByRole("button",{name:"Confirm this request for my account",exact:true}).click();
+   await visitor.getByRole("button",{name:"Skip for now",exact:true}).click();
    await expect(visitor.getByRole("heading",{name:"Welcome to Harvest",exact:true})).toBeVisible();expect(visitor.url()).toContain("/account/welcome");
    await expect(visitor.getByRole("link",{name:"Return to the outreach page",exact:true})).toHaveAttribute("href",`/c/${link.publicCode}`);
    expect((await visitor.request.get("/api/workspaces")).ok()).toBe(true);const workspaces=await (await visitor.request.get("/api/workspaces")).json();expect(workspaces).toEqual([]);

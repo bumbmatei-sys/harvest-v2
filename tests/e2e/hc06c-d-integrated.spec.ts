@@ -66,6 +66,7 @@ test("HC-06C+D: Connect claim, source rules, channel consent filters and a clear
     await expect(visitor.getByRole("button", { name: "Confirm this request for my account", exact: true })).toBeVisible();
     expect((await context.cookies()).some((cookie) => cookie.name === "harvest_connect_flow")).toBe(true);
     await visitor.getByRole("button", { name: "Confirm this request for my account", exact: true }).click();
+    await visitor.getByRole("button", { name: "Skip for now", exact: true }).click();
     await expect(visitor.getByRole("heading", { name: "Welcome to Harvest", exact: true })).toBeVisible();
     // HC-06D: the finished flow leaves no cookie, and a repeat finds nothing to act on.
     expect((await context.cookies()).some((cookie) => cookie.name === "harvest_connect_flow")).toBe(false);

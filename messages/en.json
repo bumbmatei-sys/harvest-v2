@@ -489,6 +489,27 @@
     "saveFailed": "Could not save your profile. Please try again.",
     "connectionFailed": "Could not connect. Please try again."
   },
+  "AccountProfile": {
+    "onboardingTitle": "Set up your account",
+    "name": "Name",
+    "language": "Language",
+    "automatic": "Use browser language",
+    "city": "City (optional)",
+    "firstStep": "What would you like to do first?",
+    "findCommunity": "Find a free community",
+    "bibleCourse": "Start a Bible course",
+    "findChurch": "Find a church",
+    "exploreLater": "Explore later",
+    "comingSoon": "Coming soon",
+    "saveContinue": "Save and continue",
+    "skip": "Skip for now",
+    "save": "Save profile",
+    "saving": "Saving…",
+    "saved": "Profile saved.",
+    "saveFailed": "Could not save. Check your details and try again.",
+    "connectionFailed": "Could not connect. Please try again.",
+    "finishSetup": "Finish setup"
+  },
   "ConsentLabels": {
     "email": "Email",
     "sms": "SMS",

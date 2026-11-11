@@ -36,7 +36,7 @@ for(const scheme of ["light","dark"] as const)test(`HC-06B automatic claim, orga
   await visitor.goto(url);await visitor.getByRole("button",{name:"Continue securely",exact:true}).click();
   await expect(visitor.getByText(/Confirming this request adds your name and verified email to Welcome organizer/)).toBeVisible();
   await capture(visitor,`claim-mobile-${scheme}`);
-  await visitor.getByRole("button",{name:"Confirm this request for my account",exact:true}).click();await expect(visitor.getByRole("heading",{name:"Welcome to Harvest",exact:true})).toBeVisible();
+  await visitor.getByRole("button",{name:"Confirm this request for my account",exact:true}).click();await visitor.getByRole("button",{name:"Skip for now",exact:true}).click();await expect(visitor.getByRole("heading",{name:"Welcome to Harvest",exact:true})).toBeVisible();
   expect(await (await visitor.request.get("/api/workspaces")).json()).toEqual([]);
   // HC-06D: a finished claim clears the flow cookie, so repeating the action finds no flow and changes nothing.
   expect((await context.cookies()).some(c=>c.name==="harvest_connect_flow")).toBe(false);
