@@ -1,6 +1,6 @@
 # Three-audience workspace onboarding and typed module navigation — design
 
-Status: design approved by the founder on 10 November 2026; implementation plan not yet written. Planning only: no code, migration, merge, deployment or production activation is authorized by this document.
+Status: design approved by the founder on 10 November 2026. PR A merged as #51 (plan `docs/superpowers/plans/2026-11-10-typed-navigation-pr-a.md`); PR B and PR C ship together (founder decision 11 Nov, plan `docs/superpowers/plans/2026-11-11-audience-and-ministry-wording-pr-bc.md`). Planning only: no code, migration, merge, deployment or production activation is authorized by this document.
 
 Position in the approved sequence: item 4 of the first proposed sequence in [the audit proposal](../../plans/professional-v1-audit-proposal.md) (shared filters and HC-06 are merged). It extends the existing `AppShell`; it does not create a second shell. Harvest Connect continues with HC-08 afterwards.
 
@@ -49,14 +49,14 @@ Position in the approved sequence: item 4 of the first proposed sequence in [the
 ## Security and error handling
 
 - The server enforces every permission; the sidebar is presentation only.
-- Member or viewer attempting to change audience: 403. Foreign tenant: 404. Invalid audience value: 400. Missing audience on create: 400.
+- Member or viewer attempting to change audience: 403. Non-member (another ministry): 403, the existing tenancy denial. Invalid audience value: 400. Missing audience on create: 400.
 - One workspace's audience is never readable from another tenant (existing tenant-scoped reads; tested).
 - No provider names in user-facing copy; messages live in `messages/en.json`.
 
 ## Testing and evidence
 
 - **Unit:** resolver parity with the current sidebar for owner, admin, member and viewer with a null audience; audience filtering and label overrides with fixtures; active-path matching including Imports and Pipelines/deals.
-- **Integration (PR B):** create with audience; invalid and missing values rejected; owner and admin update; member, viewer and foreign tenant denied; audit rows written; migration applies twice; existing workspaces read as null.
+- **Integration (PR B):** create with audience; invalid and missing values rejected; owner and admin update; member, viewer and non-member denied; audit rows written; migration applies twice; existing workspaces read as null.
 - **Browser:** create a workspace and pick an audience; change it in settings; sidebar parity; axe, no horizontal scroll and light/dark screenshots at 390, 768 and 1440 widths. Screenshots are viewed, not only generated.
 - **Docs:** acceptance record per PR; component-registry entry; Craft roadmap update; refresh the CLAUDE.md state, which still describes the HC-06C+D PR as a draft.
 - Independent review by a separate fresh session for each PR; no merge or deployment without the founder's explicit approval.
