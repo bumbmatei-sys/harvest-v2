@@ -2,6 +2,7 @@ import { and, asc, desc, eq, gt, isNull, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
 import { auditLogs, communities, communityInvites, communityMemberships, discoverListings, entitlements, reservedCommunitySlugs, users, workspaces } from "../db/schema";
+import { questionSet } from "../lib/questions";
 import { discoverEligible, emailHash, emailHint, hashSecret, listingFor, newInviteToken } from "../lib/community-listing";
 import { communityStaffRoles, type CommunityRole } from "../lib/community-permissions";
 import { readyToPublish } from "../lib/community-editor";
@@ -16,7 +17,7 @@ export const communitySlug = z.string().trim().toLowerCase().regex(/^[a-z0-9](?:
 const name = z.string().trim().min(1).max(80);
 const tagline = z.string().trim().min(1).max(160);
 const description = z.string().trim().min(1).max(2000);
-const rules = z.string().trim().min(1).max(5000);
+const rulesList = z.array(z.string().trim().min(1).max(300)).max(20);
 /** Per-ministry cap on communities (ADR 0013 §4a), so one ministry cannot reserve addresses without limit. */
 export const communityLimit = 50;
 
@@ -28,7 +29,7 @@ const updateInput = z.object({
   pricing: z.enum(["free", "paid"]).optional(),
   allowOpen: z.boolean().optional(), allowApply: z.boolean().optional(),
   allowInvite: z.boolean().optional(), allowEntitlement: z.boolean().optional(),
-  description: description.nullable().optional(), rules: rules.nullable().optional(), discoverOptIn: z.boolean().optional(),
+  description: description.nullable().optional(), rulesList: rulesList.optional(), joinQuestions: questionSet.optional(), discoverOptIn: z.boolean().optional(),
 }).strict();
 const grantInput = z.object({ userId: z.string().min(1).max(200), validUntil: z.iso.datetime().optional(), reason: z.string().trim().min(1).max(200).optional() }).strict();
 const revokeInput = z.object({}).strict();
@@ -71,9 +72,11 @@ export async function updateCommunity(db: Database, userId: string, workspace: s
     const current = await ownCommunity(tx, tenantId, id);
     // A published community must keep meeting the publish checklist (review finding on #58).
     if (current.status === "published" && !readyToPublish({ ...current, ...changes })) throw new AccessError(409, message("Errors.communityNotReady"));
-    // A rules change bumps the rules version, so earlier acceptances (and open join dialogs) no longer count.
-    const rulesChanged = changes.rules !== undefined && changes.rules !== current.rules;
-    const [row] = await tx.update(communities).set({ ...changes, ...(rulesChanged ? { rulesVersion: current.rulesVersion + 1 } : {}), version: version + 1, updatedAt: new Date() })
+    // A rules or questions change bumps its version, so earlier acceptances and open join dialogs no longer count.
+    const changed = <T,>(next: T | undefined, before: T) => next !== undefined && JSON.stringify(next) !== JSON.stringify(before);
+    const bumps = { ...(changed(changes.rulesList, current.rulesList) ? { rulesVersion: current.rulesVersion + 1 } : {}),
+      ...(changed(changes.joinQuestions, current.joinQuestions) ? { questionsVersion: current.questionsVersion + 1 } : {}) };
+    const [row] = await tx.update(communities).set({ ...changes, ...bumps, version: version + 1, updatedAt: new Date() })
       .where(and(eq(communities.tenantId, tenantId), eq(communities.id, id), eq(communities.version, version))).returning();
     if (!row) throw new AccessError(409, message("Errors.communityChanged"));
     await syncListing(tx, tenantId, id);

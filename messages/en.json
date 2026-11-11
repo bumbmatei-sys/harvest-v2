@@ -478,7 +478,12 @@
     "thisExportIsTooLarge": "This view has more than 50,000 records. Narrow it with filters, then export.",
     "checkTheActivityDetails": "Check the activity details: choose a source, kind and purpose, and a person.",
     "theseDetailsBelongToDifferentPeople": "These details belong to different people, so the activity was not linked.",
-    "sourceFiltersUnavailable": "Source filters in this view are not available."
+    "sourceFiltersUnavailable": "Source filters in this view are not available.",
+    "communityQuestionsChanged": "The questions changed. Please review them again.",
+    "communityAnswersInvalid": "Check your answers and try again.",
+    "communityAlreadyApplied": "You already applied to this community.",
+    "applicationNotFound": "Application not found.",
+    "applicationChanged": "This application has changed. Reload and try again."
   },
   "LibEnv": {
     "missingRequiredEnvironmentVariableValue": "Missing required environment variable: {name}"

@@ -10,7 +10,7 @@ import { emailHash, emailHint, hashSecret, newInviteToken } from "../../src/lib/
 let f: Awaited<ReturnType<typeof testDatabase>>, a: string, b: string, open: string, hidden: string;
 const people = ["j-owner", "j-b-owner", "j-joiner", "j-invited", "j-other", "j-banned"];
 const enter = (user: string, slug: string, version: number, adult: boolean, hash: string | null = null, id: string | null = null) =>
-  withUser(f.db, user, async (tx) => (await tx.execute<{ o: string }>(sql`select public.community_enter(${slug}, ${version}, ${adult}, ${hash}, ${id}::uuid) as o`)).rows[0].o);
+  withUser(f.db, user, async (tx) => (await tx.execute<{ o: string }>(sql`select public.community_enter(${slug}, ${version}, 0, '{}'::jsonb, ${adult}, ${hash}, ${id}::uuid) as o`)).rows[0].o);
 const publicView = (slug: string, hash: string | null = null) => f.db.transaction(async (tx) => (await tx.execute<{ v: Record<string, unknown> | null }>(sql`select public.community_public(${slug}, ${hash}) as v`)).rows[0].v);
 
 beforeAll(async () => {
@@ -20,13 +20,13 @@ beforeAll(async () => {
   b = (await createWorkspace(f.db, "j-b-owner", "Other", "creator")).tenantId;
   open = (await createCommunity(f.db, "j-owner", a, { name: "Open study", slug: "open-study" })).id;
   hidden = (await createCommunity(f.db, "j-owner", a, { name: "Secret team", slug: "secret-team" })).id;
-  await f.admin.query("update communities set status = 'published', visibility = 'listed', allow_open = true, rules = 'Be kind.', rules_version = 1 where id = $1", [open]);
+  await f.admin.query("update communities set status = 'published', visibility = 'listed', allow_open = true, rules_list = '{\"Be kind.\"}', rules_version = 1 where id = $1", [open]);
   await f.admin.query("update communities set status = 'published', visibility = 'hidden' where id = $1", [hidden]);
 });
 afterAll(async () => { await f?.close(); });
 
 it("shows published listed communities, hides drafts and hidden ones without an invite", async () => {
-  expect(await publicView("open-study")).toMatchObject({ name: "Open study", hostName: "Grace Church", rules: "Be kind.", rulesVersion: 1, invited: false });
+  expect(await publicView("open-study")).toMatchObject({ name: "Open study", hostName: "Grace Church", rulesList: ["Be kind."], rulesVersion: 1, invited: false });
   expect(await publicView("secret-team")).toBeNull();
   expect(await publicView("no-such-community")).toBeNull();
   await f.admin.query("update communities set status = 'draft' where id = $1", [open]);
@@ -49,7 +49,7 @@ it("joins with current rules and adult confirmation, idempotently, and refuses t
   await f.admin.query("update communities set allow_open = true where id = $1", [open]);
   await f.admin.query("insert into community_memberships (tenant_id, community_id, user_id, role, status) values ($1, $2, 'j-banned', 'member', 'banned')", [a, open]);
   expect(await enter("j-banned", "open-study", 1, true)).toBe("banned");
-  await expect(f.db.transaction((tx) => tx.execute(sql`select public.community_enter('open-study', 1, true, null, null)`))).rejects.toMatchObject({ cause: { code: "42501" } });
+  await expect(f.db.transaction((tx) => tx.execute(sql`select public.community_enter('open-study', 1, 0, '{}'::jsonb, true, null, null)`))).rejects.toMatchObject({ cause: { code: "42501" } });
 });
 
 it("redeems a personal invite once, only for the invited email, before expiry and revocation", async () => {
@@ -122,7 +122,7 @@ it("answers a fake invitation identically for a missing and a hidden community, 
   await one.connect(); await two.connect();
   try {
     for (const client of [one, two]) { await client.query("begin"); await client.query("select set_config('app.user_id', 'j-twice', true)"); }
-    const call = (client: InstanceType<typeof Client>) => client.query<{ o: string }>("select public.community_enter('open-study', 1, true, null, null) as o");
+    const call = (client: InstanceType<typeof Client>) => client.query<{ o: string }>("select public.community_enter('open-study', 1, 0, '{}'::jsonb, true, null, null) as o");
     const first = (await call(one)).rows[0].o;
     const second = call(two);
     // Prove the second call is really blocked on the first, uncommitted membership row before releasing it.
