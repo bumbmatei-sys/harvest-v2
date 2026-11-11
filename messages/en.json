@@ -162,7 +162,8 @@
     "tasks": "Tasks",
     "imports": "Imports",
     "campaigns": "Campaigns",
-    "ministrySettings": "Ministry settings"
+    "ministrySettings": "Ministry settings",
+    "communities": "Communities"
   },
   "ComponentsAppearanceForm": {
     "couldNotSaveAppearanceTryAgain": "Could not save appearance. Try again.",
@@ -2229,5 +2230,118 @@
   },
   "AppWorkspacesSettingsPage": {
     "ministrySettings": "Ministry settings"
+  },
+  "CommunitiesPage": {
+    "title": "Communities",
+    "empty": "No communities yet.",
+    "emptyManage": "No communities yet. Create your first one.",
+    "name": "Name",
+    "status": "Status",
+    "visibility": "Visibility",
+    "statuses": {
+      "draft": "Draft",
+      "published": "Published",
+      "archived": "Archived"
+    },
+    "visibilities": {
+      "listed": "Listed",
+      "unlisted": "Unlisted",
+      "hidden": "Hidden"
+    }
+  },
+  "CreateCommunityDialog": {
+    "open": "New community",
+    "title": "New community",
+    "name": "Name",
+    "address": "Address",
+    "create": "Create community",
+    "creating": "Creating…"
+  },
+  "CommunityJoinCard": {
+    "untitled": "Untitled community",
+    "by": "By {host}",
+    "free": "Free",
+    "join": "Join",
+    "previewOnly": "Preview"
+  },
+  "CommunityEditor": {
+    "steps": {
+      "offer": "Offer",
+      "basics": "Basics",
+      "joining": "Joining",
+      "channels": "Channels",
+      "messages": "Messages",
+      "people": "People",
+      "products": "Products",
+      "page": "Page",
+      "publish": "Publish"
+    },
+    "comingSoon": "Coming soon",
+    "stepsLabel": "Community setup",
+    "preview": "Preview",
+    "status": {
+      "draft": "Draft",
+      "published": "Published",
+      "archived": "Archived"
+    },
+    "saveDraft": "Save draft",
+    "saving": "Saving…",
+    "publish": "Publish",
+    "unpublish": "Unpublish",
+    "saved": "Saved.",
+    "publishedNotice": "Published.",
+    "unpublishedNotice": "Moved back to draft.",
+    "reload": "Reload",
+    "readOnly": "Only owners and admins can edit communities.",
+    "leaveTitle": "Leave without saving?",
+    "leaveBody": "Your unsaved changes will be lost.",
+    "stay": "Stay",
+    "leave": "Leave",
+    "back": "Communities",
+    "price": "Price",
+    "free": "Free",
+    "paid": "Paid",
+    "name": "Name",
+    "tagline": "Tagline (optional)",
+    "address": "Address",
+    "visibility": "Who can find it",
+    "visibilities": {
+      "listed": "Listed: appears in Discover",
+      "unlisted": "Unlisted: anyone with the link",
+      "hidden": "Hidden: invitation only"
+    },
+    "admission": "Ways to join",
+    "admissions": {
+      "allowOpen": "Anyone can join",
+      "allowApply": "People apply first",
+      "allowInvite": "By invitation",
+      "allowEntitlement": "Included with a purchase"
+    },
+    "memberName": "Name",
+    "memberRole": "Role",
+    "memberStatus": "Status",
+    "roles": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "moderator": "Moderator",
+      "contributor": "Contributor",
+      "member": "Member"
+    },
+    "memberStatuses": {
+      "active": "Active",
+      "pending": "Pending",
+      "banned": "Banned",
+      "left": "Left",
+      "removed": "Removed"
+    },
+    "invite": "Invite people",
+    "checklist": "Before you publish",
+    "checks": {
+      "name": "It has a name",
+      "admission": "At least one way to join",
+      "visibility": "Visibility is chosen"
+    },
+    "checkDone": "Done",
+    "checkOpen": "Not done"
   }
 }
