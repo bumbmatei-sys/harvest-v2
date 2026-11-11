@@ -297,7 +297,7 @@ END $$;
 -- Join (open) or redeem (invite by token hash or by id). Returns an outcome; never raises on a business refusal.
 CREATE FUNCTION public.community_enter(p_slug text, p_rules_version integer, p_adult boolean, p_invite_hash text, p_invite_id uuid) RETURNS text
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-DECLARE actor text := nullif(current_setting('app.user_id', true), ''); c record; m record; inv record; mine text; via_invite boolean; had_membership boolean;
+DECLARE actor text := nullif(current_setting('app.user_id', true), ''); c record; m record; inv record; mine text; via_invite boolean; had_membership boolean; inviter text; invite_id uuid;
 BEGIN
   IF actor IS NULL THEN RAISE EXCEPTION 'community access denied' USING ERRCODE = '42501'; END IF;
   via_invite := p_invite_hash IS NOT NULL OR p_invite_id IS NOT NULL;
@@ -311,6 +311,7 @@ BEGIN
       AND (i.token_hash = p_invite_hash OR i.id = p_invite_id) AND i.email_hash = mine
       AND i.redeemed_at IS NULL AND i.revoked_at IS NULL AND i.expires_at > now() FOR UPDATE;
     IF NOT FOUND THEN PERFORM public.community_definer_reset(); RETURN 'invite_invalid'; END IF;
+    inviter := inv.created_by; invite_id := inv.id;
   ELSE
     IF c.visibility = 'hidden' THEN PERFORM public.community_definer_reset(); RETURN 'not_found'; END IF;
     IF NOT c.allow_open THEN PERFORM public.community_definer_reset(); RETURN 'not_allowed'; END IF;
@@ -320,7 +321,7 @@ BEGIN
   SELECT * INTO m FROM public.community_memberships WHERE tenant_id = c.tenant_id AND community_id = c.id AND user_id = actor FOR UPDATE;
   had_membership := FOUND; -- captured now: FOUND changes after the next UPDATE
   IF had_membership AND m.status = 'banned' THEN PERFORM public.community_definer_reset(); RETURN 'banned'; END IF;
-  IF via_invite THEN UPDATE public.community_invites SET redeemed_at = now(), redeemed_by = actor WHERE id = inv.id; END IF;
+  IF via_invite THEN UPDATE public.community_invites SET redeemed_at = now(), redeemed_by = actor WHERE id = invite_id; END IF;
   IF had_membership AND m.status = 'active' THEN PERFORM public.community_definer_reset(); RETURN 'already_member'; END IF;
   IF NOT had_membership THEN
     INSERT INTO public.community_memberships (tenant_id, community_id, user_id, role, status, joined_at, rules_version_accepted, adult_confirmed_at)
@@ -333,7 +334,7 @@ BEGIN
   END IF;
   INSERT INTO public.entitlements (tenant_id, user_id, resource_type, resource_id, source, granted_by)
     VALUES (c.tenant_id, actor, 'community', c.id, CASE WHEN via_invite THEN 'invitation' ELSE 'community_free_join' END,
-      CASE WHEN via_invite THEN inv.created_by ELSE NULL END);
+      inviter);
   INSERT INTO public.audit_logs (tenant_id, actor_id, action, target_id)
     VALUES (c.tenant_id, actor, CASE WHEN via_invite THEN 'community.invite_redeem' ELSE 'community.join' END, c.id::text);
   PERFORM public.community_definer_reset();
