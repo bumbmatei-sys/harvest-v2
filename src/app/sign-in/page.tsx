@@ -14,6 +14,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ThemeControls } from "@/components/theme-controls";
 import { Wheat } from "lucide-react";
 import { useHydrated } from "@/hooks/use-hydrated";
+const communityReturn=/^\/communities\/[a-z0-9](?:[a-z0-9-]{1,46}[a-z0-9])(?:\?invite=[a-f0-9]{64})?$/;
 export default function SignIn() {
   const t = useTranslations("AppSignInPage");
   const hydrated = useHydrated();
@@ -44,7 +45,11 @@ export default function SignIn() {
         if(new URLSearchParams(window.location.search).get("connect")==="1"){
           const continuation=await fetch("/api/connect/invitations/continuation",{cache:"no-store"}).then(r=>r.ok?r.json():null).catch(()=>null);
           window.location.replace(continuation?.next==="/connect/claim"?"/connect/claim":"/account/welcome");
-        }else window.location.replace(new URLSearchParams(window.location.search).get("personal")==="1"?"/account/welcome":"/workspaces");
+        }else{
+          const query=new URLSearchParams(window.location.search),next=query.get("next");
+          // Only a community page (optionally with its invitation) may be a return path, never an arbitrary URL.
+          window.location.replace(next&&communityReturn.test(next)?next:query.get("personal")==="1"?"/account/welcome":"/workspaces");
+        }
       }
     } catch { setError(t("couldNotConnectPleaseTryAgain")); }
     finally { setBusy(false); }

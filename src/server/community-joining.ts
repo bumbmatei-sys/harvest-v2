@@ -73,7 +73,7 @@ export async function listDiscover(db: Database, raw: unknown) {
   return { items, next: rows.length > discoverPageSize && last ? Buffer.from(`${last.updatedAt}|${last.id}`).toString("base64url") : null };
 }
 
-export type MyInvite = { inviteId: string; slug: string; name: string; expiresAt: string };
+export type MyInvite = { inviteId: string; slug: string; name: string; expiresAt: string; rules: string | null; rulesVersion: number };
 
 /** Joined (member path), Invited (definer, matched to the verified email) and Hosted (staff path per ministry). */
 export async function myCommunities(db: Database, userId: string) {

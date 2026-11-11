@@ -368,7 +368,7 @@ BEGIN
   SELECT string_agg(i.community_id::text, ',') INTO ids FROM public.community_invites i
     WHERE i.email_hash = mine AND i.redeemed_at IS NULL AND i.revoked_at IS NULL AND i.expires_at > now();
   PERFORM set_config('app.community_resolve_ids', coalesce(ids, ''), true);
-  RETURN QUERY SELECT jsonb_build_object('inviteId', i.id, 'slug', c.slug, 'name', c.name, 'expiresAt', i.expires_at)
+  RETURN QUERY SELECT jsonb_build_object('inviteId', i.id, 'slug', c.slug, 'name', c.name, 'expiresAt', i.expires_at, 'rules', c.rules, 'rulesVersion', c.rules_version)
     FROM public.community_invites i JOIN public.communities c ON c.tenant_id = i.tenant_id AND c.id = i.community_id
     WHERE i.email_hash = mine AND i.redeemed_at IS NULL AND i.revoked_at IS NULL AND i.expires_at > now() AND c.status = 'published'
     ORDER BY i.expires_at;

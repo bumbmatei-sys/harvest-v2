@@ -2042,7 +2042,9 @@
     "landingAction": "Request a free account",
     "automaticConfirm": "You are signed in as {email}. Confirming this request adds your name and verified email to {organizer}’s contact list. Your newsletter and follow-up choices stay separate.",
     "automaticFormHelp": "Verified account claims automatically create or reuse an organizer contact. A new immutable notice explains this; earlier versions keep their original behavior.",
-    "responseRights": "Response preferences"
+    "responseRights": "Response preferences",
+    "discover": "Discover",
+    "myCommunities": "My communities"
   },
   "LandingEditor": {
     "edit": "Edit landing page",
@@ -2349,6 +2351,86 @@
       "visibility": "Visibility is chosen"
     },
     "checkDone": "Done",
-    "checkOpen": "Not done"
+    "checkOpen": "Not done",
+    "description": "Description (optional)",
+    "rules": "Rules (optional)",
+    "showInDiscover": "Show in Discover"
+  },
+  "CommunityPage": {
+    "rules": "Community rules",
+    "closed": "Joining is by invitation only."
+  },
+  "JoinDialog": {
+    "join": "Join",
+    "accept": "Accept invitation",
+    "title": "Join {name}",
+    "rules": "Community rules",
+    "acceptRules": "I accept the community rules",
+    "adult": "I confirm I am 18 or older",
+    "joining": "Joining…"
+  },
+  "CommunityHome": {
+    "welcome": "You're in.",
+    "feedSoon": "Feed coming soon",
+    "rules": "Community rules",
+    "myCommunities": "My communities"
+  },
+  "Discover": {
+    "title": "Discover",
+    "types": "Discover sections",
+    "communities": "Communities",
+    "courses": "Courses",
+    "products": "Products",
+    "comingSoon": "Coming soon",
+    "search": "Search communities",
+    "openOnly": "Open to join",
+    "empty": "No communities found",
+    "by": "By {host}",
+    "free": "Free",
+    "open": "Open to join",
+    "view": "View",
+    "viewNamed": "View {name}",
+    "more": "Load more"
+  },
+  "MyCommunities": {
+    "title": "My communities",
+    "discover": "Discover",
+    "joined": "Joined",
+    "joinedEmpty": "No communities yet.",
+    "invited": "Invited",
+    "invitedEmpty": "No invitations.",
+    "hosted": "Hosted",
+    "hostedEmpty": "You don't host a community.",
+    "open": "Open",
+    "manage": "Manage",
+    "expires": "Expires {date, date, medium}",
+    "status": {
+      "draft": "Draft",
+      "published": "Published",
+      "archived": "Archived"
+    }
+  },
+  "CommunityInvites": {
+    "invite": "Invite people",
+    "title": "Invite someone",
+    "email": "Email",
+    "create": "Create link",
+    "link": "Invitation link",
+    "copy": "Copy",
+    "copied": "Copied",
+    "expires": "Works once until {date}. Only this email can use it.",
+    "done": "Done",
+    "tableLabel": "Invitations",
+    "status": "Status",
+    "expiresHeader": "Expires",
+    "actions": "Actions",
+    "revoke": "Revoke",
+    "revokeNamed": "Revoke invitation for {email}",
+    "statuses": {
+      "pending": "Pending",
+      "redeemed": "Accepted",
+      "revoked": "Revoked",
+      "expired": "Expired"
+    }
   }
 }
