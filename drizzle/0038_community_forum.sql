@@ -45,7 +45,7 @@ CREATE TABLE "community_files" (
 	CONSTRAINT "community_file_status" CHECK ("community_files"."status" in ('pending', 'uploaded', 'quarantined', 'ready')),
 	CONSTRAINT "community_file_kind" CHECK ("community_files"."kind" in ('cover', 'attachment')),
 	CONSTRAINT "community_file_mime" CHECK ("community_files"."mime" in ('image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'text/plain') and ("community_files"."kind" = 'attachment' or "community_files"."mime" in ('image/jpeg', 'image/png', 'image/webp'))),
-	CONSTRAINT "community_file_key_scope" CHECK ("community_files"."key" = 'communities/' || "community_files"."tenant_id"::text || '/' || "community_files"."community_id"::text || '/files/' || "community_files"."id"::text),
+	CONSTRAINT "community_file_key_scope" CHECK ("community_files"."key" = 'workspaces/' || "community_files"."tenant_id"::text || '/communities/' || "community_files"."community_id"::text || '/files/' || "community_files"."id"::text),
 	CONSTRAINT "community_file_name" CHECK (length("community_files"."name") between 1 and 200)
 );
 --> statement-breakpoint
@@ -308,7 +308,7 @@ BEGIN
   SELECT * INTO ctx FROM public.community_forum_actor(p_slug);
   IF ctx.o_tenant IS NULL THEN RETURN public.community_forum_done('not_found'); END IF;
   INSERT INTO public.community_files (id, tenant_id, community_id, uploader_id, key, name, mime, size, checksum, kind)
-    VALUES (p_id, ctx.o_tenant, ctx.o_community, actor, 'communities/' || ctx.o_tenant::text || '/' || ctx.o_community::text || '/files/' || p_id::text,
+    VALUES (p_id, ctx.o_tenant, ctx.o_community, actor, 'workspaces/' || ctx.o_tenant::text || '/communities/' || ctx.o_community::text || '/files/' || p_id::text,
       p_name, p_mime, p_size, p_checksum, p_kind);
   RETURN public.community_forum_done('ok', p_id);
 END $$;--> statement-breakpoint
@@ -326,12 +326,26 @@ BEGIN
   UPDATE public.community_files SET status = p_status, updated_at = now() WHERE id = p_id;
   RETURN public.community_forum_done('ok', p_id);
 END $$;--> statement-breakpoint
+-- Member directory for readers: display name, role and join date of active members only. Never contact details.
+CREATE FUNCTION public.community_member_directory(p_slug text) RETURNS SETOF jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE ctx record;
+BEGIN
+  SELECT * INTO ctx FROM public.community_forum_actor(p_slug);
+  IF ctx.o_tenant IS NULL THEN PERFORM public.community_definer_reset(); RETURN; END IF;
+  RETURN QUERY SELECT jsonb_build_object('userId', m.user_id, 'name', u.name, 'role', m.role, 'joinedAt', m.joined_at)
+    FROM public.community_memberships m JOIN public.users u ON u.id = m.user_id
+    WHERE m.tenant_id = ctx.o_tenant AND m.community_id = ctx.o_community AND m.status = 'active'
+    ORDER BY CASE m.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'moderator' THEN 2 WHEN 'contributor' THEN 3 ELSE 4 END, m.joined_at NULLS LAST
+    LIMIT 1000;
+  PERFORM public.community_definer_reset();
+END $$;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.community_forum_actor(text), public.community_forum_done(text, uuid),
   public.community_post_save(text, uuid, uuid, text, jsonb, text, text, uuid, uuid[], boolean, boolean), public.community_post_delete(text, uuid),
   public.community_comment_save(text, uuid, uuid, text), public.community_comment_delete(text, uuid), public.community_like_toggle(text, text, uuid),
   public.community_moderate(text, text, uuid), public.community_file_create(text, uuid, text, text, text, integer, text),
-  public.community_file_set_status(text, uuid, text) FROM PUBLIC;--> statement-breakpoint
+  public.community_file_set_status(text, uuid, text), public.community_member_directory(text) FROM PUBLIC;--> statement-breakpoint
 GRANT EXECUTE ON FUNCTION public.community_post_save(text, uuid, uuid, text, jsonb, text, text, uuid, uuid[], boolean, boolean), public.community_post_delete(text, uuid),
   public.community_comment_save(text, uuid, uuid, text), public.community_comment_delete(text, uuid), public.community_like_toggle(text, text, uuid),
   public.community_moderate(text, text, uuid), public.community_file_create(text, uuid, text, text, text, integer, text),
-  public.community_file_set_status(text, uuid, text) TO harvest_app;
+  public.community_file_set_status(text, uuid, text), public.community_member_directory(text) TO harvest_app;

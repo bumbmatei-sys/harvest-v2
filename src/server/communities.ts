@@ -1,8 +1,9 @@
 import { and, asc, desc, eq, gt, isNull, lte, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
-import { auditLogs, communities, communityCategories, communityInvites, communityMemberships, discoverListings, entitlements, reservedCommunitySlugs, users, workspaces } from "../db/schema";
+import { auditLogs, communities, communityCategories, communityInvites, communityPosts, communityMemberships, discoverListings, entitlements, reservedCommunitySlugs, users, workspaces } from "../db/schema";
 import { questionSet } from "../lib/questions";
+import { categoryInput, forumLimits } from "../lib/forum";
 import { discoverEligible, emailHash, emailHint, hashSecret, listingFor, newInviteToken } from "../lib/community-listing";
 import { communityStaffRoles, type CommunityRole } from "../lib/community-permissions";
 import { readyToPublish } from "../lib/community-editor";
@@ -232,5 +233,79 @@ export async function revokeInvite(db: Database, userId: string, workspace: stri
       eq(communityInvites.id, invite), isNull(communityInvites.redeemedAt), isNull(communityInvites.revokedAt))).returning();
     if (!row) throw new AccessError(404, message("Errors.inviteInvalid"));
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "community.invite_revoke", targetId: id, metadata: { inviteId: invite } });
+  });
+}
+
+// PR 4b: forum categories (owner setup, editor Channels step). Staff path; at most 30; one must remain.
+const moveInput = z.object({ direction: z.enum(["up", "down"]) }).strict();
+
+export function listCategories(db: Database, userId: string, workspace: string, communityId: string) {
+  const id = z.uuid().parse(communityId);
+  return withTenant(db, userId, z.uuid().parse(workspace), "communities:read", async (tx, tenantId) => {
+    await ownCommunity(tx, tenantId, id);
+    return tx.select({ id: communityCategories.id, name: communityCategories.name, emoji: communityCategories.emoji, hostsOnly: communityCategories.hostsOnly,
+      posts: sql<number>`(select count(*)::int from community_posts p where p.category_id = ${communityCategories.id} and p.removed_at is null)` })
+      .from(communityCategories).where(and(eq(communityCategories.tenantId, tenantId), eq(communityCategories.communityId, id)))
+      .orderBy(asc(communityCategories.position), asc(communityCategories.createdAt));
+  });
+}
+
+export async function createCategory(db: Database, userId: string, workspace: string, communityId: string, raw: unknown) {
+  const input = categoryInput.parse(raw), id = z.uuid().parse(communityId);
+  return withTenant(db, userId, z.uuid().parse(workspace), "communities:manage", async (tx, tenantId) => {
+    await ownCommunity(tx, tenantId, id);
+    const [{ n, last }] = await tx.select({ n: sql<number>`count(*)::int`, last: sql<number>`coalesce(max(${communityCategories.position}), -1)::int` })
+      .from(communityCategories).where(and(eq(communityCategories.tenantId, tenantId), eq(communityCategories.communityId, id)));
+    if (n >= forumLimits.categories) throw new AccessError(409, message("Errors.categoryLimit"));
+    const [row] = await tx.insert(communityCategories).values({ tenantId, communityId: id, name: input.name, emoji: input.emoji || null, hostsOnly: input.hostsOnly, position: last + 1 }).returning();
+    await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "community.category_create", targetId: id, metadata: { categoryId: row.id } });
+    return row;
+  });
+}
+
+async function ownCategory(tx: Transaction, tenantId: string, communityId: string, categoryId: string) {
+  const [row] = await tx.select().from(communityCategories).where(and(eq(communityCategories.tenantId, tenantId), eq(communityCategories.communityId, communityId),
+    eq(communityCategories.id, z.uuid().parse(categoryId)))).for("update");
+  if (!row) throw new AccessError(404, message("Errors.communityNotFound"));
+  return row;
+}
+
+export async function updateCategory(db: Database, userId: string, workspace: string, communityId: string, categoryId: string, raw: unknown) {
+  const input = categoryInput.parse(raw), id = z.uuid().parse(communityId);
+  return withTenant(db, userId, z.uuid().parse(workspace), "communities:manage", async (tx, tenantId) => {
+    const category = await ownCategory(tx, tenantId, id, categoryId);
+    const [row] = await tx.update(communityCategories).set({ name: input.name, emoji: input.emoji || null, hostsOnly: input.hostsOnly })
+      .where(eq(communityCategories.id, category.id)).returning();
+    await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "community.category_update", targetId: id, metadata: { categoryId: category.id } });
+    return row;
+  });
+}
+
+export async function moveCategory(db: Database, userId: string, workspace: string, communityId: string, categoryId: string, raw: unknown) {
+  const { direction } = moveInput.parse(raw), id = z.uuid().parse(communityId);
+  return withTenant(db, userId, z.uuid().parse(workspace), "communities:manage", async (tx, tenantId) => {
+    await ownCategory(tx, tenantId, id, categoryId);
+    const all = await tx.select({ id: communityCategories.id }).from(communityCategories)
+      .where(and(eq(communityCategories.tenantId, tenantId), eq(communityCategories.communityId, id)))
+      .orderBy(asc(communityCategories.position), asc(communityCategories.createdAt)).for("update");
+    const order = all.map((c) => c.id), index = order.indexOf(categoryId), target = index + (direction === "up" ? -1 : 1);
+    if (target < 0 || target >= order.length) return { moved: false };
+    [order[index], order[target]] = [order[target], order[index]];
+    for (const [position, categoryIdAt] of order.entries()) await tx.update(communityCategories).set({ position }).where(eq(communityCategories.id, categoryIdAt));
+    return { moved: true };
+  });
+}
+
+export async function deleteCategory(db: Database, userId: string, workspace: string, communityId: string, categoryId: string) {
+  const id = z.uuid().parse(communityId);
+  return withTenant(db, userId, z.uuid().parse(workspace), "communities:manage", async (tx, tenantId) => {
+    const category = await ownCategory(tx, tenantId, id, categoryId);
+    const [{ posts }] = await tx.select({ posts: sql<number>`count(*)::int` }).from(communityPosts).where(eq(communityPosts.categoryId, category.id));
+    if (posts > 0) throw new AccessError(409, message("Errors.categoryNotEmpty"));
+    const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(communityCategories)
+      .where(and(eq(communityCategories.tenantId, tenantId), eq(communityCategories.communityId, id)));
+    if (n <= 1) throw new AccessError(409, message("Errors.categoryLast"));
+    await tx.delete(communityCategories).where(eq(communityCategories.id, category.id));
+    await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "community.category_delete", targetId: id, metadata: { categoryId: category.id } });
   });
 }

@@ -39,5 +39,5 @@ export const categoryInput = z.object({
 
 /** Object key for a member upload: never derived from a filename or client path. */
 export function communityFileKey(tenantId: string, communityId: string, fileId: string) {
-  return `communities/${z.uuid().parse(tenantId)}/${z.uuid().parse(communityId)}/files/${z.uuid().parse(fileId)}`;
+  return `workspaces/${z.uuid().parse(tenantId)}/communities/${z.uuid().parse(communityId)}/files/${z.uuid().parse(fileId)}`;
 }

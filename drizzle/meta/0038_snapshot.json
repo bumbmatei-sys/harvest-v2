@@ -2723,7 +2723,7 @@
         },
         "community_file_key_scope": {
           "name": "community_file_key_scope",
-          "value": "\"community_files\".\"key\" = 'communities/' || \"community_files\".\"tenant_id\"::text || '/' || \"community_files\".\"community_id\"::text || '/files/' || \"community_files\".\"id\"::text"
+          "value": "\"community_files\".\"key\" = 'workspaces/' || \"community_files\".\"tenant_id\"::text || '/communities/' || \"community_files\".\"community_id\"::text || '/files/' || \"community_files\".\"id\"::text"
         },
         "community_file_name": {
           "name": "community_file_name",

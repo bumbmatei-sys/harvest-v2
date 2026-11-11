@@ -1137,7 +1137,7 @@ export const communityFiles = pgTable("community_files", {
   check("community_file_status", sql`${t.status} in ('pending', 'uploaded', 'quarantined', 'ready')`),
   check("community_file_kind", sql`${t.kind} in ('cover', 'attachment')`),
   check("community_file_mime", sql`${t.mime} in ('image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'text/plain') and (${t.kind} = 'attachment' or ${t.mime} in ('image/jpeg', 'image/png', 'image/webp'))`),
-  check("community_file_key_scope", sql`${t.key} = 'communities/' || ${t.tenantId}::text || '/' || ${t.communityId}::text || '/files/' || ${t.id}::text`),
+  check("community_file_key_scope", sql`${t.key} = 'workspaces/' || ${t.tenantId}::text || '/communities/' || ${t.communityId}::text || '/files/' || ${t.id}::text`),
   check("community_file_name", sql`length(${t.name}) between 1 and 200`)]);
 
 export const communityPosts = pgTable("community_posts", {

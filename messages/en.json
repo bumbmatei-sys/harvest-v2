@@ -483,7 +483,15 @@
     "communityAnswersInvalid": "Check your answers and try again.",
     "communityAlreadyApplied": "You already applied to this community.",
     "applicationNotFound": "Application not found.",
-    "applicationChanged": "This application has changed. Reload and try again."
+    "applicationChanged": "This application has changed. Reload and try again.",
+    "forumActionNotAllowed": "You can't do that here.",
+    "forumInputInvalid": "Check the post and try again.",
+    "forumBodyInvalid": "The post text has formatting that isn't supported.",
+    "forumVideoInvalid": "Use a full https link for the video.",
+    "uploadNotAvailable": "This file isn't available.",
+    "categoryNotEmpty": "Move or remove this category's posts first.",
+    "categoryLimit": "A community can have up to 30 categories.",
+    "categoryLast": "A community needs at least one category."
   },
   "LibEnv": {
     "missingRequiredEnvironmentVariableValue": "Missing required environment variable: {name}"
