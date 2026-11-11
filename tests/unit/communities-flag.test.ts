@@ -13,7 +13,7 @@ vi.mock("@/server/http", () => ({
 }));
 afterEach(() => { vi.unstubAllEnvs(); touched.mockClear(); });
 
-const ids = { tenantId: "00000000-0000-4000-8000-000000000001", communityId: "00000000-0000-4000-8000-000000000002", inviteId: "00000000-0000-4000-8000-000000000003", slug: "grace-study" };
+const ids = { tenantId: "00000000-0000-4000-8000-000000000001", communityId: "00000000-0000-4000-8000-000000000002", inviteId: "00000000-0000-4000-8000-000000000003", applicationId: "00000000-0000-4000-8000-000000000004", slug: "grace-study" };
 const context = { params: Promise.resolve(ids) };
 const request = (method: string) => new Request("https://example.test/api", { method, headers: { origin: "https://example.test" }, body: method === "GET" ? undefined : "{}" });
 
@@ -26,8 +26,12 @@ it("returns 404 from every Communities route in production unless activated", as
   const discover = await import("../../src/app/api/discover/route");
   const invites = await import("../../src/app/api/workspaces/[tenantId]/communities/[communityId]/invites/route");
   const invite = await import("../../src/app/api/workspaces/[tenantId]/communities/[communityId]/invites/[inviteId]/route");
+  const applications = await import("../../src/app/api/workspaces/[tenantId]/communities/[communityId]/applications/route");
+  const application = await import("../../src/app/api/workspaces/[tenantId]/communities/[communityId]/applications/[applicationId]/route");
+  const mine = await import("../../src/app/api/account/community-applications/[applicationId]/route");
   const calls = [list.GET(request("GET"), context), list.POST(request("POST"), context), one.GET(request("GET"), context), one.PATCH(request("PATCH"), context), publish.POST(request("POST"), context),
-    join.POST(request("POST"), context), discover.GET(request("GET")), invites.GET(request("GET"), context), invites.POST(request("POST"), context), invite.DELETE(request("DELETE"), context)];
+    join.POST(request("POST"), context), discover.GET(request("GET")), invites.GET(request("GET"), context), invites.POST(request("POST"), context), invite.DELETE(request("DELETE"), context),
+    applications.GET(request("GET"), context), application.PATCH(request("PATCH"), context), mine.PATCH(request("PATCH"), context)];
   for (const response of await Promise.all(calls)) expect(response.status).toBe(404);
   expect(touched).not.toHaveBeenCalled();
 });
