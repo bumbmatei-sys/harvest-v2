@@ -25,7 +25,7 @@ const updateInput = z.object({
   allowInvite: z.boolean().optional(), allowEntitlement: z.boolean().optional(),
 }).strict();
 const grantInput = z.object({ userId: z.string().min(1).max(200), validUntil: z.iso.datetime().optional(), reason: z.string().trim().min(1).max(200).optional() }).strict();
-const revokeInput = z.object({ reason: z.string().trim().min(1).max(200).optional() }).strict();
+const revokeInput = z.object({}).strict();
 
 const uniqueViolation = (error: unknown) => (error as { cause?: { code?: string } })?.cause?.code === "23505" || (error as { code?: string })?.code === "23505";
 
@@ -80,7 +80,8 @@ export async function grantCommunityAccess(db: Database, userId: string, workspa
     if (membership?.status === "banned") throw new AccessError(409, message("Errors.communityMemberBanned"));
     const now = new Date();
     if (!membership) await tx.insert(communityMemberships).values({ tenantId, communityId: id, userId: input.userId, role: "member", status: "active", joinedAt: now });
-    else if (membership.status !== "active") await tx.update(communityMemberships).set({ status: "active", joinedAt: now, updatedAt: now }).where(where);
+    // Reactivation never restores a former staff role; staff roles are granted explicitly (review finding on #57).
+    else if (membership.status !== "active") await tx.update(communityMemberships).set({ status: "active", role: "member", joinedAt: now, updatedAt: now }).where(where);
     const [grant] = await tx.insert(entitlements).values({ tenantId, userId: input.userId, resourceType: "community", resourceId: id, source: "admin_grant",
       grantedBy: userId, validUntil: input.validUntil ? new Date(input.validUntil) : null, reason: input.reason ?? null }).returning();
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "community.access_grant", targetId: id, metadata: { source: "admin_grant", entitlementId: grant.id } });
@@ -113,8 +114,9 @@ export function communityAccess(db: Database, viewerId: string, communityId: str
     const [membership] = await tx.select().from(communityMemberships).where(and(eq(communityMemberships.communityId, id), eq(communityMemberships.userId, viewerId)));
     if (!membership || membership.status !== "active") return { allowed: false, role: null, sources: [] };
     const now = new Date();
+    // Only grants issued by the community's own ministry count (review finding on #57).
     const grants = await tx.select({ source: entitlements.source }).from(entitlements).where(and(
-      eq(entitlements.userId, viewerId), eq(entitlements.resourceType, "community"), eq(entitlements.resourceId, id),
+      eq(entitlements.tenantId, membership.tenantId), eq(entitlements.userId, viewerId), eq(entitlements.resourceType, "community"), eq(entitlements.resourceId, id),
       isNull(entitlements.revokedAt), lte(entitlements.validFrom, now), or(isNull(entitlements.validUntil), gt(entitlements.validUntil, now))));
     const role = membership.role as CommunityRole, sources = grants.map((g) => g.source).sort();
     return { allowed: communityStaffRoles.includes(role) || sources.length > 0, role, sources };

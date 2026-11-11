@@ -13,10 +13,18 @@ Ships in PR #57 with ADR 0013 (C01). Plan: `docs/superpowers/plans/2026-11-11-co
 - **Permissions:** ministry `communities:read` (all roles) and `communities:manage` (owner, admin); community capabilities in `src/lib/community-permissions.ts`.
 - **Services (`src/server/communities.ts`):** create (creator becomes active owner), list, update (optimistic version; paid pricing refused until the Commerce gate), admin access grant (activates membership; banned stays banned), revoke, and effective access (active membership plus staff role or any valid, unrevoked grant). Every write is audited.
 
+## Review fixes (independent review CHANGES-REQUESTED at 5e340e6)
+
+- Grant union now counts only grants from the community's own ministry; an `entitlements_guard` trigger refuses cross-ministry community grants (23503) and makes revocation final (23514).
+- Re-granting a former staff member reactivates them as `member`.
+- `revokeEntitlement` no longer accepts an unstored reason.
+- New tests: unfiltered staff selects in another ministry's context return only that ministry's rows for all three tables; cross-ministry inserts are refused; a foreign grant (even one inserted around the guard) does not count; revocation cannot be undone; members have no write path to any of the three tables; a reinstated admin comes back as a member.
+- ADR 0013 §4a records the content-table grant predicate, ministry-wide staff RLS, member-write `SECURITY DEFINER` paths for C06, no contact details through community paths, the accepted slug-taken signal, and the reactivation rule.
+
 ## Validation (author-executed, local)
 
 - Lint with source guards, typecheck, 349 unit tests (incl. community capabilities and the 0035 migration shape).
-- Integration `communities` (8) and `workspace-audience` (6), with two ministries and three communities: global and reserved slugs; ministry viewers list but cannot create; another ministry gets 403 and no rows; the member path returns only the person's active community; pending and banned people read nothing; re-granting a banned member is refused; access survives revoking one of two grants and ends with the last; expired grants are ignored; paid pricing and stale versions are refused; no DELETE on any of the three tables.
+- Integration `communities` (13 after the review fixes) and `workspace-audience` (6), with two ministries and three communities: global and reserved slugs; ministry viewers list but cannot create; another ministry gets 403 and no rows; the member path returns only the person's active community; pending and banned people read nothing; re-granting a banned member is refused; access survives revoking one of two grants and ends with the last; expired grants are ignored; paid pricing and stale versions are refused; no DELETE on any of the three tables.
 - `test:rls`: all pass except the four files that cannot run as root here; those, plus `communities`, passed as the unprivileged `tester` user (16 tests), which applies 0035 as a restricted migration owner.
 - Browser `ministry-audience` spec passes with the fourth option; screenshots updated and viewed.
 

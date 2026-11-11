@@ -101,3 +101,19 @@ CREATE POLICY communities_member ON public.communities FOR SELECT TO harvest_app
   USING (EXISTS (SELECT 1 FROM public.community_memberships m
     WHERE m.tenant_id = communities.tenant_id AND m.community_id = communities.id
       AND m.user_id = nullif(current_setting('app.user_id', true), '') AND m.status = 'active'));
+--> statement-breakpoint
+-- Review finding on #57: a community grant must belong to the community's own ministry, and revocation is final.
+-- Invoker rights on purpose: under RLS the caller only sees communities of their own tenant context.
+CREATE FUNCTION public.entitlements_guard() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, public AS $$
+BEGIN
+  IF NEW.resource_type = 'community' AND NOT EXISTS (
+    SELECT 1 FROM public.communities c WHERE c.tenant_id = NEW.tenant_id AND c.id = NEW.resource_id) THEN
+    RAISE EXCEPTION 'entitlement resource must belong to the same ministry' USING ERRCODE = '23503';
+  END IF;
+  IF TG_OP = 'UPDATE' AND OLD.revoked_at IS NOT NULL AND (NEW.revoked_at IS DISTINCT FROM OLD.revoked_at) THEN
+    RAISE EXCEPTION 'entitlement revocation is final' USING ERRCODE = '23514';
+  END IF;
+  RETURN NEW;
+END $$;
+--> statement-breakpoint
+CREATE TRIGGER entitlements_guard BEFORE INSERT OR UPDATE ON public.entitlements FOR EACH ROW EXECUTE FUNCTION public.entitlements_guard();
