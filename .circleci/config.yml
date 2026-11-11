@@ -3,9 +3,10 @@
 # MANUAL ONLY: select the exact PR head branch, set full_review=true and
 # expected_sha=<40-character SHA> and pr_number=<open PR number> in CircleCI's Trigger Pipeline dialog.
 # The browser suite is sharded across parallel containers and build/PWA runs beside it.
-# Neon migration verification is its own workflow and runs alongside the browser jobs; leave
-# run_neon=true (the default) for any PR that changes drizzle/, and set run_neon=false for PRs that
-# do not, which also keeps the restricted harvest-neon-ci context out of the run.
+# Neon migration verification is a separate manual run FROM main: select branch main and set
+# neon_only=true, expected_sha=<PR head SHA> and pr_number=<PR number>. It runs only trusted main code
+# and applies the PR's drizzle/ files to a disposable Neon branch, so the restricted harvest-neon-ci
+# context only ever sees a main config and never needs a per-PR rule.
 version: 2.1
 
 orbs:
@@ -21,9 +22,9 @@ parameters:
   pr_number:
     type: integer
     default: 0
-  run_neon:
+  neon_only:
     type: boolean
-    default: true
+    default: false
 
 commands:
   require_exact_head:
@@ -166,6 +167,8 @@ jobs:
       - run: npm run build
       - run: npm run test:pwa
 
+  # Runs from main (never from a PR branch). Only the candidate PR's drizzle/ files are copied in;
+  # no PR script, dependency or config is executed.
   neon_review:
     docker:
       - image: cimg/node:24
@@ -178,31 +181,28 @@ jobs:
     steps:
       - checkout
       - run:
-          name: Reject stale or wrong final-review source
+          name: Require a main pipeline and the exact current PR head
           command: |
             set -euo pipefail
-            test "$REVIEW_EXPECTED_SHA" = "${CIRCLE_SHA1:-}"
-            test "$REVIEW_EXPECTED_SHA" = "$(git rev-parse HEAD)"
-            test -n "${CIRCLE_BRANCH:-}"
-            test "$CIRCLE_BRANCH" != "main"
+            test "${CIRCLE_BRANCH:-}" = "main"
+            [[ "$REVIEW_EXPECTED_SHA" =~ ^[0-9a-f]{40}$ ]]
             [[ "$REVIEW_PR_NUMBER" =~ ^[1-9][0-9]*$ ]]
             test "$(git ls-remote origin "refs/pull/${REVIEW_PR_NUMBER}/head" | cut -f1)" = "$REVIEW_EXPECTED_SHA"
-            test "$(git ls-remote origin "refs/heads/${CIRCLE_BRANCH}" | cut -f1)" = "$REVIEW_EXPECTED_SHA"
+            git fetch --no-tags --depth=50 origin "refs/pull/${REVIEW_PR_NUMBER}/head"
+            test "$(git rev-parse FETCH_HEAD)" = "$REVIEW_EXPECTED_SHA"
       - run:
-          name: Use trusted CI scripts and package dependencies; only PR migration files
+          name: Use trusted main; take only the PR migration files
           command: |
             set -euo pipefail
-            # Fetch the reviewed, immutable Neon helper. Do not execute the PR's
-            # package scripts, dependencies, JS/TS or CircleCI helper here.
-            # After this PR merges the reviewed helper can move to main.
-            git fetch --no-tags origin "8a440e60df973d1ed11fcb48462d5ab234452317" --depth=1
-            git show "8a440e60df973d1ed11fcb48462d5ab234452317:scripts/neon-ci.ts" > /tmp/harvest-reviewed-neon-ci.ts
-            git fetch --no-tags origin main:refs/remotes/origin/main --depth=100
-            git checkout --detach --force origin/main
-            cp /tmp/harvest-reviewed-neon-ci.ts scripts/neon-ci.ts
-            # Candidate SQL + Drizzle journal only. Never copy package.json,
-            # executable code or scripts from a PR into this privileged job.
+            # Candidate SQL + Drizzle journal only, replacing main's drizzle/ exactly.
+            # Never copy package.json, executable code or scripts from a PR into this privileged job.
+            rm -rf drizzle
             git restore --source="$REVIEW_EXPECTED_SHA" --worktree --staged -- drizzle
+            # Migration files must be plain files: no symlinks, at the top level or inside.
+            if [ -L drizzle ] || find drizzle -type l | grep -q .; then
+              echo "drizzle/ contains a symlink; refusing."
+              exit 1
+            fi
             npm ci --ignore-scripts
             touch /tmp/harvest-neon-trusted-ready
       - run:
@@ -222,15 +222,17 @@ jobs:
           name: Delete this job's disposable Neon CI branch
           when: always
           command: |
-            # Trusted setup must finish before cleanup may execute. The pinned
-            # helper can recover run-owned branches even if its marker is lost.
+            # Trusted setup must finish before cleanup may execute.
             if [ -f /tmp/harvest-neon-trusted-ready ]; then
               npx tsx scripts/neon-ci.ts delete
             fi
 
 workflows:
   routine:
-    unless: << pipeline.parameters.full_review >>
+    unless:
+      or:
+        - << pipeline.parameters.full_review >>
+        - << pipeline.parameters.neon_only >>
     jobs:
       - fast_checks
 
@@ -240,13 +242,9 @@ workflows:
       - browser_review
       - build_pwa_review
 
-  # Independent of the browser jobs: it never executes PR code (candidate SQL and the journal only),
-  # so it does not need to wait for them. Skipped with run_neon=false for PRs that leave drizzle/ alone.
+  # Manual, from main: verifies a PR's migrations on a disposable Neon branch.
   neon_migrations:
-    when:
-      and:
-        - << pipeline.parameters.full_review >>
-        - << pipeline.parameters.run_neon >>
+    when: << pipeline.parameters.neon_only >>
     jobs:
       - neon_review:
           context: harvest-neon-ci

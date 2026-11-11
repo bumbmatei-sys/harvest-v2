@@ -351,4 +351,4 @@ git commit -m "docs: record the typed navigation registry"
 git push -u origin ccr-6e0472d8-g379wv
 ```
 
-- [ ] **Step 4: Update draft PR #51** title and description to cover the spec, plan and PR A; run the CircleCI final review on the exact head with `run_neon=false` (no `drizzle/` change); report results. Independent review by a separate fresh session before the founder decides on merge.
+- [ ] **Step 4: Update draft PR #51** title and description to cover the spec, plan and PR A; run the CircleCI final review on the exact head without the Neon run (no `drizzle/` change); report results. Independent review by a separate fresh session before the founder decides on merge.
