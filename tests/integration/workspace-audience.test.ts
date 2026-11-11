@@ -38,7 +38,7 @@ it("rejects an audience outside the three values, in the service and in the data
 it("lets owners and admins change the audience and audits each change", async () => {
   expect((await updateWorkspaceAudience(f.db, "a-admin", tenant, { audience: "ministry_nonprofit" })).audience).toBe("ministry_nonprofit");
   expect((await updateWorkspaceAudience(f.db, "a-owner", tenant, { audience: "evangelist_missionary" })).audience).toBe("evangelist_missionary");
-  const audit = (await f.admin.query("select actor_id, metadata from audit_logs where tenant_id = $1 and action = 'workspace.audience_update' order by id", [tenant])).rows;
+  const audit = (await f.admin.query("select actor_id, metadata from audit_logs where tenant_id = $1 and action = 'workspace.audience_update' order by created_at", [tenant])).rows;
   expect(audit).toEqual([
     { actor_id: "a-admin", metadata: { audience: "ministry_nonprofit", previousAudience: "church" } },
     { actor_id: "a-owner", metadata: { audience: "evangelist_missionary", previousAudience: "ministry_nonprofit" } },
