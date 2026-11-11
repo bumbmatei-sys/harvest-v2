@@ -3,9 +3,9 @@ import { comingSoonSteps, communityEditorSteps, publishChecklist, readyToPublish
 import { communitiesEnabled } from "../../src/server/communities-mode";
 
 const base = { name: "Bible study", visibility: "hidden", allowOpen: false, allowApply: false, allowInvite: true, allowEntitlement: false };
-it("lists all nine editor steps, four of them not yet available", () => {
+it("lists all nine editor steps, three of them not yet available (Channels is live in PR 4b)", () => {
   expect(communityEditorSteps).toHaveLength(9);
-  expect(comingSoonSteps).toEqual(["channels", "messages", "products", "page"]);
+  expect(comingSoonSteps).toEqual(["messages", "products", "page"]);
 });
 it("needs a name, a way in and a visibility before publishing", () => {
   expect(readyToPublish(base)).toBe(true);

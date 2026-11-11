@@ -2,7 +2,7 @@
 export const communityEditorSteps = ["offer", "basics", "joining", "channels", "messages", "people", "products", "page", "publish"] as const;
 export type CommunityEditorStep = typeof communityEditorSteps[number];
 /** Steps whose slices have not shipped yet; shown disabled with "Coming soon". */
-export const comingSoonSteps: readonly CommunityEditorStep[] = ["channels", "messages", "products", "page"];
+export const comingSoonSteps: readonly CommunityEditorStep[] = ["messages", "products", "page"];
 
 export type PublishFields = { name: string; visibility: string; allowOpen: boolean; allowApply: boolean; allowInvite: boolean; allowEntitlement: boolean };
 export type ChecklistItem = { key: "name" | "admission" | "visibility"; done: boolean };

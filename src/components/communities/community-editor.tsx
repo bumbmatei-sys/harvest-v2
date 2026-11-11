@@ -17,6 +17,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EditorShell } from "@/components/editor/editor-shell";
 import { CommunityJoinCard } from "@/components/communities/join-card";
+import { ForumCategoriesEditor, type ForumCategory } from "@/components/communities/forum-categories-editor";
 import { CommunityInvites, type CommunityInvite } from "@/components/communities/community-invites";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
@@ -45,8 +46,8 @@ const fieldsOf = (c: EditableCommunity): Fields => ({ name: c.name, tagline: c.t
   allowInvite: c.allowInvite, allowEntitlement: c.allowEntitlement, description: c.description, rulesList: c.rulesList, joinQuestions: c.joinQuestions, discoverOptIn: c.discoverOptIn });
 const same = (a: Fields, b: Fields) => (Object.keys(a) as (keyof Fields)[]).every((key) => equal(a[key], b[key]));
 
-export function CommunityEditor({ initial, members, invites, applications, endpoint, listHref, host, writable }: { initial: EditableCommunity; members: CommunityMember[]; invites: CommunityInvite[];
-  applications: ApplicationQueue | null; endpoint: string; listHref: string; host: string; writable: boolean }) {
+export function CommunityEditor({ initial, members, invites, applications, categories, endpoint, listHref, host, writable }: { initial: EditableCommunity; members: CommunityMember[]; invites: CommunityInvite[];
+  applications: ApplicationQueue | null; categories: ForumCategory[]; endpoint: string; listHref: string; host: string; writable: boolean }) {
   const t = useTranslations("CommunityEditor"), request = useCrmRequest();
   const [data, setData] = useState(initial), [fields, setFields] = useState(() => fieldsOf(initial));
   const [step, setStep] = useState<CommunityEditorStep>("basics");
@@ -130,6 +131,12 @@ export function CommunityEditor({ initial, members, invites, applications, endpo
           <Label htmlFor="community-questions-on" className="flex min-h-11 items-center gap-3 font-normal"><Switch id="community-questions-on" checked={questionsOn} disabled={!writable}
             onCheckedChange={(on) => { setQuestionsOn(on); if (!on) set("joinQuestions", []); }} />{t("questionsSwitch")}</Label></CardHeader>
           {questionsOn && <CardContent><QuestionListEditor questions={fields.joinQuestions} onChange={(next) => set("joinQuestions", next)} disabled={!writable} /></CardContent>}</Card>
+      </>}
+      {step === "channels" && <>
+        <Card><CardHeader><CardTitle><h3 className="text-base font-semibold">{t("forumCategories")}</h3></CardTitle></CardHeader>
+          <CardContent><ForumCategoriesEditor endpoint={endpoint} initial={categories} writable={writable} /></CardContent></Card>
+        <Card><CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3"><CardTitle><h3 className="text-base font-semibold">{t("chatChannels")}</h3></CardTitle>
+          <Badge variant="secondary">{t("comingSoon")}</Badge></CardHeader></Card>
       </>}
       {step === "people" && !writable && <p className="text-sm text-muted-foreground">{t("membersManagersOnly")}</p>}
       {step === "people" && writable && <div className="space-y-4">
