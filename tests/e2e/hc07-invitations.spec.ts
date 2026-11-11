@@ -55,6 +55,7 @@ for(const scheme of ["light","dark"] as const){
    await visitor.getByLabel("Six-digit code",{exact:true}).fill(code);await visitor.getByRole("button",{name:"Sign in",exact:true}).click();
    await expect(visitor.getByRole("button",{name:"Confirm this request for my account",exact:true})).toBeVisible();await expect(visitor.getByText(`You are signed in as ${email}.`,{exact:false})).toBeVisible();
    metrics.push(await capture(visitor,`confirm-mobile-${scheme}`));await visitor.getByRole("button",{name:"Confirm this request for my account",exact:true}).click();
+   await visitor.getByRole("button",{name:"Skip for now",exact:true}).click();
    await expect(visitor.getByRole("heading",{name:"Welcome to Harvest",exact:true})).toBeVisible();expect(visitor.url()).toContain("/account/welcome");
    await expect(visitor.getByRole("link",{name:"Return to the outreach page",exact:true})).toHaveAttribute("href",`/c/${link.publicCode}`);
    expect((await visitor.request.get("/api/workspaces")).ok()).toBe(true);const workspaces=await (await visitor.request.get("/api/workspaces")).json();expect(workspaces).toEqual([]);
@@ -96,7 +97,7 @@ test("HC-07 existing personal account, mismatch, switch and decline stay indepen
   await wrongPage.getByLabel("Email address",{exact:true}).fill(email);await wrongPage.getByRole("button",{name:"Send sign-in code",exact:true}).click();await expect(wrongPage.getByLabel("Six-digit code",{exact:true})).toBeVisible();
   let code="";await expect.poll(async()=>{code=(await mailbox()).filter(m=>m.to===email&&!m.idempotencyKey).at(-1)?.text.match(/\b\d{6}\b/)?.[0]??"";return code.length;}).toBe(6);
   await wrongPage.getByLabel("Six-digit code",{exact:true}).fill(code);await wrongPage.getByRole("button",{name:"Sign in",exact:true}).click();
-  await expect(wrongPage.getByRole("button",{name:"Continue without linking",exact:true})).toBeVisible();await wrongPage.getByRole("button",{name:"Continue without linking",exact:true}).click();await expect(wrongPage.getByRole("heading",{name:"Welcome to Harvest",exact:true})).toBeVisible();
+  await expect(wrongPage.getByRole("button",{name:"Continue without linking",exact:true})).toBeVisible();await wrongPage.getByRole("button",{name:"Continue without linking",exact:true}).click();await wrongPage.getByRole("button",{name:"Skip for now",exact:true}).click();await expect(wrongPage.getByRole("heading",{name:"Welcome to Harvest",exact:true})).toBeVisible();
   // Decline does not consume the invitation. A subsequent verified confirmation can still accept it.
   await wrongPage.goto(url);await wrongPage.getByRole("button",{name:"Continue securely",exact:true}).click();await wrongPage.getByRole("button",{name:"Confirm this request for my account",exact:true}).click();await expect(wrongPage.getByRole("heading",{name:"Welcome to Harvest",exact:true})).toBeVisible();
   const organizations=await (await wrongPage.request.get("/api/workspaces")).json();expect(organizations.map((w:{tenantId:string})=>w.tenantId)).toEqual([ownTenant]);
