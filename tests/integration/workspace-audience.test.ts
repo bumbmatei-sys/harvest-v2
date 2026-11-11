@@ -22,17 +22,21 @@ it("stores the audience chosen at creation and lists it for members", async () =
   expect((await listWorkspaces(f.db, "a-member")).find((item) => item.tenantId === tenant)?.audience).toBe("church");
 });
 
+it("accepts the creator audience for individual creators", async () => {
+  expect((await createWorkspace(f.db, "a-owner", "Solo creator", "creator")).audience).toBe("creator");
+});
+
 it("leaves the audience unspecified for ministries created without one", async () => {
   const legacy = await createWorkspace(f.db, "a-owner", "Older ministry");
   expect((await getWorkspace(f.db, "a-owner", legacy.tenantId)).audience).toBeNull();
 });
 
-it("rejects an audience outside the three values, in the service and in the database", async () => {
+it("rejects an audience outside the four values, in the service and in the database", async () => {
   // @ts-expect-error deliberately invalid
-  await expect(createWorkspace(f.db, "a-owner", "Bad", "creator")).rejects.toThrow();
-  await expect(updateWorkspaceAudience(f.db, "a-owner", tenant, { audience: "creator" })).rejects.toThrow();
+  await expect(createWorkspace(f.db, "a-owner", "Bad", "influencer")).rejects.toThrow();
+  await expect(updateWorkspaceAudience(f.db, "a-owner", tenant, { audience: "influencer" })).rejects.toThrow();
   await expect(updateWorkspaceAudience(f.db, "a-owner", tenant, { audience: "church", extra: true })).rejects.toThrow();
-  await expect(f.admin.query("update workspaces set audience = 'creator' where tenant_id = $1", [tenant])).rejects.toThrow(/workspace_audience/);
+  await expect(f.admin.query("update workspaces set audience = 'influencer' where tenant_id = $1", [tenant])).rejects.toThrow(/workspace_audience/);
 });
 
 it("lets owners and admins change the audience and audits each change", async () => {

@@ -61,4 +61,11 @@ it("keeps a single snapshot chain and an ordered migration journal (reserved num
   const profilesNew = Object.keys(snapshots[profilesIndex].tables).filter((name) => !(name in snapshots[profilesIndex - 1].tables));
   expect(profilesNew).toEqual(["public.user_profiles"]);
   for (const table of Object.keys(snapshots[profilesIndex - 1].tables)) expect(snapshots[profilesIndex].tables[table], table).toEqual(snapshots[profilesIndex - 1].tables[table]);
+  // ADR 0013 (C02/C03): 0035 adds the three community tables and only widens the workspace audience check.
+  const communitiesIndex = journal.entries.findIndex((entry: { tag: string }) => entry.tag === "0035_communities");
+  expect(communitiesIndex).toBeGreaterThan(0);
+  const [cBefore, cAfter] = [snapshots[communitiesIndex - 1], snapshots[communitiesIndex]];
+  expect(Object.keys(cAfter.tables).filter((name) => !(name in cBefore.tables)).sort()).toEqual(["public.communities", "public.community_memberships", "public.entitlements"]);
+  for (const table of Object.keys(cBefore.tables)) if (table !== "public.workspaces") expect(cAfter.tables[table], table).toEqual(cBefore.tables[table]);
+  expect(cAfter.tables["public.workspaces"].checkConstraints.workspace_audience.value).toContain("'creator'");
 });
