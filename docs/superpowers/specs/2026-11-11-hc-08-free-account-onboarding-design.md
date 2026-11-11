@@ -1,6 +1,6 @@
 # HC-08 — Free-account onboarding and profile (design)
 
-Status: design approved by the founder on 11 Nov 2026; spec awaiting founder review. No code, migration or PR exists yet.
+Status: design approved by the founder on 11 Nov 2026. Implementation plan: `docs/superpowers/plans/2026-11-11-hc-08-free-account-onboarding.md`.
 
 Slice contract (`docs/prd/harvest-connect-slices.md`): *Free identity/profile, purpose preferences, onboarding. Done when an account activates and preferences work while choosing no community.* Dependencies HC-07 (verified claim, merged) and HC-06 (linked-response completion, merged).
 
@@ -52,8 +52,7 @@ user_profiles
 
 - **`/account/onboarding`:** `AccountProfileFields` (name, language select, optional city), then a path RadioGroup. `Explore later` is selected; the other three options are disabled with a "Coming soon" badge and are not focus targets that look actionable. Buttons: `Save and continue` and `Skip for now`, both going to `/account/welcome` (preserving a safe `from` path through `safeSourcePath`).
 - **`/account/profile`:** the same `AccountProfileFields`, saved through the profile endpoint.
-- **`/account/welcome`:** shows a `Finish setup` link while onboarding is pending; the response-rights link stays.
-- **Claim completion:** a new account whose profile is pending is sent to `/account/onboarding` (with the `from` path); an account that is completed or skipped goes to `/account/welcome` as today. An account that existed before the migration has a skipped row (backfill) and goes straight to the welcome page. The redirect rule is only "onboarding status is pending".
+- **`/account/welcome`:** accounts whose onboarding status is `pending` are redirected to `/account/onboarding` (keeping a safe `from` path). Once skipped, the page shows a `Finish setup` link. The response-rights link stays. The invitation claim service and its tests are unchanged: the redirect happens on the welcome page, which also covers people who sign in directly. An account that existed before the migration has a skipped row (backfill), so it goes straight to the welcome page. The redirect rule is only "onboarding status is pending".
 - Copy stays concise: no explanatory paragraph under fields; the city field is labelled "City (optional)". Provider-neutral wording; "ministry" wording unaffected.
 
 ### Reuse
