@@ -97,6 +97,35 @@ it("gives the runtime role no delete right on community tables", async () => {
   expect((await f.admin.query("select count(*)::int as n from communities")).rows[0].n).toBe(3);
 });
 
+it("publishes only a ready community, keeps it ready while live, lists members for managers only, and refuses viewers", async () => {
+  const { getCommunity, listCommunityMembers, publishCommunity } = await import("../../src/server/communities");
+  const current = await getCommunity(f.db, "c-a-viewer", a, a1);
+  await updateCommunity(f.db, "c-a-owner", a, a1, { version: current.version, allowInvite: false });
+  const closed = await getCommunity(f.db, "c-a-owner", a, a1);
+  await expect(publishCommunity(f.db, "c-a-owner", a, a1, { version: closed.version, published: true })).rejects.toMatchObject({ status: 409 });
+  const open = await updateCommunity(f.db, "c-a-owner", a, a1, { version: closed.version, allowOpen: true });
+  await expect(publishCommunity(f.db, "c-a-viewer", a, a1, { version: open.version, published: true })).rejects.toMatchObject({ status: 403 });
+  const published = await publishCommunity(f.db, "c-a-owner", a, a1, { version: open.version, published: true });
+  expect(published).toMatchObject({ status: "published", version: open.version + 1 });
+  await expect(publishCommunity(f.db, "c-a-owner", a, a1, { version: open.version, published: false })).rejects.toMatchObject({ status: 409 });
+  // A live community cannot be edited out of the checklist.
+  await expect(updateCommunity(f.db, "c-a-owner", a, a1, { version: published.version, allowOpen: false })).rejects.toMatchObject({ status: 409 });
+  const draft = await publishCommunity(f.db, "c-a-owner", a, a1, { version: published.version, published: false });
+  expect(draft.status).toBe("draft");
+  const members = await listCommunityMembers(f.db, "c-a-owner", a, a1);
+  expect(members[0]).toEqual({ userId: "c-a-owner", name: "c-a-owner", role: "owner", status: "active" });
+  expect(Object.keys(members[0])).not.toContain("email");
+  // The roster is for managers only, and never for another ministry.
+  await expect(listCommunityMembers(f.db, "c-a-viewer", a, a1)).rejects.toMatchObject({ status: 403 });
+  await expect(listCommunityMembers(f.db, "c-b-owner", a, a1)).rejects.toMatchObject({ status: 403 });
+  // An archived community can be neither published nor unpublished (nothing archives yet, so set it directly).
+  await f.admin.query("update communities set status = 'archived' where id = $1", [a1]);
+  await expect(publishCommunity(f.db, "c-a-owner", a, a1, { version: draft.version, published: false })).rejects.toMatchObject({ status: 409 });
+  await expect(publishCommunity(f.db, "c-a-owner", a, a1, { version: draft.version, published: true })).rejects.toMatchObject({ status: 409 });
+  await f.admin.query("update communities set status = 'draft' where id = $1", [a1]);
+  expect((await f.admin.query("select action from audit_logs where target_id = $1 and action like 'community.%publish' order by created_at", [a1])).rows.map((r) => r.action)).toEqual(["community.publish", "community.unpublish"]);
+});
+
 it("keeps staff paths inside their own ministry for every community table, and refuses cross-ministry writes", async () => {
   const seen = await withTenant(f.db, "c-b-owner", b, "communities:read", async (tx) => ({
     communities: (await tx.execute(sql`select tenant_id from communities`)).rows,

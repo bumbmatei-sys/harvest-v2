@@ -5,7 +5,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useState } from "react";
 import { Building2, ChevronRight, ChevronsUpDown, LogOut, Sprout } from "lucide-react";
-import { resolveNavigation, sectionLabel } from "@/lib/navigation";
+import { resolveNavigation, sectionLabel, type NavFeature } from "@/lib/navigation";
 import type { Audience } from "@/lib/audience";
 import { authClient } from "@/lib/auth-client";
 import { NotificationsMenu } from "@/components/crm/tasks/notifications-menu";
@@ -62,7 +62,8 @@ function WorkspaceSwitcher({ workspaces, selected, container }: { workspaces: Wo
     </DropdownMenuContent>
   </DropdownMenu></SidebarMenuItem></SidebarMenu>;
 }
-export function AppShell({ children, workspaces, selected, email, brandTheme = "harvest", defaultOpen = true }: {
+export function AppShell({ children, workspaces, selected, email, brandTheme = "harvest", defaultOpen = true, features = [] }: {
+  features?: readonly NavFeature[];
   children: React.ReactNode; workspaces: Workspace[]; selected?: string; email: string; brandTheme?: BrandTheme; defaultOpen?: boolean;
 }) {
   const t = useTranslations("ComponentsAppShell");
@@ -99,7 +100,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
             <WorkspaceSwitcher workspaces={workspaces} selected={workspace} container={navigationContainer} />
             <SidebarMenu className="mt-px gap-px"><NavigationLink href="/workspaces" active={!selected} label={t("workspaces")} icon={<Building2 aria-hidden="true" />} /></SidebarMenu>
           </SidebarGroup>
-          {selected && resolveNavigation({ tenantId: selected, role: workspace?.role, audience: workspace?.audience, pathname }).map((group) => <NavigationGroup key={group.id} label={t(group.label)}>
+          {selected && resolveNavigation({ tenantId: selected, role: workspace?.role, audience: workspace?.audience, pathname, features }).map((group) => <NavigationGroup key={group.id} label={t(group.label)}>
             {group.items.map(({ id, href, active, label, icon: Icon }) => <NavigationLink key={id} href={href} active={active} label={t(label)} icon={<Icon aria-hidden="true" />} />)}
           </NavigationGroup>)}
         </nav></SidebarContent>

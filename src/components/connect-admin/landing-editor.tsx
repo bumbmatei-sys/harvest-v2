@@ -1,6 +1,7 @@
 "use client";
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useId, useRef, useState } from "react";
+import { useId, useState } from "react";
+import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
 import { useTranslations } from "next-intl";
 import { ArrowLeft, ArrowDown, ArrowUp, Plus, Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -25,41 +26,10 @@ export function LandingEditor({ initial, endpoint, backHref, manifest }: { initi
   const [data, setData] = useState(initial), [heading, setHeading] = useState(initial.definition.heading), [welcome, setWelcome] = useState(initial.definition.message);
   const [cards, setCards] = useState(() => initial.definition.cards.map((card, index) => ({ id: `${id}-${index}`, card })));
   const [busy, setBusy] = useState<"save" | "publish" | null>(null), [error, setError] = useState(""), [notice, setNotice] = useState("");
-  const [conflict, setConflict] = useState(false), [destination, setDestination] = useState<string | null>(null);
+  const [conflict, setConflict] = useState(false);
   const definition: LandingDefinition = { heading, message: welcome, cards: cards.map(({ card }) => card) };
-  const dirty = !sameLandingDefinition(definition, data.definition), dirtyRef = useRef(dirty);
-  useLayoutEffect(() => { dirtyRef.current = dirty || busy !== null; }, [dirty, busy]);
-  useEffect(() => {
-    function unload(event: BeforeUnloadEvent) { if (dirtyRef.current) { event.preventDefault(); event.returnValue = ""; } }
-    function click(event: MouseEvent) {
-      const anchor = event.target instanceof Element ? event.target.closest("a") : null;
-      if (!dirtyRef.current || !anchor || anchor.target === "_blank" || anchor.hasAttribute("download") || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey || event.button !== 0) return;
-      const url = new URL(anchor.href, location.href);
-      if (url.href === location.href || (url.pathname === location.pathname && url.search === location.search && url.hash)) return;
-      event.preventDefault(); event.stopPropagation(); setDestination(url.href);
-    }
-    // Navigation API cancels history before the route changes. Older browsers use the
-    // capture-phase popstate fallback below; beforeunload protects full-document navigation.
-    const navigation = (window as unknown as { navigation?: EventTarget }).navigation;
-    function navigate(event: Event) {
-      const e = event as Event & { navigationType?: string; destination?: { url: string }; canIntercept?: boolean };
-      if (dirtyRef.current && e.navigationType === "traverse" && e.cancelable && e.destination) { e.preventDefault(); setDestination(e.destination.url); }
-    }
-    const editorUrl = location.href, editorState = history.state;
-    function pop(event: Event) {
-      if (navigation || !dirtyRef.current) return;
-      const destination = new URL(location.href), editor = new URL(editorUrl);
-      if (destination.pathname === editor.pathname && destination.search === editor.search) return;
-      // Next has not handled this event yet. Restore the editor's URL/state before
-      // asking; explicit Leave navigates to the actual destination, regardless of
-      // how many entries Back/Forward traversed. The compatibility fallback replaces
-      // the forward branch while preserving the draft and chosen destination.
-      event.preventDefault(); history.pushState(editorState, "", editorUrl); setDestination(destination.href);
-    }
-    window.addEventListener("harvest-before-history", pop);
-    window.addEventListener("beforeunload", unload); document.addEventListener("click", click, true); navigation?.addEventListener("navigate", navigate);
-    return () => { window.removeEventListener("harvest-before-history", pop); window.removeEventListener("beforeunload", unload); document.removeEventListener("click", click, true); navigation?.removeEventListener("navigate", navigate); };
-  }, []);
+  const dirty = !sameLandingDefinition(definition, data.definition);
+  const { destination, setDestination, leave } = useUnsavedChangesGuard(dirty || busy !== null);
   async function persist(publish: boolean) {
     setError(""); setNotice("");
     if (!publish && !landingDefinition.safeParse(definition).success) { setError(t("invalid")); return; }
@@ -135,6 +105,6 @@ export function LandingEditor({ initial, endpoint, backHref, manifest }: { initi
         </div>
       </section>
     </div>
-    <AlertDialog open={destination !== null} onOpenChange={open => { if (!open) { setDestination(null); } }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{t("leaveTitle")}</AlertDialogTitle><AlertDialogDescription>{t("leaveBody")}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel className="min-h-11">{t("stay")}</AlertDialogCancel><AlertDialogAction className="min-h-11" onClick={() => { dirtyRef.current = false; if (destination) location.assign(destination); }}>{t("leave")}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+    <AlertDialog open={destination !== null} onOpenChange={open => { if (!open) { setDestination(null); } }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{t("leaveTitle")}</AlertDialogTitle><AlertDialogDescription>{t("leaveBody")}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel className="min-h-11">{t("stay")}</AlertDialogCancel><AlertDialogAction className="min-h-11" onClick={leave}>{t("leave")}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </div>;
 }
