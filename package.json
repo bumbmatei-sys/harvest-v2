@@ -22,7 +22,8 @@
     "jobs:drain": "tsx scripts/drain-jobs.ts",
     "connect:drain:test": "tsx scripts/drain-connect-invitations.ts",
     "connect:purge:test": "tsx scripts/purge-connect-intake.ts",
-    "ui:add": "shadcn add"
+    "ui:add": "shadcn add",
+    "communities:purge-applications": "tsx scripts/purge-community-applications.ts"
   },
   "engines": {
     "node": ">=22"

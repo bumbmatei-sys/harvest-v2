@@ -71,7 +71,10 @@ it("lets invitations skip the queue and refuses banned people", async () => {
   const token = newInviteToken();
   await f.admin.query(`insert into community_invites (tenant_id, community_id, email_hash, email_hint, token_hash, expires_at) values ($1, $2, $3, $4, $5, now() + interval '1 day')`,
     [a, club, emailHash("p-invited@example.test"), emailHint("p-invited@example.test"), hashSecret(token)]);
+  // An open application is closed when the same person joins by invitation.
+  expect(await enter("p-invited")).toBe("applied");
   expect(await enter("p-invited", good, 1, hashSecret(token))).toBe("joined");
+  expect((await f.admin.query("select status from community_applications where user_id = 'p-invited'")).rows).toEqual([{ status: "withdrawn" }]);
   await f.admin.query("insert into community_memberships (tenant_id, community_id, user_id, role, status) values ($1, $2, 'p-banned', 'member', 'banned')", [a, club]);
   expect(await enter("p-banned")).toBe("banned");
   expect((await f.admin.query("select count(*)::int as n from community_applications where user_id = 'p-banned'")).rows[0].n).toBe(0);

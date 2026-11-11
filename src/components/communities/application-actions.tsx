@@ -7,12 +7,25 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { answersComplete, QuestionFields } from "@/components/forms/question-fields";
 import { useCrmRequest } from "@/components/crm/request";
+import type { Answers, Question } from "@/lib/questions";
 import type { MyApplication } from "@/server/community-joining";
+
+/** Keeps only answers that still match the current questions and options (the owner may have edited them). */
+function currentAnswers(questions: Question[], answers: Answers): Answers {
+  const out: Answers = {};
+  for (const q of questions) {
+    const value = answers[q.id];
+    if (value === undefined) continue;
+    if (q.type === "checkboxes") { const kept = (Array.isArray(value) ? value : []).filter((v) => q.options?.includes(v)); if (kept.length) out[q.id] = kept; }
+    else if (typeof value === "string" && (q.type !== "choice" || q.options?.includes(value))) out[q.id] = value;
+  }
+  return out;
+}
 
 /** The applicant's own actions: withdraw a pending application, or edit answers after the community asked for more. */
 export function ApplicationActions({ application }: { application: MyApplication }) {
   const t = useTranslations("MyCommunities"), request = useCrmRequest(), router = useRouter();
-  const [open, setOpen] = useState(false), [answers, setAnswers] = useState(application.answers), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const [open, setOpen] = useState(false), [answers, setAnswers] = useState(() => currentAnswers(application.joinQuestions, application.answers)), [busy, setBusy] = useState(false), [error, setError] = useState("");
   async function send(body: Record<string, unknown>) {
     setBusy(true); setError("");
     const result = await request(`/api/account/community-applications/${application.id}`, { method: "PATCH", body });

@@ -182,7 +182,12 @@ BEGIN
     PERFORM public.community_definer_reset();
     RETURN 'applied';
   END IF;
-  IF via_invite THEN UPDATE public.community_invites SET redeemed_at = now(), redeemed_by = actor WHERE id = invite_id; END IF;
+  IF via_invite THEN
+    UPDATE public.community_invites SET redeemed_at = now(), redeemed_by = actor WHERE id = invite_id;
+    -- An invitation supersedes any open application by the same person (review on #60).
+    UPDATE public.community_applications SET status = 'withdrawn', decided_at = now(), updated_at = now()
+      WHERE tenant_id = c.tenant_id AND community_id = c.id AND user_id = actor AND status IN ('pending', 'info_requested');
+  END IF;
   IF NOT had_membership THEN
     INSERT INTO public.community_memberships (tenant_id, community_id, user_id, role, status, joined_at, rules_version_accepted, adult_confirmed_at, join_answers)
       VALUES (c.tenant_id, c.id, actor, 'member', 'active', now(), c.rules_version, now(), answers)

@@ -68,7 +68,21 @@ Design: `docs/superpowers/specs/2026-11-11-communities-pr4a-applications-questio
 ## Deviations from the design
 
 - **Question editing on phones:** it expands in place (full width) instead of opening a side sheet. This is simpler and accessible, with one control pattern at every size.
-- **Purge scheduling:** the purge is a database function. Scheduling it with the existing jobs drain is deferred until the drain runs in production; until then it can be run on demand.
+- **Purge scheduling:** the purge is a database function run by `npm run communities:purge-applications` (application role only). Scheduling that daily belongs to the production job setup, which does not exist yet; it must be scheduled before activation.
+
+## Review follow-up (non-author review of `26da77f`: MERGE-OK with five should-fix items)
+
+- **Editing answers after the questions change:** the edit dialog now starts only from answers that still match the current questions and options, so an applicant is never stuck with answers they can't see.
+- **Discover's "open" label:** a community where people must apply first is no longer labelled "Open to join" in Discover (unit test).
+- **Purge caller:** the purge now has a command, `npm run communities:purge-applications`, which runs only as the application role. Scheduling it remains an activation step.
+- **Former admins:** a test shows that a former admin who applies again comes back as a member when approved.
+- **Invitations close open applications:** joining by invitation now closes that person's open application, so the queue never shows a request from an active member (database test).
+- **Optional items not taken:**
+  - **Malformed questions:** the SQL check could accept questions written directly in the database with a broken shape; the server validates every question before saving, so this needs direct database access.
+  - **Pricing on approval:** approving doesn't re-check pricing, but paid pricing cannot be set yet.
+  - **Re-application cooldown:** declined people can apply again straight away; no cooldown has been decided.
+  - **Moderators deciding applications:** waits for community roles in the member layout (PR 4b).
+  - **Move up/down focus:** not handled yet; noted for the accessibility pass.
 
 ## Deferred
 

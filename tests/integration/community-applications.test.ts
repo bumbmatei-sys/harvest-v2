@@ -10,7 +10,7 @@ import type { Question } from "../../src/lib/questions";
 
 // PR 4a services: questions and rules in the editor, open join with answers, applications and decisions.
 let f: Awaited<ReturnType<typeof testDatabase>>, a: string, b: string, club: string;
-const people = ["q-owner", "q-viewer", "q-b-owner", "q-open", "q-apply", "q-decline", "q-withdraw"];
+const people = ["q-owner", "q-viewer", "q-b-owner", "q-open", "q-apply", "q-decline", "q-withdraw", "q-former-admin"];
 const questions: Question[] = [
   { id: "aaaaaaaa", type: "short", label: "City", required: true },
   { id: "bbbbbbbb", type: "choice", label: "Member?", required: true, options: ["Yes", "No"] },
@@ -103,4 +103,12 @@ it("refuses a banned person's approval and limits the queue to the community's m
   await expect(listApplications(f.db, "q-b-owner", a, club)).rejects.toMatchObject({ status: 403 });
   await expect(listApplications(f.db, "q-b-owner", b, club)).rejects.toMatchObject({ status: 404 });
   await expect(decideApplication(f.db, "q-b-owner", b, club, banned.id, { action: "decline" })).rejects.toMatchObject({ status: 404 });
+});
+
+it("never restores a staff role when a former admin applies again and is approved", async () => {
+  await f.admin.query("insert into community_memberships (tenant_id, community_id, user_id, role, status) values ($1, $2, 'q-former-admin', 'admin', 'left')", [a, club]);
+  expect(await join("q-former-admin")).toEqual({ outcome: "applied" });
+  const application = (await queue()).find((x) => x.name === "q-former-admin")!;
+  expect(await decideApplication(f.db, "q-owner", a, club, application.id, { action: "approve" })).toEqual({ status: "approved" });
+  expect((await f.admin.query("select role, status from community_memberships where user_id = 'q-former-admin'")).rows).toEqual([{ role: "member", status: "active" }]);
 });
