@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, expect, it } from "vitest";
+import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { sql } from "drizzle-orm";
 import { testDatabase } from "../database";
 import { users } from "../../src/db/schema";
@@ -114,9 +114,27 @@ it("answers a fake invitation identically for a missing and a hidden community, 
   await f.admin.query("update communities set allow_invite = false where id = $1", [hidden]);
   expect(await enter("j-b-owner", "secret-team", 0, true, hashSecret(token))).toBe("invite_invalid");
   await f.admin.query("update communities set allow_invite = true where id = $1", [hidden]);
-  // Two simultaneous first joins by one person: one joins, the other reports already_member (no error).
+  // Two simultaneous first joins by one person on separate connections: the second waits on the first insert, then
+  // reports already_member through ON CONFLICT instead of failing (review on #59).
   await f.db.insert(users).values({ id: "j-twice", name: "j-twice", email: "j-twice@example.test", emailVerified: true });
-  expect((await Promise.all([enter("j-twice", "open-study", 1, true), enter("j-twice", "open-study", 1, true)])).sort()).toEqual(["already_member", "joined"]);
+  const { Client } = await import("pg");
+  const one = new Client({ connectionString: f.appURL }), two = new Client({ connectionString: f.appURL });
+  await one.connect(); await two.connect();
+  try {
+    for (const client of [one, two]) { await client.query("begin"); await client.query("select set_config('app.user_id', 'j-twice', true)"); }
+    const call = (client: InstanceType<typeof Client>) => client.query<{ o: string }>("select public.community_enter('open-study', 1, true, null, null) as o");
+    const first = (await call(one)).rows[0].o;
+    const second = call(two);
+    // Prove the second call is really blocked on the first, uncommitted membership row before releasing it.
+    await vi.waitFor(async () => {
+      const { rows } = await f.admin.query("select count(*)::int as n from pg_stat_activity where wait_event_type = 'Lock' and query like '%community_enter%'");
+      expect(rows[0].n).toBe(1);
+    }, { timeout: 5000, interval: 50 });
+    await one.query("commit");
+    expect([first, (await second).rows[0].o]).toEqual(["joined", "already_member"]);
+    await two.query("commit");
+  } finally { await one.end(); await two.end(); }
   expect((await f.admin.query("select count(*)::int as n from community_memberships where user_id = 'j-twice'")).rows[0].n).toBe(1);
+  expect((await f.admin.query("select count(*)::int as n from entitlements where user_id = 'j-twice'")).rows[0].n).toBe(1);
 });
 
