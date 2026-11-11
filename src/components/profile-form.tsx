@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-export function ProfileForm({ current,personal=false }: { current: string | null;personal?:boolean }) {
+export function ProfileForm({ current }: { current: string | null }) {
   const t = useTranslations("Profile"), router = useRouter(), hydrated = useHydrated();
   const [locale, setLocale] = useState(current ?? "auto");
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [saved, setSaved] = useState(false);
@@ -17,7 +17,7 @@ export function ProfileForm({ current,personal=false }: { current: string | null
     event.preventDefault(); setBusy(true); setError(""); setSaved(false);
     try {
       const response = await fetch("/api/profile", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ locale: locale === "auto" ? null : locale }) });
-      if (response.status === 401) { router.replace(personal?"/sign-in?personal=1":"/sign-in"); return; }
+      if (response.status === 401) { router.replace("/sign-in"); return; }
       if (!response.ok) { setError(t("saveFailed")); return; }
       setSaved(true); router.refresh();
     } catch { setError(t("connectionFailed")); }
