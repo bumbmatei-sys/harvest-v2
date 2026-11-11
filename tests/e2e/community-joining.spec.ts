@@ -45,7 +45,7 @@ test("discover, join with rules, invitations and my communities", async ({ page,
     return (await response.json()) as { version: number };
   };
   const study = await create("Grace Bible Study", `grace-study-${suffix}`), studySlug = `grace-study-${suffix}`;
-  const saved = await patch(study.id, { tagline: "Weekly study and prayer", description: "We read through one book a term.", allowOpen: true, visibility: "listed", discoverOptIn: true, rules: "Be kind.\nKeep prayer requests private." });
+  const saved = await patch(study.id, { tagline: "Weekly study and prayer", description: "We read through one book a term.", allowOpen: true, visibility: "listed", discoverOptIn: true, rulesList: ["Be kind.", "Keep prayer requests private."] });
   expect((await page.request.post(`${api}/${study.id}/publish`, { headers: { origin }, data: { version: saved.version, published: true } })).status()).toBe(200);
 
   // A member finds the community in Discover and joins after accepting the rules and confirming their age.
@@ -80,7 +80,7 @@ test("discover, join with rules, invitations and my communities", async ({ page,
     const dialog = late.page.getByRole("dialog", { name: "Join Grace Bible Study" });
     await dialog.getByLabel("I accept the community rules").click();
     await dialog.getByLabel("I confirm I am 18 or older").click();
-    await patch(study.id, { rules: "Be kind.\nKeep prayer requests private.\nNo selling." });
+    await patch(study.id, { rulesList: ["Be kind.", "Keep prayer requests private.", "No selling."] });
     await dialog.getByRole("button", { name: "Join", exact: true }).click();
     await expect(dialog.getByRole("alert").filter({ hasText: "The community rules changed" })).toBeVisible();
     await expect(dialog.getByText("No selling.")).toBeVisible();

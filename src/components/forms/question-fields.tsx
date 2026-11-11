@@ -19,9 +19,9 @@ export function QuestionFields({ questions, values, onChange, disabled = false, 
   return <div className="space-y-5">
     {questions.map((q) => {
       const id = `${idPrefix}-${q.id}`, label = <>{q.label}{q.required && <span aria-hidden="true">{t("requiredMark")}</span>}</>;
-      if (q.type === "choice") return <fieldset key={q.id} className="space-y-2" aria-required={q.required}>
+      if (q.type === "choice") return <fieldset key={q.id} className="space-y-2">
         <legend className="mb-2 text-sm font-medium">{label}{q.required && <span className="sr-only"> {t("required")}</span>}</legend>
-        <RadioGroup value={(values[q.id] as string) ?? ""} onValueChange={(value) => set(q.id, value)} disabled={disabled} className="gap-2">
+        <RadioGroup value={(values[q.id] as string) ?? ""} onValueChange={(value) => set(q.id, value)} disabled={disabled} required={q.required} aria-required={q.required} className="gap-2">
           {q.options!.map((option, i) => <Label key={option} htmlFor={`${id}-${i}`} className="flex min-h-11 items-center gap-3 rounded-md border px-3 font-normal">
             <RadioGroupItem id={`${id}-${i}`} value={option} />{option}</Label>)}
         </RadioGroup>
