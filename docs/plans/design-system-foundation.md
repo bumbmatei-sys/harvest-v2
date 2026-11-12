@@ -1,5 +1,7 @@
 # Shared design system — foundation and adoption plan
 
+> Update 12 Nov 2026: see [the post-Communities inventory](design-system-inventory-2026-11-12.md) for what has been delivered since this plan (EditorShell, rich text, question builder, navigation registry), the duplication found and the proposed next slices.
+
 Planning recommendation, 8 November 2026. The complete founder-authored [master specification](../design-system.md) is preserved separately. It is an implementation target, not a completion record. This document records how to adopt it in an existing application without duplicating working infrastructure.
 
 ## Recommended order
