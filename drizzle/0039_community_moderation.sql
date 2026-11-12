@@ -81,7 +81,7 @@ END $$;--> statement-breakpoint
 CREATE FUNCTION public.community_banned_word_match(p_text text, p_words text[]) RETURNS boolean
 LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, pg_temp AS $$
   SELECT EXISTS (SELECT 1 FROM unnest(coalesce(p_words, ARRAY[]::text[])) w
-    WHERE length(w) > 0 AND lower(coalesce(p_text, '')) ~ ('(^|[^[:alnum:]])' || regexp_replace(w, '([.*+?^${}()|\[\]\\])', '\\\1', 'g') || '($|[^[:alnum:]])'))
+    WHERE length(w) > 0 AND lower(coalesce(p_text, '')) ~ ('(^|[^[:alnum:]])' || regexp_replace(lower(w), '([.*+?^${}()|\[\]\\])', '\\\1', 'g') || '($|[^[:alnum:]])'))
 $$;--> statement-breakpoint
 -- Why a new item (or an edit) should be held, or null. Called only inside the definers (not granted).
 CREATE FUNCTION public.community_hold_reason(p_tenant uuid, p_community uuid, p_role text, p_text text, p_check_first boolean) RETURNS text
@@ -241,10 +241,17 @@ BEGIN
   INSERT INTO public.audit_logs (tenant_id, actor_id, action, target_id) VALUES (ctx.o_tenant, actor, 'community.report', v_report::text);
   RETURN public.community_forum_done('ok', v_report);
 END $$;--> statement-breakpoint
+-- Rank of a person in a community (owner 3, admin 2, moderator 1, anyone else or no membership 0). Not granted.
+CREATE FUNCTION public.community_member_rank(p_tenant uuid, p_community uuid, p_user text) RETURNS integer
+LANGUAGE sql STABLE SET search_path = pg_catalog, pg_temp AS $$
+  SELECT coalesce((SELECT CASE m.role WHEN 'owner' THEN 3 WHEN 'admin' THEN 2 WHEN 'moderator' THEN 1 ELSE 0 END
+    FROM public.community_memberships m WHERE m.tenant_id = p_tenant AND m.community_id = p_community AND m.user_id = p_user), 0)
+$$;--> statement-breakpoint
 -- Hosts decide a report: keep (dismiss) or remove the post/reply. Every open report on the same target closes.
+-- Nobody decides about themselves or their own content; removal also needs a higher rank than the author (review on #63).
 CREATE FUNCTION public.community_report_decide(p_slug text, p_report_id uuid, p_decision text) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-DECLARE actor text := nullif(current_setting('app.user_id', true), ''); ctx record; r record; v_subject text; v_closed integer;
+DECLARE actor text := nullif(current_setting('app.user_id', true), ''); ctx record; r record; v_subject text; v_closed integer; v_actor_rank integer;
 BEGIN
   SELECT * INTO ctx FROM public.community_forum_actor(p_slug);
   IF ctx.o_tenant IS NULL THEN RETURN public.community_forum_done('not_found'); END IF;
@@ -255,17 +262,21 @@ BEGIN
   IF p_decision = 'remove' AND r.target_type = 'member' THEN RETURN public.community_forum_done('invalid'); END IF;
   IF r.target_type = 'post' THEN
     SELECT author_id INTO v_subject FROM public.community_posts WHERE tenant_id = ctx.o_tenant AND id::text = r.target_id;
-    IF p_decision = 'remove' THEN
-      UPDATE public.community_posts SET removed_at = now(), removed_by = actor, updated_at = now()
-        WHERE tenant_id = ctx.o_tenant AND community_id = ctx.o_community AND id::text = r.target_id AND removed_at IS NULL;
-    END IF;
   ELSIF r.target_type = 'comment' THEN
     SELECT author_id INTO v_subject FROM public.community_comments WHERE tenant_id = ctx.o_tenant AND id::text = r.target_id;
-    IF p_decision = 'remove' THEN
-      UPDATE public.community_comments SET removed_at = now(), removed_by = actor, updated_at = now()
-        WHERE tenant_id = ctx.o_tenant AND community_id = ctx.o_community AND id::text = r.target_id AND removed_at IS NULL;
-    END IF;
   ELSE v_subject := r.target_id;
+  END IF;
+  IF v_subject = actor THEN RETURN public.community_forum_done('forbidden'); END IF;
+  v_actor_rank := public.community_member_rank(ctx.o_tenant, ctx.o_community, actor);
+  IF p_decision = 'remove' AND v_subject IS NOT NULL AND public.community_member_rank(ctx.o_tenant, ctx.o_community, v_subject) >= v_actor_rank THEN
+    RETURN public.community_forum_done('forbidden');
+  END IF;
+  IF p_decision = 'remove' AND r.target_type = 'post' THEN
+    UPDATE public.community_posts SET removed_at = now(), removed_by = actor, updated_at = now()
+      WHERE tenant_id = ctx.o_tenant AND community_id = ctx.o_community AND id::text = r.target_id AND removed_at IS NULL;
+  ELSIF p_decision = 'remove' THEN
+    UPDATE public.community_comments SET removed_at = now(), removed_by = actor, updated_at = now()
+      WHERE tenant_id = ctx.o_tenant AND community_id = ctx.o_community AND id::text = r.target_id AND removed_at IS NULL;
   END IF;
   UPDATE public.community_reports SET status = CASE WHEN p_decision = 'remove' THEN 'actioned' ELSE 'dismissed' END, decided_by = actor, decided_at = now()
     WHERE tenant_id = ctx.o_tenant AND community_id = ctx.o_community AND target_type = r.target_type AND target_id = r.target_id AND status = 'open';
@@ -274,30 +285,39 @@ BEGIN
     r.target_type, r.target_id, v_subject, jsonb_build_object('reports', v_closed));
   RETURN public.community_forum_done('ok', p_report_id);
 END $$;--> statement-breakpoint
--- Hosts approve or reject a held post/reply.
+-- Hosts approve or reject a held post/reply: never their own; rejecting also needs a higher rank than the author.
 CREATE FUNCTION public.community_held_decide(p_slug text, p_target_type text, p_id uuid, p_decision text) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-DECLARE actor text := nullif(current_setting('app.user_id', true), ''); ctx record; v_subject text;
+DECLARE actor text := nullif(current_setting('app.user_id', true), ''); ctx record; v_subject text; v_found boolean;
 BEGIN
   SELECT * INTO ctx FROM public.community_forum_actor(p_slug);
   IF ctx.o_tenant IS NULL THEN RETURN public.community_forum_done('not_found'); END IF;
   IF ctx.o_role NOT IN ('owner', 'admin', 'moderator') THEN RETURN public.community_forum_done('forbidden'); END IF;
-  IF p_decision NOT IN ('approve', 'reject') THEN RETURN public.community_forum_done('invalid'); END IF;
+  IF p_decision NOT IN ('approve', 'reject') OR p_target_type NOT IN ('post', 'comment') THEN RETURN public.community_forum_done('invalid'); END IF;
+  IF p_target_type = 'post' THEN
+    SELECT true, author_id INTO v_found, v_subject FROM public.community_posts
+      WHERE tenant_id = ctx.o_tenant AND community_id = ctx.o_community AND id = p_id AND held_at IS NOT NULL AND removed_at IS NULL FOR UPDATE;
+  ELSE
+    SELECT true, author_id INTO v_found, v_subject FROM public.community_comments
+      WHERE tenant_id = ctx.o_tenant AND community_id = ctx.o_community AND id = p_id AND held_at IS NOT NULL AND removed_at IS NULL FOR UPDATE;
+  END IF;
+  IF NOT coalesce(v_found, false) THEN RETURN public.community_forum_done('not_found'); END IF;
+  IF v_subject = actor THEN RETURN public.community_forum_done('forbidden'); END IF;
+  IF p_decision = 'reject' AND v_subject IS NOT NULL
+    AND public.community_member_rank(ctx.o_tenant, ctx.o_community, v_subject) >= public.community_member_rank(ctx.o_tenant, ctx.o_community, actor) THEN
+    RETURN public.community_forum_done('forbidden');
+  END IF;
   IF p_target_type = 'post' THEN
     UPDATE public.community_posts SET held_at = CASE WHEN p_decision = 'approve' THEN NULL ELSE held_at END,
       held_reason = CASE WHEN p_decision = 'approve' THEN NULL ELSE held_reason END,
       removed_at = CASE WHEN p_decision = 'reject' THEN now() ELSE removed_at END, removed_by = CASE WHEN p_decision = 'reject' THEN actor ELSE removed_by END,
-      updated_at = now()
-      WHERE tenant_id = ctx.o_tenant AND community_id = ctx.o_community AND id = p_id AND held_at IS NOT NULL AND removed_at IS NULL RETURNING author_id INTO v_subject;
-  ELSIF p_target_type = 'comment' THEN
+      updated_at = now() WHERE tenant_id = ctx.o_tenant AND id = p_id;
+  ELSE
     UPDATE public.community_comments SET held_at = CASE WHEN p_decision = 'approve' THEN NULL ELSE held_at END,
       held_reason = CASE WHEN p_decision = 'approve' THEN NULL ELSE held_reason END,
       removed_at = CASE WHEN p_decision = 'reject' THEN now() ELSE removed_at END, removed_by = CASE WHEN p_decision = 'reject' THEN actor ELSE removed_by END,
-      updated_at = now()
-      WHERE tenant_id = ctx.o_tenant AND community_id = ctx.o_community AND id = p_id AND held_at IS NOT NULL AND removed_at IS NULL RETURNING author_id INTO v_subject;
-  ELSE RETURN public.community_forum_done('invalid');
+      updated_at = now() WHERE tenant_id = ctx.o_tenant AND id = p_id;
   END IF;
-  IF NOT FOUND THEN RETURN public.community_forum_done('not_found'); END IF;
   PERFORM public.community_moderation_log(ctx.o_tenant, ctx.o_community, CASE WHEN p_decision = 'approve' THEN 'held_approve' ELSE 'held_reject' END,
     p_target_type, p_id::text, v_subject);
   RETURN public.community_forum_done('ok', p_id);
@@ -359,7 +379,7 @@ BEGIN
     LIMIT 2000;
   PERFORM public.community_definer_reset();
 END $$;--> statement-breakpoint
-REVOKE ALL ON FUNCTION public.community_banned_word_match(text, text[]), public.community_hold_reason(uuid, uuid, text, text, boolean),
+REVOKE ALL ON FUNCTION public.community_banned_word_match(text, text[]), public.community_member_rank(uuid, uuid, text), public.community_hold_reason(uuid, uuid, text, text, boolean),
   public.community_is_muted(uuid, uuid), public.community_moderation_log(uuid, uuid, text, text, text, text, jsonb),
   public.community_report(text, text, text, text, text), public.community_report_decide(text, uuid, text), public.community_held_decide(text, text, uuid, text),
   public.community_member_moderate(text, text, text, integer), public.community_moderation_members(text) FROM PUBLIC;--> statement-breakpoint

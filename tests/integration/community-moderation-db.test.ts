@@ -171,3 +171,29 @@ it("lists members for hosts only, with banned and muted states", async () => {
   expect(await list("m-one")).toEqual([]);
   expect(await list("m-b-member")).toEqual([]);
 });
+
+it("never lets hosts decide about themselves, and needs a higher rank to remove (review on #63)", async () => {
+  const modPost = await post("m-mod", "Moderator post");
+  const ownerPost = await post("m-owner", "Owner post");
+  const onMod = await report("m-one", "post", modPost.id!);
+  const onOwner = await report("m-one", "post", ownerPost.id!);
+  const onModMember = await report("m-two", "member", "m-mod", "other");
+  expect((await decide("m-mod", onMod.id!, "keep")).outcome).toBe("forbidden");
+  expect((await decide("m-mod", onModMember.id!, "keep")).outcome).toBe("forbidden");
+  expect((await decide("m-owner", onOwner.id!, "remove")).outcome).toBe("forbidden");
+  expect((await decide("m-admin", onOwner.id!, "remove")).outcome).toBe("forbidden");
+  expect((await decide("m-admin", onOwner.id!, "keep")).outcome).toBe("ok");
+  expect((await decide("m-admin", onMod.id!, "remove")).outcome).toBe("ok");
+  expect((await decide("m-admin", onModMember.id!, "keep")).outcome).toBe("ok");
+  // Held: a host's banned-word post can't be approved by themselves, nor rejected by an equal or lower rank.
+  await f.admin.query("update communities set banned_words = ARRAY['casino'] where id = $1", [club]);
+  const adminHeld = await post("m-admin", "Casino trip");
+  expect(adminHeld.outcome).toBe("held");
+  expect((await held("m-admin", "post", adminHeld.id!, "approve")).outcome).toBe("forbidden");
+  expect((await held("m-mod", "post", adminHeld.id!, "reject")).outcome).toBe("forbidden");
+  expect((await held("m-mod", "post", adminHeld.id!, "approve")).outcome).toBe("ok");
+  // Banned words are compared in lower case in SQL even if stored otherwise.
+  await f.admin.query("update communities set banned_words = ARRAY['Casino'] where id = $1", [club]);
+  expect((await post("m-one", "casino night")).outcome).toBe("held");
+  await f.admin.query("update communities set banned_words = '{}' where id = $1", [club]);
+});

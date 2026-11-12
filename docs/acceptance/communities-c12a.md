@@ -69,6 +69,20 @@ Design: `docs/superpowers/specs/2026-11-12-communities-c12a-moderation-design.md
   - axe and no horizontal scroll at 390, 768 and 1440 wide, light and dark; screenshots in `docs/screenshots/communities-c12a/`.
 - **Regression:** `community-forum`, `community-joining`, `community-applications`, `community-editor` and `layout`.
 
+## Review follow-up (non-author review of `49c4bd8`: CHANGES-REQUESTED, two should-fix items, no blockers)
+
+- **Hosts deciding about themselves:** `community_report_decide` and `community_held_decide` now refuse (`forbidden`) when the subject is the acting host. Hosts never see reports or held items about themselves or their own content in the queue, the held list or the rail badge, so free-text notes about a host never reach that host. Covered by database and service tests.
+- **Rank for removal:** removing a reported post or reply, or rejecting a held item, needs a higher rank than the author (`community_member_rank`). A moderator can't remove an admin's or the owner's content; nobody removes the owner's. Keeping or approving needs only the not-yourself rule.
+- **Optional, taken:**
+  - the SQL banned-word check lower-cases the stored words too (test);
+  - the moderation tabs have 44px targets.
+- **Optional, not taken:**
+  - *Non-ASCII word boundaries:* these depend on the database collation and are recorded for the activation checklist.
+  - *Attachments of held posts:* random ids, listed only on the hidden post.
+  - *Report rate limits:* an activation gate.
+  - *List caps:* 2,000 members and 200 queue/history rows.
+  - *Pre-emptive bans of non-active members:* intended.
+
 ## Deferred
 
 - C12b: warnings, appeals by banned members, edit history.

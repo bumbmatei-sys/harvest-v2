@@ -64,8 +64,10 @@ export function moderationQueue(db: Database, userId: string, slug: string) {
       .from(communityReports).where(and(eq(communityReports.communityId, ctx.id), eq(communityReports.status, "open")))
       .groupBy(communityReports.targetType, communityReports.targetId).orderBy(desc(sql`count(*)`), sql`min(${communityReports.createdAt})`).limit(200);
     const targets = await describeTargets(tx, ctx.id, groups);
+    // A host never sees (or decides) reports about themselves or their own content (review on #63).
     const items: QueueItem[] = groups.map((g) => ({ ...g, firstReportedAt: new Date(g.firstReportedAt), targetType: g.targetType as ReportTarget,
-      ...(targets.get(`${g.targetType}:${g.targetId}`) ?? { title: "", excerpt: "", authorId: null, authorName: null, postId: null, removed: true }) }));
+      ...(targets.get(`${g.targetType}:${g.targetId}`) ?? { title: "", excerpt: "", authorId: null, authorName: null, postId: null, removed: true }) }))
+      .filter((item) => item.authorId !== userId);
     return { context: ctx, items };
   });
 }
@@ -86,7 +88,7 @@ export function heldItems(db: Database, userId: string, slug: string) {
         authorName: p.authorName, reason: p.reason!, heldAt: p.heldAt! })),
       ...comments.map((c) => ({ targetType: "comment" as const, id: c.id, postId: c.postId, title: "", excerpt: c.body.replace(/\s+/g, " ").slice(0, 280), authorId: c.authorId,
         authorName: c.authorName, reason: c.reason!, heldAt: c.heldAt! })),
-    ].sort((x, y) => x.heldAt.getTime() - y.heldAt.getTime());
+    ].filter((item) => item.authorId !== userId).sort((x, y) => x.heldAt.getTime() - y.heldAt.getTime());
     return { context: ctx, items };
   });
 }
@@ -96,10 +98,14 @@ export function moderationCount(db: Database, userId: string, slug: string) {
   return withUser(db, userId, async (tx) => {
     const ctx = await forumContextTx(tx, userId, slug);
     if (!ctx?.canModerate) return null;
+    // Same exclusions as the queue and held list: nothing about the host themselves.
     const [{ n }] = (await tx.execute<{ n: number }>(sql`select
-      (select count(distinct (target_type, target_id))::int from community_reports where community_id = ${ctx.id} and status = 'open')
-      + (select count(*)::int from community_posts where community_id = ${ctx.id} and held_at is not null and removed_at is null)
-      + (select count(*)::int from community_comments where community_id = ${ctx.id} and held_at is not null and removed_at is null)
+      (select count(distinct (r.target_type, r.target_id))::int from community_reports r where r.community_id = ${ctx.id} and r.status = 'open'
+        and not (r.target_type = 'member' and r.target_id = ${userId})
+        and not exists (select 1 from community_posts p where r.target_type = 'post' and p.id::text = r.target_id and p.author_id = ${userId})
+        and not exists (select 1 from community_comments c where r.target_type = 'comment' and c.id::text = r.target_id and c.author_id = ${userId}))
+      + (select count(*)::int from community_posts where community_id = ${ctx.id} and held_at is not null and removed_at is null and author_id is distinct from ${userId})
+      + (select count(*)::int from community_comments where community_id = ${ctx.id} and held_at is not null and removed_at is null and author_id is distinct from ${userId})
       + (select count(*)::int from community_appeals where community_id = ${ctx.id} and status = 'open') as n`)).rows;
     return n;
   });

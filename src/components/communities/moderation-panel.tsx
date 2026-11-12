@@ -50,11 +50,11 @@ export function ModerationPanel({ slug, me, role, queue, held, members, history,
     {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
     <Tabs value={tab} onValueChange={setTab}>
       <TabsList className="h-auto flex-wrap">
-        <TabsTrigger value="reports" className="min-h-9">{t("tabs.reports")}{queue.length > 0 && <Badge variant="secondary" className="ml-1">{queue.length}</Badge>}</TabsTrigger>
-        <TabsTrigger value="held" className="min-h-9">{t("tabs.held")}{held.length > 0 && <Badge variant="secondary" className="ml-1">{held.length}</Badge>}</TabsTrigger>
-        <TabsTrigger value="members" className="min-h-9">{t("tabs.members")}</TabsTrigger>
-        <TabsTrigger value="appeals" className="min-h-9">{t("tabs.appeals")}{openAppeals > 0 && <Badge variant="secondary" className="ml-1">{openAppeals}</Badge>}</TabsTrigger>
-        <TabsTrigger value="history" className="min-h-9">{t("tabs.history")}</TabsTrigger>
+        <TabsTrigger value="reports" className="min-h-11">{t("tabs.reports")}{queue.length > 0 && <Badge variant="secondary" className="ml-1">{queue.length}</Badge>}</TabsTrigger>
+        <TabsTrigger value="held" className="min-h-11">{t("tabs.held")}{held.length > 0 && <Badge variant="secondary" className="ml-1">{held.length}</Badge>}</TabsTrigger>
+        <TabsTrigger value="members" className="min-h-11">{t("tabs.members")}</TabsTrigger>
+        <TabsTrigger value="appeals" className="min-h-11">{t("tabs.appeals")}{openAppeals > 0 && <Badge variant="secondary" className="ml-1">{openAppeals}</Badge>}</TabsTrigger>
+        <TabsTrigger value="history" className="min-h-11">{t("tabs.history")}</TabsTrigger>
       </TabsList>
 
       <TabsContent value="reports" className="mt-4">{queue.length === 0 ? empty("emptyReports") : <div className="overflow-x-auto rounded-lg border">
