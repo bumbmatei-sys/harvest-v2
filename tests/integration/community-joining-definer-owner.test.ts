@@ -20,8 +20,11 @@ const definers = ["public.community_definer_reset()", "public.community_public(t
   // C12a (0039)
   "public.community_banned_word_match(text,text[])", "public.community_member_rank(uuid,uuid,text)", "public.community_hold_reason(uuid,uuid,text,text,boolean)", "public.community_is_muted(uuid,uuid)", "public.community_moderation_log(uuid,uuid,text,text,text,text,jsonb)",
   "public.community_report(text,text,text,text,text)", "public.community_report_decide(text,uuid,text)", "public.community_held_decide(text,text,uuid,text)",
-  "public.community_member_moderate(text,text,text,integer)", "public.community_moderation_members(text)"];
-const tables = ["communities", "community_memberships", "entitlements", "community_invites", "audit_logs", "workspaces", "discover_listings", "community_applications", "community_categories", "community_files", "community_posts", "community_comments", "community_likes", "community_reports", "community_moderation_actions"];
+  "public.community_member_moderate(text,text,text,integer)", "public.community_moderation_members(text)",
+  // C12b (0040)
+  "public.community_warn(text,text,text)", "public.community_warning_ack(text,uuid)", "public.community_my_warnings(text)", "public.community_appeal_submit(text,text)",
+  "public.community_appeal_decide(text,uuid,text,text)", "public.community_my_bans()"];
+const tables = ["communities", "community_memberships", "entitlements", "community_invites", "audit_logs", "workspaces", "discover_listings", "community_applications", "community_categories", "community_files", "community_posts", "community_comments", "community_likes", "community_reports", "community_moderation_actions", "community_warnings", "community_appeals", "community_post_revisions", "community_comment_revisions"];
 let fixture: Awaited<ReturnType<typeof testDatabase>>, tenant: string, open: string, hidden: string;
 let roleCreated = false;
 const copied: { table: string; name: string }[] = [];
@@ -140,4 +143,37 @@ it("reports, decides, holds and moderates members with a non-bypass definer owne
   const members = await withUser(fixture.db, "o-owner", async (tx) => (await tx.execute<{ v: { userId: string } }>(sql`select public.community_moderation_members('owner-open') as v`)).rows);
   expect(members.map((r) => r.v.userId)).toContain("o-owner");
   expect((await fixture.admin.query("select count(*)::int as n from community_moderation_actions")).rows[0].n).toBe(6);
+});
+
+it("warns, appeals, decides and keeps edit history with a non-bypass definer owner", async () => {
+  const run = async <T,>(user: string, statement: ReturnType<typeof sql>) => withUser(fixture.db, user, async (tx) => (await tx.execute<{ v: T }>(statement)).rows[0].v);
+  const list = async <T,>(user: string, statement: ReturnType<typeof sql>) => withUser(fixture.db, user, async (tx) => (await tx.execute<{ v: T }>(statement)).rows.map((r) => r.v));
+  const category = (await fixture.admin.query("select id from community_categories where community_id = $1 limit 1", [open])).rows[0].id;
+  const doc = (text: string) => JSON.stringify({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
+  const save = (id: string | null, text: string) => run<{ outcome: string; id: string }>("o-joiner", sql`select public.community_post_save('owner-open', ${id}::uuid, ${category}::uuid, 'Title', ${doc(text)}::jsonb, ${text}, null, null, '{}'::uuid[], false, false) as v`);
+  // Edit history: the previous version is kept (the post and reply definers write the revision tables as the owner).
+  await fixture.admin.query("update community_memberships set status = 'active' where user_id = 'o-joiner' and community_id = $1", [open]);
+  await fixture.admin.query("insert into entitlements (tenant_id, user_id, resource_type, resource_id, source) values ($1, 'o-joiner', 'community', $2, 'admin_grant')", [tenant, open]);
+  const post = await save(null, "One");
+  expect((await save(post.id, "Two")).outcome).toBe("ok");
+  expect((await fixture.admin.query("select body_text from community_post_revisions where post_id = $1", [post.id])).rows.map((r) => r.body_text)).toEqual(["One"]);
+  const comment = await run<{ outcome: string; id: string }>("o-joiner", sql`select public.community_comment_save('owner-open', ${post.id}::uuid, null, 'Amen') as v`);
+  expect((await run<{ outcome: string }>("o-joiner", sql`select public.community_comment_save('owner-open', ${post.id}::uuid, ${comment.id}::uuid, 'Amen!') as v`)).outcome).toBe("ok");
+  expect((await fixture.admin.query("select body from community_comment_revisions where comment_id = $1", [comment.id])).rows.map((r) => r.body)).toEqual(["Amen"]);
+  // Warnings.
+  const warning = await run<{ outcome: string; id: string }>("o-owner", sql`select public.community_warn('owner-open', 'o-joiner', 'Please be kind') as v`);
+  expect(warning.outcome).toBe("ok");
+  expect((await list<{ reason: string }>("o-joiner", sql`select public.community_my_warnings('owner-open') as v`)).map((w) => w.reason)).toEqual(["Please be kind"]);
+  expect((await run<{ outcome: string }>("o-joiner", sql`select public.community_warning_ack('owner-open', ${warning.id}::uuid) as v`)).outcome).toBe("ok");
+  const counts = await list<{ userId: string; warnings: number }>("o-owner", sql`select public.community_moderation_members('owner-open') as v`);
+  expect(counts.find((m) => m.userId === "o-joiner")?.warnings).toBe(1);
+  // Appeals, listed across ministries through the user-keyed owner policies.
+  expect((await run<{ outcome: string }>("o-owner", sql`select public.community_member_moderate('owner-open', 'o-joiner', 'ban', null) as v`)).outcome).toBe("ok");
+  const sent = await run<{ outcome: string; id: string }>("o-joiner", sql`select public.community_appeal_submit('owner-open', 'Sorry') as v`);
+  expect(sent.outcome).toBe("ok");
+  expect(await list<{ slug: string; banned: boolean; canAppeal: boolean; appeal: { status: string } }>("o-joiner", sql`select public.community_my_bans() as v`))
+    .toMatchObject([{ slug: "owner-open", banned: true, canAppeal: false, appeal: { status: "open" } }]);
+  expect((await run<{ outcome: string }>("o-owner", sql`select public.community_appeal_decide('owner-open', ${sent.id}::uuid, 'approve', 'Welcome back') as v`)).outcome).toBe("ok");
+  expect(await list<{ banned: boolean; appeal: { status: string; reply: string } }>("o-joiner", sql`select public.community_my_bans() as v`))
+    .toMatchObject([{ banned: false, appeal: { status: "approved", reply: "Welcome back" } }]);
 });

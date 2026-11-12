@@ -4,6 +4,8 @@ import { getFormatter, getTranslations } from "next-intl/server";
 import { Lock, MessageSquare, Pin, PlayCircle } from "lucide-react";
 import { getDb } from "@/db/client";
 import { listPosts } from "@/server/community-forum";
+import { myWarnings } from "@/server/community-moderation";
+import { WarningAlerts } from "@/components/communities/warning-alerts";
 import { pageSession } from "@/server/page-session";
 import { communitiesEnabled } from "@/server/communities-mode";
 import { orPublicPage } from "@/server/community-member-page";
@@ -24,6 +26,7 @@ export default async function ForumPage({ params, searchParams }: Props) {
   const category = query.category && /^[0-9a-f-]{36}$/.test(query.category) ? query.category : undefined, sort = query.sort === "best" ? "best" : "new";
   const { context, posts, hasMore } = await listPosts(getDb(), session.user.id, slug, { category, sort, page }).catch(orPublicPage(slug));
   const t = await getTranslations("CommunityForum"), format = await getFormatter(), base = `/communities/${context.slug}/forum`;
+  const warnings = await myWarnings(getDb(), session.user.id, slug);
   const href = (next: { category?: string; sort?: string; page?: number }) => { const q = new URLSearchParams(); const c = "category" in next ? next.category : category, s = next.sort ?? sort;
     if (c) q.set("category", c); if (s === "best") q.set("sort", "best"); if (next.page && next.page > 1) q.set("page", String(next.page)); return q.size ? `${base}?${q}` : base; };
   const categoryName = (id: string) => context.categories.find((c) => c.id === id);
@@ -38,6 +41,7 @@ export default async function ForumPage({ params, searchParams }: Props) {
       </ul>
     </nav>
     <section className="min-w-0 space-y-4" aria-labelledby="forum-title">
+      <WarningAlerts slug={context.slug} warnings={warnings} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="forum-title" className="text-xl font-semibold">{category ? categoryName(category)?.name : t("allPosts")}</h2>
         {!context.mutedUntil && <PostComposer slug={context.slug} categories={context.categories} defaultCategory={category} canModerate={context.canModerate} />}

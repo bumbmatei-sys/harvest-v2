@@ -2,8 +2,9 @@ import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
-import { communityComments, communityModerationActions, communityPosts, communityReports, users } from "../db/schema";
-import { memberActions, muteDays, reportReasons, reportTargets, type ReportReason, type ReportTarget } from "../lib/moderation";
+import { communityAppeals, communityComments, communityCommentRevisions, communityModerationActions, communityPostRevisions, communityPosts, communityReports, users } from "../db/schema";
+import { appealDecisions, memberActions, moderationLimits, muteDays, reportReasons, reportTargets, validReason, type ReportReason, type ReportTarget } from "../lib/moderation";
+import { sanitizeRichText, type RichDoc } from "../lib/rich-text";
 import { message } from "../i18n/messages";
 import { communitySlug } from "./communities";
 import { forumContextTx, forumDefiner, type ForumContext } from "./community-forum";
@@ -104,7 +105,8 @@ export function moderationCount(db: Database, userId: string, slug: string) {
         and not exists (select 1 from community_posts p where r.target_type = 'post' and p.id::text = r.target_id and p.author_id = ${userId})
         and not exists (select 1 from community_comments c where r.target_type = 'comment' and c.id::text = r.target_id and c.author_id = ${userId}))
       + (select count(*)::int from community_posts where community_id = ${ctx.id} and held_at is not null and removed_at is null and author_id is distinct from ${userId})
-      + (select count(*)::int from community_comments where community_id = ${ctx.id} and held_at is not null and removed_at is null and author_id is distinct from ${userId}) as n`)).rows;
+      + (select count(*)::int from community_comments where community_id = ${ctx.id} and held_at is not null and removed_at is null and author_id is distinct from ${userId})
+      + (select count(*)::int from community_appeals where community_id = ${ctx.id} and status = 'open') as n`)).rows;
     return n;
   });
 }
@@ -121,7 +123,7 @@ export async function decideHeld(db: Database, userId: string, slug: string, raw
   return forumDefiner(db, userId, sql`select public.community_held_decide(${communitySlug.parse(slug)}, ${input.targetType}, ${input.id}::uuid, ${input.decision}) as v`);
 }
 
-export type ModerationMember = { userId: string; name: string; role: string; status: "active" | "banned"; joinedAt: string | null; mutedUntil: string | null };
+export type ModerationMember = { userId: string; name: string; role: string; status: "active" | "banned"; joinedAt: string | null; mutedUntil: string | null; warnings: number };
 export function moderationMembers(db: Database, userId: string, slug: string) {
   return withUser(db, userId, async (tx) => {
     const ctx = await hostContext(tx, userId, slug);
@@ -149,5 +151,93 @@ export function moderationHistory(db: Database, userId: string, slug: string) {
       .from(communityModerationActions).leftJoin(actor, eq(actor.id, communityModerationActions.actorId)).leftJoin(subject, eq(subject.id, communityModerationActions.subjectUserId))
       .where(eq(communityModerationActions.communityId, ctx.id)).orderBy(desc(communityModerationActions.createdAt)).limit(200);
     return { context: ctx, entries };
+  });
+}
+
+// C12b: warnings, appeals by banned members and edit history. Reads run in withUser (hosts only through RLS); every write is a definer in 0040.
+const reasonField = (max: number) => z.string().transform((v, ctx) => validReason(v, max) ?? (ctx.addIssue({ code: "custom", message: "invalid" }), z.NEVER));
+const warnInput = z.object({ userId: z.string().min(1).max(200), reason: reasonField(moderationLimits.warning) }).strict();
+/** A host warns a lower-ranked member. The reason is shown to that member only. */
+export async function warnMember(db: Database, userId: string, slug: string, raw: unknown) {
+  const input = warnInput.parse(raw);
+  return forumDefiner(db, userId, sql`select public.community_warn(${communitySlug.parse(slug)}, ${input.userId}, ${input.reason}) as v`);
+}
+
+export function acknowledgeWarning(db: Database, userId: string, slug: string, warningId: string) {
+  return forumDefiner(db, userId, sql`select public.community_warning_ack(${communitySlug.parse(slug)}, ${z.uuid().parse(warningId)}::uuid) as v`);
+}
+
+export type MyWarning = { id: string; reason: string; createdAt: string };
+/** The member's own unacknowledged warnings; the issuer is never returned. */
+export function myWarnings(db: Database, userId: string, slug: string) {
+  return withUser(db, userId, async (tx) => (await tx.execute<{ v: MyWarning }>(sql`select public.community_my_warnings(${communitySlug.parse(slug)}) as v`)).rows.map((r) => r.v));
+}
+
+export type AppealItem = { id: string; userId: string | null; name: string | null; message: string; status: "open" | "approved" | "declined"; reply: string | null;
+  createdAt: Date; decidedAt: Date | null; decidedByName: string | null };
+export function moderationAppeals(db: Database, userId: string, slug: string) {
+  return withUser(db, userId, async (tx) => {
+    const ctx = await hostContext(tx, userId, slug);
+    const subject = alias(users, "subject"), decider = alias(users, "decider");
+    const items: AppealItem[] = await tx.select({ id: communityAppeals.id, userId: communityAppeals.userId, name: subject.name, message: communityAppeals.message,
+      status: communityAppeals.status, reply: communityAppeals.reply, createdAt: communityAppeals.createdAt, decidedAt: communityAppeals.decidedAt, decidedByName: decider.name })
+      .from(communityAppeals).leftJoin(subject, eq(subject.id, communityAppeals.userId)).leftJoin(decider, eq(decider.id, communityAppeals.decidedBy))
+      .where(eq(communityAppeals.communityId, ctx.id)).orderBy(sql`(${communityAppeals.status} = 'open') desc`, desc(communityAppeals.createdAt)).limit(200);
+    return { context: ctx, items };
+  });
+}
+
+const appealDecision = z.object({ appealId: z.uuid(), decision: z.enum(appealDecisions),
+  reply: z.string().trim().max(moderationLimits.appealReply).optional().transform((v) => v || null) }).strict();
+/** Hosts decline; owners and admins also approve, which unbans. The optional reply is shown to the member. */
+export async function decideAppeal(db: Database, userId: string, slug: string, raw: unknown) {
+  const input = appealDecision.parse(raw);
+  return forumDefiner(db, userId, sql`select public.community_appeal_decide(${communitySlug.parse(slug)}, ${input.appealId}::uuid, ${input.decision}, ${input.reply}) as v`);
+}
+
+const appealInput = z.object({ slug: communitySlug, message: reasonField(moderationLimits.appeal) }).strict();
+/** A banned member sends one appeal per ban. Banned people read nothing else, so this resolves the community by slug itself. */
+export async function submitAppeal(db: Database, userId: string, raw: unknown) {
+  const input = appealInput.parse(raw);
+  return forumDefiner(db, userId, sql`select public.community_appeal_submit(${input.slug}, ${input.message}) as v`, ["ok"],
+    { duplicate: () => new AccessError(409, message("Errors.appealDuplicate")) });
+}
+
+export type MyBan = { slug: string; name: string; banned: boolean; canAppeal: boolean;
+  appeal: { id: string; status: "open" | "approved" | "declined"; message: string; reply: string | null; createdAt: string; decidedAt: string | null } | null };
+/** The person's own removals (and approved appeals from the last 30 days), for /account/communities. */
+export function myBans(db: Database, userId: string) {
+  return withUser(db, userId, async (tx) => (await tx.execute<{ v: MyBan }>(sql`select public.community_my_bans() as v`)).rows.map((r) => r.v));
+}
+
+export type RevisionVersion = { id: string; current: boolean; title: string | null; body: RichDoc | null; text: string | null; savedAt: Date };
+const revisionInput = z.object({ targetType: z.enum(["post", "comment"]), targetId: z.uuid() }).strict();
+/** Hosts read the previous versions of a post or reply (newest first, with the current one on top). Members never do. */
+export async function editHistory(db: Database, userId: string, slug: string, raw: unknown) {
+  const input = revisionInput.parse(raw);
+  return withUser(db, userId, async (tx) => {
+    const ctx = await hostContext(tx, userId, slug);
+    const empty = { type: "doc", content: [{ type: "paragraph" }] } as RichDoc;
+    if (input.targetType === "post") {
+      const [post] = await tx.select({ title: communityPosts.title, body: communityPosts.body, createdAt: communityPosts.createdAt, editedAt: communityPosts.editedAt })
+        .from(communityPosts).where(and(eq(communityPosts.communityId, ctx.id), eq(communityPosts.id, input.targetId)));
+      if (!post) throw notFound();
+      const old = await tx.select({ id: communityPostRevisions.id, title: communityPostRevisions.title, body: communityPostRevisions.body, savedAt: communityPostRevisions.savedAt })
+        .from(communityPostRevisions).where(and(eq(communityPostRevisions.communityId, ctx.id), eq(communityPostRevisions.postId, input.targetId)))
+        .orderBy(desc(communityPostRevisions.createdAt), communityPostRevisions.id).limit(50);
+      const versions: RevisionVersion[] = [{ id: "current", current: true, title: post.title, body: sanitizeRichText(post.body) ?? empty, text: null, savedAt: post.editedAt ?? post.createdAt },
+        ...old.map((v) => ({ id: v.id, current: false, title: v.title, body: sanitizeRichText(v.body) ?? empty, text: null, savedAt: v.savedAt }))];
+      return { context: ctx, versions };
+    }
+    const [comment] = await tx.select({ body: communityComments.body, createdAt: communityComments.createdAt })
+      .from(communityComments).where(and(eq(communityComments.communityId, ctx.id), eq(communityComments.id, input.targetId)));
+    if (!comment) throw notFound();
+    const old = await tx.select({ id: communityCommentRevisions.id, body: communityCommentRevisions.body, savedAt: communityCommentRevisions.savedAt, createdAt: communityCommentRevisions.createdAt })
+      .from(communityCommentRevisions).where(and(eq(communityCommentRevisions.communityId, ctx.id), eq(communityCommentRevisions.commentId, input.targetId)))
+      .orderBy(desc(communityCommentRevisions.createdAt), communityCommentRevisions.id).limit(50);
+    // The current reply was saved when the newest previous version was replaced (or when it was posted).
+    const versions: RevisionVersion[] = [{ id: "current", current: true, title: null, body: null, text: comment.body, savedAt: old[0]?.createdAt ?? comment.createdAt },
+      ...old.map((v) => ({ id: v.id, current: false, title: null, body: null, text: v.body, savedAt: v.savedAt }))];
+    return { context: ctx, versions };
   });
 }

@@ -1239,8 +1239,65 @@ export const communityModerationActions = pgTable("community_moderation_actions"
 }, (t) => [
   foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
   index("community_moderation_actions_idx").on(t.communityId, t.createdAt),
-  check("community_moderation_action", sql`${t.action} in ('report_dismiss', 'report_remove', 'held_approve', 'held_reject', 'mute', 'unmute', 'ban', 'unban')`),
+  check("community_moderation_action", sql`${t.action} in ('report_dismiss', 'report_remove', 'held_approve', 'held_reject', 'mute', 'unmute', 'ban', 'unban', 'warn', 'appeal_approve', 'appeal_decline')`),
   check("community_moderation_target", sql`${t.targetType} in ('post', 'comment', 'member')`)]);
+
+// C12b (migration 0040): warnings, appeals and edit history. Same model as reports: FORCE RLS, hosts and staff read,
+// every write through a definer. Members never read revisions or other people's warnings and appeals.
+export const communityWarnings = pgTable("community_warnings", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  issuedBy: text("issued_by").references(() => users.id, { onDelete: "set null" }),
+  reason: text("reason").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  acknowledgedAt: timestamp("acknowledged_at", { withTimezone: true }),
+}, (t) => [
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  index("community_warnings_user_idx").on(t.communityId, t.userId, t.createdAt),
+  check("community_warning_reason", sql`length(${t.reason}) between 1 and 500`)]);
+
+export const communityAppeals = pgTable("community_appeals", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  message: text("message").notNull(),
+  status: text("status", { enum: ["open", "approved", "declined"] }).notNull().default("open"),
+  reply: text("reply"),
+  decidedBy: text("decided_by").references(() => users.id, { onDelete: "set null" }),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  uniqueIndex("community_appeals_open_idx").on(t.communityId, t.userId).where(sql`${t.status} = 'open'`),
+  index("community_appeals_queue_idx").on(t.communityId, t.status, t.createdAt),
+  check("community_appeal_message", sql`length(${t.message}) between 1 and 1000`),
+  check("community_appeal_reply", sql`${t.reply} is null or length(${t.reply}) between 1 and 500`),
+  check("community_appeal_status", sql`${t.status} in ('open', 'approved', 'declined')`)]);
+
+export const communityPostRevisions = pgTable("community_post_revisions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),
+  postId: uuid("post_id").notNull().references(() => communityPosts.id, { onDelete: "cascade" }),
+  title: text("title").notNull(),
+  body: jsonb("body").$type<import("../lib/rich-text").RichDoc>().notNull(),
+  bodyText: text("body_text").notNull().default(""),
+  savedAt: timestamp("saved_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  index("community_post_revisions_idx").on(t.postId, t.createdAt)]);
+
+export const communityCommentRevisions = pgTable("community_comment_revisions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),
+  commentId: uuid("comment_id").notNull().references(() => communityComments.id, { onDelete: "cascade" }),
+  body: text("body").notNull(),
+  savedAt: timestamp("saved_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  index("community_comment_revisions_idx").on(t.commentId, t.createdAt)]);
 
 // PR 3 (C05): Discover read projection (ADR 0013 §7). A row exists only while the resource qualifies.
 export const discoverListings = pgTable("discover_listings", {

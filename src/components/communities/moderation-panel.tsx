@@ -9,23 +9,28 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Textarea } from "@/components/ui/textarea";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { canActOn, communityRank, muteDays } from "@/lib/moderation";
-import type { HeldItem, HistoryEntry, ModerationMember, QueueItem } from "@/server/community-moderation";
+import { canActOn, canDecideAppeal, communityRank, moderationLimits, muteDays } from "@/lib/moderation";
+import type { AppealItem, HeldItem, HistoryEntry, ModerationMember, QueueItem } from "@/server/community-moderation";
+import { EditHistory } from "./edit-history";
 
-type Props = { slug: string; me: string; role: string; queue: QueueItem[]; held: HeldItem[]; members: ModerationMember[]; history: HistoryEntry[] };
+type Props = { slug: string; me: string; role: string; queue: QueueItem[]; held: HeldItem[]; members: ModerationMember[]; history: HistoryEntry[]; appeals: AppealItem[] };
 
 /** C12a: the hosts' moderation page. Studio Admin style: tabs, tables, a review sheet and row menus. */
-export function ModerationPanel({ slug, me, role, queue, held, members, history }: Props) {
+export function ModerationPanel({ slug, me, role, queue, held, members, history, appeals }: Props) {
   const t = useTranslations("Moderation"), format = useFormatter(), request = useCrmRequest(), router = useRouter();
   const [tab, setTab] = useState("reports"), [reviewing, setReviewing] = useState<string | null>(null), [search, setSearch] = useState("");
   const [banning, setBanning] = useState<ModerationMember | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  const [warning, setWarning] = useState<ModerationMember | null>(null), [warnReason, setWarnReason] = useState("");
+  const [appealId, setAppealId] = useState<string | null>(null), [appealReply, setAppealReply] = useState("");
   const base = `/api/communities/${slug}/moderation`, date = (d: Date | string) => format.dateTime(new Date(d), { dateStyle: "medium" });
   async function act(path: string, body: unknown, after?: () => void) {
     setBusy(true); setError("");
@@ -34,7 +39,7 @@ export function ModerationPanel({ slug, me, role, queue, held, members, history 
     if (!result.ok) { setError(result.error); return; }
     after?.(); router.refresh();
   }
-  const current = queue.find((q) => q.reportId === reviewing) ?? null;
+  const current = queue.find((q) => q.reportId === reviewing) ?? null, currentAppeal = appeals.find((x) => x.id === appealId) ?? null, openAppeals = appeals.filter((x) => x.status === "open").length;
   const itemLabel = (i: { targetType: string; title: string; excerpt: string }) => i.targetType === "comment" ? i.excerpt : i.title;
   const postHref = (postId: string | null) => postId ? `/communities/${slug}/posts/${postId}` : null;
   const visibleMembers = members.filter((m) => m.name.toLowerCase().includes(search.trim().toLowerCase()));
@@ -48,6 +53,7 @@ export function ModerationPanel({ slug, me, role, queue, held, members, history 
         <TabsTrigger value="reports" className="min-h-11">{t("tabs.reports")}{queue.length > 0 && <Badge variant="secondary" className="ml-1">{queue.length}</Badge>}</TabsTrigger>
         <TabsTrigger value="held" className="min-h-11">{t("tabs.held")}{held.length > 0 && <Badge variant="secondary" className="ml-1">{held.length}</Badge>}</TabsTrigger>
         <TabsTrigger value="members" className="min-h-11">{t("tabs.members")}</TabsTrigger>
+        <TabsTrigger value="appeals" className="min-h-11">{t("tabs.appeals")}{openAppeals > 0 && <Badge variant="secondary" className="ml-1">{openAppeals}</Badge>}</TabsTrigger>
         <TabsTrigger value="history" className="min-h-11">{t("tabs.history")}</TabsTrigger>
       </TabsList>
 
@@ -83,7 +89,7 @@ export function ModerationPanel({ slug, me, role, queue, held, members, history 
           <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
           <Input id="moderation-search" type="search" className="min-h-11 pl-9" placeholder={t("search")} value={search} onChange={(e) => setSearch(e.target.value)} /></div>
         {visibleMembers.length === 0 ? empty("emptyMembers") : <div className="overflow-x-auto rounded-lg border">
-          <Table aria-label={t("tabs.members")}><TableHeader><TableRow><TableHead>{t("name")}</TableHead><TableHead>{t("role")}</TableHead><TableHead>{t("status")}</TableHead>
+          <Table aria-label={t("tabs.members")}><TableHeader><TableRow><TableHead>{t("name")}</TableHead><TableHead>{t("role")}</TableHead><TableHead>{t("status")}</TableHead><TableHead className="text-right">{t("warnings")}</TableHead>
             <TableHead><span className="sr-only">{t("actions")}</span></TableHead></TableRow></TableHeader>
             <TableBody>{visibleMembers.map((m) => { const name = m.name.trim() || t("unnamed"), allowed = canActOn(role, m.role, m.userId === me);
               const canUnban = m.status === "banned" && communityRank(role) >= 2 && m.userId !== me; return <TableRow key={m.userId}>
@@ -92,10 +98,12 @@ export function ModerationPanel({ slug, me, role, queue, held, members, history 
               <TableCell>{m.status === "banned" ? <Badge variant="destructive">{t("banned")}</Badge>
                 : m.mutedUntil ? <Badge variant="secondary" className="h-auto whitespace-normal">{t("mutedUntil", { date: format.dateTime(new Date(m.mutedUntil), { dateStyle: "medium", timeStyle: "short" }) })}</Badge>
                 : <Badge variant="outline">{t("active")}</Badge>}</TableCell>
+              <TableCell className="text-right tabular-nums">{m.warnings}</TableCell>
               <TableCell className="text-right">{(allowed || canUnban) && <DropdownMenu><DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="size-11" disabled={busy} aria-label={t("actionsFor", { name })}><MoreHorizontal aria-hidden="true" /></Button></DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
                   {m.status === "active" && allowed && <>
+                    <DropdownMenuItem className="min-h-11" onSelect={() => { setWarning(m); setWarnReason(""); }}>{t("warn")}</DropdownMenuItem>
                     {muteDays.map((days) => <DropdownMenuItem key={days} className="min-h-11" onSelect={() => void act(`${base}/members`, { userId: m.userId, action: "mute", days })}>{t("mute", { days })}</DropdownMenuItem>)}
                     {m.mutedUntil && <DropdownMenuItem className="min-h-11" onSelect={() => void act(`${base}/members`, { userId: m.userId, action: "unmute" })}>{t("unmute")}</DropdownMenuItem>}
                     <DropdownMenuSeparator />
@@ -104,6 +112,18 @@ export function ModerationPanel({ slug, me, role, queue, held, members, history 
                 </DropdownMenuContent></DropdownMenu>}</TableCell>
             </TableRow>; })}</TableBody></Table></div>}
       </TabsContent>
+
+      <TabsContent value="appeals" className="mt-4">{appeals.length === 0 ? empty("emptyAppeals") : <div className="overflow-x-auto rounded-lg border">
+        <Table aria-label={t("tabs.appeals")}><TableHeader><TableRow><TableHead>{t("name")}</TableHead><TableHead>{t("appealMessage")}</TableHead><TableHead>{t("status")}</TableHead>
+          <TableHead>{t("date")}</TableHead><TableHead><span className="sr-only">{t("actions")}</span></TableHead></TableRow></TableHeader>
+          <TableBody>{appeals.map((x) => { const name = x.name?.trim() || t("unnamed"); return <TableRow key={x.id}>
+            <TableCell className="font-medium">{name}</TableCell>
+            <TableCell className="max-w-72"><span className="line-clamp-2 break-words">{x.message}</span></TableCell>
+            <TableCell><Badge variant={x.status === "open" ? "secondary" : "outline"}>{t(`appealStatus.${x.status}`)}</Badge></TableCell>
+            <TableCell className="whitespace-nowrap">{date(x.createdAt)}</TableCell>
+            <TableCell className="text-right"><Button variant={x.status === "open" ? "default" : "outline"} className="min-h-11" aria-label={t("reviewNamed", { name })}
+              onClick={() => { setAppealId(x.id); setAppealReply(""); }}>{t("review")}</Button></TableCell>
+          </TableRow>; })}</TableBody></Table></div>}</TabsContent>
 
       <TabsContent value="history" className="mt-4">{history.length === 0 ? empty("emptyHistory") : <div className="overflow-x-auto rounded-lg border">
         <Table aria-label={t("tabs.history")}><TableHeader><TableRow><TableHead className="whitespace-normal">{t("date")}</TableHead><TableHead className="whitespace-normal">{t("host")}</TableHead><TableHead className="whitespace-normal">{t("action")}</TableHead><TableHead className="whitespace-normal">{t("subject")}</TableHead></TableRow></TableHeader>
@@ -123,7 +143,8 @@ export function ModerationPanel({ slug, me, role, queue, held, members, history 
             {current.title && <p className="font-medium break-words">{current.title}</p>}
             {current.excerpt && <p className="text-sm whitespace-pre-line break-words text-muted-foreground">{current.excerpt}</p>}
             {current.targetType !== "member" && <p className="text-sm">{t("byAuthor", { name: current.authorName?.trim() || t("unnamed") })}</p>}
-            {postHref(current.postId) && <Link href={postHref(current.postId)!} prefetch={false} className="inline-flex min-h-11 items-center text-sm underline">{t("openItem")}</Link>}</div>
+            {postHref(current.postId) && <Link href={postHref(current.postId)!} prefetch={false} className="inline-flex min-h-11 items-center text-sm underline">{t("openItem")}</Link>}
+            {(current.targetType === "post" || current.targetType === "comment") && <div><EditHistory slug={slug} targetType={current.targetType} targetId={current.targetId} name={itemLabel(current) || t(`targets.${current.targetType}`)} /></div>}</div>
           <div className="space-y-2"><h3 className="text-sm font-medium">{t("reportsCount", { count: current.reports })}</h3>
             <div className="flex flex-wrap gap-1">{current.reasons.map((r) => <Badge key={r} variant="secondary">{t(`reasonLabels.${r}`)}</Badge>)}</div>
             {current.notes.length > 0 && <ul className="space-y-2">{current.notes.map((note, i) => <li key={i} className="rounded-md border p-2 text-sm break-words">{note}</li>)}</ul>}</div>
@@ -136,6 +157,38 @@ export function ModerationPanel({ slug, me, role, queue, held, members, history 
         </SheetFooter></>}
       </SheetContent>
     </Sheet>
+
+    <Sheet open={currentAppeal !== null} onOpenChange={(next) => { if (!next) setAppealId(null); }}>
+      <SheetContent className="w-full overflow-y-auto sm:max-w-lg">{currentAppeal && <>
+        <SheetHeader><SheetTitle>{t("appealTitle")}</SheetTitle></SheetHeader>
+        <div className="space-y-4 px-4">
+          <div className="space-y-1"><div className="flex flex-wrap items-center gap-2"><p className="font-medium break-words">{currentAppeal.name?.trim() || t("unnamed")}</p>
+            <Badge variant={currentAppeal.status === "open" ? "secondary" : "outline"}>{t(`appealStatus.${currentAppeal.status}`)}</Badge></div>
+            <p className="text-sm text-muted-foreground">{date(currentAppeal.createdAt)}</p>
+            <p className="text-sm whitespace-pre-line break-words">{currentAppeal.message}</p></div>
+          {currentAppeal.status === "open"
+            ? <div className="space-y-2"><Label htmlFor="appeal-reply">{t("appealReply")}</Label>
+              <Textarea id="appeal-reply" rows={3} value={appealReply} maxLength={moderationLimits.appealReply} onChange={(e) => setAppealReply(e.target.value)} /></div>
+            : currentAppeal.reply && <div className="space-y-1"><h3 className="text-sm font-medium">{t("appealReply")}</h3><p className="text-sm whitespace-pre-line break-words">{currentAppeal.reply}</p></div>}
+        </div>
+        {currentAppeal.status === "open" && <SheetFooter className="flex-row flex-wrap">
+          {canDecideAppeal(role, "approve") && <Button className="min-h-11" disabled={busy}
+            onClick={() => void act(`${base}/appeals`, { appealId: currentAppeal.id, decision: "approve", ...(appealReply.trim() ? { reply: appealReply.trim() } : {}) }, () => setAppealId(null))}>{t("approveAppeal")}</Button>}
+          <Button variant="outline" className="min-h-11" disabled={busy}
+            onClick={() => void act(`${base}/appeals`, { appealId: currentAppeal.id, decision: "decline", ...(appealReply.trim() ? { reply: appealReply.trim() } : {}) }, () => setAppealId(null))}>{t("declineAppeal")}</Button>
+        </SheetFooter>}</>}
+      </SheetContent>
+    </Sheet>
+
+    <Dialog open={warning !== null} onOpenChange={(next) => { if (!next) setWarning(null); }}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader><DialogTitle>{t("warnTitle", { name: warning?.name.trim() || t("unnamed") })}</DialogTitle></DialogHeader>
+        <div className="space-y-2"><Label htmlFor="warn-reason">{t("warnReason")}</Label>
+          <Textarea id="warn-reason" rows={4} value={warnReason} maxLength={moderationLimits.warning} onChange={(e) => setWarnReason(e.target.value)} /></div>
+        <DialogFooter><Button className="min-h-11" disabled={busy || !warnReason.trim()}
+          onClick={() => { const m = warning; if (m) void act(`${base}/warnings`, { userId: m.userId, reason: warnReason.trim() }, () => setWarning(null)); }}>{t("warnSend")}</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <AlertDialog open={banning !== null} onOpenChange={(next) => { if (!next) setBanning(null); }}>
       <AlertDialogContent>
