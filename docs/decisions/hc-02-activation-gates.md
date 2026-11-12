@@ -13,3 +13,5 @@ Reconciled 2026-11-07. **All five decisions remain UNAPPROVED.** This register m
 HC-03 resolves public resource links without collecting guest responses. These gates do not prevent technical review of that bounded slice, but merging its code cannot approve real collection, invitations, deliveries or deployment. HC-05/HC-07 must read this register and obtain the actual decisions before enabling real data. HC-05 synthetic implementation evidence is in [its acceptance record](../acceptance/hc-05.md); it adds no activation approval. No fabricated approval date or reviewer is recorded here.
 
 When a decision is made, record its date, approver, scope/jurisdiction, approved policy and supporting evidence here and reconcile HC-02 §5 and Craft. Keep any unresolved gate explicitly unapproved.
+
+Plain-language options and recommendations for these five decisions: [decision sheet](hc-02-decision-sheet.md) (presents options only; approves nothing).
