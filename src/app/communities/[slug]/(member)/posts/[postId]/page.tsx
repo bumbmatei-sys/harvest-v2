@@ -15,6 +15,7 @@ import { PostComposer } from "@/components/forum/post-composer";
 import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ReportDialog } from "@/components/communities/report-dialog";
+import { EditHistory } from "@/components/communities/edit-history";
 
 // A missing or removed post is not found; a non-member never gets here (the member layout redirects).
 const missingPost = (error: unknown): never => { if (error instanceof AccessError && error.status === 404) notFound(); throw error; };
@@ -35,7 +36,10 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
       {(post.pinned || post.held) && <div className="flex flex-wrap gap-2">{post.pinned && <Badge variant="secondary"><Pin className="size-3" aria-hidden="true" />{t("pinned")}</Badge>}
         {post.held && awaiting}</div>}
       <h2 className="text-2xl font-semibold break-words">{post.title}</h2>
-      <p className="text-sm text-muted-foreground">{t(post.editedAt ? "bylineEdited" : "byline", { name: author, date: format.dateTime(post.createdAt, { dateStyle: "medium" }) })}</p>
+      <div className="flex flex-wrap items-center gap-x-2">
+        <p className="text-sm text-muted-foreground">{t(post.editedAt ? "bylineEdited" : "byline", { name: author, date: format.dateTime(post.createdAt, { dateStyle: "medium" }) })}</p>
+        {post.editedAt && context.canModerate && <EditHistory slug={context.slug} targetType="post" targetId={post.id} name={post.title} compact />}
+      </div>
     </header>
     {post.video && <VideoEmbedView video={post.video} title={post.title} />}
     <RichTextView doc={post.body} />
@@ -62,6 +66,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
         <div className="mt-1 flex items-center gap-1">
           <LikeButton slug={context.slug} targetType="comment" targetId={c.id} likes={c.likes} liked={c.liked} disabled={post.likesOff || c.held || Boolean(muted)} label={name} />
           <CommentActions slug={context.slug} commentId={c.id} isAuthor={c.authorId === me} canModerate={context.canModerate} name={name} />
+          {context.canModerate && c.edits > 0 && <EditHistory slug={context.slug} targetType="comment" targetId={c.id} name={name} compact />}
           {c.authorId !== me && !c.held && <ReportDialog slug={context.slug} targetType="comment" targetId={c.id} name={name} compact />}
         </div></li>; })}</ul>}
       {post.held ? null : post.commentsOff ? <p className="text-sm text-muted-foreground">{t("commentsClosed")}</p>

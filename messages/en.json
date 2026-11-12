@@ -494,6 +494,7 @@
     "categoryLast": "A community needs at least one category.",
     "forumMuted": "You can't post here right now.",
     "reportDuplicate": "You've already reported this.",
+    "appealDuplicate": "You've already sent an appeal.",
     "bannedWordsInvalid": "Banned words can be up to 40 characters each, 100 in total."
   },
   "LibEnv": {
@@ -2447,6 +2448,15 @@
       "declined": "Declined"
     },
     "askedFor": "The community asked:",
+    "removed": "Removed",
+    "removedBadge": "Removed",
+    "appealStatus": {
+      "open": "Appeal sent",
+      "approved": "Appeal approved",
+      "declined": "Appeal declined"
+    },
+    "hostReply": "Reply from the hosts:",
+    "rejoin": "Rejoin",
     "editAnswers": "Edit answers",
     "resubmit": "Send",
     "withdraw": "Withdraw"
@@ -2651,6 +2661,26 @@
     "newPlaceholder": "New category",
     "add": "Add category"
   },
+  "EditHistory": {
+    "open": "Edit history",
+    "openNamed": "Edit history of {name}",
+    "title": "Edit history",
+    "current": "Current",
+    "earlier": "Earlier",
+    "loading": "Loading",
+    "empty": "No earlier versions."
+  },
+  "Warnings": {
+    "title": "Warning from the hosts",
+    "acknowledge": "Acknowledge"
+  },
+  "Appeal": {
+    "open": "Appeal",
+    "openNamed": "Appeal your removal from {name}",
+    "title": "Appeal to {name}",
+    "message": "Your message",
+    "send": "Send appeal"
+  },
   "Report": {
     "action": "Report",
     "open": {
@@ -2688,6 +2718,7 @@
       "reports": "Reports",
       "held": "Held",
       "members": "Members",
+      "appeals": "Appeals",
       "history": "History"
     },
     "item": "Item",
@@ -2766,8 +2797,27 @@
       "mute": "{days, plural, one {Muted for # day} other {Muted for # days}}",
       "unmute": "Unmuted",
       "ban": "Banned",
-      "unban": "Unbanned"
+      "unban": "Unbanned",
+      "warn": "Warned",
+      "appeal_approve": "Approved appeal",
+      "appeal_decline": "Declined appeal"
     },
-    "subjectWithType": "{name} · {type}"
+    "subjectWithType": "{name} · {type}",
+    "warnings": "Warnings",
+    "warn": "Warn",
+    "warnTitle": "Warn {name}",
+    "warnReason": "Reason",
+    "warnSend": "Send warning",
+    "emptyAppeals": "No appeals",
+    "appealMessage": "Message",
+    "appealTitle": "Review appeal",
+    "appealReply": "Reply",
+    "approveAppeal": "Approve and unban",
+    "declineAppeal": "Decline",
+    "appealStatus": {
+      "open": "Open",
+      "approved": "Approved",
+      "declined": "Declined"
+    }
   }
 }
