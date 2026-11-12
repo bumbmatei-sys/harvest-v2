@@ -247,3 +247,8 @@ A fresh, separate Claude session reviewed the PR read-only at `034f222`. It foun
 - **First endpoint backlog.** Outbox events not yet dispatched when the first endpoint is created will be delivered to it. Decide whether to start subscriptions from the creation time.
 - **Delivery retention.** Delivery rows and outbox rows are never pruned.
 - Email/calendar sync remains out of scope.
+
+## Follow-ups (CRM-08 soft follow-ups)
+
+- **Approval lifetime.** The documented lifetime is 10 minutes; migration 0025's check `ai_tool_approval_expiry` allows up to 1 hour. The service already issued 10 minutes through an inline literal. It now uses one exported constant, `APPROVAL_TTL_MINUTES = 10`, in `src/server/ai/crm-tools.ts`. The 1-hour SQL limit stays as a looser backstop: tightening it would need a new migration and was not done (no migration in this change). No UI copy states a lifetime (the approval screen does not exist yet); the existing expiry messages carry no duration. Evidence: a test checks a new approval has `expires_at - created_at = 600 s` and that SQL refuses a 61-minute expiry.
+- **Concurrent decisions.** Added integration tests on separate pool connections. Two simultaneous `decideToolApproval` calls (approve/approve and approve/reject, 5 rounds): exactly one succeeds, the other gets 409, and one decision audit row exists. Two simultaneous `executeCrmTool` calls with one approved approval (5 rounds): one runs, the other gets 409 `approval_used`, one task is created, one `ai.tool_execute` audit row. No race found: `lockApproval` already takes `SELECT ... FOR UPDATE`, so no code change was needed.

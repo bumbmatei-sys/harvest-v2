@@ -9,7 +9,7 @@ import { createDeal, listPipelines, moveDeal } from "../../src/server/crm-deals"
 import { createNote, createTask } from "../../src/server/crm-tasks";
 import { recordAssociation } from "../../src/server/crm-associations";
 import { createFieldDefinition, patchRecordFields } from "../../src/server/crm-fields";
-import { decideToolApproval, describeCrmTools, executeCrmTool, requestToolApproval, toolArgsHash } from "../../src/server/ai/crm-tools";
+import { APPROVAL_TTL_MINUTES, decideToolApproval, describeCrmTools, executeCrmTool, requestToolApproval, toolArgsHash } from "../../src/server/ai/crm-tools";
 
 let fixture: Awaited<ReturnType<typeof testDatabase>>, tenantA: string, tenantB: string, person: string, org: string, deal: string;
 const taskArgs = { title: "Call back about the youth trip" };
@@ -118,6 +118,43 @@ describe("approval gate for write tools", () => {
     expect(await tasks()).toBe(before + 1);
     const ledger = (await fixture.admin.query("select action from audit_logs where tenant_id = $1 and target_id = $2 order by created_at, id", [tenantA, approvalId])).rows.map((row) => row.action);
     expect(ledger).toEqual(["ai.tool_approval_request", "ai.tool_approval_approve", "ai.tool_execute"]);
+  });
+
+  it("gives a new approval exactly the documented 10-minute lifetime, inside the database's 1-hour backstop", async () => {
+    const { approvalId } = await requestToolApproval(fixture.db, "member-a", tenantA, "crm_create_task", taskArgs);
+    const row = (await fixture.admin.query("select extract(epoch from expires_at - created_at) as seconds from ai_tool_approvals where id = $1", [approvalId])).rows[0];
+    expect(APPROVAL_TTL_MINUTES).toBe(10);
+    expect(Number(row.seconds)).toBe(600);
+    // Anything beyond the 1-hour backstop is refused by SQL.
+    await expect(fixture.admin.query(`insert into ai_tool_approvals (tenant_id, tool, args_hash, requested_by, expires_at, created_at) values ($1, 'crm_create_task', $2, 'member-a', now() + interval '61 minutes', now())`, [tenantA, "0".repeat(64)])).rejects.toThrow();
+  });
+
+  it("lets exactly one of two simultaneous decisions win, and runs an approved action once under a concurrent replay", async () => {
+    const tasks = async () => Number((await fixture.admin.query("select count(*) from crm_tasks where tenant_id = $1 and title = $2", [tenantA, "Concurrent approval task"])).rows[0].count);
+    const args = { title: "Concurrent approval task" };
+    for (let round = 0; round < 5; round += 1) {
+      const pending = await requestToolApproval(fixture.db, "member-a", tenantA, "crm_create_task", args);
+      const results = await Promise.allSettled([
+        decideToolApproval(fixture.db, "member-a", tenantA, pending.approvalId, "approve"),
+        decideToolApproval(fixture.db, "member-a", tenantA, pending.approvalId, round % 2 ? "reject" : "approve")]);
+      expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+      expect((results.find((r) => r.status === "rejected") as PromiseRejectedResult).reason).toMatchObject({ status: 409 });
+      const decisions = (await fixture.admin.query("select action from audit_logs where tenant_id = $1 and target_id = $2 and action in ('ai.tool_approval_approve', 'ai.tool_approval_reject')", [tenantA, pending.approvalId])).rows;
+      expect(decisions).toHaveLength(1);
+    }
+    const before = await tasks();
+    for (let round = 0; round < 5; round += 1) {
+      const { approvalId } = await requestToolApproval(fixture.db, "member-a", tenantA, "crm_create_task", args);
+      await decideToolApproval(fixture.db, "member-a", tenantA, approvalId, "approve");
+      const results = await Promise.allSettled([
+        executeCrmTool(fixture.db, "member-a", tenantA, "crm_create_task", args, { approvalId }),
+        executeCrmTool(fixture.db, "member-a", tenantA, "crm_create_task", args, { approvalId })]);
+      expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+      expect((results.find((r) => r.status === "rejected") as PromiseRejectedResult).reason).toMatchObject({ status: 409, details: { reason: "approval_used" } });
+      expect(await tasks()).toBe(before + round + 1);
+      const executions = (await fixture.admin.query("select count(*) from audit_logs where tenant_id = $1 and target_id = $2 and action = 'ai.tool_execute'", [tenantA, approvalId])).rows[0];
+      expect(Number(executions.count)).toBe(1);
+    }
   });
 
   it("refuses rejected and expired approvals", async () => {

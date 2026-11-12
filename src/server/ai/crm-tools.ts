@@ -163,6 +163,12 @@ function lookupTool(name: string) {
   if (!Object.hasOwn(crmTools, name)) throw unavailable();
   return crmTools[name as CrmToolName] as Tool<z.ZodType>;
 }
+/**
+ * An approval is valid for 10 minutes. This is the documented maximum. The database check
+ * (`ai_tool_approval_expiry`, migration 0025) is a looser 1 hour backstop; tightening it needs a new migration.
+ */
+export const APPROVAL_TTL_MINUTES = 10;
+
 /** The approval binds this hash: same tool, same validated (defaulted) arguments, nothing else. */
 export function toolArgsHash(name: string, args: unknown) {
   return workFingerprint(`ai-tool:${name}`, { args: args as never });
@@ -187,7 +193,7 @@ export async function requestToolApproval(db: Database, userId: string, workspac
   const input = definition.input.parse(args);
   return withTenant(db, userId, uuidInput.parse(workspace), definition.permission, async (tx, tenantId) => {
     const [row] = await tx.insert(aiToolApprovals).values({ tenantId, tool: name, argsHash: toolArgsHash(name, input), requestedBy: userId,
-      expiresAt: sql`now() + interval '10 minutes'` }).returning({ id: aiToolApprovals.id, expiresAt: aiToolApprovals.expiresAt });
+      expiresAt: sql`now() + ${APPROVAL_TTL_MINUTES} * interval '1 minute'` }).returning({ id: aiToolApprovals.id, expiresAt: aiToolApprovals.expiresAt });
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "ai.tool_approval_request", targetId: row.id, metadata: { tool: name } });
     return { approvalId: row.id, tool: name, expiresAt: row.expiresAt.toISOString() };
   });
