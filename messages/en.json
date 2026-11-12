@@ -491,7 +491,10 @@
     "uploadNotAvailable": "This file isn't available.",
     "categoryNotEmpty": "Move or remove this category's posts first.",
     "categoryLimit": "A community can have up to 30 categories.",
-    "categoryLast": "A community needs at least one category."
+    "categoryLast": "A community needs at least one category.",
+    "forumMuted": "You can't post here right now.",
+    "reportDuplicate": "You've already reported this.",
+    "bannedWordsInvalid": "Banned words can be up to 40 characters each, 100 in total."
   },
   "LibEnv": {
     "missingRequiredEnvironmentVariableValue": "Missing required environment variable: {name}"

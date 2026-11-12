@@ -4,6 +4,7 @@ import type { Database, Transaction } from "../db/client";
 import { auditLogs, communities, communityCategories, communityInvites, communityPosts, communityMemberships, discoverListings, entitlements, reservedCommunitySlugs, users, workspaces } from "../db/schema";
 import { questionSet } from "../lib/questions";
 import { categoryInput, forumLimits } from "../lib/forum";
+import { normaliseBannedWords } from "../lib/moderation";
 import { discoverEligible, emailHash, emailHint, hashSecret, listingFor, newInviteToken } from "../lib/community-listing";
 import { communityStaffRoles, type CommunityRole } from "../lib/community-permissions";
 import { readyToPublish } from "../lib/community-editor";
@@ -31,6 +32,8 @@ const updateInput = z.object({
   allowOpen: z.boolean().optional(), allowApply: z.boolean().optional(),
   allowInvite: z.boolean().optional(), allowEntitlement: z.boolean().optional(),
   description: description.nullable().optional(), rulesList: rulesList.optional(), joinQuestions: questionSet.optional(), discoverOptIn: z.boolean().optional(),
+  // C12a: held content.
+  holdFirstPosts: z.boolean().optional(), bannedWords: z.array(z.string().max(200)).max(200).optional(),
 }).strict();
 const grantInput = z.object({ userId: z.string().min(1).max(200), validUntil: z.iso.datetime().optional(), reason: z.string().trim().min(1).max(200).optional() }).strict();
 const revokeInput = z.object({}).strict();
@@ -69,6 +72,9 @@ export function listCommunities(db: Database, userId: string, workspace: string)
 
 export async function updateCommunity(db: Database, userId: string, workspace: string, communityId: string, raw: unknown) {
   const { version, ...changes } = updateInput.parse(raw);
+  if (changes.bannedWords) {
+    try { changes.bannedWords = normaliseBannedWords(changes.bannedWords); } catch { throw new AccessError(400, message("Errors.bannedWordsInvalid")); }
+  }
   if (changes.pricing === "paid") throw new AccessError(409, message("Errors.paidCommunitiesUnavailable"));
   const id = z.uuid().parse(communityId);
   return withTenant(db, userId, z.uuid().parse(workspace), "communities:manage", async (tx, tenantId) => {
