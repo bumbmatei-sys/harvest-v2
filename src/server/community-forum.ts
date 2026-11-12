@@ -92,7 +92,9 @@ export async function getPost(db: Database, userId: string, slug: string, postId
       .orderBy(asc(communityFiles.createdAt));
     const comments = await tx.select({ id: communityComments.id, body: communityComments.body, authorId: communityComments.authorId, authorName: users.name,
       createdAt: communityComments.createdAt, updatedAt: communityComments.updatedAt, likes: likeCount("comment", communityComments.id),
-      liked: likedBy("comment", communityComments.id, userId), held: sql<boolean>`${communityComments.heldAt} is not null` })
+      liked: likedBy("comment", communityComments.id, userId), held: sql<boolean>`${communityComments.heldAt} is not null`,
+      // C12b: previous versions are readable only by hosts (RLS), so everyone else counts zero.
+      edits: sql<number>`(select count(*)::int from community_comment_revisions r where r.comment_id = ${communityComments.id})` })
       .from(communityComments).leftJoin(users, eq(users.id, communityComments.authorId))
       .where(and(eq(communityComments.postId, post.id), isNull(communityComments.removedAt),
         ctx.canModerate ? undefined : or(isNull(communityComments.heldAt), eq(communityComments.authorId, userId))))
@@ -108,9 +110,9 @@ const refusal = (outcome: string) => outcome === "forbidden" ? new AccessError(4
   : outcome === "muted" ? new AccessError(403, message("Errors.forumMuted"))
   : outcome === "duplicate" ? new AccessError(409, message("Errors.reportDuplicate"))
   : outcome === "invalid" ? new AccessError(400, message("Errors.forumInputInvalid")) : notFound();
-export async function forumDefiner(db: Database, userId: string, statement: ReturnType<typeof sql>, ok: string[] = ["ok"]) {
+export async function forumDefiner(db: Database, userId: string, statement: ReturnType<typeof sql>, ok: string[] = ["ok"], refusals: Partial<Record<string, () => AccessError>> = {}) {
   const result = await withUser(db, userId, async (tx) => (await tx.execute<{ v: Outcome }>(statement)).rows[0].v);
-  if (!ok.includes(result.outcome)) throw refusal(result.outcome);
+  if (!ok.includes(result.outcome)) throw (refusals[result.outcome] ?? (() => refusal(result.outcome)))();
   return result;
 }
 
