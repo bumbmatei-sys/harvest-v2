@@ -57,6 +57,10 @@ Keep peer controls aligned in the same action row; widths may differ with their 
 
 Primitive shapes remain shadcn-owned source. No new library or external UI source was imported. Business list/filter/editor compositions remain inventory references, not genericized demo implementations. New page/wizard/editor/form engines remain pending.
 
+## Shared request hook
+
+`hooks/use-request.ts` exports `useRequest`, `RequestResult<T>` and the plain `request` function: same-origin JSON requests with catalogue-mapped errors and a sign-in redirect on 401. `crm/request.ts` remains a compatibility re-export (`useCrmRequest`, `CrmResult`) for CRM, Communities and forum consumers.
+
 ## Shared CRM filters
 
 `crm/filter-builder.tsx` is the bounded shared filter panel used through `ListToolbar` / `ListPage` by People and Organizations. It composes existing shadcn Popover, Tooltip, Command, fields, native selects, checkboxes and buttons. Draft conditions are local until Apply; Cancel/Escape/outside dismissal discard them. Active chips edit/remove conditions; after three chips, +N opens the same panel. Existing `MAX_FILTERS`, per-type operands, validation and URL/saved-view/server contracts remain authoritative. No Source fields are advertised before HC-06. Contact permissions currently means the existing email-marketing field only. No universal filter engine, new dependency, schema or source-provenance domain is introduced.

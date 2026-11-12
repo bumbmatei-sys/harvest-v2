@@ -6,10 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Field,FieldGroup,FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect,NativeSelectOption } from "@/components/ui/native-select";
-import { useCrmRequest } from "@/components/crm/request";
+import { useRequest } from "@/hooks/use-request";
 export function IntakeRightsForm() {
  const invite=useTranslations("Invitations");
- const t=useTranslations("Intake"),id=useId(),request=useCrmRequest();
+ const t=useTranslations("Intake"),id=useId(),request=useRequest();
  const [busy,setBusy]=useState(false),[error,setError]=useState(""),[done,setDone]=useState(false);
  async function submit(form:FormData) {
   setBusy(true);setError("");setDone(false);const action=form.get("action");

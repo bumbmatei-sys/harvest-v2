@@ -9,12 +9,12 @@ import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, Di
 import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { useCrmRequest } from "@/components/crm/request";
+import { useRequest } from "@/hooks/use-request";
 import { locales } from "@/i18n/locale";
 
 export function CreateLinkDialog({ endpoint, formVersions }: { endpoint: string; formVersions: { id: string; version: number; formName: string }[] }) {
   const t = useTranslations("ConnectLinks");
-  const router = useRouter(), request = useCrmRequest(), id = useId();
+  const router = useRouter(), request = useRequest(), id = useId();
   const [open, setOpen] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState("");
   async function submit(form: FormData) {
     setBusy(true); setError("");

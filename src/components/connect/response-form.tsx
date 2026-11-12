@@ -11,12 +11,12 @@ import { Input } from "@/components/ui/input";
 import { z } from "zod";
 import type { intakeSubmission } from "@/lib/connect-intake";
 import type { IntakeManifest, IntakePurpose } from "@/lib/connect-intake";
-import { useCrmRequest } from "@/components/crm/request";
+import { useRequest } from "@/hooks/use-request";
 
 export function ResponseForm({ manifest, endpoint, preview=false }: { manifest: IntakeManifest; endpoint: string; preview?: boolean }) {
  const editor=useTranslations("LandingEditor");
  const invite=useTranslations("Invitations");
- const t=useTranslations("Intake"),id=useId(),request=useCrmRequest();
+ const t=useTranslations("Intake"),id=useId(),request=useRequest();
  const [followUp,setFollowUp]=useState(false),[newsletter,setNewsletter]=useState(false),[busy,setBusy]=useState(false),[error,setError]=useState("");
  const [invitation,setInvitation]=useState(false),[invitationAck,setInvitationAck]=useState(false);
  const [receipt,setReceipt]=useState<string|null>(null),[ack,setAck]=useState(false),[copied,setCopied]=useState(false);
