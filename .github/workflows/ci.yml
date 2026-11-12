@@ -1,13 +1,19 @@
-name: Foundation CI
+name: CI
+# The repository is public (12 Nov 2026), so GitHub-hosted minutes are free. This workflow is the
+# main CI: it runs on every PR and on main, and can be started by hand (Actions → CI → Run workflow).
+# No job deploys or sends real messages. CircleCI remains available as an optional extra check.
 on:
   pull_request:
   push:
-    branches: [main, feat/pr01a-foundation]
+    branches: [main]
+  workflow_dispatch:
 permissions:
   contents: read
 concurrency:
-  group: foundation-${{ github.ref }}
+  group: ci-${{ github.ref }}
   cancel-in-progress: true
+env:
+  NEXT_TELEMETRY_DISABLED: '1'
 jobs:
   quality:
     name: ${{ matrix.check }}
@@ -24,8 +30,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run ${{ matrix.check }}
-        env:
-          NEXT_TELEMETRY_DISABLED: '1'
+
   database:
     name: migrations and RLS
     runs-on: ubuntu-latest
@@ -49,11 +54,41 @@ jobs:
           node-version: '24'
           cache: npm
       - run: npm ci
-      - run: npm run db:migrate
-      - run: npm run db:migrate
+      - name: Apply and replay migrations
+        run: |
+          npm run db:migrate
+          npm run db:migrate
       - run: npm run test:rls
+
   browser:
-    name: Playwright and accessibility
+    # Playwright splits the spec files across four runners; each starts its own dev server and
+    # disposable embedded Postgres (tests/database.ts), as in the former CircleCI final review.
+    name: browser ${{ matrix.shard }}/4
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx playwright test --trace off --shard=${{ matrix.shard }}/4
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: browser-failures-${{ matrix.shard }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+
+  pwa:
+    name: build and PWA
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -63,47 +98,49 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
       - run: npm run build
-        env:
-          NEXT_TELEMETRY_DISABLED: '1'
       - run: npm run test:pwa
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: foundation-browser-evidence
-          path: |
-            playwright-report/
-            test-results/
-            docs/screenshots/pr03/
-          retention-days: 7
+
   neon:
-    name: Neon CI migrations
+    # Applies migrations to a disposable Neon branch. Runs only when the change touches drizzle/
+    # and the repository has NEON_API_KEY and NEON_PROJECT_ID secrets. PRs from forks never
+    # receive secrets, so this job is skipped for them.
+    name: Neon migrations
     runs-on: ubuntu-latest
     env:
       NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
       NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+        with:
+          fetch-depth: 0
+      - name: Decide whether to run
+        id: gate
+        run: |
+          base="${{ github.event.pull_request.base.sha || github.event.before }}"
+          if [ -z "$NEON_API_KEY" ] || [ -z "$NEON_PROJECT_ID" ]; then
+            echo "::notice::Neon secrets are not configured; skipping the Neon migration check."
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" != "workflow_dispatch" ] && [ -n "$base" ] && ! git diff --quiet "$base" HEAD -- drizzle/ 2>/dev/null; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo 'run=true' >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::No drizzle/ changes; skipping the Neon migration check."
+            echo 'run=false' >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.gate.outputs.run == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
-      - run: npm ci
-      - name: Check Neon CI configuration
-        id: configured
-        run: |
-          if [ -n "$NEON_API_KEY" ] && [ -n "$NEON_PROJECT_ID" ]; then
-            echo 'ready=true' >> "$GITHUB_OUTPUT"
-          else
-            echo '::error::Neon CI requires NEON_API_KEY and NEON_PROJECT_ID repository secrets.'
-            exit 1
-          fi
-      - if: steps.configured.outputs.ready == 'true'
+      - if: steps.gate.outputs.run == 'true'
+        run: npm ci
+      - if: steps.gate.outputs.run == 'true'
         run: npx tsx scripts/neon-ci.ts create
-      - if: steps.configured.outputs.ready == 'true'
+      - if: steps.gate.outputs.run == 'true'
         run: npm run db:migrate
       - name: Remove this run's CI branch
-        if: always() && steps.configured.outputs.ready == 'true'
+        if: always() && steps.gate.outputs.run == 'true'
         run: |
           if [ -f .neon-ci-branch ]; then npx tsx scripts/neon-ci.ts delete; fi
