@@ -1,6 +1,6 @@
 # ADR 0013 — Communities architecture (C01)
 
-- **Status:** Accepted by the founder, 11 Nov 2026. C02 and C03 are implemented in #57, C04 in #58, C05, C06 and C08 in #59 (migration 0036), C07 in #60 (migration 0037), and C09 and C10 in PR 4b (migration 0038); see `docs/acceptance/communities-c05-c06-c08.md`, `docs/acceptance/communities-c07.md` and `docs/acceptance/communities-c09-c10.md`.
+- **Status:** Accepted by the founder, 11 Nov 2026. C02 and C03 are implemented in #57, C04 in #58, C05, C06 and C08 in #59 (migration 0036), C07 in #60 (migration 0037), C09 and C10 in #62 (migration 0038), and C12a in its own PR (migration 0039); see `docs/acceptance/communities-c05-c06-c08.md`, `docs/acceptance/communities-c07.md`, `docs/acceptance/communities-c09-c10.md` and `docs/acceptance/communities-c12a.md`.
 - **Scope:** Architecture, ownership boundaries and slice order for Harvest Communities. Documentation only: no code, migration, route or feature is added by this ADR.
 - **Inputs:** `docs/prd/harvest-communities.md` (PRD v1.1), `CLAUDE.md` founder decisions of 11 Nov (Discover + creators at launch; `/communities/:slug`; design of Eden, style of Studio Admin), ADR 0003 (RLS tenancy), ADR 0011 (Harvest Connect), `docs/plans/studio-admin-adoption.md`.
 

@@ -35,7 +35,7 @@ export function ModerationPanel({ slug, me, role, queue, held, members, history 
     after?.(); router.refresh();
   }
   const current = queue.find((q) => q.reportId === reviewing) ?? null;
-  const itemLabel = (i: { targetType: string; title: string; excerpt: string }) => i.targetType === "post" ? i.title : i.excerpt;
+  const itemLabel = (i: { targetType: string; title: string; excerpt: string }) => i.targetType === "comment" ? i.excerpt : i.title;
   const postHref = (postId: string | null) => postId ? `/communities/${slug}/posts/${postId}` : null;
   const visibleMembers = members.filter((m) => m.name.toLowerCase().includes(search.trim().toLowerCase()));
   const empty = (key: string) => <Empty className="border"><EmptyHeader><EmptyTitle>{t(key as "emptyReports")}</EmptyTitle></EmptyHeader></Empty>;
@@ -90,7 +90,7 @@ export function ModerationPanel({ slug, me, role, queue, held, members, history 
               <TableCell className="font-medium">{name}</TableCell>
               <TableCell>{t(`roles.${m.role}` as "roles.member")}</TableCell>
               <TableCell>{m.status === "banned" ? <Badge variant="destructive">{t("banned")}</Badge>
-                : m.mutedUntil ? <Badge variant="secondary">{t("mutedUntil", { date: format.dateTime(new Date(m.mutedUntil), { dateStyle: "medium", timeStyle: "short" }) })}</Badge>
+                : m.mutedUntil ? <Badge variant="secondary" className="h-auto whitespace-normal">{t("mutedUntil", { date: format.dateTime(new Date(m.mutedUntil), { dateStyle: "medium", timeStyle: "short" }) })}</Badge>
                 : <Badge variant="outline">{t("active")}</Badge>}</TableCell>
               <TableCell className="text-right">{(allowed || canUnban) && <DropdownMenu><DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="icon" className="size-11" disabled={busy} aria-label={t("actionsFor", { name })}><MoreHorizontal aria-hidden="true" /></Button></DropdownMenuTrigger>
@@ -106,12 +106,12 @@ export function ModerationPanel({ slug, me, role, queue, held, members, history 
       </TabsContent>
 
       <TabsContent value="history" className="mt-4">{history.length === 0 ? empty("emptyHistory") : <div className="overflow-x-auto rounded-lg border">
-        <Table aria-label={t("tabs.history")}><TableHeader><TableRow><TableHead>{t("date")}</TableHead><TableHead>{t("host")}</TableHead><TableHead>{t("action")}</TableHead><TableHead>{t("subject")}</TableHead></TableRow></TableHeader>
+        <Table aria-label={t("tabs.history")}><TableHeader><TableRow><TableHead className="whitespace-normal">{t("date")}</TableHead><TableHead className="whitespace-normal">{t("host")}</TableHead><TableHead className="whitespace-normal">{t("action")}</TableHead><TableHead className="whitespace-normal">{t("subject")}</TableHead></TableRow></TableHeader>
           <TableBody>{history.map((h) => <TableRow key={h.id}>
-            <TableCell className="whitespace-nowrap">{format.dateTime(new Date(h.createdAt), { dateStyle: "medium", timeStyle: "short" })}</TableCell>
-            <TableCell>{h.actorName?.trim() || t("unnamed")}</TableCell>
-            <TableCell>{t(`history.${h.action}` as "history.ban", { days: Number(h.detail.days ?? 0) })}</TableCell>
-            <TableCell>{t("subjectWithType", { name: h.subjectName?.trim() || t("unnamed"), type: t(`targets.${h.targetType}` as "targets.post") })}</TableCell>
+            <TableCell className="whitespace-normal">{format.dateTime(new Date(h.createdAt), { dateStyle: "medium", timeStyle: "short" })}</TableCell>
+            <TableCell className="whitespace-normal">{h.actorName?.trim() || t("unnamed")}</TableCell>
+            <TableCell className="whitespace-normal">{t(`history.${h.action}` as "history.ban", { days: Number(h.detail.days ?? 0) })}</TableCell>
+            <TableCell className="whitespace-normal">{t("subjectWithType", { name: h.subjectName?.trim() || t("unnamed"), type: t(`targets.${h.targetType}` as "targets.post") })}</TableCell>
           </TableRow>)}</TableBody></Table></div>}</TabsContent>
     </Tabs>
 
