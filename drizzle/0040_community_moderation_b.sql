@@ -318,6 +318,8 @@ BEGIN
     UPDATE public.community_memberships SET muted_until = now() + make_interval(days => p_days), updated_at = now()
       WHERE tenant_id = ctx.o_tenant AND community_id = ctx.o_community AND user_id = p_user_id;
   ELSIF p_action = 'unmute' THEN
+    -- Active members only: touching a banned membership would move updated_at and re-open the one-appeal-per-ban window (review on #65).
+    IF target.status <> 'active' THEN RETURN public.community_forum_done('invalid'); END IF;
     UPDATE public.community_memberships SET muted_until = NULL, updated_at = now()
       WHERE tenant_id = ctx.o_tenant AND community_id = ctx.o_community AND user_id = p_user_id;
   ELSIF p_action = 'ban' THEN

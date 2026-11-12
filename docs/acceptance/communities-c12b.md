@@ -49,6 +49,11 @@ Design: `docs/superpowers/specs/2026-11-12-communities-c12b-moderation-design.md
   - axe and no horizontal scroll at 390, 768 and 1440 wide, light and dark; screenshots in `docs/screenshots/communities-c12b/`.
 - **Regression:** `community-moderation`, `community-forum` and `community-editor` browser specs.
 
+## Review follow-up (non-author review of `11d7d83`: MERGE-OK, one should-fix)
+
+- **Unmute re-opening the appeal window:** the one-appeal-per-ban check compares appeals with the membership's `updated_at`, and `unmute` touched banned memberships. `community_member_moderate` (replaced in 0040) now refuses `unmute` unless the member is active, so a banned member's appeal window can't be re-opened by a host action (database test).
+- **Optional, not taken:** paging for the history, appeals and queue lists; a limit on repeated warnings; a comment on the client-only `request` export (that one belongs to #66).
+
 ## Deferred
 
 - Notifications for warnings and appeal decisions (C15).

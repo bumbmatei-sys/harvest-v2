@@ -118,6 +118,10 @@ it("lets a banned member send one appeal per ban; hosts decide; approval unbans"
   const declined = await rows<{ appeal: { status: string; reply: string }; canAppeal: boolean }>("w-two", sql`select public.community_my_bans() as v`);
   expect(declined[0]).toMatchObject({ canAppeal: false, appeal: { status: "declined", reply: "Not yet. Please wait a month." } });
   expect((await appeal("w-two", "One more time")).outcome).toBe("duplicate");
+  // Unmute cannot touch a banned membership, so the one-appeal-per-ban window stays closed (review on #65).
+  expect((await moderate("w-owner", "w-two", "unmute")).outcome).toBe("invalid");
+  expect((await rows<{ canAppeal: boolean }>("w-two", sql`select public.community_my_bans() as v`))[0].canAppeal).toBe(false);
+  expect((await appeal("w-two", "After an unmute")).outcome).toBe("duplicate");
   // A new ban allows a new appeal; approval is an unban.
   expect((await moderate("w-owner", "w-two", "unban")).outcome).toBe("ok");
   expect((await moderate("w-mod", "w-two", "ban")).outcome).toBe("ok");
