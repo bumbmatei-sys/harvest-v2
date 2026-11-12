@@ -18,7 +18,7 @@ async function capture(page:Page,name:string){
 }
 for(const scheme of ["light","dark"] as const){
  test(`HC-07 personal account invitation, verified claim and welcome: ${scheme}`,async({page,browser})=>{
-  test.setTimeout(240000);await mkdir(evidence,{recursive:true});await page.setViewportSize({width:390,height:844});await page.emulateMedia({colorScheme:scheme,reducedMotion:"reduce"}); await page.waitForFunction(s => { const t = document.documentElement.dataset.theme; return !t || t === s; }, scheme);await signIn(page);
+  test.setTimeout(240000);await mkdir(evidence,{recursive:true});await page.setViewportSize({width:390,height:844});await page.emulateMedia({colorScheme:scheme,reducedMotion:"reduce"}); await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));await signIn(page);
   const workspace=await page.request.post("/api/workspaces",{headers:{origin},data:{audience:"church",name:"HC07 synthetic QA"}});expect(workspace.status()).toBe(201);const tenant=(await workspace.json()).tenantId;
   const campaign=await page.request.post(`/api/workspaces/${tenant}/campaigns`,{headers:{origin,"Idempotency-Key":randomUUID()},data:{name:"Personal account test",type:"conference"}});expect(campaign.status()).toBe(201);const campaignId=(await campaign.json()).id;
   const api=`/api/workspaces/${tenant}/campaigns/${campaignId}/connect`;

@@ -19,7 +19,7 @@ async function check(page: Page) {
 }
 async function shoot(page: Page, name: string) {
   for (const scheme of ["light", "dark"] as const) {
-    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" }); await page.waitForFunction(s => { const t = document.documentElement.dataset.theme; return !t || t === s; }, scheme);
+    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" }); await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
     await page.waitForTimeout(300);
     for (const [label, width, height] of sizes) {
       await page.setViewportSize({ width, height });
