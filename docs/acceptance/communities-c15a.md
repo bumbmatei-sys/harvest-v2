@@ -32,6 +32,11 @@ Design: `docs/superpowers/specs/2026-11-12-communities-c15a-notifications-design
 - Preference changes and welcome dismissal write audit rows; marking notifications read does not (private, high volume).
 - Mention notifications, email, digests and unsubscribe are C15b or later.
 
+## Founder decisions after the build (12 Nov)
+
+- **Approved held replies** now notify the post author (`reply`) and earlier repliers (`thread_reply`) as the reply's author, the same as a reply that was never held (`community_notify_reply`, shared by reply save and held approval). Database test.
+- **Appeal decisions ignore mute:** a member who muted the community still receives `appeal_decision`, because it concerns their own ban. Database test.
+
 ## Activation gates
 
 - Schedule `communities:purge-notifications` daily (`docs/setup/feature-flags.md`).
