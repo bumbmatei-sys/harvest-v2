@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { useCrmRequest } from "@/components/crm/request";
+import { useRequest } from "@/hooks/use-request";
 import type { EffectiveLinkStatus, LinkAction, LinkOutcome } from "@/lib/connect-links";
 
 type Check = { key: "checkCampaign" | "checkForm" | "checkNoForm" | "checkTitle" | "checkNoTitle" | "checkResponses"; state: "pass" | "fail" | "info" };
@@ -27,7 +27,7 @@ export function LinkActions({ endpoint, status, publicCode, expiresAt, checks }:
   endpoint: string; status: EffectiveLinkStatus; publicCode: string; expiresAt: string | null; checks: Check[];
 }) {
   const t = useTranslations("ConnectLinks");
-  const router = useRouter(), request = useCrmRequest(), id = useId();
+  const router = useRouter(), request = useRequest(), id = useId();
   const [busy, setBusy] = useState<LinkAction | null>(null), [error, setError] = useState(""), [notice, setNotice] = useState("");
   const [publishOpen, setPublishOpen] = useState(false), [expiry, setExpiry] = useState(localValue(expiresAt));
   const blocked = checks.some((check) => check.state === "fail");
