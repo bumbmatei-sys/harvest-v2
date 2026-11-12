@@ -18,7 +18,7 @@ const definers = ["public.community_definer_reset()", "public.community_public(t
   "public.community_file_create(text,uuid,text,text,text,integer,text)", "public.community_file_set_status(text,uuid,text)",
   "public.discover_communities(text,boolean,timestamptz,uuid,integer)", "public.community_my_invites()",
   // C12a (0039)
-  "public.community_banned_word_match(text,text[])", "public.community_hold_reason(uuid,uuid,text,text,boolean)", "public.community_is_muted(uuid,uuid)", "public.community_moderation_log(uuid,uuid,text,text,text,text,jsonb)",
+  "public.community_banned_word_match(text,text[])", "public.community_member_rank(uuid,uuid,text)", "public.community_hold_reason(uuid,uuid,text,text,boolean)", "public.community_is_muted(uuid,uuid)", "public.community_moderation_log(uuid,uuid,text,text,text,text,jsonb)",
   "public.community_report(text,text,text,text,text)", "public.community_report_decide(text,uuid,text)", "public.community_held_decide(text,text,uuid,text)",
   "public.community_member_moderate(text,text,text,integer)", "public.community_moderation_members(text)"];
 const tables = ["communities", "community_memberships", "entitlements", "community_invites", "audit_logs", "workspaces", "discover_listings", "community_applications", "community_categories", "community_files", "community_posts", "community_comments", "community_likes", "community_reports", "community_moderation_actions"];
@@ -126,8 +126,8 @@ it("reports, decides, holds and moderates members with a non-bypass definer owne
   const category = (await fixture.admin.query("select id from community_categories where community_id = $1 limit 1", [open])).rows[0].id;
   const body = JSON.stringify({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Hi" }] }] });
   const save = (user: string, text: string) => run<{ outcome: string; id: string }>(user, sql`select public.community_post_save('owner-open', null, ${category}::uuid, 'Title', ${body}::jsonb, ${text}, null, null, '{}'::uuid[], false, false) as v`);
-  const post = await save("o-owner", "Owner post");
-  const report = await run<{ outcome: string; id: string }>("o-joiner", sql`select public.community_report('owner-open', 'post', ${post.id}, 'spam', 'note') as v`);
+  const post = await save("o-joiner", "Member post");
+  const report = await run<{ outcome: string; id: string }>("o-owner", sql`select public.community_report('owner-open', 'post', ${post.id}, 'spam', 'note') as v`);
   expect(report.outcome).toBe("ok");
   expect((await run<{ outcome: string }>("o-owner", sql`select public.community_report_decide('owner-open', ${report.id}::uuid, 'keep') as v`)).outcome).toBe("ok");
   await fixture.admin.query("update communities set banned_words = ARRAY['casino'] where id = $1", [open]);

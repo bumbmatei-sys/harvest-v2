@@ -108,3 +108,12 @@ it("saves owner settings, holds first posts and banned words, and shows held ite
   expect((await heldItems(f.db, "h-owner", "mod-forum")).items).toEqual([]);
   await settings({ holdFirstPosts: false, bannedWords: [] });
 });
+
+it("leaves a host's own reports and held items out of their queue, held list and badge", async () => {
+  await enterCommunity(f.db, "h-outsider", "mod-forum", { rulesVersion: 0, adult: true });
+  const own = await post("h-owner", "Owner's notice", "Notice");
+  await reportContent(f.db, "h-one", "mod-forum", { targetType: "post", targetId: own.id, reason: "other", note: "Signed, h-one" });
+  await reportContent(f.db, "h-one", "mod-forum", { targetType: "member", targetId: "h-owner", reason: "other" });
+  expect((await moderationQueue(f.db, "h-owner", "mod-forum")).items).toEqual([]);
+  expect(await moderationCount(f.db, "h-owner", "mod-forum")).toBe(0);
+});

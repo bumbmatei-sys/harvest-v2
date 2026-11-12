@@ -18,7 +18,7 @@ The platform-operator powers (delete anything across ministries and email the re
 - **Hosts** are the community roles owner, admin and moderator.
 - **Rank:** owner 3, admin 2, moderator 1, contributor and member 0.
 - A host can mute, ban or unban only someone with a lower rank than their own. Nobody can act on the owner, and nobody can act on themselves.
-- Content moderation (removing posts and replies, deciding reports and held items) is open to any host, as it is today.
+- Content decisions (reports and held items) are open to any host, except about themselves or their own content. Removing or rejecting content also needs a higher rank than its author (review on #63).
 
 ## Data (migration 0039)
 
