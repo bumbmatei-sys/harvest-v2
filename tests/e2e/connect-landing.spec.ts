@@ -6,6 +6,8 @@ import { origin, signIn } from "./helpers/session";
 const evidence = process.env.LANDING_QA_DIR ?? "/tmp/harvest-landing-qa";
 test.use({ reducedMotion: "reduce", actionTimeout: 30000 });
 async function capture(page: Page, name: string) {
+  // Let colour-scheme and layout transitions finish before measuring contrast (slower CI runners).
+  await page.waitForFunction(() => document.getAnimations().every(a => !(a instanceof CSSTransition) || a.playState !== "running"));
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
   expect(axe.violations, name).toEqual([]);
   const geometry = await page.locator("main").evaluate(main => ({ overflow: document.documentElement.scrollWidth - innerWidth, mainOverflow: main.scrollWidth - main.clientWidth,
