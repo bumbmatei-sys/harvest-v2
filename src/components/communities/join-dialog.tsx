@@ -34,7 +34,7 @@ export function JoinDialog({ slug, name, rules, rulesVersion, questions, questio
       body: { rulesVersion, questionsVersion, answers, adult, ...(invite ? { invite } : {}), ...(inviteId ? { inviteId } : {}) } });
     if (result.ok) {
       if (result.data.outcome === "applied") { setBusy(false); setApplied(true); router.refresh(); return; }
-      router.push(`/communities/${slug}/home`); return;
+      router.push(`/communities/${slug}/forum`); return;
     }
     setBusy(false); setError(result.error);
     // New rules or questions: reload them and ask again.

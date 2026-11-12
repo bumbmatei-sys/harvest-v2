@@ -91,7 +91,7 @@ test("rules and questions, open join with answers, applications reviewed by the 
     await dialog.getByLabel("I accept the community rules").click();
     await dialog.getByLabel("I confirm I am 18 or older").click();
     await join.click();
-    await expect(member.page).toHaveURL(new RegExp(`/communities/${slug}/home$`));
+    await expect(member.page).toHaveURL(new RegExp(`/communities/${slug}/forum$`));
   } finally { await member.context.close(); }
 
   // Approval on: requests become applications.
@@ -159,8 +159,8 @@ test("rules and questions, open join with answers, applications reviewed by the 
     sheet = page.getByRole("dialog");
     await sheet.getByRole("button", { name: "Approve", exact: true }).click();
     await expect(sheet).toBeHidden();
-    await applicant.page.goto(`/communities/${slug}/home`);
-    await expect(applicant.page.getByText("You're in.")).toBeVisible();
+    await applicant.page.goto(`/communities/${slug}/forum`);
+    await expect(applicant.page.getByRole("heading", { name: "All posts", level: 2 })).toBeVisible();
 
     sheet = await review("Brasov");
     await sheet.getByRole("button", { name: "Decline", exact: true }).click();

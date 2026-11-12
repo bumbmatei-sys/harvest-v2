@@ -13,7 +13,7 @@ vi.mock("@/server/http", () => ({
 }));
 afterEach(() => { vi.unstubAllEnvs(); touched.mockClear(); });
 
-const ids = { tenantId: "00000000-0000-4000-8000-000000000001", communityId: "00000000-0000-4000-8000-000000000002", inviteId: "00000000-0000-4000-8000-000000000003", applicationId: "00000000-0000-4000-8000-000000000004", slug: "grace-study" };
+const ids = { tenantId: "00000000-0000-4000-8000-000000000001", communityId: "00000000-0000-4000-8000-000000000002", inviteId: "00000000-0000-4000-8000-000000000003", applicationId: "00000000-0000-4000-8000-000000000004", postId: "00000000-0000-4000-8000-000000000005", commentId: "00000000-0000-4000-8000-000000000006", fileId: "00000000-0000-4000-8000-000000000007", categoryId: "00000000-0000-4000-8000-000000000008", slug: "grace-study" };
 const context = { params: Promise.resolve(ids) };
 const request = (method: string) => new Request("https://example.test/api", { method, headers: { origin: "https://example.test" }, body: method === "GET" ? undefined : "{}" });
 
@@ -29,9 +29,19 @@ it("returns 404 from every Communities route in production unless activated", as
   const applications = await import("../../src/app/api/workspaces/[tenantId]/communities/[communityId]/applications/route");
   const application = await import("../../src/app/api/workspaces/[tenantId]/communities/[communityId]/applications/[applicationId]/route");
   const mine = await import("../../src/app/api/account/community-applications/[applicationId]/route");
+  const forum = "../../src/app/api/communities/[slug]";
+  const posts = await import(`${forum}/posts/route`), postOne = await import(`${forum}/posts/[postId]/route`), comments = await import(`${forum}/posts/[postId]/comments/route`);
+  const comment = await import(`${forum}/comments/[commentId]/route`), likes = await import(`${forum}/likes/route`), moderation = await import(`${forum}/moderation/route`);
+  const files = await import(`${forum}/files/route`), file = await import(`${forum}/files/[fileId]/route`), confirm = await import(`${forum}/files/[fileId]/confirm/route`);
+  const categories = await import("../../src/app/api/workspaces/[tenantId]/communities/[communityId]/categories/route");
+  const category = await import("../../src/app/api/workspaces/[tenantId]/communities/[communityId]/categories/[categoryId]/route");
   const calls = [list.GET(request("GET"), context), list.POST(request("POST"), context), one.GET(request("GET"), context), one.PATCH(request("PATCH"), context), publish.POST(request("POST"), context),
     join.POST(request("POST"), context), discover.GET(request("GET")), invites.GET(request("GET"), context), invites.POST(request("POST"), context), invite.DELETE(request("DELETE"), context),
-    applications.GET(request("GET"), context), application.PATCH(request("PATCH"), context), mine.PATCH(request("PATCH"), context)];
+    applications.GET(request("GET"), context), application.PATCH(request("PATCH"), context), mine.PATCH(request("PATCH"), context),
+    posts.POST(request("POST"), context), postOne.PATCH(request("PATCH"), context), postOne.DELETE(request("DELETE"), context), comments.POST(request("POST"), context),
+    comment.PATCH(request("PATCH"), context), comment.DELETE(request("DELETE"), context), likes.POST(request("POST"), context), moderation.POST(request("POST"), context),
+    files.POST(request("POST"), context), file.GET(request("GET"), context), confirm.POST(request("POST"), context),
+    categories.GET(request("GET"), context), categories.POST(request("POST"), context), category.PATCH(request("PATCH"), context), category.DELETE(request("DELETE"), context)];
   for (const response of await Promise.all(calls)) expect(response.status).toBe(404);
   expect(touched).not.toHaveBeenCalled();
 });

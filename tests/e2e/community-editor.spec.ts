@@ -55,7 +55,7 @@ test("create, edit, guard, conflict and publish a community; viewers are read-on
   await expect(page.getByRole("heading", { name: "Grace Bible Study", level: 1 })).toBeVisible();
   await expect(page.getByText("Draft", { exact: true }).first()).toBeVisible();
   const steps = page.getByRole("navigation", { name: "Community setup" });
-  for (const label of ["Channels", "Messages", "Products", "Page"]) await expect(steps.getByRole("button", { name: new RegExp(label) })).toHaveAttribute("aria-disabled", "true");
+  for (const label of ["Messages", "Products", "Page"]) await expect(steps.getByRole("button", { name: new RegExp(label) })).toHaveAttribute("aria-disabled", "true");
   await page.getByLabel("Tagline (optional)", { exact: true }).fill("Weekly study and prayer");
   await expect(page.getByRole("complementary", { name: "Preview" }).getByText("Weekly study and prayer")).toBeVisible();
   await shoot(page, "editor-basics");

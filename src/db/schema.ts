@@ -1103,6 +1103,95 @@ export const communityApplications = pgTable("community_applications", {
   check("community_application_info", sql`${t.infoRequest} is null or length(${t.infoRequest}) between 1 and 500`),
   check("community_application_note", sql`${t.reviewerNote} is null or length(${t.reviewerNote}) between 1 and 1000`)]);
 
+// PR 4b (C09/C10): forum. Every table carries tenant_id + community_id; members read through
+// community_can_read and write only through the definers in migration 0038.
+export const communityCategories = pgTable("community_categories", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),
+  name: text("name").notNull(), emoji: text("emoji"),
+  position: integer("position").notNull().default(0),
+  hostsOnly: boolean("hosts_only").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  index("community_categories_order_idx").on(t.communityId, t.position),
+  check("community_category_name", sql`length(${t.name}) between 1 and 60`),
+  check("community_category_emoji", sql`${t.emoji} is null or length(${t.emoji}) between 1 and 16`)]);
+
+export const communityFiles = pgTable("community_files", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),
+  uploaderId: text("uploader_id").references(() => users.id, { onDelete: "set null" }),
+  key: text("key").notNull(), name: text("name").notNull(), mime: text("mime").notNull(),
+  size: integer("size").notNull(), checksum: text("checksum").notNull(),
+  status: text("status", { enum: ["pending", "uploaded", "quarantined", "ready"] }).notNull().default("pending"),
+  kind: text("kind", { enum: ["cover", "attachment"] }).notNull(),
+  postId: uuid("post_id"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  uniqueIndex("community_files_key_idx").on(t.key), index("community_files_post_idx").on(t.postId),
+  check("community_file_size", sql`${t.size} between 1 and 10485760`),
+  check("community_file_checksum", sql`${t.checksum} ~ '^[a-f0-9]{64}$'`),
+  check("community_file_status", sql`${t.status} in ('pending', 'uploaded', 'quarantined', 'ready')`),
+  check("community_file_kind", sql`${t.kind} in ('cover', 'attachment')`),
+  check("community_file_mime", sql`${t.mime} in ('image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'text/plain') and (${t.kind} = 'attachment' or ${t.mime} in ('image/jpeg', 'image/png', 'image/webp'))`),
+  check("community_file_key_scope", sql`${t.key} = 'workspaces/' || ${t.tenantId}::text || '/communities/' || ${t.communityId}::text || '/files/' || ${t.id}::text`),
+  check("community_file_name", sql`length(${t.name}) between 1 and 200`)]);
+
+export const communityPosts = pgTable("community_posts", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),
+  categoryId: uuid("category_id").notNull().references(() => communityCategories.id),
+  authorId: text("author_id").references(() => users.id, { onDelete: "set null" }),
+  title: text("title").notNull(),
+  body: jsonb("body").$type<import("../lib/rich-text").RichDoc>().notNull(),
+  bodyText: text("body_text").notNull().default(""),
+  videoUrl: text("video_url"),
+  coverFileId: uuid("cover_file_id").references(() => communityFiles.id, { onDelete: "set null" }),
+  pinned: boolean("pinned").notNull().default(false),
+  commentsOff: boolean("comments_off").notNull().default(false),
+  likesOff: boolean("likes_off").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  editedAt: timestamp("edited_at", { withTimezone: true }),
+  removedAt: timestamp("removed_at", { withTimezone: true }),
+  removedBy: text("removed_by").references(() => users.id, { onDelete: "set null" }),
+}, (t) => [
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  index("community_posts_feed_idx").on(t.communityId, t.pinned, t.createdAt),
+  check("community_post_title", sql`length(${t.title}) between 1 and 200`),
+  check("community_post_body", sql`jsonb_typeof(${t.body}) = 'object' and length(${t.body}::text) <= 100000`),
+  check("community_post_body_text", sql`length(${t.bodyText}) <= 20000`),
+  check("community_post_video", sql`${t.videoUrl} is null or (length(${t.videoUrl}) <= 500 and ${t.videoUrl} like 'https://%')`)]);
+
+export const communityComments = pgTable("community_comments", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),
+  postId: uuid("post_id").notNull().references(() => communityPosts.id, { onDelete: "cascade" }),
+  authorId: text("author_id").references(() => users.id, { onDelete: "set null" }),
+  body: text("body").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  removedAt: timestamp("removed_at", { withTimezone: true }),
+  removedBy: text("removed_by").references(() => users.id, { onDelete: "set null" }),
+}, (t) => [
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  index("community_comments_post_idx").on(t.postId, t.createdAt),
+  check("community_comment_body", sql`length(${t.body}) between 1 and 5000`)]);
+
+export const communityLikes = pgTable("community_likes", {
+  tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),
+  targetType: text("target_type", { enum: ["post", "comment"] }).notNull(),
+  targetId: uuid("target_id").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.targetType, t.targetId, t.userId] }),
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  index("community_likes_recent_idx").on(t.communityId, t.targetType, t.createdAt),
+  check("community_like_target", sql`${t.targetType} in ('post', 'comment')`)]);
+
 // PR 3 (C05): Discover read projection (ADR 0013 §7). A row exists only while the resource qualifies.
 export const discoverListings = pgTable("discover_listings", {
   resourceType: text("resource_type").notNull(),
