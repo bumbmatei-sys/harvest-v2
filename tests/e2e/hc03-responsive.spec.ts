@@ -28,7 +28,7 @@ for (const viewport of [{ name: "mobile", width: 390, height: 844 }, { name: "ta
       test.setTimeout(180_000);
       await mkdir(evidence, { recursive: true });
       await page.setViewportSize({ width: viewport.width, height: viewport.height });
-      await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+      await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" }); await page.waitForFunction(s => { const t = document.documentElement.dataset.theme; return !t || t === s; }, scheme);
       const metrics: Record<string, unknown> = {};
       const suffix = `${viewport.name}-${scheme}`;
       async function capture(targetPage: Page, state: string, scope: Locator) {

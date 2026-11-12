@@ -10,7 +10,7 @@ const sizes = [["phone", 390, 844], ["tablet", 768, 1024], ["desktop", 1440, 100
 
 async function shoot(page: Page, name: string, prepare?: () => Promise<void>) {
   for (const scheme of ["light", "dark"] as const) {
-    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" }); await page.waitForFunction(s => { const t = document.documentElement.dataset.theme; return !t || t === s; }, scheme);
     // These pages choose their colour scheme at load, so reload to capture the real dark and light renders.
     await page.reload(); await page.waitForTimeout(500);
     await prepare?.();

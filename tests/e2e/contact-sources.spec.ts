@@ -12,7 +12,7 @@ test('contact source history reuses the responsive CRM record', async ({page})=>
  const person=await created.json();
  await mkdir('docs/screenshots/hc06a',{recursive:true});
  for(const width of [390,768,1440]) for(const colorScheme of ['light','dark'] as const){
-  await page.emulateMedia({colorScheme});
+  await page.emulateMedia({colorScheme}); await page.waitForFunction(s => { const t = document.documentElement.dataset.theme; return !t || t === s; }, colorScheme);
   await page.setViewportSize({width,height:1000});
   await page.goto(`/workspaces/${tenantId}/crm/people/${person.id}`);
   // The record layout can hold a hidden responsive copy of the card while it re-renders; assert the visible one.

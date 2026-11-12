@@ -57,7 +57,7 @@ test("landing editor: private draft, shared preview, keyboard ordering, publishi
   await page.goBack({ timeout: 1500 }).catch(() => {}); await expect(page.getByRole("alertdialog")).toBeVisible(); await page.getByRole("button", { name: "Keep editing", exact: true }).click();
   expect(await page.evaluate(() => { const event = new Event("beforeunload", { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented; })).toBe(true);
   for (const scheme of ["light", "dark"] as const) {
-    await page.emulateMedia({ colorScheme: scheme });
+    await page.emulateMedia({ colorScheme: scheme }); await page.waitForFunction(s => { const t = document.documentElement.dataset.theme; return !t || t === s; }, scheme);
     for (const [size, width, height] of [["mobile", 390, 844], ["tablet", 820, 1180], ["desktop", 1440, 1000]] as const) {
       await page.setViewportSize({ width, height }); await page.getByRole("main").evaluate(e => e.scrollTop = 0);
       metrics.push(await capture(page, `editor-${size}-${scheme}`));
@@ -89,7 +89,7 @@ test("landing editor: private draft, shared preview, keyboard ordering, publishi
       for (const choice of await guest.locator("#response-form").getByRole("checkbox").all()) await expect(choice).not.toBeChecked();
     }
     for (const scheme of ["light", "dark"] as const) {
-      await guest.emulateMedia({ colorScheme: scheme }); await guest.reload(); await expect(guest.locator("html")).toHaveAttribute("data-theme", scheme);
+      await guest.emulateMedia({ colorScheme: scheme }); await guest.waitForFunction(s => { const t = document.documentElement.dataset.theme; return !t || t === s; }, scheme); await guest.reload(); await expect(guest.locator("html")).toHaveAttribute("data-theme", scheme);
       for (const [size, width, height] of [["mobile", 390, 844], ["tablet", 820, 1180], ["desktop", 1440, 1000]] as const) {
         await guest.setViewportSize({ width, height }); metrics.push(await capture(guest, `guest-${size}-${scheme}`));
       }

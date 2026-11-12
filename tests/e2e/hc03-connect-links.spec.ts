@@ -215,7 +215,7 @@ test("HC-03: organizer lifecycle, exports and guest revocation in a real browser
   // Responsive owner views: mobile and tablet layout, full width, 44px targets, dark mode contrast.
   for (const [name, width, height, scheme] of [["mobile", 390, 844, "light"], ["tablet", 768, 1024, "light"], ["mobile-dark", 390, 844, "dark"]] as const) {
     await page.setViewportSize({ width, height });
-    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" }); await page.waitForFunction(s => { const t = document.documentElement.dataset.theme; return !t || t === s; }, scheme);
     await page.goto(`${root}/connect`);
     await expect(page.getByRole("heading", { level: 1, name: "QR codes and short links" })).toBeVisible();
     await expectFullWidthShell(page);
@@ -223,7 +223,7 @@ test("HC-03: organizer lifecycle, exports and guest revocation in a real browser
     await axe(page, `admin-live-${name}`);
     await page.screenshot({ path: `${evidence}/admin-live-${name}.png`, fullPage: true });
   }
-  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" }); await page.waitForFunction(s => { const t = document.documentElement.dataset.theme; return !t || t === s; }, "light");
   await page.setViewportSize({ width: 768, height: 1024 });
   await page.goto(`${root}/connect/${link.id}/present`);
   await expect(page.getByText("Scan to open")).toBeVisible();

@@ -10,7 +10,7 @@ const evidence=process.env.HC05_QA_DIR??join(tmpdir(),"harvest-hc05-qa");
 test.use({reducedMotion:"reduce"});
 for(const scheme of ["light","dark"] as const) {
  test(`HC-05 admin setup, both opt-ins and guest rights: ${scheme}`,async({page,browser})=>{
-  test.setTimeout(240000);await mkdir(evidence,{recursive:true});await page.emulateMedia({colorScheme:scheme});
+  test.setTimeout(240000);await mkdir(evidence,{recursive:true});await page.emulateMedia({colorScheme:scheme}); await page.waitForFunction(s => { const t = document.documentElement.dataset.theme; return !t || t === s; }, scheme);
   await page.setViewportSize({width:390,height:844});await signIn(page);
   const workspace=await page.request.post("/api/workspaces",{headers:{origin},data:{audience:"church",name:"Synthetic intake QA"}});expect(workspace.status()).toBe(201);
   const tenant=(await workspace.json()).tenantId as string;

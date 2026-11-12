@@ -17,7 +17,7 @@ async function stubEmbeds(page: Page) {
 }
 async function shoot(page: Page, name: string, prepare?: () => Promise<void>) {
   for (const scheme of ["light", "dark"] as const) {
-    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" }); await page.waitForFunction(s => { const t = document.documentElement.dataset.theme; return !t || t === s; }, scheme);
     await page.reload(); await page.waitForTimeout(500);
     await prepare?.();
     for (const [label, width, height] of sizes) {

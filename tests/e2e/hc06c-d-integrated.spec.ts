@@ -19,7 +19,7 @@ async function check(page: Page) {
 }
 async function shoot(page: Page, name: string) {
   for (const scheme of ["light", "dark"] as const) {
-    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" }); await page.waitForFunction(s => { const t = document.documentElement.dataset.theme; return !t || t === s; }, scheme);
     await page.waitForTimeout(300);
     for (const [label, width, height] of sizes) {
       await page.setViewportSize({ width, height });
@@ -117,7 +117,8 @@ test("HC-06C+D: Connect claim, source rules, channel consent filters and a clear
   await expect(grid).toContainText("Synthetic Manual Person");
   // A reference that no longer exists shows an empty, locked list rather than everyone.
   await page.goto(`${root}/crm/people?s=${encodeURIComponent(`include~any~connect~${randomUUID()}~~~~~`)}`);
-  await expect(page.getByRole("alert")).toBeVisible();
+  // Scope to main: the router's live announcer can also hold an alert on slower runners.
+  await expect(page.getByRole("main").getByRole("alert")).toBeVisible();
   await expect(page.getByText("Synthetic Manual Person")).toHaveCount(0);
   await expect(page.getByRole("button", { name: "Export", exact: true })).toBeDisabled();
   await shoot(page, "source-invalid-notice");

@@ -53,7 +53,7 @@ test("guest landing → resources → leave: no identity, tracking, or backgroun
     const url = new URL(request.url());
     requests.push({ method: request.method(), path: url.pathname, origin: url.origin, prefetch: request.headers()["next-router-prefetch"] === "1" || request.headers().purpose === "prefetch" });
   });
-  await page.emulateMedia({ reducedMotion: "reduce", colorScheme: "light" });
+  await page.emulateMedia({ reducedMotion: "reduce", colorScheme: "light" }); await page.waitForFunction(s => { const t = document.documentElement.dataset.theme; return !t || t === s; }, "light");
   // Unsupported language follows the existing English-only catalogue fallback.
   await context.setExtraHTTPHeaders({ "accept-language": "ro-RO, en;q=0.8", "x-harvest-workspace": "00000000-0000-0000-0000-000000000001" });
   const axe: Record<string, unknown> = {};
@@ -99,7 +99,7 @@ test("guest landing → resources → leave: no identity, tracking, or backgroun
   }
   // Also check small screens, zoom-equivalent reflow, and dark mode.
   await page.setViewportSize({ width: 320, height: 740 });
-  await page.emulateMedia({ colorScheme: "dark" });
+  await page.emulateMedia({ colorScheme: "dark" }); await page.waitForFunction(s => { const t = document.documentElement.dataset.theme; return !t || t === s; }, "dark");
   await page.goto(landing);
   await expect(page).toHaveTitle("Welcome · Harvest Connect");
   await expectPublicLayout(page);
