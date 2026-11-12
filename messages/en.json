@@ -2593,7 +2593,10 @@
     "about": "About",
     "rules": "Rules",
     "byline": "{name} · {date}",
-    "bylineEdited": "{name} · {date} · edited"
+    "bylineEdited": "{name} · {date} · edited",
+    "pages": "More posts",
+    "newer": "Newer posts",
+    "older": "Older posts"
   },
   "RichText": {
     "toolbar": "Formatting",

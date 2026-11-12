@@ -1,9 +1,11 @@
+import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { Lock, MessageSquare, Pin, PlayCircle } from "lucide-react";
 import { getDb } from "@/db/client";
 import { listPosts } from "@/server/community-forum";
 import { pageSession } from "@/server/page-session";
+import { communitiesEnabled } from "@/server/communities-mode";
 import { orPublicPage } from "@/server/community-member-page";
 import { PostComposer } from "@/components/forum/post-composer";
 import { LikeButton } from "@/components/forum/like-button";
@@ -11,16 +13,18 @@ import { Badge } from "@/components/ui/badge";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { cn } from "@/lib/utils";
 
-type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ category?: string; sort?: string }> };
+type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ category?: string; sort?: string; page?: string }> };
 
 // C10: the forum. Categories column, New / Best this week, post cards (Eden design, Studio Admin style).
 export default async function ForumPage({ params, searchParams }: Props) {
+  if (!communitiesEnabled()) notFound();
   const session = await pageSession("personal"), { slug } = await params, query = await searchParams;
+  const page = Math.min(1000, Math.max(1, Number.parseInt(query.page ?? "1", 10) || 1));
   const category = query.category && /^[0-9a-f-]{36}$/.test(query.category) ? query.category : undefined, sort = query.sort === "best" ? "best" : "new";
-  const { context, posts } = await listPosts(getDb(), session.user.id, slug, { category, sort }).catch(orPublicPage(slug));
+  const { context, posts, hasMore } = await listPosts(getDb(), session.user.id, slug, { category, sort, page }).catch(orPublicPage(slug));
   const t = await getTranslations("CommunityForum"), format = await getFormatter(), base = `/communities/${context.slug}/forum`;
-  const href = (next: { category?: string; sort?: string }) => { const q = new URLSearchParams(); const c = "category" in next ? next.category : category, s = next.sort ?? sort;
-    if (c) q.set("category", c); if (s === "best") q.set("sort", "best"); return q.size ? `${base}?${q}` : base; };
+  const href = (next: { category?: string; sort?: string; page?: number }) => { const q = new URLSearchParams(); const c = "category" in next ? next.category : category, s = next.sort ?? sort;
+    if (c) q.set("category", c); if (s === "best") q.set("sort", "best"); if (next.page && next.page > 1) q.set("page", String(next.page)); return q.size ? `${base}?${q}` : base; };
   const categoryName = (id: string) => context.categories.find((c) => c.id === id);
   return <div className="grid min-w-0 gap-6 p-4 lg:grid-cols-[16rem_minmax(0,1fr)] lg:p-6">
     <nav aria-label={t("categories")} className="min-w-0">
@@ -61,6 +65,10 @@ export default async function ForumPage({ params, searchParams }: Props) {
               </div>
             </div>
           </article></li>; })}</ul>}
+      {(page > 1 || hasMore) && <nav aria-label={t("pages")} className="flex justify-between gap-2">
+        {page > 1 ? <Link href={href({ page: page - 1 })} prefetch={false} className="inline-flex min-h-11 items-center rounded-md border px-3 text-sm hover:bg-muted">{t("newer")}</Link> : <span />}
+        {hasMore && <Link href={href({ page: page + 1 })} prefetch={false} className="inline-flex min-h-11 items-center rounded-md border px-3 text-sm hover:bg-muted">{t("older")}</Link>}
+      </nav>}
     </section>
   </div>;
 }

@@ -1,12 +1,15 @@
+import { notFound } from "next/navigation";
 import { getFormatter, getTranslations } from "next-intl/server";
 import { getDb } from "@/db/client";
 import { memberDirectory } from "@/server/community-forum";
 import { pageSession } from "@/server/page-session";
+import { communitiesEnabled } from "@/server/communities-mode";
 import { orPublicPage } from "@/server/community-member-page";
 import { Badge } from "@/components/ui/badge";
 
 // C09: members of the community, names and roles only.
 export default async function MembersPage({ params }: { params: Promise<{ slug: string }> }) {
+  if (!communitiesEnabled()) notFound();
   const session = await pageSession("personal"), { slug } = await params;
   const { members } = await memberDirectory(getDb(), session.user.id, slug).catch(orPublicPage(slug));
   const t = await getTranslations("CommunityForum"), roles = await getTranslations("CommunityEditor.roles"), format = await getFormatter();

@@ -4,6 +4,7 @@ import { ArrowLeft, FileText, Pin } from "lucide-react";
 import { getDb } from "@/db/client";
 import { getPost } from "@/server/community-forum";
 import { pageSession } from "@/server/page-session";
+import { communitiesEnabled } from "@/server/communities-mode";
 import { AccessError } from "@/server/permissions";
 import { notFound } from "next/navigation";
 import { RichTextView } from "@/components/rich-text/rich-text-view";
@@ -17,6 +18,7 @@ import { Badge } from "@/components/ui/badge";
 const missingPost = (error: unknown): never => { if (error instanceof AccessError && error.status === 404) notFound(); throw error; };
 
 export default async function PostPage({ params }: { params: Promise<{ slug: string; postId: string }> }) {
+  if (!communitiesEnabled()) notFound();
   const session = await pageSession("personal"), { slug, postId } = await params, me = session.user.id;
   const { context, post, attachments, comments } = await getPost(getDb(), me, slug, postId).catch(missingPost);
   const t = await getTranslations("CommunityForum"), format = await getFormatter(), files = `/api/communities/${context.slug}/files`;

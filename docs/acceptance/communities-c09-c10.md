@@ -61,10 +61,24 @@ Design: `docs/superpowers/specs/2026-11-11-communities-pr4b-forum-design.md`. Pl
   - axe and no horizontal scroll at 390/768/1440 in light and dark; screenshots in `docs/screenshots/communities-pr4b/`.
 - **Regression:** `community-joining`, `community-applications`, `community-editor` (Channels is now live) and `layout`.
 
+## Review follow-up (non-author review of `81d67a1`: MERGE-OK, three should-fix items)
+
+- **Page-level flag checks:** every member page now checks `communitiesEnabled()` itself, so the 404-when-off guarantee doesn't depend on the layout.
+- **Feed cap:** the forum is paged (50 per page, Newer/Older links; integration test).
+- **Member directory privacy:** the directory shows every active member's name and role to other members, capped at 1,000. Whether members can hide themselves is a **product decision for the founder before activation**; recorded here, no code change.
+- **Optional, taken:** files follow their post. Unattached files are readable only by the uploader, and a removed post's cover and attachments only by hosts (integration test).
+- **Optional, not taken:**
+  - *Removed content in member RLS:* removed content stays readable under the member policy. Every service read filters `removed_at`.
+  - *Rich-text limits:* the jsonb size check (100,000) and `body_text` (20,000) differ, and a near-limit body is refused by the stricter one.
+  - *Upload hygiene:* per-member upload caps, cleanup of unconfirmed files, and write rate limits are listed under activation gates.
+  - *`frame-src` CSP:* a CSP for the two embed hosts goes with the platform CSP work.
+  - *Contributors in hosts-only categories:* they read as hosts but don't post there. This is intended (owner, admin and moderator post).
+
 ## Activation gates (added by this PR)
 
 - **Malware scanner for member uploads:** in production, covers and attachments stay quarantined until a real scanner returns `clean`. Today's scanner returns `skipped`, which is released only outside production.
-- **Rate limits on member writes:** posts, replies, likes and uploads, as for the PR 3 public routes.
+- **Rate limits on member writes:** posts, replies, likes and uploads, as for the PR 3 public routes; plus per-member upload caps and cleanup of never-confirmed uploads.
+- **Member directory visibility:** a founder decision (see above).
 - Still open from earlier PRs: scheduling the daily applications purge, the email-hash pepper, and the five HC-02 decisions.
 
 ## Deferred

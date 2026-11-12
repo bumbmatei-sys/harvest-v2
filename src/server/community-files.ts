@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "../db/client";
-import { communityFiles } from "../db/schema";
+import { communityFiles, communityPosts } from "../db/schema";
 import { communityFileKey, communityUploadInput } from "../lib/forum";
 import { message } from "../i18n/messages";
 import { communitySlug } from "./communities";
@@ -67,8 +67,10 @@ export async function confirmCommunityUpload(db: Database, storage: StorageAdapt
 export async function communityFileUrl(db: Database, storage: StorageAdapter, userId: string, slug: string, fileId: string) {
   const ctx = await forumContext(db, userId, slug), id = z.uuid().safeParse(fileId);
   if (!ctx || !id.success) throw unavailable();
-  const [file] = await withUser(db, userId, (tx) => tx.select().from(communityFiles)
+  const [file] = await withUser(db, userId, (tx) => tx.select({ key: communityFiles.key, name: communityFiles.name, uploaderId: communityFiles.uploaderId,
+    postId: communityFiles.postId, postRemovedAt: communityPosts.removedAt }).from(communityFiles).leftJoin(communityPosts, eq(communityPosts.id, communityFiles.postId))
     .where(and(eq(communityFiles.id, id.data), eq(communityFiles.communityId, ctx.id), eq(communityFiles.status, "ready"))));
-  if (!file) throw unavailable();
+  // A file follows its post: unattached files only for the uploader; a removed post's files only for hosts.
+  if (!file || (!file.postId && file.uploaderId !== userId) || (file.postRemovedAt && !ctx.canModerate)) throw unavailable();
   return storage.presignDownload(file.key, file.name);
 }

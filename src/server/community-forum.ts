@@ -46,7 +46,8 @@ const likeCount = (target: "post" | "comment", idColumn: typeof communityPosts.i
 const likedBy = (target: "post" | "comment", idColumn: typeof communityPosts.id | typeof communityComments.id, userId: string) =>
   sql<boolean>`exists (select 1 from ${communityLikes} l where l.target_type = ${target} and l.target_id = ${idColumn} and l.user_id = ${userId})`;
 
-const listInput = z.object({ category: z.uuid().optional(), sort: z.enum(forumSorts).default("new") }).strict();
+const listInput = z.object({ category: z.uuid().optional(), sort: z.enum(forumSorts).default("new"), page: z.coerce.number().int().min(1).max(1000).default(1) }).strict();
+export const forumPageSize = 50;
 
 export async function listPosts(db: Database, userId: string, slug: string, raw: unknown = {}) {
   const input = listInput.parse(raw);
@@ -62,8 +63,9 @@ export async function listPosts(db: Database, userId: string, slug: string, raw:
       .from(communityPosts).leftJoin(users, eq(users.id, communityPosts.authorId))
       .where(and(eq(communityPosts.communityId, ctx.id), isNull(communityPosts.removedAt), input.category ? eq(communityPosts.categoryId, input.category) : undefined))
       .orderBy(...(input.sort === "best" ? [desc(best), desc(communityPosts.createdAt)] : [desc(communityPosts.pinned), desc(communityPosts.createdAt)]))
-      .limit(50);
-    return { context: ctx, sort: input.sort as ForumSort, posts: rows.map(({ bodyText, videoUrl, ...row }): PostSummary => ({ ...row,
+      .limit(forumPageSize + 1).offset((input.page - 1) * forumPageSize);
+    const hasMore = rows.length > forumPageSize;
+    return { context: ctx, sort: input.sort as ForumSort, page: input.page, hasMore, posts: rows.slice(0, forumPageSize).map(({ bodyText, videoUrl, ...row }): PostSummary => ({ ...row,
       excerpt: bodyText.replace(/\s+/g, " ").slice(0, 220), hasVideo: Boolean(videoUrl) })) };
   });
 }

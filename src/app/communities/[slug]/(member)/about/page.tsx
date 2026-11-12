@@ -1,10 +1,12 @@
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getDb } from "@/db/client";
 import { forumContext } from "@/server/community-forum";
 import { pageSession } from "@/server/page-session";
+import { communitiesEnabled } from "@/server/communities-mode";
 
 export default async function AboutPage({ params }: { params: Promise<{ slug: string }> }) {
+  if (!communitiesEnabled()) notFound();
   const session = await pageSession("personal"), { slug } = await params;
   const ctx = await forumContext(getDb(), session.user.id, slug);
   if (!ctx) redirect(`/communities/${encodeURIComponent(slug)}`);

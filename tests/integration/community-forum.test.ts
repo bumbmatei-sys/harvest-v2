@@ -104,6 +104,26 @@ it("uploads covers and attachments, releases them only on a clean scan in produc
   expect(await communityFileUrl(f.db, storage, "g-two", "grace-forum", doc.id)).toMatch(/^https:\/\/storage\.test\/workspaces\/.+\/communities\/.+\/files\/.+\?signed=1$/);
   await expect(communityFileUrl(f.db, storage, "g-outsider", "grace-forum", doc.id)).rejects.toMatchObject({ status: 404 });
   await expect(communityFileUrl(f.db, storage, "g-one", "grace-forum", bad.id)).rejects.toMatchObject({ status: 404 });
+  // Unattached files are the uploader's only; a removed post's files stay with hosts.
+  const draft = await upload("g-one", "attachment", "draft.pdf", "application/pdf");
+  expect(await communityFileUrl(f.db, storage, "g-one", "grace-forum", draft.id)).toContain("signed=1");
+  await expect(communityFileUrl(f.db, storage, "g-two", "grace-forum", draft.id)).rejects.toMatchObject({ status: 404 });
+  await moderate(f.db, "g-owner", "grace-forum", { action: "remove_post", targetId: saved.id! });
+  await expect(communityFileUrl(f.db, storage, "g-two", "grace-forum", doc.id)).rejects.toMatchObject({ status: 404 });
+  await expect(communityFileUrl(f.db, storage, "g-one", "grace-forum", cover.id)).rejects.toMatchObject({ status: 404 });
+  expect(await communityFileUrl(f.db, storage, "g-owner", "grace-forum", doc.id)).toContain("signed=1");
+});
+
+it("pages the forum in pages of 50", async () => {
+  for (let i = 0; i < 51; i++) await post("g-two", { title: `Page test ${i}` });
+  const first = await listPosts(f.db, "g-one", "grace-forum");
+  expect(first.posts).toHaveLength(50);
+  expect(first.hasMore).toBe(true);
+  const second = await listPosts(f.db, "g-one", "grace-forum", { page: 2 });
+  expect(second.page).toBe(2);
+  expect(second.posts.length).toBeGreaterThan(0);
+  expect(second.posts.map((p) => p.id)).not.toContain(first.posts[0].id);
+  await expect(listPosts(f.db, "g-one", "grace-forum", { page: 0 })).rejects.toThrow();
 });
 
 it("lists members with names and roles only, for readers", async () => {
