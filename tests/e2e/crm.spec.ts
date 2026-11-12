@@ -426,8 +426,11 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
   // Between lg and 2xl, profile and context share a row and history spans the next.
   await page.setViewportSize(desktop);
   await expectFullWidthShell(page);
-  const twoColumn = await page.locator("[data-record-region]").evaluateAll((elements) => elements.map((element) => Math.round(element.getBoundingClientRect().top)));
-  expect(twoColumn[0]).toBe(twoColumn[1]); expect(twoColumn[2]).toBeGreaterThan(twoColumn[0]);
+  // Poll: after a resize the grid can report the previous layout for a frame on slower runners.
+  await expect.poll(async () => {
+    const tops = await page.locator("[data-record-region]").evaluateAll((elements) => elements.map((element) => Math.round(element.getBoundingClientRect().top)));
+    return tops[0] === tops[1] && tops[2] > tops[0];
+  }).toBe(true);
   await page.setViewportSize(mobile);
   for (const [path, name] of [[`${root}/crm/people`, "people-list-mobile"], [`${root}/crm/people/${personId}`, "person-detail-mobile"], [`${root}/crm/companies`, "companies-list-mobile"], [`${root}/crm/companies/${companyId}`, "company-detail-mobile"]] as const) {
     await page.goto(path);
