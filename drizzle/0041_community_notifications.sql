@@ -41,8 +41,7 @@ ALTER TABLE public.community_notifications ENABLE ROW LEVEL SECURITY;--> stateme
 ALTER TABLE public.community_notifications FORCE ROW LEVEL SECURITY;--> statement-breakpoint
 REVOKE ALL ON public.community_notifications FROM PUBLIC, harvest_app;--> statement-breakpoint
 GRANT SELECT, INSERT ON public.community_notifications TO harvest_app;--> statement-breakpoint
-CREATE POLICY community_notifications_staff ON public.community_notifications FOR SELECT TO harvest_app
-  USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);--> statement-breakpoint
+-- No staff SELECT policy: notifications are personal (review on #67). Staff only insert application notices below.
 CREATE POLICY community_notifications_staff_insert ON public.community_notifications FOR INSERT TO harvest_app
   WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid AND kind = 'application');--> statement-breakpoint
 CREATE POLICY community_notifications_recipient ON public.community_notifications FOR SELECT TO harvest_app
@@ -87,7 +86,11 @@ BEGIN
     INSERT INTO public.community_notifications (tenant_id, community_id, recipient_id, kind, target_type, target_id, post_id, actor_id, detail)
       VALUES (p_tenant, p_community, p_recipient, p_kind, p_target_type, p_target_id, p_post_id, actor, v_detail)
       ON CONFLICT (recipient_id, community_id, target_type, target_id) WHERE kind = 'like' AND read_at IS NULL
-      DO UPDATE SET actor_count = community_notifications.actor_count + 1, actor_id = EXCLUDED.actor_id, updated_at = now();
+      -- Count distinct people who like it now (since this group started), so like/unlike/like never inflates it (review on #67).
+      DO UPDATE SET actor_count = greatest(1, (SELECT count(*)::int FROM public.community_likes l
+          WHERE l.target_type = EXCLUDED.target_type AND l.target_id::text = EXCLUDED.target_id AND l.user_id IS DISTINCT FROM EXCLUDED.recipient_id
+            AND l.created_at >= community_notifications.created_at)),
+        actor_id = EXCLUDED.actor_id, updated_at = now();
   ELSIF p_kind = 'host_queue' THEN
     INSERT INTO public.community_notifications (tenant_id, community_id, recipient_id, kind, target_type, target_id, post_id, actor_id, detail)
       VALUES (p_tenant, p_community, p_recipient, p_kind, p_target_type, p_target_id, p_post_id, actor, v_detail)
@@ -110,7 +113,8 @@ CREATE FUNCTION public.community_notify_reply(p_tenant uuid, p_community uuid, p
 LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
 DECLARE v_post_author text; v_rep record;
 BEGIN
-  SELECT author_id INTO v_post_author FROM public.community_posts WHERE tenant_id = p_tenant AND id = p_post_id;
+  SELECT author_id INTO v_post_author FROM public.community_posts WHERE tenant_id = p_tenant AND id = p_post_id AND removed_at IS NULL AND held_at IS NULL;
+  IF NOT FOUND THEN RETURN; END IF;
   PERFORM public.community_notify_as(p_replier, p_tenant, p_community, v_post_author, 'reply', 'comment', p_comment_id::text, p_post_id, '{}'::jsonb);
   FOR v_rep IN SELECT c.author_id FROM public.community_comments c
     WHERE c.tenant_id = p_tenant AND c.community_id = p_community AND c.post_id = p_post_id AND c.id <> p_comment_id
@@ -188,7 +192,7 @@ END $$;
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION public.community_comment_save(p_slug text, p_post_id uuid, p_comment_id uuid, p_body text) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-DECLARE actor text := nullif(current_setting('app.user_id', true), ''); ctx record; post record; existing record; v_comment uuid := p_comment_id; v_hold text; v_rep record;
+DECLARE actor text := nullif(current_setting('app.user_id', true), ''); ctx record; post record; existing record; v_comment uuid := p_comment_id; v_hold text;
 BEGIN
   SELECT * INTO ctx FROM public.community_forum_actor(p_slug);
   IF ctx.o_tenant IS NULL THEN RETURN public.community_forum_done('not_found'); END IF;

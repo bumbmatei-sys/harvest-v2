@@ -37,6 +37,13 @@ Design: `docs/superpowers/specs/2026-11-12-communities-c15a-notifications-design
 - **Approved held replies** now notify the post author (`reply`) and earlier repliers (`thread_reply`) as the reply's author, the same as a reply that was never held (`community_notify_reply`, shared by reply save and held approval). Database test.
 - **Appeal decisions ignore mute:** a member who muted the community still receives `appeal_decision`, because it concerns their own ban. Database test.
 
+## Review follow-up (non-author review of `ce1fcf0` / `39bb316`: CHANGES-REQUESTED, two should-fix items)
+
+- **Like counts:** the grouped like notification now counts distinct people who currently like the item since the group started, so liking, unliking and liking again never inflates "N people liked" (database test).
+- **Staff read access removed:** `community_notifications` has no staff SELECT policy. Notifications are personal; ministry staff can only insert application notices for their own ministry (database test: staff read nothing).
+- **Optional, taken:** an approved held reply on a post that has since been removed or held notifies nobody; an unused declaration was removed.
+- **Optional, not taken:** stale notifications pointing at removed content (they open a 404); applicant notices for people without a membership stay until read or purged; muting also suppresses warning and held-decision notices (the warning alert in the forum still shows).
+
 ## Activation gates
 
 - Schedule `communities:purge-notifications` daily (`docs/setup/feature-flags.md`).

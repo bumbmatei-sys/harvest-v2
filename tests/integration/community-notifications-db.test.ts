@@ -222,3 +222,20 @@ it("tells the post author and earlier repliers when a held reply is approved, an
   expect((await call("n-owner", sql`select public.community_appeal_decide('nt-club', ${sent.id}::uuid, 'decline', null) as v`)).outcome).toBe("ok");
   expect((await stored("n-three")).map((r) => r.kind)).toContain("appeal_decision");
 });
+
+it("counts each person once when likes are toggled, and keeps notifications away from ministry staff (review on #67)", async () => {
+  const p = await post("n-one", "Toggle me");
+  await markAll("n-one");
+  for (let i = 0; i < 3; i++) { await like("n-owner", "post", p.id!); await like("n-owner", "post", p.id!); }
+  await like("n-owner", "post", p.id!);
+  const likeRow = async () => (await f.admin.query("select actor_count from community_notifications where recipient_id = 'n-one' and kind = 'like' and target_id = $1 and read_at is null", [p.id])).rows;
+  expect(await likeRow()).toEqual([{ actor_count: 1 }]);
+  await like("n-mod", "post", p.id!);
+  expect(await likeRow()).toEqual([{ actor_count: 2 }]);
+  // Ministry staff (staff path, own tenant) read no member's notifications.
+  const staffRead = await f.db.transaction(async (tx) => {
+    await tx.execute(sql`select set_config('app.tenant_id', ${a}, true)`);
+    return (await tx.execute(sql`select id from community_notifications`)).rows;
+  });
+  expect(staffRead).toEqual([]);
+});
