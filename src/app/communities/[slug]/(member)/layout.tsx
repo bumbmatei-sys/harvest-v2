@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { getDb } from "@/db/client";
 import { communitiesEnabled } from "@/server/communities-mode";
 import { forumContext } from "@/server/community-forum";
+import { moderationCount } from "@/server/community-moderation";
 import { pageSession } from "@/server/page-session";
 import { CommunityShell } from "@/components/communities/community-shell";
 
@@ -15,5 +16,6 @@ export default async function MemberLayout({ children, params }: { children: Rea
   const session = await pageSession("personal"), { slug } = await params;
   const ctx = await forumContext(getDb(), session.user.id, slug);
   if (!ctx) redirect(`/communities/${encodeURIComponent(slug)}`);
-  return <CommunityShell slug={ctx.slug} name={ctx.name}>{children}</CommunityShell>;
+  const moderation = ctx.canModerate ? await moderationCount(getDb(), session.user.id, ctx.slug) : null;
+  return <CommunityShell slug={ctx.slug} name={ctx.name} moderation={moderation}>{children}</CommunityShell>;
 }

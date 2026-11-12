@@ -10,6 +10,7 @@ import { orPublicPage } from "@/server/community-member-page";
 import { PostComposer } from "@/components/forum/post-composer";
 import { LikeButton } from "@/components/forum/like-button";
 import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { cn } from "@/lib/utils";
 
@@ -39,8 +40,9 @@ export default async function ForumPage({ params, searchParams }: Props) {
     <section className="min-w-0 space-y-4" aria-labelledby="forum-title">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="forum-title" className="text-xl font-semibold">{category ? categoryName(category)?.name : t("allPosts")}</h2>
-        <PostComposer slug={context.slug} categories={context.categories} defaultCategory={category} canModerate={context.canModerate} />
+        {!context.mutedUntil && <PostComposer slug={context.slug} categories={context.categories} defaultCategory={category} canModerate={context.canModerate} />}
       </div>
+      {context.mutedUntil && <Alert><AlertDescription>{t("mutedUntil", { date: format.dateTime(context.mutedUntil, { dateStyle: "medium", timeStyle: "short" }) })}</AlertDescription></Alert>}
       <nav aria-label={t("sort")} className="flex gap-2">
         {(["new", "best"] as const).map((s) => <Link key={s} href={href({ sort: s })} aria-current={sort === s ? "page" : undefined} prefetch={false}
           className={cn("inline-flex min-h-11 items-center rounded-md px-3 text-sm", sort === s ? "bg-muted font-medium" : "text-muted-foreground hover:bg-muted/60")}>{t(`sorts.${s}`)}</Link>)}
@@ -53,6 +55,7 @@ export default async function ForumPage({ params, searchParams }: Props) {
             <div className="min-w-0 flex-1 space-y-2">
               <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                 {post.pinned && <Badge variant="secondary"><Pin className="size-3" aria-hidden="true" />{t("pinned")}</Badge>}
+                {post.held && <Badge variant="outline">{t("awaitingReview")}</Badge>}
                 {cat && <Badge variant="outline">{cat.emoji ? `${cat.emoji} ` : ""}{cat.name}</Badge>}
                 {post.hasVideo && <PlayCircle className="size-4" aria-label={t("hasVideo")} />}
               </div>

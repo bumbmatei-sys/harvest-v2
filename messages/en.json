@@ -2379,7 +2379,9 @@
     "previewApply": "Apply",
     "previewJoinButton": "Join",
     "forumCategories": "Forum categories",
-    "chatChannels": "Chat channels"
+    "chatChannels": "Chat channels",
+    "moderationTitle": "Moderation",
+    "holdFirstPosts": "Approve new members' first post"
   },
   "CommunityPage": {
     "rules": "Community rules",
@@ -2599,7 +2601,9 @@
     "bylineEdited": "{name} · {date} · edited",
     "pages": "More posts",
     "newer": "Newer posts",
-    "older": "Older posts"
+    "older": "Older posts",
+    "awaitingReview": "Awaiting review",
+    "mutedUntil": "You can't post until {date}."
   },
   "RichText": {
     "toolbar": "Formatting",
@@ -2625,12 +2629,15 @@
       "products": "Products",
       "members": "Members",
       "messages": "Messages",
-      "about": "About"
+      "about": "About",
+      "moderation": "Moderation"
     },
     "comingSoon": "Coming soon",
     "skip": "Skip to content",
     "navigation": "Community",
-    "myCommunities": "My communities"
+    "myCommunities": "My communities",
+    "toReview": "{count, plural, one {# item to review} other {# items to review}}",
+    "manyItems": "99+"
   },
   "ForumCategories": {
     "list": "Forum categories",
@@ -2643,5 +2650,124 @@
     "newName": "New category name",
     "newPlaceholder": "New category",
     "add": "Add category"
+  },
+  "Report": {
+    "action": "Report",
+    "open": {
+      "post": "Report post {name}",
+      "comment": "Report reply by {name}",
+      "member": "Report {name}"
+    },
+    "title": {
+      "post": "Report post",
+      "comment": "Report reply",
+      "member": "Report member"
+    },
+    "reason": "Reason",
+    "reasons": {
+      "spam": "Spam or advertising",
+      "harassment": "Harassment or bullying",
+      "inappropriate": "Inappropriate content",
+      "other": "Something else"
+    },
+    "note": "Details (optional)",
+    "send": "Send report",
+    "thanks": "Thanks — the hosts will review it.",
+    "close": "Close"
+  },
+  "BannedWords": {
+    "label": "Banned words",
+    "list": "Banned words",
+    "remove": "Remove {word}",
+    "placeholder": "Add a word or phrase",
+    "add": "Add"
+  },
+  "Moderation": {
+    "title": "Moderation",
+    "tabs": {
+      "reports": "Reports",
+      "held": "Held",
+      "members": "Members",
+      "history": "History"
+    },
+    "item": "Item",
+    "type": "Type",
+    "reasons": "Reasons",
+    "reports": "Reports",
+    "firstReported": "First reported",
+    "actions": "Actions",
+    "unavailable": "No longer available",
+    "targets": {
+      "post": "Post",
+      "comment": "Reply",
+      "member": "Member"
+    },
+    "reasonLabels": {
+      "spam": "Spam",
+      "harassment": "Harassment",
+      "inappropriate": "Inappropriate",
+      "other": "Other"
+    },
+    "review": "Review",
+    "reviewNamed": "Review {name}",
+    "reviewTitle": "Review report",
+    "byAuthor": "By {name}",
+    "openItem": "Open in forum",
+    "reportsCount": "{count, plural, one {# report} other {# reports}}",
+    "keep": "Keep",
+    "remove": "Remove",
+    "manageMember": "Manage member",
+    "author": "Author",
+    "why": "Reason",
+    "date": "Date",
+    "heldReasons": {
+      "first_post": "First post",
+      "banned_word": "Banned word"
+    },
+    "approve": "Approve",
+    "reject": "Reject",
+    "approveNamed": "Approve {name}",
+    "rejectNamed": "Reject {name}",
+    "unnamed": "Member",
+    "search": "Search members",
+    "emptyReports": "No open reports",
+    "emptyHeld": "Nothing waiting for review",
+    "emptyMembers": "No members found",
+    "emptyHistory": "No moderation actions yet",
+    "name": "Name",
+    "role": "Role",
+    "status": "Status",
+    "roles": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "moderator": "Moderator",
+      "contributor": "Contributor",
+      "member": "Member"
+    },
+    "banned": "Banned",
+    "mutedUntil": "Muted until {date}",
+    "active": "Active",
+    "actionsFor": "Actions for {name}",
+    "mute": "{days, plural, one {Mute for # day} other {Mute for # days}}",
+    "unmute": "Unmute",
+    "ban": "Ban",
+    "unban": "Unban",
+    "banTitle": "Ban {name}?",
+    "banConsequence": "They lose access to this community and can't rejoin until unbanned.",
+    "cancel": "Cancel",
+    "host": "Host",
+    "action": "Action",
+    "subject": "Member",
+    "history": {
+      "report_dismiss": "Kept reported item",
+      "report_remove": "Removed reported item",
+      "held_approve": "Approved held item",
+      "held_reject": "Rejected held item",
+      "mute": "{days, plural, one {Muted for # day} other {Muted for # days}}",
+      "unmute": "Unmuted",
+      "ban": "Banned",
+      "unban": "Unbanned"
+    },
+    "subjectWithType": "{name} · {type}"
   }
 }
