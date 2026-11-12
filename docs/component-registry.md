@@ -9,12 +9,34 @@ Search this inventory and the source before introducing UI. This slice extends e
 | Navigation registry | `src/lib/navigation.ts`: `navEntries`, `resolveNavigation({ tenantId, role, audience, pathname })`, `sectionLabel(pathname, audience)`; consumer: AppShell sidebar and breadcrumb | Items filtered by `can()` (shared `src/lib/permissions.ts`) and optional audiences; per-audience label overrides; groups with no items are omitted; no audience-specific entries ship yet | Harvest |
 | `ui/sidebar` | SidebarProvider, Sidebar, SidebarInset, trigger, groups; AppShell | Expanded/icon/offcanvas; keyboard toggle, mobile drawer; one shared implementation | Existing shadcn, MIT |
 | Theme registry | Existing persisted Harvest/Studio IDs, light/dark; shell, CRM, Connect and offline page | Pre-paint initialization, validated storage override, system mode; both historical IDs now render approved neutral baseline | Studio Admin neutral tokens; old palettes archived in design/legacy-palettes.json |
-| `ui/*` | 35 existing shadcn controls; forms, lists and editors | Focus, disabled, validation, loading, menu/dialog keyboard semantics | Existing docs/ui-sources.md and licenses |
+| `ui/*` | 36 shadcn controls in `src/components/ui/` (including `switch.tsx`, consumers below); forms, lists and editors | Focus, disabled, validation, loading, menu/dialog keyboard semantics | Existing docs/ui-sources.md and licenses |
 | CRM ListPage / RecordLayout | Typed list configuration / detail composition; People and Organizations | URL filters, empty/search/page-empty states, permissions, pagination; server predicates unchanged | Harvest |
 | Connect LandingEditor / PublicFrame | Private draft editor and guest layout | Save/publish/conflicts, unsaved navigation, optional purposes, resources without identity | Harvest; no lifecycle moved to generic UI |
 | Theme controls / AppearanceForm | Existing workspace and personal preference APIs | Hydration-safe controls, owner/admin write restriction | Harvest |
 
-Global command/search, a universal creation wizard, EditorShell, generalized form engine remain subsequent bounded work; the initial internal showcase is described below. Do not render inert production controls for them. No new runtime dependencies in this slice.
+Global command/search, a universal creation wizard and a generalized form engine remain subsequent bounded work (EditorShell and the question-form components are delivered with one consumer each; see the next section); the initial internal showcase is described below. Do not render inert production controls for them. No new runtime dependencies in this slice.
+
+## Shared systems delivered after Phase 0A
+
+Verified against `main` at `f047440` (12 Nov 2026). "Delivered" means present in `main`; one consumer means not yet proven reusable. Phase 0 items refer to [the inventory](plans/design-system-inventory-2026-11-12.md).
+
+| System | Status | Path | Consumers | Phase 0 item |
+| --- | --- | --- | --- | --- |
+| `EditorShell` | Delivered (#58). Header with title/status/actions, step nav, centre settings, preview aside (sheet below `xl`); no autosave or publish logic | `src/components/editor/editor-shell.tsx` | One: `communities/community-editor.tsx` (Connect landing editor does not use it) | 0C EditorShell; needs a second consumer before it counts as universal |
+| `useUnsavedChangesGuard` | Delivered (#58, extracted from Connect). In-app link, history and tab-close guard | `src/hooks/use-unsaved-changes-guard.ts` | `communities/community-editor.tsx`, `connect-admin/landing-editor.tsx` | 0C EditorShell / mutation conventions |
+| Typed navigation registry | Delivered (#51); see the Navigation registry row above | `src/lib/navigation.ts` | `app-shell.tsx` | 0A AppShell; 0C navigation registration only |
+| `RichTextEditor` / `RichTextView` | Delivered (#62). Tiptap editor with allow-listed formats (JSON out) and a matching renderer. Tiptap (MIT) recorded in `docs/ui-sources.md` | `src/components/rich-text/rich-text-editor.tsx`, `rich-text-view.tsx` | Editor: `forum/post-composer.tsx`. View: `app/communities/[slug]/(member)/posts/[postId]/page.tsx` | 0C rich text |
+| `QuestionListEditor` / `QuestionFields` | Delivered (#60). Owner-side question builder and respondent renderer; local state, no conditional logic | `src/components/forms/question-list-editor.tsx`, `question-fields.tsx` | Editor: `communities/community-editor.tsx`. Renderer: `community-editor.tsx`, `application-actions.tsx`, `join-dialog.tsx` | 0C shared form builder plus public renderer (partial; Communities only) |
+| `RulesListEditor` | Delivered (#60). String-list add/remove | `src/components/communities/rules-list-editor.tsx` | `communities/community-editor.tsx` | None yet; candidate for a shared list editor |
+| `ForumCategoriesEditor` | Delivered (#62). Persisted, reorderable list with per-row save | `src/components/communities/forum-categories-editor.tsx` | `communities/community-editor.tsx` (Channels step) | None yet; candidate for a shared list editor |
+| `CommunityShell` | Delivered (#62). Member layout: icon rail, bottom bar on phones; routes marked "soon" are disabled | `src/components/communities/community-shell.tsx` | `app/communities/[slug]/(member)/layout.tsx` | Module-specific; not a shared shell |
+| `ui/switch` | Delivered shadcn primitive | `src/components/ui/switch.tsx` | `forum/post-composer.tsx`, `communities/community-editor.tsx`, `communities/forum-categories-editor.tsx`, `forms/question-list-editor.tsx` | 0A primitives |
+| Shared CRM filters (#44) | Delivered; see the Shared CRM filters section below. `source-rule-editor.tsx` adds HC-06 source include/exclude rules inside the same panel | `src/components/crm/filter-builder.tsx`, `source-rule-editor.tsx`, `list-toolbar.tsx`, `list-page.tsx` | People and Organizations lists | 0C filters |
+| CRM list/record parts | Delivered, CRM-specific: `record-layout.tsx`, `record-grid.tsx`, `record-picker.tsx`, `inline-field.tsx`, `view-menu.tsx`, `marketing-badge.tsx`, `deals/stage-badge.tsx` | `src/components/crm/` | CRM modules (`record-picker.tsx` also in deals and tasks) | Inventory B5 (status badges); not generic |
+| Dev showcase | Delivered, dev-only; see Development showcase below | `src/components/dev/ui-showcase.tsx`, `src/lib/ui-showcase.ts` | `/dev/ui` | 0A registry |
+| `ModerationPanel`, `ReportDialog`, `BannedWordsEditor` | **On unmerged PR #63** (`origin/c12a-community-moderation`); not in `main` | `src/components/communities/moderation-panel.tsx`, `report-dialog.tsx`, `banned-words-editor.tsx` (branch only) | Moderation page only | Inventory B1, B3, B4 |
+
+Proposed, not delivered: shared `DataTable` + `EmptyState`, `StatusBadge`, `ConfirmDialog` (the leave-page AlertDialog is still written inline in `landing-editor.tsx` and `community-editor.tsx`), `ListEditor`, a neutral `useRequest` (`useCrmRequest` in `crm/request.ts` is still imported by non-CRM code), wizard engine, form engine. See inventory section 3.
 
 ## Development showcase
 
@@ -34,6 +56,10 @@ Search/category metadata: `src/lib/ui-showcase.ts`; directly imported examples: 
 Keep peer controls aligned in the same action row; widths may differ with their labels. Use canonical variants rather than per-module height overrides. The shared People/Organizations toolbar uses `responsive` text actions and a matching 44/36px search group; Connect primary admin actions retain their existing 44px contract. Dense grid cells, active-filter chips, calendar cells, menu items and checkbox/radio indicators are not blanket resized by this pass; accessible labels, spacing and keyboard access must be checked for their own contexts. No claim of a universal 44px geometry audit of every control.
 
 Primitive shapes remain shadcn-owned source. No new library or external UI source was imported. Business list/filter/editor compositions remain inventory references, not genericized demo implementations. New page/wizard/editor/form engines remain pending.
+
+## Shared request hook
+
+`hooks/use-request.ts` exports `useRequest`, `RequestResult<T>` and the plain `request` function: same-origin JSON requests with catalogue-mapped errors and a sign-in redirect on 401. `crm/request.ts` remains a compatibility re-export (`useCrmRequest`, `CrmResult`) for CRM, Communities and forum consumers.
 
 ## Shared CRM filters
 

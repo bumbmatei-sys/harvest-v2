@@ -11,14 +11,14 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { useCrmRequest } from "@/components/crm/request";
+import { useRequest } from "@/hooks/use-request";
 
 /**
  * Create a person. Editing happens inline on the record page. When opened from a
  * company, the new person is linked to it in the same transaction.
  */
 export function ContactForm({ tenantId, company, variant = "default" }: { tenantId: string; company?: { id: string; name: string }; variant?: "default" | "outline" }) {
-  const crmRequest = useCrmRequest();
+  const crmRequest = useRequest();
   const t = useTranslations("ComponentsContactForm");
   const router = useRouter();
   const [open, setOpen] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState("");

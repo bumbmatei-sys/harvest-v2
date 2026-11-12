@@ -15,14 +15,14 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Textarea } from "@/components/ui/textarea";
 import { LandingContent } from "@/components/connect/landing-view";
 import { ResponseForm } from "@/components/connect/response-form";
-import { useCrmRequest } from "@/components/crm/request";
+import { useRequest } from "@/hooks/use-request";
 import { campaignLanding, starterResources } from "@/lib/connect-public";
 import { sameLandingDefinition, landingDefinition, type LandingCard, type LandingDefinition } from "@/lib/connect-landing";
 import type { IntakeManifest } from "@/lib/connect-intake";
 import type { EditableLanding } from "@/server/connect-landing";
 
 export function LandingEditor({ initial, endpoint, backHref, manifest }: { initial: EditableLanding; endpoint: string; backHref: string; manifest: IntakeManifest | null }) {
-  const t = useTranslations("LandingEditor"), links = useTranslations("ConnectLinks"), resources = useTranslations("Connect"), id = useId(), request = useCrmRequest();
+  const t = useTranslations("LandingEditor"), links = useTranslations("ConnectLinks"), resources = useTranslations("Connect"), id = useId(), request = useRequest();
   const [data, setData] = useState(initial), [heading, setHeading] = useState(initial.definition.heading), [welcome, setWelcome] = useState(initial.definition.message);
   const [cards, setCards] = useState(() => initial.definition.cards.map((card, index) => ({ id: `${id}-${index}`, card })));
   const [busy, setBusy] = useState<"save" | "publish" | null>(null), [error, setError] = useState(""), [notice, setNotice] = useState("");

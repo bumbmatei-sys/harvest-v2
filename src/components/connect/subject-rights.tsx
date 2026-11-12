@@ -5,10 +5,10 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Card,CardHeader,CardTitle,CardContent } from "@/components/ui/card";
 import { Alert,AlertDescription } from "@/components/ui/alert";
-import { useCrmRequest } from "@/components/crm/request";
+import { useRequest } from "@/hooks/use-request";
 import type { SubjectResponse } from "@/server/connect-subject-rights";
 export function SubjectRights({items}:{items:SubjectResponse[]}){
- const t=useTranslations("SubjectRights"),router=useRouter(),request=useCrmRequest();
+ const t=useTranslations("SubjectRights"),router=useRouter(),request=useRequest();
  const [busy,setBusy]=useState(false),[confirm,setConfirm]=useState<string|null>(null),[error,setError]=useState(""),[done,setDone]=useState(false);
  async function apply(handle:string,action:"withdraw"|"erase",purpose?:string){
   setBusy(true);setError("");setDone(false);

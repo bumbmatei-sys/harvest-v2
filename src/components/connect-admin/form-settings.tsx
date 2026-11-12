@@ -9,11 +9,11 @@ import { Field,FieldDescription,FieldGroup,FieldLabel } from "@/components/ui/fi
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect,NativeSelectOption } from "@/components/ui/native-select";
-import { useCrmRequest } from "@/components/crm/request";
+import { useRequest } from "@/hooks/use-request";
 import type { listIntakeForms } from "@/server/connect-intake";
 export function IntakeFormSettings({endpoint,versions}:{endpoint:string;versions:Awaited<ReturnType<typeof listIntakeForms>>}) {
  const invite=useTranslations("Invitations");
- const t=useTranslations("Intake"),id=useId(),router=useRouter(),request=useCrmRequest();
+ const t=useTranslations("Intake"),id=useId(),router=useRouter(),request=useRequest();
  const [revision,setRevision]=useState(""),[name,setName]=useState(""),[notice,setNotice]=useState(""),[days,setDays]=useState("");
  const [includeName,setIncludeName]=useState(true),[followUp,setFollowUp]=useState(true),[newsletter,setNewsletter]=useState(true),[channel,setChannel]=useState("email");
  const [invitation,setInvitation]=useState(false);
