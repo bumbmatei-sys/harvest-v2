@@ -127,3 +127,9 @@ Pinned source: `arhamkhnz/next-shadcn-admin-dashboard` at `05b2b927f556e0dce18c9
 | `src/app/(main)/{chat,mail}/` | Inspected as future composition references only; no copied inbox, mock messages or provider capability claims |
 
 Upstream dependencies inspected in package.json: Next/React/Tailwind/shadcn/Radix/Geist/Lucide overlap Harvest. Zustand, next-themes, table/form/chart engines and the rest of the template dependency graph are not imported. No upstream application, auth, telemetry, sample data, logos or imagery copied. Existing shadcn sidebar implementation retained rather than replacing it with upstream's current primitive stack.
+
+## Communities PR 4b sources (rich text)
+
+| Source | Version/date | License | Dependencies | Changed files | Adaptations |
+| --- | --- | --- | --- | --- | --- |
+| [Tiptap](https://github.com/ueberdosis/tiptap) (`@tiptap/react`, `@tiptap/pm`, `@tiptap/starter-kit`) | 3.33.1 (package-lock.json), added 2026-11-11 in #62 | MIT | ProseMirror (MIT) via `@tiptap/pm` | `src/components/rich-text/rich-text-editor.tsx` | Restricted extension set (headings 2–3, bold, italic, strike, lists, quote, link with http/https/mailto); JSON output re-sanitised on the server by `src/lib/rich-text.ts`; display uses a React renderer, never HTML |
