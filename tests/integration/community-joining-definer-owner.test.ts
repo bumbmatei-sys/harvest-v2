@@ -16,8 +16,12 @@ const definers = ["public.community_definer_reset()", "public.community_public(t
   "public.community_post_save(text,uuid,uuid,text,jsonb,text,text,uuid,uuid[],boolean,boolean)", "public.community_post_delete(text,uuid)", "public.community_comment_save(text,uuid,uuid,text)",
   "public.community_comment_delete(text,uuid)", "public.community_like_toggle(text,text,uuid)", "public.community_moderate(text,text,uuid)",
   "public.community_file_create(text,uuid,text,text,text,integer,text)", "public.community_file_set_status(text,uuid,text)",
-  "public.discover_communities(text,boolean,timestamptz,uuid,integer)", "public.community_my_invites()"];
-const tables = ["communities", "community_memberships", "entitlements", "community_invites", "audit_logs", "workspaces", "discover_listings", "community_applications", "community_categories", "community_files", "community_posts", "community_comments", "community_likes"];
+  "public.discover_communities(text,boolean,timestamptz,uuid,integer)", "public.community_my_invites()",
+  // C12a (0039)
+  "public.community_banned_word_match(text,text[])", "public.community_hold_reason(uuid,uuid,text,text,boolean)", "public.community_is_muted(uuid,uuid)", "public.community_moderation_log(uuid,uuid,text,text,text,text,jsonb)",
+  "public.community_report(text,text,text,text,text)", "public.community_report_decide(text,uuid,text)", "public.community_held_decide(text,text,uuid,text)",
+  "public.community_member_moderate(text,text,text,integer)", "public.community_moderation_members(text)"];
+const tables = ["communities", "community_memberships", "entitlements", "community_invites", "audit_logs", "workspaces", "discover_listings", "community_applications", "community_categories", "community_files", "community_posts", "community_comments", "community_likes", "community_reports", "community_moderation_actions"];
 let fixture: Awaited<ReturnType<typeof testDatabase>>, tenant: string, open: string, hidden: string;
 let roleCreated = false;
 const copied: { table: string; name: string }[] = [];
@@ -115,4 +119,25 @@ it("posts, replies, likes, moderates and uploads with a non-bypass definer owner
   expect((await run<{ outcome: string }>("o-owner", sql`select public.community_moderate('owner-open', 'pin', ${post.id}::uuid) as v`)).outcome).toBe("ok");
   expect((await run<{ outcome: string }>("o-joiner", sql`select public.community_comment_delete('owner-open', ${comment.id}::uuid) as v`)).outcome).toBe("forbidden");
   expect((await run<{ outcome: string }>("o-joiner", sql`select public.community_post_delete('owner-open', ${post.id}::uuid) as v`)).outcome).toBe("ok");
+});
+
+it("reports, decides, holds and moderates members with a non-bypass definer owner", async () => {
+  const run = async <T,>(user: string, statement: ReturnType<typeof sql>) => withUser(fixture.db, user, async (tx) => (await tx.execute<{ v: T }>(statement)).rows[0].v);
+  const category = (await fixture.admin.query("select id from community_categories where community_id = $1 limit 1", [open])).rows[0].id;
+  const body = JSON.stringify({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Hi" }] }] });
+  const save = (user: string, text: string) => run<{ outcome: string; id: string }>(user, sql`select public.community_post_save('owner-open', null, ${category}::uuid, 'Title', ${body}::jsonb, ${text}, null, null, '{}'::uuid[], false, false) as v`);
+  const post = await save("o-owner", "Owner post");
+  const report = await run<{ outcome: string; id: string }>("o-joiner", sql`select public.community_report('owner-open', 'post', ${post.id}, 'spam', 'note') as v`);
+  expect(report.outcome).toBe("ok");
+  expect((await run<{ outcome: string }>("o-owner", sql`select public.community_report_decide('owner-open', ${report.id}::uuid, 'keep') as v`)).outcome).toBe("ok");
+  await fixture.admin.query("update communities set banned_words = ARRAY['casino'] where id = $1", [open]);
+  const held = await save("o-joiner", "casino night");
+  expect(held.outcome).toBe("held");
+  expect((await run<{ outcome: string }>("o-owner", sql`select public.community_held_decide('owner-open', 'post', ${held.id}::uuid, 'approve') as v`)).outcome).toBe("ok");
+  await fixture.admin.query("update communities set banned_words = '{}' where id = $1", [open]);
+  for (const [action, days] of [["mute", 1], ["unmute", null], ["ban", null], ["unban", null]] as const)
+    expect((await run<{ outcome: string }>("o-owner", sql`select public.community_member_moderate('owner-open', 'o-joiner', ${action}, ${days}::int) as v`)).outcome, action).toBe("ok");
+  const members = await withUser(fixture.db, "o-owner", async (tx) => (await tx.execute<{ v: { userId: string } }>(sql`select public.community_moderation_members('owner-open') as v`)).rows);
+  expect(members.map((r) => r.v.userId)).toContain("o-owner");
+  expect((await fixture.admin.query("select count(*)::int as n from community_moderation_actions")).rows[0].n).toBe(6);
 });
