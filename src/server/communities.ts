@@ -34,6 +34,8 @@ const updateInput = z.object({
   description: description.nullable().optional(), rulesList: rulesList.optional(), joinQuestions: questionSet.optional(), discoverOptIn: z.boolean().optional(),
   // C12a: held content.
   holdFirstPosts: z.boolean().optional(), bannedWords: z.array(z.string().max(200)).max(200).optional(),
+  // C15a: the welcome card's message and the introductions category.
+  welcomeMessage: z.string().trim().min(1).max(1000).nullable().optional(), introCategoryId: z.uuid().nullable().optional(),
 }).strict();
 const grantInput = z.object({ userId: z.string().min(1).max(200), validUntil: z.iso.datetime().optional(), reason: z.string().trim().min(1).max(200).optional() }).strict();
 const revokeInput = z.object({}).strict();
@@ -79,6 +81,11 @@ export async function updateCommunity(db: Database, userId: string, workspace: s
   const id = z.uuid().parse(communityId);
   return withTenant(db, userId, z.uuid().parse(workspace), "communities:manage", async (tx, tenantId) => {
     const current = await ownCommunity(tx, tenantId, id);
+    if (changes.introCategoryId) {
+      const [category] = await tx.select({ id: communityCategories.id }).from(communityCategories)
+        .where(and(eq(communityCategories.tenantId, tenantId), eq(communityCategories.communityId, id), eq(communityCategories.id, changes.introCategoryId)));
+      if (!category) throw new AccessError(400, message("Errors.forumInputInvalid"));
+    }
     // A published community must keep meeting the publish checklist (review finding on #58).
     if (current.status === "published" && !readyToPublish({ ...current, ...changes })) throw new AccessError(409, message("Errors.communityNotReady"));
     // A rules or questions change bumps its version, so earlier acceptances and open join dialogs no longer count.

@@ -23,8 +23,12 @@ const definers = ["public.community_definer_reset()", "public.community_public(t
   "public.community_member_moderate(text,text,text,integer)", "public.community_moderation_members(text)",
   // C12b (0040)
   "public.community_warn(text,text,text)", "public.community_warning_ack(text,uuid)", "public.community_my_warnings(text)", "public.community_appeal_submit(text,text)",
-  "public.community_appeal_decide(text,uuid,text,text)", "public.community_my_bans()"];
-const tables = ["communities", "community_memberships", "entitlements", "community_invites", "audit_logs", "workspaces", "discover_listings", "community_applications", "community_categories", "community_files", "community_posts", "community_comments", "community_likes", "community_reports", "community_moderation_actions", "community_warnings", "community_appeals", "community_post_revisions", "community_comment_revisions"];
+  "public.community_appeal_decide(text,uuid,text,text)", "public.community_my_bans()",
+  // C15a (0041)
+  "public.community_user_can_read(uuid,uuid,text)", "public.community_notify(uuid,uuid,text,text,text,text,uuid,jsonb)", "public.community_notify_hosts(uuid,uuid,text)",
+  "public.community_notifications_list(text,integer)", "public.community_notifications_read(text,uuid[])", "public.community_notification_prefs_save(text,boolean,boolean,boolean,boolean)",
+  "public.community_welcome_dismiss(text)", "public.community_purge_notifications()"];
+const tables = ["communities", "community_memberships", "entitlements", "community_invites", "audit_logs", "workspaces", "discover_listings", "community_applications", "community_categories", "community_files", "community_posts", "community_comments", "community_likes", "community_reports", "community_moderation_actions", "community_warnings", "community_appeals", "community_post_revisions", "community_comment_revisions", "community_notifications"];
 let fixture: Awaited<ReturnType<typeof testDatabase>>, tenant: string, open: string, hidden: string;
 let roleCreated = false;
 const copied: { table: string; name: string }[] = [];
@@ -176,4 +180,24 @@ it("warns, appeals, decides and keeps edit history with a non-bypass definer own
   expect((await run<{ outcome: string }>("o-owner", sql`select public.community_appeal_decide('owner-open', ${sent.id}::uuid, 'approve', 'Welcome back') as v`)).outcome).toBe("ok");
   expect(await list<{ banned: boolean; appeal: { status: string; reply: string } }>("o-joiner", sql`select public.community_my_bans() as v`))
     .toMatchObject([{ banned: false, appeal: { status: "approved", reply: "Welcome back" } }]);
+});
+
+it("notifies, lists, marks read, saves preferences, dismisses the welcome card and purges with a non-bypass definer owner", async () => {
+  const run = async <T,>(user: string, statement: ReturnType<typeof sql>) => withUser(fixture.db, user, async (tx) => (await tx.execute<{ v: T }>(statement)).rows[0].v);
+  const category = (await fixture.admin.query("select id from community_categories where community_id = $1 limit 1", [open])).rows[0].id;
+  const doc = (text: string) => JSON.stringify({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
+  await fixture.admin.query("update community_memberships set status = 'active' where user_id = 'o-joiner' and community_id = $1", [open]);
+  await fixture.admin.query("insert into entitlements (tenant_id, user_id, resource_type, resource_id, source) values ($1, 'o-joiner', 'community', $2, 'admin_grant')", [tenant, open]);
+  const post = await run<{ outcome: string; id: string }>("o-joiner", sql`select public.community_post_save('owner-open', null, ${category}::uuid, 'Hi', ${doc("Hi")}::jsonb, 'Hi', null, null, '{}'::uuid[], false, false) as v`);
+  expect((await run<{ outcome: string }>("o-owner", sql`select public.community_comment_save('owner-open', ${post.id}::uuid, null, 'Welcome') as v`)).outcome).toBe("ok");
+  expect((await run<{ outcome: string }>("o-owner", sql`select public.community_like_toggle('owner-open', 'post', ${post.id}::uuid) as v`)).outcome).toMatch(/liked|unliked/);
+  const view = await run<{ outcome: string; unread: number; items: { id: string; kind: string }[] }>("o-joiner", sql`select public.community_notifications_list('owner-open', 30) as v`);
+  expect(view.outcome).toBe("ok");
+  expect(view.items.map((i) => i.kind)).toEqual(expect.arrayContaining(["reply", "like"]));
+  expect((await run<{ outcome: string }>("o-joiner", sql`select public.community_notifications_read('owner-open', ${`{${view.items[0].id}}`}::uuid[]) as v`)).outcome).toBe("ok");
+  expect((await run<{ outcome: string }>("o-joiner", sql`select public.community_notifications_read('owner-open', null) as v`)).outcome).toBe("ok");
+  expect((await run<{ outcome: string }>("o-joiner", sql`select public.community_notification_prefs_save('owner-open', true, false, true, false) as v`)).outcome).toBe("ok");
+  expect((await run<{ outcome: string }>("o-joiner", sql`select public.community_welcome_dismiss('owner-open') as v`)).outcome).toBe("ok");
+  await fixture.admin.query("update community_notifications set read_at = now() - interval '91 days' where recipient_id = 'o-joiner'");
+  expect(await fixture.db.transaction(async (tx) => (await tx.execute<{ n: number }>(sql`select public.community_purge_notifications() as n`)).rows[0].n)).toBeGreaterThan(0);
 });

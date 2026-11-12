@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Database } from "../db/client";
 import { auditLogs, communities, communityApplications, communityMemberships, entitlements, users } from "../db/schema";
 import { message } from "../i18n/messages";
+import { notifyApplicant } from "./community-notifications";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
 
@@ -53,11 +54,13 @@ export async function decideApplication(db: Database, userId: string, workspace:
     if (input.action === "request_info") {
       await tx.update(communityApplications).set({ status: "info_requested", infoRequest: input.message, updatedAt: now, ...noteChange }).where(key);
       await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "community.application_request_info", targetId: id, metadata: { applicationId: appId } });
+      await notifyApplicant(tx, tenantId, id, application.userId, userId, appId, "info_requested");
       return { status: "info_requested" as const };
     }
     if (input.action === "decline") {
       await tx.update(communityApplications).set({ status: "declined", decidedBy: userId, decidedAt: now, updatedAt: now, ...noteChange }).where(key);
       await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "community.application_decline", targetId: id, metadata: { applicationId: appId } });
+      await notifyApplicant(tx, tenantId, id, application.userId, userId, appId, "declined");
       return { status: "declined" as const };
     }
     const where = and(eq(communityMemberships.tenantId, tenantId), eq(communityMemberships.communityId, id), eq(communityMemberships.userId, application.userId));
@@ -71,6 +74,7 @@ export async function decideApplication(db: Database, userId: string, workspace:
     await tx.insert(entitlements).values({ tenantId, userId: application.userId, resourceType: "community", resourceId: id, source: "application", grantedBy: userId });
     await tx.update(communityApplications).set({ status: "approved", decidedBy: userId, decidedAt: now, updatedAt: now, ...noteChange }).where(key);
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "community.application_approve", targetId: id, metadata: { applicationId: appId } });
+    await notifyApplicant(tx, tenantId, id, application.userId, userId, appId, "approved");
     return { status: "approved" as const };
   });
 }
