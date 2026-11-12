@@ -88,7 +88,7 @@ BEGIN
       ON CONFLICT (recipient_id, community_id, target_type, target_id) WHERE kind = 'like' AND read_at IS NULL
       -- Count distinct people who like it now (since this group started), so like/unlike/like never inflates it (review on #67).
       DO UPDATE SET actor_count = greatest(1, (SELECT count(*)::int FROM public.community_likes l
-          WHERE l.target_type = EXCLUDED.target_type AND l.target_id::text = EXCLUDED.target_id AND l.user_id IS DISTINCT FROM EXCLUDED.recipient_id
+          WHERE l.target_type = EXCLUDED.target_type AND l.target_id = EXCLUDED.target_id::uuid AND l.user_id IS DISTINCT FROM EXCLUDED.recipient_id
             AND l.created_at >= community_notifications.created_at)),
         actor_id = EXCLUDED.actor_id, updated_at = now();
   ELSIF p_kind = 'host_queue' THEN
