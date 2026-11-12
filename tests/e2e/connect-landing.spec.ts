@@ -6,6 +6,8 @@ import { origin, signIn } from "./helpers/session";
 const evidence = process.env.LANDING_QA_DIR ?? "/tmp/harvest-landing-qa";
 test.use({ reducedMotion: "reduce", actionTimeout: 30000 });
 async function capture(page: Page, name: string) {
+  // Let colour-scheme and layout transitions finish before measuring contrast (slower CI runners).
+  await page.waitForFunction(() => document.getAnimations().every(a => !(a instanceof CSSTransition) || a.playState !== "running"));
   const axe = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
   expect(axe.violations, name).toEqual([]);
   const geometry = await page.locator("main").evaluate(main => ({ overflow: document.documentElement.scrollWidth - innerWidth, mainOverflow: main.scrollWidth - main.clientWidth,
@@ -55,7 +57,7 @@ test("landing editor: private draft, shared preview, keyboard ordering, publishi
   await page.goBack({ timeout: 1500 }).catch(() => {}); await expect(page.getByRole("alertdialog")).toBeVisible(); await page.getByRole("button", { name: "Keep editing", exact: true }).click();
   expect(await page.evaluate(() => { const event = new Event("beforeunload", { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented; })).toBe(true);
   for (const scheme of ["light", "dark"] as const) {
-    await page.emulateMedia({ colorScheme: scheme });
+    await page.emulateMedia({ colorScheme: scheme }); await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));
     for (const [size, width, height] of [["mobile", 390, 844], ["tablet", 820, 1180], ["desktop", 1440, 1000]] as const) {
       await page.setViewportSize({ width, height }); await page.getByRole("main").evaluate(e => e.scrollTop = 0);
       metrics.push(await capture(page, `editor-${size}-${scheme}`));
@@ -87,7 +89,7 @@ test("landing editor: private draft, shared preview, keyboard ordering, publishi
       for (const choice of await guest.locator("#response-form").getByRole("checkbox").all()) await expect(choice).not.toBeChecked();
     }
     for (const scheme of ["light", "dark"] as const) {
-      await guest.emulateMedia({ colorScheme: scheme }); await guest.reload(); await expect(guest.locator("html")).toHaveAttribute("data-theme", scheme);
+      await guest.emulateMedia({ colorScheme: scheme }); await guest.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))); await guest.reload(); await expect(guest.locator("html")).toHaveAttribute("data-theme", scheme);
       for (const [size, width, height] of [["mobile", 390, 844], ["tablet", 820, 1180], ["desktop", 1440, 1000]] as const) {
         await guest.setViewportSize({ width, height }); metrics.push(await capture(guest, `guest-${size}-${scheme}`));
       }

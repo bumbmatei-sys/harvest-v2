@@ -18,7 +18,7 @@ async function capture(page:Page,name:string){
 }
 for(const scheme of ["light","dark"] as const){
  test(`HC-07 personal account invitation, verified claim and welcome: ${scheme}`,async({page,browser})=>{
-  test.setTimeout(240000);await mkdir(evidence,{recursive:true});await page.setViewportSize({width:390,height:844});await page.emulateMedia({colorScheme:scheme,reducedMotion:"reduce"});await signIn(page);
+  test.setTimeout(240000);await mkdir(evidence,{recursive:true});await page.setViewportSize({width:390,height:844});await page.emulateMedia({colorScheme:scheme,reducedMotion:"reduce"}); await page.evaluate(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r))));await signIn(page);
   const workspace=await page.request.post("/api/workspaces",{headers:{origin},data:{audience:"church",name:"HC07 synthetic QA"}});expect(workspace.status()).toBe(201);const tenant=(await workspace.json()).tenantId;
   const campaign=await page.request.post(`/api/workspaces/${tenant}/campaigns`,{headers:{origin,"Idempotency-Key":randomUUID()},data:{name:"Personal account test",type:"conference"}});expect(campaign.status()).toBe(201);const campaignId=(await campaign.json()).id;
   const api=`/api/workspaces/${tenant}/campaigns/${campaignId}/connect`;
@@ -86,7 +86,8 @@ test("HC-07 existing personal account, mismatch, switch and decline stay indepen
   const invalid=await wrongPage.request.post("/api/connect/invitations/prepare",{headers:{origin},data:{token:"f".repeat(64)}});expect(invalid.status()).toBe(409);
   expect((await wrong.cookies()).some(c=>c.name==="harvest_connect_flow")).toBe(false);
   await wrongPage.reload();await expect(wrongPage.getByRole("button",{name:"Confirm this request for my account",exact:true})).toHaveCount(0);
-  await wrongPage.goto(url);await wrongPage.getByRole("button",{name:"Continue securely",exact:true}).click();
+  // Open the link fresh: a goto that differs only by #fragment is a same-document navigation.
+  await wrongPage.goto("about:blank");await wrongPage.goto(url);await wrongPage.getByRole("button",{name:"Continue securely",exact:true}).click();
   await wrongPage.getByRole("button",{name:"Use another account",exact:true}).click();await expect(wrongPage).toHaveURL(/\/sign-in\?connect=1$/);
   // Advance only this disposable fixture's cooldown clock; the original existing-account
   // sign-in above used a code moments ago. Production limits and rolling issuance stay intact.
