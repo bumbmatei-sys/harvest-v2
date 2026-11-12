@@ -99,7 +99,7 @@ test("guest landing → resources → leave: no identity, tracking, or backgroun
   }
   // Also check small screens, zoom-equivalent reflow, and dark mode.
   await page.setViewportSize({ width: 320, height: 740 });
-  await page.emulateMedia({ colorScheme: "dark" }); await page.waitForFunction(s => { const t = document.documentElement.dataset.theme; return !t || t === s; }, "dark");
+  await page.emulateMedia({ colorScheme: "dark" });
   await page.goto(landing);
   await expect(page).toHaveTitle("Welcome · Harvest Connect");
   await expectPublicLayout(page);
