@@ -26,10 +26,10 @@ export function normaliseBannedWords(words: readonly string[]): string[] {
   for (const raw of words) {
     const word = raw.trim().toLowerCase().replace(/\s+/g, " ");
     if (!word) continue;
-    if (word.length > moderationLimits.bannedWord) throw new RangeError("banned word too long");
+    if (word.length > moderationLimits.bannedWord) throw new RangeError();
     if (!out.includes(word)) out.push(word);
   }
-  if (out.length > moderationLimits.bannedWords) throw new RangeError("too many banned words");
+  if (out.length > moderationLimits.bannedWords) throw new RangeError();
   return out;
 }
 
