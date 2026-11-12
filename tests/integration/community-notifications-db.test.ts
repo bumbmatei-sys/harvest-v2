@@ -199,3 +199,26 @@ it("lets the staff path insert only application notifications for their own mini
   expect(await insert(a, "warning")).toBe("denied");
   expect(await insert(b, "application")).toBe("denied");
 });
+
+it("tells the post author and earlier repliers when a held reply is approved, and delivers appeal decisions despite mute (founder decisions, 12 Nov)", async () => {
+  const p = await post("n-one", "Approved replies");
+  expect((await reply("n-owner", p.id!, "First")).outcome).toBe("ok");
+  await markAll("n-one"); await markAll("n-owner");
+  await f.admin.query("update communities set banned_words = ARRAY['casino'] where id = $1", [club]);
+  const held = await reply("n-three", p.id!, "casino tonight?");
+  expect(held.outcome).toBe("held");
+  expect((await stored("n-one")).filter((r) => r.kind === "reply" && r.read_at === null)).toHaveLength(0);
+  expect((await call("n-mod", sql`select public.community_held_decide('nt-club', 'comment', ${held.id}::uuid, 'approve') as v`)).outcome).toBe("ok");
+  const authorRows = (await f.admin.query("select kind, actor_id from community_notifications where recipient_id = 'n-one' and target_id = $1", [held.id])).rows;
+  expect(authorRows).toEqual([{ kind: "reply", actor_id: "n-three" }]);
+  expect((await f.admin.query("select kind from community_notifications where recipient_id = 'n-owner' and target_id = $1", [held.id])).rows).toEqual([{ kind: "thread_reply" }]);
+  expect((await f.admin.query("select count(*)::int as n from community_notifications where recipient_id = 'n-mod' and target_id = $1", [held.id])).rows[0].n).toBe(0);
+  await f.admin.query("update communities set banned_words = '{}' where id = $1", [club]);
+  // A member who muted the community still hears the decision on their appeal.
+  expect((await prefs("n-three", true, true, true, true)).outcome).toBe("ok");
+  expect((await call("n-owner", sql`select public.community_member_moderate('nt-club', 'n-three', 'ban', null) as v`)).outcome).toBe("ok");
+  const sent = await call("n-three", sql`select public.community_appeal_submit('nt-club', 'Sorry') as v`);
+  expect(sent.outcome).toBe("ok");
+  expect((await call("n-owner", sql`select public.community_appeal_decide('nt-club', ${sent.id}::uuid, 'decline', null) as v`)).outcome).toBe("ok");
+  expect((await stored("n-three")).map((r) => r.kind)).toContain("appeal_decision");
+});

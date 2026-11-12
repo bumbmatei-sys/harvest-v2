@@ -25,7 +25,7 @@ const definers = ["public.community_definer_reset()", "public.community_public(t
   "public.community_warn(text,text,text)", "public.community_warning_ack(text,uuid)", "public.community_my_warnings(text)", "public.community_appeal_submit(text,text)",
   "public.community_appeal_decide(text,uuid,text,text)", "public.community_my_bans()",
   // C15a (0041)
-  "public.community_user_can_read(uuid,uuid,text)", "public.community_notify(uuid,uuid,text,text,text,text,uuid,jsonb)", "public.community_notify_hosts(uuid,uuid,text)",
+  "public.community_user_can_read(uuid,uuid,text)", "public.community_notify(uuid,uuid,text,text,text,text,uuid,jsonb)", "public.community_notify_as(text,uuid,uuid,text,text,text,text,uuid,jsonb)", "public.community_notify_reply(uuid,uuid,uuid,uuid,text)", "public.community_notify_hosts(uuid,uuid,text)",
   "public.community_notifications_list(text,integer)", "public.community_notifications_read(text,uuid[])", "public.community_notification_prefs_save(text,boolean,boolean,boolean,boolean)",
   "public.community_welcome_dismiss(text)", "public.community_purge_notifications()"];
 const tables = ["communities", "community_memberships", "entitlements", "community_invites", "audit_logs", "workspaces", "discover_listings", "community_applications", "community_categories", "community_files", "community_posts", "community_comments", "community_likes", "community_reports", "community_moderation_actions", "community_warnings", "community_appeals", "community_post_revisions", "community_comment_revisions", "community_notifications"];

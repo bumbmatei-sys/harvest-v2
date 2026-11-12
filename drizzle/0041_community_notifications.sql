@@ -68,16 +68,17 @@ $$;--> statement-breakpoint
 -- Writes one notification for a recipient. Never the actor; never a member who muted the community or turned the kind off;
 -- never someone who can no longer read the community (an appeal decision is the exception: banned people read nothing).
 -- Likes and the host queue keep one unread row per recipient and target (or community) with a count. Not granted.
-CREATE FUNCTION public.community_notify(p_tenant uuid, p_community uuid, p_recipient text, p_kind text, p_target_type text, p_target_id text,
+CREATE FUNCTION public.community_notify_as(p_actor text, p_tenant uuid, p_community uuid, p_recipient text, p_kind text, p_target_type text, p_target_id text,
   p_post_id uuid, p_detail jsonb) RETURNS void
 LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
-DECLARE actor text := nullif(current_setting('app.user_id', true), ''); m record; v_detail jsonb := coalesce(p_detail, '{}'::jsonb);
+DECLARE actor text := p_actor; m record; v_detail jsonb := coalesce(p_detail, '{}'::jsonb);
 BEGIN
   IF p_recipient IS NULL OR p_recipient IS NOT DISTINCT FROM actor THEN RETURN; END IF;
   SELECT m2.notify_replies, m2.notify_likes, m2.notifications_muted INTO m FROM public.community_memberships m2
     WHERE m2.tenant_id = p_tenant AND m2.community_id = p_community AND m2.user_id = p_recipient;
   IF FOUND THEN
-    IF m.notifications_muted THEN RETURN; END IF;
+    -- Appeal decisions are about the member's own ban and ignore mute (founder decision, 12 Nov).
+    IF m.notifications_muted AND p_kind <> 'appeal_decision' THEN RETURN; END IF;
     IF p_kind IN ('reply', 'thread_reply') AND NOT m.notify_replies THEN RETURN; END IF;
     IF p_kind = 'like' AND NOT m.notify_likes THEN RETURN; END IF;
   END IF;
@@ -96,6 +97,27 @@ BEGIN
     INSERT INTO public.community_notifications (tenant_id, community_id, recipient_id, kind, target_type, target_id, post_id, actor_id, detail)
       VALUES (p_tenant, p_community, p_recipient, p_kind, p_target_type, p_target_id, p_post_id, actor, v_detail);
   END IF;
+END $$;--> statement-breakpoint
+-- The current user is the actor. Not granted.
+CREATE FUNCTION public.community_notify(p_tenant uuid, p_community uuid, p_recipient text, p_kind text, p_target_type text, p_target_id text,
+  p_post_id uuid, p_detail jsonb) RETURNS void
+LANGUAGE sql SET search_path = pg_catalog, pg_temp AS $$
+  SELECT public.community_notify_as(nullif(current_setting('app.user_id', true), ''), p_tenant, p_community, p_recipient, p_kind, p_target_type, p_target_id, p_post_id, p_detail)
+$$;--> statement-breakpoint
+-- A visible reply tells the post author ("reply") and up to 50 earlier repliers ("thread_reply"), as the replier.
+-- Used when a reply is published and when a held reply is approved (founder decision, 12 Nov). Not granted.
+CREATE FUNCTION public.community_notify_reply(p_tenant uuid, p_community uuid, p_post_id uuid, p_comment_id uuid, p_replier text) RETURNS void
+LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
+DECLARE v_post_author text; v_rep record;
+BEGIN
+  SELECT author_id INTO v_post_author FROM public.community_posts WHERE tenant_id = p_tenant AND id = p_post_id;
+  PERFORM public.community_notify_as(p_replier, p_tenant, p_community, v_post_author, 'reply', 'comment', p_comment_id::text, p_post_id, '{}'::jsonb);
+  FOR v_rep IN SELECT c.author_id FROM public.community_comments c
+    WHERE c.tenant_id = p_tenant AND c.community_id = p_community AND c.post_id = p_post_id AND c.id <> p_comment_id
+      AND c.removed_at IS NULL AND c.held_at IS NULL AND c.author_id IS NOT NULL AND c.author_id IS DISTINCT FROM v_post_author AND c.author_id IS DISTINCT FROM p_replier
+    GROUP BY c.author_id ORDER BY max(c.created_at) DESC LIMIT 50 LOOP
+    PERFORM public.community_notify_as(p_replier, p_tenant, p_community, v_rep.author_id, 'thread_reply', 'comment', p_comment_id::text, p_post_id, '{}'::jsonb);
+  END LOOP;
 END $$;--> statement-breakpoint
 -- Tells every host (owner, admin, moderator) that something needs review, except the actor and one excluded person. Not granted.
 CREATE FUNCTION public.community_notify_hosts(p_tenant uuid, p_community uuid, p_except text) RETURNS void
@@ -183,14 +205,7 @@ BEGIN
     IF v_hold IS NOT NULL THEN
       PERFORM public.community_notify_hosts(ctx.o_tenant, ctx.o_community, NULL);
     ELSE
-      PERFORM public.community_notify(ctx.o_tenant, ctx.o_community, post.author_id, 'reply', 'comment', v_comment::text, p_post_id, '{}'::jsonb);
-      -- Earlier repliers (not the post's author, who is told above, and not the replier): the most recent 50.
-      FOR v_rep IN SELECT c.author_id FROM public.community_comments c
-        WHERE c.tenant_id = ctx.o_tenant AND c.community_id = ctx.o_community AND c.post_id = p_post_id AND c.id <> v_comment
-          AND c.removed_at IS NULL AND c.held_at IS NULL AND c.author_id IS NOT NULL AND c.author_id IS DISTINCT FROM post.author_id AND c.author_id <> actor
-        GROUP BY c.author_id ORDER BY max(c.created_at) DESC LIMIT 50 LOOP
-        PERFORM public.community_notify(ctx.o_tenant, ctx.o_community, v_rep.author_id, 'thread_reply', 'comment', v_comment::text, p_post_id, '{}'::jsonb);
-      END LOOP;
+      PERFORM public.community_notify_reply(ctx.o_tenant, ctx.o_community, p_post_id, v_comment, actor);
     END IF;
     RETURN public.community_forum_done(CASE WHEN v_hold IS NULL THEN 'ok' ELSE 'held' END, v_comment);
   END IF;
@@ -311,6 +326,10 @@ BEGIN
   PERFORM public.community_moderation_log(ctx.o_tenant, ctx.o_community, CASE WHEN p_decision = 'approve' THEN 'held_approve' ELSE 'held_reject' END,
     p_target_type, p_id::text, v_subject);
   PERFORM public.community_notify(ctx.o_tenant, ctx.o_community, v_subject, 'held_decision', p_target_type, p_id::text, v_post, jsonb_build_object('decision', p_decision));
+  -- An approved reply now shows, so the post author and earlier repliers hear about it as for any reply.
+  IF p_decision = 'approve' AND p_target_type = 'comment' AND v_subject IS NOT NULL THEN
+    PERFORM public.community_notify_reply(ctx.o_tenant, ctx.o_community, v_post, p_id, v_subject);
+  END IF;
   RETURN public.community_forum_done('ok', p_id);
 END $$;
 --> statement-breakpoint
@@ -479,6 +498,7 @@ BEGIN
   RETURN removed;
 END $$;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.community_user_can_read(uuid, uuid, text), public.community_notify(uuid, uuid, text, text, text, text, uuid, jsonb),
+  public.community_notify_as(text, uuid, uuid, text, text, text, text, uuid, jsonb), public.community_notify_reply(uuid, uuid, uuid, uuid, text),
   public.community_notify_hosts(uuid, uuid, text), public.community_notifications_list(text, integer), public.community_notifications_read(text, uuid[]),
   public.community_notification_prefs_save(text, boolean, boolean, boolean, boolean), public.community_welcome_dismiss(text), public.community_purge_notifications() FROM PUBLIC;--> statement-breakpoint
 GRANT EXECUTE ON FUNCTION public.community_notifications_list(text, integer), public.community_notifications_read(text, uuid[]),
