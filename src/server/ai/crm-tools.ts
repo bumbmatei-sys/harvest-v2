@@ -211,7 +211,7 @@ export async function decideToolApproval(db: Database, userId: string, workspace
     if (row.status !== "pending") throw new AccessError(409, message("Errors.assistantApprovalUsed"));
     if (row.expired) throw new AccessError(409, message("Errors.assistantApprovalExpired"));
     await tx.update(aiToolApprovals).set({ status: choice === "approve" ? "approved" : "rejected", decidedAt: sql`now()` })
-      .where(and(eq(aiToolApprovals.tenantId, tenantId), eq(aiToolApprovals.id, approvalId)));
+      .where(and(eq(aiToolApprovals.tenantId, tenantId), eq(aiToolApprovals.id, approvalId), eq(aiToolApprovals.status, "pending")));
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: choice === "approve" ? "ai.tool_approval_approve" : "ai.tool_approval_reject", targetId: approvalId, metadata: { tool: row.tool } });
     return { approvalId, status: choice === "approve" ? "approved" as const : "rejected" as const };
   });
@@ -241,7 +241,7 @@ export async function executeCrmTool(db: Database, userId: string, workspace: st
     if (row.status === "pending") throw new AccessError(403, message("Errors.assistantActionNeedsApproval"), { reason: "approval_pending" });
     if (row.status !== "approved") throw new AccessError(409, message("Errors.assistantApprovalUsed"), { reason: "approval_used" });
     if (row.expired) throw new AccessError(409, message("Errors.assistantApprovalExpired"), { reason: "approval_expired" });
-    await tx.update(aiToolApprovals).set({ status: "consumed", consumedAt: sql`now()` }).where(and(eq(aiToolApprovals.tenantId, tenantId), eq(aiToolApprovals.id, approvalId)));
+    await tx.update(aiToolApprovals).set({ status: "consumed", consumedAt: sql`now()` }).where(and(eq(aiToolApprovals.tenantId, tenantId), eq(aiToolApprovals.id, approvalId), eq(aiToolApprovals.status, "approved")));
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "ai.tool_execute", targetId: approvalId, metadata: { tool: name } });
     // The service runs inside this transaction (as a savepoint) and checks membership and role again.
     return definition.run({ db: tx as unknown as Database, userId, workspaceId }, input);
