@@ -35,13 +35,17 @@ it("returns 404 from every Communities route in production unless activated", as
   const files = await import(`${forum}/files/route`), file = await import(`${forum}/files/[fileId]/route`), confirm = await import(`${forum}/files/[fileId]/confirm/route`);
   const categories = await import("../../src/app/api/workspaces/[tenantId]/communities/[communityId]/categories/route");
   const category = await import("../../src/app/api/workspaces/[tenantId]/communities/[communityId]/categories/[categoryId]/route");
+  const reports = await import(`${forum}/reports/route`), queue = await import(`${forum}/moderation/reports/route`), decide = await import(`${forum}/moderation/reports/[reportId]/route`);
+  const held = await import(`${forum}/moderation/held/route`), members = await import(`${forum}/moderation/members/route`), history = await import(`${forum}/moderation/history/route`);
   const calls = [list.GET(request("GET"), context), list.POST(request("POST"), context), one.GET(request("GET"), context), one.PATCH(request("PATCH"), context), publish.POST(request("POST"), context),
     join.POST(request("POST"), context), discover.GET(request("GET")), invites.GET(request("GET"), context), invites.POST(request("POST"), context), invite.DELETE(request("DELETE"), context),
     applications.GET(request("GET"), context), application.PATCH(request("PATCH"), context), mine.PATCH(request("PATCH"), context),
     posts.POST(request("POST"), context), postOne.PATCH(request("PATCH"), context), postOne.DELETE(request("DELETE"), context), comments.POST(request("POST"), context),
     comment.PATCH(request("PATCH"), context), comment.DELETE(request("DELETE"), context), likes.POST(request("POST"), context), moderation.POST(request("POST"), context),
     files.POST(request("POST"), context), file.GET(request("GET"), context), confirm.POST(request("POST"), context),
-    categories.GET(request("GET"), context), categories.POST(request("POST"), context), category.PATCH(request("PATCH"), context), category.DELETE(request("DELETE"), context)];
+    categories.GET(request("GET"), context), categories.POST(request("POST"), context), category.PATCH(request("PATCH"), context), category.DELETE(request("DELETE"), context),
+    reports.POST(request("POST"), context), queue.GET(request("GET"), context), decide.POST(request("POST"), context), held.GET(request("GET"), context), held.POST(request("POST"), context),
+    members.GET(request("GET"), context), members.POST(request("POST"), context), history.GET(request("GET"), context)];
   for (const response of await Promise.all(calls)) expect(response.status).toBe(404);
   expect(touched).not.toHaveBeenCalled();
 });

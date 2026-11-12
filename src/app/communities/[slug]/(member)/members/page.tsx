@@ -6,6 +6,7 @@ import { pageSession } from "@/server/page-session";
 import { communitiesEnabled } from "@/server/communities-mode";
 import { orPublicPage } from "@/server/community-member-page";
 import { Badge } from "@/components/ui/badge";
+import { ReportDialog } from "@/components/communities/report-dialog";
 
 // C09: members of the community, names and roles only.
 export default async function MembersPage({ params }: { params: Promise<{ slug: string }> }) {
@@ -20,6 +21,7 @@ export default async function MembersPage({ params }: { params: Promise<{ slug: 
       <span className="min-w-0 flex-1 break-words font-medium">{m.name.trim() || t("unnamed")}</span>
       {m.role !== "member" && <Badge variant="secondary">{roles(m.role as "owner")}</Badge>}
       {m.joinedAt && <span className="text-sm text-muted-foreground">{t("joined", { date: format.dateTime(new Date(m.joinedAt), { dateStyle: "medium" }) })}</span>}
+      {m.userId !== session.user.id && <ReportDialog slug={slug} targetType="member" targetId={m.userId} name={m.name.trim() || t("unnamed")} compact />}
     </li>)}</ul>
   </section>;
 }

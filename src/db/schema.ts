@@ -991,6 +991,9 @@ export const communities = pgTable("communities", {
   // Shared question set (src/lib/questions.ts), bumped by questionsVersion on every change.
   joinQuestions: jsonb("join_questions").$type<import("../lib/questions").Question[]>().notNull().default(sql`'[]'::jsonb`),
   questionsVersion: integer("questions_version").notNull().default(0),
+  // C12a: held content. New members' first post waits for a host; matching banned words hold posts and replies.
+  holdFirstPosts: boolean("hold_first_posts").notNull().default(false),
+  bannedWords: text("banned_words").array().notNull().default(sql`ARRAY[]::text[]`),
   discoverOptIn: boolean("discover_opt_in").notNull().default(false),
   // Cleared if the creator's account is deleted, so account erasure is never blocked by a community.
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
@@ -1010,6 +1013,7 @@ export const communities = pgTable("communities", {
   check("community_rules_list", sql`cardinality(${t.rulesList}) <= 20`),
   check("community_join_questions", sql`jsonb_typeof(${t.joinQuestions}) = 'array' and jsonb_array_length(${t.joinQuestions}) <= 10`),
   check("community_questions_version", sql`${t.questionsVersion} >= 0`),
+  check("community_banned_words", sql`cardinality(${t.bannedWords}) <= 100`),
   check("community_rules_version", sql`${t.rulesVersion} >= 0`)]);
 
 export const communityMemberships = pgTable("community_memberships", {
@@ -1022,6 +1026,7 @@ export const communityMemberships = pgTable("community_memberships", {
   rulesVersionAccepted: integer("rules_version_accepted"),
   adultConfirmedAt: timestamp("adult_confirmed_at", { withTimezone: true }),
   joinAnswers: jsonb("join_answers").$type<import("../lib/questions").Answers>(),
+  mutedUntil: timestamp("muted_until", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.communityId, t.userId] }),
@@ -1158,8 +1163,11 @@ export const communityPosts = pgTable("community_posts", {
   editedAt: timestamp("edited_at", { withTimezone: true }),
   removedAt: timestamp("removed_at", { withTimezone: true }),
   removedBy: text("removed_by").references(() => users.id, { onDelete: "set null" }),
+  heldAt: timestamp("held_at", { withTimezone: true }),
+  heldReason: text("held_reason", { enum: ["first_post", "banned_word"] }),
 }, (t) => [
   foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  check("community_post_held", sql`(${t.heldAt} is null) = (${t.heldReason} is null) and (${t.heldReason} is null or ${t.heldReason} in ('first_post', 'banned_word'))`),
   index("community_posts_feed_idx").on(t.communityId, t.pinned, t.createdAt),
   check("community_post_title", sql`length(${t.title}) between 1 and 200`),
   check("community_post_body", sql`jsonb_typeof(${t.body}) = 'object' and length(${t.body}::text) <= 100000`),
@@ -1176,8 +1184,11 @@ export const communityComments = pgTable("community_comments", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
   removedAt: timestamp("removed_at", { withTimezone: true }),
   removedBy: text("removed_by").references(() => users.id, { onDelete: "set null" }),
+  heldAt: timestamp("held_at", { withTimezone: true }),
+  heldReason: text("held_reason", { enum: ["first_post", "banned_word"] }),
 }, (t) => [
   foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  check("community_comment_held", sql`(${t.heldAt} is null) = (${t.heldReason} is null) and (${t.heldReason} is null or ${t.heldReason} in ('first_post', 'banned_word'))`),
   index("community_comments_post_idx").on(t.postId, t.createdAt),
   check("community_comment_body", sql`length(${t.body}) between 1 and 5000`)]);
 
@@ -1191,6 +1202,45 @@ export const communityLikes = pgTable("community_likes", {
   foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
   index("community_likes_recent_idx").on(t.communityId, t.targetType, t.createdAt),
   check("community_like_target", sql`${t.targetType} in ('post', 'comment')`)]);
+
+// C12a: member reports and the moderation history. Hosts read through community_is_host; writes only through
+// the definers in migration 0039. Reporter ids are never returned to members.
+export const communityReports = pgTable("community_reports", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),
+  reporterId: text("reporter_id").references(() => users.id, { onDelete: "set null" }),
+  targetType: text("target_type", { enum: ["post", "comment", "member"] }).notNull(),
+  targetId: text("target_id").notNull(),
+  reason: text("reason", { enum: ["spam", "harassment", "inappropriate", "other"] }).notNull(),
+  note: text("note"),
+  status: text("status", { enum: ["open", "dismissed", "actioned"] }).notNull().default("open"),
+  decidedBy: text("decided_by").references(() => users.id, { onDelete: "set null" }),
+  decidedAt: timestamp("decided_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  uniqueIndex("community_reports_open_idx").on(t.communityId, t.reporterId, t.targetType, t.targetId).where(sql`${t.status} = 'open'`),
+  index("community_reports_queue_idx").on(t.communityId, t.status, t.targetType, t.targetId),
+  check("community_report_target", sql`${t.targetType} in ('post', 'comment', 'member') and length(${t.targetId}) between 1 and 200`),
+  check("community_report_reason", sql`${t.reason} in ('spam', 'harassment', 'inappropriate', 'other')`),
+  check("community_report_note", sql`${t.note} is null or length(${t.note}) between 1 and 500`),
+  check("community_report_status", sql`${t.status} in ('open', 'dismissed', 'actioned')`)]);
+
+export const communityModerationActions = pgTable("community_moderation_actions", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),
+  actorId: text("actor_id").references(() => users.id, { onDelete: "set null" }),
+  action: text("action").notNull(),
+  targetType: text("target_type").notNull(),
+  targetId: text("target_id").notNull(),
+  subjectUserId: text("subject_user_id").references(() => users.id, { onDelete: "set null" }),
+  detail: jsonb("detail").notNull().default(sql`'{}'::jsonb`),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  index("community_moderation_actions_idx").on(t.communityId, t.createdAt),
+  check("community_moderation_action", sql`${t.action} in ('report_dismiss', 'report_remove', 'held_approve', 'held_reject', 'mute', 'unmute', 'ban', 'unban')`),
+  check("community_moderation_target", sql`${t.targetType} in ('post', 'comment', 'member')`)]);
 
 // PR 3 (C05): Discover read projection (ADR 0013 §7). A row exists only while the resource qualifies.
 export const discoverListings = pgTable("discover_listings", {

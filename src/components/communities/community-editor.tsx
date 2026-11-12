@@ -17,6 +17,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { EditorShell } from "@/components/editor/editor-shell";
 import { CommunityJoinCard } from "@/components/communities/join-card";
+import { BannedWordsEditor } from "@/components/communities/banned-words-editor";
 import { ForumCategoriesEditor, type ForumCategory } from "@/components/communities/forum-categories-editor";
 import { CommunityInvites, type CommunityInvite } from "@/components/communities/community-invites";
 import { Textarea } from "@/components/ui/textarea";
@@ -33,9 +34,9 @@ import { comingSoonSteps, communityEditorSteps, publishChecklist, type Community
 
 export type EditableCommunity = { id: string; slug: string; name: string; tagline: string | null; status: "draft" | "published" | "archived";
   visibility: "listed" | "unlisted" | "hidden"; allowOpen: boolean; allowApply: boolean; allowInvite: boolean; allowEntitlement: boolean; version: number;
-  description: string | null; rulesList: string[]; joinQuestions: Question[]; discoverOptIn: boolean };
+  description: string | null; rulesList: string[]; joinQuestions: Question[]; discoverOptIn: boolean; holdFirstPosts: boolean; bannedWords: string[] };
 export type CommunityMember = { userId: string; name: string; role: string; status: string };
-type Fields = Pick<EditableCommunity, "name" | "tagline" | "visibility" | "allowOpen" | "allowApply" | "allowInvite" | "allowEntitlement" | "description" | "rulesList" | "joinQuestions" | "discoverOptIn">;
+type Fields = Pick<EditableCommunity, "name" | "tagline" | "visibility" | "allowOpen" | "allowApply" | "allowInvite" | "allowEntitlement" | "description" | "rulesList" | "joinQuestions" | "discoverOptIn" | "holdFirstPosts" | "bannedWords">;
 const optionalText = ["tagline", "description"] as const;
 const equal = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 // What is sent: trimmed rules and questions, with blank rules and blank options dropped.
@@ -43,7 +44,8 @@ const cleanRules = (rules: string[]) => rules.map((r) => r.trim()).filter(Boolea
 const cleanQuestions = (questions: Question[]) => questions.map((q) => ({ ...q, label: q.label.trim(), ...(q.options ? { options: q.options.map((o) => o.trim()).filter(Boolean) } : {}) }));
 const admissionKeys = ["allowOpen", "allowApply", "allowInvite", "allowEntitlement"] as const;
 const fieldsOf = (c: EditableCommunity): Fields => ({ name: c.name, tagline: c.tagline, visibility: c.visibility, allowOpen: c.allowOpen, allowApply: c.allowApply,
-  allowInvite: c.allowInvite, allowEntitlement: c.allowEntitlement, description: c.description, rulesList: c.rulesList, joinQuestions: c.joinQuestions, discoverOptIn: c.discoverOptIn });
+  allowInvite: c.allowInvite, allowEntitlement: c.allowEntitlement, description: c.description, rulesList: c.rulesList, joinQuestions: c.joinQuestions, discoverOptIn: c.discoverOptIn,
+  holdFirstPosts: c.holdFirstPosts, bannedWords: c.bannedWords });
 const same = (a: Fields, b: Fields) => (Object.keys(a) as (keyof Fields)[]).every((key) => equal(a[key], b[key]));
 
 export function CommunityEditor({ initial, members, invites, applications, categories, endpoint, listHref, host, writable }: { initial: EditableCommunity; members: CommunityMember[]; invites: CommunityInvite[];
@@ -138,6 +140,12 @@ export function CommunityEditor({ initial, members, invites, applications, categ
         <Card><CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3"><CardTitle><h3 className="text-base font-semibold">{t("chatChannels")}</h3></CardTitle>
           <Badge variant="secondary">{t("comingSoon")}</Badge></CardHeader></Card>
       </>}
+      {step === "people" && <Card><CardHeader><CardTitle><h3 className="text-base font-semibold">{t("moderationTitle")}</h3></CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <Label htmlFor="community-hold-first" className="flex min-h-11 items-center justify-between gap-3 font-normal">{t("holdFirstPosts")}
+            <Switch id="community-hold-first" checked={fields.holdFirstPosts} disabled={!writable} onCheckedChange={(on) => set("holdFirstPosts", on)} /></Label>
+          <BannedWordsEditor words={fields.bannedWords} onChange={(next) => set("bannedWords", next)} disabled={!writable} />
+        </CardContent></Card>}
       {step === "people" && !writable && <p className="text-sm text-muted-foreground">{t("membersManagersOnly")}</p>}
       {step === "people" && writable && <div className="space-y-4">
         <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>{t("memberName")}</TableHead><TableHead>{t("memberRole")}</TableHead><TableHead>{t("memberStatus")}</TableHead></TableRow></TableHeader>
