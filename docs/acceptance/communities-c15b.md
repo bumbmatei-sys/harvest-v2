@@ -5,7 +5,7 @@ Design: `docs/superpowers/specs/2026-11-13-communities-c15b-email-design.md`. Pl
 ## Delivered
 
 - **Pure pieces** (unit-tested):
-  - `src/lib/community-email.ts`: plain-text rendering for an instant email or a digest. It reuses the bell's summary keys and links (`src/lib/notifications.ts`), so the wording stays in one place. Member-written text is limited to a post title, trimmed to 80 characters with control and direction-override characters removed.
+  - `src/lib/community-email.ts`: plain-text rendering for an instant email or a digest. It reuses the bell's summary keys and links (`src/lib/notifications.ts`), so the wording stays in one place. Member-written text is limited to display names and post titles, each trimmed to 80 characters, with control and direction-override characters removed and link-like text (URLs, `www.`, addresses and common domains) replaced by `[link removed]`, because mail clients link-ify plain text and the mail comes from the community's own sender.
   - `src/lib/community-email-token.ts`: signed one-click unsubscribe tokens (HMAC-SHA256 with a key derived from the server secret for this purpose, constant-time comparison, 180-day expiry).
 - **Migration 0042:**
   - `community_memberships` gains `email_frequency` (`off`, `important` by default, `daily`, `weekly`) and `email_digest_cursor`.
@@ -22,24 +22,29 @@ Design: `docs/superpowers/specs/2026-11-13-communities-c15b-email-design.md`. Pl
 - **Digest:** replies, thread replies, likes and host alerts, only for members who chose `daily` or `weekly`. The window starts when they opt in. An empty window sends nothing and still moves the cursor.
 - **Mute** stops warnings and held decisions and digests, but not appeal decisions (C15a decision). A banned appellant still gets the appeal decision. An applicant without a membership gets the application decision as a one-time message with no unsubscribe link.
 - **Off** stops everything, including emails already queued (checked again at claim time). An instant event the member already read in the app is skipped.
-- **Retries:** a failed send backs off 10 minutes per attempt and stops after 5. A crashed worker's lock expires after 5 minutes. Idempotency keys are passed to the sender.
+- **Retries:** a failed send backs off 10 minutes per attempt and stops after 5. A claimed row stays locked for 15 minutes (a full batch of 25 sends at the 15 s timeout takes about 6.5 minutes), and the script takes a session advisory lock so only one run works at a time. Delivery is at-least-once: if the worker crashes after sending but before recording the result, the row is sent again after its lock expires, and the idempotency key passed to the sender is what prevents a visible duplicate.
+- **Digest windows** end one minute in the past, so a notification written by a transaction that commits a moment late lands in the next window instead of being lost.
+- **Claim re-checks** the recipient: a member who was muted, banned or left since queueing gets no warning, held decision or digest. Application and appeal decisions still go.
 
 ## Evidence (local)
 
 - `npx tsc --noEmit`, lint and source guards on the changed files: clean.
-- Unit: 43 files, 433 tests (renderer, token).
-- Integration: `community-email-db` (13 tests: routing per kind, off, mute, banned appeal, applicant, digest window and cursor, retry and lock, two concurrent workers, ministry isolation, preferences and unsubscribe, no address in the log, purge) and `community-email` (5 tests: end to end into a temporary mailbox, no double send, unsubscribe by token, failure code with no address leak, preferences validation, live sender refusing).
+- Unit: 43 files, 433 tests (renderer including link neutralising, token).
+- Integration: `community-email-db` (16 tests: routing per kind, off, mute, banned appeal, applicant, digest window and cursor, retry and lock, two concurrent workers, a row locked by another worker is skipped, a late-committing notification, claim-time re-checks, ministry isolation, preferences and unsubscribe, no address in the log, purge) and `community-email` (6 tests: the one-run-at-a-time lock, end to end into a temporary mailbox, no double send, unsubscribe by token, failure code with no address leak, preferences validation, live sender refusing).
 - Restricted-owner suite as the non-superuser `tester`: `community-joining-definer-owner` with the new definers and table, plus a new flow test, 7 tests passed.
 
 ## Decisions and limits
 
-- **The worker functions are granted to the application role**, like the existing purge and the Connect dispatcher. There is no separate worker role, so code running as the application role can ask the claim function for recipients' addresses. Before activation, consider a dedicated worker role.
+- **The worker functions are granted to the application role**, like the existing purge and the Connect dispatcher. There is no separate worker role, so code running as the application role can ask the claim function for recipients' addresses across ministries, and `complete` can mark any delivery sent or failed. The independent review (#72) asked for a dedicated role now; it is deferred because roles are provisioned outside the migrations (the restricted-owner migration tests run without CREATEROLE) and the shared test harness would have to change. **Activation gate:** provision a `harvest_worker` role, grant it EXECUTE on enqueue, claim and complete only, revoke those three from the application role in a migration, and make the worker script connect as it.
 - The unsubscribe link in the email points at `/communities/unsubscribe#token=...`, a confirmation page that is **not built yet** (UI kit). The one-click POST works now. The frequency control in the notification settings sheet is also not built; the API accepts it.
 - Plain text only. No HTML, no @mentions, no per-kind choices.
+- An unsubscribe token stays valid for 180 days, so an old email can switch email off again after the member re-enabled it. Off is the only change it can make; a per-membership epoch would end it if wanted.
+- The script also refuses to run unless `DATABASE_URL` is a local database.
 - A reply notification that is already queued as part of a digest is not removed if the post is later held or removed; the digest shows no title for it.
 
 ## Activation gates
 
+- Dedicated worker database role (see Decisions and limits above).
 - Choose and review an email provider, then replace the constant in `src/server/community-email-sender.ts` in a separate change.
 - Schedule `npm run communities:send-email` every few minutes and `communities:purge-notifications` daily. The worker refuses to run outside test mode today.
 - Build the unsubscribe page and the frequency control.

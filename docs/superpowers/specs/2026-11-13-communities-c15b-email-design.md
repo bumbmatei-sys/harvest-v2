@@ -42,13 +42,13 @@ All are `SECURITY DEFINER`, `SET search_path = pg_catalog, pg_temp`, and granted
     - `application` and `appeal_decision` skip those two checks.
     - A recipient with no membership row uses the defaults.
   - Digest: members with `daily` or `weekly` whose cursor is at least one or seven days old.
-    - The window is `[cursor, now)` and the cursor moves to `now()` in the same transaction.
+    - The window is `[cursor, now() - 1 minute)` and the cursor moves to the window end in the same transaction (a notification that commits late is then picked up by the next window).
     - The digest holds unread notifications updated in the window that are not instant kinds, for members who can read the community and have not muted it.
     - Key `d:<recipient>:<community>:<window end>`.
     - An empty window queues nothing.
   - Rows are locked with `FOR UPDATE SKIP LOCKED`, so two workers never queue the same email.
 - **`community_email_claim(p_limit)`** (worker) returns jsonb.
-  - Takes `queued` rows, `failed` rows with fewer than 5 attempts and a backoff that has passed, and `sending` rows whose lock expired. It sets `sending`, `locked_until = now() + 5 minutes` and `attempts + 1`.
+  - Takes `queued` rows, `failed` rows with fewer than 5 attempts and a backoff that has passed, and `sending` rows whose lock expired. It sets `sending`, `locked_until = now() + 15 minutes` and `attempts + 1`.
   - For each it returns the recipient's address and name, the community's name and slug, and the items. Each item has the kind, the count, the actor's name and the post title. Digest items are the notifications in the window. For a deleted or removed post the title is null.
   - This is the only place an address leaves the database, and only to the worker.
 - **`community_email_complete(p_id, p_outcome)`** (worker) records `sent`, or `failed` with a code (`send_failed`, `render_failed`).
@@ -61,7 +61,7 @@ All are `SECURITY DEFINER`, `SET search_path = pg_catalog, pg_temp`, and granted
 
 - **`src/lib/community-email.ts`** (pure): renders an instant email or a digest.
   - Plain text. Copy comes from message keys under `CommunityEmail`. No vendor names.
-  - Member-written text is limited to a post title, trimmed to 80 characters with control characters removed.
+  - Member-written text is limited to display names and post titles, trimmed to 80 characters with control characters removed and link-like text replaced by `[link removed]`.
   - Links use the site origin and `/communities/<slug>`.
   - Each email carries a footer unsubscribe link and the `List-Unsubscribe` and `List-Unsubscribe-Post: List-Unsubscribe=One-Click` headers, but only when the recipient has a membership row. An application or appeal decision to someone without one is a one-time message and has no link.
 - **`src/lib/community-email-token.ts`** (pure): signs and verifies `v1.<user>.<community>.<expiry>` with HMAC-SHA256, using a key derived from the server secret with a purpose label. It uses a constant-time comparison. Tokens expire after 180 days.

@@ -13,6 +13,17 @@ export type RunResult = { queued: number; sent: number; failed: number };
 
 const BATCH = 25, MAX_BATCHES = 40, SEND_TIMEOUT_MS = 15_000;
 
+/**
+ * Only one worker run at a time (session advisory lock on the given connection), so a slow provider can never make two
+ * overlapping runs send the same batch. Returns null when another run holds the lock.
+ */
+export async function withWorkerLock<T>(client: Queryable, run: () => Promise<T>): Promise<T | null> {
+  const { rows: [{ locked }] } = await client.query<{ locked: boolean }>("select pg_try_advisory_lock(hashtext('harvest:community-email-worker')) as locked");
+  if (!locked) return null;
+  try { return await run(); }
+  finally { await client.query("select pg_advisory_unlock(hashtext('harvest:community-email-worker'))").catch(() => undefined); }
+}
+
 export async function runCommunityEmail(pool: Queryable, sender: CommunityMailSender, options: RunOptions): Promise<RunResult> {
   const { rows: [{ queued }] } = await pool.query<{ queued: number }>("select public.community_email_enqueue($1) as queued", [200]);
   let sent = 0, failed = 0;

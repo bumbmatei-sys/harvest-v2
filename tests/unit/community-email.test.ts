@@ -15,6 +15,14 @@ describe("safeTitle", () => {
     expect(safeTitle("x".repeat(200)).endsWith("…")).toBe(true);
     expect(safeTitle(null)).toBe("");
   });
+  it("neutralises links, addresses and domains, but keeps ordinary words and dates", () => {
+    expect(safeTitle("Verify your account at https://evil.example/login now")).toBe("Verify your account at [link removed] now");
+    expect(safeTitle("see WWW.Evil.Example/x or evil.com/path")).toBe("see [link removed] or [link removed]");
+    expect(safeTitle("mail bob@evil.example today")).toBe("mail [link removed] today");
+    expect(safeTitle("javascript:alert(1) and tel:+4075")).toBe("[link removed] and [link removed]");
+    expect(safeTitle("Pay at give.church now")).toBe("Pay at [link removed] now");
+    expect(safeTitle("Prayer for Q1. Planning, e.g. 3.5 hours and the Smith family")).toBe("Prayer for Q1. Planning, e.g. 3.5 hours and the Smith family");
+  });
 });
 
 describe("renderEmail", () => {

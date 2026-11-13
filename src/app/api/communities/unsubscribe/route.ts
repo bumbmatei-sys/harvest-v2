@@ -11,7 +11,8 @@ export async function POST(request: Request) {
   if (!communitiesEnabled()) return new Response(null, { status: 404 });
   const url = new URL(request.url);
   let token = url.searchParams.get("token");
-  if (!token && request.headers.get("content-type")?.includes("application/json")) {
+  // The body is only read when it declares a small size; a token is a few hundred characters.
+  if (!token && request.headers.get("content-type")?.includes("application/json") && Number(request.headers.get("content-length") ?? Infinity) <= 2048) {
     token = await request.json().then((b: unknown) => (b && typeof b === "object" && typeof (b as { token?: unknown }).token === "string" ? (b as { token: string }).token : null)).catch(() => null);
   }
   try { if (token) await unsubscribeByToken(getDb(), requiredEnv("BETTER_AUTH_SECRET"), token); } catch { console.error("community_unsubscribe_failed"); }

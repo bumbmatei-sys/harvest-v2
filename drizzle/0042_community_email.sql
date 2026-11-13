@@ -51,11 +51,15 @@ CREATE OR REPLACE FUNCTION public.community_definer_reset() RETURNS void LANGUAG
 $$;--> statement-breakpoint
 -- Queues the emails that are due. Instant: a member's own important events (application decisions, warnings, held decisions,
 -- appeal decisions), unless they turned email off; a warning or held decision also needs an unmuted member who can still read
--- the community. Digest: members on daily or weekly whose window has elapsed; the window ends now and the cursor moves with
--- it in the same statement, so two workers never queue the same window. Idempotency keys make reruns harmless.
+-- the community. Digest: members on daily or weekly whose window has elapsed; the window ends a minute ago and the cursor moves with
+-- it in the same statement, so two workers never queue the same window. The window ends one minute before now. Idempotency
+-- keys make reruns harmless.
 CREATE FUNCTION public.community_email_enqueue(p_limit integer) RETURNS integer
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE t uuid; queued integer := 0; n integer; v_limit integer := least(greatest(coalesce(p_limit, 200), 1), 1000);
+  -- A window ends a minute in the past: a notification written by a transaction that started earlier but commits after this
+  -- snapshot is then still ahead of the cursor and lands in the next window instead of being lost (review on #72).
+  v_end timestamptz := now() - interval '1 minute';
 BEGIN
   PERFORM set_config('app.community_email_worker', 'on', true);
   FOR t IN SELECT DISTINCT x.tenant_id FROM (
@@ -86,18 +90,18 @@ BEGIN
          AND m.email_digest_cursor <= now() - CASE m.email_frequency WHEN 'daily' THEN interval '1 day' ELSE interval '7 days' END
        ORDER BY m.email_digest_cursor LIMIT v_limit FOR UPDATE SKIP LOCKED),
     moved AS (
-      UPDATE public.community_memberships m SET email_digest_cursor = now()
+      UPDATE public.community_memberships m SET email_digest_cursor = v_end
         FROM due WHERE m.tenant_id = due.tenant_id AND m.community_id = due.community_id AND m.user_id = due.user_id
         RETURNING due.tenant_id, due.community_id, due.user_id, due.since, due.muted),
     ins AS (
       INSERT INTO public.community_email_deliveries (tenant_id, community_id, recipient_id, kind, window_start, window_end, idempotency_key)
-      SELECT mv.tenant_id, mv.community_id, mv.user_id, 'digest', mv.since, now(),
-             'd:' || mv.user_id || ':' || mv.community_id::text || ':' || (extract(epoch FROM now()) * 1000000)::bigint::text
+      SELECT mv.tenant_id, mv.community_id, mv.user_id, 'digest', mv.since, v_end,
+             'd:' || mv.user_id || ':' || mv.community_id::text || ':' || (extract(epoch FROM v_end) * 1000000)::bigint::text
         FROM moved mv
        WHERE NOT mv.muted AND public.community_user_can_read(mv.tenant_id, mv.community_id, mv.user_id)
          AND EXISTS (SELECT 1 FROM public.community_notifications n
            WHERE n.tenant_id = mv.tenant_id AND n.community_id = mv.community_id AND n.recipient_id = mv.user_id AND n.read_at IS NULL
-             AND n.kind NOT IN ('application', 'warning', 'held_decision', 'appeal_decision') AND n.updated_at >= mv.since AND n.updated_at < now())
+             AND n.kind NOT IN ('application', 'warning', 'held_decision', 'appeal_decision') AND n.updated_at >= mv.since AND n.updated_at < v_end)
       ON CONFLICT (idempotency_key) DO NOTHING RETURNING 1)
     SELECT count(*)::int INTO n FROM ins;
     queued := queued + n;
@@ -106,12 +110,12 @@ BEGIN
   RETURN queued;
 END $$;--> statement-breakpoint
 -- Hands the worker a batch to send ({jobs, picked}; picked counts rows taken, including ones skipped). This is the only place an address leaves the database. A row is taken when queued, when a
--- failed attempt's back-off has passed (fewer than 5 attempts), or when a crashed worker's lock expired. Anything that no longer
+-- failed attempt's back-off has passed (fewer than 5 attempts), or when a crashed worker's 15-minute lock expired (a full batch of 25 sends at the 15 s timeout takes about 6.5 minutes). Anything that no longer
 -- applies (email turned off, instant event already read, digest emptied by reading) is marked skipped instead of sent.
 CREATE FUNCTION public.community_email_claim(p_limit integer) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE r record; jobs jsonb := '[]'::jsonb; picked integer := 0; v_limit integer := least(greatest(coalesce(p_limit, 25), 1), 100);
-  v_user record; v_comm record; v_member record; v_items jsonb; v_total integer;
+  v_user record; v_comm record; v_member record; v_items jsonb; v_total integer; v_nkind text; v_exempt boolean;
 BEGIN
   PERFORM set_config('app.community_email_worker', 'on', true);
   UPDATE public.community_email_deliveries SET status = 'failed', last_error = 'lock_expired', locked_until = NULL
@@ -123,7 +127,7 @@ BEGIN
               OR (status = 'sending' AND locked_until < now() AND attempts < 5))
        ORDER BY created_at LIMIT v_limit FOR UPDATE SKIP LOCKED),
     taken AS (
-      UPDATE public.community_email_deliveries d SET status = 'sending', locked_until = now() + interval '5 minutes', attempts = d.attempts + 1
+      UPDATE public.community_email_deliveries d SET status = 'sending', locked_until = now() + interval '15 minutes', attempts = d.attempts + 1
         FROM picked WHERE d.id = picked.id RETURNING d.*)
     SELECT * FROM taken ORDER BY created_at
   LOOP
@@ -131,9 +135,14 @@ BEGIN
     PERFORM set_config('app.community_definer_tenant', r.tenant_id::text, true);
     SELECT u.email, u.name INTO v_user FROM public.users u WHERE u.id = r.recipient_id;
     SELECT c.name, c.slug INTO v_comm FROM public.communities c WHERE c.tenant_id = r.tenant_id AND c.id = r.community_id;
-    SELECT m.email_frequency INTO v_member FROM public.community_memberships m
+    SELECT m.email_frequency, m.notifications_muted INTO v_member FROM public.community_memberships m
       WHERE m.tenant_id = r.tenant_id AND m.community_id = r.community_id AND m.user_id = r.recipient_id;
-    IF v_user.email IS NULL OR v_comm.slug IS NULL OR coalesce(v_member.email_frequency, 'important') = 'off' THEN
+    IF r.kind = 'instant' THEN SELECT n.kind INTO v_nkind FROM public.community_notifications n WHERE n.id = r.notification_id; END IF;
+    -- Application and appeal decisions are about the person's own request: they ignore mute and reading rights.
+    v_exempt := r.kind = 'instant' AND v_nkind IN ('application', 'appeal_decision');
+    IF v_user.email IS NULL OR v_comm.slug IS NULL OR coalesce(v_member.email_frequency, 'important') = 'off'
+       OR (r.kind = 'instant' AND v_nkind IS NULL)
+       OR (NOT v_exempt AND (coalesce(v_member.notifications_muted, false) OR NOT public.community_user_can_read(r.tenant_id, r.community_id, r.recipient_id))) THEN
       UPDATE public.community_email_deliveries SET status = 'skipped', locked_until = NULL WHERE id = r.id;
       CONTINUE;
     END IF;

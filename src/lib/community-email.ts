@@ -4,7 +4,7 @@ import { notificationHref, summaryKey, type NotificationKind } from "./notificat
 import { signUnsubscribe } from "./community-email-token";
 
 // C15b: plain-text community email. Pure: the worker passes in what the database returned and gets text back.
-// Member-written text is limited to a post title, trimmed and stripped of control characters.
+// Member-written text is limited to display names and post titles, trimmed, stripped of control characters and of link-like text.
 export const INSTANT_KINDS = ["application", "warning", "held_decision", "appeal_decision"] as const satisfies readonly NotificationKind[];
 export const DIGEST_FREQUENCIES = ["daily", "weekly"] as const;
 export const EMAIL_FREQUENCIES = ["off", "important", "daily", "weekly"] as const;
@@ -17,9 +17,18 @@ export type EmailJob = { id: string; kind: "instant" | "digest"; to: string; nam
 export type RenderedEmail = { subject: string; text: string; headers: Record<string, string> };
 
 const TITLE_MAX = 80;
-/** One line, no control or bidirectional override characters, at most 80 characters. */
+// Plain-text mail is link-ified by mail clients, and this text arrives from the community's own sender. Member-written names
+// and titles therefore must not carry something that looks like a link or an address (best effort, not a URL parser).
+const LINKISH = new RegExp([
+  String.raw`[a-z][a-z0-9+.-]*:\/\/\S*`,                      // scheme://anything
+  String.raw`\b(?:mailto|tel|javascript|data):\S*`,              // other link schemes
+  String.raw`www\.\S*`,                                          // www.anything
+  String.raw`[^\s@]+@[^\s@]+\.[a-z]{2,}`,                       // addresses
+  String.raw`\b[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)*\.(?:com|org|net|edu|gov|io|co|me|app|dev|info|biz|xyz|ly|gg|tv|us|uk|ro|de|church|online|site|link|click|top|shop|live)\b(?:\/\S*)?`,
+].join("|"), "gi");
+/** One line, no control or bidirectional override characters, nothing link-like, at most 80 characters. */
 export function safeTitle(value: string | null | undefined): string {
-  const clean = (value ?? "").replace(/[\u0000-\u001f\u007f-\u009f​-‏‪-‮⁦-⁩]/g, " ").replace(/\s+/g, " ").trim();
+  const clean = (value ?? "").replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2066-\u2069]/g, " ").replace(LINKISH, "[link removed]").replace(/\s+/g, " ").trim();
   return clean.length > TITLE_MAX ? `${clean.slice(0, TITLE_MAX - 1).trimEnd()}…` : clean;
 }
 

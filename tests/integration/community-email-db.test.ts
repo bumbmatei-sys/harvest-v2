@@ -123,7 +123,7 @@ it("sends a daily digest of unread non-instant items in its window, then nothing
   const digest = jobs.find((j) => j.kind === "digest")!;
   expect(digest.items.map((i) => i.kind).sort()).toEqual(["like", "reply"]);
   expect(digest.total).toBe(2);
-  expect((await f.admin.query("select email_digest_cursor > now() - interval '1 minute' as fresh from community_memberships where user_id = 'e-one' and community_id = $1", [club])).rows[0].fresh).toBe(true);
+  expect((await f.admin.query("select email_digest_cursor > now() - interval '2 minutes' as fresh from community_memberships where user_id = 'e-one' and community_id = $1", [club])).rows[0].fresh).toBe(true);
   expect(await enqueue()).toBe(0);
 });
 
@@ -134,8 +134,31 @@ it("moves the cursor but sends nothing for an empty window, ignores weekly membe
   await prefs("e-three", "daily"); await setMember("e-three", "email_digest_cursor = now() - interval '2 days', notifications_muted = true");
   await notify("e-three", "reply", { ageDays: 1 });
   expect(await enqueue()).toBe(0);
-  const cursors = Object.fromEntries((await f.admin.query("select user_id, email_digest_cursor > now() - interval '1 minute' as fresh from community_memberships where user_id in ('e-one','e-two','e-three') and community_id = $1", [club])).rows.map((r) => [r.user_id, r.fresh]));
+  const cursors = Object.fromEntries((await f.admin.query("select user_id, email_digest_cursor > now() - interval '2 minutes' as fresh from community_memberships where user_id in ('e-one','e-two','e-three') and community_id = $1", [club])).rows.map((r) => [r.user_id, r.fresh]));
   expect(cursors).toEqual({ "e-one": true, "e-two": false, "e-three": true });
+});
+
+it("ends a digest window a minute in the past, so a notification that commits late lands in the next window", async () => {
+  await prefs("e-one", "daily"); await setMember("e-one", "email_digest_cursor = now() - interval '2 days'");
+  const late = await notify("e-one", "reply");
+  expect(await enqueue()).toBe(0);
+  const cursor = async () => (await f.admin.query("select extract(epoch from now() - email_digest_cursor)::int as age from community_memberships where user_id = 'e-one' and community_id = $1", [club])).rows[0].age as number;
+  expect(await cursor()).toBeGreaterThanOrEqual(55);
+  expect(await cursor()).toBeLessThan(120);
+  // The next window (a day later in real life) includes it: age the notification and make the cursor due again.
+  await f.admin.query("update community_notifications set updated_at = now() - interval '2 minutes' where id = $1", [late]);
+  await setMember("e-one", "email_digest_cursor = email_digest_cursor - interval '1 day'");
+  expect(await enqueue()).toBe(1);
+  expect((await claim())[0].items.map((i) => i.kind)).toEqual(["reply"]);
+});
+
+it("re-checks at claim time: muted or banned since queueing gets no warning or digest, but an appeal decision still goes", async () => {
+  await notify("e-one", "warning"); await notify("e-two", "warning"); await notify("e-banned", "appeal_decision", { detail: { decision: "decline" } });
+  await prefs("e-three", "daily"); await setMember("e-three", "email_digest_cursor = now() - interval '2 days'"); await notify("e-three", "reply", { ageDays: 1 });
+  expect(await enqueue()).toBe(4);
+  await setMember("e-one", "notifications_muted = true"); await setMember("e-two", "status = 'banned'"); await setMember("e-three", "notifications_muted = true");
+  expect((await claim()).map((j) => j.recipientId)).toEqual(["e-banned"]);
+  expect((await deliveries()).filter((d) => d.status === "skipped")).toHaveLength(3);
 });
 
 it("retries a failed send after its back-off, gives up after 5 attempts, and reclaims an expired lock", async () => {
@@ -169,6 +192,20 @@ it("never hands the same delivery to two workers", async () => {
   const ids = [...x, ...y].map((j) => j.id);
   expect(ids).toHaveLength(6);
   expect(new Set(ids).size).toBe(6);
+});
+
+it("skips deliveries another worker has locked instead of waiting for them", async () => {
+  for (let i = 0; i < 4; i++) await notify("e-one", "warning");
+  expect(await enqueue()).toBe(4);
+  await f.admin.query("begin");
+  try {
+    const held = (await f.admin.query("select id from community_email_deliveries order by created_at, id limit 2 for update")).rows.map((r) => r.id as string);
+    const claimed = await Promise.race([
+      wide.query<{ v: { jobs: Job[] } }>("select public.community_email_claim(10) as v").then((r) => r.rows[0].v.jobs),
+      new Promise<never>((_, reject) => setTimeout(() => reject(new Error("claim waited for a locked row")), 5000))]);
+    expect(claimed).toHaveLength(2);
+    expect(claimed.some((j) => held.includes(j.id))).toBe(false);
+  } finally { await f.admin.query("commit"); }
 });
 
 it("keeps ministries apart: each recipient only gets their own community's items", async () => {

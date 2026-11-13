@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
+import { Pool } from "pg";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { testDatabase } from "../database";
@@ -8,7 +9,7 @@ import { users } from "../../src/db/schema";
 import { createWorkspace } from "../../src/server/workspaces";
 import { createCommunity } from "../../src/server/communities";
 import { saveEmailFrequency } from "../../src/server/community-notifications";
-import { runCommunityEmail, unsubscribeByToken } from "../../src/server/community-email";
+import { runCommunityEmail, unsubscribeByToken, withWorkerLock } from "../../src/server/community-email";
 import { COMMUNITY_EMAIL_LIVE_DELIVERY, sendLiveCommunityEmail, testMailboxSender, type CommunityMail } from "../../src/server/community-email-sender";
 import { verifyUnsubscribe } from "../../src/lib/community-email-token";
 
@@ -98,6 +99,21 @@ it("lets only an active member set a valid frequency", async () => {
   await expect(saveEmailFrequency(f.db, "w-outsider", "worker-club", { frequency: "daily" })).rejects.toMatchObject({ status: 404 });
   await expect(saveEmailFrequency(f.db, "w-one", "no-such-club", { frequency: "daily" })).rejects.toMatchObject({ status: 404 });
   expect((await saveEmailFrequency(f.db, "w-one", "worker-club", { frequency: "weekly" })).outcome).toBe("ok");
+});
+
+it("lets only one worker run at a time", async () => {
+  const wide = new Pool({ connectionString: f.appURL, max: 3 });
+  const [first, second] = [await wide.connect(), await wide.connect()];
+  try {
+    let release!: () => void;
+    const hold = new Promise<void>((resolve) => { release = resolve; });
+    const running = withWorkerLock(first, async () => { await hold; return "first"; });
+    await new Promise((resolve) => setTimeout(resolve, 150));
+    expect(await withWorkerLock(second, async () => "second")).toBeNull();
+    release();
+    expect(await running).toBe("first");
+    expect(await withWorkerLock(second, async () => "second")).toBe("second");
+  } finally { first.release(); second.release(); await wide.end(); }
 });
 
 it("keeps the live sender disabled", async () => {
