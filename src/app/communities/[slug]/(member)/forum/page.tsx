@@ -6,6 +6,7 @@ import { getDb } from "@/db/client";
 import { listPosts } from "@/server/community-forum";
 import { myWarnings } from "@/server/community-moderation";
 import { WarningAlerts } from "@/components/communities/warning-alerts";
+import { WelcomeCard } from "@/components/communities/welcome-card";
 import { pageSession } from "@/server/page-session";
 import { communitiesEnabled } from "@/server/communities-mode";
 import { orPublicPage } from "@/server/community-member-page";
@@ -16,7 +17,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
 import { cn } from "@/lib/utils";
 
-type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ category?: string; sort?: string; page?: string }> };
+type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ category?: string; sort?: string; page?: string; new?: string }> };
 
 // C10: the forum. Categories column, New / Best this week, post cards (Eden design, Studio Admin style).
 export default async function ForumPage({ params, searchParams }: Props) {
@@ -27,6 +28,8 @@ export default async function ForumPage({ params, searchParams }: Props) {
   const { context, posts, hasMore } = await listPosts(getDb(), session.user.id, slug, { category, sort, page }).catch(orPublicPage(slug));
   const t = await getTranslations("CommunityForum"), format = await getFormatter(), base = `/communities/${context.slug}/forum`;
   const warnings = await myWarnings(getDb(), session.user.id, slug);
+  // C15a: "Introduce yourself" opens the composer on the introductions category.
+  const composeIn = context.categories.find((c) => c.id === query.new && (context.canModerate || !c.hostsOnly))?.id;
   const href = (next: { category?: string; sort?: string; page?: number }) => { const q = new URLSearchParams(); const c = "category" in next ? next.category : category, s = next.sort ?? sort;
     if (c) q.set("category", c); if (s === "best") q.set("sort", "best"); if (next.page && next.page > 1) q.set("page", String(next.page)); return q.size ? `${base}?${q}` : base; };
   const categoryName = (id: string) => context.categories.find((c) => c.id === id);
@@ -42,9 +45,10 @@ export default async function ForumPage({ params, searchParams }: Props) {
     </nav>
     <section className="min-w-0 space-y-4" aria-labelledby="forum-title">
       <WarningAlerts slug={context.slug} warnings={warnings} />
+      {!context.welcome.dismissed && <WelcomeCard slug={context.slug} message={context.welcome.message} introCategoryId={context.welcome.introCategoryId} prefs={context.prefs} hasRules={context.rulesList.length > 0} />}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <h2 id="forum-title" className="text-xl font-semibold">{category ? categoryName(category)?.name : t("allPosts")}</h2>
-        {!context.mutedUntil && <PostComposer slug={context.slug} categories={context.categories} defaultCategory={category} canModerate={context.canModerate} />}
+        {!context.mutedUntil && <PostComposer key={composeIn ?? "new"} slug={context.slug} categories={context.categories} defaultCategory={composeIn ?? category} canModerate={context.canModerate} defaultOpen={Boolean(composeIn)} />}
       </div>
       {context.mutedUntil && <Alert><AlertDescription>{t("mutedUntil", { date: format.dateTime(context.mutedUntil, { dateStyle: "medium", timeStyle: "short" }) })}</AlertDescription></Alert>}
       <nav aria-label={t("sort")} className="flex gap-2">

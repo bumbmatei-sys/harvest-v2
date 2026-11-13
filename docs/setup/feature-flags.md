@@ -11,3 +11,5 @@ While Communities are off, the owner pages, the public pages (`/communities/:slu
 ## Member uploads (PR 4b)
 
 Forum covers and attachments are released only when the file scanner returns `clean`. Outside production a `skipped` verdict is also released so the feature can be developed and tested. In production, uploads stay quarantined until a real malware scanner is wired: an activation gate for Communities.
+
+The notification bell, its settings and the welcome card (C15a) sit behind the same flag, and their routes under `/api/communities/:slug/notifications` return 404 while it is off. Activation gate: schedule `npm run communities:purge-notifications` daily, next to `communities:purge-applications`, so read notifications are deleted 90 days after they were read. Until C15b ships and the email provider is activated, notifications are in-app only and no email is sent.

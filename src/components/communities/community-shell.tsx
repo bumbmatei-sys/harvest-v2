@@ -3,13 +3,15 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { CalendarDays, Info, LayoutList, Mail, MessagesSquare, Package, ShieldCheck, Users, Wheat } from "lucide-react";
+import { NotificationBell } from "@/components/communities/notification-bell";
+import type { NotificationPrefs } from "@/lib/notifications";
 import { cn } from "@/lib/utils";
 
 /**
  * Member layout for a community (C09). Design follows the Eden reference (icon rail with Chat, Forum, Events, Products,
  * Members, Messages); style is Studio Admin through the shared tokens. On phones the rail becomes a bottom bar.
  */
-export function CommunityShell({ slug, name, moderation = null, children }: { slug: string; name: string; moderation?: number | null; children: React.ReactNode }) {
+export function CommunityShell({ slug, name, moderation = null, notifications, children }: { slug: string; name: string; moderation?: number | null; notifications: { unread: number; prefs: NotificationPrefs }; children: React.ReactNode }) {
   const t = useTranslations("CommunityShell"), pathname = usePathname(), base = `/communities/${slug}`;
   type Item = { id: string; icon: typeof Info; soon?: true; href?: string; match?: string[]; badge?: number };
   const items: Item[] = [
@@ -41,7 +43,8 @@ export function CommunityShell({ slug, name, moderation = null, children }: { sl
       {items.map((item) => entry(item, false))}
     </nav>
     <div className="flex min-w-0 flex-1 flex-col pb-20 md:pb-0">
-      <header className="flex min-h-14 items-center gap-3 border-b px-4"><h1 className="min-w-0 truncate text-base font-semibold">{name}</h1></header>
+      <header className="flex min-h-14 items-center gap-3 border-b px-4"><h1 className="min-w-0 flex-1 truncate text-base font-semibold">{name}</h1>
+        <NotificationBell slug={slug} unread={notifications.unread} prefs={notifications.prefs} /></header>
       <main id="community-main" tabIndex={-1} className="min-w-0 flex-1 outline-none">{children}</main>
     </div>
     <nav aria-label={t("navigation")} className="fixed inset-x-0 bottom-0 z-40 grid border-t bg-background px-1 py-1 md:hidden" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>

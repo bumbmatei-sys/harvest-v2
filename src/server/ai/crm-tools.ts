@@ -163,6 +163,12 @@ function lookupTool(name: string) {
   if (!Object.hasOwn(crmTools, name)) throw unavailable();
   return crmTools[name as CrmToolName] as Tool<z.ZodType>;
 }
+/**
+ * An approval is valid for 10 minutes. This is the documented maximum. The database check
+ * (`ai_tool_approval_expiry`, migration 0025) is a looser 1 hour backstop; tightening it needs a new migration.
+ */
+export const APPROVAL_TTL_MINUTES = 10;
+
 /** The approval binds this hash: same tool, same validated (defaulted) arguments, nothing else. */
 export function toolArgsHash(name: string, args: unknown) {
   return workFingerprint(`ai-tool:${name}`, { args: args as never });
@@ -187,7 +193,7 @@ export async function requestToolApproval(db: Database, userId: string, workspac
   const input = definition.input.parse(args);
   return withTenant(db, userId, uuidInput.parse(workspace), definition.permission, async (tx, tenantId) => {
     const [row] = await tx.insert(aiToolApprovals).values({ tenantId, tool: name, argsHash: toolArgsHash(name, input), requestedBy: userId,
-      expiresAt: sql`now() + interval '10 minutes'` }).returning({ id: aiToolApprovals.id, expiresAt: aiToolApprovals.expiresAt });
+      expiresAt: sql`now() + ${APPROVAL_TTL_MINUTES} * interval '1 minute'` }).returning({ id: aiToolApprovals.id, expiresAt: aiToolApprovals.expiresAt });
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "ai.tool_approval_request", targetId: row.id, metadata: { tool: name } });
     return { approvalId: row.id, tool: name, expiresAt: row.expiresAt.toISOString() };
   });
@@ -204,8 +210,10 @@ export async function decideToolApproval(db: Database, userId: string, workspace
     if (!row || row.requestedBy !== userId) throw new AccessError(404, message("Errors.assistantApprovalInvalid"));
     if (row.status !== "pending") throw new AccessError(409, message("Errors.assistantApprovalUsed"));
     if (row.expired) throw new AccessError(409, message("Errors.assistantApprovalExpired"));
-    await tx.update(aiToolApprovals).set({ status: choice === "approve" ? "approved" : "rejected", decidedAt: sql`now()` })
-      .where(and(eq(aiToolApprovals.tenantId, tenantId), eq(aiToolApprovals.id, approvalId)));
+    // The status guard is a backstop to the row lock: if it ever matches nothing, refuse rather than continue (review on #69).
+    const decided = await tx.update(aiToolApprovals).set({ status: choice === "approve" ? "approved" : "rejected", decidedAt: sql`now()` })
+      .where(and(eq(aiToolApprovals.tenantId, tenantId), eq(aiToolApprovals.id, approvalId), eq(aiToolApprovals.status, "pending"))).returning({ id: aiToolApprovals.id });
+    if (decided.length === 0) throw new AccessError(409, message("Errors.assistantApprovalUsed"));
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: choice === "approve" ? "ai.tool_approval_approve" : "ai.tool_approval_reject", targetId: approvalId, metadata: { tool: row.tool } });
     return { approvalId, status: choice === "approve" ? "approved" as const : "rejected" as const };
   });
@@ -235,7 +243,9 @@ export async function executeCrmTool(db: Database, userId: string, workspace: st
     if (row.status === "pending") throw new AccessError(403, message("Errors.assistantActionNeedsApproval"), { reason: "approval_pending" });
     if (row.status !== "approved") throw new AccessError(409, message("Errors.assistantApprovalUsed"), { reason: "approval_used" });
     if (row.expired) throw new AccessError(409, message("Errors.assistantApprovalExpired"), { reason: "approval_expired" });
-    await tx.update(aiToolApprovals).set({ status: "consumed", consumedAt: sql`now()` }).where(and(eq(aiToolApprovals.tenantId, tenantId), eq(aiToolApprovals.id, approvalId)));
+    const consumed = await tx.update(aiToolApprovals).set({ status: "consumed", consumedAt: sql`now()` })
+      .where(and(eq(aiToolApprovals.tenantId, tenantId), eq(aiToolApprovals.id, approvalId), eq(aiToolApprovals.status, "approved"))).returning({ id: aiToolApprovals.id });
+    if (consumed.length === 0) throw new AccessError(409, message("Errors.assistantApprovalUsed"), { reason: "approval_used" });
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "ai.tool_execute", targetId: approvalId, metadata: { tool: name } });
     // The service runs inside this transaction (as a savepoint) and checks membership and role again.
     return definition.run({ db: tx as unknown as Database, userId, workspaceId }, input);

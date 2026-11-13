@@ -4,7 +4,7 @@ import type { Audience } from "../lib/audience";
 import type { campaignStructures, campaignTypes } from "../lib/campaigns";
 import type { ConnectPurpose, formVersionStatuses, responseConsentActors, responseConsentStatuses, responseContactKinds, responseLinkStatuses, responseStatuses } from "../lib/connect-data";
 import { sql } from "drizzle-orm";
-import { pgTable, text, timestamp, boolean, integer, bigint, uuid, primaryKey, uniqueIndex, unique, index, foreignKey, check, jsonb, doublePrecision, date, numeric } from "drizzle-orm/pg-core";
+import { pgTable, type AnyPgColumn, text, timestamp, boolean, integer, bigint, uuid, primaryKey, uniqueIndex, unique, index, foreignKey, check, jsonb, doublePrecision, date, numeric } from "drizzle-orm/pg-core";
 
 export const users = pgTable("users", {
   id: text("id").primaryKey(), name: text("name").notNull(), email: text("email").notNull().unique(),
@@ -994,6 +994,9 @@ export const communities = pgTable("communities", {
   // C12a: held content. New members' first post waits for a host; matching banned words hold posts and replies.
   holdFirstPosts: boolean("hold_first_posts").notNull().default(false),
   bannedWords: text("banned_words").array().notNull().default(sql`ARRAY[]::text[]`),
+  // C15a: shown in the new-member welcome card; the introductions category is where "Introduce yourself" leads.
+  welcomeMessage: text("welcome_message"),
+  introCategoryId: uuid("intro_category_id").references((): AnyPgColumn => communityCategories.id, { onDelete: "set null" }),
   discoverOptIn: boolean("discover_opt_in").notNull().default(false),
   // Cleared if the creator's account is deleted, so account erasure is never blocked by a community.
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
@@ -1014,6 +1017,7 @@ export const communities = pgTable("communities", {
   check("community_join_questions", sql`jsonb_typeof(${t.joinQuestions}) = 'array' and jsonb_array_length(${t.joinQuestions}) <= 10`),
   check("community_questions_version", sql`${t.questionsVersion} >= 0`),
   check("community_banned_words", sql`cardinality(${t.bannedWords}) <= 100`),
+  check("community_welcome_message", sql`${t.welcomeMessage} is null or length(${t.welcomeMessage}) between 1 and 1000`),
   check("community_rules_version", sql`${t.rulesVersion} >= 0`)]);
 
 export const communityMemberships = pgTable("community_memberships", {
@@ -1027,6 +1031,13 @@ export const communityMemberships = pgTable("community_memberships", {
   adultConfirmedAt: timestamp("adult_confirmed_at", { withTimezone: true }),
   joinAnswers: jsonb("join_answers").$type<import("../lib/questions").Answers>(),
   mutedUntil: timestamp("muted_until", { withTimezone: true }),
+  // C15a: notification preferences, the last time the bell was opened and the dismissed welcome card.
+  notifyReplies: boolean("notify_replies").notNull().default(true),
+  notifyLikes: boolean("notify_likes").notNull().default(true),
+  notifyAnnouncements: boolean("notify_announcements").notNull().default(true),
+  notificationsMuted: boolean("notifications_muted").notNull().default(false),
+  notificationsSeenAt: timestamp("notifications_seen_at", { withTimezone: true }),
+  welcomeDismissedAt: timestamp("welcome_dismissed_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.communityId, t.userId] }),
@@ -1315,3 +1326,28 @@ export const discoverListings = pgTable("discover_listings", {
 }, (t) => [primaryKey({ columns: [t.resourceType, t.resourceId] }),
   index("discover_listings_order_idx").on(t.resourceType, t.updatedAt, t.resourceId),
   check("discover_resource_type", sql`${t.resourceType} in ('community')`)]);
+
+// C15a (migration 0041): in-app notifications. Members read only their own rows; every write is a definer
+// (plus one staff INSERT for application decisions). Likes and the host queue are grouped into one unread row.
+export const communityNotifications = pgTable("community_notifications", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),
+  recipientId: text("recipient_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  kind: text("kind", { enum: ["reply", "thread_reply", "like", "application", "warning", "held_decision", "appeal_decision", "host_queue"] as const }).notNull(),
+  targetType: text("target_type", { enum: ["post", "comment", "application", "warning", "appeal", "community"] as const }).notNull(),
+  targetId: text("target_id").notNull(),
+  postId: uuid("post_id"),
+  actorId: text("actor_id").references(() => users.id, { onDelete: "set null" }),
+  actorCount: integer("actor_count").notNull().default(1),
+  detail: jsonb("detail").$type<Record<string, unknown>>().notNull().default(sql`'{}'::jsonb`),
+  readAt: timestamp("read_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  index("community_notifications_inbox_idx").on(t.recipientId, t.communityId, t.readAt, t.createdAt.desc()),
+  uniqueIndex("community_notifications_like_group_idx").on(t.recipientId, t.communityId, t.targetType, t.targetId).where(sql`${t.kind} = 'like' and ${t.readAt} is null`),
+  uniqueIndex("community_notifications_queue_group_idx").on(t.recipientId, t.communityId).where(sql`${t.kind} = 'host_queue' and ${t.readAt} is null`),
+  check("community_notification_kind", sql`${t.kind} in ('reply', 'thread_reply', 'like', 'application', 'warning', 'held_decision', 'appeal_decision', 'host_queue')`),
+  check("community_notification_target", sql`${t.targetType} in ('post', 'comment', 'application', 'warning', 'appeal', 'community') and length(${t.targetId}) between 1 and 200`),
+  check("community_notification_count", sql`${t.actorCount} >= 1`)]);

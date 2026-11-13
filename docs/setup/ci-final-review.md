@@ -35,3 +35,15 @@ Every job refuses to run if the checkout is not the selected head, the branch is
 `browser_review` runs `playwright test --shard=N/4` in each container. Each container starts its own dev server and disposable database, so shards do not share state. Playwright splits whole spec files, so one very large spec file limits how much sharding helps; split such files when one dominates. Raise `parallelism` in `.circleci/config.yml` to shard further (each container repeats the roughly two-minute install).
 
 Failure traces are stored per container as `test-results-<index>.tar.gz` and `playwright-report-<index>.tar.gz` under `browser-failures`. Passing runs keep no screenshots.
+
+## GitHub Actions (12 Nov 2026)
+
+The repository is public, so GitHub-hosted runners are free. `.github/workflows/ci.yml` is now the main CI for every PR and for `main`:
+
+- **quality:** lint, typecheck, unit tests and build;
+- **database:** migrations applied twice, plus `test:rls`;
+- **browser:** Playwright across four shards;
+- **pwa:** build and PWA test;
+- **Neon migrations:** never runs PR code with the Neon key. It runs only on `main`: after a merge that changes `drizzle/`, or by hand for a PR. For a PR, open Actions → CI → Run workflow on `main` and give `pr_number` and `expected_sha` (the reviewed head). The job checks out trusted `main`, checks that the PR's head is still `expected_sha`, copies only the PR's `drizzle/` in, and applies it to a disposable Neon branch, which is always deleted. `NEON_API_KEY` and `NEON_PROJECT_ID` are scoped to the two Neon API steps. PR runs, including forks, never receive these secrets.
+
+PR runs are cancelled by a newer push to the same branch; runs on `main` are never cancelled. Every job has a time limit. The CircleCI final review described above is optional while CircleCI credits are exhausted.
