@@ -247,3 +247,11 @@ A fresh, separate Claude session reviewed the PR read-only at `034f222`. It foun
 - **First endpoint backlog.** Outbox events not yet dispatched when the first endpoint is created will be delivered to it. Decide whether to start subscriptions from the creation time.
 - **Delivery retention.** Delivery rows and outbox rows are never pruned.
 - Email/calendar sync remains out of scope.
+
+## Follow-ups (CRM-08 soft follow-ups)
+
+- **Approval lifetime.** The documented lifetime is 10 minutes; migration 0025's check `ai_tool_approval_expiry` allows up to 1 hour. The service already issued 10 minutes through an inline literal. It now uses one exported constant, `APPROVAL_TTL_MINUTES = 10`, in `src/server/ai/crm-tools.ts`. The 1-hour SQL limit stays as a looser backstop: tightening it would need a new migration and was not done (no migration in this change). No UI copy states a lifetime (the approval screen does not exist yet). Evidence: a test checks a new approval has `expires_at - created_at = 600 s`; a 60-minute insert succeeds and a 61-minute insert fails with code `23514` on `ai_tool_approval_expiry`.
+- **Concurrency.** `lockApproval` already takes `SELECT ... FOR UPDATE`, so no race was found. As defence in depth, the decide update now also requires `status = 'pending'` and the consume update `status = 'approved'`. Tests use a 10-connection pool (`fixture.db` has one connection and would serialise calls):
+  - Deterministic lock tests: a separate connection holds `FOR UPDATE` on the approval row. A `decideToolApproval` (and, in a second test, an `executeCrmTool`) call on another connection must still be pending after 300 ms. After the holder commits a rejection (or consumption), the waiting call is refused with 409 (`approval_used` for execution) and nothing runs.
+  - Simultaneous calls, 5 rounds each: two decisions (approve/approve, approve/reject) give one success and one 409 with one decision audit row; two executions of one approved approval create one task, one `ai.tool_execute` row, and a 409 `approval_used` for the other.
+  - Validity check: with `.for("update")` removed locally, the two lock tests and the simultaneous test fail. It was restored and not committed.

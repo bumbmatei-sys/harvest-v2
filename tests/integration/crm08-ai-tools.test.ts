@@ -1,5 +1,9 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sql } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/node-postgres";
+import { Pool } from "pg";
+import * as schema from "../../src/db/schema";
+import type { Database } from "../../src/db/client";
 import { testDatabase } from "../database";
 import { aiToolApprovals, users } from "../../src/db/schema";
 import { createWorkspace, putMember } from "../../src/server/workspaces";
@@ -9,13 +13,16 @@ import { createDeal, listPipelines, moveDeal } from "../../src/server/crm-deals"
 import { createNote, createTask } from "../../src/server/crm-tasks";
 import { recordAssociation } from "../../src/server/crm-associations";
 import { createFieldDefinition, patchRecordFields } from "../../src/server/crm-fields";
-import { decideToolApproval, describeCrmTools, executeCrmTool, requestToolApproval, toolArgsHash } from "../../src/server/ai/crm-tools";
+import { APPROVAL_TTL_MINUTES, decideToolApproval, describeCrmTools, executeCrmTool, requestToolApproval, toolArgsHash } from "../../src/server/ai/crm-tools";
 
-let fixture: Awaited<ReturnType<typeof testDatabase>>, tenantA: string, tenantB: string, person: string, org: string, deal: string;
+let wide: Pool, wideDb: Database, fixture: Awaited<ReturnType<typeof testDatabase>>, tenantA: string, tenantB: string, person: string, org: string, deal: string;
 const taskArgs = { title: "Call back about the youth trip" };
 
 beforeAll(async () => {
   fixture = await testDatabase();
+  // fixture.db has one connection and would serialise calls; the race tests need real concurrency.
+  wide = new Pool({ connectionString: fixture.appURL, max: 10 });
+  wideDb = drizzle(wide, { schema }) as unknown as Database;
   await fixture.db.insert(users).values(["owner-a", "member-a", "member-b", "viewer-a", "owner-b"].map((id) => ({ id, name: `Synthetic ${id}`, email: `${id}@example.test` })));
   tenantA = (await createWorkspace(fixture.db, "owner-a", "CRM-08 tools A")).tenantId;
   tenantB = (await createWorkspace(fixture.db, "owner-b", "CRM-08 tools B")).tenantId;
@@ -38,7 +45,7 @@ beforeAll(async () => {
   await moveDeal(fixture.db, "owner-a", tenantA, created.id, { stageId: won.id, version: created.version, closedReason: "SECRET-CLOSED-REASON" });
   deal = created.id;
 });
-afterAll(async () => { await fixture?.close(); });
+afterAll(async () => { await wide?.end(); await fixture?.close(); });
 
 describe("read tools", () => {
   it("lists only the tools the caller's role may use, each with a JSON input schema", async () => {
@@ -118,6 +125,94 @@ describe("approval gate for write tools", () => {
     expect(await tasks()).toBe(before + 1);
     const ledger = (await fixture.admin.query("select action from audit_logs where tenant_id = $1 and target_id = $2 order by created_at, id", [tenantA, approvalId])).rows.map((row) => row.action);
     expect(ledger).toEqual(["ai.tool_approval_request", "ai.tool_approval_approve", "ai.tool_execute"]);
+  });
+
+  it("gives a new approval exactly the documented 10-minute lifetime, inside the database's 1-hour backstop", async () => {
+    const { approvalId } = await requestToolApproval(fixture.db, "member-a", tenantA, "crm_create_task", taskArgs);
+    const row = (await fixture.admin.query("select extract(epoch from expires_at - created_at) as seconds from ai_tool_approvals where id = $1", [approvalId])).rows[0];
+    expect(APPROVAL_TTL_MINUTES).toBe(10);
+    expect(Number(row.seconds)).toBe(600);
+    // The 1-hour SQL backstop: 60 minutes passes, 61 fails the named check.
+    // (The row guard needs the acting person, so insert inside a transaction that sets it, then roll back.)
+    const insert = async (minutes: number) => {
+      const client = await fixture.admin.connect();
+      try {
+        await client.query("begin");
+        await client.query("select set_config('app.user_id', 'member-a', true)");
+        return await client.query(`insert into ai_tool_approvals (tenant_id, tool, args_hash, requested_by, expires_at, created_at) values ($1, 'crm_create_task', $2, 'member-a', now() + $3 * interval '1 minute', now())`, [tenantA, "0".repeat(64), minutes]);
+      } finally { await client.query("rollback").catch(() => undefined); client.release(); }
+    };
+    await expect(insert(60)).resolves.toBeDefined();
+    await expect(insert(61)).rejects.toMatchObject({ code: "23514", constraint: "ai_tool_approval_expiry" });
+  });
+
+  it("makes a decision wait for a concurrent holder of the approval row, then refuse it", async () => {
+    const { approvalId } = await requestToolApproval(wideDb, "member-a", tenantA, "crm_create_task", taskArgs);
+    const holder = await fixture.admin.connect();
+    try {
+      await holder.query("begin");
+      await holder.query("select set_config('app.user_id', 'member-a', true)");
+      await holder.query("select 1 from ai_tool_approvals where id = $1 for update", [approvalId]);
+      let settled = false;
+      const decision = decideToolApproval(wideDb, "member-a", tenantA, approvalId, "approve").finally(() => { settled = true; });
+      decision.catch(() => undefined);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(settled).toBe(false);
+      // The holder decides first; the waiting decision must then see it and be refused.
+      await holder.query("update ai_tool_approvals set status = 'rejected', decided_at = now() where id = $1", [approvalId]);
+      await holder.query("commit");
+      await expect(decision).rejects.toMatchObject({ status: 409 });
+    } finally { await holder.query("rollback").catch(() => undefined); holder.release(); }
+    expect((await fixture.admin.query("select status from ai_tool_approvals where id = $1", [approvalId])).rows[0].status).toBe("rejected");
+  });
+
+  it("makes an execution wait for a concurrent holder of the approval row, then refuse a spent approval", async () => {
+    const args = { title: "Lock wait task" };
+    const { approvalId } = await requestToolApproval(wideDb, "member-a", tenantA, "crm_create_task", args);
+    await decideToolApproval(wideDb, "member-a", tenantA, approvalId, "approve");
+    const holder = await fixture.admin.connect();
+    try {
+      await holder.query("begin");
+      await holder.query("select set_config('app.user_id', 'member-a', true)");
+      await holder.query("select 1 from ai_tool_approvals where id = $1 for update", [approvalId]);
+      let settled = false;
+      const run = executeCrmTool(wideDb, "member-a", tenantA, "crm_create_task", args, { approvalId }).finally(() => { settled = true; });
+      run.catch(() => undefined);
+      await new Promise((resolve) => setTimeout(resolve, 300));
+      expect(settled).toBe(false);
+      await holder.query("update ai_tool_approvals set status = 'consumed', consumed_at = now() where id = $1", [approvalId]);
+      await holder.query("commit");
+      await expect(run).rejects.toMatchObject({ status: 409, details: { reason: "approval_used" } });
+    } finally { await holder.query("rollback").catch(() => undefined); holder.release(); }
+    expect(Number((await fixture.admin.query("select count(*) from crm_tasks where tenant_id = $1 and title = $2", [tenantA, args.title])).rows[0].count)).toBe(0);
+  });
+
+  it("lets exactly one of two simultaneous decisions win, and runs an approved action once under a concurrent replay", async () => {
+    const tasks = async () => Number((await fixture.admin.query("select count(*) from crm_tasks where tenant_id = $1 and title = $2", [tenantA, "Concurrent approval task"])).rows[0].count);
+    const args = { title: "Concurrent approval task" };
+    for (let round = 0; round < 5; round += 1) {
+      const pending = await requestToolApproval(wideDb, "member-a", tenantA, "crm_create_task", args);
+      const results = await Promise.allSettled([
+        decideToolApproval(wideDb, "member-a", tenantA, pending.approvalId, "approve"),
+        decideToolApproval(wideDb, "member-a", tenantA, pending.approvalId, round % 2 ? "reject" : "approve")]);
+      expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+      expect((results.find((r) => r.status === "rejected") as PromiseRejectedResult).reason).toMatchObject({ status: 409 });
+      const decisions = (await fixture.admin.query("select action from audit_logs where tenant_id = $1 and target_id = $2 and action in ('ai.tool_approval_approve', 'ai.tool_approval_reject')", [tenantA, pending.approvalId])).rows;
+      expect(decisions).toHaveLength(1);
+    }
+    const before = await tasks();
+    for (let round = 0; round < 5; round += 1) {
+      const { approvalId } = await requestToolApproval(wideDb, "member-a", tenantA, "crm_create_task", args);
+      await decideToolApproval(wideDb, "member-a", tenantA, approvalId, "approve");
+      const results = await Promise.allSettled([
+        executeCrmTool(wideDb, "member-a", tenantA, "crm_create_task", args, { approvalId }),
+        executeCrmTool(wideDb, "member-a", tenantA, "crm_create_task", args, { approvalId })]);
+      expect(results.filter((r) => r.status === "fulfilled")).toHaveLength(1);
+      expect((results.find((r) => r.status === "rejected") as PromiseRejectedResult).reason).toMatchObject({ status: 409, details: { reason: "approval_used" } });
+      expect(await tasks()).toBe(before + round + 1);
+      const executions = (await fixture.admin.query("select count(*) from audit_logs where tenant_id = $1 and target_id = $2 and action = 'ai.tool_execute'", [tenantA, approvalId])).rows[0];
+      expect(Number(executions.count)).toBe(1);
+    }
   });
 
   it("refuses rejected and expired approvals", async () => {
