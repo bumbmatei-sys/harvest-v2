@@ -1038,13 +1038,17 @@ export const communityMemberships = pgTable("community_memberships", {
   notificationsMuted: boolean("notifications_muted").notNull().default(false),
   notificationsSeenAt: timestamp("notifications_seen_at", { withTimezone: true }),
   welcomeDismissedAt: timestamp("welcome_dismissed_at", { withTimezone: true }),
+  // C15b: how much community email this person gets. Digest frequencies start counting from the cursor.
+  emailFrequency: text("email_frequency", { enum: ["off", "important", "daily", "weekly"] as const }).notNull().default("important"),
+  emailDigestCursor: timestamp("email_digest_cursor", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.communityId, t.userId] }),
   foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }),
   index("community_memberships_user_idx").on(t.userId, t.status),
   check("community_membership_role", sql`${t.role} in ('owner', 'admin', 'moderator', 'contributor', 'member')`),
-  check("community_membership_status", sql`${t.status} in ('active', 'pending', 'banned', 'left', 'removed')`)]);
+  check("community_membership_status", sql`${t.status} in ('active', 'pending', 'banned', 'left', 'removed')`),
+  check("community_membership_email_frequency", sql`${t.emailFrequency} in ('off', 'important', 'daily', 'weekly')`)]);
 
 export const entitlements = pgTable("entitlements", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
@@ -1329,6 +1333,29 @@ export const discoverListings = pgTable("discover_listings", {
 
 // C15a (migration 0041): in-app notifications. Members read only their own rows; every write is a definer
 // (plus one staff INSERT for application decisions). Likes and the host queue are grouped into one unread row.
+// C15b: one row per email to send. Holds no address and no message text; the worker resolves both at send time.
+export const communityEmailDeliveries = pgTable("community_email_deliveries", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),
+  recipientId: text("recipient_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  kind: text("kind", { enum: ["instant", "digest"] as const }).notNull(),
+  notificationId: uuid("notification_id"),
+  windowStart: timestamp("window_start", { withTimezone: true }), windowEnd: timestamp("window_end", { withTimezone: true }),
+  idempotencyKey: text("idempotency_key").notNull(),
+  status: text("status", { enum: ["queued", "sending", "sent", "failed", "skipped"] as const }).notNull().default("queued"),
+  attempts: integer("attempts").notNull().default(0),
+  lockedUntil: timestamp("locked_until", { withTimezone: true }),
+  lastError: text("last_error"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  sentAt: timestamp("sent_at", { withTimezone: true }),
+}, (t) => [
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  uniqueIndex("community_email_deliveries_key_idx").on(t.idempotencyKey),
+  index("community_email_deliveries_due_idx").on(t.status, t.lockedUntil, t.createdAt),
+  check("community_email_delivery_kind", sql`${t.kind} in ('instant', 'digest') and (${t.kind} = 'instant') = (${t.notificationId} is not null)`),
+  check("community_email_delivery_status", sql`${t.status} in ('queued', 'sending', 'sent', 'failed', 'skipped')`),
+  check("community_email_delivery_error", sql`${t.lastError} is null or length(${t.lastError}) <= 40`)]);
+
 export const communityNotifications = pgTable("community_notifications", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),

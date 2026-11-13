@@ -2869,5 +2869,14 @@
     "rules": "Read the rules",
     "introduce": "Introduce yourself",
     "notifications": "Choose notifications"
+  },
+  "CommunityEmail": {
+    "greeting": "Hello {name},",
+    "instantSubject": "{community}: {summary}",
+    "instantIntro": "Here is an update from {community}.",
+    "digestSubject": "{community}: {count, plural, one {# update} other {# updates}} for you",
+    "digestIntro": "Here is what happened in {community} since your last email.",
+    "unsubscribe": "To stop emails from {community}, open {url}",
+    "oneTime": "This is a one-time message about your own request."
   }
 }
