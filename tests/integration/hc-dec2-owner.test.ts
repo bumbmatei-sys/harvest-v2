@@ -7,7 +7,7 @@ import { createWorkspace, putMember } from "../../src/server/workspaces";
 import { createCampaign } from "../../src/server/campaigns";
 import { createConnectLink, transitionConnectLink } from "../../src/server/connect-links";
 import { publishIntakeForm, readIntakeManifest, submitIntake } from "../../src/server/connect-intake";
-import { listPendingResponseSummaries } from "../../src/server/connect-responses";
+import { listPendingResponsePage, listPendingResponseSummaries } from "../../src/server/connect-responses";
 
 // The audited read when the migration owner is a real non-superuser, non-BYPASSRLS role (FORCE RLS applies to the definer owner),
 // on a response that arrived through the real synthetic intake path.
@@ -34,8 +34,12 @@ it("reads and audits pending metadata as a restricted owner", async () => {
     expect(rows[0].noticeVersionId).toBeTruthy();
     const audit = async () => (await f.admin.query("select actor_id, target_id, metadata from audit_logs where tenant_id = $1 and action = 'connect.pending.read'", [tenant])).rows;
     expect(await audit()).toEqual([{ actor_id: "do-admin", target_id: campaign, metadata: { count: "1" } }]);
+    // Paging and the dropped consents policy under a restricted (non-bypass) owner.
+    expect(await listPendingResponsePage(f.db, "do-owner", tenant, campaign, { limit: 1 })).toMatchObject({ items: [{ status: "pending" }], nextCursor: null });
+    await expect(listPendingResponsePage(f.db, "do-owner", tenant, campaign, { limit: 0 })).rejects.toBeDefined();
+    expect((await f.admin.query("select count(*)::int as n from pg_policy p join pg_class c on c.oid = p.polrelid where c.relname = 'campaign_response_consents' and polname = 'campaign_response_consents_restricted_read'")).rows[0].n).toBe(0);
     expect(JSON.stringify(await audit())).not.toContain("guest-dec2@example.test");
     await expect(listPendingResponseSummaries(f.db, "do-member", tenant, campaign)).rejects.toMatchObject({ status: 403 });
-    expect(await audit()).toHaveLength(1);
+    expect(await audit()).toHaveLength(2);
   } finally { await f.close(); }
 });

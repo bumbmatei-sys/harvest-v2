@@ -390,8 +390,7 @@ describe("withdrawal, erasure and retention hooks", () => {
 
     // No app-readable key or exact time survives to join the cached view to the tombstone.
     const visibleAfter = await as("owner-a", tenantA, async (tx) => JSON.stringify([
-      rows(await tx.execute(sql`select tenant_id, id, campaign_id, link_id, form_version_id, status, submitted_at, expires_at, associated_at, erased_at from campaign_responses`)),
-      await tx.execute(sql`select 1`).then(() => [])]));
+      rows(await tx.execute(sql`select tenant_id, id, campaign_id, link_id, form_version_id, status, submitted_at, expires_at, associated_at, erased_at from campaign_responses`))]));
     for (const value of [response.id, ...observedEvidence.map((row) => row.id), ...observedEvidence.flatMap((row) => [row.recorded_at, row.occurred_at]).map((time) => new Date(time).toISOString())]) {
       expect(visibleAfter).not.toContain(value);
     }
