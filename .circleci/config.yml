@@ -227,6 +227,45 @@ jobs:
               npx tsx scripts/neon-ci.ts delete
             fi
 
+  # Read-only checks of the deployed site after each main merge. Runs only for
+  # main with the restricted harvest-prod-smoke context; never deploys, writes or
+  # sends anything. See docs/setup/production-smoke.md.
+  production_smoke:
+    docker:
+      - image: cimg/node:24-browsers
+    resource_class: small
+    environment:
+      CI: "true"
+      HARVEST_SMOKE_REQUIRE_SIGNED_IN: "1"
+    steps:
+      - checkout
+      - run:
+          name: Run only for trusted main
+          command: |
+            set -euo pipefail
+            test "${CIRCLE_BRANCH:-}" = "main" || { echo "Production smoke runs only on main."; exit 1; }
+      - run:
+          name: Confirm harvest-prod-smoke context (names only, never values)
+          command: |
+            missing=""
+            for name in HARVEST_SMOKE_BASE_URL HARVEST_SMOKE_SESSION_TOKEN HARVEST_SMOKE_EMAIL HARVEST_SMOKE_WORKSPACE; do
+              [ -n "${!name:-}" ] || missing="$missing $name"
+            done
+            if [ -n "$missing" ]; then echo "harvest-prod-smoke is missing:$missing"; exit 1; fi
+      - run:
+          name: Wait for the deployed site to serve this commit
+          no_output_timeout: 25m
+          command: scripts/smoke-wait-for-deploy.sh "$CIRCLE_SHA1"
+      - run:
+          name: Install dependencies without package install scripts
+          command: npm ci --ignore-scripts
+      - run: npx playwright install chromium
+      - run:
+          name: Read-only production smoke tests
+          command: npx playwright test --config playwright.smoke.config.ts
+      - store_test_results:
+          path: test-results/smoke
+
 workflows:
   routine:
     unless:
@@ -248,3 +287,12 @@ workflows:
     jobs:
       - neon_review:
           context: harvest-neon-ci
+
+  production_smoke:
+    unless: << pipeline.parameters.full_review >>
+    jobs:
+      - production_smoke:
+          context: harvest-prod-smoke
+          filters:
+            branches:
+              only: main
