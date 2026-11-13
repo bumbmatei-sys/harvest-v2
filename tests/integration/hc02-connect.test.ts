@@ -96,7 +96,8 @@ describe("HC-02 schema, FORCE RLS and grants", () => {
     expect(await privileges("forms")).toEqual(["SELECT", "INSERT"]);
     expect(await privileges("form_versions")).toEqual(["SELECT", "INSERT", "UPDATE"]);
     expect(await privileges("campaign_response_links")).toEqual(["SELECT", "INSERT"]);
-    expect(await privileges("campaign_response_consents")).toEqual(["SELECT"]);
+    // HC-DEC2: evidence rows have no direct application reader; the audited owner/admin definer reads them.
+    expect(await privileges("campaign_response_consents")).toEqual([]);
     // Restricted pending data: column-level metadata only, and nothing at all on contact methods.
     expect(await privileges("campaign_responses")).toEqual([]);
     expect(await privileges("campaign_response_contact_methods")).toEqual([]);
@@ -162,7 +163,7 @@ describe("canonical Forms and immutable notice versions", () => {
 describe("tenant isolation and composite parents", () => {
   it("hides one workspace's forms, notices, links and responses from another workspace", async () => {
     await seedA();
-    for (const table of ["privacy_notice_versions", "forms", "form_versions", "campaign_response_links", "campaign_response_consents"]) {
+    for (const table of ["privacy_notice_versions", "forms", "form_versions", "campaign_response_links"]) {
       const seen = await as("owner-b", tenantB, async (tx) => rows(await tx.execute(sql.raw(`select tenant_id from ${table}`))));
       expect(seen.every((row) => row.tenant_id === tenantB), table).toBe(true);
     }
@@ -172,10 +173,10 @@ describe("tenant isolation and composite parents", () => {
     const forged = await withUser(fixture.db, "owner-b", async (tx) => {
       await tx.execute(sql`select set_config('app.tenant_id', ${tenantA}, true)`);
       const counts: number[] = [];
-      for (const table of ["forms", "form_versions", "privacy_notice_versions", "campaign_response_links", "campaign_response_consents"]) counts.push(rows(await tx.execute(sql.raw(`select id from ${table}`))).length);
+      for (const table of ["forms", "form_versions", "privacy_notice_versions", "campaign_response_links"]) counts.push(rows(await tx.execute(sql.raw(`select id from ${table}`))).length);
       return counts;
     });
-    expect(forged).toEqual([0, 0, 0, 0, 0]);
+    expect(forged).toEqual([0, 0, 0, 0]);
     await expect(withUser(fixture.db, "owner-b", async (tx) => {
       await tx.execute(sql`select set_config('app.tenant_id', ${tenantA}, true)`);
       return tx.execute(sql`select id from campaign_responses`);
@@ -215,14 +216,11 @@ describe("tenant isolation and composite parents", () => {
 describe("restricted pending responses", () => {
   it("shows owners/admins metadata only, members and viewers nothing, and nobody the personal columns", async () => {
     const response = await seedA({ grants: [{ purpose: "outreach_follow_up", channel: "email" }] });
-    for (const user of ["owner-a", "admin-a"]) {
-      expect(await as(user, tenantA, async (tx) => rows(await tx.execute(sql`select id, status from campaign_responses where id = ${response.id}`)))).toEqual([{ id: response.id, status: "pending" }]);
-      expect(await as(user, tenantA, async (tx) => rows(await tx.execute(sql`select purpose from campaign_response_consents where response_id = ${response.id}`)))).toEqual([{ purpose: "outreach_follow_up" }]);
+    // HC-DEC2: pending rows are invisible to direct reads for every role, owners and admins included; see hc-dec2-pending-access.test.ts.
+    for (const user of ["owner-a", "admin-a", "member-a", "viewer-a"]) {
+      expect(await as(user, tenantA, async (tx) => rows(await tx.execute(sql`select id, status from campaign_responses where id = ${response.id}`)))).toEqual([]);
     }
-    for (const user of ["member-a", "viewer-a"]) {
-      expect(await as(user, tenantA, async (tx) => rows(await tx.execute(sql`select id from campaign_responses where id = ${response.id}`)))).toEqual([]);
-      expect(await as(user, tenantA, async (tx) => rows(await tx.execute(sql`select id from campaign_response_consents where response_id = ${response.id}`)))).toEqual([]);
-    }
+    for (const user of ["owner-a", "admin-a"]) await expect(as(user, tenantA, (tx) => tx.execute(sql`select purpose from campaign_response_consents`))).rejects.toMatchObject({ cause: { code: "42501" } });
     for (const column of ["preferred_name", "public_submission_id", "contact_id", "locale", "*"]) {
       await expect(as("owner-a", tenantA, (tx) => tx.execute(sql.raw(`select ${column} from campaign_responses`)))).rejects.toMatchObject({ cause: { code: "42501" } });
     }
@@ -233,7 +231,7 @@ describe("restricted pending responses", () => {
 
     const summaries = await listPendingResponseSummaries(fixture.db, "admin-a", tenantA, campaignA);
     const summary = summaries.find((row) => row.id === response.id)!;
-    expect(Object.keys(summary).sort()).toEqual(["activePurposes", "expiresAt", "formVersionId", "id", "linkId", "status", "submittedAt"]);
+    expect(Object.keys(summary).sort()).toEqual(["activePurposes", "expiresAt", "formVersionId", "id", "linkId", "noticeVersionId", "status", "submittedAt"]);
     expect(summary.activePurposes).toEqual(["outreach_follow_up"]);
     expect(JSON.stringify(summaries)).not.toMatch(/Synthetic Guest|guest-a@example\.test/);
     await expect(listPendingResponseSummaries(fixture.db, "member-a", tenantA, campaignA)).rejects.toMatchObject({ status: 403 });
@@ -378,8 +376,10 @@ describe("withdrawal, erasure and retention hooks", () => {
     await fixture.admin.query("insert into outbox_events (tenant_id, kind, idempotency_key, fingerprint, payload) values ($1, 'connect.response_submitted', $2, $3, $4)", [tenantB, key, "a".repeat(64), { responseId: keep.id }]);
 
     // What an authorized owner could observe and cache before erasure (review B3).
-    const observedResponse = await as("owner-a", tenantA, async (tx) => rows(await tx.execute(sql`select * from (select tenant_id, id, campaign_id, link_id, form_version_id, status, submitted_at, expires_at from campaign_responses) r where id = ${response.id}`)));
-    const observedEvidence = await as("owner-a", tenantA, async (tx) => rows<{ id: string; recorded_at: Date; occurred_at: Date }>(await tx.execute(sql`select * from campaign_response_consents where response_id = ${response.id}`)));
+    // Since HC-DEC2 an owner reads pending rows only through the audited definer, which never returns evidence ids or times; the
+    // evidence is read directly here to prove that nothing of it survives erasure.
+    const observedResponse = (await listPendingResponseSummaries(fixture.db, "owner-a", tenantA, campaignA)).filter((row) => row.id === response.id);
+    const observedEvidence = (await fixture.admin.query("select id, recorded_at, occurred_at from campaign_response_consents where response_id = $1", [response.id])).rows as { id: string; recorded_at: Date; occurred_at: Date }[];
     expect(observedResponse).toHaveLength(1); expect(observedEvidence).toHaveLength(3);
     await expect(eraseConnectResponse(fixture.db, "member-a", tenantA, response.id)).rejects.toMatchObject({ status: 403 });
     await expect(as("viewer-a", tenantA, (tx) => tx.execute(sql`select public.erase_connect_response(${tenantA}::uuid, ${response.id}::uuid)`))).rejects.toMatchObject({ cause: { code: "42501" } });
@@ -391,11 +391,11 @@ describe("withdrawal, erasure and retention hooks", () => {
     // No app-readable key or exact time survives to join the cached view to the tombstone.
     const visibleAfter = await as("owner-a", tenantA, async (tx) => JSON.stringify([
       rows(await tx.execute(sql`select tenant_id, id, campaign_id, link_id, form_version_id, status, submitted_at, expires_at, associated_at, erased_at from campaign_responses`)),
-      rows(await tx.execute(sql`select * from campaign_response_consents`))]));
+      await tx.execute(sql`select 1`).then(() => [])]));
     for (const value of [response.id, ...observedEvidence.map((row) => row.id), ...observedEvidence.flatMap((row) => [row.recorded_at, row.occurred_at]).map((time) => new Date(time).toISOString())]) {
       expect(visibleAfter).not.toContain(value);
     }
-    expect(await as("owner-a", tenantA, async (tx) => rows(await tx.execute(sql`select id from campaign_response_consents where id in (${sql.join(observedEvidence.map((row) => sql`${row.id}::uuid`), sql`, `)})`)))).toEqual([]);
+    expect((await fixture.admin.query("select id from campaign_response_consents where id = any($1::uuid[])", [observedEvidence.map((row) => row.id)])).rows).toEqual([]);
     expect(await as("owner-a", tenantA, async (tx) => rows(await tx.execute(sql`select id from campaign_responses where id = ${response.id}`)))).toEqual([]);
     const dump = async (tenant: string) => JSON.stringify(await Promise.all(["campaign_responses", "campaign_response_contact_methods", "campaign_response_consents", "outbox_events", "jobs", "audit_logs"].map(async (table) => (await fixture.admin.query(`select * from ${table} where tenant_id = $1`, [tenant])).rows)));
     const after = await dump(tenantA);
