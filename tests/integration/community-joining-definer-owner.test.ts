@@ -27,8 +27,11 @@ const definers = ["public.community_definer_reset()", "public.community_public(t
   // C15a (0041)
   "public.community_user_can_read(uuid,uuid,text)", "public.community_notify(uuid,uuid,text,text,text,text,uuid,jsonb)", "public.community_notify_as(text,uuid,uuid,text,text,text,text,uuid,jsonb)", "public.community_notify_reply(uuid,uuid,uuid,uuid,text)", "public.community_notify_hosts(uuid,uuid,text)",
   "public.community_notifications_list(text,integer)", "public.community_notifications_read(text,uuid[])", "public.community_notification_prefs_save(text,boolean,boolean,boolean,boolean)",
-  "public.community_welcome_dismiss(text)", "public.community_purge_notifications()"];
-const tables = ["communities", "community_memberships", "entitlements", "community_invites", "audit_logs", "workspaces", "discover_listings", "community_applications", "community_categories", "community_files", "community_posts", "community_comments", "community_likes", "community_reports", "community_moderation_actions", "community_warnings", "community_appeals", "community_post_revisions", "community_comment_revisions", "community_notifications"];
+  "public.community_welcome_dismiss(text)", "public.community_purge_notifications()",
+  // C15b (0042)
+  "public.community_email_enqueue(integer)", "public.community_email_claim(integer)", "public.community_email_complete(uuid,text,text)",
+  "public.community_email_prefs_save(text,text)", "public.community_email_unsubscribe(uuid,uuid,text)"];
+const tables = ["communities", "community_memberships", "entitlements", "community_invites", "audit_logs", "workspaces", "discover_listings", "community_applications", "community_categories", "community_files", "community_posts", "community_comments", "community_likes", "community_reports", "community_moderation_actions", "community_warnings", "community_appeals", "community_post_revisions", "community_comment_revisions", "community_notifications", "community_email_deliveries"];
 let fixture: Awaited<ReturnType<typeof testDatabase>>, tenant: string, open: string, hidden: string;
 let roleCreated = false;
 const copied: { table: string; name: string }[] = [];
@@ -200,4 +203,26 @@ it("notifies, lists, marks read, saves preferences, dismisses the welcome card a
   expect((await run<{ outcome: string }>("o-joiner", sql`select public.community_welcome_dismiss('owner-open') as v`)).outcome).toBe("ok");
   await fixture.admin.query("update community_notifications set read_at = now() - interval '91 days' where recipient_id = 'o-joiner'");
   expect(await fixture.db.transaction(async (tx) => (await tx.execute<{ n: number }>(sql`select public.community_purge_notifications() as n`)).rows[0].n)).toBeGreaterThan(0);
+});
+
+it("queues, claims, completes, saves preferences, unsubscribes and purges notification email with a non-bypass definer owner", async () => {
+  const run = async <T,>(user: string, statement: ReturnType<typeof sql>) => withUser(fixture.db, user, async (tx) => (await tx.execute<{ v: T }>(statement)).rows[0].v);
+  const app = async <T,>(statement: ReturnType<typeof sql>) => (await fixture.db.execute<{ v: T }>(statement)).rows[0].v;
+  type Job = { id: string; kind: string; to: string; recipientId: string; communitySlug: string; hasMembership: boolean; items: { kind: string }[] };
+  await fixture.admin.query("delete from community_email_deliveries; delete from community_notifications;");
+  await fixture.admin.query("update community_memberships set email_frequency = 'important', email_digest_cursor = null");
+  const notify = (user: string, kind: string, target: string) => fixture.admin.query(
+    "insert into community_notifications (tenant_id, community_id, recipient_id, kind, target_type, target_id) values ($1, $2, $3, $4, $5, gen_random_uuid()::text)", [tenant, open, user, kind, target]);
+  await notify("o-joiner", "warning", "warning"); await notify("o-joiner", "reply", "comment");
+  expect(await app<number>(sql`select public.community_email_enqueue(50) as v`)).toBe(1);
+  const [job] = (await app<{ jobs: Job[] }>(sql`select public.community_email_claim(10) as v`)).jobs;
+  expect(job).toMatchObject({ kind: "instant", to: "o-joiner@example.test", recipientId: "o-joiner", communitySlug: "owner-open", hasMembership: true });
+  expect(job.items.map((i) => i.kind)).toEqual(["warning"]);
+  expect(await app<boolean>(sql`select public.community_email_complete(${job.id}::uuid, 'sent', null) as v`)).toBe(true);
+  expect((await run<{ outcome: string }>("o-joiner", sql`select public.community_email_prefs_save('owner-open', 'daily') as v`)).outcome).toBe("ok");
+  expect(await app<boolean>(sql`select public.community_email_unsubscribe(${tenant}::uuid, ${open}::uuid, 'o-joiner') as v`)).toBe(true);
+  expect((await fixture.admin.query("select email_frequency from community_memberships where user_id = 'o-joiner' and community_id = $1", [open])).rows[0].email_frequency).toBe("off");
+  await fixture.admin.query("update community_email_deliveries set created_at = now() - interval '91 days'");
+  expect(await app<number>(sql`select public.community_purge_notifications() as v`)).toBeGreaterThanOrEqual(1);
+  expect((await fixture.admin.query("select count(*)::int n from community_email_deliveries")).rows[0].n).toBe(0);
 });
