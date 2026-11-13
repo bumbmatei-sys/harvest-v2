@@ -6,7 +6,6 @@ import { associationKinds, associationPurposes, associationSources, auditLogs, c
 import { phoneField, socialField, uuidInput } from "../lib/contact-input";
 import { normalizeDomain } from "../lib/crm-input";
 import { emitCrmEvent } from "./crm-events";
-import { pgCode } from "./contacts";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
 
@@ -99,18 +98,23 @@ export function recordAssociation(db: Database, userId: string, workspace: strin
         .where(and(eq(crmAssociations.tenantId, tenantId), eq(crmAssociations.source, input.source), eq(crmAssociations.externalId, input.externalId)));
       if (existing) return { stored: true, duplicate: true, id: existing.id, contactId: existing.contactId };
     }
+    // Lock the person first, as the insert guard does: a concurrent withdrawal commits before this check
+    // reads the ledger (and one still running waits for us), so it surfaces as consent_withdrawn, not a 500.
+    const [locked] = await tx.select({ id: contacts.id }).from(contacts).where(and(eq(contacts.tenantId, tenantId), eq(contacts.id, contactId), isNull(contacts.erasedAt))).for("update");
+    if (!locked) throw new AccessError(404, message("Errors.thisContactIsNotAvailableInThisWorkspace"));
     const consent = await purposeConsent(tx, tenantId, contactId, input.purpose);
     // No consent for this purpose: nothing about the event is kept, not even in the ledger.
     if (!consent.allowed) return { stored: false, reason: consent.reason, contactId };
-    let row: typeof crmAssociations.$inferSelect;
-    try {
-      [row] = await tx.insert(crmAssociations).values({
-        tenantId, contactId, companyId, source: input.source, kind: input.kind, purpose: input.purpose, consentId: consent.consentId,
-        externalId: input.externalId ?? null, occurredAt: input.occurredAt ? new Date(input.occurredAt) : new Date(), summary: input.summary, payload: input.payload, createdBy: userId,
-      }).returning();
-    } catch (error) {
-      if (pgCode(error) === "23505") throw new AccessError(409, message("Errors.thisRecordChangedReloadAndTryAgain"), { reason: "stale" });
-      throw error;
+    // A concurrent redelivery with the same external id waits on the unique index and then does nothing here.
+    const [row] = await tx.insert(crmAssociations).values({
+      tenantId, contactId, companyId, source: input.source, kind: input.kind, purpose: input.purpose, consentId: consent.consentId,
+      externalId: input.externalId ?? null, occurredAt: input.occurredAt ? new Date(input.occurredAt) : new Date(), summary: input.summary, payload: input.payload, createdBy: userId,
+    }).onConflictDoNothing({ target: [crmAssociations.tenantId, crmAssociations.source, crmAssociations.externalId], where: sql`${crmAssociations.externalId} is not null` }).returning();
+    if (!row) {
+      const [existing] = await tx.select({ id: crmAssociations.id, contactId: crmAssociations.contactId }).from(crmAssociations)
+        .where(and(eq(crmAssociations.tenantId, tenantId), eq(crmAssociations.source, input.source), eq(crmAssociations.externalId, input.externalId ?? "")));
+      if (!existing) throw new AccessError(409, message("Errors.thisRecordChangedReloadAndTryAgain"), { reason: "stale" });
+      return { stored: true, duplicate: true, id: existing.id, contactId: existing.contactId };
     }
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "association.record", targetId: row.id,
       metadata: { contactId, ...(companyId ? { companyId } : {}), source: row.source, kind: row.kind, purpose: row.purpose } });
