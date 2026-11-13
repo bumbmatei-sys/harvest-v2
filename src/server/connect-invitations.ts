@@ -5,7 +5,8 @@ import { z } from "zod";
 import { users } from "../db/schema";
 import type { Database, Transaction } from "../db/client";
 import { requireSyntheticIntake, withSyntheticIntake } from "./connect-intake-context";
-import { invitationRecipientHash, openIntake, receiptHash, sealIntake } from "./connect-intake-crypto";
+import { invitationRecipientHash, receiptHash, sealIntake, type SealedEnvelope } from "./connect-intake-crypto";
+import { decryptContactDetails } from "./connect-decrypt";
 import { withUser } from "./tenancy";
 import { AccessError } from "./permissions";
 import { message } from "../i18n/messages";
@@ -18,7 +19,7 @@ export const invitationClaim=z.object({action:z.enum(["confirm","decline"])}).st
 const randomSecret=()=>randomBytes(32).toString("hex");
 const unavailable=()=>new AccessError(409,message("Invitations.unavailable"));
 export type InvitationSender=(mail:{to:string;token:string;idempotencyKey:string;signal?:AbortSignal})=>Promise<void>;
-type Envelope=ReturnType<typeof sealIntake>;
+type Envelope=SealedEnvelope;
 type Reserved={id:string;tenant:string;generation:number;attempt:number;envelope:Envelope;receiptHash:string;tokenHash:string};
 
 export async function enqueueInvitation(tx:Transaction,hash:string,email:string,resend=false) {
@@ -33,7 +34,7 @@ export async function requestInvitation(db:Database,raw:unknown) {
   const sealed=r.rows[0]?.envelope;if(!sealed)return "unavailable";
   if("limited" in sealed)return "limited";
   if(!sealed.binding.endsWith(`:${receiptHash(input.receiptToken)}`))return "unavailable";
-  const {email}=z.object({email:z.string().regex(/^[^@\s]+@example\.test$/i)}).parse(openIntake(sealed,sealed.binding));
+  const {email}=z.object({email:z.string().regex(/^[^@\s]+@example\.test$/i)}).parse(decryptContactDetails(sealed,sealed.binding,"invitation-request"));
   return enqueueInvitation(tx,receiptHash(input.receiptToken),email,true);
  });
  // Never disclose account/response existence or delivery success.
@@ -78,7 +79,7 @@ async function consumeInvitationOnce(db:Database,flow:string,user:{id:string;ema
   if(info.automatic&&action==="confirm"){
    const envelope=await tx.execute<{envelope:Envelope|null}>(sql`select public.connect_claim_envelope(${receiptHash(flow)}) as envelope`);
    const sealed=envelope.rows[0]?.envelope;if(!sealed)throw unavailable();
-   const payload=z.object({email:z.string(),preferredName:z.string().trim().max(80).optional()}).parse(openIntake(sealed,sealed.binding));
+   const payload=z.object({email:z.string(),preferredName:z.string().trim().max(80).optional()}).parse(decryptContactDetails(sealed,sealed.binding,"invitation-claim"));
    if(payload.email.toLowerCase()!==current.email.toLowerCase())throw unavailable();
    preferredName=payload.preferredName??null;
   }
@@ -101,7 +102,7 @@ export async function dispatchInvitation(db:Database,send:InvitationSender,optio
   const r=await tx.execute<{ok:boolean}>(sql`select public.connect_invitation_dispatch(${job.id}::uuid,${lease}::uuid,${outcome},${backoff}) as ok`);return r.rows[0]?.ok;
  });
  try {
-  const payload=z.object({email:z.string().regex(/^[^@\s]+@example\.test$/i),token:secret}).strict().parse(openIntake(job.envelope,`invitation:${job.receiptHash}:${job.tokenHash}`));
+  const payload=z.object({email:z.string().regex(/^[^@\s]+@example\.test$/i),token:secret}).strict().parse(decryptContactDetails(job.envelope,`invitation:${job.receiptHash}:${job.tokenHash}`,"invitation-dispatch"));
   if(job.tokenHash!==receiptHash(payload.token))throw new Error("INVALID_BINDING");
   if(!await dispatch("check"))return {status:"cancelled"} as const;
   // External I/O occurs after the reservation transaction commits. Generation key fences retries.

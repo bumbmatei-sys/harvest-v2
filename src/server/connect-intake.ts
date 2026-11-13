@@ -7,7 +7,7 @@ import { intakeDefinition, intakeRights, intakeSetup, intakeSubmission, type Int
 import { normalizeShortCode, publicCodePattern } from "../lib/connect-links";
 import { message } from "../i18n/messages";
 import { syntheticIntakeEnabled } from "./connect-intake-mode";
-import { intakeFingerprint, receiptHash, sealIntake, issueIntakeCapability, verifyIntakeCapability } from "./connect-intake-crypto";
+import { intakeFingerprint, receiptHash, sealIntakeV1, issueIntakeCapability, verifyIntakeCapability } from "./connect-intake-crypto";
 import { AccessError } from "./permissions";
 import { enqueueInvitation } from "./connect-invitations";
 import { withTenant } from "./tenancy";
@@ -52,7 +52,7 @@ export async function submitIntake(db: Database, kind: string, code: string, raw
   const data = { stamp: input.stamp, purposes: [...input.purposes].sort(), preferredName: input.preferredName,
     email: input.email.toLowerCase(), phone: input.phone };
   const fingerprint = intakeFingerprint(data), hash = receiptHash(input.receiptToken);
-  const sealed = sealIntake(data, `${publicSource.kind}:${publicSource.code}:${input.submissionId}:${hash}`);
+  const sealed = sealIntakeV1(data, `${publicSource.kind}:${publicSource.code}:${input.submissionId}:${hash}`);
   const outcome = await withSyntheticIntake(db, async tx => {
     const result = await tx.execute<{ outcome: string }>(sql`select public.submit_connect_intake(${publicSource.kind},${publicSource.code},${input.submissionId}::uuid,${input.stamp},${hash},${fingerprint},${sql.param(data.purposes)}::text[],${emailNeeded},${phoneNeeded},${JSON.stringify(sealed)}::jsonb,${replayUntil}::timestamptz) as outcome`);
     const outcome=result.rows[0]?.outcome;
