@@ -1,18 +1,27 @@
-import { createCipheriv, createDecipheriv, createHmac, createHash, hkdfSync, randomBytes, timingSafeEqual } from "node:crypto";
+import { createCipheriv, createDecipheriv, createHmac, createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import { LEGACY_KEY_ID, getKeyProvider, type KeyPurpose } from "./connect-key-provider";
 
-function key(purpose: string) {
-  const secret = process.env.HARVEST_CONNECT_TEST_KEY;
-  if (!secret || !/^[a-f0-9]{64}$/.test(secret)) throw new Error("CONNECT_KEY_UNAVAILABLE");
-  return Buffer.from(hkdfSync("sha256", Buffer.from(secret, "hex"), "Harvest Connect", purpose, 32));
-}
+// Keys come from the KeyProvider (HC-DEC5). Hashes and capabilities always use the current key id.
+const key = (purpose: KeyPurpose) => { const p = getKeyProvider(); return p.resolveKey(purpose, p.currentKeyId(purpose)); };
 export const receiptHash = (token: string) => createHash("sha256").update(token).digest("hex");
 export const intakeFingerprint = (value: unknown) => createHmac("sha256", key("intake-fingerprint:v1")).update(JSON.stringify(value)).digest("hex");
-export function sealIntake(value: unknown, binding: string) {
-  const iv = randomBytes(12), cipher = createCipheriv("aes-256-gcm", key("pending-intake:v1"), iv);
+// Version 1 envelopes carry no key id. Version 2 envelopes record the key id they were sealed under.
+type EnvelopeBody = { binding: string; iv: string; tag: string; ciphertext: string };
+export type SealedEnvelope = (EnvelopeBody & { version: 1 }) | (EnvelopeBody & { version: 2; keyId: string });
+export const envelopeKeyId = (envelope: SealedEnvelope) => envelope.version === 2 ? envelope.keyId : LEGACY_KEY_ID;
+function seal(value: unknown, binding: string, keyId: string) {
+  const iv = randomBytes(12), cipher = createCipheriv("aes-256-gcm", getKeyProvider().resolveKey("pending-intake:v1", keyId), iv);
   cipher.setAAD(Buffer.from(binding));
   const ciphertext = Buffer.concat([cipher.update(JSON.stringify(value), "utf8"), cipher.final()]);
-  return { version: 1, binding, iv: iv.toString("base64"), tag: cipher.getAuthTag().toString("base64"), ciphertext: ciphertext.toString("base64") };
+  return { binding, iv: iv.toString("base64"), tag: cipher.getAuthTag().toString("base64"), ciphertext: ciphertext.toString("base64") };
 }
+export function sealIntake(value: unknown, binding: string) {
+  const keyId = getKeyProvider().currentKeyId("pending-intake:v1");
+  return { version: 2 as const, keyId, ...seal(value, binding, keyId) };
+}
+// The stored pending-intake definer functions (migrations 0028, 0029, 0032) pin version 1 and an exact key set, so
+// the receipt path keeps sealing version 1 under the legacy key until a migration accepts version 2.
+export const sealIntakeV1 = (value: unknown, binding: string) => ({ version: 1 as const, ...seal(value, binding, LEGACY_KEY_ID) });
 
 // Fresh submission proof bounds replay suppression to ten minutes, including after an early
 // purge/erase. It is source+immutable-version bound and contains no person/contact information.
@@ -30,10 +39,12 @@ export function verifyIntakeCapability(token: string, kind: string, code: string
   return timingSafeEqual(mac,Buffer.from(parts[2],"hex")) ? new Date(until).toISOString() : null;
 }
 
-// Only the invitation dispatcher/request service opens envelopes; no public decrypt endpoint.
-export function openIntake(envelope: ReturnType<typeof sealIntake>, expectedBinding: string) {
- if(envelope.version!==1 || envelope.binding!==expectedBinding)throw new Error("INVALID_ENVELOPE");
- const cipher=createDecipheriv("aes-256-gcm",key("pending-intake:v1"),Buffer.from(envelope.iv,"base64"));
+// Raw opener, no audit. Only connect-decrypt.ts may import it; tests/unit/connect-crypto-guard.test.ts enforces that.
+export function openIntake(envelope: SealedEnvelope, expectedBinding: string) {
+ if((envelope.version!==1 && envelope.version!==2) || envelope.binding!==expectedBinding)throw new Error("INVALID_ENVELOPE");
+ const keyId=envelopeKeyId(envelope);
+ if(typeof keyId!=="string")throw new Error("INVALID_ENVELOPE");
+ const cipher=createDecipheriv("aes-256-gcm",getKeyProvider().resolveKey("pending-intake:v1",keyId),Buffer.from(envelope.iv,"base64"));
  cipher.setAAD(Buffer.from(expectedBinding));cipher.setAuthTag(Buffer.from(envelope.tag,"base64"));
  return JSON.parse(Buffer.concat([cipher.update(Buffer.from(envelope.ciphertext,"base64")),cipher.final()]).toString("utf8")) as unknown;
 }
