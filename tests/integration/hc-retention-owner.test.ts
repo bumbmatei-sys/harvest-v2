@@ -36,7 +36,7 @@ it("sweeps and expires tombstones as a restricted owner", async () => {
       try { await f.admin.query(`set local role ${f.migrationOwner}`); await f.admin.query("select set_config('app.tenant_id', $1, true)", [tenant]); await f.admin.query(statement); await f.admin.query("commit"); }
       catch (error) { await f.admin.query("rollback"); throw error; }
     };
-    const pool = { query: async <R extends Record<string, unknown>>(text: string, values?: unknown[]) => f.pool.query<R>(text, values) };
+    const pool = { query: async <R extends Record<string, unknown>>(text: string, values?: unknown[]) => f.workerPool.query<R>(text, values) };
     // Not expired yet: nothing happens.
     expect(await runRetention(pool)).toMatchObject({ erased: 0, deleted: 0 });
     const children = async () => {

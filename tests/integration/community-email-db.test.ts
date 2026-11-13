@@ -19,16 +19,16 @@ const notify = async (user: string, kind: string, over: { community?: string; te
     `insert into community_notifications (tenant_id, community_id, recipient_id, kind, target_type, target_id, post_id, actor_id, actor_count, detail, read_at, created_at, updated_at)
      values ($1, $2, $3, $4, $5, gen_random_uuid()::text, $6, $7, $8, $9, $10, now() - make_interval(days => $11), now() - make_interval(days => $11)) returning id`,
     [over.tenant ?? a, over.community ?? club, user, kind, targets[kind], over.post ?? null, over.actor ?? null, over.count ?? 1, JSON.stringify(over.detail ?? {}), over.read ? new Date() : null, over.ageDays ?? 0])).rows[0].id as string;
-const enqueue = async () => (await f.db.execute<{ v: number }>(sql`select public.community_email_enqueue(200) as v`)).rows[0].v;
-const claim = async (limit = 50) => (await f.db.execute<{ v: { jobs: Job[] } }>(sql`select public.community_email_claim(${limit}) as v`)).rows[0].v.jobs;
-const complete = async (id: string, status: string, error: string | null = null) => (await f.db.execute<{ v: boolean }>(sql`select public.community_email_complete(${id}::uuid, ${status}, ${error}) as v`)).rows[0].v;
+const enqueue = async () => (await f.workerPool.query<{ v: number }>("select public.community_email_enqueue(200) as v")).rows[0].v;
+const claim = async (limit = 50) => (await f.workerPool.query<{ v: { jobs: Job[] } }>("select public.community_email_claim($1) as v", [limit])).rows[0].v.jobs;
+const complete = async (id: string, status: string, error: string | null = null) => (await f.workerPool.query<{ v: boolean }>("select public.community_email_complete($1::uuid, $2, $3) as v", [id, status, error])).rows[0].v;
 const deliveries = async () => (await f.admin.query("select * from community_email_deliveries order by created_at, id")).rows;
 const setMember = (user: string, set: string, community = club) => f.admin.query(`update community_memberships set ${set} where user_id = $1 and community_id = $2`, [user, community]);
 const prefs = (user: string, frequency: string, slug = "em-club") => withUser(f.db, user, async (tx) => (await tx.execute<{ v: { outcome: string } }>(sql`select public.community_email_prefs_save(${slug}, ${frequency}) as v`)).rows[0].v.outcome);
 
 beforeAll(async () => {
   f = await testDatabase();
-  wide = new Pool({ connectionString: f.appURL, max: 4 });
+  wide = new Pool({ connectionString: f.workerURL, max: 4 });
   await f.db.insert(users).values(people.map((id) => ({ id, name: `Name ${id}`, email: `${id}@example.test`, emailVerified: true })));
   a = (await createWorkspace(f.db, "e-owner", "Grace Church", "church")).tenantId;
   b = (await createWorkspace(f.db, "e-b-owner", "Other", "creator")).tenantId;

@@ -17,7 +17,7 @@ import { verifyUnsubscribe } from "../../src/lib/community-email-token";
 let f: Awaited<ReturnType<typeof testDatabase>>, a: string, club: string, dir: string, mailbox: string;
 const secret = "test-secret-that-is-long-enough", origin = "http://127.0.0.1:3100";
 const people = ["w-owner", "w-one", "w-two", "w-applicant", "w-outsider"];
-const run = () => runCommunityEmail(f.pool, testMailboxSender(mailbox), { origin, secret });
+const run = () => runCommunityEmail(f.workerPool, testMailboxSender(mailbox), { origin, secret });
 const mails = async () => (await readFile(mailbox, "utf8").catch(() => "")).trim().split("\n").filter(Boolean).map((l) => JSON.parse(l) as CommunityMail);
 const notify = (user: string, kind: string, target: string, detail: object = {}, ageDays = 0) => f.admin.query(
   `insert into community_notifications (tenant_id, community_id, recipient_id, kind, target_type, target_id, detail, created_at, updated_at)
@@ -82,7 +82,7 @@ it("records a failed send with a short code, leaks no address, and does not retr
   await notify("w-one", "warning", "warning");
   const spy = vi.spyOn(console, "error").mockImplementation(() => {});
   const failing = async () => { throw new Error("provider said no to w-one@example.test"); };
-  expect(await runCommunityEmail(f.pool, failing, { origin, secret })).toEqual({ queued: 1, sent: 0, failed: 1 });
+  expect(await runCommunityEmail(f.workerPool, failing, { origin, secret })).toEqual({ queued: 1, sent: 0, failed: 1 });
   const [row] = (await f.admin.query("select status, last_error, attempts, locked_until > now() as waiting from community_email_deliveries")).rows;
   expect(row).toEqual({ status: "failed", last_error: "send_failed", attempts: 1, waiting: true });
   expect(JSON.stringify(spy.mock.calls)).not.toContain("example.test");
@@ -102,7 +102,7 @@ it("lets only an active member set a valid frequency", async () => {
 });
 
 it("lets only one worker run at a time", async () => {
-  const wide = new Pool({ connectionString: f.appURL, max: 3 });
+  const wide = new Pool({ connectionString: f.workerURL, max: 3 });
   const [first, second] = [await wide.connect(), await wide.connect()];
   try {
     let release!: () => void;

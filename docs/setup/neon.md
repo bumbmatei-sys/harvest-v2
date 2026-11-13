@@ -14,6 +14,7 @@ Provisioned on 2026-11-04 under Matei's explicit authorization. No other Neon pr
 | Database | `harvest` in each branch |
 | Migration owner | `harvest_owner` |
 | Application role | `harvest_app`, created using SQL, without ownership, memberships or BYPASSRLS |
+| Worker role | `harvest_worker` (migration 0044), created using SQL like `harvest_app`; EXECUTE on six worker functions only, no table access; not yet provisioned in any branch. See [worker-role.md](worker-role.md) |
 
 Identifiers are also in [neon-project.json](neon-project.json). Connection strings and the dev auth secret are stored only in ignored `.env.local` with mode 0600. Neither staging nor prod credentials were saved locally. Staging and prod have not been migrated or deployed in this task.
 
