@@ -288,6 +288,13 @@
       "when": 1794487666029,
       "tag": "0040_community_moderation_b",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1794491753621,
+      "tag": "0041_community_notifications",
+      "breakpoints": true
     }
   ]
 }

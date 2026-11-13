@@ -23,13 +23,13 @@ export type ComposerInitial = { id: string; categoryId: string; title: string; b
   commentsOff: boolean; likesOff: boolean };
 
 /** Eden-style "New post" window: title, cover, video link, attachments, rich text, and the comments/likes switches. */
-export function PostComposer({ slug, categories, defaultCategory, initial, canModerate }: { slug: string; categories: ComposerCategory[]; defaultCategory?: string;
-  initial?: ComposerInitial; canModerate: boolean }) {
+export function PostComposer({ slug, categories, defaultCategory, initial, canModerate, defaultOpen = false }: { slug: string; categories: ComposerCategory[]; defaultCategory?: string;
+  initial?: ComposerInitial; canModerate: boolean; defaultOpen?: boolean }) {
   const t = useTranslations("CommunityForum"), request = useCrmRequest(), router = useRouter();
   const usable = categories.filter((c) => canModerate || !c.hostsOnly);
   const fresh = () => ({ categoryId: initial?.categoryId ?? (usable.find((c) => c.id === defaultCategory) ?? usable[0])?.id ?? "", title: initial?.title ?? "", body: initial?.body ?? null,
     videoUrl: initial?.videoUrl ?? "", cover: initial?.cover ?? null, attachments: initial?.attachments ?? [], commentsOff: initial?.commentsOff ?? false, likesOff: initial?.likesOff ?? false });
-  const [open, setOpen] = useState(false), [form, setForm] = useState(fresh), [busy, setBusy] = useState(false), [uploading, setUploading] = useState(false), [error, setError] = useState("");
+  const [open, setOpen] = useState(defaultOpen), [form, setForm] = useState(fresh), [busy, setBusy] = useState(false), [uploading, setUploading] = useState(false), [error, setError] = useState("");
   const coverInput = useRef<HTMLInputElement>(null), fileInput = useRef<HTMLInputElement>(null);
   const set = <K extends keyof ReturnType<typeof fresh>>(key: K, value: ReturnType<typeof fresh>[K]) => setForm((f) => ({ ...f, [key]: value }));
   const videoValid = !form.videoUrl.trim() || videoEmbed(form.videoUrl.trim()) !== null;

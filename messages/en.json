@@ -2382,7 +2382,11 @@
     "forumCategories": "Forum categories",
     "chatChannels": "Chat channels",
     "moderationTitle": "Moderation",
-    "holdFirstPosts": "Approve new members' first post"
+    "holdFirstPosts": "Approve new members' first post",
+    "welcomeTitle": "Welcome card",
+    "welcomeMessage": "Welcome message",
+    "introCategory": "Introductions category",
+    "noIntroCategory": "None"
   },
   "CommunityPage": {
     "rules": "Community rules",
@@ -2819,5 +2823,51 @@
       "approved": "Approved",
       "declined": "Declined"
     }
+  },
+  "CommunityNotifications": {
+    "bell": "Notifications",
+    "bellUnread": "{count, plural, one {Notifications, # unread} other {Notifications, # unread}}",
+    "many": "99+",
+    "title": "Notifications",
+    "markAllRead": "Mark all read",
+    "settings": "Notification settings",
+    "loading": "Loading",
+    "empty": "You are all caught up.",
+    "unread": "Unread",
+    "someone": "Someone",
+    "settingsTitle": "Notification settings",
+    "save": "Save",
+    "prefs": {
+      "replies": "Replies",
+      "likes": "Likes",
+      "announcements": "Announcements",
+      "muted": "Mute this community"
+    },
+    "summary": {
+      "reply": "{name} replied to your post",
+      "threadReply": "{name} replied in a thread you joined",
+      "like": "{name} liked your post",
+      "likeMany": "{name} and {others, plural, one {# other} other {# others}} liked your post",
+      "likeReply": "{name} liked your reply",
+      "likeReplyMany": "{name} and {others, plural, one {# other} other {# others}} liked your reply",
+      "applicationApproved": "Your application was approved",
+      "applicationDeclined": "Your application was declined",
+      "applicationInfo": "The hosts asked for more information",
+      "warning": "You received a warning from the hosts",
+      "heldApproved": "Your held post or reply was approved",
+      "heldRejected": "Your held post or reply was not approved",
+      "appealApproved": "Your appeal was approved",
+      "appealDeclined": "Your appeal was declined",
+      "hostQueue": "An item needs review",
+      "hostQueueMany": "{count} items need review",
+      "announcement": "{name} posted an announcement"
+    }
+  },
+  "WelcomeCard": {
+    "title": "Welcome",
+    "dismiss": "Dismiss welcome",
+    "rules": "Read the rules",
+    "introduce": "Introduce yourself",
+    "notifications": "Choose notifications"
   }
 }

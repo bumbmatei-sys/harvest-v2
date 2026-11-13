@@ -39,6 +39,8 @@ it("returns 404 from every Communities route in production unless activated", as
   const held = await import(`${forum}/moderation/held/route`), members = await import(`${forum}/moderation/members/route`), history = await import(`${forum}/moderation/history/route`);
   const warnings = await import(`${forum}/moderation/warnings/route`), warningAck = await import(`${forum}/warnings/[warningId]/route`);
   const appeals = await import(`${forum}/moderation/appeals/route`), revisions = await import(`${forum}/moderation/revisions/route`), myAppeal = await import("../../src/app/api/account/community-appeals/route");
+  const bell = await import(`${forum}/notifications/route`), bellRead = await import(`${forum}/notifications/read/route`);
+  const bellPrefs = await import(`${forum}/notifications/preferences/route`), welcome = await import(`${forum}/notifications/welcome/dismiss/route`);
   const calls = [list.GET(request("GET"), context), list.POST(request("POST"), context), one.GET(request("GET"), context), one.PATCH(request("PATCH"), context), publish.POST(request("POST"), context),
     join.POST(request("POST"), context), discover.GET(request("GET")), invites.GET(request("GET"), context), invites.POST(request("POST"), context), invite.DELETE(request("DELETE"), context),
     applications.GET(request("GET"), context), application.PATCH(request("PATCH"), context), mine.PATCH(request("PATCH"), context),
@@ -49,7 +51,8 @@ it("returns 404 from every Communities route in production unless activated", as
     reports.POST(request("POST"), context), queue.GET(request("GET"), context), decide.POST(request("POST"), context), held.GET(request("GET"), context), held.POST(request("POST"), context),
     members.GET(request("GET"), context), members.POST(request("POST"), context), history.GET(request("GET"), context),
     warnings.POST(request("POST"), context), warningAck.POST(request("POST"), context), appeals.GET(request("GET"), context), appeals.POST(request("POST"), context),
-    revisions.GET(request("GET"), context), myAppeal.POST(request("POST"), context)];
+    revisions.GET(request("GET"), context), myAppeal.POST(request("POST"), context),
+    bell.GET(request("GET"), context), bellRead.POST(request("POST"), context), bellPrefs.PUT(request("PUT"), context), welcome.POST(request("POST"), context)];
   for (const response of await Promise.all(calls)) expect(response.status).toBe(404);
   expect(touched).not.toHaveBeenCalled();
 });

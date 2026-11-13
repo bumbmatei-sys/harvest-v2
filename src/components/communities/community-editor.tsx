@@ -22,6 +22,7 @@ import { ForumCategoriesEditor, type ForumCategory } from "@/components/communit
 import { CommunityInvites, type CommunityInvite } from "@/components/communities/community-invites";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { QuestionFields } from "@/components/forms/question-fields";
 import { QuestionListEditor } from "@/components/forms/question-list-editor";
@@ -34,10 +35,10 @@ import { comingSoonSteps, communityEditorSteps, publishChecklist, type Community
 
 export type EditableCommunity = { id: string; slug: string; name: string; tagline: string | null; status: "draft" | "published" | "archived";
   visibility: "listed" | "unlisted" | "hidden"; allowOpen: boolean; allowApply: boolean; allowInvite: boolean; allowEntitlement: boolean; version: number;
-  description: string | null; rulesList: string[]; joinQuestions: Question[]; discoverOptIn: boolean; holdFirstPosts: boolean; bannedWords: string[] };
+  description: string | null; rulesList: string[]; joinQuestions: Question[]; discoverOptIn: boolean; holdFirstPosts: boolean; bannedWords: string[]; welcomeMessage: string | null; introCategoryId: string | null };
 export type CommunityMember = { userId: string; name: string; role: string; status: string };
-type Fields = Pick<EditableCommunity, "name" | "tagline" | "visibility" | "allowOpen" | "allowApply" | "allowInvite" | "allowEntitlement" | "description" | "rulesList" | "joinQuestions" | "discoverOptIn" | "holdFirstPosts" | "bannedWords">;
-const optionalText = ["tagline", "description"] as const;
+type Fields = Pick<EditableCommunity, "name" | "tagline" | "visibility" | "allowOpen" | "allowApply" | "allowInvite" | "allowEntitlement" | "description" | "rulesList" | "joinQuestions" | "discoverOptIn" | "holdFirstPosts" | "bannedWords" | "welcomeMessage" | "introCategoryId">;
+const optionalText = ["tagline", "description", "welcomeMessage"] as const;
 const equal = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 // What is sent: trimmed rules and questions, with blank rules and blank options dropped.
 const cleanRules = (rules: string[]) => rules.map((r) => r.trim()).filter(Boolean);
@@ -45,7 +46,7 @@ const cleanQuestions = (questions: Question[]) => questions.map((q) => ({ ...q, 
 const admissionKeys = ["allowOpen", "allowApply", "allowInvite", "allowEntitlement"] as const;
 const fieldsOf = (c: EditableCommunity): Fields => ({ name: c.name, tagline: c.tagline, visibility: c.visibility, allowOpen: c.allowOpen, allowApply: c.allowApply,
   allowInvite: c.allowInvite, allowEntitlement: c.allowEntitlement, description: c.description, rulesList: c.rulesList, joinQuestions: c.joinQuestions, discoverOptIn: c.discoverOptIn,
-  holdFirstPosts: c.holdFirstPosts, bannedWords: c.bannedWords });
+  holdFirstPosts: c.holdFirstPosts, bannedWords: c.bannedWords, welcomeMessage: c.welcomeMessage, introCategoryId: c.introCategoryId });
 const same = (a: Fields, b: Fields) => (Object.keys(a) as (keyof Fields)[]).every((key) => equal(a[key], b[key]));
 
 export function CommunityEditor({ initial, members, invites, applications, categories, endpoint, listHref, host, writable }: { initial: EditableCommunity; members: CommunityMember[]; invites: CommunityInvite[];
@@ -145,6 +146,16 @@ export function CommunityEditor({ initial, members, invites, applications, categ
           <Label htmlFor="community-hold-first" className="flex min-h-11 items-center justify-between gap-3 font-normal">{t("holdFirstPosts")}
             <Switch id="community-hold-first" checked={fields.holdFirstPosts} disabled={!writable} onCheckedChange={(on) => set("holdFirstPosts", on)} /></Label>
           <BannedWordsEditor words={fields.bannedWords} onChange={(next) => set("bannedWords", next)} disabled={!writable} />
+        </CardContent></Card>}
+      {step === "people" && <Card><CardHeader><CardTitle><h3 className="text-base font-semibold">{t("welcomeTitle")}</h3></CardTitle></CardHeader>
+        <CardContent className="space-y-4">
+          <Field><FieldLabel htmlFor="community-welcome">{t("welcomeMessage")}</FieldLabel>
+            <Textarea id="community-welcome" rows={3} value={fields.welcomeMessage ?? ""} maxLength={1000} disabled={!writable} onChange={(e) => set("welcomeMessage", e.target.value)} /></Field>
+          <Field><FieldLabel htmlFor="community-intro-category">{t("introCategory")}</FieldLabel>
+            <Select value={fields.introCategoryId ?? "none"} disabled={!writable} onValueChange={(value) => set("introCategoryId", value === "none" ? null : value)}>
+              <SelectTrigger id="community-intro-category" className="min-h-11 w-full sm:w-72"><SelectValue /></SelectTrigger>
+              <SelectContent><SelectItem value="none">{t("noIntroCategory")}</SelectItem>{categories.map((c) => <SelectItem key={c.id} value={c.id}>{c.emoji ? `${c.emoji} ` : ""}{c.name}</SelectItem>)}</SelectContent>
+            </Select></Field>
         </CardContent></Card>}
       {step === "people" && !writable && <p className="text-sm text-muted-foreground">{t("membersManagersOnly")}</p>}
       {step === "people" && writable && <div className="space-y-4">
