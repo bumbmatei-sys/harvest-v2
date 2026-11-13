@@ -1,7 +1,7 @@
-import { message, type MessageKey } from "@/i18n/messages";
-import type { Locale } from "@/i18n/locale";
-import { notificationHref, summaryKey, type NotificationKind } from "@/lib/notifications";
-import { signUnsubscribe } from "@/lib/community-email-token";
+import { message, type MessageKey } from "../i18n/messages";
+import type { Locale } from "../i18n/locale";
+import { notificationHref, summaryKey, type NotificationKind } from "./notifications";
+import { signUnsubscribe } from "./community-email-token";
 
 // C15b: plain-text community email. Pure: the worker passes in what the database returned and gets text back.
 // Member-written text is limited to a post title, trimmed and stripped of control characters.

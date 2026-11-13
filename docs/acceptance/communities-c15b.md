@@ -1,0 +1,46 @@
+# Communities C15b: notification email, digests and unsubscribe (backend only)
+
+Design: `docs/superpowers/specs/2026-11-13-communities-c15b-email-design.md`. Plan: `docs/superpowers/plans/2026-11-13-communities-c15b-email.md`. Migration `0042_community_email`. Builds on C15a (#67, migration 0041). **No screen, component or template changed.**
+
+## Delivered
+
+- **Pure pieces** (unit-tested):
+  - `src/lib/community-email.ts`: plain-text rendering for an instant email or a digest. It reuses the bell's summary keys and links (`src/lib/notifications.ts`), so the wording stays in one place. Member-written text is limited to a post title, trimmed to 80 characters with control and direction-override characters removed.
+  - `src/lib/community-email-token.ts`: signed one-click unsubscribe tokens (HMAC-SHA256 with a key derived from the server secret for this purpose, constant-time comparison, 180-day expiry).
+- **Migration 0042:**
+  - `community_memberships` gains `email_frequency` (`off`, `important` by default, `daily`, `weekly`) and `email_digest_cursor`.
+  - New table `community_email_deliveries` (FORCE RLS, no application grants): one row per email with an idempotency key, status (`queued`, `sending`, `sent`, `failed`, `skipped`), attempts, lock and a short error code. It holds no address and no message text.
+  - Definers: `community_email_enqueue`, `community_email_claim`, `community_email_complete` (worker); `community_email_prefs_save` (member); `community_email_unsubscribe` (token holder). `community_purge_notifications` now also removes deliveries older than 90 days; `community_definer_reset` clears the worker setting.
+  - Owner policies are named `community_definer_email_*` and keyed on settings only the definers set and clear.
+- **Worker** (`src/server/community-email.ts`, `scripts/send-community-email.ts`, `npm run communities:send-email`): queues what is due, claims batches, renders, sends through a `CommunityMailSender` and records the result. It prints counts only.
+- **Senders** (`src/server/community-email-sender.ts`): a local test mailbox (JSON lines, mode 0600) and a live sender hard-disabled by `COMMUNITY_EMAIL_LIVE_DELIVERY = false`.
+- **Routes** (behind the flag): `PUT /api/communities/:slug/notifications/email` with `{ frequency }`, and `POST /api/communities/unsubscribe` (token in the query or a JSON body, no sign-in, always the same answer).
+
+## Behaviour (founder decision, 13 Nov: important instant, digest opt-in)
+
+- **Instant:** application decisions, warnings, held-post decisions and appeal decisions, to the person they are about. Nothing else is emailed instantly.
+- **Digest:** replies, thread replies, likes and host alerts, only for members who chose `daily` or `weekly`. The window starts when they opt in. An empty window sends nothing and still moves the cursor.
+- **Mute** stops warnings and held decisions and digests, but not appeal decisions (C15a decision). A banned appellant still gets the appeal decision. An applicant without a membership gets the application decision as a one-time message with no unsubscribe link.
+- **Off** stops everything, including emails already queued (checked again at claim time). An instant event the member already read in the app is skipped.
+- **Retries:** a failed send backs off 10 minutes per attempt and stops after 5. A crashed worker's lock expires after 5 minutes. Idempotency keys are passed to the sender.
+
+## Evidence (local)
+
+- `npx tsc --noEmit`, lint and source guards on the changed files: clean.
+- Unit: 43 files, 433 tests (renderer, token).
+- Integration: `community-email-db` (13 tests: routing per kind, off, mute, banned appeal, applicant, digest window and cursor, retry and lock, two concurrent workers, ministry isolation, preferences and unsubscribe, no address in the log, purge) and `community-email` (5 tests: end to end into a temporary mailbox, no double send, unsubscribe by token, failure code with no address leak, preferences validation, live sender refusing).
+- Restricted-owner suite as the non-superuser `tester`: `community-joining-definer-owner` with the new definers and table, plus a new flow test, 7 tests passed.
+
+## Decisions and limits
+
+- **The worker functions are granted to the application role**, like the existing purge and the Connect dispatcher. There is no separate worker role, so code running as the application role can ask the claim function for recipients' addresses. Before activation, consider a dedicated worker role.
+- The unsubscribe link in the email points at `/communities/unsubscribe#token=...`, a confirmation page that is **not built yet** (UI kit). The one-click POST works now. The frequency control in the notification settings sheet is also not built; the API accepts it.
+- Plain text only. No HTML, no @mentions, no per-kind choices.
+- A reply notification that is already queued as part of a digest is not removed if the post is later held or removed; the digest shows no title for it.
+
+## Activation gates
+
+- Choose and review an email provider, then replace the constant in `src/server/community-email-sender.ts` in a separate change.
+- Schedule `npm run communities:send-email` every few minutes and `communities:purge-notifications` daily. The worker refuses to run outside test mode today.
+- Build the unsubscribe page and the frequency control.
+- Production migration 0042 after 0041; not applied.

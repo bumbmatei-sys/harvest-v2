@@ -215,7 +215,7 @@ it("queues, claims, completes, saves preferences, unsubscribes and purges notifi
     "insert into community_notifications (tenant_id, community_id, recipient_id, kind, target_type, target_id) values ($1, $2, $3, $4, $5, gen_random_uuid()::text)", [tenant, open, user, kind, target]);
   await notify("o-joiner", "warning", "warning"); await notify("o-joiner", "reply", "comment");
   expect(await app<number>(sql`select public.community_email_enqueue(50) as v`)).toBe(1);
-  const [job] = await app<Job[]>(sql`select public.community_email_claim(10) as v`);
+  const [job] = (await app<{ jobs: Job[] }>(sql`select public.community_email_claim(10) as v`)).jobs;
   expect(job).toMatchObject({ kind: "instant", to: "o-joiner@example.test", recipientId: "o-joiner", communitySlug: "owner-open", hasMembership: true });
   expect(job.items.map((i) => i.kind)).toEqual(["warning"]);
   expect(await app<boolean>(sql`select public.community_email_complete(${job.id}::uuid, 'sent', null) as v`)).toBe(true);

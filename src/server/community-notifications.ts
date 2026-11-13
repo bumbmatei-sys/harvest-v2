@@ -54,6 +54,13 @@ export async function savePreferences(db: Database, userId: string, slug: string
   return forumDefiner(db, userId, sql`select public.community_notification_prefs_save(${communitySlug.parse(slug)}, ${input.replies}, ${input.likes}, ${input.announcements}, ${input.muted}) as v`);
 }
 
+const emailInput = z.object({ frequency: z.enum(["off", "important", "daily", "weekly"]) }).strict();
+/** The caller's own email frequency for this community (off, important only, daily digest or weekly digest). */
+export async function saveEmailFrequency(db: Database, userId: string, slug: string, raw: unknown) {
+  const { frequency } = emailInput.parse(raw);
+  return forumDefiner(db, userId, sql`select public.community_email_prefs_save(${communitySlug.parse(slug)}, ${frequency}) as v`);
+}
+
 export function dismissWelcome(db: Database, userId: string, slug: string) {
   return forumDefiner(db, userId, sql`select public.community_welcome_dismiss(${communitySlug.parse(slug)}) as v`);
 }

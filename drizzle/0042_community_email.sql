@@ -105,12 +105,12 @@ BEGIN
   PERFORM public.community_definer_reset();
   RETURN queued;
 END $$;--> statement-breakpoint
--- Hands the worker a batch to send. This is the only place an address leaves the database. A row is taken when queued, when a
+-- Hands the worker a batch to send ({jobs, picked}; picked counts rows taken, including ones skipped). This is the only place an address leaves the database. A row is taken when queued, when a
 -- failed attempt's back-off has passed (fewer than 5 attempts), or when a crashed worker's lock expired. Anything that no longer
 -- applies (email turned off, instant event already read, digest emptied by reading) is marked skipped instead of sent.
 CREATE FUNCTION public.community_email_claim(p_limit integer) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-DECLARE r record; jobs jsonb := '[]'::jsonb; v_limit integer := least(greatest(coalesce(p_limit, 25), 1), 100);
+DECLARE r record; jobs jsonb := '[]'::jsonb; picked integer := 0; v_limit integer := least(greatest(coalesce(p_limit, 25), 1), 100);
   v_user record; v_comm record; v_member record; v_items jsonb; v_total integer;
 BEGIN
   PERFORM set_config('app.community_email_worker', 'on', true);
@@ -127,6 +127,7 @@ BEGIN
         FROM picked WHERE d.id = picked.id RETURNING d.*)
     SELECT * FROM taken ORDER BY created_at
   LOOP
+    picked := picked + 1;
     PERFORM set_config('app.community_definer_tenant', r.tenant_id::text, true);
     SELECT u.email, u.name INTO v_user FROM public.users u WHERE u.id = r.recipient_id;
     SELECT c.name, c.slug INTO v_comm FROM public.communities c WHERE c.tenant_id = r.tenant_id AND c.id = r.community_id;
@@ -162,7 +163,7 @@ BEGIN
       'attempt', r.attempts, 'idempotencyKey', r.idempotency_key));
   END LOOP;
   PERFORM public.community_definer_reset();
-  RETURN jobs;
+  RETURN jsonb_build_object('jobs', jobs, 'picked', picked);
 END $$;--> statement-breakpoint
 -- Records the result of one send. Only a row this worker holds (sending) can change; a failure backs off by 10 minutes per attempt.
 CREATE FUNCTION public.community_email_complete(p_id uuid, p_status text, p_error text) RETURNS boolean
