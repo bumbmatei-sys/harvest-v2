@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { Transaction } from "../db/client";
+import { associationConsentPurposes } from "../lib/consent-purposes";
 import { consentPurposes } from "../lib/contact-input";
 import { stageKinds } from "../lib/crm-deals";
 import { appendOutboxEvent } from "./jobs/outbox";
@@ -72,7 +73,7 @@ export const crmEventContracts = {
   "crm.merge.completed": { version: 1, data: z.object({ ...actor, contactId: contactRef, moved: z.record(z.string().max(40), z.union([z.number().int(), z.boolean()])) }).strict() },
   // Recorded activities (CRM-07 payload, unchanged): categories only, content stays in the table
   "crm.association.recorded": { version: 1, data: z.object({ ...actor, associationId: z.uuid(), contactId: contactRef, companyId: optionalId,
-    source: z.string().min(1).max(40), kind: z.string().min(1).max(40), purpose: z.string().min(1).max(40), occurredAt: z.iso.datetime({ offset: true }),
+    source: z.string().min(1).max(40), kind: z.string().min(1).max(40), purpose: z.enum(associationConsentPurposes), occurredAt: z.iso.datetime({ offset: true }),
     summary: redacted, payload: z.object({ redacted: z.literal(true) }).strict() }).strict() },
 } as const satisfies Record<string, { version: number; data: z.ZodType<Record<string, unknown>> }>;
 

@@ -3,6 +3,7 @@ import type { BrandTheme } from "../lib/theme-registry";
 import type { Audience } from "../lib/audience";
 import type { campaignStructures, campaignTypes } from "../lib/campaigns";
 import type { ConnectPurpose, formVersionStatuses, responseConsentActors, responseConsentStatuses, responseContactKinds, responseLinkStatuses, responseStatuses } from "../lib/connect-data";
+import { associationConsentPurposes } from "../lib/consent-purposes";
 import { sql } from "drizzle-orm";
 import { pgTable, type AnyPgColumn, text, timestamp, boolean, integer, bigint, uuid, primaryKey, uniqueIndex, unique, index, foreignKey, check, jsonb, doublePrecision, date, numeric } from "drizzle-orm/pg-core";
 
@@ -482,7 +483,7 @@ export const files = pgTable("files", {
 // notes. A row exists only while the person's consent for its purpose allowed it (ADR 0013).
 export const associationSources = ["zernio", "form", "touchpoint"] as const;
 export const associationKinds = ["message", "comment", "mention", "form_submission", "signup", "call", "meeting", "visit", "other"] as const;
-export const associationPurposes = ["messaging", "form_follow_up", "newsletter"] as const;
+export const associationPurposes = associationConsentPurposes;
 export const crmAssociations = pgTable("crm_associations", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
   contactId: uuid("contact_id").notNull(), companyId: uuid("company_id"),

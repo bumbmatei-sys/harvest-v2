@@ -1,5 +1,6 @@
 import { message } from "../i18n/messages";
 import { z } from "zod";
+import { staffConsentPurposes } from "./consent-purposes";
 export const uuidInput = z.uuid();
 /** E.164-style: separators removed, no country guessed. */
 export const phoneField = z.string().trim().max(40).transform((value) => value.replace(/[\s().-]/g, "")).refine((value) => !value || /^\+[1-9][0-9]{6,14}$/.test(value), message("Errors.useAnInternationalPhoneNumberStartingWith"));
@@ -10,7 +11,8 @@ export const contactInput = z.object({
   phone: z.string().default("").pipe(phoneField), social: z.string().default("").pipe(socialField),
 }).strict();
 export type ContactInput = z.input<typeof contactInput>;
-export const consentPurposes = ["marketing", "outreach_follow_up", "event_administration", "account_communications", "messaging", "form_follow_up", "newsletter"] as const;
+// HC-DEC1: derived from the one purpose registry (legacy_unspecified is history only and can never be recorded).
+export const consentPurposes = staffConsentPurposes;
 export const consentNoticeVersions = ["notice-v1"] as const;
 export const erasureInput = z.object({ confirm: z.literal("erase") }).strict();
 export const consentInput = z.object({
