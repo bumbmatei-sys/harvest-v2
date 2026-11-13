@@ -309,6 +309,13 @@
       "when": 1794566326887,
       "tag": "0043_connect_retention",
       "breakpoints": true
+    },
+    {
+      "idx": 44,
+      "version": "7",
+      "when": 1794600000000,
+      "tag": "0044_worker_db_role",
+      "breakpoints": true
     }
   ]
 }

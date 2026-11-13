@@ -208,17 +208,18 @@ it("notifies, lists, marks read, saves preferences, dismisses the welcome card a
 it("queues, claims, completes, saves preferences, unsubscribes and purges notification email with a non-bypass definer owner", async () => {
   const run = async <T,>(user: string, statement: ReturnType<typeof sql>) => withUser(fixture.db, user, async (tx) => (await tx.execute<{ v: T }>(statement)).rows[0].v);
   const app = async <T,>(statement: ReturnType<typeof sql>) => (await fixture.db.execute<{ v: T }>(statement)).rows[0].v;
+  const worker = async <T,>(text: string, values: unknown[] = []) => (await fixture.workerPool.query<{ v: T }>(text, values)).rows[0].v;
   type Job = { id: string; kind: string; to: string; recipientId: string; communitySlug: string; hasMembership: boolean; items: { kind: string }[] };
   await fixture.admin.query("delete from community_email_deliveries; delete from community_notifications;");
   await fixture.admin.query("update community_memberships set email_frequency = 'important', email_digest_cursor = null");
   const notify = (user: string, kind: string, target: string) => fixture.admin.query(
     "insert into community_notifications (tenant_id, community_id, recipient_id, kind, target_type, target_id) values ($1, $2, $3, $4, $5, gen_random_uuid()::text)", [tenant, open, user, kind, target]);
   await notify("o-joiner", "warning", "warning"); await notify("o-joiner", "reply", "comment");
-  expect(await app<number>(sql`select public.community_email_enqueue(50) as v`)).toBe(1);
-  const [job] = (await app<{ jobs: Job[] }>(sql`select public.community_email_claim(10) as v`)).jobs;
+  expect(await worker<number>("select public.community_email_enqueue(50) as v")).toBe(1);
+  const [job] = (await worker<{ jobs: Job[] }>("select public.community_email_claim(10) as v")).jobs;
   expect(job).toMatchObject({ kind: "instant", to: "o-joiner@example.test", recipientId: "o-joiner", communitySlug: "owner-open", hasMembership: true });
   expect(job.items.map((i) => i.kind)).toEqual(["warning"]);
-  expect(await app<boolean>(sql`select public.community_email_complete(${job.id}::uuid, 'sent', null) as v`)).toBe(true);
+  expect(await worker<boolean>("select public.community_email_complete($1::uuid, 'sent', null) as v", [job.id])).toBe(true);
   expect((await run<{ outcome: string }>("o-joiner", sql`select public.community_email_prefs_save('owner-open', 'daily') as v`)).outcome).toBe("ok");
   expect(await app<boolean>(sql`select public.community_email_unsubscribe(${tenant}::uuid, ${open}::uuid, 'o-joiner') as v`)).toBe(true);
   expect((await fixture.admin.query("select email_frequency from community_memberships where user_id = 'o-joiner' and community_id = $1", [open])).rows[0].email_frequency).toBe("off");

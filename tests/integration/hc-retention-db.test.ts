@@ -48,13 +48,13 @@ async function seed(w: Where, name = "Synthetic Guest") {
 }
 const expire = (id: string) => f.admin.query("update campaign_responses set expires_at = now() - interval '1 hour' where id = $1", [id]);
 const ageTombstone = (id: string, days: number) => f.admin.query("update campaign_responses set erased_at = date_trunc('day', now() - make_interval(days => $2)) where id = $1", [id, days]);
-const sweep = async (limit = 200) => (await f.db.execute<{ v: { erased: number; deleted: number; failed: number } }>(sql`select public.connect_retention_sweep(${limit}) as v`)).rows[0].v;
-const health = async () => (await f.db.execute<{ v: { lastSuccessAt: string | null; lastStatus: string | null; overdue: boolean; failedSinceSuccess: boolean } }>(sql`select public.connect_retention_health() as v`)).rows[0].v;
+const sweep = async (limit = 200) => (await f.workerPool.query<{ v: { erased: number; deleted: number; failed: number } }>("select public.connect_retention_sweep($1) as v", [limit])).rows[0].v;
+const health = async () => (await f.workerPool.query<{ v: { lastSuccessAt: string | null; lastStatus: string | null; overdue: boolean; failedSinceSuccess: boolean } }>("select public.connect_retention_health() as v")).rows[0].v;
 const exists = async (id: string) => (await f.admin.query("select count(*)::int n from campaign_responses where id = $1", [id])).rows[0].n === 1;
 
 beforeAll(async () => {
   f = await testDatabase();
-  wide = new Pool({ connectionString: f.appURL, max: 4 });
+  wide = new Pool({ connectionString: f.workerURL, max: 4 });
   await f.db.insert(users).values(["r-a", "r-b"].map((id) => ({ id, name: id, email: `${id}@example.test` })));
   tenantA = (await createWorkspace(f.db, "r-a", "Retention A")).tenantId;
   tenantB = (await createWorkspace(f.db, "r-b", "Retention B")).tenantId;
@@ -217,9 +217,9 @@ describe("run log and health", () => {
     expect(await health()).toMatchObject({ lastSuccessAt: null, lastStatus: null, overdue: true, failedSinceSuccess: false });
     await sweep();
     expect(await health()).toMatchObject({ lastStatus: "ok", overdue: false, failedSinceSuccess: false });
-    await f.db.execute(sql`select public.connect_retention_record_failure('sweep_failed')`);
+    await f.workerPool.query("select public.connect_retention_record_failure('sweep_failed')");
     expect(await health()).toMatchObject({ lastStatus: "failed", overdue: false, failedSinceSuccess: true });
-    await f.db.execute(sql`select public.connect_retention_record_failure('has spaces and secrets@example.test')`);
+    await f.workerPool.query("select public.connect_retention_record_failure('has spaces and secrets@example.test')");
     expect((await f.admin.query("select error_code from connect_retention_runs where status = 'failed' order by finished_at desc limit 1")).rows[0].error_code).toBe("sweep_failed");
     await sweep();
     await f.admin.query("update connect_retention_runs set finished_at = now() - interval '27 hours'");

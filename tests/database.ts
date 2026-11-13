@@ -49,6 +49,8 @@ export async function testDatabase(options: { migrationOwner?: boolean; beforeHc
     adminURL = `postgresql://postgres:${password}@127.0.0.1:${port}/postgres`;
   }
   const root = observePool(new Pool({ connectionString: adminURL, max: 1 }));
+  // Roles are cluster-wide and provisioned outside the migrations; the worker role must exist before 0044 so its grants apply.
+  await root.query("DO $$ BEGIN IF NOT EXISTS(SELECT 1 FROM pg_roles WHERE rolname='harvest_worker') THEN CREATE ROLE harvest_worker NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS; END IF; EXCEPTION WHEN duplicate_object THEN NULL; END $$");
   const name = `harvest_test_${randomBytes(8).toString("hex")}`;
   const migrationOwner = options.migrationOwner ? `hc06b_owner_${randomBytes(8).toString("hex")}` : null;
   if (migrationOwner) {
@@ -84,8 +86,15 @@ export async function testDatabase(options: { migrationOwner?: boolean; beforeHc
   // max:1 guarantees physical backend reuse, rather than merely hoping a pool reuses it.
   const pool = observePool(new Pool({ connectionString: url.toString(), max: 1 }));
   const db = drizzle(pool, { schema });
-  return { db, pool, admin, migrationOwner, appURL: url.toString(), async close() {
-    await pool.end(); await admin.end();
+  const appURL = url.toString();
+  // The background-worker login: EXECUTE on the six worker functions only (0044), no table privileges.
+  const workerPassword = randomBytes(24).toString("hex");
+  await admin.query(`ALTER ROLE harvest_worker LOGIN PASSWORD ${escapeLiteral(workerPassword)}`);
+  url.username = "harvest_worker"; url.password = workerPassword;
+  const workerURL = url.toString();
+  const workerPool = observePool(new Pool({ connectionString: workerURL, max: 1 }));
+  return { db, pool, workerPool, admin, migrationOwner, appURL, workerURL, async close() {
+    await pool.end(); await workerPool.end(); await admin.end();
     await root.query(`DROP DATABASE ${name}`);
     if (migrationOwner) await root.query(`DROP ROLE ${migrationOwner}`);
     await root.end();

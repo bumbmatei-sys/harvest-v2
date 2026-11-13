@@ -17,7 +17,7 @@ const seed = async () => {
     values ($1, $2, $3, $4, $5, 'Synthetic Guest', 'en') returning id`, [tenant, campaign, link, version, randomUUID()]);
   await f.admin.query("update campaign_responses set expires_at = now() - interval '1 hour' where id = $1", [r.id]);
 };
-const pool = () => ({ query: async <R extends Record<string, unknown>>(text: string, values?: unknown[]) => f.pool.query<R>(text, values) });
+const pool = () => ({ query: async <R extends Record<string, unknown>>(text: string, values?: unknown[]) => f.workerPool.query<R>(text, values) });
 
 beforeAll(async () => {
   f = await testDatabase();
@@ -56,7 +56,7 @@ it("records a failed run outside the failed statement, and health shows it until
   expect(await retentionHealth(pool())).toMatchObject({ healthy: false, overdue: true });
   const failing = { query: async <R extends Record<string, unknown>>(text: string, values?: unknown[]) => {
     if (text.includes("connect_retention_sweep")) throw new Error("boom with secret@example.test");
-    return f.pool.query<R>(text, values);
+    return f.workerPool.query<R>(text, values);
   } };
   expect(await runRetentionJob(failing)).toEqual({ ok: false });
   expect(await retentionHealth(pool())).toMatchObject({ healthy: false, failedSinceSuccess: true, lastStatus: "failed" });
