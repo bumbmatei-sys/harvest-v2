@@ -699,7 +699,7 @@ export const formVersions = pgTable("form_versions", {
   check("form_version_status", sql`${t.status} in ('draft', 'published', 'retired')`),
   check("form_version_definition", sql`jsonb_typeof(${t.definition}) = 'object' and octet_length(${t.definition}::text) <= 65536`),
   check("form_version_purposes", sql`${t.offeredPurposes} <@ ARRAY['account_communications', 'outreach_follow_up', 'newsletter']::text[] and array_position(${t.offeredPurposes}, null) is null`),
-  check("form_version_retention", sql`${t.pendingRetentionDays} between 1 and 36500`),
+  check("form_version_retention", sql`${t.pendingRetentionDays} between 1 and 36500`), // the platform maximum (30) is enforced by a trigger, migration 0043
   check("form_version_publication", sql`(${t.status} = 'draft' and ${t.publishedAt} is null and ${t.publishedBy} is null and ${t.retiredAt} is null)
     or (${t.status} in ('published', 'retired') and ${t.noticeVersionId} is not null and ${t.pendingRetentionDays} is not null
       and cardinality(${t.offeredPurposes}) >= 1 and ${t.publishedAt} is not null and ${t.publishedBy} is not null
@@ -854,6 +854,21 @@ export const connectIntakeLimits = pgTable("connect_intake_limits", {
 }, t => [index("connect_intake_limits_expiry_idx").on(t.expiresAt), check("connect_intake_limit_count", sql`${t.count} > 0`)]);
 
 // Restricted, purpose-specific audit for guest/expiry operations. Never impersonates a users row.
+// HC retention (migration 0043): one row per sweep. Counts only: no ministry, no response, no person.
+export const connectRetentionRuns = pgTable("connect_retention_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }).notNull().defaultNow(),
+  status: text("status", { enum: ["ok", "failed"] as const }).notNull(),
+  responsesErased: integer("responses_erased").notNull().default(0),
+  tombstonesDeleted: integer("tombstones_deleted").notNull().default(0),
+  errorCode: text("error_code"),
+}, (t) => [
+  index("connect_retention_runs_finished_idx").on(t.finishedAt.desc()),
+  check("connect_retention_run_status", sql`${t.status} in ('ok', 'failed') and (${t.status} = 'failed') = (${t.errorCode} is not null)`),
+  check("connect_retention_run_error", sql`${t.errorCode} is null or ${t.errorCode} ~ '^[a-z_]{1,40}$'`),
+  check("connect_retention_run_counts", sql`${t.responsesErased} >= 0 and ${t.tombstonesDeleted} >= 0`)]);
+
 export const connectIntakeEvents = pgTable("connect_intake_events", {
   tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), responseId: uuid("response_id"),
   event: text("event").notNull(), actor: text("actor").notNull(), purpose: text("purpose"),

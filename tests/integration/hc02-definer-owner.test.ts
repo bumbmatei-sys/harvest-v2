@@ -52,6 +52,8 @@ beforeAll(async () => {
   await fixture.admin.query(`grant usage on schema public to ${role}`);
   await fixture.admin.query(`grant select, insert, update, delete on ${tables.join(", ")} to ${role}`);
   await fixture.admin.query(`grant execute on function public.connect_scrub_response(uuid,uuid) to ${role}`);
+  // 0043: the owner's retention scan policy and the delete branch of the guards call the policy function; the real owner owns it.
+  await fixture.admin.query(`grant execute on function public.connect_retention_policy() to ${role}`);
   // Mirror exactly the policies the migration created for its owner (the role running migrations).
   const { rows: [{ owner }] } = await fixture.admin.query("select current_user as owner");
   const { rows: policies } = await fixture.admin.query(`select tablename, policyname, cmd, qual, with_check from pg_policies
