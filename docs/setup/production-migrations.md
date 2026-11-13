@@ -37,6 +37,7 @@ A small, separately reviewed change is needed to run the migrator against stagin
    Compare with `drizzle/meta/_journal.json` on that commit (entries count and the last `when`). Write down which migrations will apply. If the schema `drizzle` does not exist, nothing has been applied and the run will create the whole schema.
 3. **Restore point.** In Neon, create a branch from the environment branch named `<env>-pre-migrate-<YYYYMMDD>` (instant copy-on-write). This is the rollback.
 4. **Check roles.** `harvest_app` exists with no superuser, BYPASSRLS, CREATEROLE, CREATEDB, INHERIT or memberships (0001 refuses otherwise); `harvest_owner` owns the existing public tables.
+   From 0044 on, also decide the worker role: create `harvest_worker` first (`docs/setup/worker-role.md`) so 0044 grants the six worker functions. Without it, 0044 still applies (and revokes them from `harvest_app`) but the workers cannot run until the role exists and the grant is run.
 5. **Apply** with the approved job (see "Missing piece"), as `harvest_owner`, from the approved `main` commit. Expect `Drizzle migrations applied successfully`.
 6. **Verify** (owner connection):
    ```sql

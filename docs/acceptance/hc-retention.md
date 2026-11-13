@@ -14,7 +14,7 @@ Design: `docs/superpowers/specs/2026-11-13-hc-retention-erasure-design.md`. Plan
   - Each row runs in its own subtransaction: a row that cannot be handled (a lock held elsewhere, an unexpected child row) is counted and skipped, so it never stalls retention for everyone else, and the run is recorded as `failed` with `row_failed` and the counts it achieved.
   - Writes one row to `connect_retention_runs` (status and counts only: no ministry, response or person) and prunes run rows after 90 days.
 - **Alerting:** `connect_retention_record_failure(code)` records a failed run in a fresh statement (a failed sweep rolls back its own log row); `connect_retention_health()` returns the last success, the last status, `overdue` (no success within the window) and `failedSinceSuccess`.
-- **Job:** `npm run connect:retention` loops the sweep until a batch finds nothing or reports failed rows (capped at 50 batches) and prints counts; failed rows make the job exit 1. `npm run connect:retention -- check` prints the health and exits 1 when overdue or failed. Both run as the application role.
+- **Job:** `npm run connect:retention` loops the sweep until a batch finds nothing or reports failed rows (capped at 50 batches) and prints counts; failed rows make the job exit 1. `npm run connect:retention -- check` prints the health and exits 1 when overdue or failed. Both run as the dedicated `harvest_worker` role through `WORKER_DATABASE_URL` (migration 0044, `docs/acceptance/worker-db-role.md`).
 - **Small groups:** `connect_suppress_small(n)` and `suppressSmall(n)` return nothing for counts of 1 to 4. **No aggregate report over responses or tombstones exists yet, so this has no consumer today; HC-15 must use it.**
 
 ## The guard change
@@ -32,12 +32,13 @@ Design: `docs/superpowers/specs/2026-11-13-hc-retention-erasure-design.md`. Plan
 ## Decisions and limits
 
 - The sweep is deliberately not limited to synthetic mode: it only deletes expired data and must keep working when real collection is eventually activated. The older `purge_connect_intake` (synthetic only) still handles intake-specific housekeeping and is unchanged.
-- The sweep functions are granted to the application role. They return counts only and only delete expired data, so the cross-ministry address exposure raised for the email worker (#72) does not apply. Code running as that role could still call `connect_retention_record_failure` and falsify the health signal; the dedicated worker role (C15b activation gate) should own these too.
+- The sweep functions were first granted to the application role. They return counts only and only delete expired data, so the cross-ministry address exposure raised for the email worker (#72) does not apply, but code running as that role could call `connect_retention_record_failure` and falsify the health signal. **Resolved in code by migration 0044:** the three functions are revoked from `harvest_app` and executable only by `harvest_worker`, which the script must use. The role must still be provisioned (`docs/setup/worker-role.md`).
 - Caps for verified records, the owner of the monitor, and the choice of the actual numbers are open until legal review.
 - A form version published before this change keeps a retention above 30 days.
 
 ## Activation gates
 
+- Provision the `harvest_worker` role and `WORKER_DATABASE_URL` for the scheduler, apply 0044 (`docs/setup/worker-role.md`); until then the retention functions are callable by no application login.
 - Schedule `npm run connect:retention` daily (it is bounded, so more often is fine) and `npm run connect:retention -- check` hourly, with the check's non-zero exit wired to an alert (the alert channel is not chosen).
 - Legal review of the numbers (30, 90, 5), then record each decision in `docs/decisions/hc-02-activation-gates.md`.
 - Production migration 0043 after 0042; not applied.
@@ -47,4 +48,4 @@ Design: `docs/superpowers/specs/2026-11-13-hc-retention-erasure-design.md`. Plan
 - **One bad row stalled the whole sweep:** fixed with a subtransaction per row, failures counted and logged as a failed run, and the job stopping after a failed batch so a later empty batch cannot hide it.
 - **Missing tests:** the application role with the setting on against an old tombstone, and a tombstone that had rows in every table that references a response (full verified path, restricted owner).
 - **Optional, taken:** `finished_at` uses `clock_timestamp()`; the policy function is executable by any role, and the fixture grant was removed.
-- **Optional, recorded:** the health signal can be written by the application role until the dedicated worker role exists.
+- **Optional, recorded:** the health signal could be written by the application role until the dedicated worker role existed; closed in code by 0044 (needs the role provisioned).
