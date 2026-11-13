@@ -1,7 +1,6 @@
-import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "../db/client";
-import { campaignResponseConsents, campaignResponses } from "../db/schema";
 import { uuidInput } from "../lib/contact-input";
 import { connectPurposeInput, type ConnectPurpose } from "../lib/connect-data";
 import { message } from "../i18n/messages";
@@ -13,27 +12,21 @@ import { withTenant } from "./tenancy";
 // preferred name, contact method, submission key or CRM link: the database withholds them.
 const responseMissing = () => new AccessError(404, message("ConnectData.responseNotFound"));
 
-/** Metadata only: status, timing and the purposes currently in force (none once expired). */
-export function listPendingResponseSummaries(db: Database, userId: string, workspace: string, campaign: string) {
+/**
+ * Pending-response metadata (HC-DEC2 direction: owner/admin only). The database definer is the only reader: it re-checks the
+ * owner/admin role, returns status, timing, link, form version, notice version and the purposes in force (none once expired),
+ * and writes an audit row with the count only. Denied roles get 403 here, before any data is touched.
+ */
+export async function listPendingResponseSummaries(db: Database, userId: string, workspace: string, campaign: string) {
   const campaignId = uuidInput.parse(campaign);
+  // Non-members and members without the owner/admin role get the same 403, so the answer says nothing about membership.
   return withTenant(db, userId, uuidInput.parse(workspace), "connect:privacy", async (tx, tenantId) => {
-    const rows = await tx.select({ id: campaignResponses.id, linkId: campaignResponses.linkId, formVersionId: campaignResponses.formVersionId,
-      status: campaignResponses.status, submittedAt: campaignResponses.submittedAt, expiresAt: campaignResponses.expiresAt })
-      .from(campaignResponses)
-      .where(and(eq(campaignResponses.tenantId, tenantId), eq(campaignResponses.campaignId, campaignId), eq(campaignResponses.status, "pending")))
-      .orderBy(asc(campaignResponses.submittedAt), asc(campaignResponses.id));
-    const evidence = rows.length ? await tx.select({ responseId: campaignResponseConsents.responseId, purpose: campaignResponseConsents.purpose, status: campaignResponseConsents.status })
-      .from(campaignResponseConsents).where(and(eq(campaignResponseConsents.tenantId, tenantId), inArray(campaignResponseConsents.responseId, rows.map((row) => row.id)), isNull(campaignResponseConsents.redactedAt))) : [];
-    const now = Date.now();
-    return rows.map((row) => {
-      // After expiry nothing is in force, matching connect_response_purpose_active (review N1).
-      if (!row.expiresAt || row.expiresAt.getTime() <= now) return { ...row, activePurposes: [] as string[] };
-      const mine = evidence.filter((event) => event.responseId === row.id);
-      const withdrawn = new Set(mine.filter((event) => event.status === "withdrawn").map((event) => event.purpose));
-      const activePurposes = mine.filter((event) => event.status === "granted" && !withdrawn.has(event.purpose)).map((event) => event.purpose).sort();
-      return { ...row, activePurposes };
-    });
-  });
+    const result = await tx.execute(sql`select * from public.read_pending_response_metadata(${tenantId}::uuid, ${campaignId}::uuid)`);
+    return (result.rows as { response_id: string; link_id: string; form_version_id: string; notice_version_id: string | null; status: string;
+      submitted_at: Date | string; expires_at: Date | string | null; active_purposes: string[] }[]).map((row) => ({
+      id: row.response_id, linkId: row.link_id, formVersionId: row.form_version_id, noticeVersionId: row.notice_version_id, status: row.status,
+      submittedAt: new Date(row.submitted_at), expiresAt: row.expires_at ? new Date(row.expires_at) : null, activePurposes: row.active_purposes }));
+  }).catch((error: unknown) => { throw error instanceof AccessError && error.status === 403 ? new AccessError(403, message("Errors.workspaceAccessDenied")) : error; });
 }
 
 const withdrawalOutcomes = z.enum(["withdrawn", "not_granted", "already_withdrawn", "not_pending", "not_found"]);
