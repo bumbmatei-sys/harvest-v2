@@ -22,6 +22,8 @@ On 13 Nov 2026 Matei chose a direction for each gate from the [decision sheet](h
 | Retention (HC-DEC4) | Option A: 30 days maximum for unverified entries, shorter per form allowed; verified caps set later | Legal review of the durations and verified-record caps; purge monitoring |
 | Contact-method protection (HC-DEC5) | Option A: managed key service with rotation, restricted decryption, audit trail | Independent security review of the key design; provider/hosting transfers if relevant |
 
+**Engineering status (13 Nov 2026):** the retention maximum, the cross-ministry sweep, tombstone expiry, run log with health check and the small-group helper are built for the HC-DEC3 and HC-DEC4 directions (`docs/acceptance/hc-retention.md`, migration 0043). Their numbers (30 days, 90 days, fewer than 5) are engineering defaults and are **not approved**; scheduling and alerting are activation steps. The other three directions have no implementation yet.
+
 HC-03 resolves public resource links without collecting guest responses. These gates do not prevent technical review of that bounded slice, but merging its code cannot approve real collection, invitations, deliveries or deployment. HC-05/HC-07 must read this register and obtain the actual decisions before enabling real data. HC-05 synthetic implementation evidence is in [its acceptance record](../acceptance/hc-05.md); it adds no activation approval. No fabricated approval date or reviewer is recorded here.
 
 When a decision is made, record its date, approver, scope/jurisdiction, approved policy and supporting evidence here and reconcile HC-02 §5 and Craft. Keep any unresolved gate explicitly unapproved.

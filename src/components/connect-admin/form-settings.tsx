@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { NativeSelect,NativeSelectOption } from "@/components/ui/native-select";
 import { useRequest } from "@/hooks/use-request";
+import { CONNECT_RETENTION_POLICY } from "@/lib/connect-retention";
 import type { listIntakeForms } from "@/server/connect-intake";
 export function IntakeFormSettings({endpoint,versions}:{endpoint:string;versions:Awaited<ReturnType<typeof listIntakeForms>>}) {
  const invite=useTranslations("Invitations");
@@ -47,7 +48,7 @@ export function IntakeFormSettings({endpoint,versions}:{endpoint:string;versions
   </fieldset>
   {followUp&&<Field><FieldLabel htmlFor={`${id}-channel`}>{t("channel")}</FieldLabel><NativeSelect id={`${id}-channel`} value={channel} onChange={e=>setChannel(e.target.value)} className="min-h-11"><NativeSelectOption value="email">{t("emailChannel")}</NativeSelectOption></NativeSelect><FieldDescription>{t("phoneUnavailable")}</FieldDescription></Field>}
   <Field><FieldLabel htmlFor={`${id}-notice`}>{t("noticeLabel")}</FieldLabel><Textarea id={`${id}-notice`} value={notice} onChange={e=>setNotice(e.target.value)} required maxLength={19000} aria-describedby={`${id}-notice-help`}/><FieldDescription id={`${id}-notice-help`}>{t("noticeHelp")}</FieldDescription></Field>
-  <Field><FieldLabel htmlFor={`${id}-days`}>{t("days")}</FieldLabel><Input id={`${id}-days`} value={days} onChange={e=>setDays(e.target.value)} type="number" min={1} max={36500} required className="min-h-11" aria-describedby={`${id}-days-help`}/><FieldDescription id={`${id}-days-help`}>{t("daysHelp")}</FieldDescription></Field>
+  <Field><FieldLabel htmlFor={`${id}-days`}>{t("days")}</FieldLabel><Input id={`${id}-days`} value={days} onChange={e=>setDays(e.target.value)} type="number" min={1} max={CONNECT_RETENTION_POLICY.maxPendingDays} required className="min-h-11" aria-describedby={`${id}-days-help`}/><FieldDescription id={`${id}-days-help`}>{t("daysHelp")}</FieldDescription></Field>
   <Button type="submit" disabled={busy||(!followUp&&!newsletter&&!invitation)} className="min-h-11">{t(busy?"saving":"publish")}</Button>
   {done&&<p role="status">{t("published")}</p>}<p className="text-sm text-muted-foreground">{t("purgeHelp")}</p>
  </FieldGroup></form>;
