@@ -40,10 +40,10 @@ beforeEach(async () => { await f.admin.query("delete from connect_retention_runs
 it("sweeps in batches until nothing is left", async () => {
   for (let i = 0; i < 5; i++) await seed();
   const result = await runRetention(pool(), { batch: 2 });
-  expect(result).toMatchObject({ erased: 5, deleted: 0 });
+  expect(result).toMatchObject({ erased: 5, deleted: 0, failed: 0 });
   expect(result.batches).toBeGreaterThanOrEqual(3);
   expect((await f.admin.query("select count(*)::int n from campaign_responses where status = 'erased'")).rows[0].n).toBeGreaterThanOrEqual(5);
-  expect(await runRetention(pool())).toEqual({ erased: 0, deleted: 0, batches: 1 });
+  expect(await runRetention(pool())).toEqual({ erased: 0, deleted: 0, failed: 0, batches: 1 });
 });
 
 it("stops at the batch cap instead of running forever", async () => {

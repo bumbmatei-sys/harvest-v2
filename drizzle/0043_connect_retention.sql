@@ -19,8 +19,8 @@ CREATE INDEX "connect_retention_runs_finished_idx" ON "connect_retention_runs" U
 -- 1) The policy numbers, in one place (src/lib/connect-retention.ts mirrors them; a test compares the two).
 CREATE FUNCTION public.connect_retention_policy(OUT max_pending_days integer, OUT tombstone_days integer, OUT small_group_min integer, OUT health_window_hours integer)
 LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, pg_temp AS $$ SELECT 30, 90, 5, 26 $$;--> statement-breakpoint
-REVOKE ALL ON FUNCTION public.connect_retention_policy() FROM PUBLIC;--> statement-breakpoint
-GRANT EXECUTE ON FUNCTION public.connect_retention_policy() TO harvest_app;--> statement-breakpoint
+-- Constants only, so any role may call it: guards run as the caller, and the scan policy as whichever role owns the definers.
+GRANT EXECUTE ON FUNCTION public.connect_retention_policy() TO PUBLIC;--> statement-breakpoint
 
 -- 2) Small-group suppression for every future aggregate report over responses or tombstones.
 CREATE FUNCTION public.connect_suppress_small(p_count integer) RETURNS integer
@@ -173,31 +173,40 @@ END $$;--> statement-breakpoint
 CREATE FUNCTION public.connect_retention_sweep(p_limit integer) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE r record; v_limit integer := least(greatest(coalesce(p_limit, 200), 1), 1000); v_started timestamptz := clock_timestamp();
-  erased integer := 0; deleted integer := 0; v_tombstone_days integer; previous text := coalesce(current_setting('app.tenant_id', true), '');
+  erased integer := 0; deleted integer := 0; failed integer := 0; v_tombstone_days integer; previous text := coalesce(current_setting('app.tenant_id', true), '');
 BEGIN
   SELECT tombstone_days INTO v_tombstone_days FROM public.connect_retention_policy();
   PERFORM set_config('app.connect_retention', 'on', true);
+  -- Each row is its own subtransaction: one row that cannot be handled (a lock held elsewhere, an unexpected child row)
+  -- is counted and skipped, so it never stalls retention for every other row and ministry (review on #73).
   FOR r IN SELECT tenant_id, id FROM public.campaign_responses WHERE status IN ('pending', 'associated') AND expires_at <= now()
       ORDER BY expires_at LIMIT v_limit LOOP
     PERFORM set_config('app.tenant_id', r.tenant_id::text, true);
-    PERFORM 1 FROM public.campaign_responses WHERE tenant_id = r.tenant_id AND id = r.id AND status IN ('pending', 'associated') AND expires_at <= now() FOR UPDATE SKIP LOCKED;
-    IF FOUND THEN PERFORM public.connect_scrub_response(r.tenant_id, r.id); erased := erased + 1; END IF;
+    BEGIN
+      PERFORM 1 FROM public.campaign_responses WHERE tenant_id = r.tenant_id AND id = r.id AND status IN ('pending', 'associated') AND expires_at <= now() FOR UPDATE SKIP LOCKED;
+      IF FOUND THEN PERFORM public.connect_scrub_response(r.tenant_id, r.id); erased := erased + 1; END IF;
+    EXCEPTION WHEN OTHERS THEN failed := failed + 1;
+    END;
   END LOOP;
   FOR r IN SELECT tenant_id, id FROM public.campaign_responses WHERE status = 'erased' AND erased_at <= now() - make_interval(days => v_tombstone_days)
       ORDER BY erased_at LIMIT v_limit LOOP
     PERFORM set_config('app.tenant_id', r.tenant_id::text, true);
-    PERFORM 1 FROM public.campaign_responses WHERE tenant_id = r.tenant_id AND id = r.id AND status = 'erased' FOR UPDATE SKIP LOCKED;
-    IF FOUND THEN
-      DELETE FROM public.campaign_response_consents WHERE tenant_id = r.tenant_id AND response_id = r.id;
-      DELETE FROM public.campaign_responses WHERE tenant_id = r.tenant_id AND id = r.id;
-      deleted := deleted + 1;
-    END IF;
+    BEGIN
+      PERFORM 1 FROM public.campaign_responses WHERE tenant_id = r.tenant_id AND id = r.id AND status = 'erased' FOR UPDATE SKIP LOCKED;
+      IF FOUND THEN
+        DELETE FROM public.campaign_response_consents WHERE tenant_id = r.tenant_id AND response_id = r.id;
+        DELETE FROM public.campaign_responses WHERE tenant_id = r.tenant_id AND id = r.id;
+        deleted := deleted + 1;
+      END IF;
+    EXCEPTION WHEN OTHERS THEN failed := failed + 1;
+    END;
   END LOOP;
-  INSERT INTO public.connect_retention_runs (started_at, status, responses_erased, tombstones_deleted) VALUES (v_started, 'ok', erased, deleted);
+  INSERT INTO public.connect_retention_runs (started_at, finished_at, status, responses_erased, tombstones_deleted, error_code)
+    VALUES (v_started, clock_timestamp(), CASE WHEN failed > 0 THEN 'failed' ELSE 'ok' END, erased, deleted, CASE WHEN failed > 0 THEN 'row_failed' END);
   DELETE FROM public.connect_retention_runs WHERE finished_at < now() - interval '90 days';
   PERFORM set_config('app.tenant_id', previous, true);
   PERFORM set_config('app.connect_retention', '', true);
-  RETURN jsonb_build_object('erased', erased, 'deleted', deleted);
+  RETURN jsonb_build_object('erased', erased, 'deleted', deleted, 'failed', failed);
 END $$;--> statement-breakpoint
 
 -- A sweep that raises rolls back, including its own log row, so the script records the failure here, in a fresh transaction.
@@ -205,8 +214,8 @@ CREATE FUNCTION public.connect_retention_record_failure(p_error text) RETURNS vo
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 BEGIN
   PERFORM set_config('app.connect_retention', 'on', true);
-  INSERT INTO public.connect_retention_runs (started_at, status, error_code)
-    VALUES (now(), 'failed', CASE WHEN p_error ~ '^[a-z_]{1,40}$' THEN p_error ELSE 'sweep_failed' END);
+  INSERT INTO public.connect_retention_runs (started_at, finished_at, status, error_code)
+    VALUES (now(), clock_timestamp(), 'failed', CASE WHEN p_error ~ '^[a-z_]{1,40}$' THEN p_error ELSE 'sweep_failed' END);
   PERFORM set_config('app.connect_retention', '', true);
 END $$;--> statement-breakpoint
 

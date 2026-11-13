@@ -48,7 +48,7 @@ async function seed(w: Where, name = "Synthetic Guest") {
 }
 const expire = (id: string) => f.admin.query("update campaign_responses set expires_at = now() - interval '1 hour' where id = $1", [id]);
 const ageTombstone = (id: string, days: number) => f.admin.query("update campaign_responses set erased_at = date_trunc('day', now() - make_interval(days => $2)) where id = $1", [id, days]);
-const sweep = async (limit = 200) => (await f.db.execute<{ v: { erased: number; deleted: number } }>(sql`select public.connect_retention_sweep(${limit}) as v`)).rows[0].v;
+const sweep = async (limit = 200) => (await f.db.execute<{ v: { erased: number; deleted: number; failed: number } }>(sql`select public.connect_retention_sweep(${limit}) as v`)).rows[0].v;
 const health = async () => (await f.db.execute<{ v: { lastSuccessAt: string | null; lastStatus: string | null; overdue: boolean; failedSinceSuccess: boolean } }>(sql`select public.connect_retention_health() as v`)).rows[0].v;
 const exists = async (id: string) => (await f.admin.query("select count(*)::int n from campaign_responses where id = $1", [id])).rows[0].n === 1;
 
@@ -116,13 +116,13 @@ describe("the sweep", () => {
   it("erases expired responses in every ministry, leaves unexpired ones, and keeps fresh tombstones", async () => {
     const [oldA, oldB, freshA] = [await seed(a(), "Expired A"), await seed(b(), "Expired B"), await seed(a(), "Not yet")];
     await expire(oldA); await expire(oldB);
-    expect(await sweep()).toEqual({ erased: 2, deleted: 0 });
+    expect(await sweep()).toEqual({ erased: 2, deleted: 0, failed: 0 });
     const gone = (await f.admin.query("select status, preferred_name, erased_at, expires_at from campaign_responses where status = 'erased' and tenant_id = any($1)", [[tenantA, tenantB]])).rows;
     expect(gone).toHaveLength(2);
     for (const row of gone) expect(row).toMatchObject({ status: "erased", preferred_name: null, expires_at: null });
     expect((await f.admin.query("select count(*)::int n from campaign_response_contact_methods where tenant_id = any($1)", [[tenantA, tenantB]])).rows[0].n).toBe(1);
     expect((await f.admin.query("select status from campaign_responses where id = $1", [freshA])).rows[0].status).toBe("pending");
-    expect(await sweep()).toEqual({ erased: 0, deleted: 0 });
+    expect(await sweep()).toEqual({ erased: 0, deleted: 0, failed: 0 });
   });
 
   it("deletes a tombstone past the tombstone period with its redacted consent rows, and nothing else", async () => {
@@ -134,7 +134,7 @@ describe("the sweep", () => {
     const [older, newer] = [tombs.find((t) => t.tenant_id === tenantA)!, tombs.find((t) => t.tenant_id === tenantB)!];
     await ageTombstone(older.id, 91);
     await ageTombstone(newer.id, 89);
-    expect(await sweep()).toEqual({ erased: 0, deleted: 1 });
+    expect(await sweep()).toEqual({ erased: 0, deleted: 1, failed: 0 });
     expect(await exists(older.id)).toBe(false);
     expect((await f.admin.query("select count(*)::int n from campaign_response_consents where response_id = $1", [older.id])).rows[0].n).toBe(0);
     expect(await exists(newer.id)).toBe(true);
@@ -171,6 +171,38 @@ describe("deletion stays refused everywhere else", () => {
     const fresh = await seed(a());
     await expect(f.admin.query("delete from campaign_responses where id = $1", [fresh])).rejects.toThrow("erased, not deleted");
     await expect(f.admin.query("delete from campaign_response_consents where response_id = $1", [fresh])).rejects.toThrow("append-only");
+  });
+  it("refuses the application role even with the sweep's setting on and a tombstone past the period", async () => {
+    const id = await seed(a()); await expire(id); await sweep();
+    const tomb = (await f.admin.query("select id from campaign_responses where status = 'erased' and tenant_id = $1", [tenantA])).rows[0].id;
+    await ageTombstone(tomb, 120);
+    for (const statement of [sql`delete from campaign_response_consents where response_id = ${tomb}::uuid`, sql`delete from campaign_responses where id = ${tomb}::uuid`]) {
+      await expect(f.db.transaction(async (tx) => {
+        await tx.execute(sql`select set_config('app.connect_retention', 'on', true), set_config('app.tenant_id', ${tenantA}, true)`);
+        await tx.execute(statement);
+      })).rejects.toThrow();
+    }
+    expect(await exists(tomb)).toBe(true);
+  });
+  it("skips a row it cannot handle, keeps going, and records the run as failed", async () => {
+    const [x, y] = [await seed(a()), await seed(b())];
+    await expire(x); await expire(y); await sweep();
+    const tombs = (await f.admin.query("select id, tenant_id from campaign_responses where status = 'erased'")).rows;
+    for (const t of tombs) await ageTombstone(t.id, 120);
+    const stuck = tombs.find((t) => t.tenant_id === tenantA)!;
+    // An unexpected child row the sweep does not know about blocks deleting this one tombstone (foreign key).
+    await f.admin.query("alter table connect_intake_events disable trigger intake_event_guard");
+    await f.admin.query("insert into connect_intake_events (tenant_id, response_id, event, actor, created_at) values ($1, $2, 'purge', 'worker', date_trunc('day', now()))", [stuck.tenant_id, stuck.id]);
+    await f.admin.query("alter table connect_intake_events enable trigger intake_event_guard");
+    expect(await sweep()).toEqual({ erased: 0, deleted: 1, failed: 1 });
+    expect(await exists(stuck.id)).toBe(true);
+    expect((await f.admin.query("select status, error_code, tombstones_deleted from connect_retention_runs order by finished_at desc limit 1")).rows[0])
+      .toEqual({ status: "failed", error_code: "row_failed", tombstones_deleted: 1 });
+    expect(await health()).toMatchObject({ failedSinceSuccess: true, lastStatus: "failed" });
+    await f.admin.query("alter table connect_intake_events disable trigger intake_event_guard");
+    await f.admin.query("delete from connect_intake_events where response_id = $1", [stuck.id]);
+    await f.admin.query("alter table connect_intake_events enable trigger intake_event_guard");
+    expect(await sweep()).toEqual({ erased: 0, deleted: 1, failed: 0 });
   });
   it("gives the application role no way to delete responses, consents or read the run log", async () => {
     await expect(f.db.execute(sql`delete from campaign_responses`)).rejects.toThrow();
