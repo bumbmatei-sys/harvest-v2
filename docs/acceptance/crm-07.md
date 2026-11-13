@@ -138,8 +138,8 @@ They are real rendered pages (the test asserts no skeleton, no vendor name and n
 - **Adapter and public forms.** Neither exists on main yet. `recordAssociation` and `POST /crm/associations` are the contract they will call.
 - **Withdrawal does not delete existing associations**, and a merge can move activity onto a kept person who has an outstanding withdrawal for that purpose (same rule). A "withdraw and delete" choice and payload retention need a product decision.
 - Review nits, not fixed here:
-  - **N1:** concurrent redelivery with the same external id can return 409 instead of `duplicate`.
-  - **N2:** a withdrawal racing an insert surfaces as 500, not `consent_withdrawn`.
+  - **N1:** concurrent redelivery with the same external id can return 409 instead of `duplicate`. Fixed later, see `docs/acceptance/crm-soft-followups.md`.
+  - **N2:** a withdrawal racing an insert surfaces as 500, not `consent_withdrawn`. Fixed later, see `docs/acceptance/crm-soft-followups.md`.
   - **N3:** phone matching over the whole payload's digits can over-redact (safe direction).
   - **N4:** identifiers dropped by a merge are not used to scrub other people's activity.
   - **N5:** an erased person's activity still shows on the organization timeline as "removed" (source, kind, purpose, actor, time; no text).
