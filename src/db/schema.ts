@@ -1394,3 +1394,90 @@ export const communityNotifications = pgTable("community_notifications", {
   check("community_notification_kind", sql`${t.kind} in ('reply', 'thread_reply', 'like', 'application', 'warning', 'held_decision', 'appeal_decision', 'host_queue')`),
   check("community_notification_target", sql`${t.targetType} in ('post', 'comment', 'application', 'warning', 'appeal', 'community') and length(${t.targetId}) between 1 and 200`),
   check("community_notification_count", sql`${t.actorCount} >= 1`)]);
+
+// Social provider integration layer (migration 0049). Foundation only: nothing here can reach a provider.
+// Provider credentials are stored ONLY as sealed envelopes (src/server/social/credential-envelope.ts).
+export const socialConnectionStatuses = ["active", "disabled", "revoked"] as const;
+export const socialPostStatuses = ["draft", "scheduled", "publishing", "published", "failed", "cancelled"] as const;
+export const socialConnections = pgTable("social_connections", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
+  provider: text("provider").$type<"zernio" | "fake">().notNull(), platform: text("platform").notNull(),
+  externalAccountRef: text("external_account_ref").notNull(), displayName: text("display_name"),
+  status: text("status").$type<typeof socialConnectionStatuses[number]>().notNull().default("active"),
+  health: text("health").$type<"unknown" | "healthy" | "degraded" | "failing">().notNull().default("unknown"),
+  healthCode: text("health_code"), healthCheckedAt: timestamp("health_checked_at", { withTimezone: true }),
+  credentialEnvelope: jsonb("credential_envelope").$type<Record<string, unknown>>().notNull(),
+  version: integer("version").notNull().default(1),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  // One live row per provider account across ALL tenants: an account can never feed two ministries.
+  uniqueIndex("social_connections_account_idx").on(t.provider, t.externalAccountRef).where(sql`${t.status} <> 'revoked'`),
+  index("social_connections_tenant_idx").on(t.tenantId, t.createdAt),
+  check("social_connection_provider", sql`${t.provider} in ('zernio', 'fake')`),
+  check("social_connection_platform", sql`${t.platform} in ('facebook', 'instagram', 'threads', 'tiktok', 'youtube')`),
+  check("social_connection_status", sql`${t.status} in ('active', 'disabled', 'revoked')`),
+  check("social_connection_health", sql`${t.health} in ('unknown', 'healthy', 'degraded', 'failing') and (${t.healthCode} is null or ${t.healthCode} ~ '^[a-z0-9_.-]{1,60}$')`),
+  check("social_connection_fields", sql`length(${t.externalAccountRef}) between 1 and 200 and (${t.displayName} is null or length(${t.displayName}) between 1 and 120)`),
+  // Shape only: a sealed envelope has these keys and nothing resembling a plain token field.
+  check("social_connection_envelope", sql`jsonb_typeof(${t.credentialEnvelope}) = 'object' and ${t.credentialEnvelope} ?& array['version', 'keyId', 'binding', 'iv', 'tag', 'ciphertext'] and not (${t.credentialEnvelope} ?| array['secret', 'token', 'apiKey', 'accessToken']) and octet_length(${t.credentialEnvelope}::text) <= 4096`),
+]);
+export const socialPostErrorCodes = ["PROVIDER_AUTH", "PROVIDER_REJECTED", "PROVIDER_CONFLICT", "PROVIDER_UNAVAILABLE", "PROVIDER_RATE_LIMITED", "MAX_ATTEMPTS", "IDEMPOTENCY_WINDOW_EXPIRED", "CONNECTION_UNAVAILABLE", "PARTIAL_PUBLISH", "DISABLED", "CREDENTIAL_UNAVAILABLE", "UNCONFIRMED"] as const;
+export const socialPosts = pgTable("social_posts", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
+  connectionId: uuid("connection_id").notNull(),
+  status: text("status").$type<typeof socialPostStatuses[number]>().notNull().default("draft"),
+  content: text("content").notNull(), media: jsonb("media").$type<{ kind: "image" | "video"; url: string }[]>().notNull().default(sql`'[]'::jsonb`),
+  scheduledFor: timestamp("scheduled_for", { withTimezone: true }),
+  // One per logical post; sent to the provider on every attempt.
+  idempotencyKey: text("idempotency_key").notNull(),
+  attempts: integer("attempts").notNull().default(0), maxAttempts: integer("max_attempts").notNull().default(5),
+  nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
+  firstAttemptAt: timestamp("first_attempt_at", { withTimezone: true }),
+  lockedAt: timestamp("locked_at", { withTimezone: true }), lockToken: uuid("lock_token"),
+  providerPostRef: text("provider_post_ref"), publishedAt: timestamp("published_at", { withTimezone: true }),
+  lastErrorCode: text("last_error_code"),
+  version: integer("version").notNull().default(1),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.connectionId], foreignColumns: [socialConnections.tenantId, socialConnections.id] }),
+  uniqueIndex("social_posts_idempotency_idx").on(t.tenantId, t.idempotencyKey),
+  index("social_posts_due_idx").on(t.status, t.nextAttemptAt).where(sql`${t.status} in ('scheduled', 'publishing')`),
+  index("social_posts_tenant_idx").on(t.tenantId, t.status, t.scheduledFor),
+  index("social_posts_provider_ref_idx").on(t.tenantId, t.connectionId, t.providerPostRef).where(sql`${t.providerPostRef} is not null`),
+  check("social_post_status", sql`${t.status} in ('draft', 'scheduled', 'publishing', 'published', 'failed', 'cancelled')`),
+  check("social_post_content", sql`length(${t.content}) between 1 and 10000 and jsonb_typeof(${t.media}) = 'array' and jsonb_array_length(${t.media}) <= 10 and octet_length(${t.media}::text) <= 8192`),
+  check("social_post_counters", sql`${t.attempts} >= 0 and ${t.maxAttempts} between 1 and 10 and ${t.attempts} <= ${t.maxAttempts} and ${t.version} >= 1`),
+  check("social_post_key", sql`length(${t.idempotencyKey}) between 8 and 100`),
+  check("social_post_error", sql`${t.lastErrorCode} is null or ${t.lastErrorCode} in ('PROVIDER_AUTH', 'PROVIDER_REJECTED', 'PROVIDER_CONFLICT', 'PROVIDER_UNAVAILABLE', 'PROVIDER_RATE_LIMITED', 'MAX_ATTEMPTS', 'IDEMPOTENCY_WINDOW_EXPIRED', 'CONNECTION_UNAVAILABLE', 'PARTIAL_PUBLISH', 'DISABLED', 'CREDENTIAL_UNAVAILABLE', 'UNCONFIRMED')`),
+  // Shape per state. The trigger in migration 0049 adds the legal transitions.
+  check("social_post_state_shape", sql`(${t.status} <> 'scheduled' or (${t.scheduledFor} is not null and ${t.nextAttemptAt} is not null and ${t.lockToken} is null and ${t.lockedAt} is null))
+    and (${t.status} <> 'publishing' or (${t.firstAttemptAt} is not null and ((${t.lockToken} is not null and ${t.lockedAt} is not null) or (${t.lockToken} is null and ${t.lockedAt} is null and ${t.providerPostRef} is not null and ${t.nextAttemptAt} is not null))))
+    and (${t.status} = 'publishing' or (${t.lockToken} is null and ${t.lockedAt} is null))
+    and (${t.status} <> 'scheduled' or ${t.providerPostRef} is null)
+    and (${t.status} <> 'published' or (${t.providerPostRef} is not null and ${t.publishedAt} is not null))
+    and (${t.status} <> 'failed' or ${t.lastErrorCode} is not null)`),
+]);
+export const socialWebhookEvents = pgTable("social_webhook_events", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
+  connectionId: uuid("connection_id").notNull(), provider: text("provider").notNull(), providerEventId: text("provider_event_id").notNull(),
+  eventType: text("event_type").notNull(), externalAccountRef: text("external_account_ref").notNull(), subjectRef: text("subject_ref"),
+  // Allow-listed, content-free: platform and error category only. No message text, sender names or comment bodies are ever stored.
+  detail: jsonb("detail").$type<{ platform?: string; errorCategory?: string }>().notNull().default(sql`'{}'::jsonb`),
+  bodyHash: text("body_hash").notNull(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+  receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+  processedAt: timestamp("processed_at", { withTimezone: true }),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.connectionId], foreignColumns: [socialConnections.tenantId, socialConnections.id] }),
+  // Replay protection: one row per provider event id. Duplicates insert nothing.
+  uniqueIndex("social_webhook_events_event_idx").on(t.tenantId, t.provider, t.providerEventId),
+  index("social_webhook_events_received_idx").on(t.tenantId, t.receivedAt),
+  check("social_webhook_provider", sql`${t.provider} in ('zernio', 'fake')`),
+  check("social_webhook_fields", sql`length(${t.providerEventId}) between 1 and 200 and length(${t.eventType}) between 1 and 100 and length(${t.externalAccountRef}) between 1 and 200 and (${t.subjectRef} is null or length(${t.subjectRef}) between 1 and 200)`),
+  check("social_webhook_detail", sql`jsonb_typeof(${t.detail}) = 'object' and octet_length(${t.detail}::text) <= 512 and not (${t.detail} ?| array['text', 'message', 'body', 'sender', 'name', 'content'])`),
+  check("social_webhook_body_hash", sql`${t.bodyHash} ~ '^[a-f0-9]{64}$'`),
+]);

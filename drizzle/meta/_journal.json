@@ -330,6 +330,13 @@
       "when": 1794800000000,
       "tag": "0046_pending_access_paging",
       "breakpoints": true
+    },
+    {
+      "idx": 49,
+      "version": "7",
+      "when": 1795100000000,
+      "tag": "0049_social_integration",
+      "breakpoints": true
     }
   ]
 }

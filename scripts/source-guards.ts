@@ -56,3 +56,37 @@ export function sourceFiles(directory = "src"): string[] {
 export function checkSources() {
   return sourceFiles().flatMap((file) => inspectSource(readFileSync(file, "utf8"), file).map((error) => ({ file, ...error })));
 }
+
+// ---- Social provider boundary (src/server/social). Added with the integration layer; independent of the guards above. ----
+// Nothing outside the vendor adapter may import it, name the vendor host, or use a vendor HTTP client; the hard-disable constants must stay
+// false and may not become environment toggles; sending entry points live only in the port and the two adapters.
+const SOCIAL_ADAPTER = "src/server/social/zernio-adapter.ts";
+const SOCIAL_REGISTRY = "src/server/social/registry.ts";
+const SOCIAL_SEND_HOMES = [SOCIAL_ADAPTER, "src/server/social/port.ts", "src/server/social/fake-provider.ts"];
+export type BoundaryViolation = { file: string; rule: string };
+export function inspectSocialBoundary(file: string, source: string): BoundaryViolation[] {
+  const found: BoundaryViolation[] = [];
+  const add = (rule: string) => found.push({ file, rule });
+  const norm = file.replaceAll("\\", "/");
+  const inSocial = norm.startsWith("src/server/social/");
+  if (norm !== SOCIAL_ADAPTER) {
+    if (/zernio\.com/i.test(source)) add("vendor host outside the adapter");
+    if (/from\s+["'](?:@zernio\/|@getlatedev\/|late-sdk|zernio)[^"']*["']/i.test(source)) add("vendor HTTP client import outside the adapter");
+    if (/(?:from|import)\s*\(?\s*["'][^"']*zernio-adapter["']/.test(source) && norm !== SOCIAL_REGISTRY) add("adapter imported outside the registry");
+  }
+  if (!SOCIAL_SEND_HOMES.includes(norm) && /\b(?:sendMessage|replyToComment)\s*\(/.test(source)) add("sending entry point outside the port and adapters");
+  if (!SOCIAL_SEND_HOMES.includes(norm) && norm !== SOCIAL_REGISTRY && /\bgetSocialSender\b/.test(source)) add("sender accessor used outside the registry");
+  if (inSocial) {
+    if (/process\.env/.test(source)) add("environment read inside the social layer (kill switches are constants)");
+    if (norm !== SOCIAL_ADAPTER && /\bfetch\s*\(|globalThis\.fetch|\bXMLHttpRequest\b|node:https?\b/.test(source)) add("network call inside the social layer outside the adapter");
+  }
+  if (norm === SOCIAL_ADAPTER && !/export const ZERNIO_LIVE_NETWORK = false;/.test(source)) add("ZERNIO_LIVE_NETWORK must be the literal constant false");
+  if (norm === SOCIAL_REGISTRY && !/export const SOCIAL_INTEGRATION_ENABLED = false;/.test(source)) add("SOCIAL_INTEGRATION_ENABLED must be the literal constant false");
+  if (norm === SOCIAL_REGISTRY && /\bfetch\b/.test(source)) add("the registry must not inject a fetch");
+  return found;
+}
+// Operator scripts are held to the same boundary (this file is exempt: it names the patterns it forbids).
+export function checkSocialBoundary(directories: string[] = ["src", "scripts"]): BoundaryViolation[] {
+  return directories.flatMap((directory) => sourceFiles(directory)).filter((file) => /\.tsx?$/.test(file) && file.replaceAll("\\", "/") !== "scripts/source-guards.ts")
+    .flatMap((file) => inspectSocialBoundary(file, readFileSync(file, "utf8")));
+}
