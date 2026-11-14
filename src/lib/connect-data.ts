@@ -1,10 +1,11 @@
 import { z } from "zod";
+import { connectOfferedPurposes } from "./consent-purposes";
 
 // HC-02 data contract for Harvest Connect pending intake. These are the existing CRM
 // consent-ledger purposes a published form version may offer; each is its own opt-in.
 // Church referral (recipient-scoped) and any religious-response classification are
 // deliberately absent: they need their own reviewed contracts (HC-18 / legal review).
-export const connectPurposes = ["account_communications", "outreach_follow_up", "newsletter"] as const;
+export const connectPurposes = connectOfferedPurposes;
 export type ConnectPurpose = typeof connectPurposes[number];
 export const connectPurposeInput = z.enum(connectPurposes);
 
