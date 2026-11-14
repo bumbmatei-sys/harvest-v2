@@ -85,6 +85,8 @@ export function inspectSocialBoundary(file: string, source: string): BoundaryVio
   if (norm === SOCIAL_REGISTRY && /\bfetch\b/.test(source)) add("the registry must not inject a fetch");
   return found;
 }
-export function checkSocialBoundary(directory = "src"): BoundaryViolation[] {
-  return sourceFiles(directory).filter((file) => /\.tsx?$/.test(file)).flatMap((file) => inspectSocialBoundary(file, readFileSync(file, "utf8")));
+// Operator scripts are held to the same boundary (this file is exempt: it names the patterns it forbids).
+export function checkSocialBoundary(directories: string[] = ["src", "scripts"]): BoundaryViolation[] {
+  return directories.flatMap((directory) => sourceFiles(directory)).filter((file) => /\.tsx?$/.test(file) && file.replaceAll("\\", "/") !== "scripts/source-guards.ts")
+    .flatMap((file) => inspectSocialBoundary(file, readFileSync(file, "utf8")));
 }

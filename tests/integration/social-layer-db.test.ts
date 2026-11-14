@@ -259,6 +259,45 @@ describe("posting worker (worker role, fake provider only)", () => {
     expect((await retryPost(f.db, p.owner, p.tenant, auth.id, deps)).post).toMatchObject({ status: "scheduled", attempts: 0 });
     expect(await run()).toMatchObject({ published: 1 });
   });
+  it("never resends a post whose idempotency window has passed, even after a clean transient retry and a long worker outage", async () => {
+    const post = await newPost("outage"); await makeDue(post.id);
+    fake.fail("publishPost", "UNAVAILABLE", 1);
+    expect(await run()).toMatchObject({ claimed: 1, retried: 1 });
+    expect(await row(post.id)).toMatchObject({ status: "scheduled", attempts: 1 });
+    fake.calls.length = 0;
+    // The worker was down for a day: the first attempt is now 24 hours old and the retry is due.
+    await timeTravel("update social_posts set first_attempt_at = now() - interval '24 hours', next_attempt_at = now() - interval '1 second' where id = $1", post.id);
+    expect(await run()).toMatchObject({ claimed: 0 });
+    expect(await row(post.id)).toMatchObject({ status: "failed", last_error_code: "IDEMPOTENCY_WINDOW_EXPIRED", lock_token: null });
+    expect(fake.calls).toEqual([]);                                  // never sent
+    await denied(retryPost(f.db, p.owner, p.tenant, post.id, deps), 409);
+  });
+  it("cannot be made claimable again by rescheduling or a draft round-trip once an attempt has been made", async () => {
+    const post = await newPost("moved"); await makeDue(post.id);
+    fake.fail("publishPost", "UNAVAILABLE", 1);
+    await run();
+    for (const age of ["24 hours", "1 hour"]) {                       // expired, and still inside the window
+      await timeTravel(`update social_posts set first_attempt_at = now() - interval '${age}' where id = $1`, post.id);
+      await denied(reschedulePost(f.db, p.owner, p.tenant, post.id, { scheduledFor: future() }, deps), 409);
+      await denied(reschedulePost(f.db, p.owner, p.tenant, post.id, { scheduledFor: null }, deps), 409);
+      expect(await row(post.id)).toMatchObject({ status: "scheduled", attempts: 1 });
+    }
+    // Even a database-level draft round-trip is refused by the guard.
+    await expect(f.admin.query("update social_posts set status = 'draft', scheduled_for = null, next_attempt_at = null where id = $1", [post.id])).rejects.toThrow(/had an attempt/);
+    await expect(f.admin.query("update social_posts set content = 'edited after an attempt' where id = $1", [post.id])).rejects.toThrow(/had an attempt/);
+    // It can still be cancelled by a person.
+    expect((await cancelPost(f.db, p.owner, p.tenant, post.id, deps)).post.status).toBe("cancelled");
+  });
+  it("still retries inside the window, with the same key", async () => {
+    const post = await newPost("in window"); await makeDue(post.id);
+    fake.fail("publishPost", "UNAVAILABLE", 1);
+    await run();
+    const key = (await row(post.id)).idempotency_key;
+    await timeTravel("update social_posts set first_attempt_at = now() - interval '22 hours', next_attempt_at = now() - interval '1 second' where id = $1", post.id);
+    expect(await run()).toMatchObject({ claimed: 1, published: 1 });
+    expect(fake.calls.map((c) => c.key)).toEqual([key, key]);
+    expect(await row(post.id)).toMatchObject({ status: "published", attempts: 2 });
+  });
   it("records an accepted post, then reconciles it by asking for its status, never by publishing again", async () => {
     class Async extends FakeProvider { async publishPost(...a: Parameters<FakeProvider["publishPost"]>) { const r = await super.publishPost(...a); return { ...r, status: "publishing" as const }; }
       async getPostStatus(...a: Parameters<FakeProvider["getPostStatus"]>) { const r = await super.getPostStatus(...a); return { ...r, status: "published" as const }; } }

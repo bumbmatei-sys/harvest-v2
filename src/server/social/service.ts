@@ -137,13 +137,20 @@ export async function schedulePost(db: Database, userId: string, workspace: stri
     return { post: publicPost(row) };
   });
 }
-/** Sets or clears the time of a draft or scheduled post. `null` returns it to draft. */
+/** Sets or clears the time of a draft or scheduled post that has never been attempted. `null` returns it to draft. */
 export async function reschedulePost(db: Database, userId: string, workspace: string, postId: string, data: unknown, deps: SocialDeps = defaultSocialDeps()) {
   assertEnabled(deps);
   const id = uuidInput.parse(postId), input = scheduleInput.parse(data), at = scheduleTime(input.scheduledFor, deps);
   return withTenant(db, userId, uuidInput.parse(workspace), "social:schedule", async (tx, tenantId) => {
-    const [row] = await tx.update(socialPosts).set({ status: at ? "scheduled" : "draft", scheduledFor: at, nextAttemptAt: at, updatedAt: sql`now()`, version: sql`${socialPosts.version} + 1` })
-      .where(and(eq(socialPosts.tenantId, tenantId), eq(socialPosts.id, id), inArray(socialPosts.status, ["draft", "scheduled"]))).returning();
+    let row;
+    try {
+      [row] = await tx.transaction((inner) => inner.update(socialPosts).set({ status: at ? "scheduled" : "draft", scheduledFor: at, nextAttemptAt: at, updatedAt: sql`now()`, version: sql`${socialPosts.version} + 1` })
+        .where(and(eq(socialPosts.tenantId, tenantId), eq(socialPosts.id, id), inArray(socialPosts.status, ["draft", "scheduled"]))).returning());
+    } catch (error) {
+      // The guard refuses to move or edit a post that has had an attempt (it may already be with the provider): make a new post instead.
+      if (hasCode(error, "P0001")) throw stale();
+      throw error;
+    }
     if (!row) throw await missingOrStale(tx, tenantId, id);
     await audit(tx, tenantId, userId, "social.post_schedule", id, { status: row.status });
     return { post: publicPost(row) };

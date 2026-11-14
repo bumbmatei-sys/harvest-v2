@@ -190,6 +190,13 @@ BEGIN
   ) THEN
     RAISE EXCEPTION 'social post cannot move from % to %', OLD.status, NEW.status;
   END IF;
+  -- Once any attempt has been made the provider may hold the post under its idempotency key, so its time, content and draft/scheduled
+  -- state are frozen (no reschedule, no draft round-trip): a person cancels it and creates a new post. Cancelling, failing and the
+  -- worker's own moves are unaffected.
+  IF OLD.first_attempt_at IS NOT NULL AND OLD.status IN ('draft', 'scheduled') AND NEW.status IN ('draft', 'scheduled')
+    AND (NEW.status, NEW.scheduled_for, NEW.content, NEW.media) IS DISTINCT FROM (OLD.status, OLD.scheduled_for, OLD.content, OLD.media) THEN
+    RAISE EXCEPTION 'a post that has had an attempt cannot be moved or edited; create a new post';
+  END IF;
   IF (NEW.content, NEW.media) IS DISTINCT FROM (OLD.content, OLD.media) AND NOT (OLD.status IN ('draft', 'scheduled') AND NEW.status IN ('draft', 'scheduled')) THEN
     RAISE EXCEPTION 'social post content is frozen once it leaves draft or scheduled';
   END IF;
@@ -253,6 +260,10 @@ BEGIN
   -- An expired reconciliation lease just releases the lock; it is picked up again below.
   UPDATE public.social_posts SET lock_token = NULL, locked_at = NULL, next_attempt_at = now(), updated_at = now(), version = version + 1
     WHERE status = 'publishing' AND provider_post_ref IS NOT NULL AND locked_at < now() - lease;
+  -- A scheduled post that has had an attempt (a retry waiting out its backoff, or a manual retry) is never sent again once the provider
+  -- may have forgotten its idempotency key: it fails for a person, exactly like an expired lease. No worker outage can resend it.
+  UPDATE public.social_posts SET status = 'failed', last_error_code = 'IDEMPOTENCY_WINDOW_EXPIRED', updated_at = now(), version = version + 1
+    WHERE status = 'scheduled' AND first_attempt_at IS NOT NULL AND first_attempt_at <= now() - interval '23 hours';
   UPDATE public.social_posts p SET status = 'failed', last_error_code = 'CONNECTION_UNAVAILABLE', updated_at = now(), version = p.version + 1
     FROM public.social_connections c WHERE c.tenant_id = p.tenant_id AND c.id = p.connection_id AND c.status <> 'active'
       AND p.status = 'scheduled' AND p.next_attempt_at <= now() AND p.scheduled_for <= now();
@@ -261,7 +272,7 @@ BEGIN
       c.provider, c.platform, c.external_account_ref, c.credential_envelope
     FROM public.social_posts p JOIN public.social_connections c ON c.tenant_id = p.tenant_id AND c.id = p.connection_id
     WHERE c.status = 'active' AND p.next_attempt_at <= now()
-      AND ((p.status = 'scheduled' AND p.scheduled_for <= now() AND p.attempts < p.max_attempts)
+      AND ((p.status = 'scheduled' AND p.scheduled_for <= now() AND p.attempts < p.max_attempts AND (p.first_attempt_at IS NULL OR p.first_attempt_at > now() - interval '23 hours'))
         OR (p.status = 'publishing' AND p.lock_token IS NULL AND p.provider_post_ref IS NOT NULL))
     ORDER BY p.next_attempt_at, p.id LIMIT p_limit FOR UPDATE OF p SKIP LOCKED
   LOOP
