@@ -270,11 +270,14 @@ export function unlinkCompany(db: Database, userId: string, workspace: string, c
 
 export function recordConsent(db: Database, userId: string, workspace: string, contact: string, data: ConsentInput) {
   const input = consentInput.parse(data), id = uuidInput.parse(contact);
-  return withTenant(db, userId, uuidInput.parse(workspace), "contacts:write", async (tx, tenantId) => {
+  // HC-DEC1b: staff attestation on a person's behalf is owner/admin only (UNAPPROVED engineering default, legal review pending).
+  return withTenant(db, userId, uuidInput.parse(workspace), "contacts:attest_consent", async (tx, tenantId) => {
     const [parent] = await tx.select({ id: contacts.id }).from(contacts).where(and(eq(contacts.tenantId, tenantId), eq(contacts.id, id), isNull(contacts.erasedAt))).for("share");
     if (!parent) throw contactMissing();
     const [consent] = await tx.insert(contactConsents).values({ ...input, tenantId, contactId: id, recordedBy: userId, occurredAt: input.occurredAt ? new Date(input.occurredAt) : new Date() }).returning();
-    await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "contact.consent_record", targetId: id, metadata: { consentId: consent.id, channel: input.channel, status: input.status } });
+    await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "contact.consent_record", targetId: id, 
+      // Ids and categories only: never the source or evidence text, and never contact details.
+      metadata: { consentId: consent.id, purpose: input.purpose, channel: input.channel, status: input.status, attested: "staff" } });
     // Purpose, channel and status only: the source and evidence stay in the consent ledger.
     await emitCrmEvent(tx, tenantId, "crm.person.consent_recorded", `crm:consent:${consent.id}`, { tenantId, actorId: userId, contactId: id, consentId: consent.id, purpose: input.purpose, channel: input.channel, status: input.status });
     return consent;
