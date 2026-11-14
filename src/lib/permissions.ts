@@ -13,6 +13,8 @@ export type Permission = "workspace:read" | "members:write" | "roles:write" | "c
   | "connect:publish" | "contacts:sources_read"
   // ADR 0013: every ministry role can see its communities list; owners/admins create and manage them.
   | "communities:read" | "communities:manage"
+  // HC-DEC1b: recording or attesting consent on a person's behalf (grant, withdrawal or unknown) is owner/admin only.
+  | "contacts:attest_consent"
   // HC-13: follow-up cases. Managing (open, assign, any legal transition, every case) is owner/admin. Working (own assigned open cases) is any
   // non-viewer member; the database policy and definers additionally require the assignment, so this key alone grants no case.
   | "followup:manage" | "followup:work";

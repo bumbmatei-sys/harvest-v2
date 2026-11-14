@@ -3,6 +3,7 @@ import { and, asc, eq, sql, type SQL } from "drizzle-orm";
 import type { Transaction } from "../db/client";
 import { crmFieldDefinitions } from "../db/schema";
 import { customFieldKey, filterFields, permissionScopes, sortableTypes, builtinSorts, sourceRuleReferences, validateFilter, type FieldDefinition, type Filter, type FilterField, type ObjectType, type PermissionField, type SourceRule, type ViewState } from "../lib/crm-fields";
+import { grantCountsOnChannel, purposeGrantChannels, type ConsentPurpose } from "../lib/consent-purposes";
 import { linkDisplayName } from "./crm-sources";
 import { AccessError } from "./permissions";
 
@@ -32,15 +33,20 @@ export function customExpr(tenantId: string, objectType: ObjectType, field: Pick
  * Effective consent state for one purpose and channel: an unsuperseded withdrawal wins (a later
  * grant must beat it on both clocks), otherwise the latest decision. The same rule as the consent
  * ledger, the contact detail and the list badge. Redacted evidence never counts.
+ * HC-DEC1b (engineering default, UNAPPROVED): for a purpose with a restricted grant channel (the newsletter is email-only) the
+ * withdrawal is read across ALL channels and a grant counts only on an accepted channel, exactly as the consent gate
+ * (`decideConsent`) decides; every other purpose and channel keeps its per-channel reading.
  */
 export function consentState(tenantId: string, purpose: string, channel: string) {
+  const broad = purpose in purposeGrantChannels;
+  const grantAllowed = grantCountsOnChannel(purpose as ConsentPurpose, channel);
   return sql<"granted" | "withdrawn" | "none">`(case
     when exists (select 1 from contact_consents w where w.tenant_id = ${tenantId} and w.contact_id = contacts.id
-      and w.channel = ${channel} and w.purpose = ${purpose} and w.status = 'withdrawn' and w.redacted_at is null
+      ${broad ? sql`` : sql`and w.channel = ${channel}`} and w.purpose = ${purpose} and w.status = 'withdrawn' and w.redacted_at is null
       and not exists (select 1 from contact_consents g where g.tenant_id = w.tenant_id and g.contact_id = w.contact_id
         and g.channel = w.channel and g.purpose = w.purpose and g.status = 'granted' and g.redacted_at is null
         and g.recorded_at > w.recorded_at and g.occurred_at > w.occurred_at)) then 'withdrawn'
-    when (select l.status from contact_consents l where l.tenant_id = ${tenantId} and l.contact_id = contacts.id
+    when ${sql.raw(grantAllowed ? "true" : "false")} and (select l.status from contact_consents l where l.tenant_id = ${tenantId} and l.contact_id = contacts.id
       and l.channel = ${channel} and l.purpose = ${purpose} and l.redacted_at is null
       order by l.recorded_at desc, l.occurred_at desc, l.id desc limit 1) = 'granted' then 'granted'
     else 'none' end)`;

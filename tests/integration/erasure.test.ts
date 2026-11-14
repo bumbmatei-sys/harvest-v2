@@ -34,11 +34,11 @@ afterAll(async () => {
 describe("controlled contact erasure", () => {
   it("captures provenance and separate occurrence/recording times", async () => {
     const contact = await createContact(fixture.db, "eraser-a", tenantA, { name: "Provenance" });
-    const row = await recordConsent(fixture.db, "member", tenantA, contact.id, proof);
-    expect(row).toMatchObject({ recordedBy: "member", purpose: "marketing", noticeVersion: "notice-v1", occurredAt: new Date(proof.occurredAt) });
+    const row = await recordConsent(fixture.db, "eraser-a", tenantA, contact.id, proof);
+    expect(row).toMatchObject({ recordedBy: "eraser-a", purpose: "marketing", noticeVersion: "notice-v1", occurredAt: new Date(proof.occurredAt) });
     expect(row.recordedAt.getTime()).toBeGreaterThan(row.occurredAt.getTime());
-    await recordConsent(fixture.db, "member", tenantA, contact.id, { ...proof, status: "withdrawn" });
-    expect((await getContact(fixture.db, "member", tenantA, contact.id)).consents.map((event) => event.status)).toEqual(["withdrawn", "granted"]);
+    await recordConsent(fixture.db, "eraser-a", tenantA, contact.id, { ...proof, status: "withdrawn" });
+    expect((await getContact(fixture.db, "eraser-a", tenantA, contact.id)).consents.map((event) => event.status)).toEqual(["withdrawn", "granted"]);
     await expect(withTenant(fixture.db, "member", tenantA, "contacts:write", (tx) => tx.execute(sql`insert into contact_consents (tenant_id, contact_id, recorded_by, purpose, notice_version, channel, status, source, evidence) values (${tenantA}, ${contact.id}, 'eraser-a', 'marketing', 'notice-v1', 'email', 'granted', 'source', 'evidence')`))).rejects.toThrow();
   });
 

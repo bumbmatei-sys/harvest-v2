@@ -163,9 +163,11 @@ describe("consent edge cases (review S2, S3)", () => {
     // The SQL guard refuses the superseded grant even when the service is bypassed.
     await expect(withTenant(fixture.db, "member-a", tenantA, "contacts:write", (tx, tenantId) => tx.insert(crmAssociations).values({ tenantId, contactId: una, source: "form", kind: "signup", purpose: "newsletter", consentId: grantId, occurredAt: new Date(), createdBy: "member-a" })))
       .rejects.toThrow();
-    // A grant on another channel still allows; the earlier association is kept.
+    // HC-DEC1b (F4): a newsletter grant on another channel no longer counts; only an email grant does. The earlier association is kept.
     await grant("owner-a", tenantA, una, "newsletter", "granted", "social");
-    expect(await recordAssociation(fixture.db, "member-a", tenantA, { source: "form", kind: "signup", purpose: "newsletter", contactId: una, summary: "Social" })).toMatchObject({ stored: true });
+    expect(await recordAssociation(fixture.db, "member-a", tenantA, { source: "form", kind: "signup", purpose: "newsletter", contactId: una, summary: "Social" })).toMatchObject({ stored: false, reason: "consent_missing" });
+    await grant("owner-a", tenantA, una, "newsletter", "granted", "email");
+    expect(await recordAssociation(fixture.db, "member-a", tenantA, { source: "form", kind: "signup", purpose: "newsletter", contactId: una, summary: "Email again" })).toMatchObject({ stored: true });
     expect((await fixture.admin.query("select count(*)::int as n from crm_associations where contact_id = $1", [una])).rows[0].n).toBe(2);
   });
 
