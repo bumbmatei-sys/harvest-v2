@@ -22,3 +22,13 @@ describe("shared permission rules", () => {
     expect(["owner", "admin", "member", "viewer"].map((role) => libCan(role, "crm:import"))).toEqual([true, true, true, false]);
   });
 });
+
+describe("social provider permissions", () => {
+  const keys = ["social:connect", "social:schedule", "social:inbox"] as const;
+  it("are owner/admin only, and unknown roles are denied", () => {
+    for (const key of keys) {
+      expect(["owner", "admin", "member", "viewer"].map((role) => libCan(role, key)), key).toEqual([true, true, false, false]);
+      for (const role of ["superadmin", "", "OWNER", "guest"]) expect(libCan(role, key), `${role} ${key}`).toBe(false);
+    }
+  });
+});

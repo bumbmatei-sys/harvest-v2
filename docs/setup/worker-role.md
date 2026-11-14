@@ -13,6 +13,10 @@ Status: prepared 13 Nov 2026. **Nothing here is authorized to run.** Each enviro
 
 Migration 0044 revokes those six from `harvest_app` and grants them to `harvest_worker` when the role exists. The scripts connect with `WORKER_DATABASE_URL` and refuse to run unless `current_user` is `harvest_worker`, not superuser and without BYPASSRLS. `DATABASE_URL` stays the web application login. The purge scripts and the Connect dispatcher still run as `harvest_app`.
 
+## Social posting worker (test mode only)
+
+Migration 0049 adds two more worker-only functions, `social_publish_claim(integer, integer)` and `social_publish_complete(uuid, uuid, uuid, text, text, text, integer)`, revoked from `harvest_app` and granted to `harvest_worker` when the role exists (re-run the grant block after creating the role later, as in step 3 below, with these two signatures). `npm run social:publish:test` runs them against an in-memory fake provider and refuses anything but `HARVEST_SOCIAL_PUBLISHER=test` on a local database. It cannot reach a provider and is not authorized to run anywhere else.
+
 ## Order of operations (per environment)
 
 The role is created outside the migrations, so either order works; creating it first is simpler.

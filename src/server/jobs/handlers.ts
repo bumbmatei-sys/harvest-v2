@@ -4,6 +4,7 @@ import type { Transaction } from "../../db/client";
 import { externalWebhookEvents, jobs, outboxEvents, webhookResourceStates } from "../../db/schema";
 import { crmEnvelope, crmEventTypes, type CrmEventEnvelope, type CrmEventType } from "../crm-events";
 import { fanOutWebhookDeliveries } from "../crm-webhooks";
+import { applySocialWebhook } from "../social/webhook-apply";
 import { JobFailure } from "./primitives";
 
 export type Job = typeof jobs.$inferSelect;
@@ -60,5 +61,7 @@ const baseHandlers: JobHandlers = {
   // Domain events can safely enter the queue before consumers are released.
   // A deliberate no-op receipt is the entire Phase 1 domain handler.
   "domain.receipt": async () => {},
+  // Social provider events (src/server/social). Applies identifiers and fixed states only.
+  "social.webhook": applySocialWebhook,
 };
 export const jobHandlers: JobHandlers = buildJobHandlers();

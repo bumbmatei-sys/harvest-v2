@@ -68,4 +68,11 @@ it("keeps a single snapshot chain and an ordered migration journal (reserved num
   expect(Object.keys(cAfter.tables).filter((name) => !(name in cBefore.tables)).sort()).toEqual(["public.communities", "public.community_memberships", "public.entitlements"]);
   for (const table of Object.keys(cBefore.tables)) if (table !== "public.workspaces") expect(cAfter.tables[table], table).toEqual(cBefore.tables[table]);
   expect(cAfter.tables["public.workspaces"].checkConstraints.workspace_audience.value).toContain("'creator'");
+  // Social provider integration layer: 0049 (0047/0048 are reserved by other open work) adds exactly three tables and changes none.
+  const socialIndex = journal.entries.findIndex((entry: { tag: string }) => entry.tag === "0049_social_integration");
+  expect(socialIndex).toBeGreaterThan(0);
+  expect(journal.entries[socialIndex].idx).toBe(49);
+  const [sBefore, sAfter] = [snapshots[socialIndex - 1], snapshots[socialIndex]];
+  expect(Object.keys(sAfter.tables).filter((name) => !(name in sBefore.tables)).sort()).toEqual(["public.social_connections", "public.social_posts", "public.social_webhook_events"]);
+  for (const table of Object.keys(sBefore.tables)) expect(sAfter.tables[table], table).toEqual(sBefore.tables[table]);
 });
