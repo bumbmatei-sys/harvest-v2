@@ -68,4 +68,10 @@ it("keeps a single snapshot chain and an ordered migration journal (reserved num
   expect(Object.keys(cAfter.tables).filter((name) => !(name in cBefore.tables)).sort()).toEqual(["public.communities", "public.community_memberships", "public.entitlements"]);
   for (const table of Object.keys(cBefore.tables)) if (table !== "public.workspaces") expect(cAfter.tables[table], table).toEqual(cBefore.tables[table]);
   expect(cAfter.tables["public.workspaces"].checkConstraints.workspace_audience.value).toContain("'creator'");
+  // HC-13: 0048 adds only the follow-up case table (the rest of the migration is hand-written functions, triggers and policies).
+  const followUpIndex = journal.entries.findIndex((entry: { tag: string }) => entry.tag === "0048_followup_cases");
+  expect(followUpIndex).toBeGreaterThan(0);
+  const [fBefore, fAfter] = [snapshots[followUpIndex - 1], snapshots[followUpIndex]];
+  expect(Object.keys(fAfter.tables).filter((name) => !(name in fBefore.tables))).toEqual(["public.followup_cases"]);
+  for (const table of Object.keys(fBefore.tables)) expect(fAfter.tables[table], table).toEqual(fBefore.tables[table]);
 });
