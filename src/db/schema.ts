@@ -4,6 +4,7 @@ import type { Audience } from "../lib/audience";
 import type { campaignStructures, campaignTypes } from "../lib/campaigns";
 import type { ConnectPurpose, formVersionStatuses, responseConsentActors, responseConsentStatuses, responseContactKinds, responseLinkStatuses, responseStatuses } from "../lib/connect-data";
 import { associationConsentPurposes } from "../lib/consent-purposes";
+import type { FollowUpCaseState } from "../lib/follow-up-cases";
 import { sql } from "drizzle-orm";
 import { pgTable, type AnyPgColumn, text, timestamp, boolean, integer, bigint, uuid, primaryKey, uniqueIndex, unique, index, foreignKey, check, jsonb, doublePrecision, date, numeric } from "drizzle-orm/pg-core";
 
@@ -974,6 +975,35 @@ export const connectClaimCompletions = pgTable("connect_claim_completions", {
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 }, t => [foreignKey({ columns: [t.tenantId, t.responseId], foreignColumns: [campaignResponses.tenantId, campaignResponses.id] }).onUpdate("cascade"),
   index("connect_completion_expiry").on(t.expiresAt), check("connect_completion_hash", sql`${t.flowHash} ~ '^[a-f0-9]{64}$'`)]);
+
+// HC-13: one follow-up case per verified, associated response (the HC-06 request key). It holds ids, state and timestamps only: no name,
+// contact method or free text. Writes happen only through the followup_* definers; the application role has no write grant and reads
+// the minimal columns through RLS (owner/admin: all; the assigned member: own open cases). campaign_id and response_id are not readable
+// by the application role. Migration 0048 (hand-written part) adds RLS, grants, the guard and the lifecycle hooks.
+export const followUpCases = pgTable("followup_cases", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(),
+  campaignId: uuid("campaign_id").notNull(), responseId: uuid("response_id").notNull(), contactId: uuid("contact_id").notNull(),
+  state: text("state").$type<FollowUpCaseState>().notNull().default("requested"),
+  assigneeId: text("assignee_id"),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  stateChangedAt: timestamp("state_changed_at", { withTimezone: true }).notNull().defaultNow(),
+  assignedAt: timestamp("assigned_at", { withTimezone: true }),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.campaignId], foreignColumns: [campaigns.tenantId, campaigns.id] }),
+  foreignKey({ columns: [t.tenantId, t.responseId], foreignColumns: [campaignResponses.tenantId, campaignResponses.id] }),
+  foreignKey({ columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }),
+  foreignKey({ columns: [t.tenantId, t.assigneeId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }),
+  uniqueIndex("followup_cases_response_idx").on(t.tenantId, t.responseId),
+  index("followup_cases_queue_idx").on(t.tenantId, t.createdAt, t.id),
+  index("followup_cases_assignee_idx").on(t.tenantId, t.assigneeId, t.createdAt, t.id).where(sql`${t.assigneeId} is not null`),
+  index("followup_cases_contact_idx").on(t.tenantId, t.contactId),
+  check("followup_case_state", sql`${t.state} in ('requested', 'awaiting_assignment', 'assigned', 'attempted', 'no_response', 'connected', 'closed', 'withdrawn')`),
+  check("followup_case_assignee", sql`(${t.state} in ('assigned', 'attempted') and ${t.assigneeId} is not null)
+    or (${t.state} in ('requested', 'awaiting_assignment', 'withdrawn') and ${t.assigneeId} is null) or ${t.state} in ('no_response', 'connected', 'closed')`),
+  check("followup_case_assigned_at", sql`(${t.assigneeId} is null) or (${t.assignedAt} is not null)`),
+  check("followup_case_version", sql`${t.version} >= 1`)]);
 
 // Communities (ADR 0013, C02/C03). Visibility, admission and pricing are independent settings.
 // Member access is enforced by RLS through an active community_memberships row; staff access by tenant.
