@@ -337,6 +337,13 @@
       "when": 1794900000000,
       "tag": "0047_consent_gate",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1795000000000,
+      "tag": "0048_followup_cases",
+      "breakpoints": true
     }
   ]
 }
