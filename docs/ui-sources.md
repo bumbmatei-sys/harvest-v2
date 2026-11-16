@@ -136,7 +136,7 @@ Upstream dependencies inspected in package.json: Next/React/Tailwind/shadcn/Radi
 
 ## Shadcn UI Kit provenance
 
-Plan: [shadcnuikit-adoption.md](plans/shadcnuikit-adoption.md). **No kit item is adopted yet**: PR 0 adds tooling and the record only, so there is nothing for the founder item-approval gate to approve and no kit source, registry JSON or token is in the repository.
+Plan: [shadcnuikit-adoption.md](plans/shadcnuikit-adoption.md). Kit PR 1 adopts four free items, approved by the founder on 2026-11-16 ("Approved all"; request in the PR description). No registry JSON or token is in the repository: each adopted item is a small converted showcase example under `src/components/dev/`, and the primitives under `src/components/ui/` are hand-written (see below).
 
 Rule (enforced by `tests/unit/ui-provenance.test.ts`): every kit-derived file starts with the header below **and** is listed in `kitProvenance` in `src/lib/ui-provenance.ts` (item name, free or premium, registry retrieval date, install date, founder approver and approval date, local changes, destination files). Add the same row to the table here and record new dependencies in `third-party-licenses.md`.
 
@@ -144,7 +144,27 @@ Rule (enforced by `tests/unit/ui-provenance.test.ts`): every kit-derived file st
 
 | Registry item | Free/premium | Retrieved | Installed | Approved (founder) | Files | Local changes |
 | --- | --- | --- | --- | --- | --- | --- |
-| none yet | | | | | | |
+| `toast1` | free | 2026-11-16 | 2026-11-16 | 2026-11-16 | `src/components/dev/kit-toast-example.tsx` | The kit demo (a button showing a toast with description and Undo action) kept as the showcase example with catalogue copy. The Sonner adapter `src/components/ui/sonner.tsx` and helper `src/lib/toast.ts` are Harvest-written: theme tokens instead of `next-themes`, catalogue strings, 44px action and close targets, polite live region with a catalogue label. Alternatives not chosen: `toast2`, `toast10`. |
+| `spinner1` | free | 2026-11-16 | 2026-11-16 | 2026-11-16 | `src/components/dev/kit-spinner-example.tsx` | The demo (one small spinner) widened to the three Harvest sizes. Primitive hand-written. Alternatives not chosen: `spinner2`, `spinner10`. |
+| `scroll-area1` | free | 2026-11-16 | 2026-11-16 | 2026-11-16 | `src/components/dev/kit-scroll-area-example.tsx` | The demo (fixed-height list with separators) kept with catalogue rows instead of version-tag sample data; focusable region viewport. Primitive hand-written. Alternatives not chosen: `scroll-area2`, `scroll-area4`. |
+| `drawer1` | free | 2026-11-16 | 2026-11-16 | 2026-11-16 | `src/components/dev/kit-bottom-sheet-example.tsx` | **Visual reference only**; no kit code and no drawer library (`vaul` is not an approved dependency). Built on Harvest's own `Sheet` bottom side. Alternatives not chosen: `drawer2`, `drawer6`. |
+
+Tier note: the item JSON carries no price flag, and the component category pages show a badge for the first item only; the four items are recorded as free on the founder's statement for `toast1` and the absence of a premium marker on the others. Confirm on the item pages if the license position matters.
+
+### Kit PR 1: hand-written primitives and the `sonner` dependency
+
+`ui.shadcn.com` is blocked, so these stock-style primitives were written by hand following the conventions of `src/components/ui/*` (radix-ui umbrella package, `cn`, `data-slot`, theme tokens, 44px targets below 1024px). They are Harvest source, not kit-derived files, and carry no provenance header.
+
+| File | Basis | Notes |
+| --- | --- | --- |
+| `src/components/ui/spinner.tsx` | shadcn Spinner pattern (Lucide `LoaderCircle`) | `role="status"` with catalogue label, `decorative` mode for use inside labelled buttons, `motion-reduce:animate-none` |
+| `src/components/ui/scroll-area.tsx` | shadcn Scroll Area on `radix-ui` | Token-colored scrollbars; `viewportClassName` and `viewportProps` for height caps and focusable named regions |
+| `src/components/ui/toggle-group.tsx` | shadcn Toggle Group on `radix-ui` | Single (radiogroup) and multiple (pressed buttons); 44px items below 1024px; joined or spaced |
+| `src/components/ui/kbd.tsx` | shadcn Kbd | `<kbd>` plus a group wrapper |
+| `src/components/ui/sheet.tsx` (bottom side) | Existing Sheet | Height cap, rounded top, handle, safe-area padding, 44px close target; other sides unchanged |
+| `src/components/ui/sonner.tsx`, `src/lib/toast.ts` | `sonner` 2.0.8 | See `toast1` above. The source guard rejects raw string literals in `notify.*` and `toast.*` calls |
+
+New dependency: [`sonner`](https://github.com/emilkowalski/sonner) 2.0.8 (MIT, no runtime dependencies; peer dependencies are the existing React packages), founder-approved 2026-11-16; recorded in [third-party licenses](third-party-licenses.md#kit-pr-1-additions-2026-11-16). The kit's own `toast1` declares `sonner@2`.
 
 ### Registry access in agent sessions
 

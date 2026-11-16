@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Check, LoaderCircle, Plus } from "lucide-react";
+import { Bold, Check, Italic, LayoutGrid, List, Plus, Underline } from "lucide-react";
 import { kitProvenance } from "@/lib/ui-provenance";
 import { uiShowcaseEntries, type UiShowcaseCategory } from "@/lib/ui-showcase";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,14 @@ import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/u
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Spinner } from "@/components/ui/spinner";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
+import { notify } from "@/lib/toast";
+import { KitToastExample } from "./kit-toast-example";
+import { KitSpinnerExample } from "./kit-spinner-example";
+import { KitScrollAreaExample } from "./kit-scroll-area-example";
+import { KitBottomSheetExample } from "./kit-bottom-sheet-example";
 
 function ActionExamples() {
   const t = useTranslations("UiShowcase");
@@ -34,7 +42,7 @@ function ActionExamples() {
     <div data-example-actions className="flex flex-wrap items-center gap-2">{(["default", "secondary", "outline", "ghost", "destructive"] as const).map(variant => <Button key={variant} size="responsive" variant={variant} onClick={() => setCount(n => n + 1)}>{t(`actions.${variant}`)}</Button>)}</div>
     <div className="flex flex-wrap items-center gap-3">
       <Tooltip><TooltipTrigger asChild><Button size="icon-responsive" variant="outline" aria-label={t("increment")} onClick={() => setCount(n => n + 1)}><Plus aria-hidden="true" /></Button></TooltipTrigger><TooltipContent>{t("increment")}</TooltipContent></Tooltip>
-      <Button size="responsive" disabled><LoaderCircle className="animate-spin motion-reduce:animate-none" aria-hidden="true" />{t("busy")}</Button><Button size="responsive" disabled variant="outline">{t("disabled")}</Button>
+      <Button size="responsive" disabled><Spinner decorative />{t("busy")}</Button><Button size="responsive" disabled variant="outline">{t("disabled")}</Button>
       <ButtonGroup aria-label={t("groupedActions")}><Button size="responsive" variant="outline" onClick={() => setCount(n => n + 1)}>{t("increment")}</Button><Button size="responsive" variant="outline" onClick={() => setCount(0)}>{t("reset")}</Button></ButtonGroup>
     </div><p role="status" className="text-sm text-muted-foreground">{t("actionCount", { count })}</p>
   </div>;
@@ -59,6 +67,7 @@ function OverlayExamples() {
   return <div className="space-y-4"><div className="flex flex-wrap gap-2">
     <Dialog><DialogTrigger asChild><Button size="responsive" variant="outline">{t("dialog")}</Button></DialogTrigger><DialogContent><DialogHeader><DialogTitle>{t("dialog")}</DialogTitle><DialogDescription>{t("fixtureOnly")}</DialogDescription></DialogHeader><Input aria-label={t("exampleInput")} placeholder={t("notePlaceholder")} className="min-h-11" /><DialogFooter><DialogClose asChild><Button size="responsive">{t("close")}</Button></DialogClose></DialogFooter></DialogContent></Dialog>
     <Sheet><SheetTrigger asChild><Button size="responsive" variant="outline">{t("sheet")}</Button></SheetTrigger><SheetContent><SheetHeader><SheetTitle>{t("sheet")}</SheetTitle><SheetDescription>{t("fixtureOnly")}</SheetDescription></SheetHeader></SheetContent></Sheet>
+    <KitBottomSheetExample />
     <AlertDialog><AlertDialogTrigger asChild><Button size="responsive" variant="outline">{t("confirmation")}</Button></AlertDialogTrigger><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{t("confirmation")}</AlertDialogTitle><AlertDialogDescription>{t("fixtureOnly")}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel size="responsive">{t("cancel")}</AlertDialogCancel><AlertDialogAction size="responsive" onClick={() => setRemoved(true)}>{t("removeFixture")}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
     <Popover open={open} onOpenChange={setOpen}><PopoverTrigger asChild><Button size="responsive" variant="outline">{t("searchOptions")}</Button></PopoverTrigger><PopoverContent className="w-[min(20rem,calc(100vw-2rem))] p-0"><Command><CommandInput placeholder={t("searchOptions")} /><CommandList><CommandEmpty>{t("noMatches")}</CommandEmpty>{["first", "second"].map(value => <CommandItem key={value} onSelect={() => { setChoice(value); setOpen(false); }}>{t(value === "first" ? "sampleOption" : "otherOption")}{choice === value && <Check aria-hidden="true" />}</CommandItem>)}</CommandList></Command></PopoverContent></Popover>
     <DropdownMenu><DropdownMenuTrigger asChild><Button size="responsive" variant="outline">{t("menu")}</Button></DropdownMenuTrigger><DropdownMenuContent><DropdownMenuRadioGroup value={choice} onValueChange={setChoice}><DropdownMenuRadioItem value="first">{t("sampleOption")}</DropdownMenuRadioItem><DropdownMenuRadioItem value="second">{t("otherOption")}</DropdownMenuRadioItem></DropdownMenuRadioGroup></DropdownMenuContent></DropdownMenu>
@@ -77,6 +86,35 @@ function FeedbackExamples() {
     <div aria-label={t("loading")} role="status" className="space-y-3 rounded-lg border p-4"><Skeleton className="h-5 w-1/2" /><Skeleton className="h-4 w-3/4" /><span className="sr-only">{t("loading")}</span></div>
     <div className="flex items-center gap-3"><Avatar><AvatarFallback className="bg-selected">{t("initials")}</AvatarFallback></Avatar><Badge variant="secondary">{t("unknown")}</Badge><Badge className="bg-success-tint text-success">{t("success")}</Badge></div>
   </div>;
+}
+function PrimitiveExamples() {
+  const t = useTranslations("UiShowcase.primitives");
+  const [view, setView] = useState("list"), [formats, setFormats] = useState<string[]>(["bold"]);
+  return <div className="grid gap-6 md:grid-cols-2">
+    <div className="space-y-3"><h3 className="text-sm font-medium">{t("spinnerTitle")}</h3><KitSpinnerExample /></div>
+    <div className="space-y-3"><h3 className="text-sm font-medium">{t("toggleTitle")}</h3>
+      <ToggleGroup type="single" variant="outline" value={view} onValueChange={value => { if (value) setView(value); }} aria-label={t("viewMode")}>
+        <ToggleGroupItem value="list" aria-label={t("listView")}><List aria-hidden="true" /></ToggleGroupItem>
+        <ToggleGroupItem value="grid" aria-label={t("gridView")}><LayoutGrid aria-hidden="true" /></ToggleGroupItem>
+      </ToggleGroup>
+      <ToggleGroup type="multiple" value={formats} onValueChange={setFormats} aria-label={t("formats")}>
+        <ToggleGroupItem value="bold" aria-label={t("bold")}><Bold aria-hidden="true" /></ToggleGroupItem>
+        <ToggleGroupItem value="italic" aria-label={t("italic")}><Italic aria-hidden="true" /></ToggleGroupItem>
+        <ToggleGroupItem value="underline" aria-label={t("underline")}><Underline aria-hidden="true" /></ToggleGroupItem>
+      </ToggleGroup>
+      <p role="status" className="text-sm text-muted-foreground">{t("toggleState", { view: t(view === "grid" ? "gridView" : "listView"), count: formats.length })}</p></div>
+    <div className="space-y-3"><h3 className="text-sm font-medium">{t("scrollTitle")}</h3><KitScrollAreaExample /></div>
+    <div className="space-y-3"><h3 className="text-sm font-medium">{t("kbdTitle")}</h3>
+      <p className="flex flex-wrap items-center gap-2 text-sm">{t("kbdHint")} <KbdGroup><Kbd>{t("ctrl")}</Kbd><Kbd>{t("searchKey")}</Kbd></KbdGroup></p></div>
+  </div>;
+}
+function ToastExamples() {
+  const t = useTranslations("UiShowcase.toast");
+  return <div className="space-y-3"><div className="flex flex-wrap gap-2">
+    <KitToastExample />
+    <Button size="responsive" variant="outline" onClick={() => notify.success(t("success"))}>{t("showSuccess")}</Button>
+    <Button size="responsive" variant="outline" onClick={() => notify.error(t("error"), { description: t("errorDetail") })}>{t("showError")}</Button>
+  </div></div>;
 }
 const chartSwatches = ["bg-chart-1", "bg-chart-2", "bg-chart-3", "bg-chart-4", "bg-chart-5"] as const;
 function KitExamples() {
@@ -98,7 +136,7 @@ export function UiShowcase() {
     <div className="flex flex-wrap gap-3"><Input type="search" className="min-h-11 w-full sm:w-80" aria-label={t("searchRegistry")} placeholder={t("searchRegistry")} value={query} onChange={event => setQuery(event.target.value)} /><NativeSelect className="min-h-11" aria-label={t("categoryFilter")} value={category} onChange={event => setCategory(event.target.value as typeof category)}><NativeSelectOption value="all">{t("all")}</NativeSelectOption>{uiShowcaseEntries.map(entry => <NativeSelectOption key={entry.id} value={entry.id}>{t(`entries.${entry.id}.title`)}</NativeSelectOption>)}</NativeSelect></div>
     {entries.length === 0 && <Empty><EmptyHeader><EmptyTitle>{t("noMatches")}</EmptyTitle></EmptyHeader></Empty>}
     {entries.map(entry => <section key={entry.id} id={entry.id} aria-labelledby={`${entry.id}-title`}><Card><CardHeader><CardTitle><h2 id={`${entry.id}-title`}>{t(`entries.${entry.id}.title`)}</h2></CardTitle><p className="text-sm text-muted-foreground">{t(`entries.${entry.id}.description`)}</p></CardHeader><CardContent className="space-y-5">
-      {entry.id === "actions" ? <ActionExamples /> : entry.id === "fields" ? <FieldExamples /> : entry.id === "overlays" ? <OverlayExamples /> : entry.id === "kit" ? <KitExamples /> : <FeedbackExamples />}
+      {entry.id === "actions" ? <ActionExamples /> : entry.id === "fields" ? <FieldExamples /> : entry.id === "overlays" ? <OverlayExamples /> : entry.id === "kit" ? <KitExamples /> : entry.id === "primitives" ? <PrimitiveExamples /> : entry.id === "toast" ? <ToastExamples /> : <FeedbackExamples />}
       <details className="text-sm"><summary className="min-h-11 cursor-pointer py-3">{t("sourceAndConsumers")}</summary><ul className="space-y-1 break-all">{[...entry.sources, ...entry.consumers].map(source => <li key={source}><code>{source}</code></li>)}</ul></details>
     </CardContent></Card></section>)}
   </div></TooltipProvider>;

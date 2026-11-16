@@ -36,6 +36,12 @@ export function inspectSource(source: string, file = "component.tsx"): Violation
       for (const arg of node.arguments ?? []) if ((ts.isStringLiteralLike(arg) && !/^[A-Z_]+$/.test(arg.text)) || ts.isTemplateExpression(arg)) rendered(arg);
     }
     if (ts.isCallExpression(node) && /^set(?:Error|Message|Phase)$/.test(node.expression.getText(sf))) rendered(node.arguments[0]);
+    // Toasts: the title and the description option must come from the catalogue (src/lib/toast.ts).
+    if (ts.isCallExpression(node) && /^(?:notify|toast)\.(?:success|error|info)$/.test(node.expression.getText(sf))) {
+      rendered(node.arguments[0]);
+      const options = node.arguments[1];
+      if (options && ts.isObjectLiteralExpression(options)) for (const property of options.properties) if (ts.isPropertyAssignment(property) && /^(?:description|label)$/.test(property.name.getText(sf))) rendered(property.initializer);
+    }
     if (!file.endsWith("theme-registry.ts") && (ts.isStringLiteralLike(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node))) {
       if (rawColor.test(node.text) || palette.test(node.text)) report("color", node, node.text);
     }

@@ -1,7 +1,8 @@
 /**
  * Provenance record for files derived from the Shadcn UI Kit (see docs/ui-sources.md, "Shadcn UI Kit provenance").
  * Rule: every kit-derived file starts with the header below AND is listed in `kitProvenance`.
- * The record starts empty: no kit item is adopted yet. Tests enforce both directions.
+ * Tests enforce both directions. Kit PR 1 adopts the four items below; the stock primitives they depend on are hand-written
+ * (docs/ui-sources.md) and are not kit-derived.
  */
 export type KitItemRecord = {
   /** Registry item name exactly as in the registry, for example `stat-card1`. */
@@ -18,7 +19,17 @@ export type KitItemRecord = {
   files: readonly string[];
 };
 
-export const kitProvenance: readonly KitItemRecord[] = [];
+const approved = { registryRetrieved: "2026-11-16", installed: "2026-11-16", approvedBy: "founder", approvedOn: "2026-11-16" } as const;
+export const kitProvenance: readonly KitItemRecord[] = [
+  { ...approved, item: "toast1", tier: "free", files: ["src/components/dev/kit-toast-example.tsx"],
+    localChanges: "The kit demo (a button that shows a toast with a description and an Undo action) is kept as the showcase example; copy from the catalogue, no sample date. The sonner wrapper (src/components/ui/sonner.tsx) and helper (src/lib/toast.ts) are Harvest-written, not kit code: theme tokens instead of next-themes, catalogue strings, 44px action target." },
+  { ...approved, item: "spinner1", tier: "free", files: ["src/components/dev/kit-spinner-example.tsx"],
+    localChanges: "The kit demo (one small spinner) is widened to Harvest's three sizes in the showcase. The spinner primitive is hand-written: role=status with a catalogue label, decorative mode, no rotation under reduced motion." },
+  { ...approved, item: "scroll-area1", tier: "free", files: ["src/components/dev/kit-scroll-area-example.tsx"],
+    localChanges: "The kit demo (a fixed-height list with separators) is kept as the showcase example; version-tag sample data replaced by catalogue rows; the viewport is focusable with a region name because its rows are plain text. The scroll area primitive is hand-written on radix-ui with token-based scrollbars." },
+  { ...approved, item: "drawer1", tier: "free", files: ["src/components/dev/kit-bottom-sheet-example.tsx"],
+    localChanges: "Visual reference only; no kit code, no drawer library (vaul is not an approved dependency). The composition (title, body, stacked actions) is built on the existing Sheet as a bottom sheet with a handle, safe-area padding and a 44px close target." },
+];
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 /** Returns human-readable problems with a record; an empty array means valid. */
