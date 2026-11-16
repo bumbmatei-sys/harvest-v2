@@ -78,7 +78,7 @@ describe("newsletter channel scope and frozen registry lists", () => {
 });
 
 describe("staff attestation rules", () => {
-  it("only owners and admins may attest; members and viewers may not, and unknown roles are denied", () => {
+  it("only owners and admins may attest a grant; members and viewers may not, and unknown roles are denied", () => {
     expect(can("owner", "contacts:attest_consent")).toBe(true);
     expect(can("admin", "contacts:attest_consent")).toBe(true);
     for (const role of ["member", "viewer", "pastor", "volunteer", ""]) expect(can(role, "contacts:attest_consent")).toBe(false);

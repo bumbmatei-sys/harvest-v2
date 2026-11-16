@@ -107,7 +107,7 @@ describe("mayContact", () => {
   });
 });
 
-describe("F9: staff attestation is owner/admin only, with evidence, audited", () => {
+describe("F9: attesting a grant is owner/admin only; a withdrawal is open to members; evidence required, audited", () => {
   const input = { ...proof, purpose: "messaging", status: "granted", channel: "email" } as const;
   const ledgerCount = async () => Number((await f.admin.query("select count(*)::int as n from contact_consents where tenant_id = $1", [tenant])).rows[0].n);
   const auditCount = async () => Number((await f.admin.query("select count(*)::int as n from audit_logs where tenant_id = $1 and action = 'contact.consent_record'", [tenant])).rows[0].n);
@@ -118,20 +118,69 @@ describe("F9: staff attestation is owner/admin only, with evidence, audited", ()
     await pause();
     await expect(recordConsent(f.db, user, tenant, person, { ...input, status: "withdrawn" })).resolves.toMatchObject({ status: "withdrawn" });
   });
-  it("members, viewers and people outside the ministry are denied with the same semantics and write nothing", async () => {
+  it("members may record a withdrawal but not a grant or an unknown status; viewers and people outside the ministry may do neither; denials write nothing", async () => {
     const before = [await ledgerCount(), await auditCount()];
+    const attempt = (user: string, status: "granted" | "withdrawn" | "unknown") => recordConsent(f.db, user, tenant, person, { ...input, status }).then(() => null, (caught) => caught);
     const denials = [];
     for (const user of ["g-member", "g-viewer", "g-outsider"]) {
-      for (const status of ["granted", "withdrawn", "unknown"] as const) {
-        const error = await recordConsent(f.db, user, tenant, person, { ...input, status }).then(() => null, (caught) => caught);
+      for (const status of ["granted", "unknown"] as const) {
+        const error = await attempt(user, status);
         denials.push({ user, status, code: error?.status, message: error?.message });
       }
     }
+    for (const user of ["g-viewer", "g-outsider"]) {
+      const error = await attempt(user, "withdrawn");
+      denials.push({ user, status: "withdrawn", code: error?.status, message: error?.message });
+    }
     expect(denials.every((denial) => denial.code === 403)).toBe(true);
-    // Members and viewers get the same role denial for every status; a non-member gets the existing workspace denial (same status).
+    // Same denial semantics as before the split: members and viewers get the same role denial; a non-member gets the existing workspace denial.
     expect(new Set(denials.filter((denial) => denial.user !== "g-outsider").map((denial) => denial.message)).size).toBe(1);
     expect(new Set(denials.filter((denial) => denial.user === "g-outsider").map((denial) => denial.message)).size).toBe(1);
     expect([await ledgerCount(), await auditCount()]).toEqual(before);
+    // The permission is chosen from the validated status only: a denied grant cannot be smuggled in as a withdrawal, and no oracle appears for an unknown person.
+    const missing = "00000000-0000-4000-8000-0000000000aa";
+    for (const status of ["granted", "unknown"] as const) {
+      const error = await recordConsent(f.db, "g-member", tenant, missing, { ...input, status }).then(() => null, (caught) => caught);
+      expect(error).toMatchObject({ status: 403, message: denials[0].message });
+    }
+  });
+  it("a member's withdrawal is recorded with the same evidence rules and audit, and takes effect everywhere", async () => {
+    const before = [await ledgerCount(), await auditCount()];
+    const bad = [{ source: " " }, { evidence: "" }, { occurredAt: new Date(Date.now() + 86_400_000).toISOString() }, { occurredAt: "1970-01-02T00:00:00Z" }];
+    for (const override of bad) expect(() => recordConsent(f.db, "g-member", tenant, person, { ...input, status: "withdrawn", ...override } as never), JSON.stringify(override)).toThrow();
+    expect([await ledgerCount(), await auditCount()]).toEqual(before);
+
+    const name = "G Member Withdrawal", contact = (await createContact(f.db, "g-owner", tenant, { name, email: emailOf(name) })).id;
+    // Every purpose staff can record, on every channel: grant as an owner, then withdraw as a member.
+    const matrix = [["newsletter", "email"], ["messaging", "email"], ["messaging", "sms"], ["marketing", "social"], ["form_follow_up", "email"], ["outreach_follow_up", "email"], ["outreach_follow_up", "sms"]] as const;
+    for (const [purpose, channel] of matrix) { await record("g-owner", contact, purpose, "granted", channel); await pause(); }
+    expect(await gate(contact, "newsletter", "email")).toMatchObject({ allowed: true });
+    expect(await gate(contact, "outreach_follow_up", "email")).toMatchObject({ allowed: true });
+    expect((await names("newsletter~any_of~granted"))).toContain(name);
+    for (const [purpose, channel] of matrix) {
+      const row = await record("g-member", contact, purpose, "withdrawn", channel);
+      expect(row).toMatchObject({ status: "withdrawn", purpose, channel, recordedBy: "g-member" });
+      await pause();
+    }
+    // The ledger gate, the association gate, mayContact and the list/count/export filters all see the withdrawal.
+    expect(await gate(contact, "newsletter", "email")).toMatchObject({ allowed: false, reason: "consent_withdrawn" });
+    expect(await gate(contact, "outreach_follow_up", "email")).toMatchObject({ allowed: false, reason: "consent_withdrawn" });
+    expect(await gate(contact, "messaging", "sms")).toMatchObject({ allowed: false, reason: "consent_withdrawn" });
+    expect(await recordAssociation(f.db, "g-owner", tenant, { source: "form", kind: "form_submission", purpose: "newsletter", contactId: contact, externalId: "g-member-withdrawal" })).toMatchObject({ stored: false, reason: "consent_withdrawn" });
+    expect(await names("newsletter~any_of~granted")).not.toContain(name);
+    expect(await names("newsletter~any_of~withdrawn")).toContain(name);
+    expect((await exportRecords(f.db, "g-owner", tenant, "person", { f: "newsletter~any_of~withdrawn" })).rows).toBeGreaterThan(0);
+    // The newest event on each channel is the withdrawal, so an older grant can never undo it.
+    const ledger = (await f.admin.query("select status, recorded_by from contact_consents where contact_id = $1 and purpose = 'newsletter' order by recorded_at", [contact])).rows;
+    expect(ledger.map((row) => row.status)).toEqual(["granted", "withdrawn"]);
+    // One audit row per withdrawal, ids and categories only, attributed to the member.
+    const audit = (await f.admin.query("select actor_id, metadata from audit_logs where tenant_id = $1 and action = 'contact.consent_record' and target_id = $2 and actor_id = 'g-member'", [tenant, contact])).rows;
+    expect(audit).toHaveLength(matrix.length);
+    for (const row of audit) expect(Object.keys(row.metadata).sort()).toEqual(["attested", "channel", "consentId", "purpose", "status"]);
+    // A member still cannot grant again; an owner can, and the later grant is effective again.
+    await expect(record("g-member", contact, "newsletter", "granted", "email")).rejects.toMatchObject({ status: 403 });
+    await pause(); await record("g-owner", contact, "newsletter", "granted", "email");
+    expect(await gate(contact, "newsletter", "email")).toMatchObject({ allowed: true });
   });
   it("requires evidence: a method, an explanation and a plausible, non-future date; nothing is written otherwise", async () => {
     const before = [await ledgerCount(), await auditCount()];

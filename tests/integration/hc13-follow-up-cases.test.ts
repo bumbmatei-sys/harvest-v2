@@ -6,7 +6,8 @@ import { withTenant, withUser } from "../../src/server/tenancy";
 import { assignFollowUpCase, getFollowUpCase, listFollowUpCases, openEligibleFollowUpCases, transitionFollowUpCase } from "../../src/server/follow-up-cases";
 import { followUpCaseStates, followUpTransitionAllowed, counselorTransitions } from "../../src/lib/follow-up-cases";
 import { putMember } from "../../src/server/workspaces";
-import { eraseContact } from "../../src/server/contacts";
+import { eraseContact, recordConsent } from "../../src/server/contacts";
+import { mayContact } from "../../src/server/consent-gate";
 import { mergeContacts } from "../../src/server/crm-merge";
 import { eraseConnectResponse } from "../../src/server/connect-responses";
 import { createContact } from "../../src/server/contacts";
@@ -278,6 +279,82 @@ describe("assignment", () => {
     const second = await assigned("d-member");
     await ctx.withdrawCrm(second.contactId);
     expect(await move("d-member", second.caseId, "attempted").catch((error) => error)).toMatchObject({ status: 409, details: { reason: "consent_not_in_effect" } });
+  });
+});
+
+// Consent follow-up (migration 0050): the case rules agree with `mayContact` for the follow-up purpose. A withdrawal on ANY channel blocks opening,
+// assigning and attempting; a grant must still be the effective event on the response's own channel (the seeded responses ask for email).
+describe("follow-up consent agrees with mayContact: a withdrawal on any channel blocks", () => {
+  const proof = { noticeVersion: "notice-v1", source: "Staff", evidence: "Synthetic request" } as const;
+  const pause = () => new Promise((resolve) => setTimeout(resolve, 15));
+  const ledger = (user: string, contact: string, channel: "email" | "sms" | "social", status: "granted" | "withdrawn", purpose: "outreach_follow_up" | "newsletter" = "outreach_follow_up") =>
+    recordConsent(ctx.f.db, user, ctx.tenantA, contact, { ...proof, channel, status, purpose });
+  const effective = async (response: string) => (await ctx.f.admin.query("select public.followup_consent_effective($1, $2) as ok", [ctx.tenantA, response])).rows[0].ok as boolean;
+  const gate = (contact: string) => withTenant(ctx.f.db, "d-owner", ctx.tenantA, "contacts:read", (tx, tenantId) => mayContact(tx, tenantId, contact, "outreach_follow_up", "email"));
+
+  it("an email grant with an SMS (or social) withdrawal refuses opening, direct insert, assigning and attempting", async () => {
+    const blocked = await ctx.seedAssociated();
+    await ledger("d-owner", blocked.contactId, "sms", "withdrawn");
+    expect(await effective(blocked.response)).toBe(false);
+    expect(await gate(blocked.contactId)).toMatchObject({ allowed: false, reason: "consent_withdrawn" });
+    await openEligibleFollowUpCases(ctx.f.db, "d-owner", ctx.tenantA, { limit: 200 });
+    expect(await ctx.caseOf(blocked.response)).toBeUndefined();
+    await expect(ctx.f.admin.query("insert into followup_cases (tenant_id, campaign_id, response_id, contact_id) values ($1,$2,$3,$4)", [ctx.tenantA, ctx.campaign, blocked.response, blocked.contactId])).rejects.toThrow("follow-up consent is not in effect");
+
+    // A case that is already open stops being assignable, and an assigned case stops being attemptable, when a withdrawal arrives on another channel.
+    const open = await ctx.seedCase();
+    await move("d-owner", open.caseId, "awaiting_assignment");
+    await ledger("d-owner", open.contactId, "social", "withdrawn");
+    expect(await assignFollowUpCase(ctx.f.db, "d-owner", ctx.tenantA, open.caseId, { assigneeId: "d-member", version: 2 }).catch((error) => error)).toMatchObject({ status: 409, details: { reason: "consent_not_in_effect" } });
+    const second = await assigned("d-member");
+    await ledger("d-member", second.contactId, "sms", "withdrawn");
+    expect(await move("d-member", second.caseId, "attempted").catch((error) => error)).toMatchObject({ status: 409, details: { reason: "consent_not_in_effect" } });
+    expect((await ctx.caseRow(second.caseId))?.state).toBe("assigned");
+    // Staff can still record the withdrawal on the case.
+    await move("d-owner", second.caseId, "withdrawn");
+    expect((await ctx.caseRow(second.caseId))?.state).toBe("withdrawn");
+  });
+
+  it("a withdrawal is lifted only by a later grant on the same channel; a grant on another channel does not lift it", async () => {
+    const person = await ctx.seedAssociated();
+    await ledger("d-owner", person.contactId, "sms", "withdrawn"); await pause();
+    await ledger("d-owner", person.contactId, "email", "granted"); await pause();
+    expect(await effective(person.response)).toBe(false);
+    expect(await gate(person.contactId)).toMatchObject({ allowed: false, reason: "consent_withdrawn" });
+    await ledger("d-owner", person.contactId, "sms", "granted");
+    expect(await effective(person.response)).toBe(true);
+    expect(await gate(person.contactId)).toMatchObject({ allowed: true });
+    await openEligibleFollowUpCases(ctx.f.db, "d-owner", ctx.tenantA, { limit: 200 });
+    expect(await ctx.caseOf(person.response)).toBeDefined();
+    // The withdrawal after the re-grant blocks again, whichever channel it is on.
+    await pause(); await ledger("d-member", person.contactId, "social", "withdrawn");
+    expect(await effective(person.response)).toBe(false);
+  });
+
+  it("the grant must be effective on the response's channel: an SMS-only grant never allows an email response, and other purposes do not block", async () => {
+    const smsOnly = await ctx.seedAssociated({ ledger: "none" });
+    await ledger("d-owner", smsOnly.contactId, "sms", "granted");
+    expect(await effective(smsOnly.response)).toBe(false);
+    expect(await gate(smsOnly.contactId)).toMatchObject({ allowed: false, reason: "consent_missing" });
+    const other = await ctx.seedAssociated();
+    await ledger("d-owner", other.contactId, "sms", "withdrawn", "newsletter");
+    expect(await effective(other.response)).toBe(true);
+    expect(await gate(other.contactId)).toMatchObject({ allowed: true });
+  });
+
+  it("agrees with mayContact on every ledger shape", async () => {
+    type Event = ["email" | "sms" | "social", "granted" | "withdrawn"];
+    const shapes: [string, Event[]][] = [
+      ["email grant only", []], ["sms withdrawal", [["sms", "withdrawn"]]], ["social withdrawal", [["social", "withdrawn"]]], ["email withdrawal", [["email", "withdrawn"]]],
+      ["email withdrawal then email re-grant", [["email", "withdrawn"], ["email", "granted"]]], ["sms withdrawal then sms re-grant", [["sms", "withdrawn"], ["sms", "granted"]]],
+      ["sms withdrawal then email re-grant", [["sms", "withdrawn"], ["email", "granted"]]], ["sms grant then sms withdrawal", [["sms", "granted"], ["sms", "withdrawn"]]],
+      ["sms grant", [["sms", "granted"]]],
+    ];
+    for (const [name, events] of shapes) {
+      const person = await ctx.seedAssociated();
+      for (const [channel, status] of events) { await pause(); await ledger("d-owner", person.contactId, channel, status); }
+      expect(await effective(person.response), name).toBe((await gate(person.contactId)).allowed);
+    }
   });
 });
 

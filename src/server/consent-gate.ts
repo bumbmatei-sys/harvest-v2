@@ -8,7 +8,10 @@ import { consentPurposeRegistry, grantCountsOnChannel, type ConsentChannel, type
  * Owned by the consent layer. Engineering defaults, UNAPPROVED pending legal review; this approves no sender,
  * notice, lawful basis or activation, and no sender for newsletter, follow-up or Auto-DMs exists.
  *
- * Rule (the SQL twin is `consentState` in crm-filters.ts; tests prove they agree on every ledger shape):
+ * Rule (the SQL twin is `consentState` in crm-filters.ts). The two agree on every ledger shape for the NEWSLETTER only (tests prove it). For
+ * every other purpose this gate is deliberately stricter than the per-channel list/export/filter reading: a withdrawal on ANY channel blocks
+ * here, whereas the list, count and export read a withdrawal on its own channel. A person may therefore appear in a per-channel list yet be
+ * refused here; that is the safe direction, and no send can come from a list alone.
  * - the decision is derived from the append-only ledger at call time, never from a stored flag;
  * - a withdrawal on ANY channel is outstanding until a later grant on the SAME channel is later on both clocks, and blocks;
  * - a grant counts only while it is the latest event on its channel, only on a channel the purpose accepts
