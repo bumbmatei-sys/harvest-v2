@@ -40,7 +40,7 @@ describe("contact input and permissions", () => {
   });
 });
 
-import { BRAND_THEMES, COLOR_MODES, isBrandTheme, themeRegistry, themeStyles } from "../../src/lib/theme-registry";
+import { BRAND_THEMES, CHART_TOKENS, COLOR_MODES, isBrandTheme, themeRegistry, themeStyles } from "../../src/lib/theme-registry";
 describe("theme registry", () => {
   it("defines complete palettes for each brand and color mode", () => {
     const tokens = Object.keys(themeRegistry.harvest.light).sort();
@@ -54,6 +54,20 @@ describe("theme registry", () => {
       expect(contrastRatio(palette["--text-muted"], palette["--surface-card"])).toBeGreaterThanOrEqual(4.5);
       expect(contrastRatio(palette["--text-muted"], palette["--surface-tint"])).toBeGreaterThanOrEqual(4.5);
       expect(palette["--earth"].toLowerCase()).toBe("#2d2519");
+    }
+  });
+  it("defines five distinct chart tokens per palette with 3:1 non-text contrast on card and page", () => {
+    expect(CHART_TOKENS).toHaveLength(5);
+    for (const brand of BRAND_THEMES) for (const mode of COLOR_MODES) {
+      const palette = themeRegistry[brand][mode];
+      const colors = CHART_TOKENS.map((token) => palette[token]);
+      expect(new Set(colors).size).toBe(5);
+      for (const color of colors) {
+        expect(color).toMatch(/^#[0-9a-f]{6}$/);
+        expect(contrastRatio(color, palette["--surface-card"])).toBeGreaterThanOrEqual(3);
+        expect(contrastRatio(color, palette["--surface"])).toBeGreaterThanOrEqual(3);
+      }
+      expect(themeStyles).toContain(`--chart-5:${colors[4]}`);
     }
   });
   it.each(["__proto__", "constructor", "<script>", null])("rejects unregistered theme %s", (value) => expect(isBrandTheme(value)).toBe(false));

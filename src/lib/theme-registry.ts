@@ -1,4 +1,4 @@
-/** The sole palette registry. Add a definition here; every control and CSS selector is derived. */
+/** The sole palette registry. Add a definition here; every control and CSS selector is derived. Chart tokens (--chart-1..5) are series colors that meet 3:1 non-text contrast against --surface-card and --surface (checked in tests). */
 export const themeRegistry = {
   "harvest": {
     "labelKey": "harvest",
@@ -42,7 +42,12 @@ export const themeRegistry = {
       "--action-hover": "#262626",
       "--ring": "#a3a3a3",
       "--shadow-color": "#000000",
-      "--action-foreground": "#fafafa"
+      "--action-foreground": "#fafafa",
+      "--chart-1": "#9a6a12",
+      "--chart-2": "#2b7a57",
+      "--chart-3": "#356aa3",
+      "--chart-4": "#b04a36",
+      "--chart-5": "#6a58a6"
     },
     "dark": {
       "--shell-canvas": "#0a0a0a",
@@ -84,7 +89,12 @@ export const themeRegistry = {
       "--action-hover": "#cccccc",
       "--ring": "#737373",
       "--shadow-color": "#000000",
-      "--action-foreground": "#171717"
+      "--action-foreground": "#171717",
+      "--chart-1": "#d9ab52",
+      "--chart-2": "#5fbf92",
+      "--chart-3": "#6fa4dc",
+      "--chart-4": "#e08a72",
+      "--chart-5": "#a99be0"
     }
   },
   "studio": {
@@ -129,7 +139,12 @@ export const themeRegistry = {
       "--action-hover": "#262626",
       "--ring": "#a3a3a3",
       "--shadow-color": "#000000",
-      "--action-foreground": "#fafafa"
+      "--action-foreground": "#fafafa",
+      "--chart-1": "#2563eb",
+      "--chart-2": "#0e7c86",
+      "--chart-3": "#7c3aed",
+      "--chart-4": "#c2410c",
+      "--chart-5": "#4d7c0f"
     },
     "dark": {
       "--shell-canvas": "#0a0a0a",
@@ -171,7 +186,12 @@ export const themeRegistry = {
       "--action-hover": "#cccccc",
       "--ring": "#737373",
       "--shadow-color": "#000000",
-      "--action-foreground": "#171717"
+      "--action-foreground": "#171717",
+      "--chart-1": "#6b9bff",
+      "--chart-2": "#4cc3cd",
+      "--chart-3": "#a78bfa",
+      "--chart-4": "#f08a5d",
+      "--chart-5": "#9ccc58"
     }
   }
 } as const;
@@ -193,3 +213,5 @@ export const themeStyles = BRAND_THEMES.flatMap((brand) => COLOR_MODES.map((mode
 
 /** HC-03 printable QR exports: the quiet zone is always white; the standard ink is black. */
 export const qrExportColors = { background: "#ffffff", standardInk: "#000000" } as const;
+
+export const CHART_TOKENS = ["--chart-1", "--chart-2", "--chart-3", "--chart-4", "--chart-5"] as const;

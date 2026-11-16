@@ -133,3 +133,23 @@ Upstream dependencies inspected in package.json: Next/React/Tailwind/shadcn/Radi
 | Source | Version/date | License | Dependencies | Changed files | Adaptations |
 | --- | --- | --- | --- | --- | --- |
 | [Tiptap](https://github.com/ueberdosis/tiptap) (`@tiptap/react`, `@tiptap/pm`, `@tiptap/starter-kit`) | 3.33.1 (package-lock.json), added 2026-11-11 in #62 | MIT | ProseMirror (MIT) via `@tiptap/pm` | `src/components/rich-text/rich-text-editor.tsx` | Restricted extension set (headings 2–3, bold, italic, strike, lists, quote, link with http/https/mailto); JSON output re-sanitised on the server by `src/lib/rich-text.ts`; display uses a React renderer, never HTML |
+
+## Shadcn UI Kit provenance
+
+Plan: [shadcnuikit-adoption.md](plans/shadcnuikit-adoption.md). **No kit item is adopted yet**: PR 0 adds tooling and the record only, so there is nothing for the founder item-approval gate to approve and no kit source, registry JSON or token is in the repository.
+
+Rule (enforced by `tests/unit/ui-provenance.test.ts`): every kit-derived file starts with the header below **and** is listed in `kitProvenance` in `src/lib/ui-provenance.ts` (item name, free or premium, registry retrieval date, install date, founder approver and approval date, local changes, destination files). Add the same row to the table here and record new dependencies in `third-party-licenses.md`.
+
+`/** Derived from Shadcn UI Kit item <name> (<free|premium>), registry retrieved <date>, approved <date> (<PR>). Local changes: docs/ui-sources.md. */`
+
+| Registry item | Free/premium | Retrieved | Installed | Approved (founder) | Files | Local changes |
+| --- | --- | --- | --- | --- | --- | --- |
+| none yet | | | | | | |
+
+### Registry access in agent sessions
+
+`components.json` registers `@shadcnuikit` with `Authorization: Bearer ${REGISTRY_TOKEN}` (placeholder only; `.env.example` lists the variable name with no value). The real credential is injected by the network proxy and is never visible, printed or committed. `REGISTRY_TOKEN` is unset in agent sessions, so either run the CLI with a dummy value (`REGISTRY_TOKEN=proxy-injected npx shadcn@latest add @shadcnuikit/<name>`; the proxy overwrites the header) or fetch `https://shadcnuikit.com/r/<name>.json` with curl and copy the files by hand, then convert them (see the plan, section 6). Run raw output only in a scratch directory outside the repository. `ui.shadcn.com` stays blocked, so stock primitives are written by hand. CI runs no registry command and needs no secret. The token-leak guard in the same test fails on a token-like `Bearer` value, a non-empty `REGISTRY_TOKEN=` assignment or a committed kit registry index.
+
+### Chart tokens
+
+`--chart-1` to `--chart-5` exist in every palette in `src/lib/theme-registry.ts` (light and dark) and map to `bg-chart-N` and friends in `globals.css`. Each meets 3:1 non-text contrast against that palette's `--surface-card` and `--surface` (unit-tested). The 12 future palettes are not represented in the registry yet and must supply the same five tokens. No chart library is installed.
