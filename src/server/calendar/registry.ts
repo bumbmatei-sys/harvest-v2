@@ -1,3 +1,4 @@
+import "server-only";
 import { FakeCalendarProvider } from "./fake-provider";
 import { ZernioCalendarAdapter } from "./zernio-adapter";
 export const INTEGRATION_ENABLED = false;

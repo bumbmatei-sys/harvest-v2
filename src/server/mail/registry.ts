@@ -1,3 +1,4 @@
+import "server-only";
 import { FakeMailProvider } from "./fake-provider";
 import { ZernioMailAdapter } from "./zernio-adapter";
 export const INTEGRATION_ENABLED = false;

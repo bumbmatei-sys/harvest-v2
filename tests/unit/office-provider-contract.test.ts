@@ -8,6 +8,7 @@ import { getFilesProvider } from "../../src/server/files-provider/registry";
 import type { MailProvider } from "../../src/server/mail/port";
 import type { CalendarProvider } from "../../src/server/calendar/port";
 import type { FilesProvider } from "../../src/server/files-provider/port";
+vi.mock("server-only", () => ({}));
 const c = { secret: "fake-credential" }, q = { accountRef: "account-1" };
 // Exported contract installers: any enabled adapter must pass these against synthetic fixtures.
 export function mailContract(factory: () => MailProvider) {

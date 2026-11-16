@@ -1,3 +1,4 @@
+import "server-only";
 import { OfficeProviderError, type Credential, type Query, type Page } from "./types";
 /** Synthetic data only. Each instance models one personal connection; all results are defensive copies. */
 export class FakeStore {

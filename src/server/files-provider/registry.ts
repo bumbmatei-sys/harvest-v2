@@ -1,3 +1,4 @@
+import "server-only";
 import { FakeFilesProvider } from "./fake-provider";
 import { ZernioFilesAdapter } from "./zernio-adapter";
 export const INTEGRATION_ENABLED = false;
