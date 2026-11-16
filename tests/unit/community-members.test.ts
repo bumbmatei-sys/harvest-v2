@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterMembers, isStaffRole, memberInitials, memberStatusTone, statusTabs } from "../../src/lib/community-members";
+import { activeTab, filterMembers, isStaffRole, memberInitials, memberStatusTone, statusTabs } from "../../src/lib/community-members";
 
 describe("community member list helpers (Kit PR 7)", () => {
   it("builds one or two capital initials and falls back to a question mark", () => {
@@ -28,5 +28,11 @@ describe("community member list helpers (Kit PR 7)", () => {
     expect(memberStatusTone("unknown")).toBe("neutral");
     expect(["owner", "admin", "moderator"].every(isStaffRole)).toBe(true);
     expect(["member", "contributor", "viewer"].some(isStaffRole)).toBe(false);
+  });
+  it("falls back to the all tab when the selected tab no longer exists", () => {
+    const tabs = [{ value: "all" }, { value: "comment" }];
+    expect(activeTab(tabs, "comment")).toBe("comment");
+    expect(activeTab(tabs, "post")).toBe("all");
+    expect(activeTab([], "post")).toBe("all");
   });
 });

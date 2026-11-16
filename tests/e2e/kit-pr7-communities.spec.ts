@@ -121,7 +121,12 @@ test("community screens: member list, moderation queue, Discover and feed cards,
       await expect(reports.getByRole("row")).toHaveCount(3);
       await page.getByRole("tab", { name: /^Posts/ }).click();
       await expect(reports.getByRole("row")).toHaveCount(2);
-      await page.getByRole("tab", { name: /^All/ }).click();
+      // Resolving the last report of the selected type returns to the all tab instead of an empty, unselected state.
+      await page.getByRole("button", { name: "Review Cheap watches" }).click();
+      await page.getByRole("dialog", { name: "Review report" }).getByRole("button", { name: "Keep", exact: true }).click();
+      await expect(page.getByRole("tab", { name: /^All/ })).toHaveAttribute("aria-selected", "true");
+      await expect(reports.getByRole("row")).toHaveCount(2);
+      await expect(page.getByText("No open reports")).toHaveCount(0);
       await audit(page, "moderation-reports");
       await page.getByRole("tab", { name: "Members", exact: true }).click();
       await expect(page.getByRole("table", { name: "Members" }).getByRole("button", { name: "Actions for Andrew Member" })).toBeVisible();

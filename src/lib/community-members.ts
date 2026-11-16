@@ -26,3 +26,8 @@ export function statusTabs(members: readonly { status?: string }[]): { value: st
   for (const member of members) if (member.status) counts.set(member.status, (counts.get(member.status) ?? 0) + 1);
   return [{ value: "all", count: members.length }, ...[...counts].map(([value, count]) => ({ value, count }))];
 }
+
+/** The selected tab value, or "all" when the stored one no longer exists (for example after its last item was resolved and the tab disappeared). */
+export function activeTab(tabs: readonly { value: string }[], selected: string): string {
+  return tabs.some((tab) => tab.value === selected) ? selected : "all";
+}

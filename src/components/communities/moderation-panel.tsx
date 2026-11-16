@@ -19,7 +19,7 @@ import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/com
 import { Textarea } from "@/components/ui/textarea";
 import { DataTable, type DataTableColumn, type DataTableRow } from "@/components/data-table";
 import { EmptyState } from "@/components/empty-state";
-import { memberInitials } from "@/lib/community-members";
+import { activeTab, memberInitials } from "@/lib/community-members";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { canActOn, canDecideAppeal, communityRank, moderationLimits, muteDays } from "@/lib/moderation";
 import type { AppealItem, HeldItem, HistoryEntry, ModerationMember, QueueItem } from "@/server/community-moderation";
@@ -54,9 +54,10 @@ export function ModerationPanel({ slug, me, role, queue, held, members, history,
   const reportTypes = ["post", "comment", "member"] as const, [reportType, setReportType] = useState("all");
   const reportTabs = [{ value: "all", label: ks("all"), count: queue.length }, ...reportTypes.filter((type) => queue.some((q) => q.targetType === type))
     .map((type) => ({ value: type, label: ks(`types.${type}` as "types.post"), count: queue.filter((q) => q.targetType === type).length }))];
+  const reportActive = activeTab(reportTabs, reportType);
   const reportColumns: DataTableColumn[] = [{ id: "item", header: t("item"), card: "title", className: "max-w-72" }, { id: "type", header: t("type") }, { id: "reasons", header: t("reasons") },
     { id: "reports", header: t("reports"), align: "end" }, { id: "first", header: t("firstReported") }, { id: "actions", ...actionsHeader }];
-  const reportRows: DataTableRow[] = queue.filter((q) => reportType === "all" || q.targetType === reportType).map((q) => ({ id: q.reportId, label: itemLabel(q) || t("unavailable"), cells: {
+  const reportRows: DataTableRow[] = queue.filter((q) => reportActive === "all" || q.targetType === reportActive).map((q) => ({ id: q.reportId, label: itemLabel(q) || t("unavailable"), cells: {
     item: <span className="line-clamp-2 break-words">{itemLabel(q) || t("unavailable")}</span>,
     type: <Badge variant="outline">{t(`targets.${q.targetType}`)}</Badge>,
     reasons: <div className="flex flex-wrap gap-1">{q.reasons.map((r) => <Badge key={r} variant="secondary">{t(`reasonLabels.${r}`)}</Badge>)}</div>,
@@ -129,7 +130,7 @@ export function ModerationPanel({ slug, me, role, queue, held, members, history,
       </TabsList>
 
       <TabsContent value="reports" className="mt-4"><DataTable label={t("tabs.reports")} columns={reportColumns} rows={reportRows}
-        tabs={queue.length > 0 ? { label: ks("reportTypes"), value: reportType, onValueChange: setReportType, items: reportTabs } : undefined}
+        tabs={queue.length > 0 ? { label: ks("reportTypes"), value: reportActive, onValueChange: setReportType, items: reportTabs } : undefined}
         empty={emptyState("emptyReports", Flag)} /></TabsContent>
 
       <TabsContent value="held" className="mt-4"><DataTable label={t("tabs.held")} columns={heldColumns} rows={heldRows} empty={emptyState("emptyHeld", Hourglass)} /></TabsContent>
