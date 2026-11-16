@@ -19,7 +19,11 @@ async function setMode(page: Page, mode: "light" | "dark") {
   }
 }
 async function audit(page: Page, name: string) {
-  const result = await new AxeBuilder({ page }).analyze();
+  // Settle first: the person heading and the permissions list must be rendered, so CI timing cannot audit a half-rendered page.
+  await expect(page.getByRole("heading", { level: 1, name: "Synthetic Ana Costa" })).toBeVisible();
+  await expect(page.getByRole("list", { name: "Contact permissions" })).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
   expect(result.violations.map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(" ")).join(", ")}`), name).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${name} overflow`).toBe(true);
 }

@@ -19,9 +19,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 /**
  * Records one consent event. CRM-07's per-purpose rows open it with `preset` (purpose, status and
- * a sensible channel) and their own trigger; the person can still change every field.
+ * a sensible channel) and their own trigger; the person can still change every field except status, which is limited to `statuses` (what the role may record).
  */
-export function ConsentForm({ tenantId, contactId, preset, trigger, statuses = ["unknown", "granted", "withdrawn"] }: { tenantId: string; contactId: string; statuses?: ConsentStatus[];
+export function ConsentForm({ tenantId, contactId, preset, trigger, statuses }: { tenantId: string; contactId: string; statuses: ConsentStatus[];
   preset?: { purpose: string; status: "granted" | "withdrawn"; channel: "email" | "sms" | "social" }; trigger?: React.ReactNode }) {
   const t = useTranslations("ComponentsConsentForm");
   const format = useFormatter();

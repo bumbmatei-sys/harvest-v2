@@ -21,3 +21,6 @@ The person page now shows consent controls by permission. The server already enf
 
 ## Not done
 No server change; no new copy; "withdrawal for a purpose with no recorded state" is reachable only through the Consent history form (rows offer opt-in for that state). CI not verified here.
+
+## Follow-up (CI fix)
+The e2e axe helper ran unfiltered (best-practice rules) and could audit a half-rendered page (`page-has-heading-one`). It now uses the repo's tag set (wcag2a, wcag2aa, wcag21aa) and waits for the person h1 and permissions list first. The person page does render an h1 (via the record title); no page structure changed. `ConsentForm` `statuses` is now required (no silent default).
