@@ -1,9 +1,10 @@
+/** Derived from Shadcn UI Kit item tables14 (premium), registry retrieved 2026-11-16, approved 2026-11-16 (Kit PR 3 and Kit PR 7). Visual reference only; local changes: docs/ui-sources.md. */
 "use client";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import { MoreHorizontal, Search } from "lucide-react";
+import { Flag, History, Hourglass, MoreHorizontal, Scale, Search, Users, type LucideIcon } from "lucide-react";
 import { useCrmRequest } from "@/components/crm/request";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
@@ -11,12 +12,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
-import { Input } from "@/components/ui/input";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { Label } from "@/components/ui/label";
 import { Sheet, SheetContent, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataTable, type DataTableColumn, type DataTableRow } from "@/components/data-table";
+import { EmptyState } from "@/components/empty-state";
+import { activeTab, memberInitials } from "@/lib/community-members";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { canActOn, canDecideAppeal, communityRank, moderationLimits, muteDays } from "@/lib/moderation";
 import type { AppealItem, HeldItem, HistoryEntry, ModerationMember, QueueItem } from "@/server/community-moderation";
@@ -26,7 +29,7 @@ type Props = { slug: string; me: string; role: string; queue: QueueItem[]; held:
 
 /** C12a: the hosts' moderation page. Studio Admin style: tabs, tables, a review sheet and row menus. */
 export function ModerationPanel({ slug, me, role, queue, held, members, history, appeals }: Props) {
-  const t = useTranslations("Moderation"), format = useFormatter(), request = useCrmRequest(), router = useRouter();
+  const t = useTranslations("Moderation"), ks = useTranslations("CommunityScreens.moderation"), format = useFormatter(), request = useCrmRequest(), router = useRouter();
   const [tab, setTab] = useState("reports"), [reviewing, setReviewing] = useState<string | null>(null), [search, setSearch] = useState("");
   const [banning, setBanning] = useState<ModerationMember | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState("");
   const [warning, setWarning] = useState<ModerationMember | null>(null), [warnReason, setWarnReason] = useState("");
@@ -43,7 +46,76 @@ export function ModerationPanel({ slug, me, role, queue, held, members, history,
   const itemLabel = (i: { targetType: string; title: string; excerpt: string }) => i.targetType === "comment" ? i.excerpt : i.title;
   const postHref = (postId: string | null) => postId ? `/communities/${slug}/posts/${postId}` : null;
   const visibleMembers = members.filter((m) => m.name.toLowerCase().includes(search.trim().toLowerCase()));
-  const empty = (key: string) => <Empty className="border"><EmptyHeader><EmptyTitle>{t(key as "emptyReports")}</EmptyTitle></EmptyHeader></Empty>;
+
+  const emptyState = (key: string, icon: LucideIcon) => <EmptyState icon={icon} size="compact" title={t(key as "emptyReports")} />;
+  const actionsHeader = { header: t("actions"), srOnlyHeader: true, align: "end", card: "actions" } as const;
+
+  // Reports: type tabs (the queue is already one list per report; tabs only narrow it).
+  const reportTypes = ["post", "comment", "member"] as const, [reportType, setReportType] = useState("all");
+  const reportTabs = [{ value: "all", label: ks("all"), count: queue.length }, ...reportTypes.filter((type) => queue.some((q) => q.targetType === type))
+    .map((type) => ({ value: type, label: ks(`types.${type}` as "types.post"), count: queue.filter((q) => q.targetType === type).length }))];
+  const reportActive = activeTab(reportTabs, reportType);
+  const reportColumns: DataTableColumn[] = [{ id: "item", header: t("item"), card: "title", className: "max-w-72" }, { id: "type", header: t("type") }, { id: "reasons", header: t("reasons") },
+    { id: "reports", header: t("reports"), align: "end" }, { id: "first", header: t("firstReported") }, { id: "actions", ...actionsHeader }];
+  const reportRows: DataTableRow[] = queue.filter((q) => reportActive === "all" || q.targetType === reportActive).map((q) => ({ id: q.reportId, label: itemLabel(q) || t("unavailable"), cells: {
+    item: <span className="line-clamp-2 break-words">{itemLabel(q) || t("unavailable")}</span>,
+    type: <Badge variant="outline">{t(`targets.${q.targetType}`)}</Badge>,
+    reasons: <div className="flex flex-wrap gap-1">{q.reasons.map((r) => <Badge key={r} variant="secondary">{t(`reasonLabels.${r}`)}</Badge>)}</div>,
+    reports: <span className="tabular-nums">{q.reports}</span>, first: <span className="whitespace-nowrap">{date(q.firstReportedAt)}</span>,
+    actions: <Button variant="outline" className="min-h-11" onClick={() => setReviewing(q.reportId)} aria-label={t("reviewNamed", { name: itemLabel(q) || t(`targets.${q.targetType}`) })}>{t("review")}</Button>,
+  } }));
+
+  const heldColumns: DataTableColumn[] = [{ id: "item", header: t("item"), card: "title", className: "max-w-72" }, { id: "author", header: t("author") }, { id: "why", header: t("why") },
+    { id: "date", header: t("date") }, { id: "actions", ...actionsHeader }];
+  const heldRows: DataTableRow[] = held.map((h) => { const label = itemLabel(h), href = postHref(h.postId); return { id: h.id, label, cells: {
+    item: <div className="space-y-1"><Badge variant="outline">{t(`targets.${h.targetType}`)}</Badge>
+      {href ? <Link href={href} prefetch={false} className="line-clamp-2 block break-words hover:underline">{label}</Link> : <span className="line-clamp-2 break-words">{label}</span>}</div>,
+    author: h.authorName?.trim() || t("unnamed"), why: <Badge variant="secondary">{t(`heldReasons.${h.reason}`)}</Badge>, date: <span className="whitespace-nowrap">{date(h.heldAt)}</span>,
+    actions: <div className="flex justify-end gap-2">
+      <Button className="min-h-11" disabled={busy} aria-label={t("approveNamed", { name: label })} onClick={() => void act(`${base}/held`, { targetType: h.targetType, id: h.id, decision: "approve" })}>{t("approve")}</Button>
+      <Button variant="outline" className="min-h-11" disabled={busy} aria-label={t("rejectNamed", { name: label })} onClick={() => void act(`${base}/held`, { targetType: h.targetType, id: h.id, decision: "reject" })}>{t("reject")}</Button></div>,
+  } }; });
+
+  const memberColumns: DataTableColumn[] = [{ id: "name", header: t("name"), card: "title" }, { id: "role", header: t("role") }, { id: "status", header: t("status") },
+    { id: "warnings", header: t("warnings"), align: "end" }, { id: "actions", ...actionsHeader }];
+  const memberRows: DataTableRow[] = visibleMembers.map((m) => { const name = m.name.trim() || t("unnamed"), allowed = canActOn(role, m.role, m.userId === me);
+    const canUnban = m.status === "banned" && communityRank(role) >= 2 && m.userId !== me; return { id: m.userId, label: name, cells: {
+    name: <span className="flex min-w-0 items-center gap-3"><Avatar><AvatarFallback aria-hidden="true">{memberInitials(m.name)}</AvatarFallback></Avatar><span className="min-w-0 break-words font-medium">{name}</span></span>,
+    role: t(`roles.${m.role}` as "roles.member"),
+    status: m.status === "banned" ? <Badge variant="destructive">{t("banned")}</Badge>
+      : m.mutedUntil ? <Badge variant="secondary" className="h-auto whitespace-normal">{t("mutedUntil", { date: format.dateTime(new Date(m.mutedUntil), { dateStyle: "medium", timeStyle: "short" }) })}</Badge>
+      : <Badge variant="outline">{t("active")}</Badge>,
+    warnings: <span className="tabular-nums">{m.warnings}</span>,
+    actions: (allowed || canUnban) ? <DropdownMenu><DropdownMenuTrigger asChild>
+      <Button variant="ghost" size="icon" className="size-11" disabled={busy} aria-label={t("actionsFor", { name })}><MoreHorizontal aria-hidden="true" /></Button></DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {m.status === "active" && allowed && <>
+          <DropdownMenuItem className="min-h-11" onSelect={() => { setWarning(m); setWarnReason(""); }}>{t("warn")}</DropdownMenuItem>
+          {muteDays.map((days) => <DropdownMenuItem key={days} className="min-h-11" onSelect={() => void act(`${base}/members`, { userId: m.userId, action: "mute", days })}>{t("mute", { days })}</DropdownMenuItem>)}
+          {m.mutedUntil && <DropdownMenuItem className="min-h-11" onSelect={() => void act(`${base}/members`, { userId: m.userId, action: "unmute" })}>{t("unmute")}</DropdownMenuItem>}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem className="min-h-11" variant="destructive" onSelect={() => setBanning(m)}>{t("ban")}</DropdownMenuItem></>}
+        {canUnban && <DropdownMenuItem className="min-h-11" onSelect={() => void act(`${base}/members`, { userId: m.userId, action: "unban" })}>{t("unban")}</DropdownMenuItem>}
+      </DropdownMenuContent></DropdownMenu> : null,
+  } }; });
+
+  const [appealFilter, setAppealFilter] = useState("all");
+  const appealTabs = [{ value: "all", label: ks("all"), count: appeals.length }, { value: "open", label: t("appealStatus.open"), count: openAppeals }, { value: "closed", label: ks("resolved"), count: appeals.length - openAppeals }];
+  const appealColumns: DataTableColumn[] = [{ id: "name", header: t("name"), card: "title" }, { id: "message", header: t("appealMessage"), className: "max-w-72" }, { id: "status", header: t("status") },
+    { id: "date", header: t("date") }, { id: "actions", ...actionsHeader }];
+  const appealRows: DataTableRow[] = appeals.filter((x) => appealFilter === "all" || (appealFilter === "open") === (x.status === "open")).map((x) => { const name = x.name?.trim() || t("unnamed"); return { id: x.id, label: name, cells: {
+    name: <span className="font-medium">{name}</span>, message: <span className="line-clamp-2 break-words">{x.message}</span>,
+    status: <Badge variant={x.status === "open" ? "secondary" : "outline"}>{t(`appealStatus.${x.status}`)}</Badge>, date: <span className="whitespace-nowrap">{date(x.createdAt)}</span>,
+    actions: <Button variant={x.status === "open" ? "default" : "outline"} className="min-h-11" aria-label={t("reviewNamed", { name })} onClick={() => { setAppealId(x.id); setAppealReply(""); }}>{t("review")}</Button>,
+  } }; });
+
+  const historyColumns: DataTableColumn[] = [{ id: "date", header: t("date"), className: "whitespace-normal" }, { id: "host", header: t("host"), className: "whitespace-normal" },
+    { id: "action", header: t("action"), card: "title", className: "whitespace-normal" }, { id: "subject", header: t("subject"), className: "whitespace-normal" }];
+  const historyRows: DataTableRow[] = history.map((h) => ({ id: h.id, label: t(`history.${h.action}` as "history.ban", { days: Number(h.detail.days ?? 0) }), cells: {
+    date: format.dateTime(new Date(h.createdAt), { dateStyle: "medium", timeStyle: "short" }), host: h.actorName?.trim() || t("unnamed"),
+    action: t(`history.${h.action}` as "history.ban", { days: Number(h.detail.days ?? 0) }),
+    subject: t("subjectWithType", { name: h.subjectName?.trim() || t("unnamed"), type: t(`targets.${h.targetType}` as "targets.post") }),
+  } }));
 
   return <div className="min-w-0 space-y-4 p-4 lg:p-6">
     <h2 className="text-xl font-semibold">{t("title")}</h2>
@@ -57,82 +129,20 @@ export function ModerationPanel({ slug, me, role, queue, held, members, history,
         <TabsTrigger value="history" className="min-h-11">{t("tabs.history")}</TabsTrigger>
       </TabsList>
 
-      <TabsContent value="reports" className="mt-4">{queue.length === 0 ? empty("emptyReports") : <div className="overflow-x-auto rounded-lg border">
-        <Table aria-label={t("tabs.reports")}><TableHeader><TableRow><TableHead>{t("item")}</TableHead><TableHead>{t("type")}</TableHead><TableHead>{t("reasons")}</TableHead>
-          <TableHead className="text-right">{t("reports")}</TableHead><TableHead>{t("firstReported")}</TableHead><TableHead><span className="sr-only">{t("actions")}</span></TableHead></TableRow></TableHeader>
-          <TableBody>{queue.map((q) => <TableRow key={q.reportId}>
-            <TableCell className="max-w-72"><span className="line-clamp-2 break-words">{itemLabel(q) || t("unavailable")}</span></TableCell>
-            <TableCell><Badge variant="outline">{t(`targets.${q.targetType}`)}</Badge></TableCell>
-            <TableCell><div className="flex flex-wrap gap-1">{q.reasons.map((r) => <Badge key={r} variant="secondary">{t(`reasonLabels.${r}`)}</Badge>)}</div></TableCell>
-            <TableCell className="text-right tabular-nums">{q.reports}</TableCell>
-            <TableCell className="whitespace-nowrap">{date(q.firstReportedAt)}</TableCell>
-            <TableCell className="text-right"><Button variant="outline" className="min-h-11" onClick={() => setReviewing(q.reportId)}
-              aria-label={t("reviewNamed", { name: itemLabel(q) || t(`targets.${q.targetType}`) })}>{t("review")}</Button></TableCell>
-          </TableRow>)}</TableBody></Table></div>}</TabsContent>
+      <TabsContent value="reports" className="mt-4"><DataTable label={t("tabs.reports")} columns={reportColumns} rows={reportRows}
+        tabs={queue.length > 0 ? { label: ks("reportTypes"), value: reportActive, onValueChange: setReportType, items: reportTabs } : undefined}
+        empty={emptyState("emptyReports", Flag)} /></TabsContent>
 
-      <TabsContent value="held" className="mt-4">{held.length === 0 ? empty("emptyHeld") : <div className="overflow-x-auto rounded-lg border">
-        <Table aria-label={t("tabs.held")}><TableHeader><TableRow><TableHead>{t("item")}</TableHead><TableHead>{t("author")}</TableHead><TableHead>{t("why")}</TableHead>
-          <TableHead>{t("date")}</TableHead><TableHead><span className="sr-only">{t("actions")}</span></TableHead></TableRow></TableHeader>
-          <TableBody>{held.map((h) => { const label = itemLabel(h), href = postHref(h.postId); return <TableRow key={h.id}>
-            <TableCell className="max-w-72"><div className="space-y-1"><Badge variant="outline">{t(`targets.${h.targetType}`)}</Badge>
-              {href ? <Link href={href} prefetch={false} className="line-clamp-2 block break-words hover:underline">{label}</Link> : <span className="line-clamp-2 break-words">{label}</span>}</div></TableCell>
-            <TableCell>{h.authorName?.trim() || t("unnamed")}</TableCell>
-            <TableCell><Badge variant="secondary">{t(`heldReasons.${h.reason}`)}</Badge></TableCell>
-            <TableCell className="whitespace-nowrap">{date(h.heldAt)}</TableCell>
-            <TableCell><div className="flex justify-end gap-2">
-              <Button className="min-h-11" disabled={busy} aria-label={t("approveNamed", { name: label })} onClick={() => void act(`${base}/held`, { targetType: h.targetType, id: h.id, decision: "approve" })}>{t("approve")}</Button>
-              <Button variant="outline" className="min-h-11" disabled={busy} aria-label={t("rejectNamed", { name: label })} onClick={() => void act(`${base}/held`, { targetType: h.targetType, id: h.id, decision: "reject" })}>{t("reject")}</Button>
-            </div></TableCell></TableRow>; })}</TableBody></Table></div>}</TabsContent>
+      <TabsContent value="held" className="mt-4"><DataTable label={t("tabs.held")} columns={heldColumns} rows={heldRows} empty={emptyState("emptyHeld", Hourglass)} /></TabsContent>
 
-      <TabsContent value="members" className="mt-4 space-y-3">
-        <div className="relative max-w-sm"><Label htmlFor="moderation-search" className="sr-only">{t("search")}</Label>
-          <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
-          <Input id="moderation-search" type="search" className="min-h-11 pl-9" placeholder={t("search")} value={search} onChange={(e) => setSearch(e.target.value)} /></div>
-        {visibleMembers.length === 0 ? empty("emptyMembers") : <div className="overflow-x-auto rounded-lg border">
-          <Table aria-label={t("tabs.members")}><TableHeader><TableRow><TableHead>{t("name")}</TableHead><TableHead>{t("role")}</TableHead><TableHead>{t("status")}</TableHead><TableHead className="text-right">{t("warnings")}</TableHead>
-            <TableHead><span className="sr-only">{t("actions")}</span></TableHead></TableRow></TableHeader>
-            <TableBody>{visibleMembers.map((m) => { const name = m.name.trim() || t("unnamed"), allowed = canActOn(role, m.role, m.userId === me);
-              const canUnban = m.status === "banned" && communityRank(role) >= 2 && m.userId !== me; return <TableRow key={m.userId}>
-              <TableCell className="font-medium">{name}</TableCell>
-              <TableCell>{t(`roles.${m.role}` as "roles.member")}</TableCell>
-              <TableCell>{m.status === "banned" ? <Badge variant="destructive">{t("banned")}</Badge>
-                : m.mutedUntil ? <Badge variant="secondary" className="h-auto whitespace-normal">{t("mutedUntil", { date: format.dateTime(new Date(m.mutedUntil), { dateStyle: "medium", timeStyle: "short" }) })}</Badge>
-                : <Badge variant="outline">{t("active")}</Badge>}</TableCell>
-              <TableCell className="text-right tabular-nums">{m.warnings}</TableCell>
-              <TableCell className="text-right">{(allowed || canUnban) && <DropdownMenu><DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="size-11" disabled={busy} aria-label={t("actionsFor", { name })}><MoreHorizontal aria-hidden="true" /></Button></DropdownMenuTrigger>
-                <DropdownMenuContent align="end">
-                  {m.status === "active" && allowed && <>
-                    <DropdownMenuItem className="min-h-11" onSelect={() => { setWarning(m); setWarnReason(""); }}>{t("warn")}</DropdownMenuItem>
-                    {muteDays.map((days) => <DropdownMenuItem key={days} className="min-h-11" onSelect={() => void act(`${base}/members`, { userId: m.userId, action: "mute", days })}>{t("mute", { days })}</DropdownMenuItem>)}
-                    {m.mutedUntil && <DropdownMenuItem className="min-h-11" onSelect={() => void act(`${base}/members`, { userId: m.userId, action: "unmute" })}>{t("unmute")}</DropdownMenuItem>}
-                    <DropdownMenuSeparator />
-                    <DropdownMenuItem className="min-h-11" variant="destructive" onSelect={() => setBanning(m)}>{t("ban")}</DropdownMenuItem></>}
-                  {canUnban && <DropdownMenuItem className="min-h-11" onSelect={() => void act(`${base}/members`, { userId: m.userId, action: "unban" })}>{t("unban")}</DropdownMenuItem>}
-                </DropdownMenuContent></DropdownMenu>}</TableCell>
-            </TableRow>; })}</TableBody></Table></div>}
-      </TabsContent>
+      <TabsContent value="members" className="mt-4"><DataTable label={t("tabs.members")} columns={memberColumns} rows={memberRows} empty={emptyState("emptyMembers", Users)}
+        toolbar={{ search: <InputGroup className="min-h-11 lg:min-h-9"><InputGroupAddon><Search aria-hidden="true" /></InputGroupAddon>
+          <InputGroupInput id="moderation-search" type="search" aria-label={t("search")} placeholder={t("search")} value={search} onChange={(e) => setSearch(e.target.value)} /></InputGroup> }} /></TabsContent>
 
-      <TabsContent value="appeals" className="mt-4">{appeals.length === 0 ? empty("emptyAppeals") : <div className="overflow-x-auto rounded-lg border">
-        <Table aria-label={t("tabs.appeals")}><TableHeader><TableRow><TableHead>{t("name")}</TableHead><TableHead>{t("appealMessage")}</TableHead><TableHead>{t("status")}</TableHead>
-          <TableHead>{t("date")}</TableHead><TableHead><span className="sr-only">{t("actions")}</span></TableHead></TableRow></TableHeader>
-          <TableBody>{appeals.map((x) => { const name = x.name?.trim() || t("unnamed"); return <TableRow key={x.id}>
-            <TableCell className="font-medium">{name}</TableCell>
-            <TableCell className="max-w-72"><span className="line-clamp-2 break-words">{x.message}</span></TableCell>
-            <TableCell><Badge variant={x.status === "open" ? "secondary" : "outline"}>{t(`appealStatus.${x.status}`)}</Badge></TableCell>
-            <TableCell className="whitespace-nowrap">{date(x.createdAt)}</TableCell>
-            <TableCell className="text-right"><Button variant={x.status === "open" ? "default" : "outline"} className="min-h-11" aria-label={t("reviewNamed", { name })}
-              onClick={() => { setAppealId(x.id); setAppealReply(""); }}>{t("review")}</Button></TableCell>
-          </TableRow>; })}</TableBody></Table></div>}</TabsContent>
+      <TabsContent value="appeals" className="mt-4"><DataTable label={t("tabs.appeals")} columns={appealColumns} rows={appealRows} empty={emptyState("emptyAppeals", Scale)}
+        tabs={appeals.length > 0 ? { label: ks("appealStates"), value: appealFilter, onValueChange: setAppealFilter, items: appealTabs } : undefined} /></TabsContent>
 
-      <TabsContent value="history" className="mt-4">{history.length === 0 ? empty("emptyHistory") : <div className="overflow-x-auto rounded-lg border">
-        <Table aria-label={t("tabs.history")}><TableHeader><TableRow><TableHead className="whitespace-normal">{t("date")}</TableHead><TableHead className="whitespace-normal">{t("host")}</TableHead><TableHead className="whitespace-normal">{t("action")}</TableHead><TableHead className="whitespace-normal">{t("subject")}</TableHead></TableRow></TableHeader>
-          <TableBody>{history.map((h) => <TableRow key={h.id}>
-            <TableCell className="whitespace-normal">{format.dateTime(new Date(h.createdAt), { dateStyle: "medium", timeStyle: "short" })}</TableCell>
-            <TableCell className="whitespace-normal">{h.actorName?.trim() || t("unnamed")}</TableCell>
-            <TableCell className="whitespace-normal">{t(`history.${h.action}` as "history.ban", { days: Number(h.detail.days ?? 0) })}</TableCell>
-            <TableCell className="whitespace-normal">{t("subjectWithType", { name: h.subjectName?.trim() || t("unnamed"), type: t(`targets.${h.targetType}` as "targets.post") })}</TableCell>
-          </TableRow>)}</TableBody></Table></div>}</TabsContent>
+      <TabsContent value="history" className="mt-4"><DataTable label={t("tabs.history")} columns={historyColumns} rows={historyRows} empty={emptyState("emptyHistory", History)} /></TabsContent>
     </Tabs>
 
     <Sheet open={current !== null} onOpenChange={(next) => { if (!next) setReviewing(null); }}>

@@ -19,6 +19,8 @@ export const uiShowcaseEntries = [
     consumers: ["src/components/crm/inline-field.tsx", "src/components/crm/contact-actions.tsx", "src/components/crm/record-grid.tsx", "src/app/workspaces/[tenantId]/crm/deals/[dealId]/page.tsx"] },
   { id: "permission", sources: ["src/components/permission-card.tsx", "src/lib/consent-controls.ts"],
     consumers: ["src/components/crm/associations/permission-row.tsx", "src/components/connect-admin/follow-up-consent.tsx", "src/components/crm/associations/contact-permissions.tsx"] },
+  { id: "communities", sources: ["src/components/communities/member-list.tsx", "src/components/communities/discover-card.tsx", "src/components/forum/post-card.tsx", "src/lib/community-members.ts"],
+    consumers: ["src/components/communities/community-editor.tsx", "src/app/communities/[slug]/(member)/members/page.tsx", "src/app/discover/page.tsx", "src/app/communities/[slug]/(member)/forum/page.tsx"] },
   { id: "kit", sources: ["src/lib/ui-provenance.ts", "src/lib/theme-registry.ts"], consumers: ["src/components/dev/ui-showcase.tsx", "src/app/globals.css"] },
 ] as const;
 export type UiShowcaseCategory = typeof uiShowcaseEntries[number]["id"];
