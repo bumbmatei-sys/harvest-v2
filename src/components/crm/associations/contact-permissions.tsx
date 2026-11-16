@@ -28,11 +28,11 @@ export async function ContactPermissions({ tenantId, contactId, permissions, can
         <p className="mt-0.5 text-xs text-muted-foreground">{t(`purposeHelp.${item.purpose}`)}</p>
         {item.at && <p className="mt-0.5 text-xs [overflow-wrap:anywhere] text-muted-foreground">{t(item.status === "withdrawn" ? "withdrawnOn" : "grantedOn", { date: format.dateTime(new Date(item.at), "date"), source: item.source ?? t("unknownSource") })}</p>}
       </div>
-      {rowActions(item.status, { canGrant, canWithdraw }).map((status) => <ConsentForm key={status} tenantId={tenantId} contactId={contactId} statuses={[status]} preset={{ purpose: item.purpose, status,
+      <div className="flex flex-wrap gap-2">{rowActions(item.status, { canGrant, canWithdraw }).map((status) => <ConsentForm key={status} tenantId={tenantId} contactId={contactId} statuses={[status]} preset={{ purpose: item.purpose, status,
         // An opt-in must land on the withdrawn channel to clear that withdrawal; a withdrawal goes where the grant is.
         channel: item.status !== "none" && item.channel ? item.channel : channels[item.purpose] }}
         trigger={<Button type="button" variant="outline" size="sm" className="min-h-11 sm:min-h-8" aria-label={t(status === "withdrawn" ? "recordWithdrawalFor" : "recordOptInFor", { purpose: t(`purposes.${item.purpose}`) })}>
-          {t(status === "withdrawn" ? "recordWithdrawal" : "recordOptIn")}</Button>} />)}
+          {t(status === "withdrawn" ? "recordWithdrawal" : "recordOptIn")}</Button>} />)}</div>
     </li>)}</ul></CardContent>
   </Card>;
 }
