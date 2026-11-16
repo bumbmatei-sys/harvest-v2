@@ -81,4 +81,11 @@ it("keeps a single snapshot chain and an ordered migration journal (reserved num
   const [sBefore, sAfter] = [snapshots[socialIndex - 1], snapshots[socialIndex]];
   expect(Object.keys(sAfter.tables).filter((name) => !(name in sBefore.tables)).sort()).toEqual(["public.social_connections", "public.social_posts", "public.social_webhook_events"]);
   for (const table of Object.keys(sBefore.tables)) expect(sAfter.tables[table], table).toEqual(sBefore.tables[table]);
+  // HC-14 only makes the audit actor nullable for two automatic actions; no case/read-policy schema change.
+  const hIndex = journal.entries.findIndex((entry: { idx: number }) => entry.idx === 52);
+  const [hBefore, hAfter] = [snapshots[hIndex - 1], snapshots[hIndex]];
+  for (const table of Object.keys(hBefore.tables)) if (table !== "public.audit_logs") expect(hAfter.tables[table], table).toEqual(hBefore.tables[table]);
+  expect(hAfter.tables["public.audit_logs"].columns.actor_id.notNull).toBe(false);
+  expect(hAfter.tables["public.audit_logs"].checkConstraints.audit_system_actor.value).toContain("followup.case.withdraw");
+
 });

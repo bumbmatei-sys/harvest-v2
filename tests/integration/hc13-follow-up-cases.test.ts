@@ -272,13 +272,12 @@ describe("assignment", () => {
     const seeded = await ctx.seedCase();
     await move("d-owner", seeded.caseId, "awaiting_assignment");
     await ctx.withdrawCrm(seeded.contactId);
-    expect(await assignFollowUpCase(ctx.f.db, "d-owner", ctx.tenantA, seeded.caseId, { assigneeId: "d-member", version: 2 }).catch((error) => error)).toMatchObject({ status: 409, details: { reason: "consent_not_in_effect" } });
-    // Staff can still record the person's withdrawal on the case.
-    await move("d-owner", seeded.caseId, "withdrawn");
+    expect(await assignFollowUpCase(ctx.f.db, "d-owner", ctx.tenantA, seeded.caseId, { assigneeId: "d-member", version: 2 }).catch((error) => error)).toMatchObject({ status: 409, details: { reason: "stale" } });
+    // HC-14 has already recorded the terminal withdrawal atomically.
     expect((await ctx.caseRow(seeded.caseId))?.state).toBe("withdrawn");
     const second = await assigned("d-member");
     await ctx.withdrawCrm(second.contactId);
-    expect(await move("d-member", second.caseId, "attempted").catch((error) => error)).toMatchObject({ status: 409, details: { reason: "consent_not_in_effect" } });
+    expect(await move("d-member", second.caseId, "attempted").catch((error) => error)).toMatchObject({ status: 403 });
   });
 });
 
@@ -305,13 +304,11 @@ describe("follow-up consent agrees with mayContact: a withdrawal on any channel 
     const open = await ctx.seedCase();
     await move("d-owner", open.caseId, "awaiting_assignment");
     await ledger("d-owner", open.contactId, "social", "withdrawn");
-    expect(await assignFollowUpCase(ctx.f.db, "d-owner", ctx.tenantA, open.caseId, { assigneeId: "d-member", version: 2 }).catch((error) => error)).toMatchObject({ status: 409, details: { reason: "consent_not_in_effect" } });
+    expect(await assignFollowUpCase(ctx.f.db, "d-owner", ctx.tenantA, open.caseId, { assigneeId: "d-member", version: 2 }).catch((error) => error)).toMatchObject({ status: 409, details: { reason: "stale" } });
     const second = await assigned("d-member");
     await ledger("d-member", second.contactId, "sms", "withdrawn");
-    expect(await move("d-member", second.caseId, "attempted").catch((error) => error)).toMatchObject({ status: 409, details: { reason: "consent_not_in_effect" } });
-    expect((await ctx.caseRow(second.caseId))?.state).toBe("assigned");
-    // Staff can still record the withdrawal on the case.
-    await move("d-owner", second.caseId, "withdrawn");
+    expect(await move("d-member", second.caseId, "attempted").catch((error) => error)).toMatchObject({ status: 403 });
+    // HC-14 has already withdrawn the case and removed the counselor's access.
     expect((await ctx.caseRow(second.caseId))?.state).toBe("withdrawn");
   });
 
@@ -392,7 +389,7 @@ describe("access: database level", () => {
     expect(await ctx.caseRow(a.caseId)).toMatchObject({ state: "awaiting_assignment", assignee_id: null });
     expect(await ctx.caseRow(b.caseId)).toMatchObject({ state: "no_response", assignee_id: null });
     expect((await ctx.audit("followup.case.revoke")).filter((row) => row.target_id === a.caseId)).toEqual([
-      { actor_id: "d-owner", action: "followup.case.revoke", target_id: a.caseId, metadata: { from: "assigned", to: "awaiting_assignment", previousAssignee: "d-temp" } }]);
+      { actor_id: null, action: "followup.case.revoke", target_id: a.caseId, metadata: { from: "assigned", to: "awaiting_assignment", previousAssignee: "d-temp" } }]);
     expect(await status(getFollowUpCase(ctx.f.db, "d-temp", ctx.tenantA, a.caseId))).toBe(403);
     // Promoting again does not restore anything; a removed member cannot be assigned or see cases.
     await putMember(ctx.f.db, "d-owner", ctx.tenantA, "d-temp@example.test", "member");
@@ -519,7 +516,11 @@ describe("paging", () => {
     // Tied creation times (200 cases from one transaction) are ordered by id, so the walk equals the database order.
     const database = (await ctx.f.admin.query("select id from followup_cases where tenant_id = $1 order by created_at, id", [ctx.tenantA])).rows.map((row) => row.id);
     expect(seenIds).toEqual(database);
-    expect(await listFollowUpCases(ctx.f.db, "d-owner", ctx.tenantA, { state: "withdrawn", limit: 5 })).toMatchObject({ nextCursor: null });
+    // HC-14 automatically withdraws more cases in the preceding consent tests; assert filtered paging against the ledger.
+    const withdrawnIds = (await ctx.f.admin.query("select id from followup_cases where tenant_id=$1 and state='withdrawn' order by created_at,id", [ctx.tenantA])).rows.map((row) => row.id);
+    const withdrawnPage = await listFollowUpCases(ctx.f.db, "d-owner", ctx.tenantA, { state: "withdrawn", limit: 5 });
+    expect(withdrawnPage.items.map((row) => row.id)).toEqual(withdrawnIds.slice(0, 5));
+    expect(withdrawnPage.nextCursor !== null).toBe(withdrawnIds.length > 5);
     await expect(listFollowUpCases(ctx.f.db, "d-owner", ctx.tenantA, { limit: 0 })).rejects.toBeDefined();
     await expect(listFollowUpCases(ctx.f.db, "d-owner", ctx.tenantA, { cursor: "AAAA" })).rejects.toBeDefined();
   });

@@ -71,11 +71,13 @@ export const workspaceMembers = pgTable("workspace_members", {
 }, (t) => [primaryKey({ columns: [t.tenantId, t.userId] }), index("workspace_members_user_idx").on(t.userId, t.tenantId)]);
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id"),
-  actorId: text("actor_id").notNull().references(() => users.id),
+  // Null identifies an automatic follow-up action; application inserts still require the session actor (RLS).
+  actorId: text("actor_id").references(() => users.id),
   action: text("action").notNull(), targetId: text("target_id"),
   metadata: jsonb("metadata").$type<Record<string, string>>().notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [index("audit_logs_tenant_created_idx").on(t.tenantId, t.createdAt), foreignKey({ columns: [t.tenantId], foreignColumns: [workspaces.tenantId] })]);
+}, (t) => [index("audit_logs_tenant_created_idx").on(t.tenantId, t.createdAt), foreignKey({ columns: [t.tenantId], foreignColumns: [workspaces.tenantId] }),
+  check("audit_system_actor", sql`${t.actorId} is not null or ${t.action} in ('followup.case.withdraw', 'followup.case.revoke')`)]);
 export const authSchema = { user: users, session: sessions, account: accounts, verification: verifications, rateLimit: rateLimits };
 
 // A campaign belongs to its parent workspace; it never creates another tenant.

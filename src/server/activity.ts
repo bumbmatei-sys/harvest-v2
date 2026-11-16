@@ -49,14 +49,14 @@ export async function recordActivity(tx: Transaction, event: { tenantId: string;
 }
 
 export type ActivityItem = {
-  id: string; action: CrmAction; createdAt: Date; actor: { id: string; name: string | null; isMember: boolean };
+  id: string; action: CrmAction; createdAt: Date; actor: { id: string | null; name: string | null; isMember: boolean };
   fields: string[]; channel?: string; status?: string;
   company?: { id: string; name: string } | null; contact?: { id: string; name: string } | null;
 };
 const ACTIVITY_LIMIT = 50;
 
 async function shape(tx: Transaction, tenantId: string, rows: (typeof auditLogs.$inferSelect)[]): Promise<ActivityItem[]> {
-  const actorIds = [...new Set(rows.map((row) => row.actorId))];
+  const actorIds = [...new Set(rows.map((row) => row.actorId).filter((id): id is string => id !== null))];
   // Names come only from users who belong to this workspace; former members stay anonymous.
   const actors = actorIds.length ? await tx.select({ id: users.id, name: users.name }).from(workspaceMembers).innerJoin(users, eq(users.id, workspaceMembers.userId))
     .where(and(eq(workspaceMembers.tenantId, tenantId), inArray(workspaceMembers.userId, actorIds))) : [];
@@ -124,7 +124,7 @@ export type TimelineNote = { kind: "note"; id: string; createdAt: Date; actor: {
  * content is gone (the person was erased); `redacted` means erasure of someone else scrubbed its text.
  */
 export type TimelineAssociation = {
-  kind: "association"; action: "association.record"; id: string; createdAt: Date; actor: { id: string; name: string | null; isMember: boolean };
+  kind: "association"; action: "association.record"; id: string; createdAt: Date; actor: ActivityItem["actor"];
   associationId: string; source: string; activity: string; purpose: string; occurredAt: Date | null; summary: string;
   redacted: boolean; removed: boolean; person: { id: string; name: string } | null;
 };

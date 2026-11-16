@@ -27,6 +27,12 @@ describe("follow-up lifecycle table", () => {
       if (from === to) expect(from).toBe("assigned");
     }
   });
+  it("allows automatic withdrawal from every non-terminal state, with no reopening", () => {
+    for (const state of followUpCaseStates) {
+      expect(followUpTransitionAllowed(state, "withdrawn")).toBe(!followUpTerminalStates.includes(state as typeof followUpTerminalStates[number]));
+    }
+    for (const state of followUpCaseStates) expect(followUpTransitionAllowed("withdrawn", state)).toBe(false);
+  });
   it("starts at requested and reaches every other state", () => {
     const reached = new Set<string>(["requested"]); const queue = ["requested"];
     while (queue.length) for (const to of followUpTransitions[queue.shift() as keyof typeof followUpTransitions]) if (!reached.has(to)) { reached.add(to); queue.push(to); }

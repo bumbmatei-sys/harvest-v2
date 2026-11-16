@@ -55,8 +55,8 @@ it("refuses open, assign and attempt after a member's withdrawal on another chan
     await transitionFollowUpCase(ctx.f.db, "d-owner", ctx.tenantA, id, { to: "awaiting_assignment", version: 1 });
     await assignFollowUpCase(ctx.f.db, "d-owner", ctx.tenantA, id, { assigneeId: "d-member", version: 2 });
     await recordConsent(ctx.f.db, "d-member", ctx.tenantA, open.contactId, { channel: "social", status: "withdrawn", purpose: "outreach_follow_up", noticeVersion: "notice-v1", source: "Message", evidence: "Opt-out received by a member" });
-    await expect(transitionFollowUpCase(ctx.f.db, "d-member", ctx.tenantA, id, { to: "attempted", version: 3 })).rejects.toMatchObject({ status: 409, details: { reason: "consent_not_in_effect" } });
-    await expect(assignFollowUpCase(ctx.f.db, "d-owner", ctx.tenantA, id, { assigneeId: "d-member2", version: 3 })).rejects.toMatchObject({ status: 409, details: { reason: "consent_not_in_effect" } });
+    await expect(transitionFollowUpCase(ctx.f.db, "d-member", ctx.tenantA, id, { to: "attempted", version: 3 })).rejects.toMatchObject({ status: 403 });
+    await expect(assignFollowUpCase(ctx.f.db, "d-owner", ctx.tenantA, id, { assigneeId: "d-member2", version: 3 })).rejects.toMatchObject({ status: 409, details: { reason: "stale" } });
     expect((await ctx.f.admin.query("select pg_get_userbyid(proowner) = (select pg_get_userbyid(proowner) from pg_proc where proname = 'assign_followup_case') as same from pg_proc where proname = 'followup_consent_effective'")).rows[0].same).toBe(true);
   } finally { await ctx.f.close(); }
 });
