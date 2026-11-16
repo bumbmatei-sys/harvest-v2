@@ -1,6 +1,6 @@
 # HC-16 bounded backend regressions
 
-Baseline `6080cb6` (16 Nov 2026). Companion gap record: `docs/acceptance/hc-16.md` in the separate readiness-record draft. This slice adds **tests and this record only**. No application source, schema/migration, shared harness, dependency, CI, shell/UI, catalogue or screenshot change. **HC-16 release readiness remains incomplete.** All five HC-02 gates remain UNAPPROVED; production collection/delivery remain disabled and migrations 0031+ unapplied.
+Baseline `6080cb6` (16 Nov 2026). Companion gap record: `docs/acceptance/hc-16.md` in the separate readiness-record draft. This slice adds **tests and this record only**, plus a targeted correction to the existing CRM audit test. No application source, schema/migration, shared harness, dependency, CI, shell/UI, catalogue or screenshot change. **HC-16 release readiness remains incomplete.** All five HC-02 gates remain UNAPPROVED; production collection/delivery remain disabled and migrations 0031+ unapplied.
 
 ## Exact workload
 
@@ -21,3 +21,5 @@ Focused commands: `npm test -- tests/unit/hc16-suppression-adversarial.test.ts` 
 After a successful burst, the test writes only connection/operation counts and elapsed/p50/p95/max milliseconds into a fresh temporary `hc16-local-evidence-*/scan-burst.json` artifact. No codes, URLs, credentials, tenant/user IDs, response content or visitor data are recorded. Observed author timings belong in the PR; reruns vary and do not rewrite a committed benchmark. Test timeouts are stall guards, **not** performance acceptance thresholds.
 
 This is a bounded database regression, not an HTTP crowd benchmark, a throughput certification, a latency SLO, or a full queue/backlog/withdrawal-race suite. Existing HC-13/14 suites retain their lifecycle coverage; no new result is inferred for them. It does not test real delivery, hosting capacity, load shedding, bot defense, mobile/4G, browser/axe, restore, scheduler/alerts, legal adequacy or safeguarding. A separate release-scale workload and thresholds require review. No Neon run is required for this migration-free diff; Neon-specific performance is unverified. Fresh engineering review and CI evidence remain separate from release signoffs.
+
+CI exposed an unrelated brittle assertion in `tests/integration/crm.test.ts`: a random audit target UUID contained `7946`, so searching entire serialized rows mistook identity digits for a phone-value leak. The exact metadata equality assertion already rejects any contact value or extra field. The whole-row substring assertion is removed; the structured disclosure check remains intact. No CRM behavior or audit payload changes.
