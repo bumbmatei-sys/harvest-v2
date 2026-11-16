@@ -1,6 +1,6 @@
 # Community Live (livestream): design spec
 
-Status: DRAFT proposal, 16 Nov 2026. Documentation only. Every item below is **proposed**, except the one founder decision recorded in section 8 (anonymous prayer requests, option A, 16 Nov 2026); nothing is built. The founder's direction of 16 Nov (section 1) is recorded as direction; the choices marked "recommended" are the assistant's. This approves no migration, deployment, production activation, or real collection of prayer data. Production migrations 0031 onward are not applied and Communities stay off in production.
+Status: DRAFT proposal, 16 Nov 2026. Documentation only. Five founder decisions (16 Nov 2026) are recorded in section 15: anonymous prayer requests (option A), the V1 prayer team, prayer retention, explicit replay, and minors/age/jurisdiction. Every other item is a proposal with a recommended default, not yet confirmed. Nothing is approved for build or production activation, and nothing is built: no migration, deployment, real collection of prayer data or provider call is approved. All five HC-02 activation gates remain UNAPPROVED.
 
 ## Summary (10 lines)
 
@@ -8,12 +8,12 @@ Status: DRAFT proposal, 16 Nov 2026. Documentation only. Every item below is **p
 2. Members only. Not a public link. Only active members of that community (and community staff) can open `/communities/:slug/live`.
 3. The player is click-to-load: nothing is requested from the provider until the viewer taps play; no autoplay. CSP `frame-src` is allowed for the one embed host only.
 4. Live comments start as near-live short polling (every 3 to 5 seconds, backing off), with slow mode, hold-for-approval, max length, rate limits and the existing mute/ban/report/delete tools. Real realtime comes later with C11.
-5. Prayer requests: the author chooses per request: anonymous or with name. Submissions go to a private prayer team queue; the author may opt to publish to a community prayer wall. DECIDED (founder, 16 Nov): anonymous hides the name from other members; the prayer team and admins/moderators can still see the author, with a clear notice at submit.
-6. Prayer content is treated as sensitive: encrypted at rest per the HC-DEC5 direction, a retention limit, erased with the account, never exported to CRM without consent, and separate from consent purposes.
+5. Prayer requests (DECIDED, founder 16 Nov): the author chooses per request: anonymous or named. Anonymous hides the name from other members; the prayer team (V1: owner, admin, moderator) can still see the author, with a clear notice at submit. Requests go to a private queue; wall publishing needs the author's opt-in.
+6. Prayer content is sensitive: encrypted at rest per the HC-DEC5 direction, retention 30 days after closed / 90 days max / 180 days on the wall (decided, still subject to legal review before any real collection), erased with the account, no CRM export or AI use, separate from consent purposes. Minors: the existing adult-accounts policy plus legal review before activation (decided).
 7. Placement (recommended): a "Live" step in the community editor (editor mode), a live control room in the community admin area, a member Live page under `/communities/:slug/live`, and the Operations "Livestream" entry (reserved/hidden until built) listing live events across communities.
 8. Donations during a live: slot reserved, nothing shown until the founder's provider workaround exists.
 9. Slices: L1 data model + embed + member page; L2 editor Live step; L3 comments + moderation; L4 prayer requests; L5 control-room polish and notifications; donations later. Next migration number is the next free number at build time (the journal ends at 0052 on main today; 0053 is a candidate, not a reservation).
-10. Open questions with recommended defaults are in section 15; assumptions I could not verify are in section 17.
+10. Five decisions are recorded in section 15; the other nine questions have recommended defaults, not yet confirmed. Nothing is approved for build or production; all five HC-02 gates stay UNAPPROVED. Assumptions I could not verify are in section 17.
 
 ## 1. Direction (founder, 16 Nov 2026; binding as direction, not yet a design approval)
 
@@ -94,11 +94,11 @@ The sidebar/control-room visibility follows the registry rules (permission and f
 - **DECISION (founder, 16 Nov 2026, option A):** anonymous hides the author's name and identity from other members, the live page and the wall. The prayer team and admins/moderators who handle the queue can still see who wrote the request, for safety and abuse handling (self-harm, threats, minors, harassment). The author sees a clear notice at submit in plain words (for example: "Anonymous to other members. Community leaders who review requests can see who sent it, for safety."). Staff reads of the author are audited. Everything else in this section remains a proposal.
 
 - **Privacy and security:** `body` encrypted at rest with the key management direction of HC-DEC5 (managed key service, rotation, restricted decryption, audit trail; that direction is UNAPPROVED and the design is not independently reviewed; real data must not be collected until it is). The author id is never returned by member-facing APIs. The queue and wall are served through definer functions; staff reads write an audit row (who read which request) without logging content. No prayer text in logs, errors, analytics, notifications or emails (notifications say "A new prayer request" with no content).
-- **Retention (proposed):** a bounded life: unpublished requests are purged 30 days after they are closed or 90 days after submission, whichever first; wall items expire after 180 days unless the author renews. Exact durations are a founder/legal decision (section 15); a scheduled purge with failure evidence is required before real collection, as for HC-DEC4.
+- **Retention (decided, founder 16 Nov, subject to legal review before any real collection):** unpublished requests are purged 30 days after they are closed or 90 days after submission at most, whichever first; wall items expire after 180 days. A scheduled purge with failure evidence is required before real collection, as for HC-DEC4.
 - **Erasure:** on account deletion or a member's erasure request, the author's requests are deleted (not tombstoned with content); a count-only tombstone may remain. A member can delete their own request at any time before and after publishing.
 - **No CRM export without consent:** prayer requests never flow into CRM contacts, notes, Harvest Connect or follow-up cases automatically. A "create follow-up" action by a moderator would need the author's explicit consent captured at that time and is out of scope here. Prayer requests are **not** a consent purpose and do not create or alter any consent record; they stay separate from `account_communications`, `outreach_follow_up` and `newsletter`.
 - **Not visible to:** other members (unless published and opted in), ministry viewers/members outside the prayer team, the assistant (AI features do not read prayer requests; consistent with `docs/prd/harvest-communities.md` which excludes prayer requests from moderators by default and from AI), and exports. Note the tension: the PRD says moderators are not automatically allowed to see prayer requests; this spec grants `community:prayer:review` to a named set explicitly, which the founder must confirm (section 15).
-- Minors: see section 13.
+- Minors: the existing adult-accounts policy applies and legal review is required before activation (decided, section 15); see section 13.
 
 ## 9. Donation slot (reserved)
 
@@ -152,22 +152,37 @@ Studio Admin style via shared shadcn components; design (layout, information arc
 - Audit: create/edit/schedule/cancel event, state changes, comments mode and slow mode changes, every moderation action, publish of a prayer request, and every staff read of a prayer request (actor, target id, time; no content). Denied attempts are not logged by the platform today (a known gap in HC-02 prerequisites; not solved here).
 - Failure modes: provider URL changes or the live ends early (host sets state manually; members see the ended state); poll outage (banner, retry with backoff, no data loss); a host forgets to end (an automatic close after a maximum duration, recommended 12 hours, is a proposed safeguard); time zones (stored in UTC, shown in the viewer's timezone); two admins edit at once (version field, conflict message); a member banned mid-stream (the next poll returns 404 and the page shows the removal state); an event deleted while live (soft state `cancelled`); the embed blocked by the viewer's network (message and link for staff only).
 
-## 15. Open questions for the founder (recommended default for each)
+## 15. Decisions and open questions
 
-1. (Decided, not open) Anonymous prayer requests: option A, founder 16 Nov. Staff and the prayer team can see the author; other members cannot; the notice is shown at submit.
-2. Who is on the prayer team? Recommended: owner, admin, moderator in V1; a separate "prayer team" grant later. (Conflicts with the PRD line that moderators do not automatically see prayer requests; this needs your explicit confirmation.)
-3. Does submit go to the private queue first, with optional publishing to a prayer wall? Recommended: yes; no wall in V1 beyond a simple list if wanted (L4 can ship the queue only).
-4. Retention for prayer requests? Recommended: 30 days after closed, 90 days after submission at most, wall items 180 days; legal review needed.
-5. Comments default mode for new events? Recommended: `held` for members who have not been approved before (existing hold-first behaviour), `open` after.
-6. Links in live comments? Recommended: not allowed for non-staff in V1.
-7. Show viewer count? Recommended: to hosts only.
-8. Replay availability? Recommended: admin sets `replay` explicitly; members-only page; the raw provider video is outside our control (state this in the editor).
-9. Does "members only" also mean paid-tier gating later? Recommended: reuse entitlements when a community has tiers; not in V1.
-10. Reminders: in-app only at first (1 hour before and at start)? Recommended: yes; email reminders later via the digest/opt-in model.
-11. Max stream duration auto-close (12 hours)? Recommended: yes.
-12. Age and jurisdictional review for prayer requests and comments from minors? Recommended: apply the existing adult-accounts launch policy and require legal review before activation.
-13. Operations "Livestream" entry: confirm it lists live events across communities and stays hidden until L5.
-14. Should the Live tab show only around an event (24h before to 7 days after)? Recommended: yes.
+### Decisions (founder, 16 Nov 2026)
+
+These record the founder's choices. They approve no build, migration, deployment or production activation, and they do not approve any HC-02 gate (all five remain UNAPPROVED).
+
+1. **Anonymous prayer requests: option A.** Anonymous hides the author's name from other members; the prayer team and admins/moderators can still see who wrote it (safety and abuse); the author sees a clear notice at submit.
+2. **Prayer team in V1 is owner, admin and moderator.** This overrides the communities PRD line that moderators are not automatically allowed to see prayer requests. `docs/prd/harvest-communities.md` must be updated to match (listed under "Docs to update" below). A separate prayer-team grant remains a later option.
+3. **Prayer retention:** 30 days after a request is closed, at most 90 days after submission, and 180 days for prayer-wall items. Still subject to legal review before any real collection; the retention job and its failure evidence are required before real data (as for HC-DEC4).
+4. **Replay is set explicitly by the admin** (state `replay`). The editor shows a notice that the raw provider video stays outside Harvest's control, so admins should use an unlisted live.
+5. **Minors, age and jurisdiction:** apply the existing adult-accounts policy (communities PRD launch policy) to prayer requests and comments, and require legal review before activation.
+
+### Docs to update (when the decisions are implemented)
+
+- `docs/prd/harvest-communities.md`: prayer-request visibility line (moderators, admins and owners are the V1 prayer team; the line near the moderation and sensitive-data section that excludes moderators must be changed), plus a pointer to this spec.
+- `docs/decisions/hc-02-activation-gates.md`: add a note that prayer data is a new category in scope of HC-DEC3/4/5 reviews (no gate is approved by this).
+- Communities acceptance records for L1 to L5 as each slice ships.
+
+### Recommended defaults, not yet confirmed
+
+3. Does submit go to the private queue first, with optional publishing to a prayer wall? Recommended: yes; the queue only in V1 if the wall is not wanted yet (L4 can ship the queue alone).
+5. Comments default mode for new events: `held` for members who have not been approved before (existing hold-first behaviour), `open` after.
+6. Links in live comments: not allowed for non-staff in V1.
+7. Viewer count: shown to hosts only.
+9. "Members only" and paid-tier gating: reuse entitlements later when a community has tiers; not in V1.
+10. Reminders: in-app only at first (1 hour before and at start); email later through the digest/opt-in model.
+11. Max stream duration auto-close: 12 hours.
+13. Operations "Livestream" entry lists live events across communities and stays hidden until L5.
+14. The Live tab appears only from 24 hours before an event until 7 days after (or while a replay is published).
+
+(Numbers follow the earlier question list; 1, 2, 4, 8 and 12 are now the decisions above.)
 
 ## 16. Tests, acceptance and slices
 
