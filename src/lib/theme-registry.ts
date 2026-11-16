@@ -1,5 +1,4 @@
-/** Chart tokens (--chart-1..5) are categorical series colors: each meets 3:1 non-text contrast against its own --surface-card (checked in tests). */
-/** The sole palette registry. Add a definition here; every control and CSS selector is derived. */
+/** The sole palette registry. Add a definition here; every control and CSS selector is derived. Chart tokens (--chart-1..5) are series colors that meet 3:1 non-text contrast against --surface-card and --surface (checked in tests). */
 export const themeRegistry = {
   "harvest": {
     "labelKey": "harvest",

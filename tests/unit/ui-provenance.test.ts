@@ -48,27 +48,34 @@ describe("kit provenance record", () => {
 describe("token leak guard", () => {
   // Synthetic values assembled at runtime; never a real credential.
   const name = ["REGISTRY", "TOKEN"].join("_");
+  const kit = ["shadcn", "uikit"].join("");
+  const letters = ["abcdefghij", "klmnopqrst", "uvwxyz"].join("");
   const fake = ["fake", "token", "0123456789", "abcdef"].join("");
   it("accepts the documented placeholders", () => {
     expect(scanForSecrets('"Authorization": "Bearer ${REGISTRY_TOKEN}"')).toEqual([]);
-    expect(scanForSecrets([name + "=", name + "=proxy-injected npx shadcn add @shadcnuikit/x"].join("\n"))).toEqual([]);
+    for (const text of [`${name}=`, `${name}=proxy-injected npx shadcn add @shadcnuikit/x`, `${name}: proxy-injected`, `${name}="\${${name}}"`, `export ${name}=`, `bearer proxy-injected`]) expect(scanForSecrets(text), text).toEqual([]);
     expect(scanForSecrets("send a Bearer token in the header")).toEqual([]);
   });
-  it("rejects a token-like value after Bearer", () => {
-    expect(scanForSecrets(`Authorization: Bearer ${fake}`)).toEqual(["bearer-token"]);
+  it("rejects a token-like value after Bearer in any case, with or without digits", () => {
+    for (const word of ["Bearer", "bearer", "BEARER"]) {
+      expect(scanForSecrets(`Authorization: ${word} ${fake}`), word).toEqual(["bearer-token"]);
+      expect(scanForSecrets(`Authorization: ${word} ${letters}`), word).toEqual(["bearer-token"]);
+    }
     expect(scanForSecrets(`"Authorization": "Bearer ${fake}"`)).toEqual(["bearer-token"]);
   });
-  it("rejects a non-empty REGISTRY_TOKEN assignment", () => {
-    expect(scanForSecrets(`${name}=${fake}`)).toEqual(["registry-token-assignment"]);
-    expect(scanForSecrets(`${name} = ${fake}`)).toEqual(["registry-token-assignment"]);
+  it("rejects a non-empty REGISTRY_TOKEN assignment in every form", () => {
+    for (const text of [`${name}=${fake}`, `${name} = ${fake}`, `${name}="${fake}"`, `${name}='${fake}'`, `${name}: ${fake}`, `export ${name}=${fake}`, `"${name}": "${fake}"`]) expect(scanForSecrets(text), "assignment form").toEqual(["registry-token-assignment"]);
   });
-  it("rejects a kit registry index", () => {
-    const index = `{ "$schema": "https://ui.shadcn.com/schema/registry.json", "name": "shadcnuikit", "items": [] }`;
-    expect(scanForSecrets(index)).toEqual(["kit-registry-index"]);
-    expect(scanForSecrets(`{ "$schema": "https://ui.shadcn.com/schema/registry.json", "name": "other" }`)).toEqual([]);
+  it("rejects a kit registry index or item", () => {
+    const schema = ["https://ui.shadcn.com/schema/", "registry.json"].join("");
+    expect(scanForSecrets(JSON.stringify({ $schema: schema, name: kit, items: [] }, null, 2))).toEqual(["kit-registry-index"]);
+    expect(scanForSecrets(JSON.stringify({ $schema: schema, name: "other" }))).toEqual([]);
+    const item = JSON.stringify({ name: "x", type: ["registry", "block"].join(":"), files: [{ path: "a.tsx", content: "body" }] });
+    expect(scanForSecrets(item)).toEqual(["kit-registry-item"]);
+    expect(scanForSecrets(JSON.stringify({ type: "registry:block", files: [{ path: "a.tsx" }] }))).toEqual([]);
   });
   it("finds nothing in any tracked text file", () => {
-    const tracked = execFileSync("git", ["ls-files", "-z"], { cwd: root, encoding: "utf8" }).split("\0").filter(Boolean);
+    const tracked = execFileSync("git", ["ls-files", "-z", "--cached", "--others", "--exclude-standard"], { cwd: root, encoding: "utf8" }).split("\0").filter(Boolean);
     const leaks: string[] = [];
     for (const file of tracked) {
       const path = join(root, file);
