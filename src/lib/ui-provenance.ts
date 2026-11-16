@@ -1,7 +1,7 @@
 /**
  * Provenance record for files derived from the Shadcn UI Kit (see docs/ui-sources.md, "Shadcn UI Kit provenance").
  * Rule: every kit-derived file starts with the header below AND is listed in `kitProvenance`.
- * Tests enforce both directions. Kit PR 1 adopts four items and Kit PR 2 two premium items as references; the stock primitives they depend on are hand-written
+ * Tests enforce both directions. Kit PR 1 adopts four items, Kit PR 2 two premium items and Kit PR 3 four (two premium, two free) as references; the stock primitives they depend on are hand-written
  * (docs/ui-sources.md) and are not kit-derived.
  */
 export type KitItemRecord = {
@@ -33,6 +33,14 @@ export const kitProvenance: readonly KitItemRecord[] = [
     localChanges: "Visual reference only; no kit code was copied. Harvest keeps its own AppShell, floating sidebar and typed navigation registry (the file carries the header because the provenance test requires it). The only change inspired by the item is the optional header composition slots (page actions, page search), which render nothing unless a page passes them. Kit demo copy, sample images and hard-coded colors are not used. Not chosen: dashboard-shell1, sidebar-layout, dashboard-shell2, dashboard-shell3." },
   { ...approved, item: "dashboard-dropdown7", tier: "premium", files: ["src/components/ministry-switcher.tsx"],
     localChanges: "Pattern reference only; no kit code was copied. The kit item is a Popover with Command; Harvest places the same pattern (search, initials marks, role and member count per ministry, a check on the current one) inside the account menu's DropdownMenu so the menu stays one keyboard-navigable role=menu, and the search field appears only above five ministries. Create-ministry dialog, plan badges and sample data are not used. Not chosen: dashboard-dropdown1 to dashboard-dropdown6, dashboard-dropdown8 to dashboard-dropdown10." },
+  { ...approved, item: "tables14", tier: "premium", files: ["src/components/data-table.tsx"],
+    localChanges: "Visual reference only; no kit code was copied and TanStack Table is not used (the kit item depends on it; no new dependency is approved). Harvest's DataTable is a presentational shell on the existing Table, Tabs, Checkbox, Skeleton and DropdownMenu primitives: toolbar slots, status tabs with counts, sortable headers (aria-sort), optional row selection with a bulk bar, loading, empty and error slots, a pagination slot and a stacked card list below 768px. The kit's demo data, CSV export, assignee and billing filters and the card header are not used. Not chosen: tables5, tables7." },
+  { ...approved, item: "empty-state15", tier: "premium", files: ["src/components/empty-state.tsx"],
+    localChanges: "Visual reference only; no kit code was copied. EmptyState composes the existing Empty primitive: icon, title, optional description, one primary action and an optional secondary one, in compact and standard sizes. The kit's section wrapper, sample copy and two-button demo are not used. Not chosen: empty-state1, empty-state2, empty1." },
+  { ...approved, item: "badge1", tier: "free", files: ["src/components/status-badge.tsx"],
+    localChanges: "Visual reference only; no kit code was copied. StatusBadge wraps the existing Badge with a typed tone map (neutral, success, warning, danger, info, pending) on theme tokens and an optional dot; callers map their own statuses to tones (src/lib/status-tone.ts). Not chosen: badge2, badge6." },
+  { ...approved, item: "alert-dialog1", tier: "free", files: ["src/components/confirm-dialog.tsx"],
+    localChanges: "Visual reference only; no kit code was copied. ConfirmDialog wraps the existing AlertDialog with a destructive or neutral tone, caller-supplied text, an async confirm with a busy state (both buttons aria-disabled so focus stays put, dismissal blocked), an inline failure message and an optional focus-return target. Not chosen: alert-dialog2, alert-dialog5." },
 ];
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;

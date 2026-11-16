@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { CircleCheck, Circle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
@@ -170,7 +170,6 @@ export function CommunityEditor({ initial, members, invites, applications, categ
           <span>{t(`checks.${item.key}`)}</span><span className="sr-only">{t(item.done ? "checkDone" : "checkOpen")}</span></li>)}
       </ul>}
     </CardContent></Card>
-    <AlertDialog open={destination !== null} onOpenChange={(open) => { if (!open) setDestination(null); }}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{t("leaveTitle")}</AlertDialogTitle><AlertDialogDescription>{t("leaveBody")}</AlertDialogDescription></AlertDialogHeader>
-      <AlertDialogFooter><AlertDialogCancel className="min-h-11">{t("stay")}</AlertDialogCancel><AlertDialogAction className="min-h-11" onClick={leave}>{t("leave")}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+    <ConfirmDialog tone="neutral" open={destination !== null} onOpenChange={(open) => { if (!open) setDestination(null); }} title={t("leaveTitle")} description={t("leaveBody")} cancelLabel={t("stay")} confirmLabel={t("leave")} onConfirm={leave} />
   </EditorShell>;
 }

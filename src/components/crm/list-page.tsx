@@ -6,7 +6,7 @@ import type { ViewNotice } from "@/server/crm-list-view";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { EmptyState } from "@/components/empty-state";
 import type { FieldMeta } from "./filter-builder";
 import { ListResults, ListState } from "./list-state";
 import { ListToolbar } from "./list-toolbar";
@@ -44,12 +44,9 @@ export async function ListPage({ tenantId, objectType, icon: Icon, title, descri
         views={views} currentView={current} modified={modified} writable={writable} searchLabel={copy.searchLabel} searchPlaceholder={copy.searchPlaceholder} sourceAccess={sourceAccess} />
       <div className="mt-3 space-y-3"><ListResults>
         {rows.length ? <RecordGrid tenantId={tenantId} objectType={objectType} columns={parts.gridColumns} rows={rows} density={state.density} label={title} nameLabel={t("name")} writable={writable} />
-          : <Empty className="min-h-[280px] border border-solid bg-card p-7 sm:p-10">
-            <EmptyHeader><EmptyMedia variant="icon"><Icon aria-hidden="true" /></EmptyMedia>
-              <EmptyTitle><h2>{filtered ? copy.noMatch : page > 1 ? copy.pageEmpty : copy.emptyTitle}</h2></EmptyTitle>
-              <EmptyDescription>{filtered ? t("tryAnotherSearchOrRemoveFilters") : page > 1 ? t("returnToTheFirstPage") : copy.emptyDescription}</EmptyDescription></EmptyHeader>
-            <EmptyContent>{filtered || page > 1 ? <Button variant="outline" asChild><Link href={base}>{t("resetView")}</Link></Button> : writable && create}</EmptyContent>
-          </Empty>}
+          : <EmptyState solid className="min-h-[280px]" icon={Icon} headingLevel={2} title={filtered ? copy.noMatch : page > 1 ? copy.pageEmpty : copy.emptyTitle}
+            description={filtered ? t("tryAnotherSearchOrRemoveFilters") : page > 1 ? t("returnToTheFirstPage") : copy.emptyDescription}
+            action={filtered || page > 1 ? <Button variant="outline" asChild><Link href={base}>{t("resetView")}</Link></Button> : writable ? create : undefined} />}
       </ListResults>
       <RecordPagination base={base} params={query} page={page} total={total} label={copy.pages} /></div>
     </ListState>

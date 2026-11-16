@@ -79,14 +79,16 @@ test("CRM: company People tab truncates long names, roles and emails without sid
     await page.goto(`${root}/crm/companies/${company.body.id}`);
     await expect(page.locator('[data-slot="sidebar-wrapper"]')).toHaveAttribute("data-hydrated", "true");
     if (width >= 1024) await expect(page.locator('[data-slot="sidebar"][data-state]')).toHaveAttribute("data-state", "expanded");
-    const table = page.getByRole("table");
+    // Below 768px the shared DataTable renders a card list with the same data (Kit PR 3); wider screens keep the table.
+    const cards = width < 768;
+    const table = cards ? page.locator('[data-slot="data-table-cards"]') : page.getByRole("table");
     const link = table.getByRole("link", { name: new RegExp(name) });
     await expect(link).toBeVisible();
     await expect(link).toHaveAttribute("href", `${root}/crm/people/${person.body.id}`);
     await page.evaluate(() => document.fonts.ready);
     await expectFullWidthShell(page);
     const fit = await link.evaluate((element, fullName) => {
-      const cell = element.closest("td")!, text = [...element.querySelectorAll("span")].find((span) => span.textContent === fullName)!;
+      const cell = element.closest("td, li")!, text = [...element.querySelectorAll("span")].find((span) => span.textContent === fullName)!;
       const box = element.getBoundingClientRect(), bounds = cell.getBoundingClientRect();
       return { inCell: box.left >= bounds.left && box.right <= bounds.right + 1, truncated: text.scrollWidth > text.clientWidth, ellipsis: getComputedStyle(text).textOverflow };
     }, name);
@@ -99,9 +101,11 @@ test("CRM: company People tab truncates long names, roles and emails without sid
     let visibleRoles = 0;
     for (const role of await roles.all()) if (await role.isVisible()) {
       visibleRoles += 1;
-      expect(await role.evaluate((element) => ({ truncated: element.scrollWidth > element.clientWidth, ellipsis: getComputedStyle(element).textOverflow }))).toEqual({ truncated: true, ellipsis: "ellipsis" });
+      // A card wraps the role onto several lines (nothing clipped) instead of truncating it.
+      expect(await role.evaluate((element) => ({ truncated: element.scrollWidth > element.clientWidth, ellipsis: getComputedStyle(element).textOverflow }))).toEqual(cards ? { truncated: false, ellipsis: "clip" } : { truncated: true, ellipsis: "ellipsis" });
     }
     expect(visibleRoles).toBe(1);
+    if (cards) await expect(table.getByText("Role", { exact: true })).toBeVisible();
     if (width === 768 || width === 2560) await expect(table.getByRole("columnheader", { name: "Role", exact: true })).toBeVisible();
     if (width === 2560) {
       const emailCell = table.getByRole("cell", { name: email, exact: true });
@@ -110,7 +114,9 @@ test("CRM: company People tab truncates long names, roles and emails without sid
       await expect(link.getByText("Primary", { exact: true })).toBeVisible();
     }
     const actions = table.getByRole("button", { name: `Actions for ${name}`, exact: true });
+    if (cards) await actions.scrollIntoViewIfNeeded();
     await expect(actions).toBeInViewport();
+    if (cards) { const box = await actions.boundingBox(); expect(box!.height).toBeGreaterThanOrEqual(44); expect(box!.width).toBeGreaterThanOrEqual(44); }
     await actions.click();
     await expect(page.getByRole("menuitem", { name: "Open person" })).toHaveAttribute("href", `${root}/crm/people/${person.body.id}`);
     await expect(page.getByRole("menuitem", { name: "Remove from organization" })).toBeVisible();

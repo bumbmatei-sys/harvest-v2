@@ -4,10 +4,13 @@ import { useTranslations, useFormatter } from "next-intl";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Empty, EmptyHeader, EmptyTitle, EmptyDescription } from "@/components/ui/empty";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableCaption } from "@/components/ui/table";
+import { FileText } from "lucide-react";
+import { DataTable, type DataTableColumn, type DataTableRow } from "@/components/data-table";
+import { EmptyState } from "@/components/empty-state";
+import { StatusBadge } from "@/components/status-badge";
+import { defineStatusTones } from "@/lib/status-tone";
+const fileTone = defineStatusTones({ ready: "success", uploaded: "pending", pending: "pending", quarantined: "danger" });
 type FileRow = { id: string; name: string; size: number; status: string; visibility: string; canConfirm: boolean; publicUrl: string | null };
 export function FileList({ files, tenantId, canUpload }: { files: FileRow[]; tenantId: string; canUpload: boolean }) {
   const t = useTranslations("ComponentsFilesFileList");
@@ -26,23 +29,26 @@ export function FileList({ files, tenantId, canUpload }: { files: FileRow[]; ten
     } catch (error) { setError(error instanceof Error ? error.message : t("couldNotOpenFilePleaseTryAgain")); }
     finally { setBusyId(null); }
   }
-  if (!files.length) return <Empty><EmptyHeader><EmptyTitle>{t("noFilesYet")}</EmptyTitle><EmptyDescription>{canUpload ? t("uploadYourFirstFileAbove") : t("filesUploadedByWorkspaceMembersWillAppearHere")}</EmptyDescription></EmptyHeader></Empty>;
+  if (!files.length) return <EmptyState icon={FileText} title={t("noFilesYet")} description={canUpload ? t("uploadYourFirstFileAbove") : t("filesUploadedByWorkspaceMembersWillAppearHere")} />;
+  const columns: DataTableColumn[] = [
+    { id: "file", header: t("file"), card: "title", className: "max-w-56 break-words whitespace-normal font-medium" },
+    { id: "size", header: t("size") }, { id: "visibility", header: t("visibility") }, { id: "status", header: t("status") },
+    { id: "actions", header: t("actions"), align: "end", card: "actions" },
+  ];
+  const rows: DataTableRow[] = files.map((file) => ({ id: file.id, label: file.name, cells: {
+    file: file.name,
+    size: t("fileSize", { size: format.number(file.size / 1024, "fileSize") }),
+    visibility: t(`visibilityValues.${file.visibility}`),
+    status: <StatusBadge tone={fileTone(file.status)} label={t(`statusValues.${file.status}`)} />,
+    actions: <>
+      {file.status === "ready" && <Button variant="outline" size="sm" disabled={busyId === file.id} onClick={() => void act(file, "download")} aria-label={t("downloadValue", { name: file.name })}>{t("download")}</Button>}
+      {file.publicUrl && <Button asChild variant="outline" size="sm"><a href={file.publicUrl} aria-label={t("publicLinkForValue", { name: file.name })}>{t("publicLink")}</a></Button>}
+      {file.status === "uploaded" && file.canConfirm && canUpload && <Button variant="outline" size="sm" disabled={busyId === file.id} onClick={() => void act(file, "confirm")}>{t("retryVerification")}</Button>}
+      {file.status === "quarantined" && <span className="text-xs text-muted-foreground">{t("unavailable")}</span>}
+    </>,
+  } }));
   return <div className="space-y-4">
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-    <Table>
-      <TableCaption>{t("latest100WorkspaceFilesOnlyReadyFilesCan")}</TableCaption>
-      <TableHeader><TableRow><TableHead>{t("file")}</TableHead><TableHead>{t("size")}</TableHead><TableHead>{t("visibility")}</TableHead><TableHead>{t("status")}</TableHead><TableHead className="text-right">{t("actions")}</TableHead></TableRow></TableHeader>
-      <TableBody>{files.map((file) => <TableRow key={file.id}>
-        <TableCell className="max-w-56 break-words whitespace-normal font-medium">{file.name}</TableCell>
-        <TableCell>{t("fileSize", { size: format.number(file.size / 1024, "fileSize") })}</TableCell><TableCell>{t(`visibilityValues.${file.visibility}`)}</TableCell>
-        <TableCell><Badge variant={file.status === "quarantined" ? "destructive" : "secondary"}>{t(`statusValues.${file.status}`)}</Badge></TableCell>
-        <TableCell className="text-right">
-          {file.status === "ready" && <Button variant="outline" size="sm" disabled={busyId === file.id} onClick={() => void act(file, "download")} aria-label={t("downloadValue", { name: file.name })}>{t("download")}</Button>}
-          {file.publicUrl && <Button asChild variant="outline" size="sm"><a href={file.publicUrl} aria-label={t("publicLinkForValue", { name: file.name })}>{t("publicLink")}</a></Button>}
-          {file.status === "uploaded" && file.canConfirm && canUpload && <Button variant="outline" size="sm" disabled={busyId === file.id} onClick={() => void act(file, "confirm")}>{t("retryVerification")}</Button>}
-          {file.status === "quarantined" && <span className="text-xs text-muted-foreground">{t("unavailable")}</span>}
-        </TableCell>
-      </TableRow>)}</TableBody>
-    </Table>
+    <DataTable label={t("file")} note={t("latest100WorkspaceFilesOnlyReadyFilesCan")} columns={columns} rows={rows} bordered={false} />
   </div>;
 }

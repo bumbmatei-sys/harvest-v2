@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Archive, CalendarClock, CircleCheck, CircleDashed, CircleX, Info, Pause, RefreshCw, Rocket } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Field, FieldDescription, FieldLabel } from "@/components/ui/field";
@@ -50,16 +50,9 @@ export function LinkActions({ endpoint, status, publicCode, expiresAt, checks }:
 
   const confirm = (action: Exclude<LinkAction, "publish">, Icon: typeof Pause, variant: "outline" | "destructive") => {
     const key = action === "disable" ? "disable" : action;
-    return <AlertDialog>
-      <AlertDialogTrigger asChild><Button type="button" variant="outline" size="sm" className="min-h-11" disabled={busy !== null}><Icon aria-hidden="true" />{t(key)}</Button></AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader><AlertDialogTitle>{t(`${key}Title`)}</AlertDialogTitle><AlertDialogDescription>{t(`${key}Description`)}</AlertDialogDescription></AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel className="min-h-11">{t("cancel")}</AlertDialogCancel>
-          <AlertDialogAction className="min-h-11" variant={variant} onClick={() => void run(action)}>{t(`${key}Submit`)}</AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>;
+    return <ConfirmDialog tone={variant === "destructive" ? "destructive" : "neutral"} title={t(`${key}Title`)} description={t(`${key}Description`)} cancelLabel={t("cancel")} confirmLabel={t(`${key}Submit`)}
+      onConfirm={async () => { await run(action); }}
+      trigger={<Button type="button" variant="outline" size="sm" className="min-h-11" disabled={busy !== null}><Icon aria-hidden="true" />{t(key)}</Button>} />;
   };
 
   if (status === "archived") return null;

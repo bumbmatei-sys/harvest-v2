@@ -343,6 +343,20 @@
   "ComponentsUiSheet": {
     "close": "Close"
   },
+  "ComponentsConfirmDialog": {
+    "failed": "Something went wrong. Try again."
+  },
+  "ComponentsDataTable": {
+    "loading": "Loading",
+    "selectAll": "Select all",
+    "selectRow": "Select {name}",
+    "selectedCount": "{count} selected",
+    "clearSelection": "Clear selection",
+    "sort": "Sort",
+    "ascending": "ascending",
+    "descending": "descending",
+    "none": "not sorted"
+  },
   "ComponentsUiSpinner": {
     "loading": "Loading"
   },
@@ -2198,6 +2212,10 @@
       "kit": {
         "title": "Kit-derived items",
         "description": "Items adopted from the component kit, and the chart colors of the current theme."
+      },
+      "pageParts": {
+        "title": "Page pieces",
+        "description": "Table shell with tabs, sorting, selection and phone cards, empty states, status badges and confirmation dialogs."
       }
     },
     "toast": {
@@ -2214,7 +2232,11 @@
     },
     "primitives": {
       "spinnerTitle": "Spinner",
-      "spinner": { "sm": "Small", "default": "Default", "lg": "Large" },
+      "spinner": {
+        "sm": "Small",
+        "default": "Default",
+        "lg": "Large"
+      },
       "toggleTitle": "Toggle group",
       "viewMode": "View mode",
       "listView": "List view",
@@ -2302,7 +2324,77 @@
     "unknown": "Unknown",
     "searchRegistry": "Search components",
     "all": "All categories",
-    "sourceAndConsumers": "Source and real consumers"
+    "sourceAndConsumers": "Source and real consumers",
+    "pageParts": {
+      "tableTitle": "Table shell",
+      "viewState": "State",
+      "views": {
+        "ready": "Ready",
+        "loading": "Loading",
+        "empty": "Empty",
+        "error": "Error"
+      },
+      "tableLabel": "Sample items",
+      "statusTabs": "Status",
+      "all": "All",
+      "statuses": {
+        "open": "Open",
+        "waiting": "Waiting",
+        "done": "Done"
+      },
+      "name": "Name",
+      "status": "Status",
+      "actions": "Actions",
+      "open": "Open",
+      "openNamed": "Open {name}",
+      "search": "Search sample items",
+      "filters": "Filters",
+      "onlyMine": "Only mine",
+      "bulkLabel": "Selected items",
+      "archive": "Archive selected",
+      "emptyTitle": "Nothing here yet",
+      "emptyDescription": "Items you add will appear here.",
+      "reset": "Reset",
+      "errorText": "Sample items could not load.",
+      "retry": "Retry",
+      "pageSummary": "{count, plural, one {# item} other {# items}}",
+      "previous": "Previous page",
+      "next": "Next page",
+      "localActions": "Row actions: {count}",
+      "emptyStandardTitle": "Empty state, standard",
+      "emptyCompactTitle": "Empty state, compact",
+      "create": "Create",
+      "import": "Import",
+      "badgesTitle": "Status badges",
+      "tones": {
+        "neutral": "Neutral",
+        "success": "Success",
+        "warning": "Warning",
+        "danger": "Danger",
+        "info": "Info",
+        "pending": "Pending"
+      },
+      "confirmTitle": "Confirmation dialogs",
+      "confirm": {
+        "idle": "No confirmation yet.",
+        "cancel": "Cancel",
+        "working": "Working",
+        "destructiveOpen": "Example delete",
+        "destructiveTitle": "Delete this example?",
+        "destructiveBody": "The example is removed locally.",
+        "destructiveConfirm": "Delete example",
+        "done": "Example deleted locally.",
+        "neutralOpen": "Example continue",
+        "neutralTitle": "Continue?",
+        "neutralBody": "Nothing is saved.",
+        "neutralConfirm": "Continue",
+        "neutralDone": "Continued.",
+        "failOpen": "Example failure",
+        "failTitle": "Try this action?",
+        "failConfirm": "Try it",
+        "failMessage": "The example action failed."
+      }
+    }
   },
   "SubjectRights": {
     "title": "Your responses",

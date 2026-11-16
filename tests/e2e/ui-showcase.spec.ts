@@ -76,7 +76,7 @@ test("showcase exposure and local component interactions", async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Fields', exact: true })).toBeVisible();
   await page.getByRole('combobox', { name: 'Component category', exact: true }).selectOption('kit');
   await expect(page.getByRole('heading', { name: 'Kit-derived items', exact: true })).toBeVisible();
-  for (const item of ['toast1 (free)', 'spinner1 (free)', 'scroll-area1 (free)', 'drawer1 (free)', 'dashboard-shell8 (premium)', 'dashboard-dropdown7 (premium)']) await expect(page.getByText(item, { exact: true })).toBeVisible();
+  for (const item of ['toast1 (free)', 'spinner1 (free)', 'scroll-area1 (free)', 'drawer1 (free)', 'dashboard-shell8 (premium)', 'dashboard-dropdown7 (premium)', 'tables14 (premium)', 'empty-state15 (premium)', 'badge1 (free)', 'alert-dialog1 (free)']) await expect(page.getByText(item, { exact: true })).toBeVisible();
   const swatchColors = await page.locator('[data-chart-swatches] span[aria-hidden]').evaluateAll(nodes => nodes.map(node => getComputedStyle(node).backgroundColor));
   expect(swatchColors).toHaveLength(5); expect(new Set(swatchColors).size).toBe(5);
   await page.getByRole('combobox', { name: 'Component category', exact: true }).selectOption('all');
@@ -113,7 +113,7 @@ test("showcase exposure and local component interactions", async ({ page }) => {
   }
   // Capture each example group deliberately; the shell scrolls main independently.
   await page.setViewportSize({width:390,height:1000});
-  for (const id of ['actions','fields','overlays','feedback','primitives','toast','shell','kit']) {
+  for (const id of ['actions','fields','overlays','feedback','primitives','toast','shell','pageParts','kit']) {
     await page.locator(`#${id}`).scrollIntoViewIfNeeded();
     await page.screenshot({path:`/tmp/ui-showcase/group-${id}.png`});
   }
@@ -126,5 +126,93 @@ test("showcase exposure and local component interactions", async ({ page }) => {
       const button=page.getByRole('button',{name:label});
       expect((await button.boundingBox())?.height).toBe(width<1024?44:36);
     }
+  }
+});
+
+test("page pieces: table states, selection, sorting, confirmations and the phone card layout", async ({ page }) => {
+  test.setTimeout(240000);
+  test.skip(process.env.HARVEST_UI_SHOWCASE !== "1", "the showcase is development-only");
+  await signIn(page); await page.setViewportSize({ width: 1280, height: 1000 }); await page.goto('/dev/ui#pageParts');
+  const axe = async (label: string) => expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations, label).toEqual([]);
+  const section = page.locator('#pageParts');
+  const table = section.getByRole('table', { name: 'Sample items' });
+  // Tabs with counts filter the same table; the active tab owns the panel.
+  await expect(section.getByRole('tab', { name: /^All\s*5$/ })).toHaveAttribute('aria-selected', 'true');
+  await expect(table.getByRole('row')).toHaveCount(6);
+  await section.getByRole('tab', { name: /^Open\s*2$/ }).click();
+  await expect(table.getByRole('row')).toHaveCount(3);
+  await section.getByRole('tab', { name: /^All/ }).click();
+  // Sorting: aria-sort cycles on the name header.
+  const nameHeader = table.getByRole('columnheader', { name: 'Name' });
+  await expect(nameHeader).toHaveAttribute('aria-sort', 'none');
+  await nameHeader.getByRole('button').click(); await expect(nameHeader).toHaveAttribute('aria-sort', 'ascending');
+  await nameHeader.getByRole('button').click(); await expect(nameHeader).toHaveAttribute('aria-sort', 'descending');
+  await expect(table.getByRole('row').nth(1)).toContainText('Sample item E');
+  await nameHeader.getByRole('button').click(); await expect(nameHeader).toHaveAttribute('aria-sort', 'none');
+  // Search narrows rows; an empty result shows the empty slot.
+  await section.getByRole('searchbox', { name: 'Search sample items' }).fill('item B');
+  await expect(table.getByRole('row')).toHaveCount(2);
+  await section.getByRole('searchbox', { name: 'Search sample items' }).fill('nothing matches');
+  await expect(section.getByText('Nothing here yet', { exact: true }).first()).toBeVisible();
+  await section.getByRole('searchbox', { name: 'Search sample items' }).fill('');
+  // Selection: header checkbox, per-row checkbox, bulk bar with count, clear.
+  await expect(section.getByRole('region', { name: 'Selected items' })).toHaveCount(0);
+  await section.getByRole('checkbox', { name: 'Select Sample item A' }).click();
+  const bulk = section.getByRole('region', { name: 'Selected items' });
+  await expect(bulk.getByRole('status')).toHaveText('1 selected');
+  await expect(section.getByRole('checkbox', { name: 'Select all' })).toHaveAttribute('aria-checked', 'mixed');
+  await section.getByRole('checkbox', { name: 'Select all' }).click();
+  await expect(bulk.getByRole('status')).toHaveText('5 selected');
+  await axe('selected rows');
+  await bulk.getByRole('button', { name: 'Clear selection' }).click();
+  await expect(bulk).toHaveCount(0);
+  // Loading, empty and error slots (and Retry).
+  for (const [view, expectation] of [['Loading', () => expect(section.getByRole('status', { name: 'Loading' }).first()).toBeVisible()], ['Empty', () => expect(section.getByText('Nothing here yet', { exact: true }).first()).toBeVisible()], ['Error', () => expect(section.getByRole('alert')).toContainText('Sample items could not load.')]] as const) {
+    await section.getByRole('radio', { name: view, exact: true }).click(); await expectation(); await axe(`${view} state`);
+  }
+  await section.getByRole('button', { name: 'Retry', exact: true }).click(); await expect(table).toBeVisible();
+  await section.getByRole('radio', { name: 'Ready', exact: true }).click();
+  // Confirmations: focus returns to the trigger; busy state keeps focus and blocks dismissal; failure stays open.
+  const destructive = page.getByRole('button', { name: 'Example delete', exact: true });
+  await destructive.click();
+  const dialog = page.getByRole('alertdialog', { name: 'Delete this example?' });
+  await expect(dialog).toBeVisible(); await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeFocused();
+  await page.keyboard.press('Escape'); await expect(dialog).toHaveCount(0); await expect(destructive).toBeFocused();
+  await destructive.click();
+  const confirmButton = dialog.getByRole('button', { name: 'Delete example' });
+  await confirmButton.focus(); await page.keyboard.press('Enter');
+  await expect(dialog.getByRole('button', { name: 'Working' })).toHaveAttribute('aria-disabled', 'true');
+  await expect(dialog.getByRole('button', { name: 'Cancel' })).toHaveAttribute('aria-disabled', 'true');
+  await expect(dialog.getByRole('button', { name: 'Working' })).toBeFocused();
+  await page.keyboard.press('Escape'); await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveCount(0, { timeout: 5000 });
+  await expect(page.getByRole('status').filter({ hasText: 'Example deleted locally.' })).toBeVisible();
+  await expect(destructive).toBeFocused();
+  await page.getByRole('button', { name: 'Example failure', exact: true }).click();
+  const failing = page.getByRole('alertdialog', { name: 'Try this action?' });
+  await failing.getByRole('button', { name: 'Try it' }).click();
+  await expect(failing.getByRole('alert')).toHaveText('The example action failed.');
+  await expect(failing.getByRole('button', { name: 'Try it' })).not.toHaveAttribute('aria-disabled', 'true');
+  await axe('failed confirmation'); await failing.getByRole('button', { name: 'Cancel' }).click(); await expect(failing).toHaveCount(0);
+  await page.getByRole('button', { name: 'Example continue', exact: true }).click();
+  await page.getByRole('alertdialog', { name: 'Continue?' }).getByRole('button', { name: 'Continue', exact: true }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'Continued.' })).toBeVisible();
+  // Responsive and themed: cards below 768px, 44px targets below 1024px, no overflow, axe in both modes.
+  for (const width of [360, 390, 768, 1280, 1440]) for (const mode of ['light', 'dark']) {
+    await page.setViewportSize({ width, height: 1000 }); await page.evaluate(value => localStorage.setItem('harvest-color-mode', value), mode); await page.reload();
+    const cards = section.locator('[data-slot="data-table-cards"]');
+    if (width < 768) { await expect(cards).toBeVisible(); await expect(table).toHaveCount(0); await expect(cards.locator('li')).toHaveCount(5); await expect(cards.locator('dt').first()).toBeVisible(); }
+    else { await expect(table).toBeVisible(); await expect(cards).toHaveCount(0); }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+    const minimum = width < 1024 ? 44 : 32;
+    for (const control of await section.locator('[data-slot="data-table"] button:not([role="checkbox"]):visible, [data-slot="data-table"] label:has([role="checkbox"])').all()) {
+      const box = await control.boundingBox(); if (!box) continue;
+      expect(box.height, `${width} ${mode} control height`).toBeGreaterThanOrEqual(minimum - 0.5);
+    }
+    await section.getByRole('checkbox', { name: 'Select Sample item B' }).click();
+    await axe(`${width} ${mode} with selection`);
+    await section.getByRole('button', { name: 'Clear selection' }).click();
+    await page.locator('#pageParts').scrollIntoViewIfNeeded();
+    if (mode === 'light' || width === 360) await page.screenshot({ path: `/tmp/ui-showcase/page-parts-${width}-${mode}.png` });
   }
 });
