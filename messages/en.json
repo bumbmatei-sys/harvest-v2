@@ -2161,7 +2161,17 @@
       "feedback": {
         "title": "Feedback",
         "description": "Loading, empty, error, permission and selected states."
+      },
+      "kit": {
+        "title": "Kit-derived items",
+        "description": "Items adopted from the component kit, and the chart colors of the current theme."
       }
+    },
+    "kit": {
+      "none": "No kit items adopted yet",
+      "adopted": "{item} ({tier})",
+      "chartColors": "Chart colors",
+      "series": "Series {number}"
     },
     "actions": {
       "default": "Primary",

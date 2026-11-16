@@ -2,6 +2,7 @@
 import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Check, LoaderCircle, Plus } from "lucide-react";
+import { kitProvenance } from "@/lib/ui-provenance";
 import { uiShowcaseEntries, type UiShowcaseCategory } from "@/lib/ui-showcase";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -77,6 +78,18 @@ function FeedbackExamples() {
     <div className="flex items-center gap-3"><Avatar><AvatarFallback className="bg-selected">{t("initials")}</AvatarFallback></Avatar><Badge variant="secondary">{t("unknown")}</Badge><Badge className="bg-success-tint text-success">{t("success")}</Badge></div>
   </div>;
 }
+const chartSwatches = ["bg-chart-1", "bg-chart-2", "bg-chart-3", "bg-chart-4", "bg-chart-5"] as const;
+function KitExamples() {
+  const t = useTranslations("UiShowcase.kit");
+  return <div className="space-y-5">
+    {kitProvenance.length === 0
+      ? <Empty className="border border-solid"><EmptyHeader><EmptyTitle>{t("none")}</EmptyTitle></EmptyHeader></Empty>
+      : <ul className="space-y-1">{kitProvenance.map(record => <li key={record.item}>{t("adopted", { item: record.item, tier: record.tier })}</li>)}</ul>}
+    <div role="group" aria-label={t("chartColors")} data-chart-swatches className="grid grid-cols-2 gap-3 sm:grid-cols-5">
+      {chartSwatches.map((swatch, index) => <div key={swatch} className="flex items-center gap-2"><span aria-hidden="true" className={`size-6 shrink-0 rounded-md border ${swatch}`} /><span className="text-sm">{t("series", { number: index + 1 })}</span></div>)}
+    </div>
+  </div>;
+}
 export function UiShowcase() {
   const t = useTranslations("UiShowcase");
   const [query, setQuery] = useState(""), [category, setCategory] = useState<UiShowcaseCategory | "all">("all");
@@ -85,7 +98,7 @@ export function UiShowcase() {
     <div className="flex flex-wrap gap-3"><Input type="search" className="min-h-11 w-full sm:w-80" aria-label={t("searchRegistry")} placeholder={t("searchRegistry")} value={query} onChange={event => setQuery(event.target.value)} /><NativeSelect className="min-h-11" aria-label={t("categoryFilter")} value={category} onChange={event => setCategory(event.target.value as typeof category)}><NativeSelectOption value="all">{t("all")}</NativeSelectOption>{uiShowcaseEntries.map(entry => <NativeSelectOption key={entry.id} value={entry.id}>{t(`entries.${entry.id}.title`)}</NativeSelectOption>)}</NativeSelect></div>
     {entries.length === 0 && <Empty><EmptyHeader><EmptyTitle>{t("noMatches")}</EmptyTitle></EmptyHeader></Empty>}
     {entries.map(entry => <section key={entry.id} id={entry.id} aria-labelledby={`${entry.id}-title`}><Card><CardHeader><CardTitle><h2 id={`${entry.id}-title`}>{t(`entries.${entry.id}.title`)}</h2></CardTitle><p className="text-sm text-muted-foreground">{t(`entries.${entry.id}.description`)}</p></CardHeader><CardContent className="space-y-5">
-      {entry.id === "actions" ? <ActionExamples /> : entry.id === "fields" ? <FieldExamples /> : entry.id === "overlays" ? <OverlayExamples /> : <FeedbackExamples />}
+      {entry.id === "actions" ? <ActionExamples /> : entry.id === "fields" ? <FieldExamples /> : entry.id === "overlays" ? <OverlayExamples /> : entry.id === "kit" ? <KitExamples /> : <FeedbackExamples />}
       <details className="text-sm"><summary className="min-h-11 cursor-pointer py-3">{t("sourceAndConsumers")}</summary><ul className="space-y-1 break-all">{[...entry.sources, ...entry.consumers].map(source => <li key={source}><code>{source}</code></li>)}</ul></details>
     </CardContent></Card></section>)}
   </div></TooltipProvider>;
