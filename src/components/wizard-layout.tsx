@@ -25,6 +25,7 @@ export function WizardLayout({ steps, current, onStepChange, stepsLabel, stepper
   const t = useTranslations("ComponentsWizardLayout");
   const heading = useRef<HTMLHeadingElement>(null), moved = useRef(false), mounted = useRef(true);
   const [checking, setChecking] = useState(false);
+  const pending = useRef(false);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => { if (moved.current) { moved.current = false; heading.current?.focus(); } }, [current]);
   const at = stepIndex(steps, current), step = steps[at];
@@ -32,7 +33,7 @@ export function WizardLayout({ steps, current, onStepChange, stepsLabel, stepper
   const working = busy || checking;
 
   async function go(direction: 1 | -1) {
-    if (working) return;
+    if (working || pending.current) return;
     const target = direction === 1 ? next : previous;
     if (!target) return;
     if (direction === 1 && validate) {
@@ -44,14 +45,16 @@ export function WizardLayout({ steps, current, onStepChange, stepsLabel, stepper
     moved.current = true; onStepChange(target);
   }
   async function finish() {
-    if (working || !onFinish) return;
-    if (validate) {
-      setChecking(true);
-      let ok = false;
-      try { ok = await validate(current); } finally { if (mounted.current) setChecking(false); }
-      if (!ok) return;
+    if (working || pending.current || !onFinish) return;
+    // The ref closes the gap before React commits the pending state, including when busy is omitted.
+    pending.current = true; setChecking(true);
+    try {
+      if (validate && !await validate(current)) return;
+      await onFinish();
+    } finally {
+      pending.current = false;
+      if (mounted.current) setChecking(false);
     }
-    await onFinish();
   }
   const busyLabel = <><Spinner decorative size="sm" />{t("working")}</>;
   return <div className="min-w-0 space-y-6" data-slot="wizard-layout">

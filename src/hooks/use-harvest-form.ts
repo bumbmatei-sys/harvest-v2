@@ -1,10 +1,9 @@
 "use client";
 import { useMemo, useState } from "react";
 import { useForm, type DefaultValues, type FieldValues, type UseFormReturn } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslations } from "next-intl";
 import type { z } from "zod";
-import { splitFailure, type SubmitFailure } from "@/lib/form";
+import { harvestFormResolver, splitFailure, type SubmitFailure } from "@/lib/form";
 
 /**
  * Shared form plumbing: react-hook-form with a zod schema, server and network failures mapped onto fields and an inline form-level message,
@@ -15,7 +14,7 @@ import { splitFailure, type SubmitFailure } from "@/lib/form";
 export function useHarvestForm<Schema extends z.ZodObject>(schema: Schema, defaultValues: DefaultValues<z.input<Schema>>) {
   type Input = z.input<Schema> & FieldValues;
   const t = useTranslations("ComponentsForm");
-  const form = useForm<Input, unknown, z.output<Schema>>({ resolver: zodResolver(schema) as never, defaultValues: defaultValues as DefaultValues<Input>, mode: "onTouched" });
+  const form = useForm<Input, unknown, z.output<Schema>>({ resolver: harvestFormResolver(schema), defaultValues: defaultValues as DefaultValues<Input>, mode: "onTouched" });
   const [formError, setFormError] = useState<string | null>(null);
   const known = useMemo(() => Object.keys(schema.shape), [schema]);
   const { handleSubmit, setError, formState: { isDirty, isSubmitting } } = form;
