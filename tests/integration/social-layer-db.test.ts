@@ -206,6 +206,15 @@ describe("post state machine at the database", () => {
     await raw(ok, "status = 'failed', last_error_code = 'PROVIDER_REJECTED', lock_token = null, locked_at = null");
     expect((await retryPost(f.db, p.owner, p.tenant, ok, deps)).post).toMatchObject({ status: "scheduled", attempts: 0 });
   });
+  it("never lets the first attempt time change or clear once set, so the 23-hour rule cannot be rewound", async () => {
+    const id = (await newPost()).id;
+    await raw(id, "status = 'publishing', attempts = 1, lock_token = gen_random_uuid(), locked_at = now(), first_attempt_at = now()");
+    await raw(id, "status = 'scheduled', lock_token = null, locked_at = null, next_attempt_at = now() + interval '1 minute'");
+    for (const set of ["first_attempt_at = null", "first_attempt_at = now() - interval '25 hours'", "first_attempt_at = now() + interval '1 hour'"]) {
+      await expect(raw(id, set), set).rejects.toThrow(/first attempt time is immutable/);
+    }
+    expect((await row(id)).first_attempt_at).not.toBeNull();
+  });
   it("reschedules, unschedules and lists", async () => {
     const id = (await newPost()).id;
     expect((await reschedulePost(f.db, p.owner, p.tenant, id, { scheduledFor: null }, deps)).post).toMatchObject({ status: "draft", scheduledFor: null });

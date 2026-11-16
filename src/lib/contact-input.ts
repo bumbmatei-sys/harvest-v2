@@ -15,10 +15,14 @@ export type ContactInput = z.input<typeof contactInput>;
 export const consentPurposes = staffConsentPurposes;
 export const consentNoticeVersions = ["notice-v1"] as const;
 export const erasureInput = z.object({ confirm: z.literal("erase") }).strict();
+/** 1 January 1990: no consent evidence can predate this. */
+export const CONSENT_EARLIEST = Date.UTC(1990, 0, 1);
 export const consentInput = z.object({
   channel: z.enum(["email", "sms", "social"]), status: z.enum(["granted", "withdrawn", "unknown"]),
   purpose: z.enum(consentPurposes), noticeVersion: z.enum(consentNoticeVersions),
-  occurredAt: z.iso.datetime({ offset: true }).refine((value) => Date.parse(value) <= Date.now() + 5 * 60_000, message("Errors.consentTimeCannotBeMoreThanFiveMinutes")).optional(),
+  occurredAt: z.iso.datetime({ offset: true }).refine((value) => Date.parse(value) <= Date.now() + 5 * 60_000, message("Errors.consentTimeCannotBeMoreThanFiveMinutes"))
+    // HC-DEC1b: attestation needs a sane date. Not in the future (five minutes of clock skew) and not before the earliest plausible record.
+    .refine((value) => Date.parse(value) >= CONSENT_EARLIEST, "CONSENT_TIME_OUT_OF_RANGE").optional(),
   source: z.string().trim().min(1).max(200), evidence: z.string().trim().min(1).max(2000),
 }).strict();
 export type ConsentInput = z.input<typeof consentInput>;

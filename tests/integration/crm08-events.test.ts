@@ -33,7 +33,7 @@ describe("CRM lifecycle events (contracts and emission)", () => {
     const org = await createCompany(fixture.db, "member-a", tenantA, { name: "Synthetic SECRET-ORG Trust", domain: "secret-org.example", description: "SECRET-DESCRIPTION text" });
     const person = await createContact(fixture.db, "member-a", tenantA, { name: "Synthetic SECRET-NAME", email: "secret.person@example.test", phone: "+4915100000001", notes: "SECRET-NOTES private" });
     const patched = await patchContact(fixture.db, "member-a", tenantA, person.id, { version: person.version, notes: "SECRET-NOTES changed", phone: "+4915100000002" });
-    await recordConsent(fixture.db, "member-a", tenantA, person.id, consent);
+    await recordConsent(fixture.db, "owner-a", tenantA, person.id, consent);
     await linkCompany(fixture.db, "member-a", tenantA, person.id, { companyId: org.id, title: "SECRET-TITLE lead" });
     const updatedOrg = await patchCompany(fixture.db, "member-a", tenantA, org.id, { version: org.version, description: "SECRET-DESCRIPTION two" });
     void updatedOrg;

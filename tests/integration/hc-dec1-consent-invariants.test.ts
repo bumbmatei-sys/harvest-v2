@@ -171,18 +171,18 @@ describe("CRM ledger: latest state wins and nothing is implied", () => {
     expect(withdrawnFile.body).toContain(emailOf("D1 Agree withdrawn"));
     expect(withdrawnFile.body).not.toContain(emailOf("D1 Agree granted"));
   });
-  it("pins the one documented channel difference: the newsletter list is email-only, the association gate is per purpose", async () => {
-    // Recorded as a finding for a product decision (hc-dec1.md F4). A newsletter grant on another channel does not put a person
-    // in the email newsletter segment or export, while the activity gate (which stores nothing that is sent) counts the purpose.
+  it("counts a newsletter permission only on the email channel, while a withdrawal on any channel still blocks (F4, HC-DEC1b)", async () => {
+    // Engineering default, UNAPPROVED pending legal review. An SMS grant neither enters the email segment nor satisfies the gate.
     const person = await createContact(f.db, "dec1-owner", tenant, { name: "D1 Sms newsletter", email: "d1-sms-newsletter@example.test" });
     await consent(person.id, "newsletter", "granted", { channel: "sms" });
     expect(await names("newsletter~any_of~granted")).not.toContain("D1 Sms newsletter");
     expect((await exportRecords(f.db, "dec1-owner", tenant, "person", { f: "newsletter~any_of~granted" })).body).not.toContain("d1-sms-newsletter@example.test");
-    expect(await recordAssociation(f.db, "dec1-owner", tenant, { source: "form", kind: "form_submission", purpose: "newsletter", contactId: person.id, externalId: "d1-sms-1" })).toMatchObject({ stored: true });
-    // A withdrawal on any channel blocks the gate (fail closed), even though the email list is unaffected by it.
+    expect(await recordAssociation(f.db, "dec1-owner", tenant, { source: "form", kind: "form_submission", purpose: "newsletter", contactId: person.id, externalId: "d1-sms-1" })).toMatchObject({ stored: false, reason: "consent_missing" });
+    // A withdrawal on any channel blocks the gate (fail closed) and the newsletter list reads it the same way.
     await pause();
     await consent(person.id, "newsletter", "withdrawn", { channel: "sms" });
     expect(await recordAssociation(f.db, "dec1-owner", tenant, { source: "form", kind: "form_submission", purpose: "newsletter", contactId: person.id, externalId: "d1-sms-2" })).toMatchObject({ stored: false, reason: "consent_withdrawn" });
+    expect(await names("newsletter~any_of~withdrawn")).toContain("D1 Sms newsletter");
   });
   it("lets a merge move events without letting an older grant beat a newer withdrawal", async () => {
     const target = await createContact(f.db, "dec1-owner", tenant, { name: "D1 Merge target" });

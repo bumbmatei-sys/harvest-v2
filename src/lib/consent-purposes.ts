@@ -43,10 +43,11 @@ type FlagName = keyof Flags;
 type PurposesWith<F extends FlagName> = { [P in ConsentPurpose]: typeof consentPurposeRegistry[P][F] extends true ? P : never }[ConsentPurpose];
 
 /** The purposes whose flag is set, in registry order. Non-empty by construction for every flag used below. */
-export function purposesWith<F extends FlagName>(flag: F): [PurposesWith<F>, ...PurposesWith<F>[]] {
+export function purposesWith<F extends FlagName>(flag: F): readonly [PurposesWith<F>, ...PurposesWith<F>[]] {
   const list = (Object.keys(consentPurposeRegistry) as ConsentPurpose[]).filter((key) => consentPurposeRegistry[key][flag]);
   if (!list.length) throw new Error("CONSENT_PURPOSE_REGISTRY_EMPTY");
-  return list as [PurposesWith<F>, ...PurposesWith<F>[]];
+  // Frozen: a derived list is shared by every importer, so nobody can mutate it for the others.
+  return Object.freeze(list) as unknown as readonly [PurposesWith<F>, ...PurposesWith<F>[]];
 }
 
 /** Every purpose the CRM ledger accepts, including stored legacy history. */
@@ -65,3 +66,16 @@ export const MAX_OFFERED_PURPOSES = connectOfferedPurposes.length;
 
 /** The same list as a SQL `in (...)` body, exactly as the schema check constraints spell it. */
 export const purposeSqlList = (list: readonly string[]) => list.map((item) => `'${item}'`).join(", ");
+
+export type ConsentChannel = "email" | "sms" | "social";
+/**
+ * HC-DEC1b (engineering default, UNAPPROVED pending legal review): the channels on which a GRANT counts for a purpose.
+ * Purposes not listed here accept a grant on any channel. A WITHDRAWAL on any channel always blocks, for every purpose
+ * (strict grant, broad withdrawal). Only the newsletter is email-scoped, matching the newsletter list and export.
+ */
+export const purposeGrantChannels: Readonly<Partial<Record<ConsentPurpose, readonly ConsentChannel[]>>> = Object.freeze({ newsletter: Object.freeze(["email"] as const) });
+/** Whether a grant recorded on `channel` can count for `purpose`. */
+export const grantCountsOnChannel = (purpose: ConsentPurpose, channel: string): boolean => {
+  const channels = purposeGrantChannels[purpose];
+  return !channels || (channels as readonly string[]).includes(channel);
+};

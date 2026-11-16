@@ -40,3 +40,5 @@ Two constants, both `false` and asserted by tests and source guards. The adapter
 * A 409 duplicate-content answer is treated as a failure (`PROVIDER_CONFLICT`), not as success, because with our own idempotency key it can only mean different, earlier content.
 * Scheduling is Harvest-owned: the provider is always asked to publish now. Provider-side scheduling is an open decision.
 * Local test runs here used the embedded PostgreSQL as `tester` (the shared local cluster was being altered by another session's suite).
+
+- **First attempt time is immutable (reviewer hardening).** Once `first_attempt_at` is set, the post guard refuses any change or clear, so the 23-hour idempotency rule cannot be rewound by a later write. The claim only ever sets it from NULL.

@@ -91,10 +91,13 @@ export async function emitCrmEvent<T extends CrmEventType>(tx: Transaction, tena
 
 /** What consumers (webhooks, future automation and AI context) receive. Built from the outbox row. */
 export type CrmEventEnvelope = { id: string; type: CrmEventType; version: number; tenantId: string; occurredAt: string; data: Record<string, unknown> };
+/** Per-process counts of events `crmEnvelope` refused to build (HC-DEC1b reviewer note). Counts only. */
+export const crmEnvelopeDrops = { unknownKind: 0, invalidPayload: 0 };
 export function crmEnvelope(row: { id: string; kind: string; tenantId: string; createdAt: Date; payload: Record<string, unknown> }): CrmEventEnvelope | null {
-  if (!isCrmEventType(row.kind)) return null;
+  // Fixed codes only (no event id, tenant, kind text or payload): a dropped event is counted in the log, never silent.
+  if (!isCrmEventType(row.kind)) { crmEnvelopeDrops.unknownKind++; console.error("crm_envelope_unknown_kind"); return null; }
   const parsed = crmEventContracts[row.kind].data.safeParse(row.payload);
-  if (!parsed.success) return null;
+  if (!parsed.success) { crmEnvelopeDrops.invalidPayload++; console.error("crm_envelope_invalid_payload"); return null; }
   const { tenantId: _tenant, ...data } = parsed.data as Record<string, unknown>;
   void _tenant;
   return { id: row.id, type: row.kind, version: crmEventContracts[row.kind].version, tenantId: row.tenantId, occurredAt: row.createdAt.toISOString(), data };

@@ -332,10 +332,31 @@
       "breakpoints": true
     },
     {
+      "idx": 47,
+      "version": "7",
+      "when": 1794900000000,
+      "tag": "0047_consent_gate",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1795000000000,
+      "tag": "0048_followup_cases",
+      "breakpoints": true
+    },
+    {
       "idx": 49,
       "version": "7",
       "when": 1795100000000,
       "tag": "0049_social_integration",
+      "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1795200000000,
+      "tag": "0050_followup_consent_any_channel",
       "breakpoints": true
     }
   ]

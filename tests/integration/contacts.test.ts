@@ -60,12 +60,14 @@ describe("contact persistence, evidence and tenant isolation", () => {
     await expect(createContact(fixture.db, "reader", tenantA, { name: "Denied" })).rejects.toMatchObject({ status: 403 });
     await expect(updateContact(fixture.db, "reader", tenantA, contactA, { name: "Denied" })).rejects.toMatchObject({ status: 403 });
     await expect(recordConsent(fixture.db, "reader", tenantA, contactA, { purpose: "marketing", noticeVersion: "notice-v1", channel: "email", status: "granted", source: "Test", evidence: "Test" })).rejects.toMatchObject({ status: 403 });
+    // HC-DEC1b: a member may edit the person but not attest consent on their behalf (owner/admin only).
+    await expect(recordConsent(fixture.db, "writer", tenantA, contactA, { purpose: "marketing", noticeVersion: "notice-v1", channel: "email", status: "granted", source: "Test", evidence: "Test" })).rejects.toMatchObject({ status: 403 });
     await updateContact(fixture.db, "writer", tenantA, contactA, { name: "Synthetic Ada", notes: "Updated", email: "ada@example.test", phone: "+49123456789", social: "@Ada" });
     expect((await getContact(fixture.db, "reader", tenantA, contactA)).notes).toBe("Updated");
   });
   it("records append-only consent evidence and audit without implying default consent", async () => {
-    await recordConsent(fixture.db, "writer", tenantA, contactA, { purpose: "marketing", noticeVersion: "notice-v1", channel: "email", status: "granted", source: "Synthetic signed form", evidence: "Synthetic evidence reference A" });
-    await recordConsent(fixture.db, "writer", tenantA, contactA, { purpose: "marketing", noticeVersion: "notice-v1", channel: "email", status: "withdrawn", source: "Synthetic request", evidence: "Synthetic evidence reference B" });
+    await recordConsent(fixture.db, "owner-a", tenantA, contactA, { purpose: "marketing", noticeVersion: "notice-v1", channel: "email", status: "granted", source: "Synthetic signed form", evidence: "Synthetic evidence reference A" });
+    await recordConsent(fixture.db, "owner-a", tenantA, contactA, { purpose: "marketing", noticeVersion: "notice-v1", channel: "email", status: "withdrawn", source: "Synthetic request", evidence: "Synthetic evidence reference B" });
     const detail = await getContact(fixture.db, "reader", tenantA, contactA);
     expect(detail.consents.map((row) => row.status)).toEqual(["withdrawn", "granted"]);
     await expect(fixture.pool.query("update contact_consents set status = 'granted'")).rejects.toThrow();

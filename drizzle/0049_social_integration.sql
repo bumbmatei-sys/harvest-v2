@@ -203,6 +203,8 @@ BEGIN
   IF OLD.provider_post_ref IS NOT NULL AND NEW.provider_post_ref IS DISTINCT FROM OLD.provider_post_ref THEN RAISE EXCEPTION 'provider reference is immutable'; END IF;
   IF NEW.provider_post_ref IS NOT NULL AND NEW.status NOT IN ('publishing', 'published', 'failed') THEN RAISE EXCEPTION 'provider reference only on a submitted post'; END IF;
   IF NEW.attempts < OLD.attempts AND NOT (OLD.status = 'failed' AND NEW.status = 'scheduled') THEN RAISE EXCEPTION 'attempts only go up'; END IF;
+  -- The 23-hour idempotency rule rests on this column: once set it never changes or clears (the claim only ever sets it from NULL).
+  IF OLD.first_attempt_at IS NOT NULL AND NEW.first_attempt_at IS DISTINCT FROM OLD.first_attempt_at THEN RAISE EXCEPTION 'first attempt time is immutable'; END IF;
   RETURN NEW;
 END $$;--> statement-breakpoint
 CREATE TRIGGER social_post_guard BEFORE INSERT OR UPDATE ON public.social_posts

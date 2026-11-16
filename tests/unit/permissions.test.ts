@@ -21,6 +21,11 @@ describe("shared permission rules", () => {
   it("keeps imports for writers only", () => {
     expect(["owner", "admin", "member", "viewer"].map((role) => libCan(role, "crm:import"))).toEqual([true, true, true, false]);
   });
+  it("splits consent recording: a withdrawal is open to every non-viewer member, attesting a grant stays owner/admin only", () => {
+    const roles = ["owner", "admin", "member", "viewer", "pastor", "volunteer", ""];
+    expect(roles.map((role) => libCan(role, "contacts:record_withdrawal"))).toEqual([true, true, true, false, false, false, false]);
+    expect(roles.map((role) => libCan(role, "contacts:attest_consent"))).toEqual([true, true, false, false, false, false, false]);
+  });
 });
 
 describe("social provider permissions", () => {

@@ -5,6 +5,7 @@ import type { Database, Transaction } from "../db/client";
 import { associationKinds, associationPurposes, associationSources, auditLogs, companies, contactIdentifiers, contacts, crmAssociations } from "../db/schema";
 import { phoneField, socialField, uuidInput } from "../lib/contact-input";
 import { normalizeDomain } from "../lib/crm-input";
+import { decideConsent, loadLedger } from "./consent-gate";
 import { emitCrmEvent } from "./crm-events";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
@@ -31,25 +32,17 @@ export type AssociationResult =
   | { stored: false; reason: "no_match" | "consent_missing" | "consent_withdrawn"; contactId: string | null };
 
 /**
- * Effective consent for one purpose, from the append-only ledger: any outstanding withdrawal
- * (no later grant on both clocks for the same channel) wins; otherwise a grant allows only while it is
- * still the latest event on its channel, so a later "unknown" there replaces it (as on the record page).
+ * Effective consent for one association purpose, from the append-only ledger (HC-DEC1b: decided by the consent gate,
+ * `decideConsent`, so this gate, the permission card and every sender share one rule). Any outstanding withdrawal wins;
+ * otherwise a grant allows only while it is still the latest event on its channel, and only on a channel the purpose accepts
+ * (the newsletter counts email grants only).
  */
 export async function purposeConsent(tx: Transaction, tenantId: string, contactId: string, purpose: AssociationPurpose) {
-  const rows = await tx.execute<{ id: string; status: string; channel: string; occurred_at: string; recorded_at: string; source: string | null; outstanding: boolean }>(sql`
-    select c.id, c.status, c.channel, c.occurred_at, c.recorded_at, c.source,
-      (c.status = 'withdrawn' and not exists (select 1 from contact_consents g where g.tenant_id = c.tenant_id and g.contact_id = c.contact_id
-        and g.channel = c.channel and g.purpose = c.purpose and g.status = 'granted' and g.recorded_at > c.recorded_at and g.occurred_at > c.occurred_at)) as outstanding
-    from contact_consents c
-    where c.tenant_id = ${tenantId}::uuid and c.contact_id = ${contactId}::uuid and c.purpose = ${purpose} and c.redacted_at is null
-    order by c.recorded_at desc, c.occurred_at desc, c.id desc`);
-  const withdrawal = rows.rows.find((row) => row.outstanding);
-  if (withdrawal) return { allowed: false as const, reason: "consent_withdrawn" as const, event: withdrawal };
-  // Rows are newest first, so the first row per channel is that channel's effective event.
-  const latest = new Map<string, string>();
-  for (const row of rows.rows) if (!latest.has(row.channel)) latest.set(row.channel, row.id);
-  const grant = rows.rows.find((row) => row.status === "granted" && latest.get(row.channel) === row.id);
-  return grant ? { allowed: true as const, consentId: grant.id, event: grant } : { allowed: false as const, reason: "consent_missing" as const, event: null };
+  const decision = decideConsent(await loadLedger(tx, tenantId, contactId, purpose), purpose);
+  if (decision.allowed) return { allowed: true as const, consentId: decision.consentId, event: decision.event };
+  // The only reasons reachable without a channel on an association purpose.
+  const reason = decision.reason === "consent_withdrawn" ? "consent_withdrawn" as const : "consent_missing" as const;
+  return { allowed: false as const, reason, event: reason === "consent_withdrawn" ? decision.event : null };
 }
 
 /** People that a set of identifiers belongs to (tenant-unique normalized values only). */
