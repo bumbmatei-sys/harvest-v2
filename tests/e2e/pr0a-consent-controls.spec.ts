@@ -68,9 +68,9 @@ test("person page consent controls follow the role", async ({ page, browser }) =
   await other.goto(`${root}/crm/people/${person}`);
   await expect(withdrawal(other)).toHaveCount(3);
   await expect(optIn(other)).toHaveCount(0);
-  expect((await withdrawal(other).boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  for (const button of await withdrawal(other).all()) expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   for (const mode of ["light", "dark"] as const) { await setMode(other, mode); await audit(other, `member-${mode}`); }
-  await withdrawal(other).click();
+  await other.getByRole("button", { name: "Record withdrawal for Newsletter" }).click(); // the granted row
   const dialog = other.getByRole("dialog", { name: "Record consent" });
   await expect(dialog.getByRole("combobox", { name: "Status", exact: true })).toHaveText("Withdrawn");
   await dialog.getByRole("combobox", { name: "Status", exact: true }).click();
@@ -126,7 +126,7 @@ test("a purpose with nothing recorded offers a withdrawal from its row", async (
   await other.goto(`${root}/crm/people/${person}`);
   await expect(optIn(other)).toHaveCount(0);
   await expect(withdrawal(other)).toHaveCount(3);
-  expect((await withdrawal(other).first().boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  for (const button of await withdrawal(other).all()) expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   for (const mode of ["light", "dark"] as const) { await setMode(other, mode); await audit(other, `member-none-${mode}`); }
   await other.getByRole("button", { name: "Record withdrawal for Newsletter" }).click();
   const dialog = other.getByRole("dialog", { name: "Record consent" });
