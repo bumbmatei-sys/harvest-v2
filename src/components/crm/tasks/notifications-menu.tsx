@@ -58,7 +58,7 @@ export function NotificationsMenu({ tenantId }: { tenantId: string }) {
       {overdue > 0 && <Link href={`/workspaces/${tenantId}/crm/tasks?due=overdue`} onClick={() => setOpen(false)} className="flex items-center justify-between gap-2 border-b px-3 py-2 text-sm hover:bg-muted">
         <span>{t("youHaveOverdue", { count: overdue })}</span><Badge variant="secondary" className="bg-warning-tint text-warning">{t("overdue")}</Badge></Link>}
       {data && data.items.length === 0 && overdue === 0 && <p className="px-3 py-6 text-center text-xs text-muted-foreground">{t("noNotifications")}</p>}
-      {data && data.items.length > 0 && <ScrollArea viewportClassName="max-h-80"><ul aria-label={t("notifications")}>{data.items.map((item) => <li key={item.id}>
+      {data && data.items.length > 0 && <ScrollArea viewportClassName="max-h-80 [&>div]:!block"><ul aria-label={t("notifications")}>{data.items.map((item) => <li key={item.id}>
         <Link href={`/workspaces/${tenantId}/crm/tasks?assignee=me&status=all`} onClick={() => setOpen(false)} className={cn("block px-3 py-2 text-sm hover:bg-muted", !item.readAt && "bg-selected/50")}>
           <span className="block">{t.rich("assignedYou", { actor: item.actorName ?? t("aWorkspaceMember"), task: () => <span className="font-medium">{item.taskTitle}</span> })}</span>
           <span className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground"><time dateTime={item.createdAt}>{format.dateTime(new Date(item.createdAt), { dateStyle: "medium", timeStyle: "short", timeZone: CRM_TIME_ZONE })}</time>

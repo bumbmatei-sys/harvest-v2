@@ -40,7 +40,17 @@ export function inspectSource(source: string, file = "component.tsx"): Violation
     if (ts.isCallExpression(node) && /^(?:notify|toast)\.(?:success|error|info)$/.test(node.expression.getText(sf))) {
       rendered(node.arguments[0]);
       const options = node.arguments[1];
-      if (options && ts.isObjectLiteralExpression(options)) for (const property of options.properties) if (ts.isPropertyAssignment(property) && /^(?:description|label)$/.test(property.name.getText(sf))) rendered(property.initializer);
+      // Option text may not hide a raw string: description, label and action/cancel labels are checked; a spread is rejected.
+      const checkOptions = (object: ts.ObjectLiteralExpression, nested: boolean) => {
+        for (const property of object.properties) {
+          if (ts.isSpreadAssignment(property)) { report("i18n", property, `toast options spread: ${property.expression.getText(sf)}`); continue; }
+          if (!ts.isPropertyAssignment(property)) continue;
+          const name = property.name.getText(sf);
+          if (/^(?:description|label)$/.test(name)) rendered(property.initializer);
+          else if (!nested && /^(?:action|cancel)$/.test(name) && ts.isObjectLiteralExpression(property.initializer)) checkOptions(property.initializer, true);
+        }
+      };
+      if (options && ts.isObjectLiteralExpression(options)) checkOptions(options, false);
     }
     if (!file.endsWith("theme-registry.ts") && (ts.isStringLiteralLike(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node) || ts.isTemplateTail(node))) {
       if (rawColor.test(node.text) || palette.test(node.text)) report("color", node, node.text);
@@ -131,4 +141,16 @@ export function inspectSocialBoundary(file: string, source: string): BoundaryVio
 export function checkSocialBoundary(directories: string[] = ["src", "scripts"]): BoundaryViolation[] {
   return directories.flatMap((directory) => sourceFiles(directory)).filter((file) => /\.tsx?$/.test(file) && file.replaceAll("\\", "/") !== "scripts/source-guards.ts")
     .flatMap((file) => inspectSocialBoundary(file, readFileSync(file, "utf8")));
+}
+
+// ---- Toast library boundary: only the Harvest adapter and helper may import `sonner` (kinds, copy and actions stay uniform). ----
+const SONNER_HOMES = ["src/lib/toast.ts", "src/components/ui/sonner.tsx"];
+export function inspectSonnerBoundary(file: string, source: string): BoundaryViolation[] {
+  const norm = file.replaceAll("\\", "/");
+  if (SONNER_HOMES.includes(norm)) return [];
+  return specifiers(source).some((specifier) => specifier === "sonner" || specifier.startsWith("sonner/")) ? [{ file, rule: "sonner may only be imported by src/lib/toast.ts and src/components/ui/sonner.tsx" }] : [];
+}
+export function checkSonnerBoundary(directories: string[] = ["src", "scripts"]): BoundaryViolation[] {
+  return directories.flatMap((directory) => sourceFiles(directory)).filter((file) => /\.tsx?$/.test(file) && file.replaceAll("\\", "/") !== "scripts/source-guards.ts")
+    .flatMap((file) => inspectSonnerBoundary(file, readFileSync(file, "utf8")));
 }

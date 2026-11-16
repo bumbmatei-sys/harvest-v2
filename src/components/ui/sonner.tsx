@@ -18,6 +18,7 @@ function Toaster({ ...props }: ToasterProps) {
       visibleToasts={3}
       closeButton
       containerAriaLabel={t("notifications")}
+      hotkey={["altKey", "KeyT"]}
       icons={{
         success: <CircleCheckIcon aria-hidden="true" className="size-4 text-success" />,
         error: <CircleAlertIcon aria-hidden="true" className="size-4 text-destructive" />,
