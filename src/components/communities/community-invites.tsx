@@ -3,14 +3,16 @@ import { useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { Copy } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { DataTable, type DataTableColumn, type DataTableRow } from "@/components/data-table";
+import { StatusBadge } from "@/components/status-badge";
+import { defineStatusTones } from "@/lib/status-tone";
 import { useCrmRequest } from "@/components/crm/request";
 
+const inviteTone = defineStatusTones({ pending: "pending", redeemed: "success", revoked: "neutral", expired: "warning" });
 export type CommunityInvite = { id: string; emailHint: string; expiresAt: string | Date; status: "pending" | "redeemed" | "revoked" | "expired" };
 
 /** C08: personal invitation links. Harvest shows the link once; the owner copies and sends it. */
@@ -32,6 +34,16 @@ export function CommunityInvites({ endpoint, initial }: { endpoint: string; init
     const result = await request(`${endpoint}/invites/${id}`, { method: "DELETE", body: {} });
     if (!result.ok) setError(result.error); else await refresh();
   }
+  const columns: DataTableColumn[] = [
+    { id: "email", header: t("email"), card: "title" }, { id: "status", header: t("status") }, { id: "expires", header: t("expiresHeader") },
+    { id: "actions", header: t("actions"), srOnlyHeader: true, align: "end", card: "actions" },
+  ];
+  const rows: DataTableRow[] = invites.map((invite) => ({ id: invite.id, label: invite.emailHint, cells: {
+    email: invite.emailHint,
+    status: <StatusBadge tone={inviteTone(invite.status)} label={t(`statuses.${invite.status}`)} />,
+    expires: format.dateTime(new Date(invite.expiresAt), { dateStyle: "medium" }),
+    actions: invite.status === "pending" ? <Button variant="ghost" className="min-h-11" onClick={() => void revoke(invite.id)} aria-label={t("revokeNamed", { email: invite.emailHint })}>{t("revoke")}</Button> : null,
+  } }));
   return <div className="space-y-4">
     <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (!next) { setCreated(null); setEmail(""); setError(""); } }}>
       <DialogTrigger asChild><Button variant="outline" className="min-h-11">{t("invite")}</Button></DialogTrigger>
@@ -56,14 +68,6 @@ export function CommunityInvites({ endpoint, initial }: { endpoint: string; init
       </DialogContent>
     </Dialog>
     {!open && error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
-    {invites.length > 0 && <div className="overflow-x-auto"><Table aria-label={t("tableLabel")}>
-      <TableHeader><TableRow><TableHead>{t("email")}</TableHead><TableHead>{t("status")}</TableHead><TableHead>{t("expiresHeader")}</TableHead><TableHead><span className="sr-only">{t("actions")}</span></TableHead></TableRow></TableHeader>
-      <TableBody>{invites.map((invite) => <TableRow key={invite.id}>
-        <TableCell>{invite.emailHint}</TableCell>
-        <TableCell><Badge variant={invite.status === "pending" ? "secondary" : "outline"}>{t(`statuses.${invite.status}`)}</Badge></TableCell>
-        <TableCell>{format.dateTime(new Date(invite.expiresAt), { dateStyle: "medium" })}</TableCell>
-        <TableCell className="text-right">{invite.status === "pending" && <Button variant="ghost" className="min-h-11" onClick={() => void revoke(invite.id)}
-          aria-label={t("revokeNamed", { email: invite.emailHint })}>{t("revoke")}</Button>}</TableCell>
-      </TableRow>)}</TableBody></Table></div>}
+    {invites.length > 0 && <DataTable label={t("tableLabel")} columns={columns} rows={rows} />}
   </div>;
 }
