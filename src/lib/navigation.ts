@@ -1,9 +1,9 @@
-import { Building, Church, FileUp, Files, Flag, Kanban, ListChecks, MessagesSquare, Palette, SlidersHorizontal, UsersRound, Workflow, type LucideIcon } from "lucide-react";
+import { Building, Church, FileUp, Files, Flag, HeartHandshake, Kanban, ListChecks, MessagesSquare, Palette, SlidersHorizontal, UsersRound, Workflow, type LucideIcon } from "lucide-react";
 import type { Audience } from "./audience";
 import { can, type Permission } from "./permissions";
 
 /** Message keys in `ComponentsAppShell` that the sidebar and breadcrumb may show. */
-export type NavLabelKey = "communities" | "crm" | "workspace" | "settings" | "people" | "companies" | "pipelines" | "tasks" | "imports" | "campaigns" | "files" | "crmFields" | "pipelineSettings" | "appearance" | "ministrySettings" | "profile";
+export type NavLabelKey = "communities" | "crm" | "workspace" | "settings" | "people" | "companies" | "pipelines" | "tasks" | "imports" | "campaigns" | "followUp" | "files" | "crmFields" | "pipelineSettings" | "appearance" | "ministrySettings" | "profile";
 export type NavGroupId = "crm" | "workspace" | "settings";
 export type NavEntry = {
   id: string; group: NavGroupId; label: NavLabelKey; icon: LucideIcon;
@@ -36,6 +36,8 @@ export const navEntries: readonly NavEntry[] = [
   // CRM-06: imports run for owners, admins and members; viewers never see a dead link.
   { id: "imports", group: "crm", label: "imports", icon: FileUp, path: "/crm/imports", match: has("/crm/imports"), permission: "crm:import" },
   { id: "campaigns", group: "workspace", label: "campaigns", icon: Flag, path: "/campaigns", match: has("/campaigns") },
+  // HC-13: the follow-up queue. Owners, admins and members open it (a member sees only the cases assigned to them); viewers never see a dead link.
+  { id: "followUp", group: "workspace", label: "followUp", icon: HeartHandshake, path: "/connect/follow-up", match: has("/connect/follow-up"), permission: "followup:work" },
   { id: "files", group: "workspace", label: "files", icon: Files, path: "/files", match: has("/files") },
   // ADR 0013: every ministry role lists communities; owners/admins edit (enforced by the API). Hidden until activated.
   { id: "communities", group: "workspace", label: "communities", icon: MessagesSquare, path: "/communities", match: has("/communities"), permission: "communities:read", feature: "communities" },

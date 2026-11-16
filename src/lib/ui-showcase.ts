@@ -17,6 +17,8 @@ export const uiShowcaseEntries = [
     consumers: ["src/components/editor/editor-shell.tsx", "src/components/communities/community-editor.tsx", "src/components/ministry-settings-form.tsx", "src/components/workspace-form.tsx", "src/components/account-profile-form.tsx", "src/app/workspaces/[tenantId]/crm/imports/[importId]/page.tsx"] },
   { id: "crm", sources: ["src/components/copy-button.tsx", "src/components/status-tracker.tsx", "src/components/crm/list-row-summary.tsx", "src/lib/copy-text.ts", "src/lib/status-tracker.ts"],
     consumers: ["src/components/crm/inline-field.tsx", "src/components/crm/contact-actions.tsx", "src/components/crm/record-grid.tsx", "src/app/workspaces/[tenantId]/crm/deals/[dealId]/page.tsx"] },
+  { id: "permission", sources: ["src/components/permission-card.tsx", "src/lib/consent-controls.ts"],
+    consumers: ["src/components/crm/associations/permission-row.tsx", "src/components/connect-admin/follow-up-consent.tsx", "src/components/crm/associations/contact-permissions.tsx"] },
   { id: "kit", sources: ["src/lib/ui-provenance.ts", "src/lib/theme-registry.ts"], consumers: ["src/components/dev/ui-showcase.tsx", "src/app/globals.css"] },
 ] as const;
 export type UiShowcaseCategory = typeof uiShowcaseEntries[number]["id"];
