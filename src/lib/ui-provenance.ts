@@ -1,7 +1,7 @@
 /**
  * Provenance record for files derived from the Shadcn UI Kit (see docs/ui-sources.md, "Shadcn UI Kit provenance").
  * Rule: every kit-derived file starts with the header below AND is listed in `kitProvenance`.
- * Tests enforce both directions. Kit PR 1 adopts four items, Kit PR 2 two premium items and Kit PR 3 four (two premium, two free) and Kit PR 4 four (two premium, two free) as references; the stock primitives they depend on are hand-written
+ * Tests enforce both directions. Kit PR 1 adopts four items, Kit PR 2 two premium items and Kit PR 3 four (two premium, two free) and Kit PR 4 four (two premium, two free) and Kit PR 5 three (premium) as references; the stock primitives they depend on are hand-written
  * (docs/ui-sources.md) and are not kit-derived.
  */
 export type KitItemRecord = {
@@ -49,6 +49,12 @@ export const kitProvenance: readonly KitItemRecord[] = [
     localChanges: "Visual reference only; no kit code was copied. FormSection is the titled section of the kit's settings form: a named region with a heading and optional actions, a split layout (title beside fields from 1024px), or a labelled fieldset for radio and checkbox groups. The kit's fields, avatar upload, sticky save bar and copy are not used. Not chosen: form-layout15." },
   { ...approved, item: "field1", tier: "free", files: ["src/components/dev/kit-field-example.tsx"],
     localChanges: "The kit demo (a labelled input in a field group) is kept as the showcase example with Harvest's existing Field, FieldLabel, Input and FieldError and catalogue copy, shown inside a FormSection. The Field primitive itself is Harvest's own and is unchanged. Not chosen: field2, field4." },
+  { ...approved, item: "tables19", tier: "premium", files: ["src/components/crm/list-row-summary.tsx"],
+    localChanges: "Visual reference only (Kit PR 5); no kit code copied. RowSummary is the phone card layout of the kit's people directory: under a row's name, a consent status badge and tappable email, phone, domain or people-count links (44px), shown only while the list card is narrower than its first extra column. People and Organizations keep ListPage, the shared filter popover and chips, saved views and the keyboard grid (RecordGrid); the kit's table, side sheet, sample people, bulk bar and pagination are not used (no bulk action exists server-side). Not chosen: tables5, tables7." },
+  { ...approved, item: "tables21", tier: "premium", files: ["src/components/copy-button.tsx", "src/components/crm/contact-actions.tsx"],
+    localChanges: "Visual reference only (Kit PR 5); no kit code copied. CopyButton (icon button, toast confirmation, 44px below 1024px) and ContactActions (email and phone as mailto and tel links with copy buttons in the person header) follow the kit's contact record. The record keeps RecordLayout, inline per-field editing and the permission-gated consent controls; the kit's whole-record edit mode, avatar upload and sample data are not used." },
+  { ...approved, item: "todo-app6", tier: "premium", files: ["src/components/status-tracker.tsx", "src/components/crm/activity-timeline.tsx", "src/components/crm/tasks/task-rows.tsx"],
+    localChanges: "Visual reference only (Kit PR 5); no kit code copied and no vaul drawer. StatusTracker is the kit's segmented step bar as a read-only component (used for a deal's stage progress). The activity timeline keeps its data, grouping, paging and note permissions and takes the kit's rail, right-aligned time, bordered note panel with icon actions and the grouped note composer (textarea with Add note in one frame; Ctrl or Cmd plus Enter hint as keys). Task rows keep the completion checkbox and dialog and show overdue and priority as StatusBadge. The kit's attachments, links, sample tasks and drawer are not used. kanban-board3 was an optional reference and the deal board is unchanged." },
 ];
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;

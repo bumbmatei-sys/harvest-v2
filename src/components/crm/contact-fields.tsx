@@ -1,6 +1,7 @@
 "use client";
 import { useTranslations } from "next-intl";
 import { z } from "zod";
+import { mailtoHref, telHref } from "@/lib/copy-text";
 import { phoneField, socialField } from "@/lib/contact-input";
 import { InlineField } from "./inline-field";
 
@@ -13,8 +14,8 @@ function check(schema: z.ZodType, invalid: string) {
 export function ContactFields({ email, phone, social, icons }: { email: string; phone: string; social: string; icons: Record<"email" | "phone" | "social", React.ReactNode> }) {
   const t = useTranslations("Crm");
   return <div className="space-y-0.5">
-    <InlineField field="email" label={t("fields.email")} icon={icons.email} value={email} type="email" maxLength={254} href={email ? `mailto:${email}` : undefined} validate={check(emailField, t("enterAValidEmail"))} />
-    <InlineField field="phone" label={t("fields.phone")} icon={icons.phone} value={phone} type="tel" maxLength={40} placeholder={t("phonePlaceholder")} href={phone ? `tel:${phone}` : undefined} validate={check(phoneField, t("checkThisValue"))} />
+    <InlineField field="email" label={t("fields.email")} icon={icons.email} value={email} type="email" maxLength={254} href={email ? mailtoHref(email) : undefined} copyLabel={t("copyEmail")} validate={check(emailField, t("enterAValidEmail"))} />
+    <InlineField field="phone" label={t("fields.phone")} icon={icons.phone} value={phone} type="tel" maxLength={40} placeholder={t("phonePlaceholder")} href={phone ? telHref(phone) : undefined} copyLabel={t("copyPhone")} validate={check(phoneField, t("checkThisValue"))} />
     <InlineField field="social" label={t("fields.social")} icon={icons.social} value={social} maxLength={100} validate={check(socialField, t("checkThisValue"))} />
   </div>;
 }

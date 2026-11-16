@@ -49,7 +49,9 @@ export default async function CompaniesPage({ params, searchParams }: { params: 
       updated: { text: format.dateTime(company.updatedAt, "date"), muted: true },
     };
     for (const field of list.definitions) cells[customFieldKey(field.key)] = customCell(t, format, tenantId, field, company.custom[field.key], list.related);
-    return { id: company.id, version: company.version, name: company.name, href: `${companies}/${company.id}`, secondary: company.domain ?? t("noDomain"), cells };
+    return { id: company.id, version: company.version, name: company.name, href: `${companies}/${company.id}`, secondary: company.domain ?? t("noDomain"), cells,
+      summary: { links: [...(company.domain ? [{ kind: "domain" as const, text: company.domain, href: `https://${company.domain}`, external: true }] : []),
+        ...(company.peopleCount > 0 ? [{ kind: "people" as const, text: t("peopleCount", { count: company.peopleCount }), href: `${people}?${new URLSearchParams({ f: serializeFilter({ field: "company", op: "is", value: company.id }) })}`, label: t("viewPeopleAtCompany", { count: company.peopleCount, company: company.name }) }] : [])] } };
   });
   return <ListPage tenantId={tenantId} objectType="company" icon={Building2} title={t("companies")} description={t("companiesDescription")} total={list.total} page={list.page}
     actions={<>{can(workspace.role, "crm:import") && <Button size="responsive" variant="outline" asChild><Link href={`/workspaces/${tenantId}/crm/imports?entity=company`}><Upload aria-hidden="true" />{imports("importAction")}</Link></Button>}
