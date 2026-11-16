@@ -43,8 +43,8 @@ test("CW-01: mobile shell Tab reaches every navigation link and campaign targets
     await expect(sheet).toBeVisible();
     const navigation = sheet.getByRole("navigation", { name: "Ministry navigation" });
     const links = navigation.getByRole("link");
-    // Ministries entry plus all CRM, Ministry and Settings links (Ministry settings added in PR B).
-    await expect(links).toHaveCount(13); // Communities (ADR 0013) is the 13th link while the flag is on.
+    // Ministries entry plus all CRM, Ministry and Settings links (Ministry settings added in PR B, Follow-up in Kit PR 6).
+    await expect(links).toHaveCount(14); // Follow-up (followup:work) and Communities (ADR 0013, while the flag is on) are the 13th and 14th links.
     const expected = new Set(await links.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href"))));
     await sheet.getByRole("link", { name: "Harvest", exact: true }).focus();
     for (let tab = 0; tab < 30 && expected.size; tab++) {

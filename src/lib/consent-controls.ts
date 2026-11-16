@@ -14,3 +14,14 @@ export function rowActions(state: "granted" | "withdrawn" | "none", controls: { 
   if (state === "withdrawn") return controls.canGrant ? ["granted"] : [];
   return [...(controls.canGrant ? ["granted"] as const : []), ...(controls.canWithdraw ? ["withdrawn"] as const : [])];
 }
+
+/** Channel a consent action lands on by default for each purpose a permission card can show. */
+const purposeChannel = { messaging: "social", form_follow_up: "email", newsletter: "email", outreach_follow_up: "email" } as const;
+export type PermissionPurpose = keyof typeof purposeChannel;
+/**
+ * Preset for the consent dialog opened from a permission row. An opt-in must land on the withdrawn channel to clear that withdrawal;
+ * a withdrawal goes where the grant is; with nothing recorded the purpose's own channel is used.
+ */
+export function permissionPreset(purpose: PermissionPurpose, current: { status: "granted" | "withdrawn" | "none"; channel: "email" | "sms" | "social" | null }, status: "granted" | "withdrawn") {
+  return { purpose, status, channel: current.status !== "none" && current.channel ? current.channel : purposeChannel[purpose] };
+}
