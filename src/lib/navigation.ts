@@ -1,12 +1,31 @@
-import { Building, Church, FileUp, Files, Flag, HeartHandshake, Kanban, ListChecks, MessagesSquare, Palette, SlidersHorizontal, UsersRound, Workflow, type LucideIcon } from "lucide-react";
+import { Bot, Building, CalendarDays, CalendarRange, Church, ClipboardList, Compass, FileUp, Files, Flag, Globe, HeartHandshake, Inbox, Kanban, Link2, ListChecks, Mail, MessageCircleReply, MessagesSquare, Newspaper, Palette, PenLine, QrCode, ShoppingBag, SlidersHorizontal, UsersRound, Workflow, type LucideIcon } from "lucide-react";
 import type { Audience } from "./audience";
 import { can, type Permission } from "./permissions";
 
 /** Message keys in `ComponentsAppShell` that the sidebar and breadcrumb may show. */
-export type NavLabelKey = "communities" | "crm" | "workspace" | "settings" | "people" | "companies" | "pipelines" | "tasks" | "imports" | "campaigns" | "followUp" | "files" | "crmFields" | "pipelineSettings" | "appearance" | "ministrySettings" | "profile";
-export type NavGroupId = "crm" | "workspace" | "settings";
+export type NavLabelKey = "communities" | "crm" | "workspace" | "settings" | "people" | "companies" | "pipelines" | "tasks" | "imports" | "campaigns" | "followUp" | "files" | "crmFields" | "pipelineSettings" | "appearance" | "ministrySettings" | "profile"
+  | "connect" | "qrAndLinks" | "responses" | "events"
+  | "publishing" | "community" | "commerce" | "chat" | "composer" | "planner" | "inbox" | "autoDm" | "articles" | "website" | "linkInBio" | "newsletter" | "discover" | "products" | "assistant"
+  | "modeOperations" | "modePublic" | "modeAssistant";
+/** Shell modes (three-mode shell spec, 16 Nov 2026). The names are final. */
+export type NavMode = "operations" | "public" | "assistant";
+export const navModes: readonly NavMode[] = ["operations", "public", "assistant"];
+/** `planned` entries are reserved for modules that are not built: never rendered, never linked. */
+export type NavStatus = "live" | "planned";
+/** The three groups today's single sidebar shows; the other ids belong to the per-mode sidebars of slice 2. */
+export type LegacyNavGroupId = "crm" | "workspace" | "settings";
+export type NavGroupId = LegacyNavGroupId | "connect" | "publishing" | "community" | "commerce" | "chat";
 export type NavEntry = {
-  id: string; group: NavGroupId; label: NavLabelKey; icon: LucideIcon;
+  id: string;
+  /** Group inside the entry's mode (per-mode sidebar). */
+  group: NavGroupId;
+  /** Group in today's single sidebar; defaults to `group` when that is a legacy id. Removed with the old sidebar path. */
+  legacyGroup?: LegacyNavGroupId;
+  /** Which shell mode owns the entry. Required, so a new module cannot forget it. */
+  mode: NavMode;
+  /** Omitted: live. */
+  status?: NavStatus;
+  label: NavLabelKey; icon: LucideIcon;
   /** Route below `/workspaces/{tenantId}`. */
   path: string;
   /** Sidebar active state; also selects the breadcrumb section. */
@@ -25,45 +44,103 @@ export type NavFeature = "communities";
 export type NavItem = { id: string; label: NavLabelKey; icon: LucideIcon; href: string; active: boolean };
 export type NavGroup = { id: NavGroupId; label: NavLabelKey; items: NavItem[] };
 
-const groups: readonly { id: NavGroupId; label: NavLabelKey }[] = [{ id: "crm", label: "crm" }, { id: "workspace", label: "workspace" }, { id: "settings", label: "settings" }];
+const legacyGroups: readonly { id: LegacyNavGroupId; label: NavLabelKey }[] = [{ id: "crm", label: "crm" }, { id: "workspace", label: "workspace" }, { id: "settings", label: "settings" }];
+/** Groups of each mode's sidebar, in display order. Settings stays the last group of Operations. */
+export const groupsByMode: Record<NavMode, readonly { id: NavGroupId; label: NavLabelKey }[]> = {
+  operations: [{ id: "crm", label: "crm" }, { id: "connect", label: "connect" }, { id: "workspace", label: "workspace" }, { id: "settings", label: "settings" }],
+  public: [{ id: "publishing", label: "publishing" }, { id: "community", label: "community" }, { id: "commerce", label: "commerce" }],
+  assistant: [{ id: "chat", label: "chat" }],
+};
 const has = (part: string) => (pathname: string) => pathname.includes(part);
+/** Anchored match for reserved routes: `/workspaces/{id}{path}` and anything below it. */
+const under = (path: string) => (pathname: string) => new RegExp(`^/workspaces/[^/]+${path}(/|$)`).test(pathname);
 
 export const navEntries: readonly NavEntry[] = [
-  { id: "people", group: "crm", label: "people", icon: UsersRound, path: "/crm/people", match: has("/crm/people"), sectionMatch: has("/contacts") },
-  { id: "companies", group: "crm", label: "companies", icon: Building, path: "/crm/companies", match: has("/crm/companies") },
-  { id: "pipelines", group: "crm", label: "pipelines", icon: Kanban, path: "/crm/pipelines", match: (p) => p.includes("/crm/pipelines") || p.includes("/crm/deals") },
-  { id: "tasks", group: "crm", label: "tasks", icon: ListChecks, path: "/crm/tasks", match: has("/crm/tasks") },
+  { id: "people", group: "crm", mode: "operations", label: "people", icon: UsersRound, path: "/crm/people", match: has("/crm/people"), sectionMatch: has("/contacts") },
+  { id: "companies", group: "crm", mode: "operations", label: "companies", icon: Building, path: "/crm/companies", match: has("/crm/companies") },
+  { id: "pipelines", group: "crm", mode: "operations", label: "pipelines", icon: Kanban, path: "/crm/pipelines", match: (p) => p.includes("/crm/pipelines") || p.includes("/crm/deals") },
+  { id: "tasks", group: "crm", mode: "operations", label: "tasks", icon: ListChecks, path: "/crm/tasks", match: has("/crm/tasks") },
   // CRM-06: imports run for owners, admins and members; viewers never see a dead link.
-  { id: "imports", group: "crm", label: "imports", icon: FileUp, path: "/crm/imports", match: has("/crm/imports"), permission: "crm:import" },
-  { id: "campaigns", group: "workspace", label: "campaigns", icon: Flag, path: "/campaigns", match: has("/campaigns") },
+  { id: "imports", group: "crm", mode: "operations", label: "imports", icon: FileUp, path: "/crm/imports", match: has("/crm/imports"), permission: "crm:import" },
+  // Reserved entries (status planned) are never rendered or linked; their module's PR flips the status.
+  { id: "connectLinks", group: "connect", mode: "operations", status: "planned", label: "qrAndLinks", icon: QrCode, path: "/connect/links", match: under("/connect/links") },
+  { id: "responses", group: "connect", mode: "operations", status: "planned", label: "responses", icon: ClipboardList, path: "/connect/responses", match: under("/connect/responses") },
+  { id: "campaigns", group: "workspace", mode: "operations", label: "campaigns", icon: Flag, path: "/campaigns", match: has("/campaigns") },
   // HC-13: the follow-up queue. Owners, admins and members open it (a member sees only the cases assigned to them); viewers never see a dead link.
-  { id: "followUp", group: "workspace", label: "followUp", icon: HeartHandshake, path: "/connect/follow-up", match: has("/connect/follow-up"), permission: "followup:work" },
-  { id: "files", group: "workspace", label: "files", icon: Files, path: "/files", match: has("/files") },
+  { id: "followUp", group: "connect", legacyGroup: "workspace", mode: "operations", label: "followUp", icon: HeartHandshake, path: "/connect/follow-up", match: has("/connect/follow-up"), permission: "followup:work" },
+  { id: "events", group: "workspace", mode: "operations", status: "planned", label: "events", icon: CalendarDays, path: "/events", match: under("/events") },
+  { id: "files", group: "workspace", mode: "operations", label: "files", icon: Files, path: "/files", match: has("/files") },
+  { id: "composer", group: "publishing", mode: "public", status: "planned", label: "composer", icon: PenLine, path: "/social/compose", match: under("/social/compose") },
+  { id: "planner", group: "publishing", mode: "public", status: "planned", label: "planner", icon: CalendarRange, path: "/social/planner", match: under("/social/planner") },
+  { id: "inbox", group: "publishing", mode: "public", status: "planned", label: "inbox", icon: Inbox, path: "/inbox", match: under("/inbox") },
+  { id: "autoDm", group: "publishing", mode: "public", status: "planned", label: "autoDm", icon: MessageCircleReply, path: "/inbox/auto-dm", match: under("/inbox/auto-dm") },
+  { id: "articles", group: "publishing", mode: "public", status: "planned", label: "articles", icon: Newspaper, path: "/articles", match: under("/articles") },
+  { id: "website", group: "publishing", mode: "public", status: "planned", label: "website", icon: Globe, path: "/website", match: under("/website") },
+  { id: "linkInBio", group: "publishing", mode: "public", status: "planned", label: "linkInBio", icon: Link2, path: "/link-in-bio", match: under("/link-in-bio") },
+  { id: "newsletter", group: "publishing", mode: "public", status: "planned", label: "newsletter", icon: Mail, path: "/newsletter", match: under("/newsletter") },
   // ADR 0013: every ministry role lists communities; owners/admins edit (enforced by the API). Hidden until activated.
-  { id: "communities", group: "workspace", label: "communities", icon: MessagesSquare, path: "/communities", match: has("/communities"), permission: "communities:read", feature: "communities" },
-  { id: "crmFields", group: "settings", label: "crmFields", icon: SlidersHorizontal, path: "/crm/settings/fields", match: has("/crm/settings/fields") },
-  { id: "pipelineSettings", group: "settings", label: "pipelineSettings", icon: Workflow, path: "/crm/settings/pipelines", match: has("/crm/settings/pipelines") },
-  { id: "appearance", group: "settings", label: "appearance", icon: Palette, path: "/appearance", match: (p) => p.endsWith("/appearance") },
+  { id: "communities", group: "community", legacyGroup: "workspace", mode: "public", label: "communities", icon: MessagesSquare, path: "/communities", match: has("/communities"), permission: "communities:read", feature: "communities" },
+  { id: "discover", group: "community", mode: "public", status: "planned", label: "discover", icon: Compass, path: "/discover/manage", match: under("/discover/manage") },
+  { id: "products", group: "commerce", mode: "public", status: "planned", label: "products", icon: ShoppingBag, path: "/products", match: under("/products") },
+  { id: "assistant", group: "chat", mode: "assistant", status: "planned", label: "assistant", icon: Bot, path: "/assistant", match: under("/assistant") },
+  { id: "crmFields", group: "settings", mode: "operations", label: "crmFields", icon: SlidersHorizontal, path: "/crm/settings/fields", match: has("/crm/settings/fields") },
+  { id: "pipelineSettings", group: "settings", mode: "operations", label: "pipelineSettings", icon: Workflow, path: "/crm/settings/pipelines", match: has("/crm/settings/pipelines") },
+  { id: "appearance", group: "settings", mode: "operations", label: "appearance", icon: Palette, path: "/appearance", match: (p) => p.endsWith("/appearance") },
   // Every member can open it; only owners and admins can change the ministry type (enforced by the API).
-  { id: "ministrySettings", group: "settings", label: "ministrySettings", icon: Church, path: "/settings", match: (p) => p.endsWith("/settings") },
+  { id: "ministrySettings", group: "settings", mode: "operations", label: "ministrySettings", icon: Church, path: "/settings", match: (p) => p.endsWith("/settings") },
 ];
 
 const visibleTo = (entry: NavEntry, role: string | undefined, audience: Audience | null | undefined, features: readonly NavFeature[]) =>
-  (!entry.feature || features.includes(entry.feature)) && (!entry.permission || (role !== undefined && can(role, entry.permission))) && (!entry.audiences || (audience != null && entry.audiences.includes(audience)));
+  entry.status !== "planned" && (!entry.feature || features.includes(entry.feature)) && (!entry.permission || (role !== undefined && can(role, entry.permission))) && (!entry.audiences || (audience != null && entry.audiences.includes(audience)));
 const labelFor = (entry: NavEntry, audience: Audience | null | undefined) => (audience && entry.audienceLabels?.[audience]) || entry.label;
+type Viewer = { tenantId: string; role?: string; audience?: Audience | null; features?: readonly NavFeature[] };
+const toItem = (entry: NavEntry, { tenantId, audience, pathname }: { tenantId: string; audience?: Audience | null; pathname: string }): NavItem => ({
+  id: entry.id, label: labelFor(entry, audience), icon: entry.icon, href: `/workspaces/${tenantId}${entry.path}`, active: entry.match(pathname),
+});
 
-/** Sidebar groups for one workspace member. Presentation only: routes enforce their own permissions. */
-export function resolveNavigation({ tenantId, role, audience, pathname, features = [] }: { tenantId: string; role?: string; audience?: Audience | null; pathname: string; features?: readonly NavFeature[] }, entries: readonly NavEntry[] = navEntries): NavGroup[] {
-  return groups.map((group) => ({
+/**
+ * Sidebar groups for one workspace member: every mode together in today's three groups (what AppShell renders until the switcher ships).
+ * Presentation only: routes enforce their own permissions. Planned entries are never returned.
+ */
+export function resolveNavigation({ tenantId, role, audience, pathname, features = [] }: Viewer & { pathname: string }, entries: readonly NavEntry[] = navEntries): NavGroup[] {
+  return legacyGroups.map((group) => ({
     ...group,
-    items: entries.filter((entry) => entry.group === group.id && visibleTo(entry, role, audience, features)).map((entry) => ({
-      id: entry.id, label: labelFor(entry, audience), icon: entry.icon, href: `/workspaces/${tenantId}${entry.path}`, active: entry.match(pathname),
-    })),
+    items: entries.filter((entry) => (entry.legacyGroup ?? entry.group) === group.id && visibleTo(entry, role, audience, features)).map((entry) => toItem(entry, { tenantId, audience, pathname })),
   })).filter((group) => group.items.length > 0);
 }
 
-/** Breadcrumb section label key for a path, or null when no registry entry owns it. */
-export function sectionLabel(pathname: string, audience?: Audience | null, entries: readonly NavEntry[] = navEntries): NavLabelKey | null {
+export type ModeResolution = {
+  mode: NavMode;
+  /** True when no entry owns the path (home, profile, unknown), so the mode came from the user's choice or the default. */
+  neutral: boolean;
+};
+/**
+ * Mode of the page. The entry that owns the path decides (planned entries included: a reserved route still belongs to its mode);
+ * a manual `choice` applies only on neutral pages. Unknown paths fall back to `choice`, then `fallback` (Operations).
+ */
+export function resolveMode({ pathname, choice, fallback = "operations" }: { pathname: string; choice?: NavMode | null; fallback?: NavMode }, entries: readonly NavEntry[] = navEntries): ModeResolution {
   const entry = entries.find((item) => item.match(pathname) || item.sectionMatch?.(pathname));
+  return entry ? { mode: entry.mode, neutral: false } : { mode: choice ?? fallback, neutral: true };
+}
+
+/** Which modes have at least one visible (live, permitted, audience-matching) entry; an empty mode is hidden from the switcher. */
+export function modeAvailability({ role, audience, features = [] }: Omit<Viewer, "tenantId">, entries: readonly NavEntry[] = navEntries): Record<NavMode, boolean> {
+  const available = (mode: NavMode) => entries.some((entry) => entry.mode === mode && visibleTo(entry, role, audience, features));
+  return { operations: available("operations"), public: available("public"), assistant: available("assistant") };
+}
+
+/** Per-mode sidebar: the groups of `mode` (default: the mode derived from the path, then `choice`). AppShell does not render it yet. */
+export function resolveModeNavigation({ tenantId, role, audience, pathname, features = [], mode, choice }: Viewer & { pathname: string; mode?: NavMode; choice?: NavMode | null }, entries: readonly NavEntry[] = navEntries): ModeResolution & { groups: NavGroup[] } {
+  const resolved: ModeResolution = mode ? { mode, neutral: false } : resolveMode({ pathname, choice }, entries);
+  const groups = groupsByMode[resolved.mode].map((group) => ({
+    ...group,
+    items: entries.filter((entry) => entry.mode === resolved.mode && entry.group === group.id && visibleTo(entry, role, audience, features)).map((entry) => toItem(entry, { tenantId, audience, pathname })),
+  })).filter((group) => group.items.length > 0);
+  return { ...resolved, groups };
+}
+
+/** Breadcrumb section label key for a path, or null when no live registry entry owns it. */
+export function sectionLabel(pathname: string, audience?: Audience | null, entries: readonly NavEntry[] = navEntries): NavLabelKey | null {
+  const entry = entries.find((item) => item.status !== "planned" && (item.match(pathname) || item.sectionMatch?.(pathname)));
   return entry ? labelFor(entry, audience) : null;
 }
