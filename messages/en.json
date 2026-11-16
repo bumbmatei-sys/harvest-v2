@@ -2290,6 +2290,10 @@
       "permission": {
         "title": "Permission cards",
         "description": "A consent or permission choice as a card: label, state badge, optional meta and the actions a viewer may take."
+      },
+      "communities": {
+        "title": "Community screens",
+        "description": "Member list with roles, Discover card and forum post card used by the community owner, member and Discover pages."
       }
     },
     "toast": {
@@ -2538,6 +2542,23 @@
       "actionLabel": "Record withdrawal for the example purpose",
       "help": "One line of help text.",
       "listLabel": "Example permissions"
+    },
+    "communities": {
+      "membersTitle": "Member list",
+      "membersLabel": "Example members",
+      "unnamed": "No name",
+      "ownerName": "Example Owner",
+      "moderatorName": "Example Moderator",
+      "memberName": "Example Member",
+      "discoverTitle": "Discover cards",
+      "communityName": "Example community",
+      "communityName2": "Second example community",
+      "tagline": "A short tagline.",
+      "hostName": "Example ministry",
+      "postTitle": "Feed card",
+      "category": "General",
+      "postHeading": "Example post",
+      "postExcerpt": "The first lines of an example post, shown as the excerpt."
     }
   },
   "SubjectRights": {
@@ -3302,6 +3323,34 @@
       "illegal_transition": "That change isn't allowed from this state.",
       "consent_not_in_effect": "Follow-up consent isn't in effect for this person.",
       "assignee_not_eligible": "Choose an owner, admin or member of this ministry."
+    }
+  },
+  "CommunityScreens": {
+    "basicsTitle": "Community details",
+    "addressPrefix": "/communities/",
+    "members": {
+      "listLabel": "Members",
+      "name": "Name",
+      "role": "Role",
+      "status": "Status",
+      "joined": "Joined",
+      "actions": "Actions",
+      "search": "Search members",
+      "statusTabs": "Member status",
+      "all": "All",
+      "empty": "No members yet",
+      "emptyManage": "No members match"
+    },
+    "moderation": {
+      "reportTypes": "Report type",
+      "all": "All",
+      "types": {
+        "post": "Posts",
+        "comment": "Replies",
+        "member": "People"
+      },
+      "appealStates": "Appeal state",
+      "resolved": "Resolved"
     }
   }
 }

@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { getFormatter, getTranslations } from "next-intl/server";
-import { Lock, MessageSquare, Pin, PlayCircle } from "lucide-react";
+import { Lock, MessageSquare } from "lucide-react";
 import { getDb } from "@/db/client";
 import { listPosts } from "@/server/community-forum";
 import { myWarnings } from "@/server/community-moderation";
@@ -11,10 +11,9 @@ import { pageSession } from "@/server/page-session";
 import { communitiesEnabled } from "@/server/communities-mode";
 import { orPublicPage } from "@/server/community-member-page";
 import { PostComposer } from "@/components/forum/post-composer";
-import { LikeButton } from "@/components/forum/like-button";
-import { Badge } from "@/components/ui/badge";
+import { PostCard } from "@/components/forum/post-card";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Empty, EmptyHeader, EmptyTitle } from "@/components/ui/empty";
+import { EmptyState } from "@/components/empty-state";
 import { cn } from "@/lib/utils";
 
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ category?: string; sort?: string; page?: string; new?: string }> };
@@ -55,27 +54,8 @@ export default async function ForumPage({ params, searchParams }: Props) {
         {(["new", "best"] as const).map((s) => <Link key={s} href={href({ sort: s })} aria-current={sort === s ? "page" : undefined} prefetch={false}
           className={cn("inline-flex min-h-11 items-center rounded-md px-3 text-sm", sort === s ? "bg-muted font-medium" : "text-muted-foreground hover:bg-muted/60")}>{t(`sorts.${s}`)}</Link>)}
       </nav>
-      {posts.length === 0 ? <Empty className="border"><EmptyHeader><EmptyTitle>{t("empty")}</EmptyTitle></EmptyHeader></Empty>
-        : <ul className="space-y-3">{posts.map((post) => { const cat = categoryName(post.categoryId); return <li key={post.id}>
-          <article className="flex gap-4 rounded-lg border p-4">
-            {/* eslint-disable-next-line @next/next/no-img-element -- authenticated redirect to a short-lived signed URL; not optimisable */}
-            {post.coverFileId && <img src={`/api/communities/${context.slug}/files/${post.coverFileId}`} alt="" className="hidden size-24 shrink-0 rounded-md object-cover sm:block" />}
-            <div className="min-w-0 flex-1 space-y-2">
-              <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                {post.pinned && <Badge variant="secondary"><Pin className="size-3" aria-hidden="true" />{t("pinned")}</Badge>}
-                {post.held && <Badge variant="outline">{t("awaitingReview")}</Badge>}
-                {cat && <Badge variant="outline">{cat.emoji ? `${cat.emoji} ` : ""}{cat.name}</Badge>}
-                {post.hasVideo && <PlayCircle className="size-4" aria-label={t("hasVideo")} />}
-              </div>
-              <h3 className="text-base font-semibold break-words"><Link href={`/communities/${context.slug}/posts/${post.id}`} prefetch={false} className="hover:underline">{post.title}</Link></h3>
-              {post.excerpt && <p className="line-clamp-2 text-sm text-muted-foreground break-words">{post.excerpt}</p>}
-              <div className="flex flex-wrap items-center gap-x-3 text-sm text-muted-foreground">
-                <span>{post.authorName?.trim() || t("unnamed")}</span><span>{format.dateTime(post.createdAt, { dateStyle: "medium" })}</span>
-                <span className="inline-flex items-center gap-1"><MessageSquare className="size-4" aria-hidden="true" />{t("replies", { count: post.comments })}</span>
-                <LikeButton slug={context.slug} targetType="post" targetId={post.id} likes={post.likes} liked={post.liked} disabled={post.likesOff} label={post.title} />
-              </div>
-            </div>
-          </article></li>; })}</ul>}
+      {posts.length === 0 ? <EmptyState icon={MessageSquare} title={t("empty")} />
+        : <ul className="space-y-3">{posts.map((post) => <li key={post.id}><PostCard slug={context.slug} post={post} category={categoryName(post.categoryId)} /></li>)}</ul>}
       {(page > 1 || hasMore) && <nav aria-label={t("pages")} className="flex justify-between gap-2">
         {page > 1 ? <Link href={href({ page: page - 1 })} prefetch={false} className="inline-flex min-h-11 items-center rounded-md border px-3 text-sm hover:bg-muted">{t("newer")}</Link> : <span />}
         {hasMore && <Link href={href({ page: page + 1 })} prefetch={false} className="inline-flex min-h-11 items-center rounded-md border px-3 text-sm hover:bg-muted">{t("older")}</Link>}
