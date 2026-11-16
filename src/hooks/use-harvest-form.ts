@@ -1,10 +1,9 @@
 "use client";
 import { useMemo, useState } from "react";
-import { useForm, type DefaultValues, type FieldValues, type UseFormReturn } from "react-hook-form";
-import { zodResolver } from "@hookform/resolvers/zod";
+import { useForm, type DefaultValues, type UseFormReturn } from "react-hook-form";
 import { useTranslations } from "next-intl";
 import type { z } from "zod";
-import { splitFailure, type SubmitFailure } from "@/lib/form";
+import { harvestFormResolver, splitFailure, type SubmitFailure } from "@/lib/form";
 
 /**
  * Shared form plumbing: react-hook-form with a zod schema, server and network failures mapped onto fields and an inline form-level message,
@@ -12,10 +11,11 @@ import { splitFailure, type SubmitFailure } from "@/lib/form";
  * blur and then on change, and the first invalid field is focused on submit. The handler returns nothing on success or a `SubmitFailure`
  * (field messages and/or one message); a thrown error shows the generic connection message.
  */
-export function useHarvestForm<Schema extends z.ZodObject>(schema: Schema, defaultValues: DefaultValues<z.input<Schema>>) {
-  type Input = z.input<Schema> & FieldValues;
+export function useHarvestForm<Shape extends z.ZodRawShape>(schema: z.ZodObject<Shape>, defaultValues: DefaultValues<z.input<z.ZodObject<Shape>>>) {
+  type Schema = z.ZodObject<Shape>;
+  type Input = z.input<Schema>;
   const t = useTranslations("ComponentsForm");
-  const form = useForm<Input, unknown, z.output<Schema>>({ resolver: zodResolver(schema) as never, defaultValues: defaultValues as DefaultValues<Input>, mode: "onTouched" });
+  const form = useForm<Input, unknown, z.output<Schema>>({ resolver: harvestFormResolver(schema), defaultValues, mode: "onTouched" });
   const [formError, setFormError] = useState<string | null>(null);
   const known = useMemo(() => Object.keys(schema.shape), [schema]);
   const { handleSubmit, setError, formState: { isDirty, isSubmitting } } = form;

@@ -1,3 +1,12 @@
+import { zodResolver } from "@hookform/resolvers/zod";
+import type { Resolver } from "react-hook-form";
+import type { z } from "zod";
+
+/** Preserve schema input/output types (including transforms) at the react-hook-form resolver boundary. */
+export function harvestFormResolver<Shape extends z.ZodRawShape>(schema: z.ZodObject<Shape>): Resolver<z.input<z.ZodObject<Shape>>, unknown, z.output<z.ZodObject<Shape>>> {
+  return zodResolver(schema);
+}
+
 /** Pure helpers for the shared form hook (src/hooks/use-harvest-form.ts). */
 
 /** What a submit handler may return: nothing for success, or the server's refusal. `fields` maps field names to messages. */

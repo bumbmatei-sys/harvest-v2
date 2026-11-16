@@ -1,12 +1,12 @@
 import { createElement as h, type ReactElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { NextIntlClientProvider } from "next-intl";
-import { describe, expect, it } from "vitest";
+import { describe, expect, expectTypeOf, it } from "vitest";
 import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
+import type { Resolver } from "react-hook-form";
 import messages from "../../messages/en.json";
 import { adjacentStep, stepIndex, stepProgress, stepStates } from "../../src/lib/stepper";
-import { splitFailure } from "../../src/lib/form";
+import { harvestFormResolver, splitFailure } from "../../src/lib/form";
 import { coveredByBar, isKeyboardOpen, saveBarStatus } from "../../src/lib/sticky-save-bar";
 import { Stepper } from "../../src/components/stepper";
 import { FormSection } from "../../src/components/form-section";
@@ -39,6 +39,11 @@ describe("step helpers", () => {
 });
 
 describe("form failure mapping", () => {
+  it("preserves distinct schema input and output types in the resolver", () => {
+    const schema = z.object({ count: z.string().transform(Number) });
+    const resolver = harvestFormResolver(schema);
+    expectTypeOf(resolver).toEqualTypeOf<Resolver<{ count: string }, unknown, { count: number }>>();
+  });
   it("maps known fields, takes the first message of a list and keeps the form message", () => {
     expect(splitFailure({ message: "Not saved", fields: { name: ["Taken", "Other"], audience: "Pick one" } }, ["name", "audience"]))
       .toEqual({ fields: { name: "Taken", audience: "Pick one" }, form: "Not saved" });
@@ -51,9 +56,9 @@ describe("form failure mapping", () => {
   });
   it("works with the zod 4 resolver: messages come from the schema", async () => {
     const schema = z.object({ name: z.string().trim().min(1, "Enter a ministry name."), audience: z.enum(["church"]).nullable().refine((value) => value !== null, "Choose a ministry type.") });
-    const bad = await zodResolver(schema)({ name: " ", audience: null }, undefined, { fields: {}, shouldUseNativeValidation: false });
+    const bad = await harvestFormResolver(schema)({ name: " ", audience: null }, undefined, { fields: {}, shouldUseNativeValidation: false });
     expect(Object.keys(bad.errors)).toEqual(["name", "audience"]); expect(bad.errors.name?.message).toBe("Enter a ministry name.");
-    const good = await zodResolver(schema)({ name: " Grace ", audience: "church" }, undefined, { fields: {}, shouldUseNativeValidation: false });
+    const good = await harvestFormResolver(schema)({ name: " Grace ", audience: "church" }, undefined, { fields: {}, shouldUseNativeValidation: false });
     expect(good.errors).toEqual({}); expect(good.values).toEqual({ name: "Grace", audience: "church" });
   });
 });
