@@ -210,7 +210,11 @@
     "churchProfile": "Ministry profile",
     "modeOperations": "Operations",
     "modePublic": "Public",
-    "modeAssistant": "Assistant"
+    "modeAssistant": "Assistant",
+    "modeSwitcher": "Menu mode",
+    "modeTooltip": "{mode} (Ctrl/Cmd+Alt+{shortcut})",
+    "modeAnnouncement": "{mode} menu",
+    "workspaceNavigationMode": "Ministry navigation: {mode}"
   },
   "ComponentsAppearanceForm": {
     "couldNotSaveAppearanceTryAgain": "Could not save appearance. Try again.",
@@ -2349,7 +2353,8 @@
       "searchLabel": "Header search example",
       "searchPlaceholder": "Search",
       "action": "Header action example",
-      "switcher": "Open the account menu in the sidebar footer to see the ministry switcher."
+      "switcher": "Open the account menu in the sidebar footer to see the ministry switcher.",
+      "modeSwitcher": "Mode switcher, all three modes"
     },
     "kit": {
       "none": "No kit items adopted yet",

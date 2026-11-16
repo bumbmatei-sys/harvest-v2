@@ -3,6 +3,8 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { Bold, Check, Italic, LayoutGrid, List, Plus, Underline } from "lucide-react";
 import { kitProvenance } from "@/lib/ui-provenance";
+import { navModes, type NavMode } from "@/lib/navigation";
+import { ModeSwitcherView } from "@/components/mode-switcher";
 import { uiShowcaseEntries, type UiShowcaseCategory } from "@/lib/ui-showcase";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -124,7 +126,10 @@ function ToastExamples() {
 const chartSwatches = ["bg-chart-1", "bg-chart-2", "bg-chart-3", "bg-chart-4", "bg-chart-5"] as const;
 function ShellExamples() {
   const t = useTranslations("UiShowcase.shell");
-  return <div className="space-y-2 text-sm"><p>{t("summary")}</p><p>{t("switcher")}</p></div>;
+  const [mode, setMode] = useState<NavMode>("operations");
+  return <div className="space-y-2 text-sm"><p>{t("summary")}</p><p>{t("switcher")}</p>
+    <div data-mode-switcher-example aria-label={t("modeSwitcher")} role="group" className="w-64 rounded-xl border bg-sidebar py-2"><TooltipProvider><ModeSwitcherView modes={navModes} active={mode} rail={false} onSelect={setMode} /></TooltipProvider></div>
+  </div>;
 }
 function KitExamples() {
   const t = useTranslations("UiShowcase.kit");

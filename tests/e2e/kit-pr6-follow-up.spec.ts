@@ -61,7 +61,7 @@ test("follow-up queue and case: owner, assigned member, other member and viewer 
       await expect(nav(page).getByRole("link", { name: "Follow-up", exact: true })).toBeVisible();
       await expect(page.getByRole("heading", { level: 1, name: "Follow-up" })).toBeVisible();
       await expect(caseLinks(page)).toHaveCount(5);
-      await expect(page.getByRole("tab")).toHaveText(["All", "Requested", "Needs assignment", "Assigned", "Attempted", "No response", "Connected", "Closed", "Withdrawn"]);
+      await expect(page.getByRole("main").getByRole("tab")).toHaveText(["All", "Requested", "Needs assignment", "Assigned", "Attempted", "No response", "Connected", "Closed", "Withdrawn"]);
       await expect(page.getByRole("button", { name: "Open cases", exact: true })).toBeVisible();
       await page.getByRole("tab", { name: "Needs assignment" }).click();
       await expect(page).toHaveURL(/state=awaiting_assignment/);
