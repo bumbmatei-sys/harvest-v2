@@ -19,7 +19,9 @@ export type Permission = "workspace:read" | "members:write" | "roles:write" | "c
   | "contacts:attest_consent" | "contacts:record_withdrawal"
   // HC-13: follow-up cases. Managing (open, assign, any legal transition, every case) is owner/admin. Working (own assigned open cases) is any
   // non-viewer member; the database policy and definers additionally require the assignment, so this key alone grants no case.
-  | "followup:manage" | "followup:work";
+  | "followup:manage" | "followup:work"
+  // Social provider integration layer: linking accounts, scheduling posts and reading the inbox are owner/admin until a wider role is decided.
+  | "social:connect" | "social:schedule" | "social:inbox";
 export function can(role: string, permission: Permission): boolean {
   if (permission === "communities:read" || permission === "workspace:read" || permission === "contacts:read" || permission === "companies:read" || permission === "opportunities:read" || permission === "tasks:read" || permission === "notes:read" || permission === "campaigns:read") return roleIds.includes(role as Role);
   if (permission === "followup:work" || permission === "contacts:record_withdrawal") return role === "owner" || role === "admin" || role === "member";

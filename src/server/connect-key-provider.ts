@@ -2,7 +2,9 @@ import { hkdfSync } from "node:crypto";
 
 // HC-DEC5 groundwork: provider-neutral key management for Connect envelopes and keyed hashes.
 // No provider is selected or approved. The only working provider derives keys from a local test value.
-export type KeyPurpose = "pending-intake:v1" | "intake-fingerprint:v1" | "submission-capability:v1" | "invitation-recipient:v1";
+export type KeyPurpose = "pending-intake:v1" | "intake-fingerprint:v1" | "submission-capability:v1" | "invitation-recipient:v1"
+  // Social provider integration layer: sealed provider credentials and the webhook signing secret (src/server/social).
+  | "social-credential:v1" | "social-webhook:v1";
 /** Key id carried by version 1 envelopes, which were sealed before envelopes recorded a key id. */
 export const LEGACY_KEY_ID = "legacy-1";
 export const TEST_KEY_ID = "test-1";
