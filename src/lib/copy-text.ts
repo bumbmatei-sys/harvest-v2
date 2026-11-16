@@ -25,4 +25,10 @@ function legacyCopy(text: string): boolean {
 
 /** `mailto:` and `tel:` targets for a stored identifier; whitespace and separators are not valid in a `tel:` number. */
 export function mailtoHref(email: string): string { return `mailto:${email.trim()}`; }
-export function telHref(phone: string): string { return `tel:${phone.replace(/[^\d+]/g, "")}`; }
+/** Only the dialable part is used: text from an extension marker (ext, extension, x, #) on is dropped, and a value with any other letters gets no link (undefined). */
+export function telHref(phone: string): string | undefined {
+  const main = phone.split(/\s*(?:\bext(?:ension)?\b\.?|\bx(?=\s*\d)|#|(?<=\d)x(?=\d))/i)[0] ?? "";
+  if (/[a-z]/i.test(main)) return undefined;
+  const digits = main.replace(/[^\d+]/g, "");
+  return /\d/.test(digits) ? `tel:${digits}` : undefined;
+}

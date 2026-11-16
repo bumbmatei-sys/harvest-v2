@@ -62,6 +62,7 @@ test("CRM lists and records: phone cards, contact actions, timeline, tracker, fi
         await expect(summaries.first().getByRole("link", { name: "ana@example.test" })).toHaveAttribute("href", "mailto:ana@example.test");
         await expect(summaries.first().getByRole("link", { name: "+491512345678" })).toHaveAttribute("href", "tel:+491512345678");
         await tall(page, summaries.getByRole("link"));
+        for (const link of await summaries.first().getByRole("link").all()) await expect(link).not.toHaveAttribute("tabindex", "-1");
       } else if (width >= 1280) {
         await expect(summaries.first()).toBeHidden();
       }

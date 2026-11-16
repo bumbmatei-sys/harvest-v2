@@ -57,7 +57,7 @@ export default async function PeoplePage({ params, searchParams }: { params: Pro
     for (const field of list.definitions) cells[customFieldKey(field.key)] = customCell(t, format, tenantId, field, person.custom[field.key], list.related);
     return { id: person.id, version: person.version, name: person.name, href: `${people}/${person.id}`, secondary: primary?.name ?? email ?? t("notProvided"), cells,
       summary: { status: { text: t(`marketing.${person.marketingEmail}`), tone: consentTone(person.marketingEmail) },
-        links: [...(email ? [{ kind: "email" as const, text: email, href: mailtoHref(email) }] : []), ...(phone ? [{ kind: "phone" as const, text: phone, href: telHref(phone) }] : [])] } };
+        links: [...(email ? [{ kind: "email" as const, text: email, href: mailtoHref(email) }] : []), ...(phone && telHref(phone) ? [{ kind: "phone" as const, text: phone, href: telHref(phone)! }] : [])] } };
   });
   return <ListPage tenantId={tenantId} objectType="person" icon={UsersRound} title={t("people")} description={t("peopleDescription")} total={list.total} page={list.page}
     actions={<>{can(workspace.role, "crm:import") && <Button size="responsive" variant="outline" asChild><Link href={`/workspaces/${tenantId}/crm/imports?entity=person`}><Upload aria-hidden="true" />{imports("importAction")}</Link></Button>}

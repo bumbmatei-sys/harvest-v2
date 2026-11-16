@@ -33,6 +33,13 @@ describe("mailto and tel targets", () => {
   it("trims the address and keeps only dialable characters in the phone number", () => {
     expect(mailtoHref("  ada@example.com ")).toBe("mailto:ada@example.com");
     expect(telHref("+49 (151) 234-5678")).toBe("tel:+491512345678");
+    expect(telHref("555-1234 ext 5")).toBe("tel:5551234");
+    expect(telHref("555-1234 x123")).toBe("tel:5551234");
+    expect(telHref("555-1234x123")).toBe("tel:5551234");
+    expect(telHref("+1 555 0100 extension 22")).toBe("tel:+15550100");
+    expect(telHref("555-1234 #7")).toBe("tel:5551234");
+    expect(telHref("call me later")).toBeUndefined();
+    expect(telHref("   ")).toBeUndefined();
   });
 });
 

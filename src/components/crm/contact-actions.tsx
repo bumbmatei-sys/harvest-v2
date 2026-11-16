@@ -18,7 +18,7 @@ export async function ContactActions({ email, phone }: { email: string; phone: s
       <CopyButton value={email} label={t("copyEmail")} />
     </li>}
     {phone && <li className="flex min-w-0 max-w-full items-center rounded-lg border bg-card">
-      <Button asChild variant="ghost" size="responsive" className="min-w-0 justify-start rounded-r-none px-3 lg:h-8"><a href={telHref(phone)}><Phone aria-hidden="true" /><span className="truncate">{t("callAction")}</span></a></Button>
+      {telHref(phone) && <Button asChild variant="ghost" size="responsive" className="min-w-0 justify-start rounded-r-none px-3 lg:h-8"><a href={telHref(phone)}><Phone aria-hidden="true" /><span className="truncate">{t("callAction")}</span></a></Button>}
       <CopyButton value={phone} label={t("copyPhone")} />
     </li>}
   </ul>;

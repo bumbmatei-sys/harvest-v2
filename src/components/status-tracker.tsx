@@ -22,7 +22,7 @@ export function StatusTracker({ steps, current, label, tone = "default", classNa
       {steps.map((step, position) => {
         const state = states[position];
         return <li key={step.id} data-state={state} aria-current={state === "current" ? "step" : undefined} className="min-w-0 space-y-1.5">
-          <span aria-hidden="true" className={cn("block h-1 rounded-full", state === "upcoming" ? "bg-muted" : fill[tone])} />
+          <span aria-hidden="true" className={cn("block h-1 rounded-full", state === "upcoming" ? "bg-muted" : state === "done" && tone === "danger" ? fill.default : fill[tone])} />
           <span className={cn("block truncate text-xs leading-tight", state === "current" ? "font-medium" : "sr-only text-muted-foreground sm:not-sr-only sm:block")} title={step.label}>{step.label}
             <span className="sr-only"> {t(state)}</span></span>
         </li>;
