@@ -58,6 +58,10 @@ Use [ReUI Filters 10](https://reui.io/components/filters/c-filters-10) as the su
 - Use 21st.dev as a discovery source when available, adapt to shadcn/Harvest, and verify exact component licenses before copying code. This document does not install a plugin, import third-party UI or authorize a second design system.
 - Validate reference workflows in CRM, Social Studio and Communities as specified, without requiring full module completion or building fake dashboards. Community/course wizard and access/pricing reuse remain full Phase 0 goals; they are not prerequisites invented for a small CRM source-filter UI change.
 
+## Shadcn UI Kit (purchased 16 Nov 2026)
+
+The founder bought the Shadcn UI Kit. [The inventory and adoption plan](shadcnuikit-adoption.md) maps its blocks and components to Harvest modules, records the compatibility measurements, and proposes a staged PR sequence; [the catalog map](shadcnuikit-catalog-map.md) summarizes all 1228 items. The kit is a pattern and variant library that augments Studio Admin and the shared systems above; it does not replace them. Every visual build starts with a founder approval of the exact kit items. Planning only: no kit source is in the repository.
+
 ## Boundaries
 
 No database migration, dependency installation, token/palette change, UI implementation, production activation or outbound provider call is included in this documentation change. Production intake and real invitation delivery remain hard-disabled; all five HC-02 activation decisions remain unapproved. Payment/access architecture does not approve a gift provider, checkout, enrollment or finance activation. PR #16 stays parked. Merge and deployment remain with Matei.
