@@ -16,6 +16,9 @@ test("showcase exposure and local component interactions", async ({ page }) => {
   expect(guest.headers().location).toContain('/sign-in');
   await signIn(page); await page.goto('/dev/ui');
   await expect(page.getByRole('heading', { name: 'Component showcase', exact: true })).toBeVisible();
+  // Header slots: this page passes an example search field and action; other pages pass nothing.
+  await expect(page.locator('[data-shell-header] [role="search"]').getByRole('searchbox', { name: 'Header search example', exact: true })).toBeVisible();
+  await expect(page.locator('[data-shell-header]').getByRole('group', { name: 'Page actions', exact: true }).getByRole('link', { name: 'Header action example', exact: true })).toHaveAttribute('href', '#shell');
   const writes: string[] = [];
   page.on('request', request => { if (request.method() !== 'GET' && request.url().includes('/api/')) writes.push(request.url()); });
   await page.getByRole('button', { name: 'Primary', exact: true }).click();
@@ -73,7 +76,7 @@ test("showcase exposure and local component interactions", async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Fields', exact: true })).toBeVisible();
   await page.getByRole('combobox', { name: 'Component category', exact: true }).selectOption('kit');
   await expect(page.getByRole('heading', { name: 'Kit-derived items', exact: true })).toBeVisible();
-  for (const item of ['toast1 (free)', 'spinner1 (free)', 'scroll-area1 (free)', 'drawer1 (free)']) await expect(page.getByText(item, { exact: true })).toBeVisible();
+  for (const item of ['toast1 (free)', 'spinner1 (free)', 'scroll-area1 (free)', 'drawer1 (free)', 'dashboard-shell8 (premium)', 'dashboard-dropdown7 (premium)']) await expect(page.getByText(item, { exact: true })).toBeVisible();
   const swatchColors = await page.locator('[data-chart-swatches] span[aria-hidden]').evaluateAll(nodes => nodes.map(node => getComputedStyle(node).backgroundColor));
   expect(swatchColors).toHaveLength(5); expect(new Set(swatchColors).size).toBe(5);
   await page.getByRole('combobox', { name: 'Component category', exact: true }).selectOption('all');
@@ -110,7 +113,7 @@ test("showcase exposure and local component interactions", async ({ page }) => {
   }
   // Capture each example group deliberately; the shell scrolls main independently.
   await page.setViewportSize({width:390,height:1000});
-  for (const id of ['actions','fields','overlays','feedback','primitives','toast','kit']) {
+  for (const id of ['actions','fields','overlays','feedback','primitives','toast','shell','kit']) {
     await page.locator(`#${id}`).scrollIntoViewIfNeeded();
     await page.screenshot({path:`/tmp/ui-showcase/group-${id}.png`});
   }

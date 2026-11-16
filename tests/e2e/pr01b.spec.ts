@@ -119,13 +119,14 @@ async function shellMatrix(page: Page) {
   const navigation = page.getByRole("navigation", { name: "Ministry navigation" });
   await expect(navigation.locator('[data-sidebar="footer"]')).toHaveCount(0);
   await expect(navigation.getByRole("button", { name: "Account menu" })).toHaveCount(0);
-  const switcher = navigation.getByRole("button", { name: `Switch ministry: ${workspaceName}`, exact: true });
-  await expect(switcher.locator('[data-workspace-name]')).toHaveText(workspaceName);
-  expect(await switcher.locator('[data-workspace-name]').evaluate((label) => label.scrollWidth > label.clientWidth)).toBe(true);
-  await switcher.hover();
-  await expect(page.getByRole("tooltip")).toHaveCount(0);
-  await switcher.click();
-  await expect(page.getByRole("menuitem", { name: workspaceName, exact: true })).toHaveAttribute("href", /\/workspaces\/.+\/crm\/people$/);
+  // The ministry switcher lives in the profile-picture (account) menu, not in the sidebar navigation.
+  await expect(navigation.getByRole("button", { name: /^Switch ministry/ })).toHaveCount(0);
+  await expect(navigation.locator('[data-workspace-name]')).toHaveCount(0);
+  await footer.getByRole("button", { name: "Account menu" }).click();
+  const current = page.getByRole("menuitem").filter({ has: page.locator('[data-workspace-name]', { hasText: workspaceName }) });
+  await expect(current).toHaveAttribute("href", /\/workspaces\/.+\/crm\/people$/);
+  await expect(current).toHaveAttribute("aria-current", "true");
+  expect(await current.locator('[data-workspace-name]').evaluate((label) => label.scrollWidth > label.clientWidth)).toBe(true);
   await page.keyboard.press("Escape");
   await page.mouse.move(1000, 0);
   const trigger = footer.locator('[data-sidebar="trigger"]');
@@ -168,11 +169,9 @@ async function shellMatrix(page: Page) {
     await expect(page.locator("html")).toHaveAttribute("data-brand-theme", brand);
     await expect(logo).toBeVisible();
     await expect(sidebar.getByRole("link", { name: "People", exact: true })).toBeVisible();
-    await expect(switcher.locator('[data-slot="avatar"]')).toBeVisible();
-    await expect(switcher.locator('svg.lucide-building-2')).toHaveCount(0);
-    await switcher.hover();
-    await expect(page.getByRole("tooltip")).toHaveText(workspaceName);
-    if (brand === "studio" && mode === "dark") await capture(page, "shell-workspace-tooltip-studio-dark");
+    await expect(footer.getByRole("button", { name: "Account menu" })).toBeVisible();
+    await expect(sidebar.getByRole("button", { name: /^Switch ministry/ })).toHaveCount(0);
+    if (brand === "studio" && mode === "dark") { await footer.getByRole("button", { name: "Account menu" }).click(); await capture(page, "shell-account-switcher-studio-dark"); }
     await page.keyboard.press("Escape");
     await page.mouse.move(1000, 0, { steps: 5 });
     await expect(page.locator('[data-slot="tooltip-content"]')).toHaveCount(0);
