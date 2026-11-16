@@ -436,7 +436,7 @@ export function moveDeal(db: Database, userId: string, workspace: string, deal: 
   });
 }
 
-export type DealActivity = { id: string; action: string; createdAt: Date; actor: { id: string; name: string | null; isMember: boolean }; fields: string[]; fromStage: string | null; toStage: string | null };
+export type DealActivity = { id: string; action: string; createdAt: Date; actor: { id: string | null; name: string | null; isMember: boolean }; fields: string[]; fromStage: string | null; toStage: string | null };
 
 /** A deal with its pipeline (live stages plus its own stage, even if archived), owners and ledger activity. */
 export function getDeal(db: Database, userId: string, workspace: string, deal: string) {
@@ -449,7 +449,7 @@ export function getDeal(db: Database, userId: string, workspace: string, deal: s
     const stages = pipeline.stages.filter((stage) => !stage.archivedAt || stage.id === row.stageId);
     const logs = await tx.select().from(auditLogs).where(and(eq(auditLogs.tenantId, tenantId), eq(auditLogs.targetId, id), like(auditLogs.action, "opportunity.%")))
       .orderBy(desc(auditLogs.createdAt), desc(auditLogs.id)).limit(50);
-    const actorIds = [...new Set(logs.map((log) => log.actorId))];
+    const actorIds = [...new Set(logs.map((log) => log.actorId).filter((id): id is string => id !== null))];
     const actors = actorIds.length ? await tx.select({ id: users.id, name: users.name }).from(workspaceMembers).innerJoin(users, eq(users.id, workspaceMembers.userId))
       .where(and(eq(workspaceMembers.tenantId, tenantId), inArray(workspaceMembers.userId, actorIds))) : [];
     const stageName = (stageId?: string) => (stageId ? pipeline.stages.find((stage) => stage.id === stageId)?.name ?? null : null);
