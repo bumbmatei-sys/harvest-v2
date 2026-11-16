@@ -5,6 +5,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CalendarIcon, Plus } from "lucide-react";
 import type { ConsentLabel } from "@/lib/consent-labels";
+import type { ConsentStatus } from "@/lib/consent-controls";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { consentNoticeVersions, consentPurposes } from "@/lib/contact-input";
@@ -18,9 +19,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Alert, AlertDescription } from "@/components/ui/alert";
 /**
  * Records one consent event. CRM-07's per-purpose rows open it with `preset` (purpose, status and
- * a sensible channel) and their own trigger; the person can still change every field.
+ * a sensible channel) and their own trigger; the person can still change every field except status, which is limited to `statuses` (what the role may record).
  */
-export function ConsentForm({ tenantId, contactId, preset, trigger }: { tenantId: string; contactId: string;
+export function ConsentForm({ tenantId, contactId, preset, trigger, statuses }: { tenantId: string; contactId: string; statuses: ConsentStatus[];
   preset?: { purpose: string; status: "granted" | "withdrawn"; channel: "email" | "sms" | "social" }; trigger?: React.ReactNode }) {
   const t = useTranslations("ComponentsConsentForm");
   const format = useFormatter();
@@ -54,7 +55,7 @@ export function ConsentForm({ tenantId, contactId, preset, trigger }: { tenantId
       <form onSubmit={submit} className="space-y-4">
         {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
         <div className="grid grid-cols-2 gap-4"><Field className="gap-2"><FieldLabel htmlFor="consent-channel">{t("channel")}</FieldLabel><Select name="channel" defaultValue={preset?.channel ?? "email"}><SelectTrigger id="consent-channel" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="email">{t("email")}</SelectItem><SelectItem value="sms">{t("sMS")}</SelectItem><SelectItem value="social">{t("social")}</SelectItem></SelectContent></Select></Field>
-        <Field className="gap-2"><FieldLabel htmlFor="consent-status">{t("status")}</FieldLabel><Select name="status" defaultValue={preset?.status ?? "unknown"}><SelectTrigger id="consent-status" className="w-full"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="unknown">{t("unknown")}</SelectItem><SelectItem value="granted">{t("granted")}</SelectItem><SelectItem value="withdrawn">{t("withdrawn")}</SelectItem></SelectContent></Select></Field></div>
+        <Field className="gap-2"><FieldLabel htmlFor="consent-status">{t("status")}</FieldLabel><Select name="status" defaultValue={preset && statuses.includes(preset.status) ? preset.status : statuses.includes("unknown") ? "unknown" : statuses[0]}><SelectTrigger id="consent-status" className="w-full"><SelectValue /></SelectTrigger><SelectContent>{statuses.map((status) => <SelectItem key={status} value={status}>{t(status)}</SelectItem>)}</SelectContent></Select></Field></div>
         <div className="grid grid-cols-2 gap-4"><Field className="gap-2"><FieldLabel htmlFor="consent-purpose">{t("purpose")}</FieldLabel><Select name="purpose" defaultValue={preset?.purpose ?? "marketing"}><SelectTrigger id="consent-purpose" className="w-full"><SelectValue /></SelectTrigger><SelectContent>{consentPurposes.map((purpose) => <SelectItem key={purpose} value={purpose}>{labels(purpose as ConsentLabel)}</SelectItem>)}</SelectContent></Select></Field><Field className="gap-2"><FieldLabel htmlFor="consent-version">{t("wordingVersion")}</FieldLabel><Select name="noticeVersion" defaultValue="notice-v1"><SelectTrigger id="consent-version" className="w-full"><SelectValue /></SelectTrigger><SelectContent>{consentNoticeVersions.map((version) => <SelectItem key={version} value={version}>{labels(version as ConsentLabel)}</SelectItem>)}</SelectContent></Select></Field></div>
         <div className="grid grid-cols-[minmax(0,1fr)_120px] gap-4">
           <Field className="gap-2"><FieldLabel htmlFor="consent-date">{t("consentDateUTC")}</FieldLabel>
