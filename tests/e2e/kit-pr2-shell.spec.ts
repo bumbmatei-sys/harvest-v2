@@ -186,3 +186,22 @@ test("switcher: 44px targets, axe and no overflow at five widths in light and da
     } else { await page.keyboard.press("Escape"); await expect(dialog).toHaveCount(0); }
   }
 });
+
+test("account menu for a person with no ministry passes axe and offers the create and all-ministries links", async ({ page }) => {
+  test.setTimeout(240_000);
+  await signIn(page);
+  for (const width of [360, 390, 768, 1280, 1440]) for (const mode of ["light", "dark"]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/workspaces");
+    await page.evaluate((value) => localStorage.setItem("harvest-color-mode", value), mode);
+    await page.reload();
+    await expect(page.locator("html")).toHaveAttribute("data-theme", mode);
+    const menu = await openAccountMenu(page);
+    await expect(menu.getByRole("menuitem", { name: "No ministries yet", exact: true })).toHaveAttribute("aria-disabled", "true");
+    await expect(menu.getByRole("menuitem", { name: "Create a ministry", exact: true })).toBeVisible();
+    await expect(menu.getByRole("menuitem", { name: "Switch ministry" })).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
+    expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
+    await page.keyboard.press("Escape");
+  }
+});

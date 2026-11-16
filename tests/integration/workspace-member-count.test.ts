@@ -12,11 +12,12 @@ afterAll(async () => { await fixture?.close(); });
 
 it("counts members per ministry for the people who belong to it, without crossing ministries", async () => {
   const a = (await createWorkspace(fixture.db, "owner", "Ministry A")).tenantId;
-  const b = (await createWorkspace(fixture.db, "outsider", "Ministry B")).tenantId;
+  await createWorkspace(fixture.db, "outsider", "Ministry B");
   await putMember(fixture.db, "owner", a, "helper@example.test", "member");
   const mine = await listWorkspaces(fixture.db, "helper");
   expect(mine.map((item) => [item.tenantId, item.role, item.memberCount])).toEqual([[a, "member", 2]]);
+  await putMember(fixture.db, "owner", a, "outsider@example.test", "viewer");
+  expect((await listWorkspaces(fixture.db, "outsider")).map((item) => [item.name, item.role, item.memberCount]).sort()).toEqual([["Ministry A", "viewer", 3], ["Ministry B", "owner", 1]]);
   const owners = await listWorkspaces(fixture.db, "owner");
-  expect(owners.map((item) => [item.name, item.memberCount])).toEqual([["Ministry A", 2]]);
-  expect((await listWorkspaces(fixture.db, "outsider")).map((item) => [item.tenantId, item.memberCount])).toEqual([[b, 1]]);
+  expect(owners.map((item) => [item.name, item.memberCount])).toEqual([["Ministry A", 3]]);
 });

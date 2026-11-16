@@ -15,13 +15,13 @@ Each shell set has `harvest-light`, `harvest-dark`, `studio-light`, and `studio-
 - `shell-collapsed-*.png`: contacts list and icon rail, 1280×800.
 - `shell-account-menu-*.png`: footer account menu with Theme radio group, 1280×800.
 - `shell-mobile-*.png`: open navigation sheet, 390×844.
-- `shell-workspace-tooltip-studio-dark.png`: expanded switcher with the full long workspace name, 1280×800.
+- `shell-account-switcher-studio-dark.png`: collapsed rail with the account menu open, showing the ministry switcher with the full long ministry name, 1280×800.
 
 The retained desktop page sets use a 1440×1000 viewport: `sign-in-*`, `workspace-*`, `contacts-empty-*`, `contacts-list-*`, `contact-detail-*`, and `appearance-*`. Mobile list/detail sets use 390×844: `contacts-list-mobile-*` and `contact-detail-mobile-*`. All have the same four palette variants.
 
 Additional images cover the account menu, consent and erasure dialogs, Calendar/Popover date picker, pagination with 21 contacts, the list after erasure, contact-create network failure and retry, empty search, unknown contact, view-only access, and denied workspace. Filename suffixes identify their actual palette.
 
-`tests/e2e/pr01b.spec.ts` regenerates every image and `axe-results.json`: 60 captured states, each checked with axe, including the open workspace tooltip. Assertions cover 12px shell radius, 8px gutters, shadow, inset variant, loaded logo, footer control placement, collapsed-state cookie and keyboard shortcut, mode persistence, keyboard access to account-menu theme radios, mobile sheet navigation and overflow, plus every existing contact, consent, appearance, permission, isolation and sign-out assertion.
+`tests/e2e/pr01b.spec.ts` regenerates every image and `axe-results.json`: 60 captured states, each checked with axe, including the open account menu with the ministry switcher. Assertions cover 12px shell radius, 8px gutters, shadow, inset variant, loaded logo, footer control placement, collapsed-state cookie and keyboard shortcut, mode persistence, keyboard access to account-menu theme radios, mobile sheet navigation and overflow, plus every existing contact, consent, appearance, permission, isolation and sign-out assertion.
 
 `contrast-results.json` records unselected radio border-to-card ratios and shell canvas/panel/page-card/foreground ratios in every palette. Surface ratios describe subtle decorative separation; text contrast is checked by axe in each captured state. These are computed browser measurements. Every shell palette and contact-detail card is required to reach at least 1.1:1 against the content panel and retain a visible border.
 

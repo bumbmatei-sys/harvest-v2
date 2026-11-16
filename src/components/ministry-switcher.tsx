@@ -49,7 +49,7 @@ export function MinistrySwitcher({ ministries, selected, onNavigate, onOpenSearc
       </DropdownMenuItem>)}
       {searchable && <DropdownMenuItem className={itemClass} onSelect={onOpenSearch}><ChevronsUpDown aria-hidden="true" />{t("switchMinistry")}</DropdownMenuItem>}
     </DropdownMenuGroup>
-    {ministries.length === 0 && <p role="status" className="px-2 py-3 text-sm text-muted-foreground">{t("noMinistries")}</p>}
+    {ministries.length === 0 && <DropdownMenuItem disabled className={itemClass}>{t("noMinistries")}</DropdownMenuItem>}
     <DropdownMenuSeparator />
     <DropdownMenuItem asChild className={itemClass}><Link href="/workspaces" onClick={onNavigate}><Building2 aria-hidden="true" />{t("yourWorkspaces")}</Link></DropdownMenuItem>
     <DropdownMenuItem asChild className={itemClass}><Link href="/workspaces#create-workspace" onClick={onNavigate}><Plus aria-hidden="true" />{t("createMinistry")}</Link></DropdownMenuItem>
