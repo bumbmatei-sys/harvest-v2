@@ -22,7 +22,7 @@ Spec: `docs/superpowers/specs/2026-11-16-three-mode-shell-design.md` (section 6 
 ## Behaviour decisions made here
 
 - Hidden modes: Assistant has no live entry (`modeAvailability`), so it is hidden, not shown disabled (spec decision 6: unbuilt modules are hidden). With fewer than two available modes the switcher is not rendered.
-- Pages that own their path (every ministry page today, including Settings, Appearance and `/crm/settings/*`): the switcher shows the owning mode on arrival. Tapping another mode is a preview: the sidebar swaps, the page and breadcrumb stay, nothing is navigated. The preview belongs to that page only (`displayMode`) and ends on the next navigation, which returns to the owning mode. Reason: least surprising, consistent with "choosing a mode only swaps the sidebar" and "a manual choice applies only on neutral pages".
+- Pages that own their path (every ministry page today, including Settings, Appearance and `/crm/settings/*`): the switcher shows the owning mode on arrival. Tapping another mode is a preview: the sidebar swaps, the page and breadcrumb stay, nothing is navigated. The preview belongs to that page only (`displayMode`) and ends on every navigation (cleared on pathname change, so Back does not restore it), which returns to the owning mode. Reason: least surprising, consistent with "choosing a mode only swaps the sidebar" and "a manual choice applies only on neutral pages".
 - The last explicit choice is stored for the neutral-page default. No real ministry page is neutral today (there is no ministry home page), so the stored choice has no visible effect yet; it is covered by unit tests and by an e2e check that it is stored and that blocked storage does not break the shell.
 - Three modes use a stacked icon-over-label segment because icon plus label side by side truncates in the 256px sidebar.
 - Selected state uses `aria-selected` styling (the tooltip trigger overwrites `data-state` on the same element), plus bolder text and a bordered card segment, so colour is not the only cue.
@@ -53,7 +53,8 @@ Spec: `docs/superpowers/specs/2026-11-16-three-mode-shell-design.md` (section 6 
 ## Not verified
 
 - The real three-mode shell: Assistant cannot appear until it has a live entry, so three modes are only proved in the showcase component, not inside the real sidebar.
-- Ctrl/Cmd+Alt+1..3 conflicts with browsers, OS shortcuts and screen readers were not tested outside Chromium.
+- Ctrl/Cmd+Alt+1..3: AltGr typing and text fields are now handled (the shortcut ignores AltGraph and input, textarea, select, contenteditable and role=textbox targets, without preventDefault; unit-tested). Conflicts with browser, OS and screen-reader shortcuts outside Chromium remain unverified.
+- `aria-controls` on the tabs points at the navigation landmark, not a tabpanel (there is no panel).
 - Safari and Firefox; real screen reader announcement of the live region.
 - Production behaviour with the flag on (dev server only); CI not run on the PR yet.
 - Behaviour on a neutral page with a selected ministry (none exists).

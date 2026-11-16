@@ -83,6 +83,9 @@ function ModeNavigation({ selected, workspace, pathname, features, announce }: {
   const available = useMemo(() => availableModes(modeAvailability({ role: workspace?.role, audience: workspace?.audience, features })), [workspace?.role, workspace?.audience, features]);
   const choice = useSyncExternalStore(subscribeMode, modeSnapshot, () => null);
   const [peek, setPeek] = useState<{ mode: NavMode; pathname: string } | null>(null);
+  // A preview ends on every navigation, so Back to the page it was made on does not bring it back.
+  const [seenPath, setSeenPath] = useState(pathname);
+  if (seenPath !== pathname) { setSeenPath(pathname); setPeek(null); }
   const navRef = useRef<HTMLElement>(null);
   const focusNav = useRef(false);
   // The remembered choice only matters on neutral pages; the server snapshot is null so the first render matches the server.
@@ -96,7 +99,7 @@ function ModeNavigation({ selected, workspace, pathname, features, announce }: {
   }, [mode, available, pathname, announce, t]);
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      const target = modeForShortcut(event);
+      const target = modeForShortcut({ ctrlKey: event.ctrlKey, metaKey: event.metaKey, altKey: event.altKey, shiftKey: event.shiftKey, code: event.code, target: event.target as HTMLElement | null, getModifierState: (key) => event.getModifierState(key) }, document.activeElement as HTMLElement | null);
       if (!target || !available.includes(target)) return;
       event.preventDefault(); select(target, true);
     };

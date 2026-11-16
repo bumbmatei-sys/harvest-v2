@@ -30,6 +30,19 @@ describe("shortcuts", () => {
     expect(modeForShortcut(keys(code))).toBe(mode);
     expect(modeForShortcut(keys(code, { ctrlKey: false, metaKey: true }))).toBe(mode);
   });
+  it("ignores AltGraph, which types characters on Windows layouts", () => {
+    expect(modeForShortcut({ ...keys("Digit2"), getModifierState: (key: string) => key === "AltGraph" })).toBeNull();
+    expect(modeForShortcut({ ...keys("Digit2"), getModifierState: () => false })).toBe("public");
+  });
+  it("ignores text-entry targets and the active element", () => {
+    expect(modeForShortcut({ ...keys("Digit2"), target: { tagName: "INPUT" } })).toBeNull();
+    expect(modeForShortcut({ ...keys("Digit2"), target: { tagName: "textarea" } })).toBeNull();
+    expect(modeForShortcut({ ...keys("Digit2"), target: { tagName: "SELECT" } })).toBeNull();
+    expect(modeForShortcut({ ...keys("Digit2"), target: { tagName: "DIV", isContentEditable: true } })).toBeNull();
+    expect(modeForShortcut({ ...keys("Digit2"), target: { tagName: "DIV", getAttribute: (n: string) => (n === "role" ? "textbox" : null) } })).toBeNull();
+    expect(modeForShortcut(keys("Digit2"), { tagName: "TEXTAREA" })).toBeNull();
+    expect(modeForShortcut({ ...keys("Digit2"), target: { tagName: "BUTTON" } })).toBe("public");
+  });
   it("ignores other combinations", () => {
     expect(modeForShortcut(keys("Digit4"))).toBeNull();
     expect(modeForShortcut(keys("Digit1", { altKey: false }))).toBeNull();

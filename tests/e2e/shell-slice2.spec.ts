@@ -103,6 +103,13 @@ test("mode switcher: tabs, choosing a mode does not navigate, owning mode, persi
   await expect(page).toHaveURL(/\/settings$/);
   await expect(nav(page).getByRole("link", { name: "Communities", exact: true })).toBeVisible();
   await expect(page.locator("[data-shell-header]").getByText("Ministry settings", { exact: true })).toBeVisible();
+  // Back to the page the preview was made on does not bring the preview back.
+  await nav(page).getByRole("link", { name: "Communities", exact: true }).click();
+  await expect(page).toHaveURL(/\/communities$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/settings$/);
+  await expect(tab(page, "Operations")).toHaveAttribute("aria-selected", "true");
+  await expect(nav(page).getByRole("link", { name: "Ministry settings", exact: true })).toBeVisible();
   await page.goto(`/workspaces/${id}/appearance`);
   await expect(tab(page, "Operations")).toHaveAttribute("aria-selected", "true");
   await page.goto(`/workspaces/${id}/crm/settings/fields`);
@@ -153,6 +160,12 @@ test("mode switcher keyboard: arrows, Home/End and Ctrl/Cmd+Alt shortcuts", asyn
   await expect(tab(page, "Operations")).toHaveAttribute("aria-selected", "true");
   await expect(nav(page).getByRole("link", { name: "Ministries", exact: true })).toBeFocused();
   await expect(page.getByRole("status")).toHaveText("Operations menu");
+  // Typing in a text field is never intercepted (AltGr is Ctrl+Alt on Windows layouts).
+  await page.goto(`/workspaces/${id}/crm/people`);
+  const search = page.getByRole("searchbox").first();
+  await search.focus();
+  await page.keyboard.press("Control+Alt+Digit2");
+  await expect(tab(page, "Operations")).toHaveAttribute("aria-selected", "true");
   // Ctrl/Cmd+B still toggles the sidebar.
   await page.keyboard.press("Control+b");
   await expect(page.locator('[data-slot="sidebar"][data-state="collapsed"]')).toHaveCount(1);

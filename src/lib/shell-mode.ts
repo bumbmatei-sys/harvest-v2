@@ -36,9 +36,23 @@ export function displayMode({ derived, peek, pathname, available }: { derived: N
   return available.includes(wanted) ? wanted : available[0] ?? derived;
 }
 
-/** Ctrl/Cmd+Alt+1..3 picks Operations, Public, Assistant. Uses `code` because Alt changes `key` on some layouts. */
-export function modeForShortcut(event: Pick<KeyboardEvent, "ctrlKey" | "metaKey" | "altKey" | "shiftKey" | "code">): NavMode | null {
+type EditableLike = { tagName?: string; isContentEditable?: boolean; getAttribute?: (name: string) => string | null } | null | undefined;
+/** True for text-entry targets, where the shortcut must never fire. */
+export function isEditableTarget(target: EditableLike): boolean {
+  if (!target) return false;
+  const tag = (target.tagName ?? "").toUpperCase();
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || target.isContentEditable === true
+    || target.getAttribute?.("contenteditable") === "" || target.getAttribute?.("contenteditable") === "true" || target.getAttribute?.("role") === "textbox";
+}
+type ShortcutEvent = Pick<KeyboardEvent, "ctrlKey" | "metaKey" | "altKey" | "shiftKey" | "code"> & { target?: EditableLike; getModifierState?: (key: string) => boolean };
+/**
+ * Ctrl/Cmd+Alt+1..3 picks Operations, Public, Assistant. Uses `code` because Alt changes `key` on some layouts.
+ * Null while AltGraph is down (on Windows AltGr is Ctrl+Alt and types characters such as @ and #) and in text-entry targets.
+ */
+export function modeForShortcut(event: ShortcutEvent, active?: EditableLike): NavMode | null {
   if (!(event.ctrlKey || event.metaKey) || !event.altKey || event.shiftKey) return null;
+  if (event.getModifierState?.("AltGraph")) return null;
+  if (isEditableTarget(event.target) || isEditableTarget(active)) return null;
   const match = /^Digit([1-3])$/.exec(event.code);
   return match ? navModes[Number(match[1]) - 1] : null;
 }
