@@ -1,7 +1,7 @@
 /**
  * Provenance record for files derived from the Shadcn UI Kit (see docs/ui-sources.md, "Shadcn UI Kit provenance").
  * Rule: every kit-derived file starts with the header below AND is listed in `kitProvenance`.
- * Tests enforce both directions. Kit PR 1 adopts four items, Kit PR 2 two premium items and Kit PR 3 four (two premium, two free) as references; the stock primitives they depend on are hand-written
+ * Tests enforce both directions. Kit PR 1 adopts four items, Kit PR 2 two premium items and Kit PR 3 four (two premium, two free) and Kit PR 4 four (two premium, two free) as references; the stock primitives they depend on are hand-written
  * (docs/ui-sources.md) and are not kit-derived.
  */
 export type KitItemRecord = {
@@ -41,6 +41,14 @@ export const kitProvenance: readonly KitItemRecord[] = [
     localChanges: "Visual reference only; no kit code was copied. StatusBadge wraps the existing Badge with a typed tone map (neutral, success, warning, danger, info, pending) on theme tokens and an optional dot; callers map their own statuses to tones (src/lib/status-tone.ts). Not chosen: badge2, badge6." },
   { ...approved, item: "alert-dialog1", tier: "free", files: ["src/components/confirm-dialog.tsx"],
     localChanges: "Visual reference only; no kit code was copied. ConfirmDialog wraps the existing AlertDialog with a destructive or neutral tone, caller-supplied text, an async confirm with a busy state (both buttons aria-disabled so focus stays put, dismissal blocked), an inline failure message and an optional focus-return target. Not chosen: alert-dialog2, alert-dialog5." },
+  { ...approved, item: "stepper1", tier: "free", files: ["src/components/stepper.tsx"],
+    localChanges: "Visual reference only; no kit code was copied and the kit's @base-ui/react dependency is not used. Harvest's Stepper is a hand-written numbered list: a wizard layout (horizontal with connectors from 768px; a compact Step n of m line with a progress bar below) and a nav layout of buttons for editors (vertical from 1024px, scrollable bar below). aria-current=\"step\", done/active/upcoming as text for screen readers, 28px indicators inside 44px targets on phones, no JS motion. Not chosen: stepper2, stepper4." },
+  { ...approved, item: "form-layout20", tier: "premium", files: ["src/components/wizard-layout.tsx"],
+    localChanges: "Visual reference only; no kit code was copied. WizardLayout is the step frame of the kit's three-step onboarding wizard (stepper, step heading and content, Back and Next) rebuilt on Harvest's Card, Button, Spinner and the Stepper: a validate hook before Next, busy states, focus on the step heading after Back, Next or Finish, no react-hook-form inside (the caller owns values). The kit's account, company and plan fields, sample copy and the react-hook-form and zod 3 demo are not used. Not chosen: onboarding-screen9, form-layout21." },
+  { ...approved, item: "form-layout1", tier: "premium", files: ["src/components/form-section.tsx"],
+    localChanges: "Visual reference only; no kit code was copied. FormSection is the titled section of the kit's settings form: a named region with a heading and optional actions, a split layout (title beside fields from 1024px), or a labelled fieldset for radio and checkbox groups. The kit's fields, avatar upload, sticky save bar and copy are not used. Not chosen: form-layout15." },
+  { ...approved, item: "field1", tier: "free", files: ["src/components/dev/kit-field-example.tsx"],
+    localChanges: "The kit demo (a labelled input in a field group) is kept as the showcase example with Harvest's existing Field, FieldLabel, Input and FieldError and catalogue copy, shown inside a FormSection. The Field primitive itself is Harvest's own and is unchanged. Not chosen: field2, field4." },
 ];
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;

@@ -76,7 +76,7 @@ test("showcase exposure and local component interactions", async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Fields', exact: true })).toBeVisible();
   await page.getByRole('combobox', { name: 'Component category', exact: true }).selectOption('kit');
   await expect(page.getByRole('heading', { name: 'Kit-derived items', exact: true })).toBeVisible();
-  for (const item of ['toast1 (free)', 'spinner1 (free)', 'scroll-area1 (free)', 'drawer1 (free)', 'dashboard-shell8 (premium)', 'dashboard-dropdown7 (premium)', 'tables14 (premium)', 'empty-state15 (premium)', 'badge1 (free)', 'alert-dialog1 (free)']) await expect(page.getByText(item, { exact: true })).toBeVisible();
+  for (const item of ['toast1 (free)', 'spinner1 (free)', 'scroll-area1 (free)', 'drawer1 (free)', 'dashboard-shell8 (premium)', 'dashboard-dropdown7 (premium)', 'tables14 (premium)', 'empty-state15 (premium)', 'badge1 (free)', 'alert-dialog1 (free)', 'stepper1 (free)', 'form-layout20 (premium)', 'form-layout1 (premium)', 'field1 (free)']) await expect(page.getByText(item, { exact: true })).toBeVisible();
   const swatchColors = await page.locator('[data-chart-swatches] span[aria-hidden]').evaluateAll(nodes => nodes.map(node => getComputedStyle(node).backgroundColor));
   expect(swatchColors).toHaveLength(5); expect(new Set(swatchColors).size).toBe(5);
   await page.getByRole('combobox', { name: 'Component category', exact: true }).selectOption('all');
@@ -113,7 +113,7 @@ test("showcase exposure and local component interactions", async ({ page }) => {
   }
   // Capture each example group deliberately; the shell scrolls main independently.
   await page.setViewportSize({width:390,height:1000});
-  for (const id of ['actions','fields','overlays','feedback','primitives','toast','shell','pageParts','kit']) {
+  for (const id of ['actions','fields','overlays','feedback','primitives','toast','shell','pageParts','forms','kit']) {
     await page.locator(`#${id}`).scrollIntoViewIfNeeded();
     await page.screenshot({path:`/tmp/ui-showcase/group-${id}.png`});
   }
@@ -214,5 +214,100 @@ test("page pieces: table states, selection, sorting, confirmations and the phone
     await section.getByRole('button', { name: 'Clear selection' }).click();
     await page.locator('#pageParts').scrollIntoViewIfNeeded();
     if (mode === 'light' || width === 360) await page.screenshot({ path: `/tmp/ui-showcase/page-parts-${width}-${mode}.png` });
+  }
+});
+
+test("forms and steps: stepper states, wizard validation, sections and the save bar, at five widths in both themes", async ({ page }) => {
+  test.setTimeout(300000);
+  test.skip(process.env.HARVEST_UI_SHOWCASE !== "1", "the showcase is development-only");
+  const evidence = "docs/screenshots/kit-pr4"; await mkdir(evidence, { recursive: true });
+  await signIn(page); await page.setViewportSize({ width: 1280, height: 1000 }); await page.goto('/dev/ui#forms');
+  const section = page.locator('#forms');
+  await expect(section).toBeVisible();
+  const settle = async () => { await expect(section.getByRole('heading', { name: 'Forms and steps', exact: true })).toBeVisible(); await page.evaluate(() => document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))); };
+  const axe = async (label: string) => { await settle(); expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations, label).toEqual([]); };
+
+  // Stepper: done, current and upcoming are text as well as colour; exactly one current step.
+  const wizardStepper = section.locator('[data-example-stepper="wizard"]');
+  const list = wizardStepper.getByRole('list', { name: 'Example steps' });
+  await expect(list.locator('[aria-current="step"]')).toHaveCount(1);
+  await expect(list.locator('[aria-current="step"]')).toContainText('Audience');
+  await expect(list.getByText('Completed', { exact: true })).toHaveCount(1); await expect(list.getByText('Upcoming', { exact: true })).toHaveCount(1);
+  const nav = section.getByRole('navigation', { name: 'Example sections' });
+  await expect(nav.getByRole('button', { name: /Soon/ })).toHaveAttribute('aria-disabled', 'true');
+  await expect(nav.getByRole('button', { name: /Audience/ })).toHaveAttribute('aria-current', 'step');
+
+  // Wizard: Next validates; the error shows beside the field and as an alert; Back and Finish work; focus follows the step heading.
+  const wizard = section.locator('[data-example-wizard]');
+  await expect(wizard.getByRole('heading', { name: 'Details', level: 2 })).toBeVisible();
+  await expect(wizard.getByRole('button', { name: 'Back', exact: true })).toHaveCount(0);
+  await wizard.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(wizard.getByRole('alert').filter({ hasText: 'Fix the highlighted field to continue.' })).toBeVisible();
+  await expect(wizard.getByLabel('Name', { exact: true })).toHaveAttribute('aria-invalid', 'true');
+  await axe('wizard with a validation error');
+  await wizard.getByLabel('Name', { exact: true }).fill('Grace');
+  await wizard.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(wizard.getByRole('heading', { name: 'Audience', level: 2 })).toBeFocused();
+  await wizard.getByRole('button', { name: 'Back', exact: true }).click();
+  await expect(wizard.getByRole('heading', { name: 'Details', level: 2 })).toBeFocused();
+  await expect(wizard.getByLabel('Name', { exact: true })).toHaveValue('Grace');
+  await wizard.getByRole('button', { name: 'Next', exact: true }).click(); await wizard.getByRole('button', { name: 'Next', exact: true }).click();
+  await expect(wizard.getByRole('heading', { name: 'Review', level: 2 })).toBeFocused();
+  await expect(wizard.getByText('Ready to create Grace.', { exact: true })).toBeVisible();
+  await wizard.getByRole('button', { name: 'Finish', exact: true }).click();
+  await expect(wizard.getByRole('status').filter({ hasText: 'Example finished.' })).toBeVisible();
+  await wizard.getByRole('button', { name: 'Start again', exact: true }).click();
+  // Keyboard only: Tab reaches Next, Enter moves on.
+  await wizard.getByLabel('Name', { exact: true }).fill('Keys');
+  await page.keyboard.press('Tab'); await expect(wizard.getByRole('button', { name: 'Next', exact: true })).toBeFocused(); await page.keyboard.press('Enter');
+  await expect(wizard.getByRole('heading', { name: 'Audience', level: 2 })).toBeFocused();
+  await wizard.getByRole('button', { name: 'Back', exact: true }).click(); await wizard.getByLabel('Name', { exact: true }).fill('');
+
+  // Sections: a region named by its heading and a labelled group.
+  const sections = section.locator('[data-example-sections]');
+  await expect(sections.getByRole('region', { name: 'Stacked section' })).toBeVisible();
+  await expect(sections.getByRole('group', { name: 'Grouped fields' })).toBeVisible();
+  await expect(sections.getByLabel('Title', { exact: true })).toHaveAttribute('aria-invalid', 'true');
+
+  // Save bar: hidden while clean, visible while dirty, busy while saving, then hidden again; Discard restores.
+  const live = section.locator('[data-example-savebar="live"]');
+  const bar = live.locator('[data-slot="sticky-save-bar"]');
+  await expect(bar).toHaveCount(0);
+  await live.getByLabel('Title', { exact: true }).fill('Changed');
+  await expect(bar).toBeVisible(); await expect(live.getByRole('status')).toHaveText('Unsaved changes');
+  await bar.getByRole('button', { name: 'Discard', exact: true }).click();
+  await expect(live.getByLabel('Title', { exact: true })).toHaveValue(''); await expect(bar).toHaveCount(0);
+  await live.getByLabel('Title', { exact: true }).fill('Changed again');
+  await bar.getByRole('button', { name: 'Save', exact: true }).click();
+  await expect(bar.getByRole('button', { name: 'Saving…' })).toHaveAttribute('aria-disabled', 'true');
+  await expect(live.getByRole('status')).toHaveText('Saving…');
+  await expect(bar).toHaveCount(0, { timeout: 5000 });
+  await expect(section.locator('[data-example-savebar="hidden"] [data-slot="sticky-save-bar"]')).toHaveCount(0);
+  await expect(section.locator('[data-example-savebar="visible"] [data-slot="sticky-save-bar"]')).toBeVisible();
+  await expect(section.locator('[data-example-savebar="busy"]').getByRole('button', { name: 'Saving…' })).toHaveAttribute('aria-disabled', 'true');
+
+  // A focused field is never left under the bar: type in a field near the bottom of the viewport.
+  await page.setViewportSize({ width: 390, height: 700 });
+  await live.getByLabel('Title', { exact: true }).scrollIntoViewIfNeeded(); await live.getByLabel('Title', { exact: true }).fill('x');
+  await expect(bar).toBeVisible();
+  const barBox = await bar.boundingBox(), fieldBox = await live.getByLabel('Title', { exact: true }).boundingBox();
+  expect(barBox && fieldBox && fieldBox.y + fieldBox.height <= barBox.y + 1).toBe(true);
+  await bar.getByRole('button', { name: 'Discard', exact: true }).click();
+
+  // Responsive and themed: compact steps below 768px, full row above; 44px targets below 1024px; no overflow; axe in both modes.
+  for (const width of [360, 390, 768, 1280, 1440]) for (const mode of ['light', 'dark']) {
+    await page.setViewportSize({ width, height: 1000 }); await page.evaluate(value => localStorage.setItem('harvest-color-mode', value), mode); await page.reload(); await settle();
+    const compact = wizardStepper.locator('[data-slot="stepper-compact"]');
+    if (width < 768) { await expect(compact).toBeVisible(); await expect(compact).toContainText('Step 2 of 3'); await expect(list).toBeHidden(); }
+    else { await expect(compact).toBeHidden(); await expect(list).toBeVisible(); }
+    await expect(section.locator('[data-example-stepper="full"]').getByRole('list', { name: 'Example steps, full list' })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth), `${width} ${mode} overflow`).toBeLessThanOrEqual(0);
+    await live.getByLabel('Title', { exact: true }).fill('Dirty');
+    if (width < 1024) for (const control of await section.locator('[data-example-wizard] button:visible, [data-example-savebar] button:visible, [data-example-stepper="nav"] button:visible, [data-example-sections] button:visible').all()) {
+      const box = await control.boundingBox(); if (box) expect(box.height, `${width} ${mode} control height`).toBeGreaterThanOrEqual(43.5);
+    }
+    await axe(`${width} ${mode}`);
+    if (width === 360 || width === 1280) { await section.scrollIntoViewIfNeeded(); await page.screenshot({ path: `${evidence}/forms-${width}-${mode}.png`, fullPage: false }); }
+    await live.getByRole('button', { name: 'Discard', exact: true }).click();
   }
 });

@@ -346,6 +346,34 @@
   "ComponentsConfirmDialog": {
     "failed": "Something went wrong. Try again."
   },
+  "ComponentsStepper": {
+    "stepOf": "Step {current} of {total}",
+    "progress": "Progress",
+    "completed": "Completed",
+    "currentStep": "Current step",
+    "upcoming": "Upcoming"
+  },
+  "ComponentsWizardLayout": {
+    "back": "Back",
+    "next": "Next",
+    "finish": "Finish",
+    "working": "Please wait…"
+  },
+  "ComponentsStickySaveBar": {
+    "unsaved": "Unsaved changes",
+    "save": "Save",
+    "saving": "Saving…",
+    "discard": "Discard",
+    "leaveTitle": "Leave without saving?",
+    "leaveBody": "Your changes will be lost.",
+    "stay": "Stay",
+    "leave": "Leave"
+  },
+  "ComponentsForm": {
+    "couldNotSave": "Could not save. Try again.",
+    "couldNotConnect": "Could not connect. Please try again.",
+    "fixHighlighted": "Fix the highlighted fields and try again."
+  },
   "ComponentsDataTable": {
     "loading": "Loading",
     "selectAll": "Select all",
@@ -374,7 +402,9 @@
     "workspaceName": "Ministry name",
     "pleaseWait": "Please wait…",
     "createWorkspace": "Create ministry",
-    "chooseAMinistryType": "Choose a ministry type."
+    "chooseAMinistryType": "Choose a ministry type.",
+    "nameRequired": "Enter a ministry name.",
+    "nameTooLong": "Use 100 characters or fewer."
   },
   "LibConsentLabels": {
     "outreachFollowUp": "Outreach follow-up",
@@ -2216,6 +2246,10 @@
       "pageParts": {
         "title": "Page pieces",
         "description": "Table shell with tabs, sorting, selection and phone cards, empty states, status badges and confirmation dialogs."
+      },
+      "forms": {
+        "title": "Forms and steps",
+        "description": "Step indicator, wizard frame, titled form sections and the sticky save bar."
       }
     },
     "toast": {
@@ -2393,6 +2427,43 @@
         "failTitle": "Try this action?",
         "failConfirm": "Try it",
         "failMessage": "The example action failed."
+      }
+    },
+    "forms": {
+      "stepperTitle": "Wizard stepper",
+      "stepperLabel": "Example steps",
+      "stepperAllSteps": "Wizard stepper, full list",
+      "stepperFullLabel": "Example steps, full list",
+      "stepperNavTitle": "Navigation stepper",
+      "stepperNavLabel": "Example sections",
+      "soon": "Soon",
+      "steps": {
+        "details": "Details",
+        "audience": "Audience",
+        "review": "Review"
+      },
+      "wizardTitle": "Wizard",
+      "wizardLabel": "Example wizard steps",
+      "wizardError": "Fix the highlighted field to continue.",
+      "wizardDone": "Example finished.",
+      "restart": "Start again",
+      "fieldName": "Name",
+      "fieldTitle": "Title",
+      "fieldRequired": "Enter a value.",
+      "fieldCity": "City",
+      "fieldFirst": "First name",
+      "audienceBody": "Choose who this is for.",
+      "reviewBody": "Ready to create {name}.",
+      "sectionStacked": "Stacked section",
+      "sectionDescription": "One short line, only for a consequence or constraint.",
+      "sectionSplit": "Split section",
+      "sectionAction": "Action",
+      "sectionGroup": "Grouped fields",
+      "saveBarLive": "Save bar, live",
+      "saveBar": {
+        "hidden": "Clean form (bar hidden)",
+        "visible": "Unsaved changes",
+        "busy": "Saving"
       }
     }
   },
