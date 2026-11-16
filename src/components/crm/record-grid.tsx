@@ -11,12 +11,16 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { consentTone } from "@/lib/crm-consent-tone";
+import { StatusBadge } from "@/components/status-badge";
 import { initials } from "./format";
+import { RowSummary, type RowSummaryData } from "./list-row-summary";
 import { useCrmRequest } from "./request";
 
 export type EditSpec = { kind: "text" | "email" | "tel" | "number" | "date" | "boolean" | "select"; value: string; options?: { value: string; label: string }[]; target: "builtin" | "custom"; field: string; maxLength?: number };
 export type GridCell = { text: string; muted?: boolean; href?: string; external?: boolean; badge?: "granted" | "withdrawn" | "none"; more?: number; title?: string; label?: string; edit?: EditSpec };
-export type GridRow = { id: string; version: number; name: string; href: string; secondary: string; cells: Record<string, GridCell> };
+export type GridRow = { id: string; version: number; name: string; href: string; secondary: string; cells: Record<string, GridCell>;
+  /** Phone card details (status and contact links) shown under the name while the grid is narrow. */ summary?: RowSummaryData };
 export type GridColumn = { key: string; label: string; width: number; numeric?: boolean };
 
 const CELL_PADDING = 16;
@@ -132,6 +136,7 @@ export function RecordGrid({ tenantId, objectType, columns, rows, density, label
             <Avatar className={cn(objectType === "company" && "rounded-md", density === "compact" ? "size-6" : "size-8")} aria-hidden="true"><AvatarFallback className={cn("text-xs text-muted-foreground", objectType === "company" && "rounded-md")}>{initials(row.name)}</AvatarFallback></Avatar>
             <span className="min-w-0"><span className="block truncate">{row.name}</span>{row.secondary && <span className="block truncate text-xs font-normal text-muted-foreground @xl:hidden">{row.secondary}</span>}</span>
           </Link>
+          {row.summary && <RowSummary data={row.summary} indent={density === "compact" ? "pl-9" : "pl-11"} />}
         </TableCell>
         {columns.map((column, index) => {
           const cell = row.cells[column.key] ?? { text: "", muted: true }, col = index + 1;
@@ -145,7 +150,7 @@ export function RecordGrid({ tenantId, objectType, columns, rows, density, label
                 {(spec.kind === "boolean" ? [{ value: "true", label: t("yes") }, { value: "false", label: t("no") }] : spec.options ?? []).map((option) => <NativeSelectOption key={option.value} value={option.value}>{option.label}</NativeSelectOption>)}
               </NativeSelect>
               : <Input autoFocus aria-label={t("editColumnForRecord", { column: column.label, name: row.name })} type={spec.kind} value={editing.draft} maxLength={spec.maxLength ?? 500} disabled={busy} onKeyDown={onEditorKeyDown} onChange={(event) => setEditing({ ...editing, draft: event.target.value })} onBlur={() => void commit()} className="h-7 text-xs" />)
-              : cell.badge ? <Badge variant="secondary" className={cell.badge === "granted" ? "bg-success-tint text-success" : cell.badge === "withdrawn" ? "bg-warning-tint text-warning" : "text-muted-foreground"}>{cell.text}</Badge>
+              : cell.badge ? <StatusBadge tone={consentTone(cell.badge)} label={cell.text} />
               : <span className="flex min-w-0 items-center gap-1.5">{cell.href
                 ? <a href={cell.href} tabIndex={-1} aria-label={cell.label} target={cell.external ? "_blank" : undefined} rel={cell.external ? "noreferrer" : undefined} className={cn("block min-w-0 truncate hover:underline", cell.muted && "text-muted-foreground")}>{cell.text}</a>
                 : <span className={cn("block min-w-0 truncate", cell.muted && "text-muted-foreground")}>{cell.text}</span>}

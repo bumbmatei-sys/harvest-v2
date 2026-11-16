@@ -9,6 +9,8 @@ import { getTimeline } from "@/server/activity";
 import { AccessError, can } from "@/server/permissions";
 import { uuidInput } from "@/lib/contact-input";
 import { isStale } from "@/lib/crm-deals";
+import { dealTrackerSteps } from "@/lib/crm-deal-tracker";
+import { StatusTracker } from "@/components/status-tracker";
 import { AccessState } from "@/components/access-state";
 import { ActivityTimeline, NoteComposer } from "@/components/crm/activity-timeline";
 import { RelatedTasks } from "@/components/crm/tasks/related-tasks";
@@ -42,6 +44,7 @@ export default async function DealPage({ params }: { params: Promise<{ tenantId:
   // An archived deal takes no new or changed notes (the API answers 409 parent_archived).
   const notesWritable = can(workspace.role, "notes:write") && !deal.archivedAt;
   const late = isStale(stage.kind, deal.expectedCloseDate, today);
+  const tracker = dealTrackerSteps(pipeline.stages.map((item) => ({ id: item.id, name: item.name, kind: item.kind, archived: !!item.archivedAt })), deal.stageId);
   return <RecordProvider endpoint={`/api/workspaces/${tenantId}/crm/deals/${dealId}`} version={deal.version} writable={writable}>
     <div className="space-y-4">
       <RecordHeader back={<RecordBackLink href={board} label={t("backToPipeline", { pipeline: pipeline.name })} />}>
@@ -55,6 +58,7 @@ export default async function DealPage({ params }: { params: Promise<{ tenantId:
           </p>
         </div>
       </RecordHeader>
+      {tracker.steps.length > 1 && <Card><CardContent><StatusTracker steps={tracker.steps} current={deal.stageId} tone={tracker.tone} label={t("stageProgress")} /></CardContent></Card>}
       {deal.archivedAt && <Alert><AlertDescription className="flex flex-wrap items-center gap-3">{t("archivedDealNotice")}{can(workspace.role, "opportunities:write") && <RecordProvider endpoint={`/api/workspaces/${tenantId}/crm/deals/${dealId}`} version={deal.version} writable><DealArchiveControl archived board={board} /></RecordProvider>}</AlertDescription></Alert>}
       {!can(workspace.role, "opportunities:write") && <Alert><AlertDescription>{t("viewOnlyDeal")}</AlertDescription></Alert>}
       {late && <Alert><AlertDescription>{t("staleDealNotice")}</AlertDescription></Alert>}

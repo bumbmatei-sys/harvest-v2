@@ -1,3 +1,4 @@
+/** Derived from Shadcn UI Kit item todo-app6 (premium), registry retrieved 2026-11-16, approved 2026-11-16 (Kit PR 5). Visual reference only; local changes: docs/ui-sources.md. */
 "use client";
 import { useFormatter, useTranslations } from "next-intl";
 import Link from "next/link";
@@ -6,12 +7,15 @@ import { useState } from "react";
 import { Archive, Building2, CheckCircle2, CircleDot, ClipboardList, Handshake, History, Kanban, Link2, Link2Off, ListChecks, Merge, MessageCircle, Pencil, PencilLine, RotateCcw, ShieldCheck, Sparkles, StickyNote, UserRoundCheck } from "lucide-react";
 import { CRM_TIME_ZONE } from "@/lib/crm-deals";
 import type { TimelineAssociation, TimelineEvent, TimelineItem, TimelineNote } from "@/server/activity";
-import { Badge } from "@/components/ui/badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
+import { InputGroup, InputGroupAddon, InputGroupTextarea } from "@/components/ui/input-group";
+import { Kbd, KbdGroup } from "@/components/ui/kbd";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { StatusBadge } from "@/components/status-badge";
 import { useCrmRequest } from "./request";
 
 const fieldKeys = ["name", "notes", "email", "phone", "social", "domain", "description", "title", "primary"] as const;
@@ -102,14 +106,14 @@ export function ActivityTimeline({ items: first, nextCursor: firstCursor, endpoi
         return <li key={item.id} className="relative">
           {heading && <h2 className="mb-3 pt-1 text-xs font-medium text-muted-foreground first:pt-0">{day(item.createdAt)}</h2>}
           <div className="relative flex gap-3 pb-5">
-            {index < items.length - 1 && <span aria-hidden="true" className="absolute top-8 bottom-0 left-[15px] w-px bg-border" />}
-            <span className="relative flex size-8 shrink-0 items-center justify-center rounded-full border bg-card text-muted-foreground"><Icon aria-hidden="true" className="size-3.5" /></span>
+            {index < items.length - 1 && <span aria-hidden="true" className="absolute top-7 bottom-0 left-[13.5px] w-px bg-border" />}
+            <span className="relative flex size-7 shrink-0 items-center justify-center rounded-full border bg-card text-muted-foreground"><Icon aria-hidden="true" className="size-3.5" /></span>
             {item.kind === "association" ? <AssociationEntry item={item} actor={actorName(item.actor)} tenantId={tenantId} subject={subject} />
               : item.kind === "note"
               ? <NoteEntry note={item} actor={actorName(item.actor)} editable={canWriteNotes && (item.actor.id === currentUserId || canModerate)} tenantId={tenantId} />
-              : <div className="min-w-0 pt-1.5 text-sm">
-                <p className="text-muted-foreground"><span className="font-medium text-foreground">{actorName(item.actor)}</span> {sentence(item)}</p>
-                <time className="mt-0.5 block text-xs text-muted-foreground" dateTime={item.createdAt.toISOString()}>{format.dateTime(item.createdAt, { timeStyle: "short", timeZone: CRM_TIME_ZONE })}</time>
+              : <div className="flex min-w-0 flex-1 items-start justify-between gap-3 pt-1 text-sm">
+                <p className="min-w-0 text-muted-foreground [overflow-wrap:anywhere]"><span className="font-medium text-foreground">{actorName(item.actor)}</span> {sentence(item)}</p>
+                <time className="shrink-0 pt-0.5 text-xs text-muted-foreground" dateTime={item.createdAt.toISOString()}>{format.dateTime(item.createdAt, { timeStyle: "short", timeZone: CRM_TIME_ZONE })}</time>
               </div>}
           </div>
         </li>;
@@ -133,12 +137,12 @@ function AssociationEntry({ item, actor, tenantId, subject }: { item: TimelineAs
     <p className="text-muted-foreground"><span className="font-medium text-foreground">{actor}</span> {tl("associationRecorded", { activity: tl(`associationKinds.${activity}`), source: tl(`associationSources.${source}`) })}
       {subject !== "person" && item.person && <> {tl.rich("associationFor", { person: () => <Link href={`/workspaces/${tenantId}/crm/people/${item.person!.id}`} className="font-medium text-foreground underline-offset-4 hover:underline">{item.person!.name}</Link> })}</>}</p>
     <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-      <Badge variant="secondary" className="h-5 rounded-md px-1.5 text-[11px] font-normal">{tl(`associationPurposes.${purpose}`)}</Badge>
+      <StatusBadge tone="info" label={tl(`associationPurposes.${purpose}`)} />
       {item.occurredAt && <time dateTime={item.occurredAt.toISOString()}>{tl("associationOccurred", { date: format.dateTime(item.occurredAt, { dateStyle: "medium", timeStyle: "short", timeZone: CRM_TIME_ZONE }) })}</time>}
     </p>
     {item.removed ? <p className="mt-2 text-xs text-muted-foreground">{tl("associationRemoved")}</p>
       : item.redacted ? <p className="mt-2 text-xs text-muted-foreground">{tl("associationRedacted")}</p>
-        : item.summary && <div className="mt-2 rounded-lg border bg-muted/40 px-3 py-2 whitespace-pre-wrap [overflow-wrap:anywhere] text-foreground">{item.summary}</div>}
+        : item.summary && <div className="mt-2 rounded-lg border bg-muted/50 p-3 whitespace-pre-wrap [overflow-wrap:anywhere] text-foreground">{item.summary}</div>}
   </div>;
 }
 
@@ -156,20 +160,22 @@ function NoteEntry({ note, actor, editable, tenantId }: { note: TimelineNote; ac
     setEditing(false); router.refresh();
   }
   const id = `note-edit-${note.id}`;
-  return <div className="min-w-0 flex-1 pt-1.5 text-sm">
-    <p className="text-muted-foreground"><span className="font-medium text-foreground">{actor}</span> {tl("addedANote")}</p>
-    <p className="mt-0.5 text-xs text-muted-foreground"><time dateTime={note.createdAt.toISOString()}>{format.dateTime(note.createdAt, { timeStyle: "short", timeZone: CRM_TIME_ZONE })}</time>{note.editedAt && <span> {tl("edited")}</span>}</p>
+  return <div className="min-w-0 flex-1 pt-1 text-sm">
+    <div className="flex items-start justify-between gap-3">
+      <p className="min-w-0 text-muted-foreground"><span className="font-medium text-foreground">{actor}</span> {tl("addedANote")}</p>
+      <p className="shrink-0 pt-0.5 text-xs text-muted-foreground"><time dateTime={note.createdAt.toISOString()}>{format.dateTime(note.createdAt, { timeStyle: "short", timeZone: CRM_TIME_ZONE })}</time>{note.editedAt && <span> {tl("edited")}</span>}</p>
+    </div>
     {editing ? <form className="mt-2 space-y-2" onSubmit={(event) => { event.preventDefault(); void send({ body: draft }); }}>
       <Label htmlFor={id} className="sr-only">{tl("editNote")}</Label>
       <Textarea id={id} value={draft} maxLength={10_000} disabled={busy} autoFocus onChange={(event) => setDraft(event.target.value)} className="min-h-24"
         onKeyDown={(event) => { if (event.key === "Escape") { event.preventDefault(); setEditing(false); setDraft(note.body); } if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); void send({ body: draft }); } }} />
       <div className="flex gap-2"><Button size="sm" disabled={busy || !draft.trim()}>{busy ? tl("saving") : tl("saveNote")}</Button><Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => { setEditing(false); setDraft(note.body); }}>{tl("cancel")}</Button></div>
-    </form> : <div className="mt-2 rounded-lg border bg-muted/40 px-3 py-2 whitespace-pre-wrap [overflow-wrap:anywhere] text-foreground">{note.body}</div>}
+    </form> : <div className="mt-2 flex flex-col gap-2 rounded-lg border bg-muted/50 p-3"><p className="whitespace-pre-wrap [overflow-wrap:anywhere] text-foreground">{note.body}</p>
+      {editable && <><Separator /><div className="-ml-2 flex items-center">
+        <Button size="icon-responsive" variant="ghost" className="text-muted-foreground lg:size-8" aria-label={tl("edit")} title={tl("edit")} onClick={() => { setDraft(note.body); setEditing(true); }}><Pencil aria-hidden="true" /></Button>
+        <Button size="icon-responsive" variant="ghost" className="text-muted-foreground lg:size-8" disabled={busy} aria-label={tl("deleteNote")} title={tl("deleteNote")} onClick={() => void send({ archived: true })}><Archive aria-hidden="true" /></Button>
+      </div></>}</div>}
     {error && <Alert variant="destructive" className="mt-2"><AlertDescription>{error}</AlertDescription></Alert>}
-    {editable && !editing && <div className="mt-1 flex gap-1">
-      <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground" onClick={() => { setDraft(note.body); setEditing(true); }}><Pencil aria-hidden="true" />{tl("edit")}</Button>
-      <Button size="sm" variant="ghost" className="h-7 text-xs text-muted-foreground" disabled={busy} onClick={() => void send({ archived: true })}><Archive aria-hidden="true" />{tl("deleteNote")}</Button>
-    </div>}
   </div>;
 }
 
@@ -189,12 +195,15 @@ export function NoteComposer({ tenantId, target, targetId }: { tenantId: string;
   }
   return <form className="space-y-2" onSubmit={(event) => { event.preventDefault(); void submit(); }}>
     <Label htmlFor={`note-${targetId}`} className="sr-only">{tl("newNote")}</Label>
-    <Textarea id={`note-${targetId}`} value={body} maxLength={10_000} disabled={busy} placeholder={tl("notePlaceholder")} onChange={(event) => setBody(event.target.value)} className="min-h-20" aria-describedby={`note-${targetId}-hint`}
-      onKeyDown={(event) => { if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); void submit(); } }} />
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <p id={`note-${targetId}-hint`} className="text-xs text-muted-foreground">{tl("noteHint")}</p>
-      <Button size="sm" disabled={busy || !body.trim()}>{busy ? tl("saving") : tl("addNote")}</Button>
-    </div>
+    <InputGroup className="h-auto">
+      <InputGroupTextarea id={`note-${targetId}`} value={body} maxLength={10_000} disabled={busy} placeholder={tl("notePlaceholder")} onChange={(event) => setBody(event.target.value)} className="max-h-40 min-h-20" aria-describedby={`note-${targetId}-hint`}
+        onKeyDown={(event) => { if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) { event.preventDefault(); void submit(); } }} />
+      <InputGroupAddon align="block-end">
+        <p id={`note-${targetId}-hint`} className="sr-only">{tl("noteHint")}</p>
+        <KbdGroup aria-hidden="true" className="hidden text-muted-foreground sm:inline-flex"><Kbd>{tl("ctrl")}</Kbd><Kbd>{tl("enterKey")}</Kbd></KbdGroup>
+        <Button size="responsive" className="ml-auto" disabled={busy || !body.trim()}>{busy ? tl("saving") : tl("addNote")}</Button>
+      </InputGroupAddon>
+    </InputGroup>
     {error && <p role="alert" className="text-xs text-destructive">{error}</p>}
   </form>;
 }

@@ -76,7 +76,7 @@ test("showcase exposure and local component interactions", async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Fields', exact: true })).toBeVisible();
   await page.getByRole('combobox', { name: 'Component category', exact: true }).selectOption('kit');
   await expect(page.getByRole('heading', { name: 'Kit-derived items', exact: true })).toBeVisible();
-  for (const item of ['toast1 (free)', 'spinner1 (free)', 'scroll-area1 (free)', 'drawer1 (free)', 'dashboard-shell8 (premium)', 'dashboard-dropdown7 (premium)', 'tables14 (premium)', 'empty-state15 (premium)', 'badge1 (free)', 'alert-dialog1 (free)', 'stepper1 (free)', 'form-layout20 (premium)', 'form-layout1 (premium)', 'field1 (free)']) await expect(page.getByText(item, { exact: true })).toBeVisible();
+  for (const item of ['toast1 (free)', 'spinner1 (free)', 'scroll-area1 (free)', 'drawer1 (free)', 'dashboard-shell8 (premium)', 'dashboard-dropdown7 (premium)', 'tables14 (premium)', 'empty-state15 (premium)', 'badge1 (free)', 'alert-dialog1 (free)', 'stepper1 (free)', 'form-layout20 (premium)', 'form-layout1 (premium)', 'field1 (free)', 'tables19 (premium)', 'tables21 (premium)', 'todo-app6 (premium)']) await expect(page.getByText(item, { exact: true })).toBeVisible();
   const swatchColors = await page.locator('[data-chart-swatches] span[aria-hidden]').evaluateAll(nodes => nodes.map(node => getComputedStyle(node).backgroundColor));
   expect(swatchColors).toHaveLength(5); expect(new Set(swatchColors).size).toBe(5);
   await page.getByRole('combobox', { name: 'Component category', exact: true }).selectOption('all');
@@ -309,5 +309,45 @@ test("forms and steps: stepper states, wizard validation, sections and the save 
     await axe(`${width} ${mode}`);
     if (width === 360 || width === 1280) { await section.scrollIntoViewIfNeeded(); await page.screenshot({ path: `${evidence}/forms-${width}-${mode}.png`, fullPage: false }); }
     await live.getByRole('button', { name: 'Discard', exact: true }).click();
+  }
+});
+
+test("CRM pieces: tracker states, copy button and the phone card summary, at five widths in both themes", async ({ page, context }) => {
+  test.setTimeout(300000);
+  test.skip(process.env.HARVEST_UI_SHOWCASE !== "1", "the showcase is development-only");
+  const evidence = "docs/screenshots/kit-pr5"; await mkdir(evidence, { recursive: true });
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin });
+  await signIn(page); await page.setViewportSize({ width: 1280, height: 1000 }); await page.goto('/dev/ui#crm');
+  const section = page.locator('#crm');
+  await expect(section).toBeVisible();
+  const settle = async () => { await expect(section.getByRole('heading', { name: 'CRM pieces', exact: true })).toBeVisible(); await page.evaluate(() => document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))))); };
+
+  // Tracker: one current step per list; completed, current and upcoming are text as well as colour.
+  const first = section.getByRole('list', { name: 'Example progress', exact: true });
+  await expect(first.locator('[aria-current="step"]')).toHaveCount(1);
+  await expect(first.locator('[aria-current="step"]')).toContainText('Second');
+  await expect(first.getByText('completed')).toHaveCount(1); await expect(first.getByText('upcoming')).toHaveCount(2);
+  // Copy: writes the value and confirms. The click is retried until the page has hydrated this section.
+  await expect(async () => {
+    await section.getByRole('button', { name: 'Copy example address', exact: true }).click();
+    await expect(page.getByText('Copied', { exact: true }).first()).toBeVisible({ timeout: 2000 });
+  }).toPass({ timeout: 30000 });
+  await expect.poll(() => page.evaluate(() => navigator.clipboard.readText())).toBe('sample@example.com');
+
+  for (const width of [360, 390, 768, 1280, 1440]) for (const mode of ['light', 'dark']) {
+    await page.setViewportSize({ width, height: 1000 });
+    await page.evaluate((value) => localStorage.setItem('harvest-color-mode', value), mode); await page.reload();
+    await expect(page.locator('html')).toHaveAttribute('data-theme', mode);
+    await settle();
+    expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations, `${width}-${mode}`).toEqual([]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${width}-${mode} overflow`).toBe(true);
+    const summary = section.locator('[data-example-summary]');
+    for (const link of await summary.getByRole('link').all()) expect((await link.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    if (width < 1024) for (const button of await section.locator('[data-example-copy]').getByRole('button').all()) expect((await button.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    // Compact: only the current tracker label is visible below 640px.
+    const labels = first.locator('li:not([aria-current]) > span:last-child');
+    if (width < 640) { const visible = await labels.evaluateAll(nodes => nodes.filter(node => (node as HTMLElement).getBoundingClientRect().width > 2).length); expect(visible).toBe(0); }
+    await section.scrollIntoViewIfNeeded();
+    if (width === 360 || width === 1280) await section.screenshot({ path: `${evidence}/showcase-crm-${width}-${mode}.png` });
   }
 });

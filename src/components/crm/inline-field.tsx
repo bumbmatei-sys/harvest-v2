@@ -3,6 +3,7 @@ import { useTranslations } from "next-intl";
 import { useId, useRef, useState } from "react";
 import { Pencil } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CopyButton } from "@/components/copy-button";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -13,10 +14,12 @@ import { useRecord } from "./record-context";
  * Enter, Tab and blur save; Escape cancels (Twenty saves on Escape too — Harvest
  * treats it as a safe way out). Multiline values save with Ctrl/Cmd+Enter or blur.
  */
-export function InlineField({ field, label, icon, value, type = "text", multiline = false, maxLength, href, placeholder, validate, required = false, hideLabel = false, emptyLabel, onSave, display, description }: {
+export function InlineField({ field, label, icon, value, type = "text", multiline = false, maxLength, href, placeholder, validate, required = false, hideLabel = false, emptyLabel, onSave, display, description, copyLabel }: {
   field: string; label: string; icon?: React.ReactNode; value: string; type?: "text" | "email" | "tel" | "url" | "number" | "date";
   /** Custom fields save through their own endpoint; built-ins use the record PATCH. */
   onSave?: (value: string) => Promise<string | null>; display?: (value: string) => string; description?: string;
+  /** Adds a copy button beside a linked value; the text is the accessible name (for example "Copy email address"). */
+  copyLabel?: string;
   multiline?: boolean; maxLength: number; href?: string; placeholder?: string; required?: boolean; hideLabel?: boolean; emptyLabel?: string;
   validate?: (value: string) => string | null;
 }) {
@@ -60,9 +63,11 @@ export function InlineField({ field, label, icon, value, type = "text", multilin
         {multiline && !error && <p id={`${id}-hint`} className="text-xs text-muted-foreground">{t("saveWithCtrlEnter")}</p>}
         {busy && <p role="status" className="text-xs text-muted-foreground">{t("saving")}</p>}
         {error && <p id={`${id}-error`} role="alert" className="text-xs text-destructive">{error}</p>}
-      </div> : href && !empty ? <div className="relative flex min-h-8 items-center gap-1">
+      </div> : href && !empty ? <div className="flex min-h-8 items-center gap-1">
         <a href={href} className="min-w-0 rounded-sm px-2 py-1 text-sm [overflow-wrap:anywhere] underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none" rel="noreferrer" target={href.startsWith("http") ? "_blank" : undefined}>{shown}</a>
-        {writable && <Button type="button" variant="ghost" size="icon-sm" onClick={start} aria-label={t("editField", { field: label })} className="absolute right-0 shrink-0 bg-card opacity-0 transition-opacity group-hover/field:opacity-100 focus-visible:opacity-100 pointer-coarse:static pointer-coarse:opacity-100"><Pencil aria-hidden="true" /></Button>}
+        {(writable || copyLabel) && <span className="flex shrink-0 items-center">
+          {copyLabel && <CopyButton value={shown} label={copyLabel} />}
+          {writable && <Button type="button" variant="ghost" size="icon-sm" onClick={start} aria-label={t("editField", { field: label })} className="opacity-0 transition-opacity group-hover/field:opacity-100 focus-visible:opacity-100 pointer-coarse:opacity-100"><Pencil aria-hidden="true" /></Button>}</span>}
       </div> : writable ? <button type="button" onClick={start} aria-label={t("editFieldValue", { field: label, value: visible })}
         className={cn("flex min-h-8 w-full items-start rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none", multiline ? "whitespace-pre-wrap break-words" : "truncate", empty && "text-muted-foreground")}>
         {visible}

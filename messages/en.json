@@ -1027,7 +1027,13 @@
       "removeRule": "Remove source rule {rule}",
       "unavailable": "Unavailable",
       "retry": "Try again"
-    }
+    },
+    "quickActions": "Contact actions",
+    "copyEmail": "Copy email address",
+    "copyPhone": "Copy phone number",
+    "copyDomain": "Copy domain",
+    "emailAction": "Email",
+    "callAction": "Call"
   },
   "Deals": {
     "crm": "CRM",
@@ -1236,7 +1242,8 @@
     "loadingDeal": "Loading deal",
     "changeCompany": "Change organization",
     "changePerson": "Change person",
-    "you": "You"
+    "you": "You",
+    "stageProgress": "Stage progress"
   },
   "Tasks": {
     "crm": "CRM",
@@ -1449,7 +1456,9 @@
       "messaging": "Messaging",
       "form_follow_up": "Form follow-up",
       "newsletter": "Newsletter"
-    }
+    },
+    "ctrl": "Ctrl",
+    "enterKey": "Enter"
   },
   "Imports": {
     "report": {
@@ -2250,6 +2259,10 @@
       "forms": {
         "title": "Forms and steps",
         "description": "Step indicator, wizard frame, titled form sections and the sticky save bar."
+      },
+      "crm": {
+        "title": "CRM pieces",
+        "description": "Status tracker, copy button and the phone card summary used by CRM lists and records."
       }
     },
     "toast": {
@@ -2465,6 +2478,26 @@
         "visible": "Unsaved changes",
         "busy": "Saving"
       }
+    },
+    "crm": {
+      "trackerTitle": "Status tracker",
+      "trackerLabel": "Example progress",
+      "trackerWonLabel": "Example progress, completed",
+      "trackerLostLabel": "Example progress, closed",
+      "steps": {
+        "first": "First",
+        "second": "Second",
+        "third": "Third",
+        "fourth": "Fourth",
+        "lost": "Closed"
+      },
+      "copyTitle": "Copy button",
+      "copyLabel": "Copy example address",
+      "sampleEmail": "sample@example.com",
+      "summaryTitle": "Phone card summary",
+      "sampleName": "Sample person",
+      "sampleStatus": "Subscribed",
+      "samplePhone": "+1 555 0100"
     }
   },
   "SubjectRights": {
@@ -3125,5 +3158,15 @@
     "digestIntro": "Here is what happened in {community} since your last email.",
     "unsubscribe": "To stop emails from {community}, open {url}",
     "oneTime": "This is a one-time message about your own request."
+  },
+  "ComponentsCopyButton": {
+    "copied": "Copied",
+    "failed": "Could not copy"
+  },
+  "ComponentsStatusTracker": {
+    "done": "completed",
+    "current": "current",
+    "upcoming": "upcoming",
+    "position": "Step {index} of {total}"
   }
 }

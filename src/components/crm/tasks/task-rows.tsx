@@ -1,3 +1,4 @@
+/** Derived from Shadcn UI Kit item todo-app6 (premium), registry retrieved 2026-11-16, approved 2026-11-16 (Kit PR 5). Visual reference only; local changes: docs/ui-sources.md. */
 "use client";
 import { useFormatter, useTranslations } from "next-intl";
 import Link from "next/link";
@@ -6,11 +7,14 @@ import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { CRM_TIME_ZONE } from "@/lib/crm-deals";
 import { isOverdue, type TaskPriority, type TaskStatus } from "@/lib/crm-tasks";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { defineStatusTones } from "@/lib/status-tone";
+import { StatusBadge } from "@/components/status-badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useCrmRequest } from "../request";
 import { TaskDialog } from "./task-dialog";
+
+const priorityTone = defineStatusTones({ none: "neutral", low: "neutral", medium: "warning", high: "danger" });
 
 export type TaskRowData = {
   id: string; version: number; title: string; body: string; status: TaskStatus; priority: TaskPriority; dueAt: Date | string | null;
@@ -53,15 +57,15 @@ export function TaskRows({ tenantId, tasks, members, currentUserId, writable, no
         !hide.includes("company") && task.companyId && task.companyName ? { href: `${base}/companies/${task.companyId}`, label: task.companyName } : null,
         !hide.includes("deal") && task.opportunityId && task.dealName ? { href: `${base}/deals/${task.opportunityId}`, label: task.dealName } : null,
       ].filter((item): item is { href: string; label: string } => !!item);
-      return <li key={task.id} className="flex min-w-0 items-start gap-3 py-2.5 first:pt-0 last:pb-0">
+      return <li key={task.id} className="flex min-w-0 items-start gap-3 py-3 first:pt-0 last:pb-0">
         <Checkbox className="mt-0.5 border-muted-foreground/50" checked={status === "done"} disabled={!writable || task.id in pending} aria-label={status === "done" ? t("reopenTask", { task: task.title }) : t("completeTask", { task: task.title })}
           onCheckedChange={(checked) => void toggle(task, checked === true)} />
         <div className="min-w-0 flex-1">
           <p className={cn("text-sm font-medium [overflow-wrap:anywhere]", status === "done" && "text-muted-foreground line-through")}>{task.title}</p>
           <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
             {task.dueAt && <time dateTime={new Date(task.dueAt).toISOString()} className={cn(overdue && "text-warning")}>{t("dueOn", { date: format.dateTime(new Date(task.dueAt), { dateStyle: "medium", timeStyle: "short", timeZone: CRM_TIME_ZONE }) })}</time>}
-            {overdue && <Badge variant="secondary" className="h-5 rounded-md bg-warning-tint px-1.5 text-[11px] font-normal text-warning">{t("overdue")}</Badge>}
-            {task.priority !== "none" && <Badge variant="outline" className="h-5 rounded-md px-1.5 text-[11px] font-normal">{t(`priorities.${task.priority}`)}</Badge>}
+            {overdue && <StatusBadge tone="warning" label={t("overdue")} />}
+            {task.priority !== "none" && <StatusBadge tone={priorityTone(task.priority)} label={t(`priorities.${task.priority}`)} dot />}
             <span>{task.assigneeUserId ? task.assigneeUserId === currentUserId ? t("assignedToYou") : t("assignedTo", { name: task.assigneeName ?? t("formerMember") }) : t("unassigned")}</span>
             {links.map((link) => <Link key={link.href} href={link.href} className="max-w-full truncate hover:text-foreground hover:underline">{link.label}</Link>)}
           </div>
