@@ -41,6 +41,24 @@ Advanced AI assistants/agents and automation builders; connected email/calendar/
 ## Scope freeze / exceptions
 No seventh launch system. An exception requires documented pilot customer adoption/payment blocker, or security/compliance/reliability/data-integrity necessity, or a missing part of an approved workflow. Record evidence, smallest viable solution, dependency/PR estimate, launch delay and founder approval. A nice-to-have is not sufficient.
 
+## Scope exception, 16 Nov 2026
+
+**Recorded founder direction, not an approval.** This section records the founder's 16 Nov 2026 direction to extend launch scope beyond the six systems above. It approves no deployment, production activation, provider contract, real outbound communication or payment activation, and it does not settle any of the five HC-02 activation decisions, which all remain **UNAPPROVED** (`docs/decisions/hc-02-activation-gates.md`). Each item below still needs its own PRD, review and acceptance record before implementation. Where an item overlaps the "Explicitly post-launch" list above, this direction takes precedence for that item only.
+
+Items added to launch scope:
+- **Email, calendars and files** through the Zernio provider layer: Gmail and Outlook mail, Google and Microsoft calendars, Google Drive and OneDrive files. Each admin connects their own mailbox.
+- **Newsletter**: provider Plunk; email-only consent purposes already exist. Resend remains for sign-in and community mail.
+- **Link in bio** and **website builder**.
+- **Native blog articles**, scheduled in the social scheduler and sent via Zernio to WordPress, Wix, Shopify and Webflow.
+- **Documents and spreadsheets.**
+- **AI assistant**: its own mode and a right-hand pane, deeply integrated with Harvest actions behind permissions, approvals and audit. Plugins via Composio.
+- **Social**: composer, calendar planner, unified inbox, and Auto-DM on Instagram and Facebook, all through Zernio.
+
+Commercial and build constraints:
+- **No paid features** until the founder opens an LLC. All courses and products are free for now; coupons and checkout come later.
+- **Donations**: the workaround will come from the founder. Donation provider remains undecided.
+- **Build order**: (1) shell with three modes (Operations, Public, Assistant) plus a pane; (2) finish Operations; (3) Public: social and blog, link in bio, newsletter, free courses and products; (4) website builder; (5) full assistant.
+
 ## Dependency-ordered delivery plan (planning estimate, not implementation proof)
 0. **Reconcile** main/open PRs and migrations, existing PRDs and Craft. Classify existing work as merged / open / partial / absent; document blockers and release gates. Do not merge parked PR #16 or presume open #38 merged.
 1. **Shared release foundation:** finish bounded Phase 0 reusable shell/list/filter/wizard/editor patterns driven by actual consumers; auth/roles/tenant isolation, onboarding, billing, observability.
