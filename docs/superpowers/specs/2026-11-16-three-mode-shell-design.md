@@ -1,6 +1,8 @@
 # Three-mode shell and right-hand pane: design spec
 
-Status: DRAFT proposal, 16 Nov 2026. Documentation only. Nothing here is approved or built. Approves no deployment, activation or provider call.
+Status: Design decisions approved by the founder on 16 Nov 2026 (the 12 defaults; Q5 corrected as above); implementation slices still need their own PRs, reviews and acceptance; this approves no deployment or production activation. Documentation only; nothing here is built.
+
+Correction to Q5: blog articles are in launch scope (16 Nov scope exception, PR #101). They live in Public with the planner: written in Harvest, scheduled in the planner, sent via Zernio to WordPress, Wix, Shopify and Webflow. The entry is reserved now as `planned` (hidden until built).
 
 ## Summary (10 lines)
 
@@ -117,7 +119,7 @@ Settings entries stay in a final "Settings" group of Operations (owner/admin ent
 | Planner / calendar | `/social/planner` | planned; the same planner holds scheduled blog articles |
 | Unified inbox | `/inbox` | planned |
 | Auto-DM (Instagram, Facebook) | `/inbox/auto-dm` | planned, provider-supported only |
-| Blog articles | `/articles` | planned; written in Harvest, scheduled in the planner, sent via the provider layer to external blog platforms (native articles/external distribution are "Post-launch" in CLAUDE.md; this spec only reserves the slot) |
+| Blog articles | `/articles` | planned (launch scope, 16 Nov exception, PR #101); written in Harvest, scheduled in the planner, sent via Zernio to WordPress, Wix, Shopify and Webflow; hidden until built |
 | Website builder | `/website` | not started |
 | Link in bio | `/link-in-bio` | not started (docs/prd 11) |
 | Newsletter | `/newsletter` | planned (docs/prd 12) |
@@ -136,7 +138,7 @@ Settings entries stay in a final "Settings" group of Operations (owner/admin ent
 | Plugins | `/assistant/plugins` | not started (Composio, later) |
 | Settings (permissions, audit) | `/assistant/settings` | not started |
 
-Open conflict to note (Section 13): the "Communities" route `/workspaces/[tenantId]/communities` and the public `/communities/:slug` coexist today; nothing here changes either.
+Open conflict to note (Section 13, Decisions): the "Communities" route `/workspaces/[tenantId]/communities` and the public `/communities/:slug` coexist today; nothing here changes either.
 
 ## 6. Switcher UI
 
@@ -165,7 +167,7 @@ Open-in-pane affordance: an icon button at the right edge of each sidebar item, 
 ### 8.1 Behaviour
 
 - Beside `SidebarInset`'s content, a resizable right column (default 40%, min 320px, max 60%). Below 1280px the pane is an overlay (see 8.6).
-- Header: title (from the registry label), "Open full page" (navigates the main area to the pane's route and closes the pane), close. Optional "Swap" (exchange main and pane) is out of scope, noted in open questions.
+- Header: title (from the registry label), "Open full page" (navigates the main area to the pane's route and closes the pane), close. Optional "Swap" (exchange main and pane) is out of scope, not decided here.
 - Collapsible: closing keeps the last page; the toggle reopens it.
 - URL state: `?pane=<paneId>` on the main URL, plus optional `&paneq=<encoded safe query>` for a few whitelisted params (a record id). Reload, deep link, back and forward reproduce the pane. Opening the pane uses `router.push` once (a back step closes it); resizing and in-pane navigation use `replace`.
 - The pane's own navigation (links inside it) is kept inside the pane when the target is allow-listed; otherwise the link opens in the main area.
@@ -254,20 +256,36 @@ Each PR names the shared systems reused, records light/dark and responsive evide
 
 Rollback: slice 2 behind a build-time/runtime flag so the old sidebar can be restored without a revert until the founder accepts it.
 
-## 13. Open questions for the founder (recommended default for each)
+## 13. Decisions (founder, 16 Nov 2026)
 
-1. Does choosing a mode navigate anywhere? Default: no; it only swaps the sidebar.
-2. Mode names in copy: "Operations", "Public", "Assistant" exactly? Default: yes; confirm Christian-terminology wording does not prefer alternatives.
-3. Where do Events, Giving and the Church profile sit if they are used publicly (public event pages, donation pages)? Default: Operations owns management; public pages are separate routes.
-4. Files and Calendar are Operations; the Planner is Public. Cross-links between them are plain navigations that switch the mode. Default: accept.
-5. Blog articles: one slot in Public and the same planner as social posts. Default: reserve the slot now, build when the Post-launch gate lifts.
-6. Hide vs "coming soon" for unbuilt modules. Default: hidden.
-7. Pane default width and breakpoint (40% at >=1280px). Default: as written; ask for a one-screen prototype review.
-8. Shortcuts: Alt+P toggle, Alt+click open in pane, Ctrl/Cmd+Alt+1..3 for modes. Default: as written, pending a conflict test.
-9. Should the pane also allow editors in read-only form (for example a landing preview)? Default: preview only, never the editor.
-10. Assistant plugins (Composio): who approves each plugin and per-tool permission? Default: owner/admin approval per plugin, per-tool opt-in, every call audited; to be specified in the assistant runtime spec.
-11. Per-user vs per-ministry default mode (for example giving a volunteer-role user Operations only). Default: per-user only; role filtering already hides empty modes.
-12. Do "Settings" entries belong to Operations or to a mode-independent area (profile menu)? Default: Operations' last group.
+All 12 recommended defaults approved; Q5 corrected.
+
+1. Choosing a mode never navigates; it only swaps the sidebar.
+2. Mode names Operations, Public, Assistant are final.
+3. Events, Giving and Church profile: Operations owns management; public pages are separate routes.
+4. Cross-mode links (Files/Calendar vs Planner) are plain navigations that switch the mode.
+5. Blog articles: NOT deferred. Launch scope (PR #101); Public mode with the planner; entry reserved now as `planned` (hidden until built).
+6. Unbuilt modules are hidden, not shown as "coming soon".
+7. Pane: 40% width at 1280px and above, overlay below; prototype review before fixing numbers.
+8. Shortcuts as proposed (Alt+P, Alt+click, Ctrl/Cmd+Alt+1..3), subject to a conflict test.
+9. Pane shows previews only, never editors.
+10. Assistant plugins: owner/admin approval per plugin, per-tool opt-in, every call audited (to be specified in the runtime spec).
+11. Default mode is per-user only.
+12. Settings entries stay in the last group of Operations.
+
+### First two slices (precise)
+
+**Slice 1: registry modes, no UI change.**
+- Add a required `mode: "operations" | "public" | "assistant"` field to every `NavEntry`; add `status?: "live" | "planned"` (default live). Classify all existing entries (people, companies, pipelines, tasks, imports, campaigns, follow-up, files, CRM fields, pipeline settings, appearance, ministry settings to Operations; communities to Public).
+- `resolveNavigation` accepts `mode` and never returns `planned` entries; add `resolveMode` and `modeAvailability`. Reserve planned entries (including blog articles in Public).
+- No change to `AppShell` rendering, routes, permissions, migrations or message output visible to users.
+- Acceptance: the type system rejects an entry without `mode`; unit tests cover every entry having a mode, filtering by role/audience/feature per mode, empty mode reported unavailable, planned entries never yield an href, neutral-page fallback, each existing route resolving to the expected mode; existing `tests/unit/navigation.test.ts` passes unchanged in meaning; the rendered sidebar is identical before and after (existing shell e2e green); lint, typecheck, unit, build green.
+
+**Slice 2: switcher UI.**
+- Three-segment tablist at the top of the sidebar (icon rail variant; segmented control in the drawer below 1024px), per-mode sidebar from slice 1, neutral-page mode remembered in localStorage (try/catch), mode keyboard shortcuts, live-region announcement. Behind a flag so the old sidebar can be restored.
+- Acceptance: e2e at 360, 390, 768, 1280, 1440 for switching, deep link landing in the right mode, rail tooltips, drawer, keyboard (arrows, Home/End, shortcuts); axe clean on each; 44px targets below 1024px; no horizontal scroll; light and dark screenshots viewed; empty modes hidden; choosing a mode does not navigate; ministry switcher and permissions unchanged; PR records reused shared systems and independent review.
+
+Implementation slices still need their own PRs, reviews and acceptance.
 
 ## 14. Risks
 
