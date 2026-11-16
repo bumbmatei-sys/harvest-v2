@@ -1531,3 +1531,12 @@ export const officeConnections = pgTable("office_connections", {
   check("office_connection_ref", sql`length(${t.externalAccountRef}) between 1 and 200`),
   check("office_connection_envelope", sql`jsonb_typeof(${t.credentialEnvelope}) = 'object' and ${t.credentialEnvelope} ?& array['version','keyId','binding','iv','tag','ciphertext'] and not (${t.credentialEnvelope} ?| array['secret','token','apiKey','accessToken']) and octet_length(${t.credentialEnvelope}::text) <= 4096`),
 ]);
+
+// Counter only: no visitor identifiers, headers, per-scan row or sub-day timestamp.
+export const campaignScanDays = pgTable("campaign_scan_days", {
+  tenantId: uuid("tenant_id").notNull(), campaignId: uuid("campaign_id").notNull(),
+  day: date("day").notNull(), count: integer("count").notNull().default(0),
+}, t => [primaryKey({ columns: [t.tenantId, t.campaignId, t.day] }),
+  foreignKey({ columns: [t.tenantId, t.campaignId], foreignColumns: [campaigns.tenantId, campaigns.id] }),
+  check("campaign_scan_count", sql`${t.count} >= 0`),
+]);
