@@ -44,15 +44,30 @@ function SheetOverlay({
   )
 }
 
+/** Per-side layout; the bottom side is a phone-first sheet: height cap, rounded top, safe-area padding. */
+const sheetSideClasses = {
+  right:
+    "inset-y-0 right-0 h-full w-3/4 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm",
+  left:
+    "inset-y-0 left-0 h-full w-3/4 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm",
+  top:
+    "inset-x-0 top-0 h-auto border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
+  bottom:
+    "inset-x-0 bottom-0 h-auto max-h-[85dvh] overflow-y-auto rounded-t-xl border-t pb-[env(safe-area-inset-bottom)] data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
+} as const
+
 function SheetContent({
   className,
   children,
   side = "right",
   showCloseButton = true,
+  showHandle = true,
   ...props
 }: React.ComponentProps<typeof SheetPrimitive.Content> & {
   side?: "top" | "right" | "bottom" | "left"
   showCloseButton?: boolean
+  /** Bottom sheets only: the grab handle shown above the content. */
+  showHandle?: boolean
 }) {
   const t = useTranslations("ComponentsUiSheet");
   return (
@@ -62,21 +77,21 @@ function SheetContent({
         data-slot="sheet-content"
         className={cn(
           "fixed z-50 flex flex-col gap-4 bg-popover shadow-lg transition ease-in-out data-[state=closed]:animate-out data-[state=closed]:duration-300 data-[state=open]:animate-in data-[state=open]:duration-500",
-          side === "right" &&
-            "inset-y-0 right-0 h-full w-3/4 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm",
-          side === "left" &&
-            "inset-y-0 left-0 h-full w-3/4 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm",
-          side === "top" &&
-            "inset-x-0 top-0 h-auto border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
-          side === "bottom" &&
-            "inset-x-0 bottom-0 h-auto border-t data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
+          sheetSideClasses[side],
           className
         )}
         {...props}
       >
+        {side === "bottom" && showHandle && (
+          <div data-slot="sheet-handle" aria-hidden="true" className="mx-auto -mb-2 mt-2 h-1.5 w-12 shrink-0 rounded-full bg-border" />
+        )}
         {children}
         {showCloseButton && (
-          <SheetPrimitive.Close className="absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-secondary">
+          <SheetPrimitive.Close className={cn(
+            "absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-secondary",
+            // Bottom sheets are phone-first: 44px target below 1024px.
+            side === "bottom" && "top-2 right-2 flex size-11 items-center justify-center rounded-md lg:size-8"
+          )}>
             <XIcon className="size-4" />
             <span className="sr-only">{t("close")}</span>
           </SheetPrimitive.Close>
@@ -133,6 +148,7 @@ function SheetDescription({
 }
 
 export {
+  sheetSideClasses,
   Sheet,
   SheetTrigger,
   SheetClose,

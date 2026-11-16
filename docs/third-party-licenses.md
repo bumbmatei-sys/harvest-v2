@@ -774,3 +774,11 @@ Exact pins in `package.json`; the lockfile carries the transitive graph. No AGPL
 ## Studio Admin Phase 0A
 
 Visual tokens and shell patterns adapted from `arhamkhnz/next-shadcn-admin-dashboard`, commit `05b2b927f556e0dce18c9023afa23f8219f39c93`. MIT, copyright (c) 2024 Mohammed Arham Khan. Notice: [studio-admin-MIT.txt](licenses/studio-admin-MIT.txt). See [exact source mapping](ui-sources.md#phase-0a--studio-admin-shell-baseline). No new package dependency.
+
+## Kit PR 1 additions (2026-11-16)
+
+| Package | Version | License |
+| --- | --- | --- |
+| `sonner` | 2.0.8 | MIT |
+
+Global toast, wrapped by `src/components/ui/sonner.tsx` and `src/lib/toast.ts`. No transitive runtime dependencies. Founder-approved 2026-11-16.

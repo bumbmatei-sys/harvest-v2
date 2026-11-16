@@ -47,7 +47,9 @@ test("ministry type at creation, in settings, and read-only for viewers", async 
   await expect(page.getByRole("radio", { name: "Evangelist or missionary", exact: true })).toBeChecked();
   await page.getByRole("radio", { name: "Church", exact: true }).check();
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page.getByText("Ministry type saved.", { exact: true })).toBeVisible();
+  // The confirmation is a toast in the polite live region, not an inline alert.
+  await expect(page.getByRole("region", { name: "Notifications" }).getByText("Ministry type saved.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("main").getByText("Ministry type saved.", { exact: true })).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole("radio", { name: "Church", exact: true })).toBeChecked();
   await shoot(page, "settings-owner");

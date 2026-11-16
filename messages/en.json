@@ -329,6 +329,13 @@
   "ComponentsUiSheet": {
     "close": "Close"
   },
+  "ComponentsUiSpinner": {
+    "loading": "Loading"
+  },
+  "ComponentsUiToaster": {
+    "notifications": "Notifications",
+    "close": "Dismiss"
+  },
   "ComponentsUiSidebar": {
     "sidebar": "Sidebar",
     "displaysTheMobileSidebar": "Displays the mobile sidebar.",
@@ -2162,11 +2169,53 @@
         "title": "Feedback",
         "description": "Loading, empty, error, permission and selected states."
       },
+      "primitives": {
+        "title": "Primitives",
+        "description": "Spinner, scroll area, toggle group and keyboard keys."
+      },
+      "toast": {
+        "title": "Toast",
+        "description": "The global toast outlet: success, error, information and an optional action."
+      },
       "kit": {
         "title": "Kit-derived items",
         "description": "Items adopted from the component kit, and the chart colors of the current theme."
       }
     },
+    "toast": {
+      "show": "Show toast",
+      "showSuccess": "Show success toast",
+      "showError": "Show error toast",
+      "created": "Example created",
+      "createdDetail": "This toast has an optional action.",
+      "undo": "Undo",
+      "undone": "Example restored.",
+      "success": "Example saved.",
+      "error": "Example could not be saved.",
+      "errorDetail": "Nothing was changed."
+    },
+    "primitives": {
+      "spinnerTitle": "Spinner",
+      "spinner": { "sm": "Small", "default": "Default", "lg": "Large" },
+      "toggleTitle": "Toggle group",
+      "viewMode": "View mode",
+      "listView": "List view",
+      "gridView": "Grid view",
+      "formats": "Text formats",
+      "bold": "Bold",
+      "italic": "Italic",
+      "underline": "Underline",
+      "toggleState": "{view}, {count, plural, one {# format} other {# formats}}",
+      "scrollTitle": "Scroll area",
+      "scrollList": "Scrollable example list",
+      "scrollListTitle": "Example list",
+      "scrollRow": "Example item {number}",
+      "kbdTitle": "Keyboard keys",
+      "kbdHint": "Open search with",
+      "ctrl": "Ctrl",
+      "searchKey": "K"
+    },
+    "bottomSheet": "Example bottom sheet",
     "kit": {
       "none": "No kit items adopted yet",
       "adopted": "{item} ({tier})",
