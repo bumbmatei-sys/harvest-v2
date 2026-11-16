@@ -13,7 +13,7 @@ Status: DRAFT proposal, 16 Nov 2026. Documentation only. The founder's request b
 7. Preview contract: draft data only, no sends, sandboxed, same render path as the public page where possible.
 8. Breakpoints: preview column from 1280px; below that a Preview toggle/tab; steps collapse into a top sheet on phone and tablet; 44px targets.
 9. Slices: 3a editor context + AppShell state + community editor migrated (static preview slot); 3b preview column + device toggle; then one PR per module (community, campaign wizard CW-02+, courses/products, link in bio, newsletter, website, forms).
-10. Open questions with recommended defaults are in section 11; assumptions not verified are in section 12.
+10. Proposed by the assistant, not yet approved (section 10a): switcher stays visible; preview and pane never both open below 1600px; phone-first design; three step states and a Publish checklist; autosave by default; preview renders the real public component with a visitor/member switch and click-to-field; editor mode only for long-lived items; assistant proposes drafts, never auto-applies. Open questions (section 11) and unverified assumptions (section 13) follow.
 
 ## 1. Goal and non-goals
 
@@ -40,7 +40,7 @@ Design source: Eden reference screens (layout and information architecture only)
   3. Steps: an ordered list, each with number or done check, label, optional badge and a disabled state. The current step has `aria-current="step"`.
   4. Footer area (above the profile row): "Open page" link (only when the item has a public URL, opens a new tab with `rel="noopener"`), and optional secondary facts (member count).
 - Brand row, profile menu (ministry switcher), theme toggle and collapse trigger remain, so the user is never trapped.
-- Mode switcher while editing: hidden in the item sidebar to save space, and the mode is kept. The back link returns to the item's list inside the same mode. The mode switch is reachable through the back link (one step) and the keyboard shortcuts from the main spec, which still work and confirm leave if dirty (section 7).
+- Mode switcher while editing: superseded by section 10a (proposed, not yet approved): the switcher stays visible and only the entry list swaps. Earlier text: hidden in the item sidebar to save space, and the mode is kept. The back link returns to the item's list inside the same mode. The mode switch is reachable through the back link (one step) and the keyboard shortcuts from the main spec, which still work and confirm leave if dirty (section 7).
 - Collapsed icon rail while editing: shows numbered step icons with tooltips and the back arrow; labels in tooltips. Recommended default: when an editor mounts, the sidebar keeps its current open/collapsed state (the cookie), it does not force it.
 
 ## 4. Representation in the registry and AppShell
@@ -132,17 +132,34 @@ Depends on three-mode slices 1 and 2 (registry `mode`, switcher UI). No migratio
 - **Cleanup.** Remove the in-page stepper fallback from `EditorShell` once all consumers migrated; update `docs/design-system.md`, the component registry and acceptance records.
 - Rollback: 3a behind a flag so the navigation sidebar is always used until the founder accepts it.
 
+## 10a. Recommended refinements (proposed by the assistant, not yet approved; pending founder review)
+
+Where these conflict with earlier sections, they win once approved; until then both stand and section 11 shows the updated defaults.
+
+1. **Mode switcher stays visible in editor mode.** Only the list of entries swaps for the item sidebar (back link, name and badge, steps, Open page). The back link and the command palette remain. The mode is kept.
+2. **Space rule.** The preview column appears from 1280px. Below 1600px the assistant/pane and the preview never both open: the most recently opened wins and the other becomes a toggle or sheet. From 1600px both may be side by side (form keeps at least 28rem). Replaces the width-budget table's pane rows where they differ.
+3. **Phone first.** Steps become a "Step n of m" top bar that opens a list sheet; the preview is a full-screen toggle button; Back and Next sit in a bottom bar; every target is at least 44px. The phone layout is designed and accepted before the desktop layout in each slice.
+4. **Three step states:** done, needs attention, not started (plus current and disabled as today). The Publish step is a checklist of what is missing and blocks publishing until the required items are done; each missing item links to its step. State is text plus icon, never colour alone.
+5. **Autosave by default.** Drafts autosave and resume, reusing the campaign wizard's planned autosave/resume and idempotency approach (that wizard, CW-02+, is not built; the exact mechanism must be taken from its plan, not invented here). `StickySaveBar` is used only for forms that need a manual save. The leave guard (section 7) fires only when there are unsaved or unsynced changes; a status line shows Saved / Saving / Not synced.
+6. **Real preview, bidirectional.** The preview renders the real public page component from draft data (same render path), with a "view as visitor / as member" switch (sample data only, never real members). Clicking an element in the preview scrolls to and focuses the matching form field, and focusing a field highlights the matching preview element. Keyboard alternative: a "Show in preview" / "Go to field" control per field group and a focusable list of preview regions, so the feature does not depend on a pointer.
+7. **Scope of editor mode.** Only long-lived items with a public page and several steps: community, course, product, campaign, link in bio, website, newsletter, form. Short flows stay dialogs, sheets or `WizardLayout`.
+8. **Assistant in editor mode.** The assistant offers "Improve this section" and "Write this for me" on a section. It proposes changes as a draft shown as a diff or side-by-side; the user approves or discards; nothing is auto-applied or autosaved before approval. Context passed follows the assistant frame rules (ids and the section's draft text only with the user's consent; permissions and approval as in the main spec). This spec defines the frame only, not the AI runtime.
+
+Added acceptance criteria (in addition to section 10):
+- **3a:** designed and checked on phone first (360 and 390): "Step n of m" bar and list sheet, Back/Next bottom bar, 44px targets, then 768, 1280, 1440. Mode switcher visible and working while editing; entry list swapped; command palette still opens. Step states done/needs attention/not started render with text and icon. Publish step lists missing items and Publish is disabled until required items are done. Autosave status line and a leave guard that fires only with unsaved or unsynced changes (autosave mechanism: reuse the campaign wizard's approach if it exists by then; otherwise 3a keeps the current manual save and records the gap).
+- **3b:** phone preview as a full-screen toggle; preview column from 1280px; below 1600px opening the pane closes or converts the preview to a toggle and vice versa (most recent wins), with a test at 1280, 1440 and 1600; preview renders the real public component (snapshot equality with the public page on the same fixture); visitor/member switch uses sample data only; click-to-field and field-to-preview highlight work, with the keyboard alternative covered by e2e and axe; no network request from preview interaction; the assistant draft proposal (if the frame exists by then) never applies without approval.
+
 ## 11. Open questions for the founder (recommended default for each)
 
 1. Step state in the URL (`?step=`)? Default: yes, from 3b (replace, no new route).
-2. Hide the mode switcher while editing? Default: yes; back link and shortcuts remain.
+2. Hide the mode switcher while editing? Updated default (proposed by the assistant, not yet approved): NO, keep it visible; only the entry list swaps; back link and command palette remain. Supersedes the earlier default in section 3.
 3. Should the editing sidebar force-expand the sidebar if collapsed? Default: no, keep the user's state.
 4. "Share preview" needs a signed, expiring preview link (a new server capability and a privacy decision). Default: omit until separately specified.
 5. "Test checkout" / "Preview as buyer": needs payment-provider decisions. Default: omit; checkout shown as "off in preview".
 6. Which header actions are common (Preview as viewer) vs module-specific? Default: shell provides slots only; modules supply them.
 7. Preview isolation: same document and inert (default) vs iframe. Default: same document; iframe only for the website builder if user HTML is allowed.
 8. Preview column width and the 1280px threshold. Default: 24rem at 1536px and above, 22rem from 1280px; confirm with a prototype.
-9. Does the assistant pane stay overlay at 1280 to 1535px? Default: yes.
+9. Does the assistant pane stay an overlay at 1280 to 1535px? Updated default (proposed by the assistant, not yet approved): below 1600px the pane and the preview never both open; the most recently opened wins (section 10a).
 10. Should short flows (create dialogs, the first-run wizard) use `WizardLayout` rather than editor mode? Default: yes; editor mode is for items with a persistent draft and a public page.
 
 ## 12. Risks
