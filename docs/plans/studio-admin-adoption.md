@@ -2,6 +2,8 @@
 
 **Decision (founder, 2026-11-08; updated):** Studio Admin is the sole primary visual reference for Harvest's authenticated shell, pages, dashboards, forms, editors, and Harvest Studio unified inbox. Shadboard is not a design reference. Premium, restrained, professional UI is the target; avoid playful theme presets. **Match Studio Admin's actual default color palette, surfaces, typography, borders, spacing and dark mode as closely as feasible.** Harvest gold must not dominate the default theme; keep it for a later optional separate theme. **All 12 founder-selected palettes in `docs/design/theme-candidates.md` are approved future selectable themes, deferred until the Studio Admin baseline is implemented—not canceled.**
 
+> Update 16 Nov 2026: the Shadcn UI Kit has been purchased; see [the kit inventory and adoption plan](shadcnuikit-adoption.md). It augments, and does not change, the decisions in this document.
+
 **Scope of this PR:** planning only. No application UI, providers, routes, auth, database, or production behavior changes. Do not infer that the source template's example social-media imagery implements platform integrations.
 
 ## Reference and license

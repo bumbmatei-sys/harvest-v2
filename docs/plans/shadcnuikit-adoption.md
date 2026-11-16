@@ -1,0 +1,210 @@
+# Shadcn UI Kit — inventory and adoption plan
+
+Planning document, 16 Nov 2026. Documentation only: no kit source, registry JSON or downloaded block content is in this repository, and no dependency, token, route or UI file changes here. Companion: [catalog map](shadcnuikit-catalog-map.md) (counts for all 1228 items). Related: [Studio Admin adoption](studio-admin-adoption.md), [design-system foundation](design-system-foundation.md), [Phase 0 inventory (12 Nov)](design-system-inventory-2026-11-12.md), [component registry](../component-registry.md), [UI source register](../ui-sources.md), [master specification](../design-system.md). Nothing here approves implementation, merge, deployment or any change to launch scope; every PR below needs its own go-ahead and the approval gate in section 2.
+
+## 1. Summary and recommendation
+
+The kit is a shadcn registry (`@shadcnuikit`, 1228 items: 567 component variants, 555 blocks, 70 examples, 36 illustrations) of plain React/Tailwind source that sits on top of the stock shadcn primitives. It is a **pattern and variant library, not a design system**: it ships no tokens, no theme, no shell of its own, and it is written in English with sample data.
+
+1. **Adopt as a source of patterns and a small number of primitives, not as a replacement for Studio Admin or the current `src/components/ui`.** Studio Admin stays the visual default; the typed-registry `AppShell` stays the only shell.
+2. **Free-first.** 559 of 564 component variants and 31 blocks/examples are free; almost every block we would want (shell, tables, kanban, calendar, chat/inbox, forms, onboarding, charts) is premium. See the license flag in section 9 before any premium block's code reaches this public repository.
+3. **Nothing can be dropped in.** Measured over all 1228 items: 93% fail Harvest's i18n guard, 30% fail the color guard, only 5% pass both. Every adopted item is converted (messages catalogue, semantic tokens, 44px phone targets, no sample data, no vendor strings) in the same PR that adds it. Raw kit source is never committed, even temporarily, because lint would fail.
+4. **Compatibility with the stack is good.** Kit source targets Next 16 / React 19 / Tailwind 4 / `radix-ui` and imports only stock primitives; 845 items need nothing Harvest lacks, and a type-check of 33 sampled items against Harvest's real primitives produced no primitive-API errors (3 brand-icon errors only).
+5. **Biggest practical frictions:** i18n conversion, the missing chart tokens, no toast system, React Hook Form + zod 3 in 41 form items (Harvest has neither; zod is 4), and brand icons removed in lucide 1.x.
+6. **Do not replace working domain UI:** CRM `ListPage`/filter builder, deal board (accessible dnd-kit moves), Connect landing editor, Communities editor/forum. The kit informs their polish.
+7. **Every visual build starts with a kit item approval gate** (section 2). The founder approves exact items before anything visual is built.
+8. **Sequence:** tooling and provenance first, then primitives top-up, then shared templates, then module screens by launch priority (about 12 PRs, section 7).
+9. **Founder decisions needed** are in section 4; the license/public-repository question and the plan/seat question come first.
+10. **Fix, independent of the kit:** the person page shows consent controls to members; gate them on the permission keys (section 8).
+
+### Verified vs inferred
+
+| Verified (fetched or run on 16 Nov 2026) | Inferred or not tested |
+| --- | --- |
+| Registry index and all 1228 items downloaded (200 each, valid JSON) to a scratch directory; sources read for the sampled items | Runtime behaviour: nothing was rendered, run in a browser or built |
+| Guard, dependency, primitive, token, icon and vendor-string counts (catalog map) by script over all items | Bundle sizes (only dependency lists were read) |
+| Type-check of 33 sampled items (82 files) against Harvest's real `src/components/ui` | `@hookform/resolvers` 5 with zod 4 and `@base-ui/react` utility use are reasoned, not installed |
+| `lucide-react` 1.68.0 export check of every icon import | Per-item free/premium for the 567 components (site says 5 are premium; which ones was not identified) |
+| License page, docs pages, pricing page and category pages fetched (200) | Legal reading of the license (not attempted) |
+| Preview anchors exist in fetched category pages (`#tables-19`, `#chat-ui-10`) | Whether previews render for a signed-out visitor; the kit's admin-dashboard repositories were not accessible and not inspected |
+| `ui.shadcn.com` is blocked from this sandbox (CONNECT 403) | CLI flags such as dry-run behaviour were not exercised |
+
+Sampled and type-checked: `tables1`, `tables5`, `tables19`, `tables21`, `data-table1`, `stepper1`, `command1`, `command9`, `empty-state1`, `empty1`, `field1`, `file-upload1`, `dashboard-shell1`, `dashboard-shell8`, `sidebar-layout`, `kanban-board3`, `event-calendar1`, `chat-ui10`, `chat-ui4`, `onboarding-screen4`, `onboarding-screen9`, `form-layout1`, `chart1`, `combobox1`, `pagination1`, `calendar1`, `toast1`, `mail-app4`, `todo-app6`, `dashboard-modal24`, `checkout1`. Source also read for shell, stepper (and its `ui/stepper`), form, chart and kanban items.
+
+## 2. Kit item approval gate (first step of every PR)
+
+Founder rule: there are very many kit items, so **nothing visual is built until the founder approves the exact items.** Applies to every PR in section 7 and to any later screen.
+
+**Process.** Before writing UI, the author posts an approval request using the template below and stops. The founder approves, swaps items, asks for other candidates, or supplies screenshots or mockups of preferred designs (no Figma connector is available in this environment, so images are the interchange). Building starts only after the founder's answer is recorded. If scope grows mid-PR, the new items go through the gate too.
+
+**Template (copy per screen or area).**
+
+| Screen / area | Kit item (registry name) | Free / premium | Preview link | Used for in Harvest | Alternative 1 | Alternative 2 | Harvest shared component kept / reused | Founder decision (approve / swap / other) | Date |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| e.g. Follow-up cases queue | `chat-ui4` | premium | https://shadcnuikit.com/blocks/application-ui/chat-ui#chat-ui-4 | Case thread layout: timeline of events and internal note composer | `chat-ui5` | `tables15` | `RecordLayout`, `Item`, `Badge`; permission checks stay in the page | | |
+
+**Rules.**
+- Registry name exactly as in the registry (for example `ai-chat1`), one row per item. Status (free/premium) comes from the kit's category page badge.
+- **Preview link** = `https://shadcnuikit.com` + the item's registry `href` + `#` + the name with a hyphen before its trailing number. Verified on 16 Nov 2026: the category pages for dashboard shells, tables, chat, stepper and toast return 200, and the anchors `#tables-19` and `#chat-ui-10` are present in the fetched pages. One registry entry (`toast-component1`) has an `href` that returns 404; say so in the request if it is proposed. The request must say which links the author opened.
+- "Used for" is the Harvest job, not the kit's demo. "Alternatives" are one or two other registry items for the same job. "Shared component" names the existing Harvest component that stays (for example `AppShell`, `ListPage`, `EditorShell`, `ui/empty`) so the founder sees what is not being replaced.
+- No visual work, dependency installs or token changes for the screen before the decision is filled in. A request with "approve all" still lists the items.
+- **Recorded in provenance:** the chosen items, the decision and the approval date go into the provenance record (section 6) in the same PR, and the PR description links the approved request.
+
+## 3. Kit facts
+
+| Fact | Evidence |
+| --- | --- |
+| **What it is** | Registry `@shadcnuikit` (https://shadcnuikit.com/r/{name}.json). 661 `registry:block` (555 blocks, 70 examples, 36 illustrations) + 567 `registry:component` variant files. Operated by a third party; "not affiliated with shadcn/ui". No version number is published; the license page is dated 12 Oct 2026 and the latest changelog entry is 12 Oct 2026. Record the registry retrieval date as the version. |
+| **Stack it targets** | Docs and sources: Next.js 16 App Router, React 19, Tailwind CSS v4, TypeScript. Sources use v4-only syntax (`h-(--header-height)`, `has-data-[…]`, `*:`). Same major versions as Harvest. |
+| **Base library** | Blocks import stock primitives by registry dependency (`button`, `card`, `sidebar`, …) from the project's own shadcn setup, so Harvest's Radix-based `ui/` is what they run on. Descriptions say variants work with both Radix and Base UI. Direct `radix-ui` imports appear in 53 items; `@base-ui/react` in 22 (the stepper family, autocomplete, two blocks), used for `use-render`/`merge-props` helpers. |
+| **Primitives it ships itself** | 23 files under `components/ui` (stepper, kanban, form, bubble, attachment(s), message-scroller, conversation, prompt-input, questionnaire, resizable, gantt, map, code-block, …). **None collides** with a Harvest filename. |
+| **Icons** | `lucide-react` (960 imports), a few `@remixicon/react` (10 items) and `@tabler/icons-react` (3). Icon names use the `…Icon` suffix; compatible with Harvest's lucide 1.68. 25 items import brand icons (GitHub, Twitter, Facebook, Instagram, LinkedIn, YouTube, Dribbble, GitLab) that lucide 1.x no longer exports; a type-check confirmed this. |
+| **Fonts** | No `next/font` in any item. Eight items use a `font-display` class that Harvest does not define. Others use `font-mono`/`font-serif`. Harvest uses Geist via its theme registry. |
+| **Tokens and theming** | No `cssVars`/theme item. Items use stock semantic classes only: `muted` (5272 uses), `primary`, `foreground`, `background`, `destructive`, `border`, `ring`, `accent`, `card`, `popover`, `chart-1…5` (290 uses), a few `sidebar-*`, `text-success` (20; Harvest defines `success`). **Harvest has no `--chart-*` tokens**: the 82 chart items need them added to every palette in `theme-registry.ts`. 289 items (24%) use raw palette classes (`bg-green-500`) and 58 use hex values; Harvest's color guard rejects both. A "Theme Generator" exists on the site (exports oklch CSS variables); Harvest keeps palettes in `src/lib/theme-registry.ts` as hex, so its output is a reference, not a drop-in. |
+| **Light/dark** | 317 items use `dark:` variants; the rest rely on tokens. Harvest's dark mode is class/`data-theme` based through its own registry, not `next-themes`. 23 items mention `next-themes` (7 import it); the stock `sonner` wrapper does too and needs a Harvest adapter. |
+| **RTL / i18n** | No RTL support: 243 items use physical `ml/mr/pl/pr`, 117 logical (`ms/me/ps/pe`), 16 touch `rtl:`; nothing uses a direction provider. All copy is hard-coded English. Harvest has one catalogue (`messages/en.json`, next-intl), so RTL is not a current requirement, but converting spacing to logical properties while localizing costs nothing. |
+| **Accessibility** | Generally good basis: 716 items use `aria-*`, 234 `sr-only`, 152 `role=`. The stepper is a roving-tabindex tablist with arrow/Home/End keys. Gaps seen: stepper indicators are `size-6` (24px); 349 items use button sizes under 44px on phones; 13 items put `onClick` on a `div`; `motion` (56 items) is JS-driven, so Harvest's CSS reduced-motion override does not cover it (needs a user-preference motion config). Each adopted item still needs Harvest's axe pass. |
+| **Layout rules** | 444 items center content with `mx-auto … max-w-*`. Harvest requires full-width layouts inside the shell; wrappers must be removed. |
+| **Sample data and assets** | About 344 references to `i.pravatar.cc` and `images.unsplash.com`; 52 items contain the vendor's name or logo URL (for example a sidebar logo `https://shadcnuikit.com/logo.png`); 23 use `Math.random`/faker. None may ship (vendor names in UI break the provider-neutral rule; remote images break the offline/PWA and privacy posture). The license says demo images and copy are placeholders to replace. |
+| **Dependencies it brings** | Beyond Harvest's set: `recharts` (82 items), `sonner` (58), `motion` (56), `zod` 3 + `@hookform/resolvers` 3 + `react-hook-form` (41), `@tanstack/react-table` (25), `@base-ui/react` (22), `nanoid`+`ai` (21, AI chat), `shiki` (18), `@shadcn/react` (16, MIT, 56 KB), `maplibre-gl` (16), `valibot`+`@formisch/react` (14, a second form stack), `@dnd-kit/sortable`/`modifiers` (11/7), `zustand` (7). 866 of 1228 items need nothing new. Harvest has `zod` 4, `@dnd-kit/core` 6.3.1 pinned exactly, `cmdk`, `react-day-picker` 10, `date-fns` 4, `input-otp`. |
+| **Missing stock primitives** | `toggle-group` (82 items), `chart` (82), `scroll-area` (75), `drawer` (66), `spinner` (62), `sonner` (45), `accordion`, `carousel`, `hover-card`, `navigation-menu`, `slider`, `toggle`, `kbd`, `use-mobile` (Harvest has its own hook). These come from the stock shadcn registry, not the kit. |
+| **Bundle-size risks** | Inferred from the dependency list, to be measured: `recharts`, `maplibre-gl`, `shiki`, `motion`, `@base-ui/react` (large package; the stepper needs two small helpers that can be replaced with Harvest's `Slot`). Rule: heavy libraries are loaded only on routes that use them, dynamically where they are below the fold. |
+| **Compatibility with Harvest's primitives** | Type-check of 33 sampled items (shell, tables, kanban, calendar, chat, wizard, forms, command, toast) against Harvest's real `src/components/ui`: after excluding errors caused by packages and primitives not installed, **the only errors were 3 brand icons**. Harvest's `ui/*` matches the API the kit expects (including `Field`, `InputGroup`, `Item`, `Empty`, `Sidebar` floating variant, `Button` sizes `icon-sm` etc.). |
+
+## 4. Relationship to Studio Admin, and decisions needed
+
+Studio Admin (MIT, pinned commit in `docs/ui-sources.md`) is the founder-approved visual reference; the 12 founder-selected themes and optional Harvest Gold stay future token variants. The kit does not change that. Studio Admin facts below are as recorded in the existing plan, not re-inspected here.
+
+| Area | Studio Admin (reference, current) | Kit | Recommendation |
+| --- | --- | --- | --- |
+| Shell, floating sidebar, header, breadcrumbs, mobile drawer | Defines the target; implemented in `AppShell` on the typed registry | `dashboard-shell1…9` (9 shells, two floating: `7`, `8`), `sidebar-layout`, `dashboard-page-layout1…3` | **Leave.** Kit shells have no permission, workspace or audience logic and break at Harvest's 1024px sidebar breakpoint (they assume `md`). Mine `dashboard-shell8`'s header affordances only when a real search/notification feature exists |
+| Tables and lists | Data-grid look | 25 table blocks, 6 data tables (TanStack) | **Augment.** Keep server-driven `ListPage`; borrow row, bulk-selection bar and phone card layouts. No TanStack unless a consumer needs client sorting |
+| Forms and settings | Form/page structures | 22 form layouts (RHF + zod), 10 `field` variants | **Augment** via the shared field components; adopt RHF + zod only through the form-engine PR |
+| Inbox / editor | Chat and mail pages as presentation references | 10 chat UIs (omnichannel CRM chat, shared inbox, support desk, approval inbox), 8 mail apps | **Augment.** Closer to Harvest's needs than a generic chat; still presentation only |
+| Calendar, kanban | Calendar and Kanban pages | 4 calendars (month/week/day/agenda + drag), 7 kanbans | **Augment** for the scheduler; keep the deal board's accessibility logic |
+| Charts, stat cards | Analytics dashboards | 70 charts, 33 stat cards | **Replace-by-adoption**: Studio Admin charts were never imported, so the kit is the first chart source (needs chart tokens) |
+| Stepper, onboarding, wizard chrome | Not covered | 14 steppers (free), 10 onboarding screens | **New** (Harvest has no wizard engine) |
+| Empty states, toasts, skeletons, spinners | Partial | 22 empty-state blocks, 8 empty, 12 toasts, 7 skeletons, 14 spinners | **Augment**; toast is net-new |
+| Marketing/public blocks | Not covered | 190 marketing, 59 e-commerce | **New**, low priority (public pages only) |
+
+**Visual-direction conflict risk.** Kit blocks carry their own opinions (rounded-2xl floating headers, `font-display`, centered max-width cards, `shadow-none`). They re-skin cleanly through tokens, but the converted result must be compared with Studio Admin, not with the kit demo.
+
+**Founder decisions needed**
+
+1. **License and public repository** (section 9): confirm that the founder's 16 Nov statement covers committing converted premium-block code to a public repository, or choose an alternative. Ideally a written reply from the vendor.
+2. **Plan and seats.** Which plan was bought (Pro covers one user, Team ten)? Who may use the API key (founder only, or other contributors; agent sessions use the founder's key)? Were the private admin-dashboard repositories (they include CRM, kanban, chat, social-media and academy dashboards) included, and may they be inspected? They were not accessible here.
+3. **Direction.** Confirm Studio Admin stays the default and the kit is a pattern library ("augment, do not replace").
+4. **New dependencies**, each only with a real consumer: `sonner` (toast system), `recharts` (charts), `react-hook-form` + resolver (the master specification already selects it), `@tanstack/react-table` (probably not), `motion` (probably not), `@dnd-kit/sortable` (only if reordering UI needs it), `@base-ui/react` (recommend no).
+5. **Chart tokens** added to every palette in the theme registry, including the 12 future themes.
+6. **Toast system:** adopt one global toast (none exists today)?
+7. **Network access** for `ui.shadcn.com` in agent sessions (blocked here), or founder-run installs for stock primitives.
+8. **Illustrations and marketing blocks:** out of scope for launch unless the founder says otherwise.
+9. **Item approvals** per the gate, including whether the founder prefers to browse the kit and name items himself.
+
+## 5. Module mapping
+
+(F) free, (P) premium. Candidate names are registry names; previews follow the link rule in section 2. "Has" is what exists on `main` today; "reuse" keeps it. Descriptions are the registry's, not tested behaviour.
+
+| Area | Top candidates | Harvest has | Reuse vs build | Dependency / conflict notes |
+| --- | --- | --- | --- | --- |
+| App shell, sidebar, header, breadcrumbs, mobile nav | `dashboard-shell8` (P, floating, icon collapse, header with search and popovers), `dashboard-dropdown7` (P, workspace switcher with search/plan/role), `breadcrumb1…6` (F) | `AppShell`, `ui/sidebar`, `ui/breadcrumb`, typed `navigation.ts`, workspace switcher | Reuse all; build nothing new. Optional: workspace-switcher search when users have many ministries | Kit assumes `md`; Harvest sidebar breakpoint is 1024. Header search is inert until a real search exists |
+| Dashboards / workspace home | `stat-card1` (F), `stat-card12` (P), `chart52` (P), `chart60` (P) | No home dashboard (lands on CRM) | Build, from approved items, real metrics only | Needs `recharts`, `ui/chart`, chart tokens |
+| CRM People/Organizations lists, filters, saved views | `tables19` (P, people directory with chips, filters, side sheet), `tables5` (F, members with role pill), `tables7` (F, bulk selection bar), `data-table1` (F) | `ListPage`, `ListToolbar`, `filter-builder`, `record-grid`, `view-menu`, `columns-menu` | Reuse server-driven list and filter popover. Borrow phone card layout and bulk bar | TanStack not installed and not needed. Filter UI stays the existing ReUI-inspired panel |
+| CRM profile, notes, timeline, tasks | `tables21` (P, contact record with edit mode), `todo-app6` (P, drawer with timeline and note composer), `todo-app5` (P, grouped task table) | `RecordLayout`, `activity-timeline`, `inline-field`, `crm/tasks` | Reuse; kit as visual reference for timeline and task rows | Consent controls must be permission-gated (section 8) |
+| Deals kanban | `kanban-board3` (P, sales pipeline with stage sums and table view), `kanban-board1` (P), `kanban-board6` (P) | `crm/deals/deal-board.tsx` on `@dnd-kit/core` with keyboard moves and announcements | Keep. At most restyle cards | Kit `ui/kanban` needs `@dnd-kit/sortable` and `tunnel-rat`; its announcements are English |
+| Forms/surveys builder and public renderer | `field1…10` (F), `form-layout5` (P, feedback form with progress and rating cards), `star-rating`/`questionnaire` (kit `ui`) | `QuestionListEditor`, `QuestionFields`, `EditorShell` | Reuse. Add choice cards, rating and progress after approval | `ui/form` is RHF-based. Do not add `valibot`/`@formisch` (second form stack) |
+| Wizards (campaign, community, course) and onboarding | `stepper1…14` (F), `onboarding-screen9` (P, three-step stepper wizard with preview), `onboarding-screen4` (P, adaptive by audience), `form-layout20` (P) | `EditorShell` step nav, `account-profile-form`, `create-community-dialog`; no wizard engine | Build the wizard engine on the free stepper plus screen patterns | Stepper uses `@base-ui/react` helpers (replace with `Slot`); 24px indicators need 44px triggers |
+| Communities owner pages | `tables9` (P, members with roles and featured switches), `form-layout11` (P, space creation with cover dropzone and visibility), `form-layout15` (P, settings with vertical tabs that become a select on mobile), `dashboard-modal17` (P) | `community-editor`, applications, invites, `moderation-panel`, `forum-categories-editor` | Reuse editor and moderation; adopt layout ideas after the shared table/empty-state PR | `/communities/:slug` public routes and `/workspaces/[tenantId]/...` owner routes unchanged |
+| Communities member pages, forum/feed, moderation queue, Discover | `social-media-post1` (P, feed cards), `chat-ui3`/`chat-ui8` (P, grouped messengers), `tables14` (P, status tabs with bulk actions), `product-list7` (P, filterable catalog) | `CommunityShell`, forum components, `RichTextView`, `discover-results` | Reuse. Design comes from the Eden reference screens, style from Studio Admin; kit is a third input only where the founder approves | Discover is communities, courses, products; not social content |
+| Courses/products, checkout, delivery | `product-details1`/`6` (P), `checkout1` (P), `pricing14` (P), `chart69` (P, learner progress), `stat-card28` (P) | Nothing built | Build after the payment provider decision; UI only until then | Kit checkout items include card-number style inputs: Harvest must not collect card details in its own fields; provider-hosted fields only. Dodo billing UI stays separate |
+| Connect: QR landing editor, preview | `form-layout14` (P, public page editor with cover/avatar), `file-upload1…10` (F) | `landing-editor`, `landing-view`, `PublicFrame`, `EditorShell` guard | Reuse; kit only for image-upload visuals | Free resources, consent/account separation and QR lifecycle stay in Connect code |
+| Connect: follow-up cases queue (HC-13 UI), pending-response metadata | `chat-ui4` (P, shared inbox with timeline, assignment events, internal note), `chat-ui5` (P, support desk), `tables15` (P, stage moves with bulk), `tables14` (P) | HC-13 server only (migration 0048); no screens | Build after the approval gate; queue and case detail from approved items | Counselor scope: members see only assigned cases (server-enforced); owner/admin-only metadata pages are bounded. UI is presentation only |
+| Consent permission cards | `switch-card1` (P, label + description + switch card), `dashboard-modal24` (P, permission checklist dialog) | `ConsentForm`, `MarketingBadge`, purpose registry | Reuse; cards for display only | Grant controls only with `contacts:attest_consent`; withdrawal with `contacts:record_withdrawal` (section 8) |
+| Social scheduler: calendar, composer | `event-calendar1` (P, month/week/day/agenda with drag reschedule), `event-calendar2` (P), `date-picker-example1…4` (F), `tables8` (P, content calendar with details sheet), `social-media-post1` (P, preview card) | Nothing built | Build against the Harvest-owned integration layer; calendar from approved item | `@dnd-kit/core` + utilities (sortable not needed); provider-neutral copy; no real sends |
+| Unified inbox | `chat-ui10` (P, omnichannel CRM chat with channel badges, assignee/status menus, contact panel), `chat-ui4` (P), `mail-app4` (P, sales inbox with contact panel), `bubble1…7`/`attachment1…5` (F) | Nothing built | Build a channel-neutral inbox with capability flags | Kit UI implies capabilities (send products, transfer); only show controls the provider supports. `@shadcn/react` message scroller; no `ai` SDK needed |
+| Settings, billing, members, roles | `form-layout1` (P, account settings with sticky save bar), `form-layout15` (P), `tables5` (F), `dashboard-modal4` (P, sharing/roles), `dashboard-modal10` (P, plans) | `MinistrySettingsForm`, `AppearanceForm`, `ProfileForm`, members list | Reuse forms; adopt sticky save bar and members/role table through shared pieces | RHF + zod through the form-engine PR only |
+| Auth | `signin-form1` (F) | Email-code sign-in (`input-otp`), Better Auth | Leave | Kit forms assume password/social sign-in |
+| Public/marketing pages | `hero1`, `faq1`, `newsletter1` (all F), premium marketing blocks | `PublicFrame`, Connect/Communities public pages | Low priority; only for public community/discover pages | Any newsletter sign-up must go through the consent flow; no vendor logos |
+| Charts / analytics | `chart56`, `chart45`, `chart60` (P) | Nothing | Build with the chart PR | Chart tokens; `font-display` classes removed; reduced-motion |
+| Empty / loading / error states | `empty-state7` (P, access denied), `empty-state2` (P, no results), `empty1…8` (F), `skeleton1…7` (F), `spinner1…14` (F) | `ui/empty`, `ui/skeleton`, `ui/alert`, route `error.tsx` | Reuse; fold into the shared `EmptyState` slice | The registry has no error-page or 404 block; build from `ui/empty` |
+| Notifications | `toast1…12` (F), `dashboard-dropdown2` (P, bell popover with tabs) | `NotificationsMenu`, community `notification-bell` | Reuse bells; add one toast system via the primitives PR | No toast exists today; `sonner` wrapper must not use `next-themes` |
+
+## 6. Duplication, conflicts and provenance
+
+**Overlap with `src/components/ui`.** The kit does not ship its own versions of Harvest primitives: blocks depend on stock registry names, so installing a block normally adds only missing primitives, and the kit's 23 own `ui` files collide with none of Harvest's 36. The conflict is therefore with Harvest's *customizations* of stock files (i18n error strings, 1024px breakpoint, 44px sizes, semantic-token edits, portal `container` props): never let a CLI run overwrite an existing `ui/*` file (this has been the practice since PR 01b), and review any stock file the CLI adds.
+
+**How to avoid forking drift**
+- **Compose, do not fork.** Kit primitives that are genuinely new (`stepper`, `kanban` only if approved, `bubble`, `attachment`, `message-scroller`) go in `src/components/ui/` with Harvest conversion. Blocks never go into `ui/`; the shared compositions land where the Phase 0 inventory slices already point (`DataTable` shell, `EmptyState`, `StatusBadge`, `ConfirmDialog`, `ListEditor`), and module screens stay in their module folders.
+- **No staging area in the repo.** Lint (i18n and color guards) rejects raw kit source, so raw items live only in a scratch directory outside the repository; only the converted result is committed.
+- **Conversion checklist per item:** copy to the catalogue (`messages/en.json`, no vendor names, concise copy with no routine description under each field); semantic tokens only; remove `mx-auto max-w-*` and demo data; 44px below 1024px using the existing `responsive`/`icon-responsive` sizes; logical spacing; no remote images; brand icons replaced; `motion` replaced by CSS unless approved; permission checks and server calls added by the Harvest screen, never in the generic piece.
+- **Naming:** Harvest names, not kit names (`DataTable`, not `Tables19`).
+- **Provenance header** on every file derived from a kit item:
+  `/** Derived from Shadcn UI Kit item <name> (<free|premium>), registry retrieved <date>, approved <date> (<PR>). Local changes: docs/ui-sources.md. */`
+- **Provenance record.** Add a "Shadcn UI Kit" section to `docs/ui-sources.md` (the existing register) with one row per adopted item: registry name, free/premium, registry retrieval date (the kit has no version number), install date, approval request and founder decision date, Harvest file paths, local modifications, new dependencies and their licenses (also in `docs/third-party-licenses.md`). Add a unit test that every file with the header is listed in that section and that `components.json` contains only the `${REGISTRY_TOKEN}` placeholder.
+- **Token handling.** The CLI copies source into the repo, so the token is needed only at install time on a developer machine. `components.json` gets the `@shadcnuikit` entry with `"Authorization": "Bearer ${REGISTRY_TOKEN}"`; the value lives in a local `.env` (already ignored by `.env*`; `.env.example` may list the variable name with no value). It is never committed and never needed by CI: the GitHub Actions workflow does not run any registry command and no secret is added. In agent sessions the credential is injected by the network proxy, so the session never sees it. After an item is copied, builds depend only on the repository.
+- **Stock primitives** (`chart`, `drawer`, `toggle-group`, …) come from the shadcn registry and are recorded like the existing "Round 2 registry additions". `ui.shadcn.com` is blocked in this sandbox (CONNECT 403, as earlier registered), so these are installed on a machine with access or copied from the pinned upstream repository commit as before.
+
+## 7. Staged PR sequence
+
+Each PR is small, independently reviewable, and **starts with the approval gate (section 2)**; the filled-in, founder-approved request and its date is an acceptance criterion of every PR below and is recorded in provenance. Common acceptance (section 8) applies to all. Item names are proposals until approved.
+
+| PR | Scope | Kit items (proposed) | Files touched | Tests | Risk |
+| --- | --- | --- | --- | --- | --- |
+| 0a (not kit) | Gate consent controls on the person page: grant on `contacts:attest_consent`, withdrawal on `contacts:record_withdrawal` (the latter key is on the unmerged consent-withdrawal branch; sequence after it merges) | none | person page, `consent-form.tsx` | Permission e2e per role (denied roles do not see actions) | Low |
+| 0 | Tooling and provenance: `@shadcnuikit` registry entry in `components.json`, `.env.example` variable name, provenance section in `docs/ui-sources.md`, provenance and token-leak unit tests, chart tokens in the theme registry (light/dark, all palettes), `/dev/ui` group listing adopted kit-derived items | none or `stat-card1` as the pilot | `components.json`, `.env.example`, `theme-registry.ts`, `globals.css`, docs, `src/lib/ui-showcase.ts`, tests | Unit: provenance/token tests, theme registry tests; showcase e2e | Low; chart tokens touch every theme |
+| 1 | Primitives top-up (stock): `toggle-group`, `scroll-area`, `drawer`, `spinner`, `kbd`, plus toast (`sonner`) with a Harvest theme adapter and catalogue strings | `toast1…` as pattern (F) | `src/components/ui/*`, `package.json` (`sonner`), messages | Unit; axe; showcase | Low-medium (dependency) |
+| 2 | Shell review: record keep/adjust decision for `AppShell`; only if approved, header composition slot (page actions, optional search), workspace-switcher search. No change to nav, permissions or audience logic | `dashboard-shell8`, `dashboard-dropdown7` as references | `app-shell.tsx`, messages | Existing layout/foundation e2e at 360/390/768/1280/1440; keyboard focus trap | Medium (every page) |
+| 3 | Shared page pieces: `DataTable` shell, `EmptyState`, `StatusBadge`, `ConfirmDialog` (Phase 0 inventory slices 3-4) informed by kit tables and empty states; consumers: communities lists, files list, CRM company-people | `tables5`, `tables7`, `empty-state2`, `empty1…8` | new shared components, 4+ consumers | Unit; e2e for each consumer; axe | Medium |
+| 4 | Forms and wizard primitives: stepper from the free variants (without `@base-ui/react`), React Hook Form + zod adoption if approved, sticky save bar, choice cards; consumers: ministry creation, community editor step nav | `stepper1…`, `field1…10`, `form-layout1` | `ui/stepper.tsx`, form helpers, 2 consumers | Unit; keyboard e2e; 44px checks | Medium-high (new engine) |
+| 5 | CRM screens: person/organization lists and profile polish (phone card layout, bulk bar, timeline/task rows). No change to server filters, exports or the deal board | `tables19`, `tables21`, `todo-app6` | `crm/*` | Existing `crm*.spec.ts`; filters spec; permission matrix | Medium |
+| 6 | Connect: follow-up cases queue and case detail (HC-13 UI), pending-response metadata views, consent cards. Counselor scope and owner/admin-only metadata enforced by the server | `chat-ui4`, `chat-ui5`, `tables15`, `switch-card1` | `connect-admin/*`, new pages | New e2e: assigned member vs other member vs owner; consent gates | Medium-high (privacy) |
+| 7 | Communities: owner pages, member list, moderation queue, Discover cards, feed polish | `tables9`, `tables14`, `form-layout11`, `product-list7`, `social-media-post1` | `communities/*`, discover | Existing community specs; cross-tenant and role checks | Medium |
+| 8 | Campaigns: creation wizard on the PR 4 wizard, events calendar | `onboarding-screen9`, `event-calendar2` | `campaigns/*` | Campaign e2e; wizard draft/resume | Medium |
+| 9 | Courses and products: authoring, catalog, detail, checkout/delivery UI. Payment fields only after the provider decision | `product-details1`, `checkout1`, `pricing14` | new module | E2E with a stubbed provider; entitlement tests | High (blocked on provider) |
+| 10 | Social scheduler and unified inbox (after the Harvest-owned provider adapter exists): calendar, composer, channel-neutral inbox with capability flags | `event-calendar1`, `chat-ui10`, `bubble1…7` | new module | Sandbox adapter tests; no real sends | High (blocked on adapter) |
+| 11 | Dashboards and charts: workspace home, finance/campaign/learning analytics with real metrics only | `stat-card12`, `chart56`, `chart60` | new components, `recharts` | Unit; axe; lighthouse budget | Medium (bundle) |
+
+Order follows launch priority (CRM, Connect HC-13 queue, Communities, campaigns, courses/products, social inbox); PRs 9 and 10 cannot start until their provider decisions and adapters exist, and PR 11 can move earlier if the founder wants a home dashboard.
+
+**Estimate:** about 12 PRs (one non-kit fix, tooling, primitives, shell review, shared pieces, forms/wizard, six module PRs, charts), possibly split further where a module is large. No calendar promises: each waits on its approval gate, independent review and the founder's go-ahead.
+
+## 8. Verification per PR
+
+Common acceptance, recorded in the PR description with evidence:
+
+- **Approval gate:** founder-approved request attached; items and date in the provenance record; no unlisted kit item used.
+- **Responsive:** 360, 390, 768, 1280, 1440 widths; no horizontal page overflow; full-width layouts inside the shell; every control 44px below 1024px (reuse the `expectActionSizes`-style assertion in `studio-foundation.spec.ts`); dense data tables have an intentional overflow or phone card layout.
+- **Themes:** light and dark screenshots on the same screens; any item that adds colors reads only semantic tokens, so the 12 future palettes inherit it; chart colors verified against each registered palette.
+- **Accessibility:** axe (`@axe-core/playwright`, already used in 80+ assertions) clean; keyboard path for every new interaction; visible focus; reduced motion honored (including JS animations).
+- **Visual evidence:** committed screenshots under `docs/screenshots/<slug>/` as existing PRs do (current practice is evidence screenshots, not pixel-diff baselines; add baselines only if the founder asks).
+- **Performance:** record first-load JS for each touched route before and after (`next build` output); heavy libraries (`recharts`, `motion`, `maplibre-gl`, `shiki`) load only on routes that need them; Lighthouse is already a dev dependency for spot checks. No numeric budget is invented here: the first PR that adds a heavy dependency proposes one for the founder.
+- **Copy and terminology:** no vendor names (kit or integration provider) in any rendered string; Organizations, not Companies; user-facing "ministry"; concise copy (no routine sentence under each field); `copy-rules` unit test and source guards pass.
+- **Domain logic untouched:** permissions, tenant scoping, consent purposes, QR lifecycle and server contracts unchanged unless the PR says otherwise. **Denied roles must not see actions:** gate each control with `can(role, …)` from `src/lib/permissions.ts`; add an e2e that signs in as a member and a viewer and asserts the controls are absent. Concrete case: the person page currently renders the consent form when the role can write contacts (members included); grant controls should require `contacts:attest_consent` (owner/admin) and withdrawal controls `contacts:record_withdrawal`, which exists only on the unmerged consent-withdrawal branch today.
+- **Hygiene:** `npm run lint` (includes the source guards), typecheck, unit, build; new dependencies and licenses recorded; no secrets, no vendor logos, no remote images.
+
+## 9. License and provenance note
+
+- The founder stated on 16 Nov 2026 that the license is fine. This document records that statement and does not offer a legal conclusion.
+- Terms: [License](https://shadcnuikit.com/license) (last updated 12 Oct 2026), [License & Access docs](https://shadcnuikit.com/docs/license-and-access), [Terms & Conditions](https://shadcnuikit.com/terms-conditions). Fetched 16 Nov 2026.
+- **Flag for the founder (facts, not a conclusion).** This repository is public. The license page lists, under what is not allowed, resale or redistribution of the products and source, and "publish premium items in open source projects or public repositories where others can copy the code"; the docs repeat that publishing premium items in public repositories is not allowed. Free items "can be used in personal and commercial projects without a license" but may not be collected and redistributed as a UI kit. The plan is free-first, but nearly all candidate blocks are premium. Please confirm the 16 Nov statement covers premium-derived code in this public repository; if there is any doubt, options are (a) written confirmation from the vendor (contact address on the license page), (b) restrict premium-derived work to a private repository or fork, (c) use premium blocks only as visual references and re-implement from free items and stock primitives. TODO (founder): paste the vendor's confirmation or the chosen option here.
+- Other license facts that affect process: every person who uses the products needs to be covered (Pro: one user, Team: up to 10); demo images, avatars, logos and copy are placeholders to be replaced; no attribution required; third-party packages keep their own licenses (record each in `docs/third-party-licenses.md`).
+
+## 10. Risks and open questions
+
+| Risk / question | Mitigation or owner |
+| --- | --- |
+| Premium code in a public repository (section 9) | Founder decision before the first premium-derived commit |
+| 93% of items need i18n conversion; conversion cost can exceed hand-building | Approve few items per screen; prefer free variants and patterns; stop and rebuild from stock primitives when conversion is larger than a rewrite |
+| Visual drift from Studio Admin | Compare to Studio Admin, not the kit demo; token-only styling |
+| New dependency creep (`recharts`, `motion`, `zustand`, a second form library) | One approved dependency per consumer; no `valibot`/`@formisch` |
+| Chart tokens across 12 future palettes | Added in PR 0 for current palettes; the future-theme workstream must supply them |
+| Kit UI implies capabilities Harvest lacks (send products, transfer, AI drafts) | Only show controls backed by a service and permission; the approval-inbox pattern (`chat-ui6`) must not auto-send |
+| Card-number inputs in checkout items | Never in Harvest-owned fields; provider-hosted only |
+| Accessibility regressions (24px stepper indicators, `div` click targets, JS motion) | Axe plus 44px assertions per PR |
+| Registry changes after purchase (updates are included) | Pin by recording the retrieval date and the converted copy; no auto-update |
+| `ui.shadcn.com` blocked for agents | Environment decision or founder-run installs |
+| Admin-dashboard repositories not inspected | Founder to say whether access exists and whether to inspect them |
+| Unknown: which 5 component variants are premium | Check on the per-item page at approval time |
+| Provider-neutral copy | Social inbox and scheduler UI never name the integration provider |
+
+Boundaries: this plan authorizes no dependency installation, token change, UI work, migration, production activation, outbound message, merge or deployment. Production intake and real invitation delivery remain hard-disabled; the five HC-02 activation decisions remain unapproved; PR #16 stays parked.
