@@ -37,3 +37,7 @@ HC-03 resolves public resource links without collecting guest responses. These g
 When a decision is made, record its date, approver, scope/jurisdiction, approved policy and supporting evidence here and reconcile HC-02 §5 and Craft. Keep any unresolved gate explicitly unapproved.
 
 Plain-language options and recommendations for these five decisions: [decision sheet](hc-02-decision-sheet.md) (presents options only; approves nothing).
+
+## Prayer-request review scope (16 Nov 2026)
+
+Prayer-request data is a new sensitive category in scope of HC-DEC3 (erasure/tombstones), HC-DEC4 (retention) and HC-DEC5 (encryption) reviews, per [Community Live §15](../superpowers/specs/2026-11-16-community-live-design.md#15-decisions-and-open-questions). Proposed retention is 30 days after closure, at most 90 days after submission, and 180 days for prayer-wall items, subject to legal review; the retention job and failure evidence are required before real data. This approves no gate and no real collection. All five gates remain **UNAPPROVED**.
