@@ -44,6 +44,11 @@ describe("form failure mapping", () => {
     const resolver = harvestFormResolver(schema);
     expectTypeOf(resolver).toEqualTypeOf<Resolver<{ count: string }, unknown, { count: number }>>();
   });
+  it("preserves catchall input/output types with an explicit schema generic", () => {
+    const schema = z.object({ count: z.number() }).catchall(z.number());
+    const resolver = harvestFormResolver<typeof schema>(schema);
+    expectTypeOf(resolver).toEqualTypeOf<Resolver<z.input<typeof schema>, unknown, z.output<typeof schema>>>();
+  });
   it("maps known fields, takes the first message of a list and keeps the form message", () => {
     expect(splitFailure({ message: "Not saved", fields: { name: ["Taken", "Other"], audience: "Pick one" } }, ["name", "audience"]))
       .toEqual({ fields: { name: "Taken", audience: "Pick one" }, form: "Not saved" });

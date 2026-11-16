@@ -9,8 +9,8 @@ import { useHarvestForm } from "../../src/hooks/use-harvest-form";
 // Exercise the hook -> real react-hook-form -> real Zod resolver -> submit handler boundary without a browser.
 const schema = z.object({ name: z.string().trim().min(1, "Required"), count: z.string().transform(Number) });
 function mounted(defaults: z.input<typeof schema>) {
-  let captured!: ReturnType<typeof useHarvestForm<typeof schema.shape>>;
-  function Harness() { captured = useHarvestForm(schema, defaults); return null; }
+  let captured!: ReturnType<typeof useHarvestForm<typeof schema>>;
+  function Harness() { captured = useHarvestForm<typeof schema>(schema, defaults); return null; }
   renderToString(h(NextIntlClientProvider, { locale: "en", messages, children: h(Harness) }));
   captured.form.register("name"); captured.form.register("count");
   return captured;
@@ -29,4 +29,21 @@ it("blocks invalid values before the handler, permits correction, and maps a ser
   await hook.submit((value) => { saved(value); return { fields: { name: "Already used" } }; })();
   expect(saved).toHaveBeenCalledWith({ name: "Hope", count: 2 });
   expect(hook.form.getFieldState("name").error).toMatchObject({ type: "server", message: "Already used" });
+});
+
+it("preserves explicit schema generics and validates typed catchall fields", async () => {
+  const extensible = z.object({ count: z.number() }).catchall(z.number());
+  let captured!: ReturnType<typeof useHarvestForm<typeof extensible>>;
+  function Harness() { captured = useHarvestForm<typeof extensible>(extensible, { count: 1, score: 4 }); return null; }
+  renderToString(h(NextIntlClientProvider, { locale: "en", messages, children: h(Harness) }));
+  captured.form.register("count"); captured.form.register("score");
+  const saved = vi.fn();
+  const submit = captured.submit((values) => {
+    const score: number = values.score;
+    saved(score);
+  });
+  await submit(); expect(saved).toHaveBeenCalledWith(4);
+  captured.form.setValue("score", Number.NaN);
+  await submit(); expect(saved).toHaveBeenCalledTimes(1);
+  expect(captured.form.getFieldState("score").error).toBeDefined();
 });
