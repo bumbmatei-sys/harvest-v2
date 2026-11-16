@@ -39,5 +39,5 @@
 
 ### Task 4: Records, PR, CI, review
 
-- [ ] `docs/acceptance/hc-retention.md`, the activation-gates register (implementation exists, gates unapproved), `docs/setup/feature-flags.md` or the Connect setup doc for scheduling, `CLAUDE.md` (0043 used, 0044 next).
+- [ ] `docs/acceptance/hc-retention.md`, the activation-gates register (implementation exists, gates unapproved), `docs/setup/feature-flags.md` or the Connect setup doc for scheduling, `CLAUDE.md` (0043 merged with #73; the current main journal ends at 0051, and 0052 is the next candidate, not a reservation).
 - [ ] Full suites plus the `tester` suites. Draft PR. CI, Neon from `main`, independent review. Do not merge without approval.

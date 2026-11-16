@@ -124,7 +124,7 @@ C13, C14 and C16 follow the Courses, Products and Events modules. C11 (realtime 
 - Member access is enforced in the database for every content table, at the cost of more complex policies and mandatory adversarial tests per slice.
 - The `entitlements` and `discover_listings` tables become shared infrastructure; changes to them need the same review bar as tenancy changes.
 - The first release is deliberately narrower than the full PRD (no course/product/event links) until the canonical modules exist.
-- Migrations follow the journal on main; C02/C03 use 0035, so the next candidate is 0036.
+- Migrations follow the journal on main; C02/C03 use 0035, and the current merged journal ends at 0051 (`0051_social_integration`); 0052 is the next candidate, not a reservation.
 
 ## Open items (not blocking C02)
 
