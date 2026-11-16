@@ -1513,3 +1513,21 @@ export const socialWebhookEvents = pgTable("social_webhook_events", {
   check("social_webhook_detail", sql`jsonb_typeof(${t.detail}) = 'object' and octet_length(${t.detail}::text) <= 512 and not (${t.detail} ?| array['text', 'message', 'body', 'sender', 'name', 'content'])`),
   check("social_webhook_body_hash", sql`${t.bodyHash} ~ '^[a-f0-9]{64}$'`),
 ]);
+
+// Personal external connections are separate from shared social accounts and R2 uploads.
+export const officeConnections = pgTable("office_connections", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  id: uuid("id").notNull().defaultRandom(),
+  ownerUserId: text("owner_user_id").notNull().references(() => users.id),
+  kind: text("kind").$type<"mail" | "calendar" | "files">().notNull(),
+  provider: text("provider").$type<"fake" | "zernio">().notNull(),
+  externalAccountRef: text("external_account_ref").notNull(),
+  credentialEnvelope: jsonb("credential_envelope").$type<Record<string, unknown>>().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [primaryKey({ columns: [t.tenantId, t.id] }),
+  uniqueIndex("office_connection_account_idx").on(t.tenantId, t.ownerUserId, t.kind, t.provider, t.externalAccountRef),
+  check("office_connection_kind", sql`${t.kind} in ('mail', 'calendar', 'files')`),
+  check("office_connection_provider", sql`${t.provider} in ('fake', 'zernio')`),
+  check("office_connection_ref", sql`length(${t.externalAccountRef}) between 1 and 200`),
+  check("office_connection_envelope", sql`jsonb_typeof(${t.credentialEnvelope}) = 'object' and ${t.credentialEnvelope} ?& array['version','keyId','binding','iv','tag','ciphertext'] and not (${t.credentialEnvelope} ?| array['secret','token','apiKey','accessToken']) and octet_length(${t.credentialEnvelope}::text) <= 4096`),
+]);
