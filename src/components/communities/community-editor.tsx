@@ -17,7 +17,7 @@ import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { MemberList } from "@/components/communities/member-list";
 import { EditorShell } from "@/components/editor/editor-shell";
 import { CommunityJoinCard } from "@/components/communities/join-card";
 import { BannedWordsEditor } from "@/components/communities/banned-words-editor";
@@ -54,7 +54,7 @@ const same = (a: Fields, b: Fields) => (Object.keys(a) as (keyof Fields)[]).ever
 
 export function CommunityEditor({ initial, members, invites, applications, categories, endpoint, listHref, host, writable }: { initial: EditableCommunity; members: CommunityMember[]; invites: CommunityInvite[];
   applications: ApplicationQueue | null; categories: ForumCategory[]; endpoint: string; listHref: string; host: string; writable: boolean }) {
-  const t = useTranslations("CommunityEditor"), request = useCrmRequest();
+  const t = useTranslations("CommunityEditor"), screens = useTranslations("CommunityScreens"), request = useCrmRequest();
   const [data, setData] = useState(initial), [fields, setFields] = useState(() => fieldsOf(initial));
   const [step, setStep] = useState<CommunityEditorStep>("basics");
   const [rulesOn, setRulesOn] = useState(initial.rulesList.length > 0), [questionsOn, setQuestionsOn] = useState(initial.joinQuestions.length > 0);
@@ -112,12 +112,12 @@ export function CommunityEditor({ initial, members, invites, applications, categ
         <Label htmlFor="community-price-free" className="flex min-h-11 items-center gap-3 rounded-md border px-3 font-normal"><RadioGroupItem id="community-price-free" value="free" disabled={!writable} />{t("free")}</Label>
         <Label htmlFor="community-price-paid" className="flex min-h-11 items-center gap-3 rounded-md border px-3 font-normal text-muted-foreground"><RadioGroupItem id="community-price-paid" value="paid" disabled /><span className="flex-1">{t("paid")}</span><Badge variant="secondary">{t("comingSoon")}</Badge></Label>
       </RadioGroup>}
-      {step === "basics" && <>
+      {step === "basics" && <FormSection title={screens("basicsTitle")}>
         <Field><FieldLabel htmlFor="community-name">{t("name")}</FieldLabel><Input id="community-name" className="min-h-11" value={fields.name} maxLength={80} required disabled={!writable} onChange={(e) => set("name", e.target.value)} /></Field>
         <Field><FieldLabel htmlFor="community-tagline">{t("tagline")}</FieldLabel><Input id="community-tagline" className="min-h-11" value={fields.tagline ?? ""} maxLength={160} disabled={!writable} onChange={(e) => set("tagline", e.target.value)} /></Field>
         <Field><FieldLabel htmlFor="community-description">{t("description")}</FieldLabel><Textarea id="community-description" rows={4} value={fields.description ?? ""} maxLength={2000} disabled={!writable} onChange={(e) => set("description", e.target.value)} /></Field>
         <Field><FieldLabel htmlFor="community-address">{t("address")}</FieldLabel><Input id="community-address" className="min-h-11" value={`/communities/${data.slug}`} readOnly /></Field>
-      </>}
+      </FormSection>}
       {step === "joining" && <>
         <FormSection as="fieldset" title={t("visibility")}>
           <RadioGroup value={fields.visibility} onValueChange={(value) => set("visibility", value as Fields["visibility"])} disabled={!writable} className="gap-2" aria-label={t("visibility")}>
@@ -163,8 +163,8 @@ export function CommunityEditor({ initial, members, invites, applications, categ
         </CardContent></Card>}
       {step === "people" && !writable && <p className="text-sm text-muted-foreground">{t("membersManagersOnly")}</p>}
       {step === "people" && writable && <div className="space-y-4">
-        <div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>{t("memberName")}</TableHead><TableHead>{t("memberRole")}</TableHead><TableHead>{t("memberStatus")}</TableHead></TableRow></TableHeader>
-          <TableBody>{members.map((member) => <TableRow key={member.userId}><TableCell>{member.name.trim() || <span className="text-muted-foreground">{t("unnamed")}</span>}</TableCell><TableCell>{t(`roles.${member.role}`)}</TableCell><TableCell>{t(`memberStatuses.${member.status}`)}</TableCell></TableRow>)}</TableBody></Table></div>
+        <MemberList label={screens("members.listLabel")} audience="manage" unnamedLabel={t("unnamed")}
+          members={members.map((member) => ({ id: member.userId, name: member.name, role: member.role, status: member.status }))} />
         <CommunityInvites endpoint={endpoint} initial={invites} />
         {applications && (fields.allowApply || applications.applications.length > 0) && <CommunityApplications endpoint={endpoint} initial={applications} />}
       </div>}

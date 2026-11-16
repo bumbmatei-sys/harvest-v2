@@ -368,6 +368,8 @@ test("Permission cards: state as text, actions by caller, five widths in both th
     await page.evaluate((value) => localStorage.setItem('harvest-color-mode', value), mode); await page.reload();
     await expect(page.locator('html')).toHaveAttribute('data-theme', mode);
     await expect(section.getByRole('heading', { name: 'Permission cards', exact: true })).toBeVisible();
+    // The whole page is audited, so wait until the community member list (Kit PR 7) has switched to its phone layout after hydration.
+    await expect(page.locator('[data-example-communities] [data-slot="data-table-results"]')).toHaveAttribute('data-layout', width < 768 ? 'cards' : 'table');
     await page.evaluate(() => document.fonts.ready.then(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))));
     expect((await new AxeBuilder({ page }).withTags(['wcag2a', 'wcag2aa', 'wcag21aa']).analyze()).violations, `${width}-${mode}`).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${width}-${mode} overflow`).toBe(true);

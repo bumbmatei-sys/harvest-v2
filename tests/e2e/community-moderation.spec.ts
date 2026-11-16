@@ -80,6 +80,8 @@ test("reports, moderation queue, mute and ban, held first posts and banned words
     dialog = r.getByRole("dialog", { name: "Report member" });
     await dialog.getByLabel("Harassment or bullying").click();
     await shoot(r, "report-dialog", async () => { await r.getByRole("button", { name: "Report Andrew" }).click(); await r.getByRole("dialog", { name: "Report member" }).getByLabel("Harassment or bullying").click(); });
+    // The shoot above resized across the 768px breakpoint, which swaps the member table for cards and closes a per-row dialog (Kit PR 7): open it again.
+    if (!(await r.getByRole("dialog", { name: "Report member" }).isVisible())) { await r.getByRole("button", { name: "Report Andrew" }).click(); await r.getByRole("dialog", { name: "Report member" }).getByLabel("Harassment or bullying").click(); }
     await r.getByRole("dialog", { name: "Report member" }).getByRole("button", { name: "Send report" }).click();
     await expect(r.getByRole("status")).toBeVisible();
     // Members see no moderation page.
