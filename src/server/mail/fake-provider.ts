@@ -11,9 +11,10 @@ export class FakeMailProvider extends FakeStore implements MailProvider {
   private entries<T>(map: Map<string, T>, account: string) { return [...map].filter(([key]) => (JSON.parse(key) as string[])[0] === account).map(([, v]) => v); }
   private async write(c: Credential, input: MailWrite, method: string, messageRef?: string) {
     this.authorize(c, input.accountRef);
-    if (!input.to.length || !input.subject || !input.body || input.scheduledFor && (!Number.isFinite(Date.parse(input.scheduledFor)) || Date.parse(input.scheduledFor) <= this.now().getTime())) throw new OfficeProviderError("INVALID_REQUEST");
     const source = messageRef ? this.get(this.messages, input.accountRef, messageRef) : undefined;
     return this.once(input.accountRef, method, input.idempotencyKey, input, () => {
+    if (!input.to.length || !input.subject || !input.body || input.scheduledFor && (!Number.isFinite(Date.parse(input.scheduledFor)) || Date.parse(input.scheduledFor) <= this.now().getTime())) throw new OfficeProviderError("INVALID_REQUEST");
+
       const day = this.now().toISOString().slice(0, 10), key = this.key(input.accountRef, day), used = this.usage.get(key) ?? 0;
       if (used >= this.dailyLimit) throw new OfficeProviderError("RATE_LIMITED");
       this.usage.set(key, used + 1);
