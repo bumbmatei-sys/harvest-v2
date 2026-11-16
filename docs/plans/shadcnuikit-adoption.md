@@ -141,8 +141,8 @@ Studio Admin (MIT, pinned commit in `docs/ui-sources.md`) is the founder-approve
 - **Provenance header** on every file derived from a kit item:
   `/** Derived from Shadcn UI Kit item <name> (<free|premium>), registry retrieved <date>, approved <date> (<PR>). Local changes: docs/ui-sources.md. */`
 - **Provenance record.** Add a "Shadcn UI Kit" section to `docs/ui-sources.md` (the existing register) with one row per adopted item: registry name, free/premium, registry retrieval date (the kit has no version number), install date, approval request and founder decision date, Harvest file paths, local modifications, new dependencies and their licenses (also in `docs/third-party-licenses.md`). Add a unit test that every file with the header is listed in that section and that `components.json` contains only the `${REGISTRY_TOKEN}` placeholder.
-- **Token handling.** The CLI copies source into the repo, so the token is needed only at install time on a developer machine. `components.json` gets the `@shadcnuikit` entry with `"Authorization": "Bearer ${REGISTRY_TOKEN}"`; the value lives in a local `.env` (already ignored by `.env*`; `.env.example` may list the variable name with no value). It is never committed and never needed by CI: the GitHub Actions workflow does not run any registry command and no secret is added. In agent sessions the credential is injected by the network proxy, so the session never sees it. After an item is copied, builds depend only on the repository.
-- **Stock primitives** (`chart`, `drawer`, `toggle-group`, …) come from the shadcn registry and are recorded like the existing "Round 2 registry additions". `ui.shadcn.com` is blocked in this sandbox (CONNECT 403, as earlier registered), so these are installed on a machine with access or copied from the pinned upstream repository commit as before.
+- **Token handling.** The CLI copies source into the repo, so the token is needed only at install time. The founder works from a phone and owns no computer, so every install is done by the agent in a cloud session, where the credential is injected by the network proxy and the session never sees it. `components.json` gets the `@shadcnuikit` entry with `"Authorization": "Bearer ${REGISTRY_TOKEN}"` (placeholder only; `.env.example` may list the variable name with no value; a git-ignored `.env` would be used only by a future developer machine). The token is never committed and never needed by CI: the GitHub Actions workflow does not run any registry command and no secret is added. After an item is copied, builds depend only on the repository.
+- **Stock primitives** (`chart`, `drawer`, `toggle-group`, …) come from the shadcn registry and are recorded like the existing "Round 2 registry additions". `ui.shadcn.com` is blocked in this sandbox (CONNECT 403, as earlier registered), so the agent writes the missing primitives by hand from the primitives already in the repo (same conventions as `src/components/ui`) and the kit's own `ui` files, and records each one in provenance. No founder-run installs and no developer machine are part of this plan (decided 16 Nov).
 
 ## 7. Staged PR sequence
 
@@ -155,7 +155,7 @@ Each PR is small, independently reviewable, and **starts with the approval gate 
 | 1 | Primitives top-up (stock): `toggle-group`, `scroll-area`, `drawer`, `spinner`, `kbd`, plus toast (`sonner`) with a Harvest theme adapter and catalogue strings | `toast1…` as pattern (F) | `src/components/ui/*`, `package.json` (`sonner`), messages | Unit; axe; showcase | Low-medium (dependency) |
 | 2 | Shell review: record keep/adjust decision for `AppShell`; only if approved, header composition slot (page actions, optional search), workspace-switcher search. No change to nav, permissions or audience logic | `dashboard-shell8`, `dashboard-dropdown7` as references | `app-shell.tsx`, messages | Existing layout/foundation e2e at 360/390/768/1280/1440; keyboard focus trap | Medium (every page) |
 | 3 | Shared page pieces: `DataTable` shell, `EmptyState`, `StatusBadge`, `ConfirmDialog` (Phase 0 inventory slices 3-4) informed by kit tables and empty states; consumers: communities lists, files list, CRM company-people | `tables5`, `tables7`, `empty-state2`, `empty1…8` | new shared components, 4+ consumers | Unit; e2e for each consumer; axe | Medium |
-| 4 | Forms and wizard primitives: stepper from the free variants (without `@base-ui/react`), React Hook Form + zod adoption if approved, sticky save bar, choice cards; consumers: ministry creation, community editor step nav | `stepper1…`, `field1…10`, `form-layout1` | `ui/stepper.tsx`, form helpers, 2 consumers | Unit; keyboard e2e; 44px checks | Medium-high (new engine) |
+| 4 | Forms and wizard primitives: stepper from the free variants (without `@base-ui/react`), React Hook Form + resolver with zod (approved 16 Nov), sticky save bar, choice cards; consumers: ministry creation, community editor step nav | `stepper1…`, `field1…10`, `form-layout1` | `ui/stepper.tsx`, form helpers, 2 consumers | Unit; keyboard e2e; 44px checks | Medium-high (new engine) |
 | 5 | CRM screens: person/organization lists and profile polish (phone card layout, bulk bar, timeline/task rows). No change to server filters, exports or the deal board | `tables19`, `tables21`, `todo-app6` | `crm/*` | Existing `crm*.spec.ts`; filters spec; permission matrix | Medium |
 | 6 | Connect: follow-up cases queue and case detail (HC-13 UI), pending-response metadata views, consent cards. Counselor scope and owner/admin-only metadata enforced by the server | `chat-ui4`, `chat-ui5`, `tables15`, `switch-card1` | `connect-admin/*`, new pages | New e2e: assigned member vs other member vs owner; consent gates | Medium-high (privacy) |
 | 7 | Communities: owner pages, member list, moderation queue, Discover cards, feed polish | `tables9`, `tables14`, `form-layout11`, `product-list7`, `social-media-post1` | `communities/*`, discover | Existing community specs; cross-tenant and role checks | Medium |
@@ -164,7 +164,25 @@ Each PR is small, independently reviewable, and **starts with the approval gate 
 | 10 | Social scheduler and unified inbox (after the Harvest-owned provider adapter exists): calendar, composer, channel-neutral inbox with capability flags | `event-calendar1`, `chat-ui10`, `bubble1…7` | new module | Sandbox adapter tests; no real sends | High (blocked on adapter) |
 | 11 | Dashboards and charts: workspace home, finance/campaign/learning analytics with real metrics only | `stat-card12`, `chart56`, `chart60` | new components, `recharts` | Unit; axe; lighthouse budget | Medium (bundle) |
 
+Free counts: the registry lists 567 component items while the free total used here (559 of 564) comes from the category pages and leaves 3 items unclassified; nothing in the plan depends on those 3.
+
 Order follows launch priority (CRM, Connect HC-13 queue, Communities, campaigns, courses/products, social inbox); PRs 9 and 10 cannot start until their provider decisions and adapters exist, and PR 11 can move earlier if the founder wants a home dashboard.
+
+**Done when (per PR, in addition to the approval gate and the common checks in section 8):**
+
+- **0a:** denied roles no longer see consent grant or withdrawal controls on the person page; per-role permission e2e passes.
+- **0:** `@shadcnuikit` registry entry holds only the `${REGISTRY_TOKEN}` placeholder; provenance section exists; a unit test fails if a token-like value or kit registry JSON is committed; chart tokens exist for every palette in light and dark.
+- **1:** each new primitive has a `/dev/ui` showcase entry, passes axe in light and dark and has 44px targets on phones; one global toast is used by at least one real consumer; `sonner` is wrapped by a Harvest adapter with catalogue strings.
+- **2:** the keep/adjust decision for `AppShell` is recorded; the nav, permissions and audience logic are unchanged; layout e2e passes at 360, 390, 768, 1280 and 1440 widths with keyboard focus order intact.
+- **3:** each shared piece (`DataTable` shell, `EmptyState`, `StatusBadge`, `ConfirmDialog`) has at least two real consumers; no module-specific copy remains inside them; existing consumer e2e still passes.
+- **4:** the stepper and form helpers have two real consumers (ministry creation, community editor step navigation); keyboard e2e passes; validation uses the shared resolver; no `@base-ui/react`.
+- **5:** CRM server filters, exports and the deal board are unchanged; existing `crm*.spec.ts` and the filter specs pass; screenshots at the five widths are attached.
+- **6:** an assigned member, another member, a viewer and an owner each see exactly what the server allows; consent controls follow the permission keys; no contact details appear that CRM permissions would hide.
+- **7:** existing community specs pass with cross-tenant and role checks; moderation, member and Discover screens use the shared pieces from PRs 3 and 4.
+- **8:** the campaign wizard runs on the PR 4 wizard with draft and resume, and the calendar view is keyboard operable.
+- **9:** (blocked on the provider decision) entitlement and checkout flows pass against a stubbed provider; no real payment calls.
+- **10:** (blocked on the Harvest-owned adapter) the inbox and composer pass with the sandbox adapter only; no real sends.
+- **11:** every chart shows real metrics only, passes axe with an accessible table fallback, and stays within the performance budget in section 8.
 
 **Estimate:** about 12 PRs (one non-kit fix, tooling, primitives, shell review, shared pieces, forms/wizard, six module PRs, charts), possibly split further where a module is large. No calendar promises: each waits on its approval gate, independent review and the founder's go-ahead.
 
@@ -202,7 +220,7 @@ Common acceptance, recorded in the PR description with evidence:
 | Card-number inputs in checkout items | Never in Harvest-owned fields; provider-hosted only |
 | Accessibility regressions (24px stepper indicators, `div` click targets, JS motion) | Axe plus 44px assertions per PR |
 | Registry changes after purchase (updates are included) | Pin by recording the retrieval date and the converted copy; no auto-update |
-| `ui.shadcn.com` blocked for agents | Environment decision or founder-run installs |
+| `ui.shadcn.com` blocked for agents | Agent writes stock primitives by hand (decided 16 Nov); the host stays blocked |
 | Admin-dashboard repositories not inspected | Founder to say whether access exists and whether to inspect them |
 | Unknown: which 5 component variants are premium | Check on the per-item page at approval time |
 | Provider-neutral copy | Social inbox and scheduler UI never name the integration provider |
