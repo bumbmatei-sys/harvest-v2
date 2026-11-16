@@ -68,6 +68,24 @@ test("create, edit, guard, conflict and publish a community; viewers are read-on
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.getByText("Saved.", { exact: true })).toBeVisible();
 
+  // The save bar exists only while there are unsaved changes; Discard restores the saved value.
+  const saveBar = page.locator('[data-slot="sticky-save-bar"]');
+  await expect(saveBar).toHaveCount(0);
+  await page.getByLabel("Tagline (optional)", { exact: true }).fill("Temporary");
+  await expect(saveBar).toBeVisible();
+  await expect(saveBar.getByText("Unsaved changes", { exact: true })).toBeVisible();
+  await saveBar.getByRole("button", { name: "Discard", exact: true }).click();
+  await expect(page.getByLabel("Tagline (optional)", { exact: true })).toHaveValue("Weekly study and prayer");
+  await expect(saveBar).toHaveCount(0);
+
+  // The step footer moves to the next enabled step and puts focus on the step heading; the step list follows.
+  await page.getByRole("button", { name: "Next", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Joining", level: 2 })).toBeFocused();
+  await expect(steps.getByRole("button", { name: /Joining/ })).toHaveAttribute("aria-current", "step");
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Basics", level: 2 })).toBeFocused();
+  await expect(steps.getByRole("button", { name: /Basics/ })).toHaveAttribute("aria-current", "step");
+
   // Joining and publishing.
   await steps.getByRole("button", { name: /Joining/ }).click();
   await page.getByLabel("Anyone can join", { exact: true }).click();

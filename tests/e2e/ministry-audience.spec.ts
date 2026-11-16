@@ -33,6 +33,12 @@ test("ministry type at creation, in settings, and read-only for viewers", async 
 
   // The API refuses a ministry without a type; the form asks for one.
   expect((await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "No type" } })).status()).toBe(400);
+  // Submitting an empty form shows each message beside its field and one summary; nothing is sent.
+  await page.getByRole("button", { name: "Create ministry", exact: true }).click();
+  await expect(page.getByText("Enter a ministry name.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Choose a ministry type.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "Fix the highlighted fields and try again." })).toBeVisible();
+  await expect(page.getByLabel("Ministry name")).toHaveAttribute("aria-invalid", "true");
   await page.getByLabel("Ministry name").fill("Grace Mission");
   await expect(page.getByRole("radiogroup", { name: "Ministry type" })).toBeVisible();
   await shoot(page, "create");
@@ -45,6 +51,12 @@ test("ministry type at creation, in settings, and read-only for viewers", async 
   await page.getByRole("navigation", { name: "Ministry navigation" }).getByRole("link", { name: "Ministry settings", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Ministry settings", exact: true })).toBeVisible();
   await expect(page.getByRole("radio", { name: "Evangelist or missionary", exact: true })).toBeChecked();
+  await page.getByRole("radio", { name: "Church", exact: true }).check();
+  // Discard puts the saved type back and hides the bar; choosing again brings it back.
+  await expect(page.locator('[data-slot="sticky-save-bar"]')).toBeVisible();
+  await page.getByRole("button", { name: "Discard", exact: true }).click();
+  await expect(page.getByRole("radio", { name: "Evangelist or missionary", exact: true })).toBeChecked();
+  await expect(page.locator('[data-slot="sticky-save-bar"]')).toHaveCount(0);
   await page.getByRole("radio", { name: "Church", exact: true }).check();
   await page.getByRole("button", { name: "Save", exact: true }).click();
   // The confirmation is a toast in the polite live region, not an inline alert.

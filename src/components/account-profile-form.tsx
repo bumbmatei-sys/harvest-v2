@@ -5,6 +5,7 @@ import { useTranslations } from "next-intl";
 import { locales, type Locale } from "@/i18n/locale";
 import { useHydrated } from "@/hooks/use-hydrated";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { FormSection } from "@/components/form-section";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -49,8 +50,7 @@ export function AccountProfileForm({ initial, mode, from }: { initial: Initial; 
       </Select></Field>
     <Field><FieldLabel htmlFor="account-city">{t("city")}</FieldLabel>
       <Input id="account-city" className="min-h-11" value={city} onChange={(e) => setCity(e.target.value)} maxLength={200} autoComplete="address-level2" disabled={!hydrated || busy} /></Field>
-    {mode === "onboarding" && <fieldset className="space-y-3">
-      <legend className="text-sm font-medium">{t("firstStep")}</legend>
+    {mode === "onboarding" && <FormSection as="fieldset" title={t("firstStep")}>
       <RadioGroup value="explore_later" aria-label={t("firstStep")}>
         {paths.map(([value, key, enabled]) => <label key={value} htmlFor={`path-${value}`} className="flex min-h-11 items-center gap-3 rounded-md border px-3 py-2">
           <RadioGroupItem id={`path-${value}`} value={value} disabled={!enabled} />
@@ -58,7 +58,7 @@ export function AccountProfileForm({ initial, mode, from }: { initial: Initial; 
           {!enabled && <Badge variant="secondary">{t("comingSoon")}</Badge>}
         </label>)}
       </RadioGroup>
-    </fieldset>}
+    </FormSection>}
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
     {saved && <Alert role="status"><AlertDescription>{t("saved")}</AlertDescription></Alert>}
     <div className="flex flex-wrap gap-3">

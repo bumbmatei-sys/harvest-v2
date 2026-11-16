@@ -11,17 +11,19 @@ import { uuidInput } from "@/lib/contact-input";
 import { AccessState } from "@/components/access-state";
 import { ImportRows } from "@/components/crm/imports/import-rows";
 import { ImportStatusBadge } from "@/components/crm/imports/import-status";
+import { Stepper } from "@/components/stepper";
 import { ImportRunner, MappingStep, RollbackButton } from "@/components/crm/imports/import-steps";
 import { RecordBackLink, RecordHeader } from "@/components/crm/record-layout";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("Imports");
   return { title: t("pageTitle", { page: t("imports") }) };
 }
+
+const importSteps = ["map", "preview", "import", "results"] as const;
 
 export default async function ImportPage({ params, searchParams }: { params: Promise<{ tenantId: string; importId: string }>; searchParams: Promise<{ outcome?: string; page?: string; step?: string }> }) {
   const t = await getTranslations("Imports");
@@ -52,11 +54,7 @@ export default async function ImportPage({ params, searchParams }: { params: Pro
           <span>{t("rowCount", { count: item.rowCount })}</span><time dateTime={item.createdAt.toISOString()}>{format.dateTime(item.createdAt, "date")}</time>{item.creatorName && <span>{item.creatorName}</span>}</p>
       </div>
     </RecordHeader>
-    <ol aria-label={t("steps.label")} className="flex flex-wrap gap-x-5 gap-y-2 text-sm">
-      {(["map", "preview", "import", "results"] as const).map((name, index) => <li key={name} aria-current={index === step ? "step" : undefined}
-        className={cn("flex items-center gap-2", index === step ? "font-medium text-foreground" : "text-muted-foreground")}>
-        <span className={cn("flex size-6 items-center justify-center rounded-full border text-xs tabular-nums", index === step && "border-foreground bg-foreground text-background", index < step && "bg-selected")}>{index + 1}</span>{t(`steps.${name}`)}</li>)}
-    </ol>
+    <Stepper label={t("steps.label")} compact="never" current={importSteps[step]} steps={importSteps.map((name) => ({ id: name, label: t(`steps.${name}`) }))} />
     {mapping && <Card className="gap-4"><CardHeader><CardTitle><h2 className="text-base">{t("mapTitle")}</h2></CardTitle><CardDescription>{t("mapDescription")}</CardDescription></CardHeader>
       <CardContent><MappingStep tenantId={tenantId} importId={item.id} entity={item.entity} headers={item.headers} samples={samples} mapping={item.mapping} onMatch={item.onMatch} version={item.version} /></CardContent></Card>}
     {!mapping && <Card className="gap-4">

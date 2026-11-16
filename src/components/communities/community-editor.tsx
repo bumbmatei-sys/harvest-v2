@@ -9,6 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { FormSection } from "@/components/form-section";
+import { StickySaveBar } from "@/components/sticky-save-bar";
+import { WizardLayout } from "@/components/wizard-layout";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -81,11 +84,12 @@ export function CommunityEditor({ initial, members, invites, applications, categ
     setBusy(false);
   }
 
+  function discard() { setFields(fieldsOf(data)); setRulesOn(data.rulesList.length > 0); setQuestionsOn(data.joinQuestions.length > 0); setNotice(""); setError(""); setConflict(false); }
+
   const steps = communityEditorSteps.map((id) => ({ id, label: t(`steps.${id}`), disabled: comingSoonSteps.includes(id), badge: comingSoonSteps.includes(id) ? t("comingSoon") : undefined,
     done: id === "basics" ? checklist[0].done : id === "joining" ? checklist[1].done : id === "publish" ? data.status === "published" : id === "offer" || (id === "people" && members.length > 0) }));
   const status = <Badge variant={data.status === "published" ? "default" : "secondary"}>{t(`status.${data.status}`)}</Badge>;
   const actions = writable && <>
-    <Button variant="outline" className="min-h-11" disabled={busy || !dirty} onClick={() => void run("save")}>{t(busy ? "saving" : "saveDraft")}</Button>
     {data.status === "published"
       ? <Button variant="outline" className="min-h-11" disabled={busy} onClick={() => void run("unpublish")}>{t("unpublish")}</Button>
       : <Button className="min-h-11" disabled={busy || !checklist.every((item) => item.done) || !fields.name.trim()} onClick={() => void run("publish")}>{t("publish")}</Button>}
@@ -103,7 +107,7 @@ export function CommunityEditor({ initial, members, invites, applications, categ
     {!writable && <Alert><AlertDescription>{t("readOnly")}</AlertDescription></Alert>}
     {error && <Alert variant="destructive" role="alert"><AlertDescription className="flex flex-wrap items-center gap-3">{error}{conflict && <Button variant="outline" className="min-h-11" onClick={() => { if (dirty) setDestination(location.href); else location.reload(); }}>{t("reload")}</Button>}</AlertDescription></Alert>}
     {notice && <Alert role="status"><AlertDescription>{notice}</AlertDescription></Alert>}
-    <Card><CardHeader><CardTitle>{t(`steps.${step}`)}</CardTitle></CardHeader><CardContent className="space-y-6">
+    <WizardLayout steps={steps} current={step} onStepChange={(id) => setStep(id as CommunityEditorStep)} stepsLabel={t("stepsLabel")} stepper={false}>
       {step === "offer" && <RadioGroup value="free" aria-label={t("price")} className="gap-2">
         <Label htmlFor="community-price-free" className="flex min-h-11 items-center gap-3 rounded-md border px-3 font-normal"><RadioGroupItem id="community-price-free" value="free" disabled={!writable} />{t("free")}</Label>
         <Label htmlFor="community-price-paid" className="flex min-h-11 items-center gap-3 rounded-md border px-3 font-normal text-muted-foreground"><RadioGroupItem id="community-price-paid" value="paid" disabled /><span className="flex-1">{t("paid")}</span><Badge variant="secondary">{t("comingSoon")}</Badge></Label>
@@ -115,14 +119,14 @@ export function CommunityEditor({ initial, members, invites, applications, categ
         <Field><FieldLabel htmlFor="community-address">{t("address")}</FieldLabel><Input id="community-address" className="min-h-11" value={`/communities/${data.slug}`} readOnly /></Field>
       </>}
       {step === "joining" && <>
-        <fieldset className="space-y-2"><legend className="mb-2 text-sm font-medium">{t("visibility")}</legend>
+        <FormSection as="fieldset" title={t("visibility")}>
           <RadioGroup value={fields.visibility} onValueChange={(value) => set("visibility", value as Fields["visibility"])} disabled={!writable} className="gap-2" aria-label={t("visibility")}>
             {(["listed", "unlisted", "hidden"] as const).map((value) => <Label key={value} htmlFor={`community-visibility-${value}`} className="flex min-h-11 items-center gap-3 rounded-md border px-3 font-normal"><RadioGroupItem id={`community-visibility-${value}`} value={value} />{t(`visibilities.${value}`)}</Label>)}
-          </RadioGroup></fieldset>
-        <fieldset className="space-y-2"><legend className="mb-2 text-sm font-medium">{t("admission")}</legend>
+          </RadioGroup></FormSection>
+        <FormSection as="fieldset" title={t("admission")}>
           {admissionKeys.map((key) => <Label key={key} htmlFor={`community-${key}`} className="flex min-h-11 items-center gap-3 rounded-md border px-3 font-normal">
             <Checkbox id={`community-${key}`} checked={fields[key]} disabled={!writable} onCheckedChange={(checked) => set(key, checked === true)} />{t(`admissions.${key}`)}</Label>)}
-        </fieldset>
+        </FormSection>
         <Label htmlFor="community-discover" className="flex min-h-11 items-center gap-3 rounded-md border px-3 font-normal">
           <Checkbox id="community-discover" checked={fields.discoverOptIn && fields.visibility === "listed"} disabled={!writable || fields.visibility !== "listed"}
             onCheckedChange={(checked) => set("discoverOptIn", checked === true)} />{t("showInDiscover")}</Label>
@@ -169,7 +173,8 @@ export function CommunityEditor({ initial, members, invites, applications, categ
           {item.done ? <CircleCheck className="size-4 text-primary" aria-hidden="true" /> : <Circle className="size-4 text-muted-foreground" aria-hidden="true" />}
           <span>{t(`checks.${item.key}`)}</span><span className="sr-only">{t(item.done ? "checkDone" : "checkOpen")}</span></li>)}
       </ul>}
-    </CardContent></Card>
+    </WizardLayout>
+    {writable && <StickySaveBar guard={false} dirty={dirty} busy={busy && dirty} onSave={() => void run("save")} onDiscard={discard} saveLabel={t("saveDraft")} savingLabel={t("saving")} />}
     <ConfirmDialog tone="neutral" open={destination !== null} onOpenChange={(open) => { if (!open) setDestination(null); }} title={t("leaveTitle")} description={t("leaveBody")} cancelLabel={t("stay")} confirmLabel={t("leave")} onConfirm={leave} />
   </EditorShell>;
 }
