@@ -1,9 +1,10 @@
-import { Bot, Building, CalendarDays, CalendarRange, Church, ClipboardList, Compass, FileUp, Files, Flag, Globe, HeartHandshake, Inbox, Kanban, Link2, ListChecks, Mail, MessageCircleReply, MessagesSquare, Newspaper, Palette, PenLine, QrCode, ShoppingBag, SlidersHorizontal, UsersRound, Workflow, type LucideIcon } from "lucide-react";
+import { Bot, Building, Calendar, CalendarDays, CalendarRange, Church, ClipboardList, Compass, FileText, FileUp, Files, Flag, Globe, HandCoins, HeartHandshake, Inbox, Kanban, Link2, ListChecks, Mail, MailOpen, Radio, Sheet, ClipboardCheck, Users, MessageCircleReply, MessagesSquare, Newspaper, Palette, PenLine, QrCode, ShoppingBag, SlidersHorizontal, UsersRound, Workflow, type LucideIcon } from "lucide-react";
 import type { Audience } from "./audience";
 import { can, type Permission } from "./permissions";
 
 /** Message keys in `ComponentsAppShell` that the sidebar and breadcrumb may show. */
 export type NavLabelKey = "communities" | "crm" | "workspace" | "settings" | "people" | "companies" | "pipelines" | "tasks" | "imports" | "campaigns" | "followUp" | "files" | "crmFields" | "pipelineSettings" | "appearance" | "ministrySettings" | "profile"
+  | "office" | "forms" | "mail" | "calendar" | "documents" | "spreadsheets" | "giving" | "volunteers" | "livestream" | "churchProfile"
   | "connect" | "qrAndLinks" | "responses" | "events"
   | "publishing" | "community" | "commerce" | "chat" | "composer" | "planner" | "inbox" | "autoDm" | "articles" | "website" | "linkInBio" | "newsletter" | "discover" | "products" | "assistant"
   | "modeOperations" | "modePublic" | "modeAssistant";
@@ -14,7 +15,7 @@ export const navModes: readonly NavMode[] = ["operations", "public", "assistant"
 export type NavStatus = "live" | "planned";
 /** The three groups today's single sidebar shows; the other ids belong to the per-mode sidebars of slice 2. */
 export type LegacyNavGroupId = "crm" | "workspace" | "settings";
-export type NavGroupId = LegacyNavGroupId | "connect" | "publishing" | "community" | "commerce" | "chat";
+export type NavGroupId = LegacyNavGroupId | "office" | "connect" | "publishing" | "community" | "commerce" | "chat";
 export type NavEntry = {
   id: string;
   /** Group inside the entry's mode (per-mode sidebar). */
@@ -47,7 +48,7 @@ export type NavGroup = { id: NavGroupId; label: NavLabelKey; items: NavItem[] };
 const legacyGroups: readonly { id: LegacyNavGroupId; label: NavLabelKey }[] = [{ id: "crm", label: "crm" }, { id: "workspace", label: "workspace" }, { id: "settings", label: "settings" }];
 /** Groups of each mode's sidebar, in display order. Settings stays the last group of Operations. */
 export const groupsByMode: Record<NavMode, readonly { id: NavGroupId; label: NavLabelKey }[]> = {
-  operations: [{ id: "crm", label: "crm" }, { id: "connect", label: "connect" }, { id: "workspace", label: "workspace" }, { id: "settings", label: "settings" }],
+  operations: [{ id: "crm", label: "crm" }, { id: "connect", label: "connect" }, { id: "office", label: "office" }, { id: "workspace", label: "workspace" }, { id: "settings", label: "settings" }],
   public: [{ id: "publishing", label: "publishing" }, { id: "community", label: "community" }, { id: "commerce", label: "commerce" }],
   assistant: [{ id: "chat", label: "chat" }],
 };
@@ -65,6 +66,15 @@ export const navEntries: readonly NavEntry[] = [
   // Reserved entries (status planned) are never rendered or linked; their module's PR flips the status.
   { id: "connectLinks", group: "connect", mode: "operations", status: "planned", label: "qrAndLinks", icon: QrCode, path: "/connect/links", match: under("/connect/links") },
   { id: "responses", group: "connect", mode: "operations", status: "planned", label: "responses", icon: ClipboardList, path: "/connect/responses", match: under("/connect/responses") },
+  { id: "forms", group: "connect", mode: "operations", status: "planned", label: "forms", icon: ClipboardCheck, path: "/connect/forms", match: under("/connect/forms") },
+  { id: "mail", group: "office", mode: "operations", status: "planned", label: "mail", icon: MailOpen, path: "/mail", match: under("/mail") },
+  { id: "calendar", group: "office", mode: "operations", status: "planned", label: "calendar", icon: Calendar, path: "/calendar", match: under("/calendar") },
+  { id: "documents", group: "office", mode: "operations", status: "planned", label: "documents", icon: FileText, path: "/docs", match: under("/docs") },
+  { id: "spreadsheets", group: "office", mode: "operations", status: "planned", label: "spreadsheets", icon: Sheet, path: "/sheets", match: under("/sheets") },
+  { id: "churchProfile", group: "workspace", mode: "operations", status: "planned", label: "churchProfile", icon: Church, path: "/church-profile", match: under("/church-profile") },
+  { id: "volunteers", group: "workspace", mode: "operations", status: "planned", label: "volunteers", icon: Users, path: "/volunteers", match: under("/volunteers") },
+  { id: "livestream", group: "workspace", mode: "operations", status: "planned", label: "livestream", icon: Radio, path: "/livestream", match: under("/livestream") },
+  { id: "giving", group: "workspace", mode: "operations", status: "planned", label: "giving", icon: HandCoins, path: "/giving", match: under("/giving") },
   { id: "campaigns", group: "workspace", mode: "operations", label: "campaigns", icon: Flag, path: "/campaigns", match: has("/campaigns") },
   // HC-13: the follow-up queue. Owners, admins and members open it (a member sees only the cases assigned to them); viewers never see a dead link.
   { id: "followUp", group: "connect", legacyGroup: "workspace", mode: "operations", label: "followUp", icon: HeartHandshake, path: "/connect/follow-up", match: has("/connect/follow-up"), permission: "followup:work" },
