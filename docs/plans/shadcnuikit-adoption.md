@@ -92,12 +92,12 @@ Studio Admin (MIT, pinned commit in `docs/ui-sources.md`) is the founder-approve
 **Founder decisions needed**
 
 1. **License and public repository** (section 9): decided 16 Nov by the founder (repo stays public until marketing, then private; founder owns the consequences). Nothing further needed from engineering except the provenance record.
-2. **Plan and seats.** Which plan was bought (Pro covers one user, Team ten)? Who may use the API key (founder only, or other contributors; agent sessions use the founder's key)? Were the private admin-dashboard repositories (they include CRM, kanban, chat, social-media and academy dashboards) included, and may they be inspected? They were not accessible here.
+2. **Plan and seats.** Answered 16 Nov: **Pro, one user** (the founder). The API key stays in the founder's environment only and is never shared with other people; agent sessions use it through the network proxy. Whether the private admin-dashboard repositories are included in Pro, and whether they may be inspected, is not answered and is not needed for the plan. Original question: which plan was bought (Pro covers one user, Team ten)? Who may use the API key (founder only, or other contributors; agent sessions use the founder's key)? Were the private admin-dashboard repositories (they include CRM, kanban, chat, social-media and academy dashboards) included, and may they be inspected? They were not accessible here.
 3. **Direction.** Confirm Studio Admin stays the default and the kit is a pattern library ("augment, do not replace").
-4. **New dependencies**, each only with a real consumer: `sonner` (toast system), `recharts` (charts), `react-hook-form` + resolver (the master specification already selects it), `@tanstack/react-table` (probably not), `motion` (probably not), `@dnd-kit/sortable` (only if reordering UI needs it), `@base-ui/react` (recommend no).
-5. **Chart tokens** added to every palette in the theme registry, including the 12 future themes.
-6. **Toast system:** adopt one global toast (none exists today)?
-7. **Network access** for `ui.shadcn.com` in agent sessions (blocked here), or founder-run installs for stock primitives.
+4. **New dependencies** (approved 16 Nov: `sonner`, `recharts`, `react-hook-form` + resolver; each still only with a real consumer; not approved: `@tanstack/react-table`, `motion`, `@base-ui/react`; `@dnd-kit/sortable` only if a reordering UI needs it). Options as originally listed: `sonner` (toast system), `recharts` (charts), `react-hook-form` + resolver (the master specification already selects it), `@tanstack/react-table` (probably not), `motion` (probably not), `@dnd-kit/sortable` (only if reordering UI needs it), `@base-ui/react` (recommend no).
+5. **Chart tokens** added to every palette in the theme registry, including the 12 future themes. **Approved 16 Nov.**
+6. **Toast system:** adopt one global toast (none exists today). Follows from approving `sonner` on 16 Nov; confirm in the PR 1 approval list.
+7. **Network access** for `ui.shadcn.com` in agent sessions: the founder said to allow it on 16 Nov, but the environment-change prompt was declined, so it is **still blocked**. Until it is allowed, stock primitives are added by the founder running the install, or are written from the primitives already in the repo and the kit's own `ui` files.
 8. **Illustrations and marketing blocks:** out of scope for launch unless the founder says otherwise.
 9. **Item approvals** per the gate, including whether the founder prefers to browse the kit and name items himself.
 
