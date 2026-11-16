@@ -14,7 +14,7 @@ const tone = { granted: "bg-success-tint text-success", withdrawn: "bg-warning-t
  * CRM-07: one opt-in per purpose, never bundled. Each row shows the effective state from the
  * consent ledger (a withdrawal wins) and when and how it was recorded; writers record the next choice.
  */
-export async function ContactPermissions({ tenantId, contactId, permissions, writable }: { tenantId: string; contactId: string; permissions: Permission[]; writable: boolean }) {
+export async function ContactPermissions({ tenantId, contactId, permissions, canGrant, canWithdraw }: { tenantId: string; contactId: string; permissions: Permission[]; canGrant: boolean; canWithdraw: boolean }) {
   const t = await getTranslations("Associations");
   const format = await getFormatter();
   return <Card className="gap-3">
@@ -27,7 +27,7 @@ export async function ContactPermissions({ tenantId, contactId, permissions, wri
         <p className="mt-0.5 text-xs text-muted-foreground">{t(`purposeHelp.${item.purpose}`)}</p>
         {item.at && <p className="mt-0.5 text-xs [overflow-wrap:anywhere] text-muted-foreground">{t(item.status === "withdrawn" ? "withdrawnOn" : "grantedOn", { date: format.dateTime(new Date(item.at), "date"), source: item.source ?? t("unknownSource") })}</p>}
       </div>
-      {writable && <ConsentForm tenantId={tenantId} contactId={contactId} preset={{ purpose: item.purpose, status: item.status === "granted" ? "withdrawn" : "granted",
+      {(item.status === "granted" ? canWithdraw : canGrant) && <ConsentForm tenantId={tenantId} contactId={contactId} statuses={item.status === "granted" ? ["withdrawn"] : ["granted"]} preset={{ purpose: item.purpose, status: item.status === "granted" ? "withdrawn" : "granted",
         // An opt-in must land on the withdrawn channel to clear that withdrawal; a withdrawal goes where the grant is.
         channel: item.status !== "none" && item.channel ? item.channel : channels[item.purpose] }}
         trigger={<Button type="button" variant="outline" size="sm" className="min-h-11 sm:min-h-8" aria-label={t(item.status === "granted" ? "recordWithdrawalFor" : "recordOptInFor", { purpose: t(`purposes.${item.purpose}`) })}>
