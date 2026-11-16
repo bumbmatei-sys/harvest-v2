@@ -43,7 +43,7 @@ test("person page consent controls follow the role", async ({ page, browser }) =
 
   // Owner: grant and withdraw.
   await page.goto(`${root}/crm/people/${person}`);
-  await expect(withdrawal(page)).toHaveCount(1);
+  await expect(withdrawal(page)).toHaveCount(3); // granted row + two rows with nothing recorded
   await expect(optIn(page)).toHaveCount(2);
   await page.getByRole("tab", { name: "Consent history" }).click();
   await recordConsent(page).click();
@@ -58,7 +58,7 @@ test("person page consent controls follow the role", async ({ page, browser }) =
   // Admin: same as owner.
   expect((await api(page, "put", `${apiRoot}/members`, { email, role: "admin" })).status).toBe(200);
   await other.goto(`${root}/crm/people/${person}`);
-  await expect(withdrawal(other)).toHaveCount(1);
+  await expect(withdrawal(other)).toHaveCount(3);
   await expect(optIn(other)).toHaveCount(2);
   await other.getByRole("tab", { name: "Consent history" }).click();
   await expect(recordConsent(other)).toBeVisible();
@@ -66,7 +66,7 @@ test("person page consent controls follow the role", async ({ page, browser }) =
   // Member: withdraw only.
   expect((await api(page, "put", `${apiRoot}/members`, { email, role: "member" })).status).toBe(200);
   await other.goto(`${root}/crm/people/${person}`);
-  await expect(withdrawal(other)).toHaveCount(1);
+  await expect(withdrawal(other)).toHaveCount(3);
   await expect(optIn(other)).toHaveCount(0);
   expect((await withdrawal(other).boundingBox())!.height).toBeGreaterThanOrEqual(44);
   for (const mode of ["light", "dark"] as const) { await setMode(other, mode); await audit(other, `member-${mode}`); }
@@ -81,7 +81,7 @@ test("person page consent controls follow the role", async ({ page, browser }) =
   await dialog.getByRole("button", { name: "Save consent record" }).click();
   await expect(dialog).toBeHidden();
   await other.reload();
-  await expect(withdrawal(other)).toHaveCount(0);
+  await expect(withdrawal(other)).toHaveCount(2); // the two rows with nothing recorded still offer one
   await expect(other.getByRole("list", { name: "Contact permissions" }).getByText("Withdrawn", { exact: true })).toBeVisible();
   await other.getByRole("tab", { name: "Consent history" }).click();
   await recordConsent(other).click();
@@ -100,5 +100,52 @@ test("person page consent controls follow the role", async ({ page, browser }) =
   await expect(other.getByText("Synthetic opt-out reply", { exact: true })).toBeVisible();
   for (const mode of ["light", "dark"] as const) { await setMode(other, mode); await audit(other, `viewer-${mode}`); }
   expect((await api(other, "post", `${apiRoot}/contacts/${person}/consents`, grant)).status).toBe(403);
+  await otherContext.close();
+});
+
+test("a purpose with nothing recorded offers a withdrawal from its row", async ({ page, browser }) => {
+  test.setTimeout(300_000);
+  await signIn(page);
+  const workspace = await api(page, "post", "/api/workspaces", { audience: "church", name: "Harvest row withdrawal ministry" });
+  const tenantId = workspace.body.tenantId as string, root = `/workspaces/${tenantId}`, apiRoot = `/api${root}`;
+  const person = (await api(page, "post", `${apiRoot}/contacts`, { name: "Synthetic Ana Costa", email: "ana@example.test" })).body.id as string;
+  const optIn = (p: Page) => p.getByRole("button", { name: /^Record opt-in for/ });
+  const withdrawal = (p: Page) => p.getByRole("button", { name: /^Record withdrawal for/ });
+
+  // Owner: nothing is recorded, so all three rows offer both choices.
+  await page.goto(`${root}/crm/people/${person}`);
+  await expect(optIn(page)).toHaveCount(3);
+  await expect(withdrawal(page)).toHaveCount(3);
+
+  const otherContext = await browser.newContext({ viewport: { width: 390, height: 900 }, reducedMotion: "reduce" });
+  const other = await otherContext.newPage();
+  const email = await signIn(other);
+
+  // Member: only the withdrawal, end to end.
+  expect((await api(page, "put", `${apiRoot}/members`, { email, role: "member" })).status).toBe(200);
+  await other.goto(`${root}/crm/people/${person}`);
+  await expect(optIn(other)).toHaveCount(0);
+  await expect(withdrawal(other)).toHaveCount(3);
+  expect((await withdrawal(other).first().boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  for (const mode of ["light", "dark"] as const) { await setMode(other, mode); await audit(other, `member-none-${mode}`); }
+  await other.getByRole("button", { name: "Record withdrawal for Newsletter" }).click();
+  const dialog = other.getByRole("dialog", { name: "Record consent" });
+  await expect(dialog.getByRole("combobox", { name: "Status", exact: true })).toHaveText("Withdrawn");
+  await dialog.getByRole("combobox", { name: "Status", exact: true }).click();
+  await expect(other.getByRole("option")).toHaveText(["Withdrawn"]);
+  await other.keyboard.press("Escape");
+  await dialog.getByLabel("Source").fill("Synthetic opt-out reply");
+  await dialog.getByLabel("Evidence").fill("Replied STOP");
+  await dialog.getByRole("button", { name: "Save consent record" }).click();
+  await expect(dialog).toBeHidden();
+  await other.reload();
+  await expect(other.getByRole("list", { name: "Contact permissions" }).getByText("Withdrawn", { exact: true })).toHaveCount(1);
+  await expect(withdrawal(other)).toHaveCount(2);
+
+  // Viewer: neither.
+  expect((await api(page, "put", `${apiRoot}/members`, { email, role: "viewer" })).status).toBe(200);
+  await other.goto(`${root}/crm/people/${person}`);
+  await expect(withdrawal(other)).toHaveCount(0);
+  await expect(optIn(other)).toHaveCount(0);
   await otherContext.close();
 });

@@ -4,6 +4,7 @@ import { ConsentForm } from "@/components/consent-form";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { rowActions } from "@/lib/consent-controls";
 import { cn } from "@/lib/utils";
 
 type Permission = { purpose: "messaging" | "form_follow_up" | "newsletter"; status: "granted" | "withdrawn" | "none"; at: string | null; source: string | null; channel: "email" | "sms" | "social" | null };
@@ -27,11 +28,11 @@ export async function ContactPermissions({ tenantId, contactId, permissions, can
         <p className="mt-0.5 text-xs text-muted-foreground">{t(`purposeHelp.${item.purpose}`)}</p>
         {item.at && <p className="mt-0.5 text-xs [overflow-wrap:anywhere] text-muted-foreground">{t(item.status === "withdrawn" ? "withdrawnOn" : "grantedOn", { date: format.dateTime(new Date(item.at), "date"), source: item.source ?? t("unknownSource") })}</p>}
       </div>
-      {(item.status === "granted" ? canWithdraw : canGrant) && <ConsentForm tenantId={tenantId} contactId={contactId} statuses={item.status === "granted" ? ["withdrawn"] : ["granted"]} preset={{ purpose: item.purpose, status: item.status === "granted" ? "withdrawn" : "granted",
+      {rowActions(item.status, { canGrant, canWithdraw }).map((status) => <ConsentForm key={status} tenantId={tenantId} contactId={contactId} statuses={[status]} preset={{ purpose: item.purpose, status,
         // An opt-in must land on the withdrawn channel to clear that withdrawal; a withdrawal goes where the grant is.
         channel: item.status !== "none" && item.channel ? item.channel : channels[item.purpose] }}
-        trigger={<Button type="button" variant="outline" size="sm" className="min-h-11 sm:min-h-8" aria-label={t(item.status === "granted" ? "recordWithdrawalFor" : "recordOptInFor", { purpose: t(`purposes.${item.purpose}`) })}>
-          {t(item.status === "granted" ? "recordWithdrawal" : "recordOptIn")}</Button>} />}
+        trigger={<Button type="button" variant="outline" size="sm" className="min-h-11 sm:min-h-8" aria-label={t(status === "withdrawn" ? "recordWithdrawalFor" : "recordOptInFor", { purpose: t(`purposes.${item.purpose}`) })}>
+          {t(status === "withdrawn" ? "recordWithdrawal" : "recordOptIn")}</Button>} />)}
     </li>)}</ul></CardContent>
   </Card>;
 }
