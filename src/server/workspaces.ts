@@ -51,7 +51,9 @@ export async function listWorkspaces(db: Database, userId: string) {
   const memberships = await withUser(db, userId, (tx) => tx.select().from(workspaceMembers).where(eq(workspaceMembers.userId, userId)));
   return Promise.all(memberships.map((m) => withTenant(db, userId, m.tenantId, "workspace:read", async (tx, tenantId) => {
     const [workspace] = await tx.select().from(workspaces).where(eq(workspaces.tenantId, tenantId));
-    return { ...workspace, role: m.roleId };
+    // Explicit tenant filter, backed by row-level security on the tenant context set above.
+    const [members] = await tx.select({ count: sql<number>`count(*)::int` }).from(workspaceMembers).where(eq(workspaceMembers.tenantId, tenantId));
+    return { ...workspace, role: m.roleId, memberCount: members?.count ?? 0 };
   })));
 }
 export function putMember(db: Database, actorId: string, workspaceHint: string, email: string, roleId: Role) {

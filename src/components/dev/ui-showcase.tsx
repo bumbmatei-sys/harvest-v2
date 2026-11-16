@@ -117,6 +117,10 @@ function ToastExamples() {
   </div></div>;
 }
 const chartSwatches = ["bg-chart-1", "bg-chart-2", "bg-chart-3", "bg-chart-4", "bg-chart-5"] as const;
+function ShellExamples() {
+  const t = useTranslations("UiShowcase.shell");
+  return <div className="space-y-2 text-sm"><p>{t("summary")}</p><p>{t("switcher")}</p></div>;
+}
 function KitExamples() {
   const t = useTranslations("UiShowcase.kit");
   return <div className="space-y-5">
@@ -136,7 +140,7 @@ export function UiShowcase() {
     <div className="flex flex-wrap gap-3"><Input type="search" className="min-h-11 w-full sm:w-80" aria-label={t("searchRegistry")} placeholder={t("searchRegistry")} value={query} onChange={event => setQuery(event.target.value)} /><NativeSelect className="min-h-11" aria-label={t("categoryFilter")} value={category} onChange={event => setCategory(event.target.value as typeof category)}><NativeSelectOption value="all">{t("all")}</NativeSelectOption>{uiShowcaseEntries.map(entry => <NativeSelectOption key={entry.id} value={entry.id}>{t(`entries.${entry.id}.title`)}</NativeSelectOption>)}</NativeSelect></div>
     {entries.length === 0 && <Empty><EmptyHeader><EmptyTitle>{t("noMatches")}</EmptyTitle></EmptyHeader></Empty>}
     {entries.map(entry => <section key={entry.id} id={entry.id} aria-labelledby={`${entry.id}-title`}><Card><CardHeader><CardTitle><h2 id={`${entry.id}-title`}>{t(`entries.${entry.id}.title`)}</h2></CardTitle><p className="text-sm text-muted-foreground">{t(`entries.${entry.id}.description`)}</p></CardHeader><CardContent className="space-y-5">
-      {entry.id === "actions" ? <ActionExamples /> : entry.id === "fields" ? <FieldExamples /> : entry.id === "overlays" ? <OverlayExamples /> : entry.id === "kit" ? <KitExamples /> : entry.id === "primitives" ? <PrimitiveExamples /> : entry.id === "toast" ? <ToastExamples /> : <FeedbackExamples />}
+      {entry.id === "actions" ? <ActionExamples /> : entry.id === "fields" ? <FieldExamples /> : entry.id === "overlays" ? <OverlayExamples /> : entry.id === "kit" ? <KitExamples /> : entry.id === "shell" ? <ShellExamples /> : entry.id === "primitives" ? <PrimitiveExamples /> : entry.id === "toast" ? <ToastExamples /> : <FeedbackExamples />}
       <details className="text-sm"><summary className="min-h-11 cursor-pointer py-3">{t("sourceAndConsumers")}</summary><ul className="space-y-1 break-all">{[...entry.sources, ...entry.consumers].map(source => <li key={source}><code>{source}</code></li>)}</ul></details>
     </CardContent></Card></section>)}
   </div></TooltipProvider>;

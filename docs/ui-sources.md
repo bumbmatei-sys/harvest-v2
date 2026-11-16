@@ -136,7 +136,7 @@ Upstream dependencies inspected in package.json: Next/React/Tailwind/shadcn/Radi
 
 ## Shadcn UI Kit provenance
 
-Plan: [shadcnuikit-adoption.md](plans/shadcnuikit-adoption.md). Kit PR 1 adopts four free items, approved by the founder on 2026-11-16 ("Approved all"; request in the PR description). No registry JSON or token is in the repository: each adopted item is a small converted showcase example under `src/components/dev/`, and the primitives under `src/components/ui/` are hand-written (see below).
+Plan: [shadcnuikit-adoption.md](plans/shadcnuikit-adoption.md). Kit PR 1 adopts four free items and Kit PR 2 two premium reference items (the founder owns the licence and public-repository consequences, CLAUDE.md), all approved by the founder on 2026-11-16 ("Approved all"; request in the PR description). No registry JSON or token is in the repository: each adopted item is a small converted showcase example under `src/components/dev/`, and the primitives under `src/components/ui/` are hand-written (see below).
 
 Rule (enforced by `tests/unit/ui-provenance.test.ts`): every kit-derived file starts with the header below **and** is listed in `kitProvenance` in `src/lib/ui-provenance.ts` (item name, free or premium, registry retrieval date, install date, founder approver and approval date, local changes, destination files). Add the same row to the table here and record new dependencies in `third-party-licenses.md`.
 
@@ -148,8 +148,10 @@ Rule (enforced by `tests/unit/ui-provenance.test.ts`): every kit-derived file st
 | `spinner1` | free | 2026-11-16 | 2026-11-16 | 2026-11-16 | `src/components/dev/kit-spinner-example.tsx` | The demo (one small spinner) widened to the three Harvest sizes. Primitive hand-written. Alternatives not chosen: `spinner2`, `spinner10`. |
 | `scroll-area1` | free | 2026-11-16 | 2026-11-16 | 2026-11-16 | `src/components/dev/kit-scroll-area-example.tsx` | The demo (fixed-height list with separators) kept with catalogue rows instead of version-tag sample data; focusable region viewport. Primitive hand-written. Alternatives not chosen: `scroll-area2`, `scroll-area4`. |
 | `drawer1` | free | 2026-11-16 | 2026-11-16 | 2026-11-16 | `src/components/dev/kit-bottom-sheet-example.tsx` | **Visual reference only**; no kit code and no drawer library (`vaul` is not an approved dependency). Built on Harvest's own `Sheet` bottom side. Alternatives not chosen: `drawer2`, `drawer6`. |
+| `dashboard-shell8` | **premium** | 2026-11-16 | 2026-11-16 | 2026-11-16 | `src/components/app-shell.tsx` | **Visual reference only** (Kit PR 2); no kit code copied. Harvest keeps `AppShell`, the floating sidebar and the typed navigation registry. Only the optional header slots (page actions, page search) follow the item. Not chosen: `dashboard-shell1`, `sidebar-layout`, `dashboard-shell2`, `dashboard-shell3`. |
+| `dashboard-dropdown7` | **premium** | 2026-11-16 | 2026-11-16 | 2026-11-16 | `src/components/ministry-switcher.tsx` | **Pattern reference only** (Kit PR 2); no kit code copied. Ministry list with search, initials marks, role and member count, check on the current one, built inside the account menu's `DropdownMenu` (the kit item uses Popover and Command). Not chosen: `dashboard-dropdown1` to `dashboard-dropdown6`, `dashboard-dropdown8` to `dashboard-dropdown10`. |
 
-Tier note: the item JSON carries no price flag, and the component category pages show a badge for the first item only; the four items are recorded as free on the founder's statement for `toast1` and the absence of a premium marker on the others. Confirm on the item pages if the license position matters.
+Tier note: the item JSON carries no price flag, and the component category pages show a badge for the first item only; the four items are recorded as free on the founder's statement for `toast1` and the absence of a premium marker on the others. Confirm on the item pages if the license position matters. `dashboard-shell8` and `dashboard-dropdown7` are premium by the founder's approval record (16 Nov 2026), who owns the licence and public-repository consequences.
 
 ### Kit PR 1: hand-written primitives and the `sonner` dependency
 

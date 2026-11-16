@@ -1,7 +1,7 @@
 /**
  * Provenance record for files derived from the Shadcn UI Kit (see docs/ui-sources.md, "Shadcn UI Kit provenance").
  * Rule: every kit-derived file starts with the header below AND is listed in `kitProvenance`.
- * Tests enforce both directions. Kit PR 1 adopts the four items below; the stock primitives they depend on are hand-written
+ * Tests enforce both directions. Kit PR 1 adopts four items and Kit PR 2 two premium items as references; the stock primitives they depend on are hand-written
  * (docs/ui-sources.md) and are not kit-derived.
  */
 export type KitItemRecord = {
@@ -29,6 +29,10 @@ export const kitProvenance: readonly KitItemRecord[] = [
     localChanges: "The kit demo (a fixed-height list with separators) is kept as the showcase example; version-tag sample data replaced by catalogue rows; the viewport is focusable with a region name because its rows are plain text. The scroll area primitive is hand-written on radix-ui with token-based scrollbars." },
   { ...approved, item: "drawer1", tier: "free", files: ["src/components/dev/kit-bottom-sheet-example.tsx"],
     localChanges: "Visual reference only; no kit code, no drawer library (vaul is not an approved dependency). The composition (title, body, stacked actions) is built on the existing Sheet as a bottom sheet with a handle, safe-area padding and a 44px close target." },
+  { ...approved, item: "dashboard-shell8", tier: "premium", files: ["src/components/app-shell.tsx"],
+    localChanges: "Visual reference only; no kit code was copied. Harvest keeps its own AppShell, floating sidebar and typed navigation registry (the file carries the header because the provenance test requires it). The only change inspired by the item is the optional header composition slots (page actions, page search), which render nothing unless a page passes them. Kit demo copy, sample images and hard-coded colors are not used. Not chosen: dashboard-shell1, sidebar-layout, dashboard-shell2, dashboard-shell3." },
+  { ...approved, item: "dashboard-dropdown7", tier: "premium", files: ["src/components/ministry-switcher.tsx"],
+    localChanges: "Pattern reference only; no kit code was copied. The kit item is a Popover with Command; Harvest places the same pattern (search, initials marks, role and member count per ministry, a check on the current one) inside the account menu's DropdownMenu so the menu stays one keyboard-navigable role=menu, and the search field appears only above five ministries. Create-ministry dialog, plan badges and sample data are not used. Not chosen: dashboard-dropdown1 to dashboard-dropdown6, dashboard-dropdown8 to dashboard-dropdown10." },
 ];
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;

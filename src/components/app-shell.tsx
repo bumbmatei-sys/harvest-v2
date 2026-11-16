@@ -1,10 +1,11 @@
+/** Derived from Shadcn UI Kit item dashboard-shell8 (premium), registry retrieved 2026-11-16, approved 2026-11-16 (Kit PR 2). Visual reference only; local changes: docs/ui-sources.md. */
 "use client";
 import { useTranslations } from "next-intl";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
-import { Building2, ChevronRight, ChevronsUpDown, LogOut, Sprout } from "lucide-react";
+import { useRef, useState } from "react";
+import { Building2, ChevronRight, LogOut } from "lucide-react";
 import { resolveNavigation, sectionLabel, type NavFeature } from "@/lib/navigation";
 import type { Audience } from "@/lib/audience";
 import { authClient } from "@/lib/auth-client";
@@ -17,11 +18,13 @@ import { Button } from "@/components/ui/button";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { MinistrySearchDialog, MinistrySwitcher } from "@/components/ministry-switcher";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 
-type Workspace = { tenantId: string; name: string; role: string; audience?: Audience | null };
+type Workspace = { tenantId: string; name: string; role: string; audience?: Audience | null; memberCount?: number };
+/** Optional header composition: page actions and a page-level search field. Both are empty unless a page supplies them. */
+export type AppShellHeaderSlots = { actions?: React.ReactNode; search?: React.ReactNode };
 const menuButton = "min-h-11 lg:min-h-0 lg:h-9 gap-2 rounded-[8px] py-0 pl-2 pr-3 text-sm font-medium text-sidebar-foreground data-[active=true]:font-normal [&_svg]:size-[17px] [&_svg]:stroke-[1.7] group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0!";
 function NavigationLink({ href, label, icon, active }: { href: string; label: string; icon: React.ReactNode; active: boolean }) {
   const { setOpenMobile, isMobile } = useSidebar();
@@ -44,26 +47,34 @@ function NavigationGroup({ label, children }: { label: string; children: React.R
     </SidebarGroup>
   </Collapsible>;
 }
-function WorkspaceSwitcher({ workspaces, selected, container }: { workspaces: Workspace[]; selected?: Workspace; container: HTMLElement | null }) {
+/** The profile-picture menu: ministry switcher first, then profile, appearance and sign out. */
+function AccountMenu({ email, workspaces, selected, busy, container, onSignOut }: { email: string; workspaces: Workspace[]; selected?: string; busy: boolean; container: HTMLElement | null; onSignOut: () => void }) {
   const t = useTranslations("ComponentsAppShell");
-  const name = selected?.name ?? t("chooseWorkspace");
-  const { setOpenMobile, state, isMobile } = useSidebar();
-  // Closing hidden tooltip content on Tab can reset the sheet's focus trap.
-  // Mobile already shows the workspace name, so keep its tooltip closed.
-  return <SidebarMenu><SidebarMenuItem><DropdownMenu modal={false}>
-    <Tooltip open={isMobile ? false : undefined}><TooltipTrigger asChild><DropdownMenuTrigger asChild><SidebarMenuButton aria-label={t("switchWorkspaceValue", { name: name })} className={menuButton}>
-      <Avatar className="size-5 shrink-0 rounded-md" aria-hidden="true"><AvatarFallback className="rounded-md bg-sidebar-accent text-[10px] font-semibold"><Sprout className="size-3.5" /></AvatarFallback></Avatar><span data-workspace-name className="min-w-0 flex-1 truncate group-data-[collapsible=icon]:sr-only">{name}</span><ChevronsUpDown aria-hidden="true" className="ml-auto group-data-[collapsible=icon]:hidden" />
-    </SidebarMenuButton></DropdownMenuTrigger></TooltipTrigger><TooltipContent container={container} side="right" hidden={state !== "collapsed" || isMobile}>{name}</TooltipContent></Tooltip>
-    <DropdownMenuContent container={container} side="bottom" align="start" className="w-60">
-      <DropdownMenuLabel>{selected?.name ?? t("workspaces")}</DropdownMenuLabel>
-      <DropdownMenuItem asChild><Link href="/workspaces" onClick={() => setOpenMobile(false)}>{t("yourWorkspaces")}</Link></DropdownMenuItem>
+  const { setOpenMobile } = useSidebar();
+  const [searchOpen, setSearchOpen] = useState(false);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const searchPending = useRef(false);
+  const closeSidebar = () => setOpenMobile(false);
+  return <>
+    <DropdownMenu modal={false}><DropdownMenuTrigger asChild>
+      <Button ref={triggerRef} variant="ghost" size="icon-responsive" disabled={busy} aria-label={t("accountMenu")} className="shrink-0 p-0">
+        <Avatar className="size-8 shrink-0 border border-sidebar-border" aria-hidden="true"><AvatarFallback className="bg-transparent uppercase">{email.slice(0, 1)}</AvatarFallback></Avatar>
+      </Button>
+    </DropdownMenuTrigger><DropdownMenuContent container={container} side="top" align="start" collisionPadding={8} className="w-72 max-w-[calc(100vw-1rem)] rounded-[12px]"
+      onCloseAutoFocus={(event) => { if (searchPending.current) { searchPending.current = false; event.preventDefault(); } }}>
+      <DropdownMenuLabel className="truncate text-xs">{email}</DropdownMenuLabel><DropdownMenuSeparator />
+      <MinistrySwitcher ministries={workspaces} selected={selected} onNavigate={closeSidebar} onOpenSearch={() => { searchPending.current = true; setSearchOpen(true); }} />
       <DropdownMenuSeparator />
-      {workspaces.map((item) => <DropdownMenuItem key={item.tenantId} asChild><Link href={`/workspaces/${item.tenantId}/crm/people`} onClick={() => setOpenMobile(false)}>{item.name}</Link></DropdownMenuItem>)}
-    </DropdownMenuContent>
-  </DropdownMenu></SidebarMenuItem></SidebarMenu>;
+      <DropdownMenuItem asChild className="min-h-11 lg:min-h-0"><Link href="/profile" onClick={closeSidebar}>{t("profile")}</Link></DropdownMenuItem>
+      <DropdownMenuSeparator /><BrandThemeMenu /><DropdownMenuSeparator />
+      <DropdownMenuItem className="min-h-11 lg:min-h-0" disabled={busy} onSelect={onSignOut}><LogOut aria-hidden="true" />{t("signOut")}</DropdownMenuItem>
+    </DropdownMenuContent></DropdownMenu>
+    <MinistrySearchDialog ministries={workspaces} selected={selected} open={searchOpen} onOpenChange={setSearchOpen} onNavigate={closeSidebar}
+      onCloseAutoFocus={(event) => { event.preventDefault(); triggerRef.current?.focus(); }} />
+  </>;
 }
-export function AppShell({ children, workspaces, selected, email, brandTheme = "harvest", defaultOpen = true, features = [] }: {
-  features?: readonly NavFeature[];
+export function AppShell({ children, workspaces, selected, email, brandTheme = "harvest", defaultOpen = true, features = [], header }: {
+  features?: readonly NavFeature[]; header?: AppShellHeaderSlots;
   children: React.ReactNode; workspaces: Workspace[]; selected?: string; email: string; brandTheme?: BrandTheme; defaultOpen?: boolean;
 }) {
   const t = useTranslations("ComponentsAppShell");
@@ -97,8 +108,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
         </SidebarHeader>
         <SidebarContent className="gap-0 pt-1"><nav aria-label={t("workspaceNavigation")}>
           <SidebarGroup className="px-[13px] py-0 group-data-[collapsible=icon]:px-0">
-            <WorkspaceSwitcher workspaces={workspaces} selected={workspace} container={navigationContainer} />
-            <SidebarMenu className="mt-px gap-px"><NavigationLink href="/workspaces" active={!selected} label={t("workspaces")} icon={<Building2 aria-hidden="true" />} /></SidebarMenu>
+            <SidebarMenu className="gap-px"><NavigationLink href="/workspaces" active={!selected} label={t("workspaces")} icon={<Building2 aria-hidden="true" />} /></SidebarMenu>
           </SidebarGroup>
           {selected && resolveNavigation({ tenantId: selected, role: workspace?.role, audience: workspace?.audience, pathname, features }).map((group) => <NavigationGroup key={group.id} label={t(group.label)}>
             {group.items.map(({ id, href, active, label, icon: Icon }) => <NavigationLink key={id} href={href} active={active} label={t(label)} icon={<Icon aria-hidden="true" />} />)}
@@ -107,16 +117,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
         <SidebarFooter className="gap-1 p-0 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:py-2">
           <div className="flex h-[52px] items-center gap-1 pl-4 pr-3 group-data-[collapsible=icon]:h-auto group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:px-0">
             <div className="flex min-w-0 flex-1 items-center gap-2 group-data-[collapsible=icon]:flex-none">
-            <DropdownMenu modal={false}><DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="icon-responsive" disabled={busy} aria-label={t("accountMenu")} className="shrink-0 p-0">
-                <Avatar className="size-8 shrink-0 border border-sidebar-border" aria-hidden="true"><AvatarFallback className="bg-transparent uppercase">{email.slice(0, 1)}</AvatarFallback></Avatar>
-              </Button>
-            </DropdownMenuTrigger><DropdownMenuContent container={navigationContainer} side="top" align="start" className="w-64 rounded-[12px]">
-              <DropdownMenuLabel className="truncate text-xs">{email}</DropdownMenuLabel><DropdownMenuSeparator />
-              <DropdownMenuItem asChild><Link href="/profile">{t("profile")}</Link></DropdownMenuItem>
-              <DropdownMenuSeparator /><BrandThemeMenu /><DropdownMenuSeparator />
-              <DropdownMenuItem disabled={busy} onSelect={() => void signOut()}><LogOut aria-hidden="true" />{t("signOut")}</DropdownMenuItem>
-            </DropdownMenuContent></DropdownMenu>
+            <AccountMenu email={email} workspaces={workspaces} selected={selected} busy={busy} container={navigationContainer} onSignOut={() => void signOut()} />
             <span className="truncate text-[13px] font-medium text-sidebar-accent-foreground group-data-[collapsible=icon]:sr-only">{email.split("@")[0]}</span>
             </div>
             <ThemeToggle />
@@ -133,7 +134,11 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
           {workspace && <><BreadcrumbItem className="min-w-0"><BreadcrumbLink asChild className="truncate"><Link href={`/workspaces/${selected}/crm/people`}>{workspace.name}</Link></BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator /></>}
           <BreadcrumbItem><BreadcrumbPage className="font-medium">{section}</BreadcrumbPage></BreadcrumbItem>
         </BreadcrumbList></Breadcrumb>
-        {workspace && <div className="ml-auto flex items-center"><NotificationsMenu tenantId={workspace.tenantId} /></div>}
+        {(header?.search || header?.actions || workspace) && <div className="ml-auto flex min-w-0 items-center gap-2">
+          {header?.search && <div role="search" aria-label={t("pageSearch")} data-shell-header-search className="min-w-0 max-w-64 flex-1">{header.search}</div>}
+          {header?.actions && <div role="group" aria-label={t("pageActions")} data-shell-header-actions className="flex shrink-0 items-center gap-2">{header.actions}</div>}
+          {workspace && <NotificationsMenu tenantId={workspace.tenantId} />}
+        </div>}
       </header>
       <main id="main-content" className="min-h-0 flex-1 overflow-y-auto">
         {/* Workspace screens use the full width beside the sidebar with compact gutters

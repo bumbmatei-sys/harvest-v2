@@ -135,9 +135,23 @@
     "backToImports": "Back to imports"
   },
   "ComponentsAppShell": {
-    "chooseWorkspace": "Choose ministry",
-    "switchWorkspaceValue": "Switch ministry: {name}",
     "yourWorkspaces": "Your ministries",
+    "createMinistry": "Create a ministry",
+    "searchMinistries": "Search ministries",
+    "switchMinistry": "Switch ministry",
+    "switchMinistryHelp": "Search your ministries and choose one to open.",
+    "noMinistriesFound": "No ministries found",
+    "noMinistries": "No ministries yet",
+    "memberCount": "{count, plural, one {# member} other {# members}}",
+    "roleAndMembers": "{role} · {members}",
+    "pageSearch": "Page search",
+    "pageActions": "Page actions",
+    "roles": {
+      "owner": "Owner",
+      "admin": "Admin",
+      "member": "Member",
+      "viewer": "Viewer"
+    },
     "contacts": "Contacts",
     "files": "Files",
     "appearance": "Appearance",
@@ -2177,6 +2191,10 @@
         "title": "Toast",
         "description": "The global toast outlet: success, error, information and an optional action."
       },
+      "shell": {
+        "title": "Shell",
+        "description": "Header slots for page actions and search, and the ministry switcher in the account menu."
+      },
       "kit": {
         "title": "Kit-derived items",
         "description": "Items adopted from the component kit, and the chart colors of the current theme."
@@ -2216,6 +2234,13 @@
       "searchKey": "K"
     },
     "bottomSheet": "Example bottom sheet",
+    "shell": {
+      "summary": "This page fills both header slots with examples: a search field and an action. Pages that do not pass them show neither.",
+      "searchLabel": "Header search example",
+      "searchPlaceholder": "Search",
+      "action": "Header action example",
+      "switcher": "Open the account menu in the sidebar footer to see the ministry switcher."
+    },
     "kit": {
       "none": "No kit items adopted yet",
       "adopted": "{item} ({tier})",
