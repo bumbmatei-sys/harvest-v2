@@ -15,7 +15,7 @@ Migration 0044 revokes those six from `harvest_app` and grants them to `harvest_
 
 ## Social posting worker (test mode only)
 
-Migration 0049 adds two more worker-only functions, `social_publish_claim(integer, integer)` and `social_publish_complete(uuid, uuid, uuid, text, text, text, integer)`, revoked from `harvest_app` and granted to `harvest_worker` when the role exists (re-run the grant block after creating the role later, as in step 3 below, with these two signatures). `npm run social:publish:test` runs them against an in-memory fake provider and refuses anything but `HARVEST_SOCIAL_PUBLISHER=test` on a local database. It cannot reach a provider and is not authorized to run anywhere else.
+Migration 0051 adds two more worker-only functions, `social_publish_claim(integer, integer)` and `social_publish_complete(uuid, uuid, uuid, text, text, text, integer)`, revoked from `harvest_app` and granted to `harvest_worker` when the role exists (re-run the grant block after creating the role later, as in step 3 below, with these two signatures). `npm run social:publish:test` runs them against an in-memory fake provider and refuses anything but `HARVEST_SOCIAL_PUBLISHER=test` on a local database. It cannot reach a provider and is not authorized to run anywhere else.
 
 ## Order of operations (per environment)
 

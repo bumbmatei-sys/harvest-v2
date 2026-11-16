@@ -1425,7 +1425,7 @@ export const communityNotifications = pgTable("community_notifications", {
   check("community_notification_target", sql`${t.targetType} in ('post', 'comment', 'application', 'warning', 'appeal', 'community') and length(${t.targetId}) between 1 and 200`),
   check("community_notification_count", sql`${t.actorCount} >= 1`)]);
 
-// Social provider integration layer (migration 0049). Foundation only: nothing here can reach a provider.
+// Social provider integration layer (migration 0051). Foundation only: nothing here can reach a provider.
 // Provider credentials are stored ONLY as sealed envelopes (src/server/social/credential-envelope.ts).
 export const socialConnectionStatuses = ["active", "disabled", "revoked"] as const;
 export const socialPostStatuses = ["draft", "scheduled", "publishing", "published", "failed", "cancelled"] as const;
@@ -1483,7 +1483,7 @@ export const socialPosts = pgTable("social_posts", {
   check("social_post_counters", sql`${t.attempts} >= 0 and ${t.maxAttempts} between 1 and 10 and ${t.attempts} <= ${t.maxAttempts} and ${t.version} >= 1`),
   check("social_post_key", sql`length(${t.idempotencyKey}) between 8 and 100`),
   check("social_post_error", sql`${t.lastErrorCode} is null or ${t.lastErrorCode} in ('PROVIDER_AUTH', 'PROVIDER_REJECTED', 'PROVIDER_CONFLICT', 'PROVIDER_UNAVAILABLE', 'PROVIDER_RATE_LIMITED', 'MAX_ATTEMPTS', 'IDEMPOTENCY_WINDOW_EXPIRED', 'CONNECTION_UNAVAILABLE', 'PARTIAL_PUBLISH', 'DISABLED', 'CREDENTIAL_UNAVAILABLE', 'UNCONFIRMED')`),
-  // Shape per state. The trigger in migration 0049 adds the legal transitions.
+  // Shape per state. The trigger in migration 0051 adds the legal transitions.
   check("social_post_state_shape", sql`(${t.status} <> 'scheduled' or (${t.scheduledFor} is not null and ${t.nextAttemptAt} is not null and ${t.lockToken} is null and ${t.lockedAt} is null))
     and (${t.status} <> 'publishing' or (${t.firstAttemptAt} is not null and ((${t.lockToken} is not null and ${t.lockedAt} is not null) or (${t.lockToken} is null and ${t.lockedAt} is null and ${t.providerPostRef} is not null and ${t.nextAttemptAt} is not null))))
     and (${t.status} = 'publishing' or (${t.lockToken} is null and ${t.lockedAt} is null))

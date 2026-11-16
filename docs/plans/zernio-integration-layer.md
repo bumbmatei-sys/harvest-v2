@@ -31,7 +31,7 @@ Errors are a closed set (`SocialProviderError` with `code`, `retryable`, optiona
 * **FakeProvider**: in-memory, deterministic, injectable failures; honours the idempotency key (same key returns the same post). The only provider the worker script can use.
 * **ZernioAdapter** (`zernio-adapter.ts`, the only file that names the vendor host): documented HTTP shapes, injectable `fetch`, bounded retries with backoff and `Retry-After`, `Idempotency-Key` on post creation. Hard-disabled by `ZERNIO_LIVE_NETWORK = false`: without an injected `fetch` the adapter throws `DISABLED` before any request, and the registry never injects one. Only tests inject a mock.
 
-## Data model (migration 0049)
+## Data model (migration 0051)
 
 All tables: tenant FK, composite keys, FORCE RLS, `harvest_app` policy on `app.tenant_id`, owner policies for definers, no DELETE grant except where noted.
 

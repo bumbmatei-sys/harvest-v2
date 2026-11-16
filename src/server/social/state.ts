@@ -5,7 +5,7 @@ export type PostStatus = typeof postStatuses[number];
 export const postErrorCodes = ["PROVIDER_AUTH", "PROVIDER_REJECTED", "PROVIDER_CONFLICT", "PROVIDER_UNAVAILABLE", "PROVIDER_RATE_LIMITED", "MAX_ATTEMPTS", "IDEMPOTENCY_WINDOW_EXPIRED", "CONNECTION_UNAVAILABLE", "PARTIAL_PUBLISH", "DISABLED", "CREDENTIAL_UNAVAILABLE", "UNCONFIRMED"] as const;
 export type PostErrorCode = typeof postErrorCodes[number];
 
-// Mirrors the trigger in migration 0049 (the database is the guard; this is for the service and for tests that compare the two).
+// Mirrors the trigger in migration 0051 (the database is the guard; this is for the service and for tests that compare the two).
 // `publishing` -> `publishing` is the accepted-awaiting-final-answer move and needs a provider reference.
 export const legalTransitions: Record<PostStatus, readonly PostStatus[]> = {
   draft: ["draft", "scheduled", "cancelled"],
