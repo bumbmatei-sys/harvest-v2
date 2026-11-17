@@ -12600,6 +12600,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "saved_view_version": {
+          "name": "saved_view_version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
         }
       },
       "indexes": {},
@@ -12644,7 +12650,7 @@
             "tenant_id",
             "id"
           ],
-          "onDelete": "no action",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
@@ -12663,6 +12669,10 @@
         "newsletter_segment_name": {
           "name": "newsletter_segment_name",
           "value": "length(trim(\"newsletter_segments\".\"name\")) between 1 and 100"
+        },
+        "newsletter_segment_view_version": {
+          "name": "newsletter_segment_view_version",
+          "value": "\"newsletter_segments\".\"saved_view_version\">=1"
         }
       },
       "isRLSEnabled": false

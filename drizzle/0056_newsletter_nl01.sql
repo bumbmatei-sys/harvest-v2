@@ -126,6 +126,7 @@ BEGIN
  IF TG_OP='INSERT' AND NEW.created_by IS DISTINCT FROM nullif(current_setting('app.user_id',true),'') THEN RAISE EXCEPTION 'newsletter_actor' USING ERRCODE='23514'; END IF;
  PERFORM 1 FROM public.contacts WHERE tenant_id=NEW.tenant_id AND id=NEW.contact_id AND erased_at IS NULL FOR UPDATE;
  IF NOT FOUND THEN RAISE EXCEPTION 'newsletter_contact_unavailable' USING ERRCODE='23514'; END IF;
+ IF TG_OP='INSERT' THEN UPDATE public.contacts SET version=version+1,updated_at=now() WHERE tenant_id=NEW.tenant_id AND id=NEW.contact_id; END IF;
  IF cardinality(NEW.tags)>50 OR EXISTS(SELECT 1 FROM unnest(NEW.tags) t WHERE t IS NULL OR t !~ '^[a-z0-9][a-z0-9_-]{0,39}$') THEN RAISE EXCEPTION 'newsletter_tags_invalid' USING ERRCODE='23514'; END IF;
  RETURN NEW;
 END $$;
@@ -149,7 +150,7 @@ CREATE TRIGGER newsletter_subscription_guard BEFORE INSERT OR UPDATE ON public.n
 -- Segment references must remain canonical CRM shared person views; no new predicate grammar.
 CREATE FUNCTION public.newsletter_segment_guard() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,pg_temp AS $$
 BEGIN
- IF NOT EXISTS(SELECT 1 FROM public.crm_saved_views v WHERE v.tenant_id=NEW.tenant_id AND v.id=NEW.saved_view_id AND v.object_type='person' AND v.owner_user_id IS NULL AND coalesce(v.state->'sources','[]'::jsonb)='[]'::jsonb) THEN RAISE EXCEPTION 'newsletter_view_unavailable' USING ERRCODE='23514'; END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.crm_saved_views v WHERE v.tenant_id=NEW.tenant_id AND v.id=NEW.saved_view_id AND v.object_type='person' AND v.version=NEW.saved_view_version AND v.owner_user_id IS NULL AND coalesce(v.state->'sources','[]'::jsonb)='[]'::jsonb) THEN RAISE EXCEPTION 'newsletter_view_unavailable' USING ERRCODE='23514'; END IF;
  RETURN NEW;
 END $$;
 CREATE TRIGGER newsletter_segment_guard BEFORE INSERT OR UPDATE ON public.newsletter_segments FOR EACH ROW EXECUTE FUNCTION public.newsletter_segment_guard();
@@ -173,3 +174,35 @@ BEGIN
 END $$;
 CREATE TRIGGER newsletter_provenance_guard BEFORE INSERT ON public.newsletter_import_provenance FOR EACH ROW EXECUTE FUNCTION public.newsletter_provenance_guard();
 REVOKE ALL ON FUNCTION public.newsletter_provenance_guard() FROM PUBLIC;
+--> statement-breakpoint
+-- Preserve the canonical CRM view lifecycle; a deleted predicate is never treated as "all people".
+ALTER TABLE public.newsletter_segments DROP CONSTRAINT newsletter_segments_tenant_id_saved_view_id_crm_saved_views_tenant_id_id_fk;
+ALTER TABLE public.newsletter_segments ADD CONSTRAINT newsletter_segments_tenant_id_saved_view_id_crm_saved_views_tenant_id_id_fk FOREIGN KEY(tenant_id,saved_view_id) REFERENCES public.crm_saved_views(tenant_id,id) ON DELETE CASCADE;
+ALTER TABLE public.newsletter_segments ADD COLUMN saved_view_version integer NOT NULL;
+ALTER TABLE public.newsletter_segments ADD CONSTRAINT newsletter_segment_view_version CHECK(saved_view_version>=1);
+--> statement-breakpoint
+-- Erasure marks the contact erased before rekeying consent/contact ids. Purge dependencies at that boundary.
+DO $$ BEGIN
+ EXECUTE format($p$CREATE POLICY newsletter_erasure_subscriber ON public.newsletter_subscribers TO %I
+ USING (tenant_id=nullif(current_setting('app.newsletter_erasure_tenant',true),'')::uuid AND contact_id=nullif(current_setting('app.newsletter_erasure_contact',true),'')::uuid)
+ WITH CHECK(false)$p$,current_user);
+ EXECUTE format($p$CREATE POLICY newsletter_erasure_subscription ON public.newsletter_subscriptions TO %I
+ USING (tenant_id=nullif(current_setting('app.newsletter_erasure_tenant',true),'')::uuid AND subscriber_id IN (SELECT id FROM public.newsletter_subscribers WHERE tenant_id=newsletter_subscriptions.tenant_id AND contact_id=nullif(current_setting('app.newsletter_erasure_contact',true),'')::uuid)) WITH CHECK(false)$p$,current_user);
+ EXECUTE format($p$CREATE POLICY newsletter_erasure_provenance ON public.newsletter_import_provenance TO %I
+ USING (tenant_id=nullif(current_setting('app.newsletter_erasure_tenant',true),'')::uuid AND subscriber_id IN (SELECT id FROM public.newsletter_subscribers WHERE tenant_id=newsletter_import_provenance.tenant_id AND contact_id=nullif(current_setting('app.newsletter_erasure_contact',true),'')::uuid)) WITH CHECK(false)$p$,current_user);
+END $$;
+--> statement-breakpoint
+CREATE FUNCTION public.newsletter_contact_erased() RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+BEGIN
+ PERFORM set_config('app.newsletter_erasure_tenant',OLD.tenant_id::text,true);
+ PERFORM set_config('app.newsletter_erasure_contact',OLD.id::text,true);
+ DELETE FROM public.newsletter_subscriptions WHERE tenant_id=OLD.tenant_id AND subscriber_id IN (SELECT id FROM public.newsletter_subscribers WHERE tenant_id=OLD.tenant_id AND contact_id=OLD.id);
+ DELETE FROM public.newsletter_import_provenance WHERE tenant_id=OLD.tenant_id AND subscriber_id IN (SELECT id FROM public.newsletter_subscribers WHERE tenant_id=OLD.tenant_id AND contact_id=OLD.id);
+ DELETE FROM public.newsletter_subscribers WHERE tenant_id=OLD.tenant_id AND contact_id=OLD.id;
+ PERFORM set_config('app.newsletter_erasure_tenant','',true);PERFORM set_config('app.newsletter_erasure_contact','',true);RETURN NEW;
+EXCEPTION WHEN OTHERS THEN
+ PERFORM set_config('app.newsletter_erasure_tenant','',true);PERFORM set_config('app.newsletter_erasure_contact','',true);RAISE;
+END $$;
+REVOKE ALL ON FUNCTION public.newsletter_contact_erased() FROM PUBLIC;
+CREATE TRIGGER newsletter_contact_erased AFTER UPDATE OF erased_at ON public.contacts
+ FOR EACH ROW WHEN(OLD.erased_at IS NULL AND NEW.erased_at IS NOT NULL) EXECUTE FUNCTION public.newsletter_contact_erased();

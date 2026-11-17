@@ -1598,10 +1598,10 @@ export const newsletterSubscriptions = pgTable("newsletter_subscriptions", {
  check("newsletter_subscription_purpose",sql`${t.purpose}='newsletter'`),check("newsletter_subscription_consent",sql`${t.state}<>'subscribed' or ${t.consentId} is not null`),
  check("newsletter_subscription_version",sql`${t.version}>=1`)]);
 export const newsletterSegments = pgTable("newsletter_segments", {
- tenantId:uuid("tenant_id").notNull(),id:uuid("id").notNull().defaultRandom(),audienceId:uuid("audience_id").notNull(),savedViewId:uuid("saved_view_id").notNull(),
+ tenantId:uuid("tenant_id").notNull(),id:uuid("id").notNull().defaultRandom(),audienceId:uuid("audience_id").notNull(),savedViewId:uuid("saved_view_id").notNull(),savedViewVersion:integer("saved_view_version").notNull(),
  name:text("name").notNull(),createdBy:text("created_by").notNull().references(()=>users.id),createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),
 },t=>[primaryKey({columns:[t.tenantId,t.id]}),foreignKey({columns:[t.tenantId,t.audienceId],foreignColumns:[newsletterAudiences.tenantId,newsletterAudiences.id]}),
- foreignKey({columns:[t.tenantId,t.savedViewId],foreignColumns:[crmSavedViews.tenantId,crmSavedViews.id]}),check("newsletter_segment_name",sql`length(trim(${t.name})) between 1 and 100`)]);
+ foreignKey({columns:[t.tenantId,t.savedViewId],foreignColumns:[crmSavedViews.tenantId,crmSavedViews.id]}).onDelete("cascade"),check("newsletter_segment_view_version",sql`${t.savedViewVersion}>=1`),check("newsletter_segment_name",sql`length(trim(${t.name})) between 1 and 100`)]);
 
 // Provenance follows CRM source access: owner/admin only, separate from member-readable subscriber metadata.
 export const newsletterImportProvenance = pgTable("newsletter_import_provenance", {

@@ -5,7 +5,7 @@ import { users } from '../../src/db/schema';
 import { createWorkspace } from '../../src/server/workspaces';
 import { createContact, recordConsent } from '../../src/server/contacts';
 import { createNewsletterAudience, createNewsletterList, addNewsletterSubscriber, updateNewsletterSubscriber, setNewsletterSubscription, listNewsletterSubscribers, createNewsletterSegment, pageNewsletterConfiguration } from '../../src/server/newsletter';
-import { createView } from '../../src/server/crm-views';
+import { createView,updateView } from '../../src/server/crm-views';
 import { fullState } from '../../src/lib/crm-fields';
 import { withTenant } from '../../src/server/tenancy';
 import { mayContact } from '../../src/server/consent-gate';
@@ -153,4 +153,11 @@ it('audit metadata excludes contact methods, tags, consent evidence and provider
     const tables = (await f.admin.query("select relname,relforcerowsecurity from pg_class where relname in ('newsletter_audiences','newsletter_lists','newsletter_subscribers','newsletter_subscriptions','newsletter_segments','newsletter_import_provenance')")).rows;
     expect(tables).toHaveLength(6);
     expect(tables.every(t => t.relforcerowsecurity)).toBe(true);
+});
+
+it('CRM member edits invalidate a pinned segment instead of silently broadening it',async()=>{
+ const v=await createView(f.db,'n-owner',a,{objectType:'person',name:'Pinned view',shared:true,state:fullState({q:'Synthetic'})});
+ const segment=await createNewsletterSegment(f.db,'n-owner',a,audience,{name:'Pinned segment',savedViewId:v.id});
+ await updateView(f.db,'n-member',a,'person',v.id,{version:v.version,state:fullState({})});
+ await expect(listNewsletterSubscribers(f.db,'n-member',a,list,{segmentId:segment.id})).rejects.toMatchObject({status:404});
 });

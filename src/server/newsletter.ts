@@ -80,7 +80,7 @@ export function setNewsletterSubscription(db: Database, user: string, workspace:
     });
 }
 async function segmentState(tx: Transaction, tenantId: string, id: string) {
-    const [s] = await tx.select({ view: crmSavedViews }).from(newsletterSegments).innerJoin(crmSavedViews, and(eq(crmSavedViews.tenantId, newsletterSegments.tenantId), eq(crmSavedViews.id, newsletterSegments.savedViewId))).where(and(eq(newsletterSegments.tenantId, tenantId), eq(newsletterSegments.id, id), eq(crmSavedViews.objectType, 'person'), isNull(crmSavedViews.ownerUserId)));
+    const [s] = await tx.select({ view: crmSavedViews }).from(newsletterSegments).innerJoin(crmSavedViews, and(eq(crmSavedViews.tenantId, newsletterSegments.tenantId), eq(crmSavedViews.id, newsletterSegments.savedViewId))).where(and(eq(newsletterSegments.tenantId, tenantId), eq(newsletterSegments.id, id), eq(crmSavedViews.objectType, 'person'), eq(crmSavedViews.version,newsletterSegments.savedViewVersion), isNull(crmSavedViews.ownerUserId)));
     if (!s)
         throw missing();
     const state = viewState.parse(s.view.state);
@@ -99,7 +99,7 @@ export function createNewsletterSegment(db: Database, user: string, workspace: s
         if (state.sources.length)
             throw new AccessError(403, message('Errors.youDoNotHavePermissionToDoThat'));
         resolveState('person', state, await loadDefinitions(tx, tenantId, 'person'));
-        const [r] = await tx.insert(newsletterSegments).values({ ...input, tenantId, audienceId, createdBy: user }).returning();
+        const [r] = await tx.insert(newsletterSegments).values({ ...input, tenantId, audienceId, savedViewVersion:v.version, createdBy: user }).returning();
         await audit(tx, tenantId, user, 'newsletter.segment.create', r.id, { audienceId, savedViewId: input.savedViewId });
         return r;
     });
