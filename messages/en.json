@@ -390,6 +390,21 @@
     "currentStep": "Current step",
     "upcoming": "Upcoming"
   },
+  "EditorMode": {
+    "editing": "Editing {title}",
+    "backTo": "Back to {label}",
+    "stepOf": "Step {current} of {total}",
+    "stepBarLabel": "Step {current} of {total}: {label}. Show all steps",
+    "allSteps": "All steps",
+    "stepDone": "Done",
+    "stepAttention": "Needs attention",
+    "stepTodo": "Not started",
+    "stepDisabled": "Unavailable",
+    "stepCurrent": "Current step",
+    "unsaved": "Unsaved changes",
+    "preview": "Preview",
+    "close": "Close"
+  },
   "ComponentsWizardLayout": {
     "back": "Back",
     "next": "Next",
@@ -2658,6 +2673,9 @@
     },
     "comingSoon": "Coming soon",
     "stepsLabel": "Community setup",
+    "typeLabel": "Community",
+    "openPage": "Open page",
+    "goToStep": "Go to {step}",
     "preview": "Preview",
     "status": {
       "draft": "Draft",
