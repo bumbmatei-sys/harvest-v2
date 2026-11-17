@@ -1,0 +1,54 @@
+# Communities UI kit item list — approval gate (chat, profile, events, email)
+
+Planning document, 17 Nov 2026. Documentation only. **Nothing is built, installed or copied**: no kit source, registry JSON or downloaded content is in this repository. This list exists for the founder approval gate in [`shadcnuikit-adoption.md`](shadcnuikit-adoption.md) section 2 and supports [`../superpowers/specs/2026-11-17-communities-c11-chat-design.md`](../superpowers/specs/2026-11-17-communities-c11-chat-design.md).
+
+Method: public pages of shadcnuikit.com were fetched on 17 Nov 2026 with plain requests (no credentials, scratch directory outside the repository). Item names and free/premium status come from the existing [catalog map](shadcnuikit-catalog-map.md) (all chat, mail and calendar blocks are premium). Preview link = category page + `#` + name with a hyphen before the trailing number; the anchors were confirmed present in the fetched pages. Studio Admin was audited on 17 Nov 2026 from a shallow clone at **commit `c16e1af271a1c522a01feb43074b32abfe114241`** (MIT, read-only, nothing copied). Its chat code lives at `src/app/(main)/chat/` (`chat.tsx`, `chat-conversation-list.tsx`, `chat-thread.tsx`, `chat-header.tsx`, `chat-sidebar.tsx`, `chat-profile-details.tsx`, `use-chat.ts`, `data.ts`, `page.tsx`, `layout.tsx`); `src/app/(main)/dashboard/chat/page.tsx` is only a preview page that links to it. It is a one-to-one inbox over mock data (no channels, threads, mentions, pins, polling), with primitives `bubble`, `message`, `marker`, `message-scroller`, `attachment` under `src/components/ui/`.
+
+Rules that apply to every row: the license/public-repository question and plan/seat question in `shadcnuikit-adoption.md` come first; every adopted file is converted (messages catalogue, semantic tokens, no sample data or vendor strings, full width, 44px phone targets); permissions and data stay in Harvest services; **Founder standing rule, 17 Nov: "if we can use a premium component from the ui kit, use it, that is why I paid for it."** Kit blocks are used wherever one fits; Studio Admin is the fallback only where the kit has nothing suitable; Harvest shared components wrap and compose them; nothing is hand-built from scratch (if neither source covers a screen, return to the founder).
+
+## Verified pages
+
+| Page | URL | Result |
+| --- | --- | --- |
+| Chat app (full template page) | https://shadcnuikit.com/dashboard/apps/chat | 200 |
+| Mail app | https://shadcnuikit.com/dashboard/apps/mail | 200 |
+| Event calendar app | https://shadcnuikit.com/dashboard/apps/calendar | 200 |
+| Profile page (Profile V1) | https://shadcnuikit.com/dashboard/pages/profile | 200 |
+| User profile page (Profile V2) | https://shadcnuikit.com/dashboard/pages/user-profile | 200 |
+| Chat blocks | https://shadcnuikit.com/blocks/application-ui/chat-ui | 200 (chat-ui-1 to 10) |
+| Mail blocks | https://shadcnuikit.com/blocks/application-ui/mail-app | 200 (mail-app-1 to 8) |
+| Calendar blocks | https://shadcnuikit.com/blocks/application-ui/event-calendar | 200 (event-calendar-1 to 4) |
+| `/blocks/application-ui/mail`, `/calendar`, `/profile`, `/blocks/dashboard-ui/profile` | | 404 (wrong paths; the real ones are above) |
+
+The two profile pages are **full template pages under `/dashboard/pages/`, not registry blocks**: there is no `profile` category in the block registry, so they have no registry item name to install. They would be adopted as a pattern (header card, tabs, activity list), re-composed by hand, not installed.
+
+## How a kit item is obtained (token rules)
+
+Plain `curl` with **no `Authorization` header** into a scratch directory outside the repository (`curl -sS https://shadcnuikit.com/r/<name>.json -o <scratch>/<name>.json`); the kit token is never printed, searched for, stored or committed (the proxy supplies access). The adopted files are converted (messages catalogue, semantic tokens, no sample data or vendor strings, full width, 44px phone targets) and written into the repository by the PR that uses them; provenance is recorded in `src/lib/ui-provenance.ts` and `docs/ui-sources.md`. Raw kit source is never committed. The license/public-repository question in `shadcnuikit-adoption.md` is answered before any premium block lands.
+
+Registry facts verified 17 Nov 2026 from `https://shadcnuikit.com/r/<name>.json`: `bubble1` to `bubble7` are `registry:component` (href `/components/bubble`, free) shipping `components/ui/bubble.tsx`; `chat-ui1` to `chat-ui10` are `registry:block` (href `/blocks/application-ui/chat-ui`, premium); `chat-ui4`, `chat-ui5` and `chat-ui10` ship `components/ui/bubble.tsx`, `message.tsx` and `message-scroller.tsx`; `chat-ui10` also ships `components/contact-panel.tsx`; `mail-app1` to `mail-app8` are `/blocks/application-ui/mail-app`; `event-calendar1` to `4` are `/blocks/application-ui/event-calendar`. **`message-scroller` has no standalone registry name**; it arrives as a dependency file of a chat block.
+
+## Candidates
+
+**Decision wording.** The founder's standing rule of 17 Nov ("if we can use a premium component from the ui kit, use it") **approves the kit in principle** wherever a block fits. The exact block per area is named, with its preview, in the PR that uses it. Only what C11b needs is marked approved here; later slices (C09b, C14, inbox) are marked "standing rule; item chosen in that slice's own list" and are not individually approved.
+
+| # | Area | Candidate (registry name / page) | Preview link | Free / premium | What we use it for | Fallback (only if the kit has no suitable item) | Harvest component that wraps or composes it | Recommendation | Decision |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| 1 | Chat layout (C11b) | `chat-ui10` (list, header, thread, contact panel; ships bubble, message, message-scroller) | https://shadcnuikit.com/blocks/application-ui/chat-ui#chat-ui-10 | Premium | Channel list + message pane + thread panel for `ChatLayout` (contact panel replaced by a thread panel) | Studio Admin `src/app/(main)/chat/_components/chat.tsx` @ `c16e1af` | `CommunityShell`, `Sheet`, `Tabs` | Use kit | approved in principle by the founder's standing rule (use kit); final block named in the C11b PR |
+| 2 | Conversation and DM rows (C11b/C11c) | **one of** `chat-ui4` or `chat-ui5` (alternatives; the choice is made in the C11b PR with previews) | https://shadcnuikit.com/blocks/application-ui/chat-ui#chat-ui-4 (anchor `#chat-ui-5` for the alternative) | Premium | Channel and "People you can message" rows with unread badge and mute menu | Studio Admin `chat-conversation-list.tsx` @ `c16e1af` | `Item`, `Avatar`, `Badge`, `DropdownMenu`, `EmptyState` | Use kit | approved in principle by the standing rule; one of the two chosen in C11b |
+| 3 | Message bubbles (C11b) | `bubble1` to `bubble7` (`registry:component`, href `/components/bubble`) | https://shadcnuikit.com/components/bubble (page not fetched; unverified) | Free | Message bubble, grouped messages, reply preview, reaction row | Studio Admin `src/components/ui/bubble.tsx` @ `c16e1af` | `Avatar`, `Badge` | Use kit | approved by founder 17 Nov (free primitives, explicit) |
+| 4 | Composer (C11b) | The composer inside the **chosen** chat block of row 1 (`chat-ui10`; it uses `input-group`); it is not a separate registry item | https://shadcnuikit.com/blocks/application-ui/chat-ui#chat-ui-10 | Premium | Message composer with send and mention trigger | Studio Admin `chat-thread.tsx` InputGroup composer @ `c16e1af` | `InputGroup`, `Textarea`, `Command` and `Popover` (mention picker; installed) | Use kit | approved in principle by the standing rule; source named in the C11b PR |
+| 5 | Message scroller (C11b) | `message-scroller` (no standalone registry name; ships with `chat-ui4`, `chat-ui5` and `chat-ui10`) | https://shadcnuikit.com/dashboard/apps/chat | Primitive file inside premium blocks | Stick-to-bottom list and "jump to latest" | Studio Admin `src/components/ui/message-scroller.tsx` @ `c16e1af` (MIT) | `ScrollArea` | Use kit | approved by founder 17 Nov (primitive, explicit) |
+| 6 | Attachments (later slice) | `attachment1` to `attachment5` | https://shadcnuikit.com/dashboard/apps/chat | Free | Attachment chips after the scanner gate | forum attachment UI | `src/components/files/*` | Use kit with the attachments slice | standing rule; item chosen in that slice's own list |
+| 7 | Member profile page (C09b) | `/dashboard/pages/user-profile` (Profile V2; `/dashboard/pages/profile` is V1). **Template pages, not registry items** | https://shadcnuikit.com/dashboard/pages/user-profile | Template page | Composition source for the community member profile | Studio Admin account/user pages | `RecordLayout`, `Tabs`, `Avatar`, `Badge`, `MemberList` | Use the kit page as the pattern if its code is obtainable; otherwise return to the founder | standing rule; item chosen in C09b's own list |
+| 8 | My settings (C09b) | `form-layout1` | https://shadcnuikit.com/blocks/dashboard-ui/form-layouts#form-layout-1 (anchor unverified) | Premium | Visibility, notifications, DM opt-out | Studio Admin settings pages | `Field`, `StickySaveBar`, `AccountProfileForm` | Use kit | standing rule; item chosen in C09b's own list |
+| 9 | Events calendar (C14) | `event-calendar1` | https://shadcnuikit.com/blocks/application-ui/event-calendar#event-calendar-1 | Premium | Community events calendar; shared with the scheduler and campaigns | `event-calendar2`, Studio Admin calendar | `Tabs`, `Sheet`, `Calendar` | Use kit | standing rule; item chosen in C14's own list |
+| 10 | RSVP and event detail (C14) | no single item | n/a | n/a | Detail sheet, RSVP, capacity | compose around the kit calendar's detail pattern | `Sheet`, `Badge`, `StatusBadge` | Use kit where it fits | standing rule; item chosen in C14's own list |
+| 11 | Email / inbox (later) | `mail-app4`, `mail-app1`, `mail-app6` | https://shadcnuikit.com/blocks/application-ui/mail-app#mail-app-4 | Premium | Future Harvest Studio inbox and email screens | Studio Admin email page | list layout, `Tabs`, `ScrollArea` | Use kit when that slice starts | standing rule; item chosen in that slice's own list |
+
+Preview links for blocks follow the category page plus `#` plus the name with a hyphen before the trailing number; the chat, mail and calendar category anchors were confirmed present on 17 Nov. **Unverified:** the `form-layouts` page and its `#form-layout-1` anchor, the `/components/bubble` page, and the `#chat-ui-5` anchor were not separately fetched.
+
+## Notes
+
+- Studio Admin is a fallback, not a design source for chat: it is a one-to-one inbox over mock data and lacks channels, threads, mentions, pins, unread sync and polling, so the kit's blocks and Harvest's own server cover those.
+- Every adopted item is converted in the PR that uses it; the exit rule (nothing hand-built from scratch) applies.
