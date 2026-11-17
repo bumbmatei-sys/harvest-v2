@@ -121,17 +121,24 @@ export function inspectSocialBoundary(file: string, source: string): BoundaryVio
   const add = (rule: string) => found.push({ file, rule });
   const norm = file.replaceAll("\\", "/");
   const inSocial = norm.startsWith("src/server/social/");
-  if (norm !== SOCIAL_ADAPTER) {
+  const officeAdapter = /^src\/server\/(?:mail|calendar|files-provider)\/zernio-adapter\.ts$/.test(norm);
+  const officeRegistry = /^src\/server\/(?:mail|calendar|files-provider)\/registry\.ts$/.test(norm);
+  const inOffice = /^src\/server\/(?:mail|calendar|files-provider|office-provider)\//.test(norm);
+  if (norm !== SOCIAL_ADAPTER && !officeAdapter) {
     if (/zernio\.com/i.test(source)) add("vendor host outside the adapter");
-    if (/from\s+["'](?:@zernio\/|@getlatedev\/|late-sdk|zernio)[^"']*["']/i.test(source)) add("vendor HTTP client import outside the adapter");
-    if (/(?:from|import)\s*\(?\s*["'][^"']*zernio-adapter["']/.test(source) && norm !== SOCIAL_REGISTRY) add("adapter imported outside the registry");
+    if (specifiers(source).some(s => /^(?:@zernio\/|@getlatedev\/|late-sdk(?:\/|$)|zernio(?:\/|$)|googleapis(?:\/|$)|@microsoft\/microsoft-graph-client)/i.test(s))) add("vendor HTTP client import outside the adapter");
+    if (/(?:from|import)\s*\(?\s*["'][^"']*zernio-adapter["']/.test(source) && norm !== SOCIAL_REGISTRY && !officeRegistry) add("adapter imported outside the registry");
   }
   if (!SOCIAL_SEND_HOMES.includes(norm) && /\b(?:sendMessage|replyToComment)\s*\(/.test(source)) add("sending entry point outside the port and adapters");
   if (!SOCIAL_SEND_HOMES.includes(norm) && norm !== SOCIAL_REGISTRY && /\bgetSocialSender\b/.test(source)) add("sender accessor used outside the registry");
-  if (inSocial) {
+  if (inSocial || inOffice) {
     if (/process\.env/.test(source)) add("environment read inside the social layer (kill switches are constants)");
     if (norm !== SOCIAL_ADAPTER && /\bfetch\s*\(|globalThis\.fetch|\bXMLHttpRequest\b|node:https?\b/.test(source)) add("network call inside the social layer outside the adapter");
   }
+  if (officeAdapter && !/export const ZERNIO_LIVE_NETWORK = false;/.test(source)) add("office adapter must remain disabled");
+  if (officeRegistry && !/export const INTEGRATION_ENABLED = false;/.test(source)) add("office registry must remain disabled");
+  if (officeRegistry && /\bfetch\b/.test(source)) add("office registry cannot inject transport");
+  if (norm === "src/server/office-provider/connections.ts" && !/export const OFFICE_INTEGRATION_ENABLED = false;/.test(source)) add("office connections must remain disabled");
   if (norm === SOCIAL_ADAPTER && !/export const ZERNIO_LIVE_NETWORK = false;/.test(source)) add("ZERNIO_LIVE_NETWORK must be the literal constant false");
   if (norm === SOCIAL_REGISTRY && !/export const SOCIAL_INTEGRATION_ENABLED = false;/.test(source)) add("SOCIAL_INTEGRATION_ENABLED must be the literal constant false");
   if (norm === SOCIAL_REGISTRY && /\bfetch\b/.test(source)) add("the registry must not inject a fetch");
@@ -139,8 +146,9 @@ export function inspectSocialBoundary(file: string, source: string): BoundaryVio
 }
 // Operator scripts are held to the same boundary (this file is exempt: it names the patterns it forbids).
 export function checkSocialBoundary(directories: string[] = ["src", "scripts"]): BoundaryViolation[] {
-  return directories.flatMap((directory) => sourceFiles(directory)).filter((file) => /\.tsx?$/.test(file) && file.replaceAll("\\", "/") !== "scripts/source-guards.ts")
+  const violations = directories.flatMap((directory) => sourceFiles(directory)).filter((file) => /\.tsx?$/.test(file) && file.replaceAll("\\", "/") !== "scripts/source-guards.ts")
     .flatMap((file) => inspectSocialBoundary(file, readFileSync(file, "utf8")));
+  return [...violations, ...inspectProviderCopy(JSON.parse(readFileSync("messages/en.json", "utf8")))];
 }
 
 // ---- Toast library boundary: only the Harvest adapter and helper may import `sonner` (kinds, copy and actions stay uniform). ----
@@ -153,4 +161,10 @@ export function inspectSonnerBoundary(file: string, source: string): BoundaryVio
 export function checkSonnerBoundary(directories: string[] = ["src", "scripts"]): BoundaryViolation[] {
   return directories.flatMap((directory) => sourceFiles(directory)).filter((file) => /\.tsx?$/.test(file) && file.replaceAll("\\", "/") !== "scripts/source-guards.ts")
     .flatMap((file) => inspectSonnerBoundary(file, readFileSync(file, "utf8")));
+}
+
+/** Catalogue keys may name internal providers; displayed leaf values must remain neutral. */
+export function inspectProviderCopy(value: unknown): BoundaryViolation[] {
+  if (typeof value === "string") return /\b(?:zernio|gmail|outlook|onedrive|google drive|microsoft)\b/i.test(value) ? [{ file: "messages/en.json", rule: "vendor name in user-facing copy" }] : [];
+  return value && typeof value === "object" ? Object.values(value).flatMap(inspectProviderCopy) : [];
 }

@@ -365,6 +365,20 @@
       "when": 1795400000000,
       "tag": "0052_hc14_withdrawal_propagation",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1795400000001,
+      "tag": "0053_office_connections",
+      "breakpoints": true
+    },
+    {
+      "idx": 54,
+      "version": "7",
+      "when": 1795400000002,
+      "tag": "0054_hc15_campaign_metrics",
+      "breakpoints": true
     }
   ]
 }
