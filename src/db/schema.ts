@@ -77,6 +77,7 @@ export const auditLogs = pgTable("audit_logs", {
   metadata: jsonb("metadata").$type<Record<string, string>>().notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("audit_logs_tenant_created_idx").on(t.tenantId, t.createdAt), foreignKey({ columns: [t.tenantId], foreignColumns: [workspaces.tenantId] }),
+  index("community_chat_mutations_idx").on(t.actorId,t.action,t.createdAt),
   check("audit_system_actor", sql`${t.actorId} is not null or ${t.action} in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close')`)]);
 export const authSchema = { user: users, session: sessions, account: accounts, verification: verifications, rateLimit: rateLimits };
 
@@ -1045,6 +1046,8 @@ export const communities = pgTable("communities", {
   // C15a: shown in the new-member welcome card; the introductions category is where "Introduce yourself" leads.
   welcomeMessage: text("welcome_message"),
   introCategoryId: uuid("intro_category_id").references((): AnyPgColumn => communityCategories.id, { onDelete: "set null" }),
+  chatEnabled: boolean("chat_enabled").notNull().default(true),
+  dmPolicy: text("dm_policy").notNull().default("channels_only"),
   discoverOptIn: boolean("discover_opt_in").notNull().default(false),
   // Cleared if the creator's account is deleted, so account erasure is never blocked by a community.
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
@@ -1053,6 +1056,7 @@ export const communities = pgTable("communities", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
   uniqueIndex("communities_slug_idx").on(t.slug),
+  check("community_dm_policy", sql`${t.dmPolicy} in ('channels_only','members')`),
   check("community_slug", sql`${t.slug} ~ '^[a-z0-9](?:[a-z0-9-]{1,46}[a-z0-9])$' and ${t.slug} not in (${reservedSlugSql})`),
   check("community_name", sql`length(${t.name}) between 1 and 80`),
   check("community_tagline", sql`${t.tagline} is null or length(${t.tagline}) between 1 and 160`),
@@ -1079,6 +1083,8 @@ export const communityMemberships = pgTable("community_memberships", {
   adultConfirmedAt: timestamp("adult_confirmed_at", { withTimezone: true }),
   joinAnswers: jsonb("join_answers").$type<import("../lib/questions").Answers>(),
   mutedUntil: timestamp("muted_until", { withTimezone: true }),
+  dmAcceptMembers: boolean("dm_accept_members").notNull().default(true),
+  chatStateRev: bigint("chat_state_rev", { mode: "number" }).notNull().default(0),
   // C15a: notification preferences, the last time the bell was opened and the dismissed welcome card.
   notifyReplies: boolean("notify_replies").notNull().default(true),
   notifyLikes: boolean("notify_likes").notNull().default(true),
@@ -1093,6 +1099,7 @@ export const communityMemberships = pgTable("community_memberships", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.communityId, t.userId] }),
   foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }),
+  check("community_chat_state_rev", sql`${t.chatStateRev} >= 0`),
   index("community_memberships_user_idx").on(t.userId, t.status),
   check("community_membership_role", sql`${t.role} in ('owner', 'admin', 'moderator', 'contributor', 'member')`),
   check("community_membership_status", sql`${t.status} in ('active', 'pending', 'banned', 'left', 'removed')`),
@@ -1272,7 +1279,7 @@ export const communityReports = pgTable("community_reports", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),
   reporterId: text("reporter_id").references(() => users.id, { onDelete: "set null" }),
-  targetType: text("target_type", { enum: ["post", "comment", "member"] }).notNull(),
+  targetType: text("target_type", { enum: ["post", "comment", "member", "message"] }).notNull(),
   targetId: text("target_id").notNull(),
   reason: text("reason", { enum: ["spam", "harassment", "inappropriate", "other"] }).notNull(),
   note: text("note"),
@@ -1284,7 +1291,7 @@ export const communityReports = pgTable("community_reports", {
   foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
   uniqueIndex("community_reports_open_idx").on(t.communityId, t.reporterId, t.targetType, t.targetId).where(sql`${t.status} = 'open'`),
   index("community_reports_queue_idx").on(t.communityId, t.status, t.targetType, t.targetId),
-  check("community_report_target", sql`${t.targetType} in ('post', 'comment', 'member') and length(${t.targetId}) between 1 and 200`),
+  check("community_report_target", sql`${t.targetType} in ('post', 'comment', 'member', 'message') and length(${t.targetId}) between 1 and 200`),
   check("community_report_reason", sql`${t.reason} in ('spam', 'harassment', 'inappropriate', 'other')`),
   check("community_report_note", sql`${t.note} is null or length(${t.note}) between 1 and 500`),
   check("community_report_status", sql`${t.status} in ('open', 'dismissed', 'actioned')`)]);
@@ -1302,8 +1309,8 @@ export const communityModerationActions = pgTable("community_moderation_actions"
 }, (t) => [
   foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
   index("community_moderation_actions_idx").on(t.communityId, t.createdAt),
-  check("community_moderation_action", sql`${t.action} in ('report_dismiss', 'report_remove', 'held_approve', 'held_reject', 'mute', 'unmute', 'ban', 'unban', 'warn', 'appeal_approve', 'appeal_decline')`),
-  check("community_moderation_target", sql`${t.targetType} in ('post', 'comment', 'member')`)]);
+  check("community_moderation_action", sql`${t.action} in ('report_dismiss', 'report_remove', 'held_approve', 'held_reject', 'mute', 'unmute', 'ban', 'unban', 'warn', 'appeal_approve', 'appeal_decline', 'message_remove', 'message_restore', 'message_pin', 'message_unpin')`),
+  check("community_moderation_target", sql`${t.targetType} in ('post', 'comment', 'member', 'message')`)]);
 
 // C12b (migration 0040): warnings, appeals and edit history. Same model as reports: FORCE RLS, hosts and staff read,
 // every write through a definer. Members never read revisions or other people's warnings and appeals.
@@ -1420,11 +1427,12 @@ export const communityNotifications = pgTable("community_notifications", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  uniqueIndex("community_chat_notifications_group_idx").on(t.recipientId,t.communityId,t.kind,t.targetType,t.targetId).where(sql`${t.kind} in ('chat_mention','chat_reply','dm') and ${t.readAt} is null`),
   index("community_notifications_inbox_idx").on(t.recipientId, t.communityId, t.readAt, t.createdAt.desc()),
   uniqueIndex("community_notifications_like_group_idx").on(t.recipientId, t.communityId, t.targetType, t.targetId).where(sql`${t.kind} = 'like' and ${t.readAt} is null`),
   uniqueIndex("community_notifications_queue_group_idx").on(t.recipientId, t.communityId).where(sql`${t.kind} = 'host_queue' and ${t.readAt} is null`),
-  check("community_notification_kind", sql`${t.kind} in ('reply', 'thread_reply', 'like', 'application', 'warning', 'held_decision', 'appeal_decision', 'host_queue')`),
-  check("community_notification_target", sql`${t.targetType} in ('post', 'comment', 'application', 'warning', 'appeal', 'community') and length(${t.targetId}) between 1 and 200`),
+  check("community_notification_kind", sql`${t.kind} in ('reply', 'thread_reply', 'like', 'application', 'warning', 'held_decision', 'appeal_decision', 'host_queue', 'chat_mention', 'chat_reply', 'dm')`),
+  check("community_notification_target", sql`${t.targetType} in ('post', 'comment', 'application', 'warning', 'appeal', 'community', 'message', 'dm_conversation', 'channel') and length(${t.targetId}) between 1 and 200`),
   check("community_notification_count", sql`${t.actorCount} >= 1`)]);
 
 // Social provider integration layer (migration 0051). Foundation only: nothing here can reach a provider.
@@ -1611,3 +1619,65 @@ export const newsletterImportProvenance = pgTable("newsletter_import_provenance"
 },t=>[primaryKey({columns:[t.tenantId,t.subscriberId]}),foreignKey({columns:[t.tenantId,t.subscriberId],foreignColumns:[newsletterSubscribers.tenantId,newsletterSubscribers.id]}),
  foreignKey({columns:[t.tenantId,t.importId],foreignColumns:[crmImports.tenantId,crmImports.id]}),
  check("newsletter_import_provenance",sql`(${t.source}='manual' and ${t.importId} is null and ${t.rowNumber} is null and ${t.importedAt} is null) or (${t.source}='csv_import' and ${t.importId} is not null and ${t.rowNumber} is not null and ${t.rowNumber}>0 and ${t.importedAt} is not null)`)]);
+
+// C11a: text channels. Application writes use the migration's narrow definers only.
+export const communityChatState = pgTable("community_chat_state", {
+  tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),
+  rev: bigint("rev", { mode: "number" }).notNull().default(0),
+}, t => [primaryKey({ columns: [t.tenantId,t.communityId] }), foreignKey({columns:[t.tenantId,t.communityId],foreignColumns:[communities.tenantId,communities.id]}).onDelete("cascade")]);
+export const communityChannels = pgTable("community_channels", {
+  id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),
+  name: text("name").notNull(), emoji: text("emoji"), description: text("description"), position: integer("position").notNull().default(0),
+  posting: text("posting").notNull().default("members"), accessMode: text("access_mode").notNull().default("all"), minRole: text("min_role").notNull().default("member"),
+  slowModeSeconds: integer("slow_mode_seconds").notNull().default(0), lastRev: bigint("last_rev", {mode:"number"}).notNull().default(0),
+  lastMessageAt: timestamp("last_message_at",{withTimezone:true}), archivedAt: timestamp("archived_at",{withTimezone:true}),
+  createdBy: text("created_by").references(()=>users.id,{onDelete:"set null"}), createdAt: timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),
+},t=>[unique("community_channels_scope").on(t.tenantId,t.communityId,t.id),
+  foreignKey({columns:[t.tenantId,t.communityId],foreignColumns:[communities.tenantId,communities.id]}).onDelete("cascade"),
+  index("community_channels_order_idx").on(t.communityId,t.position),
+  check("community_channel_name",sql`length(trim(${t.name})) between 1 and 60`),
+  check("community_channel_emoji",sql`${t.emoji} is null or length(${t.emoji}) <= 16`),
+  check("community_channel_description",sql`${t.description} is null or length(${t.description}) <= 200`),
+  check("community_channel_posting",sql`${t.posting} in ('members','hosts')`),
+  check("community_channel_access",sql`${t.accessMode} in ('all','role','invite','tier','tag')`),
+  check("community_channel_role",sql`${t.minRole} in ('member','contributor','moderator','admin','owner')`),
+  check("community_channel_slow",sql`${t.slowModeSeconds} between 0 and 3600`)]);
+export const communityChannelMembers = pgTable("community_channel_members", {
+  tenantId: uuid("tenant_id").notNull(),communityId:uuid("community_id").notNull(),channelId:uuid("channel_id").notNull(),
+  userId:text("user_id").notNull().references(()=>users.id,{onDelete:"cascade"}), addedBy:text("added_by").references(()=>users.id,{onDelete:"set null"}),
+  createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),
+},t=>[primaryKey({columns:[t.channelId,t.userId]}),foreignKey({columns:[t.tenantId,t.communityId],foreignColumns:[communities.tenantId,communities.id]}).onDelete("cascade"),
+ foreignKey({columns:[t.tenantId,t.communityId,t.channelId],foreignColumns:[communityChannels.tenantId,communityChannels.communityId,communityChannels.id]}).onDelete("cascade")]);
+export const communityMessages = pgTable("community_messages", {
+  id:uuid("id").primaryKey().defaultRandom(),tenantId:uuid("tenant_id").notNull(),communityId:uuid("community_id").notNull(),channelId:uuid("channel_id").notNull(),
+  authorId:text("author_id").references(()=>users.id,{onDelete:"set null"}), parentId:uuid("parent_id"),clientId:uuid("client_id").notNull(),
+  body:text("body").notNull(),mentionIds:text("mention_ids").array().notNull().default(sql`ARRAY[]::text[]`),
+  seq:bigint("seq",{mode:"number"}).notNull(),rev:bigint("rev",{mode:"number"}).notNull(),replyCount:integer("reply_count").notNull().default(0),
+  editedAt:timestamp("edited_at",{withTimezone:true}),pinnedAt:timestamp("pinned_at",{withTimezone:true}),pinnedBy:text("pinned_by").references(()=>users.id,{onDelete:"set null"}),
+  heldAt:timestamp("held_at",{withTimezone:true}),heldReason:text("held_reason"),
+  deletedAt:timestamp("deleted_at",{withTimezone:true}),deletedBy:text("deleted_by").references(()=>users.id,{onDelete:"set null"}),deletedKind:text("deleted_kind"),purgeAfter:timestamp("purge_after",{withTimezone:true}),
+  createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),
+},t=>[unique("community_messages_scope").on(t.tenantId,t.communityId,t.channelId,t.id),uniqueIndex("community_messages_client_idx").on(t.authorId,t.clientId),
+ foreignKey({columns:[t.tenantId,t.communityId],foreignColumns:[communities.tenantId,communities.id]}).onDelete("cascade"),
+ foreignKey({columns:[t.tenantId,t.communityId,t.channelId],foreignColumns:[communityChannels.tenantId,communityChannels.communityId,communityChannels.id]}).onDelete("cascade"),
+ foreignKey({columns:[t.tenantId,t.communityId,t.channelId,t.parentId],foreignColumns:[t.tenantId,t.communityId,t.channelId,t.id]}).onDelete("set null"),
+ index("community_messages_seq_idx").on(t.channelId,t.seq),index("community_messages_rev_idx").on(t.channelId,t.rev),
+ index("community_messages_thread_idx").on(t.parentId,t.seq),index("community_messages_author_idx").on(t.communityId,t.authorId,t.createdAt),
+ index("community_messages_purge_idx").on(t.purgeAfter).where(sql`${t.deletedAt} is not null`),
+ check("community_message_body",sql`length(trim(${t.body})) between 1 and 2000`),check("community_message_mentions",sql`cardinality(${t.mentionIds}) <= 10`),
+ check("community_message_deleted_kind",sql`${t.deletedKind} is null or ${t.deletedKind} in ('author','host')`)]);
+export const communityMessageReactions = pgTable("community_message_reactions", {
+ tenantId:uuid("tenant_id").notNull(),communityId:uuid("community_id").notNull(),channelId:uuid("channel_id").notNull(),messageId:uuid("message_id").notNull(),
+ userId:text("user_id").notNull().references(()=>users.id,{onDelete:"cascade"}),emoji:text("emoji").notNull(),createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),
+},t=>[primaryKey({columns:[t.messageId,t.userId,t.emoji]}),foreignKey({columns:[t.tenantId,t.communityId],foreignColumns:[communities.tenantId,communities.id]}).onDelete("cascade"),
+ foreignKey({columns:[t.tenantId,t.communityId,t.channelId,t.messageId],foreignColumns:[communityMessages.tenantId,communityMessages.communityId,communityMessages.channelId,communityMessages.id]}).onDelete("cascade"),
+ check("community_reaction_emoji",sql`${t.emoji} in ('👍','❤️','🙏','😊','🎉','👏','💡','🔥','😮','😢','✅','🙌')`)]);
+export const communityChannelReads = pgTable("community_channel_reads", {
+ tenantId:uuid("tenant_id").notNull(),communityId:uuid("community_id").notNull(),channelId:uuid("channel_id").notNull(),userId:text("user_id").notNull().references(()=>users.id,{onDelete:"cascade"}),
+ lastReadSeq:bigint("last_read_seq",{mode:"number"}).notNull().default(0),mute:text("mute").notNull().default("none"),updatedAt:timestamp("updated_at",{withTimezone:true}).notNull().defaultNow(),
+},t=>[primaryKey({columns:[t.channelId,t.userId]}),foreignKey({columns:[t.tenantId,t.communityId],foreignColumns:[communities.tenantId,communities.id]}).onDelete("cascade"),
+ foreignKey({columns:[t.tenantId,t.communityId,t.channelId],foreignColumns:[communityChannels.tenantId,communityChannels.communityId,communityChannels.id]}).onDelete("cascade"),check("community_channel_mute",sql`${t.mute} in ('none','mentions_only','all')`)]);
+export const communityChatPurgeRuns = pgTable("community_chat_purge_runs", {
+ id:uuid("id").primaryKey().defaultRandom(),createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),kind:text("kind").notNull(),
+ deleted:integer("deleted").notNull().default(0),status:text("status").notNull(),failureCode:text("failure_code"),
+},t=>[check("community_chat_purge_status",sql`${t.status} in ('ok','failed')`)]);

@@ -16,6 +16,9 @@ const workerFunctions = [
   ["public.connect_retention_sweep(integer)", "select public.connect_retention_sweep(1)"],
   ["public.connect_retention_record_failure(text)", "select public.connect_retention_record_failure('sweep_failed')"],
   ["public.connect_retention_health()", "select public.connect_retention_health()"],
+  ["public.community_chat_purge_channels(integer)", "select public.community_chat_purge_channels(1)"],
+  ["public.community_chat_purge_record_failure(text)", "select public.community_chat_purge_record_failure('sweep_failed')"],
+  ["public.community_chat_purge_health()", "select public.community_chat_purge_health()"],
 ] as const;
 const webFunctions = ["public.community_email_prefs_save(text,text)", "public.community_email_unsubscribe(uuid,uuid,text)", "public.community_purge_notifications()"];
 const exec = promisify(execFile);
@@ -30,14 +33,14 @@ it("is provisioned as an unprivileged login that is not the application role", a
   expect((await f.workerPool.query("select current_user as u")).rows[0].u).toBe("harvest_worker");
 });
 
-it("lets the worker role call the six worker functions", async () => {
+it("lets the worker role call the worker functions from 0044 and 0057", async () => {
   for (const [signature, call] of workerFunctions) {
     expect((await f.admin.query("select has_function_privilege('harvest_worker', $1, 'execute') as ok", [signature])).rows[0].ok, signature).toBe(true);
     await expect(f.workerPool.query(call), signature).resolves.toBeDefined();
   }
 });
 
-it("denies the application role the six worker functions (permission denied)", async () => {
+it("denies the application role the worker functions from 0044 and 0057 (permission denied)", async () => {
   for (const [signature, call] of workerFunctions) {
     expect((await f.admin.query("select has_function_privilege('harvest_app', $1, 'execute') as ok", [signature])).rows[0].ok, signature).toBe(false);
     await expect(f.pool.query(call), signature).rejects.toMatchObject({ code: "42501" });
@@ -114,4 +117,17 @@ it("refuses to grant to a worker role that is privileged", async () => {
     await f.admin.query(statements[0]);
     await expect(f.admin.query(statements[1].replaceAll("harvest_worker", bad))).rejects.toThrow("must be an unprivileged SQL-created role");
   } finally { await f.admin.query(`drop role ${bad}`); }
+});
+
+it("0057 worker grants are safe before provisioning and refuse a privileged role", async () => {
+  const source = await readFile("drizzle/0057_community_chat.sql", "utf8");
+  const start = source.indexOf("-- 0057 worker-role grant:");
+  const block = source.slice(start, source.indexOf("-- End 0057 worker-role grant.", start));
+  const absent = `chat_absent_${randomUUID().replace(/-/g, "").slice(0, 12)}`;
+  await f.admin.query(block.replaceAll("harvest_worker", absent));
+  expect((await f.admin.query("select count(*)::int n from pg_roles where rolname=$1", [absent])).rows[0].n).toBe(0);
+  const bad = `chat_bad_${randomUUID().replace(/-/g, "").slice(0, 12)}`;
+  await f.admin.query(`create role ${bad} nologin createdb`);
+  try { await expect(f.admin.query(block.replaceAll("harvest_worker", bad))).rejects.toThrow("must be an unprivileged SQL-created role"); }
+  finally { await f.admin.query(`drop role ${bad}`); }
 });

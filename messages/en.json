@@ -3265,7 +3265,10 @@
       "appealDeclined": "Your appeal was declined",
       "hostQueue": "An item needs review",
       "hostQueueMany": "{count} items need review",
-      "announcement": "{name} posted an announcement"
+      "announcement": "{name} posted an announcement",
+      "chatMention": "{name} mentioned you in chat",
+      "chatReply": "{name} replied in a chat thread",
+      "dm": "You have private messages"
     }
   },
   "WelcomeCard": {

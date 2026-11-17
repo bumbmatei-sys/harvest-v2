@@ -1,7 +1,7 @@
 // C15a: pure rules for in-app notifications, shared by the server, the UI and (mirrored) the SQL in migration 0041.
-export const notificationKinds = ["reply", "thread_reply", "like", "application", "warning", "held_decision", "appeal_decision", "host_queue"] as const;
+export const notificationKinds = ["reply", "thread_reply", "like", "application", "warning", "held_decision", "appeal_decision", "host_queue", "chat_mention", "chat_reply", "dm"] as const;
 export type NotificationKind = typeof notificationKinds[number];
-export const notificationTargets = ["post", "comment", "application", "warning", "appeal", "community"] as const;
+export const notificationTargets = ["post", "comment", "application", "warning", "appeal", "community", "message", "dm_conversation", "channel"] as const;
 export type NotificationTarget = typeof notificationTargets[number];
 
 /** Badge cap: 99 shows as is, anything above reads "99+" (the label itself lives in the message catalogue). */
@@ -40,6 +40,9 @@ export function summaryKey(item: Pick<NotificationView, "kind" | "count" | "deta
   const decision = typeof item.detail.decision === "string" ? item.detail.decision : "";
   const status = typeof item.detail.status === "string" ? item.detail.status : "";
   switch (item.kind) {
+    case "chat_mention": return "chatMention";
+    case "chat_reply": return "chatReply";
+    case "dm": return "dm";
     case "reply": return "reply";
     case "thread_reply": return "threadReply";
     case "like": return item.targetType === "comment" ? (item.count > 1 ? "likeReplyMany" : "likeReply") : item.count > 1 ? "likeMany" : "like";
@@ -55,6 +58,8 @@ export function summaryKey(item: Pick<NotificationView, "kind" | "count" | "deta
 /** Where clicking an item goes. Always a page of the same community (or the account page for appeals). */
 export function notificationHref(slug: string, item: Pick<NotificationView, "kind" | "postId" | "detail">): string {
   const base = `/communities/${slug}`;
+  if (item.kind === "chat_mention" || item.kind === "chat_reply") return `${base}/chat`;
+  if (item.kind === "dm") return `${base}/messages`;
   if (item.kind === "host_queue") return `${base}/moderation`;
   if (item.kind === "appeal_decision") return "/account/communities";
   if (item.kind === "held_decision" && item.detail.decision !== "approve") return `${base}/forum`;

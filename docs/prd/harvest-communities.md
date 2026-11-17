@@ -215,8 +215,8 @@ Use the Harvest `AppShell` for owners and a consistent branded `CommunityShell` 
 ### 6.2 Chat and channels (Eden-style)
 
 - Channel creation with name, description, order, emoji/icon, access eligibility (all, tier, role, cohort/tag, invite-only).
-- Real-time text chat, threaded replies, rich attachment support as approved, mentions, pinned messages, unread badges, read-state syncing, mute preferences.
-- DMs and small-group conversations **only when both members opt into direct messaging**, with blocking/reporting and moderator boundaries; admins do not silently read private DMs.
+- Polling-first text chat, threaded replies, mentions, pins, unread/read-state syncing and mute preferences. Attachments remain deferred until the production scanner gate; push transport and small-group DMs are later slices. See the normative 17 Nov C11 design.
+- One-to-one DMs follow the community `channels_only` / `members` setting and a member opt-out for new member-started conversations. Owners/admins may always start a conversation; the member may reply while a current host has engaged it, including while muted. Hosts cannot silently read DMs; participant-created reports share bounded evidence. Blocking/reporting and moderator boundaries; admins do not silently read private DMs.
 - Rate limits, spam controls, offline/reconnect behavior, notification aggregation, message retention.
 - Turn channels on/off per community; no channel should leak into global search to non-members.
 

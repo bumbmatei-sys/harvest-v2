@@ -117,7 +117,7 @@ Per `CLAUDE.md`: Eden reference screens (`bumbmatei-sys/Harvest-agent`, `docs/pr
 | C12 | Moderation: reports, held content, mute/ban, admin panel | C10 | Yes |
 | C15 | Member notifications and onboarding | C06, C10 | Possibly |
 
-C13, C14 and C16 follow the Courses, Products and Events modules. C11 (realtime chat), C17–C18 (paid), C19–C22 and C23–C24 follow the first release, as in the PRD.
+Founder order (17 Nov): C11 polling-first chat now, then C09b member profiles, then C14. C14 still depends on the canonical Events module in §9; its next design must propose that dependency explicitly. C13 and C16 follow the Courses and Products modules. C17–C18 (paid), C19–C22 and C23–C24 follow the first release, as in the PRD.
 
 ## Consequences
 
