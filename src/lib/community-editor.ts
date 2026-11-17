@@ -15,3 +15,13 @@ export function publishChecklist(c: PublishFields): ChecklistItem[] {
   ];
 }
 export const readyToPublish = (c: PublishFields) => publishChecklist(c).every((item) => item.done);
+
+/** Which step lists a missing checklist item, so the Publish step can link to it. */
+export const checklistStep = (key: ChecklistItem["key"]): CommunityEditorStep => key === "name" ? "basics" : "joining";
+/** Steps that still need the owner's input: Basics without a name, Joining without a way to join, Publish while anything is missing. */
+export function stepNeedsAttention(id: CommunityEditorStep, checklist: readonly ChecklistItem[], published: boolean): boolean {
+  if (id === "basics") return checklist.some((item) => item.key === "name" && !item.done);
+  if (id === "joining") return checklist.some((item) => item.key !== "name" && !item.done);
+  if (id === "publish") return !published && checklist.some((item) => !item.done);
+  return false;
+}

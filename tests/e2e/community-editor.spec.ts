@@ -65,7 +65,9 @@ test("create, edit, guard, conflict and publish a community; viewers are read-on
   await page.getByLabel("Tagline (optional)", { exact: true }).fill("Weekly study and prayer");
 
   // Unsaved changes are guarded.
-  await page.getByRole("link", { name: "Communities", exact: true }).first().click();
+  // With the editing sidebar (shell modes on) the way out is its back link; otherwise the first Communities link is the sidebar entry.
+  const backLink = page.getByRole("link", { name: "Back to Communities", exact: true });
+  await (await backLink.count() ? backLink : page.getByRole("link", { name: "Communities", exact: true }).first()).click();
   await expect(page.getByRole("alertdialog", { name: "Leave without saving?" })).toBeVisible();
   await page.getByRole("button", { name: "Stay", exact: true }).click();
   await page.getByRole("button", { name: "Save draft", exact: true }).click();

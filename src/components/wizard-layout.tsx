@@ -15,10 +15,11 @@ export type WizardStep = StepperStep & { description?: string };
  * A guided step frame: the step indicator, the current step's heading and content, and Back / Next / Finish. It holds no data: the caller owns the
  * current step and the values. `validate` is the hook point that runs before Next (return false to stay; show the reason in the step, or pass `error`).
  * Disabled steps are skipped. Moving with Back, Next or Finish puts focus on the step heading; picking a step from a separate step list does not.
- * Pass `stepper={false}` when a surrounding shell already shows the steps. Without `onFinish` the last step has no primary button.
+ * Pass `stepper={false}` when a surrounding shell already shows the steps, and `focusOnStepChange` when that shell's own step list should also move focus
+ * to the heading (the editing sidebar and the phone step sheet do). Without `onFinish` the last step has no primary button.
  */
-export function WizardLayout({ steps, current, onStepChange, stepsLabel, stepper = true, validate, onFinish, busy = false, error, backLabel, nextLabel, finishLabel, children }: {
-  steps: readonly WizardStep[]; current: string; onStepChange: (id: string) => void; stepsLabel: string; stepper?: boolean;
+export function WizardLayout({ steps, current, onStepChange, stepsLabel, stepper = true, focusOnStepChange = false, validate, onFinish, busy = false, error, backLabel, nextLabel, finishLabel, children }: {
+  steps: readonly WizardStep[]; current: string; onStepChange: (id: string) => void; stepsLabel: string; stepper?: boolean; focusOnStepChange?: boolean;
   validate?: (stepId: string) => boolean | Promise<boolean>; onFinish?: () => void | Promise<void>; busy?: boolean; error?: string;
   backLabel?: string; nextLabel?: string; finishLabel?: string; children: React.ReactNode;
 }) {
@@ -27,7 +28,12 @@ export function WizardLayout({ steps, current, onStepChange, stepsLabel, stepper
   const [checking, setChecking] = useState(false);
   const pending = useRef(false);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
-  useEffect(() => { if (moved.current) { moved.current = false; heading.current?.focus(); } }, [current]);
+  const shown = useRef(current);
+  useEffect(() => {
+    const changed = shown.current !== current;
+    shown.current = current;
+    if (moved.current || (focusOnStepChange && changed)) { moved.current = false; heading.current?.focus(); }
+  }, [current, focusOnStepChange]);
   const at = stepIndex(steps, current), step = steps[at];
   const previous = adjacentStep(steps, current, -1), next = adjacentStep(steps, current, 1);
   const working = busy || checking;
