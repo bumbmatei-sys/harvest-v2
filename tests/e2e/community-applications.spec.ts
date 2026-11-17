@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { origin, signIn } from "./helpers/session";
+import { settleForAxe } from "./helpers/settle";
 
 // PR 4a: the owner builds rules and join questions; people join with answers or apply; the owner reviews.
 test.use({ actionTimeout: 30000, reducedMotion: "reduce" });
@@ -15,6 +16,7 @@ async function shoot(page: Page, name: string, prepare?: () => Promise<void>) {
     await prepare?.();
     for (const [label, width, height] of sizes) {
       await page.setViewportSize({ width, height });
+      await settleForAxe(page);
       expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await page.screenshot({ path: `${evidence}/${name}-${label}-${scheme}.png`, fullPage: true });

@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { origin, signIn } from "./helpers/session";
+import { settleForAxe } from "./helpers/settle";
 
 // HC-06C+D integrated acceptance: a verified Connect claim creates a contact with a Connect source,
 // source rules narrow list = count = export identically, consent filters are split by channel, and the
@@ -14,6 +15,7 @@ const evidence = "docs/screenshots/hc06c-d";
 const sizes = [["phone", 390, 844], ["tablet", 768, 1024], ["desktop", 1440, 1000]] as const;
 
 async function check(page: Page) {
+  await settleForAxe(page);
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 }
