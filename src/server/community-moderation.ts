@@ -2,7 +2,7 @@ import { and, desc, eq, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
-import { communityAppeals, communityComments, communityCommentRevisions, communityModerationActions, communityPostRevisions, communityPosts, communityReports, users } from "../db/schema";
+import { communityAppeals, communityComments, communityCommentRevisions, communityModerationActions, communityMessages, communityPostRevisions, communityPosts, communityReports, users } from "../db/schema";
 import { appealDecisions, memberActions, moderationLimits, muteDays, reportReasons, reportTargets, validReason, type ReportReason, type ReportTarget } from "../lib/moderation";
 import { sanitizeRichText, type RichDoc } from "../lib/rich-text";
 import { message } from "../i18n/messages";
@@ -10,6 +10,7 @@ import { communitySlug } from "./communities";
 import { forumContextTx, forumDefiner, type ForumContext } from "./community-forum";
 import { AccessError } from "./permissions";
 import { withUser } from "./tenancy";
+import { communityChatEnabled, moderateChatMessage } from "./community-chat";
 
 // C12a: member reports and the hosts' moderation page. Reads run in withUser: reports and moderation actions are
 // readable only by hosts (community_is_host); every write goes through a definer in migration 0039.
@@ -27,6 +28,7 @@ const reportInput = z.object({ targetType: z.enum(reportTargets), targetId: z.st
 /** Any reader may report a post, reply or member once. Reporters are never shown to the person they reported. */
 export async function reportContent(db: Database, userId: string, slug: string, raw: unknown) {
   const input = reportInput.parse(raw);
+  if (input.targetType === "message" && !communityChatEnabled()) throw notFound();
   if (input.targetType !== "member") z.uuid().parse(input.targetId);
   return forumDefiner(db, userId, sql`select public.community_report(${communitySlug.parse(slug)}, ${input.targetType}, ${input.targetId}, ${input.reason}, ${input.note}) as v`);
 }
@@ -49,6 +51,10 @@ async function describeTargets(tx: Transaction, communityId: string, items: { ta
     out.set(`comment:${c.id}`, { title: "", excerpt: c.body.replace(/\s+/g, " ").slice(0, 280), authorId: c.authorId, authorName: c.authorName, postId: c.postId, removed: Boolean(c.removedAt) });
   if (memberIds.length) for (const u of await tx.select({ id: users.id, name: users.name }).from(users).where(inArray(users.id, memberIds)))
     out.set(`member:${u.id}`, { title: u.name, excerpt: "", authorId: u.id, authorName: u.name, postId: null, removed: false });
+  const messageIds = ids("message");
+  if (communityChatEnabled() && messageIds.length) for (const m of await tx.select({ id: communityMessages.id, body: communityMessages.body, authorId: communityMessages.authorId, authorName: users.name, deletedAt: communityMessages.deletedAt })
+    .from(communityMessages).leftJoin(users, eq(users.id, communityMessages.authorId)).where(and(eq(communityMessages.communityId, communityId), inArray(communityMessages.id, messageIds))))
+    out.set(`message:${m.id}`, { title: "", excerpt: m.body.replace(/\s+/g, " ").slice(0, 280), authorId: m.authorId, authorName: m.authorName, postId: null, removed: Boolean(m.deletedAt) });
   return out;
 }
 
@@ -114,12 +120,17 @@ export function moderationCount(db: Database, userId: string, slug: string) {
 const decideInput = z.object({ decision: z.enum(["keep", "remove"]) }).strict();
 export async function decideReport(db: Database, userId: string, slug: string, reportId: string, raw: unknown) {
   const { decision } = decideInput.parse(raw);
+  if (!communityChatEnabled()) {
+    const chat = await withUser(db, userId, tx => tx.select({ type: communityReports.targetType }).from(communityReports).where(eq(communityReports.id, z.uuid().parse(reportId))));
+    if (chat[0]?.type === "message") throw notFound();
+  }
   return forumDefiner(db, userId, sql`select public.community_report_decide(${communitySlug.parse(slug)}, ${z.uuid().parse(reportId)}::uuid, ${decision}) as v`);
 }
 
-const heldInput = z.object({ targetType: z.enum(["post", "comment"]), id: z.uuid(), decision: z.enum(["approve", "reject"]) }).strict();
+const heldInput = z.object({ targetType: z.enum(["post", "comment", "message"]), id: z.uuid(), decision: z.enum(["approve", "reject"]) }).strict();
 export async function decideHeld(db: Database, userId: string, slug: string, raw: unknown) {
   const input = heldInput.parse(raw);
+  if (input.targetType === "message") return moderateChatMessage(db, userId, slug, input.id, { action: input.decision });
   return forumDefiner(db, userId, sql`select public.community_held_decide(${communitySlug.parse(slug)}, ${input.targetType}, ${input.id}::uuid, ${input.decision}) as v`);
 }
 

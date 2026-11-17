@@ -1,6 +1,6 @@
 import { message, type MessageKey } from "../i18n/messages";
 import type { Locale } from "../i18n/locale";
-import { notificationHref, summaryKey, type NotificationKind } from "./notifications";
+import { notificationHref, summaryKey, type NotificationTarget, type NotificationKind } from "./notifications";
 import { signUnsubscribe } from "./community-email-token";
 
 // C15b: plain-text community email. Pure: the worker passes in what the database returned and gets text back.
@@ -10,7 +10,7 @@ export const DIGEST_FREQUENCIES = ["daily", "weekly"] as const;
 export const EMAIL_FREQUENCIES = ["off", "important", "daily", "weekly"] as const;
 export type EmailFrequency = typeof EMAIL_FREQUENCIES[number];
 
-export type EmailItem = { kind: NotificationKind; targetType: "post" | "comment" | "application" | "warning" | "appeal" | "community"; count: number;
+export type EmailItem = { kind: NotificationKind; targetType: NotificationTarget; count: number;
   actorName: string | null; postTitle: string | null; postId: string | null; detail: Record<string, unknown> };
 export type EmailJob = { id: string; kind: "instant" | "digest"; to: string; name: string; tenantId: string; communityId: string; recipientId: string;
   communityName: string; communitySlug: string; hasMembership: boolean; items: EmailItem[] };

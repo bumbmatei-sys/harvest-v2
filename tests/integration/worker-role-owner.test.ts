@@ -9,6 +9,9 @@ const workerFunctions = [
   ["public.connect_retention_sweep(integer)", "select public.connect_retention_sweep(1)"],
   ["public.connect_retention_record_failure(text)", "select public.connect_retention_record_failure('sweep_failed')"],
   ["public.connect_retention_health()", "select public.connect_retention_health()"],
+  ["public.community_chat_purge_channels(integer)", "select public.community_chat_purge_channels(1)"],
+  ["public.community_chat_purge_record_failure(text)", "select public.community_chat_purge_record_failure('sweep_failed')"],
+  ["public.community_chat_purge_health()", "select public.community_chat_purge_health()"],
 ] as const;
 
 it("works with a restricted (non-superuser, NOCREATEROLE) migration owner", async () => {

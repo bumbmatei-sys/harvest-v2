@@ -54,3 +54,9 @@ The existing local `.env.local` needs a `WORKER_DATABASE_URL` for the two script
 ## Rotation and rollback
 
 Rotate with `ALTER ROLE harvest_worker PASSWORD '<new>'` and update `WORKER_DATABASE_URL`. To disable the workers, `ALTER ROLE harvest_worker NOLOGIN`. Do not re-grant the six functions to `harvest_app`: that reopens the cross-ministry address read and the health-signal write that 0044 closes.
+
+## C11a channel retention (0057)
+
+Migration 0057 adds worker-only `community_chat_purge_channels(integer)`, `community_chat_purge_record_failure(text)` and `community_chat_purge_health()`. PUBLIC and `harvest_app` execution are revoked; the worker gets no chat-table access. The migration's final block labelled “0057 worker-role grant” can be replayed after provisioning; it refuses a privileged or inheriting worker role. Restricted-owner and worker-role suites exercise the migration's grants.
+
+The channel sweep deletes expired soft deletions in bounded batches, excludes open-report targets and logs counts only. Record a sweep failure in a separate transaction (`sweep_failed`) so rollback cannot erase the failure signal. Health reports overdue after 26 hours and failures since the latest success. C11d supplies the command/run loop; do not configure a production schedule from this server slice. Worker provisioning, scheduling, monitoring and real-data activation remain gates.

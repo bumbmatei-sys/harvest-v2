@@ -1,7 +1,7 @@
 // C12a: pure moderation rules shared by the server, the UI and (mirrored) the SQL definers.
 export const reportReasons = ["spam", "harassment", "inappropriate", "other"] as const;
 export type ReportReason = typeof reportReasons[number];
-export const reportTargets = ["post", "comment", "member"] as const;
+export const reportTargets = ["post", "comment", "member", "message"] as const;
 export type ReportTarget = typeof reportTargets[number];
 export const muteDays = [1, 7, 30] as const;
 export const memberActions = ["mute", "unmute", "ban", "unban"] as const;
