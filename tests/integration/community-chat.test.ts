@@ -381,3 +381,14 @@ it("keeps the 30-channel cap atomic when every existing channel has been deleted
     expect((await f.admin.query("select count(*)::int n from community_channels where community_id=$1 and archived_at is null",[fresh])).rows[0].n).toBe(30);
   } finally { await f.admin.query("rollback"); await Promise.allSettled(pending); await creators.end(); }
 });
+it("rejects a global client id replay across authorized ministries without returning foreign content", async () => {
+  const foreign=(await f.admin.query("select tenant_id,id from communities where slug='chat-third'")).rows[0];
+  const ch=(await f.admin.query("select id from community_channels where community_id=$1",[foreign.id])).rows[0].id;
+  await f.admin.query("insert into users(id,name,email) values('cross-author','Cross author','cross-author@example.test')");
+  for (const [t,c] of [[tenant,club],[foreign.tenant_id,foreign.id]]) {
+    await f.admin.query("insert into community_memberships(tenant_id,community_id,user_id,status) values($1,$2,'cross-author','active')",[t,c]);
+    await f.admin.query("insert into entitlements(tenant_id,user_id,resource_type,resource_id,source) values($1,'cross-author','community',$2,'admin_grant')",[t,c]);
+  }
+  const client=randomUUID(); expect((await send('cross-author','Original content',general,null,[],client)).outcome).toBe('ok');
+  expect(await invoke('cross-author','community_message_send',[ch,null,'Another body',[],client],'chat-third')).toEqual({ outcome:'client_id_conflict' });
+});

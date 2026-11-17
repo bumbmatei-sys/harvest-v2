@@ -377,7 +377,7 @@ BEGIN
  END IF;
 END $$;
 CREATE FUNCTION public.community_message_send(p_slug text,p_channel uuid,p_parent uuid,p_body text,p_mentions text[],p_client uuid) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
-DECLARE actor text:=nullif(current_setting('app.user_id',true),''); ctx record; ch record; oldrow public.community_messages%ROWTYPE; saved public.community_messages%ROWTYPE; root uuid; mentions text[]; v_rev bigint; held boolean;
+DECLARE actor text:=nullif(current_setting('app.user_id',true),''); ctx record; ch record; oldrow public.community_messages%ROWTYPE; saved public.community_messages%ROWTYPE; root uuid; mentions text[]; v_rev bigint; held boolean; conflict_constraint text;
 BEGIN
  SELECT * INTO ctx FROM public.community_chat_actor(p_slug);
  IF ctx.tenant IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
@@ -414,7 +414,11 @@ BEGIN
  PERFORM public.community_chat_bump(ctx.tenant,ctx.community);
  RETURN public.community_chat_done(jsonb_build_object('outcome','ok','message',public.community_chat_message_projection(saved,public.community_chat_rank(ctx.role)>=2)));
 
-EXCEPTION WHEN check_violation OR invalid_text_representation OR not_null_violation THEN RETURN public.community_chat_done('{"outcome":"invalid"}');
+EXCEPTION WHEN unique_violation THEN
+ GET STACKED DIAGNOSTICS conflict_constraint=CONSTRAINT_NAME;
+ IF conflict_constraint='community_messages_client_idx' THEN RETURN public.community_chat_done('{"outcome":"client_id_conflict"}'); END IF;
+ PERFORM public.community_definer_reset(); RAISE;
+ WHEN check_violation OR invalid_text_representation OR not_null_violation THEN RETURN public.community_chat_done('{"outcome":"invalid"}');
  WHEN OTHERS THEN PERFORM public.community_definer_reset(); RAISE;
 END $$;
 
