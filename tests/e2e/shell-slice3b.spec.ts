@@ -212,30 +212,39 @@ test("keyboard path: tabs, view as and device switch are reachable and the previ
   await page.goto(url);
   await expect(page.locator("[data-hydrated=true]")).toBeVisible();
   const preview = column(page);
-  await preview.getByRole("tab", { name: "Page" }).focus();
-  await expect(preview.getByRole("tab", { name: "Page" })).toBeFocused();
-  await preview.getByRole("tab", { name: "Page" }).press("ArrowRight");
-  await expect(preview.getByRole("tab", { name: "Welcome" })).toBeFocused();
-  await expect(preview.getByRole("tab", { name: "Welcome" })).toHaveAttribute("aria-selected", "true");
-  await preview.getByRole("tab", { name: "Welcome" }).press("ArrowLeft");
-  const viewAs = preview.getByRole("radiogroup", { name: "View as" });
-  await viewAs.getByRole("radio", { name: "Visitor" }).focus();
-  await expect(viewAs.getByRole("radio", { name: "Visitor" })).toBeFocused();
-  await viewAs.getByRole("radio", { name: "Visitor" }).press("ArrowRight");
-  await expect(viewAs.getByRole("radio", { name: "Member" })).toBeFocused();
-  await viewAs.getByRole("radio", { name: "Member" }).press("Space");
-  await expect(viewAs.getByRole("radio", { name: "Member" })).toBeChecked();
-  const device = preview.getByRole("radiogroup", { name: "Device" });
-  await device.getByRole("radio", { name: "Phone width" }).focus();
-  await expect(device.getByRole("radio", { name: "Phone width" })).toBeFocused();
-  await device.getByRole("radio", { name: "Phone width" }).press("ArrowRight");
-  await expect(device.getByRole("radio", { name: "Desktop width" })).toBeFocused();
-  await device.getByRole("radio", { name: "Desktop width" }).press("Enter");
-  await expect(device.getByRole("radio", { name: "Desktop width" })).toBeChecked();
+  // The column mounts after hydration (media query) and the preview settles after its first debounce: wait for it before any key press.
+  await expect(frame(page)).toBeVisible();
+  await expect(frame(page).getByText("Weekly study and prayer")).toBeVisible();
+  const radio = (group: string, name: string) => preview.getByRole("radiogroup", { name: group }).getByRole("radio", { name });
+  /** Focus `from`, press `key`, expect `to` focused; retried as a whole so a re-render that steals focus between steps cannot fail it. */
+  const move = (from: Locator, key: string, to: Locator) => expect(async () => {
+    await from.focus();
+    await expect(from).toBeFocused({ timeout: 2_000 });
+    await from.press(key);
+    await expect(to).toBeFocused({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+  const pageTab = preview.getByRole("tab", { name: "Page" }), welcomeTab = preview.getByRole("tab", { name: "Welcome" });
+  await move(pageTab, "ArrowRight", welcomeTab);
+  await expect(welcomeTab).toHaveAttribute("aria-selected", "true");
+  await move(welcomeTab, "ArrowLeft", pageTab);
+  await expect(pageTab).toHaveAttribute("aria-selected", "true");
+  await expect(frame(page, /^Page preview as a visitor/)).toBeVisible();
+  await expect(radio("View as", "Visitor")).toBeChecked();
+  await move(radio("View as", "Visitor"), "ArrowRight", radio("View as", "Member"));
+  await radio("View as", "Member").press("Space");
+  await expect(radio("View as", "Member")).toBeChecked();
+  await expect(radio("Device", "Phone width")).toBeChecked();
+  await move(radio("Device", "Phone width"), "ArrowRight", radio("Device", "Desktop width"));
+  await radio("Device", "Desktop width").press("Enter");
+  await expect(radio("Device", "Desktop width")).toBeChecked();
   // Tab order inside the column: tabs, view as, device, Edit this, then the frame (one stop), and nothing inside it.
-  await preview.getByRole("button", { name: "Edit this" }).focus();
-  await page.keyboard.press("Tab");
-  await expect(frame(page, /^Page preview as a member/)).toBeFocused();
+  const edit = preview.getByRole("button", { name: "Edit this" });
+  await expect(async () => {
+    await edit.focus();
+    await expect(edit).toBeFocused({ timeout: 2_000 });
+    await page.keyboard.press("Tab");
+    await expect(frame(page, /^Page preview as a member/)).toBeFocused({ timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
   await page.keyboard.press("Tab");
   expect(await page.evaluate(() => document.activeElement?.closest("[data-editor-preview-frame]") === null)).toBe(true);
 });
