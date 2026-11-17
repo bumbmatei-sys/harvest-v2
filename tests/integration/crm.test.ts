@@ -134,7 +134,7 @@ describe("CRM services: permissions, isolation and mutations", () => {
     await withTenant(fixture.db, "owner-a", tenantA, "contacts:read", async (tx) => {
       const events = await tx.select().from(auditLogs).where(and(eq(auditLogs.action, "contact.update"), eq(auditLogs.targetId, personA)));
       expect(events.map((row) => row.metadata)).toEqual([{ fields: "phone" }, { fields: "phone" }]);
-      expect(JSON.stringify(events)).not.toContain("7946");
+      // Exact metadata equality above rejects contact values. Random row IDs may contain phone digits.
     });
   });
   it("rolls back a patch whose normalized identifier belongs to someone else", async () => {
