@@ -57,6 +57,8 @@ export function ChatLayout({ slug, me, access, initial, initialChannel, members 
   const [drafts, setDrafts] = useState<Record<string, ChatDraft>>({});
   const retryIds = useRef(new Map<string, { request: string; id: string }>());
   const tag = useRef<string | null>(null);
+  const listHeading = useRef<HTMLHeadingElement>(null);
+  const paneHeading = useRef<HTMLHeadingElement>(null);
   const tablet = useMediaQuery("(min-width: 768px)");
   const online = useSyncExternalStore(onlineEvents, () => navigator.onLine, () => true);
 
@@ -87,6 +89,12 @@ export function ChatLayout({ slug, me, access, initial, initialChannel, members 
     setShowMobileThread(true);
     setListOpen(false);
     setMuteError("");
+    if (!tablet) requestAnimationFrame(() => paneHeading.current?.focus());
+  }
+
+  function backToChannels() {
+    setShowMobileThread(false);
+    requestAnimationFrame(() => listHeading.current?.focus());
   }
 
   async function mute(value: typeof channelMutes[number], id: string) {
@@ -118,12 +126,12 @@ export function ChatLayout({ slug, me, access, initial, initialChannel, members 
 
   return <div className="flex h-[calc(100dvh-7rem-env(safe-area-inset-bottom))] min-h-64 min-w-0 overflow-hidden md:h-[calc(100dvh-3.5rem)]">
     <section className={cn("min-h-0 w-full min-w-0 flex-col border-r lg:flex lg:w-80 lg:shrink-0", showMobileThread && channel ? "hidden" : "flex md:hidden")}>
-      <h2 className="flex min-h-14 shrink-0 items-center px-4 text-lg font-semibold">{t("channels")}</h2>
+      <h2 ref={listHeading} tabIndex={-1} className="flex min-h-14 shrink-0 items-center px-4 text-lg font-semibold outline-none">{t("channels")}</h2>
       {ordered.length ? list : <p className="px-4 text-sm text-muted-foreground">{t("noChannels")}</p>}
     </section>
     <section className={cn("min-h-0 min-w-0 flex-1 flex-col md:flex", showMobileThread && channel ? "flex" : "hidden")}>
       <div className="flex min-h-14 shrink-0 items-center gap-2 border-b px-3 sm:px-4">
-        <Button variant="ghost" size="icon" className="size-11 md:hidden" onClick={() => setShowMobileThread(false)}
+        <Button variant="ghost" size="icon" className="size-11 md:hidden" onClick={backToChannels}
           aria-label={t("backToChannels")}><ArrowLeft aria-hidden="true" /></Button>
         <Sheet open={listOpen} onOpenChange={setListOpen}>
           <SheetTrigger asChild><Button variant="ghost" size="icon" className="hidden size-11 md:inline-flex lg:hidden" aria-label={t("channels")}><PanelLeft aria-hidden="true" /></Button></SheetTrigger>
@@ -133,7 +141,7 @@ export function ChatLayout({ slug, me, access, initial, initialChannel, members 
           </SheetContent>
         </Sheet>
         {channel && <><Hash className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <h2 className="min-w-0 flex-1 truncate font-semibold">{channel.name}</h2>
+          <h2 ref={paneHeading} tabIndex={-1} className="min-w-0 flex-1 truncate font-semibold outline-none">{channel.name}</h2>
           {mutedChannel}</>}
       </div>
       {!online && <Alert className="m-2 w-auto"><AlertDescription>{t("offline")}</AlertDescription></Alert>}

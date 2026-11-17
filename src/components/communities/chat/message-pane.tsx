@@ -108,6 +108,7 @@ export function MessagePane({ channel, slug, me, access, members, draft, setDraf
   const cursor = useRef<string | null>(null), tag = useRef<string | null>(null);
   const latestRootSeq = useRef(0n);
   const threadRequest = useRef(0);
+  const threadOpener = useRef<HTMLButtonElement | null>(null);
   const retryUntil = useRef(0);
   const post = !access.muted && (channel.posting === "members" || access.moderate);
 
@@ -266,7 +267,7 @@ export function MessagePane({ channel, slug, me, access, members, draft, setDraf
     return <MessageScrollerItem key={item.id} messageId={item.id}>
       <ChatMessageRow message={item} slug={slug} mine={item.authorId === me} post={post && online}
         mayModerate={access.moderate && (item.authorId === me || canActOn(access.role, role))}
-        restore={access.restore} thread={inThread} onReply={() => void openThread(item)} onEdit={() => startEdit(item)}
+        restore={access.restore} thread={inThread} onReply={opener => { threadOpener.current = opener; void openThread(item); }} onEdit={() => startEdit(item)}
         onAction={action => action === "delete" || action === "remove" ? setConfirm({ message: item, action }) : void mutate(item, action)}
         onReact={emoji => void mutate(item, "reaction", emoji)} />
     </MessageScrollerItem>;
@@ -295,7 +296,7 @@ export function MessagePane({ channel, slug, me, access, members, draft, setDraf
     {displayPins.length > 0 && <div className="flex shrink-0 items-center gap-2 overflow-x-auto border-b px-3"
       aria-label={t("pinned")} role="region"><Pin className="size-4 shrink-0" aria-hidden="true" />
       {displayPins.map(item => <Button key={item.id} className="min-h-11 max-w-48 shrink-0" variant="ghost"
-        onClick={() => void openThread(item)}><span className="truncate">{item.body}</span></Button>)}
+        onClick={event => { threadOpener.current = event.currentTarget; void openThread(item); }}><span className="truncate">{item.body}</span></Button>)}
     </div>}
     <MessageList label={t("messagesIn", { channel: channel.name })}
       onLatest={<><ReadState seq={last?.seq} enabled={online && focused && caughtUp && !thread} endpoint={`${endpoint}/read`} onRead={onRead} />
@@ -309,7 +310,10 @@ export function MessagePane({ channel, slug, me, access, members, draft, setDraf
     {!thread && inlineError}
     {post ? composer(false) : <p className="shrink-0 px-4 py-3 text-sm text-muted-foreground">{t(access.muted ? "mutedPosting" : "hostsOnly")}</p>}
     <Sheet open={!!thread} onOpenChange={open => { if (!open) { threadRequest.current++; setThread(undefined); if (edit?.message.parentId) setEdit(undefined); } }}>
-      <SheetContent side="right" className="flex h-dvh w-full min-w-0 flex-col gap-0 sm:max-w-lg">
+      <SheetContent side="right" className="flex h-dvh w-full min-w-0 flex-col gap-0 sm:max-w-lg"
+        onCloseAutoFocus={event => {
+          if (threadOpener.current?.isConnected) { event.preventDefault(); threadOpener.current.focus(); }
+        }}>
         <SheetHeader className="shrink-0 border-b"><SheetTitle>{t("thread")}</SheetTitle></SheetHeader>
         <MessageList key={thread} label={t("threadReplies")} onLatest={<ReadState seq={threadMessages.at(-1)?.seq}
           enabled={!!thread && online && focused && caughtUp} endpoint={`${endpoint}/read`} onRead={onRead} />}>

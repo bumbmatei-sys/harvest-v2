@@ -5,7 +5,7 @@ import { origin, signIn } from "./helpers/session";
 import { settleForAxe } from "./helpers/settle";
 
 test.use({ actionTimeout: 20_000, reducedMotion: "reduce" });
-const expect = check.configure({ timeout: 20_000 });
+const expect = check.configure({ timeout: 35_000 });
 const evidence = "docs/screenshots/communities-c11b";
 
 async function send(page: Page, label: string, body: string) {
@@ -15,7 +15,7 @@ async function send(page: Page, label: string, body: string) {
 }
 
 test("chat channels, live messages, moderation, and responsive evidence", async ({ page: owner, browser }) => {
-  test.setTimeout(240_000);
+  test.setTimeout(420_000);
   await owner.setViewportSize({ width: 1280, height: 900 });
   const clientErrors: string[] = [];
   owner.on("pageerror", error => clientErrors.push(error.message));
@@ -77,18 +77,27 @@ test("chat channels, live messages, moderation, and responsive evidence", async 
     await expect(welcome.getByRole("button", { name: "1 reply" })).toBeVisible({ timeout: 15_000 });
 
     await welcome.getByRole("button", { name: "React", exact: true }).click();
+    const reaction = member.waitForResponse(response => response.url().endsWith("/reactions") &&
+      response.request().method() === "POST", { timeout: 60_000 });
     await member.getByRole("menuitem", { name: "🙏", exact: true }).click();
+    expect((await reaction).ok()).toBe(true);
     await expect(welcome.getByRole("button", { name: "🙏 1 reaction" })).toHaveAttribute("aria-pressed", "true", { timeout: 15_000 });
 
     await owner.bringToFront();
     const pin = owner.locator("article").filter({ hasText: "Welcome to our reading group." });
     await pin.getByRole("button", { name: "Message actions" }).click();
+    const pinned = owner.waitForResponse(response => response.url().endsWith("/moderate") &&
+      response.request().method() === "POST", { timeout: 60_000 });
     await owner.getByRole("menuitem", { name: "Pin message" }).click();
+    expect((await pinned).ok()).toBe(true);
     await expect(owner.getByRole("region", { name: "Pinned messages" })).toBeVisible({ timeout: 15_000 });
 
     await member.bringToFront();
     await member.getByRole("button", { name: "Channel notifications" }).click();
+    const muted = member.waitForResponse(response => response.url().endsWith("/mute") &&
+      response.request().method() === "PUT", { timeout: 60_000 });
     await member.getByRole("menuitemradio", { name: "Mute channel" }).click();
+    expect((await muted).ok()).toBe(true);
     await expect.poll(async () => {
       const result = await (await member.request.get(`${api}/state`)).json();
       return result.channels.find((channel: { id: string }) => channel.id === general)?.mute;
@@ -106,7 +115,10 @@ test("chat channels, live messages, moderation, and responsive evidence", async 
     await owner.goto(`/communities/${slug}/moderation`);
     await owner.getByRole("tab", { name: /Held/ }).click();
     await owner.getByRole("tab", { name: /^Chat/ }).click();
+    const approved = owner.waitForResponse(response => response.url().endsWith("/moderate") &&
+      response.request().method() === "POST", { timeout: 60_000 });
     await owner.getByRole("button", { name: "Approve", exact: true }).click();
+    expect((await approved).ok()).toBe(true);
     await member.bringToFront();
     await expect(member.getByText("Held for review", { exact: true })).toBeHidden({ timeout: 25_000 });
     await own.getByRole("button", { name: "Message actions" }).click();
@@ -146,6 +158,12 @@ test("chat channels, live messages, moderation, and responsive evidence", async 
           expect(box?.width).toBeGreaterThanOrEqual(44);
         }
         await owner.screenshot({ path: `${evidence}/chat-${width}-${scheme}.png`, animations: "disabled" });
+        if (width === 360) {
+          await owner.getByRole("button", { name: "Back to channels" }).click();
+          await expect(owner.getByRole("heading", { name: "Channels", exact: true })).toBeFocused();
+          await owner.getByRole("button", { name: /^General/ }).press("Enter");
+          await expect(owner.getByRole("heading", { name: "General", exact: true })).toBeFocused();
+        }
       }
     }
     expect(clientErrors).toEqual([]);

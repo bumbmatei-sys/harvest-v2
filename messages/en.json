@@ -3126,6 +3126,7 @@
     "sending": "Sending…",
     "you": "You",
     "formerMember": "Former member",
+    "member": "Member",
     "edited": "Edited",
     "pinned": "Pinned messages",
     "held": "Held for review",
@@ -3296,6 +3297,10 @@
     "action": "Action",
     "subject": "Member",
     "history": {
+      "message_remove": "Removed a message",
+      "message_restore": "Restored a message",
+      "message_pin": "Pinned a message",
+      "message_unpin": "Unpinned a message",
       "report_dismiss": "Kept reported item",
       "report_remove": "Removed reported item",
       "held_approve": "Approved held item",

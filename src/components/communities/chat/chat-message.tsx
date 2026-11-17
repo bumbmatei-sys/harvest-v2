@@ -23,13 +23,13 @@ export function ChatMessageRow({ message, slug, mine, post, mayModerate, restore
   mayModerate: boolean;
   restore: boolean;
   thread?: boolean;
-  onReply: () => void;
+  onReply: (opener: HTMLButtonElement) => void;
   onEdit: () => void;
   onAction: (action: ChatAction) => void;
   onReact: (emoji: string) => void;
 }) {
   const t = useTranslations("CommunityChat"), format = useFormatter();
-  const name = message.authorName?.trim() || t("formerMember"), removed = !!message.deletedAt;
+  const name = message.authorName?.trim() || t(message.authorId ? "member" : "formerMember"), removed = !!message.deletedAt;
   const canRestore = removed && (mine && message.deletedKind === "author" || restore && message.deletedKind === "host");
   const active = !removed && !message.heldAt;
   const actions = !removed && (mine || mayModerate) || canRestore;
@@ -55,7 +55,7 @@ export function ChatMessageRow({ message, slug, mine, post, mayModerate, restore
         </BubbleContent>
       </Bubble>
       {(active || actions || !!message.replyCount) && <div className="flex max-w-full flex-wrap items-center gap-1">
-        {!thread && (active && post || !!message.replyCount) && <Button variant="ghost" className="min-h-11" onClick={onReply}>
+        {!thread && (active && post || !!message.replyCount) && <Button variant="ghost" className="min-h-11" onClick={event => onReply(event.currentTarget)}>
           <MessageSquare aria-hidden="true" />{message.replyCount ? t("replies", { count: message.replyCount }) : t("reply")}
         </Button>}
         {active && message.reactions.map(reaction => <Button key={reaction.emoji} variant={reaction.reactedByMe ? "secondary" : "ghost"}

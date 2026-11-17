@@ -20,7 +20,20 @@ The kit supplies presentation. CommunityShell, NotificationBell, ReportDialog, M
 
 ## Verification
 
-Browser screenshots go in [`docs/screenshots/communities-c11b/`](../screenshots/communities-c11b/). Verification is author-executed. A separate fresh session reviews the draft head.
+- Lint, typecheck and production build passed.
+- Unit suite passed 1,104 tests with two workers and a 20-second test timeout.
+- Integration suite passed 815 tests with a 120-second test timeout. A focused restricted-owner test verifies channel selection, pins, replies, invite membership and ministry isolation.
+- Chromium passed one end-to-end scenario using the existing local synthetic test server.
+
+The browser test used two signed-in sessions on a disposable database. It covered hosts-only channel creation, send and reply polling, reactions, pinning, mute, offline draft preservation, held-message approval, edit, delete, restore and report submission. The phone test also checked focus when opening a channel with Enter and when returning to the channel list.
+
+Six captures passed the axe WCAG checks and the page overflow check at 360, 768 and 1280 px in light and dark mode. The mobile send button measured at least 44 × 44 px. [Screenshots](../screenshots/communities-c11b/)
+
+Verification is author-executed. A separate fresh session reviews the draft head. No production or delivery verification was performed.
+
+### Known bounds
+
+Invite-only mention suggestions use the participants visible in the loaded messages. The server validates each submitted mention against current access. The additional thread-history read omits already-deleted replies outside the loaded message stream. Tombstones already received in the stream remain available, including eligible restores.
 
 ## Gates
 
