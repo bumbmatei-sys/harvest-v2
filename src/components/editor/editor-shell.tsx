@@ -43,6 +43,8 @@ export function EditorShell({ breadcrumb, title, status, actions, steps, current
   const opener = useRef<HTMLElement | null>(null), [after, setAfter] = useState<{ run: () => void } | null>(null);
   const openSheet = () => { opener.current = document.activeElement as HTMLElement | null; setSheetOpen(true); };
   const closeSheet = useCallback((then?: () => void) => { setAfter(then ? { run: then } : null); setSheetOpen(false); }, []);
+  // The column replaces the sheet: a sheet left open while the viewport grows must not reopen when it shrinks again.
+  if (column && sheetOpen) setSheetOpen(false);
   if (hosted && data && livePreview) return <div className="min-w-0 space-y-6" data-editor-hosted data-editor-live-preview>
     <EditorStepBar context={data} onStep={onStep} onPreview={openSheet} />
     <header className="space-y-3">

@@ -229,7 +229,7 @@ test("keyboard path: tabs, view as and device switch are reachable and the previ
   await expect(device.getByRole("radio", { name: "Phone width" })).toBeFocused();
   await page.keyboard.press("ArrowRight");
   await expect(device.getByRole("radio", { name: "Desktop width" })).toBeFocused();
-  await page.keyboard.press("Space");
+  await page.keyboard.press("Enter");
   await expect(device.getByRole("radio", { name: "Desktop width" })).toBeChecked();
   // Tab order inside the column: tabs, view as, device, Edit this, then the frame (one stop), and nothing inside it.
   await preview.getByRole("button", { name: "Edit this" }).focus();
@@ -305,6 +305,23 @@ test("phone: Preview in the step bar opens a full-screen sheet with a 44px close
       await expect(trigger).toBeFocused();
     }
   }
+});
+
+test("a sheet left open while the viewport grows to the column does not reopen when it shrinks again", async ({ page }) => {
+  test.skip(off, "flag off");
+  test.setTimeout(120_000);
+  await page.setViewportSize({ width: 1100, height: 800 });
+  const { url } = await setup(page);
+  await page.goto(url);
+  await expect(page.locator("[data-hydrated=true]")).toBeVisible();
+  await page.getByRole("button", { name: "Preview", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Preview (draft)" })).toBeVisible();
+  await page.setViewportSize({ width: 1300, height: 800 });
+  await expect(column(page)).toBeVisible();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await page.setViewportSize({ width: 1100, height: 800 });
+  await expect(column(page)).toHaveCount(0);
+  await expect(page.getByRole("dialog")).toHaveCount(0);
 });
 
 test("phone: Edit this closes the sheet, switches step and focuses the field; Escape returns focus; no requests from the preview", async ({ page }) => {
