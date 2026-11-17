@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { CircleCheck, Circle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -21,6 +21,7 @@ import { MemberList } from "@/components/communities/member-list";
 import { EditorShell } from "@/components/editor/editor-shell";
 import { useEditorHosted } from "@/components/editor/editor-context";
 import { CommunityJoinCard } from "@/components/communities/join-card";
+import { CommunityLivePreview } from "@/components/communities/community-preview";
 import { BannedWordsEditor } from "@/components/communities/banned-words-editor";
 import { ForumCategoriesEditor, type ForumCategory } from "@/components/communities/forum-categories-editor";
 import { CommunityInvites, type CommunityInvite } from "@/components/communities/community-invites";
@@ -35,6 +36,7 @@ import { CommunityApplications, type ApplicationQueue } from "@/components/commu
 import type { Question } from "@/lib/questions";
 import { useCrmRequest } from "@/components/crm/request";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
+import { communityFieldTargets, fieldForControl, type CommunityField, type CommunityPreviewTab, type PreviewViewer } from "@/lib/editor-preview";
 import { checklistStep, comingSoonSteps, communityEditorSteps, publishChecklist, stepNeedsAttention, type CommunityEditorStep } from "@/lib/community-editor";
 
 export type EditableCommunity = { id: string; slug: string; name: string; tagline: string | null; status: "draft" | "published" | "archived";
@@ -61,9 +63,32 @@ export function CommunityEditor({ initial, members, invites, applications, categ
   const [rulesOn, setRulesOn] = useState(initial.rulesList.length > 0), [questionsOn, setQuestionsOn] = useState(initial.joinQuestions.length > 0);
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [notice, setNotice] = useState(""), [conflict, setConflict] = useState(false);
   const hosted = useEditorHosted();
+  // Live preview (shell slice 3b): its tab and viewer outlive the sheet closing; a pending field is focused once its step has rendered.
+  const [previewTab, setPreviewTab] = useState<CommunityPreviewTab>("page"), [viewer, setViewer] = useState<PreviewViewer>("visitor");
+  const [highlight, setHighlight] = useState<CommunityField | null>(null), [focusField, setFocusField] = useState<{ id: string; n: number } | null>(null);
+  const focusCount = useRef(0);
   const dirty = !same(fields, fieldsOf(data));
   const { destination, setDestination, leave } = useUnsavedChangesGuard(dirty || busy);
   const checklist = publishChecklist(fields);
+  useEffect(() => {
+    if (!hosted) return;
+    const onFocus = (event: FocusEvent) => setHighlight(event.target instanceof HTMLElement ? fieldForControl(event.target.id) : null);
+    document.addEventListener("focusin", onFocus);
+    return () => document.removeEventListener("focusin", onFocus);
+  }, [hosted]);
+  useEffect(() => {
+    if (!focusField) return;
+    const node = document.getElementById(focusField.id);
+    if (!node) return;
+    node.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    if (!(node as HTMLButtonElement).disabled) node.focus({ preventScroll: true });
+  }, [focusField]);
+  /** Click-to-field and the Edit this list: show the field's step, then scroll to and focus the control. */
+  function goToField(field: CommunityField) {
+    const { step: target, target: id } = communityFieldTargets[field];
+    setStep(target as CommunityEditorStep);
+    setFocusField({ id, n: ++focusCount.current });
+  }
   const set = <K extends keyof Fields>(key: K, value: Fields[K]) => { setNotice(""); setFields((previous) => ({ ...previous, [key]: value })); };
 
   function fail(result: { status: number; error: string }) { setConflict(result.status === 409); setError(result.error); }
@@ -102,7 +127,10 @@ export function CommunityEditor({ initial, members, invites, applications, categ
   const breadcrumb = <Breadcrumb><BreadcrumbList><BreadcrumbItem><BreadcrumbLink asChild><Link href={listHref}>{t("back")}</Link></BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator /><BreadcrumbItem><BreadcrumbPage>{data.name}</BreadcrumbPage></BreadcrumbItem></BreadcrumbList></Breadcrumb>;
 
   return <EditorShell breadcrumb={breadcrumb} title={data.name} status={status} actions={actions} steps={steps} current={step} onStep={(id) => setStep(id as CommunityEditorStep)}
-    stepsLabel={t("stepsLabel")} previewLabel={t("preview")} sidebar={sidebar} preview={<Tabs defaultValue="page"><TabsList className="mb-3"><TabsTrigger value="page" className="min-h-9">{t("previewPage")}</TabsTrigger><TabsTrigger value="join" className="min-h-9">{t("previewJoin")}</TabsTrigger></TabsList>
+    stepsLabel={t("stepsLabel")} previewLabel={t("preview")} sidebar={sidebar}
+    livePreview={hosted ? (surface, { close }) => <CommunityLivePreview surface={surface} draft={fields} host={host} tab={previewTab} onTab={setPreviewTab} viewer={viewer} onViewer={setViewer}
+      highlight={highlight} openPage={sidebar.openPage} onEdit={(field) => { if (surface === "sheet") close(() => goToField(field as CommunityField)); else goToField(field as CommunityField); }} /> : undefined}
+    preview={<Tabs defaultValue="page"><TabsList className="mb-3"><TabsTrigger value="page" className="min-h-9">{t("previewPage")}</TabsTrigger><TabsTrigger value="join" className="min-h-9">{t("previewJoin")}</TabsTrigger></TabsList>
       <TabsContent value="page"><CommunityJoinCard name={fields.name} tagline={fields.tagline} host={host} preview /></TabsContent>
       <TabsContent value="join"><Card><CardContent className="space-y-5 pt-6">
         {fields.joinQuestions.length > 0 && <QuestionFields questions={cleanQuestions(fields.joinQuestions).filter((q) => q.label)} values={{}} disabled idPrefix="preview-question" />}

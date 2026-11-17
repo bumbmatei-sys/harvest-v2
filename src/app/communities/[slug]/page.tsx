@@ -3,9 +3,10 @@ import { getTranslations } from "next-intl/server";
 import { getDb } from "@/db/client";
 import { communitiesEnabled } from "@/server/communities-mode";
 import { getPublicCommunity } from "@/server/community-joining";
+import { communityCanJoin } from "@/lib/editor-preview";
 import { optionalSession } from "@/server/page-session";
 import { PublicFrame } from "@/components/connect/public-frame";
-import { CommunityJoinCard } from "@/components/communities/join-card";
+import { CommunityPageView } from "@/components/communities/community-page-view";
 import { JoinDialog } from "@/components/communities/join-dialog";
 
 // C05: resolved per request through the published-only definer, so unpublishing or hiding takes effect at once.
@@ -27,28 +28,13 @@ export default async function CommunityPage({ params, searchParams }: Props) {
   const community = await getPublicCommunity(getDb(), slug, invite);
   if (!community) notFound();
   const session = await optionalSession(), t = await getTranslations("CommunityPage");
-  const invited = community.invited ? invite : undefined, canJoin = Boolean(invited) || community.allowOpen || community.allowApply;
+  const invited = community.invited ? invite : undefined, canJoin = communityCanJoin({ invited: Boolean(invited), allowOpen: community.allowOpen, allowApply: community.allowApply });
   const back = `/communities/${community.slug}${invited ? `?invite=${invited}` : ""}`;
   return <PublicFrame personal notice={false}>
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_22rem]">
-      <section className="min-w-0 space-y-6">
-        <header className="space-y-2">
-          <h1 className="text-[28px] font-semibold tracking-tight break-words">{community.name}</h1>
-          {community.tagline && <p className="text-muted-foreground break-words">{community.tagline}</p>}
-        </header>
-        {community.description && <p className="max-w-prose whitespace-pre-line break-words">{community.description}</p>}
-        {community.rulesList.length > 0 && <details className="rounded-md border px-4">
-          <summary className="flex min-h-11 cursor-pointer items-center font-medium">{t("rules")}</summary>
-          <ol className="list-decimal space-y-1 pb-4 pl-5 text-sm">{community.rulesList.map((rule, i) => <li key={i} className="break-words">{rule}</li>)}</ol>
-        </details>}
-      </section>
-      <aside className="min-w-0">
-        <CommunityJoinCard name={community.name} tagline={null} host={community.hostName}
-          action={canJoin ? <JoinDialog slug={community.slug} name={community.name} rules={community.rulesList} rulesVersion={community.rulesVersion}
-            questions={community.joinQuestions} questionsVersion={community.questionsVersion} apply={community.allowApply} invite={invited}
-            signedIn={Boolean(session)} signInHref={`/sign-in?personal=1&next=${encodeURIComponent(back)}`} />
-            : <p className="text-sm text-muted-foreground">{t("closed")}</p>} />
-      </aside>
-    </div>
+    <CommunityPageView data={{ name: community.name, tagline: community.tagline, description: community.description, rulesList: community.rulesList, hostName: community.hostName }}
+      join={canJoin ? <JoinDialog slug={community.slug} name={community.name} rules={community.rulesList} rulesVersion={community.rulesVersion}
+        questions={community.joinQuestions} questionsVersion={community.questionsVersion} apply={community.allowApply} invite={invited}
+        signedIn={Boolean(session)} signInHref={`/sign-in?personal=1&next=${encodeURIComponent(back)}`} />
+        : <p className="text-sm text-muted-foreground">{t("closed")}</p>} />
   </PublicFrame>;
 }

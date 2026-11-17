@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRef, useState } from "react";
-import { ArrowLeft, ChevronsUpDown, ExternalLink } from "lucide-react";
+import { ArrowLeft, ChevronsUpDown, Eye, ExternalLink } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
@@ -15,7 +15,7 @@ import { StepIndicator, StepStatusText } from "@/components/editor/editor-step-p
  * and an All steps sheet with every step's state, the back link and Open page. Picking a step closes the sheet and moves focus to the
  * step's heading (the caller's WizardLayout marks it `data-slot="wizard-heading"`). 44px targets.
  */
-export function EditorStepBar({ context, onStep, className }: { context: Pick<EditorContextData, "steps" | "current" | "stepsLabel" | "back" | "openPage">; onStep: (id: string) => void; className?: string }) {
+export function EditorStepBar({ context, onStep, onPreview, className }: { context: Pick<EditorContextData, "steps" | "current" | "stepsLabel" | "back" | "openPage">; onStep: (id: string) => void; /** Shows a Preview button beside the step trigger (live preview, shell slice 3b). */ onPreview?: () => void; className?: string }) {
   const t = useTranslations("EditorMode");
   const [open, setOpen] = useState(false);
   const picked = useRef(false);
@@ -24,16 +24,19 @@ export function EditorStepBar({ context, onStep, className }: { context: Pick<Ed
   const steps = editorStepViews(context.steps, context.current);
   return <div data-slot="editor-step-bar" className={cn("sticky top-2 z-10 rounded-xl border bg-card shadow-sm lg:hidden", className)}>
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetTrigger asChild>
-        <button type="button" aria-label={t("stepBarLabel", { current: position.current, total: position.total, label: position.label })}
-          className="flex min-h-11 w-full items-center gap-3 rounded-xl px-4 py-2 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
-          <span className="min-w-0 flex-1">
-            <span className="block text-xs text-muted-foreground" aria-hidden="true">{t("stepOf", { current: position.current, total: position.total })}</span>
-            <span className="block truncate text-sm font-medium" aria-hidden="true">{position.label}</span>
-          </span>
-          <ChevronsUpDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
-        </button>
-      </SheetTrigger>
+      <div className="flex items-center gap-1 pr-2">
+        <SheetTrigger asChild>
+          <button type="button" aria-label={t("stepBarLabel", { current: position.current, total: position.total, label: position.label })}
+            className="flex min-h-11 min-w-0 flex-1 items-center gap-3 rounded-xl px-4 py-2 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
+            <span className="min-w-0 flex-1">
+              <span className="block text-xs text-muted-foreground" aria-hidden="true">{t("stepOf", { current: position.current, total: position.total })}</span>
+              <span className="block truncate text-sm font-medium" aria-hidden="true">{position.label}</span>
+            </span>
+            <ChevronsUpDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground" />
+          </button>
+        </SheetTrigger>
+        {onPreview && <Button type="button" variant="outline" className="min-h-11 shrink-0" onClick={onPreview}><Eye aria-hidden="true" />{t("preview")}</Button>}
+      </div>
       <div aria-hidden="true" className="mx-4 mb-2 h-1.5 overflow-hidden rounded-full bg-muted">
         <div className="h-full rounded-full bg-primary transition-[width] duration-200 motion-reduce:transition-none" style={{ width: `${stepProgress(position.current - 1, position.total)}%` }} />
       </div>

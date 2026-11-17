@@ -122,12 +122,12 @@ test("editing sidebar: swap, steps, back link, open page, mode switcher and prev
   await expect(steps(page).getByRole("button", { name: /Joining/ })).toContainText("Done");
   await expect(steps(page).getByRole("button", { name: /Channels/ })).toContainText("Not started");
   for (const label of ["Messages", "Products", "Page"]) await expect(steps(page).getByRole("button", { name: new RegExp(label) })).toHaveAttribute("aria-disabled", "true");
-  // The preview column is a labelled static slot from 1280px and the form keeps room.
+  // The preview column is a labelled live preview (3b) from 1280px and the form keeps room.
   const preview = page.getByRole("complementary", { name: "Preview" });
   await expect(preview).toBeVisible();
-  await expect(page.locator("[data-editor-preview-label]")).toHaveText("Preview");
-  await expect(preview.getByText("Grace Bible Study")).toBeVisible();
-  expect(await preview.evaluate((node) => Math.round(node.getBoundingClientRect().width))).toBe(352);
+  await expect(page.locator("[data-editor-preview-label]")).toHaveText("Preview (draft)");
+  await expect(preview.getByText("Grace Bible Study").first()).toBeVisible();
+  await expect.poll(() => preview.evaluate((node) => Math.round(node.getBoundingClientRect().width))).toBe(352);
   expect(await page.locator("#community-name").evaluate((node) => node.getBoundingClientRect().width)).toBeGreaterThan(448);
   await page.screenshot({ path: `${evidence}/desktop-1280-editing-light.png` });
 
@@ -314,7 +314,7 @@ test("phone and tablet: Step n of m bar, All steps sheet, preview sheet, 44px ta
 
     // The preview is a sheet on phones; Back and Next are the form's footer.
     await page.getByRole("button", { name: "Preview", exact: true }).click();
-    await expect(page.getByRole("dialog", { name: "Preview" }).getByText("Grace Bible Study")).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Preview (draft)" }).getByText("Grace Bible Study").first()).toBeVisible();
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "Next", exact: true }).click();
     await expect(heading(page, "Joining")).toBeFocused();
@@ -348,7 +348,7 @@ test("five widths in light and dark: axe, no overflow, step bar below 1024px and
       await expect(page.locator("[data-slot='editor-step-bar']")).toBeVisible({ visible: !desktop });
       if (desktop) { await expect(sidebar(page)).toBeVisible(); }
       await expect(page.getByRole("complementary", { name: "Preview" })).toBeVisible({ visible: width >= 1280 });
-      if (width >= 1280) expect(await page.locator("aside[aria-label='Preview']").evaluate((n) => Math.round(n.getBoundingClientRect().width))).toBe(352);
+      if (width >= 1280) await expect.poll(() => page.locator("aside[aria-label='Preview']").evaluate((n) => Math.round(n.getBoundingClientRect().width))).toBe(352);
       expect(await overflow(page)).toBeLessThanOrEqual(0);
       await axe(page);
       if (width === 768) await page.screenshot({ path: `${evidence}/tablet-768-${scheme}.png` });
@@ -366,7 +366,8 @@ test("five widths in light and dark: axe, no overflow, step bar below 1024px and
   }
   // 1600px: the wider preview column.
   await page.setViewportSize({ width: 1700, height: 1000 });
-  expect(await page.locator("aside[aria-label='Preview']").evaluate((n) => Math.round(n.getBoundingClientRect().width))).toBe(384);
+  // Layout settles after the resize (CI is slower): poll for the 24rem column from 1600px.
+  await expect.poll(() => page.locator("aside[aria-label='Preview']").evaluate((n) => Math.round(n.getBoundingClientRect().width))).toBe(384);
 });
 
 test("role matrix: owner and admin edit; member and viewer see the sidebar read-only", async ({ page, browser }) => {
