@@ -403,7 +403,19 @@
     "stepCurrent": "Current step",
     "unsaved": "Unsaved changes",
     "preview": "Preview",
-    "close": "Close"
+    "close": "Close",
+    "previewDraft": "Preview (draft)",
+    "previewTabs": "Preview page",
+    "viewAs": "View as",
+    "viewAsVisitor": "View as a visitor",
+    "viewAsMember": "View as a member",
+    "visitor": "Visitor",
+    "member": "Member",
+    "device": "Device",
+    "phone": "Phone width",
+    "desktop": "Desktop width",
+    "editThis": "Edit this",
+    "closePreview": "Close preview"
   },
   "ComponentsWizardLayout": {
     "back": "Back",
@@ -612,7 +624,8 @@
     "forumMuted": "You can't post here right now.",
     "reportDuplicate": "You've already reported this.",
     "appealDuplicate": "You've already sent an appeal.",
-    "bannedWordsInvalid": "Banned words can be up to 40 characters each, 100 in total."
+    "bannedWordsInvalid": "Banned words can be up to 40 characters each, 100 in total.",
+    "communitySlugLocked": "The address of a published community can't be changed. Unpublish it first."
   },
   "LibEnv": {
     "missingRequiredEnvironmentVariableValue": "Missing required environment variable: {name}"
@@ -2760,7 +2773,25 @@
     "welcomeTitle": "Welcome card",
     "welcomeMessage": "Welcome message",
     "introCategory": "Introductions category",
-    "noIntroCategory": "None"
+    "noIntroCategory": "None",
+    "previewWelcome": "Welcome",
+    "previewVisitor": "visitor",
+    "previewMember": "member",
+    "previewFrame": "{tab} preview as a {viewer}, draft",
+    "previewUntitled": "Untitled community",
+    "previewOpenCommunity": "Open community",
+    "previewRules": "Community rules",
+    "previewIntroduce": "Introduce yourself",
+    "previewNotifications": "Notifications",
+    "previewFields": {
+      "name": "Name",
+      "tagline": "Tagline",
+      "description": "Description",
+      "rules": "Community rules",
+      "questions": "Join questions",
+      "admission": "How people join",
+      "welcome": "Welcome message"
+    }
   },
   "CommunityPage": {
     "rules": "Community rules",

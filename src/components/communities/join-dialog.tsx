@@ -13,6 +13,28 @@ import { useCrmRequest } from "@/components/crm/request";
 import { message } from "@/i18n/messages";
 import type { Answers, Question } from "@/lib/questions";
 
+/** The join form's fields: the owner's questions, the rules and the confirmations. The dialog passes live state; the editor preview passes inert copies of the draft. */
+export function JoinFormFields({ questions, answers, onAnswers, rules, rulesOk, onRulesOk, adult, onAdult, preview = false }: {
+  questions: Question[]; answers: Answers; onAnswers?: (next: Answers) => void; rules: string[]; rulesOk: boolean; onRulesOk?: (value: boolean) => void;
+  adult: boolean; onAdult?: (value: boolean) => void; preview?: boolean;
+}) {
+  const t = useTranslations("JoinDialog");
+  const mark = (field: string) => preview ? { "data-preview-field": field } : {};
+  return <>
+    {questions.length > 0 && (preview
+      ? <div {...mark("questions")}><QuestionFields questions={questions} values={answers} disabled idPrefix="preview-question" /></div>
+      : <QuestionFields questions={questions} values={answers} onChange={onAnswers} idPrefix="join-question" />)}
+    {rules.length > 0 && <section {...mark("rules")} aria-label={t("rules")} className="max-h-60 overflow-y-auto rounded-md border p-3">
+      <ol className="list-decimal space-y-1 pl-5 text-sm">{rules.map((rule, i) => <li key={i} className="break-words">{rule}</li>)}</ol></section>}
+    <div className="space-y-2">
+      {rules.length > 0 && <Label htmlFor={preview ? "preview-join-rules" : "join-rules"} className="flex min-h-11 items-center gap-3 rounded-md border px-3 font-normal">
+        <Checkbox id={preview ? "preview-join-rules" : "join-rules"} checked={rulesOk} disabled={preview} onCheckedChange={(v) => onRulesOk?.(v === true)} />{t("acceptRules")}</Label>}
+      <Label htmlFor={preview ? "preview-join-adult" : "join-adult"} className="flex min-h-11 items-center gap-3 rounded-md border px-3 font-normal">
+        <Checkbox id={preview ? "preview-join-adult" : "join-adult"} checked={adult} disabled={preview} onCheckedChange={(v) => onAdult?.(v === true)} />{t("adult")}</Label>
+    </div>
+  </>;
+}
+
 /**
  * Join (open), apply (approval on) or accept an invitation (by link token or, from the account page, by invite id).
  * Order: the owner's questions, then the rules (if any), then the 18+ confirmation (PRD launch policy).
@@ -49,15 +71,7 @@ export function JoinDialog({ slug, name, rules, rulesVersion, questions, questio
           <DialogFooter><Button asChild variant="outline" className="min-h-11"><Link href="/account/communities" prefetch={false}>{t("myCommunities")}</Link></Button></DialogFooter></>
         : <>
           {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
-          {questions.length > 0 && <QuestionFields questions={questions} values={answers} onChange={setAnswers} idPrefix="join-question" />}
-          {rules.length > 0 && <section aria-label={t("rules")} className="max-h-60 overflow-y-auto rounded-md border p-3">
-            <ol className="list-decimal space-y-1 pl-5 text-sm">{rules.map((rule, i) => <li key={i} className="break-words">{rule}</li>)}</ol></section>}
-          <div className="space-y-2">
-            {rules.length > 0 && <Label htmlFor="join-rules" className="flex min-h-11 items-center gap-3 rounded-md border px-3 font-normal">
-              <Checkbox id="join-rules" checked={rulesOk} onCheckedChange={(v) => setRulesOk(v === true)} />{t("acceptRules")}</Label>}
-            <Label htmlFor="join-adult" className="flex min-h-11 items-center gap-3 rounded-md border px-3 font-normal">
-              <Checkbox id="join-adult" checked={adult} onCheckedChange={(v) => setAdult(v === true)} />{t("adult")}</Label>
-          </div>
+          <JoinFormFields questions={questions} answers={answers} onAnswers={setAnswers} rules={rules} rulesOk={rulesOk} onRulesOk={setRulesOk} adult={adult} onAdult={setAdult} />
           <DialogFooter><Button className="min-h-11" disabled={!ready} onClick={() => void submit()}>{busy ? t("joining") : action}</Button></DialogFooter>
         </>}
     </DialogContent>

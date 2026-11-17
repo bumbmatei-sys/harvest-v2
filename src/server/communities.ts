@@ -26,7 +26,7 @@ export const communityLimit = 50;
 const createInput = z.object({ name, slug: communitySlug, tagline: tagline.optional() }).strict();
 const updateInput = z.object({
   version: z.number().int().min(1),
-  name: name.optional(), tagline: tagline.nullable().optional(),
+  name: name.optional(), slug: communitySlug.optional(), tagline: tagline.nullable().optional(),
   visibility: z.enum(["listed", "unlisted", "hidden"]).optional(),
   pricing: z.enum(["free", "paid"]).optional(),
   allowOpen: z.boolean().optional(), allowApply: z.boolean().optional(),
@@ -79,8 +79,11 @@ export async function updateCommunity(db: Database, userId: string, workspace: s
   }
   if (changes.pricing === "paid") throw new AccessError(409, message("Errors.paidCommunitiesUnavailable"));
   const id = z.uuid().parse(communityId);
-  return withTenant(db, userId, z.uuid().parse(workspace), "communities:manage", async (tx, tenantId) => {
+  try {
+  return await withTenant(db, userId, z.uuid().parse(workspace), "communities:manage", async (tx, tenantId) => {
     const current = await ownCommunity(tx, tenantId, id);
+    // The address is part of every shared link, QR code and invitation: it can change only while the community is a draft.
+    if (changes.slug !== undefined && changes.slug !== current.slug && current.status === "published") throw new AccessError(409, message("Errors.communitySlugLocked"));
     if (changes.introCategoryId) {
       const [category] = await tx.select({ id: communityCategories.id }).from(communityCategories)
         .where(and(eq(communityCategories.tenantId, tenantId), eq(communityCategories.communityId, id), eq(communityCategories.id, changes.introCategoryId)));
@@ -99,6 +102,10 @@ export async function updateCommunity(db: Database, userId: string, workspace: s
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "community.update", targetId: id, metadata: { fields: Object.keys(changes).sort().join(",") } });
     return row;
   });
+  } catch (error) {
+    if (uniqueViolation(error)) throw new AccessError(409, message("Errors.communitySlugTaken"));
+    throw error;
+  }
 }
 
 /** Grants a person access to a community (admin grant) and activates their membership. Banned members stay banned. */

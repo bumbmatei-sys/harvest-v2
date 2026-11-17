@@ -9,11 +9,9 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { suggestSlug } from "@/lib/community-editor";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
 import { useCrmRequest } from "@/components/crm/request";
-
-/** Suggests a community address from its name until the person edits the address themselves. */
-export const suggestSlug = (name: string) => name.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 48).replace(/-+$/g, "");
 
 export function CreateCommunityDialog({ tenantId }: { tenantId: string }) {
   const t = useTranslations("CreateCommunityDialog"), screens = useTranslations("CommunityScreens"), router = useRouter(), request = useCrmRequest();

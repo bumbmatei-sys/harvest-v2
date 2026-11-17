@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { CircleCheck, Circle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -21,6 +21,7 @@ import { MemberList } from "@/components/communities/member-list";
 import { EditorShell } from "@/components/editor/editor-shell";
 import { useEditorHosted } from "@/components/editor/editor-context";
 import { CommunityJoinCard } from "@/components/communities/join-card";
+import { CommunityLivePreview } from "@/components/communities/community-preview";
 import { BannedWordsEditor } from "@/components/communities/banned-words-editor";
 import { ForumCategoriesEditor, type ForumCategory } from "@/components/communities/forum-categories-editor";
 import { CommunityInvites, type CommunityInvite } from "@/components/communities/community-invites";
@@ -35,20 +36,22 @@ import { CommunityApplications, type ApplicationQueue } from "@/components/commu
 import type { Question } from "@/lib/questions";
 import { useCrmRequest } from "@/components/crm/request";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
-import { checklistStep, comingSoonSteps, communityEditorSteps, publishChecklist, stepNeedsAttention, type CommunityEditorStep } from "@/lib/community-editor";
+import { communityFieldTargets, fieldForControl, type CommunityField, type CommunityPreviewTab, type PreviewViewer } from "@/lib/editor-preview";
+import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
+import { checklistStep, nextSlug, slugFollowsName, comingSoonSteps, communityEditorSteps, publishChecklist, stepNeedsAttention, type CommunityEditorStep } from "@/lib/community-editor";
 
 export type EditableCommunity = { id: string; slug: string; name: string; tagline: string | null; status: "draft" | "published" | "archived";
   visibility: "listed" | "unlisted" | "hidden"; allowOpen: boolean; allowApply: boolean; allowInvite: boolean; allowEntitlement: boolean; version: number;
   description: string | null; rulesList: string[]; joinQuestions: Question[]; discoverOptIn: boolean; holdFirstPosts: boolean; bannedWords: string[]; welcomeMessage: string | null; introCategoryId: string | null };
 export type CommunityMember = { userId: string; name: string; role: string; status: string };
-type Fields = Pick<EditableCommunity, "name" | "tagline" | "visibility" | "allowOpen" | "allowApply" | "allowInvite" | "allowEntitlement" | "description" | "rulesList" | "joinQuestions" | "discoverOptIn" | "holdFirstPosts" | "bannedWords" | "welcomeMessage" | "introCategoryId">;
+type Fields = Pick<EditableCommunity, "name" | "slug" | "tagline" | "visibility" | "allowOpen" | "allowApply" | "allowInvite" | "allowEntitlement" | "description" | "rulesList" | "joinQuestions" | "discoverOptIn" | "holdFirstPosts" | "bannedWords" | "welcomeMessage" | "introCategoryId">;
 const optionalText = ["tagline", "description", "welcomeMessage"] as const;
 const equal = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
 // What is sent: trimmed rules and questions, with blank rules and blank options dropped.
 const cleanRules = (rules: string[]) => rules.map((r) => r.trim()).filter(Boolean);
 const cleanQuestions = (questions: Question[]) => questions.map((q) => ({ ...q, label: q.label.trim(), ...(q.options ? { options: q.options.map((o) => o.trim()).filter(Boolean) } : {}) }));
 const admissionKeys = ["allowOpen", "allowApply", "allowInvite", "allowEntitlement"] as const;
-const fieldsOf = (c: EditableCommunity): Fields => ({ name: c.name, tagline: c.tagline, visibility: c.visibility, allowOpen: c.allowOpen, allowApply: c.allowApply,
+const fieldsOf = (c: EditableCommunity): Fields => ({ name: c.name, slug: c.slug, tagline: c.tagline, visibility: c.visibility, allowOpen: c.allowOpen, allowApply: c.allowApply,
   allowInvite: c.allowInvite, allowEntitlement: c.allowEntitlement, description: c.description, rulesList: c.rulesList, joinQuestions: c.joinQuestions, discoverOptIn: c.discoverOptIn,
   holdFirstPosts: c.holdFirstPosts, bannedWords: c.bannedWords, welcomeMessage: c.welcomeMessage, introCategoryId: c.introCategoryId });
 const same = (a: Fields, b: Fields) => (Object.keys(a) as (keyof Fields)[]).every((key) => equal(a[key], b[key]));
@@ -58,12 +61,37 @@ export function CommunityEditor({ initial, members, invites, applications, categ
   const t = useTranslations("CommunityEditor"), screens = useTranslations("CommunityScreens"), request = useCrmRequest();
   const [data, setData] = useState(initial), [fields, setFields] = useState(() => fieldsOf(initial));
   const [step, setStep] = useState<CommunityEditorStep>("basics");
+  // The address follows the title until the owner edits it by hand; a published address never changes here.
+  const [slugFollows, setSlugFollows] = useState(() => slugFollowsName(initial));
   const [rulesOn, setRulesOn] = useState(initial.rulesList.length > 0), [questionsOn, setQuestionsOn] = useState(initial.joinQuestions.length > 0);
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [notice, setNotice] = useState(""), [conflict, setConflict] = useState(false);
   const hosted = useEditorHosted();
+  // Live preview (shell slice 3b): its tab and viewer outlive the sheet closing; a pending field is focused once its step has rendered.
+  const [previewTab, setPreviewTab] = useState<CommunityPreviewTab>("page"), [viewer, setViewer] = useState<PreviewViewer>("visitor");
+  const [highlight, setHighlight] = useState<CommunityField | null>(null), [focusField, setFocusField] = useState<{ id: string; n: number } | null>(null);
+  const focusCount = useRef(0);
   const dirty = !same(fields, fieldsOf(data));
   const { destination, setDestination, leave } = useUnsavedChangesGuard(dirty || busy);
   const checklist = publishChecklist(fields);
+  useEffect(() => {
+    if (!hosted) return;
+    const onFocus = (event: FocusEvent) => setHighlight(event.target instanceof HTMLElement ? fieldForControl(event.target.id) : null);
+    document.addEventListener("focusin", onFocus);
+    return () => document.removeEventListener("focusin", onFocus);
+  }, [hosted]);
+  useEffect(() => {
+    if (!focusField) return;
+    const node = document.getElementById(focusField.id);
+    if (!node) return;
+    node.scrollIntoView({ block: "center", behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+    if (!(node as HTMLButtonElement).disabled) node.focus({ preventScroll: true });
+  }, [focusField]);
+  /** Click-to-field and the Edit this list: show the field's step, then scroll to and focus the control. */
+  function goToField(field: CommunityField) {
+    const { step: target, target: id } = communityFieldTargets[field];
+    setStep(target as CommunityEditorStep);
+    setFocusField({ id, n: ++focusCount.current });
+  }
   const set = <K extends keyof Fields>(key: K, value: Fields[K]) => { setNotice(""); setFields((previous) => ({ ...previous, [key]: value })); };
 
   function fail(result: { status: number; error: string }) { setConflict(result.status === 409); setError(result.error); }
@@ -86,7 +114,7 @@ export function CommunityEditor({ initial, members, invites, applications, categ
     setBusy(false);
   }
 
-  function discard() { setFields(fieldsOf(data)); setRulesOn(data.rulesList.length > 0); setQuestionsOn(data.joinQuestions.length > 0); setNotice(""); setError(""); setConflict(false); }
+  function discard() { setFields(fieldsOf(data)); setSlugFollows(slugFollowsName(data)); setRulesOn(data.rulesList.length > 0); setQuestionsOn(data.joinQuestions.length > 0); setNotice(""); setError(""); setConflict(false); }
 
   const steps = communityEditorSteps.map((id) => ({ id, label: t(`steps.${id}`), disabled: comingSoonSteps.includes(id), badge: comingSoonSteps.includes(id) ? t("comingSoon") : undefined,
     done: id === "basics" ? checklist[0].done : id === "joining" ? checklist[1].done : id === "publish" ? data.status === "published" : id === "offer" || (id === "people" && members.length > 0),
@@ -102,7 +130,10 @@ export function CommunityEditor({ initial, members, invites, applications, categ
   const breadcrumb = <Breadcrumb><BreadcrumbList><BreadcrumbItem><BreadcrumbLink asChild><Link href={listHref}>{t("back")}</Link></BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator /><BreadcrumbItem><BreadcrumbPage>{data.name}</BreadcrumbPage></BreadcrumbItem></BreadcrumbList></Breadcrumb>;
 
   return <EditorShell breadcrumb={breadcrumb} title={data.name} status={status} actions={actions} steps={steps} current={step} onStep={(id) => setStep(id as CommunityEditorStep)}
-    stepsLabel={t("stepsLabel")} previewLabel={t("preview")} sidebar={sidebar} preview={<Tabs defaultValue="page"><TabsList className="mb-3"><TabsTrigger value="page" className="min-h-9">{t("previewPage")}</TabsTrigger><TabsTrigger value="join" className="min-h-9">{t("previewJoin")}</TabsTrigger></TabsList>
+    stepsLabel={t("stepsLabel")} previewLabel={t("preview")} sidebar={sidebar}
+    livePreview={hosted ? (surface, { close }) => <CommunityLivePreview surface={surface} draft={fields} host={host} tab={previewTab} onTab={setPreviewTab} viewer={viewer} onViewer={setViewer}
+      highlight={highlight} openPage={sidebar.openPage} onEdit={(field) => { if (surface === "sheet") close(() => goToField(field as CommunityField)); else goToField(field as CommunityField); }} /> : undefined}
+    preview={<Tabs defaultValue="page"><TabsList className="mb-3"><TabsTrigger value="page" className="min-h-9">{t("previewPage")}</TabsTrigger><TabsTrigger value="join" className="min-h-9">{t("previewJoin")}</TabsTrigger></TabsList>
       <TabsContent value="page"><CommunityJoinCard name={fields.name} tagline={fields.tagline} host={host} preview /></TabsContent>
       <TabsContent value="join"><Card><CardContent className="space-y-5 pt-6">
         {fields.joinQuestions.length > 0 && <QuestionFields questions={cleanQuestions(fields.joinQuestions).filter((q) => q.label)} values={{}} disabled idPrefix="preview-question" />}
@@ -118,10 +149,13 @@ export function CommunityEditor({ initial, members, invites, applications, categ
         <Label htmlFor="community-price-paid" className="flex min-h-11 items-center gap-3 rounded-md border px-3 font-normal text-muted-foreground"><RadioGroupItem id="community-price-paid" value="paid" disabled /><span className="flex-1">{t("paid")}</span><Badge variant="secondary">{t("comingSoon")}</Badge></Label>
       </RadioGroup>}
       {step === "basics" && <FormSection title={screens("basicsTitle")}>
-        <Field><FieldLabel htmlFor="community-name">{t("name")}</FieldLabel><Input id="community-name" className="min-h-11" value={fields.name} maxLength={80} required disabled={!writable} onChange={(e) => set("name", e.target.value)} /></Field>
+        <Field><FieldLabel htmlFor="community-name">{t("name")}</FieldLabel><Input id="community-name" className="min-h-11" value={fields.name} maxLength={80} required disabled={!writable} onChange={(e) => { const value = e.target.value; set("name", value); if (slugFollows && data.status !== "published") set("slug", nextSlug(fields.slug, value, true)); }} /></Field>
         <Field><FieldLabel htmlFor="community-tagline">{t("tagline")}</FieldLabel><Input id="community-tagline" className="min-h-11" value={fields.tagline ?? ""} maxLength={160} disabled={!writable} onChange={(e) => set("tagline", e.target.value)} /></Field>
         <Field><FieldLabel htmlFor="community-description">{t("description")}</FieldLabel><Textarea id="community-description" rows={4} value={fields.description ?? ""} maxLength={2000} disabled={!writable} onChange={(e) => set("description", e.target.value)} /></Field>
-        <Field><FieldLabel htmlFor="community-address">{t("address")}</FieldLabel><Input id="community-address" className="min-h-11" value={`/communities/${data.slug}`} readOnly /></Field>
+        <Field><FieldLabel htmlFor="community-address">{t("address")}</FieldLabel>
+          <InputGroup className="min-h-11"><InputGroupAddon><InputGroupText>{screens("addressPrefix")}</InputGroupText></InputGroupAddon>
+            <InputGroupInput id="community-address" value={fields.slug} maxLength={48} required readOnly={!writable || data.status === "published"}
+              onChange={(e) => { setSlugFollows(false); set("slug", e.target.value.toLowerCase()); }} /></InputGroup></Field>
       </FormSection>}
       {step === "joining" && <>
         <FormSection as="fieldset" title={t("visibility")}>
