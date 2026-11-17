@@ -624,7 +624,8 @@
     "forumMuted": "You can't post here right now.",
     "reportDuplicate": "You've already reported this.",
     "appealDuplicate": "You've already sent an appeal.",
-    "bannedWordsInvalid": "Banned words can be up to 40 characters each, 100 in total."
+    "bannedWordsInvalid": "Banned words can be up to 40 characters each, 100 in total.",
+    "communitySlugLocked": "The address of a published community can't be changed. Unpublish it first."
   },
   "LibEnv": {
     "missingRequiredEnvironmentVariableValue": "Missing required environment variable: {name}"

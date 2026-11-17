@@ -213,23 +213,24 @@ test("keyboard path: tabs, view as and device switch are reachable and the previ
   await expect(page.locator("[data-hydrated=true]")).toBeVisible();
   const preview = column(page);
   await preview.getByRole("tab", { name: "Page" }).focus();
-  await page.keyboard.press("ArrowRight");
+  await expect(preview.getByRole("tab", { name: "Page" })).toBeFocused();
+  await preview.getByRole("tab", { name: "Page" }).press("ArrowRight");
   await expect(preview.getByRole("tab", { name: "Welcome" })).toBeFocused();
   await expect(preview.getByRole("tab", { name: "Welcome" })).toHaveAttribute("aria-selected", "true");
-  await page.keyboard.press("ArrowLeft");
+  await preview.getByRole("tab", { name: "Welcome" }).press("ArrowLeft");
   const viewAs = preview.getByRole("radiogroup", { name: "View as" });
   await viewAs.getByRole("radio", { name: "Visitor" }).focus();
   await expect(viewAs.getByRole("radio", { name: "Visitor" })).toBeFocused();
-  await page.keyboard.press("ArrowRight");
+  await viewAs.getByRole("radio", { name: "Visitor" }).press("ArrowRight");
   await expect(viewAs.getByRole("radio", { name: "Member" })).toBeFocused();
-  await page.keyboard.press("Space");
+  await viewAs.getByRole("radio", { name: "Member" }).press("Space");
   await expect(viewAs.getByRole("radio", { name: "Member" })).toBeChecked();
   const device = preview.getByRole("radiogroup", { name: "Device" });
   await device.getByRole("radio", { name: "Phone width" }).focus();
   await expect(device.getByRole("radio", { name: "Phone width" })).toBeFocused();
-  await page.keyboard.press("ArrowRight");
+  await device.getByRole("radio", { name: "Phone width" }).press("ArrowRight");
   await expect(device.getByRole("radio", { name: "Desktop width" })).toBeFocused();
-  await page.keyboard.press("Enter");
+  await device.getByRole("radio", { name: "Desktop width" }).press("Enter");
   await expect(device.getByRole("radio", { name: "Desktop width" })).toBeChecked();
   // Tab order inside the column: tabs, view as, device, Edit this, then the frame (one stop), and nothing inside it.
   await preview.getByRole("button", { name: "Edit this" }).focus();
@@ -371,4 +372,67 @@ test("role matrix: member and viewer see the preview read-only; admin edits", as
       if (role === "admin") await expect(other.locator("#community-rules-on")).toBeFocused();
     } finally { await context.close(); }
   }
+});
+
+test("address: fixed /communities/ prefix, slug follows the title until edited by hand, locked once published", async ({ page, browser }) => {
+  test.setTimeout(300_000);
+  await mkdir(evidence, { recursive: true });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await signIn(page);
+  const ministry = await page.request.post("/api/workspaces", { headers: { origin }, data: { audience: "church", name: "Grace Church" } });
+  const tenant = (await ministry.json()).tenantId as string;
+  const created = await page.request.post(`/api/workspaces/${tenant}/communities`, { headers: { origin }, data: { name: "Grace Study", slug: "grace-study" } });
+  expect(created.status()).toBe(201);
+  const id = (await created.json()).id as string;
+  const endpoint = `/api/workspaces/${tenant}/communities/${id}`;
+  await page.goto(`/workspaces/${tenant}/communities/${id}/edit`);
+  await expect(page.locator("[data-hydrated=true]")).toBeVisible();
+  const address = page.getByLabel("Address", { exact: true });
+  const group = page.locator("[data-slot='input-group']").filter({ has: address });
+  await expect(group.getByText("/communities/", { exact: true })).toBeVisible();
+  await expect(address).toHaveValue("grace-study");
+  expect(await address.evaluate((n) => n.getBoundingClientRect().height)).toBeGreaterThanOrEqual(36);
+  expect((await group.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  // Follows the title.
+  await page.locator("#community-name").fill("Evening Prayer Circle");
+  await expect(address).toHaveValue("evening-prayer-circle");
+  // A hand edit stops the sync.
+  await address.fill("prayer-circle");
+  await page.locator("#community-name").fill("Evening Prayer Group");
+  await expect(address).toHaveValue("prayer-circle");
+  // The prefix is not part of the value; typing capitals is lowered.
+  await address.fill("Prayer-Group");
+  await expect(address).toHaveValue("prayer-group");
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByRole("status").filter({ hasText: "Saved." })).toBeVisible();
+  expect((await (await page.request.get(endpoint)).json()).slug).toBe("prayer-group");
+  for (const scheme of ["light", "dark"] as const) for (const [w, h, label] of [[1280, 900, "desktop-1280"], [360, 780, "phone-360"]] as const) {
+    await setColorMode(page, scheme, `/workspaces/${tenant}/communities/${id}/edit`);
+    await page.setViewportSize({ width: w, height: h });
+    await expect(group).toBeVisible();
+    expect(await overflow(page)).toBeLessThanOrEqual(0);
+    expect((await group.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    await axe(page);
+    await page.locator("form, section").filter({ has: address }).last().screenshot({ path: `${evidence}/address-${label}-${scheme}.png` });
+  }
+  // A taken address is refused by the API (409), a published community keeps its address.
+  const other = await page.request.post(`/api/workspaces/${tenant}/communities`, { headers: { origin }, data: { name: "Other", slug: "other-circle" } });
+  const current = await (await page.request.get(endpoint)).json();
+  expect(other.status()).toBe(201);
+  expect((await page.request.patch(endpoint, { headers: { origin }, data: { version: current.version, slug: "other-circle" } })).status()).toBe(409);
+  const set = await page.request.patch(endpoint, { headers: { origin }, data: { version: current.version, allowOpen: true, visibility: "unlisted" } });
+  const draft = await set.json();
+  expect((await page.request.post(`${endpoint}/publish`, { headers: { origin }, data: { version: draft.version, published: true } })).status()).toBe(200);
+  const live = await (await page.request.get(endpoint)).json();
+  expect((await page.request.patch(endpoint, { headers: { origin }, data: { version: live.version, slug: "changed-address" } })).status()).toBe(409);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`/workspaces/${tenant}/communities/${id}/edit`);
+  await expect(page.locator("[data-hydrated=true]")).toBeVisible();
+  await expect(address).toHaveAttribute("readonly", "");
+  await page.locator("#community-name").fill("Totally Different Name");
+  await expect(address).toHaveValue("prayer-group");
+  // The public page and Open page keep using /communities/:slug.
+  if (!off) await expect(page.getByRole("link", { name: "Open page" }).first()).toHaveAttribute("href", "/communities/prayer-group");
+  const visitor = await browser.newContext({ baseURL: origin });
+  try { const pub = await visitor.newPage(); expect((await pub.goto("/communities/prayer-group"))?.status()).toBe(200); } finally { await visitor.close(); }
 });

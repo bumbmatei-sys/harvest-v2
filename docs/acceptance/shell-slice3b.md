@@ -68,3 +68,12 @@ Spec: `docs/superpowers/specs/2026-11-16-shell-editor-mode-design.md` (section 6
 ## CI width assertion (shell-slice3a spec)
 
 CI on other PRs failed `tests/e2e/shell-slice3a.spec.ts` "expected preview width 384, received 352" right after `setViewportSize(1700)`. It did not reproduce locally (the spec passed, also with `CI=1` and the spec file sharded). Cause: the width was read once immediately after the resize, before layout settled on a slower runner. The 3a and 3b specs now use `expect.poll` for every preview and form width read taken right after a resize (352 from 1280px, 384 from 1600px; the rule itself is unchanged).
+
+## Address section (founder request, separate commit)
+
+- The Basics address is an `InputGroup` with a fixed, read-only `/communities/` prefix (the shared `InputGroupAddon`, same string as the create dialog) and only the slug editable (not part of the prefix; lowercased as typed; 44px group; no helper text).
+- A draft's address follows the title (`suggestSlug`, moved to `src/lib/community-editor.ts` and shared with the create dialog) until the owner edits the address by hand; after that it never syncs again (also after Discard it is recomputed from the saved values). A suggestion that is not a valid address (for example a one-letter title) leaves the address unchanged.
+- A published community's address is read-only and never changes; the server refuses a slug change on a published community (409, `Errors.communitySlugLocked`) and a taken address (409, existing `communitySlugTaken`). The update API now accepts `slug` (no migration: the column, unique index and check already exist).
+- Public page, Open page link and previews still use `/communities/:slug` (e2e).
+- Tests: `tests/unit/community-slug.test.ts`; e2e "address" test in `tests/e2e/shell-slice3b.spec.ts` (follow, hand edit stops sync, save, taken address, published lock, axe, no overflow, 44px). Screenshots `docs/screenshots/shell-slice3b/address-{desktop-1280,phone-360}-{light,dark}.png` (crops of the Basics section), viewed.
+- Not verified: a published community that is unpublished then renamed (the address stays whatever it was; it does not auto-sync because `slugFollowsName` is evaluated on load and the title and address already differ in practice only after a hand edit).
