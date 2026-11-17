@@ -121,7 +121,8 @@ it("refuses to grant to a worker role that is privileged", async () => {
 
 it("0057 worker grants are safe before provisioning and refuse a privileged role", async () => {
   const source = await readFile("drizzle/0057_community_chat.sql", "utf8");
-  const block = source.slice(source.indexOf("-- 0057 worker-role grant:"));
+  const start = source.indexOf("-- 0057 worker-role grant:");
+  const block = source.slice(start, source.indexOf("-- End 0057 worker-role grant.", start));
   const absent = `chat_absent_${randomUUID().replace(/-/g, "").slice(0, 12)}`;
   await f.admin.query(block.replaceAll("harvest_worker", absent));
   expect((await f.admin.query("select count(*)::int n from pg_roles where rolname=$1", [absent])).rows[0].n).toBe(0);

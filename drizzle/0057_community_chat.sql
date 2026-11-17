@@ -1009,6 +1009,7 @@ DO $$ BEGIN
   GRANT EXECUTE ON FUNCTION public.community_chat_purge_channels(integer),public.community_chat_purge_record_failure(text),public.community_chat_purge_health() TO harvest_worker;
  END IF;
 END $$;
+-- End 0057 worker-role grant.
 
 --> statement-breakpoint
 REVOKE ALL ON FUNCTION public.community_chat_refresh_thread(uuid,uuid) FROM PUBLIC,harvest_app;
