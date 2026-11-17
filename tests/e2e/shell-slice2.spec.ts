@@ -1,5 +1,5 @@
 import { mkdir } from "node:fs/promises";
-import { expect as playwrightExpect, test, type Browser, type Page } from "@playwright/test";
+import { expect as playwrightExpect, test, type Browser, type Locator, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { signIn, origin } from "./helpers/session";
 
@@ -22,6 +22,8 @@ async function guest(browser: Browser) {
 }
 const tablist = (page: Page) => page.getByRole("tablist", { name: "Menu mode" });
 const tab = (page: Page, name: string) => tablist(page).getByRole("tab", { name, exact: true });
+// Icon-only tabs: the accessible name is the only label, and no text is visible.
+const tabNames = (list: Locator) => list.getByRole("tab").evaluateAll((nodes) => nodes.map((node) => node.getAttribute("aria-label")));
 const nav = (page: Page) => page.getByRole("navigation", { name: /^Ministry navigation/ });
 async function openDrawer(page: Page) {
   const trigger = page.locator('[data-shell-header] [data-sidebar="trigger"]');
@@ -67,7 +69,8 @@ test("mode switcher: tabs, choosing a mode does not navigate, owning mode, persi
   await expect(page.locator("[data-hydrated=true]")).toBeVisible();
 
   // Operations and Public only: Assistant has no live entry, so it is hidden rather than shown broken.
-  await expect(tablist(page).getByRole("tab")).toHaveText(["Operations", "Public"]);
+  expect(await tabNames(tablist(page))).toEqual(["Operations", "Public"]);
+  await expect(tablist(page)).toHaveText("");
   await expect(tab(page, "Operations")).toHaveAttribute("aria-selected", "true");
   await expect(tab(page, "Public")).toHaveAttribute("aria-selected", "false");
   await expect(page.getByRole("tab", { name: "Assistant" })).toHaveCount(0);
@@ -185,8 +188,7 @@ test("icon rail: icons only with tooltips, vertical tablist", async ({ page }) =
   await expect(tablist(page)).toHaveAttribute("aria-orientation", "vertical");
   for (const name of ["Operations", "Public"]) {
     const box = (await tab(page, name).boundingBox())!;
-    expect(box.width).toBeLessThanOrEqual(48); expect(box.height).toBeGreaterThanOrEqual(32);
-    expect((await tab(page, name).getByText(name, { exact: true }).boundingBox())!.width).toBeLessThanOrEqual(1);
+    expect(box.width).toBeLessThanOrEqual(40); expect(box.height).toBeGreaterThanOrEqual(28);
   }
   await tab(page, "Public").hover();
   await expect(page.getByRole("tooltip")).toHaveText("Public (Ctrl/Cmd+Alt+2)");
@@ -217,7 +219,7 @@ test("five widths, light and dark: axe, no overflow, 44px targets below 1024px, 
       await expect(drawer.getByRole("tablist", { name: "Menu mode" })).toBeVisible();
       for (const name of ["Operations", "Public"]) {
         const box = (await drawer.getByRole("tab", { name, exact: true }).boundingBox())!;
-        expect(box.height, `${width} ${mode} ${name} tab`).toBeGreaterThanOrEqual(44);
+        expect(box.height, `${width} ${mode} ${name} tab`).toBeGreaterThanOrEqual(44); expect(box.width).toBeGreaterThanOrEqual(44);
       }
       for (const link of await drawer.getByRole("link").all()) expect((await link.boundingBox())!.height, `${width} ${mode} drawer link`).toBeGreaterThanOrEqual(44);
       await axe(page);
@@ -234,7 +236,11 @@ test("five widths, light and dark: axe, no overflow, 44px targets below 1024px, 
       await expect(drawer).toHaveCount(0);
     } else {
       await expect(tablist(page)).toBeVisible();
-      for (const name of ["Operations", "Public"]) await expect(tab(page, name).getByText(name, { exact: true })).toBeVisible();
+      for (const name of ["Operations", "Public"]) await expect(tab(page, name)).toBeVisible();
+      // Logo and mode icons share one header row.
+      const logo = (await page.locator("[data-sidebar=\"header\"] a[href=\"/workspaces\"]").boundingBox())!, pill = (await tablist(page).boundingBox())!;
+      expect(Math.abs((logo.y + logo.height / 2) - (pill.y + pill.height / 2))).toBeLessThanOrEqual(6);
+      expect(pill.x).toBeGreaterThan(logo.x + logo.width);
       await axe(page);
       if (width === 1280) await page.screenshot({ path: `${evidence}/desktop-1280-operations-${mode}.png` });
       await tab(page, "Public").click();
@@ -262,7 +268,7 @@ test("role matrix: every role sees only modes with visible entries and today's i
   for (const [role, view] of Object.entries(people)) {
     await view.goto(`/workspaces/${id}/crm/people`);
     await expect(view.locator("[data-hydrated=true]")).toBeVisible();
-    await expect(tablist(view).getByRole("tab"), role).toHaveText(["Operations", "Public"]);
+    expect(await tabNames(tablist(view)), role).toEqual(["Operations", "Public"]);
     await expect(view.getByRole("tab", { name: "Assistant" })).toHaveCount(0);
     await expect(nav(view).getByRole("link", { name: "Imports", exact: true }), role).toHaveCount(role === "viewer" ? 0 : 1);
     await expect(nav(view).getByRole("link", { name: "Ministry settings", exact: true })).toHaveCount(1);
@@ -284,7 +290,7 @@ test("showcase: all three modes, tablist keys and 44px targets (Assistant is hid
     const example = page.locator("[data-mode-switcher-example]");
     await expect(example).toBeVisible();
     const tabs = example.getByRole("tab");
-    await expect(tabs).toHaveText(["Operations", "Public", "Assistant"]);
+    expect(await tabNames(example)).toEqual(["Operations", "Public", "Assistant"]);
     if (width < 1024) for (const item of await tabs.all()) expect((await item.boundingBox())!.height).toBeGreaterThanOrEqual(44);
     await tabs.first().click();
     await tabs.first().focus();

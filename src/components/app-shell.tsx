@@ -114,7 +114,16 @@ function ModeNavigation({ selected, workspace, pathname, features, announce }: {
   const { groups } = resolveModeNavigation({ tenantId: selected, ...viewer, pathname, mode });
   const modeLabel = t(modeLabelKey(mode));
   return <>
-    {available.length > 1 && <ModeSwitcher modes={available} active={mode} controls={modeNavId} onSelect={(next) => select(next)} />}
+    {/* One compact header row: logo left, mode icons right (a single mode needs no switcher). */}
+    <SidebarHeader className="gap-0 p-0 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:py-2">
+      <div className="flex h-[52px] items-center justify-between gap-2 pl-4 pr-3 group-data-[collapsible=icon]:h-auto group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:px-0">
+        <Link href="/workspaces" className="flex min-h-11 min-w-0 items-center gap-1.5 rounded-md outline-none lg:min-h-0 focus-visible:ring-2 focus-visible:ring-sidebar-ring">
+          <Image src="/brand/harvest-logo.png" width={24} height={24} alt="" className="size-6 shrink-0 object-contain" />
+          <span className="truncate text-[17px] font-semibold text-sidebar-accent-foreground group-data-[collapsible=icon]:sr-only">{t("harvest")}</span>
+        </Link>
+        {available.length > 1 && <ModeSwitcher modes={available} active={mode} controls={modeNavId} onSelect={(next) => select(next)} />}
+      </div>
+    </SidebarHeader>
     <SidebarContent className="gap-0 pt-1"><nav ref={navRef} id={modeNavId} aria-label={t("workspaceNavigationMode", { mode: modeLabel })} data-shell-mode={mode}>
       {mode === "operations" && <SidebarGroup className="px-[13px] py-0 group-data-[collapsible=icon]:px-0">
         <SidebarMenu className="gap-px"><NavigationLink href="/workspaces" active={false} label={t("workspaces")} icon={<Building2 aria-hidden="true" />} /></SidebarMenu>
@@ -157,12 +166,12 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
     <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-card focus:p-3">{t("skipToContent")}</a>
     <Sidebar variant="floating" collapsible="icon" className="p-[8px]">
       <div ref={setNavigationContainer} role="complementary" aria-label={t("workspaceSidebar")} className="flex h-full min-h-0 flex-col">
-        <SidebarHeader className="gap-0 p-0 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:py-2">
+        {!(modeSwitcher && selected) && <SidebarHeader className="gap-0 p-0 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:py-2">
           <SidebarMenu><SidebarMenuItem><SidebarMenuButton size="lg" asChild className="h-[52px] rounded-none hover:bg-transparent group-data-[collapsible=icon]:size-auto! group-data-[collapsible=icon]:p-0!"><Link href="/workspaces" className="flex h-[52px] items-center gap-1.5 pl-4 pr-3 group-data-[collapsible=icon]:h-auto group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
             <Image src="/brand/harvest-logo.png" width={24} height={24} alt="" className="size-6 shrink-0 object-contain" />
             <span className="text-[17px] font-semibold text-sidebar-accent-foreground group-data-[collapsible=icon]:sr-only">{t("harvest")}</span>
           </Link></SidebarMenuButton></SidebarMenuItem></SidebarMenu>
-        </SidebarHeader>
+        </SidebarHeader>}
         {modeSwitcher && selected ? <ModeNavigation selected={selected} workspace={workspace} pathname={pathname} features={features} announce={setAnnouncement} />
         : <SidebarContent className="gap-0 pt-1"><nav aria-label={t("workspaceNavigation")}>
           <SidebarGroup className="px-[13px] py-0 group-data-[collapsible=icon]:px-0">

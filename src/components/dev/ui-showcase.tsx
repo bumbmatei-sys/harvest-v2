@@ -128,7 +128,7 @@ function ShellExamples() {
   const t = useTranslations("UiShowcase.shell");
   const [mode, setMode] = useState<NavMode>("operations");
   return <div className="space-y-2 text-sm"><p>{t("summary")}</p><p>{t("switcher")}</p>
-    <div data-mode-switcher-example aria-label={t("modeSwitcher")} role="group" className="w-64 rounded-xl border bg-sidebar py-2"><TooltipProvider><ModeSwitcherView modes={navModes} active={mode} rail={false} onSelect={setMode} /></TooltipProvider></div>
+    <div data-mode-switcher-example aria-label={t("modeSwitcher")} role="group" className="flex w-64 items-center justify-between rounded-xl border bg-sidebar px-4 py-2"><TooltipProvider><ModeSwitcherView modes={navModes} active={mode} rail={false} tooltips onSelect={setMode} /></TooltipProvider></div>
   </div>;
 }
 function KitExamples() {
