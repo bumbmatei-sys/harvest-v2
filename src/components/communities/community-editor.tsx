@@ -38,7 +38,7 @@ import { useCrmRequest } from "@/components/crm/request";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
 import { communityFieldTargets, fieldForControl, type CommunityField, type CommunityPreviewTab, type PreviewViewer } from "@/lib/editor-preview";
 import { InputGroup, InputGroupAddon, InputGroupInput, InputGroupText } from "@/components/ui/input-group";
-import { checklistStep, communitySlugPattern, nextSlug, slugFollowsName, comingSoonSteps, communityEditorSteps, publishChecklist, stepNeedsAttention, type CommunityEditorStep } from "@/lib/community-editor";
+import { checklistStep, nextSlug, slugFollowsName, comingSoonSteps, communityEditorSteps, publishChecklist, stepNeedsAttention, type CommunityEditorStep } from "@/lib/community-editor";
 
 export type EditableCommunity = { id: string; slug: string; name: string; tagline: string | null; status: "draft" | "published" | "archived";
   visibility: "listed" | "unlisted" | "hidden"; allowOpen: boolean; allowApply: boolean; allowInvite: boolean; allowEntitlement: boolean; version: number;
@@ -154,7 +154,7 @@ export function CommunityEditor({ initial, members, invites, applications, categ
         <Field><FieldLabel htmlFor="community-description">{t("description")}</FieldLabel><Textarea id="community-description" rows={4} value={fields.description ?? ""} maxLength={2000} disabled={!writable} onChange={(e) => set("description", e.target.value)} /></Field>
         <Field><FieldLabel htmlFor="community-address">{t("address")}</FieldLabel>
           <InputGroup className="min-h-11"><InputGroupAddon><InputGroupText>{screens("addressPrefix")}</InputGroupText></InputGroupAddon>
-            <InputGroupInput id="community-address" value={fields.slug} maxLength={48} required pattern={communitySlugPattern.source} readOnly={!writable || data.status === "published"}
+            <InputGroupInput id="community-address" value={fields.slug} maxLength={48} required readOnly={!writable || data.status === "published"}
               onChange={(e) => { setSlugFollows(false); set("slug", e.target.value.toLowerCase()); }} /></InputGroup></Field>
       </FormSection>}
       {step === "joining" && <>
