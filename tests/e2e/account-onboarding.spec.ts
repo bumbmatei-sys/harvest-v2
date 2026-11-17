@@ -2,6 +2,7 @@ import { mkdir } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { origin, signIn } from "./helpers/session";
+import { settleForAxe } from "./helpers/settle";
 
 // HC-08: a new personal account is offered onboarding once, can skip it, and keeps editing its profile.
 test.use({ actionTimeout: 30000, reducedMotion: "reduce" });
@@ -16,6 +17,7 @@ async function shoot(page: Page, name: string) {
     await page.waitForTimeout(500);
     for (const [label, width, height] of sizes) {
       await page.setViewportSize({ width, height });
+      await settleForAxe(page);
       expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await page.screenshot({ path: `${evidence}/${name}-${label}-${scheme}.png`, fullPage: true });
