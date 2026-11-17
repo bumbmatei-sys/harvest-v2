@@ -348,7 +348,11 @@ test("five widths in light and dark: axe, no overflow, step bar below 1024px and
       await expect(page.locator("[data-slot='editor-step-bar']")).toBeVisible({ visible: !desktop });
       if (desktop) { await expect(sidebar(page)).toBeVisible(); }
       await expect(page.getByRole("complementary", { name: "Preview" })).toBeVisible({ visible: width >= 1280 });
-      if (width >= 1280) expect(await page.locator("aside[aria-label='Preview']").evaluate((n) => Math.round(n.getBoundingClientRect().width))).toBe(352);
+      if (width >= 1280) {
+        await expect
+          .poll(() => page.locator("aside[aria-label='Preview']").evaluate((n) => Math.round(n.getBoundingClientRect().width)))
+          .toBe(352);
+      }
       expect(await overflow(page)).toBeLessThanOrEqual(0);
       await axe(page);
       if (width === 768) await page.screenshot({ path: `${evidence}/tablet-768-${scheme}.png` });
@@ -366,7 +370,10 @@ test("five widths in light and dark: axe, no overflow, step bar below 1024px and
   }
   // 1600px: the wider preview column.
   await page.setViewportSize({ width: 1700, height: 1000 });
-  expect(await page.locator("aside[aria-label='Preview']").evaluate((n) => Math.round(n.getBoundingClientRect().width))).toBe(384);
+  // Layout settles after the resize; poll instead of reading once (a single read can see the pre-resize 352px).
+  await expect
+    .poll(() => page.locator("aside[aria-label='Preview']").evaluate((n) => Math.round(n.getBoundingClientRect().width)))
+    .toBe(384);
 });
 
 test("role matrix: owner and admin edit; member and viewer see the sidebar read-only", async ({ page, browser }) => {
