@@ -77,7 +77,7 @@ export const auditLogs = pgTable("audit_logs", {
   metadata: jsonb("metadata").$type<Record<string, string>>().notNull().default({}),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("audit_logs_tenant_created_idx").on(t.tenantId, t.createdAt), foreignKey({ columns: [t.tenantId], foreignColumns: [workspaces.tenantId] }),
-  check("audit_system_actor", sql`${t.actorId} is not null or ${t.action} in ('followup.case.withdraw', 'followup.case.revoke')`)]);
+  check("audit_system_actor", sql`${t.actorId} is not null or ${t.action} in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close')`)]);
 export const authSchema = { user: users, session: sessions, account: accounts, verification: verifications, rateLimit: rateLimits };
 
 // A campaign belongs to its parent workspace; it never creates another tenant.
@@ -1540,3 +1540,31 @@ export const campaignScanDays = pgTable("campaign_scan_days", {
   foreignKey({ columns: [t.tenantId, t.campaignId], foreignColumns: [campaigns.tenantId, campaigns.id] }),
   check("campaign_scan_count", sql`${t.count} >= 0`),
 ]);
+
+// Community Live L1: member-only event metadata. Comments/prayer/payment storage is deliberately absent.
+export const communityLiveEvents = pgTable("community_live_events", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  communityId: uuid("community_id").notNull(), id: uuid("id").notNull().defaultRandom(),
+  title: text("title").notNull(), providerVideoId: text("provider_video_id").notNull(),
+  scheduledStart: timestamp("scheduled_start", { withTimezone: true }).notNull(),
+  scheduledEnd: timestamp("scheduled_end", { withTimezone: true }),
+  state: text("state", { enum: ["draft", "scheduled", "live", "ended", "replay", "cancelled"] }).notNull().default("draft"),
+  commentsMode: text("comments_mode", { enum: ["held", "open", "off"] }).notNull().default("held"),
+  donationSlot: text("donation_slot"),
+  startedAt: timestamp("started_at", { withTimezone: true }), endedAt: timestamp("ended_at", { withTimezone: true }),
+  version: integer("version").notNull().default(1),
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }),
+  index("community_live_schedule_idx").on(t.tenantId, t.communityId, t.scheduledStart, t.id),
+  check("community_live_title", sql`length(trim(${t.title})) between 1 and 120`),
+  check("community_live_video", sql`${t.providerVideoId} ~ '^[A-Za-z0-9_-]{11}$'`),
+  check("community_live_state", sql`${t.state} in ('draft','scheduled','live','ended','replay','cancelled')`),
+  check("community_live_comments", sql`${t.commentsMode} in ('held','open','off')`),
+  check("community_live_reserved", sql`${t.donationSlot} is null`),
+  check("community_live_version", sql`${t.version} >= 1`),
+  check("community_live_schedule", sql`${t.scheduledEnd} is null or ${t.scheduledEnd} > ${t.scheduledStart}`),
+  check("community_live_started", sql`${t.state} not in ('live','ended','replay') or ${t.startedAt} is not null`),
+  check("community_live_ended", sql`${t.state} not in ('ended','replay') or ${t.endedAt} is not null`)]);
