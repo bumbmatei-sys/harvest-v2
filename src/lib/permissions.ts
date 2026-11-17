@@ -23,9 +23,11 @@ export type Permission = "workspace:read" | "members:write" | "roles:write" | "c
   // Social provider integration layer: linking accounts, scheduling posts and reading the inbox are owner/admin until a wider role is decided.
   | "social:connect" | "social:schedule" | "social:inbox"
   // Live staff capabilities; community membership is resolved separately.
-  | "community:live:view" | "community:live:manage" | "community:live:moderate";
+  | "community:live:view" | "community:live:manage" | "community:live:moderate"
+  | "newsletter:read" | "newsletter:manage";
 export function can(role: string, permission: Permission): boolean {
   if (permission === "communities:read" || permission === "workspace:read" || permission === "contacts:read" || permission === "companies:read" || permission === "opportunities:read" || permission === "tasks:read" || permission === "notes:read" || permission === "campaigns:read") return roleIds.includes(role as Role);
+  if (permission === "newsletter:read") return role === "owner" || role === "admin" || role === "member";
   if (permission === "followup:work" || permission === "contacts:record_withdrawal") return role === "owner" || role === "admin" || role === "member";
   if (permission === "contacts:write" || permission === "companies:write" || permission === "opportunities:write" || permission === "tasks:write" || permission === "notes:write"
     || permission === "campaigns:write" || permission === "crm:import" || permission === "crm:export") return role === "owner" || role === "admin" || role === "member";

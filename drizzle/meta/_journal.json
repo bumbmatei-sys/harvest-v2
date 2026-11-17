@@ -386,6 +386,13 @@
       "when": 1795400000003,
       "tag": "0055_community_live_l1",
       "breakpoints": true
+    },
+    {
+      "idx": 56,
+      "version": "7",
+      "when": 1795400000004,
+      "tag": "0056_newsletter_nl01",
+      "breakpoints": true
     }
   ]
 }
