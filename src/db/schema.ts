@@ -1568,3 +1568,46 @@ export const communityLiveEvents = pgTable("community_live_events", {
   check("community_live_schedule", sql`${t.scheduledEnd} is null or ${t.scheduledEnd} > ${t.scheduledStart}`),
   check("community_live_started", sql`${t.state} not in ('live','ended','replay') or ${t.startedAt} is not null`),
   check("community_live_ended", sql`${t.state} not in ('ended','replay') or ${t.endedAt} is not null`)]);
+
+// NL-01 is identity-linked record keeping only; consent remains in contact_consents.
+export const newsletterAudiences = pgTable("newsletter_audiences", {
+ tenantId: uuid("tenant_id").notNull().references(()=>workspaces.tenantId), id:uuid("id").notNull().defaultRandom(),name:text("name").notNull(),
+ createdBy:text("created_by").notNull().references(()=>users.id), createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),
+},t=>[primaryKey({columns:[t.tenantId,t.id]}),check("newsletter_audience_name",sql`length(trim(${t.name})) between 1 and 100`)]);
+export const newsletterLists = pgTable("newsletter_lists", {
+ tenantId:uuid("tenant_id").notNull(),id:uuid("id").notNull().defaultRandom(),audienceId:uuid("audience_id").notNull(),name:text("name").notNull(),
+ createdBy:text("created_by").notNull().references(()=>users.id),createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),
+},t=>[primaryKey({columns:[t.tenantId,t.id]}),foreignKey({columns:[t.tenantId,t.audienceId],foreignColumns:[newsletterAudiences.tenantId,newsletterAudiences.id]}),check("newsletter_list_name",sql`length(trim(${t.name})) between 1 and 100`)]);
+export const newsletterSubscribers = pgTable("newsletter_subscribers", {
+ tenantId:uuid("tenant_id").notNull(),id:uuid("id").notNull().defaultRandom(),contactId:uuid("contact_id").notNull(),
+ suppressed:boolean("suppressed").notNull().default(false),tags:text("tags").array().notNull().default(sql`'{}'::text[]`),
+ createdBy:text("created_by").notNull().references(()=>users.id),
+ version:integer("version").notNull().default(1),createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),updatedAt:timestamp("updated_at",{withTimezone:true}).notNull().defaultNow(),
+},t=>[primaryKey({columns:[t.tenantId,t.id]}),uniqueIndex("newsletter_contact_unique").on(t.tenantId,t.contactId),
+ foreignKey({columns:[t.tenantId,t.contactId],foreignColumns:[contacts.tenantId,contacts.id]}),
+ check("newsletter_subscriber_version",sql`${t.version}>=1`),check("newsletter_tags_count",sql`cardinality(${t.tags})<=50`)]);
+export const newsletterSubscriptions = pgTable("newsletter_subscriptions", {
+ tenantId:uuid("tenant_id").notNull(),listId:uuid("list_id").notNull(),subscriberId:uuid("subscriber_id").notNull(),
+ state:text("state",{enum:["subscribed","unsubscribed","bounced","suppressed"]}).notNull(),
+ consentId:uuid("consent_id"),purpose:text("purpose").notNull().default("newsletter"),version:integer("version").notNull().default(1),
+ createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),updatedAt:timestamp("updated_at",{withTimezone:true}).notNull().defaultNow(),
+},t=>[primaryKey({columns:[t.tenantId,t.listId,t.subscriberId]}),foreignKey({columns:[t.tenantId,t.listId],foreignColumns:[newsletterLists.tenantId,newsletterLists.id]}),
+ foreignKey({columns:[t.tenantId,t.subscriberId],foreignColumns:[newsletterSubscribers.tenantId,newsletterSubscribers.id]}),
+ foreignKey({columns:[t.tenantId,t.consentId],foreignColumns:[contactConsents.tenantId,contactConsents.id]}),
+ check("newsletter_subscription_state",sql`${t.state} in ('subscribed','unsubscribed','bounced','suppressed')`),
+ check("newsletter_subscription_purpose",sql`${t.purpose}='newsletter'`),check("newsletter_subscription_consent",sql`${t.state}<>'subscribed' or ${t.consentId} is not null`),
+ check("newsletter_subscription_version",sql`${t.version}>=1`)]);
+export const newsletterSegments = pgTable("newsletter_segments", {
+ tenantId:uuid("tenant_id").notNull(),id:uuid("id").notNull().defaultRandom(),audienceId:uuid("audience_id").notNull(),savedViewId:uuid("saved_view_id").notNull(),
+ name:text("name").notNull(),createdBy:text("created_by").notNull().references(()=>users.id),createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),
+},t=>[primaryKey({columns:[t.tenantId,t.id]}),foreignKey({columns:[t.tenantId,t.audienceId],foreignColumns:[newsletterAudiences.tenantId,newsletterAudiences.id]}),
+ foreignKey({columns:[t.tenantId,t.savedViewId],foreignColumns:[crmSavedViews.tenantId,crmSavedViews.id]}),check("newsletter_segment_name",sql`length(trim(${t.name})) between 1 and 100`)]);
+
+// Provenance follows CRM source access: owner/admin only, separate from member-readable subscriber metadata.
+export const newsletterImportProvenance = pgTable("newsletter_import_provenance", {
+ tenantId:uuid("tenant_id").notNull(),subscriberId:uuid("subscriber_id").notNull(),source:text("source").notNull(),
+ importId:uuid("import_id"),rowNumber:integer("row_number"),importedAt:timestamp("imported_at",{withTimezone:true}),
+ createdBy:text("created_by").notNull().references(()=>users.id),createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),
+},t=>[primaryKey({columns:[t.tenantId,t.subscriberId]}),foreignKey({columns:[t.tenantId,t.subscriberId],foreignColumns:[newsletterSubscribers.tenantId,newsletterSubscribers.id]}),
+ foreignKey({columns:[t.tenantId,t.importId],foreignColumns:[crmImports.tenantId,crmImports.id]}),
+ check("newsletter_import_provenance",sql`(${t.source}='manual' and ${t.importId} is null and ${t.rowNumber} is null and ${t.importedAt} is null) or (${t.source}='csv_import' and ${t.importId} is not null and ${t.rowNumber} is not null and ${t.rowNumber}>0 and ${t.importedAt} is not null)`)]);
