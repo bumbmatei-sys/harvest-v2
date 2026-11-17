@@ -9,6 +9,13 @@ import { communitiesEnabled } from "./communities-mode";
 import { AccessError } from "./permissions";
 import { withUser } from "./tenancy";
 
+export type LiveEventRecord = {
+  id: string; community_id: string; title: string; provider_video_id: string;
+  scheduled_start: string; scheduled_end: string | null; state: typeof liveStates[number];
+  comments_mode: typeof liveCommentsModes[number]; started_at: string | null; ended_at: string | null;
+  version: number; created_at: string; updated_at: string;
+};
+
 /** L1 is synthetic/local only; the existing community enable flag cannot activate Live in production. */
 export function communityLiveEnabled(env: Record<string, string | undefined> = process.env) {
   return env.NODE_ENV !== "production" && communitiesEnabled(env);
@@ -28,7 +35,7 @@ function dbCode(error: unknown): string | undefined {
 export async function saveLiveEvent(db: Database, userId: string, slug: string, eventId: string | null, raw: unknown) {
   enabled(); const input = liveEventInput.parse(raw), id = eventId === null ? null : z.uuid().parse(eventId);
   try {
-    return await withUser(db, userId, async (tx) => (await tx.execute(sql`select public.community_live_save(${communitySlug.parse(slug)},${id}::uuid,${input.version}::integer,
+    return await withUser(db, userId, async (tx) => (await tx.execute<{ event: LiveEventRecord }>(sql`select public.community_live_save(${communitySlug.parse(slug)},${id}::uuid,${input.version}::integer,
       ${input.title},${parseLiveVideoUrl(input.videoUrl)},${input.scheduledStart}::timestamptz,${input.scheduledEnd}::timestamptz,${input.state},${input.commentsMode}) as event`)).rows[0].event);
   } catch (e) {
     const code = dbCode(e);
@@ -41,7 +48,7 @@ export async function saveLiveEvent(db: Database, userId: string, slug: string, 
 export function listLiveEvents(db: Database, userId: string, slug: string, eventId?: string) {
   enabled(); const parsedSlug = communitySlug.parse(slug), id = eventId ? z.uuid().parse(eventId) : undefined;
   return withUser(db, userId, async (tx) => {
-    const rows = (await tx.execute<{ events: Record<string, unknown>[] }>(sql`select public.community_live_list(${parsedSlug},${id ?? null}::uuid) as events`)).rows[0].events;
+    const rows = (await tx.execute<{ events: LiveEventRecord[] }>(sql`select public.community_live_list(${parsedSlug},${id ?? null}::uuid) as events`)).rows[0].events;
     if (id && !rows.length) throw new AccessError(404,message("Errors.communityNotFound"));
     return rows;
   });

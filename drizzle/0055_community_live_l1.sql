@@ -121,7 +121,7 @@ BEGIN
  INSERT INTO public.audit_logs(tenant_id,actor_id,action,target_id,metadata) VALUES(ctx.o_tenant,actor,'community.live.save',saved.id,
  jsonb_build_object('communityId',ctx.o_community,'from',oldrow.state,'to',saved.state,'version',saved.version));
  PERFORM public.community_definer_reset(); PERFORM set_config('app.live_community','',true);
- RETURN to_jsonb(saved)-'created_by'-'donation_slot';
+ RETURN public.community_live_projection(saved);
 EXCEPTION WHEN OTHERS THEN
  PERFORM public.community_definer_reset(); PERFORM set_config('app.live_community','',true); RAISE;
 END $$;
@@ -161,7 +161,7 @@ BEGIN
  IF NOT manager AND (c.status<>'published' OR NOT public.community_can_read(c.tenant_id,c.id)) THEN
   PERFORM public.community_definer_reset(); PERFORM set_config('app.live_community','',true); RETURN '[]'::jsonb;
  END IF;
- SELECT coalesce(jsonb_agg(to_jsonb(e)-'tenant_id'-'created_by'-'donation_slot' ORDER BY e.scheduled_start,e.id),'[]'::jsonb) INTO result
+ SELECT coalesce(jsonb_agg(public.community_live_projection(e::public.community_live_events) ORDER BY e.scheduled_start,e.id),'[]'::jsonb) INTO result
  FROM (SELECT * FROM public.community_live_events WHERE tenant_id=c.tenant_id AND community_id=c.id AND (p_id IS NULL OR id=p_id)
  AND (manager OR public.community_live_in_window(state,scheduled_start,ended_at,now())) ORDER BY scheduled_start,id LIMIT 100) e;
  PERFORM public.community_definer_reset(); PERFORM set_config('app.live_community','',true); RETURN result;
@@ -174,3 +174,13 @@ GRANT EXECUTE ON FUNCTION public.community_live_list(text,uuid) TO harvest_app;
 --> statement-breakpoint
 ALTER TABLE public.audit_logs DROP CONSTRAINT audit_system_actor;
 ALTER TABLE public.audit_logs ADD CONSTRAINT audit_system_actor CHECK (actor_id IS NOT NULL OR action IN ('followup.case.withdraw','followup.case.revoke','community.live.auto_close'));
+
+--> statement-breakpoint
+-- Explicit field allowlist: future private columns cannot silently enter API responses.
+CREATE FUNCTION public.community_live_projection(p public.community_live_events) RETURNS jsonb
+LANGUAGE sql IMMUTABLE SET search_path=pg_catalog,pg_temp AS $$
+ SELECT jsonb_build_object('id',(p).id,'community_id',(p).community_id,'title',(p).title,'provider_video_id',(p).provider_video_id,
+ 'scheduled_start',(p).scheduled_start,'scheduled_end',(p).scheduled_end,'state',(p).state,'comments_mode',(p).comments_mode,
+ 'started_at',(p).started_at,'ended_at',(p).ended_at,'version',(p).version,'created_at',(p).created_at,'updated_at',(p).updated_at)
+$$;
+REVOKE ALL ON FUNCTION public.community_live_projection(public.community_live_events) FROM PUBLIC;

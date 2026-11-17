@@ -58,9 +58,14 @@ it('versions, state transitions, metadata audit and explicit replay',async()=>{
 it('window rules apply at RLS and revoked/banned members lose access',async()=>{
  const e=await saveLiveEvent(f.db,'l-owner','live-club',null,{...raw(),scheduledStart:new Date(Date.now()+25*3600000).toISOString()}) as {id:string};
  await expect(listLiveEvents(f.db,'l-member','live-club',e.id)).rejects.toMatchObject({status:404});
+ expect((await withUser(f.db,'l-member',tx=>tx.execute(sql`select id from community_live_events where id=${e.id}::uuid`))).rows).toEqual([]);
  await f.admin.query("update community_live_events set scheduled_start=now()-interval '8 days' where id=$1",[e.id]);
  await expect(listLiveEvents(f.db,'l-member','live-club',e.id)).rejects.toMatchObject({status:404});
  await f.admin.query("update community_live_events set scheduled_start=now() where id=$1",[e.id]);
+ await f.admin.query("update entitlements set revoked_at=now() where resource_id=$1 and user_id='l-member' and revoked_at is null",[club]);
+ expect((await withUser(f.db,'l-member',tx=>tx.execute(sql`select id from community_live_events where id=${e.id}::uuid`))).rows).toEqual([]);
+ expect(await listLiveEvents(f.db,'l-member','live-club')).toEqual([]);
+ await f.admin.query("insert into entitlements(tenant_id,user_id,resource_type,resource_id,source) values($1,'l-member','community',$2,'admin_grant')",[a,club]);
  await f.admin.query("update community_memberships set status='banned' where community_id=$1 and user_id='l-member'",[club]);
  expect(await listLiveEvents(f.db,'l-member','live-club')).toEqual([]);
  await f.admin.query("update community_memberships set status='active' where community_id=$1 and user_id='l-member'",[club]);
