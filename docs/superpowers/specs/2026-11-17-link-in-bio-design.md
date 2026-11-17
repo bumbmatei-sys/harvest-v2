@@ -30,7 +30,7 @@ Header (initials/approved image, display title, short bio), then ordered labelle
 | Media choice | existing file list/upload composition | `FileList`, `UploadControl`, ready-file authorization/scanner |
 | Analytics summary | catalogued [`stat-card1`](https://shadcnuikit.com/blocks/dashboard-ui/stat-cards#stat-card-1) candidate, exact anchor verified before adoption | existing status/list components; bounded daily counts |
 
-**Source-fit gate:** no complete link-in-bio registry item has been verified. The implementation PR must audit the template/source fit and name exact items, previews, licence and shared components. Do not invent `link-in-bio1` or hand-build a missing screen. If neither source covers it, return to the founder. Premium source waits for the explicit “licence settled” relay. No premium code/assets are included here.
+**Source-fit gate:** no complete link-in-bio registry item has been verified. The implementation PR must audit the template/source fit and name exact items, previews, licence and shared components. Do not invent `link-in-bio1` or hand-build a missing screen. If neither source covers it, return to the founder. The licence is settled (founder, 17 Nov): premium kit blocks may be used, with provenance recorded. No premium code/assets are included here.
 
 All copy is catalogued, concise and supplier-neutral. Use Studio Admin tokens, 44px links/controls, keyboard focus, reduced motion, semantic headings and useful empty/error states. Public bios are plain text, not HTML.
 
@@ -86,4 +86,4 @@ Browser: owner draft/edit/preview/publish/unpublish; visitor sees only published
 | B03 analytics | reviewed minimal aggregate collection/report | no PII, abuse/retention/suppression tests; tracking still gated |
 | later | canonical course/product cards, consent-backed newsletter block, custom domains | owning services and separate gates exist |
 
-Founder/review decisions: public URL/slug namespace; exact source fit after the licence relay; initial block set; whether minimal tracking is wanted and its notice/retention/suppression policy. The draft recommends `/bio/:slug`, safe links plus existing free resources, and no tracking until review. No policy, premium licence, production activation or HC-02 decision is approved. One branch/draft PR per implementation slice, migrations verified from trusted main, no force push/merge/deploy.
+Founder/review decisions: public URL/slug namespace; exact source fit (licence settled, 17 Nov); initial block set; whether minimal tracking is wanted and its notice/retention/suppression policy. The draft recommends `/bio/:slug`, safe links plus existing free resources, and no tracking until review. This document approves no policy, production activation or HC-02 decision. One branch/draft PR per implementation slice, migrations verified from trusted main, no force push/merge/deploy.

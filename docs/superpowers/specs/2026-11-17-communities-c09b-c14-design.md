@@ -100,7 +100,7 @@ Live integration is an optional association from a canonical event to Live L1, w
 | Event detail / RSVP | chosen calendar's detail pattern; no invented standalone registry item | `Sheet`, `Badge`, `StatusBadge`, `ConfirmDialog`, existing form fields |
 | Safety / empty / notifications | existing Harvest components | `ReportDialog`, `NotificationBell`, `EmptyState`, `MemberList` |
 
-The profile templates have no registry install name; do not invent one. Verify code availability and preview anchors before adoption. The exact item list/provenance is recorded in each implementation PR. The explicit “licence settled” relay is required before premium source lands; approved free/MIT preparation is allowed. If neither source covers an area, return to the founder. No visual screen, registry source or paid asset is introduced by this spec.
+The profile templates have no registry install name; do not invent one. Verify code availability and preview anchors before adoption. The exact item list/provenance is recorded in each implementation PR. The licence is settled (founder, 17 Nov): premium kit blocks may be used wherever they fit, with provenance recorded; approved free/MIT preparation is also allowed. If neither source covers an area, return to the founder. No visual screen, registry source or paid asset is introduced by this spec.
 
 Reuse full-width layouts and semantic tokens, concise catalogue copy, 44px targets, keyboard tab/agenda navigation, accessible form errors and reduced motion. Do not duplicate AppShell/navigation, create a separate community calendar engine, or expose implementation/provider names in UI copy.
 
@@ -129,4 +129,4 @@ One branch and draft PR per implementation slice; no migration reservations, for
 1. Confirm E01 as the explicit canonical Events prerequisite immediately before C14; otherwise C14 remains waiting on ADR §9. This spec does not waive that dependency.
 2. Confirm members/unlisted/private profile choices and default members-only. Recommend private voluntary text for owner/admin safety reviewers only; moderator access is a separate explicit decision, with no ministry-viewer bypass.
 3. Confirm initials-only until scanning and the first free, members-only RSVP/ICS slice before waitlists/recurrence/public listings. The 30-minute join window is a proposed default.
-4. Premium licence relay remains outstanding. Privacy/legal review covers voluntary profile data, attendee/reminder policies, exported-calendar copies and retention before real collection. None of the HC-02 decisions, real sending, support-access policies or production gates is approved by this document.
+4. The premium kit licence is settled (founder, 17 Nov). Privacy/legal review covers voluntary profile data, attendee/reminder policies, exported-calendar copies and retention before real collection. None of the HC-02 decisions, real sending, support-access policies or production gates is approved by this document.

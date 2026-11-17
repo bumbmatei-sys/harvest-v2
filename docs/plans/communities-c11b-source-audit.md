@@ -1,6 +1,6 @@
 # C11b — pinned source audit and implementation gate
 
-17 Nov 2026. **Preparation only: no UI is delivered by this record.** C11a is draft PR [#121](https://github.com/bumbmatei-sys/harvest-v2/pull/121); C11b follows its server contract. The founder's latest handoff requires the explicit **“licence settled”** relay before premium code lands. That relay has not arrived. Nothing here treats older licence wording as permission to land a premium block.
+17 Nov 2026. **Preparation only: no UI is delivered by this record.** C11a is draft PR [#121](https://github.com/bumbmatei-sys/harvest-v2/pull/121); C11b follows its server contract. The licence is settled (founder, 17 Nov: “License settled, go ahead”); premium kit blocks may land with provenance recorded. The founder owns the licence consequences.
 
 ## Source evidence
 
@@ -38,4 +38,4 @@ C11b still needs the adopted layout/pane/composer/rows, visibility-aware polling
 
 No runtime, browser or accessibility check is claimed for this documentation-only preparation. No screenshots exist yet. Required evidence remains multi-session chat and unread/mute/reconnect checks, axe, overflow and keyboard behavior, 44px targets, and light/dark screenshots at **360/768/1280** in `docs/screenshots/communities-c11b/`. Run the repository's required static/unit/integration/build checks after implementation. A separate fresh session must review the finished PR.
 
-The next gating input is the founder's relay **“licence settled”**. Approved free primitives and the MIT fallback may be prepared while waiting; no premium block may land. No merge, deployment, production activation or HC-02 approval is requested or claimed.
+The licence is settled (founder, 17 Nov). Premium kit blocks may be used wherever they fit, with provenance recorded; approved free primitives and the MIT fallback remain available. No merge, deployment, production activation or HC-02 approval is requested or claimed.
