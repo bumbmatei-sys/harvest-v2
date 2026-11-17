@@ -201,6 +201,7 @@ DECLARE c record; r text;
 BEGIN
  r:=public.community_chat_role(p_tenant,p_community,p_user);
  IF r IS NULL THEN RETURN false; END IF;
+ IF NOT EXISTS(SELECT 1 FROM public.communities WHERE tenant_id=p_tenant AND id=p_community AND chat_enabled AND (status='published' OR coalesce(public.community_chat_can(r,'chat:manage_channels'),false))) THEN RETURN false; END IF;
  SELECT * INTO c FROM public.community_channels WHERE tenant_id=p_tenant AND community_id=p_community AND id=p_channel;
  IF NOT FOUND THEN RETURN false; END IF;
  IF public.community_chat_rank(r)>=2 THEN RETURN true; END IF;
@@ -273,8 +274,8 @@ BEGIN
  IF ctx.tenant IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
  
  PERFORM 1 FROM public.community_channels WHERE tenant_id=ctx.tenant AND community_id=ctx.community ORDER BY id FOR UPDATE; PERFORM public.community_chat_lock_members(ctx.tenant,ctx.community);
- ctx.role:=public.community_chat_role(ctx.tenant,ctx.community,actor);
- IF ctx.role IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF; IF NOT coalesce(public.community_chat_can(ctx.role,'chat:manage_channels'),false) THEN RETURN public.community_chat_done('{"outcome":"forbidden"}'); END IF;
+ SELECT * INTO ctx FROM public.community_chat_actor(p_slug);
+ IF ctx.tenant IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF; IF NOT coalesce(public.community_chat_can(ctx.role,'chat:manage_channels'),false) THEN RETURN public.community_chat_done('{"outcome":"forbidden"}'); END IF;
  IF p_input->>'accessMode' IN ('tier','tag') THEN RETURN public.community_chat_done('{"outcome":"not_available"}'); END IF;
  IF NOT coalesce((p_input->>'archived')::boolean,false) AND (p_channel IS NULL OR EXISTS(SELECT 1 FROM public.community_channels WHERE id=p_channel AND archived_at IS NOT NULL)) AND (SELECT count(*) FROM public.community_channels WHERE community_id=ctx.community AND archived_at IS NULL)>=30 THEN RETURN public.community_chat_done('{"outcome":"channel_limit"}'); END IF;
  IF p_channel IS NOT NULL AND NOT EXISTS(SELECT 1 FROM public.community_channels WHERE id=p_channel AND community_id=ctx.community AND tenant_id=ctx.tenant) THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
@@ -297,8 +298,8 @@ BEGIN
  IF ctx.tenant IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
  
  PERFORM 1 FROM public.community_channels WHERE tenant_id=ctx.tenant AND community_id=ctx.community ORDER BY id FOR UPDATE; PERFORM public.community_chat_lock_members(ctx.tenant,ctx.community);
- ctx.role:=public.community_chat_role(ctx.tenant,ctx.community,actor);
- IF ctx.role IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF; IF NOT coalesce(public.community_chat_can(ctx.role,'chat:manage_channels'),false) THEN RETURN public.community_chat_done('{"outcome":"forbidden"}'); END IF;
+ SELECT * INTO ctx FROM public.community_chat_actor(p_slug);
+ IF ctx.tenant IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF; IF NOT coalesce(public.community_chat_can(ctx.role,'chat:manage_channels'),false) THEN RETURN public.community_chat_done('{"outcome":"forbidden"}'); END IF;
  IF NOT EXISTS(SELECT 1 FROM public.community_channels WHERE id=p_channel AND community_id=ctx.community) THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
  IF EXISTS(SELECT 1 FROM public.community_messages WHERE channel_id=p_channel) THEN UPDATE public.community_channels SET archived_at=now(),last_rev=last_rev+1 WHERE id=p_channel;
  ELSE DELETE FROM public.community_channels WHERE id=p_channel; END IF;
@@ -317,8 +318,8 @@ BEGIN
  IF ctx.tenant IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
  
  PERFORM 1 FROM public.community_channels WHERE tenant_id=ctx.tenant AND community_id=ctx.community ORDER BY id FOR UPDATE; PERFORM public.community_chat_lock_members(ctx.tenant,ctx.community);
- ctx.role:=public.community_chat_role(ctx.tenant,ctx.community,actor);
- IF ctx.role IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF; IF NOT coalesce(public.community_chat_can(ctx.role,'chat:manage_channels'),false) THEN RETURN public.community_chat_done('{"outcome":"forbidden"}'); END IF;
+ SELECT * INTO ctx FROM public.community_chat_actor(p_slug);
+ IF ctx.tenant IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF; IF NOT coalesce(public.community_chat_can(ctx.role,'chat:manage_channels'),false) THEN RETURN public.community_chat_done('{"outcome":"forbidden"}'); END IF;
  IF cardinality(p_ids)<>(SELECT count(DISTINCT id) FROM public.community_channels WHERE tenant_id=ctx.tenant AND community_id=ctx.community AND id=ANY(p_ids)) THEN RETURN public.community_chat_done('{"outcome":"invalid"}'); END IF;
  UPDATE public.community_channels c SET position=u.n::int,last_rev=last_rev+1 FROM unnest(p_ids) WITH ORDINALITY u(id,n) WHERE c.id=u.id;
  PERFORM public.community_chat_bump(ctx.tenant,ctx.community); RETURN public.community_chat_done('{"outcome":"ok"}');
@@ -337,8 +338,8 @@ BEGIN
  PERFORM 1 FROM public.community_channels WHERE id=p_channel AND community_id=ctx.community FOR UPDATE;
  IF NOT FOUND THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
  PERFORM public.community_chat_lock_members(ctx.tenant,ctx.community,ARRAY(SELECT user_id FROM public.community_channel_members WHERE channel_id=p_channel UNION SELECT unnest(p_users) UNION SELECT actor));
- ctx.role:=public.community_chat_role(ctx.tenant,ctx.community,actor);
- IF ctx.role IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF; IF NOT coalesce(public.community_chat_can(ctx.role,'chat:manage_channels'),false) THEN RETURN public.community_chat_done('{"outcome":"forbidden"}'); END IF;
+ SELECT * INTO ctx FROM public.community_chat_actor(p_slug);
+ IF ctx.tenant IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF; IF NOT coalesce(public.community_chat_can(ctx.role,'chat:manage_channels'),false) THEN RETURN public.community_chat_done('{"outcome":"forbidden"}'); END IF;
  IF cardinality(p_users)>1000 OR EXISTS(SELECT 1 FROM unnest(p_users) u WHERE NOT EXISTS(SELECT 1 FROM public.community_memberships m WHERE m.community_id=ctx.community AND m.user_id=u AND m.status='active')) THEN RETURN public.community_chat_done('{"outcome":"invalid"}'); END IF;
  SELECT array_agg(u) INTO changed FROM (SELECT user_id u FROM public.community_channel_members WHERE channel_id=p_channel UNION SELECT unnest(p_users)) all_users;
  DELETE FROM public.community_channel_members WHERE channel_id=p_channel;
@@ -382,8 +383,8 @@ BEGIN
  PERFORM pg_advisory_xact_lock(hashtext(actor||ctx.community::text));
  SELECT * INTO ch FROM public.community_channels WHERE id=p_channel AND community_id=ctx.community FOR UPDATE;
  PERFORM public.community_chat_lock_members(ctx.tenant,ctx.community);
- ctx.role:=public.community_chat_role(ctx.tenant,ctx.community,actor);
- IF ctx.role IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF; IF NOT public.community_chat_user_can_read(ctx.tenant,ctx.community,p_channel,actor) THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
+ SELECT * INTO ctx FROM public.community_chat_actor(p_slug);
+ IF ctx.tenant IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF; IF NOT public.community_chat_user_can_read(ctx.tenant,ctx.community,p_channel,actor) THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
  IF ch.archived_at IS NOT NULL OR (ch.posting='hosts' AND NOT coalesce(public.community_chat_can(ctx.role,'chat:moderate'),false)) THEN RETURN public.community_chat_done('{"outcome":"forbidden"}'); END IF;
  IF EXISTS(SELECT 1 FROM public.community_memberships WHERE community_id=ctx.community AND user_id=actor AND muted_until>now()) THEN RETURN public.community_chat_done('{"outcome":"muted"}'); END IF;
  IF p_body IS NULL OR length(trim(p_body)) NOT BETWEEN 1 AND 2000 OR p_client IS NULL OR cardinality(p_mentions)>10 THEN RETURN public.community_chat_done('{"outcome":"invalid"}'); END IF;
@@ -428,8 +429,8 @@ BEGIN
  SELECT channel_id INTO ch FROM public.community_messages WHERE id=p_id AND community_id=ctx.community;
  PERFORM pg_advisory_xact_lock(hashtext(actor||ctx.community::text));
  PERFORM 1 FROM public.community_channels WHERE id=ch FOR UPDATE; PERFORM public.community_chat_lock_members(ctx.tenant,ctx.community);
- ctx.role:=public.community_chat_role(ctx.tenant,ctx.community,actor);
- IF ctx.role IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
+ SELECT * INTO ctx FROM public.community_chat_actor(p_slug);
+ IF ctx.tenant IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
  IF NOT public.community_chat_user_can_read(ctx.tenant,ctx.community,ch,actor) THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
  SELECT * INTO m FROM public.community_messages WHERE id=p_id AND channel_id=ch;
  IF m.author_id IS DISTINCT FROM actor OR m.deleted_at IS NOT NULL THEN RETURN public.community_chat_done('{"outcome":"forbidden"}'); END IF;
@@ -457,8 +458,8 @@ BEGIN
  
  SELECT channel_id INTO ch FROM public.community_messages WHERE id=p_id AND community_id=ctx.community;
  PERFORM 1 FROM public.community_channels WHERE id=ch FOR UPDATE; PERFORM public.community_chat_lock_members(ctx.tenant,ctx.community);
- ctx.role:=public.community_chat_role(ctx.tenant,ctx.community,actor);
- IF ctx.role IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
+ SELECT * INTO ctx FROM public.community_chat_actor(p_slug);
+ IF ctx.tenant IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
  IF NOT public.community_chat_user_can_read(ctx.tenant,ctx.community,ch,actor) THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
  SELECT * INTO m FROM public.community_messages WHERE id=p_id AND channel_id=ch;
  IF m.author_id IS DISTINCT FROM actor OR (NOT p_restore AND m.deleted_kind='host') OR (p_restore AND (m.deleted_kind IS DISTINCT FROM 'author' OR m.purge_after<=now())) THEN RETURN public.community_chat_done('{"outcome":"forbidden"}'); END IF;
@@ -480,8 +481,8 @@ BEGIN
  
  SELECT channel_id INTO ch FROM public.community_messages WHERE id=p_id AND community_id=ctx.community;
  PERFORM 1 FROM public.community_channels WHERE id=ch FOR UPDATE; PERFORM public.community_chat_lock_members(ctx.tenant,ctx.community);
- ctx.role:=public.community_chat_role(ctx.tenant,ctx.community,actor);
- IF ctx.role IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
+ SELECT * INTO ctx FROM public.community_chat_actor(p_slug);
+ IF ctx.tenant IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
  SELECT * INTO m FROM public.community_messages WHERE id=p_id AND channel_id=ch;
  IF NOT FOUND THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
  IF NOT coalesce(public.community_chat_can(ctx.role,'chat:moderate'),false) THEN RETURN public.community_chat_done('{"outcome":"forbidden"}'); END IF;
@@ -521,8 +522,8 @@ BEGIN
  SELECT channel_id INTO ch FROM public.community_messages WHERE id=p_id AND community_id=ctx.community;
  PERFORM pg_advisory_xact_lock(hashtext(actor||ctx.community::text));
  PERFORM 1 FROM public.community_channels WHERE id=ch FOR UPDATE; PERFORM public.community_chat_lock_members(ctx.tenant,ctx.community);
- ctx.role:=public.community_chat_role(ctx.tenant,ctx.community,actor);
- IF ctx.role IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
+ SELECT * INTO ctx FROM public.community_chat_actor(p_slug);
+ IF ctx.tenant IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
  IF NOT public.community_chat_user_can_read(ctx.tenant,ctx.community,ch,actor) THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
  SELECT * INTO m FROM public.community_messages WHERE id=p_id AND deleted_at IS NULL AND held_at IS NULL;
  IF NOT FOUND THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
@@ -548,8 +549,8 @@ BEGIN
  IF ctx.tenant IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
  
  PERFORM 1 FROM public.community_channels WHERE id=p_channel AND community_id=ctx.community FOR UPDATE; PERFORM public.community_chat_lock_members(ctx.tenant,ctx.community);
- ctx.role:=public.community_chat_role(ctx.tenant,ctx.community,actor);
- IF ctx.role IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF; IF NOT public.community_chat_user_can_read(ctx.tenant,ctx.community,p_channel,actor) THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF; IF p_up_to IS NULL OR p_up_to<0 THEN RETURN public.community_chat_done('{"outcome":"invalid"}'); END IF;
+ SELECT * INTO ctx FROM public.community_chat_actor(p_slug);
+ IF ctx.tenant IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF; IF NOT public.community_chat_user_can_read(ctx.tenant,ctx.community,p_channel,actor) THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF; IF p_up_to IS NULL OR p_up_to<0 THEN RETURN public.community_chat_done('{"outcome":"invalid"}'); END IF;
  INSERT INTO public.community_channel_reads(tenant_id,community_id,channel_id,user_id,last_read_seq) VALUES(ctx.tenant,ctx.community,p_channel,actor,greatest(0,least(p_up_to,coalesce((SELECT max(seq) FROM public.community_messages WHERE channel_id=p_channel),0))))
  ON CONFLICT(channel_id,user_id) DO UPDATE SET last_read_seq=greatest(community_channel_reads.last_read_seq,EXCLUDED.last_read_seq),updated_at=now();
  UPDATE public.community_memberships SET chat_state_rev=chat_state_rev+1 WHERE tenant_id=ctx.tenant AND community_id=ctx.community AND user_id=actor;
@@ -567,8 +568,8 @@ BEGIN
  IF ctx.tenant IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
  
  PERFORM 1 FROM public.community_channels WHERE id=p_channel AND community_id=ctx.community FOR UPDATE; PERFORM public.community_chat_lock_members(ctx.tenant,ctx.community);
- ctx.role:=public.community_chat_role(ctx.tenant,ctx.community,actor);
- IF ctx.role IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF; IF NOT public.community_chat_user_can_read(ctx.tenant,ctx.community,p_channel,actor) THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF; IF p_mute IS NULL OR p_mute NOT IN ('none','mentions_only','all') THEN RETURN public.community_chat_done('{"outcome":"invalid"}'); END IF;
+ SELECT * INTO ctx FROM public.community_chat_actor(p_slug);
+ IF ctx.tenant IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF; IF NOT public.community_chat_user_can_read(ctx.tenant,ctx.community,p_channel,actor) THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF; IF p_mute IS NULL OR p_mute NOT IN ('none','mentions_only','all') THEN RETURN public.community_chat_done('{"outcome":"invalid"}'); END IF;
  INSERT INTO public.community_channel_reads(tenant_id,community_id,channel_id,user_id,mute) VALUES(ctx.tenant,ctx.community,p_channel,actor,p_mute)
  ON CONFLICT(channel_id,user_id) DO UPDATE SET mute=EXCLUDED.mute,updated_at=now();
  UPDATE public.community_memberships SET chat_state_rev=chat_state_rev+1 WHERE tenant_id=ctx.tenant AND community_id=ctx.community AND user_id=actor;
@@ -605,19 +606,24 @@ END $$;
 
 --> statement-breakpoint
 CREATE FUNCTION public.community_chat_state_read(p_slug text,p_detector_only boolean) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
-DECLARE actor text:=nullif(current_setting('app.user_id',true),''); ctx record; channels jsonb; own_rev bigint;
+DECLARE actor text:=nullif(current_setting('app.user_id',true),''); ctx record; channels jsonb; own_rev text;
 BEGIN
  SELECT * INTO ctx FROM public.community_chat_actor(p_slug);
  IF ctx.tenant IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
  
- SELECT coalesce(chat_state_rev,0) INTO own_rev FROM public.community_memberships WHERE tenant_id=ctx.tenant AND community_id=ctx.community AND user_id=actor;
+ SELECT chat_state_rev::text INTO own_rev FROM public.community_memberships WHERE tenant_id=ctx.tenant AND community_id=ctx.community AND user_id=actor;
+ -- Ministry hosts need not have a community membership. Their own read rows supply a private detector fallback.
+ IF own_rev IS NULL THEN
+ SELECT md5(coalesce(string_agg(channel_id::text||':'||last_read_seq::text||':'||mute||':'||updated_at::text,',' ORDER BY channel_id),'')) INTO own_rev
+ FROM public.community_channel_reads WHERE tenant_id=ctx.tenant AND community_id=ctx.community AND user_id=actor;
+ END IF;
  SELECT coalesce(jsonb_agg(jsonb_build_object('id',ch.id,'latestRev',ch.last_rev::text,'name',ch.name,'emoji',ch.emoji,'description',ch.description,'posting',ch.posting,'accessMode',ch.access_mode,'position',ch.position,
  'mute',coalesce(r.mute,'none'),
  'unread',CASE WHEN p_detector_only OR r.mute='all' THEN 0 ELSE (SELECT count(*) FROM (SELECT 1 FROM public.community_messages m WHERE m.channel_id=ch.id AND m.seq>coalesce(r.last_read_seq,0) AND m.author_id IS DISTINCT FROM actor AND m.deleted_at IS NULL AND m.held_at IS NULL LIMIT 100) u) END,
  'mentions',CASE WHEN p_detector_only OR r.mute='all' THEN 0 ELSE (SELECT count(*) FROM (SELECT 1 FROM public.community_messages m WHERE m.channel_id=ch.id AND m.seq>coalesce(r.last_read_seq,0) AND actor=ANY(m.mention_ids) AND m.author_id IS DISTINCT FROM actor AND m.deleted_at IS NULL AND m.held_at IS NULL LIMIT 100) u) END)
  ORDER BY ch.id),'[]'::jsonb) INTO channels FROM public.community_channels ch LEFT JOIN public.community_channel_reads r ON r.channel_id=ch.id AND r.user_id=actor
  WHERE ch.tenant_id=ctx.tenant AND ch.community_id=ctx.community AND public.community_chat_user_can_read(ctx.tenant,ctx.community,ch.id,actor);
- RETURN public.community_chat_done(jsonb_build_object('outcome','ok','channels',channels,'chatStateRev',coalesce(own_rev,0)::text));
+ RETURN public.community_chat_done(jsonb_build_object('outcome','ok','channels',channels,'chatStateRev',coalesce(own_rev,'0')));
 
 EXCEPTION WHEN check_violation OR invalid_text_representation OR not_null_violation THEN RETURN public.community_chat_done('{"outcome":"invalid"}');
  WHEN OTHERS THEN PERFORM public.community_definer_reset(); RAISE;
@@ -637,21 +643,13 @@ ALTER TABLE public.community_notifications ADD CONSTRAINT community_notification
 CREATE UNIQUE INDEX community_chat_notifications_group_idx ON public.community_notifications(recipient_id,community_id,kind,target_type,target_id) WHERE kind IN ('chat_mention','chat_reply','dm') AND read_at IS NULL;
 --> statement-breakpoint
 CREATE FUNCTION public.community_chat_notify(p public.community_messages) RETURNS void LANGUAGE plpgsql SET search_path=pg_catalog,pg_temp AS $$
-DECLARE recipient text; v_kind text; channel_name text;
+DECLARE recipient text; v_kind text;
 BEGIN
- SELECT name INTO channel_name FROM public.community_channels WHERE id=p.channel_id;
  FOR recipient,v_kind IN
  SELECT u,'chat_mention' FROM unnest(p.mention_ids) u
  UNION SELECT author_id,'chat_reply' FROM public.community_messages WHERE (id=p.parent_id OR parent_id=p.parent_id) AND deleted_at IS NULL AND held_at IS NULL AND p.parent_id IS NOT NULL
  LOOP
- IF recipient IS NOT NULL AND recipient IS DISTINCT FROM p.author_id AND public.community_chat_user_can_read(p.tenant_id,p.community_id,p.channel_id,recipient)
- AND NOT EXISTS(SELECT 1 FROM public.community_channel_reads WHERE channel_id=p.channel_id AND user_id=recipient AND mute='all')
- AND EXISTS(SELECT 1 FROM public.community_memberships WHERE tenant_id=p.tenant_id AND community_id=p.community_id AND user_id=recipient AND status='active' AND NOT notifications_muted AND (v_kind<>'chat_reply' OR notify_replies)) THEN
- INSERT INTO public.community_notifications(tenant_id,community_id,recipient_id,kind,target_type,target_id,actor_id,detail)
- VALUES(p.tenant_id,p.community_id,recipient,v_kind,'channel',p.channel_id::text,p.author_id,jsonb_build_object('channelName',channel_name))
- ON CONFLICT(recipient_id,community_id,kind,target_type,target_id) WHERE kind IN ('chat_mention','chat_reply','dm') AND read_at IS NULL
- DO UPDATE SET actor_count=community_notifications.actor_count+1,actor_id=EXCLUDED.actor_id,updated_at=now();
- END IF;
+ PERFORM public.community_notify_as(p.author_id,p.tenant_id,p.community_id,recipient,v_kind,'channel',p.channel_id::text,NULL,'{}'::jsonb);
  END LOOP;
 END $$;
 
@@ -1037,3 +1035,46 @@ EXCEPTION WHEN OTHERS THEN PERFORM public.community_definer_reset(); RAISE;
 END $$;
 REVOKE ALL ON FUNCTION public.community_chat_moderation_read(text,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.community_chat_moderation_read(text,text) TO harvest_app;
+
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION public.community_notify_as(p_actor text, p_tenant uuid, p_community uuid, p_recipient text, p_kind text, p_target_type text, p_target_id text,
+  p_post_id uuid, p_detail jsonb) RETURNS void
+LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
+DECLARE actor text := p_actor; m record; v_detail jsonb := coalesce(p_detail, '{}'::jsonb);
+BEGIN
+  IF p_recipient IS NULL OR p_recipient IS NOT DISTINCT FROM actor THEN RETURN; END IF;
+  SELECT m2.notify_replies, m2.notify_likes, m2.notifications_muted INTO m FROM public.community_memberships m2
+    WHERE m2.tenant_id = p_tenant AND m2.community_id = p_community AND m2.user_id = p_recipient;
+  IF FOUND THEN
+    -- Appeal decisions are about the member's own ban and ignore mute (founder decision, 12 Nov).
+    IF m.notifications_muted AND p_kind <> 'appeal_decision' THEN RETURN; END IF;
+    IF p_kind IN ('reply', 'thread_reply','chat_reply') AND NOT m.notify_replies THEN RETURN; END IF;
+    IF p_kind = 'like' AND NOT m.notify_likes THEN RETURN; END IF;
+  END IF;
+  IF p_kind <> 'appeal_decision' AND NOT public.community_user_can_read(p_tenant, p_community, p_recipient) THEN RETURN; END IF;
+  IF p_kind IN ('chat_mention','chat_reply') THEN
+    IF p_target_type<>'channel' OR NOT public.community_chat_user_can_read(p_tenant,p_community,p_target_id::uuid,p_recipient)
+      OR EXISTS(SELECT 1 FROM public.community_channel_reads WHERE channel_id=p_target_id::uuid AND user_id=p_recipient AND mute='all') THEN RETURN; END IF;
+    INSERT INTO public.community_notifications(tenant_id,community_id,recipient_id,kind,target_type,target_id,actor_id,detail)
+    SELECT p_tenant,p_community,p_recipient,p_kind,'channel',p_target_id,actor,jsonb_build_object('channelName',c.name) FROM public.community_channels c WHERE c.tenant_id=p_tenant AND c.community_id=p_community AND c.id=p_target_id::uuid
+    ON CONFLICT(recipient_id,community_id,kind,target_type,target_id) WHERE kind IN ('chat_mention','chat_reply','dm') AND read_at IS NULL
+    DO UPDATE SET actor_count=community_notifications.actor_count+1,actor_id=EXCLUDED.actor_id,updated_at=now();
+  ELSIF p_kind = 'like' THEN
+    INSERT INTO public.community_notifications (tenant_id, community_id, recipient_id, kind, target_type, target_id, post_id, actor_id, detail)
+      VALUES (p_tenant, p_community, p_recipient, p_kind, p_target_type, p_target_id, p_post_id, actor, v_detail)
+      ON CONFLICT (recipient_id, community_id, target_type, target_id) WHERE kind = 'like' AND read_at IS NULL
+      -- Count distinct people who like it now (since this group started), so like/unlike/like never inflates it (review on #67).
+      DO UPDATE SET actor_count = greatest(1, (SELECT count(*)::int FROM public.community_likes l
+          WHERE l.target_type = EXCLUDED.target_type AND l.target_id = EXCLUDED.target_id::uuid AND l.user_id IS DISTINCT FROM EXCLUDED.recipient_id
+            AND l.created_at >= community_notifications.created_at)),
+        actor_id = EXCLUDED.actor_id, updated_at = now();
+  ELSIF p_kind = 'host_queue' THEN
+    INSERT INTO public.community_notifications (tenant_id, community_id, recipient_id, kind, target_type, target_id, post_id, actor_id, detail)
+      VALUES (p_tenant, p_community, p_recipient, p_kind, p_target_type, p_target_id, p_post_id, actor, v_detail)
+      ON CONFLICT (recipient_id, community_id) WHERE kind = 'host_queue' AND read_at IS NULL
+      DO UPDATE SET actor_count = community_notifications.actor_count + 1, actor_id = EXCLUDED.actor_id, updated_at = now();
+  ELSE
+    INSERT INTO public.community_notifications (tenant_id, community_id, recipient_id, kind, target_type, target_id, post_id, actor_id, detail)
+      VALUES (p_tenant, p_community, p_recipient, p_kind, p_target_type, p_target_id, p_post_id, actor, v_detail);
+  END IF;
+END $$;

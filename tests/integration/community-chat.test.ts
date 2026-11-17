@@ -322,6 +322,9 @@ it("maps ministry owner/admin capabilities to chat without granting a ministry v
   await resetRates();
   await f.admin.query("insert into users(id,name,email) values('ministry-admin','Admin','ministry-admin@example.test')");
   await f.admin.query("insert into workspace_members(tenant_id,user_id,role_id) values($1,'ministry-admin','admin')", [tenant]);
+  const before = await chatState(f.db,"ministry-admin","chat-club");
+  expect((await invoke("ministry-admin","community_channel_read",[general,0])).outcome).toBe("ok");
+  expect((await chatState(f.db,"ministry-admin","chat-club")).etag).not.toBe(before.etag);
   const id = await messageId("member", "For ministry admin");
   expect((await invoke("second", "community_report", ["message", id, "spam", null])).outcome).toBe("ok");
   const queue = await invoke("ministry-admin", "community_chat_moderation_read", ["reports"]);
@@ -330,4 +333,19 @@ it("maps ministry owner/admin capabilities to chat without granting a ministry v
   const report = (await f.admin.query("select id from community_reports where target_id=$1 and status='open'", [id])).rows[0].id;
   expect((await invoke("ministry-admin", "community_report_decide", [report, "remove"])).outcome).toBe("ok");
   expect((await invoke("ministry-admin", "community_message_moderate", [id, "restore"])).outcome).toBe("ok");
+});
+it("rechecks chat disablement after waiting for the channel authorization lock", async () => {
+  await resetRates(); const settings = await parallel.connect(), sender = await parallel.connect();
+  try {
+    await settings.query("begin"); await settings.query("select set_config('app.user_id','owner',true)");
+    expect((await settings.query("select community_chat_settings_save('chat-club',false,'channels_only') r")).rows[0].r.outcome).toBe("ok");
+    await sender.query("begin"); await sender.query("select set_config('app.user_id','member',true)");
+    const pid = (await sender.query("select pg_backend_pid() pid")).rows[0].pid;
+    const pending = sender.query("select community_message_send('chat-club',$1,null,'Disabled while waiting','{}',$2) r", [general, randomUUID()]);
+    const deadline = performance.now()+5000; let blocked = false;
+    while (performance.now()<deadline && !blocked) blocked = (await f.admin.query("select wait_event_type='Lock' blocked from pg_stat_activity where pid=$1", [pid])).rows[0]?.blocked === true;
+    expect(blocked).toBe(true); await settings.query("commit");
+    expect((await pending).rows[0].r.outcome).toBe("not_found"); await sender.query("commit");
+    expect((await invoke("owner","community_chat_settings_save",[true,"channels_only"])).outcome).toBe("ok");
+  } finally { await settings.query("rollback"); await sender.query("rollback"); settings.release(); sender.release(); }
 });
