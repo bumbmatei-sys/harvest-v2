@@ -74,7 +74,10 @@ it("enforces channel role matrix, invite access, tier/tag refusal and archive", 
   expect((await chatMessages(f.db, "contributor", "chat-club", role, {})).outcome).toBe("ok");
   const hosts = await channel("Announcements", { posting: "hosts" });
   expect((await send("member", "No", hosts)).outcome).toBe("forbidden");
-  expect((await send("mod", "Yes", hosts)).outcome).toBe("ok");
+  const announcement=await send("mod","Yes",hosts); expect(announcement.outcome).toBe("ok");
+  const announcementId=(announcement.message as { id:string }).id;
+  expect((await invoke("member","community_reaction_toggle",[announcementId,"👍"])).outcome).toBe("forbidden");
+  expect((await invoke("mod","community_reaction_toggle",[announcementId,"👍"])).outcome).toBe("ok");
   expect((await invoke("owner", "community_channel_delete", [hosts])).outcome).toBe("ok");
   await expect(chatMessages(f.db, "member", "chat-club", hosts, {})).rejects.toThrow();
   expect((await chatMessages(f.db, "mod", "chat-club", hosts, {})).outcome).toBe("ok");
@@ -348,4 +351,33 @@ it("rechecks chat disablement after waiting for the channel authorization lock",
     expect((await pending).rows[0].r.outcome).toBe("not_found"); await sender.query("commit");
     expect((await invoke("owner","community_chat_settings_save",[true,"channels_only"])).outcome).toBe("ok");
   } finally { await settings.query("rollback"); await sender.query("rollback"); settings.release(); sender.release(); }
+});
+it("keeps the 30-channel cap atomic when every existing channel has been deleted", async () => {
+  const fresh = (await createCommunity(f.db,"owner",tenant,{ name:"Cap race",slug:"cap-race" })).id;
+  await f.admin.query("update communities set status='published' where id=$1",[fresh]);
+  await f.admin.query("delete from community_channels where community_id=$1",[fresh]);
+  const authors = Array.from({ length:31 },(_,i)=>`cap-admin-${i}`);
+  await f.db.insert(users).values(authors.map(id=>({ id,name:id,email:`${id}@example.test`,emailVerified:true })));
+  for (const u of authors) await f.admin.query("insert into community_memberships(tenant_id,community_id,user_id,role,status) values($1,$2,$3,'admin','active')",[tenant,fresh,u]);
+  const creators = new Pool({ connectionString:f.appURL,max:31 });
+  await f.admin.query("begin"); await f.admin.query("select rev from community_chat_state where community_id=$1 for update",[fresh]);
+  const pending = authors.map(async u=>{
+    const c=await creators.connect();
+    try {
+      await c.query("begin"); await c.query("select set_config('app.user_id',$1,true),set_config('application_name','c11-cap-race',false)",[u]);
+      const r=(await c.query("select community_channel_save('cap-race',null,$1::jsonb) r",[JSON.stringify({ name:u })])).rows[0].r;
+      await c.query("commit"); return r.outcome;
+    } catch(e) { await c.query("rollback"); throw e; } finally { c.release(); }
+  });
+  try {
+    const deadline=performance.now()+10000; let waiting=0;
+    while (performance.now()<deadline && waiting<31) {
+      await f.admin.query("select pg_stat_clear_snapshot()");
+      waiting=(await f.admin.query("select count(*)::int n from pg_stat_activity where datname=current_database() and application_name='c11-cap-race' and wait_event_type='Lock'")).rows[0].n;
+    }
+    expect(waiting).toBe(31); await f.admin.query("commit");
+    const results=await Promise.all(pending);
+    expect(results.filter(r=>r==='ok')).toHaveLength(30); expect(results.filter(r=>r==='channel_limit')).toHaveLength(1);
+    expect((await f.admin.query("select count(*)::int n from community_channels where community_id=$1 and archived_at is null",[fresh])).rows[0].n).toBe(30);
+  } finally { await f.admin.query("rollback"); await Promise.allSettled(pending); await creators.end(); }
 });

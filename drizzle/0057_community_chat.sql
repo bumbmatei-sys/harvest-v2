@@ -277,6 +277,8 @@ BEGIN
  SELECT * INTO ctx FROM public.community_chat_actor(p_slug);
  IF ctx.tenant IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF; IF NOT coalesce(public.community_chat_can(ctx.role,'chat:manage_channels'),false) THEN RETURN public.community_chat_done('{"outcome":"forbidden"}'); END IF;
  IF p_input->>'accessMode' IN ('tier','tag') THEN RETURN public.community_chat_done('{"outcome":"not_available"}'); END IF;
+ -- Last shared lock, before the cap check: it also serializes creators when no channel rows exist.
+ PERFORM 1 FROM public.community_chat_state WHERE tenant_id=ctx.tenant AND community_id=ctx.community FOR UPDATE;
  IF NOT coalesce((p_input->>'archived')::boolean,false) AND (p_channel IS NULL OR EXISTS(SELECT 1 FROM public.community_channels WHERE id=p_channel AND archived_at IS NOT NULL)) AND (SELECT count(*) FROM public.community_channels WHERE community_id=ctx.community AND archived_at IS NULL)>=30 THEN RETURN public.community_chat_done('{"outcome":"channel_limit"}'); END IF;
  IF p_channel IS NOT NULL AND NOT EXISTS(SELECT 1 FROM public.community_channels WHERE id=p_channel AND community_id=ctx.community AND tenant_id=ctx.tenant) THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
  INSERT INTO public.community_channels(id,tenant_id,community_id,name,emoji,description,position,posting,access_mode,min_role,slow_mode_seconds,archived_at,created_by,last_rev)
@@ -525,6 +527,7 @@ BEGIN
  SELECT * INTO ctx FROM public.community_chat_actor(p_slug);
  IF ctx.tenant IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
  IF NOT public.community_chat_user_can_read(ctx.tenant,ctx.community,ch,actor) THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
+ IF EXISTS(SELECT 1 FROM public.community_channels WHERE id=ch AND (archived_at IS NOT NULL OR (posting='hosts' AND NOT coalesce(public.community_chat_can(ctx.role,'chat:moderate'),false)))) THEN RETURN public.community_chat_done('{"outcome":"forbidden"}'); END IF;
  SELECT * INTO m FROM public.community_messages WHERE id=p_id AND deleted_at IS NULL AND held_at IS NULL;
  IF NOT FOUND THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
  IF p_emoji IS NULL OR p_emoji NOT IN ('👍','❤️','🙏','😊','🎉','👏','💡','🔥','😮','😢','✅','🙌') THEN RETURN public.community_chat_done('{"outcome":"invalid"}'); END IF;
