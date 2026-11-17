@@ -152,7 +152,8 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
   }
   return <SidebarProvider defaultOpen={defaultOpen} data-hydrated={hydrated} className="h-dvh min-h-0 overflow-hidden bg-shell-canvas has-data-[variant=inset]:bg-shell-canvas" style={{ "--sidebar-width": "272px", "--sidebar-width-icon": "48px" } as React.CSSProperties}>
     <WorkspaceTheme brandTheme={brandTheme} />
-    {modeSwitcher && <div role="status" aria-live="polite" className="sr-only">{announcement}</div>}
+    {/* Not role=status: pages own that role for their own feedback, and the announcement is only for mode changes. */}
+    {modeSwitcher && <div aria-live="polite" aria-atomic="true" data-mode-announcer className="sr-only">{announcement}</div>}
     <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-card focus:p-3">{t("skipToContent")}</a>
     <Sidebar variant="floating" collapsible="icon" className="p-[8px]">
       <div ref={setNavigationContainer} role="complementary" aria-label={t("workspaceSidebar")} className="flex h-full min-h-0 flex-col">

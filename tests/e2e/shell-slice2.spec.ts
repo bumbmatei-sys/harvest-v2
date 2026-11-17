@@ -49,7 +49,7 @@ test("flag off: the single sidebar renders exactly as before", async ({ page }) 
   await expect(page.locator("[data-hydrated=true]")).toBeVisible();
   await expect(tablist(page)).toHaveCount(0);
   await expect(page.locator("[data-shell-mode]")).toHaveCount(0);
-  await expect(page.getByRole("status")).toHaveCount(0);
+  await expect(page.locator("[data-mode-announcer]")).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "Ministry navigation", exact: true })).toBeVisible();
   await expect(nav(page).getByRole("link", { name: "Communities", exact: true })).toBeVisible();
   await expect(nav(page).getByRole("link", { name: "Ministries", exact: true })).toBeVisible();
@@ -86,7 +86,7 @@ test("mode switcher: tabs, choosing a mode does not navigate, owning mode, persi
   await expect(nav(page).getByRole("link", { name: "Communities", exact: true })).toBeVisible();
   await expect(nav(page).getByRole("link", { name: "People", exact: true })).toHaveCount(0);
   await expect(nav(page).getByRole("link", { name: "Ministries", exact: true })).toHaveCount(0);
-  await expect(page.getByRole("status")).toHaveText("Public menu");
+  await expect(page.locator("[data-mode-announcer]")).toHaveText("Public menu");
   await expect(page.locator("[data-shell-header]").getByText("People", { exact: true })).toBeVisible();
   await page.screenshot({ path: `${evidence}/desktop-1280-public-light.png` });
   expect(await page.evaluate(() => localStorage.getItem("harvest.shell.mode"))).toBe("public");
@@ -159,7 +159,7 @@ test("mode switcher keyboard: arrows, Home/End and Ctrl/Cmd+Alt shortcuts", asyn
   await page.keyboard.press("Meta+Alt+Digit1");
   await expect(tab(page, "Operations")).toHaveAttribute("aria-selected", "true");
   await expect(nav(page).getByRole("link", { name: "Ministries", exact: true })).toBeFocused();
-  await expect(page.getByRole("status")).toHaveText("Operations menu");
+  await expect(page.locator("[data-mode-announcer]")).toHaveText("Operations menu");
   // Typing in a text field is never intercepted (AltGr is Ctrl+Alt on Windows layouts).
   await page.goto(`/workspaces/${id}/crm/people`);
   const search = page.getByRole("searchbox").first();
