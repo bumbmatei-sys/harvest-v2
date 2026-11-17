@@ -19,6 +19,7 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { MemberList } from "@/components/communities/member-list";
 import { EditorShell } from "@/components/editor/editor-shell";
+import { useEditorHosted } from "@/components/editor/editor-context";
 import { CommunityJoinCard } from "@/components/communities/join-card";
 import { BannedWordsEditor } from "@/components/communities/banned-words-editor";
 import { ForumCategoriesEditor, type ForumCategory } from "@/components/communities/forum-categories-editor";
@@ -59,6 +60,7 @@ export function CommunityEditor({ initial, members, invites, applications, categ
   const [step, setStep] = useState<CommunityEditorStep>("basics");
   const [rulesOn, setRulesOn] = useState(initial.rulesList.length > 0), [questionsOn, setQuestionsOn] = useState(initial.joinQuestions.length > 0);
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [notice, setNotice] = useState(""), [conflict, setConflict] = useState(false);
+  const hosted = useEditorHosted();
   const dirty = !same(fields, fieldsOf(data));
   const { destination, setDestination, leave } = useUnsavedChangesGuard(dirty || busy);
   const checklist = publishChecklist(fields);
@@ -110,7 +112,7 @@ export function CommunityEditor({ initial, members, invites, applications, categ
     {!writable && <Alert><AlertDescription>{t("readOnly")}</AlertDescription></Alert>}
     {error && <Alert variant="destructive" role="alert"><AlertDescription className="flex flex-wrap items-center gap-3">{error}{conflict && <Button variant="outline" className="min-h-11" onClick={() => { if (dirty) setDestination(location.href); else location.reload(); }}>{t("reload")}</Button>}</AlertDescription></Alert>}
     {notice && <Alert role="status"><AlertDescription>{notice}</AlertDescription></Alert>}
-    <WizardLayout steps={steps} current={step} onStepChange={(id) => setStep(id as CommunityEditorStep)} stepsLabel={t("stepsLabel")} stepper={false} focusOnStepChange>
+    <WizardLayout steps={steps} current={step} onStepChange={(id) => setStep(id as CommunityEditorStep)} stepsLabel={t("stepsLabel")} stepper={false} focusOnStepChange={hosted}>
       {step === "offer" && <RadioGroup value="free" aria-label={t("price")} className="gap-2">
         <Label htmlFor="community-price-free" className="flex min-h-11 items-center gap-3 rounded-md border px-3 font-normal"><RadioGroupItem id="community-price-free" value="free" disabled={!writable} />{t("free")}</Label>
         <Label htmlFor="community-price-paid" className="flex min-h-11 items-center gap-3 rounded-md border px-3 font-normal text-muted-foreground"><RadioGroupItem id="community-price-paid" value="paid" disabled /><span className="flex-1">{t("paid")}</span><Badge variant="secondary">{t("comingSoon")}</Badge></Label>
@@ -175,7 +177,7 @@ export function CommunityEditor({ initial, members, invites, applications, categ
         {checklist.map((item) => <li key={item.key} className="flex min-h-11 items-center gap-3 rounded-md border px-3">
           {item.done ? <CircleCheck className="size-4 text-primary" aria-hidden="true" /> : <Circle className="size-4 text-muted-foreground" aria-hidden="true" />}
           <span className="flex-1">{t(`checks.${item.key}`)}</span><span className="sr-only">{t(item.done ? "checkDone" : "checkOpen")}</span>
-          {!item.done && <Button type="button" variant="outline" size="sm" className="min-h-11 lg:min-h-8" onClick={() => setStep(checklistStep(item.key))}>{t("goToStep", { step: t(`steps.${checklistStep(item.key)}`) })}</Button>}</li>)}
+          {hosted && !item.done && <Button type="button" variant="outline" size="sm" className="min-h-11 lg:min-h-8" onClick={() => setStep(checklistStep(item.key))}>{t("goToStep", { step: t(`steps.${checklistStep(item.key)}`) })}</Button>}</li>)}
       </ul>}
     </WizardLayout>
     {writable && <StickySaveBar guard={false} dirty={dirty} busy={busy && dirty} onSave={() => void run("save")} onDiscard={discard} saveLabel={t("saveDraft")} savingLabel={t("saving")} />}

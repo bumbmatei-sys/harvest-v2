@@ -72,6 +72,16 @@ test("flag off: the editor keeps its in-page step list and the single sidebar", 
   await page.setViewportSize({ width: 1280, height: 900 });
   expect(await page.locator("main aside[aria-label='Preview']").evaluate((node) => Math.round(node.getBoundingClientRect().width))).toBe(352);
   await expect(page.locator("[data-editor-preview-label]")).toHaveCount(0);
+  // Picking a step in the in-page list does not move focus to the heading (only Back/Next do), and the checklist has no Go to buttons.
+  const inPage = page.locator("main").getByRole("navigation", { name: "Community setup" });
+  await inPage.getByRole("button", { name: /Joining/ }).click();
+  await expect(heading(page, "Joining")).toBeVisible();
+  await expect(inPage.getByRole("button", { name: /Joining/ })).toBeFocused();
+  await expect(heading(page, "Joining")).not.toBeFocused();
+  await page.getByLabel("By invitation", { exact: true }).click();
+  await inPage.getByRole("button", { name: /Publish/ }).click();
+  await expect(page.getByRole("list", { name: "Before you publish" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Go to / })).toHaveCount(0);
 });
 
 test("editing sidebar: swap, steps, back link, open page, mode switcher and preview", async ({ page }) => {
