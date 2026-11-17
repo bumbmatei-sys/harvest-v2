@@ -2,13 +2,13 @@
 
 Status: **DRAFT for founder and independent review**, 17 Nov 2026. Documentation only. No sender, UI, migration, webhook, subscriber collection or activation is added. All HC-02 decisions remain UNAPPROVED; production migrations 0031+ remain unapplied. Communities, social and link in bio retain their earlier founder priority.
 
-References: house style `2026-11-11-communities-pr4b-forum-design.md`; `docs/acceptance/newsletter-nl01.md`; `src/{lib,server}/newsletter.ts`; `src/server/newsletter-route.ts`; canonical `mayContact`/consent ledger/CRM import and erasure services; `src/server/mail/{port,registry,zernio-adapter}.ts`; existing provider/worker-role boundaries, shared UI registry and kit catalog; HC-02 activation register and 16 Nov launch scope exception.
+References: house style `2026-11-11-communities-pr4b-forum-design.md`; `docs/acceptance/newsletter-nl01.md`; `src/{lib,server}/newsletter.ts`; `src/server/newsletter-route.ts`; canonical `mayContact`/consent ledger/CRM import and erasure services; `src/server/mail/{port,registry,zernio-adapter}.ts` (Office mail, not newsletter sending); existing provider/worker-role boundaries, shared UI registry and kit catalog; HC-02 activation register and 16 Nov launch scope exception.
 
 ## Scope
 
 **In:** audience/list/subscriber/segment management UI over NL-01, campaign draft/editor/preview, reviewed sending pipeline, unsubscribe/preferences, delivery outcomes and aggregate analytics. **Newsletter has analytics, not an inbox.** Reply email belongs in the separate Operations Office inbox when its connection/permissions exist. Social has its own unified social inbox; Communities has its own chat/DMs.
 
-**Out:** generic marketing automation/AI agent, a duplicate CRM/contact importer, inferred consent, sales/paid newsletters, per-person faith/engagement profiles, live sending from this design, external-vendor frontend and direct provider SDKs outside the selected Zernio layer. No promotion inferred from a community membership, social interaction or Connect response.
+**Out:** generic marketing automation/AI agent, a duplicate CRM/contact importer, inferred consent, sales/paid newsletters, per-person faith/engagement profiles, live sending from this design, external-vendor frontend and direct provider SDKs outside the newsletter port's adapter. No promotion inferred from a community membership, social interaction or Connect response.
 
 ## What NL-01 actually provides
 
@@ -56,11 +56,13 @@ Draft → reviewed → scheduled → sending → sent/partial/failed/cancelled i
 
 Test/preview uses a local synthetic mailbox/fake provider. No real test email outside tests. Production-disallowed actions return an honest unavailable state before any provider call. The founder's future activation is a separate PR, not an environment switch introduced here.
 
-## Sending through the provider layer
+## Sending through the newsletter port
 
-All connected email access uses the selected **Zernio provider layer**. The existing `MailProvider` has send/reply/draft/label and send-cap operations, but it is **not proof of an approved bulk-newsletter contract**. Before choosing the delivery implementation, verify bulk/marketing support, account/sender ownership, quotas, deliverability/domain authentication, complaint/bounce events, unsubscribe headers and documented idempotency/retry semantics.
+**Founder direction (`docs/prd/professional-v1-launch-scope.md`, 16 Nov scope exception; not known to have changed): the newsletter provider is Plunk; email-only consent purposes already exist; Resend remains for sign-in and community mail.** Newsletter sending therefore goes through a **Harvest-owned newsletter port** (Harvest domain types, fake provider for tests) with a Plunk adapter behind it. The vendor name appears only in docs and the adapter file, never in UI copy or domain logic.
 
-If a newsletter-specific port is necessary, it lives behind that provider layer and uses Harvest domain types. Do not call a direct vendor SDK, reuse the app's authentication mail sender, or silently send bulk campaigns from each admin's Office mailbox. If the selected layer cannot support the required newsletter contract, keep sending unavailable and return the concrete gap to the founder; this spec selects no alternate provider or policy exception.
+Provider separation: the Zernio `MailProvider` stays for per-admin Office mail (Operations), and Resend stays for sign-in and community mail. Neither is used for newsletter bulk sending; the existing `MailProvider` send/reply/draft/label operations are not a bulk-newsletter contract. Do not call a direct vendor SDK outside the adapter, reuse the app's authentication mail sender, or silently send bulk campaigns from an admin's Office mailbox.
+
+Before choosing the delivery implementation, verify the newsletter provider: sending domain ownership and authentication (SPF, DKIM, DMARC), sender/reply-to ownership, quotas and rate limits, bounce and complaint webhooks (authentication, replay, ordering), unsubscribe headers (List-Unsubscribe and one-click), documented idempotency/retry semantics, and deliverability monitoring (reputation, bounce/complaint rates, alerts). If the provider cannot meet the contract, keep sending unavailable and return the concrete gap to the founder.
 
 Proposed worker flow:
 1. Atomically claim a bounded, due, reviewed campaign revision/recipient with a lease and immutable idempotency identity. Recheck campaign state, current list/segment definition versions and connection/sender eligibility.
@@ -101,10 +103,10 @@ Browser: lists/subscribers/segment invalidation; draft/review/preview/schedule/c
 
 | Slice | Delivers | Exit |
 | --- | --- | --- |
-| NL-02 safeguards | reviewed provider contract, merge/withdrawal/erasure hooks, public preference/token design | consent/lifecycle/race tests; collection/sending still disabled |
+| NL-02 safeguards | reviewed newsletter provider contract (domain auth, bounce/complaint webhooks), merge/withdrawal/erasure hooks, public preference/token design | consent/lifecycle/race tests; collection/sending still disabled |
 | NL-03 UI | existing NL-01 administration and campaign draft/preview composition | real bounded APIs, privacy/role matrix, screenshots |
 | NL-04 delivery | immutable revisions, worker/outbox/receipts, fake provider pipeline | idempotency/reconciliation/withdrawal/worker tests; no live send |
 | NL-05 analytics | verified aggregate outcome reports and unavailable states | denominator/event-replay/privacy tests, no inbox |
 | separate activation | provider/domain/monitoring/privacy evidence and reviewed notices | founder approval recorded separately; no automatic activation |
 
-Founder/reviewer decisions: verify that the selected provider layer supports the newsletter delivery contract; sender/reply-to and domain ownership; role access to contact methods/analytics; list versus all-newsletter unsubscribe wording, consent propagation, merge and reinstatement; retention and optional tracking policy. Premium licence remains pending. None of these choices, real sending or HC-02 activation is approved here. One branch/draft PR per slice; migrations require trusted-main Neon verification; no force push, merge or deploy.
+Founder/reviewer decisions: verify that the newsletter provider (Plunk, behind the Harvest newsletter port) supports the delivery contract; sender/reply-to and domain ownership; role access to contact methods/analytics; list versus all-newsletter unsubscribe wording, consent propagation, merge and reinstatement; retention and optional tracking policy. Premium licence remains pending. None of these choices, real sending or HC-02 activation is approved here. One branch/draft PR per slice; migrations require trusted-main Neon verification; no force push, merge or deploy.
