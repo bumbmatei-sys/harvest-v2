@@ -57,7 +57,7 @@ One coherent Studio Admin-inspired system across every module, not one dashboard
 | Academy/products | Courses, products, coaching, communities | Existing domain modules and entitlement services |
 | Logistics, tasks, Kanban, calendar | Crusade operations, teams, volunteers, social scheduling | Preserve scheduling and workflow contracts |
 | File manager | Shared media library | Respect workspace isolation, storage authorization |
-| Email/chat pages | Harvest Studio unified inbox | Visual reference only until channel APIs and capabilities are proven |
+| Email/chat pages | Harvest Studio unified inbox; Communities chat (C11) | Visual reference for the unified inbox until channel APIs and capabilities are proven. **Founder decision 17 Nov 2026:** for Communities chat the paid Shadcn UI Kit blocks are used first and Studio Admin's chat code (`src/app/(main)/chat/`, audited at commit `c16e1af271a1c522a01feb43074b32abfe114241`) is the fallback, adopted with provenance; Harvest keeps its own data layer, routes and permissions. See `docs/plans/communities-kit-item-list.md`. |
 | Settings, users/roles, authentication | Workspace settings and account screens | Keep Better Auth and existing server authorization |
 | Form/page structures | Creation wizard, editors, public forms | Build reusable composition; no mock production submissions |
 
