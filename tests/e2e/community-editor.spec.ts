@@ -34,6 +34,9 @@ test("create, edit, guard, conflict and publish a community; viewers are read-on
   const tenant = (await (await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Grace Community Church", audience: "church" } })).json()).tenantId as string;
 
   await page.goto(`/workspaces/${tenant}/crm/people`);
+  // With the mode switcher on, Communities belongs to the Public sidebar.
+  const publicMode = page.getByRole("tab", { name: "Public", exact: true });
+  if (await publicMode.count()) await publicMode.click();
   await page.getByRole("navigation", { name: "Ministry navigation" }).getByRole("link", { name: "Communities", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Communities", exact: true })).toBeVisible();
   await expect(page.getByText("No communities yet. Create your first one.")).toBeVisible();

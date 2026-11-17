@@ -4,9 +4,11 @@ import { useTranslations } from "next-intl";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Building2, ChevronRight, LogOut } from "lucide-react";
-import { resolveNavigation, sectionLabel, type NavFeature } from "@/lib/navigation";
+import { modeAvailability, resolveMode, resolveModeNavigation, resolveNavigation, sectionLabel, type NavFeature, type NavMode } from "@/lib/navigation";
+import { availableModes, displayMode, modeForShortcut, modeSnapshot, rememberMode, subscribeMode } from "@/lib/shell-mode";
+import { ModeSwitcher, modeLabelKey } from "@/components/mode-switcher";
 import type { Audience } from "@/lib/audience";
 import { authClient } from "@/lib/auth-client";
 import { NotificationsMenu } from "@/components/crm/tasks/notifications-menu";
@@ -73,14 +75,76 @@ function AccountMenu({ email, workspaces, selected, busy, container, onSignOut }
       onCloseAutoFocus={(event) => { event.preventDefault(); triggerRef.current?.focus(); }} />
   </>;
 }
-export function AppShell({ children, workspaces, selected, email, brandTheme = "harvest", defaultOpen = true, features = [], header }: {
+const modeNavId = "shell-mode-navigation";
+/** Per-mode sidebar (shell slice 2, behind a flag): the switcher plus the groups of the shown mode. Choosing a mode never navigates. */
+function ModeNavigation({ selected, workspace, pathname, features, announce }: { selected: string; workspace?: Workspace; pathname: string; features: readonly NavFeature[]; announce: (message: string) => void }) {
+  const t = useTranslations("ComponentsAppShell");
+  const viewer = { role: workspace?.role, audience: workspace?.audience, features };
+  const available = useMemo(() => availableModes(modeAvailability({ role: workspace?.role, audience: workspace?.audience, features })), [workspace?.role, workspace?.audience, features]);
+  const choice = useSyncExternalStore(subscribeMode, modeSnapshot, () => null);
+  const [peek, setPeek] = useState<{ mode: NavMode; pathname: string } | null>(null);
+  // A preview ends on every navigation, so Back to the page it was made on does not bring it back.
+  const [seenPath, setSeenPath] = useState(pathname);
+  if (seenPath !== pathname) { setSeenPath(pathname); setPeek(null); }
+  const navRef = useRef<HTMLElement>(null);
+  const focusNav = useRef(false);
+  // The remembered choice only matters on neutral pages; the server snapshot is null so the first render matches the server.
+  const derived = resolveMode({ pathname, choice }).mode;
+  const mode = displayMode({ derived, peek, pathname, available });
+  const select = useCallback((next: NavMode, fromKeyboard = false) => {
+    if (next === mode || !available.includes(next)) return;
+    setPeek({ mode: next, pathname }); rememberMode(next);
+    focusNav.current = fromKeyboard;
+    announce(t("modeAnnouncement", { mode: t(modeLabelKey(next)) }));
+  }, [mode, available, pathname, announce, t]);
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      const target = modeForShortcut({ ctrlKey: event.ctrlKey, metaKey: event.metaKey, altKey: event.altKey, shiftKey: event.shiftKey, code: event.code, target: event.target as HTMLElement | null, getModifierState: (key) => event.getModifierState(key) }, document.activeElement as HTMLElement | null);
+      if (!target || !available.includes(target)) return;
+      event.preventDefault(); select(target, true);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [available, select]);
+  useEffect(() => {
+    if (!focusNav.current) return;
+    focusNav.current = false;
+    navRef.current?.querySelector<HTMLElement>("a[href]")?.focus();
+  }, [mode]);
+  const { groups } = resolveModeNavigation({ tenantId: selected, ...viewer, pathname, mode });
+  const modeLabel = t(modeLabelKey(mode));
+  return <>
+    {/* One compact header row: logo left, mode icons right (a single mode needs no switcher). */}
+    <SidebarHeader className="gap-0 p-0 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:py-2">
+      <div className="flex h-[52px] items-center justify-between gap-2 pl-4 pr-3 group-data-[collapsible=icon]:h-auto group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:px-0">
+        <Link href="/workspaces" className="flex min-h-11 min-w-0 items-center gap-1.5 rounded-md outline-none lg:min-h-0 focus-visible:ring-2 focus-visible:ring-sidebar-ring">
+          <Image src="/brand/harvest-logo.png" width={24} height={24} alt="" className="size-6 shrink-0 object-contain" />
+          <span className="truncate text-[17px] font-semibold text-sidebar-accent-foreground group-data-[collapsible=icon]:sr-only">{t("harvest")}</span>
+        </Link>
+        {available.length > 1 && <ModeSwitcher modes={available} active={mode} controls={modeNavId} onSelect={(next) => select(next)} />}
+      </div>
+    </SidebarHeader>
+    <SidebarContent className="gap-0 pt-1"><nav ref={navRef} id={modeNavId} aria-label={t("workspaceNavigationMode", { mode: modeLabel })} data-shell-mode={mode}>
+      {mode === "operations" && <SidebarGroup className="px-[13px] py-0 group-data-[collapsible=icon]:px-0">
+        <SidebarMenu className="gap-px"><NavigationLink href="/workspaces" active={false} label={t("workspaces")} icon={<Building2 aria-hidden="true" />} /></SidebarMenu>
+      </SidebarGroup>}
+      {groups.map((group) => <NavigationGroup key={group.id} label={t(group.label)}>
+        {group.items.map(({ id, href, active, label, icon: Icon }) => <NavigationLink key={id} href={href} active={active} label={t(label)} icon={<Icon aria-hidden="true" />} />)}
+      </NavigationGroup>)}
+    </nav></SidebarContent>
+  </>;
+}
+export function AppShell({ children, workspaces, selected, email, brandTheme = "harvest", defaultOpen = true, features = [], header, modeSwitcher = false }: {
   features?: readonly NavFeature[]; header?: AppShellHeaderSlots;
+  /** Shell slice 2 flag: three-mode switcher and per-mode sidebar. Off renders the single sidebar exactly as before. */
+  modeSwitcher?: boolean;
   children: React.ReactNode; workspaces: Workspace[]; selected?: string; email: string; brandTheme?: BrandTheme; defaultOpen?: boolean;
 }) {
   const t = useTranslations("ComponentsAppShell");
   const pathname = usePathname(), router = useRouter();
   const hydrated = useHydrated();
   const [error, setError] = useState("");
+  const [announcement, setAnnouncement] = useState("");
   const [busy, setBusy] = useState(false);
   const [navigationContainer, setNavigationContainer] = useState<HTMLElement | null>(null);
   const workspace = workspaces.find((item) => item.tenantId === selected);
@@ -97,23 +161,26 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
   }
   return <SidebarProvider defaultOpen={defaultOpen} data-hydrated={hydrated} className="h-dvh min-h-0 overflow-hidden bg-shell-canvas has-data-[variant=inset]:bg-shell-canvas" style={{ "--sidebar-width": "272px", "--sidebar-width-icon": "48px" } as React.CSSProperties}>
     <WorkspaceTheme brandTheme={brandTheme} />
+    {/* Not role=status: pages own that role for their own feedback, and the announcement is only for mode changes. */}
+    {modeSwitcher && <div aria-live="polite" aria-atomic="true" data-mode-announcer className="sr-only">{announcement}</div>}
     <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-card focus:p-3">{t("skipToContent")}</a>
     <Sidebar variant="floating" collapsible="icon" className="p-[8px]">
       <div ref={setNavigationContainer} role="complementary" aria-label={t("workspaceSidebar")} className="flex h-full min-h-0 flex-col">
-        <SidebarHeader className="gap-0 p-0 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:py-2">
+        {!(modeSwitcher && selected) && <SidebarHeader className="gap-0 p-0 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:py-2">
           <SidebarMenu><SidebarMenuItem><SidebarMenuButton size="lg" asChild className="h-[52px] rounded-none hover:bg-transparent group-data-[collapsible=icon]:size-auto! group-data-[collapsible=icon]:p-0!"><Link href="/workspaces" className="flex h-[52px] items-center gap-1.5 pl-4 pr-3 group-data-[collapsible=icon]:h-auto group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:px-0">
             <Image src="/brand/harvest-logo.png" width={24} height={24} alt="" className="size-6 shrink-0 object-contain" />
             <span className="text-[17px] font-semibold text-sidebar-accent-foreground group-data-[collapsible=icon]:sr-only">{t("harvest")}</span>
           </Link></SidebarMenuButton></SidebarMenuItem></SidebarMenu>
-        </SidebarHeader>
-        <SidebarContent className="gap-0 pt-1"><nav aria-label={t("workspaceNavigation")}>
+        </SidebarHeader>}
+        {modeSwitcher && selected ? <ModeNavigation selected={selected} workspace={workspace} pathname={pathname} features={features} announce={setAnnouncement} />
+        : <SidebarContent className="gap-0 pt-1"><nav aria-label={t("workspaceNavigation")}>
           <SidebarGroup className="px-[13px] py-0 group-data-[collapsible=icon]:px-0">
             <SidebarMenu className="gap-px"><NavigationLink href="/workspaces" active={!selected} label={t("workspaces")} icon={<Building2 aria-hidden="true" />} /></SidebarMenu>
           </SidebarGroup>
           {selected && resolveNavigation({ tenantId: selected, role: workspace?.role, audience: workspace?.audience, pathname, features }).map((group) => <NavigationGroup key={group.id} label={t(group.label)}>
             {group.items.map(({ id, href, active, label, icon: Icon }) => <NavigationLink key={id} href={href} active={active} label={t(label)} icon={<Icon aria-hidden="true" />} />)}
           </NavigationGroup>)}
-        </nav></SidebarContent>
+        </nav></SidebarContent>}
         <SidebarFooter className="gap-1 p-0 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:py-2">
           <div className="flex h-[52px] items-center gap-1 pl-4 pr-3 group-data-[collapsible=icon]:h-auto group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:px-0">
             <div className="flex min-w-0 flex-1 items-center gap-2 group-data-[collapsible=icon]:flex-none">
