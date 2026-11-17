@@ -14,7 +14,7 @@ The kit is a shadcn registry (`@shadcnuikit`, 1228 items: 567 component variants
 6. **Do not replace working domain UI:** CRM `ListPage`/filter builder, deal board (accessible dnd-kit moves), Connect landing editor, Communities editor/forum. The kit informs their polish.
 7. **Every visual build starts with a kit item approval gate** (section 2). The founder approves exact items before anything visual is built.
 8. **Sequence:** tooling and provenance first, then primitives top-up, then shared templates, then module screens by launch priority (about 12 PRs, section 7).
-9. **Founder decisions needed** are in section 4; the license/public-repository question and the plan/seat question come first.
+9. **Founder decisions needed** are in section 4; the license/public-repository question and the plan/seat question were both decided (16 Nov: Pro, one user; licence settled 17 Nov).
 10. **Fix, independent of the kit:** the person page shows consent controls to members; gate them on the permission keys (section 8).
 
 ### Verified vs inferred
