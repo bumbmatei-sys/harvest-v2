@@ -9,6 +9,9 @@ import { Building2, ChevronRight, LogOut } from "lucide-react";
 import { modeAvailability, resolveMode, resolveModeNavigation, resolveNavigation, sectionLabel, type NavFeature, type NavMode } from "@/lib/navigation";
 import { availableModes, displayMode, modeForShortcut, modeSnapshot, rememberMode, subscribeMode } from "@/lib/shell-mode";
 import { ModeSwitcher, modeLabelKey } from "@/components/mode-switcher";
+import { menuButton } from "@/components/shell-styles";
+import { EditingSidebar } from "@/components/editor/editing-sidebar";
+import { EditorProvider, useEditorSidebar } from "@/components/editor/editor-context";
 import type { Audience } from "@/lib/audience";
 import { authClient } from "@/lib/auth-client";
 import { NotificationsMenu } from "@/components/crm/tasks/notifications-menu";
@@ -27,7 +30,6 @@ import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupConte
 type Workspace = { tenantId: string; name: string; role: string; audience?: Audience | null; memberCount?: number };
 /** Optional header composition: page actions and a page-level search field. Both are empty unless a page supplies them. */
 export type AppShellHeaderSlots = { actions?: React.ReactNode; search?: React.ReactNode };
-const menuButton = "min-h-11 lg:min-h-0 lg:h-9 gap-2 rounded-[8px] py-0 pl-2 pr-3 text-sm font-medium text-sidebar-foreground data-[active=true]:font-normal [&_svg]:size-[17px] [&_svg]:stroke-[1.7] group-data-[collapsible=icon]:mx-auto group-data-[collapsible=icon]:size-9! group-data-[collapsible=icon]:justify-center group-data-[collapsible=icon]:p-0!";
 function NavigationLink({ href, label, icon, active }: { href: string; label: string; icon: React.ReactNode; active: boolean }) {
   const { setOpenMobile, isMobile } = useSidebar();
   return <SidebarMenuItem><SidebarMenuButton asChild isActive={active} tooltip={isMobile ? undefined : label} className={menuButton}><Link href={href} aria-current={active ? "page" : undefined} onClick={() => setOpenMobile(false)}>{icon}<span className="group-data-[collapsible=icon]:sr-only">{label}</span></Link></SidebarMenuButton></SidebarMenuItem>;
@@ -113,6 +115,18 @@ function ModeNavigation({ selected, workspace, pathname, features, announce }: {
   }, [mode]);
   const { groups } = resolveModeNavigation({ tenantId: selected, ...viewer, pathname, mode });
   const modeLabel = t(modeLabelKey(mode));
+  // An open editor swaps the entry list for the item's own sidebar while the owning mode is shown (mode === derived; previewing another mode shows
+  // that mode's entries so the user is never trapped); the logo row and mode switcher stay.
+  const editor = useEditorSidebar();
+  const editing = editor !== null && mode === derived;
+  const entries = <nav ref={navRef} id={modeNavId} aria-label={t("workspaceNavigationMode", { mode: modeLabel })} data-shell-mode={mode}>
+      {mode === "operations" && <SidebarGroup className="px-[13px] py-0 group-data-[collapsible=icon]:px-0">
+        <SidebarMenu className="gap-px"><NavigationLink href="/workspaces" active={false} label={t("workspaces")} icon={<Building2 aria-hidden="true" />} /></SidebarMenu>
+      </SidebarGroup>}
+      {groups.map((group) => <NavigationGroup key={group.id} label={t(group.label)}>
+        {group.items.map(({ id, href, active, label, icon: Icon }) => <NavigationLink key={id} href={href} active={active} label={t(label)} icon={<Icon aria-hidden="true" />} />)}
+      </NavigationGroup>)}
+    </nav>;
   return <>
     {/* One compact header row: logo left, mode icons right (a single mode needs no switcher). */}
     <SidebarHeader className="gap-0 p-0 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:py-2">
@@ -124,14 +138,7 @@ function ModeNavigation({ selected, workspace, pathname, features, announce }: {
         {available.length > 1 && <ModeSwitcher modes={available} active={mode} controls={modeNavId} onSelect={(next) => select(next)} />}
       </div>
     </SidebarHeader>
-    <SidebarContent className="gap-0 pt-1"><nav ref={navRef} id={modeNavId} aria-label={t("workspaceNavigationMode", { mode: modeLabel })} data-shell-mode={mode}>
-      {mode === "operations" && <SidebarGroup className="px-[13px] py-0 group-data-[collapsible=icon]:px-0">
-        <SidebarMenu className="gap-px"><NavigationLink href="/workspaces" active={false} label={t("workspaces")} icon={<Building2 aria-hidden="true" />} /></SidebarMenu>
-      </SidebarGroup>}
-      {groups.map((group) => <NavigationGroup key={group.id} label={t(group.label)}>
-        {group.items.map(({ id, href, active, label, icon: Icon }) => <NavigationLink key={id} href={href} active={active} label={t(label)} icon={<Icon aria-hidden="true" />} />)}
-      </NavigationGroup>)}
-    </nav></SidebarContent>
+    <SidebarContent className="gap-0 pt-1">{editing && editor ? <EditingSidebar context={editor} id={modeNavId} /> : entries}</SidebarContent>
   </>;
 }
 export function AppShell({ children, workspaces, selected, email, brandTheme = "harvest", defaultOpen = true, features = [], header, modeSwitcher = false }: {
@@ -159,7 +166,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
     } catch { setError(t("couldNotConnectPleaseTryAgain")); }
     finally { setBusy(false); }
   }
-  return <SidebarProvider defaultOpen={defaultOpen} data-hydrated={hydrated} className="h-dvh min-h-0 overflow-hidden bg-shell-canvas has-data-[variant=inset]:bg-shell-canvas" style={{ "--sidebar-width": "272px", "--sidebar-width-icon": "48px" } as React.CSSProperties}>
+  const shell = <SidebarProvider defaultOpen={defaultOpen} data-hydrated={hydrated} className="h-dvh min-h-0 overflow-hidden bg-shell-canvas has-data-[variant=inset]:bg-shell-canvas" style={{ "--sidebar-width": "272px", "--sidebar-width-icon": "48px" } as React.CSSProperties}>
     <WorkspaceTheme brandTheme={brandTheme} />
     {/* Not role=status: pages own that role for their own feedback, and the announcement is only for mode changes. */}
     {modeSwitcher && <div aria-live="polite" aria-atomic="true" data-mode-announcer className="sr-only">{announcement}</div>}
@@ -218,4 +225,6 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
       </main>
     </SidebarInset>
   </SidebarProvider>;
+  // Editors register their sidebar through this provider only when the shell-modes flag is on; otherwise they render their own step list.
+  return modeSwitcher && selected ? <EditorProvider>{shell}</EditorProvider> : shell;
 }

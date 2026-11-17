@@ -34,7 +34,7 @@ import { CommunityApplications, type ApplicationQueue } from "@/components/commu
 import type { Question } from "@/lib/questions";
 import { useCrmRequest } from "@/components/crm/request";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
-import { comingSoonSteps, communityEditorSteps, publishChecklist, type CommunityEditorStep } from "@/lib/community-editor";
+import { checklistStep, comingSoonSteps, communityEditorSteps, publishChecklist, stepNeedsAttention, type CommunityEditorStep } from "@/lib/community-editor";
 
 export type EditableCommunity = { id: string; slug: string; name: string; tagline: string | null; status: "draft" | "published" | "archived";
   visibility: "listed" | "unlisted" | "hidden"; allowOpen: boolean; allowApply: boolean; allowInvite: boolean; allowEntitlement: boolean; version: number;
@@ -87,7 +87,10 @@ export function CommunityEditor({ initial, members, invites, applications, categ
   function discard() { setFields(fieldsOf(data)); setRulesOn(data.rulesList.length > 0); setQuestionsOn(data.joinQuestions.length > 0); setNotice(""); setError(""); setConflict(false); }
 
   const steps = communityEditorSteps.map((id) => ({ id, label: t(`steps.${id}`), disabled: comingSoonSteps.includes(id), badge: comingSoonSteps.includes(id) ? t("comingSoon") : undefined,
-    done: id === "basics" ? checklist[0].done : id === "joining" ? checklist[1].done : id === "publish" ? data.status === "published" : id === "offer" || (id === "people" && members.length > 0) }));
+    done: id === "basics" ? checklist[0].done : id === "joining" ? checklist[1].done : id === "publish" ? data.status === "published" : id === "offer" || (id === "people" && members.length > 0),
+    attention: stepNeedsAttention(id, checklist, data.status === "published") }));
+  const sidebar = { typeLabel: t("typeLabel"), status: { kind: data.status === "published" ? "live" as const : "draft" as const, label: t(`status.${data.status}`) }, back: { href: listHref, label: t("back") },
+    openPage: data.status === "published" ? { href: `/communities/${data.slug}`, label: t("openPage") } : undefined, dirty };
   const status = <Badge variant={data.status === "published" ? "default" : "secondary"}>{t(`status.${data.status}`)}</Badge>;
   const actions = writable && <>
     {data.status === "published"
@@ -97,7 +100,7 @@ export function CommunityEditor({ initial, members, invites, applications, categ
   const breadcrumb = <Breadcrumb><BreadcrumbList><BreadcrumbItem><BreadcrumbLink asChild><Link href={listHref}>{t("back")}</Link></BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator /><BreadcrumbItem><BreadcrumbPage>{data.name}</BreadcrumbPage></BreadcrumbItem></BreadcrumbList></Breadcrumb>;
 
   return <EditorShell breadcrumb={breadcrumb} title={data.name} status={status} actions={actions} steps={steps} current={step} onStep={(id) => setStep(id as CommunityEditorStep)}
-    stepsLabel={t("stepsLabel")} previewLabel={t("preview")} preview={<Tabs defaultValue="page"><TabsList className="mb-3"><TabsTrigger value="page" className="min-h-9">{t("previewPage")}</TabsTrigger><TabsTrigger value="join" className="min-h-9">{t("previewJoin")}</TabsTrigger></TabsList>
+    stepsLabel={t("stepsLabel")} previewLabel={t("preview")} sidebar={sidebar} preview={<Tabs defaultValue="page"><TabsList className="mb-3"><TabsTrigger value="page" className="min-h-9">{t("previewPage")}</TabsTrigger><TabsTrigger value="join" className="min-h-9">{t("previewJoin")}</TabsTrigger></TabsList>
       <TabsContent value="page"><CommunityJoinCard name={fields.name} tagline={fields.tagline} host={host} preview /></TabsContent>
       <TabsContent value="join"><Card><CardContent className="space-y-5 pt-6">
         {fields.joinQuestions.length > 0 && <QuestionFields questions={cleanQuestions(fields.joinQuestions).filter((q) => q.label)} values={{}} disabled idPrefix="preview-question" />}
@@ -107,7 +110,7 @@ export function CommunityEditor({ initial, members, invites, applications, categ
     {!writable && <Alert><AlertDescription>{t("readOnly")}</AlertDescription></Alert>}
     {error && <Alert variant="destructive" role="alert"><AlertDescription className="flex flex-wrap items-center gap-3">{error}{conflict && <Button variant="outline" className="min-h-11" onClick={() => { if (dirty) setDestination(location.href); else location.reload(); }}>{t("reload")}</Button>}</AlertDescription></Alert>}
     {notice && <Alert role="status"><AlertDescription>{notice}</AlertDescription></Alert>}
-    <WizardLayout steps={steps} current={step} onStepChange={(id) => setStep(id as CommunityEditorStep)} stepsLabel={t("stepsLabel")} stepper={false}>
+    <WizardLayout steps={steps} current={step} onStepChange={(id) => setStep(id as CommunityEditorStep)} stepsLabel={t("stepsLabel")} stepper={false} focusOnStepChange>
       {step === "offer" && <RadioGroup value="free" aria-label={t("price")} className="gap-2">
         <Label htmlFor="community-price-free" className="flex min-h-11 items-center gap-3 rounded-md border px-3 font-normal"><RadioGroupItem id="community-price-free" value="free" disabled={!writable} />{t("free")}</Label>
         <Label htmlFor="community-price-paid" className="flex min-h-11 items-center gap-3 rounded-md border px-3 font-normal text-muted-foreground"><RadioGroupItem id="community-price-paid" value="paid" disabled /><span className="flex-1">{t("paid")}</span><Badge variant="secondary">{t("comingSoon")}</Badge></Label>
@@ -171,7 +174,8 @@ export function CommunityEditor({ initial, members, invites, applications, categ
       {step === "publish" && <ul className="space-y-2" aria-label={t("checklist")}>
         {checklist.map((item) => <li key={item.key} className="flex min-h-11 items-center gap-3 rounded-md border px-3">
           {item.done ? <CircleCheck className="size-4 text-primary" aria-hidden="true" /> : <Circle className="size-4 text-muted-foreground" aria-hidden="true" />}
-          <span>{t(`checks.${item.key}`)}</span><span className="sr-only">{t(item.done ? "checkDone" : "checkOpen")}</span></li>)}
+          <span className="flex-1">{t(`checks.${item.key}`)}</span><span className="sr-only">{t(item.done ? "checkDone" : "checkOpen")}</span>
+          {!item.done && <Button type="button" variant="outline" size="sm" className="min-h-11 lg:min-h-8" onClick={() => setStep(checklistStep(item.key))}>{t("goToStep", { step: t(`steps.${checklistStep(item.key)}`) })}</Button>}</li>)}
       </ul>}
     </WizardLayout>
     {writable && <StickySaveBar guard={false} dirty={dirty} busy={busy && dirty} onSave={() => void run("save")} onDiscard={discard} saveLabel={t("saveDraft")} savingLabel={t("saving")} />}
