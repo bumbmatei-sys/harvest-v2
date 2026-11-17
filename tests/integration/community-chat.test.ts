@@ -7,7 +7,7 @@ import { testDatabase } from "../database";
 import { users } from "../../src/db/schema";
 import { createWorkspace } from "../../src/server/workspaces";
 import { createCommunity } from "../../src/server/communities";
-import { withUser } from "../../src/server/tenancy";
+import { withUser, withTenant } from "../../src/server/tenancy";
 import { chatState, chatMessages, saveChatChannel } from "../../src/server/community-chat";
 vi.mock("server-only", () => ({}));
 let f: Awaited<ReturnType<typeof testDatabase>>, parallel: Pool, tenant: string, otherTenant: string, club: string, otherClub: string, general: string;
@@ -398,4 +398,71 @@ it("rejects a global client id replay across authorized ministries without retur
   }
   const client=randomUUID(); expect((await send('cross-author','Original content',general,null,[],client)).outcome).toBe('ok');
   expect(await invoke('cross-author','community_message_send',[ch,null,'Another body',[],client],'chat-third')).toEqual({ outcome:'client_id_conflict' });
+});
+it("lets only a host-removed message be restored by an owner/admin, never an author deletion (spec 10.2)", async () => {
+  await resetRates(); const id = await messageId();
+  expect((await invoke("member", "community_message_delete", [id, false])).outcome).toBe("ok");
+  for (const user of ["admin", "owner"]) expect((await invoke(user, "community_message_moderate", [id, "restore"])).outcome, user).toBe("forbidden");
+  expect((await f.admin.query("select deleted_at is not null deleted, deleted_kind from community_messages where id=$1", [id])).rows[0]).toEqual({ deleted: true, deleted_kind: "author" });
+  expect((await invoke("member", "community_message_delete", [id, true])).outcome).toBe("ok");
+  const live = await messageId("member", "Never deleted");
+  expect((await invoke("admin", "community_message_moderate", [live, "restore"])).outcome).toBe("forbidden");
+});
+it("keeps ministry viewers and plain ministry members out of every chat table through withTenant, but not owner/admin", async () => {
+  await resetRates();
+  await f.admin.query("insert into users(id,name,email) values('ministry-member','M','ministry-member@example.test'),('ministry-staff','S','ministry-staff@example.test') on conflict do nothing");
+  await f.admin.query("insert into workspace_members(tenant_id,user_id,role_id) values($1,'ministry-member','member'),($1,'ministry-staff','admin') on conflict do nothing", [tenant]);
+  const invite = await channel("Invite only", { accessMode: "invite" });
+  await f.admin.query("insert into community_channel_members(tenant_id,community_id,channel_id,user_id) select tenant_id,community_id,id,'member' from community_channels where id=$1", [invite]);
+  const secret = await messageId("member", "Invite secret", invite), gone = await messageId("member", "Deleted secret");
+  await invoke("member", "community_channel_read", [invite, 1]);
+  await invoke("member", "community_message_delete", [gone, false]);
+  await invoke("second", "community_reaction_toggle", [secret, "👍"]).catch(() => undefined);
+  const tables = ["community_channels", "community_channel_members", "community_messages", "community_message_reactions", "community_channel_reads", "community_chat_state"];
+  for (const user of ["viewer", "ministry-member"]) {
+    const perm = "workspace:read" as const;
+    for (const t of tables) {
+      const rows = await withTenant(f.db, user, tenant, perm, tx => tx.execute(sql.raw(`select * from public.${t} where community_id='${club}'`)));
+      expect(rows.rows, `${user}:${t}`).toEqual([]);
+    }
+  }
+  const admin = await withTenant(f.db, "ministry-staff", tenant, "workspace:read", async tx => ({
+    messages: (await tx.execute(sql.raw(`select body from public.community_messages where community_id='${club}'`))).rows.map(r => r.body),
+    reads: (await tx.execute(sql.raw(`select 1 from public.community_channel_reads where community_id='${club}'`))).rows.length,
+  }));
+  expect(admin.messages).toEqual(expect.arrayContaining(["Invite secret", "Deleted secret"])); expect(admin.reads).toBeGreaterThan(0);
+});
+it("does not return a cursor for history (before) pages", async () => {
+  await resetRates(); const ch = await channel("History");
+  for (let i = 0; i < 3; i++) await messageId("member", `H${i}`, ch);
+  const newest = await chatMessages(f.db, "member", "chat-club", ch, { limit: 2 });
+  expect(newest.cursor).toBeTruthy();
+  const oldest = (newest.events as { seq: string }[]).reduce((a, e) => (BigInt(e.seq) < a ? BigInt(e.seq) : a), BigInt(1) << BigInt(62));
+  const older = await chatMessages(f.db, "member", "chat-club", ch, { before: oldest.toString(), limit: 2 });
+  expect((older.events as unknown[]).length).toBe(1); expect(older.cursor ?? null).toBeNull();
+  const empty = await chatMessages(f.db, "member", "chat-club", ch, { before: "1", limit: 2 });
+  expect((empty.events as unknown[]).length).toBe(0); expect(empty.cursor ?? null).toBeNull();
+});
+it("lets only chat_settings_save, not another definer, update communities as the migration owner", async () => {
+  const c = await f.admin.connect();
+  try {
+    await c.query(`set role ${f.migrationOwner}`); await c.query("begin");
+    await c.query("select set_config('app.community_definer_tenant',$1,true)", [tenant]);
+    expect((await c.query("update communities set name=name where tenant_id=$1", [tenant])).rowCount).toBe(0);
+    await c.query("select set_config('app.chat_settings','on',true)");
+    expect((await c.query("update communities set name=name where tenant_id=$1", [tenant])).rowCount).toBeGreaterThan(0);
+  } finally { await c.query("rollback"); await c.query("reset role"); c.release(); }
+  expect((await invoke("owner", "community_chat_settings_save", [true, "members"])).outcome).toBe("ok");
+  expect((await f.admin.query("select current_setting('app.chat_settings',true) v")).rows[0].v ?? "").toBe("");
+});
+it("blocks editing while muted, and flags the caller's own reactions", async () => {
+  await resetRates(); const id = await messageId("second", "Mine");
+  expect((await invoke("member", "community_reaction_toggle", [id, "🙏"])).outcome).toBe("ok");
+  const read = async (u: string) => ((await chatMessages(f.db, u, "chat-club", general, { since: "0", limit: 100 })).events as { id: string; reactions: { emoji: string; reactedByMe: boolean }[] }[]).find(e => e.id === id)!.reactions;
+  expect(await read("member")).toEqual([{ emoji: "🙏", count: 1, reactedByMe: true }]);
+  expect(await read("mod")).toEqual([{ emoji: "🙏", count: 1, reactedByMe: false }]);
+  await f.admin.query("update community_memberships set muted_until=now()+interval '1 hour' where user_id='second' and community_id=$1", [club]);
+  expect((await invoke("second", "community_message_edit", [id, "Edited while muted", []])).outcome).toBe("muted");
+  await f.admin.query("update community_memberships set muted_until=null where user_id='second' and community_id=$1", [club]);
+  expect((await invoke("second", "community_message_edit", [id, "Edited after", []])).outcome).toBe("ok");
 });

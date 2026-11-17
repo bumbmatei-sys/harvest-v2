@@ -208,6 +208,14 @@ BEGIN
  RETURN c.archived_at IS NULL AND (c.access_mode='all' OR (c.access_mode='role' AND public.community_chat_rank(r)>=public.community_chat_rank(c.min_role))
  OR (c.access_mode='invite' AND EXISTS(SELECT 1 FROM public.community_channel_members WHERE channel_id=p_channel AND user_id=p_user)));
 END $$;
+-- Set-based readability for one caller whose role is already known: one query for every channel of a community.
+CREATE FUNCTION public.community_chat_readable_channels(p_tenant uuid,p_community uuid,p_user text,p_role text) RETURNS SETOF uuid LANGUAGE sql STABLE SET search_path=pg_catalog,pg_temp AS $$
+ SELECT c.id FROM public.community_channels c
+ WHERE p_role IS NOT NULL AND c.tenant_id=p_tenant AND c.community_id=p_community
+ AND EXISTS(SELECT 1 FROM public.communities k WHERE k.tenant_id=p_tenant AND k.id=p_community AND k.chat_enabled AND (k.status='published' OR coalesce(public.community_chat_can(p_role,'chat:manage_channels'),false)))
+ AND (public.community_chat_rank(p_role)>=2 OR (c.archived_at IS NULL AND (c.access_mode='all' OR (c.access_mode='role' AND public.community_chat_rank(p_role)>=public.community_chat_rank(c.min_role))
+ OR (c.access_mode='invite' AND EXISTS(SELECT 1 FROM public.community_channel_members cm WHERE cm.channel_id=c.id AND cm.user_id=p_user)))))
+$$;
 -- Public read predicate safely scopes its owner access, then restores the enclosing definer's context.
 CREATE FUNCTION public.community_channel_can_read(p_tenant uuid,p_community uuid,p_channel uuid) RETURNS boolean LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 DECLARE previous text:=current_setting('app.community_definer_tenant',true); ok boolean;
@@ -262,7 +270,7 @@ CREATE POLICY chat_members_read ON public.community_channel_members FOR SELECT T
 -- ADR 0013 staff path. Services use the member-scoped definers, never this broad staff path.
 DO $$ DECLARE t text; BEGIN
  FOREACH t IN ARRAY ARRAY['community_channels','community_channel_members','community_messages','community_message_reactions','community_channel_reads','community_chat_state'] LOOP
- EXECUTE format($p$CREATE POLICY chat_staff ON public.%I FOR SELECT TO harvest_app USING(tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid)$p$,t);
+ EXECUTE format($p$CREATE POLICY chat_staff ON public.%I FOR SELECT TO harvest_app USING(tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND EXISTS(SELECT 1 FROM public.workspace_members wm WHERE wm.tenant_id=%I.tenant_id AND wm.user_id=nullif(current_setting('app.user_id',true),'') AND wm.role_id IN ('owner','admin')))$p$,t,t);
  END LOOP;
 END $$;
 
@@ -361,7 +369,7 @@ CREATE FUNCTION public.community_chat_message_projection(p public.community_mess
  'body',CASE WHEN p.deleted_at IS NOT NULL AND NOT p_host THEN NULL ELSE p.body END,'mentionIds',CASE WHEN p.deleted_at IS NOT NULL AND NOT p_host THEN ARRAY[]::text[] ELSE p.mention_ids END,
  'createdAt',p.created_at,'editedAt',p.edited_at,'deletedAt',p.deleted_at,'deletedKind',p.deleted_kind,'heldAt',p.held_at,'pinnedAt',p.pinned_at,'replyCount',p.reply_count,
  'reactions',CASE WHEN p.deleted_at IS NOT NULL OR p.held_at IS NOT NULL THEN '[]'::jsonb ELSE
- (SELECT coalesce(jsonb_agg(jsonb_build_object('emoji',emoji,'count',n)),'[]'::jsonb) FROM (SELECT emoji,count(*) n FROM public.community_message_reactions WHERE message_id=p.id GROUP BY emoji) r) END)
+ (SELECT coalesce(jsonb_agg(jsonb_build_object('emoji',emoji,'count',n,'reactedByMe',mine)),'[]'::jsonb) FROM (SELECT emoji,count(*) n,coalesce(bool_or(user_id=nullif(current_setting('app.user_id',true),'')),false) mine FROM public.community_message_reactions WHERE message_id=p.id GROUP BY emoji) r) END)
 $$;
 
 --> statement-breakpoint
@@ -440,6 +448,7 @@ BEGIN
  IF NOT public.community_chat_user_can_read(ctx.tenant,ctx.community,ch,actor) THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
  SELECT * INTO m FROM public.community_messages WHERE id=p_id AND channel_id=ch;
  IF m.author_id IS DISTINCT FROM actor OR m.deleted_at IS NOT NULL THEN RETURN public.community_chat_done('{"outcome":"forbidden"}'); END IF;
+ IF EXISTS(SELECT 1 FROM public.community_memberships WHERE community_id=ctx.community AND user_id=actor AND muted_until>now()) THEN RETURN public.community_chat_done('{"outcome":"muted"}'); END IF;
  IF p_body IS NULL OR length(trim(p_body)) NOT BETWEEN 1 AND 2000 OR cardinality(p_mentions)>10 THEN RETURN public.community_chat_done('{"outcome":"invalid"}'); END IF;
  IF (SELECT count(*) FROM public.audit_logs WHERE tenant_id=ctx.tenant AND actor_id=actor AND action='community.chat.edit' AND created_at>now()-interval '1 minute')>=10 THEN RETURN public.community_chat_done('{"outcome":"rate_limited","retryAfter":60}'); END IF;
  SELECT coalesce(array_agg(DISTINCT u),'{}') INTO mentions FROM unnest(p_mentions) u WHERE EXISTS(SELECT 1 FROM public.community_memberships am WHERE am.tenant_id=ctx.tenant AND am.community_id=ctx.community AND am.user_id=u AND am.status='active') AND public.community_chat_user_can_read(ctx.tenant,ctx.community,ch,u);
@@ -497,7 +506,7 @@ BEGIN
  IF p_action IN ('remove','reject') AND (m.author_id=actor OR public.community_chat_rank(ctx.role)<=public.community_chat_rank(target_role)) THEN RETURN public.community_chat_done('{"outcome":"forbidden"}'); END IF;
  IF p_action IN ('pin','unpin') AND m.author_id IS DISTINCT FROM actor AND public.community_chat_rank(target_role)>=public.community_chat_rank(ctx.role) THEN RETURN public.community_chat_done('{"outcome":"forbidden"}'); END IF;
  IF p_action IN ('approve','reject') AND m.held_at IS NULL THEN RETURN public.community_chat_done('{"outcome":"invalid"}'); END IF;
- IF p_action='restore' AND (NOT coalesce(public.community_chat_can(ctx.role,'chat:manage_channels'),false) OR m.purge_after<=now()) THEN RETURN public.community_chat_done('{"outcome":"forbidden"}'); END IF;
+ IF p_action='restore' AND (NOT coalesce(public.community_chat_can(ctx.role,'chat:manage_channels'),false) OR m.deleted_at IS NULL OR m.deleted_kind IS DISTINCT FROM 'host' OR m.purge_after<=now()) THEN RETURN public.community_chat_done('{"outcome":"forbidden"}'); END IF;
  IF p_action NOT IN ('pin','unpin','remove','restore','approve','reject') THEN RETURN public.community_chat_done('{"outcome":"invalid"}'); END IF;
  IF p_action='pin' AND (m.deleted_at IS NOT NULL OR m.held_at IS NOT NULL OR (m.pinned_at IS NULL AND (SELECT count(*) FROM public.community_messages WHERE channel_id=ch AND pinned_at IS NOT NULL)>=5)) THEN RETURN public.community_chat_done('{"outcome":"pin_limit"}'); END IF;
  UPDATE public.community_channels SET last_rev=last_rev+1 WHERE id=ch RETURNING last_rev INTO v_rev;
@@ -605,7 +614,7 @@ BEGIN
  bounded AS (SELECT * FROM page LIMIT p_limit)
  SELECT coalesce(jsonb_agg(public.community_chat_message_projection(bounded,public.community_chat_rank(ctx.role)>=2) ORDER BY rev),'[]'::jsonb),coalesce(max(rev),p_since,0),(SELECT count(*)>p_limit FROM page)
  INTO events,v_cursor,has_more FROM bounded;
- RETURN public.community_chat_done(jsonb_build_object('outcome','ok','events',events,'cursor',v_cursor::text,'hasMore',has_more,'etag',tag));
+ RETURN public.community_chat_done(jsonb_build_object('outcome','ok','events',events,'cursor',CASE WHEN p_before IS NULL THEN v_cursor::text END,'hasMore',has_more,'etag',tag));
 
 EXCEPTION WHEN check_violation OR invalid_text_representation OR not_null_violation THEN RETURN public.community_chat_done('{"outcome":"invalid"}');
  WHEN OTHERS THEN PERFORM public.community_definer_reset(); RAISE;
@@ -629,7 +638,7 @@ BEGIN
  'unread',CASE WHEN p_detector_only OR r.mute='all' THEN 0 ELSE (SELECT count(*) FROM (SELECT 1 FROM public.community_messages m WHERE m.channel_id=ch.id AND m.seq>coalesce(r.last_read_seq,0) AND m.author_id IS DISTINCT FROM actor AND m.deleted_at IS NULL AND m.held_at IS NULL LIMIT 100) u) END,
  'mentions',CASE WHEN p_detector_only OR r.mute='all' THEN 0 ELSE (SELECT count(*) FROM (SELECT 1 FROM public.community_messages m WHERE m.channel_id=ch.id AND m.seq>coalesce(r.last_read_seq,0) AND actor=ANY(m.mention_ids) AND m.author_id IS DISTINCT FROM actor AND m.deleted_at IS NULL AND m.held_at IS NULL LIMIT 100) u) END)
  ORDER BY ch.id),'[]'::jsonb) INTO channels FROM public.community_channels ch LEFT JOIN public.community_channel_reads r ON r.channel_id=ch.id AND r.user_id=actor
- WHERE ch.tenant_id=ctx.tenant AND ch.community_id=ctx.community AND public.community_chat_user_can_read(ctx.tenant,ctx.community,ch.id,actor);
+ WHERE ch.tenant_id=ctx.tenant AND ch.community_id=ctx.community AND ch.id IN (SELECT public.community_chat_readable_channels(ctx.tenant,ctx.community,actor,ctx.role));
  RETURN public.community_chat_done(jsonb_build_object('outcome','ok','channels',channels,'chatStateRev',coalesce(own_rev,'0')));
 
 EXCEPTION WHEN check_violation OR invalid_text_representation OR not_null_violation THEN RETURN public.community_chat_done('{"outcome":"invalid"}');
@@ -791,7 +800,7 @@ END $$;
 
 --> statement-breakpoint
 DO $$ DECLARE f record; BEGIN
- FOR f IN SELECT p.oid::regprocedure sig FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname=ANY(ARRAY['community_chat_initialize','community_chat_rank','community_chat_role','community_chat_user_can_read','community_channel_can_read','community_chat_actor','community_chat_done','community_chat_bump','community_chat_lock_members','community_chat_membership_revision','community_chat_grant_revision','community_channel_save','community_channel_delete','community_channel_reorder','community_channel_members_set','community_chat_message_projection','community_message_send','community_message_edit','community_message_delete','community_message_moderate','community_reaction_toggle','community_channel_read','community_channel_prefs_save','community_chat_messages','community_chat_state_read','community_chat_notify','community_chat_purge_channels','community_chat_purge_record_failure','community_chat_purge_health']) LOOP
+ FOR f IN SELECT p.oid::regprocedure sig FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace WHERE n.nspname='public' AND p.proname=ANY(ARRAY['community_chat_initialize','community_chat_rank','community_chat_role','community_chat_user_can_read','community_chat_readable_channels','community_channel_can_read','community_chat_actor','community_chat_done','community_chat_bump','community_chat_lock_members','community_chat_membership_revision','community_chat_grant_revision','community_channel_save','community_channel_delete','community_channel_reorder','community_channel_members_set','community_chat_message_projection','community_message_send','community_message_edit','community_message_delete','community_message_moderate','community_reaction_toggle','community_channel_read','community_channel_prefs_save','community_chat_messages','community_chat_state_read','community_chat_notify','community_chat_purge_channels','community_chat_purge_record_failure','community_chat_purge_health']) LOOP
  EXECUTE format('REVOKE ALL ON FUNCTION %s FROM PUBLIC,harvest_app',f.sig);
  END LOOP;
 END $$;
@@ -830,7 +839,7 @@ BEGIN
     SELECT jsonb_build_object('id', x.id, 'kind', x.kind, 'targetType', x.target_type, 'postId', x.post_id, 'actorName', u.name, 'count', x.actor_count,
         'detail', x.detail, 'read', x.read_at IS NOT NULL, 'createdAt', x.updated_at) AS j, x.updated_at AS at
       FROM public.community_notifications x LEFT JOIN public.users u ON u.id = x.actor_id
-      WHERE x.tenant_id = ctx.o_tenant AND x.community_id = ctx.o_community AND x.recipient_id = actor AND (x.kind NOT IN ('chat_mention','chat_reply') OR (public.community_chat_user_can_read(x.tenant_id,x.community_id,x.target_id::uuid,actor) AND NOT EXISTS(SELECT 1 FROM public.community_channel_reads cr WHERE cr.channel_id=x.target_id::uuid AND cr.user_id=actor AND cr.mute='all')))
+      WHERE x.tenant_id = ctx.o_tenant AND x.community_id = ctx.o_community AND x.recipient_id = actor AND (CASE WHEN x.kind IN ('chat_mention','chat_reply') THEN (public.community_chat_user_can_read(x.tenant_id,x.community_id,x.target_id::uuid,actor) AND NOT EXISTS(SELECT 1 FROM public.community_channel_reads cr WHERE cr.channel_id=x.target_id::uuid AND cr.user_id=actor AND cr.mute='all')) ELSE true END)
       ORDER BY x.updated_at DESC, x.id LIMIT v_limit),
   a AS (
     SELECT jsonb_build_object('id', 'announcement-' || p.id::text, 'kind', 'announcement', 'targetType', 'post', 'postId', p.id, 'actorName', u.name, 'count', 1,
@@ -895,7 +904,7 @@ BEGIN
        WHERE NOT mv.muted AND public.community_user_can_read(mv.tenant_id, mv.community_id, mv.user_id)
          AND EXISTS (SELECT 1 FROM public.community_notifications n
            WHERE n.tenant_id = mv.tenant_id AND n.community_id = mv.community_id AND n.recipient_id = mv.user_id AND n.read_at IS NULL
-             AND n.kind NOT IN ('application', 'warning', 'held_decision', 'appeal_decision','dm') AND (n.kind NOT IN ('chat_mention','chat_reply') OR (public.community_chat_user_can_read(n.tenant_id,n.community_id,n.target_id::uuid,n.recipient_id) AND NOT EXISTS(SELECT 1 FROM public.community_channel_reads cr WHERE cr.channel_id=n.target_id::uuid AND cr.user_id=n.recipient_id AND cr.mute='all'))) AND n.updated_at >= mv.since AND n.updated_at < v_end)
+             AND n.kind NOT IN ('application', 'warning', 'held_decision', 'appeal_decision','dm') AND (CASE WHEN n.kind IN ('chat_mention','chat_reply') THEN (public.community_chat_user_can_read(n.tenant_id,n.community_id,n.target_id::uuid,n.recipient_id) AND NOT EXISTS(SELECT 1 FROM public.community_channel_reads cr WHERE cr.channel_id=n.target_id::uuid AND cr.user_id=n.recipient_id AND cr.mute='all')) ELSE true END) AND n.updated_at >= mv.since AND n.updated_at < v_end)
       ON CONFLICT (idempotency_key) DO NOTHING RETURNING 1)
     SELECT count(*)::int INTO n FROM ins;
     queued := queued + n;
@@ -952,7 +961,7 @@ BEGIN
           n.updated_at AS at, count(*) OVER () AS total
         FROM public.community_notifications n LEFT JOIN public.users a ON a.id = n.actor_id LEFT JOIN public.community_posts p ON p.id = n.post_id
         WHERE n.tenant_id = r.tenant_id AND n.community_id = r.community_id AND n.recipient_id = r.recipient_id AND n.read_at IS NULL
-          AND n.kind NOT IN ('application', 'warning', 'held_decision', 'appeal_decision','dm') AND (n.kind NOT IN ('chat_mention','chat_reply') OR (public.community_chat_user_can_read(n.tenant_id,n.community_id,n.target_id::uuid,n.recipient_id) AND NOT EXISTS(SELECT 1 FROM public.community_channel_reads cr WHERE cr.channel_id=n.target_id::uuid AND cr.user_id=n.recipient_id AND cr.mute='all'))) AND n.updated_at >= r.window_start AND n.updated_at < r.window_end
+          AND n.kind NOT IN ('application', 'warning', 'held_decision', 'appeal_decision','dm') AND (CASE WHEN n.kind IN ('chat_mention','chat_reply') THEN (public.community_chat_user_can_read(n.tenant_id,n.community_id,n.target_id::uuid,n.recipient_id) AND NOT EXISTS(SELECT 1 FROM public.community_channel_reads cr WHERE cr.channel_id=n.target_id::uuid AND cr.user_id=n.recipient_id AND cr.mute='all')) ELSE true END) AND n.updated_at >= r.window_start AND n.updated_at < r.window_end
         ORDER BY n.updated_at DESC LIMIT 20) x;
     END IF;
     IF jsonb_array_length(v_items) = 0 THEN
@@ -991,7 +1000,9 @@ BEGIN
  PERFORM public.community_chat_lock_members(ctx.tenant_id,ctx.id);
  IF NOT coalesce(public.community_chat_can(public.community_chat_role(ctx.tenant_id,ctx.id,actor),'chat:manage_channels'),false) THEN RETURN public.community_chat_done('{"outcome":"forbidden"}'); END IF;
  IF p_enabled IS NULL OR p_policy IS NULL OR p_policy NOT IN ('channels_only','members') THEN RETURN public.community_chat_done('{"outcome":"invalid"}'); END IF;
+ PERFORM set_config('app.chat_settings','on',true);
  UPDATE public.communities SET chat_enabled=p_enabled,dm_policy=p_policy WHERE tenant_id=ctx.tenant_id AND id=ctx.id;
+ PERFORM set_config('app.chat_settings','',true);
  INSERT INTO public.audit_logs(tenant_id,actor_id,action,target_id,metadata) VALUES(ctx.tenant_id,actor,'community.chat.settings',ctx.id,jsonb_build_object('chatEnabled',p_enabled,'dmPolicy',p_policy));
  RETURN public.community_chat_done('{"outcome":"ok"}');
 EXCEPTION WHEN OTHERS THEN PERFORM public.community_definer_reset(); RAISE;
@@ -1001,7 +1012,7 @@ GRANT EXECUTE ON FUNCTION public.community_chat_settings_save(text,boolean,text)
 
 --> statement-breakpoint
 DO $$ BEGIN
- EXECUTE format($p$CREATE POLICY chat_settings_owner ON public.communities FOR UPDATE TO %I USING(tenant_id=nullif(current_setting('app.community_definer_tenant',true),'')::uuid) WITH CHECK(tenant_id=nullif(current_setting('app.community_definer_tenant',true),'')::uuid)$p$,current_user);
+ EXECUTE format($p$CREATE POLICY chat_settings_owner ON public.communities FOR UPDATE TO %I USING(current_setting('app.chat_settings',true)='on' AND tenant_id=nullif(current_setting('app.community_definer_tenant',true),'')::uuid) WITH CHECK(current_setting('app.chat_settings',true)='on' AND tenant_id=nullif(current_setting('app.community_definer_tenant',true),'')::uuid)$p$,current_user);
 END $$;
 
 --> statement-breakpoint

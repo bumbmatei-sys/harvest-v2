@@ -28,6 +28,20 @@ Synthetic local embedded Postgres, 12 concurrent authenticated writers, one mess
 
 This measures the required single-community write serialization and the extra same-channel serialization. It includes connection/query overhead and is not a throughput guarantee, production capacity estimate or Neon benchmark. The community state row remains a serialization point even across channels; reader-scoped pair hashing permits removing that bookkeeping counter in a later measured change if needed.
 
+## Independent-review fixes (follow-up commit on this branch)
+
+Migration 0057 was edited in place (unmerged, unapplied; journal `when` and snapshot unchanged, no table or column change).
+
+- **B1** `community_message_moderate('restore')` now also requires `deleted_at IS NOT NULL` and `deleted_kind = 'host'`. An owner/admin can no longer restore a message its author deleted (spec 10.2); the author restores their own deletion. Test: admin and owner restore of an author deletion return `forbidden` and the row stays deleted.
+- **S1** The ministry-wide `chat_staff` SELECT policies on channels, channel members, messages, reactions, channel reads and chat state now also require the caller to be a ministry owner or admin (`EXISTS` on `workspace_members`). A ministry viewer or plain ministry member without community membership reads nothing through `withTenant`; owner/admin still read. New test uses `withTenant` (the earlier `withUser` check passed vacuously).
+- **S2** `community_chat_messages` returns no `cursor` on `before` (history) pages, including an empty older page; only `since`/newest pages return one.
+- **S3** The rail state computes the caller role once per poll and filters channels with a new set-based `community_chat_readable_channels(tenant, community, user, role)` (one query for every channel, same predicate). The ETag inputs are unchanged. Measurement (function-call counters, `track_functions=all`, 8 channels, one `chatState` call, same for the 304 detector path since it runs the same read): before, `community_chat_role` 9 calls, `community_chat_user_can_read` 8, `community_user_can_read` 9 (26 function calls, several queries each); after, `community_chat_role` 1, `community_chat_readable_channels` 1, `community_user_can_read` 1 (3 calls). Local embedded Postgres only; not a production capacity claim.
+- **S4** `chat_settings_owner` (UPDATE on `communities` for the migration owner) is now keyed on its own setting `app.chat_settings = 'on'`, set only around the UPDATE inside `community_chat_settings_save` and cleared immediately after. Test: with only `app.community_definer_tenant` set, an owner-role UPDATE of `communities` affects 0 rows; with `app.chat_settings` it succeeds; the setting is empty after the definer returns.
+- Optional: notification list/email functions use `CASE WHEN kind IN (chat kinds) THEN ... ELSE true END` instead of relying on `OR` short-circuit before `target_id::uuid`; `community_message_edit` returns `muted` while the author is muted (consistent with send/react); the message projection's reactions carry `reactedByMe` (per reaction, for C11b).
+- Intended behaviour recorded: when a purged root is removed, its replies become top-level messages (unchanged).
+
+Verification of this follow-up: `community-chat` 30/30 (5 new; all 5 fail against the previous SQL), plus worker-role, worker-role-owner, joining-definer-owner and C15 notification/email suites (9 files, 83 tests) pass; tsc, eslint on the changed test and source guards pass; unit suite 1,098/1,099 locally, the one failure (`ui-provenance` tracked-file scan) is a git "dubious ownership" error of this sandbox user, not a code failure. Not run: build, browser tests, Neon check.
+
 ## Not verified / gates
 
 - Trusted-main Neon migration check is required after the draft head is available: automatic push run after merge, or founder/Claude workflow dispatch with `pr_number` and `expected_sha`. No production migrations (0031+) were applied.
