@@ -23,6 +23,7 @@ import { useEditorHosted } from "@/components/editor/editor-context";
 import { CommunityJoinCard } from "@/components/communities/join-card";
 import { CommunityLivePreview } from "@/components/communities/community-preview";
 import { BannedWordsEditor } from "@/components/communities/banned-words-editor";
+import { ChatChannelsEditor, type ChatSettings } from "@/components/communities/chat/chat-channels-editor";
 import { ForumCategoriesEditor, type ForumCategory } from "@/components/communities/forum-categories-editor";
 import { CommunityInvites, type CommunityInvite } from "@/components/communities/community-invites";
 import { Textarea } from "@/components/ui/textarea";
@@ -56,8 +57,8 @@ const fieldsOf = (c: EditableCommunity): Fields => ({ name: c.name, slug: c.slug
   holdFirstPosts: c.holdFirstPosts, bannedWords: c.bannedWords, welcomeMessage: c.welcomeMessage, introCategoryId: c.introCategoryId });
 const same = (a: Fields, b: Fields) => (Object.keys(a) as (keyof Fields)[]).every((key) => equal(a[key], b[key]));
 
-export function CommunityEditor({ initial, members, invites, applications, categories, endpoint, listHref, host, writable }: { initial: EditableCommunity; members: CommunityMember[]; invites: CommunityInvite[];
-  applications: ApplicationQueue | null; categories: ForumCategory[]; endpoint: string; listHref: string; host: string; writable: boolean }) {
+export function CommunityEditor({ initial, members, invites, applications, categories, chat, endpoint, listHref, host, writable }: { initial: EditableCommunity; members: CommunityMember[]; invites: CommunityInvite[];
+  applications: ApplicationQueue | null; categories: ForumCategory[]; chat?: ChatSettings | null; endpoint: string; listHref: string; host: string; writable: boolean }) {
   const t = useTranslations("CommunityEditor"), screens = useTranslations("CommunityScreens"), request = useCrmRequest();
   const [data, setData] = useState(initial), [fields, setFields] = useState(() => fieldsOf(initial));
   const [step, setStep] = useState<CommunityEditorStep>("basics");
@@ -182,7 +183,8 @@ export function CommunityEditor({ initial, members, invites, applications, categ
         <Card><CardHeader><CardTitle><h3 className="text-base font-semibold">{t("forumCategories")}</h3></CardTitle></CardHeader>
           <CardContent><ForumCategoriesEditor endpoint={endpoint} initial={categories} writable={writable} /></CardContent></Card>
         <Card><CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3"><CardTitle><h3 className="text-base font-semibold">{t("chatChannels")}</h3></CardTitle>
-          <Badge variant="secondary">{t("comingSoon")}</Badge></CardHeader></Card>
+          {!chat && <Badge variant="secondary">{t("comingSoon")}</Badge>}</CardHeader>
+          {chat && <CardContent><ChatChannelsEditor slug={data.slug} initial={chat} members={members} /></CardContent>}</Card>
       </>}
       {step === "people" && <Card><CardHeader><CardTitle><h3 className="text-base font-semibold">{t("moderationTitle")}</h3></CardTitle></CardHeader>
         <CardContent className="space-y-4">

@@ -1,14 +1,16 @@
 import { createHash } from "node:crypto";
-import { sql, type SQL } from "drizzle-orm";
+import { and, asc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
+import { communities, communityChannels, communityChannelMembers, communityMemberships } from "../db/schema";
+import type { ChatChannel, ChatChannelSetting, ChatHeld, ChatMessage } from "../lib/chat-view";
 import { channelInput, channelMutes, chatReactions, chatRevision, messageEditInput, messageInput, messagePollInput } from "../lib/chat";
 import { message } from "../i18n/messages";
 import { communitySlug } from "./communities";
 import { communitiesEnabled } from "./communities-mode";
 import { communityRoute } from "./community-route";
 import { AccessError } from "./permissions";
-import { withUser } from "./tenancy";
+import { withTenant, withUser } from "./tenancy";
 
 export function communityChatEnabled(env: Record<string, string | undefined> = process.env) {
   return env.NODE_ENV !== "production" && communitiesEnabled(env);
@@ -68,9 +70,9 @@ export function muteChatChannel(db: Database, user: string, slug: string, channe
   enabled(); const input = z.object({ mute: z.enum(channelMutes) }).strict().parse(raw);
   return call(db, user, sql`select public.community_channel_prefs_save(${communitySlug.parse(slug)},${z.uuid().parse(channel)}::uuid,${input.mute}) result`);
 }
-type State = ChatResult & { channels: { id: string; latestRev: string; unread: number; mentions: number; mute: string }[]; chatStateRev: string };
+type State = ChatResult & { channels: ChatChannel[]; chatStateRev: string };
 /** Reader identity + only readable channel pairs + own revision. No global counter enters the detector. */
-export function chatRailEtag(user: string, state: Pick<State, "channels" | "chatStateRev">) {
+export function chatRailEtag(user: string, state: { channels: readonly Pick<ChatChannel, "id" | "latestRev">[]; chatStateRev: string }) {
   const pairs = state.channels.map(c => [c.id, c.latestRev]).sort((a, b) => a[0].localeCompare(b[0]));
   return `W/"${createHash("sha256").update(JSON.stringify([user, pairs, state.chatStateRev])).digest("hex")}"`;
 }
@@ -81,7 +83,18 @@ export function chatState(db: Database, user: string, slug: string, ifNoneMatch?
     let state = await query(Boolean(ifNoneMatch));
     if (ifNoneMatch && chatRailEtag(user, state) === ifNoneMatch) return { notModified: true, etag: ifNoneMatch };
     if (ifNoneMatch) state = await query(false);
-    return { ...state, etag: chatRailEtag(user, state) };
+    const etag = chatRailEtag(user, state);
+    if (!state.channels.length) return { ...state, etag };
+    const options = await tx.select({ id: communityChannels.id, archivedAt: communityChannels.archivedAt, minRole: communityChannels.minRole })
+      .from(communityChannels).where(inArray(communityChannels.id, state.channels.map(channel => channel.id)));
+    const details = new Map(options.map(option => [option.id, option]));
+    const channels = state.channels.map(channel => {
+      const option = details.get(channel.id);
+      if (!option) return channel;
+      const minRole = channelInput.shape.minRole.safeParse(option.minRole);
+      return { ...channel, archived: Boolean(option.archivedAt), minRole: minRole.success ? minRole.data : undefined };
+    });
+    return { ...state, channels, etag };
   });
 }
 export function chatMessages(db: Database, user: string, slug: string, channel: string, raw: unknown, ifNoneMatch?: string | null) {
@@ -103,5 +116,70 @@ export function saveChatSettings(db: Database, user: string, slug: string, raw: 
 }
 
 export function chatModeration(db: Database, user: string, slug: string, source: "held" | "reports") {
-  return call(db,user,sql`select public.community_chat_moderation_read(${communitySlug.parse(slug)},${source}) result`);
+  return call(db,user,sql`select public.community_chat_moderation_read(${communitySlug.parse(slug)},${source}) result`) as Promise<ChatResult & { items: ChatHeld[] }>;
+}
+
+/** The editor already has a verified ministry and community scope. Staff RLS supplies draft/archived rows. */
+export function chatChannelSettings(db: Database, user: string, tenantId: string, communityId: string) {
+  enabled();
+  return withTenant(db, user, tenantId, "communities:manage", async (tx, tenant) => {
+    const scope = and(eq(communityChannels.tenantId, tenant), eq(communityChannels.communityId, communityId));
+    const [community] = await tx.select({ enabled: communities.chatEnabled, policy: communities.dmPolicy })
+      .from(communities).where(and(eq(communities.tenantId, tenant), eq(communities.id, communityId)));
+    if (!community) throw notFound();
+    const [membership] = await tx.select({ status: communityMemberships.status }).from(communityMemberships)
+      .where(and(eq(communityMemberships.tenantId, tenant), eq(communityMemberships.communityId, communityId), eq(communityMemberships.userId, user)));
+    if (membership && membership.status !== "active") throw notFound();
+    const channels = await tx.select({
+      id: communityChannels.id, name: communityChannels.name, emoji: communityChannels.emoji,
+      description: communityChannels.description, position: communityChannels.position, posting: communityChannels.posting,
+      accessMode: communityChannels.accessMode, minRole: communityChannels.minRole,
+      slowModeSeconds: communityChannels.slowModeSeconds, archived: sql<boolean>`${communityChannels.archivedAt} is not null`,
+    }).from(communityChannels).where(scope).orderBy(asc(communityChannels.position), asc(communityChannels.id));
+    const invites = await tx.select({ channelId: communityChannelMembers.channelId, userId: communityChannelMembers.userId })
+      .from(communityChannelMembers).where(and(eq(communityChannelMembers.tenantId, tenant), eq(communityChannelMembers.communityId, communityId)));
+    return { enabled: community.enabled, dmPolicy: community.policy === "members" ? "members" as const : "channels_only" as const,
+      channels: channels.map(({ id, ...channel }) => ({ id, ...channelInput.parse(channel),
+        userIds: invites.filter(invite => invite.channelId === id).map(invite => invite.userId) })) satisfies ChatChannelSetting[] };
+  });
+}
+
+/** Supplemental reads for pins and a thread root with its replies. Channel and message RLS both apply. */
+export function chatChannelSelection(db: Database, user: string, slug: string, channel: string, root: string | null, before: string | null) {
+  enabled();
+  const parsed = communitySlug.parse(slug), channelId = z.uuid().parse(channel);
+  const parent = root === null ? null : z.uuid().parse(root);
+  const cutoff = before === null ? null : chatRevision.parse(before);
+  return withUser(db, user, async tx => {
+    const scope = await tx.execute<{ id: string }>(sql`
+      select c.id from public.community_channels c
+      join public.communities k on k.tenant_id=c.tenant_id and k.id=c.community_id
+      where k.slug=${parsed} and c.id=${channelId}::uuid and c.archived_at is null
+    `);
+    if (!scope.rows.length) throw notFound();
+    const result = await tx.execute<ChatMessage>(sql`
+      select m.id, m.channel_id as "channelId", m.author_id as "authorId", u.name as "authorName",
+        m.client_id as "clientId", m.parent_id as "parentId", m.seq::text, m.rev::text, m.body,
+        m.mention_ids as "mentionIds",
+        coalesce((select jsonb_agg(jsonb_build_object('id', person.id, 'name', person.name))
+          from public.users person where person.id=any(m.mention_ids)), '[]') as mentions,
+        m.created_at::text as "createdAt", m.edited_at::text as "editedAt", m.deleted_at::text as "deletedAt",
+        m.deleted_kind as "deletedKind", m.held_at::text as "heldAt", m.pinned_at::text as "pinnedAt", m.reply_count as "replyCount",
+        coalesce((select jsonb_agg(jsonb_build_object('emoji', r.emoji, 'count', r.count, 'reactedByMe', r.mine))
+          from (select emoji, count(*) count, bool_or(user_id=${user}) mine
+            from public.community_message_reactions where message_id=m.id group by emoji) r), '[]') as reactions
+      from public.community_messages m
+      join public.community_channels c on c.id=m.channel_id
+      join public.communities k on k.tenant_id=c.tenant_id and k.id=c.community_id
+      left join public.users u on u.id=m.author_id
+      where k.slug=${parsed} and c.id=${channelId}::uuid and c.archived_at is null
+        and m.deleted_at is null
+        and ${parent ? sql`(m.id=${parent}::uuid or (m.parent_id=${parent}::uuid and (${cutoff}::bigint is null or m.seq<${cutoff}::bigint)))` : sql`m.pinned_at is not null and m.held_at is null`}
+      order by (m.id=${parent}::uuid) desc, m.seq desc limit ${parent ? 52 : 5}
+    `);
+    const rootRow = result.rows.find(row => row.id === parent);
+    const replies = result.rows.filter(row => row.id !== parent);
+    return { outcome: "ok", events: parent ? [...(rootRow ? [rootRow] : []), ...replies.slice(0, 50)] : replies,
+      hasMore: parent !== null && replies.length > 50 };
+  });
 }

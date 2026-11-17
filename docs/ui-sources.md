@@ -201,3 +201,16 @@ New dependencies (founder-approved 2026-11-16): [`react-hook-form`](https://gith
 ### Chart tokens
 
 `--chart-1` to `--chart-5` exist in every palette in `src/lib/theme-registry.ts` (light and dark) and map to `bg-chart-N` and friends in `globals.css`. Each meets 3:1 non-text contrast against that palette's `--surface-card` and `--surface` (unit-tested). The 12 future palettes are not represented in the registry yet and must supply the same five tokens. No chart library is installed.
+
+### Communities C11b chat
+
+The founder selected and supplied the UI source on 17 November 2026. The licence is settled as recorded in [the founder decisions](decisions/founder-decisions-2026-11.md). Public previews were checked on the same date. The premium registry returned HTTP 401 to plain curl, and the founder provided the two block sources directly.
+
+| Area | Source | Harvest files and adaptation |
+| --- | --- | --- |
+| Chat layout and composer | [`chat-ui10`](https://shadcnuikit.com/blocks/application-ui/chat-ui#chat-ui-10), premium | `chat-layout.tsx`, `chat-composer.tsx`. CommunityShell, responsive channel list and thread Sheet, shared InputGroup, Command and Popover. |
+| Channel rows | [`chat-ui4`](https://shadcnuikit.com/blocks/application-ui/chat-ui#chat-ui-4), premium | `channel-list.tsx`. Compact rows, selected state, unread counts and mention badges on Harvest Button and Badge. |
+| Bubbles | [`bubble1` through `bubble7`](https://shadcnuikit.com/components/bubble), free | `src/components/ui/bubble.tsx`. All seven registry entries contained the same primitive. Adapted muted and tinted variants to semantic tokens. |
+| Message scroller | [Studio Admin MIT copy at `c16e1af`](https://github.com/arhamkhnz/next-shadcn-admin-dashboard/blob/c16e1af271a1c522a01feb43074b32abfe114241/src/components/ui/message-scroller.tsx) | `src/components/ui/message-scroller.tsx`. Retains the MIT notice. The bundled premium wrapper was unavailable. It uses `@shadcn/react` 0.3.1 (MIT). |
+
+The editor uses its existing Channels step, MemberList and StickySaveBar. Moderation uses the existing DataTable and ReportDialog. NotificationBell stays in CommunityShell. The supplied layouts were converted to use the locale catalogue and theme tokens. Shared components render Harvest data and permissions.

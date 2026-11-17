@@ -8,7 +8,7 @@ import { users } from "../../src/db/schema";
 import { createWorkspace } from "../../src/server/workspaces";
 import { createCommunity } from "../../src/server/communities";
 import { withUser, withTenant } from "../../src/server/tenancy";
-import { chatState, chatMessages, saveChatChannel } from "../../src/server/community-chat";
+import { chatState, chatMessages, saveChatChannel, chatChannelSelection, chatChannelSettings } from "../../src/server/community-chat";
 vi.mock("server-only", () => ({}));
 let f: Awaited<ReturnType<typeof testDatabase>>, parallel: Pool, tenant: string, otherTenant: string, club: string, otherClub: string, general: string;
 const ids = ["owner", "admin", "mod", "contributor", "member", "second", "pending", "banned", "left", "removed", "outsider", "viewer", "other-owner", "other-member"];
@@ -465,4 +465,23 @@ it("blocks editing while muted, and flags the caller's own reactions", async () 
   expect((await invoke("second", "community_message_edit", [id, "Edited while muted", []])).outcome).toBe("muted");
   await f.admin.query("update community_memberships set muted_until=null where user_id='second' and community_id=$1", [club]);
   expect((await invoke("second", "community_message_edit", [id, "Edited after", []])).outcome).toBe("ok");
+});
+
+it("loads pins and replies through the same channel scope and limits editor details to its ministry", async () => {
+  await resetRates();
+  const restricted = await channel("Selection", { accessMode: "invite" });
+  const root = await messageId("owner", "Pinned history", restricted);
+  const message = await send("owner", "Reply history", restricted, root);
+  expect(message.outcome).toBe("ok");
+  expect((await invoke("owner", "community_message_moderate", [root, "pin"])).outcome).toBe("ok");
+  await expect(chatChannelSelection(f.db, "member", "chat-club", restricted, null, null)).rejects.toMatchObject({ status: 404 });
+  await expect(chatChannelSelection(f.db, "owner", "chat-other", restricted, root, null)).rejects.toMatchObject({ status: 404 });
+  expect((await invoke("owner", "community_channel_members_set", [restricted, ["member"]])).outcome).toBe("ok");
+  const pins = await chatChannelSelection(f.db, "member", "chat-club", restricted, null, null);
+  expect(pins.events.map(item => item.id)).toEqual([root]);
+  const thread = await chatChannelSelection(f.db, "member", "chat-club", restricted, root, null);
+  expect(thread.events.map(item => item.body)).toEqual(["Pinned history", "Reply history"]);
+  const settings = await chatChannelSettings(f.db, "owner", tenant, club);
+  expect(settings.channels.find(item => item.id === restricted)?.userIds).toEqual(["member"]);
+  await expect(chatChannelSettings(f.db, "other-owner", tenant, club)).rejects.toMatchObject({ status: 403 });
 });

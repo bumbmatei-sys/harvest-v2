@@ -15,7 +15,7 @@ import { withUser } from "./tenancy";
 // PR 4b (C09/C10): the member forum. Reads run in withUser through community_can_read (RLS); every write goes
 // through a definer in migration 0038, which re-checks membership, roles, hosts-only categories and switches.
 export type ForumContext = { id: string; tenantId: string; slug: string; name: string; description: string | null; rulesList: string[]; role: string;
-  canModerate: boolean; mutedUntil: Date | null; prefs: NotificationPrefs; notificationsSince: Date;
+  canModerate: boolean; chatEnabled: boolean; mutedUntil: Date | null; prefs: NotificationPrefs; notificationsSince: Date;
   welcome: { message: string | null; introCategoryId: string | null; dismissed: boolean }; categories: { id: string; name: string; emoji: string | null; hostsOnly: boolean }[] };
 
 const notFound = () => new AccessError(404, message("Errors.communityNotFound"));
@@ -27,7 +27,7 @@ async function context(tx: Transaction, userId: string, slug: string): Promise<F
   if (!parsed.success) return null;
   // communities_member: visible only through the caller's active membership.
   const [row] = await tx.select({ id: communities.id, tenantId: communities.tenantId, slug: communities.slug, name: communities.name, description: communities.description,
-    rulesList: communities.rulesList, status: communities.status, role: communityMemberships.role, mutedUntil: communityMemberships.mutedUntil,
+    rulesList: communities.rulesList, chatEnabled: communities.chatEnabled, status: communities.status, role: communityMemberships.role, mutedUntil: communityMemberships.mutedUntil,
     welcomeMessage: communities.welcomeMessage, introCategoryId: communities.introCategoryId, joinedAt: communityMemberships.joinedAt, rowCreatedAt: communityMemberships.createdAt,
     notifyReplies: communityMemberships.notifyReplies, notifyLikes: communityMemberships.notifyLikes, notifyAnnouncements: communityMemberships.notifyAnnouncements,
     notificationsMuted: communityMemberships.notificationsMuted, seenAt: communityMemberships.notificationsSeenAt, welcomeDismissedAt: communityMemberships.welcomeDismissedAt })
@@ -37,7 +37,7 @@ async function context(tx: Transaction, userId: string, slug: string): Promise<F
   const categories = await tx.select({ id: communityCategories.id, name: communityCategories.name, emoji: communityCategories.emoji, hostsOnly: communityCategories.hostsOnly })
     .from(communityCategories).where(eq(communityCategories.communityId, row.id)).orderBy(asc(communityCategories.position), asc(communityCategories.createdAt));
   return { id: row.id, tenantId: row.tenantId, slug: row.slug, name: row.name, description: row.description, rulesList: row.rulesList, role: row.role,
-    canModerate: communityCan(row.role, "community:moderate"), mutedUntil: row.mutedUntil && row.mutedUntil > new Date() ? row.mutedUntil : null,
+    canModerate: communityCan(row.role, "community:moderate"), chatEnabled: row.chatEnabled, mutedUntil: row.mutedUntil && row.mutedUntil > new Date() ? row.mutedUntil : null,
     prefs: { ...defaultPrefs, replies: row.notifyReplies, likes: row.notifyLikes, announcements: row.notifyAnnouncements, muted: row.notificationsMuted },
     notificationsSince: row.seenAt ?? row.joinedAt ?? row.rowCreatedAt,
     welcome: { message: row.welcomeMessage, introCategoryId: row.introCategoryId, dismissed: row.welcomeDismissedAt !== null }, categories };
