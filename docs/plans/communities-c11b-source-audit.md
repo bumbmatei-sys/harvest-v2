@@ -38,4 +38,4 @@ C11b still needs the adopted layout/pane/composer/rows, visibility-aware polling
 
 No runtime, browser or accessibility check is claimed for this documentation-only preparation. No screenshots exist yet. Required evidence remains multi-session chat and unread/mute/reconnect checks, axe, overflow and keyboard behavior, 44px targets, and light/dark screenshots at **360/768/1280** in `docs/screenshots/communities-c11b/`. Run the repository's required static/unit/integration/build checks after implementation. A separate fresh session must review the finished PR.
 
-The next gating input is the founder/Claude relay **“licence settled”**. Approved free primitives and the MIT fallback may be prepared while waiting; no premium block may land. No merge, deployment, production activation or HC-02 approval is requested or claimed.
+The next gating input is the founder's relay **“licence settled”**. Approved free primitives and the MIT fallback may be prepared while waiting; no premium block may land. No merge, deployment, production activation or HC-02 approval is requested or claimed.
