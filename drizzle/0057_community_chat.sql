@@ -506,7 +506,7 @@ BEGIN
  deleted_at=CASE WHEN p_action IN ('remove','reject') THEN coalesce(deleted_at,now()) WHEN p_action='restore' THEN NULL ELSE deleted_at END,
  deleted_by=CASE WHEN p_action IN ('remove','reject') THEN actor WHEN p_action='restore' THEN NULL ELSE deleted_by END,
  deleted_kind=CASE WHEN p_action IN ('remove','reject') THEN 'host' WHEN p_action='restore' THEN NULL ELSE deleted_kind END,
- purge_after=CASE WHEN p_action IN ('remove','reject') THEN now()+interval '30 days' WHEN p_action='restore' THEN NULL ELSE purge_after END,
+ purge_after=CASE WHEN p_action IN ('remove','reject') THEN coalesce(purge_after,now()+interval '30 days') WHEN p_action='restore' THEN NULL ELSE purge_after END,
  held_at=CASE WHEN p_action='approve' THEN NULL ELSE held_at END,held_reason=CASE WHEN p_action='approve' THEN NULL ELSE held_reason END WHERE id=p_id RETURNING * INTO m;
  INSERT INTO public.community_moderation_actions(tenant_id,community_id,actor_id,action,target_type,target_id,subject_user_id)
  VALUES(ctx.tenant,ctx.community,actor,CASE p_action WHEN 'approve' THEN 'held_approve' WHEN 'reject' THEN 'held_reject' ELSE 'message_'||p_action END,'message',p_id::text,m.author_id);

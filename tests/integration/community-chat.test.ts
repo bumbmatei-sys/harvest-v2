@@ -302,6 +302,13 @@ it("does not let an author convert a host removal into a recoverable author dele
   expect((await invoke("member", "community_message_delete", [id, false])).outcome).toBe("forbidden");
   expect((await invoke("member", "community_message_delete", [id, true])).outcome).toBe("forbidden");
   expect((await invoke("owner", "community_message_moderate", [id, "restore"])).outcome).toBe("ok");
+  await invoke("mod","community_message_moderate",[id,"remove"]);
+  await f.admin.query("update community_messages set purge_after=now()-interval '1 day' where id=$1",[id]);
+  const expired=(await f.admin.query("select purge_after::text at from community_messages where id=$1",[id])).rows[0].at;
+  expect((await invoke("owner","community_message_moderate",[id,"restore"])).outcome).toBe("forbidden");
+  expect((await invoke("mod","community_message_moderate",[id,"remove"])).outcome).toBe("ok");
+  expect((await f.admin.query("select purge_after::text at from community_messages where id=$1",[id])).rows[0].at).toBe(expired);
+  expect((await invoke("owner","community_message_moderate",[id,"restore"])).outcome).toBe("forbidden");
 });
 it("counts only visible thread replies and revises the root on delete, restore and hold approval", async () => {
   await resetRates(); const ch = await channel("Visible thread counts"), root = await messageId("second", "Root", ch);
