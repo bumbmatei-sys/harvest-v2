@@ -19,11 +19,11 @@ C11b uses the C11a schema and adds no migration. The member page and its API rem
 
 ## UI sources
 
-The founder supplied and selected `chat-ui10` for layout and composer and `chat-ui4` for rows on 17 November 2026. [Chat UI 10](https://shadcnuikit.com/blocks/application-ui/chat-ui#chat-ui-10) · [Chat UI 4](https://shadcnuikit.com/blocks/application-ui/chat-ui#chat-ui-4)
+Composed from Harvest shared components. The kit's chat blocks (`chat-ui10`, `chat-ui4`, `bubble1`–`bubble7`) were a layout reference only; no kit code is copied, and the bubble is reimplemented as a small component. **The exception to the use-kit rule for this screen was approved by the founder on 18 November 2026; the next screens (DMs, profile, events) adopt the real kit blocks from the start.** Earlier "derived from" headers were wrong and were replaced. See [UI provenance](../ui-sources.md).
 
-The shared bubble is the identical free primitive in `bubble1`–`bubble7`. The message-scroller wrapper uses the audited Studio Admin MIT source and its `@shadcn/react` primitive. See [UI provenance](../ui-sources.md#communities-c11b-chat).
+`@shadcn/react` ^0.3.1 (official, MIT, no runtime dependencies, sole consumer `ui/message-scroller.tsx`) was approved by the founder on 18 November 2026 and is listed in the third-party licences.
 
-The kit supplies presentation. CommunityShell, NotificationBell, ReportDialog, MemberList, StickySaveBar and the moderation DataTable continue to own their existing UI responsibilities.
+CommunityShell, NotificationBell, ReportDialog, MemberList, StickySaveBar and the moderation DataTable continue to own their existing UI responsibilities.
 
 ## Verification
 

@@ -1,4 +1,4 @@
-/** Derived from Shadcn UI Kit item chat-ui4 (premium), supplied and approved 2026-11-17. */
+/** Composed from Harvest shared components. The Shadcn UI Kit chat blocks were a layout reference only and no kit code is copied here. Exception to the use-kit rule approved by the founder on 18 November 2026 for this screen; the next screens (DMs, profile, events) adopt the real kit blocks from the start. See docs/ui-sources.md. */
 "use client";
 
 import { ArrowDown, ArrowUp, Archive, Hash, Lock, MoreVertical, Pencil, Plus, Trash2, VolumeX } from "lucide-react";

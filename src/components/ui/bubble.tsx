@@ -1,4 +1,4 @@
-/** Derived from Shadcn UI Kit item bubble1 (free). Shared by bubble1–bubble7. */
+/** Small Harvest component, reimplemented for chat (muted and tinted bubbles on semantic tokens). The kit bubble blocks were a reference only and no kit code is copied. Exception to the use-kit rule approved by the founder on 18 November 2026. See docs/ui-sources.md. */
 import type { ComponentProps } from "react";
 import { cn } from "@/lib/utils";
 

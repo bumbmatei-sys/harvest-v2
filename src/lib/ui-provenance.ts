@@ -19,7 +19,6 @@ export type KitItemRecord = {
   files: readonly string[];
 };
 
-const chatApproved = { registryRetrieved: "2026-11-17", installed: "2026-11-17", approvedBy: "founder", approvedOn: "2026-11-17" } as const;
 const approved = { registryRetrieved: "2026-11-16", installed: "2026-11-16", approvedBy: "founder", approvedOn: "2026-11-16" } as const;
 export const kitProvenance: readonly KitItemRecord[] = [
   { ...approved, item: "toast1", tier: "free", files: ["src/components/dev/kit-toast-example.tsx"],
@@ -56,12 +55,8 @@ export const kitProvenance: readonly KitItemRecord[] = [
     localChanges: "Visual reference only (Kit PR 5); no kit code copied. CopyButton (icon button, toast confirmation, 44px below 1024px) and ContactActions (email and phone as mailto and tel links with copy buttons in the person header) follow the kit's contact record. The record keeps RecordLayout, inline per-field editing and the permission-gated consent controls; the kit's whole-record edit mode, avatar upload and sample data are not used." },
   { ...approved, item: "todo-app6", tier: "premium", files: ["src/components/status-tracker.tsx", "src/components/crm/activity-timeline.tsx", "src/components/crm/tasks/task-rows.tsx"],
     localChanges: "Visual reference only (Kit PR 5); no kit code copied and no vaul drawer. StatusTracker is the kit's segmented step bar as a read-only component (used for a deal's stage progress). The activity timeline keeps its data, grouping, paging and note permissions and takes the kit's rail, right-aligned time, bordered note panel with icon actions and the grouped note composer (textarea with Add note in one frame; Ctrl or Cmd plus Enter hint as keys). Task rows keep the completion checkbox and dialog and show overdue and priority as StatusBadge. The kit's attachments, links, sample tasks and drawer are not used. kanban-board3 was an optional reference and the deal board is unchanged." },
-  { ...chatApproved, item: "chat-ui10", tier: "premium", files: ["src/components/communities/chat/chat-layout.tsx", "src/components/communities/chat/chat-composer.tsx"],
-    localChanges: "Founder supplied the premium source. Adopt the split panes, responsive navigation and InputGroup composer inside CommunityShell. Replace the contact panel with threads, wire the real channel data, and use catalogue copy and 44px targets." },
-  { ...chatApproved, item: "bubble1", tier: "free", files: ["src/components/ui/bubble.tsx"],
-    localChanges: "Shared primitive is identical across bubble1–7. Keep muted/tinted content and alignment with Harvest semantic tokens and text-only messages." },
-  { ...approved, item: "chat-ui4", tier: "premium", files: ["src/components/connect-admin/follow-up-timeline.tsx", "src/app/workspaces/[tenantId]/connect/follow-up/[caseId]/page.tsx", "src/components/communities/chat/channel-list.tsx"],
-    localChanges: "Visual reference only (Kit PR 6); no kit code copied, no @shadcn/react message scroller, drawer, sonner or sample data. The follow-up case detail takes the shared inbox's thread-and-side-panel layout: a case header with the state badge, a details panel, and an event timeline on a rail (opened, assigned, state changed) built only from the timestamps the case API returns. The kit's message composer, internal note, attachments and reactions are not used: the case holds no notes and no server contract exists for them. Layout composes Harvest's RecordGrid, Card, StatusTracker and StatusBadge. Not chosen: chat-ui5. The founder supplied the source on 17 November for the channel list, which adopts compact selected rows and unread indicators inside the existing Button and Badge." },
+  { ...approved, item: "chat-ui4", tier: "premium", files: ["src/components/connect-admin/follow-up-timeline.tsx", "src/app/workspaces/[tenantId]/connect/follow-up/[caseId]/page.tsx"],
+    localChanges: "Visual reference only (Kit PR 6); no kit code copied, no @shadcn/react message scroller, drawer, sonner or sample data. The follow-up case detail takes the shared inbox's thread-and-side-panel layout: a case header with the state badge, a details panel, and an event timeline on a rail (opened, assigned, state changed) built only from the timestamps the case API returns. The kit's message composer, internal note, attachments and reactions are not used: the case holds no notes and no server contract exists for them. Layout composes Harvest's RecordGrid, Card, StatusTracker and StatusBadge. Not chosen: chat-ui5." },
   { ...approved, item: "tables15", tier: "premium", files: ["src/components/connect-admin/follow-up-queue.tsx"],
     localChanges: "Visual reference only (Kit PR 6); no kit code copied and no TanStack Table. The follow-up queue is Harvest's DataTable shell (state tabs, cards on phones) with a state badge per row, the case reference and a link to the CRM contact. The kit's stage tabs with counts are kept as state tabs without counts (the case API returns no totals); the kit's row selection, bulk stage moves, search and client-side sorting are not used (no bulk server action exists, and paging is a server cursor). Not chosen: tables14." },
   { ...approved, item: "switch-card1", tier: "premium", files: ["src/components/permission-card.tsx"],
@@ -75,6 +70,17 @@ export const kitProvenance: readonly KitItemRecord[] = [
   { ...approved, item: "social-media-post1", tier: "premium", files: ["src/components/forum/post-card.tsx"],
     localChanges: "Visual reference only (Kit PR 7); no kit code copied, no remote avatar or image, no share, save or edit menu. Forum feed card: author mark, name and date in the header, optional cover above the title, excerpt, and a footer bar with replies and likes. Pinned, held, category and video markers are kept as badges. Likes, reporting and editing keep their existing controls and server checks. Not chosen: chat-ui3." },
 ];
+
+/**
+ * Layout references where no kit code was copied and the file carries no kit header (so they are not in `kitProvenance`).
+ * Communities C11b chat: exception to the use-kit rule approved by the founder on 18 November 2026 for this screen. Composed from
+ * Harvest shared components; bubble reimplemented as a small component. DMs, profile and events adopt the real kit blocks from the start.
+ */
+export const kitLayoutReferences = [
+  { item: "chat-ui10", tier: "premium", files: ["src/components/communities/chat/chat-layout.tsx", "src/components/communities/chat/chat-composer.tsx", "src/components/communities/chat/message-pane.tsx", "src/components/communities/chat/chat-message.tsx", "src/components/communities/chat/channel-sheet.tsx"] },
+  { item: "chat-ui4", tier: "premium", files: ["src/components/communities/chat/channel-list.tsx"] },
+  { item: "bubble1", tier: "free", files: ["src/components/ui/bubble.tsx"] },
+] as const;
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 /** Returns human-readable problems with a record; an empty array means valid. */
