@@ -1,5 +1,5 @@
 import { message } from "../i18n/messages";
-import { createHmac, hkdfSync, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import { getCurrentAuthEndpointContext } from "@better-auth/core/context";
 import { findInvalidTrustedProxies, getIPFromHeader } from "@better-auth/core/utils/ip";
 import { betterAuth } from "better-auth";
@@ -14,8 +14,9 @@ import { resolveLocale } from "../i18n/locale";
 import { withUser } from "./tenancy";
 import { sendSignInCode } from "./email";
 import { authOtpHooks } from "@/server/auth-otp-hooks";
+import { authOtpHash, authOtpKey, otpPolicy } from "./auth-otp-hash";
 
-export const otpPolicy = { digits: 6, expiresIn: 600, attempts: 5, cooldownSeconds: 60, codesPerHour: 5, codesPerDay: 20 } as const;
+export { otpPolicy };
 export function makeAuth(db: Database, config: {
   secret: string; baseURL: string; ipAddressHeaders?: string[]; trustedProxies?: string[];
 }) {
@@ -23,8 +24,8 @@ export function makeAuth(db: Database, config: {
   if (!ipAddress.ipAddressHeaders.length || findInvalidTrustedProxies(ipAddress.trustedProxies).length) {
     throw new Error(message("Errors.invalidTrustedClientIPConfiguration"));
   }
-  const otpKey = hkdfSync("sha256", config.secret, "Harvest", "sign-in-email-otp:v1", 32);
-  const otpBehavior = authOtpHooks();
+  const otpKey = authOtpKey(config.secret);
+  const otpBehavior = authOtpHooks(db);
   const auth = betterAuth({
     appName: "Harvest", secret: config.secret, baseURL: config.baseURL,
     database: drizzleAdapter(db, { provider: "pg", schema: authSchema, transaction: true }),
@@ -34,6 +35,11 @@ export function makeAuth(db: Database, config: {
     rateLimit: { enabled: true, storage: "database", window: 60, max: 30,
       customRules: { "/email-otp/send-verification-otp": { window: 60, max: 3 }, "/sign-in/email-otp": { window: 60, max: 10 } } },
     hooks: { before: createAuthMiddleware(async (ctx) => {
+      if (ctx.path === "/sign-in/email-otp") {
+        const email = z.email().safeParse(ctx.body?.email);
+        if (email.success) await otpBehavior.prepareVerification(email.data.toLowerCase());
+        return;
+      }
       if (ctx.path !== "/email-otp/send-verification-otp") return;
       // Better Auth normally logs and swallows delivery failures. This request-scoped
       // context awaits delivery so the UI can show a retryable error instead of success.
@@ -56,7 +62,7 @@ export function makeAuth(db: Database, config: {
             where t > now() - interval '24 hours') < ${otpPolicy.codesPerDay}
         returning sent_at`);
       if (!result.rowCount) throw new APIError("TOO_MANY_REQUESTS", { message: message("Errors.pleaseWaitBeforeRequestingAnotherCode60Seconds") });
-      otpBehavior.reserve(email, new Date(result.rows[0].sent_at as Date));
+      otpBehavior.reserve(email, new Date(result.rows[0].sent_at as Date), reservation);
       ctx.context.runInBackgroundOrAwait = async (promise) => {
         try { await promise; }
         catch (error) {
@@ -79,7 +85,7 @@ export function makeAuth(db: Database, config: {
       // Keyed hash also protects low-entropy codes from offline brute forcing after a DB leak.
       storeOTP: { hash: async (otp) => {
         const email = z.email().parse(getCurrentAuthEndpointContext().body?.email).toLowerCase();
-        return createHmac("sha256", otpKey).update(JSON.stringify([email, otp])).digest("hex");
+        return otpBehavior.storedHash(email, authOtpHash(otpKey, email, otp));
       } },
       async sendVerificationOTP({ email, otp, type }) {
         if (type !== "sign-in") throw new APIError("BAD_REQUEST", { message: message("Errors.onlySignInCodesAreSupported") });

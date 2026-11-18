@@ -32,5 +32,5 @@ export function qaSignInSecrets(env: Env) {
   const helperKey = env.QA_SIGN_IN_HELPER_SECRET;
   if (!key || !helperKey || !env.BETTER_AUTH_SECRET || key === helperKey ||
     key === env.BETTER_AUTH_SECRET || helperKey === env.BETTER_AUTH_SECRET) return null;
-  return { key, helperKey };
+  return { key, helperKey, authSecret: env.BETTER_AUTH_SECRET };
 }

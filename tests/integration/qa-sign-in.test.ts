@@ -71,3 +71,22 @@ it("checks reservation expiry and preserves the normal mail path for other addre
   vi.stubEnv("HARVEST_QA_SIGN_IN", undefined);
   expect((await read()).status).toBe(404);
 });
+
+it("hides an exhausted verification and refuses to pair an older code with a new reservation", async () => {
+  expect((await send(email)).status).toBe(200);
+  expect((await read()).status).toBe(200);
+  const { rows: [row] } = await fixture.admin.query("select value from verifications where identifier=$1", [`sign-in-otp-${email}`]);
+  await fixture.admin.query("update verifications set value=$2 where identifier=$1", [`sign-in-otp-${email}`, row.value.replace(/:0$/, ":5")]);
+  expect((await read()).status).toBe(404);
+  await fixture.admin.query("update verifications set value=$2 where identifier=$1", [`sign-in-otp-${email}`, row.value]);
+  await fixture.admin.query("update otp_cooldowns set reservation_id=gen_random_uuid() where email=$1", [email]);
+  expect((await read()).status).toBe(404);
+});
+
+it("invalidates an outstanding QA code when the gate is disabled", async () => {
+  expect((await send(email)).status).toBe(200);
+  const { code } = await (await read()).json();
+  vi.stubEnv("HARVEST_QA_SIGN_IN", undefined);
+  expect((await post("/sign-in/email-otp", { email, otp: code })).ok).toBe(false);
+  expect((await read()).status).toBe(404);
+});

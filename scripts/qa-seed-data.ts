@@ -95,6 +95,13 @@ export async function seedQaData(pool: Pool, reset: boolean) {
       const postIds = Array.from({ length: 10 }, (_, n) => id(`post-${index}-${n}`));
       const commentIds = Array.from({ length: 10 }, (_, n) => id(`reply-${index}-${n}`));
       if (reset) {
+        await client.query(`update public.entitlements set revoked_at=now()
+          where tenant_id=$1 and resource_type='community' and resource_id=$2 and user_id=$3
+            and source='application' and revoked_at is null`, [tenant, community, applicant]);
+        await client.query(`update public.community_memberships set status='pending', joined_at=null,
+          rules_version_accepted=null, join_answers=null, updated_at=now()
+          where tenant_id=$1 and community_id=$2 and user_id=$3 and role='member' and status='active'`, [tenant, community, applicant]);
+
         await client.query("delete from public.community_reports where tenant_id=$1 and community_id=$2 and id=$3 and reporter_id=$4", [tenant, community, report, reader]);
         await client.query("delete from public.community_applications where tenant_id=$1 and community_id=$2 and id=$3 and user_id=$4", [tenant, community, application, applicant]);
         await client.query("delete from public.community_comments where tenant_id=$1 and community_id=$2 and id=any($3::uuid[]) and author_id=$4", [tenant, community, commentIds, reader]);
