@@ -10,7 +10,7 @@ Migration **`0058_community_dm`** follows 0057 with journal timestamp `179540000
 
 ## Validation
 
-Focused author run passed 50 tests across the DM, channel chat and worker-role integration suites. The DM suite uses a restricted migration owner and exercises two ministries, participant reads, raw evidence denial through `withTenant`, staff demotion and re-engagement, idempotency, marks and mute, snapshots, expiry and worker grants.
+Local lint, typecheck, build and 1,120 unit tests passed. A focused author run passed 50 tests across the DM, channel chat and worker-role integration suites. The DM suite uses a restricted migration owner and exercises two ministries, participant reads, raw evidence denial through `withTenant`, staff demotion and re-engagement, idempotency, marks and mute, snapshots, expiry and worker grants. The ownership-transfer and invitation suites passed another 26 tests after the fixture was updated to move nested 0058 functions together.
 
 ## Activation gates
 
