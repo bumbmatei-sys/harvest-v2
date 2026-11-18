@@ -6,7 +6,9 @@ import { communities, communityChannels, communityChannelMembers, communityMembe
 import type { ChatChannel, ChatChannelSetting, ChatHeld, ChatMessage } from "../lib/chat-view";
 import { channelInput, channelMutes, chatReactions, chatRevision, messageEditInput, messageInput, messagePollInput } from "../lib/chat";
 import { message } from "../i18n/messages";
+import { communityCan } from "../lib/community-permissions";
 import { communitySlug } from "./communities";
+import { forumContextTx } from "./community-forum";
 import { communitiesEnabled } from "./communities-mode";
 import { communityRoute } from "./community-route";
 import { AccessError } from "./permissions";
@@ -141,6 +143,32 @@ export function chatChannelSettings(db: Database, user: string, tenantId: string
     return { enabled: community.enabled, dmPolicy: community.policy === "members" ? "members" as const : "channels_only" as const,
       channels: channels.map(({ id, ...channel }) => ({ id, ...channelInput.parse(channel),
         userIds: invites.filter(invite => invite.channelId === id).map(invite => invite.userId) })) satisfies ChatChannelSetting[] };
+  });
+}
+
+/**
+ * Channel settings for the chat screens, read under the caller's own row security (hosts see archived channels and
+ * invite lists). Callers must already hold `chat:manage_channels`; every write still goes through the routes, which
+ * the database authorizes again.
+ */
+export function chatManageSettings(db: Database, user: string, slug: string) {
+  enabled(); const parsed = communitySlug.parse(slug);
+  return withUser(db, user, async tx => {
+    const member = await forumContextTx(tx, user, parsed);
+    if (!member) throw notFound();
+    if (!communityCan(member.role, "chat:manage_channels")) throw new AccessError(403, message("Errors.forumActionNotAllowed"));
+    const community = { tenant: member.tenantId, id: member.id };
+    const scope = and(eq(communityChannels.tenantId, community.tenant), eq(communityChannels.communityId, community.id));
+    const rows = await tx.select({
+      id: communityChannels.id, name: communityChannels.name, emoji: communityChannels.emoji,
+      description: communityChannels.description, position: communityChannels.position, posting: communityChannels.posting,
+      accessMode: communityChannels.accessMode, minRole: communityChannels.minRole,
+      slowModeSeconds: communityChannels.slowModeSeconds, archived: sql<boolean>`${communityChannels.archivedAt} is not null`,
+    }).from(communityChannels).where(scope).orderBy(asc(communityChannels.position), asc(communityChannels.id));
+    const invites = await tx.select({ channelId: communityChannelMembers.channelId, userId: communityChannelMembers.userId })
+      .from(communityChannelMembers).where(and(eq(communityChannelMembers.tenantId, community.tenant), eq(communityChannelMembers.communityId, community.id)));
+    return rows.map(({ id, ...channel }) => ({ id, ...channelInput.parse(channel),
+      userIds: invites.filter(invite => invite.channelId === id).map(invite => invite.userId) })) satisfies ChatChannelSetting[];
   });
 }
 

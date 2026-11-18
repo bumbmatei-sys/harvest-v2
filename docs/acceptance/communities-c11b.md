@@ -10,6 +10,13 @@ C11b uses the C11a schema and adds no migration. The member page and its API rem
 - The editor's existing Channels step uses StickySaveBar and MemberList to manage access, invitations, posting, slow mode, order and archive. The Moderation page adds Chat sources for reports and held messages.
 - The extra selection endpoint reads pins and thread history under user and channel RLS. Channel settings reads use the existing ministry permission check. All writes still go through the C11a definers.
 
+## Founder feedback round (18 Nov): composer, phone full screen, channel administration
+
+- Composer: starts as one 44px line, grows to four lines (100px), then scrolls. Send and mention targets are 44px. Helper `src/lib/chat-composer-size.ts` (unit tested); the field also uses native `field-sizing` where available.
+- Phone (below `md`): the chat page hides the community header and bottom bar through `CommunityShell` `chatView`, fills `100dvh` with top safe-area padding, pads the composer by the bottom safe-area inset and sets `interactiveWidget: resizes-content` so the keyboard resizes the page. The channel list is a full-screen view with a back link to the community; a channel is a separate full-screen view with a back arrow; the thread opens as a full-width sheet. Tablet and desktop keep the rail, header and two-pane layout. Phone is read as below the shell's own `md` (768px) breakpoint; the bottom bar already exists only there.
+- Channel administration from the chat (owner, admin: `chat:manage_channels`): **New channel** in the channel list; a 44px options menu per channel with Edit, Move up/down, Archive and Delete. Edit and New reuse one `ChannelSheet`, now shared with the editor's Channels step. Server support: `PUT /channels/:id` (edit, archive), `DELETE /channels/:id` (removes an empty channel, archives one that has messages), `PUT /channels/reorder`. A new `GET /settings` returns full channel settings (slow mode, invite lists) for managers only (403 otherwise); the chat page and the edit action use it. Controls are not rendered for other roles.
+- Not verified in this environment: browsers cannot run here and `@shadcn/react` is not installed, so the new e2e cases, axe runs and the new/updated screenshots (`admin-*` and refreshed chat captures) were not produced; CI must run them. Reviewed by reading only.
+
 ## UI sources
 
 The founder supplied and selected `chat-ui10` for layout and composer and `chat-ui4` for rows on 17 November 2026. [Chat UI 10](https://shadcnuikit.com/blocks/application-ui/chat-ui#chat-ui-10) · [Chat UI 4](https://shadcnuikit.com/blocks/application-ui/chat-ui#chat-ui-4)

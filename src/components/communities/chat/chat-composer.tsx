@@ -1,7 +1,7 @@
 /** Derived from Shadcn UI Kit item chat-ui10 (premium), supplied and approved 2026-11-17. */
 "use client";
 
-import { useId, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 import { AtSign, Send } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -9,6 +9,7 @@ import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@
 import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@/components/ui/input-group";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { chatBody } from "@/lib/chat";
+import { composerHeight } from "@/lib/chat-composer-size";
 import type { ChatPerson } from "@/lib/chat-view";
 
 export type ChatDraft = { text: string; mentions: ChatPerson[] };
@@ -39,6 +40,14 @@ export function ChatComposer({ draft, onChange, onSend, onCancel, busy, blocked,
 }) {
   const t = useTranslations("CommunityChat"), id = useId();
   const [picker, setPicker] = useState(false);
+  const field = useRef<HTMLTextAreaElement>(null);
+  // Start at one line and grow with the text. field-sizing does this natively where supported; this covers the rest.
+  useLayoutEffect(() => {
+    const element = field.current;
+    if (!element) return;
+    element.style.height = "auto";
+    element.style.height = `${composerHeight(element.scrollHeight)}px`;
+  }, [draft.text]);
   const label = t(mode === "edit" ? "editMessage" : mode === "reply" ? "reply" : "message");
   const valid = chatBody.safeParse(chatDraftPayload(draft).body).success;
   const disabled = blocked || busy || !valid;
@@ -49,11 +58,11 @@ export function ChatComposer({ draft, onChange, onSend, onCancel, busy, blocked,
     onChange({ text: `${prefix}@${person.name} `, mentions: [...mentions, person] });
     setPicker(false);
   }
-  return <form className="min-w-0 shrink-0 space-y-1 p-3 pt-1 md:px-4" onSubmit={event => { event.preventDefault(); if (!disabled) onSend(); }}>
+  return <form className="min-w-0 shrink-0 px-3 pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:px-4" onSubmit={event => { event.preventDefault(); if (!disabled) onSend(); }}>
     <label className="sr-only" htmlFor={id}>{label}</label>
-    <InputGroup className="rounded-2xl">
-      <InputGroupTextarea id={id} value={draft.text} className="min-h-16" maxLength={2000} disabled={blocked || busy}
-        rows={2} placeholder={label} onChange={event => {
+    <InputGroup className="items-end rounded-2xl">
+      <InputGroupTextarea ref={field} id={id} value={draft.text} className="max-h-25 min-h-11 py-2.5 text-base leading-5" maxLength={2000} disabled={blocked || busy}
+        rows={1} placeholder={label} onChange={event => {
           const text = event.target.value;
           onChange({ ...draft, text });
           if (members.length && draft.mentions.length < 10 && /(^|\s)@$/.test(text)) setPicker(true);
@@ -64,7 +73,7 @@ export function ChatComposer({ draft, onChange, onSend, onCancel, busy, blocked,
             if (!disabled) onSend();
           }
         }} />
-      <InputGroupAddon align="block-end" className="gap-0.5">
+      <InputGroupAddon align="inline-end" className="gap-0.5 py-0 pr-0.5">
         <Popover open={picker} onOpenChange={setPicker}>
           <PopoverTrigger asChild><InputGroupButton type="button" className="size-11" aria-label={t("mention")}
             disabled={blocked || busy || !members.length || draft.mentions.length >= 10}><AtSign aria-hidden="true" /></InputGroupButton></PopoverTrigger>
@@ -78,7 +87,7 @@ export function ChatComposer({ draft, onChange, onSend, onCancel, busy, blocked,
           </PopoverContent>
         </Popover>
         {onCancel && <Button type="button" variant="ghost" className="min-h-11" onClick={onCancel}>{t("cancel")}</Button>}
-        <InputGroupButton type="submit" variant="default" className="ml-auto size-11" disabled={disabled}
+        <InputGroupButton type="submit" variant="default" className="size-11" disabled={disabled}
           aria-label={t(mode === "edit" ? "saveEdit" : "send")}><Send aria-hidden="true" /></InputGroupButton>
       </InputGroupAddon>
     </InputGroup>
