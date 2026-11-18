@@ -29,3 +29,26 @@ it("the command requires the worker-only URL and refuses an application login", 
   expect(JSON.parse((await run(process.execPath, script, { env: worker })).stdout)).toMatchObject({ ok: true });
   expect(JSON.parse((await run(process.execPath, [...script, "check"], { env: worker })).stdout)).toMatchObject({ healthy: true });
 });
+
+it("does not publish the channel success while another installed lane is failing", async () => {
+  const count = async () => (await db.admin.query(
+    "select count(*)::int n from public.community_chat_purge_runs where status='ok'")).rows[0].n;
+  const before = await count();
+  const faulted = {
+    query: db.workerPool.query.bind(db.workerPool),
+    async connect() {
+      const connection = await db.workerPool.connect();
+      return {
+        release: connection.release.bind(connection),
+        async query(statement: string, values?: number[] | string[]) {
+          if (statement.startsWith("select to_regprocedure")) return { rows: [{ available: true }] };
+          if (statement.startsWith("select public.community_chat_purge_dm")) throw new Error("synthetic interrupted DM lane");
+          return connection.query(statement, values);
+        },
+      };
+    },
+  };
+  expect(await runChatPurgeJob(faulted)).toEqual({ ok: false });
+  expect(await count()).toBe(before);
+  expect(await chatPurgeHealth(db.workerPool)).toMatchObject({ healthy: false });
+});

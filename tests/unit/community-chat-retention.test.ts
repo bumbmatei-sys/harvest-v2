@@ -24,11 +24,16 @@ it("runs both lanes and counts reminders and report expiry as work", async () =>
 });
 
 it("records a DM permission failure and does not treat it as a missing migration", async () => {
-  const query = vi.fn().mockResolvedValueOnce(response({ available: true }))
-    .mockResolvedValueOnce(response({ result: { deleted: 0 } }))
-    .mockRejectedValueOnce(new Error("permission denied")).mockResolvedValueOnce(response({}));
-  expect(await runChatPurgeJob({ query })).toEqual({ ok: false });
+  const worker = vi.fn().mockResolvedValueOnce(response({})).mockResolvedValueOnce(response({ available: true }))
+    .mockResolvedValueOnce(response({ result: { deleted: 0 } })).mockRejectedValueOnce(new Error("permission denied"))
+    .mockResolvedValueOnce(response({}));
+  const query = vi.fn().mockResolvedValue(response({}));
+  const release = vi.fn();
+  expect(await runChatPurgeJob({ query, connect: async () => ({ query: worker, release }) })).toEqual({ ok: false });
+  expect(worker).toHaveBeenLastCalledWith("rollback");
+  expect(worker).not.toHaveBeenCalledWith("commit");
   expect(query).toHaveBeenLastCalledWith("select public.community_chat_purge_record_failure($1)", ["sweep_failed"]);
+  expect(release).toHaveBeenCalledWith(false);
 });
 
 it("exposes failed or overdue health, returning only documented fields", async () => {
@@ -39,8 +44,11 @@ it("exposes failed or overdue health, returning only documented fields", async (
 });
 
 it("reports a failure if a lane returns an invalid count even when the failure logger is unavailable", async () => {
-  const query = vi.fn().mockResolvedValueOnce(response({ available: false }))
+  const worker = vi.fn().mockResolvedValueOnce(response({})).mockResolvedValueOnce(response({ available: false }))
     .mockResolvedValueOnce(response({ result: { deleted: -1 } })).mockRejectedValueOnce(new Error());
-  expect(await runChatPurgeJob({ query })).toEqual({ ok: false });
-  expect(query).toHaveBeenCalledTimes(3);
+  const query = vi.fn().mockRejectedValue(new Error());
+  const release = vi.fn();
+  expect(await runChatPurgeJob({ query, connect: async () => ({ query: worker, release }) })).toEqual({ ok: false });
+  expect(release).toHaveBeenCalledWith(true);
+  expect(query).toHaveBeenCalledTimes(1);
 });

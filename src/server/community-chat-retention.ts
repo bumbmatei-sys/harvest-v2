@@ -1,5 +1,7 @@
 type Queryable = { query: (statement: string, values?: number[] | string[]) => Promise<{ rows: Record<string, unknown>[] }> };
 
+type WorkerPool = Queryable & { connect(): Promise<Queryable & { release(error?: boolean): void }> };
+
 type Counts = Record<string, number>;
 const channelFields = ["deleted"] as const;
 const dmFields = ["deleted", "conversations", "evidence", "expired", "reminded"] as const;
@@ -37,10 +39,22 @@ export async function runChatPurge(pool: Queryable, { batch = 200, maxBatches = 
   return { channels, dm };
 }
 
-/** Each sweep is a standalone statement. Log a rolled-back failure in a fresh statement. */
-export async function runChatPurgeJob(pool: Queryable, options: Options = {}) {
+/** Commit the successful lane records together. A stopped worker rolls the whole run back. */
+export async function runChatPurgeJob(pool: WorkerPool, options: Options = {}) {
   try {
-    return { ok: true as const, ...(await runChatPurge(pool, options)) };
+    const client = await pool.connect();
+    let discard = false;
+    try {
+      await client.query("begin");
+      const result = await runChatPurge(client, options);
+      await client.query("commit");
+      return { ok: true as const, ...result };
+    } catch (error) {
+      await client.query("rollback").catch(() => { discard = true; });
+      throw error;
+    } finally {
+      client.release(discard);
+    }
   } catch {
     await pool.query("select public.community_chat_purge_record_failure($1)", ["sweep_failed"]).catch(() => undefined);
     return { ok: false as const };
