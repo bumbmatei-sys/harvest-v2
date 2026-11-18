@@ -68,20 +68,25 @@ export function muteChatChannel(db: Database, user: string, slug: string, channe
   enabled(); const input = z.object({ mute: z.enum(channelMutes) }).strict().parse(raw);
   return call(db, user, sql`select public.community_channel_prefs_save(${communitySlug.parse(slug)},${z.uuid().parse(channel)}::uuid,${input.mute}) result`);
 }
+type DmRail = { token: string; latestRev: string; unreadConversations: number };
 type State = ChatResult & { channels: { id: string; latestRev: string; unread: number; mentions: number; mute: string }[]; chatStateRev: string };
 /** Reader identity + only readable channel pairs + own revision. No global counter enters the detector. */
-export function chatRailEtag(user: string, state: Pick<State, "channels" | "chatStateRev">) {
+export function chatRailEtag(user: string, state: Pick<State, "channels" | "chatStateRev"> & { dmToken?: string }) {
   const pairs = state.channels.map(c => [c.id, c.latestRev]).sort((a, b) => a[0].localeCompare(b[0]));
-  return `W/"${createHash("sha256").update(JSON.stringify([user, pairs, state.chatStateRev])).digest("hex")}"`;
+  return `W/"${createHash("sha256").update(JSON.stringify([user, pairs, state.chatStateRev, state.dmToken ?? ""])).digest("hex")}"`;
 }
 export function chatState(db: Database, user: string, slug: string, ifNoneMatch?: string | null) {
   enabled(); const parsed = communitySlug.parse(slug);
   return withUser(db, user, async tx => {
-    const query = (detector: boolean) => execute<State>(tx, sql`select public.community_chat_state_read(${parsed},${detector}) result`);
-    let state = await query(Boolean(ifNoneMatch));
-    if (ifNoneMatch && chatRailEtag(user, state) === ifNoneMatch) return { notModified: true, etag: ifNoneMatch };
-    if (ifNoneMatch) state = await query(false);
-    return { ...state, etag: chatRailEtag(user, state) };
+    async function query(detector: boolean) {
+      const state = await execute<State>(tx, sql`select public.community_chat_state_read(${parsed},${detector}) result`);
+      const { rows: [{ dm }] } = await tx.execute<{ dm: DmRail }>(sql`select public.community_dm_rail(${parsed},${detector}) dm`);
+      return { state, dm, etag: chatRailEtag(user, { ...state, dmToken: dm.token }) };
+    }
+    let result = await query(Boolean(ifNoneMatch));
+    if (ifNoneMatch && result.etag === ifNoneMatch) return { notModified: true, etag: ifNoneMatch };
+    if (ifNoneMatch) result = await query(false);
+    return { ...result.state, dm: { latestRev: result.dm.latestRev, unreadConversations: result.dm.unreadConversations }, etag: result.etag };
   });
 }
 export function chatMessages(db: Database, user: string, slug: string, channel: string, raw: unknown, ifNoneMatch?: string | null) {

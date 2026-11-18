@@ -16,6 +16,7 @@ const workerFunctions = [
   ["public.connect_retention_sweep(integer)", "select public.connect_retention_sweep(1)"],
   ["public.connect_retention_record_failure(text)", "select public.connect_retention_record_failure('sweep_failed')"],
   ["public.connect_retention_health()", "select public.connect_retention_health()"],
+  ["public.community_chat_purge_dm(integer)", "select public.community_chat_purge_dm(1)"],
   ["public.community_chat_purge_channels(integer)", "select public.community_chat_purge_channels(1)"],
   ["public.community_chat_purge_record_failure(text)", "select public.community_chat_purge_record_failure('sweep_failed')"],
   ["public.community_chat_purge_health()", "select public.community_chat_purge_health()"],
@@ -33,14 +34,14 @@ it("is provisioned as an unprivileged login that is not the application role", a
   expect((await f.workerPool.query("select current_user as u")).rows[0].u).toBe("harvest_worker");
 });
 
-it("lets the worker role call the worker functions from 0044 and 0057", async () => {
+it("lets the worker role call the worker functions from 0044, 0057 and 0058", async () => {
   for (const [signature, call] of workerFunctions) {
     expect((await f.admin.query("select has_function_privilege('harvest_worker', $1, 'execute') as ok", [signature])).rows[0].ok, signature).toBe(true);
     await expect(f.workerPool.query(call), signature).resolves.toBeDefined();
   }
 });
 
-it("denies the application role the worker functions from 0044 and 0057 (permission denied)", async () => {
+it("denies the application role the worker functions from 0044, 0057 and 0058 (permission denied)", async () => {
   for (const [signature, call] of workerFunctions) {
     expect((await f.admin.query("select has_function_privilege('harvest_app', $1, 'execute') as ok", [signature])).rows[0].ok, signature).toBe(false);
     await expect(f.pool.query(call), signature).rejects.toMatchObject({ code: "42501" });

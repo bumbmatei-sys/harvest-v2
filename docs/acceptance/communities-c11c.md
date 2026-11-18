@@ -1,0 +1,17 @@
+# Communities C11c private messages server
+
+Migration **`0058_community_dm`** follows 0057 with journal timestamp `1795400000006`. The server slice follows the [C11 design](../superpowers/specs/2026-11-17-communities-c11-chat-design.md). The gated endpoints use the existing Communities authentication and origin checks and return 404 before authentication in production.
+
+- Private conversations, participant preferences, messages and community-scoped blocks use participant and blocker policies. New tables force RLS. The app has zero table privileges on evidence.
+- Sending is find-or-create by pair. Current owner/admin rank controls staff engagement. A member can reply to the current engaging host while policy is off or while muted. Both directions refuse a blocked pair with the same generic outcome. Send and edit windows, hourly and daily conversation caps, and the unanswered cap run inside the database.
+- Polling uses committed conversation revisions and exact page cursors. Personal revisions and the participant-only rail detector change without changing the shared channel revision. Grouped DM notifications hold no message text, respect both mute controls and leave email delivery off.
+- A report stores the target plus at most five visible predecessors. A non-party owner/admin can open it, identifying the reporter, or decide it. Moderators get reason and note through the report queue. Review routing includes ministry owner/admin capability. A report with no eligible reviewer is marked for escalation. Every evidence open is audited. The DM decision records the outcome and leaves original messages participant-owned.
+- The worker can purge expired deletions, empty hidden conversations and expired snapshots. It sends in-app reviewer reminders at 14 and 45 days and closes open reports at 90 days. Decided evidence expires at 180 days. Evidence on an expired report expires 30 days after closure. Worker output is counts only.
+
+## Validation
+
+Focused author run passed 50 tests across the DM, channel chat and worker-role integration suites. The DM suite uses a restricted migration owner and exercises two ministries, participant reads, raw evidence denial through `withTenant`, staff demotion and re-engagement, idempotency, marks and mute, snapshots, expiry and worker grants.
+
+## Activation gates
+
+All five HC-02 decisions remain **UNAPPROVED**. This slice is server only. The member-facing setting, notification notice, message list, channel block collapse and report UI need a later explicitly scoped UI change. The scheduler and account-erasure hook are separate. Production and trusted-main Neon verification are pending. Evidence retention and escalation policy still require legal and founder review before activation.
