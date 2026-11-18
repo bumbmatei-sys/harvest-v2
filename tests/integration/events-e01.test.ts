@@ -56,7 +56,7 @@ async function create({ circle = community, times }: { circle?: string; times?: 
   expect(await transitionEvent(fixture.db, "event-owner", tenant, id, { action: "publish", version: 1 })).toMatchObject({ status: "published", version: 2 });
   return id;
 }
-const rsvp = (actor: string, id: string, state = "going") => rsvpEvent(fixture.db, actor, tenant, id, { state });
+const rsvp = (actor: string, id: string, state = "going", expectedVersion = 0) => rsvpEvent(fixture.db, actor, tenant, id, { state, expectedVersion });
 const summary = (actor: string, id: string) => getEvent(fixture.db, actor, tenant, id);
 const missing = { status: 404 };
 
@@ -88,14 +88,14 @@ it("locks a single remaining place, deduplicates retries and rejects stale updat
   // Each RSVP must use a different physical connection to exercise the event row lock.
   const pool = new Pool({ connectionString: fixture.appURL, max: 2 });
   const parallel = drizzle(pool, { schema });
-  const entries = await Promise.all(["reader-a", "reader-b"].map(user => rsvpEvent(parallel, user, tenant, id, { state: "going" })))
+  const entries = await Promise.all(["reader-a", "reader-b"].map(user => rsvpEvent(parallel, user, tenant, id, { state: "going", expectedVersion: 0 })))
     .finally(() => pool.end());
   expect(entries.map(entry => entry.outcome).sort()).toEqual(["full", "ok"]);
   const winner = entries[0].outcome === "ok" ? "reader-a" : "reader-b";
   const loser = winner === "reader-a" ? "reader-b" : "reader-a";
   expect(await rsvp(winner, id)).toMatchObject({ outcome: "ok", event: { available: 0, rsvp: "going" } });
   expect(await rsvp(loser, id, "maybe")).toMatchObject({ outcome: "ok", event: { available: 0, rsvp: "maybe" } });
-  expect(await rsvp(loser, id)).toEqual({ outcome: "full" });
+  expect(await rsvp(loser, id, "going", 1)).toEqual({ outcome: "full" });
   expect(await summary(loser, id)).toMatchObject({ rsvp: "maybe" });
   await expect(saveEvent(fixture.db, "event-owner", tenant, id, { ...input(), version: 1 })).rejects.toMatchObject({ status: 409 });
   expect(await eventRoster(fixture.db, "event-owner", tenant, id, null)).toHaveLength(2);
@@ -151,7 +151,7 @@ it("rechecks eligibility after waiting for a concurrent ban and preserves capaci
   try {
     await writes.query("begin");
     await writes.query("update community_memberships set status='banned' where community_id=$1 and user_id='reader-a'", [community]);
-    const pending = rsvpEvent(parallel, "reader-a", tenant, id, { state: "going" });
+    const pending = rsvpEvent(parallel, "reader-a", tenant, id, { state: "going", expectedVersion: 0 });
     // Observe the actual database wait instead of assuming request timing.
     let blocked = false;
     const deadline = Date.now() + 3000;
@@ -170,4 +170,31 @@ it("rechecks eligibility after waiting for a concurrent ban and preserves capaci
     writes.release();
     await pool.end();
   }
+});
+
+it("keeps never-published cancellations private and rejects a stale RSVP retry", async () => {
+  const draft = randomUUID();
+  await saveEvent(fixture.db, "event-owner", tenant, draft, input());
+  await attach(draft, community);
+  await admission(community, "reader-a");
+  await transitionEvent(fixture.db, "event-owner", tenant, draft, { action: "cancel", version: 1 });
+  await expect(summary("reader-a", draft)).rejects.toMatchObject(missing);
+  const id = await create();
+  expect(await rsvp("reader-a", id)).toMatchObject({ event: { rsvpVersion: 1 } });
+  expect(await rsvp("reader-a", id, "not_going", 1)).toMatchObject({ event: { rsvpVersion: 2 } });
+  await expect(rsvp("reader-a", id, "going", 0)).rejects.toMatchObject({ status: 409 });
+  expect(await summary("reader-a", id)).toMatchObject({ rsvp: "not_going", available: 1 });
+});
+
+it("does not revive a released reservation when a community is republished", async () => {
+  const id = await create();
+  await attach(id, backup);
+  await admission(community, "reader-a");
+  await admission(backup, "reader-b");
+  expect((await rsvp("reader-a", id)).outcome).toBe("ok");
+  await fixture.admin.query("update communities set status='draft' where id=$1", [community]);
+  expect((await rsvp("reader-b", id)).outcome).toBe("ok");
+  await fixture.admin.query("update communities set status='published' where id=$1", [community]);
+  expect(await summary("reader-a", id)).toMatchObject({ available: 0, rsvp: null, rsvpVersion: 1 });
+  expect(await summary("reader-b", id)).toMatchObject({ available: 0, rsvp: "going" });
 });

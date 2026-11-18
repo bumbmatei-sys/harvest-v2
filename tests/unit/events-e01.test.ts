@@ -22,6 +22,7 @@ it("folds UTF-8 calendar lines and keeps a stable UID with versioned cancellatio
   const ics = eventCalendarFile(event, "tenant-1");
   expect(ics.split("\r\n").every(line => Buffer.byteLength(line) <= 75)).toBe(true);
   expect(ics).toContain("UID:event-1.tenant-1@events.harvest");
+  expect(ics).toContain("ORGANIZER:mailto:events@harvest.invalid");
   expect(ics).toContain("DTSTART:20261101T053000Z");
   expect(ics).toContain("DTEND:20261101T064500Z");
   expect(ics).toContain("SUMMARY:Community\\, test\\; \\\\");

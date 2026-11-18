@@ -1046,6 +1046,7 @@ export const communities = pgTable("communities", {
   // C15a: shown in the new-member welcome card; the introductions category is where "Introduce yourself" leads.
   welcomeMessage: text("welcome_message"),
   introCategoryId: uuid("intro_category_id").references((): AnyPgColumn => communityCategories.id, { onDelete: "set null" }),
+  eventPublicationEpoch: uuid("event_publication_epoch").notNull().defaultRandom(),
   chatEnabled: boolean("chat_enabled").notNull().default(true),
   dmPolicy: text("dm_policy").notNull().default("channels_only"),
   discoverOptIn: boolean("discover_opt_in").notNull().default(false),
@@ -1785,6 +1786,7 @@ export const events = pgTable("events", {
   endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
   capacity: integer("capacity"),
   status: text("status", { enum: ["draft", "published", "cancelled"] }).notNull().default("draft"),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
   version: integer("version").notNull().default(1),
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),

@@ -32,6 +32,7 @@ export function eventCalendarFile(event: CalendarEvent, tenantId: string) {
     "BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Harvest//Events//EN",
     `METHOD:${event.status === "cancelled" ? "CANCEL" : "PUBLISH"}`,
     "BEGIN:VEVENT", `UID:${event.id}.${tenantId}@events.harvest`,
+    "ORGANIZER:mailto:events@harvest.invalid",
     `DTSTAMP:${calendarTimestamp(event.updatedAt)}`, `LAST-MODIFIED:${calendarTimestamp(event.updatedAt)}`,
     `DTSTART:${calendarTimestamp(event.startsAt)}`, `DTEND:${calendarTimestamp(event.endsAt)}`,
     `SEQUENCE:${event.version}`, `STATUS:${event.status === "cancelled" ? "CANCELLED" : "CONFIRMED"}`,

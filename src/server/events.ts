@@ -13,7 +13,7 @@ export function eventsEnabled(env: Record<string, string | undefined> = process.
 }
 
 type State = "going" | "maybe" | "not_going";
-type EventRecord = CalendarEvent & { timeZone: string; capacity: number | null; available: number | null; rsvp: State | null };
+type EventRecord = CalendarEvent & { timeZone: string; capacity: number | null; available: number | null; rsvp: State | null; rsvpVersion: number };
 type RosterEntry = { userId: string; state: State; eligible: boolean };
 type Action = "list" | "get" | "save" | "publish" | "cancel" | "rsvp" | "join" | "preview_join" | "roster";
 type EventResponse<T> = { outcome: "ok"; data: T } | { outcome: "not_found" | "conflict" | "invalid" | "full" };
@@ -64,7 +64,7 @@ export async function transitionEvent(db: Database, user: string, tenantId: stri
   return resultData(await operate<EventRecord>(db, user, tenantId, id, action, input));
 }
 export async function rsvpEvent(db: Database, user: string, tenantId: string, id: string, raw: unknown) {
-  const input = z.object({ state: z.enum(["going", "maybe", "not_going"]) }).strict().parse(raw);
+  const input = z.object({ state: z.enum(["going", "maybe", "not_going"]), expectedVersion: version }).strict().parse(raw);
   const result = await operate<EventRecord>(db, user, tenantId, id, "rsvp", input);
   return result.outcome === "full" ? { outcome: "full" as const } : { outcome: "ok" as const, event: resultData(result) };
 }
