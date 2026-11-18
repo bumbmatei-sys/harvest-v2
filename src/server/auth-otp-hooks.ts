@@ -11,6 +11,6 @@ export function authOtpHooks(): AuthOtpHooks {
   };
 }
 
-export async function qaOtpResponse(_request: Request, _database: () => Database): Promise<Response> {
+export const qaOtpResponse: (request: Request, database: () => Database) => Promise<Response> = async () => {
   return new Response(null, { status: 404, headers: { "Cache-Control": "no-store", "X-Robots-Tag": "noindex" } });
-}
+};
