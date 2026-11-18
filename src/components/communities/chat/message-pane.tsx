@@ -13,8 +13,10 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { usePolling, retryAfterDelay } from "@/hooks/use-polling";
 import { channelEligible, chatTokens } from "@/lib/chat";
 import { canActOn } from "@/lib/moderation";
+import type { ChatChannelSetting } from "@/lib/chat-view";
 import { mergeChatMessages, type ChatAccess, type ChatChannel, type ChatMessage, type ChatPage } from "@/lib/chat-view";
 import type { DirectoryMember } from "@/server/community-forum";
+import { ChannelInfo } from "./channel-info";
 import { ChatComposer, chatDraftPayload, emptyChatDraft, type ChatDraft } from "./chat-composer";
 import { ChatMessageRow, type ChatAction } from "./chat-message";
 
@@ -76,7 +78,7 @@ function LiveMessageNotice({ latest, enabled }: { latest?: ChatMessage; enabled:
   </div>;
 }
 
-export function MessagePane({ channel, slug, me, access, members, draft, setDraft, retryIds, online, focused, onRead }: {
+export function MessagePane({ channel, slug, me, access, members, draft, setDraft, retryIds, online, focused, onRead, info }: {
   channel: ChatChannel;
   slug: string;
   me: string;
@@ -88,6 +90,8 @@ export function MessagePane({ channel, slug, me, access, members, draft, setDraf
   online: boolean;
   focused: boolean;
   onRead: () => void;
+  /** Channel info panel: its open state lives with the header button that opens it. */
+  info: { open: boolean; onOpenChange: (open: boolean) => void; setting?: ChatChannelSetting; onMute: (value: "none" | "mentions_only" | "all") => void; onEdit?: () => void };
 }) {
   const t = useTranslations("CommunityChat");
   const base = `/api/communities/${slug}/chat`, endpoint = `${base}/channels/${channel.id}`;
@@ -255,6 +259,15 @@ export function MessagePane({ channel, slug, me, access, members, draft, setDraf
     } catch { setError(t("actionFailed")); return false; }
   }
 
+  function jump(item: ChatMessage) {
+    info.onOpenChange(false);
+    requestAnimationFrame(() => {
+      const target = document.getElementById(`message-${item.id}`);
+      if (target) target.scrollIntoView({ block: "center" });
+      else void openThread(item);
+    });
+  }
+
   function startEdit(item: ChatMessage) {
     const text = chatTokens(item.body ?? "", item.mentionIds).map(part => {
       const person = part.type === "mention" && item.mentions.find(member => member.id === part.id);
@@ -327,6 +340,8 @@ export function MessagePane({ channel, slug, me, access, members, draft, setDraf
         {post && threadMessages.some(item => item.id === thread && !item.deletedAt && !item.heldAt) && composer(true)}
       </SheetContent>
     </Sheet>
+    <ChannelInfo open={info.open} onOpenChange={info.onOpenChange} channel={channel} slug={slug} members={members} pins={displayPins.length ? displayPins : pins}
+      messages={messages} setting={info.setting} onMute={info.onMute} onJump={jump} onEdit={info.onEdit} />
     <ConfirmDialog open={!!confirm} onOpenChange={open => { if (!open) setConfirm(undefined); }}
       title={t(confirm?.action === "remove" ? "remove" : "deleteMessage")} description={t("deleteDescription")}
       cancelLabel={t("cancel")} confirmLabel={t(confirm?.action === "remove" ? "remove" : "deleteMessage")}

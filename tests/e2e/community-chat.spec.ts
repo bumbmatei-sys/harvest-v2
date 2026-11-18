@@ -62,12 +62,12 @@ test("chat channels, live messages, moderation, and responsive evidence", async 
 
     const channels = await (await member.request.get(`${api}/state`)).json() as { channels: { id: string; name: string }[] };
     const general = channels.channels.find(channel => channel.name === "General")!.id;
-    await member.getByRole("button", { name: "Announcements", exact: true }).click();
+    await member.getByRole("navigation", { name: "Channels" }).getByRole("button", { name: "Announcements", exact: true }).click();
     await expect(member.getByText("Only hosts can post here.")).toBeVisible();
     await owner.goto(`${chat}?channel=${general}`);
     await owner.bringToFront();
     await send(owner, "Write a message", "Welcome to our reading group.");
-    await member.getByRole("button", { name: /^General/ }).click();
+    await member.getByRole("navigation", { name: "Channels" }).getByRole("button", { name: /^General/ }).click();
     await member.bringToFront();
     const welcome = member.locator("article").filter({ hasText: "Welcome to our reading group." });
     await expect(welcome).toBeVisible();
@@ -161,7 +161,7 @@ test("chat channels, live messages, moderation, and responsive evidence", async 
         if (width === 360) {
           await owner.getByRole("button", { name: "Back to channels" }).click();
           await expect(owner.getByRole("heading", { name: "Channels", exact: true })).toBeFocused();
-          await owner.getByRole("button", { name: /^General/ }).press("Enter");
+          await owner.getByRole("navigation", { name: "Channels" }).getByRole("button", { name: /^General/ }).press("Enter");
           await expect(owner.getByRole("heading", { name: "General", exact: true })).toBeFocused();
         }
       }
@@ -249,6 +249,29 @@ test("phone chat is full screen with a one-line composer and an admin can manage
   await page.getByRole("button", { name: /^Options for / }).first().click();
   await page.screenshot({ path: `${evidence}/admin-menu-1280-light.png`, animations: "disabled" });
   await page.keyboard.press("Escape");
+  // Channel info: opened from the channel name, closes with Escape and returns focus to it.
+  for (const scheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+    for (const [width, height] of [[1280, 900], [360, 800]]) {
+      await page.setViewportSize({ width, height });
+      await page.goto(chat);
+      if (width === 360) await page.getByRole("navigation", { name: "Channels" }).getByRole("button", { name: /^General/ }).click();
+      const name = page.getByRole("heading", { name: "General", exact: true }).getByRole("button");
+      await name.click();
+      const info = page.getByRole("dialog", { name: "Channel info" });
+      await expect(info).toBeVisible();
+      for (const heading of ["Notifications", "Members", "Pinned messages", "Shared links", "Shared media", "Documents"]) await expect(info.getByRole("heading", { name: heading, exact: true })).toBeVisible();
+      await expect(info.getByText("Photos and files are coming soon")).toHaveCount(2);
+      await expect(info.getByRole("button", { name: "Edit channel" })).toBeVisible();
+      await settleForAxe(page);
+      expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      await page.screenshot({ path: `${evidence}/info-${width}-${scheme}.png`, animations: "disabled" });
+      await page.keyboard.press("Escape");
+      await expect(info).toBeHidden();
+      await expect(name).toBeFocused();
+    }
+  }
   expect(clientErrors).toEqual([]);
 });
 
@@ -266,9 +289,16 @@ test("a member sees no channel administration controls", async ({ page: owner, b
     await join.getByLabel("I confirm I am 18 or older").click();
     await join.getByRole("button", { name: "Join", exact: true }).click();
     await member.goto(chat);
-    await expect(member.getByRole("button", { name: /^General/ })).toBeVisible();
+    await expect(member.getByRole("navigation", { name: "Channels" }).getByRole("button", { name: /^General/ })).toBeVisible();
     await expect(member.getByRole("button", { name: "New channel", exact: true })).toHaveCount(0);
     await expect(member.getByRole("button", { name: /^Options for / })).toHaveCount(0);
+    await member.getByRole("navigation", { name: "Channels" }).getByRole("button", { name: /^General/ }).click();
+    await member.getByRole("heading", { name: "General", exact: true }).getByRole("button").click();
+    await expect(member.getByRole("dialog", { name: "Channel info" }).getByRole("button", { name: "Edit channel" })).toHaveCount(0);
+    await member.keyboard.press("Escape");
+    await member.getByRole("button", { name: "Channel menu" }).click();
+    await expect(member.getByRole("menuitem", { name: "Edit channel" })).toHaveCount(0);
+    await member.keyboard.press("Escape");
     expect((await member.request.get(`/api/communities/${slug}/chat/settings`)).status()).toBe(403);
   } finally { await context.close(); }
 });

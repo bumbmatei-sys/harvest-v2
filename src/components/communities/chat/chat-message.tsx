@@ -35,8 +35,8 @@ export function ChatMessageRow({ message, slug, mine, post, mayModerate, restore
   const active = !removed && !message.heldAt;
   const actions = !removed && (mine || mayModerate) || canRestore;
   const renderLinks = (text: string) => text.split(/(https?:\/\/[^\s<>]+)/g).map((part, index) =>
-    /^https?:\/\//.test(part) ? <a key={index} href={part} target="_blank" rel="noopener noreferrer" className="underline underline-offset-2">{part}</a> : part);
-  return <article className={cn("flex min-w-0 gap-2.5", mine && "flex-row-reverse")}>
+    /^https?:\/\//.test(part) ? <a key={index} href={part} target="_blank" rel="nofollow noopener noreferrer ugc" className="underline underline-offset-2">{part}</a> : part);
+  return <article id={`message-${message.id}`} className={cn("flex min-w-0 gap-2.5", mine && "flex-row-reverse")}>
     <Avatar className="mt-1"><AvatarFallback aria-hidden="true">{memberInitials(name)}</AvatarFallback></Avatar>
     <div className={cn("flex min-w-0 flex-1 flex-col gap-1", mine && "items-end")}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">

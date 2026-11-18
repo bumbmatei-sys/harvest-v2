@@ -1,5 +1,5 @@
 import type { z } from "zod";
-import type { channelInput, channelMutes } from "./chat";
+import { chatTokens, type channelInput, type channelMutes } from "./chat";
 
 export type ChatChannel = {
   id: string;
@@ -53,4 +53,27 @@ export function mergeChatMessages(previous: ChatMessage[], events: ChatMessage[]
     if (!known || BigInt(event.rev) >= BigInt(known.rev)) merged.set(event.id, event);
   }
   return [...merged.values()].sort((a, b) => BigInt(a.seq) < BigInt(b.seq) ? -1 : 1);
+}
+
+const linkPattern = /https?:\/\/[^\s<>]+/g;
+/** Distinct web links in the loaded messages (not deleted or held), newest first. The server cannot list link messages. */
+export function channelLinks(messages: readonly ChatMessage[], max = 50) {
+  const seen = new Set<string>();
+  for (const message of [...messages].sort((a, b) => BigInt(a.seq) < BigInt(b.seq) ? 1 : -1)) {
+    if (message.deletedAt || message.heldAt || !message.body) continue;
+    for (const match of message.body.match(linkPattern) ?? []) {
+      const link = match.replace(/[.,;:!?)\]]+$/, "");
+      if (link.length > 2 && !seen.has(link) && seen.size < max) seen.add(link);
+    }
+  }
+  return [...seen];
+}
+
+/** A message body for a list: mention tokens become names, and a token the server did not validate stays out of sight. */
+export function plainChatBody(message: ChatMessage) {
+  return chatTokens(message.body ?? "", message.mentionIds).map(part => {
+    if (part.type !== "mention") return part.text;
+    const person = message.mentions.find(member => member.id === part.id);
+    return person ? `@${person.name}` : "";
+  }).join("").replace(/<@[^<>\s]+>/g, "");
 }

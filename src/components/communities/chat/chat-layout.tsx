@@ -2,13 +2,13 @@
 "use client";
 
 import { useRef, useState, useSyncExternalStore } from "react";
-import { ArrowLeft, Hash, PanelLeft, Volume2 } from "lucide-react";
+import { ArrowLeft, Hash, MoreVertical, PanelLeft, Volume2 } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { usePolling } from "@/hooks/use-polling";
@@ -66,6 +66,7 @@ export function ChatLayout({ slug, me, access, initial, initialChannel, members,
   const [listOpen, setListOpen] = useState(false);
   const [stopped, setStopped] = useState<number | null>(null);
   const [muteError, setMuteError] = useState("");
+  const [infoOpen, setInfoOpen] = useState(false);
   const [settings, setSettings] = useState(initialManage);
   const [sheet, setSheet] = useState<ChatChannelSetting>();
   const [confirm, setConfirm] = useState<{ id: string; kind: "archive" | "delete" }>();
@@ -105,6 +106,7 @@ export function ChatLayout({ slug, me, access, initial, initialChannel, members,
     setSelected(id);
     setShowMobileThread(true);
     setListOpen(false);
+    setInfoOpen(false);
     setMuteError("");
     if (!tablet) requestAnimationFrame(() => paneHeading.current?.focus());
   }
@@ -240,14 +242,29 @@ export function ChatLayout({ slug, me, access, initial, initialChannel, members,
           </SheetContent>
         </Sheet>
         {channel && <><Hash className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <h2 ref={paneHeading} tabIndex={-1} className="min-w-0 flex-1 truncate font-semibold outline-none">{channel.name}</h2>
-          {mutedChannel}</>}
+          <h2 ref={paneHeading} tabIndex={-1} className="min-w-0 flex-1 truncate font-semibold outline-none">
+            <Button variant="ghost" className="min-h-11 max-w-full justify-start px-2 font-semibold" aria-haspopup="dialog" onClick={() => setInfoOpen(true)}>
+              <span className="truncate">{channel.name}</span></Button></h2>
+          {mutedChannel}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-11" aria-label={t("channelMenu")}><MoreVertical aria-hidden="true" /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem className="min-h-11" onSelect={() => setInfoOpen(true)}>{t("channelInfo")}</DropdownMenuItem>
+              {manage && <>
+                <DropdownMenuItem className="min-h-11" disabled={adminBusy} onSelect={() => void edit(channel.id)}>{t("editChannel")}</DropdownMenuItem>
+                <DropdownMenuItem className="min-h-11" disabled={adminBusy} onSelect={() => manage.onArchive(channel.id)}>{t("archive")}</DropdownMenuItem>
+                <DropdownMenuItem className="min-h-11" variant="destructive" disabled={adminBusy} onSelect={() => manage.onDelete(channel.id)}>{t("deleteChannel")}</DropdownMenuItem>
+              </>}
+            </DropdownMenuContent>
+          </DropdownMenu></>}
       </div>
       {!online && <Alert className="m-2 w-auto"><AlertDescription>{t("offline")}</AlertDescription></Alert>}
       {muteError && <Alert role="alert" variant="destructive" className="m-2 w-auto"><AlertDescription>{muteError}</AlertDescription></Alert>}
       {channel && (tablet || showMobileThread) ? <MessagePane key={channel.id} channel={channel} slug={slug} me={me} online={online} focused={focused} access={access}
         members={members} draft={drafts[channel.id] ?? emptyChatDraft} retryIds={retryIds}
-        setDraft={draft => setDrafts(existing => ({ ...existing, [channel.id]: draft }))} onRead={refreshRail} />
+        setDraft={draft => setDrafts(existing => ({ ...existing, [channel.id]: draft }))} onRead={refreshRail}
+        info={{ open: infoOpen, onOpenChange: setInfoOpen, setting: settings?.find(item => item.id === channel.id), onMute: value => void mute(value, channel.id),
+          onEdit: manage ? () => { setInfoOpen(false); void edit(channel.id); } : undefined }} />
         : !channel && <p className="p-4 text-sm text-muted-foreground">{t(selected ? "unavailable" : "noChannels")}</p>}
     </section>
     {sheet && settings && <ChannelSheet key={sheet.id || "new"} base={base} channel={sheet} members={members} open
