@@ -296,6 +296,16 @@ test("a member sees no channel administration controls", async ({ page: owner, b
     await member.getByRole("heading", { name: "General", exact: true }).getByRole("button").click();
     await expect(member.getByRole("dialog", { name: "Channel info" }).getByRole("button", { name: "Edit channel" })).toHaveCount(0);
     await member.keyboard.press("Escape");
+    // Mention picker: choosing a member inserts @name; the stored token never renders literally.
+    await member.getByRole("button", { name: "Mention a member" }).click();
+    await member.getByRole("option").first().click();
+    await member.getByRole("textbox", { name: "Write a message" }).press("End");
+    await member.getByRole("textbox", { name: "Write a message" }).pressSequentially("please read");
+    await member.getByRole("button", { name: "Send message", exact: true }).click();
+    const mentioned = member.locator("article").filter({ hasText: "please read" });
+    await expect(mentioned).toBeVisible({ timeout: 15_000 });
+    await expect(mentioned.locator("b")).toHaveText(/^@\S+/);
+    await expect(mentioned).not.toContainText("<@");
     await member.getByRole("button", { name: "Channel menu" }).click();
     await expect(member.getByRole("menuitem", { name: "Edit channel" })).toHaveCount(0);
     await member.keyboard.press("Escape");

@@ -39,6 +39,14 @@ Six captures passed the axe WCAG checks and the page overflow check at 360, 768 
 
 Verification is author-executed. A separate fresh session reviews the draft head. No production or delivery verification was performed.
 
+### Reviewer follow-ups (18 Nov)
+
+- S1: message links use `rel="nofollow noopener noreferrer ugc"`. Drafts persist in `sessionStorage` per community (this tab only; cleared when the tab closes; unreadable or blocked storage falls back to memory).
+- S2: unread counts include thread replies, so the channel read mark now follows the newest loaded message, root or reply. Replies count as read once the channel is caught up and scrolled to its end; opening the thread is not required.
+- S3: new unit tests cover the polling hook (hidden and offline stop and resume, stop on 401, 403 and 404, 304 with the advertised interval, Retry-After, backoff cap), `mergeChatMessages`, `chatDraftPayload`, link extraction, and the chat capability matrix by role. E2E covers the member and admin matrix and the mention picker. Moderator and ministry-viewer browser cases are not added: the moderator role has no assignment API in the test setup; the unit matrix covers them.
+- S4: the Chat rail item appears only when chat is on; with chat off it is absent rather than shown as "Coming soon", which matches design section 13.
+- S5: mention tokens the server did not validate, or whose member is gone, never render as literal `<@id>`; they are removed or shown as "Former member".
+
 ### Known bounds
 
 Invite-only mention suggestions use the participants visible in the loaded messages. The server validates each submitted mention against current access. The additional thread-history read omits already-deleted replies outside the loaded message stream. Tombstones already received in the stream remain available, including eligible restores.

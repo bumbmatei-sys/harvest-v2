@@ -71,3 +71,13 @@ describe("every new route refuses before authentication in production and with C
     });
   }
 });
+
+describe("chat capability matrix by community role", () => {
+  const matrix = { owner: [true, true, true, true], admin: [true, true, true, true], moderator: [true, true, true, false], contributor: [true, true, false, false], member: [true, true, false, false] } as const;
+  for (const [role, [read, post, moderate, manage]] of Object.entries(matrix)) it(role, () => {
+    expect([communityCan(role, "chat:read"), communityCan(role, "chat:post"), communityCan(role, "chat:moderate"), communityCan(role, "chat:manage_channels")]).toEqual([read, post, moderate, manage]);
+  });
+  it("gives an unknown role (such as a ministry viewer without a membership) nothing", () => {
+    for (const capability of ["chat:read", "chat:post", "chat:moderate", "chat:manage_channels", "chat:restore"] as const) expect(communityCan("viewer", capability)).toBe(false);
+  });
+});

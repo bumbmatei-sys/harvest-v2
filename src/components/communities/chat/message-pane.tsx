@@ -159,7 +159,10 @@ export function MessagePane({ channel, slug, me, access, members, draft, setDraf
       channel.accessMode === "role" && channelEligible({ active: true, grant: true, role: member.role,
         accessMode: "role", minRole: channel.minRole ?? "member", invited: false, archived: false })))
     .map(member => ({ id: member.userId, name: member.name })), [channel, me, members, messages]);
-  const last = visible.at(-1);
+  // The unread count covers thread replies too, so the channel's read mark follows the newest loaded message (root or reply).
+  // Replies count as read once the channel is caught up and scrolled to its end; opening the thread is not required.
+  const latestLoaded = messages.reduce<ChatMessage | undefined>((latest, item) =>
+    item.deletedAt || item.heldAt || latest && BigInt(item.seq) <= BigInt(latest.seq) ? latest : item, undefined);
   const threadMessages = thread ? messages.filter(item => item.id === thread ||
     item.parentId === thread && (replies?.before == null || BigInt(item.seq) >= BigInt(replies.before))) : [];
   const displayPins = pins.filter(item => !messages.some(message => message.id === item.id && (!message.pinnedAt || message.deletedAt)));
@@ -313,7 +316,7 @@ export function MessagePane({ channel, slug, me, access, members, draft, setDraf
         onClick={event => { threadOpener.current = event.currentTarget; void openThread(item); }}><span className="truncate">{item.body}</span></Button>)}
     </div>}
     <MessageList label={t("messagesIn", { channel: channel.name })}
-      onLatest={<><ReadState seq={last?.seq} enabled={online && focused && caughtUp && !thread} endpoint={`${endpoint}/read`} onRead={onRead} />
+      onLatest={<><ReadState seq={latestLoaded?.seq} enabled={online && focused && caughtUp && !thread} endpoint={`${endpoint}/read`} onRead={onRead} />
         <LiveMessageNotice latest={announcement} enabled={caughtUp} /></>}>
       {history?.more && <Button variant="outline" className="min-h-11 self-center" disabled={paging || !online} onClick={() => void earlier()}>{t("older")}</Button>}
       {!history ? <p className="text-sm text-muted-foreground" role="status">{t("loading")}</p>

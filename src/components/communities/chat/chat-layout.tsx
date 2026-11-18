@@ -1,7 +1,7 @@
 /** Composed from Harvest shared components. The Shadcn UI Kit chat blocks were a layout reference only and no kit code is copied here. Exception to the use-kit rule approved by the founder on 18 November 2026 for this screen; the next screens (DMs, profile, events) adopt the real kit blocks from the start. See docs/ui-sources.md. */
 "use client";
 
-import { useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowLeft, Hash, MoreVertical, PanelLeft, Volume2 } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -72,7 +72,22 @@ export function ChatLayout({ slug, me, access, initial, initialChannel, members,
   const [confirm, setConfirm] = useState<{ id: string; kind: "archive" | "delete" }>();
   const [adminBusy, setAdminBusy] = useState(false);
   const [adminError, setAdminError] = useState("");
-  const [drafts, setDrafts] = useState<Record<string, ChatDraft>>({});
+  const draftKey = `harvest-chat-drafts:${slug}`;
+  // Drafts survive a reload of the tab (sessionStorage, this tab only). No message pane renders during hydration, so reading here is safe.
+  const [drafts, setDrafts] = useState<Record<string, ChatDraft>>(() => {
+    try {
+      if (typeof window === "undefined") return {};
+      const saved = Object.entries(JSON.parse(sessionStorage.getItem(draftKey) ?? "{}") as Record<string, Partial<ChatDraft>>);
+      return Object.fromEntries(saved.filter(([, draft]) => typeof draft?.text === "string" && Array.isArray(draft.mentions)) as [string, ChatDraft][]);
+    } catch { return {}; }
+  });
+  useEffect(() => {
+    try {
+      const kept = Object.fromEntries(Object.entries(drafts).filter(([, draft]) => draft.text));
+      if (Object.keys(kept).length) sessionStorage.setItem(draftKey, JSON.stringify(kept));
+      else sessionStorage.removeItem(draftKey);
+    } catch { /* Ignore blocked storage. */ }
+  }, [drafts, draftKey]);
   const retryIds = useRef(new Map<string, { request: string; id: string }>());
   const tag = useRef<string | null>(null);
   const listHeading = useRef<HTMLHeadingElement>(null);

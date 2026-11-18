@@ -49,9 +49,10 @@ export function ChatMessageRow({ message, slug, mine, post, mayModerate, restore
       <Bubble align={mine ? "end" : "start"} variant={mine ? "tinted" : "muted"}>
         <BubbleContent className="whitespace-pre-wrap">
           {removed ? t("deleted") : chatTokens(message.body ?? "", message.mentionIds).map((part, index) => {
-            if (part.type === "text") return <span key={index}>{renderLinks(part.text)}</span>;
+            // A token the server did not validate, or one whose member is gone, never shows as a literal <@id>.
+            if (part.type === "text") return <span key={index}>{renderLinks(part.text.replace(/<@[^<>\s]+>/g, ""))}</span>;
             const person = message.mentions.find(entry => entry.id === part.id);
-            return person ? <b key={index}>{t("mentionName", { name: person.name })}</b> : part.text;
+            return <b key={index}>{t("mentionName", { name: person?.name || t("formerMember") })}</b>;
           })}
         </BubbleContent>
       </Bubble>
