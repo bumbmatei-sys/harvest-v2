@@ -20,7 +20,7 @@ type EventResponse<T> = { outcome: "ok"; data: T } | { outcome: "not_found" | "c
 const uuid = z.uuid();
 const datetime = z.iso.datetime({ offset: true });
 const version = z.number().int().min(0).max(2_147_483_646);
-const plainText = (value: string) => !/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value); // eslint-disable-line no-control-regex
+const plainText = (value: string) => !/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value);
 export const eventSaveInput = z.object({
   version, title: z.string().trim().min(1).max(120).refine(plainText),
   description: z.string().max(4000).refine(plainText).default(""),
