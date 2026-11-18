@@ -407,6 +407,13 @@
       "when": 1795400000006,
       "tag": "0058_community_dm",
       "breakpoints": true
+    },
+    {
+      "idx": 59,
+      "version": "7",
+      "when": 1795400000007,
+      "tag": "0059_events_e01",
+      "breakpoints": true
     }
   ]
 }
