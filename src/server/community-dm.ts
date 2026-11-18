@@ -25,8 +25,12 @@ async function executeDm(db: Database, viewer: string, statement: SQL): Promise<
   return withUser(db, viewer, async tx => (await tx.execute<{ result: ChatResult }>(statement)).rows[0].result);
 }
 
-export function dmList(db: Database, user: string, slug: string) {
-  return executeDm(db, user, sql`select public.community_dm_list(${communitySlug.parse(slug)}) result`);
+export function dmList(db: Database, user: string, slug: string, query = new URLSearchParams()) {
+  const { beforeAt, beforeId } = z.object({
+    beforeAt: z.iso.datetime({ offset: true }).optional(), beforeId: z.uuid().optional(),
+  }).strict().refine(values => !values.beforeAt || !!values.beforeId).parse(Object.fromEntries(query));
+  return executeDm(db, user, sql`select public.community_dm_list(${communitySlug.parse(slug)},
+    ${beforeAt ?? null}::timestamptz,${beforeId ?? null}::uuid) result`);
 }
 
 export function dmStart(db: Database, user: string, slug: string, body: unknown) {
@@ -115,8 +119,15 @@ export function dmEvidence(db: Database, user: string, slug: string, reportId: s
 }
 
 export function dmDecide(db: Database, user: string, slug: string, reportId: string, raw: unknown) {
-  const { decision } = z.object({ decision: z.enum(["keep", "action"]) }).strict().parse(raw);
-  return executeDm(db, user, sql`select public.community_dm_report_decide(${communitySlug.parse(slug)},${z.uuid().parse(reportId)}::uuid,${decision}) result`);
+  const { decision, moderation } = z.object({
+    decision: z.enum(["keep", "action"]),
+    moderation: z.discriminatedUnion("action", [
+      z.object({ action: z.literal("warn"), reason: z.string().trim().min(1).max(500) }).strict(),
+      z.object({ action: z.literal("mute"), days: z.union([z.literal(1), z.literal(7), z.literal(30)]) }).strict(),
+      z.object({ action: z.literal("ban") }).strict(),
+    ]).optional(),
+  }).strict().parse(raw);
+  return executeDm(db, user, sql`select public.community_dm_report_decide(${communitySlug.parse(slug)},${z.uuid().parse(reportId)}::uuid,${decision},${moderation ? JSON.stringify(moderation) : null}::jsonb) result`);
 }
 
 export function dmRoute<P>(run: (args: Parameters<Parameters<typeof communityChatRoute<P>>[0]>[0]) => Promise<ChatResult>, write: boolean) {
