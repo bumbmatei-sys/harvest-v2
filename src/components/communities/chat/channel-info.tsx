@@ -24,9 +24,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
  * Channel information: name and description, the member's own notification choice, who is in the channel, pinned messages,
  * links from the loaded history, and placeholders for photos and files (attachments wait for the malware scanner).
  */
-export function ChannelInfo({ open, onOpenChange, channel, slug, members, pins, messages, setting, onMute, onJump, onEdit }: {
+export function ChannelInfo({ open, onOpenChange, onRestoreFocus, channel, slug, members, pins, messages, setting, onMute, onJump, onEdit }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onRestoreFocus: () => void;
   channel: ChatChannel;
   slug: string;
   members: DirectoryMember[];
@@ -45,7 +46,7 @@ export function ChannelInfo({ open, onOpenChange, channel, slug, members, pins, 
     ? members.filter(member => channelEligible({ active: true, grant: true, role: member.role, accessMode: "role", minRole: channel.minRole ?? "member", invited: false, archived: false }))
     : channel.accessMode === "invite" && setting ? members.filter(member => setting.userIds.includes(member.userId)) : null;
   return <Sheet open={open} onOpenChange={onOpenChange}>
-    <SheetContent side="right" showCloseButton={false} className="h-dvh w-full min-w-0 gap-0 overflow-y-auto pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] sm:max-w-md">
+    <SheetContent onCloseAutoFocus={event => { event.preventDefault(); onRestoreFocus(); }} side="right" showCloseButton={false} className="h-dvh w-full min-w-0 gap-0 overflow-y-auto pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] sm:max-w-md">
       <SheetHeader className="flex-row items-center gap-2 p-3">
         <SheetClose asChild><Button variant="ghost" size="icon" className="size-11" aria-label={t("backToChat")}><ArrowLeft aria-hidden="true" /></Button></SheetClose>
         <SheetTitle className="min-w-0 flex-1 truncate">{t("channelInfo")}</SheetTitle>

@@ -3,8 +3,9 @@ import { z } from "zod";
 import { ChatLayout } from "@/components/communities/chat/chat-layout";
 import { CommunityShell } from "@/components/communities/community-shell";
 import { getDb } from "@/db/client";
+import { chatUnreadTotal } from "@/lib/chat-view";
 import { communityCan } from "@/lib/community-permissions";
-import { chatManageSettings, chatState, communityChatEnabled } from "@/server/community-chat";
+import { chatManageSettings, chatStaffPage, chatState, communityChatEnabled } from "@/server/community-chat";
 import { memberDirectory } from "@/server/community-forum";
 import { moderationCount } from "@/server/community-moderation";
 import { unreadCount } from "@/server/community-notifications";
@@ -28,17 +29,25 @@ export default async function ChatPage({ params, searchParams }: {
     if (error instanceof AccessError && error.status === 404) notFound();
     throw error;
   };
-  const { context, members } = await memberDirectory(db, me, slug).catch(unavailable);
-  if (!context.chatEnabled || !communityCan(context.role, "chat:read")) notFound();
-  const [state, unread, moderation, manage] = await Promise.all([
+  const [staff, forum, state] = await Promise.all([
+    chatStaffPage(db, me, slug).catch(unavailable),
+    memberDirectory(db, me, slug).catch((error: unknown) => {
+      if (error instanceof AccessError && error.status === 404) return undefined;
+      throw error;
+    }),
     chatState(db, me, slug).catch(unavailable),
-    unreadCount(db, me, slug),
-    context.canModerate ? moderationCount(db, me, slug) : null,
-    communityCan(context.role, "chat:manage_channels") ? chatManageSettings(db, me, slug).catch(unavailable) : undefined,
   ]);
-  if (!("channels" in state)) notFound();
-  const access = { role: context.role, moderate: communityCan(context.role, "chat:moderate"), restore: communityCan(context.role, "chat:restore"), muted: !!context.mutedUntil };
-  return <CommunityShell slug={context.slug} name={context.name} chat chatView moderation={moderation} notifications={{ unread, prefs: context.prefs }}>
-    <ChatLayout key={channel.data ?? slug} slug={context.slug} me={me} access={access} initial={state.channels} initialChannel={channel.data} members={members} manage={manage} />
+  const role = staff?.scope.role ?? forum?.context.role;
+  if (!role || !communityCan(role, "chat:read") || !("channels" in state) || (!staff && !forum?.context.chatEnabled)) notFound();
+  const [unread, moderation, manage] = await Promise.all([
+    forum ? unreadCount(db, me, slug) : 0,
+    forum?.context.canModerate ? moderationCount(db, me, slug) : null,
+    communityCan(role, "chat:manage_channels") ? chatManageSettings(db, me, slug).catch(unavailable) : undefined,
+  ]);
+  const access = { role, moderate: communityCan(role, "chat:moderate"), restore: communityCan(role, "chat:restore"), muted: staff?.scope.muted ?? !!forum?.context.mutedUntil };
+  const members = staff?.members ?? forum?.members ?? [];
+  const name = staff?.scope.name ?? forum?.context.name ?? slug;
+  return <CommunityShell slug={slug} name={name} chat chatView initialChatUnread={chatUnreadTotal(state.channels)} moderation={moderation} notifications={forum ? { unread, prefs: forum.context.prefs } : undefined}>
+    <ChatLayout key={`${me}:${slug}:${channel.data ?? ""}`} slug={slug} me={me} access={access} initial={state.channels} initialChannel={channel.data} members={members} manage={manage} />
   </CommunityShell>;
 }

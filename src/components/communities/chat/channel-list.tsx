@@ -22,19 +22,24 @@ export type ChannelManage = {
   order: string[];
 };
 
-export function ChannelList({ channels, current, onSelect, manage }: {
+export function ChannelList({ channels, current, onSelect, manage, unreadOnly, onUnreadOnly }: {
   channels: ChatChannel[];
   current?: string;
   onSelect: (id: string) => void;
   manage?: ChannelManage;
+  unreadOnly: boolean;
+  onUnreadOnly: (on: boolean) => void;
 }) {
   const t = useTranslations("CommunityChat");
   return <nav aria-label={t("channels")} className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
     {manage && <div className="px-3 pb-2">
       <Button variant="outline" className="min-h-11 w-full" disabled={manage.busy || !manage.canCreate} onClick={manage.onNew}><Plus aria-hidden="true" />{t("newChannel")}</Button>
     </div>}
+    <div className="px-3 pb-2">
+      <Button variant={unreadOnly ? "secondary" : "ghost"} aria-pressed={unreadOnly} className="min-h-11" onClick={() => onUnreadOnly(!unreadOnly)}>{t("unread")}</Button>
+    </div>
     <ul className="flex flex-col gap-1 px-2 pb-3">
-      {channels.map(channel => {
+      {channels.filter(channel => !unreadOnly || (channel.mute === "none" && channel.unread > 0 || channel.mute === "mentions_only" && channel.mentions > 0)).map(channel => {
         const active = channel.id === current;
         const unread = channel.mute !== "all" && channel.unread > 0;
         const count = channel.mute === "none" && unread;

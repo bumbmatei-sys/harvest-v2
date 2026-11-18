@@ -1,7 +1,7 @@
 /** Composed from Harvest shared components. The Shadcn UI Kit chat blocks were a layout reference only and no kit code is copied here. Exception to the use-kit rule approved by the founder on 18 November 2026 for this screen; the next screens (DMs, profile, events) adopt the real kit blocks from the start. See docs/ui-sources.md. */
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Pin } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -78,7 +78,7 @@ function LiveMessageNotice({ latest, enabled }: { latest?: ChatMessage; enabled:
   </div>;
 }
 
-export function MessagePane({ channel, slug, me, access, members, draft, setDraft, retryIds, online, focused, onRead, info }: {
+export function MessagePane({ channel, slug, me, access, members, draft, setDraft, retryIds, storeRetry, online, focused, onRead, info }: {
   channel: ChatChannel;
   slug: string;
   me: string;
@@ -86,16 +86,18 @@ export function MessagePane({ channel, slug, me, access, members, draft, setDraf
   members: DirectoryMember[];
   draft: ChatDraft;
   setDraft: (draft: ChatDraft) => void;
-  retryIds: RefObject<Map<string, { request: string; id: string }>>;
+  retryIds: Map<string, { request: string; id: string }>;
+  storeRetry: (key: string, entry?: { request: string; id: string }) => void;
   online: boolean;
   focused: boolean;
   onRead: () => void;
   /** Channel info panel: its open state lives with the header button that opens it. */
-  info: { open: boolean; onOpenChange: (open: boolean) => void; setting?: ChatChannelSetting; onMute: (value: "none" | "mentions_only" | "all") => void; onEdit?: () => void };
+  info: { open: boolean; onOpenChange: (open: boolean) => void; onRestoreFocus: () => void; setting?: ChatChannelSetting; onMute: (value: "none" | "mentions_only" | "all") => void; onEdit?: () => void };
 }) {
   const t = useTranslations("CommunityChat");
   const base = `/api/communities/${slug}/chat`, endpoint = `${base}/channels/${channel.id}`;
   const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [initialRoot, setInitialRoot] = useState<string>();
   const [pins, setPins] = useState<ChatMessage[]>([]);
   const [history, setHistory] = useState<{ before: string | null; more: boolean } | null>(null);
   const [paging, setPaging] = useState(false);
@@ -128,9 +130,23 @@ export function MessagePane({ channel, slug, me, access, members, draft, setDraf
       if (!response.ok) return response;
       const page: ChatPage = await response.json();
       if (signal.aborted) return response;
+      if (since === null) {
+        const reply = [...page.events].reverse().find(item => item.parentId);
+        if (reply?.parentId && page.events.every(item => item.parentId)) {
+          const root = reply.parentId;
+          const parent = await fetch(`${endpoint}/selection?thread=${root}`, { signal, cache: "no-store" })
+            .then(async selection => selection.ok ? (await selection.json() as ChatPage).events.find(item => item.id === root) : undefined)
+            .catch(() => undefined);
+          if (signal.aborted) return response;
+          if (parent) {
+            setInitialRoot(parent.id);
+            setMessages(current => mergeChatMessages(current, [parent]));
+          }
+        }
+        setHistory({ before: seqBefore(page.events), more: page.hasMore });
+      }
       cursor.current = page.cursor;
       tag.current = response.headers.get("ETag");
-      if (since === null) setHistory({ before: seqBefore(page.events), more: page.hasMore });
       setMessages(current => mergeChatMessages(current, page.events));
       const fresh = page.events.reduce<ChatMessage | undefined>((latest, event) =>
         !event.parentId && (!latest || BigInt(event.seq) > BigInt(latest.seq)) ? event : latest, undefined);
@@ -153,7 +169,7 @@ export function MessagePane({ channel, slug, me, access, members, draft, setDraf
     onStop: setDenied,
   });
 
-  const visible = useMemo(() => messages.filter(item => !item.parentId && (history?.before == null || BigInt(item.seq) >= BigInt(history.before))), [messages, history]);
+  const visible = useMemo(() => messages.filter(item => !item.parentId && (item.id === initialRoot || history?.before == null || BigInt(item.seq) >= BigInt(history.before))), [messages, history, initialRoot]);
   const allowedMentions = useMemo(() => members.filter(member => member.userId !== me &&
     (channel.accessMode === "all" || channel.accessMode === "invite" && messages.some(item => item.authorId === member.userId) ||
       channel.accessMode === "role" && channelEligible({ active: true, grant: true, role: member.role,
@@ -222,10 +238,10 @@ export function MessagePane({ channel, slug, me, access, members, draft, setDraf
     }
     const payload = chatDraftPayload(activeDraft), parent_id = inThread ? thread ?? null : null;
     const key = `${channel.id}:${parent_id ?? ""}`, serialized = JSON.stringify({ ...payload, parent_id });
-    const previous = retryIds.current.get(key);
+    const previous = retryIds.get(key);
     const client_id = previous?.request === serialized ? previous.id : crypto.randomUUID();
     if (!activeEdit) {
-      retryIds.current.set(key, { request: serialized, id: client_id });
+      storeRetry(key, { request: serialized, id: client_id });
       setPending({ id: client_id, text: activeDraft.text, thread: parent_id ?? undefined });
     }
     setBusy(true);
@@ -239,9 +255,9 @@ export function MessagePane({ channel, slug, me, access, members, draft, setDraf
       setMessages(current => mergeChatMessages(current, [result.message]));
       if (activeEdit) setEdit(undefined);
       else {
-        retryIds.current.delete(key);
         if (inThread) setThreadDraft(emptyChatDraft);
         else setDraft(emptyChatDraft);
+        storeRetry(key);
       }
       refresh();
     } catch { setError(t("sendFailed")); }
@@ -320,7 +336,7 @@ export function MessagePane({ channel, slug, me, access, members, draft, setDraf
         <LiveMessageNotice latest={announcement} enabled={caughtUp} /></>}>
       {history?.more && <Button variant="outline" className="min-h-11 self-center" disabled={paging || !online} onClick={() => void earlier()}>{t("older")}</Button>}
       {!history ? <p className="text-sm text-muted-foreground" role="status">{t("loading")}</p>
-        : !visible.length && <p className="text-sm text-muted-foreground">{t("emptyMessages")}</p>}
+        : !visible.length && !history.more && <p className="text-sm text-muted-foreground">{t("emptyMessages")}</p>}
       {visible.map(item => row(item))}
       {optimistic()}
     </MessageList>
@@ -343,7 +359,7 @@ export function MessagePane({ channel, slug, me, access, members, draft, setDraf
         {post && threadMessages.some(item => item.id === thread && !item.deletedAt && !item.heldAt) && composer(true)}
       </SheetContent>
     </Sheet>
-    <ChannelInfo open={info.open} onOpenChange={info.onOpenChange} channel={channel} slug={slug} members={members} pins={displayPins.length ? displayPins : pins}
+    <ChannelInfo open={info.open} onOpenChange={info.onOpenChange} onRestoreFocus={info.onRestoreFocus} channel={channel} slug={slug} members={members} pins={displayPins.length ? displayPins : pins}
       messages={messages} setting={info.setting} onMute={info.onMute} onJump={jump} onEdit={info.onEdit} />
     <ConfirmDialog open={!!confirm} onOpenChange={open => { if (!open) setConfirm(undefined); }}
       title={t(confirm?.action === "remove" ? "remove" : "deleteMessage")} description={t("deleteDescription")}

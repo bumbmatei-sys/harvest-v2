@@ -8,7 +8,7 @@ import { users } from "../../src/db/schema";
 import { createWorkspace } from "../../src/server/workspaces";
 import { createCommunity } from "../../src/server/communities";
 import { withUser, withTenant } from "../../src/server/tenancy";
-import { chatState, chatMessages, saveChatChannel, chatChannelSelection, chatChannelSettings } from "../../src/server/community-chat";
+import { chatState, chatMessages, saveChatChannel, chatChannelSelection, chatChannelSettings, chatStaffPage, chatManageSettings } from "../../src/server/community-chat";
 vi.mock("server-only", () => ({}));
 let f: Awaited<ReturnType<typeof testDatabase>>, parallel: Pool, tenant: string, otherTenant: string, club: string, otherClub: string, general: string;
 const ids = ["owner", "admin", "mod", "contributor", "member", "second", "pending", "banned", "left", "removed", "outsider", "viewer", "other-owner", "other-member"];
@@ -484,4 +484,16 @@ it("loads pins and replies through the same channel scope and limits editor deta
   const settings = await chatChannelSettings(f.db, "owner", tenant, club);
   expect(settings.channels.find(item => item.id === restricted)?.userIds).toEqual(["member"]);
   await expect(chatChannelSettings(f.db, "other-owner", tenant, club)).rejects.toMatchObject({ status: 403 });
+});
+
+it("renders a chat staff scope and settings for an effective ministry admin", async () => {
+  await f.admin.query("insert into workspace_members(tenant_id,user_id,role_id) values($1,'outsider','admin')", [tenant]);
+  try {
+    expect(await chatStaffPage(f.db, "outsider", "chat-club")).toMatchObject({ scope: { role: "admin", id: club } });
+    expect(await chatManageSettings(f.db, "outsider", "chat-club")).toEqual(expect.arrayContaining([expect.objectContaining({ id: general })]));
+    expect(await chatStaffPage(f.db, "outsider", "chat-third")).toBeUndefined();
+    expect(await chatChannelSelection(f.db, "outsider", "chat-club", general, null, null)).toMatchObject({ outcome: "ok" });
+  } finally {
+    await f.admin.query("delete from workspace_members where tenant_id=$1 and user_id='outsider'", [tenant]);
+  }
 });

@@ -54,3 +54,5 @@ Invite-only mention suggestions use the participants visible in the loaded messa
 ## Gates
 
 Chat and its routes require `NODE_ENV !== "production" && communitiesEnabled()`. All five HC-02 decisions remain **UNAPPROVED**. Attachment scanning, push, presence, search and DM settings are deferred.
+
+The follow-up scopes drafts and send retry IDs to the signed-in account, restores focus from Channel info, and uses the effective ministry role for chat administration. The channel rail includes an unread total and filter. Browser checks wait for confirmation before reading results from the API.
