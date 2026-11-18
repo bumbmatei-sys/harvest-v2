@@ -13,6 +13,7 @@ import { auditLogs, authSchema, users } from "../db/schema";
 import { resolveLocale } from "../i18n/locale";
 import { withUser } from "./tenancy";
 import { sendSignInCode } from "./email";
+import { authOtpHooks } from "@/server/auth-otp-hooks";
 
 export const otpPolicy = { digits: 6, expiresIn: 600, attempts: 5, cooldownSeconds: 60, codesPerHour: 5, codesPerDay: 20 } as const;
 export function makeAuth(db: Database, config: {
@@ -23,6 +24,7 @@ export function makeAuth(db: Database, config: {
     throw new Error(message("Errors.invalidTrustedClientIPConfiguration"));
   }
   const otpKey = hkdfSync("sha256", config.secret, "Harvest", "sign-in-email-otp:v1", 32);
+  const otpBehavior = authOtpHooks();
   const auth = betterAuth({
     appName: "Harvest", secret: config.secret, baseURL: config.baseURL,
     database: drizzleAdapter(db, { provider: "pg", schema: authSchema, transaction: true }),
@@ -52,8 +54,9 @@ export function makeAuth(db: Database, config: {
             where t > now() - interval '1 hour') < ${otpPolicy.codesPerHour}
           and (select count(*) from unnest(otp_cooldowns.issued_at) t
             where t > now() - interval '24 hours') < ${otpPolicy.codesPerDay}
-        returning email`);
+        returning sent_at`);
       if (!result.rowCount) throw new APIError("TOO_MANY_REQUESTS", { message: message("Errors.pleaseWaitBeforeRequestingAnotherCode60Seconds") });
+      otpBehavior.reserve(email, new Date(result.rows[0].sent_at as Date));
       ctx.context.runInBackgroundOrAwait = async (promise) => {
         try { await promise; }
         catch (error) {
@@ -71,6 +74,7 @@ export function makeAuth(db: Database, config: {
       };
     }) },
     plugins: [emailOTP({
+      generateOTP: otpBehavior.generate,
       otpLength: otpPolicy.digits, expiresIn: otpPolicy.expiresIn, allowedAttempts: otpPolicy.attempts,
       // Keyed hash also protects low-entropy codes from offline brute forcing after a DB leak.
       storeOTP: { hash: async (otp) => {
@@ -79,14 +83,16 @@ export function makeAuth(db: Database, config: {
       } },
       async sendVerificationOTP({ email, otp, type }) {
         if (type !== "sign-in") throw new APIError("BAD_REQUEST", { message: message("Errors.onlySignInCodesAreSupported") });
-        const [user] = await db.select({ locale: users.locale }).from(users).where(eq(users.email, email)).limit(1);
-        const context = getCurrentAuthEndpointContext();
-        const locale = resolveLocale(user?.locale, context.getCookie?.("locale"), context.headers?.get("accept-language"));
-        await sendSignInCode(email, otp, locale);
+        await otpBehavior.deliver({ email, type }, async () => {
+          const [user] = await db.select({ locale: users.locale }).from(users).where(eq(users.email, email)).limit(1);
+          const context = getCurrentAuthEndpointContext();
+          const locale = resolveLocale(user?.locale, context.getCookie?.("locale"), context.headers?.get("accept-language"));
+          await sendSignInCode(email, otp, locale);
+        });
       },
     })],
     databaseHooks: { session: { create: { after: async (session) => {
-      await withUser(db, session.userId, (tx) => tx.insert(auditLogs).values({ actorId: session.userId, action: "auth.sign_in", targetId: session.id }));
+      await withUser(db, session.userId, (tx) => tx.insert(auditLogs).values({ actorId: session.userId, action: "auth.sign_in", targetId: session.id, metadata: otpBehavior.auditMetadata() }));
     } } } },
     // Avoid logging provider responses, email addresses, codes, URLs, or database errors.
     logger: { disabled: false, log: (level) => { if (level === "error" || level === "warn") console.error(`auth_${level}`); } },
@@ -101,7 +107,7 @@ export function makeAuth(db: Database, config: {
         return value && getIPFromHeader(value, ipAddress);
       });
       if (!clientIP) return Response.json({ error: message("Errors.trustedClientIPUnavailable") }, { status: 503 });
-      return auth.handler(request);
+      return otpBehavior.run(() => auth.handler(request));
     },
   };
 }
