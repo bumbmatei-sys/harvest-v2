@@ -8,7 +8,7 @@ import * as schema from "../../src/db/schema";
 import { chatState, saveChatSettings } from "../../src/server/community-chat";
 import { dmBlock, dmDecide, dmEvidence, dmList, dmMessages, dmReport, dmReports, dmStart } from "../../src/server/community-dm";
 import { createCommunity } from "../../src/server/communities";
-import { listNotifications } from "../../src/server/community-notifications";
+import { listNotifications, markRead } from "../../src/server/community-notifications";
 import { withTenant, withUser } from "../../src/server/tenancy";
 import { createWorkspace } from "../../src/server/workspaces";
 import { testDatabase } from "../database";
@@ -221,7 +221,7 @@ it("opens bounded immutable evidence only for a non-party owner or admin and set
   expect((await dmReports(fixture.db, "owner", slug)).items).toEqual([]);
   expect((await dmReports(fixture.db, "admin", slug)).items).toEqual([expect.objectContaining({ reporterId: "alice" })]);
   const evidence = await dmEvidence(fixture.db, "staff", slug, id);
-  expect(evidence).toMatchObject({ outcome: "ok", reporterName: "alice" });
+  expect(evidence).toMatchObject({ outcome: "ok", reporterName: "alice", subjectId: "owner", reportedMessageId: target.message!.id });
   expect(evidence.messages).toHaveLength(6);
   expect(JSON.stringify(evidence)).not.toContain("Excluded first");
   await invoke("owner", "edit", [target.message!.id, "Changed"]);
@@ -272,4 +272,75 @@ it("keeps open evidence after source purge and restricts worker grants", async (
   }
   expect((await fixture.workerPool.query("select public.community_chat_purge_dm(25) result")).rows[0].result).toMatchObject({ deleted: 1, evidence: 0 });
   expect((await dmEvidence(fixture.db, "admin", slug, String(report.id))).outcome).toBe("ok");
+});
+
+it("keeps DM updates and identifying audits out of shared ministry reads", async () => {
+  const revisions = () => withTenant(fixture.db, "viewer", tenant, "communities:read", async tx =>
+    (await tx.execute(sql`select user_id,chat_state_rev from community_memberships where community_id=${club}::uuid order by user_id`)).rows);
+  const before = await revisions();
+  const client = randomUUID();
+  const sent = await start("owner", "alice", "Original submission", client);
+  const mid = sent.message!.id;
+  expect((await invoke("owner", "edit", [mid, "Edited submission"])).outcome).toBe("ok");
+  expect((await start("owner", "alice", "Original submission", client)).message?.id).toBe(mid);
+  expect((await start("owner", "alice", "Edited submission", client)).outcome).toBe("client_id_conflict");
+  const report = await dmReport(fixture.db, "alice", slug, { messageId: mid, reason: "other" });
+  const rid = String(report.id);
+  expect((await dmEvidence(fixture.db, "staff", slug, rid)).outcome).toBe("ok");
+  expect((await dmDecide(fixture.db, "staff", slug, rid, { decision: "keep" })).outcome).toBe("ok");
+  expect(await revisions()).toEqual(before);
+  for (const actor of ["viewer", "plain", "staff", "owner"]) {
+    const visible = await withTenant(fixture.db, actor, tenant, "communities:read", tx =>
+      tx.execute(sql`select action from public.audit_logs where target_id in (${mid},${rid})`));
+    expect(visible.rows).toEqual([]);
+  }
+  expect((await fixture.admin.query("select action from audit_logs where target_id=any($1::text[])", [[mid, rid]])).rowCount).toBeGreaterThanOrEqual(4);
+});
+
+it("routes notices and audited member moderation to ministry-only staff", async () => {
+  const sent = await start("staff", "alice", "Private opener");
+  const response = await send("alice", sent.conversationId!, "Reported reply");
+  // A participant cannot review their own report. An unrelated member reports a separate conversation.
+  await policy("members");
+  const betweenMembers = await start("alice", "bob", "Reported synthetic content");
+  const report = await dmReport(fixture.db, "bob", slug, { messageId: betweenMembers.message!.id, reason: "other" });
+  expect(response.outcome).toBe("ok");
+  const notices = await listNotifications(fixture.db, "staff", slug);
+  expect(notices.items).toEqual(expect.arrayContaining([expect.objectContaining({ kind: "host_queue" }), expect.objectContaining({ kind: "dm" })]));
+  await markRead(fixture.db, "staff", slug, { ids: null });
+  expect((await listNotifications(fixture.db, "staff", slug)).unread).toBe(0);
+  const rid = String(report.id);
+  expect(await dmEvidence(fixture.db, "staff", slug, rid)).toMatchObject({ subjectId: "alice", reportedMessageId: betweenMembers.message!.id });
+  expect((await dmDecide(fixture.db, "staff", slug, rid, { decision: "action", moderation: { action: "warn", reason: "Synthetic reviewer warning" } })).outcome).toBe("ok");
+  expect((await fixture.admin.query("select issued_by from community_warnings where user_id='alice' and reason='Synthetic reviewer warning'")).rows)
+    .toEqual([{ issued_by: "staff" }]);
+});
+
+it("keeps a useful poll validator after physical deletion of the newest tombstone", async () => {
+  const first = await start("owner", "alice");
+  const cid = first.conversationId!;
+  const latest = await send("alice", cid, "To be purged");
+  await invoke("alice", "delete_message", [latest.message!.id]);
+  await fixture.admin.query("update community_dm_messages set purge_after=now()-interval '1 day' where id=$1", [latest.message!.id]);
+  await fixture.workerPool.query("select public.community_chat_purge_dm(25)");
+  const initial = await dmMessages(fixture.db, "owner", slug, cid, new URLSearchParams(), null);
+  expect(initial).toMatchObject({ cursor: "1" });
+  expect(await dmMessages(fixture.db, "owner", slug, cid, new URLSearchParams("since=1"), String(initial.etag)))
+    .toMatchObject({ notModified: true });
+});
+
+it("keeps an older host-started thread discoverable on the next list page", async () => {
+  const older = await start("owner", "alice");
+  await fixture.admin.query(`with inserted as (
+    insert into community_dm_conversations (tenant_id, community_id, pair_key, origin, last_message_at)
+    select $1,$2,md5('pagination-fixture-' || n),'member',now()+n*interval '1 second'
+    from generate_series(1,100) n returning tenant_id,community_id,id
+  ) insert into community_dm_participants(tenant_id,community_id,conversation_id,user_id)
+    select tenant_id,community_id,id,user_id from inserted cross join (values ('alice'),('bob')) people(user_id)`, [tenant, club]);
+  const first = await dmList(fixture.db, "alice", slug);
+  expect(first.items).toHaveLength(100);
+  const next = first.next as { at: string; id: string };
+  const second = await dmList(fixture.db, "alice", slug, new URLSearchParams({ beforeAt: next.at, beforeId: next.id }));
+  expect(second.items).toEqual([expect.objectContaining({ id: older.conversationId })]);
+  expect(second.next).toBeNull();
 });

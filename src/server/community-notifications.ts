@@ -36,7 +36,12 @@ export async function unreadCountTx(tx: Transaction, ctx: ForumContext, userId: 
 export function unreadCount(db: Database, userId: string, slug: string) {
   return withUser(db, userId, async (tx) => {
     const ctx = await forumContextTx(tx, userId, slug);
-    if (!ctx) throw notFound();
+    if (!ctx) {
+      if (!communityChatEnabled()) throw notFound();
+      const result = (await tx.execute<{ v: { outcome: string; unread: number } }>(sql`select public.community_notifications_list(${communitySlug.parse(slug)}, 1, true) as v`)).rows[0].v;
+      if (result.outcome !== "ok") throw notFound();
+      return result.unread;
+    }
     return unreadCountTx(tx, ctx, userId);
   });
 }
@@ -46,7 +51,7 @@ const readInput = z.object({ ids: z.array(z.uuid()).max(100).nullable() }).stric
 export async function markRead(db: Database, userId: string, slug: string, raw: unknown) {
   const { ids } = readInput.parse(raw);
   const list = ids === null ? null : `{${ids.join(",")}}`;
-  return forumDefiner(db, userId, sql`select public.community_notifications_read(${communitySlug.parse(slug)}, ${list}::uuid[]) as v`);
+  return forumDefiner(db, userId, sql`select public.community_notifications_read(${communitySlug.parse(slug)}, ${list}::uuid[], ${communityChatEnabled()}) as v`);
 }
 
 const prefsInput = z.object({ replies: z.boolean(), likes: z.boolean(), announcements: z.boolean(), muted: z.boolean() }).strict();

@@ -1730,6 +1730,7 @@ export const communityDmMessages = pgTable("community_dm_messages", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(), conversationId: uuid("conversation_id").notNull(),
   authorId: text("author_id").references(() => users.id, { onDelete: "set null" }),
+  requestHash: text("request_hash").notNull(),
   clientId: uuid("client_id").notNull(),
   body: text("body").notNull(),
   seq: bigint("seq", { mode: "bigint" }).notNull(), rev: bigint("rev", { mode: "bigint" }).notNull(),

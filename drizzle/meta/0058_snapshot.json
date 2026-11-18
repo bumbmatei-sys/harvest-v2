@@ -3912,6 +3912,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "request_hash": {
+          "name": "request_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "body": {
           "name": "body",
           "type": "text",

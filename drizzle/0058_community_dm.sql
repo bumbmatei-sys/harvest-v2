@@ -35,6 +35,7 @@ CREATE TABLE "community_dm_messages" (
 	"conversation_id" uuid NOT NULL,
 	"author_id" text,
 	"client_id" uuid NOT NULL,
+	"request_hash" text NOT NULL,
 	"body" text NOT NULL,
 	"seq" bigint NOT NULL,
 	"rev" bigint NOT NULL,
@@ -136,6 +137,23 @@ END $$;
 
 GRANT SELECT ON public.community_dm_conversations, public.community_dm_participants, public.community_dm_messages, public.community_dm_blocks TO harvest_app;
 -- C12's general host/report SELECT path must not expose a DM report's reporter or target.
+-- Tenant audit readers may not identify DM activity, reports or evidence access.
+CREATE POLICY dm_audit_metadata_private ON public.audit_logs AS RESTRICTIVE FOR SELECT TO harvest_app
+  USING (action NOT LIKE 'community.dm.%' AND metadata->>'targetType' IS DISTINCT FROM 'dm_message');
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION public.community_moderation_log(p_tenant uuid, p_community uuid, p_action text, p_target_type text, p_target_id text,
+  p_subject text, p_detail jsonb DEFAULT '{}'::jsonb) RETURNS void
+LANGUAGE plpgsql SET search_path=pg_catalog,pg_temp AS $$
+DECLARE actor text := nullif(current_setting('app.user_id', true), '');
+BEGIN
+  INSERT INTO public.community_moderation_actions(tenant_id,community_id,actor_id,action,target_type,target_id,subject_user_id,detail)
+    VALUES(p_tenant,p_community,actor,p_action,p_target_type,p_target_id,p_subject,coalesce(p_detail,'{}'::jsonb));
+  INSERT INTO public.audit_logs(tenant_id,actor_id,action,target_id,metadata)
+    VALUES(p_tenant,actor,'community.moderation_' || p_action,p_target_id,
+      CASE WHEN p_target_type='dm_message' THEN jsonb_build_object('targetType',p_target_type) ELSE '{}'::jsonb END);
+END $$;
+REVOKE ALL ON FUNCTION public.community_moderation_log(uuid,uuid,text,text,text,text,jsonb) FROM PUBLIC;
+--> statement-breakpoint
 CREATE POLICY dm_report_metadata_private ON public.community_reports AS RESTRICTIVE FOR SELECT TO harvest_app
   USING (target_type <> 'dm_message');
 CREATE POLICY dm_actions_private ON public.community_moderation_actions AS RESTRICTIVE FOR SELECT TO harvest_app
@@ -200,11 +218,18 @@ RETURNS boolean LANGUAGE sql STABLE SET search_path = pg_catalog, pg_temp AS $$
       AND ((x.blocker_id = a AND x.blocked_id = b) OR (x.blocker_id = b AND x.blocked_id = a)))
 $$;
 
+-- Channel revisions stay channel-only. DM preference changes are covered by the private rail detector.
+CREATE OR REPLACE FUNCTION public.community_chat_membership_revision() RETURNS trigger
+LANGUAGE plpgsql SET search_path=pg_catalog,pg_temp AS $$
+BEGIN
+  IF (NEW.role,NEW.status) IS DISTINCT FROM (OLD.role,OLD.status) THEN NEW.chat_state_rev:=OLD.chat_state_rev+1; END IF;
+  RETURN NEW;
+END $$;
+REVOKE ALL ON FUNCTION public.community_chat_membership_revision() FROM PUBLIC;
+--> statement-breakpoint
 CREATE FUNCTION public.community_dm_bump(p_tenant uuid, p_community uuid, p_conversation uuid, p_users text[])
 RETURNS void LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
 BEGIN
-  UPDATE public.community_memberships SET chat_state_rev = chat_state_rev + 1
-    WHERE tenant_id = p_tenant AND community_id = p_community AND user_id = ANY(p_users);
   UPDATE public.community_dm_participants SET state_rev = state_rev + 1
     WHERE conversation_id = p_conversation AND tenant_id = p_tenant AND community_id = p_community
       AND user_id = ANY(p_users);
@@ -300,7 +325,7 @@ BEGIN
   SELECT * INTO previous FROM public.community_dm_messages
     WHERE community_id = ctx.community AND author_id = actor AND client_id = p_client;
   IF FOUND THEN
-    IF previous.conversation_id IS DISTINCT FROM conversation.id OR previous.body IS DISTINCT FROM p_body THEN
+    IF previous.conversation_id IS DISTINCT FROM conversation.id OR previous.request_hash IS DISTINCT FROM encode(sha256(convert_to(p_body, 'UTF8')), 'hex') THEN
       RETURN public.community_chat_done('{"outcome":"client_id_conflict"}');
     END IF;
     RETURN public.community_chat_done(jsonb_build_object('outcome','ok','conversationId',conversation.id,'message',public.community_dm_project(previous)));
@@ -343,8 +368,9 @@ BEGIN
     UPDATE public.community_dm_participants SET hidden_at = NULL WHERE conversation_id = conversation.id AND user_id = other_user;
   END IF;
   UPDATE public.community_dm_participants SET hidden_at = NULL WHERE conversation_id = conversation.id AND user_id = actor;
-  INSERT INTO public.community_dm_messages(tenant_id, community_id, conversation_id, author_id, client_id, body, seq, rev, created_at)
-    VALUES(ctx.tenant, ctx.community, conversation.id, actor, p_client, p_body, conversation.last_rev, conversation.last_rev, stamp)
+  INSERT INTO public.community_dm_messages(tenant_id, community_id, conversation_id, author_id, client_id, request_hash, body, seq, rev, created_at)
+    VALUES(ctx.tenant, ctx.community, conversation.id, actor, p_client, encode(sha256(convert_to(p_body, 'UTF8')), 'hex'),
+      p_body, conversation.last_rev, conversation.last_rev, stamp)
     RETURNING * INTO saved;
   PERFORM public.community_dm_bump(ctx.tenant, ctx.community, conversation.id, ARRAY[actor, other_user]);
   PERFORM public.community_dm_notify(ctx.tenant, ctx.community, conversation.id, actor, other_user);
@@ -511,7 +537,7 @@ BEGIN
   UPDATE public.community_memberships SET dm_accept_members = p_accept
     WHERE tenant_id = ctx.tenant AND community_id = ctx.community AND user_id = actor AND status = 'active'
       AND dm_accept_members IS DISTINCT FROM p_accept;
-  -- The membership trigger in 0057 bumps chat_state_rev.
+  -- Only the private rail detector observes the preference.
   RETURN public.community_chat_done(jsonb_build_object('outcome','ok','acceptMembers',p_accept));
 END $$;
 
@@ -575,7 +601,8 @@ BEGIN
     OR (p_since IS NOT NULL AND p_before IS NOT NULL) THEN RETURN public.community_chat_done('{"outcome":"invalid"}'); END IF;
   SELECT last_rev INTO revision FROM public.community_dm_conversations WHERE id = p_conversation;
   tag := 'W/"' || p_conversation::text || ':' || revision::text || '"';
-  IF p_etag = tag AND p_before IS NULL AND (p_since IS NULL OR p_since >= revision) THEN
+  IF p_etag = tag AND p_before IS NULL AND (p_since IS NULL OR NOT EXISTS(SELECT 1 FROM public.community_dm_messages
+    WHERE conversation_id = p_conversation AND rev > p_since)) THEN
     RETURN public.community_chat_done(jsonb_build_object('outcome','ok','notModified',true,'etag',tag));
   END IF;
   WITH page AS MATERIALIZED (
@@ -607,7 +634,7 @@ LANGUAGE sql STABLE SET search_path = pg_catalog, pg_temp AS $$
     AND own.hidden_at IS NULL AND own.left_at IS NULL AND m.status IS DISTINCT FROM 'banned' AND m.status IS DISTINCT FROM 'removed'
 $$;
 
-CREATE FUNCTION public.community_dm_list(p_slug text)
+CREATE FUNCTION public.community_dm_list(p_slug text, p_before_at timestamptz DEFAULT NULL, p_before_id uuid DEFAULT NULL)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE
   actor text := nullif(current_setting('app.user_id', true), '');
@@ -616,6 +643,7 @@ DECLARE
   policy text;
   accepts boolean;
   blocks jsonb;
+  next_page jsonb;
 BEGIN
   SELECT * INTO ctx FROM public.community_chat_actor(p_slug);
   IF ctx.tenant IS NULL OR public.community_dm_active(ctx.tenant, ctx.community, actor) IS NULL THEN
@@ -623,17 +651,25 @@ BEGIN
   END IF;
   SELECT dm_policy INTO policy FROM public.communities WHERE tenant_id = ctx.tenant AND id = ctx.community;
   SELECT dm_accept_members INTO accepts FROM public.community_memberships WHERE community_id = ctx.community AND user_id = actor;
+  WITH page AS MATERIALIZED (
+    SELECT * FROM public.community_dm_visible(ctx.tenant,ctx.community,actor) v
+    WHERE p_before_id IS NULL OR coalesce(v.last_message_at,'-infinity'::timestamptz) < coalesce(p_before_at,'-infinity'::timestamptz)
+      OR (v.last_message_at IS NOT DISTINCT FROM p_before_at AND v.id > p_before_id)
+    ORDER BY last_message_at DESC NULLS LAST,id LIMIT 101
+  ), bounded AS (SELECT * FROM page ORDER BY last_message_at DESC NULLS LAST,id LIMIT 100)
   SELECT coalesce(jsonb_agg(jsonb_build_object('id', v.id, 'latestRev', v.last_rev::text, 'lastMessageAt', v.last_message_at,
     'otherId', v.other_id, 'otherName', v.other_name, 'muted', v.muted, 'canSend', v.can_send,
     'unread', CASE WHEN v.muted THEN 0 ELSE (SELECT count(*) FROM (SELECT 1 FROM public.community_dm_messages m
       WHERE m.conversation_id = v.id AND m.seq > v.last_read_seq AND m.author_id IS DISTINCT FROM actor
         AND m.deleted_at IS NULL LIMIT 100) bounded) END) ORDER BY v.last_message_at DESC NULLS LAST, v.id), '[]')
-    INTO items FROM (SELECT * FROM public.community_dm_visible(ctx.tenant, ctx.community, actor)
-      ORDER BY last_message_at DESC NULLS LAST, id LIMIT 100) v;
+    , CASE WHEN (SELECT count(*) FROM page)>100 THEN
+      (SELECT jsonb_build_object('at', n.last_message_at, 'id', n.id) FROM bounded n
+        ORDER BY n.last_message_at ASC NULLS FIRST,n.id DESC LIMIT 1) END
+    INTO items, next_page FROM bounded v;
   SELECT coalesce(jsonb_agg(blocked_id ORDER BY blocked_id), '[]') INTO blocks FROM public.community_dm_blocks
     WHERE tenant_id = ctx.tenant AND community_id = ctx.community AND blocker_id = actor;
   RETURN public.community_chat_done(jsonb_build_object('outcome','ok','items',items,'policy',policy,
-    'acceptMembers',coalesce(accepts,true),'blockedUserIds',blocks));
+    'next',next_page,'acceptMembers',coalesce(accepts,true),'blockedUserIds',blocks));
 END $$;
 
 CREATE FUNCTION public.community_dm_rail(p_slug text, p_detector_only boolean)
@@ -650,10 +686,12 @@ BEGIN
     RETURN public.community_chat_done('{"token":"","latestRev":"0","unreadConversations":0}');
   END IF;
   WITH mine AS MATERIALIZED (
-    SELECT v.id, v.last_rev, v.state_rev, v.muted, v.last_read_seq
+    SELECT v.id, v.last_rev, v.state_rev, v.muted, v.last_read_seq, v.can_send
       FROM public.community_dm_visible(ctx.tenant, ctx.community, actor) v
   )
-  SELECT coalesce(md5(string_agg(id::text || ':' || last_rev::text || ':' || state_rev::text, ',' ORDER BY id)), ''),
+  SELECT md5(coalesce(string_agg(id::text || ':' || last_rev::text || ':' || state_rev::text || ':' || can_send::text,
+      ',' ORDER BY id), '') || ':' || coalesce((SELECT dm_accept_members FROM public.community_memberships
+        WHERE tenant_id=ctx.tenant AND community_id=ctx.community AND user_id=actor),true)::text),
     coalesce(max(last_rev), 0), CASE WHEN p_detector_only THEN 0 ELSE least(100, count(*) FILTER(WHERE NOT muted AND EXISTS (
       SELECT 1 FROM public.community_dm_messages m WHERE m.conversation_id = mine.id AND m.seq > mine.last_read_seq
         AND m.author_id IS DISTINCT FROM actor AND m.deleted_at IS NULL))) END
@@ -794,7 +832,8 @@ BEGIN
     AND (expires_at IS NULL OR expires_at > clock_timestamp()) FOR SHARE;
   IF NOT FOUND THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
   PERFORM public.community_moderation_log(e.tenant_id, e.community_id, 'dm_evidence_view', 'dm_message', p_report::text, NULL, '{}'::jsonb);
-  RETURN public.community_chat_done(jsonb_build_object('outcome','ok','reporterName',e.reporter_name,'messages',e.snapshot));
+  RETURN public.community_chat_done(jsonb_build_object('outcome','ok','reporterName',e.reporter_name,'subjectId',e.subject_key,
+    'reportedMessageId',e.snapshot->-1->>'id','messages',e.snapshot));
 END $$;
 DO $$ BEGIN
   EXECUTE format($p$CREATE POLICY dm_evidence_lookup ON public.community_dm_report_evidence FOR SELECT TO %I
@@ -802,17 +841,120 @@ DO $$ BEGIN
 END $$;
 
 --> statement-breakpoint
-CREATE FUNCTION public.community_dm_decide(p_slug text, p_report uuid, p_decision text)
+CREATE FUNCTION public.community_dm_member_moderate_core(p_slug text, p_user_id text, p_action text, p_days integer, p_from_dm boolean) RETURNS jsonb
+LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
+DECLARE actor text := nullif(current_setting('app.user_id', true), ''); ctx record; target record; actor_rank integer; target_rank integer;
+BEGIN
+  IF p_from_dm THEN
+    SELECT tenant AS o_tenant,community AS o_community,role AS o_role INTO ctx FROM public.community_chat_actor(p_slug);
+    IF NOT coalesce(public.community_chat_can(ctx.o_role,'chat:manage_channels'),false) THEN RETURN public.community_forum_done('not_found'); END IF;
+  ELSE
+    SELECT * INTO ctx FROM public.community_forum_actor(p_slug);
+  END IF;
+  IF ctx.o_tenant IS NULL THEN RETURN public.community_forum_done('not_found'); END IF;
+  IF ctx.o_role NOT IN ('owner', 'admin', 'moderator') THEN RETURN public.community_forum_done('forbidden'); END IF;
+  IF p_action IS NULL OR p_action NOT IN ('mute', 'unmute', 'ban', 'unban') OR (p_action = 'mute' AND coalesce(p_days, 0) NOT IN (1, 7, 30)) THEN
+    RETURN public.community_forum_done('invalid');
+  END IF;
+  SELECT * INTO target FROM public.community_memberships WHERE tenant_id = ctx.o_tenant AND community_id = ctx.o_community AND user_id = p_user_id FOR UPDATE;
+  IF NOT FOUND THEN RETURN public.community_forum_done('not_found'); END IF;
+  actor_rank := CASE ctx.o_role WHEN 'owner' THEN 3 WHEN 'admin' THEN 2 WHEN 'moderator' THEN 1 ELSE 0 END;
+  target_rank := CASE target.role WHEN 'owner' THEN 3 WHEN 'admin' THEN 2 WHEN 'moderator' THEN 1 ELSE 0 END;
+  IF p_from_dm THEN
+    target_rank := greatest(target_rank,CASE public.community_chat_role(ctx.o_tenant,ctx.o_community,p_user_id)
+      WHEN 'owner' THEN 3 WHEN 'admin' THEN 2 WHEN 'moderator' THEN 1 ELSE 0 END);
+  END IF;
+  IF p_user_id = actor OR target.role = 'owner' OR actor_rank <= target_rank THEN RETURN public.community_forum_done('forbidden'); END IF;
+  IF p_action = 'mute' THEN
+    IF target.status <> 'active' THEN RETURN public.community_forum_done('invalid'); END IF;
+    UPDATE public.community_memberships SET muted_until = now() + make_interval(days => p_days), updated_at = now()
+      WHERE tenant_id = ctx.o_tenant AND community_id = ctx.o_community AND user_id = p_user_id;
+  ELSIF p_action = 'unmute' THEN
+    -- Active members only: touching a banned membership would move updated_at and re-open the one-appeal-per-ban window (review on #65).
+    IF target.status <> 'active' THEN RETURN public.community_forum_done('invalid'); END IF;
+    UPDATE public.community_memberships SET muted_until = NULL, updated_at = now()
+      WHERE tenant_id = ctx.o_tenant AND community_id = ctx.o_community AND user_id = p_user_id;
+  ELSIF p_action = 'ban' THEN
+    IF target.status = 'banned' THEN RETURN public.community_forum_done('invalid'); END IF;
+    UPDATE public.community_memberships SET status = 'banned', role = 'member', muted_until = NULL, updated_at = now()
+      WHERE tenant_id = ctx.o_tenant AND community_id = ctx.o_community AND user_id = p_user_id;
+    UPDATE public.entitlements SET revoked_at = now(), revoked_by = actor
+      WHERE tenant_id = ctx.o_tenant AND user_id = p_user_id AND resource_type = 'community' AND resource_id = ctx.o_community AND revoked_at IS NULL;
+    UPDATE public.community_applications SET status = 'declined', decided_by = actor, decided_at = now(), updated_at = now()
+      WHERE tenant_id = ctx.o_tenant AND community_id = ctx.o_community AND user_id = p_user_id AND status IN ('pending', 'info_requested');
+  ELSE
+    IF target.status <> 'banned' OR actor_rank < 2 THEN RETURN public.community_forum_done(CASE WHEN target.status <> 'banned' THEN 'invalid' ELSE 'forbidden' END); END IF;
+    UPDATE public.community_memberships SET status = 'left', updated_at = now()
+      WHERE tenant_id = ctx.o_tenant AND community_id = ctx.o_community AND user_id = p_user_id;
+    -- An unban settles the person's open appeal as approved (C12b).
+    UPDATE public.community_appeals SET status = 'approved', decided_by = actor, decided_at = now()
+      WHERE tenant_id = ctx.o_tenant AND community_id = ctx.o_community AND user_id = p_user_id AND status = 'open';
+  END IF;
+  PERFORM public.community_moderation_log(ctx.o_tenant, ctx.o_community, p_action, 'member', p_user_id, p_user_id,
+    CASE WHEN p_action = 'mute' THEN jsonb_build_object('days', p_days) ELSE '{}'::jsonb END);
+  RETURN public.community_forum_done('ok');
+END $$;
+REVOKE ALL ON FUNCTION public.community_dm_member_moderate_core(text,text,text,integer,boolean) FROM PUBLIC;
+CREATE OR REPLACE FUNCTION public.community_member_moderate(p_slug text, p_user_id text, p_action text, p_days integer) RETURNS jsonb
+LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+  SELECT public.community_dm_member_moderate_core(p_slug,p_user_id,p_action,p_days,false)
+$$;
+REVOKE ALL ON FUNCTION public.community_member_moderate(text,text,text,integer) FROM PUBLIC;
+--> statement-breakpoint
+CREATE FUNCTION public.community_dm_warn_core(p_slug text, p_user_id text, p_reason text, p_from_dm boolean) RETURNS jsonb
+LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
+DECLARE actor text := nullif(current_setting('app.user_id', true), ''); ctx record; target record; actor_rank integer; target_rank integer;
+  v_reason text := btrim(coalesce(p_reason, '')); v_warning uuid;
+BEGIN
+  IF p_from_dm THEN
+    SELECT tenant AS o_tenant,community AS o_community,role AS o_role INTO ctx FROM public.community_chat_actor(p_slug);
+    IF NOT coalesce(public.community_chat_can(ctx.o_role,'chat:manage_channels'),false) THEN RETURN public.community_forum_done('not_found'); END IF;
+  ELSE
+    SELECT * INTO ctx FROM public.community_forum_actor(p_slug);
+  END IF;
+  IF ctx.o_tenant IS NULL THEN RETURN public.community_forum_done('not_found'); END IF;
+  IF ctx.o_role NOT IN ('owner', 'admin', 'moderator') THEN RETURN public.community_forum_done('forbidden'); END IF;
+  IF length(v_reason) NOT BETWEEN 1 AND 500 THEN RETURN public.community_forum_done('invalid'); END IF;
+  SELECT * INTO target FROM public.community_memberships WHERE tenant_id = ctx.o_tenant AND community_id = ctx.o_community AND user_id = p_user_id;
+  IF NOT FOUND THEN RETURN public.community_forum_done('not_found'); END IF;
+  actor_rank := CASE ctx.o_role WHEN 'owner' THEN 3 WHEN 'admin' THEN 2 WHEN 'moderator' THEN 1 ELSE 0 END;
+  target_rank := CASE target.role WHEN 'owner' THEN 3 WHEN 'admin' THEN 2 WHEN 'moderator' THEN 1 ELSE 0 END;
+  IF p_from_dm THEN
+    target_rank := greatest(target_rank,CASE public.community_chat_role(ctx.o_tenant,ctx.o_community,p_user_id)
+      WHEN 'owner' THEN 3 WHEN 'admin' THEN 2 WHEN 'moderator' THEN 1 ELSE 0 END);
+  END IF;
+  IF p_user_id = actor OR target.role = 'owner' OR actor_rank <= target_rank THEN RETURN public.community_forum_done('forbidden'); END IF;
+  IF target.status <> 'active' THEN RETURN public.community_forum_done('invalid'); END IF;
+  INSERT INTO public.community_warnings (tenant_id, community_id, user_id, issued_by, reason)
+    VALUES (ctx.o_tenant, ctx.o_community, p_user_id, actor, v_reason) RETURNING id INTO v_warning;
+  PERFORM public.community_moderation_log(ctx.o_tenant, ctx.o_community, 'warn', 'member', p_user_id, p_user_id, jsonb_build_object('warningId', v_warning));
+  PERFORM public.community_notify(ctx.o_tenant, ctx.o_community, p_user_id, 'warning', 'warning', v_warning::text, NULL, '{}'::jsonb);
+  RETURN public.community_forum_done('ok', v_warning);
+END $$;
+REVOKE ALL ON FUNCTION public.community_dm_warn_core(text,text,text,boolean) FROM PUBLIC;
+CREATE OR REPLACE FUNCTION public.community_warn(p_slug text, p_user_id text, p_reason text) RETURNS jsonb
+LANGUAGE sql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+  SELECT public.community_dm_warn_core(p_slug,p_user_id,p_reason,false)
+$$;
+REVOKE ALL ON FUNCTION public.community_warn(text,text,text) FROM PUBLIC;
+--> statement-breakpoint
+CREATE FUNCTION public.community_dm_decide(p_slug text, p_report uuid, p_decision text, p_moderation jsonb DEFAULT NULL)
 RETURNS jsonb LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
 DECLARE
   actor text := nullif(current_setting('app.user_id', true), '');
   ctx record;
   e public.community_dm_report_evidence%ROWTYPE;
   decided timestamptz;
+  applied jsonb;
 BEGIN
   SELECT * INTO ctx FROM public.community_chat_actor(p_slug);
   IF ctx.tenant IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
-  PERFORM public.community_dm_lock_members(ctx.tenant, ctx.community, ARRAY[actor]);
+  SELECT * INTO e FROM public.community_dm_report_evidence
+    WHERE report_id=p_report AND tenant_id=ctx.tenant AND community_id=ctx.community;
+  IF e.report_id IS NULL OR actor=e.reporter_key OR actor IS NOT DISTINCT FROM e.subject_key THEN
+    RETURN public.community_chat_done('{"outcome":"not_found"}');
+  END IF;
+  PERFORM public.community_dm_lock_members(ctx.tenant,ctx.community,ARRAY[actor,e.subject_key]);
   IF NOT coalesce(public.community_chat_can(public.community_dm_active(ctx.tenant, ctx.community, actor), 'chat:manage_channels'),false) THEN
     RETURN public.community_chat_done('{"outcome":"not_found"}');
   END IF;
@@ -820,9 +962,19 @@ BEGIN
   PERFORM 1 FROM public.community_reports WHERE id = p_report AND tenant_id = ctx.tenant AND community_id = ctx.community
     AND target_type = 'dm_message' AND status = 'open' FOR UPDATE;
   IF NOT FOUND THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
-  SELECT * INTO e FROM public.community_dm_report_evidence WHERE report_id = p_report;
-  IF e.report_id IS NULL OR actor = e.reporter_key OR actor IS NOT DISTINCT FROM e.subject_key THEN
-    RETURN public.community_chat_done('{"outcome":"not_found"}');
+  IF p_moderation IS NOT NULL THEN
+    IF p_decision<>'action' OR e.subject_key IS NULL THEN RETURN public.community_chat_done('{"outcome":"invalid"}'); END IF;
+    CASE p_moderation->>'action'
+      WHEN 'warn' THEN applied:=public.community_dm_warn_core(p_slug,e.subject_key,p_moderation->>'reason',true);
+      WHEN 'mute' THEN
+        IF coalesce(p_moderation->>'days','') NOT IN ('1','7','30') THEN RETURN public.community_chat_done('{"outcome":"invalid"}'); END IF;
+        applied:=public.community_dm_member_moderate_core(p_slug,e.subject_key,'mute',(p_moderation->>'days')::integer,true);
+      WHEN 'ban' THEN applied:=public.community_dm_member_moderate_core(p_slug,e.subject_key,'ban',NULL,true);
+      ELSE RETURN public.community_chat_done('{"outcome":"invalid"}');
+    END CASE;
+    IF applied->>'outcome' IS DISTINCT FROM 'ok' THEN RETURN public.community_chat_done(applied); END IF;
+    -- Existing moderation helpers reset their scoped settings before returning.
+    PERFORM set_config('app.community_definer_tenant',ctx.tenant::text,true);
   END IF;
   decided := clock_timestamp();
   UPDATE public.community_reports SET status = CASE WHEN p_decision = 'action' THEN 'actioned' ELSE 'dismissed' END,
@@ -1038,10 +1190,17 @@ REVOKE ALL ON FUNCTION public.community_report_decide(text,uuid,text) FROM PUBLI
 CREATE FUNCTION public.community_notifications_list(p_slug text, p_limit integer, p_include_dm boolean) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE actor text := nullif(current_setting('app.user_id', true), ''); ctx record; m record; v_since timestamptz; v_limit integer := least(greatest(coalesce(p_limit, 30), 1), 50);
+  forum_access boolean;
   v_announce boolean; v_items jsonb; v_unread integer;
 BEGIN
   SELECT * INTO ctx FROM public.community_forum_actor(p_slug);
-  IF ctx.o_tenant IS NULL THEN RETURN public.community_forum_done('not_found'); END IF;
+  forum_access:=ctx.o_tenant IS NOT NULL;
+  IF NOT forum_access THEN
+    SELECT tenant AS o_tenant,community AS o_community,role AS o_role INTO ctx FROM public.community_chat_actor(p_slug);
+    IF NOT p_include_dm OR ctx.o_tenant IS NULL OR NOT coalesce(public.community_chat_can(ctx.o_role,'chat:manage_channels'),false) THEN
+      RETURN public.community_forum_done('not_found');
+    END IF;
+  END IF;
   SELECT * INTO m FROM public.community_memberships WHERE tenant_id = ctx.o_tenant AND community_id = ctx.o_community AND user_id = actor;
   v_since := coalesce(m.notifications_seen_at, m.joined_at, m.created_at);
   v_announce := m.notify_announcements AND NOT m.notifications_muted;
@@ -1049,7 +1208,7 @@ BEGIN
     SELECT jsonb_build_object('id', x.id, 'kind', x.kind, 'targetType', x.target_type, 'postId', x.post_id, 'actorName', u.name, 'count', x.actor_count,
         'detail', x.detail, 'read', x.read_at IS NOT NULL, 'createdAt', x.updated_at) AS j, x.updated_at AS at
       FROM public.community_notifications x LEFT JOIN public.users u ON u.id = x.actor_id
-      WHERE x.tenant_id = ctx.o_tenant AND x.community_id = ctx.o_community AND x.recipient_id = actor AND (CASE WHEN x.kind IN ('chat_mention','chat_reply') THEN (public.community_chat_user_can_read(x.tenant_id,x.community_id,x.target_id::uuid,actor) AND NOT EXISTS(SELECT 1 FROM public.community_channel_reads cr WHERE cr.channel_id=x.target_id::uuid AND cr.user_id=actor AND cr.mute='all')) WHEN x.kind = 'dm' THEN p_include_dm AND x.target_type = 'dm_conversation' AND public.community_dm_notice_allowed(x.tenant_id,x.community_id,x.target_id,x.actor_id) ELSE true END)
+      WHERE x.tenant_id = ctx.o_tenant AND x.community_id = ctx.o_community AND x.recipient_id = actor AND (forum_access OR x.kind IN ('dm','host_queue')) AND (CASE WHEN x.kind IN ('chat_mention','chat_reply') THEN (public.community_chat_user_can_read(x.tenant_id,x.community_id,x.target_id::uuid,actor) AND NOT EXISTS(SELECT 1 FROM public.community_channel_reads cr WHERE cr.channel_id=x.target_id::uuid AND cr.user_id=actor AND cr.mute='all')) WHEN x.kind = 'dm' THEN p_include_dm AND x.target_type = 'dm_conversation' AND public.community_dm_notice_allowed(x.tenant_id,x.community_id,x.target_id,x.actor_id) ELSE true END)
       ORDER BY x.updated_at DESC, x.id LIMIT v_limit),
   a AS (
     SELECT jsonb_build_object('id', 'announcement-' || p.id::text, 'kind', 'announcement', 'targetType', 'post', 'postId', p.id, 'actorName', u.name, 'count', 1,
@@ -1060,13 +1219,43 @@ BEGIN
       ORDER BY p.created_at DESC, p.id LIMIT 20)
   SELECT (SELECT coalesce(jsonb_agg(s.j ORDER BY s.at DESC), '[]'::jsonb) FROM (SELECT * FROM n UNION ALL SELECT * FROM a) s),
     (SELECT count(*)::int FROM a) + (SELECT count(*)::int FROM public.community_notifications y WHERE y.tenant_id = ctx.o_tenant AND y.community_id = ctx.o_community
-      AND y.recipient_id = actor AND y.read_at IS NULL
+      AND y.recipient_id = actor AND y.read_at IS NULL AND (forum_access OR y.kind IN ('dm','host_queue'))
       AND (y.kind <> 'dm' OR (p_include_dm AND y.target_type = 'dm_conversation' AND public.community_dm_notice_allowed(y.tenant_id,y.community_id,y.target_id,y.actor_id))))
     INTO v_items, v_unread;
   PERFORM public.community_definer_reset();
   RETURN jsonb_build_object('outcome', 'ok', 'items', v_items, 'unread', v_unread);
 END $$;
 REVOKE ALL ON FUNCTION public.community_notifications_list(text,integer,boolean) FROM PUBLIC;
+--> statement-breakpoint
+CREATE FUNCTION public.community_notifications_read(p_slug text, p_ids uuid[], p_include_dm boolean) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE actor text := nullif(current_setting('app.user_id', true), ''); ctx record; forum_access boolean;
+BEGIN
+  SELECT * INTO ctx FROM public.community_forum_actor(p_slug);
+  forum_access:=ctx.o_tenant IS NOT NULL;
+  IF NOT forum_access THEN
+    SELECT tenant AS o_tenant,community AS o_community,role AS o_role INTO ctx FROM public.community_chat_actor(p_slug);
+    IF NOT p_include_dm OR ctx.o_tenant IS NULL OR NOT coalesce(public.community_chat_can(ctx.o_role,'chat:manage_channels'),false) THEN
+      RETURN public.community_forum_done('not_found');
+    END IF;
+  END IF;
+  IF p_ids IS NOT NULL AND cardinality(p_ids) > 100 THEN RETURN public.community_forum_done('invalid'); END IF;
+  IF p_ids IS NULL THEN
+    UPDATE public.community_notifications SET read_at = now()
+      WHERE tenant_id = ctx.o_tenant AND community_id = ctx.o_community AND recipient_id = actor AND read_at IS NULL AND (forum_access OR kind IN ('dm','host_queue'));
+  ELSIF cardinality(p_ids) > 0 THEN
+    UPDATE public.community_notifications SET read_at = now()
+      WHERE tenant_id = ctx.o_tenant AND community_id = ctx.o_community AND recipient_id = actor AND read_at IS NULL AND (forum_access OR kind IN ('dm','host_queue')) AND id = ANY (p_ids);
+  END IF;
+  IF p_ids IS NULL OR cardinality(p_ids) = 0 THEN
+    -- Not updated_at: a ban or an unmute is detected from it.
+    UPDATE public.community_memberships SET notifications_seen_at = now()
+      WHERE tenant_id = ctx.o_tenant AND community_id = ctx.o_community AND user_id = actor;
+  END IF;
+  RETURN public.community_forum_done('ok');
+END $$;
+REVOKE ALL ON FUNCTION public.community_notifications_read(text,uuid[],boolean) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.community_notifications_read(text,uuid[],boolean) TO harvest_app;
 GRANT EXECUTE ON FUNCTION public.community_notifications_list(text,integer,boolean) TO harvest_app;
 
 CREATE OR REPLACE FUNCTION public.community_notifications_list(p_slug text, p_limit integer)
@@ -1077,9 +1266,9 @@ REVOKE ALL ON FUNCTION public.community_notifications_list(text,integer) FROM PU
 
 --> statement-breakpoint
 -- The DM HTTP route can only decide DMs. The C12 route calls the forum/channel-only entry point.
-CREATE FUNCTION public.community_dm_report_decide(p_slug text, p_report uuid, p_decision text)
+CREATE FUNCTION public.community_dm_report_decide(p_slug text, p_report uuid, p_decision text, p_moderation jsonb DEFAULT NULL)
 RETURNS jsonb LANGUAGE sql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-  SELECT public.community_dm_decide(p_slug, p_report, p_decision)
+  SELECT public.community_dm_decide(p_slug, p_report, p_decision, p_moderation)
 $$;
-REVOKE ALL ON FUNCTION public.community_dm_report_decide(text,uuid,text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.community_dm_report_decide(text,uuid,text) TO harvest_app;
+REVOKE ALL ON FUNCTION public.community_dm_report_decide(text,uuid,text,jsonb) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.community_dm_report_decide(text,uuid,text,jsonb) TO harvest_app;
