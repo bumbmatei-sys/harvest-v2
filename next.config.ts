@@ -19,10 +19,13 @@ export default function config(phase: string): NextConfig {
       ...(aliasQaOtp ? { [otpModule]: previewOtpModule } : {}),
       ...(aliasE2eMailer ? { resend: "./tests/e2e/resend-mock.ts" } : {}),
     } },
-    webpack(config) {
+    webpack(config, { webpack }) {
       // Keep the test mailer and derived OTP implementation out of production bundles.
       if (aliasE2eMailer) config.resolve.alias.resend = resolve("tests/e2e/resend-mock.ts");
-      if (aliasQaOtp) config.resolve.alias[`${otpModule}$`] = resolve(previewOtpModule);
+      if (aliasQaOtp) {
+        // Replace the request before the tsconfig paths plugin can resolve the default implementation.
+        config.plugins.push(new webpack.NormalModuleReplacementPlugin(/^@\/server\/auth-otp-hooks$/, resolve(previewOtpModule)));
+      }
       return config;
     },
   });
