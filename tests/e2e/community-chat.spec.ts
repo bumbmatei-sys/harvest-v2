@@ -250,9 +250,9 @@ test("phone chat is full screen with a one-line composer and an admin can manage
   await expect(create).toBeHidden();
   await page.getByRole("button", { name: "Back to channels" }).click();
   await page.getByRole("button", { name: "Options for Archived volunteers" }).click();
-  await page.getByRole("menuitem", { name: "Archive", exact: true }).click();
+  await page.getByRole("menuitem", { name: "Archive channel", exact: true }).click();
   const archive = page.getByRole("alertdialog");
-  await archive.getByRole("button", { name: "Archive", exact: true }).click();
+  await archive.getByRole("button", { name: "Archive channel", exact: true }).click();
   await expect(archive).toBeHidden();
   const settingsAfterArchive = await (await page.request.get(`/api/communities/${slug}/chat/settings`)).json();
   expect(settingsAfterArchive.channels).toEqual(expect.arrayContaining([expect.objectContaining({ name: "Archived volunteers", archived: true })]));
