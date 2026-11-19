@@ -421,6 +421,13 @@
       "when": 1795400000008,
       "tag": "0060_newsletter_nl02",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1795400000009,
+      "tag": "0061_free_catalog",
+      "breakpoints": true
     }
   ]
 }
