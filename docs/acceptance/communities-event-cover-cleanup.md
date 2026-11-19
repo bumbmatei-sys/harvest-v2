@@ -20,3 +20,9 @@ Run `node --import tsx scripts/event-cover-cleanup.ts check` or `node --import t
 ```
 
 No machine configuration, timer or schedule is part of this PR. All five HC-02 gates remain **UNAPPROVED**. Hosted Neon, real object storage and hosted operation are outside verification scope.
+
+## Verification
+
+Lint and typecheck passed locally. The full unit project passed 1,221 tests in 96 files. The full integration project passed 889 tests in 106 files against disposable loopback PostgreSQL.
+
+The 14 focused tests included 8 event-cover cases using fake storage and 6 restricted-migration-owner cases. The production-off CLI smoke test exited successfully with worker and storage credentials removed.
