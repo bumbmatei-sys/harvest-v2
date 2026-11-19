@@ -24,6 +24,7 @@ export type Permission = "workspace:read" | "members:write" | "roles:write" | "c
   | "social:connect" | "social:schedule" | "social:inbox"
   // Live staff capabilities; community membership is resolved separately.
   | "community:live:view" | "community:live:manage" | "community:live:moderate"
+  | "catalog:manage"
   | "newsletter:read" | "newsletter:manage";
 export function can(role: string, permission: Permission): boolean {
   if (permission === "communities:read" || permission === "workspace:read" || permission === "contacts:read" || permission === "companies:read" || permission === "opportunities:read" || permission === "tasks:read" || permission === "notes:read" || permission === "campaigns:read") return roleIds.includes(role as Role);

@@ -506,6 +506,7 @@
     "signInToContinue": "Sign in to continue.",
     "accountNotFound": "Account not found.",
     "communityNotFound": "Community not found.",
+    "catalogItemNotFound": "Item not found.",
     "communitySlugTaken": "That community address is taken. Choose another.",
     "communityChanged": "This community was changed by someone else. Reload and try again.",
     "paidCommunitiesUnavailable": "Paid communities are not available yet.",

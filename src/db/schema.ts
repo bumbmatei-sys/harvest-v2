@@ -1,4 +1,5 @@
 import type { LandingDefinition } from "../lib/connect-landing";
+import type { RichDoc } from "../lib/rich-text";
 import type { BrandTheme } from "../lib/theme-registry";
 import type { Audience } from "../lib/audience";
 import type { campaignStructures, campaignTypes } from "../lib/campaigns";
@@ -471,7 +472,7 @@ export const files = pgTable("files", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
-  uniqueIndex("files_key_idx").on(t.key), index("files_tenant_created_idx").on(t.tenantId, t.createdAt),
+  uniqueIndex("files_key_idx").on(t.key), unique("files_tenant_id_id_unique").on(t.tenantId, t.id), index("files_tenant_created_idx").on(t.tenantId, t.createdAt),
   foreignKey({ columns: [t.tenantId, t.ownerId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }),
   check("files_size", sql`${t.size} BETWEEN 1 AND 10485760`),
   check("files_checksum", sql`${t.checksum} ~ '^[a-f0-9]{64}$'`),
@@ -1015,7 +1016,7 @@ export const communityVisibilities = ["listed", "unlisted", "hidden"] as const;
 export const communityPricings = ["free", "paid"] as const;
 export const communityMembershipRoles = ["owner", "admin", "moderator", "contributor", "member"] as const;
 export const communityMembershipStatuses = ["active", "pending", "banned", "left", "removed"] as const;
-export const entitlementSources = ["community_free_join", "admin_grant", "invitation", "application", "product_purchase", "bundle", "subscription"] as const;
+export const entitlementSources = ["community_free_join", "admin_grant", "invitation", "application", "product_purchase", "bundle", "subscription", "free_enrolment"] as const;
 export const reservedCommunitySlugs = ["new", "discover", "search", "create", "settings", "admin", "api", "me", "account"] as const;
 const reservedSlugSql = sql.raw(reservedCommunitySlugs.map((slug) => `'${slug}'`).join(", "));
 
@@ -1110,6 +1111,7 @@ export const communityMemberships = pgTable("community_memberships", {
 export const entitlements = pgTable("entitlements", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
   id: uuid("id").notNull().defaultRandom(),
+  catalogItemId: uuid("catalog_item_id"),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   resourceType: text("resource_type").notNull(),
   resourceId: uuid("resource_id").notNull(),
@@ -1124,8 +1126,12 @@ export const entitlements = pgTable("entitlements", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
   index("entitlements_subject_idx").on(t.userId, t.resourceType, t.resourceId),
-  check("entitlement_resource_type", sql`${t.resourceType} in ('community')`),
-  check("entitlement_source", sql`${t.source} in ('community_free_join', 'admin_grant', 'invitation', 'application', 'product_purchase', 'bundle', 'subscription')`),
+  foreignKey({ columns: [t.tenantId, t.catalogItemId, t.userId], foreignColumns: [catalogEnrolments.tenantId, catalogEnrolments.itemId, catalogEnrolments.userId] }),
+  uniqueIndex("entitlement_free_enrolment_idx").on(t.tenantId, t.catalogItemId, t.userId).where(sql`${t.source} = 'free_enrolment'`),
+  check("entitlement_resource_type", sql`${t.resourceType} in ('community','course','product')`),
+  check("entitlement_catalog_link", sql`(${t.resourceType} = 'community' and ${t.catalogItemId} is null and ${t.source} <> 'free_enrolment') or
+    (${t.resourceType} in ('course','product') and ${t.catalogItemId} is not null and ${t.catalogItemId} = ${t.resourceId} and ${t.source} = 'free_enrolment')`),
+  check("entitlement_source", sql`${t.source} in ('community_free_join', 'admin_grant', 'invitation', 'application', 'product_purchase', 'bundle', 'subscription', 'free_enrolment')`),
   check("entitlement_window", sql`${t.validUntil} is null or ${t.validUntil} > ${t.validFrom}`),
   check("entitlement_tier", sql`${t.tier} is null or length(${t.tier}) between 1 and 80`),
   check("entitlement_reason", sql`${t.reason} is null or length(${t.reason}) between 1 and 200`),
@@ -1898,4 +1904,75 @@ export const newsletterIntakeLimits = pgTable("newsletter_intake_limits", {
 }, (t) => [
   index("newsletter_intake_limits_expiry").on(t.expiresAt),
   check("newsletter_intake_limit_count", sql`${t.count} > 0`),
+]);
+
+// Free standalone catalogue. A course or download is one item; community shelves reference it.
+export const catalogItems = pgTable("catalog_items", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  id: uuid("id").notNull().defaultRandom(),
+  kind: text("kind", { enum: ["course", "download"] }).notNull(),
+  slug: text("slug").notNull().unique(),
+  title: text("title").notNull(),
+  summary: text("summary").notNull().default(""),
+  state: text("state", { enum: ["draft", "published", "archived"] }).notNull().default("draft"),
+  visibility: text("visibility", { enum: ["hidden", "unlisted", "listed"] }).notNull().default("hidden"),
+  version: integer("version").notNull().default(1),
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }), unique().on(t.tenantId, t.id, t.kind),
+  check("catalog_item_kind", sql`${t.kind} in ('course','download')`),
+  check("catalog_item_state", sql`${t.state} in ('draft','published','archived')`),
+  check("catalog_item_visibility", sql`${t.visibility} in ('hidden','unlisted','listed')`),
+  check("catalog_item_publication", sql`${t.state} <> 'published' or ${t.visibility} <> 'hidden'`),
+  check("catalog_item_slug", sql`${t.slug} ~ '^[a-z0-9][a-z0-9-]{1,58}[a-z0-9]$'`),
+  check("catalog_item_title", sql`length(trim(${t.title})) between 1 and 120`),
+  check("catalog_item_summary", sql`length(${t.summary}) <= 2000`),
+  check("catalog_item_version", sql`${t.version} > 0`),
+]);
+
+export const catalogLessons = pgTable("catalog_lessons", {
+  tenantId: uuid("tenant_id").notNull(), itemId: uuid("item_id").notNull(), id: uuid("id").notNull().defaultRandom(),
+  kind: text("kind").notNull().default("course"),
+  position: integer("position").notNull(), title: text("title").notNull(),
+  body: jsonb("body").$type<RichDoc>().notNull(),
+  published: boolean("published").notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.itemId, t.id] }), unique().on(t.tenantId, t.itemId, t.position),
+  foreignKey({ columns: [t.tenantId, t.itemId, t.kind], foreignColumns: [catalogItems.tenantId, catalogItems.id, catalogItems.kind] }),
+  check("catalog_lesson_kind", sql`${t.kind} = 'course'`),
+  check("catalog_lesson_position", sql`${t.position} between 0 and 49`),
+  check("catalog_lesson_title", sql`length(trim(${t.title})) between 1 and 120`),
+  check("catalog_lesson_body", sql`jsonb_typeof(${t.body}) = 'object' and octet_length(${t.body}::text) <= 32000`),
+]);
+
+export const catalogFiles = pgTable("catalog_files", {
+  tenantId: uuid("tenant_id").notNull(), itemId: uuid("item_id").notNull(), fileId: uuid("file_id").notNull(),
+  kind: text("kind").notNull().default("download"),
+  position: integer("position").notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.itemId, t.fileId] }), unique().on(t.tenantId, t.itemId, t.position),
+  foreignKey({ columns: [t.tenantId, t.itemId, t.kind], foreignColumns: [catalogItems.tenantId, catalogItems.id, catalogItems.kind] }),
+  foreignKey({ columns: [t.tenantId, t.fileId], foreignColumns: [files.tenantId, files.id] }),
+  check("catalog_file_kind", sql`${t.kind} = 'download'`),
+  check("catalog_file_position", sql`${t.position} between 0 and 19`),
+]);
+
+export const catalogEnrolments = pgTable("catalog_enrolments", {
+  tenantId: uuid("tenant_id").notNull(), itemId: uuid("item_id").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  enrolledAt: timestamp("enrolled_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.itemId, t.userId] }),
+  foreignKey({ columns: [t.tenantId, t.itemId], foreignColumns: [catalogItems.tenantId, catalogItems.id] }),
+]);
+
+export const communityProductLinks = pgTable("community_product_links", {
+  tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(), itemId: uuid("item_id").notNull(),
+  position: integer("position").notNull().default(0),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.communityId, t.itemId] }),
+  foreignKey({ columns: [t.tenantId, t.itemId], foreignColumns: [catalogItems.tenantId, catalogItems.id] }),
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  check("community_product_position", sql`${t.position} between 0 and 1000`),
 ]);
