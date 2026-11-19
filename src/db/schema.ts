@@ -79,7 +79,7 @@ export const auditLogs = pgTable("audit_logs", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("audit_logs_tenant_created_idx").on(t.tenantId, t.createdAt), foreignKey({ columns: [t.tenantId], foreignColumns: [workspaces.tenantId] }),
   index("community_chat_mutations_idx").on(t.actorId,t.action,t.createdAt),
-  check("audit_system_actor", sql`${t.actorId} is not null or ${t.action} in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated')`)]);
+  check("audit_system_actor", sql`${t.actorId} is not null or ${t.action} in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated', 'community.profile_save', 'community.profile_withdraw', 'community.profile_erase')`)]);
 export const authSchema = { user: users, session: sessions, account: accounts, verification: verifications, rateLimit: rateLimits };
 
 // A campaign belongs to its parent workspace; it never creates another tenant.
@@ -1975,4 +1975,28 @@ export const communityProductLinks = pgTable("community_product_links", {
   foreignKey({ columns: [t.tenantId, t.itemId], foreignColumns: [catalogItems.tenantId, catalogItems.id] }),
   foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
   check("community_product_position", sql`${t.position} between 0 and 1000`),
+]);
+
+// Voluntary profile data follows the membership's account-deletion cascade.
+export const communityMemberProfiles = pgTable("community_member_profiles", {
+  tenantId: uuid("tenant_id").notNull(),
+  communityId: uuid("community_id").notNull(),
+  userId: text("user_id").notNull(),
+  displayName: text("display_name"),
+  bio: text("bio"),
+  language: text("language"),
+  links: jsonb("links").$type<{label: string; url: string}[]>().notNull().default([]),
+  visibility: text("visibility", { enum: ["members", "unlisted", "private"] }).notNull().default("members"),
+  version: integer("version").notNull().default(1),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.communityId, t.userId] }),
+  foreignKey({ columns: [t.tenantId, t.communityId, t.userId],
+    foreignColumns: [communityMemberships.tenantId, communityMemberships.communityId, communityMemberships.userId] }).onDelete("cascade"),
+  check("community_member_profile_display_name", sql`length(btrim(${t.displayName})) between 1 and 100`),
+  check("community_member_profile_bio", sql`length(${t.bio}) <= 500`),
+  check("community_member_profile_language", sql`length(btrim(${t.language})) between 1 and 80`),
+  check("community_member_profile_links", sql`public.community_member_profile_links_valid(${t.links})`),
+  check("community_member_profile_visibility", sql`${t.visibility} in ('members','unlisted','private')`),
+  check("community_member_profile_version", sql`${t.version} > 0`),
 ]);
