@@ -31,7 +31,7 @@ const definers = ["public.community_definer_reset()", "public.community_public(t
   // C15b (0042)
   "public.community_email_enqueue(integer)", "public.community_email_claim(integer)", "public.community_email_complete(uuid,text,text)",
   "public.community_email_prefs_save(text,text)", "public.community_email_unsubscribe(uuid,uuid,text)"];
-const tables = ["communities", "community_memberships", "entitlements", "community_invites", "audit_logs", "workspaces", "discover_listings", "community_applications", "community_categories", "community_files", "community_posts", "community_comments", "community_likes", "community_reports", "community_moderation_actions", "community_warnings", "community_appeals", "community_post_revisions", "community_comment_revisions", "community_notifications", "community_email_deliveries", "workspace_members", "community_channels", "community_channel_members", "community_messages", "community_message_reactions", "community_channel_reads", "community_chat_state", "community_chat_purge_runs"];
+const tables = ["communities", "community_memberships", "entitlements", "community_invites", "audit_logs", "workspaces", "discover_listings", "community_applications", "community_categories", "community_files", "community_posts", "community_comments", "community_likes", "community_reports", "community_moderation_actions", "community_warnings", "community_appeals", "community_post_revisions", "community_comment_revisions", "community_notifications", "community_email_deliveries", "workspace_members", "community_channels", "community_channel_members", "community_messages", "community_message_reactions", "community_channel_reads", "community_chat_state", "community_chat_purge_runs", "community_dm_conversations", "community_dm_participants", "community_dm_messages", "community_dm_blocks", "community_dm_report_evidence"];
 let fixture: Awaited<ReturnType<typeof testDatabase>>, tenant: string, open: string, hidden: string;
 let roleCreated = false;
 const copied: { table: string; name: string }[] = [];
@@ -54,7 +54,7 @@ beforeAll(async () => {
   await fixture.admin.query(`grant select on users to ${role}`);
   const { rows: [{ owner }] } = await fixture.admin.query("select current_user as owner");
   const { rows: policies } = await fixture.admin.query(`select tablename, policyname, cmd, qual, with_check from pg_policies
-    where schemaname = 'public' and tablename = any($1) and $2 = any(roles) and policyname like any(array['community_definer%', 'discover_definer%', 'chat_%', 'community_live_staff_%'])`, [tables, owner]);
+    where schemaname = 'public' and tablename = any($1) and $2 = any(roles) and policyname like any(array['community_definer%', 'discover_definer%', 'chat_%', 'community_live_staff_%', 'dm_%'])`, [tables, owner]);
   // Every table the definers touch has an owner policy, and none is unconditional.
   expect([...new Set(policies.map((policy) => policy.tablename))].sort()).toEqual([...tables].sort());
   for (const policy of policies) expect(`${policy.qual ?? ""} ${policy.with_check ?? ""}`, `${policy.tablename}.${policy.policyname}`).toMatch(/current_setting/);
@@ -64,8 +64,8 @@ beforeAll(async () => {
       + (policy.qual ? ` using (${policy.qual})` : "") + (policy.with_check ? ` with check (${policy.with_check})` : ""));
     copied.push({ table: policy.tablename, name });
   }
-  // C11a: transfer every new helper/entrypoint too, rather than accidentally executing a privileged helper owner.
-  const chatFunctions = (await fixture.admin.query("select oid::regprocedure::text signature from pg_proc where pronamespace='public'::regnamespace and (proname like 'community_chat_%' or proname like 'community_channel_%' or proname like 'community_message_%' or proname='community_reaction_toggle')")).rows;
+  // Move the chat and DM definitions together so every nested invocation uses the restricted owner.
+  const chatFunctions = (await fixture.admin.query("select oid::regprocedure::text signature from pg_proc where pronamespace='public'::regnamespace and (proname like 'community_chat_%' or proname like 'community_channel_%' or proname like 'community_message_%' or proname like 'community_dm_%' or proname in ('community_reaction_toggle','community_report_decide_forum') or oid='public.community_notifications_list(text,integer,boolean)'::regprocedure)")).rows;
   definers.push(...chatFunctions.map(row => row.signature));
   for (const definer of definers) await fixture.admin.query(`alter function ${definer} owner to ${role}`);
 });

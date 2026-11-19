@@ -124,7 +124,7 @@ export async function decideReport(db: Database, userId: string, slug: string, r
     const chat = await withUser(db, userId, tx => tx.select({ type: communityReports.targetType }).from(communityReports).where(eq(communityReports.id, z.uuid().parse(reportId))));
     if (chat[0]?.type === "message") throw notFound();
   }
-  return forumDefiner(db, userId, sql`select public.community_report_decide(${communitySlug.parse(slug)}, ${z.uuid().parse(reportId)}::uuid, ${decision}) as v`);
+  return forumDefiner(db, userId, sql`select public.community_report_decide_forum(${communitySlug.parse(slug)}, ${z.uuid().parse(reportId)}::uuid, ${decision}) as v`);
 }
 
 const heldInput = z.object({ targetType: z.enum(["post", "comment", "message"]), id: z.uuid(), decision: z.enum(["approve", "reject"]) }).strict();

@@ -78,7 +78,7 @@ export const auditLogs = pgTable("audit_logs", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("audit_logs_tenant_created_idx").on(t.tenantId, t.createdAt), foreignKey({ columns: [t.tenantId], foreignColumns: [workspaces.tenantId] }),
   index("community_chat_mutations_idx").on(t.actorId,t.action,t.createdAt),
-  check("audit_system_actor", sql`${t.actorId} is not null or ${t.action} in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close')`)]);
+  check("audit_system_actor", sql`${t.actorId} is not null or ${t.action} in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire')`)]);
 export const authSchema = { user: users, session: sessions, account: accounts, verification: verifications, rateLimit: rateLimits };
 
 // A campaign belongs to its parent workspace; it never creates another tenant.
@@ -1279,22 +1279,26 @@ export const communityReports = pgTable("community_reports", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),
   reporterId: text("reporter_id").references(() => users.id, { onDelete: "set null" }),
-  targetType: text("target_type", { enum: ["post", "comment", "member", "message"] }).notNull(),
+  targetType: text("target_type", { enum: ["post", "comment", "member", "message", "dm_message"] }).notNull(),
   targetId: text("target_id").notNull(),
   reason: text("reason", { enum: ["spam", "harassment", "inappropriate", "other"] }).notNull(),
   note: text("note"),
-  status: text("status", { enum: ["open", "dismissed", "actioned"] }).notNull().default("open"),
+  status: text("status", { enum: ["open", "dismissed", "actioned", "expired"] }).notNull().default("open"),
+  needsEscalation: boolean("needs_escalation").notNull().default(false),
+  remindedAt: timestamp("reminded_at", { withTimezone: true }),
   decidedBy: text("decided_by").references(() => users.id, { onDelete: "set null" }),
   decidedAt: timestamp("decided_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  unique("community_reports_scope").on(t.tenantId, t.communityId, t.id),
+  index("community_dm_reports_open_age_idx").on(t.createdAt, t.id).where(sql`${t.targetType} = 'dm_message' and ${t.status} = 'open'`),
   uniqueIndex("community_reports_open_idx").on(t.communityId, t.reporterId, t.targetType, t.targetId).where(sql`${t.status} = 'open'`),
   index("community_reports_queue_idx").on(t.communityId, t.status, t.targetType, t.targetId),
-  check("community_report_target", sql`${t.targetType} in ('post', 'comment', 'member', 'message') and length(${t.targetId}) between 1 and 200`),
+  check("community_report_target", sql`${t.targetType} in ('post', 'comment', 'member', 'message', 'dm_message') and length(${t.targetId}) between 1 and 200`),
   check("community_report_reason", sql`${t.reason} in ('spam', 'harassment', 'inappropriate', 'other')`),
   check("community_report_note", sql`${t.note} is null or length(${t.note}) between 1 and 500`),
-  check("community_report_status", sql`${t.status} in ('open', 'dismissed', 'actioned')`)]);
+  check("community_report_status", sql`${t.status} in ('open', 'dismissed', 'actioned', 'expired')`)]);
 
 export const communityModerationActions = pgTable("community_moderation_actions", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -1309,8 +1313,8 @@ export const communityModerationActions = pgTable("community_moderation_actions"
 }, (t) => [
   foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
   index("community_moderation_actions_idx").on(t.communityId, t.createdAt),
-  check("community_moderation_action", sql`${t.action} in ('report_dismiss', 'report_remove', 'held_approve', 'held_reject', 'mute', 'unmute', 'ban', 'unban', 'warn', 'appeal_approve', 'appeal_decline', 'message_remove', 'message_restore', 'message_pin', 'message_unpin')`),
-  check("community_moderation_target", sql`${t.targetType} in ('post', 'comment', 'member', 'message')`)]);
+  check("community_moderation_action", sql`${t.action} in ('report_dismiss', 'report_remove', 'held_approve', 'held_reject', 'mute', 'unmute', 'ban', 'unban', 'warn', 'appeal_approve', 'appeal_decline', 'message_remove', 'message_restore', 'message_pin', 'message_unpin', 'dm_evidence_view', 'report_expire', 'report_action')`),
+  check("community_moderation_target", sql`${t.targetType} in ('post', 'comment', 'member', 'message', 'dm_message')`)]);
 
 // C12b (migration 0040): warnings, appeals and edit history. Same model as reports: FORCE RLS, hosts and staff read,
 // every write through a definer. Members never read revisions or other people's warnings and appeals.
@@ -1681,3 +1685,92 @@ export const communityChatPurgeRuns = pgTable("community_chat_purge_runs", {
  id:uuid("id").primaryKey().defaultRandom(),createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),kind:text("kind").notNull(),
  deleted:integer("deleted").notNull().default(0),status:text("status").notNull(),failureCode:text("failure_code"),
 },t=>[check("community_chat_purge_status",sql`${t.status} in ('ok','failed')`)]);
+
+// C11c private messages. DM evidence survives purging or deleting the original conversation.
+export const communityDmConversations = pgTable("community_dm_conversations", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),
+  pairKey: text("pair_key").notNull(),
+  origin: text("origin", { enum: ["staff", "member"] }).notNull(),
+  startedBy: text("started_by").references(() => users.id, { onDelete: "set null" }),
+  staffEngagedBy: text("staff_engaged_by").references(() => users.id, { onDelete: "set null" }),
+  staffEngagedAt: timestamp("staff_engaged_at", { withTimezone: true }),
+  lastRev: bigint("last_rev", { mode: "bigint" }).notNull().default(sql`0`),
+  lastSenderId: text("last_sender_id").references(() => users.id, { onDelete: "set null" }),
+  unanswered: integer("unanswered").notNull().default(0),
+  lastMessageAt: timestamp("last_message_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  unique("community_dm_conversations_scope").on(t.tenantId, t.communityId, t.id),
+  unique("community_dm_conversations_pair").on(t.communityId, t.pairKey),
+  index("community_dm_conversations_starter_idx").on(t.communityId, t.startedBy, t.createdAt),
+  check("community_dm_origin", sql`${t.origin} in ('staff', 'member')`),
+  check("community_dm_unanswered", sql`${t.unanswered} between 0 and 3`),
+]);
+
+export const communityDmParticipants = pgTable("community_dm_participants", {
+  tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(), conversationId: uuid("conversation_id").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  lastReadSeq: bigint("last_read_seq", { mode: "bigint" }).notNull().default(sql`0`),
+  stateRev: bigint("state_rev", { mode: "bigint" }).notNull().default(sql`0`),
+  muted: boolean("muted").notNull().default(false),
+  hiddenAt: timestamp("hidden_at", { withTimezone: true }),
+  leftAt: timestamp("left_at", { withTimezone: true }),
+}, t => [
+  primaryKey({ columns: [t.conversationId, t.userId] }),
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  foreignKey({ columns: [t.tenantId, t.communityId, t.conversationId], foreignColumns: [communityDmConversations.tenantId, communityDmConversations.communityId, communityDmConversations.id] }).onDelete("cascade"),
+  index("community_dm_participants_user_idx").on(t.userId, t.communityId, t.conversationId),
+]);
+
+export const communityDmMessages = pgTable("community_dm_messages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(), conversationId: uuid("conversation_id").notNull(),
+  authorId: text("author_id").references(() => users.id, { onDelete: "set null" }),
+  requestHash: text("request_hash").notNull(),
+  clientId: uuid("client_id").notNull(),
+  body: text("body").notNull(),
+  seq: bigint("seq", { mode: "bigint" }).notNull(), rev: bigint("rev", { mode: "bigint" }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  editedAt: timestamp("edited_at", { withTimezone: true }),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  deletedBy: text("deleted_by").references(() => users.id, { onDelete: "set null" }),
+  purgeAfter: timestamp("purge_after", { withTimezone: true }),
+}, t => [
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  foreignKey({ columns: [t.tenantId, t.communityId, t.conversationId], foreignColumns: [communityDmConversations.tenantId, communityDmConversations.communityId, communityDmConversations.id] }).onDelete("cascade"),
+  uniqueIndex("community_dm_client_idx").on(t.communityId, t.authorId, t.clientId),
+  index("community_dm_messages_seq_idx").on(t.conversationId, t.seq),
+  index("community_dm_messages_rev_idx").on(t.conversationId, t.rev),
+  index("community_dm_messages_author_idx").on(t.communityId, t.authorId, t.createdAt),
+  index("community_dm_messages_purge_idx").on(t.purgeAfter).where(sql`${t.purgeAfter} is not null`),
+  check("community_dm_message_body", sql`length(trim(${t.body})) between 1 and 2000`),
+]);
+
+export const communityDmBlocks = pgTable("community_dm_blocks", {
+  tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),
+  blockerId: text("blocker_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  blockedId: text("blocked_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  primaryKey({ columns: [t.communityId, t.blockerId, t.blockedId] }),
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  check("community_dm_block_distinct", sql`${t.blockerId} <> ${t.blockedId}`),
+]);
+
+export const communityDmReportEvidence = pgTable("community_dm_report_evidence", {
+  reportId: uuid("report_id").primaryKey(),
+  tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(), conversationId: uuid("conversation_id").notNull(),
+  // Retain original identities for recusal even when an account or conversation is deleted.
+  reporterKey: text("reporter_key").notNull(), subjectKey: text("subject_key"),
+  reporterName: text("reporter_name"),
+  snapshot: jsonb("snapshot").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }),
+}, t => [
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  foreignKey({ columns: [t.tenantId, t.communityId, t.reportId], foreignColumns: [communityReports.tenantId, communityReports.communityId, communityReports.id] }).onDelete("cascade"),
+  index("community_dm_evidence_expiry_idx").on(t.expiresAt).where(sql`${t.expiresAt} is not null`),
+  check("community_dm_evidence_bound", sql`jsonb_array_length(${t.snapshot}) between 1 and 6`),
+]);

@@ -7,6 +7,7 @@ import { communitySlug } from "./communities";
 import { forumContextTx, forumDefiner, type ForumContext } from "./community-forum";
 import { AccessError } from "./permissions";
 import { withUser } from "./tenancy";
+import { communityChatEnabled } from "./community-chat";
 
 // C15a: in-app notifications. Reads of the member's own rows run in withUser (recipient policy); every write is a
 // definer in migration 0041, except the application decision notice, which the staff path inserts itself.
@@ -16,7 +17,7 @@ const notFound = () => new AccessError(404, message("Errors.communityNotFound"))
 export async function listNotifications(db: Database, userId: string, slug: string) {
   const parsed = communitySlug.parse(slug);
   const result = await withUser(db, userId, async (tx) => (await tx.execute<{ v: { outcome: string; unread: number; items: NotificationView[] } }>(
-    sql`select public.community_notifications_list(${parsed}, 30) as v`)).rows[0].v);
+    sql`select public.community_notifications_list(${parsed}, 30, ${communityChatEnabled()}) as v`)).rows[0].v);
   if (result.outcome !== "ok") throw notFound();
   return { unread: result.unread, items: result.items };
 }
@@ -25,7 +26,7 @@ export async function listNotifications(db: Database, userId: string, slug: stri
 export async function unreadCountTx(tx: Transaction, ctx: ForumContext, userId: string) {
   const announce = ctx.prefs.announcements && !ctx.prefs.muted;
   const [row] = (await tx.execute<{ n: number }>(sql`select
-    (select count(*)::int from community_notifications n where n.community_id = ${ctx.id} and n.recipient_id = ${userId} and n.read_at is null)
+    (select count(*)::int from community_notifications n where n.community_id = ${ctx.id} and n.recipient_id = ${userId} and n.read_at is null and (${communityChatEnabled()} or n.kind <> 'dm'))
     + (case when ${announce} then (select count(*)::int from (select 1 from community_posts p join community_categories c on c.id = p.category_id
         where p.community_id = ${ctx.id} and p.removed_at is null and p.held_at is null and (c.hosts_only or p.pinned) and p.created_at > ${ctx.notificationsSince.toISOString()}::timestamptz
           and p.author_id is distinct from ${userId} limit 20) x) else 0 end) as n`)).rows;
@@ -35,7 +36,12 @@ export async function unreadCountTx(tx: Transaction, ctx: ForumContext, userId: 
 export function unreadCount(db: Database, userId: string, slug: string) {
   return withUser(db, userId, async (tx) => {
     const ctx = await forumContextTx(tx, userId, slug);
-    if (!ctx) throw notFound();
+    if (!ctx) {
+      if (!communityChatEnabled()) throw notFound();
+      const result = (await tx.execute<{ v: { outcome: string; unread: number } }>(sql`select public.community_notifications_list(${communitySlug.parse(slug)}, 1, true) as v`)).rows[0].v;
+      if (result.outcome !== "ok") throw notFound();
+      return result.unread;
+    }
     return unreadCountTx(tx, ctx, userId);
   });
 }
@@ -45,7 +51,7 @@ const readInput = z.object({ ids: z.array(z.uuid()).max(100).nullable() }).stric
 export async function markRead(db: Database, userId: string, slug: string, raw: unknown) {
   const { ids } = readInput.parse(raw);
   const list = ids === null ? null : `{${ids.join(",")}}`;
-  return forumDefiner(db, userId, sql`select public.community_notifications_read(${communitySlug.parse(slug)}, ${list}::uuid[]) as v`);
+  return forumDefiner(db, userId, sql`select public.community_notifications_read(${communitySlug.parse(slug)}, ${list}::uuid[], ${communityChatEnabled()}) as v`);
 }
 
 const prefsInput = z.object({ replies: z.boolean(), likes: z.boolean(), announcements: z.boolean(), muted: z.boolean() }).strict();
