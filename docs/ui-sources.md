@@ -204,13 +204,21 @@ New dependencies (founder-approved 2026-11-16): [`react-hook-form`](https://gith
 
 ### Communities C11b chat
 
-**Exception to the use-kit rule, approved by the founder on 18 November 2026 for this screen only.** The chat screens are composed from Harvest shared components (CommunityShell, Button, Badge, Sheet, InputGroup, Command, Popover, DropdownMenu, ConfirmDialog, MemberList, StickySaveBar). The kit's chat blocks (`chat-ui10` layout and composer, `chat-ui4` channel rows, `bubble1`–`bubble7`) were used as a layout reference only; no kit code is copied. The bubble is reimplemented as a small Harvest component. The next screens (DMs, profile, events) adopt the real kit blocks from the start. Because no kit code is present, these files carry a "composed from Harvest shared components" header and are not listed in `kitProvenance`; the references are recorded here and in `kitLayoutReferences` (`src/lib/ui-provenance.ts`). The licence for the kit is settled as recorded in [the founder decisions](decisions/founder-decisions-2026-11.md).
+Adopted on 19 November 2026 from the founder-supplied premium Shadcn UI Kit chat app, the private repository `bumbmatei-sys/chat-app` (commit `66fd523`; tier premium; approved by the founder: "take everything from there regarding chat"). The repository holds no secrets and none were copied. Files keep a header `Derived from bumbmatei-sys/chat-app (Shadcn UI Kit, premium, founder-supplied 19 Nov 2026): <source>`, are listed in `chatAppProvenance` (`src/lib/ui-provenance.ts`), and a unit test checks both directions. This supersedes the earlier layout-reference-only wording for this screen.
 
-| Area | Layout reference (no code copied) | Harvest files |
+| Harvest file | Kit source (`app/(auth)/chats/components/` unless noted) | Harvest changes |
 | --- | --- | --- |
-| Chat layout and composer | [`chat-ui10`](https://shadcnuikit.com/blocks/application-ui/chat-ui#chat-ui-10), premium | `chat-layout.tsx`, `chat-composer.tsx`, `message-pane.tsx`, `chat-message.tsx`, `channel-sheet.tsx` |
-| Channel rows | [`chat-ui4`](https://shadcnuikit.com/blocks/application-ui/chat-ui#chat-ui-4), premium | `channel-list.tsx` |
-| Bubbles | [`bubble1` through `bubble7`](https://shadcnuikit.com/components/bubble), free | `src/components/ui/bubble.tsx`, reimplemented |
-| Message scroller | [Studio Admin MIT copy at `c16e1af`](https://github.com/arhamkhnz/next-shadcn-admin-dashboard/blob/c16e1af271a1c522a01feb43074b32abfe114241/src/components/ui/message-scroller.tsx) | `src/components/ui/message-scroller.tsx`. Adapted from the MIT source with its notice retained; uses `@shadcn/react` 0.3.1 (MIT, founder-approved 18 November 2026). |
+| `src/components/ui/bubble.tsx` | `components/ui/bubble.tsx` | Copied; header added and the tinted variant uses a `primary` tint token instead of an oklch literal (source guard). Needs `@base-ui/react`. |
+| `src/components/user-avatar.tsx` | `components/user-avatar.tsx` | Initials or the channel emoji; no image or presence indicator. |
+| `chat/channel-list.tsx` | `chat-list.tsx`, `chat-list-item.tsx`, `chat-list-item-dropdown.tsx` | Search, unread and mention badges, mute marker, 44px options menu for roles that manage channels. Mock store, status, archive and block items removed. |
+| `chat/chat-header.tsx` | `chat-header.tsx` | Back, mark, name and subtitle; call buttons removed; the name opens channel info. |
+| `chat/chat-layout.tsx` | `chats-view.tsx` | Two panes on large screens, one pane on phones; status strip, call screen and mock store removed. |
+| `chat/message-pane.tsx` | `chat-content.tsx` | Real polling, shared message scroller; no mock messages. |
+| `chat/chat-message.tsx` | `chat-bubbles.tsx` | Text bubbles, time line and action menu. Image, video, file and voice bubbles and the lightbox are not adopted (attachments wait for the malware scanner). |
+| `chat/chat-composer.tsx` | `chat-footer.tsx` | Card composer, round send button, single 44px line growing to four lines. Emoji picker, files and voice not adopted; mention picker added. |
+| `chat/channel-info.tsx` | `group-detail-drawer.tsx` | Channel info panel; leave group not offered. |
+| `chat/member-profile-sheet.tsx` | `user-detail-sheet.tsx` | Name, role and joined date only. |
+
+Not adopted: status and stories, calls, contacts, media lightbox, new-message dialog (direct messages are C11c), authentication pages, the zustand mock chat store, embla and motion. Harvest's own Sheet, DropdownMenu, ScrollArea, Card, Avatar, Popover and ConfirmDialog replace the kit's Drawer and base-ui menus. The message scroller is Adapted from Studio Admin (MIT, notice retained) and uses `@shadcn/react` 0.3.1. Message data comes only from the polling hook and the server; no client store holds messages.
 
 The editor uses its existing Channels step, MemberList and StickySaveBar. Moderation uses the existing DataTable and ReportDialog. NotificationBell stays in CommunityShell. Copy comes from the locale catalogue and colours from theme tokens.

@@ -72,15 +72,26 @@ export const kitProvenance: readonly KitItemRecord[] = [
 ];
 
 /**
- * Layout references where no kit code was copied and the file carries no kit header (so they are not in `kitProvenance`).
- * Communities C11b chat: exception to the use-kit rule approved by the founder on 18 November 2026 for this screen. Composed from
- * Harvest shared components; bubble reimplemented as a small component. DMs, profile and events adopt the real kit blocks from the start.
+ * Files adopted from the founder-supplied premium Shadcn UI Kit chat app (repository bumbmatei-sys/chat-app, commit 66fd523, approved
+ * 19 November 2026) for Communities C11b. Each file starts with: Derived from bumbmatei-sys/chat-app (Shadcn UI Kit, premium,
+ * founder-supplied 19 Nov 2026): <source>. A test checks the header in both directions. Not adopted: status and stories, calls,
+ * contacts, media lightbox, new-message dialog, authentication pages, and the zustand mock store.
  */
-export const kitLayoutReferences = [
-  { item: "chat-ui10", tier: "premium", files: ["src/components/communities/chat/chat-layout.tsx", "src/components/communities/chat/chat-composer.tsx", "src/components/communities/chat/message-pane.tsx", "src/components/communities/chat/chat-message.tsx", "src/components/communities/chat/channel-sheet.tsx"] },
-  { item: "chat-ui4", tier: "premium", files: ["src/components/communities/chat/channel-list.tsx"] },
-  { item: "bubble1", tier: "free", files: ["src/components/ui/bubble.tsx"] },
-] as const;
+export const chatAppProvenance = {
+  repository: "bumbmatei-sys/chat-app", commit: "66fd523", tier: "premium", approvedBy: "founder", approvedOn: "2026-11-19",
+  files: [
+  { file: "src/components/ui/bubble.tsx", source: "components/ui/bubble.tsx", localChanges: "Copied; the header is added and the tinted variant uses a primary tint token instead of an oklch literal (source guard). Uses @base-ui/react use-render and merge-props. Own messages use the default variant, others muted." },
+  { file: "src/components/user-avatar.tsx", source: "components/user-avatar.tsx", localChanges: "Initials or the channel emoji in a round avatar on Harvest's Avatar. The kit's image and online indicator are removed: members have no photo or presence." },
+  { file: "src/components/communities/chat/channel-list.tsx", source: "app/(auth)/chats/components/chat-list.tsx, app/(auth)/chats/components/chat-list-item.tsx, app/(auth)/chats/components/chat-list-item-dropdown.tsx", localChanges: "Channel list with search, unread and mention badges, mute marker and a 44px options menu (Edit, Move up, Move down, Archive, Delete) for roles that manage channels. Mock chat store, status, archive and block items removed; real channels from the chat state." },
+  { file: "src/components/communities/chat/chat-header.tsx", source: "app/(auth)/chats/components/chat-header.tsx", localChanges: "Back, mark, name and subtitle. Call buttons removed. The channel name opens the channel info." },
+  { file: "src/components/communities/chat/chat-layout.tsx", source: "app/(auth)/chats/components/chats-view.tsx", localChanges: "Two-pane list and channel layout, single pane on phones with the community header and bottom bar hidden. Status strip, call screen and mock store removed; the Harvest polling hook supplies data." },
+  { file: "src/components/communities/chat/message-pane.tsx", source: "app/(auth)/chats/components/chat-content.tsx", localChanges: "Header, message viewport and composer composition. Scroll handling uses the shared message scroller and the real polling hook; no mock messages." },
+  { file: "src/components/communities/chat/chat-message.tsx", source: "app/(auth)/chats/components/chat-bubbles.tsx", localChanges: "Text bubbles with a time line and a hover and focus action menu. Image, video, file and voice bubbles and the lightbox are not adopted (attachments wait for the malware scanner). Reactions, replies, reports and moderation use the real routes." },
+  { file: "src/components/communities/chat/chat-composer.tsx", source: "app/(auth)/chats/components/chat-footer.tsx", localChanges: "Card composer with a round send button. The input is a single 44px line that grows to four lines. Emoji picker, file picker and voice recording are not adopted; a mention picker is added." },
+  { file: "src/components/communities/chat/channel-info.tsx", source: "app/(auth)/chats/components/group-detail-drawer.tsx", localChanges: "Channel info panel: avatar, name, member count, notifications, members, pinned messages, links, and empty media and documents sections. Leave group is not offered." },
+  { file: "src/components/communities/chat/member-profile-sheet.tsx", source: "app/(auth)/chats/components/user-detail-sheet.tsx", localChanges: "Member profile sheet with name, role and joined date only; no phone, country, website or shared files. Direct messages arrive in a later release." }
+  ],
+} as const;
 
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 /** Returns human-readable problems with a record; an empty array means valid. */
@@ -95,6 +106,10 @@ export function validateKitRecord(record: KitItemRecord): string[] {
   for (const file of record.files) if (file.startsWith("/") || file.includes("..")) problems.push(`file must be repository-relative: ${file}`);
   return problems;
 }
+
+const chatAppHeader = /^\s*\/\*\*\s*Derived from bumbmatei-sys\/chat-app \(Shadcn UI Kit, premium, founder-supplied 19 Nov 2026\): (.+?)\. Harvest changes:/;
+/** Returns the chat-app source named by a file's leading header, or null. */
+export function chatAppHeaderSource(source: string): string | null { return chatAppHeader.exec(source)?.[1] ?? null; }
 
 // The header is the first comment of the file, starting with: Derived from Shadcn UI Kit item <name> (free|premium).
 const headerPattern = /^\s*\/\*\*\s*Derived from Shadcn UI Kit item ([a-z][a-z0-9-]*) \((free|premium)\)/;

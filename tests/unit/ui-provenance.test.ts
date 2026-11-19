@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { kitHeaderItem, kitProvenance, validateKitRecord, type KitItemRecord } from "../../src/lib/ui-provenance";
+import { chatAppHeaderSource, chatAppProvenance, kitHeaderItem, kitProvenance, validateKitRecord, type KitItemRecord } from "../../src/lib/ui-provenance";
 import { scanForSecrets } from "../../src/lib/secret-scan";
 
 const root = resolve(__dirname, "../..");
@@ -86,5 +86,21 @@ describe("token leak guard", () => {
     }
     expect(leaks).toEqual([]);
     expect(JSON.parse(readFileSync(join(root, "components.json"), "utf8")).registries["@shadcnuikit"].headers.Authorization).toBe("Bearer ${REGISTRY_TOKEN}");
+  });
+});
+
+describe("chat-app provenance", () => {
+  it("lists only files that exist and carry a header naming their source", () => {
+    for (const entry of chatAppProvenance.files) {
+      expect(existsSync(join(root, entry.file)), entry.file).toBe(true);
+      expect(chatAppHeaderSource(readFileSync(join(root, entry.file), "utf8")), entry.file).toContain(entry.source.split(", ")[0]);
+      expect(entry.localChanges.length, entry.file).toBeGreaterThan(20);
+    }
+  });
+  it("finds no file with the header that is missing from the record", () => {
+    const listed = new Set<string>(chatAppProvenance.files.map(entry => entry.file));
+    const unlisted = ["src", "scripts", "tests"].flatMap(dir => walk(join(root, dir))).map(file => file.slice(root.length + 1))
+      .filter(file => chatAppHeaderSource(readFileSync(join(root, file), "utf8")) !== null && !listed.has(file));
+    expect(unlisted).toEqual([]);
   });
 });
