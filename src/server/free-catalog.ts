@@ -53,9 +53,14 @@ async function ministry<T>(db: Database, user: string, workspace: string, write:
     return await withTenant(db, user, workspace, write ? "catalog:manage" : "workspace:read", run);
   } catch (error) {
     if (error instanceof AccessError && error.status === 403) throw notFound();
-    const state = (error as { code?: string; cause?: { code?: string } })?.cause?.code ??
-      (error as { code?: string })?.code;
-    if (state === "23505") throw conflict();
+    type DatabaseError = { code?: string; constraint?: string };
+    const failure = (error as { cause?: DatabaseError })?.cause ?? (error as DatabaseError);
+    if (failure?.code === "23505") {
+      if (failure.constraint === "catalog_items_slug_unique") {
+        throw new AccessError(400, message("Errors.checkTheSuppliedDetails"), { reason: "address_unavailable" });
+      }
+      throw conflict();
+    }
     throw error;
   }
 }
