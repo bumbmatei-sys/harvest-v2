@@ -64,7 +64,9 @@ BEGIN
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY',rel);
     EXECUTE format('ALTER TABLE public.%I FORCE ROW LEVEL SECURITY',rel);
     EXECUTE format('REVOKE ALL ON public.%I FROM PUBLIC,harvest_app',rel);
-    EXECUTE format('CREATE POLICY nl02_private_owner ON public.%I TO %I USING (true) WITH CHECK (true)',rel,current_user);
+    EXECUTE format($p$CREATE POLICY nl02_private_owner ON public.%I TO %I
+      USING (coalesce(current_setting('app.nl02_private',true),'')='on')
+      WITH CHECK (coalesce(current_setting('app.nl02_private',true),'')='on')$p$,rel,current_user);
   END LOOP;
   FOREACH rel IN ARRAY ARRAY['newsletter_subscribers','newsletter_subscriptions'] LOOP
     EXECUTE format($p$CREATE POLICY nl02_scoped_owner ON public.%I TO %I
@@ -163,8 +165,8 @@ $$;
 REVOKE ALL ON FUNCTION public.nl02_hash(text),public.nl02_take(text,timestamptz,timestamptz,integer),
   public.nl02_email(text),public.nl02_has_withdrawal(uuid,uuid,timestamptz,boolean) FROM PUBLIC;
 --> statement-breakpoint
-CREATE FUNCTION public.newsletter_signup_start(p_form uuid,p_email text,p_token text,p_address_key text) RETURNS boolean
-LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+CREATE FUNCTION public.nl02_start_signup(p_form uuid,p_email text,p_token text,p_address_key text) RETURNS boolean
+LANGUAGE plpgsql SET search_path=pg_catalog,pg_temp AS $$
 DECLARE
   form public.newsletter_signup_forms;
   contact uuid;
@@ -176,7 +178,6 @@ DECLARE
 BEGIN
   IF NOT public.nl02_email(p_email) OR coalesce(p_token,'') !~ '^[A-Za-z0-9_-]{43}$'
     OR coalesce(p_address_key,'') !~ '^[0-9a-f]{64}$' THEN RETURN false; END IF;
-  IF NOT public.nl02_take('start',minute_bucket,minute_bucket+interval '1 minute',120) THEN RETURN false; END IF;
 
   DELETE FROM public.newsletter_intake_limits WHERE key IN (
     SELECT key FROM public.newsletter_intake_limits WHERE expires_at<moment-interval '1 hour'
@@ -205,6 +206,17 @@ BEGIN
   PERFORM set_config('app.tenant_id',coalesce(previous_tenant,''),true);
   RETURN queued;
 END $$;
+REVOKE ALL ON FUNCTION public.nl02_start_signup(uuid,text,text,text) FROM PUBLIC;
+
+CREATE FUNCTION public.newsletter_signup_start(p_form uuid,p_email text,p_token text,p_address_key text) RETURNS boolean
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+DECLARE previous_private text:=current_setting('app.nl02_private',true); queued boolean;
+BEGIN
+  PERFORM set_config('app.nl02_private','on',true);
+  queued:=public.nl02_start_signup(p_form,p_email,p_token,p_address_key);
+  PERFORM set_config('app.nl02_private',coalesce(previous_private,''),true);
+  RETURN queued;
+END $$;
 REVOKE ALL ON FUNCTION public.newsletter_signup_start(uuid,text,text,text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.newsletter_signup_start(uuid,text,text,text) TO harvest_app;
 --> statement-breakpoint
@@ -217,9 +229,7 @@ DECLARE
   contact uuid;
   grant_id uuid;
   current_subscription public.newsletter_subscriptions;
-  minute_bucket timestamptz:=date_trunc('minute',clock_timestamp());
 BEGIN
-  IF NOT public.nl02_take('confirm',minute_bucket,minute_bucket+interval '1 minute',120) THEN RETURN; END IF;
   SELECT * INTO pending FROM public.newsletter_signup_challenges
     WHERE token_hash=public.nl02_hash(p_token) AND expires_at>clock_timestamp()
       AND email_proof=public.nl02_hash(p_token||':'||p_email);
@@ -285,9 +295,12 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 DECLARE previous_tenant text:=current_setting('app.tenant_id',true);
   previous_public text:=current_setting('app.nl02_tenant',true);
   previous_actor text:=current_setting('app.user_id',true);
+  previous_private text:=current_setting('app.nl02_private',true);
 BEGIN
   IF NOT public.nl02_email(p_email) OR coalesce(p_token,'') !~ '^[A-Za-z0-9_-]{43}$' THEN RETURN; END IF;
+  PERFORM set_config('app.nl02_private','on',true);
   PERFORM public.nl02_accept_signup(p_email,p_token);
+  PERFORM set_config('app.nl02_private',coalesce(previous_private,''),true);
   PERFORM set_config('app.tenant_id',coalesce(previous_tenant,''),true);
   PERFORM set_config('app.nl02_tenant',coalesce(previous_public,''),true);
   PERFORM set_config('app.user_id',coalesce(previous_actor,''),true);
@@ -300,6 +313,7 @@ RETURNS boolean LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_
 DECLARE previous text:=current_setting('app.nl02_tenant',true);
   actor text:=nullif(current_setting('app.user_id',true),'');
   email text;
+  previous_private text:=current_setting('app.nl02_private',true);
 BEGIN
   IF p_tenant IS DISTINCT FROM nullif(current_setting('app.tenant_id',true),'')::uuid
     OR actor IS NULL OR coalesce(p_nonce,'') !~ '^[A-Za-z0-9_-]{43}$'
@@ -315,9 +329,11 @@ BEGIN
         WHERE ns.tenant_id=s.tenant_id AND ns.subscriber_id=s.id AND ns.list_id=p_list));
   PERFORM set_config('app.nl02_tenant',coalesce(previous,''),true);
   IF email IS NULL THEN RETURN false; END IF;
+  PERFORM set_config('app.nl02_private','on',true);
   INSERT INTO public.newsletter_preference_tokens(token_hash,tenant_id,subscriber_id,list_id,scope,email_proof,expires_at)
     VALUES(public.nl02_hash(p_nonce),p_tenant,p_subscriber,p_list,p_scope,
       public.nl02_hash(p_nonce||':'||email),clock_timestamp()+interval '30 days');
+  PERFORM set_config('app.nl02_private',coalesce(previous_private,''),true);
   RETURN true;
 END $$;
 REVOKE ALL ON FUNCTION public.newsletter_preference_issue(uuid,uuid,uuid,text,text) FROM PUBLIC;
@@ -367,9 +383,12 @@ REVOKE ALL ON FUNCTION public.nl02_apply_unsubscribe(text,text) FROM PUBLIC;
 CREATE FUNCTION public.newsletter_unsubscribe(p_nonce text,p_scope text) RETURNS void
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 DECLARE previous text:=current_setting('app.tenant_id',true); previous_public text:=current_setting('app.nl02_tenant',true);
+  previous_private text:=current_setting('app.nl02_private',true);
 BEGIN
   IF coalesce(p_nonce,'') !~ '^[A-Za-z0-9_-]{43}$' OR coalesce(p_scope,'') NOT IN ('list','all') THEN RETURN; END IF;
+  PERFORM set_config('app.nl02_private','on',true);
   PERFORM public.nl02_apply_unsubscribe(p_nonce,p_scope);
+  PERFORM set_config('app.nl02_private',coalesce(previous_private,''),true);
   PERFORM set_config('app.tenant_id',coalesce(previous,''),true);
   PERFORM set_config('app.nl02_tenant',coalesce(previous_public,''),true);
 END $$;
@@ -428,8 +447,11 @@ END $$;
 --> statement-breakpoint
 CREATE FUNCTION public.newsletter_forget_pending_signup() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+DECLARE previous_private text:=current_setting('app.nl02_private',true);
 BEGIN
+  PERFORM set_config('app.nl02_private','on',true);
   DELETE FROM public.newsletter_signup_challenges WHERE tenant_id=OLD.tenant_id AND contact_id=OLD.id;
+  PERFORM set_config('app.nl02_private',coalesce(previous_private,''),true);
   RETURN NEW;
 END $$;
 REVOKE ALL ON FUNCTION public.newsletter_forget_pending_signup() FROM PUBLIC;
