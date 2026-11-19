@@ -105,6 +105,29 @@ export const kitChatAppReferences = {
   ],
 } as const;
 
+/**
+ * Files really copied from the founder-supplied premium Shadcn UI Kit admin dashboard (repository bumbmatei-sys/admin-dashboard, commit
+ * 1631106, apps/calendar) for Events C14. Each starts with: Derived from bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium,
+ * founder-supplied): <source>. Harvest changes: docs/ui-sources.md. `identical` is the share of the file's non-blank lines (at least 12
+ * characters) that also appear, character for character after trimming, in the source file; it is measured, not estimated.
+ * Not copied: drag and drop, the week, day and agenda views, the event dialog, the colour classes (raw palette colours) and the visibility hook.
+ */
+export const adminDashboardProvenance = {
+  repository: "bumbmatei-sys/admin-dashboard", commit: "1631106", tier: "premium", approvedBy: "founder", approvedOn: "2026-11-19",
+  files: [
+  { file: "src/lib/calendar-days.ts", source: "app/dashboard/(auth)/apps/calendar/utils.ts", identical: 95, localChanges: "Five day-bucketing helpers copied (isMultiDayEvent, getEventsForDay, sortEvents, getSpanningEventsForDay, getAllEventsForDay); only the CalendarEvent import changed. Colour, border-radius, agenda and add-hours helpers not copied." },
+  { file: "src/components/events/month-calendar.tsx", source: "app/dashboard/(auth)/apps/calendar/components/month-view.tsx", identical: 47, localChanges: "Month grid structure, week and day computation and cell classes kept. Drag and drop, create-on-click, the overflow popover and the visibility hook removed; cells are buttons that select a day (dots on phones, titled chips from 640px), a header with previous and next month links added, raw palette colours replaced by theme tokens, today applied after mount, copy from the catalogue." },
+  ],
+} as const;
+
+/** Files modelled on the same dashboard calendar, written for Harvest with no kit code copied. Each starts with: Layout and behaviour modelled on bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): <source>; code written for Harvest, no kit code copied. */
+export const adminDashboardReferences = {
+  repository: "bumbmatei-sys/admin-dashboard", commit: "1631106", tier: "premium",
+  files: [
+  { file: "src/components/events/events-board.tsx", source: "app/dashboard/(auth)/apps/calendar/components/agenda-view.tsx", localChanges: "Upcoming list grouped under day headings, beside the month calendar and a list and calendar switch kept in the URL. The kit's agenda view is a client-side range of days; Harvest's list is server data." },
+  ],
+} as const;
+
 const datePattern = /^\d{4}-\d{2}-\d{2}$/;
 /** Returns human-readable problems with a record; an empty array means valid. */
 export function validateKitRecord(record: KitItemRecord): string[] {
@@ -133,3 +156,10 @@ const headerPattern = /^\s*\/\*\*\s*Derived from Shadcn UI Kit item ([a-z][a-z0-
 export function kitHeaderItem(source: string): string | null {
   return headerPattern.exec(source)?.[1] ?? null;
 }
+
+const adminDerivedHeader = /^\s*\/\*\*\s*Derived from bumbmatei-sys\/admin-dashboard \(Shadcn UI Kit, premium, founder-supplied\): (.+?)\. Harvest changes:/;
+/** Returns the admin-dashboard source named by a file's leading Derived from header, or null. */
+export function adminDashboardHeaderSource(source: string): string | null { return adminDerivedHeader.exec(source)?.[1] ?? null; }
+const adminModelledHeader = /^\s*\/\*\*\s*Layout and behaviour modelled on bumbmatei-sys\/admin-dashboard \(Shadcn UI Kit, premium, founder-supplied\): (.+?); code written for Harvest, no kit code copied\./;
+/** Returns the admin-dashboard source a file is modelled on, or null. */
+export function adminDashboardModelledSource(source: string): string | null { return adminModelledHeader.exec(source)?.[1] ?? null; }

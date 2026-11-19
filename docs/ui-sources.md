@@ -222,3 +222,15 @@ The chat UI is **modelled on** the founder-supplied premium Shadcn UI Kit chat a
 Not used from the kit: status and stories, calls, contacts, lightbox, new-message dialog (direct messages are C11c), the zustand mock store, `motion` and `embla`. Harvest's Sheet, DropdownMenu, ScrollArea, Card, Avatar, Popover and ConfirmDialog stand in for the kit's base-ui Drawer and menus. The message scroller is adapted from Studio Admin (MIT, notice retained) and uses `@shadcn/react` 0.3.1. Message data comes only from the polling hook and the server; no client store holds messages.
 
 The editor uses its existing Channels step, MemberList and StickySaveBar. Moderation uses the existing DataTable and ReportDialog. NotificationBell stays in CommunityShell. Copy comes from the locale catalogue and colours from theme tokens.
+
+### Events C14 calendar
+
+The founder's private premium kit repository `bumbmatei-sys/admin-dashboard` (commit `1631106`, `apps/calendar`; no secrets were copied or stored) is the first source for the Events month calendar. **Two files are copied**, one **modelled on**; nothing else in the Events screens has a kit source (they use Harvest's shared components: the community shell, EditorShell, WizardLayout, FormSection, StickySaveBar, DataTable, StatusBadge, EmptyState and ConfirmDialog). The share is the measured fraction of the file's non-blank lines of at least 12 characters (the header line included in the count) that also appear, identical after trimming, in the source file.
+
+| Harvest file | Status | Kit source (`app/dashboard/(auth)/apps/calendar/`) | Identical lines | Harvest notes |
+| --- | --- | --- | --- | --- |
+| `src/lib/calendar-days.ts` | **copied** | `utils.ts` | 36 of 38 (95%) | Five day-bucketing helpers; only the `CalendarEvent` import changed. Colour, border-radius, agenda and add-hours helpers not copied. |
+| `src/components/events/month-calendar.tsx` | **copied, heavily adapted** | `components/month-view.tsx` | 41 of 88 (47%) | Month grid, week and day computation and cell classes kept. Drag and drop, create-on-click, the overflow popover and the visibility hook removed. Cells are buttons that select a day (dots on phones, titled chips from 640px); a header with previous and next month links; raw palette colours replaced by theme tokens; weekday and outside-day text at full contrast (axe); today applied after mount. |
+| `src/components/events/events-board.tsx` | modelled on | `components/agenda-view.tsx` | none copied | Upcoming list under day headings beside the calendar, with a list and calendar switch kept in the URL. |
+
+Not used from the kit calendar: week, day and agenda views, the event dialog, drag and drop (`@dnd-kit`), the colour palette classes and the current-time indicator. Times are shown in each event's own time zone; calendar maths runs on wall-clock dates in that zone, so a viewer's zone never moves an event to another day. The Harvest tests check both headers in both directions (`tests/unit/ui-provenance.test.ts`).
