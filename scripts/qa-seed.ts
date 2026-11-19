@@ -1,15 +1,12 @@
 import { createPool } from "../src/db/pool";
-import { qaDatabaseAllowed } from "../src/server/qa-database-allowlist";
+import { qaSeedDatabaseUrl } from "../src/server/qa-database-allowlist";
 import { seedQaData } from "./qa-seed-data";
 
 let pool: ReturnType<typeof createPool> | undefined;
 try {
   const args = process.argv.slice(2);
   if (args.length > 1 || (args.length === 1 && args[0] !== "--reset")) throw new Error("QA_SEED_USAGE");
-  const { DATABASE_URL: url, NODE_ENV, VERCEL_ENV } = process.env;
-  if (!url || NODE_ENV === "production" || VERCEL_ENV === "production" || !qaDatabaseAllowed(url, "preview")) {
-    throw new Error("QA_SEED_INVALID_TARGET");
-  }
+  const url = qaSeedDatabaseUrl(process.env);
   pool = createPool(url, 1);
   pool.on("error", () => console.error("QA_SEED_POOL_FAILED"));
   console.log(JSON.stringify(await seedQaData(pool, args.includes("--reset"))));

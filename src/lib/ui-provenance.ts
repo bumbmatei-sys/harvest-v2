@@ -105,7 +105,7 @@ export const kitChatAppReferences = {
   { file: "src/components/communities/chat/chat-message.tsx", source: "app/(auth)/chats/components/chat-bubbles.tsx", localChanges: "Text bubbles with a time line and a hover and focus action menu. Image, video, file and voice bubbles and the lightbox are not adopted (attachments wait for the malware scanner). Reactions, replies, reports and moderation use the real routes." },
   { file: "src/components/communities/chat/chat-composer.tsx", source: "app/(auth)/chats/components/chat-footer.tsx", localChanges: "Card composer with a round send button. The input is a single 44px line that grows to four lines. Emoji picker, file picker and voice recording are not adopted; a mention picker is added." },
   { file: "src/components/communities/chat/channel-info.tsx", source: "app/(auth)/chats/components/group-detail-drawer.tsx", localChanges: "Channel info panel: avatar, name, member count, notifications, members, pinned messages, links, and empty media and documents sections. Leave group is not offered." },
-  { file: "src/components/communities/chat/member-profile-sheet.tsx", source: "app/(auth)/chats/components/user-detail-sheet.tsx", localChanges: "Member profile sheet with name, role and joined date only; no phone, country, website or shared files. C11c adds a Message action that opens a compose dialog; it does not vary with the other person." },
+  { file: "src/components/communities/chat/member-profile-sheet.tsx", source: "app/(auth)/chats/components/user-detail-sheet.tsx", localChanges: "Member profile sheet with name, role and joined date only; no phone, country, website or shared files. C11c adds a Message action that opens a compose dialog; it does not vary with the other person. C09b screens extract the header as MemberSummary (shared with the profile page) and add a link to the full profile." },
   { file: "src/components/communities/chat/message-list.tsx", source: "app/(auth)/chats/components/chat-content.tsx", localChanges: "The scrolling message list, read mark and screen reader notice moved out of the channel pane so channels and private messages share them (C11c). Nothing from the kit file is copied." },
   { file: "src/components/communities/chat/dm-message.tsx", source: "app/(auth)/chats/components/chat-bubbles.tsx", localChanges: "Private message row: text bubble, time, edited marker, deleted placeholder, author menu (edit, delete, restore) and a report action on the other person's messages. No reactions, replies, media, voice or status ticks." },
   { file: "src/components/communities/chat/dm-pane.tsx", source: "app/(auth)/chats/components/chat-content.tsx", localChanges: "Private conversation: shared message list and composer with the real polling hook, an inline not-available state, a read-only banner, a blocked banner with Unblock and a delete confirmation. No mock messages, calls or attachments." },
@@ -128,10 +128,17 @@ export const adminDashboardProvenance = {
   ],
 } as const;
 
-/** Files modelled on the same dashboard calendar, written for Harvest with no kit code copied. Each starts with: Layout and behaviour modelled on bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): <source>; code written for Harvest, no kit code copied. */
+/**
+ * Files modelled on the same dashboard (the calendar for Events C14; pages/profile for the Communities C09b member profile screens),
+ * written for Harvest with no kit code copied; the kit fixtures (contacts, transactions, release notes) are not used. Same repository,
+ * commit and founder approval as `adminDashboardProvenance`. Each starts with: Layout and behaviour modelled on
+ * bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied[ 19 Nov 2026]): <source>; code written for Harvest, no kit code copied.
+ */
 export const adminDashboardReferences = {
   repository: "bumbmatei-sys/admin-dashboard", commit: "1631106", tier: "premium",
   files: [
+  { file: "src/components/communities/member-profile-view.tsx", source: "app/dashboard/(auth)/pages/profile/page.tsx, components/profile-card.tsx, components/latest-activity.tsx", localChanges: "Profile page: a two-column grid with the profile card (shared member summary, post and reply counts) and a latest-activity timeline of the member's posts and replies, with tabs for the viewer's own page. The kit's contact details, skills, connections, transaction table and download buttons are not used; counts and activity come from the existing forum data." },
+  { file: "src/components/communities/member-profile-settings.tsx", source: "app/dashboard/(auth)/pages/profile/components/complete-your-profile.tsx", localChanges: "Settings card of rows that open the service owning each setting (account name, notification switches, member messages). The kit's progress checklist is not used." },
   { file: "src/components/events/events-board.tsx", source: "app/dashboard/(auth)/apps/calendar/components/agenda-view.tsx", localChanges: "Upcoming list grouped under day headings, beside the month calendar and a list and calendar switch kept in the URL. The kit's agenda view is a client-side range of days; Harvest's list is server data." },
   ],
 } as const;
@@ -165,9 +172,14 @@ export function kitHeaderItem(source: string): string | null {
   return headerPattern.exec(source)?.[1] ?? null;
 }
 
-const adminDerivedHeader = /^\s*\/\*\*\s*Derived from bumbmatei-sys\/admin-dashboard \(Shadcn UI Kit, premium, founder-supplied\): (.+?)\. Harvest changes:/;
-/** Returns the admin-dashboard source named by a file's leading Derived from header, or null. */
-export function adminDashboardHeaderSource(source: string): string | null { return adminDerivedHeader.exec(source)?.[1] ?? null; }
-const adminModelledHeader = /^\s*\/\*\*\s*Layout and behaviour modelled on bumbmatei-sys\/admin-dashboard \(Shadcn UI Kit, premium, founder-supplied\): (.+?); code written for Harvest, no kit code copied\./;
-/** Returns the admin-dashboard source a file is modelled on, or null. */
-export function adminDashboardModelledSource(source: string): string | null { return adminModelledHeader.exec(source)?.[1] ?? null; }
+const adminDerivedHeader = /^\s*\/\*\*\s*Derived from bumbmatei-sys\/admin-dashboard \(Shadcn UI Kit, premium, founder-supplied\): (.+?)\. Harvest changes:/i;
+const adminModelledHeader = /^\s*\/\*\*\s*Layout and behaviour modelled on bumbmatei-sys\/admin-dashboard \(Shadcn UI Kit, premium, founder-supplied(?: 19 Nov 2026)?\): (.+?); code written for Harvest, no kit code copied\./i;
+/** Reads a file's leading admin-dashboard provenance header in either form ("Derived from ..." or "Layout and behaviour modelled on ..."), or null when it has neither. */
+export function adminDashboardHeader(source: string): { form: "derived" | "modelled"; source: string } | null {
+  const derived = adminDerivedHeader.exec(source)?.[1];
+  if (derived) return { form: "derived", source: derived };
+  const modelled = adminModelledHeader.exec(source)?.[1];
+  return modelled ? { form: "modelled", source: modelled } : null;
+}
+/** Returns the admin-dashboard source named by a file's leading header (either form), or null. */
+export function adminDashboardHeaderSource(source: string): string | null { return adminDashboardHeader(source)?.source ?? null; }

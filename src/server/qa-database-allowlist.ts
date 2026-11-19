@@ -31,3 +31,11 @@ export function qaDatabaseAllowed(value: string | undefined, mode: "preview" | "
     return false;
   }
 }
+
+export function qaSeedDatabaseUrl(env: Record<string, string | undefined>): string {
+  const { DATABASE_URL: url, NODE_ENV, VERCEL_ENV } = env;
+  if (!url || NODE_ENV === "production" || VERCEL_ENV === "production" || !qaDatabaseAllowed(url, "preview")) {
+    throw new Error("QA_SEED_INVALID_TARGET");
+  }
+  return url;
+}

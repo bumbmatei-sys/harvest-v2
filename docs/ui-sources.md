@@ -246,3 +246,14 @@ The other new files are **modelled on** the kit and written for Harvest (a 50-ch
 
 Not used from the kit: group mode and logo upload in the new-message dialog, the contact and chat stores, status and stories, calls, the lightbox, reactions and replies in private messages.
 
+### Communities C09b member profile screens
+
+The profile page is **modelled on** the founder-supplied premium Admin-dashboard template, the private repository `bumbmatei-sys/Admin-dashboard` (commit `1631106`, premium, `pages/profile`; recorded in `adminDashboardReferences` beside the Events files, under the same approval record; no secrets were copied). **No kit file is copied**: the kit files are fixture pages (contact details, transactions, release notes), so the two new files are Harvest code written to the same layout, and no line is claimed as derived. The compact member sheet from the chat screens is extended, not copied again: its header became `MemberSummary`, shared with the page, and the sheet gained a link to the full profile.
+
+| Harvest file | Status | Kit source (`app/dashboard/(auth)/pages/profile/` unless noted) | Harvest notes |
+| --- | --- | --- | --- |
+| `src/components/communities/member-profile-view.tsx` | modelled on | `page.tsx`, `components/profile-card.tsx`, `components/latest-activity.tsx` | Profile card with post and reply counts, latest-activity timeline, Settings tab on the viewer's own page. |
+| `src/components/communities/member-profile-settings.tsx` | modelled on | `components/complete-your-profile.tsx` | Rows that open the service owning each setting; no second copy of any preference. |
+| `src/components/communities/chat/member-profile-sheet.tsx` | modelled on (chat-app, unchanged source) | chat-app `user-detail-sheet.tsx` | `MemberSummary` extracted; link to the full profile. |
+
+Not used from the kit: contact details, skills, connections, the transaction table, download buttons and every fixture. Directory names link to the profile through the existing `MemberList`. Voluntary fields (bio, links, language, visibility) and avatar upload have no server support yet and are not built.

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { setTimeout as delay } from "node:timers/promises";
 import { expect, test, type APIResponse, type BrowserContext } from "@playwright/test";
+import { localQaOrigin, qaWalkthroughOrigin } from "./preview-origin";
 
 const documentBody = (text: string) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
 
@@ -11,7 +12,8 @@ async function success(response: APIResponse, action: string) {
 }
 
 async function signIn(context: BrowserContext, origin: string, email: string) {
-  const hosted = Boolean(process.env.QA_PREVIEW_URL);
+  if (origin !== qaWalkthroughOrigin(process.env)) throw new Error("Unexpected QA walkthrough origin.");
+  const hosted = origin !== localQaOrigin;
   const headers = new Headers({ Origin: origin });
   if (hosted && process.env.QA_PREVIEW_BYPASS) {
     headers.set("x-vercel-protection-bypass", process.env.QA_PREVIEW_BYPASS);
