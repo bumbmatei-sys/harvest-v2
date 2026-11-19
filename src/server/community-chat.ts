@@ -2,13 +2,13 @@ import { createHash } from "node:crypto";
 import { and, asc, eq, inArray, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
-import { communities, communityChannels, communityChannelMembers, communityMemberships } from "../db/schema";
+import { communities, communityChannels, communityChannelMembers, communityMemberships, users, workspaceMembers } from "../db/schema";
 import type { ChatChannel, ChatChannelSetting, ChatHeld, ChatMessage } from "../lib/chat-view";
 import { channelInput, channelMutes, chatReactions, chatRevision, messageEditInput, messageInput, messagePollInput } from "../lib/chat";
 import { message } from "../i18n/messages";
 import { communityCan } from "../lib/community-permissions";
 import { communitySlug } from "./communities";
-import { forumContextTx } from "./community-forum";
+import { forumContextTx, type DirectoryMember } from "./community-forum";
 import { communitiesEnabled } from "./communities-mode";
 import { communityRoute } from "./community-route";
 import { AccessError } from "./permissions";
@@ -146,19 +146,43 @@ export function chatChannelSettings(db: Database, user: string, tenantId: string
   });
 }
 
-/**
- * Channel settings for the chat screens, read under the caller's own row security (hosts see archived channels and
- * invite lists). Callers must already hold `chat:manage_channels`; every write still goes through the routes, which
- * the database authorizes again.
- */
-export function chatManageSettings(db: Database, user: string, slug: string) {
-  enabled(); const parsed = communitySlug.parse(slug);
-  return withUser(db, user, async tx => {
-    const member = await forumContextTx(tx, user, parsed);
-    if (!member || !member.chatEnabled) throw notFound();
-    if (!communityCan(member.role, "chat:manage_channels")) throw new AccessError(403, message("Errors.forumActionNotAllowed"));
-    const community = { tenant: member.tenantId, id: member.id };
-    const scope = and(eq(communityChannels.tenantId, community.tenant), eq(communityChannels.communityId, community.id));
+type StaffChatCommunity = { id: string; name: string; slug: string; role: string; muted: boolean };
+
+/** Resolve the same ministry owner/admin path as C11a without granting generic forum access. */
+async function withChatStaff<T>(db: Database, user: string, slug: string, run: (tx: Transaction, tenant: string, scope: StaffChatCommunity) => Promise<T>): Promise<T | undefined> {
+  const ministries = await withUser(db, user, tx => tx.select({ tenant: workspaceMembers.tenantId }).from(workspaceMembers)
+    .where(and(eq(workspaceMembers.userId, user), inArray(workspaceMembers.roleId, ["owner", "admin"]))));
+  for (const { tenant } of ministries) {
+    const result = await withTenant(db, user, tenant, "communities:manage", async (tx, id, role) => {
+      const [scope] = await tx.select({ id: communities.id, name: communities.name, slug: communities.slug })
+        .from(communities).where(and(eq(communities.tenantId, id), eq(communities.slug, slug), eq(communities.chatEnabled, true)));
+      if (!scope) return;
+      const [membership] = await tx.select({ status: communityMemberships.status, mutedUntil: communityMemberships.mutedUntil })
+        .from(communityMemberships).where(and(eq(communityMemberships.tenantId, id), eq(communityMemberships.communityId, scope.id), eq(communityMemberships.userId, user)));
+      if (membership && membership.status !== "active") throw notFound();
+      return run(tx, id, { ...scope, role, muted: !!membership?.mutedUntil && membership.mutedUntil > new Date() });
+    }).catch((error: unknown) => {
+      if (!(error instanceof AccessError) || error.status !== 403) throw error;
+      return undefined;
+    });
+    if (result !== undefined) return result;
+  }
+}
+
+export function chatStaffPage(db: Database, user: string, slug: string) {
+  enabled();
+  return withChatStaff(db, user, communitySlug.parse(slug), async (tx, tenant, scope) => {
+    const rows = await tx.select({ userId: users.id, name: users.name, role: communityMemberships.role, joinedAt: communityMemberships.joinedAt })
+      .from(communityMemberships).innerJoin(users, eq(users.id, communityMemberships.userId))
+      .where(and(eq(communityMemberships.tenantId, tenant), eq(communityMemberships.communityId, scope.id), eq(communityMemberships.status, "active")))
+      .orderBy(asc(communityMemberships.joinedAt), asc(users.id)).limit(2000);
+    const members: DirectoryMember[] = rows.map(row => ({ ...row, joinedAt: row.joinedAt?.toISOString() ?? null }));
+    return { scope, members };
+  });
+}
+
+async function readChatSettings(tx: Transaction, tenant: string, id: string) {
+    const scope = and(eq(communityChannels.tenantId, tenant), eq(communityChannels.communityId, id));
     const rows = await tx.select({
       id: communityChannels.id, name: communityChannels.name, emoji: communityChannels.emoji,
       description: communityChannels.description, position: communityChannels.position, posting: communityChannels.posting,
@@ -166,23 +190,36 @@ export function chatManageSettings(db: Database, user: string, slug: string) {
       slowModeSeconds: communityChannels.slowModeSeconds, archived: sql<boolean>`${communityChannels.archivedAt} is not null`,
     }).from(communityChannels).where(scope).orderBy(asc(communityChannels.position), asc(communityChannels.id));
     const invites = await tx.select({ channelId: communityChannelMembers.channelId, userId: communityChannelMembers.userId })
-      .from(communityChannelMembers).where(and(eq(communityChannelMembers.tenantId, community.tenant), eq(communityChannelMembers.communityId, community.id)));
+      .from(communityChannelMembers).where(and(eq(communityChannelMembers.tenantId, tenant), eq(communityChannelMembers.communityId, id)));
     return rows.map(({ id, ...channel }) => ({ id, ...channelInput.parse(channel),
       userIds: invites.filter(invite => invite.channelId === id).map(invite => invite.userId) })) satisfies ChatChannelSetting[];
+}
+
+export async function chatManageSettings(db: Database, user: string, slug: string) {
+  enabled();
+  const parsed = communitySlug.parse(slug);
+  const staff = await withChatStaff(db, user, parsed, (tx, tenant, scope) => readChatSettings(tx, tenant, scope.id));
+  if (staff) return staff;
+  return withUser(db, user, async tx => {
+    const member = await forumContextTx(tx, user, parsed);
+    if (!member || !member.chatEnabled) throw notFound();
+    if (!communityCan(member.role, "chat:manage_channels")) throw new AccessError(403, message("Errors.forumActionNotAllowed"));
+    return readChatSettings(tx, member.tenantId, member.id);
   });
 }
 
 /** Supplemental reads for pins and a thread root with its replies. Channel and message RLS both apply. */
-export function chatChannelSelection(db: Database, user: string, slug: string, channel: string, root: string | null, before: string | null) {
+export async function chatChannelSelection(db: Database, user: string, slug: string, channel: string, root: string | null, before: string | null) {
   enabled();
   const parsed = communitySlug.parse(slug), channelId = z.uuid().parse(channel);
   const parent = root === null ? null : z.uuid().parse(root);
   const cutoff = before === null ? null : chatRevision.parse(before);
-  return withUser(db, user, async tx => {
+  const read = async (tx: Transaction) => {
     const scope = await tx.execute<{ id: string }>(sql`
       select c.id from public.community_channels c
       join public.communities k on k.tenant_id=c.tenant_id and k.id=c.community_id
       where k.slug=${parsed} and c.id=${channelId}::uuid and c.archived_at is null
+        and public.community_channel_can_read(c.tenant_id,c.community_id,c.id)
     `);
     if (!scope.rows.length) throw notFound();
     const result = await tx.execute<ChatMessage>(sql`
@@ -209,5 +246,7 @@ export function chatChannelSelection(db: Database, user: string, slug: string, c
     const replies = result.rows.filter(row => row.id !== parent);
     return { outcome: "ok", events: parent ? [...(rootRow ? [rootRow] : []), ...replies.slice(0, 50)] : replies,
       hasMore: parent !== null && replies.length > 50 };
-  });
+  };
+  const staff = await withChatStaff(db, user, parsed, read);
+  return staff ?? withUser(db, user, read);
 }

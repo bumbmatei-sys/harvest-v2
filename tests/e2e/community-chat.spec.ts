@@ -237,8 +237,9 @@ test("phone chat is full screen with a one-line composer and an admin can manage
   // Delete (an empty channel is removed; one with messages is archived).
   await page.getByRole("button", { name: "Options for Greeters" }).click();
   await page.getByRole("menuitem", { name: "Delete channel" }).click();
-  await page.getByRole("alertdialog").getByRole("button", { name: "Delete channel", exact: true }).click();
-  await expect(page.getByRole("alertdialog")).toBeHidden();
+  const deletion = page.getByRole("alertdialog");
+  await deletion.getByRole("button", { name: "Delete channel", exact: true }).click();
+  await expect(deletion).toBeHidden();
   await expect(page.getByRole("button", { name: "Options for Greeters" })).toBeHidden();
   await expect.poll(async () => ((await (await page.request.get(`/api/communities/${slug}/chat/state`)).json()) as { channels: { name: string }[] })
     .channels.map(channel => channel.name)).not.toContain("Greeters");
@@ -257,6 +258,19 @@ test("phone chat is full screen with a one-line composer and an admin can manage
   await expect(page.getByRole("button", { name: "Options for Temporary" })).toBeHidden();
   await expect.poll(async () => ((await (await page.request.get(`/api/communities/${slug}/chat/state`)).json()) as { channels: { name: string; archived?: boolean }[] })
     .channels.filter(channel => channel.name === "Temporary" && !channel.archived).length).toBe(0);
+
+  await page.getByRole("button", { name: "New channel", exact: true }).click();
+  await create.getByLabel("Channel name").fill("Archived volunteers");
+  await create.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(create).toBeHidden();
+  await page.getByRole("button", { name: "Back to channels" }).click();
+  await page.getByRole("button", { name: "Options for Archived volunteers" }).click();
+  await page.getByRole("menuitem", { name: "Archive channel", exact: true }).click();
+  const archive = page.getByRole("alertdialog");
+  await archive.getByRole("button", { name: "Archive channel", exact: true }).click();
+  await expect(archive).toBeHidden();
+  const settingsAfterArchive = await (await page.request.get(`/api/communities/${slug}/chat/settings`)).json();
+  expect(settingsAfterArchive.channels).toEqual(expect.arrayContaining([expect.objectContaining({ name: "Archived volunteers", archived: true })]));
 
   // Desktop: the same controls beside the thread.
   await page.setViewportSize({ width: 1280, height: 900 });

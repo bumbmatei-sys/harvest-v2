@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { ArrowLeft, MoreVertical, PanelLeft, Plus, Volume2 } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
+import { useChatUnreadBadge } from "@/components/communities/community-shell";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { usePolling } from "@/hooks/use-polling";
 import { channelInput, channelMutes } from "@/lib/chat";
-import type { ChatAccess, ChatChannel, ChatChannelSetting } from "@/lib/chat-view";
+import { chatUnreadTotal, type ChatAccess, type ChatChannel, type ChatChannelSetting } from "@/lib/chat-view";
 import type { DirectoryMember } from "@/server/community-forum";
 import { cn } from "@/lib/utils";
 import { ChatHeader } from "./chat-header";
@@ -62,6 +63,9 @@ export function ChatLayout({ slug, me, access, initial, initialChannel, members,
   const t = useTranslations("CommunityChat");
   const base = `/api/communities/${slug}/chat`;
   const [channels, setChannels] = useState(initial);
+  const updateBadge = useChatUnreadBadge();
+  useEffect(() => updateBadge(chatUnreadTotal(channels)), [channels, updateBadge]);
+  const [unreadOnly, setUnreadOnly] = useState(false);
   const [selected, setSelected] = useState(initialChannel);
   const [showMobileThread, setShowMobileThread] = useState(initial.some(channel => channel.id === initialChannel && !channel.archived));
   const [listOpen, setListOpen] = useState(false);
@@ -73,7 +77,8 @@ export function ChatLayout({ slug, me, access, initial, initialChannel, members,
   const [confirm, setConfirm] = useState<{ id: string; kind: "archive" | "delete" }>();
   const [adminBusy, setAdminBusy] = useState(false);
   const [adminError, setAdminError] = useState("");
-  const draftKey = `harvest-chat-drafts:${slug}`;
+  const draftKey = `harvest-chat-drafts:${me}:${slug}`;
+  const retryKey = `${draftKey}:retries`;
   // Drafts survive a reload of the tab (sessionStorage, this tab only). No message pane renders during hydration, so reading here is safe.
   const [drafts, setDrafts] = useState<Record<string, ChatDraft>>(() => {
     try {
@@ -82,14 +87,29 @@ export function ChatLayout({ slug, me, access, initial, initialChannel, members,
       return Object.fromEntries(saved.filter(([, draft]) => typeof draft?.text === "string" && Array.isArray(draft.mentions)) as [string, ChatDraft][]);
     } catch { return {}; }
   });
-  useEffect(() => {
+  const draftRef = useRef(drafts);
+  const [retryIds] = useState(() => {
     try {
-      const kept = Object.fromEntries(Object.entries(drafts).filter(([, draft]) => draft.text));
-      if (Object.keys(kept).length) sessionStorage.setItem(draftKey, JSON.stringify(kept));
-      else sessionStorage.removeItem(draftKey);
-    } catch { /* Ignore blocked storage. */ }
-  }, [drafts, draftKey]);
-  const retryIds = useRef(new Map<string, { request: string; id: string }>());
+      const saved = JSON.parse(sessionStorage.getItem(retryKey) ?? "{}") as Record<string, { request: string; id: string }>;
+      return new Map(Object.entries(saved).filter(([, value]) => typeof value?.request === "string" && typeof value?.id === "string"));
+    } catch { return new Map<string, { request: string; id: string }>(); }
+  });
+  useEffect(() => {
+    try { sessionStorage.removeItem(`harvest-chat-drafts:${slug}`); } catch { /* Ignore blocked storage. */ }
+  }, [slug]);
+  function saveDraft(channel: string, draft: ChatDraft) {
+    const next = { ...draftRef.current };
+    if (draft.text) next[channel] = draft;
+    else delete next[channel];
+    draftRef.current = next;
+    try { sessionStorage.setItem(draftKey, JSON.stringify(next)); } catch { /* Ignore blocked storage. */ }
+    setDrafts(next);
+  }
+  function storeRetry(key: string, entry?: { request: string; id: string }) {
+    if (entry) retryIds.set(key, entry);
+    else retryIds.delete(key);
+    try { sessionStorage.setItem(retryKey, JSON.stringify(Object.fromEntries(retryIds))); } catch { /* Ignore blocked storage. */ }
+  }
   const tag = useRef<string | null>(null);
   const listHeading = useRef<HTMLHeadingElement>(null);
   const paneHeading = useRef<HTMLHeadingElement>(null);
@@ -206,10 +226,9 @@ export function ChatLayout({ slug, me, access, initial, initialChannel, members,
     else {
       const target = (await latestSettings())?.find(item => item.id === id);
       if (!target) return t("actionFailed");
-      const fields: Partial<ChatChannelSetting> = { ...target };
-      delete fields.id;
-      delete fields.userIds;
-      const body = channelInput.safeParse({ ...fields, archived: true });
+      const { id: channelId, userIds, ...entry } = target;
+      if (channelId !== id || !Array.isArray(userIds)) return t("actionFailed");
+      const body = channelInput.safeParse({ ...entry, archived: true });
       if (!body.success) return t("actionFailed");
       result = await chatChannelCall(base, `/channels/${id}`, "PUT", body.data);
     }
@@ -228,7 +247,7 @@ export function ChatLayout({ slug, me, access, initial, initialChannel, members,
   };
 
   if (stopped) return <Alert className="m-3 w-auto"><AlertDescription>{t(stopped === 401 ? "signIn" : "unavailable")}</AlertDescription></Alert>;
-  const list = <ChannelList channels={ordered} current={channelId} onSelect={select} manage={manage} />;
+  const list = <ChannelList channels={ordered} unreadOnly={unreadOnly} onUnreadOnly={setUnreadOnly} current={channelId} onSelect={select} manage={manage} />;
   const mutedChannel = <DropdownMenu>
     <DropdownMenuTrigger asChild>
       <Button variant="ghost" size="icon" className="size-11" aria-label={t("muteChannel")}><Volume2 aria-hidden="true" /></Button>
@@ -279,8 +298,8 @@ export function ChatLayout({ slug, me, access, initial, initialChannel, members,
       {!online && <Alert className="m-2 w-auto"><AlertDescription>{t("offline")}</AlertDescription></Alert>}
       {muteError && <Alert role="alert" variant="destructive" className="m-2 w-auto"><AlertDescription>{muteError}</AlertDescription></Alert>}
       {channel && (tablet || showMobileThread) ? <MessagePane key={channel.id} channel={channel} slug={slug} me={me} online={online} focused={focused} access={access}
-        members={members} draft={drafts[channel.id] ?? emptyChatDraft} retryIds={retryIds}
-        setDraft={draft => setDrafts(existing => ({ ...existing, [channel.id]: draft }))} onRead={refreshRail}
+        members={members} draft={drafts[channel.id] ?? emptyChatDraft} retryIds={retryIds} storeRetry={storeRetry}
+        setDraft={draft => saveDraft(channel.id, draft)} onRead={refreshRail}
         info={{ open: infoOpen, onOpenChange: setInfoOpen, returnFocus: nameButton, setting: settings?.find(item => item.id === channel.id), onMute: value => void mute(value, channel.id),
           onEdit: manage ? () => { setInfoOpen(false); void edit(channel.id); } : undefined }} />
         : !channel && <p className="p-4 text-sm text-muted-foreground">{t(selected ? "unavailable" : "noChannels")}</p>}

@@ -77,3 +77,7 @@ export function plainChatBody(message: ChatMessage) {
     return person ? `@${person.name}` : "";
   }).join("").replace(/<@[^<>\s]+>/g, "");
 }
+
+export function chatUnreadTotal(channels: ChatChannel[]) {
+  return channels.reduce((total, channel) => total + (channel.mute === "none" ? channel.unread : channel.mute === "mentions_only" ? channel.mentions : 0), 0);
+}

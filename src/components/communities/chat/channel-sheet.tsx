@@ -25,7 +25,9 @@ export const newChannel = (position: number): ChatChannelSetting => ({
 /** One request to the chat channel routes. Resolves the parsed body, or the catalogue key of the error to show. */
 export async function chatChannelCall(base: string, path: string, method: string, body?: unknown): Promise<{ ok: true; result: { channel: { id: string }; channels: ChatChannelSetting[] } } | { ok: false; key: "channelLimit" | "forbidden" | "actionFailed" }> {
   try {
-    const response = await fetch(`${base}${path}`, { method, headers: body === undefined ? undefined : { "Content-Type": "application/json" }, body: body === undefined ? undefined : JSON.stringify(body) });
+    const response = await fetch(`${base}${path}`, body === undefined ? { method } : {
+      method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+    });
     const result = await response.json().catch(() => null);
     if (response.ok) return { ok: true, result };
     return { ok: false, key: result?.outcome === "channel_limit" ? "channelLimit" : response.status === 403 ? "forbidden" : "actionFailed" };

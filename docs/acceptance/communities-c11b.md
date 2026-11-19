@@ -30,7 +30,7 @@ Run by the author on the head of this change, with Chromium on a disposable data
 
 - `tsc`, `eslint src tests` and `check-source` pass.
 - Unit suite: 84 files, 1,132 tests pass (includes the chat-app provenance test, polling hook, composer size, draft payload, link extraction and role matrix).
-- Integration: `community-chat` and `communities` files, 46 tests pass, including `GET /settings` (403 for members and non-managing staff, 404 for non-members, other tenants, unknown communities and chat switched off, 200 for owner and admin).
+- Integration: `community-chat` and `communities` files, 47 tests pass, including `GET /settings` (403 for members and non-managing staff, 404 for non-members, other tenants, unknown communities and chat switched off, 200 for owner and admin).
 - Chromium end to end, `community-chat.spec.ts`, 3 of 3 pass: the full live-chat scenario (axe WCAG 2.2 AA, no horizontal overflow and the 44px send target at 360, 768 and 1280 px in light and dark); phone full screen with no bottom bar or header, one-line composer under 56px, back navigation, and admin create, rename, archive and delete from the chat with the channel confirmed gone from the server state; the channel info panel at 360 and 1280 px in light and dark with axe, overflow, Escape and focus returned to the channel name; and a member who sees no administration controls and is refused `GET /settings`. `community-editor.spec.ts` and `kit-pr7-communities.spec.ts` also pass.
 - Screenshots: [docs/screenshots/communities-c11b](../screenshots/communities-c11b/): `chat-{360,768,1280}-{light,dark}`, `admin-360-light`, `admin-menu-360-light`, `admin-menu-1280-light`, `info-{360,1280}-{light,dark}`.
 
@@ -51,3 +51,5 @@ Invite-only mention suggestions use the participants visible in the loaded messa
 ## Gates
 
 Chat and its routes require `NODE_ENV !== "production" && communitiesEnabled()`. All five HC-02 decisions remain **UNAPPROVED**. Attachment scanning, push, presence, search and DM settings are deferred.
+
+The follow-up scopes drafts and send retry IDs to the signed-in account, restores focus from Channel info, and uses the effective ministry role for chat administration. The channel rail includes an unread total and filter. Browser checks wait for confirmation before reading results from the API.

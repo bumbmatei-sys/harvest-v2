@@ -3041,6 +3041,7 @@
     "addLink": "Add link"
   },
   "CommunityShell": {
+    "unread": "{count, plural, one {# unread message} other {# unread messages}}",
     "items": {
       "chat": "Chat",
       "forum": "Forum",

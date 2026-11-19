@@ -32,19 +32,23 @@ function ChannelMark({ channel }: { channel: ChatChannel }) {
     : <span className="flex size-12 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"><Icon className="size-5" aria-hidden="true" /></span>;
 }
 
-export function ChannelList({ channels, current, onSelect, manage }: {
+export function ChannelList({ channels, current, onSelect, manage, unreadOnly, onUnreadOnly }: {
   channels: ChatChannel[];
   current?: string;
   onSelect: (id: string) => void;
   manage?: ChannelManage;
+  unreadOnly: boolean;
+  onUnreadOnly: (on: boolean) => void;
 }) {
   const t = useTranslations("CommunityChat");
   const [query, setQuery] = useState("");
-  const shown = channels.filter(channel => channel.name.toLowerCase().includes(query.trim().toLowerCase()));
+  const shown = channels.filter(channel => channel.name.toLowerCase().includes(query.trim().toLowerCase()))
+    .filter(channel => !unreadOnly || (channel.mute === "none" && channel.unread > 0 || channel.mute === "mentions_only" && channel.mentions > 0));
   return <nav aria-label={t("channels")} className="flex min-h-0 flex-1 flex-col">
     <div className="relative flex shrink-0 items-center px-4 pb-3">
-      <Search className="absolute start-7 size-4 text-muted-foreground" aria-hidden="true" />
+      <Search className="pointer-events-none absolute start-7 size-4 text-muted-foreground" aria-hidden="true" />
       <Input type="search" className="min-h-11 ps-9" aria-label={t("searchChannels")} placeholder={t("searchChannels")} value={query} onChange={event => setQuery(event.target.value)} />
+      <Button variant={unreadOnly ? "secondary" : "ghost"} aria-pressed={unreadOnly} className="ms-1 min-h-11 shrink-0" onClick={() => onUnreadOnly(!unreadOnly)}>{t("unread")}</Button>
     </div>
     <ScrollArea className="min-h-0 w-full min-w-0 flex-1" viewportClassName="overscroll-contain">
       <ul className="block min-w-0 divide-y">
