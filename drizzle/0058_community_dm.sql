@@ -243,7 +243,7 @@ RETURNS jsonb LANGUAGE sql STABLE SET search_path = pg_catalog, pg_temp AS $$
 $$;
 
 CREATE FUNCTION public.community_dm_can_send(p_tenant uuid, p_community uuid, p_actor text, p_other text,
-  p_existing boolean, p_engaged_by text, p_engaged_at timestamptz)
+  p_existing boolean, p_engaged_by text, p_engaged_at timestamptz, p_ignore_block boolean DEFAULT false)
 RETURNS boolean LANGUAGE plpgsql STABLE SET search_path = pg_catalog, pg_temp AS $$
 DECLARE
   sender_role text := public.community_dm_active(p_tenant, p_community, p_actor);
@@ -253,7 +253,7 @@ DECLARE
   staff_reply boolean := p_existing AND p_engaged_at IS NOT NULL AND p_engaged_by = p_other AND other_host;
 BEGIN
   IF p_actor IS NULL OR p_other IS NULL OR p_actor = p_other OR sender_role IS NULL OR other_role IS NULL
-    OR public.community_dm_blocked(p_tenant, p_community, p_actor, p_other) THEN RETURN false; END IF;
+    OR (NOT p_ignore_block AND public.community_dm_blocked(p_tenant, p_community, p_actor, p_other)) THEN RETURN false; END IF;
   IF staff_reply THEN RETURN true; END IF;
   IF EXISTS(SELECT 1 FROM public.community_memberships WHERE tenant_id = p_tenant AND community_id = p_community
     AND user_id = p_actor AND muted_until > clock_timestamp()) THEN RETURN false; END IF;
@@ -559,11 +559,11 @@ BEGIN
   PERFORM public.community_dm_lock_members(ctx.tenant, ctx.community, ARRAY[actor, p_other]);
   IF public.community_dm_active(ctx.tenant, ctx.community, actor) IS NULL THEN RETURN public.community_chat_done('{"outcome":"not_found"}'); END IF;
   IF p_block THEN
-    IF public.community_dm_active(ctx.tenant, ctx.community, p_other) IS NULL THEN
-      RETURN public.community_chat_done('{"outcome":"not_available"}');
+    -- A target who is not an active member gets the same answer as one who is, so the response is not an oracle for membership.
+    IF public.community_dm_active(ctx.tenant, ctx.community, p_other) IS NOT NULL THEN
+      INSERT INTO public.community_dm_blocks(tenant_id, community_id, blocker_id, blocked_id)
+        VALUES(ctx.tenant, ctx.community, actor, p_other) ON CONFLICT DO NOTHING;
     END IF;
-    INSERT INTO public.community_dm_blocks(tenant_id, community_id, blocker_id, blocked_id)
-      VALUES(ctx.tenant, ctx.community, actor, p_other) ON CONFLICT DO NOTHING;
     IF p_hide THEN UPDATE public.community_dm_participants SET hidden_at = coalesce(hidden_at, now())
       WHERE conversation_id = conversation AND user_id = actor; END IF;
   ELSE
@@ -624,7 +624,8 @@ RETURNS TABLE(id uuid, last_rev bigint, last_message_at timestamptz, other_id te
   last_read_seq bigint, state_rev bigint, can_send boolean)
 LANGUAGE sql STABLE SET search_path = pg_catalog, pg_temp AS $$
   SELECT c.id, c.last_rev, c.last_message_at, other.user_id, u.name, own.muted, own.last_read_seq, own.state_rev,
-    public.community_dm_can_send(p_tenant, p_community, p_actor, other.user_id, true, c.staff_engaged_by, c.staff_engaged_at)
+    -- Blocks are deliberately not reflected here: a blocked person must see the same list and rail token as before the block.
+    public.community_dm_can_send(p_tenant, p_community, p_actor, other.user_id, true, c.staff_engaged_by, c.staff_engaged_at, true)
   FROM public.community_dm_participants own
   JOIN public.community_dm_conversations c ON c.id = own.conversation_id
   LEFT JOIN public.community_dm_participants other ON other.conversation_id = c.id AND other.user_id <> p_actor
@@ -712,7 +713,7 @@ BEGIN
     LEFT JOIN public.community_dm_conversations c ON c.community_id = m.community_id AND c.pair_key = public.community_dm_pair(actor, m.user_id)
     WHERE m.tenant_id = ctx.tenant AND m.community_id = ctx.community AND m.user_id <> actor AND m.status = 'active'
       AND strpos(lower(u.name), lower(coalesce(p_query, ''))) > 0
-      AND public.community_dm_can_send(ctx.tenant, ctx.community, actor, m.user_id, c.id IS NOT NULL, c.staff_engaged_by, c.staff_engaged_at)
+      AND public.community_dm_can_send(ctx.tenant, ctx.community, actor, m.user_id, c.id IS NOT NULL, c.staff_engaged_by, c.staff_engaged_at, true)
     ORDER BY u.name, m.user_id LIMIT 50) x;
   RETURN public.community_chat_done(jsonb_build_object('outcome','ok','items',people));
 END $$;
@@ -996,7 +997,9 @@ BEGIN
   PERFORM set_config('app.community_definer_tenant', p_tenant::text, true);
   SELECT public.community_dm_active(p_tenant, p_community, actor) IS NOT NULL
     AND public.community_dm_active(p_tenant, p_community, p_sender) IS NOT NULL
-    AND NOT public.community_dm_blocked(p_tenant, p_community, actor, p_sender)
+    -- Only the blocker stops seeing the notice. The blocked recipient's existing notices and unread count must not change (no oracle).
+    AND NOT EXISTS(SELECT 1 FROM public.community_dm_blocks WHERE tenant_id = p_tenant AND community_id = p_community
+      AND blocker_id = actor AND blocked_id = p_sender)
     AND NOT EXISTS(SELECT 1 FROM public.community_memberships WHERE tenant_id = p_tenant AND community_id = p_community
       AND user_id = actor AND notifications_muted)
     AND EXISTS(SELECT 1 FROM public.community_dm_participants WHERE tenant_id = p_tenant AND community_id = p_community

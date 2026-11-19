@@ -18,7 +18,7 @@ export function ReportDialog({ slug, targetType, targetId, name, compact = false
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [done, setDone] = useState(false);
   async function submit() {
     setBusy(true); setError("");
-    const result = await request(`/api/communities/${slug}/reports`, { method: "POST", body: { targetType, targetId, reason, ...(note.trim() ? { note: note.trim() } : {}) } });
+    const result = await request(`/api/communities/${slug}${targetType === "message" ? "/chat" : ""}/reports`, { method: "POST", body: { targetType, targetId, reason, ...(note.trim() ? { note: note.trim() } : {}) } });
     setBusy(false);
     if (result.ok) setDone(true); else setError(result.error);
   }

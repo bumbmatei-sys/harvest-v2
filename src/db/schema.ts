@@ -1020,6 +1020,7 @@ export const reservedCommunitySlugs = ["new", "discover", "search", "create", "s
 const reservedSlugSql = sql.raw(reservedCommunitySlugs.map((slug) => `'${slug}'`).join(", "));
 
 export const communities = pgTable("communities", {
+  eventPublicationEpoch: uuid("event_publication_epoch").notNull().defaultRandom(),
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
   id: uuid("id").notNull().defaultRandom(),
   slug: text("slug").notNull(),
@@ -1046,7 +1047,6 @@ export const communities = pgTable("communities", {
   // C15a: shown in the new-member welcome card; the introductions category is where "Introduce yourself" leads.
   welcomeMessage: text("welcome_message"),
   introCategoryId: uuid("intro_category_id").references((): AnyPgColumn => communityCategories.id, { onDelete: "set null" }),
-  eventPublicationEpoch: uuid("event_publication_epoch").notNull().defaultRandom(),
   chatEnabled: boolean("chat_enabled").notNull().default(true),
   dmPolicy: text("dm_policy").notNull().default("channels_only"),
   discoverOptIn: boolean("discover_opt_in").notNull().default(false),
@@ -1074,6 +1074,7 @@ export const communities = pgTable("communities", {
   check("community_rules_version", sql`${t.rulesVersion} >= 0`)]);
 
 export const communityMemberships = pgTable("community_memberships", {
+  eventAccessEpoch: uuid("event_access_epoch").notNull().defaultRandom(),
   tenantId: uuid("tenant_id").notNull(),
   communityId: uuid("community_id").notNull(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -1085,7 +1086,6 @@ export const communityMemberships = pgTable("community_memberships", {
   joinAnswers: jsonb("join_answers").$type<import("../lib/questions").Answers>(),
   mutedUntil: timestamp("muted_until", { withTimezone: true }),
   dmAcceptMembers: boolean("dm_accept_members").notNull().default(true),
-  eventAccessEpoch: uuid("event_access_epoch").notNull().defaultRandom(),
   chatStateRev: bigint("chat_state_rev", { mode: "number" }).notNull().default(0),
   // C15a: notification preferences, the last time the bell was opened and the dismissed welcome card.
   notifyReplies: boolean("notify_replies").notNull().default(true),
