@@ -1,0 +1,9 @@
+# QA-3 synthetic walkthrough
+
+Run locally with `npx playwright test -c playwright.qa.config.ts`. It starts the disposable test server and uses the mock mailbox. Set `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` to use an installed Chromium. The walkthrough signs in two fresh synthetic accounts, creates a ministry and community, approves a membership application, posts, comments and verifies the moderation report. It unpublishes its own community on exit. Local databases are disposable. Hosted runs leave synthetic records for later cleanup on the dedicated preview branch.
+
+The workflow is manual on `main`. Configure `QA_PREVIEW_URL` as the bare stable Preview origin, `QA_PREVIEW_HELPER_KEY` with the deployed helper header secret and, if needed, `QA_PREVIEW_BYPASS` with the deployment-protection bypass value. The signing key stays with the Preview deployment. The environment-gated helper must attest Preview readiness before any OTP request. Each address gets one request and each request waits at least 25 seconds. The protected-preview cookie and OTPs stay out of uploaded artifacts. GitHub keeps scoped screenshots and action/timing traces for seven days. The workflow omits raw Playwright traces, network records, DOM snapshots and auth payloads.
+
+After the founder configures Preview, verify a manual pass and a controlled failure. To schedule later, add a `schedule` cron under workflow triggers in a separate reviewed change. Overlapping walkthroughs are queued, and each failed run updates one open issue with the latest run link. Chat, DMs and Live are outside the preview walkthrough.
+
+Hosted Vercel protection, the stable alias, hosted Neon, and the workflow's hosted issue and artifact behavior require the configured Preview environment to verify. All five HC-02 decisions remain UNAPPROVED.

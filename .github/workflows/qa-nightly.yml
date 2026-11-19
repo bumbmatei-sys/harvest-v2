@@ -1,0 +1,89 @@
+name: QA synthetic walkthrough
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  issues: write
+concurrency:
+  group: qa-synthetic-preview
+  cancel-in-progress: false
+jobs:
+  walkthrough:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - name: Check preview configuration
+        env:
+          QA_PREVIEW_URL: ${{ vars.QA_PREVIEW_URL }}
+          QA_PREVIEW_HELPER_KEY: ${{ secrets.QA_PREVIEW_HELPER_KEY }}
+        run: |
+          if [ -z "$QA_PREVIEW_URL" ] || [ -z "$QA_PREVIEW_HELPER_KEY" ]; then
+            echo "Configure the preview origin and helper key before dispatch."
+            exit 1
+          fi
+      - name: Walk through synthetic communities
+        id: browser
+        env:
+          QA_PREVIEW_URL: ${{ vars.QA_PREVIEW_URL }}
+          QA_PREVIEW_HELPER_KEY: ${{ secrets.QA_PREVIEW_HELPER_KEY }}
+          QA_PREVIEW_BYPASS: ${{ secrets.QA_PREVIEW_BYPASS }}
+        run: npx playwright test -c playwright.qa.config.ts
+      - name: Collect screenshots and safe traces
+        if: always() && steps.browser.outcome != 'skipped'
+        run: |
+          mkdir -p qa-evidence
+          python3 tests/qa/safe-traces.py test-results/qa qa-evidence
+          if [ -d test-results/qa ]; then
+            find test-results/qa -mindepth 2 -maxdepth 2 -type f -name '0[1-4]-*.png' -exec cp --parents '{}' qa-evidence/ \;
+          fi
+      - name: Upload synthetic evidence
+        if: always() && steps.browser.outcome != 'skipped'
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-walkthrough
+          path: qa-evidence
+          retention-days: 7
+          if-no-files-found: ignore
+      - name: Record outcome
+        if: always()
+        env:
+          OUTCOME: ${{ steps.browser.outcome }}
+        run: |
+          echo '## Synthetic walkthrough' >> "$GITHUB_STEP_SUMMARY"
+          case "$OUTCOME" in
+            success) echo '- Passed · Ministry, community, membership, forum and moderation' ;;
+            failure) echo '- Failed · Ministry, community, membership, forum and moderation' ;;
+            *) echo '- Skipped · Check preview setup and runner logs' ;;
+          esac >> "$GITHUB_STEP_SUMMARY"
+      - name: Track a single walkthrough failure issue
+        if: failure() && steps.browser.outcome == 'failure'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const title = "QA synthetic walkthrough failed";
+            const repo = context.repo;
+            const label = "qa-nightly";
+            try {
+              await github.rest.issues.getLabel({ ...repo, name: label });
+            } catch (error) {
+              if (error.status !== 404) throw error;
+              await github.rest.issues.createLabel({ ...repo, name: label, color: "b60205" });
+            }
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              ...repo, state: "open", labels: label, per_page: 100
+            });
+            const body = `Walkthrough failed. [Run details](${context.serverUrl}/${repo.owner}/${repo.repo}/actions/runs/${context.runId}).`;
+            const existing = issues.find(issue => !issue.pull_request && issue.title === title);
+            if (existing) {
+              if (existing.body !== body) await github.rest.issues.update({ ...repo, issue_number: existing.number, body });
+            } else {
+              await github.rest.issues.create({ ...repo, title, body, labels: [label] });
+            }
