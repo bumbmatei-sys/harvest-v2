@@ -6,6 +6,7 @@
     "dev": "next dev",
     "build": "next build --webpack",
     "start": "next start",
+    "qa:seed": "tsx scripts/qa-seed.ts",
     "lint": "eslint . --max-warnings=0 && tsx scripts/check-source.ts",
     "typecheck": "tsc --noEmit",
     "test": "vitest run --project unit",
