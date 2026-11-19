@@ -1,22 +1,17 @@
 import { message } from "../../i18n/messages";
 import "server-only";
 import { createHash } from "node:crypto";
-import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { GetObjectCommand, HeadObjectCommand, PutObjectCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { filenameMatchesMime, MAX_FILE_SIZE, type UploadInput } from "../../lib/files";
 import { downloadDisposition } from "../../lib/download-filename";
 import { InvalidStoredFile, type StorageAdapter, type ImageMime } from "./adapter";
+import { connectStorage, type storageConfig } from "./s3-connection";
 
 export class S3Storage implements StorageAdapter {
-  private client: S3Client;
-  constructor(private config: { endpoint: string; bucket: string; region: string; accessKeyId: string; secretAccessKey: string }) {
-    const endpoint = new URL(config.endpoint);
-    if (endpoint.username || endpoint.password || !["http:", "https:"].includes(endpoint.protocol)) throw new Error(message("Errors.invalidS3Endpoint"));
-    if (endpoint.protocol !== "https:" && !["localhost", "127.0.0.1", "[::1]"].includes(endpoint.hostname)) throw new Error(message("Errors.storageRequiresHttps"));
-    this.client = new S3Client({ endpoint: config.endpoint, region: config.region, forcePathStyle: true,
-      credentials: { accessKeyId: config.accessKeyId, secretAccessKey: config.secretAccessKey },
-      requestChecksumCalculation: "WHEN_REQUIRED", responseChecksumValidation: "WHEN_REQUIRED", maxAttempts: 2,
-    });
+  private client: ReturnType<typeof connectStorage>;
+  constructor(private config: ReturnType<typeof storageConfig>) {
+    this.client = connectStorage(config);
   }
   async presignUpload(key: string, input: UploadInput) {
     const expiresIn = 300;
