@@ -12,7 +12,7 @@ References:
 - external calendar port `src/server/calendar/port.ts`, its registry and provider-layer adapter;
 - C11a draft [#121](https://github.com/bumbmatei-sys/harvest-v2/pull/121); C11b source-audit draft [#122](https://github.com/bumbmatei-sys/harvest-v2/pull/122).
 
-Design follows Skool's community profile and Eden's community flows; style follows Studio Admin through shared Harvest components. No proprietary assets, mock contact data or provider frontend are copied.
+Design follows Skool's community profile and Eden's community flows. The founder-supplied premium profile and chat sheet are the implementation sources, adapted with Harvest shared components. This design contains no copied source or fixture data.
 
 ## Scope
 
@@ -35,9 +35,20 @@ Routes: `/communities/:slug/members/:userId`, with My settings on the viewer's o
 - Header: initials avatar, community display name, current role/badge and joined **day**. These come from this community; no role or grant from another community appears.
 - About: optional plain-text bio, volunteered language and up to three labelled HTTPS links. No email, phone, city/region, CRM contact, consent, campaign-response or pastoral fields.
 - Activity: paginated posts/replies authored in this community that the **viewer can already read**. Reuse forum predicates; exclude deleted/removed content and held content not visible to the viewer. Never list chat/DM messages, private profile edits or engagement scores.
-- Message action: C11c's server eligibility result decides whether it appears and whether it starts or opens a conversation. Do not infer eligibility from a role or reveal why someone cannot be messaged. Preserve current-host engagement, policy-off, block, opt-out and mute rules. C09b depends on that real service; no simulated Message button.
+- Message action: on a readable peer profile, the action opens a neutral compose sheet when chat is enabled. The action and profile payload do not vary with the target's block, opt-out, mute, membership details or conversation history. On submit, reuse C11c `dmStart` with the first message and `client_id`. Its transaction rechecks eligibility, including existing pair and current-host engagement, before any conversation ID or notification is produced. Failed attempts use the same unavailable copy. Never call `dmPeople` as a profile probe or expose a preflight token, status or button visibility for individual DM eligibility. Existing conversations remain accessible through the participant's own authorized DM list.
 - Report/block: existing C12 `ReportDialog` and C11c block service. Report reasons remain shared. Hosts' moderation/member-management actions remain separate from voluntary profile visibility.
 - My settings: profile fields, directory/profile visibility, C15 notification/email preferences and C11c member-DM acceptance. Reuse the owning services; no second preference table or inferred consent.
+
+## C09b reconciliation against merged chat
+
+| Earlier assumption | Build alignment |
+| --- | --- |
+| Profile or directory can derive Message eligibility from membership or add a lookup | C11c (0058) owns recipient eligibility and the common `not_available` result. Distinguish only the normal authorized send outcome at submit. The profile and its cache key reveal no block, opt-out or existing-pair signal. |
+| Membership revision can stand in for private DM activity | C11a (0057) owns channel settings and the community-wide channel revision. C11c owns participant-only revisions, rail state and the associated DM notifications. C09b does not join those projections into profile activity or counters. |
+| Profile settings might store their own DM and notification switches | The current member's own settings reuse C11c `dmAccept` (`dm_accept_members` on the membership) and the C15 preferences services. `dm_policy` stays a community setting. Profile visibility remains an independent C09b concern. |
+| The combined design predates the delegated defaults | Decision log §4b covers Events, Office Mail and Assistant. It sets no new member-profile defaults. For future C14 work, it supersedes this historical design's deferred waitlist and unspecified timing: RSVP closes at start or earlier, waitlist promotion is ordered and automatic, and reminders default to 24h/1h in-app with email opt-in. Delivery remains a separate job. These defaults do not certify the E01 draft or change C09b's dependencies. |
+
+C11a and C11c are merged. Test profile privacy independently from chat permissions: a viewer or ordinary member using `withTenant` cannot bypass a private profile. Verify the same Message affordance, URL/cache behavior and neutral failure for blocked and opted-out targets, policy-off, demoted hosts, and access loss between loading and submission. A successful send is the only path that exposes an authorized conversation to the participant.
 
 ## Profile data and privacy
 
@@ -94,13 +105,14 @@ Live integration is an optional association from a canonical event to Live L1, w
 
 | Area | Named kit source / preview | Studio Admin fallback / shared Harvest composition |
 | --- | --- | --- |
-| Profile header, About/Activity tabs | [Profile V2 template page](https://shadcnuikit.com/dashboard/pages/user-profile), **not a registry block**; V1 is `/dashboard/pages/profile` | pinned MIT account/user patterns; `CommunityShell`, `RecordLayout`, `Tabs`, `Avatar`, `Badge`, `MemberList` |
+| Profile header, About/Activity tabs | Copy and adapt Admin-dashboard `app/dashboard/(auth)/pages/profile/page.tsx` and `components/profile-card.tsx`, `about-me.tsx`, `latest-activity.tsx` beneath that directory. Replace fixture contact details, links and activity with the authorized profile projection and paginated forum activity. | `CommunityShell`, `RecordLayout`, `Tabs`, `Avatar`, `Badge`, `MemberList` |
+| Compact member sheet | Copy and adapt chat-app `app/(auth)/chats/components/user-detail-sheet.tsx`. Replace fixture contact fields, social links, shared-media placeholders and `useChatStore` with the same allowed profile summary and neutral actions. | Shared `Sheet`, `Avatar`, `Button` and C11c message flow |
 | My settings | [`form-layout1`](https://shadcnuikit.com/blocks/dashboard-ui/form-layouts#form-layout-1) | pinned MIT settings pattern; existing `Field`, inputs, C15 preference components, `StickySaveBar` |
 | Event calendar | [`event-calendar1`](https://shadcnuikit.com/blocks/application-ui/event-calendar#event-calendar-1) | `event-calendar2` alternative; pinned MIT calendar where appropriate; shared `Tabs`, `Sheet`, `Calendar` |
 | Event detail / RSVP | chosen calendar's detail pattern; no invented standalone registry item | `Sheet`, `Badge`, `StatusBadge`, `ConfirmDialog`, existing form fields |
 | Safety / empty / notifications | existing Harvest components | `ReportDialog`, `NotificationBell`, `EmptyState`, `MemberList` |
 
-The profile templates have no registry install name; do not invent one. Verify code availability and preview anchors before adoption. The exact item list/provenance is recorded in each implementation PR. The licence is settled (founder, 17 Nov): premium kit blocks may be used wherever they fit, with provenance recorded; approved free/MIT preparation is also allowed. If neither source covers an area, return to the founder. No visual screen, registry source or paid asset is introduced by this spec.
+Inspected founder-supplied Admin-dashboard at `1631106a7906c1a473ae3a49fb1d392605d39108` and chat-app at `66fd523b60a73b6d3e26cc6fc2cb86294458640b`. The implementation gives the “Derived from …” header to each copied file with the exact repository and path, and records provenance in `src/lib/ui-provenance.ts` and `docs/ui-sources.md`. Harvest rewrites use “modelled on … code written for Harvest”. The profile templates have no registry install name; do not invent one. Verify code availability and preview anchors before adoption. The exact item list/provenance is recorded in each implementation PR. The licence is settled (founder, 17 Nov): premium kit blocks may be used wherever they fit, with provenance recorded; approved free/MIT preparation is also allowed. If neither source covers an area, return to the founder. No visual screen, registry source or paid asset is introduced by this spec.
 
 Reuse full-width layouts and semantic tokens, concise catalogue copy, 44px targets, keyboard tab/agenda navigation, accessible form errors and reduced motion. Do not duplicate AppShell/navigation, create a separate community calendar engine, or expose implementation/provider names in UI copy.
 
