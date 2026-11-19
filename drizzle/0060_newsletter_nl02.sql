@@ -80,6 +80,8 @@ CREATE POLICY nl02_form_managers ON public.newsletter_signup_forms TO harvest_ap
   WITH CHECK (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND EXISTS (
     SELECT FROM public.workspace_members w WHERE w.tenant_id=newsletter_signup_forms.tenant_id
       AND w.user_id=nullif(current_setting('app.user_id',true),'') AND w.role_id IN ('owner','admin')));
+CREATE POLICY nl02_form_actor ON public.newsletter_signup_forms AS RESTRICTIVE FOR INSERT TO harvest_app
+  WITH CHECK (created_by=nullif(current_setting('app.user_id',true),''));
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION public.guard_contact_child() RETURNS trigger
 LANGUAGE plpgsql SET search_path=pg_catalog,pg_temp AS $$

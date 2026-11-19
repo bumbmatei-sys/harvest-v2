@@ -50,7 +50,7 @@ export function updateNewsletterSignupForm(db: Database, actor: string, workspac
       .where(and(eq(newsletterSignupForms.tenantId, tenantId), eq(newsletterSignupForms.id, formId), eq(newsletterSignupForms.version, input.version))).returning();
     if (!form) throw missing();
     await tx.insert(auditLogs).values({ tenantId, actorId: actor, action: "newsletter.signup_form.update", targetId: form.id,
-      metadata: { version: form.version, active: form.active } });
+      metadata: { version: String(form.version), active: String(form.active) } });
     return { id: form.id, version: form.version, active: form.active, notice: newsletterSignupNotice };
   });
 }

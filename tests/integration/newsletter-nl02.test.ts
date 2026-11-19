@@ -5,7 +5,7 @@ import { users } from "../../src/db/schema";
 import { createContact, eraseContact, recordConsent } from "../../src/server/contacts";
 import { mayContact } from "../../src/server/consent-gate";
 import { mergeContacts } from "../../src/server/crm-merge";
-import { addNewsletterSubscriber, createNewsletterAudience, createNewsletterList, setNewsletterSubscription, updateNewsletterSubscriber } from "../../src/server/newsletter";
+import { createNewsletterAudience, createNewsletterList, setNewsletterSubscription, updateNewsletterSubscriber } from "../../src/server/newsletter";
 import { confirmNewsletterSignup, createNewsletterSignupForm, issueNewsletterPreference, newsletterSignupNotice,
   startNewsletterSignup, unsubscribeNewsletter, updateNewsletterSignupForm } from "../../src/server/newsletter-public";
 import { newsletterPublicInfo, newsletterPublicPost } from "../../src/server/newsletter-public-route";
