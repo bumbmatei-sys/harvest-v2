@@ -12,6 +12,9 @@ it("validates IANA timezones, HTTPS and intervals across a DST change", () => {
   const input = { startsAt: event.startsAt, endsAt: event.endsAt, title: event.title, version: 0,
     timeZone: "America/New_York", joinUrl: "https://meeting.example.test/path" };
   expect(eventSaveInput.safeParse(input).success).toBe(true);
+  expect(eventSaveInput.parse(input).reminderMinutes).toBeNull();
+  expect(eventSaveInput.safeParse({ ...input, reminderMinutes: 10_080 }).success).toBe(true);
+  expect(eventSaveInput.safeParse({ ...input, reminderMinutes: 10_081 }).success).toBe(false);
   expect(eventSaveInput.safeParse({ ...input, timeZone: "made/up" }).success).toBe(false);
   expect(eventSaveInput.safeParse({ ...input, endsAt: input.startsAt }).success).toBe(false);
   expect(eventSaveInput.safeParse({ ...input, joinUrl: "http://meeting.example.test" }).success).toBe(false);
@@ -36,7 +39,8 @@ it("uses the non-production gate before parsing route parameters or authenticati
   vi.stubEnv("NODE_ENV", "production");
   vi.stubEnv("HARVEST_COMMUNITIES", "enabled");
   const action = vi.fn();
-  const response = await eventsRoute(action, { write: true })(new Request("https://test.example.test"), { params: Promise.resolve({}) });
+  const request = new Request("https://test.example.test", { headers: { "x-vercel-env": "preview", "x-harvest-communities": "enabled" } });
+  const response = await eventsRoute(action, { write: true })(request, { params: Promise.resolve({}) });
   expect(response.status).toBe(404);
   expect(action).not.toHaveBeenCalled();
 });

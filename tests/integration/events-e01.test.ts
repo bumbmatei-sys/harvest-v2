@@ -13,7 +13,7 @@ import { withTenant } from "../../src/server/tenancy";
 import { dispatchOutbox } from "../../src/server/jobs/outbox";
 import { downloadEvent, eventJoinLink, eventReminderCandidates, eventRoster, getEvent, listEvents, rsvpEvent, saveEvent, transitionEvent } from "../../src/server/events";
 
-const people = ["event-owner", "event-member", "event-viewer", "reader-a", "reader-b", "other-owner"];
+const people = ["event-owner", "event-admin", "event-member", "event-viewer", "reader-a", "reader-b", "other-owner"];
 const url = "https://meeting.example.test/private";
 let fixture: Awaited<ReturnType<typeof testDatabase>>;
 let tenant: string, other: string, community: string, backup: string, foreignCommunity: string;
@@ -29,6 +29,7 @@ beforeAll(async () => {
   await fixture.db.insert(users).values(people.map(id => ({ id, name: id, email: `${id}@example.test` })));
   tenant = (await createWorkspace(fixture.db, "event-owner", "Events ministry", "church")).tenantId;
   other = (await createWorkspace(fixture.db, "other-owner", "Other ministry", "creator")).tenantId;
+  await putMember(fixture.db, "event-owner", tenant, "event-admin@example.test", "admin");
   await putMember(fixture.db, "event-owner", tenant, "event-member@example.test", "member");
   await putMember(fixture.db, "event-owner", tenant, "event-viewer@example.test", "viewer");
   community = (await createCommunity(fixture.db, "event-owner", tenant, { name: "Events circle", slug: "events-circle" })).id;
@@ -67,6 +68,8 @@ it("forces RLS and grants no broad tenant or provider path", async () => {
   expect(rules.rows).toHaveLength(4);
   expect(rules.rows.every(row => row.relrowsecurity && row.relforcerowsecurity)).toBe(true);
   await expect(attach(id, foreignCommunity)).rejects.toMatchObject({ code: "23503" });
+  await expect(eventRoster(fixture.db, "event-admin", tenant, id, null)).resolves.toEqual([]);
+  await expect(eventRoster(fixture.db, "event-admin", other, id, null)).rejects.toMatchObject(missing);
   for (const user of ["event-member", "event-viewer"]) {
     await expect(withTenant(fixture.db, user, tenant, "workspace:read", (tx) =>
       tx.execute(sql`select url from public.event_join_links where event_id=${id}::uuid`))).rejects.toMatchObject({ cause: { code: "42501" } });
@@ -229,6 +232,8 @@ it("returns due reminder candidates only for eligible Going members through the 
   await rsvp("reader-a", id, "waitlisted");
   const due = () => eventReminderCandidates(fixture.db, "event-owner", tenant, id, null);
   expect(await due()).toEqual([expect.objectContaining({ userId: "reader-b", eventVersion: 3, rsvpVersion: 1 })]);
+  expect(await eventReminderCandidates(fixture.db, "event-admin", tenant, id, null)).toEqual(await due());
+  await expect(eventReminderCandidates(fixture.db, "event-admin", other, id, null)).rejects.toMatchObject(missing);
   expect(await eventReminderCandidates(fixture.db, "event-owner", tenant, id, "reader-b")).toEqual([]);
   expect(JSON.stringify(await due())).not.toContain(url);
   for (const actor of ["event-member", "event-viewer"]) {
