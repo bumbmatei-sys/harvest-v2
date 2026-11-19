@@ -792,3 +792,19 @@ Global toast, wrapped by `src/components/ui/sonner.tsx` and `src/lib/toast.ts`. 
 | `@standard-schema/utils` | 0.3.0 | MIT |
 
 Form state and the zod 4 resolver behind `src/hooks/use-harvest-form.ts`. `@standard-schema/utils` is the only new transitive runtime package. Installing `@hookform/resolvers` also makes npm re-hoist `ajv` (an optional peer): the existing `ajv` 8.20.0 moves to the top level and `ajv` 6.15.0 is nested under `eslint` and `@eslint/eslintrc`; no existing package changed version. Founder-approved 2026-11-16.
+
+## Communities C11b additions (2026-11-18)
+
+| Package | Version | License |
+| --- | --- | --- |
+| `@shadcn/react` | 0.3.1 | MIT |
+
+Official package. No runtime dependencies. Only consumer: `src/components/ui/message-scroller.tsx`. Founder-approved 18 November 2026.
+
+| Package | Version | License |
+| --- | --- | --- |
+| `@base-ui/react` | 1.7.0 | MIT |
+
+Added 2026-11-19 for the adopted kit file `src/components/ui/bubble.tsx` (`use-render` and `merge-props`); sole consumer. Founder-approved 19 November 2026. `zustand`, `motion` and `embla-carousel-react` from the kit app were not needed and are not installed.
+
+Transitive packages added to the lockfile by `@base-ui/react` 1.7.0 (all MIT): `@babel/runtime` 7.29.14, `@base-ui/utils` 0.3.2, `reselect` 5.3.0; `@floating-ui/react-dom`, `@floating-ui/utils` and `use-sync-external-store` were already present.

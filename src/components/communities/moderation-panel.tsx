@@ -25,11 +25,14 @@ import { canActOn, canDecideAppeal, communityRank, moderationLimits, muteDays } 
 import type { AppealItem, HeldItem, HistoryEntry, ModerationMember, QueueItem } from "@/server/community-moderation";
 import { EditHistory } from "./edit-history";
 
-type Props = { slug: string; me: string; role: string; queue: QueueItem[]; held: HeldItem[]; members: ModerationMember[]; history: HistoryEntry[]; appeals: AppealItem[] };
+import type { ChatHeld } from "@/lib/chat-view";
+
+type Props = { slug: string; me: string; role: string; queue: QueueItem[]; held: HeldItem[]; chatHeld?: ChatHeld[]; members: ModerationMember[]; history: HistoryEntry[]; appeals: AppealItem[] };
 
 /** C12a: the hosts' moderation page. Studio Admin style: tabs, tables, a review sheet and row menus. */
-export function ModerationPanel({ slug, me, role, queue, held, members, history, appeals }: Props) {
+export function ModerationPanel({ slug, me, role, queue, held, chatHeld, members, history, appeals }: Props) {
   const t = useTranslations("Moderation"), ks = useTranslations("CommunityScreens.moderation"), format = useFormatter(), request = useCrmRequest(), router = useRouter();
+  const [heldSource, setHeldSource] = useState("forum");
   const [tab, setTab] = useState("reports"), [reviewing, setReviewing] = useState<string | null>(null), [search, setSearch] = useState("");
   const [banning, setBanning] = useState<ModerationMember | null>(null), [busy, setBusy] = useState(false), [error, setError] = useState("");
   const [warning, setWarning] = useState<ModerationMember | null>(null), [warnReason, setWarnReason] = useState("");
@@ -43,7 +46,7 @@ export function ModerationPanel({ slug, me, role, queue, held, members, history,
     after?.(); router.refresh();
   }
   const current = queue.find((q) => q.reportId === reviewing) ?? null, currentAppeal = appeals.find((x) => x.id === appealId) ?? null, openAppeals = appeals.filter((x) => x.status === "open").length;
-  const itemLabel = (i: { targetType: string; title: string; excerpt: string }) => i.targetType === "comment" ? i.excerpt : i.title;
+  const itemLabel = (i: { targetType: string; title: string; excerpt: string }) => (i.targetType === "comment" || i.targetType === "message") ? i.excerpt : i.title;
   const postHref = (postId: string | null) => postId ? `/communities/${slug}/posts/${postId}` : null;
   const visibleMembers = members.filter((m) => m.name.toLowerCase().includes(search.trim().toLowerCase()));
 
@@ -51,7 +54,7 @@ export function ModerationPanel({ slug, me, role, queue, held, members, history,
   const actionsHeader = { header: t("actions"), srOnlyHeader: true, align: "end", card: "actions" } as const;
 
   // Reports: type tabs (the queue is already one list per report; tabs only narrow it).
-  const reportTypes = ["post", "comment", "member"] as const, [reportType, setReportType] = useState("all");
+  const reportTypes = ["post", "comment", "member", "message"] as const, [reportType, setReportType] = useState("all");
   const reportTabs = [{ value: "all", label: ks("all"), count: queue.length }, ...reportTypes.filter((type) => queue.some((q) => q.targetType === type))
     .map((type) => ({ value: type, label: ks(`types.${type}` as "types.post"), count: queue.filter((q) => q.targetType === type).length }))];
   const reportActive = activeTab(reportTabs, reportType);
@@ -67,7 +70,7 @@ export function ModerationPanel({ slug, me, role, queue, held, members, history,
 
   const heldColumns: DataTableColumn[] = [{ id: "item", header: t("item"), card: "title", className: "max-w-72" }, { id: "author", header: t("author") }, { id: "why", header: t("why") },
     { id: "date", header: t("date") }, { id: "actions", ...actionsHeader }];
-  const heldRows: DataTableRow[] = held.map((h) => { const label = itemLabel(h), href = postHref(h.postId); return { id: h.id, label, cells: {
+  const forumHeldRows: DataTableRow[] = held.map((h) => { const label = itemLabel(h), href = postHref(h.postId); return { id: h.id, label, cells: {
     item: <div className="space-y-1"><Badge variant="outline">{t(`targets.${h.targetType}`)}</Badge>
       {href ? <Link href={href} prefetch={false} className="line-clamp-2 block break-words hover:underline">{label}</Link> : <span className="line-clamp-2 break-words">{label}</span>}</div>,
     author: h.authorName?.trim() || t("unnamed"), why: <Badge variant="secondary">{t(`heldReasons.${h.reason}`)}</Badge>, date: <span className="whitespace-nowrap">{date(h.heldAt)}</span>,
@@ -75,6 +78,23 @@ export function ModerationPanel({ slug, me, role, queue, held, members, history,
       <Button className="min-h-11" disabled={busy} aria-label={t("approveNamed", { name: label })} onClick={() => void act(`${base}/held`, { targetType: h.targetType, id: h.id, decision: "approve" })}>{t("approve")}</Button>
       <Button variant="outline" className="min-h-11" disabled={busy} aria-label={t("rejectNamed", { name: label })} onClick={() => void act(`${base}/held`, { targetType: h.targetType, id: h.id, decision: "reject" })}>{t("reject")}</Button></div>,
   } }; });
+
+  const chat = useTranslations("CommunityChat");
+  const chatHeldRows: DataTableRow[] = (chatHeld ?? []).map(item => {
+    const label = item.excerpt;
+    const href = `/communities/${slug}/chat?channel=${item.channel_id}`;
+    const endpoint = `/api/communities/${slug}/chat/messages/${item.id}/moderate`;
+    return { id: item.id, label, cells: {
+      item: <Link href={href} prefetch={false} className="line-clamp-2 break-words hover:underline">{label}</Link>,
+      author: members.find(member => member.userId === item.author_id)?.name || t("unnamed"),
+      why: <Badge variant="secondary">{t("heldReasons.banned_word")}</Badge>,
+      date: date(item.held_at),
+      actions: <div className="flex flex-wrap justify-end gap-2">
+        <Button className="min-h-11" disabled={busy} onClick={() => void act(endpoint, { action: "approve" })}>{t("approve")}</Button>
+        <Button variant="outline" className="min-h-11" disabled={busy} onClick={() => void act(endpoint, { action: "reject" })}>{t("reject")}</Button>
+      </div>,
+    } };
+  });
 
   const memberColumns: DataTableColumn[] = [{ id: "name", header: t("name"), card: "title" }, { id: "role", header: t("role") }, { id: "status", header: t("status") },
     { id: "warnings", header: t("warnings"), align: "end" }, { id: "actions", ...actionsHeader }];
@@ -123,7 +143,7 @@ export function ModerationPanel({ slug, me, role, queue, held, members, history,
     <Tabs value={tab} onValueChange={setTab}>
       <TabsList className="h-auto flex-wrap">
         <TabsTrigger value="reports" className="min-h-11">{t("tabs.reports")}{queue.length > 0 && <Badge variant="secondary" className="ml-1">{queue.length}</Badge>}</TabsTrigger>
-        <TabsTrigger value="held" className="min-h-11">{t("tabs.held")}{held.length > 0 && <Badge variant="secondary" className="ml-1">{held.length}</Badge>}</TabsTrigger>
+        <TabsTrigger value="held" className="min-h-11">{t("tabs.held")}{(held.length + (chatHeld?.length ?? 0)) > 0 && <Badge variant="secondary" className="ml-1">{held.length + (chatHeld?.length ?? 0)}</Badge>}</TabsTrigger>
         <TabsTrigger value="members" className="min-h-11">{t("tabs.members")}</TabsTrigger>
         <TabsTrigger value="appeals" className="min-h-11">{t("tabs.appeals")}{openAppeals > 0 && <Badge variant="secondary" className="ml-1">{openAppeals}</Badge>}</TabsTrigger>
         <TabsTrigger value="history" className="min-h-11">{t("tabs.history")}</TabsTrigger>
@@ -133,7 +153,10 @@ export function ModerationPanel({ slug, me, role, queue, held, members, history,
         tabs={queue.length > 0 ? { label: ks("reportTypes"), value: reportActive, onValueChange: setReportType, items: reportTabs } : undefined}
         empty={emptyState("emptyReports", Flag)} /></TabsContent>
 
-      <TabsContent value="held" className="mt-4"><DataTable label={t("tabs.held")} columns={heldColumns} rows={heldRows} empty={emptyState("emptyHeld", Hourglass)} /></TabsContent>
+      <TabsContent value="held" className="mt-4"><DataTable label={t("tabs.held")} columns={heldColumns} rows={heldSource === "chat" ? chatHeldRows : forumHeldRows} empty={emptyState("emptyHeld", Hourglass)}
+        tabs={chatHeld ? { label: chat("source"), value: heldSource, onValueChange: setHeldSource, items: [
+          { value: "forum", label: chat("forumSource"), count: held.length }, { value: "chat", label: chat("chatSource"), count: chatHeld.length },
+        ] } : undefined} /></TabsContent>
 
       <TabsContent value="members" className="mt-4"><DataTable label={t("tabs.members")} columns={memberColumns} rows={memberRows} empty={emptyState("emptyMembers", Users)}
         toolbar={{ search: <InputGroup className="min-h-11 lg:min-h-9"><InputGroupAddon><Search aria-hidden="true" /></InputGroupAddon>
