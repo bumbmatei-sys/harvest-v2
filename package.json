@@ -23,6 +23,7 @@
     "connect:drain:test": "tsx scripts/drain-connect-invitations.ts",
     "connect:purge:test": "tsx scripts/purge-connect-intake.ts",
     "ui:add": "shadcn add",
+    "communities:purge-chat": "tsx scripts/community-chat-purge.ts",
     "communities:purge-applications": "tsx scripts/purge-community-applications.ts",
     "communities:purge-notifications": "tsx scripts/purge-community-notifications.ts",
     "communities:send-email": "tsx scripts/send-community-email.ts",
