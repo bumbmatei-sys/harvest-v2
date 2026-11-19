@@ -1789,6 +1789,7 @@ export const events = pgTable("events", {
   title: text("title").notNull(),
   description: text("description").notNull().default(""),
   location: text("location"),
+  coverFileId: uuid("cover_file_id").references((): AnyPgColumn => eventFiles.id, { onDelete: "set null" }),
   timeZone: text("time_zone").notNull(),
   startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
   endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
@@ -1809,6 +1810,32 @@ export const events = pgTable("events", {
   check("event_capacity", sql`${t.capacity} is null or ${t.capacity} > 0`),
   check("event_reminder_minutes", sql`${t.reminderMinutes} between 1 and 10080`),
   check("event_status", sql`${t.status} in ('draft','published','cancelled') and ${t.version} > 0`),
+]);
+
+export const eventFiles = pgTable("event_files", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(),
+  eventId: uuid("event_id").notNull(),
+  uploaderId: text("uploader_id").references(() => users.id, { onDelete: "set null" }),
+  key: text("key").notNull().unique(),
+  kind: text("kind", { enum: ["cover"] }).notNull().default("cover"),
+  name: text("name").notNull(),
+  mime: text("mime", { enum: ["image/jpeg", "image/png", "image/webp"] }).notNull(),
+  size: integer("size").notNull(),
+  checksum: text("checksum").notNull(),
+  status: text("status", { enum: ["pending", "uploaded", "quarantined", "ready"] }).notNull().default("pending"),
+  retiredAt: timestamp("retired_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  foreignKey({ columns: [t.tenantId, t.eventId], foreignColumns: [events.tenantId, events.id] }).onDelete("cascade"),
+  index("event_files_parent").on(t.tenantId, t.eventId),
+  check("event_file_kind", sql`${t.kind} = 'cover'`),
+  check("event_file_mime", sql`${t.mime} in ('image/jpeg','image/png','image/webp')`),
+  check("event_file_name", sql`length(btrim(${t.name})) between 1 and 200`),
+  check("event_file_size", sql`${t.size} between 1 and 10485760`),
+  check("event_file_checksum", sql`${t.checksum} ~ '^[a-f0-9]{64}$'`),
+  check("event_file_status", sql`${t.status} in ('pending','uploaded','quarantined','ready')`),
+  check("event_file_key", sql`${t.key} = 'workspaces/' || ${t.tenantId}::text || '/events/' || ${t.eventId}::text || '/files/' || ${t.id}::text`),
 ]);
 
 export const eventJoinLinks = pgTable("event_join_links", {
