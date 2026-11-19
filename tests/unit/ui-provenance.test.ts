@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { kitHeaderItem, kitProvenance, validateKitRecord, type KitItemRecord } from "../../src/lib/ui-provenance";
+import { chatAppHeaderSource, chatAppProvenance, kitChatAppReferences, kitHeaderItem, modelledHeaderSource, kitProvenance, validateKitRecord, type KitItemRecord } from "../../src/lib/ui-provenance";
 import { scanForSecrets } from "../../src/lib/secret-scan";
 
 const root = resolve(__dirname, "../..");
@@ -86,5 +86,32 @@ describe("token leak guard", () => {
     }
     expect(leaks).toEqual([]);
     expect(JSON.parse(readFileSync(join(root, "components.json"), "utf8")).registries["@shadcnuikit"].headers.Authorization).toBe("Bearer ${REGISTRY_TOKEN}");
+  });
+});
+
+describe("chat-app provenance", () => {
+  it("lists as copied only files that exist and carry the Derived from header naming their source", () => {
+    for (const entry of chatAppProvenance.files) {
+      expect(existsSync(join(root, entry.file)), entry.file).toBe(true);
+      expect(chatAppHeaderSource(readFileSync(join(root, entry.file), "utf8")), entry.file).toContain(entry.source.split(", ")[0]);
+      expect(modelledHeaderSource(readFileSync(join(root, entry.file), "utf8")), entry.file).toBeNull();
+    }
+  });
+  it("lists modelled-on references only with the modelled-on header and never the Derived from header", () => {
+    for (const entry of kitChatAppReferences.files) {
+      const source = readFileSync(join(root, entry.file), "utf8");
+      expect(existsSync(join(root, entry.file)), entry.file).toBe(true);
+      expect(modelledHeaderSource(source), entry.file).toContain(entry.source.split(", ")[0]);
+      expect(chatAppHeaderSource(source), entry.file).toBeNull();
+      expect(kitHeaderItem(source), entry.file).toBeNull();
+    }
+  });
+  it("finds no file with either header that is missing from its list", () => {
+    const copied = new Set<string>(chatAppProvenance.files.map(entry => entry.file));
+    const modelled = new Set<string>(kitChatAppReferences.files.map(entry => entry.file));
+    const files = ["src", "scripts", "tests"].flatMap(dir => walk(join(root, dir))).map(file => file.slice(root.length + 1));
+    const read = (file: string) => readFileSync(join(root, file), "utf8");
+    expect(files.filter(file => chatAppHeaderSource(read(file)) !== null && !copied.has(file))).toEqual([]);
+    expect(files.filter(file => modelledHeaderSource(read(file)) !== null && !modelled.has(file))).toEqual([]);
   });
 });

@@ -8,7 +8,7 @@ import { users } from "../../src/db/schema";
 import { createWorkspace } from "../../src/server/workspaces";
 import { createCommunity } from "../../src/server/communities";
 import { withUser, withTenant } from "../../src/server/tenancy";
-import { chatState, chatMessages, saveChatChannel } from "../../src/server/community-chat";
+import { chatState, chatMessages, saveChatChannel, chatChannelSelection, chatChannelSettings, chatStaffPage, chatManageSettings } from "../../src/server/community-chat";
 vi.mock("server-only", () => ({}));
 let f: Awaited<ReturnType<typeof testDatabase>>, parallel: Pool, tenant: string, otherTenant: string, club: string, otherClub: string, general: string;
 const ids = ["owner", "admin", "mod", "contributor", "member", "second", "pending", "banned", "left", "removed", "outsider", "viewer", "other-owner", "other-member"];
@@ -465,4 +465,53 @@ it("blocks editing while muted, and flags the caller's own reactions", async () 
   expect((await invoke("second", "community_message_edit", [id, "Edited while muted", []])).outcome).toBe("muted");
   await f.admin.query("update community_memberships set muted_until=null where user_id='second' and community_id=$1", [club]);
   expect((await invoke("second", "community_message_edit", [id, "Edited after", []])).outcome).toBe("ok");
+});
+
+it("loads pins and replies through the same channel scope and limits editor details to its ministry", async () => {
+  await resetRates();
+  const restricted = await channel("Selection", { accessMode: "invite" });
+  const root = await messageId("owner", "Pinned history", restricted);
+  const message = await send("owner", "Reply history", restricted, root);
+  expect(message.outcome).toBe("ok");
+  expect((await invoke("owner", "community_message_moderate", [root, "pin"])).outcome).toBe("ok");
+  await expect(chatChannelSelection(f.db, "member", "chat-club", restricted, null, null)).rejects.toMatchObject({ status: 404 });
+  await expect(chatChannelSelection(f.db, "owner", "chat-other", restricted, root, null)).rejects.toMatchObject({ status: 404 });
+  expect((await invoke("owner", "community_channel_members_set", [restricted, ["member"]])).outcome).toBe("ok");
+  const pins = await chatChannelSelection(f.db, "member", "chat-club", restricted, null, null);
+  expect(pins.events.map(item => item.id)).toEqual([root]);
+  const thread = await chatChannelSelection(f.db, "member", "chat-club", restricted, root, null);
+  expect(thread.events.map(item => item.body)).toEqual(["Pinned history", "Reply history"]);
+  const settings = await chatChannelSettings(f.db, "owner", tenant, club);
+  expect(settings.channels.find(item => item.id === restricted)?.userIds).toEqual(["member"]);
+  await expect(chatChannelSettings(f.db, "other-owner", tenant, club)).rejects.toMatchObject({ status: 403 });
+});
+
+it("renders a chat staff scope and settings for an effective ministry admin", async () => {
+  await f.admin.query("insert into workspace_members(tenant_id,user_id,role_id) values($1,'outsider','admin')", [tenant]);
+  try {
+    expect(await chatStaffPage(f.db, "outsider", "chat-club")).toMatchObject({ scope: { role: "admin", id: club } });
+    expect(await chatManageSettings(f.db, "outsider", "chat-club")).toEqual(expect.arrayContaining([expect.objectContaining({ id: general })]));
+    expect(await chatStaffPage(f.db, "outsider", "chat-third")).toBeUndefined();
+    expect(await chatChannelSelection(f.db, "outsider", "chat-club", general, null, null)).toMatchObject({ outcome: "ok" });
+  } finally {
+    await f.admin.query("delete from workspace_members where tenant_id=$1 and user_id='outsider'", [tenant]);
+  }
+});
+it("serves full channel settings only to roles that manage channels (GET /settings)", async () => {
+  for (const user of ["owner", "admin"]) {
+    const channels = await chatManageSettings(f.db, user, "chat-club");
+    expect(channels.some(item => item.id === general && item.name === "General"), user).toBe(true);
+    expect(channels[0]).toHaveProperty("slowModeSeconds");
+    expect(channels[0]).toHaveProperty("userIds");
+  }
+  // Members and staff who cannot manage channels: refused, never a partial answer.
+  for (const user of ["member", "second", "mod", "contributor"]) await expect(chatManageSettings(f.db, user, "chat-club"), user).rejects.toMatchObject({ status: 403 });
+  // Not a member, not active, a ministry viewer, or another ministry: the community is not visible.
+  for (const user of ["outsider", "pending", "banned", "left", "removed", "viewer", "other-owner", "other-member"]) await expect(chatManageSettings(f.db, user, "chat-club"), user).rejects.toMatchObject({ status: 404 });
+  await expect(chatManageSettings(f.db, "owner", "chat-third")).rejects.toMatchObject({ status: 404 });
+  await expect(chatManageSettings(f.db, "owner", "no-such-community")).rejects.toMatchObject({ status: 404 });
+  // Chat switched off: not found, even for the owner.
+  await f.admin.query("update communities set chat_enabled=false where id=$1", [club]);
+  try { await expect(chatManageSettings(f.db, "owner", "chat-club")).rejects.toMatchObject({ status: 404 }); }
+  finally { await f.admin.query("update communities set chat_enabled=true where id=$1", [club]); }
 });

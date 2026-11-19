@@ -18,6 +18,7 @@ import * as route11 from "../../src/app/api/communities/[slug]/chat/moderation/h
 import * as route12 from "../../src/app/api/communities/[slug]/chat/reports/[reportId]/decide/route";
 import * as route13 from "../../src/app/api/communities/[slug]/chat/reports/route";
 import * as route14 from "../../src/app/api/communities/[slug]/chat/settings/route";
+import * as route16 from "../../src/app/api/communities/[slug]/chat/channels/[channelId]/selection/route";
 import * as route15 from "../../src/app/api/communities/[slug]/chat/state/route";
 
 it("validates text, mention bounds and exact bigint cursors", () => {
@@ -55,7 +56,7 @@ it("cannot enable chat in production and refuses before route work", async () =>
   vi.stubEnv("NODE_ENV", "production"); vi.stubEnv("HARVEST_COMMUNITIES", "enabled");
   try { const run = vi.fn(); expect((await communityChatRoute(run, { write: true })(new Request("https://harvest.test"), { params: Promise.resolve({}) })).status).toBe(404); expect(run).not.toHaveBeenCalled(); } finally { vi.unstubAllEnvs(); }
 });
-const routes = [route0, route1, route2, route3, route4, route5, route6, route7, route8, route9, route10, route11, route12, route13, route14, route15];
+const routes = [route0, route1, route2, route3, route4, route5, route6, route7, route8, route9, route10, route11, route12, route13, route14, route15, route16];
 describe("every new route refuses before authentication in production and with Communities off", () => {
   for (const [index, route] of routes.entries()) for (const [method, handler] of Object.entries(route)) {
     if (typeof handler !== "function") continue;
@@ -69,4 +70,14 @@ describe("every new route refuses before authentication in production and with C
       } finally { vi.unstubAllEnvs(); }
     });
   }
+});
+
+describe("chat capability matrix by community role", () => {
+  const matrix = { owner: [true, true, true, true], admin: [true, true, true, true], moderator: [true, true, true, false], contributor: [true, true, false, false], member: [true, true, false, false] } as const;
+  for (const [role, [read, post, moderate, manage]] of Object.entries(matrix)) it(role, () => {
+    expect([communityCan(role, "chat:read"), communityCan(role, "chat:post"), communityCan(role, "chat:moderate"), communityCan(role, "chat:manage_channels")]).toEqual([read, post, moderate, manage]);
+  });
+  it("gives an unknown role (such as a ministry viewer without a membership) nothing", () => {
+    for (const capability of ["chat:read", "chat:post", "chat:moderate", "chat:manage_channels", "chat:restore"] as const) expect(communityCan("viewer", capability)).toBe(false);
+  });
 });
