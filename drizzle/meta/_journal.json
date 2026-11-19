@@ -414,6 +414,13 @@
       "when": 1795400000007,
       "tag": "0059_events_e01",
       "breakpoints": true
+    },
+    {
+      "idx": 60,
+      "version": "7",
+      "when": 1795400000008,
+      "tag": "0060_newsletter_nl02",
+      "breakpoints": true
     }
   ]
 }
