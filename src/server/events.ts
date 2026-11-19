@@ -12,10 +12,12 @@ export function eventsEnabled(env: Record<string, string | undefined> = process.
   return env.NODE_ENV !== "production" && communitiesEnabled(env);
 }
 
-type State = "going" | "maybe" | "not_going";
-type EventRecord = CalendarEvent & { timeZone: string; capacity: number | null; available: number | null; rsvp: State | null; rsvpVersion: number };
+const rsvpState = z.enum(["going", "maybe", "not_going", "waitlisted"]);
+type State = z.infer<typeof rsvpState>;
+type EventRecord = CalendarEvent & { timeZone: string; capacity: number | null; available: number | null; rsvp: State | null; rsvpVersion: number; canClaimSeat: boolean; reminderMinutes: number | null };
 type RosterEntry = { userId: string; state: State; eligible: boolean };
-type Action = "list" | "get" | "save" | "publish" | "cancel" | "rsvp" | "join" | "preview_join" | "roster";
+type ReminderCandidate = { userId: string; eventVersion: number; rsvpVersion: number; dueAt: string };
+type Action = "list" | "get" | "save" | "publish" | "cancel" | "rsvp" | "join" | "preview_join" | "roster" | "reminder_candidates";
 type EventResponse<T> = { outcome: "ok"; data: T } | { outcome: "not_found" | "conflict" | "invalid" | "full" };
 const uuid = z.uuid();
 const datetime = z.iso.datetime({ offset: true });
@@ -29,6 +31,7 @@ export const eventSaveInput = z.object({
     try { new Intl.DateTimeFormat("en", { timeZone: value }); return true; } catch { return false; }
   }),
   startsAt: datetime, endsAt: datetime, capacity: z.number().int().positive().max(2_147_483_647).nullable().default(null),
+  reminderMinutes: z.number().int().min(1).max(10_080).nullable().default(null),
   joinUrl: z.url({ protocol: /^https$/ }).max(2048).refine((value) => {
     const parsed = new URL(value);
     return !parsed.username && !parsed.password && !/[\s\\]/.test(value);
@@ -64,7 +67,7 @@ export async function transitionEvent(db: Database, user: string, tenantId: stri
   return resultData(await operate<EventRecord>(db, user, tenantId, id, action, input));
 }
 export async function rsvpEvent(db: Database, user: string, tenantId: string, id: string, raw: unknown) {
-  const input = z.object({ state: z.enum(["going", "maybe", "not_going"]), expectedVersion: version }).strict().parse(raw);
+  const input = z.object({ state: rsvpState, expectedVersion: version }).strict().parse(raw);
   const result = await operate<EventRecord>(db, user, tenantId, id, "rsvp", input);
   return result.outcome === "full" ? { outcome: "full" as const } : { outcome: "ok" as const, event: resultData(result) };
 }
@@ -73,6 +76,11 @@ export async function eventJoinLink(db: Database, user: string, tenantId: string
 }
 export async function eventRoster(db: Database, user: string, tenantId: string, id: string, after: string | null) {
   return resultData(await operate<RosterEntry[]>(db, user, tenantId, id, "roster", { after: z.string().min(1).max(255).nullable().parse(after) }));
+}
+/** Recipient metadata only. Delivery and deduplication are a separate job. */
+export async function eventReminderCandidates(db: Database, user: string, tenantId: string, id: string, after: string | null) {
+  const cursor = z.string().min(1).max(255).nullable().parse(after);
+  return resultData(await operate<ReminderCandidate[]>(db, user, tenantId, id, "reminder_candidates", { after: cursor }));
 }
 export async function downloadEvent(db: Database, user: string, tenantId: string, id: string) {
   const event = await getEvent(db, user, tenantId, id);

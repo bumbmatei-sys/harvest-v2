@@ -22,12 +22,13 @@ CREATE TABLE "event_rsvps" (
 	"event_id" uuid NOT NULL,
 	"user_id" text NOT NULL,
 	"state" text NOT NULL,
+	"waitlisted_at" timestamp with time zone,
 	"sources" jsonb NOT NULL,
 	"version" integer DEFAULT 1 NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "event_rsvps_tenant_id_event_id_user_id_pk" PRIMARY KEY("tenant_id","event_id","user_id"),
-	CONSTRAINT "event_rsvp_state" CHECK ("event_rsvps"."state" in ('going','maybe','not_going') and "event_rsvps"."version" > 0 and jsonb_typeof("event_rsvps"."sources") = 'object')
+	CONSTRAINT "event_rsvp_state" CHECK ("event_rsvps"."state" in ('going','maybe','not_going','waitlisted') and ("event_rsvps"."state" = 'waitlisted') = ("event_rsvps"."waitlisted_at" is not null) and "event_rsvps"."version" > 0 and jsonb_typeof("event_rsvps"."sources") = 'object')
 );
 --> statement-breakpoint
 CREATE TABLE "events" (
@@ -39,6 +40,7 @@ CREATE TABLE "events" (
 	"starts_at" timestamp with time zone NOT NULL,
 	"ends_at" timestamp with time zone NOT NULL,
 	"capacity" integer,
+	"reminder_minutes" integer,
 	"status" text DEFAULT 'draft' NOT NULL,
 	"published_at" timestamp with time zone,
 	"version" integer DEFAULT 1 NOT NULL,
@@ -49,6 +51,7 @@ CREATE TABLE "events" (
 	CONSTRAINT "event_content" CHECK (length(btrim("events"."title")) between 1 and 120 and length("events"."description") <= 4000 and length("events"."time_zone") between 1 and 100),
 	CONSTRAINT "event_interval" CHECK ("events"."ends_at" > "events"."starts_at"),
 	CONSTRAINT "event_capacity" CHECK ("events"."capacity" is null or "events"."capacity" > 0),
+	CONSTRAINT "event_reminder_minutes" CHECK ("events"."reminder_minutes" between 1 and 10080),
 	CONSTRAINT "event_status" CHECK ("events"."status" in ('draft','published','cancelled') and "events"."version" > 0)
 );
 --> statement-breakpoint
@@ -63,6 +66,7 @@ ALTER TABLE "events" ADD CONSTRAINT "events_tenant_id_workspaces_tenant_id_fk" F
 ALTER TABLE "events" ADD CONSTRAINT "events_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "community_event_link_community_idx" ON "community_event_links" USING btree ("tenant_id","community_id","event_id");--> statement-breakpoint
 CREATE INDEX "event_rsvps_going_idx" ON "event_rsvps" USING btree ("tenant_id","event_id") WHERE "event_rsvps"."state" = 'going';--> statement-breakpoint
+CREATE INDEX "event_rsvps_waitlist_idx" ON "event_rsvps" USING btree ("tenant_id","event_id","waitlisted_at","user_id") WHERE "event_rsvps"."state" = 'waitlisted';--> statement-breakpoint
 CREATE INDEX "events_tenant_start_idx" ON "events" USING btree ("tenant_id","starts_at","id");
 --> statement-breakpoint
 DO $$
@@ -118,7 +122,7 @@ CREATE TRIGGER events_community_publication_epoch BEFORE UPDATE ON public.commun
   FOR EACH ROW EXECUTE FUNCTION public.events_community_publication_epoch();
 --> statement-breakpoint
 -- One source key per placement/grant (or placement/staff). IDs never encode personal data.
-CREATE FUNCTION public.events_sources(p_tenant uuid,p_event uuid,p_user text,p_now timestamptz)
+CREATE FUNCTION public.events_sources(p_tenant uuid,p_event uuid,p_user text,p_now timestamptz,p_unmuted boolean DEFAULT false)
 RETURNS jsonb LANGUAGE sql STABLE SET search_path=pg_catalog,pg_temp AS $$
   SELECT coalesce(jsonb_object_agg(link_id || ':' || grant_key,
     jsonb_build_object('epoch', epoch, 'until', valid_until)), '{}'::jsonb)
@@ -127,21 +131,21 @@ RETURNS jsonb LANGUAGE sql STABLE SET search_path=pg_catalog,pg_temp AS $$
     FROM public.community_event_links l
     JOIN public.communities c ON c.tenant_id=l.tenant_id AND c.id=l.community_id AND c.status='published'
     JOIN public.community_memberships m ON m.tenant_id=l.tenant_id AND m.community_id=l.community_id
-      AND m.user_id=p_user AND m.status='active' AND m.role IN ('owner','admin','moderator','contributor')
+      AND m.user_id=p_user AND (NOT p_unmuted OR NOT m.notifications_muted) AND m.status='active' AND m.role IN ('owner','admin','moderator','contributor')
     WHERE l.tenant_id=p_tenant AND l.event_id=p_event
     UNION ALL
     SELECT l.id::text || ':' || c.event_publication_epoch::text,e.id::text,m.event_access_epoch,e.valid_until
     FROM public.community_event_links l
     JOIN public.communities c ON c.tenant_id=l.tenant_id AND c.id=l.community_id AND c.status='published'
     JOIN public.community_memberships m ON m.tenant_id=l.tenant_id AND m.community_id=l.community_id
-      AND m.user_id=p_user AND m.status='active'
+      AND m.user_id=p_user AND (NOT p_unmuted OR NOT m.notifications_muted) AND m.status='active'
     JOIN public.entitlements e ON e.tenant_id=l.tenant_id AND e.resource_type='community'
       AND e.resource_id=l.community_id AND e.user_id=p_user AND e.revoked_at IS NULL
       AND e.valid_from<=p_now AND (e.valid_until IS NULL OR e.valid_until>p_now)
     WHERE l.tenant_id=p_tenant AND l.event_id=p_event
   ) sources
 $$;
-REVOKE ALL ON FUNCTION public.events_sources(uuid,uuid,text,timestamptz) FROM PUBLIC;
+REVOKE ALL ON FUNCTION public.events_sources(uuid,uuid,text,timestamptz,boolean) FROM PUBLIC;
 --> statement-breakpoint
 CREATE FUNCTION public.events_still_admitted(p_saved jsonb,p_current jsonb,p_now timestamptz)
 RETURNS boolean LANGUAGE sql IMMUTABLE SET search_path=pg_catalog,pg_temp AS $$
@@ -159,19 +163,35 @@ RETURNS integer LANGUAGE sql STABLE SET search_path=pg_catalog,pg_temp AS $$
 $$;
 REVOKE ALL ON FUNCTION public.events_occupied(uuid,uuid,timestamptz) FROM PUBLIC;
 
+-- Event row serializes queue changes. The caller can claim a seat when fewer
+-- eligible earlier entries are waiting than there are vacant seats.
+CREATE FUNCTION public.events_waiting_ahead(p_event public.events,p_user text,p_queued timestamptz,p_now timestamptz)
+RETURNS integer LANGUAGE sql STABLE SET search_path=pg_catalog,pg_temp AS $$
+  SELECT count(*)::integer FROM public.event_rsvps r
+  WHERE r.tenant_id=p_event.tenant_id AND r.event_id=p_event.id AND r.state='waitlisted'
+    AND p_event.starts_at>p_now
+    AND (p_queued IS NULL OR (r.waitlisted_at,r.user_id)<(p_queued,p_user))
+    AND public.events_still_admitted(r.sources,public.events_sources(r.tenant_id,r.event_id,r.user_id,p_now),p_now)
+$$;
+REVOKE ALL ON FUNCTION public.events_waiting_ahead(public.events,text,timestamptz,timestamptz) FROM PUBLIC;
+
 CREATE FUNCTION public.events_project(p_event public.events,p_actor text,p_now timestamptz)
 RETURNS jsonb LANGUAGE sql STABLE SET search_path=pg_catalog,pg_temp AS $$
   SELECT jsonb_build_object(
     'id',p_event.id,'title',p_event.title,'description',p_event.description,'timeZone',p_event.time_zone,
     'startsAt',p_event.starts_at,'endsAt',p_event.ends_at,'capacity',p_event.capacity,'status',p_event.status,
-    'version',p_event.version,'updatedAt',p_event.updated_at,
+    'version',p_event.version,'updatedAt',p_event.updated_at,'reminderMinutes',p_event.reminder_minutes,
+    'canClaimSeat',coalesce(r.state='waitlisted' AND p_event.status='published' AND p_event.starts_at>p_now
+      AND public.events_still_admitted(r.sources,public.events_sources(r.tenant_id,r.event_id,p_actor,p_now),p_now)
+      AND (p_event.capacity IS NULL OR p_event.capacity>public.events_occupied(r.tenant_id,r.event_id,p_now)
+        + public.events_waiting_ahead(p_event,p_actor,r.waitlisted_at,p_now)),false),
     'available',CASE WHEN p_event.capacity IS NOT NULL THEN
-      greatest(0,p_event.capacity-public.events_occupied(p_event.tenant_id,p_event.id,p_now)) END,
-    'rsvpVersion',coalesce((SELECT r.version FROM public.event_rsvps r
-      WHERE r.tenant_id=p_event.tenant_id AND r.event_id=p_event.id AND r.user_id=p_actor),0),
-    'rsvp',(SELECT r.state FROM public.event_rsvps r WHERE r.tenant_id=p_event.tenant_id
-      AND r.event_id=p_event.id AND r.user_id=p_actor
-      AND public.events_still_admitted(r.sources,public.events_sources(p_event.tenant_id,p_event.id,p_actor,p_now),p_now)))
+      greatest(0,p_event.capacity-public.events_occupied(p_event.tenant_id,p_event.id,p_now)
+        - public.events_waiting_ahead(p_event,p_actor,NULL,p_now)) END,
+    'rsvpVersion',coalesce(r.version,0),
+    'rsvp',CASE WHEN public.events_still_admitted(r.sources,public.events_sources(p_event.tenant_id,p_event.id,p_actor,p_now),p_now)
+      THEN r.state END)
+  FROM (SELECT 1) one LEFT JOIN public.event_rsvps r ON r.tenant_id=p_event.tenant_id AND r.event_id=p_event.id AND r.user_id=p_actor
 $$;
 REVOKE ALL ON FUNCTION public.events_project(public.events,text,timestamptz) FROM PUBLIC;
 --> statement-breakpoint
@@ -198,11 +218,11 @@ RETURNS jsonb LANGUAGE plpgsql SET search_path=pg_catalog,pg_temp AS $$
 DECLARE actor text:=nullif(current_setting('app.user_id',true),'');
   is_manager boolean; event public.events; entry public.event_rsvps; access jsonb;
   moment timestamptz:=statement_timestamp(); start_at timestamptz; end_at timestamptz;
-  limit_capacity integer; expected integer; wanted text; link record;
+  limit_capacity integer; lead_minutes integer; queue_at timestamptz; expected integer; wanted text; link record;
   result jsonb; missing jsonb:='{"outcome":"not_found"}'; stale jsonb:='{"outcome":"conflict"}';
   invalid jsonb:='{"outcome":"invalid"}'; replay boolean;
 BEGIN
-  IF actor IS NULL OR p_tenant IS NULL OR p_action IS NULL OR p_action NOT IN ('save','publish','cancel','get','list','rsvp','join','preview_join','roster') THEN RETURN missing; END IF;
+  IF actor IS NULL OR p_tenant IS NULL OR p_action IS NULL OR p_action NOT IN ('save','publish','cancel','get','list','rsvp','join','preview_join','roster','reminder_candidates') THEN RETURN missing; END IF;
 
   -- Lock memberships before the event. Grant writes take that membership lock through
   -- the existing grant-revision trigger. They never take an event lock.
@@ -210,11 +230,11 @@ BEGIN
     PERFORM 1 FROM public.community_memberships m WHERE m.tenant_id=p_tenant AND m.user_id=actor
       ORDER BY m.community_id FOR SHARE;
   END IF;
-  IF p_action IN ('save','publish','cancel','preview_join','roster') THEN
+  IF p_action IN ('save','publish','cancel','preview_join','roster','reminder_candidates') THEN
     PERFORM 1 FROM public.workspace_members w WHERE w.tenant_id=p_tenant AND w.user_id=actor FOR SHARE;
   END IF;
   is_manager:=EXISTS (SELECT FROM public.workspace_members w WHERE w.tenant_id=p_tenant AND w.user_id=actor AND w.role_id IN ('owner','admin'));
-  IF p_action IN ('save','publish','cancel','preview_join','roster') AND NOT is_manager THEN RETURN missing; END IF;
+  IF p_action IN ('save','publish','cancel','preview_join','roster','reminder_candidates') AND NOT is_manager THEN RETURN missing; END IF;
 
   IF p_action='list' THEN
     start_at:=(p_input->>'from')::timestamptz;
@@ -240,14 +260,16 @@ BEGIN
     start_at:=(p_input->>'startsAt')::timestamptz;
     end_at:=(p_input->>'endsAt')::timestamptz;
     limit_capacity:=(p_input->>'capacity')::integer;
+    lead_minutes:=(p_input->>'reminderMinutes')::integer;
     IF expected IS NULL OR expected<0 OR start_at IS NULL OR end_at IS NULL OR start_at>=end_at OR
       coalesce(length(btrim(p_input->>'title')),0) NOT BETWEEN 1 AND 120 OR
       coalesce(length(p_input->>'description'),0)>4000 OR (limit_capacity IS NOT NULL AND limit_capacity<1) OR
+      (lead_minutes IS NOT NULL AND lead_minutes NOT BETWEEN 1 AND 10080) OR
       NOT EXISTS (SELECT FROM pg_timezone_names WHERE name=p_input->>'timeZone') THEN RETURN invalid; END IF;
     IF expected=0 THEN
       IF event.id IS NULL THEN
-        INSERT INTO public.events(tenant_id,id,title,description,time_zone,starts_at,ends_at,capacity,created_by)
-          VALUES(p_tenant,p_id,btrim(p_input->>'title'),coalesce(p_input->>'description',''),p_input->>'timeZone',start_at,end_at,limit_capacity,actor)
+        INSERT INTO public.events(tenant_id,id,title,description,time_zone,starts_at,ends_at,capacity,reminder_minutes,created_by)
+          VALUES(p_tenant,p_id,btrim(p_input->>'title'),coalesce(p_input->>'description',''),p_input->>'timeZone',start_at,end_at,limit_capacity,lead_minutes,actor)
           ON CONFLICT DO NOTHING RETURNING * INTO event;
         IF event.id IS NOT NULL THEN wanted:='create';
         ELSE SELECT * INTO event FROM public.events WHERE tenant_id=p_tenant AND id=p_id FOR UPDATE;
@@ -256,8 +278,8 @@ BEGIN
       IF wanted IS NULL THEN
         SELECT * INTO link FROM public.event_join_links WHERE tenant_id=p_tenant AND event_id=p_id;
         IF event.version=1 AND event.created_by=actor AND
-          (event.title,event.description,event.time_zone,event.starts_at,event.ends_at,event.capacity,link.url,link.window_minutes)
-           IS NOT DISTINCT FROM (btrim(p_input->>'title'),coalesce(p_input->>'description',''),p_input->>'timeZone',start_at,end_at,limit_capacity,
+          (event.title,event.description,event.time_zone,event.starts_at,event.ends_at,event.capacity,event.reminder_minutes,link.url,link.window_minutes)
+           IS NOT DISTINCT FROM (btrim(p_input->>'title'),coalesce(p_input->>'description',''),p_input->>'timeZone',start_at,end_at,limit_capacity,lead_minutes,
              p_input->>'joinUrl',CASE WHEN p_input->>'joinUrl' IS NOT NULL THEN coalesce((p_input->>'joinWindowMinutes')::integer,30) END) THEN
           RETURN jsonb_build_object('outcome','ok','data',public.events_project(event,actor,moment));
         END IF;
@@ -268,7 +290,7 @@ BEGIN
       IF event.version<>expected OR event.status='cancelled' THEN RETURN stale; END IF;
       IF limit_capacity IS NOT NULL AND limit_capacity<public.events_occupied(p_tenant,p_id,moment) THEN RETURN jsonb_build_object('outcome','full'); END IF;
       UPDATE public.events SET title=btrim(p_input->>'title'),description=coalesce(p_input->>'description',''),
-        time_zone=p_input->>'timeZone',starts_at=start_at,ends_at=end_at,capacity=limit_capacity,
+        time_zone=p_input->>'timeZone',starts_at=start_at,ends_at=end_at,capacity=limit_capacity,reminder_minutes=lead_minutes,
         version=version+1,updated_at=moment WHERE tenant_id=p_tenant AND id=p_id RETURNING * INTO event;
       wanted:='update';
     END IF;
@@ -311,22 +333,40 @@ BEGIN
         FROM (SELECT er.* FROM public.event_rsvps er WHERE er.tenant_id=p_tenant AND er.event_id=p_id
           AND (p_input->>'after' IS NULL OR er.user_id>p_input->>'after') ORDER BY er.user_id LIMIT 100) r;
         RETURN jsonb_build_object('outcome','ok','data',result);
+      ELSIF p_action='reminder_candidates' THEN
+        -- Bounded read for an authorized future dispatcher. The delivery slice
+        -- must claim and deduplicate, then recheck permissions and preferences.
+        SELECT coalesce(jsonb_agg(jsonb_build_object('userId',r.user_id,'eventVersion',event.version,
+          'rsvpVersion',r.version,'dueAt',event.starts_at-make_interval(mins=>event.reminder_minutes))
+          ORDER BY r.user_id),'[]'::jsonb) INTO result
+        FROM (SELECT er.user_id,er.version FROM public.event_rsvps er
+          WHERE er.tenant_id=p_tenant AND er.event_id=p_id AND er.state='going'
+            AND event.status='published' AND event.reminder_minutes IS NOT NULL
+            AND moment>=event.starts_at-make_interval(mins=>event.reminder_minutes) AND moment<event.starts_at
+            AND (p_input->>'after' IS NULL OR er.user_id>p_input->>'after')
+            AND public.events_still_admitted(er.sources,public.events_sources(p_tenant,p_id,er.user_id,moment,true),moment)
+          ORDER BY er.user_id LIMIT 100) r;
+        RETURN jsonb_build_object('outcome','ok','data',result);
       ELSIF p_action='rsvp' THEN
         IF access='{}'::jsonb OR event.status<>'published' OR event.ends_at<=moment THEN RETURN missing; END IF;
         wanted:=p_input->>'state';
-        IF wanted IS NULL OR wanted NOT IN ('going','maybe','not_going') THEN RETURN invalid; END IF;
+        IF wanted IS NULL OR wanted NOT IN ('going','maybe','not_going','waitlisted') THEN RETURN invalid; END IF;
         SELECT * INTO entry FROM public.event_rsvps WHERE tenant_id=p_tenant AND event_id=p_id AND user_id=actor;
         expected:=(p_input->>'expectedVersion')::integer;
         IF expected IS NULL OR expected<0 THEN RETURN invalid; END IF;
         replay:=coalesce(entry.state=wanted AND public.events_still_admitted(entry.sources,access,moment),false);
         IF expected<>coalesce(entry.version,0) AND NOT (replay AND expected=entry.version-1) THEN RETURN stale; END IF;
         IF NOT replay THEN
-          IF wanted='going' AND event.capacity IS NOT NULL AND public.events_occupied(p_tenant,p_id,moment)>=event.capacity THEN
+          IF wanted='waitlisted' AND (event.capacity IS NULL OR event.starts_at<=moment) THEN RETURN invalid; END IF;
+          queue_at:=CASE WHEN entry.state='waitlisted' AND public.events_still_admitted(entry.sources,access,moment)
+            THEN entry.waitlisted_at END;
+          IF wanted='going' AND event.capacity IS NOT NULL AND event.capacity<=public.events_occupied(p_tenant,p_id,moment)
+            + public.events_waiting_ahead(event,actor,queue_at,moment) THEN
             RETURN jsonb_build_object('outcome','full');
           END IF;
-          INSERT INTO public.event_rsvps(tenant_id,event_id,user_id,state,sources)
-            VALUES(p_tenant,p_id,actor,wanted,access)
-            ON CONFLICT(tenant_id,event_id,user_id) DO UPDATE SET state=excluded.state,
+          INSERT INTO public.event_rsvps(tenant_id,event_id,user_id,state,sources,waitlisted_at)
+            VALUES(p_tenant,p_id,actor,wanted,access,CASE WHEN wanted='waitlisted' THEN moment END)
+            ON CONFLICT(tenant_id,event_id,user_id) DO UPDATE SET state=excluded.state,waitlisted_at=excluded.waitlisted_at,
               sources=excluded.sources,version=event_rsvps.version+1,updated_at=moment RETURNING * INTO entry;
           PERFORM public.events_record(event,actor,'rsvp',entry.version);
         END IF;

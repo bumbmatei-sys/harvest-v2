@@ -11,7 +11,7 @@ import { createWorkspace, putMember } from "../../src/server/workspaces";
 import { createCommunity } from "../../src/server/communities";
 import { withTenant } from "../../src/server/tenancy";
 import { dispatchOutbox } from "../../src/server/jobs/outbox";
-import { downloadEvent, eventJoinLink, eventRoster, getEvent, listEvents, rsvpEvent, saveEvent, transitionEvent } from "../../src/server/events";
+import { downloadEvent, eventJoinLink, eventReminderCandidates, eventRoster, getEvent, listEvents, rsvpEvent, saveEvent, transitionEvent } from "../../src/server/events";
 
 const people = ["event-owner", "event-member", "event-viewer", "reader-a", "reader-b", "other-owner"];
 const url = "https://meeting.example.test/private";
@@ -197,4 +197,54 @@ it("does not revive a released reservation when a community is republished", asy
   await fixture.admin.query("update communities set status='published' where id=$1", [community]);
   expect(await summary("reader-a", id)).toMatchObject({ available: 0, rsvp: null, rsvpVersion: 1 });
   expect(await summary("reader-b", id)).toMatchObject({ available: 0, rsvp: "going" });
+});
+
+it("reserves released seats for eligible FIFO claimants without reviving an old queue entry", async () => {
+  const id = await create({ circle: backup });
+  await admission(backup, "event-member");
+  const firstGrant = await admission(backup, "reader-a");
+  await admission(backup, "reader-b");
+  await rsvp("event-member", id);
+  expect(await rsvp("reader-a", id, "waitlisted")).toMatchObject({ event: { rsvp: "waitlisted", rsvpVersion: 1, canClaimSeat: false } });
+  expect(await rsvp("reader-b", id, "waitlisted")).toMatchObject({ event: { rsvp: "waitlisted" } });
+  expect(await rsvp("reader-a", id, "waitlisted")).toMatchObject({ event: { rsvpVersion: 1 } });
+  await rsvp("event-member", id, "not_going", 1);
+  expect(await rsvp("event-member", id, "going", 2)).toEqual({ outcome: "full" });
+  expect(await rsvp("reader-b", id, "going", 1)).toEqual({ outcome: "full" });
+  expect(await summary("reader-a", id)).toMatchObject({ available: 0, canClaimSeat: true });
+  await fixture.admin.query("update entitlements set revoked_at=now() where id=$1", [firstGrant]);
+  await admission(backup, "reader-a");
+  expect(await summary("reader-a", id)).toMatchObject({ rsvp: null, canClaimSeat: false });
+  expect(await rsvp("reader-a", id, "waitlisted", 1)).toMatchObject({ event: { rsvpVersion: 2, canClaimSeat: false } });
+  expect(await rsvp("reader-b", id, "going", 1)).toMatchObject({ event: { rsvp: "going", available: 0 } });
+});
+
+it("returns due reminder candidates only for eligible Going members through the manager definer", async () => {
+  const id = await create({ circle: backup });
+  await admission(backup, "reader-a");
+  await admission(backup, "reader-b");
+  const lead = 20;
+  await saveEvent(fixture.db, "event-owner", tenant, id, { ...input(), version: 2, reminderMinutes: lead });
+  await rsvp("reader-b", id);
+  await rsvp("reader-a", id, "waitlisted");
+  const due = () => eventReminderCandidates(fixture.db, "event-owner", tenant, id, null);
+  expect(await due()).toEqual([expect.objectContaining({ userId: "reader-b", eventVersion: 3, rsvpVersion: 1 })]);
+  expect(await eventReminderCandidates(fixture.db, "event-owner", tenant, id, "reader-b")).toEqual([]);
+  expect(JSON.stringify(await due())).not.toContain(url);
+  for (const actor of ["event-member", "event-viewer"]) {
+    await expect(withTenant(fixture.db, actor, tenant, "workspace:read", async (tx) =>
+      (await tx.execute<{ result: { outcome: string } }>(
+        sql`select public.events_operate(${tenant}::uuid,${id}::uuid,'reminder_candidates','{}') result`)).rows[0].result))
+      .resolves.toEqual({ outcome: "not_found" });
+    await expect(withTenant(fixture.db, actor, tenant, "workspace:read", (tx) =>
+      tx.execute(sql`select waitlisted_at from public.event_rsvps where event_id=${id}::uuid`)))
+      .rejects.toMatchObject({ cause: { code: "42501" } });
+  }
+  await fixture.admin.query("update community_memberships set notifications_muted=true where community_id=$1 and user_id='reader-b'", [backup]);
+  expect(await due()).toEqual([]);
+  await fixture.admin.query("update community_memberships set notifications_muted=false where community_id=$1 and user_id='reader-b'", [backup]);
+  await saveEvent(fixture.db, "event-owner", tenant, id, { ...input(), version: 3, reminderMinutes: 5 });
+  expect(await due()).toEqual([]);
+  await transitionEvent(fixture.db, "event-owner", tenant, id, { version: 4, action: "cancel" });
+  expect(await due()).toEqual([]);
 });

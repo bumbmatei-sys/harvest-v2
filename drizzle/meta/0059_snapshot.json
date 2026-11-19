@@ -13321,6 +13321,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "waitlisted_at": {
+          "name": "waitlisted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "sources": {
           "name": "sources",
           "type": "jsonb",
@@ -13371,6 +13377,40 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "event_rsvps_waitlist_idx": {
+          "name": "event_rsvps_waitlist_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "event_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "waitlisted_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"event_rsvps\".\"state\" = 'waitlisted'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -13418,7 +13458,7 @@
       "checkConstraints": {
         "event_rsvp_state": {
           "name": "event_rsvp_state",
-          "value": "\"event_rsvps\".\"state\" in ('going','maybe','not_going') and \"event_rsvps\".\"version\" > 0 and jsonb_typeof(\"event_rsvps\".\"sources\") = 'object'"
+          "value": "\"event_rsvps\".\"state\" in ('going','maybe','not_going','waitlisted') and (\"event_rsvps\".\"state\" = 'waitlisted') = (\"event_rsvps\".\"waitlisted_at\" is not null) and \"event_rsvps\".\"version\" > 0 and jsonb_typeof(\"event_rsvps\".\"sources\") = 'object'"
         }
       },
       "isRLSEnabled": false
@@ -13427,12 +13467,6 @@
       "name": "events",
       "schema": "",
       "columns": {
-        "published_at": {
-          "name": "published_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
         "tenant_id": {
           "name": "tenant_id",
           "type": "uuid",
@@ -13482,12 +13516,24 @@
           "primaryKey": false,
           "notNull": false
         },
+        "reminder_minutes": {
+          "name": "reminder_minutes",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "status": {
           "name": "status",
           "type": "text",
           "primaryKey": false,
           "notNull": true,
           "default": "'draft'"
+        },
+        "published_at": {
+          "name": "published_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         },
         "version": {
           "name": "version",
@@ -13597,6 +13643,10 @@
         "event_capacity": {
           "name": "event_capacity",
           "value": "\"events\".\"capacity\" is null or \"events\".\"capacity\" > 0"
+        },
+        "event_reminder_minutes": {
+          "name": "event_reminder_minutes",
+          "value": "\"events\".\"reminder_minutes\" between 1 and 10080"
         },
         "event_status": {
           "name": "event_status",

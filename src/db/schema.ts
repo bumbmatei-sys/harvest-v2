@@ -1786,6 +1786,7 @@ export const events = pgTable("events", {
   startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
   endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
   capacity: integer("capacity"),
+  reminderMinutes: integer("reminder_minutes"),
   status: text("status", { enum: ["draft", "published", "cancelled"] }).notNull().default("draft"),
   publishedAt: timestamp("published_at", { withTimezone: true }),
   version: integer("version").notNull().default(1),
@@ -1797,6 +1798,7 @@ export const events = pgTable("events", {
   check("event_content", sql`length(btrim(${t.title})) between 1 and 120 and length(${t.description}) <= 4000 and length(${t.timeZone}) between 1 and 100`),
   check("event_interval", sql`${t.endsAt} > ${t.startsAt}`),
   check("event_capacity", sql`${t.capacity} is null or ${t.capacity} > 0`),
+  check("event_reminder_minutes", sql`${t.reminderMinutes} between 1 and 10080`),
   check("event_status", sql`${t.status} in ('draft','published','cancelled') and ${t.version} > 0`),
 ]);
 
@@ -1828,7 +1830,8 @@ export const eventRsvps = pgTable("event_rsvps", {
   tenantId: uuid("tenant_id").notNull(),
   eventId: uuid("event_id").notNull(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  state: text("state", { enum: ["going", "maybe", "not_going"] }).notNull(),
+  state: text("state", { enum: ["going", "maybe", "not_going", "waitlisted"] }).notNull(),
+  waitlistedAt: timestamp("waitlisted_at", { withTimezone: true }),
   sources: jsonb("sources").notNull(),
   version: integer("version").notNull().default(1),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
@@ -1836,5 +1839,6 @@ export const eventRsvps = pgTable("event_rsvps", {
 }, (t) => [primaryKey({ columns: [t.tenantId, t.eventId, t.userId] }),
   foreignKey({ columns: [t.tenantId, t.eventId], foreignColumns: [events.tenantId, events.id] }).onDelete("cascade"),
   index("event_rsvps_going_idx").on(t.tenantId, t.eventId).where(sql`${t.state} = 'going'`),
-  check("event_rsvp_state", sql`${t.state} in ('going','maybe','not_going') and ${t.version} > 0 and jsonb_typeof(${t.sources}) = 'object'`),
+  index("event_rsvps_waitlist_idx").on(t.tenantId, t.eventId, t.waitlistedAt, t.userId).where(sql`${t.state} = 'waitlisted'`),
+  check("event_rsvp_state", sql`${t.state} in ('going','maybe','not_going','waitlisted') and (${t.state} = 'waitlisted') = (${t.waitlistedAt} is not null) and ${t.version} > 0 and jsonb_typeof(${t.sources}) = 'object'`),
 ]);

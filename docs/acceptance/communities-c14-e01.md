@@ -1,6 +1,6 @@
 # E01 canonical Events server
 
-Migration `0059_events_e01` adds the ministry-owned Events model, event RSVP, the protected join-link table, and the database contract for community placement. E01 provides versioned save, publish, cancel, bounded list, detail, RSVP, roster, join and calendar download endpoints. C14 will write and manage placement through the association table.
+Migration `0059_events_e01` adds the ministry-owned Events model, event RSVP and waitlist, an optional reminder lead time, the protected join-link table, and the database contract for community placement. E01 provides versioned save, publish, cancel, bounded list, detail, RSVP, roster, join and calendar download endpoints. C14 will write and manage placement through the association table.
 
 ## Ownership and scope
 
@@ -16,8 +16,16 @@ An RSVP requires the caller’s current RSVP version and saves all current sourc
 
 Outbox entries hold canonical event IDs and versions. The existing dispatcher leaves them for a future Events consumer. No provider work or outbound notifications are scheduled. The HTTP gate is non-production only, and all five HC-02 activation gates remain **UNAPPROVED**.
 
+## Waitlist and reminders
+
+A member can opt in to a waitlist for a capacity-limited event before it starts. Queue order uses the server-assigned entry time and an account ID tie-breaker. The event lock serializes admission, claims and capacity changes. A cancelled RSVP, revoked grant or loss of membership stops reserving a place. Rejoining with new admission requires a new queue entry. Before the start, available seats go first to active earlier waitlist entries. An eligible member explicitly changes their RSVP to Going to claim a seat. Walk-in availability excludes seats held for the queue. Each member sees their own claim eligibility. The manager roster can see RSVP states. Queue reservations lapse at the start. Automatic promotion and waitlist notifications are future work.
+
+An owner/admin can set one reminder lead time from one minute to seven days. It defaults to off. The server-only candidate operation is manager scoped and returns up to 100 IDs and versions per page for due Going RSVPs. It excludes unpublished or cancelled events, started events, invalidated admissions and recipients who muted every original surviving placement. Results contain no event body, addresses or join links.
+
+Reminders **require a separate delivery job**. A future C15 job needs an idempotent receipt per event schedule and attendee, current admission/consent/mute rechecks at dispatch, cancellation and retry handling, and monitored scheduling. This slice has no job, provider send or reminder delivery.
+
 ## Review and verification
 
-Local restricted-owner integration covered tenant isolation through the viewer/member context, concurrent seat and ban races, retries, rejoin, grant changes and expiry, link access, cancellation, calendar export, and durable outbox records.
+Local restricted-owner integration covered tenant isolation through the viewer/member context, concurrent seat and ban races, retries, rejoin, grant changes and expiry, waitlist order and claims, reminder timing and mute, link access, cancellation, calendar export, and durable outbox records.
 
-The draft is stacked on the C11c migration. Independent review of the admission and locking contract and a trusted-main Neon migration check are pending. No hosted behavior, production, calendar-provider import, community placement UI or reminder delivery was verified. Founder decisions are whether the proposed 30-minute default fits the first pilot and whether campaign screens should link to canonical events in a later slice.
+The draft is stacked on the C11c migration. Independent review of the admission and locking contract and a trusted-main Neon migration check are pending. No hosted behavior, production, calendar-provider import, community placement UI or reminder delivery was verified. Founder decisions are the 30-minute join window, explicit claim versus automatic waitlist promotion, reminder timing and consent, and a possible later link from campaign screens.
