@@ -168,3 +168,30 @@ export function inspectProviderCopy(value: unknown): BoundaryViolation[] {
   if (typeof value === "string") return /\b(?:zernio|gmail|outlook|onedrive|google drive|microsoft)\b/i.test(value) ? [{ file: "messages/en.json", rule: "vendor name in user-facing copy" }] : [];
   return value && typeof value === "object" ? Object.values(value).flatMap(inspectProviderCopy) : [];
 }
+
+// The QA signer is a build alias, and only the gate reads QA environment flags and secrets.
+export function inspectQaBoundary(file: string, source: string): BoundaryViolation[] {
+  const normal = file.replaceAll("\\", "/");
+  const found: BoundaryViolation[] = [];
+  const add = (rule: string) => found.push({ file, rule });
+  if (normal.startsWith("tests/") || normal === "scripts/source-guards.ts") return found;
+  const flag = /\bHARVEST_QA_SIGN_IN\b/;
+  if (normal === ".env.example" || normal.startsWith(".github/workflows/") || normal.startsWith(".circleci/")) {
+    if (/\bQA_SIGN_IN_SECRET\b/.test(source)) add("QA signing key is scoped to the auth deployment");
+    if (/(?:^|[\s{,])["']?HARVEST_QA_SIGN_IN["']?\s*[:=]/m.test(source)) add("QA sign-in flag cannot be set in CI or .env.example");
+    return found;
+  }
+  if (normal !== "src/server/qa-sign-in-gate.ts" && (flag.test(source) || /\bQA_SIGN_IN_(?:HELPER_)?SECRET\b/.test(source))) {
+    add("QA sign-in flags and secrets are read only in the gate");
+  }
+  if (normal !== "src/app/api/qa/otp/route.ts" && /\/api\/qa\/otp\b/.test(source)) add("QA helper route referenced outside its boundary");
+  if (normal !== "next.config.ts" && /\bauth-otp-hooks-preview\b/.test(source)) add("QA OTP implementation must be loaded through the build alias");
+  return found;
+}
+
+export function checkQaBoundary() {
+  const configs = [".env.example", "next.config.ts", "package.json", ...[".github/workflows", ".circleci"].flatMap((directory) =>
+    readdirSync(directory).filter((file) => /\.ya?ml$/.test(file)).map((file) => join(directory, file)))];
+  return [...sourceFiles("src"), ...sourceFiles("scripts"), ...configs]
+    .flatMap((file) => inspectQaBoundary(file, readFileSync(file, "utf8")));
+}
