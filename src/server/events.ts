@@ -14,10 +14,10 @@ export function eventsEnabled(env: Record<string, string | undefined> = process.
 
 const rsvpState = z.enum(["going", "maybe", "not_going", "waitlisted"]);
 type State = z.infer<typeof rsvpState>;
-type EventRecord = CalendarEvent & { timeZone: string; capacity: number | null; available: number | null; rsvp: State | null; rsvpVersion: number; canClaimSeat: boolean; reminderMinutes: number | null };
+type EventRecord = CalendarEvent & { timeZone: string; capacity: number | null; available: number | null; rsvp: State | null; rsvpVersion: number; canClaimSeat: boolean; reminderMinutes: number | null; location: string | null; waitlistEnabled: boolean; joinWindowMinutes?: number | null };
 type RosterEntry = { userId: string; state: State; eligible: boolean };
 type ReminderCandidate = { userId: string; eventVersion: number; rsvpVersion: number; dueAt: string };
-type Action = "list" | "get" | "save" | "publish" | "cancel" | "rsvp" | "join" | "preview_join" | "roster" | "reminder_candidates";
+type Action = "list" | "get" | "save" | "publish" | "cancel" | "rsvp" | "join" | "preview_join" | "roster" | "reminder_candidates" | "link_community" | "unlink_community";
 type EventResponse<T> = { outcome: "ok"; data: T } | { outcome: "not_found" | "conflict" | "invalid" | "full" };
 const uuid = z.uuid();
 const datetime = z.iso.datetime({ offset: true });
@@ -26,6 +26,8 @@ const plainText = (value: string) => !/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(va
 export const eventSaveInput = z.object({
   version, title: z.string().trim().min(1).max(120).refine(plainText),
   description: z.string().max(4000).refine(plainText).default(""),
+  location: z.string().trim().min(1).max(240).refine((value) => !/[\x00-\x1f\x7f]/.test(value)).nullable().optional(),
+  waitlistEnabled: z.boolean().optional(),
   timeZone: z.string().max(100).refine((value) => {
     if (!/^(?:UTC|[A-Za-z][A-Za-z0-9_+.\-]*(?:\/[A-Za-z0-9_+.\-]+)+)$/.test(value)) return false;
     try { new Intl.DateTimeFormat("en", { timeZone: value }); return true; } catch { return false; }
@@ -36,14 +38,15 @@ export const eventSaveInput = z.object({
     const parsed = new URL(value);
     return !parsed.username && !parsed.password && !/[\s\\]/.test(value);
   }).nullable().default(null),
-  joinWindowMinutes: z.number().int().min(0).max(1440).default(30),
+  joinWindowMinutes: z.number().int().min(0).max(1440).optional(),
 }).strict().refine((v) => new Date(v.endsAt) > new Date(v.startsAt));
 
 async function operate<T>(db: Database, user: string, tenantId: string, id: string | null, action: Action, body: object = {}): Promise<EventResponse<T>> {
   if (!eventsEnabled()) throw new AccessError(404, message("Errors.communityNotFound"));
-  const tenant = uuid.parse(tenantId), eventId = id === null ? null : uuid.parse(id);
+  const tenant = uuid.safeParse(tenantId), eventId = id === null ? null : uuid.safeParse(id);
+  if (!tenant.success || (eventId && !eventId.success)) throw new AccessError(404, message("Errors.communityNotFound"));
   return withUser(db, user, async (tx) => (await tx.execute<{ result: EventResponse<T> }>(
-    sql`select public.events_operate(${tenant}::uuid,${eventId}::uuid,${action},${JSON.stringify(body)}::jsonb) as result`)).rows[0].result);
+    sql`select public.events_operate(${tenant.data}::uuid,${eventId?.data ?? null}::uuid,${action},${JSON.stringify(body)}::jsonb) as result`)).rows[0].result);
 }
 
 function resultData<T>(result: EventResponse<T>): T {
@@ -65,6 +68,12 @@ export async function saveEvent(db: Database, user: string, tenantId: string, id
 export async function transitionEvent(db: Database, user: string, tenantId: string, id: string, raw: unknown) {
   const { action, ...input } = z.object({ action: z.enum(["publish", "cancel"]), version: version.min(1) }).strict().parse(raw);
   return resultData(await operate<EventRecord>(db, user, tenantId, id, action, input));
+}
+export async function setEventPlacement(db: Database, user: string, tenantId: string, id: string, communityId: string, linked: boolean) {
+  const target = uuid.safeParse(communityId);
+  if (!target.success) throw new AccessError(404, message("Errors.communityNotFound"));
+  return resultData(await operate<{ linked: boolean }>(db, user, tenantId, id,
+    linked ? "link_community" : "unlink_community", { communityId: target.data }));
 }
 export async function rsvpEvent(db: Database, user: string, tenantId: string, id: string, raw: unknown) {
   const input = z.object({ state: rsvpState, expectedVersion: version }).strict().parse(raw);
