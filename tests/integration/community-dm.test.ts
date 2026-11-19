@@ -106,11 +106,16 @@ it("keeps a single refusal outcome and honours opt-out only on new member conver
   const started = await start("alice", "bob");
   await invoke("bob", "accept_save", [false]);
   expect((await send("alice", started.conversationId!, "Existing history stays open")).outcome).toBe("ok");
+  expect((await send("bob", started.conversationId!, "A notice for alice")).outcome).toBe("ok");
+  const noticesBefore = await listNotifications(fixture.db, "alice", slug);
+  expect(noticesBefore.items.filter(item => item.kind === "dm")).toHaveLength(1);
   const aliceBefore = { list: (await dmList(fixture.db, "alice", slug)).items, token: (await chatState(fixture.db, "alice", slug)).etag };
   await dmBlock(fixture.db, "bob", slug, { targetUserId: "alice", hide: true }, false);
   // The blocked person cannot tell: same list (including canSend) and the same rail token; only sending fails, generically.
   expect((await dmList(fixture.db, "alice", slug)).items).toEqual(aliceBefore.list);
   expect((await chatState(fixture.db, "alice", slug)).etag).toBe(aliceBefore.token);
+  // Her existing notice and unread count are untouched by the block.
+  expect(await listNotifications(fixture.db, "alice", slug)).toEqual(noticesBefore);
   expect((await chatState(fixture.db, "alice", slug, aliceBefore.token))).toEqual({ notModified: true, etag: aliceBefore.token });
   expect(await start("alice", "bob")).toEqual(unavailable);
   expect(await send("bob", started.conversationId!, "Blocked either way")).toEqual(unavailable);

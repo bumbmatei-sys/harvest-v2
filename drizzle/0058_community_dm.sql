@@ -997,7 +997,9 @@ BEGIN
   PERFORM set_config('app.community_definer_tenant', p_tenant::text, true);
   SELECT public.community_dm_active(p_tenant, p_community, actor) IS NOT NULL
     AND public.community_dm_active(p_tenant, p_community, p_sender) IS NOT NULL
-    AND NOT public.community_dm_blocked(p_tenant, p_community, actor, p_sender)
+    -- Only the blocker stops seeing the notice. The blocked recipient's existing notices and unread count must not change (no oracle).
+    AND NOT EXISTS(SELECT 1 FROM public.community_dm_blocks WHERE tenant_id = p_tenant AND community_id = p_community
+      AND blocker_id = actor AND blocked_id = p_sender)
     AND NOT EXISTS(SELECT 1 FROM public.community_memberships WHERE tenant_id = p_tenant AND community_id = p_community
       AND user_id = actor AND notifications_muted)
     AND EXISTS(SELECT 1 FROM public.community_dm_participants WHERE tenant_id = p_tenant AND community_id = p_community
