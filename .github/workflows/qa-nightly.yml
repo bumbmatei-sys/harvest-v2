@@ -35,7 +35,16 @@ jobs:
           QA_PREVIEW_URL: ${{ vars.QA_PREVIEW_URL }}
           QA_PREVIEW_HELPER_KEY: ${{ secrets.QA_PREVIEW_HELPER_KEY }}
           QA_PREVIEW_BYPASS: ${{ secrets.QA_PREVIEW_BYPASS }}
-        run: npx playwright test -c playwright.qa.config.ts
+        run: |
+          umask 077
+          log=$(mktemp)
+          trap 'rm -f "$log"' EXIT
+          if npx playwright test -c playwright.qa.config.ts > "$log" 2>&1; then
+            echo 'Synthetic walkthrough passed.'
+          else
+            echo 'Synthetic walkthrough failed. See the sanitized evidence.'
+            exit 1
+          fi
       - name: Collect screenshots and safe traces
         if: always() && steps.browser.outcome != 'skipped'
         run: |

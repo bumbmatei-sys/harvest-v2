@@ -15,7 +15,7 @@ export default defineConfig({
   testDir: "./tests/qa", outputDir: "./test-results/qa", workers: 1, fullyParallel: false,
   retries: configured ? 1 : 0, timeout: 240_000, reporter: "list",
   projects: [{ name: "qa-chromium", use: { ...devices["Desktop Chrome"] } }],
-  use: { baseURL: raw.origin, trace: "retain-on-failure", serviceWorkers: "block",
+  use: { baseURL: raw.origin, trace: "retain-on-failure", serviceWorkers: "block", actionTimeout: 15_000, navigationTimeout: 45_000,
     launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } },
   webServer: configured ? undefined : { command: "npx tsx scripts/e2e-server.ts", url: local + "/sign-in",
     timeout: 120_000, reuseExistingServer: false, env: { HARVEST_E2E_MAILBOX: mailbox } },

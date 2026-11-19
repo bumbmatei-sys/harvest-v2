@@ -68,7 +68,7 @@ test("synthetic ministry, membership, forum and moderation walkthrough", async (
   const origin = new URL(baseURL!).origin;
   const owner = await browser.newContext({ baseURL: origin, serviceWorkers: "block" });
   const member = await browser.newContext({ baseURL: origin, serviceWorkers: "block" });
-  // Credentials go through Node fetch and have no place in Playwright action artifacts.
+  // OTP requests use Node fetch. The workflow exports only redacted action metadata.
   const run = randomUUID().replaceAll("-", "");
   const name = `QA Circle ${run.slice(0, 8)}`;
   const slug = `qa-${run}`;
@@ -123,31 +123,35 @@ test("synthetic ministry, membership, forum and moderation walkthrough", async (
       const categories = await owner.request.get(communityPath + "/categories");
       await success(categories, "load categories");
       const title = "QA walkthrough post";
-      const post = await owner.request.post(`/api/communities/${slug}/posts`, { headers, data: {
+      const post = await member.request.post(`/api/communities/${slug}/posts`, { headers, data: {
         categoryId: (await categories.json())[0].id, title, body: documentBody("Synthetic walkthrough post."),
         videoUrl: null, coverFileId: null, attachmentIds: [], commentsOff: false, likesOff: false,
       } });
       await success(post, "create post");
       const postPath = `/communities/${slug}/posts/${(await post.json()).id}`;
       const reply = "Synthetic walkthrough comment.";
-      await memberPage.goto(postPath);
-      await memberPage.getByLabel("Reply", { exact: true }).fill(reply);
-      await memberPage.getByRole("button", { name: "Reply", exact: true }).click();
-      await expect(memberPage.getByText("Synthetic walkthrough comment.")).toBeVisible();
-      await evidence(memberPage, "03-discussion");
       await ownerPage.goto(postPath);
-      await ownerPage.getByRole("button", { name: /^Report reply by / }).click();
-      const report = ownerPage.getByRole("dialog", { name: "Report reply" });
+      await ownerPage.getByLabel("Reply", { exact: true }).fill(reply);
+      await ownerPage.getByRole("button", { name: "Reply", exact: true }).click();
+      await expect(ownerPage.getByText(reply)).toBeVisible();
+      await evidence(ownerPage, "03-discussion");
+      await ownerPage.getByRole("button", { name: `Report post ${title}` }).click();
+      const report = ownerPage.getByRole("dialog", { name: "Report post" });
       await report.getByLabel("Spam or advertising").click();
       await report.getByRole("button", { name: "Send report" }).click();
       await expect(report.getByRole("status")).toBeVisible();
       await ownerPage.goto(`/communities/${slug}/moderation`);
-      await expect(ownerPage.getByRole("table", { name: "Reports" }).getByText(reply)).toBeVisible();
+      await expect(ownerPage.getByRole("table", { name: "Reports" }).getByText(title)).toBeVisible();
       await evidence(ownerPage, "04-moderation");
     });
   } finally {
     try {
-      if (version) await success(await owner.request.post(communityPath + "/publish", { headers, data: { version, published: false } }), "unpublish synthetic community");
+      if (version) {
+        const status = await owner.request.post(communityPath + "/publish", {
+          headers, timeout: 12_000, data: { version, published: false },
+        }).then(response => response.status(), () => null);
+        if (status === null || status < 200 || status >= 300) throw new Error("Could not unpublish the synthetic community.");
+      }
     } finally {
       await Promise.all([owner.close(), member.close()]);
     }
