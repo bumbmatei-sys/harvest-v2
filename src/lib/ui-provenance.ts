@@ -72,15 +72,27 @@ export const kitProvenance: readonly KitItemRecord[] = [
 ];
 
 /**
- * Files adopted from the founder-supplied premium Shadcn UI Kit chat app (repository bumbmatei-sys/chat-app, commit 66fd523, approved
+ * Files really copied from the founder-supplied premium Shadcn UI Kit chat app (repository bumbmatei-sys/chat-app, commit 66fd523, approved
  * 19 November 2026) for Communities C11b. Each file starts with: Derived from bumbmatei-sys/chat-app (Shadcn UI Kit, premium,
- * founder-supplied 19 Nov 2026): <source>. A test checks the header in both directions. Not adopted: status and stories, calls,
+ * founder-supplied 19 Nov 2026): <source>. A test checks the header in both directions. Not copied: status and stories, calls,
  * contacts, media lightbox, new-message dialog, authentication pages, and the zustand mock store.
  */
 export const chatAppProvenance = {
   repository: "bumbmatei-sys/chat-app", commit: "66fd523", tier: "premium", approvedBy: "founder", approvedOn: "2026-11-19",
   files: [
-  { file: "src/components/ui/bubble.tsx", source: "components/ui/bubble.tsx", localChanges: "Copied; the header is added and the tinted variant uses a primary tint token instead of an oklch literal (source guard). Uses @base-ui/react use-render and merge-props. Own messages use the default variant, others muted." },
+  { file: "src/components/ui/bubble.tsx", source: "components/ui/bubble.tsx", localChanges: "Copied; the header is added and the tinted variant uses a primary tint token instead of an oklch literal (source guard). Uses @base-ui/react use-render and merge-props. Own messages use the default variant, others muted." }
+  ],
+} as const;
+
+/**
+ * Files whose layout and behaviour are modelled on the same chat app but whose code was written for Harvest: no kit code is copied
+ * (a 50-character window comparison against commit 66fd523 found no shared code). Each starts with: Layout and behaviour modelled on
+ * bumbmatei-sys/chat-app (Shadcn UI Kit, premium, founder-supplied 19 Nov 2026): <source>; code written for Harvest, no kit code
+ * copied. The founder accepted this result on 19 November 2026; the DM, profile and events screens adopt real kit code from the start.
+ */
+export const kitChatAppReferences = {
+  repository: "bumbmatei-sys/chat-app", commit: "66fd523", tier: "premium", acceptedBy: "founder", acceptedOn: "2026-11-19",
+  files: [
   { file: "src/components/user-avatar.tsx", source: "components/user-avatar.tsx", localChanges: "Initials or the channel emoji in a round avatar on Harvest's Avatar. The kit's image and online indicator are removed: members have no photo or presence." },
   { file: "src/components/communities/chat/channel-list.tsx", source: "app/(auth)/chats/components/chat-list.tsx, app/(auth)/chats/components/chat-list-item.tsx, app/(auth)/chats/components/chat-list-item-dropdown.tsx", localChanges: "Channel list with search, unread and mention badges, mute marker and a 44px options menu (Edit, Move up, Move down, Archive, Delete) for roles that manage channels. Mock chat store, status, archive and block items removed; real channels from the chat state." },
   { file: "src/components/communities/chat/chat-header.tsx", source: "app/(auth)/chats/components/chat-header.tsx", localChanges: "Back, mark, name and subtitle. Call buttons removed. The channel name opens the channel info." },
@@ -106,6 +118,10 @@ export function validateKitRecord(record: KitItemRecord): string[] {
   for (const file of record.files) if (file.startsWith("/") || file.includes("..")) problems.push(`file must be repository-relative: ${file}`);
   return problems;
 }
+
+const modelledHeader = /^\s*\/\*\*\s*Layout and behaviour modelled on bumbmatei-sys\/chat-app \(Shadcn UI Kit, premium, founder-supplied 19 Nov 2026\): (.+?); code written for Harvest, no kit code copied\./;
+/** Returns the chat-app source a file is modelled on, or null. */
+export function modelledHeaderSource(source: string): string | null { return modelledHeader.exec(source)?.[1] ?? null; }
 
 const chatAppHeader = /^\s*\/\*\*\s*Derived from bumbmatei-sys\/chat-app \(Shadcn UI Kit, premium, founder-supplied 19 Nov 2026\): (.+?)\. Harvest changes:/;
 /** Returns the chat-app source named by a file's leading header, or null. */

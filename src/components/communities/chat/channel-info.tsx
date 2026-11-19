@@ -1,4 +1,4 @@
-/** Derived from bumbmatei-sys/chat-app (Shadcn UI Kit, premium, founder-supplied 19 Nov 2026): app/(auth)/chats/components/group-detail-drawer.tsx. Harvest changes: docs/ui-sources.md. */
+/** Layout and behaviour modelled on bumbmatei-sys/chat-app (Shadcn UI Kit, premium, founder-supplied 19 Nov 2026): app/(auth)/chats/components/group-detail-drawer.tsx; code written for Harvest, no kit code copied. Harvest notes: docs/ui-sources.md. */
 "use client";
 
 import { useState } from "react";

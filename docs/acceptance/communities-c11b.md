@@ -20,7 +20,7 @@ C11b uses the C11a schema and adds no migration. The member page and its API rem
 
 ## UI sources
 
-The chat UI is adopted from the founder-supplied premium Shadcn UI Kit chat app (`bumbmatei-sys/chat-app`, commit `66fd523`, approved 19 November 2026), wired to the real C11a server and Harvest's shared components. This replaces the earlier hand-built layout and the 18 November "layout reference only" exception. Files, sources and changes are in [UI provenance](../ui-sources.md). `@shadcn/react` ^0.3.1 (message scroller) was approved 18 November and `@base-ui/react` 1.7.0 (bubble) on 19 November; both are in the third-party licences. Nothing from the kit's mock store, status, calls or attachments was adopted.
+The chat UI is modelled on the founder-supplied premium Shadcn UI Kit chat app (`bumbmatei-sys/chat-app`, commit `66fd523`) and wired to the real C11a server and Harvest's shared components. Only `src/components/ui/bubble.tsx` is copied from the kit; the other nine files take its structure and behaviour but were written for Harvest, with no kit code copied. The founder accepted this result on 19 November 2026. The DM, profile and events screens will adopt real kit code from the start. Files, headers and the check are in [UI provenance](../ui-sources.md). `@shadcn/react` ^0.3.1 (message scroller) was approved 18 November and `@base-ui/react` 1.7.0 (bubble, the one copied file) on 19 November; both are in the third-party licences. Nothing from the kit's mock store, status, calls or attachments is used.
 
 CommunityShell, NotificationBell, ReportDialog, MemberList, StickySaveBar and the moderation DataTable continue to own their existing UI responsibilities.
 

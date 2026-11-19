@@ -204,21 +204,21 @@ New dependencies (founder-approved 2026-11-16): [`react-hook-form`](https://gith
 
 ### Communities C11b chat
 
-Adopted on 19 November 2026 from the founder-supplied premium Shadcn UI Kit chat app, the private repository `bumbmatei-sys/chat-app` (commit `66fd523`; tier premium; approved by the founder: "take everything from there regarding chat"). The repository holds no secrets and none were copied. Files keep a header `Derived from bumbmatei-sys/chat-app (Shadcn UI Kit, premium, founder-supplied 19 Nov 2026): <source>`, are listed in `chatAppProvenance` (`src/lib/ui-provenance.ts`), and a unit test checks both directions. This supersedes the earlier layout-reference-only wording for this screen.
+The chat UI is **modelled on** the founder-supplied premium Shadcn UI Kit chat app, the private repository `bumbmatei-sys/chat-app` (commit `66fd523`, premium; no secrets were copied), and wired to the real C11a server and Harvest's shared components. **Only `src/components/ui/bubble.tsx` is copied from the kit** (about 92% matching text); it starts with `Derived from bumbmatei-sys/chat-app (Shadcn UI Kit, premium, founder-supplied 19 Nov 2026): components/ui/bubble.tsx` and is listed in `chatAppProvenance` (`src/lib/ui-provenance.ts`). The other nine files take the kit's structure and behaviour but were written for Harvest; a 50-character window comparison against the kit found no shared code. They start with `Layout and behaviour modelled on bumbmatei-sys/chat-app (...): <source>; code written for Harvest, no kit code copied` and are listed in `kitChatAppReferences`. A unit test enforces both headers in both directions. The founder accepted this result on 19 November 2026; the DM, profile and events screens will adopt real kit code from the start.
 
-| Harvest file | Kit source (`app/(auth)/chats/components/` unless noted) | Harvest changes |
-| --- | --- | --- |
-| `src/components/ui/bubble.tsx` | `components/ui/bubble.tsx` | Copied; header added and the tinted variant uses a `primary` tint token instead of an oklch literal (source guard). Needs `@base-ui/react`. |
-| `src/components/user-avatar.tsx` | `components/user-avatar.tsx` | Initials or the channel emoji; no image or presence indicator. |
-| `chat/channel-list.tsx` | `chat-list.tsx`, `chat-list-item.tsx`, `chat-list-item-dropdown.tsx` | Search, unread and mention badges, mute marker, 44px options menu for roles that manage channels. Mock store, status, archive and block items removed. |
-| `chat/chat-header.tsx` | `chat-header.tsx` | Back, mark, name and subtitle; call buttons removed; the name opens channel info. |
-| `chat/chat-layout.tsx` | `chats-view.tsx` | Two panes on large screens, one pane on phones; status strip, call screen and mock store removed. |
-| `chat/message-pane.tsx` | `chat-content.tsx` | Real polling, shared message scroller; no mock messages. |
-| `chat/chat-message.tsx` | `chat-bubbles.tsx` | Text bubbles, time line and action menu. Image, video, file and voice bubbles and the lightbox are not adopted (attachments wait for the malware scanner). |
-| `chat/chat-composer.tsx` | `chat-footer.tsx` | Card composer, round send button, single 44px line growing to four lines. Emoji picker, files and voice not adopted; mention picker added. |
-| `chat/channel-info.tsx` | `group-detail-drawer.tsx` | Channel info panel; leave group not offered. |
-| `chat/member-profile-sheet.tsx` | `user-detail-sheet.tsx` | Name, role and joined date only. |
+| Harvest file | Status | Kit source (`app/(auth)/chats/components/` unless noted) | Harvest notes |
+| --- | --- | --- | --- |
+| `src/components/ui/bubble.tsx` | **copied** | `components/ui/bubble.tsx` | Header added; the tinted variant uses a `primary` tint token instead of an oklch literal (source guard). Needs `@base-ui/react`. |
+| `src/components/user-avatar.tsx` | modelled on | `components/user-avatar.tsx` | Initials or the channel emoji; no image or presence indicator. |
+| `chat/channel-list.tsx` | modelled on | `chat-list.tsx`, `chat-list-item.tsx`, `chat-list-item-dropdown.tsx` | Search, unread filter and badges, mute marker, 44px options menu for roles that manage channels. |
+| `chat/chat-header.tsx` | modelled on | `chat-header.tsx` | Back, mark, name and subtitle; the name opens channel info. |
+| `chat/chat-layout.tsx` | modelled on | `chats-view.tsx` | Two panes on large screens, one pane on phones. |
+| `chat/message-pane.tsx` | modelled on | `chat-content.tsx` | Real polling and the shared message scroller. |
+| `chat/chat-message.tsx` | modelled on | `chat-bubbles.tsx` | Text bubbles, time line, action menu; no image, video, file or voice bubbles (attachments wait for the malware scanner). |
+| `chat/chat-composer.tsx` | modelled on | `chat-footer.tsx` | Card composer, one 44px line growing to four, mention picker; no emoji, file or voice. |
+| `chat/channel-info.tsx` | modelled on | `group-detail-drawer.tsx` | Channel info panel; leave group not offered. |
+| `chat/member-profile-sheet.tsx` | modelled on | `user-detail-sheet.tsx` | Name, role and joined date only. |
 
-Not adopted: status and stories, calls, contacts, media lightbox, new-message dialog (direct messages are C11c), authentication pages, the zustand mock chat store, embla and motion. Harvest's own Sheet, DropdownMenu, ScrollArea, Card, Avatar, Popover and ConfirmDialog replace the kit's Drawer and base-ui menus. The message scroller is Adapted from Studio Admin (MIT, notice retained) and uses `@shadcn/react` 0.3.1. Message data comes only from the polling hook and the server; no client store holds messages.
+Not used from the kit: status and stories, calls, contacts, lightbox, new-message dialog (direct messages are C11c), the zustand mock store, `motion` and `embla`. Harvest's Sheet, DropdownMenu, ScrollArea, Card, Avatar, Popover and ConfirmDialog stand in for the kit's base-ui Drawer and menus. The message scroller is adapted from Studio Admin (MIT, notice retained) and uses `@shadcn/react` 0.3.1. Message data comes only from the polling hook and the server; no client store holds messages.
 
 The editor uses its existing Channels step, MemberList and StickySaveBar. Moderation uses the existing DataTable and ReportDialog. NotificationBell stays in CommunityShell. Copy comes from the locale catalogue and colours from theme tokens.
