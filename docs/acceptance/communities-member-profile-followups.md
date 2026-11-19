@@ -13,3 +13,9 @@
 Migration `0066_member_profile_followups` changes the roster and erasure functions. It follows migration 0064 from #152 and 0065 from #153, both open when work began. Their commits were applied in order onto current main for testing. The screen already called the page service, so the lookup changed there without editing the screen.
 
 All five HC-02 gates remain **UNAPPROVED**. Hosted Neon and production were outside verification scope.
+
+## Verification
+
+Lint and typecheck passed locally. The full unit project passed 1,218 tests in 95 files. The full integration project passed 883 tests in 106 files against disposable loopback PostgreSQL.
+
+The 44 focused integration tests exercised the chat roster and author projection, the per-person profile lookup, and erasure.
