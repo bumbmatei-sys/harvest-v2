@@ -79,7 +79,12 @@ export async function qaOtpResponse(request: Request, database: () => Database) 
   const hidden = () => new Response(null, { status: 404, headers });
   const secrets = qaSignInSecrets(process.env);
   if (!secrets || !timingSafeEqual(digest(request.headers.get("x-qa-secret") ?? ""), digest(secrets.helperKey))) return hidden();
-  const email = z.email().safeParse(new URL(request.url).searchParams.get("email")?.toLowerCase());
+  const query = new URL(request.url).searchParams;
+  // The remote walkthrough proves the preview-only path is available before requesting an OTP.
+  if (query.get("ready") === "1") {
+    return qaSignInMode(process.env) === "preview" ? new Response(null, { status: 204, headers }) : hidden();
+  }
+  const email = z.email().safeParse(query.get("email")?.toLowerCase());
   if (!email.success || !synthetic(email.data)) return hidden();
   const [issued] = await database().select({ sentAt: otpCooldowns.sentAt, reservationId: otpCooldowns.reservationId, stored: verifications.value }).from(otpCooldowns)
     .innerJoin(verifications, eq(verifications.identifier, verificationId(email.data)))
