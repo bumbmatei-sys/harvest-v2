@@ -3,19 +3,17 @@ import { z } from "zod";
 import type { Database } from "../db/client";
 import { message } from "../i18n/messages";
 import { forumContextTx, type DirectoryMember, type ForumContext } from "./community-forum";
+import { readMemberProfileTx } from "./community-profile-details";
 import { AccessError } from "./permissions";
 import { withUser } from "./tenancy";
 
-// C09b screens: a read-only projection over what the forum already exposes. The person comes from the member directory (active members
-// only, name, role, joined day) and the activity from the posts and replies they wrote that the viewer can already read. No new
-// table, definer or setting: voluntary profile fields (bio, links, visibility) wait for the C09b server slice.
+// The profile read used by the API resolves the person. Activity remains limited to the viewer's forum access.
 export const activityPageSize = 20;
 export type ProfileActivity = { kind: "post" | "reply"; id: string; postId: string; postTitle: string; excerpt: string; createdAt: string };
 export type MemberProfile = { context: ForumContext; member: DirectoryMember; self: boolean; posts: number; replies: number;
   activity: ProfileActivity[]; page: number; hasMore: boolean };
 
 const notFound = () => new AccessError(404, message("Errors.communityNotFound"));
-const targetId = z.string().trim().min(1).max(200);
 const pageInput = z.coerce.number().int().min(1).max(1000).catch(1);
 
 /**
@@ -23,15 +21,11 @@ const pageInput = z.coerce.number().int().min(1).max(1000).catch(1);
  * Held and removed content never appears; held content is visible only to its author on their own profile.
  */
 export async function memberProfile(db: Database, viewerId: string, slug: string, target: string, rawPage: unknown = 1): Promise<MemberProfile> {
-  const id = targetId.safeParse(target);
-  if (!id.success) throw notFound();
   const page = pageInput.parse(rawPage);
   return withUser(db, viewerId, async (tx) => {
     const context = await forumContextTx(tx, viewerId, slug);
     if (!context) throw notFound();
-    const directory = (await tx.execute<{ v: DirectoryMember }>(sql`select public.community_member_directory(${context.slug}) as v`)).rows.map((r) => r.v);
-    const member = directory.find((m) => m.userId === id.data);
-    if (!member) throw notFound();
+    const { member } = await readMemberProfileTx(tx, context.slug, target.trim());
     const self = member.userId === viewerId;
     const postVisible = sql`p.community_id = ${context.id}::uuid and p.removed_at is null and (p.held_at is null or ${self})`;
     const commentVisible = sql`c.community_id = ${context.id}::uuid and c.removed_at is null and (c.held_at is null or ${self})`;

@@ -9,6 +9,8 @@ import { createWorkspace } from "../../src/server/workspaces";
 import { createCommunity } from "../../src/server/communities";
 import { withUser, withTenant } from "../../src/server/tenancy";
 import { chatState, chatMessages, saveChatChannel, chatChannelSelection, chatChannelSettings, chatStaffPage, chatManageSettings } from "../../src/server/community-chat";
+import { memberDirectory } from "../../src/server/community-forum";
+import { ownCommunityProfile } from "../../src/server/community-profile-details";
 vi.mock("server-only", () => ({}));
 let f: Awaited<ReturnType<typeof testDatabase>>, parallel: Pool, tenant: string, otherTenant: string, club: string, otherClub: string, general: string;
 const ids = ["owner", "admin", "mod", "contributor", "member", "second", "pending", "banned", "left", "removed", "outsider", "viewer", "other-owner", "other-member"];
@@ -48,6 +50,23 @@ afterAll(async () => { await parallel?.end(); await f?.close(); vi.unstubAllEnvs
 it("initializes General and state for every community", async () => {
   expect((await f.admin.query("select count(*)::int n from community_channels where name='General'")).rows[0].n).toBe(4);
   expect((await f.admin.query("select count(*)::int n from community_chat_state")).rows[0].n).toBe(4);
+});
+it("keeps private profiles out of the directory while preserving chat roles and authors", async () => {
+  const slug = "chat-club";
+  for (const actor of ["mod", "member"]) {
+    await ownCommunityProfile(f.db, actor, slug, "save", { version: 0, displayName: "Private name", bio: "Private bio", visibility: "private" });
+  }
+  const roster = (await chatStaffPage(f.db, "second", slug))!.members;
+  expect(roster.find(entry => entry.userId === "mod")).toEqual({ userId: "mod", name: "mod", role: "moderator", joinedAt: null });
+  expect(roster.find(entry => entry.userId === "member")).toEqual({ userId: "member", name: "member", role: "member", joinedAt: null });
+  const directory = (await memberDirectory(f.db, "second", slug)).members;
+  expect(directory.some(entry => ["mod", "member"].includes(entry.userId))).toBe(false);
+  const author = await channel("Private profile author");
+  const id = await messageId("member", "My message still has an author", author);
+  const history = await chatMessages(f.db, "member", slug, author, {});
+  expect(history.events).toContainEqual(expect.objectContaining({ id, authorId: "member", authorName: "member" }));
+  await expect(chatStaffPage(f.db, "outsider", slug)).resolves.toBeUndefined();
+  await f.admin.query("delete from community_member_profiles where community_id=$1", [club]);
 });
 it("isolates two tenants, two communities and every new table; denies app writes", async () => {
   await messageId();
