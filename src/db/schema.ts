@@ -1020,6 +1020,7 @@ export const reservedCommunitySlugs = ["new", "discover", "search", "create", "s
 const reservedSlugSql = sql.raw(reservedCommunitySlugs.map((slug) => `'${slug}'`).join(", "));
 
 export const communities = pgTable("communities", {
+  eventPublicationEpoch: uuid("event_publication_epoch").notNull().defaultRandom(),
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
   id: uuid("id").notNull().defaultRandom(),
   slug: text("slug").notNull(),
@@ -1073,6 +1074,7 @@ export const communities = pgTable("communities", {
   check("community_rules_version", sql`${t.rulesVersion} >= 0`)]);
 
 export const communityMemberships = pgTable("community_memberships", {
+  eventAccessEpoch: uuid("event_access_epoch").notNull().defaultRandom(),
   tenantId: uuid("tenant_id").notNull(),
   communityId: uuid("community_id").notNull(),
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -1773,4 +1775,70 @@ export const communityDmReportEvidence = pgTable("community_dm_report_evidence",
   foreignKey({ columns: [t.tenantId, t.communityId, t.reportId], foreignColumns: [communityReports.tenantId, communityReports.communityId, communityReports.id] }).onDelete("cascade"),
   index("community_dm_evidence_expiry_idx").on(t.expiresAt).where(sql`${t.expiresAt} is not null`),
   check("community_dm_evidence_bound", sql`jsonb_array_length(${t.snapshot}) between 1 and 6`),
+]);
+
+export const events = pgTable("events", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  id: uuid("id").notNull(),
+  title: text("title").notNull(),
+  description: text("description").notNull().default(""),
+  timeZone: text("time_zone").notNull(),
+  startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
+  endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
+  capacity: integer("capacity"),
+  reminderMinutes: integer("reminder_minutes"),
+  status: text("status", { enum: ["draft", "published", "cancelled"] }).notNull().default("draft"),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  version: integer("version").notNull().default(1),
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  index("events_tenant_start_idx").on(t.tenantId, t.startsAt, t.id),
+  check("event_content", sql`length(btrim(${t.title})) between 1 and 120 and length(${t.description}) <= 4000 and length(${t.timeZone}) between 1 and 100`),
+  check("event_interval", sql`${t.endsAt} > ${t.startsAt}`),
+  check("event_capacity", sql`${t.capacity} is null or ${t.capacity} > 0`),
+  check("event_reminder_minutes", sql`${t.reminderMinutes} between 1 and 10080`),
+  check("event_status", sql`${t.status} in ('draft','published','cancelled') and ${t.version} > 0`),
+]);
+
+export const eventJoinLinks = pgTable("event_join_links", {
+  tenantId: uuid("tenant_id").notNull(),
+  eventId: uuid("event_id").notNull(),
+  url: text("url").notNull(),
+  windowMinutes: integer("window_minutes").notNull().default(30),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.eventId] }),
+  foreignKey({ columns: [t.tenantId, t.eventId], foreignColumns: [events.tenantId, events.id] }).onDelete("cascade"),
+  check("event_join_https", sql`length(${t.url}) between 9 and 2048 and ${t.url} ~ '^https://[^/?#@[:space:]]+([/?#]|$)' and ${t.url} !~ '[[:space:]]' and strpos(${t.url},chr(92)) = 0`),
+  check("event_join_window", sql`${t.windowMinutes} between 0 and 1440`),
+]);
+
+// C14 owns placement. E01 defines the read-side contract, with no placement mutation endpoint.
+export const communityEventLinks = pgTable("community_event_links", {
+  tenantId: uuid("tenant_id").notNull(),
+  eventId: uuid("event_id").notNull(),
+  communityId: uuid("community_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.eventId, t.communityId] }),
+  unique("community_event_link_id").on(t.tenantId, t.id),
+  index("community_event_link_community_idx").on(t.tenantId, t.communityId, t.eventId),
+  foreignKey({ columns: [t.tenantId, t.eventId], foreignColumns: [events.tenantId, events.id] }).onDelete("cascade"),
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+]);
+
+export const eventRsvps = pgTable("event_rsvps", {
+  tenantId: uuid("tenant_id").notNull(),
+  eventId: uuid("event_id").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  state: text("state", { enum: ["going", "maybe", "not_going", "waitlisted"] }).notNull(),
+  waitlistedAt: timestamp("waitlisted_at", { withTimezone: true }),
+  sources: jsonb("sources").notNull(),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.eventId, t.userId] }),
+  foreignKey({ columns: [t.tenantId, t.eventId], foreignColumns: [events.tenantId, events.id] }).onDelete("cascade"),
+  index("event_rsvps_going_idx").on(t.tenantId, t.eventId).where(sql`${t.state} = 'going'`),
+  index("event_rsvps_waitlist_idx").on(t.tenantId, t.eventId, t.waitlistedAt, t.userId).where(sql`${t.state} = 'waitlisted'`),
+  check("event_rsvp_state", sql`${t.state} in ('going','maybe','not_going','waitlisted') and (${t.state} = 'waitlisted') = (${t.waitlistedAt} is not null) and ${t.version} > 0 and jsonb_typeof(${t.sources}) = 'object'`),
 ]);

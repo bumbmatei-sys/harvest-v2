@@ -1,4 +1,4 @@
-import { and, asc, eq, isNull, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, notLike, sql } from "drizzle-orm";
 import type { Transaction } from "../../db/client";
 import { jobs, outboxEvents } from "../../db/schema";
 import { message } from "../../i18n/messages";
@@ -31,7 +31,8 @@ export async function appendOutboxEvent(tx: Transaction, tenantId: string, data:
   return row;
 }
 export async function dispatchOutbox(tx: Transaction, tenantId: string, limit: number) {
-  const events = await tx.select().from(outboxEvents).where(and(eq(outboxEvents.tenantId, tenantId), isNull(outboxEvents.dispatchedAt)))
+  // Canonical Events records are reserved for a separately gated consumer.
+  const events = await tx.select().from(outboxEvents).where(and(eq(outboxEvents.tenantId, tenantId), isNull(outboxEvents.dispatchedAt), notLike(outboxEvents.kind, "events.%")))
     .orderBy(asc(outboxEvents.createdAt), asc(outboxEvents.id)).limit(limit).for("update", { skipLocked: true });
   let dispatched = 0;
   for (const event of events) {
