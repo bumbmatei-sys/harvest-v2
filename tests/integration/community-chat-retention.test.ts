@@ -21,10 +21,12 @@ it("records healthy empty batches and reports a failed run", async () => {
 });
 
 it("the command requires the worker-only URL and refuses an application login", async () => {
-  const env = { ...process.env, DATABASE_URL: db.workerURL, WORKER_DATABASE_URL: "" };
+  const env: NodeJS.ProcessEnv = { ...process.env, NODE_ENV: "test", HARVEST_CHAT_PURGE_WORKER_ENABLED: "1", DATABASE_URL: db.workerURL, WORKER_DATABASE_URL: "" };
   const script = ["--import", "tsx", "scripts/community-chat-purge.ts"];
-  await expect(run(process.execPath, script, { env })).rejects.toMatchObject({ stderr: "community_chat_purge_failed\n" });
-  await expect(run(process.execPath, script, { env: { ...env, WORKER_DATABASE_URL: db.appURL } })).rejects.toMatchObject({ stderr: "community_chat_purge_failed\n" });
+  await expect(run(process.execPath, script, { env })).rejects.toMatchObject({ stderr: '{"event":"community_chat_purge_alert","reason":"failed"}\n'  });
+  await expect(run(process.execPath, script, { env: { ...env, WORKER_DATABASE_URL: db.appURL } })).rejects.toMatchObject({ stderr: '{"event":"community_chat_purge_alert","reason":"failed"}\n'  });
+  await expect(run(process.execPath, script, { env: { ...env, NODE_ENV: "production", WORKER_DATABASE_URL: "invalid" } }))
+    .resolves.toEqual({ stdout: "", stderr: "" });
   const worker = { ...env, DATABASE_URL: "unused", WORKER_DATABASE_URL: db.workerURL };
   expect(JSON.parse((await run(process.execPath, script, { env: worker })).stdout)).toMatchObject({ ok: true });
   expect(JSON.parse((await run(process.execPath, [...script, "check"], { env: worker })).stdout)).toMatchObject({ healthy: true });

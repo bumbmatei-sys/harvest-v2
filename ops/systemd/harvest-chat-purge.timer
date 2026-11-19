@@ -1,0 +1,9 @@
+[Unit]
+Description=Run Harvest chat retention daily
+
+[Timer]
+OnCalendar=*-*-* 03:00:00 UTC
+Persistent=true
+
+[Install]
+WantedBy=timers.target

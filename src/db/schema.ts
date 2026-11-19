@@ -1789,7 +1789,10 @@ export const events = pgTable("events", {
   title: text("title").notNull(),
   description: text("description").notNull().default(""),
   location: text("location"),
+<<<<<<< HEAD
   coverFileId: uuid("cover_file_id").references((): AnyPgColumn => eventFiles.id, { onDelete: "set null" }),
+=======
+>>>>>>> origin/main
   timeZone: text("time_zone").notNull(),
   startsAt: timestamp("starts_at", { withTimezone: true }).notNull(),
   endsAt: timestamp("ends_at", { withTimezone: true }).notNull(),
