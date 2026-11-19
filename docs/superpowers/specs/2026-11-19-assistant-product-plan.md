@@ -1,0 +1,85 @@
+# Harvest assistant product plan (AI-PRD)
+
+**Draft for founder and independent review, 19 November 2026.** Design only. All five HC-02 activation decisions remain **UNAPPROVED**.
+
+## Summary
+
+Assistant mode provides personal chat history and a full conversation. The same conversation can open in the shell's right pane alongside the user's work. Users choose what page context to include and review consequential actions before execution. Harvest owns permission checks, tools, memory, audit and quotas. Model and integration providers sit behind replaceable adapters.
+
+## 1. Surfaces and scope
+
+- Use the planned Assistant-mode `assistant` registry entry and `/workspaces/[tenantId]/assistant`. The mode switch changes the visible sidebar. The assistant sidebar contains New chat and the user's history. Conversation detail, approvals and plugin policy use the shell's planned Assistant routes. Deep links and history reopen the same authorized conversation on either surface. [Three-mode shell design](2026-11-16-three-mode-shell-design.md)
+- Desktop right pane uses the shell's 40% width from 1280px, with an overlay below it. Respect the existing editor preview arbitration under 1600px. Restore focus on close and preserve the main page. Pane shows chat, an approval summary and artifact previews. Full editing or a detailed diff opens in the main view. Use the same conversation controller and streaming state for both surfaces, with one run per submitted turn.
+- “Include this page” is visible and off by default for every turn. The shell offers an entry ID and typed resource or selection IDs. The server validates the entry and fetches allowed fields again under the authenticated actor and ministry. Clear pending context, drafts and overlays on ministry switch. Any stale or inaccessible references produce a neutral unavailable state.
+- V1 is text, scoped read-only answers, reviewable CRM proposals and user-reviewed draft artifacts. Direct mail, auto-replies, background agents, provider-held history, automatic file ingestion and unattended writes stay outside the initial slices. Unsupported tools and media are absent from menus. AI-generated text and artifact previews are visibly labelled.
+
+## 2. Identity, access and model boundary
+
+Every route resolves the actor from the verified session and ministry membership from the database. A route parameter, browser role, header, model output or tool response cannot establish access. A closed assistant gate returns 404 before auth, based only on environment. Separate model transport, tool-write and plugin gates default off. Test runs inject fakes.
+
+Bind every thread, run, turn, approval, memory item, artifact, stream cursor and job to the tenant and actor. An owner/admin can manage ministry policy and see redacted aggregates. Ordinary ministry roles have no path to a colleague's personal conversation or artifact. Use composite keys, FORCE RLS, scoped app grants, and narrow mutations. Any SECURITY DEFINER fixes `search_path = pg_catalog, pg_temp` and revokes PUBLIC. Use `withTenant` through the same domain services and permissions used by the rest of Harvest. Recheck permissions and source references on every retrieval, tool execution, resume, and artifact save. Model input, caches, indexes and quota records must use the same scope. Return a neutral miss for foreign, removed and inaccessible resources.
+
+A server adapter normalizes streaming messages, structured tool proposals, timeout/cancellation, usage and capability declarations using the project-approved AI SDK architecture. Initial routing is configuration-driven. Allow a compatible fallback for an uncommitted text turn, with budgets rechecked. After a side effect or visible output has been committed, resume from the durable run and avoid automatic re-execution. Source access and record authorization live in adapters/services controlled by Harvest. Model output cannot speak directly to a data store, accept raw URLs as credentials, issue SQL, grant itself tools, or decide approvals. [AI assistant architecture](../../prd/AI-assistant-architecture.md)
+
+Treat page content, CRM text, plugin data, prompts and retrieved documents as untrusted data. Use typed schema validation, bounded output, field allow-lists and source citations, including permission-filtered links. Render safe Markdown and validated artifact structures. Limit tool loops and reject unknown tool names or excess arguments. Real CRM contact identifiers and consent evidence stay outside model inputs during the pilot. The current People tool projections contain email, phone and handles, so add a narrower model projection before exposing them. The wider CRM contact visibility prerequisite, personal mailbox content and Connect data require separate access decisions. [HC-02 gates](../../decisions/hc-02-activation-gates.md)
+
+## 3. Tools, approvals and plugins
+
+| Operation | Authorization and execution |
+| --- | --- |
+| CRM-08 reads | Reuse `describeCrmTools` and the read services with their existing role permissions. Start with bounded, redacted People, Organizations, timeline, deal and own-task projections appropriate to the requested purpose. No arbitrary search across ministries. |
+| CRM-08 writes | First proposals are `crm_create_task` and `crm_move_deal`. Reuse `requestToolApproval`, `decideToolApproval` and `executeCrmTool`. The server derives the displayed diff from canonical args. Bind to actor, ministry, run, tool, argument hash and relevant target version. Issuance, approval and consumption remain distinct. |
+| Composio plugins | A current owner or admin authorizes a named connector for that ministry and records scopes. Each exact tool starts off and needs a separate explicit opt-in by an owner/admin. A user expressly connects their own account when identity is personal. Apply the intersection of plugin, tool, credential scope, user role and domain policy. Read tools still obey that policy. Writes and outbound actions additionally need a human decision for each invocation. |
+
+An approval card can Approve or Deny. It shows what will change and, for a future outbound action, the recipient and destination. Approval uses a separate UI-only origin-checked route with a one-time server challenge and a deliberate user confirmation bound to the canonical payload. A model/tool cannot reach that route, mint the confirmation, decide under the user's session or amend the action after approval. Cap outstanding requests per actor. Use CRM-08's short expiry and lock/consume semantics. Recheck role, record version, plugin/tool consent and connectivity at execution. Changes invalidate the proposal and require a fresh review. Idempotency keys and receipt reconciliation prevent duplicate delivery on retry. A failure before a CRM transaction commits leaves the approval unspent according to CRM-08. [CRM-08 acceptance and deferred requirements](../../acceptance/crm-08.md)
+
+The connector registry lists explicit allowed tools and schemas, with versioned manifests. Tool or scope expansion goes back to disabled pending review. Disabling the connector, a tool, a connection or a user's permission invalidates queued calls and resume. Secrets remain server-side and bound to tenant/account. The runtime places no arbitrary connector payload into memory. Plugins never share credentials or personal Office mail across domains. Outbound writes stay disabled until the provider contract, revocation, error semantics and privacy approvals are verified.
+
+**Audit.** Record tool proposal and outcome, approval/requester and deciding actor, target IDs, policy revisions, plugin and exact tool enables/disables, time and receipt references. Keep audit content minimal. Store temporary canonical approval args and artifact revisions separately with access and erasure rules. Trace model latency, token/estimated-cost totals and status without logging message text, credentials, raw provider payloads or private source contents. Define privileged audit readers and retention explicitly before enabling them.
+
+## 4. History, memory, quotas and artifacts
+
+- **History** belongs to one actor and tenant, reconstructed from normalized turns/parts rather than provider thread IDs. Use a server-side run ID, stable event cursor, cancellation and bounded replay. Clear or delete history through the product. Deletion removes the user's history and derived memory within the reviewed retention schedule and leaves only permitted redacted audit.
+- **Memory** begins with the active conversation and explicit user-saved preferences. Long-term recall and embeddings start off. A later slice evaluates consent, scoped retrieval, inspect/delete, re-authorization of source data, expiry and erasure propagation. No silent cross-chat or cross-ministry recall. Do not retain raw tool output by default.
+- **Quotas** reserve tokens and estimated cost before each run with one atomic ledger keyed by ministry and actor. Limit input, output, wall time, concurrent runs, tool steps, pending approvals and artifact size. Reconcile actual usage once per run/attempt and release failed reservations. Configure daily user and monthly ministry budgets; deny additional usage at the cap and show remaining allowance in provider-neutral terms. Admins see aggregates only.
+- **Artifacts** are versioned personal drafts, created from validated typed proposals with a title, safe contents, provenance and plain review state. Stream previews through the chat, with an accessible open affordance. The user can compare the proposed revision and explicitly save/copy it. Changing a canonical note, publishing or sending follows the target domain's permission and approval path. Shared Notes is a future explicit export/share action, with no implicit permission transfer.
+
+## 5. UI source and compatibility evidence
+
+The founder's 18 November decision selects the paid kit AI chat panel. Inspected Admin-dashboard revision `1631106a7906c1a473ae3a49fb1d392605d39108`, under `app/dashboard/(auth)/apps/`.
+
+| Area | Actual kit file and adaptation |
+| --- | --- |
+| Compact panel | Copy/adapt `ai-chat/app-render.tsx` for the transcript/composer/scroll composition. Swap demo replies, local fake messages and timers for the shared Harvest stream. Omit template upload until scoped access and scanning exist. Name the exact paid side-panel block and its preview when the S6 build slice obtains it. |
+| Mode and history | Copy/adapt `ai-chat-v2/components/ai-chat-interface.tsx` and `ai-chat-v2/components/ai-chat-sidebar.tsx`. Replace `data.json`, fake conversation/search state and hard-coded actions with the authorized timeline and history. Keep shell ownership in AppShell and reuse shared primitives. Strip upsell and animation/demo assets. The template `page.tsx` and `[id]/page.tsx` inform route composition. |
+| Artifact preview and editing | Copy/adapt the parts of `notes/components/note-app.tsx`, `note-content.tsx`, `note-list-item.tsx` and `add-note-modal.tsx` that fit the preview/editor shells. Replace `data.ts`, `types.ts`, static labels and demo editor with versioned drafts, a constrained editor schema and existing dialog/field controls. The first artifact is a private note draft. |
+
+Copied files receive the exact “Derived from bumbmatei-sys/Admin-dashboard (Shadcn UI Kit, premium, founder-supplied): <path>” header. Harvest rewrites use “modelled on … code written for Harvest”. The build PR records original paths and commit, notices and adopted components in `src/lib/ui-provenance.ts` and `docs/ui-sources.md`. Premium licensing is settled by the founder. Follow the existing shell's 44px touch targets, semantic colors, reduced motion, keyboard access and mobile focus management.
+
+| Candidate | Repository evidence | Decision |
+| --- | --- | --- |
+| assistant-ui Elements | MIT repository licence. The inspected template uses React 19 and Tailwind 4. React package peer supports React 18 and 19. Inspected `tool-call.tsx`, `approval-card.tsx`, `artifact-card.tsx` and the Radix collapsible variant. | **Choose Elements** for these three missing pieces only. Copy the relevant MIT source and helpers, retain the notice and adapt to Harvest tokens, existing Radix and callbacks. These selected files do not require the assistant-ui runtime or cloud service. [Licence](https://github.com/assistant-ui/assistant-ui/blob/c20914f3eef5de3bd25d54b10688fc278d272334/LICENSE) · [Template manifest](https://github.com/assistant-ui/assistant-ui/blob/c20914f3eef5de3bd25d54b10688fc278d272334/templates/minimal/package.json) · [Elements source](https://github.com/assistant-ui/assistant-ui/tree/c20914f3eef5de3bd25d54b10688fc278d272334/packages/ui/src/components/react/assistant-ui/elements) |
+| Cuelark agent components | The component site could not be retrieved and a matching component repository could not be verified. The searchable desktop project does not establish rights or compatibility for the component registry. | No adoption. Licence, React 19, Tailwind 4 and exact source remain unverified. [Component site](https://ui.cuelark.com) |
+| ProseKit | MIT repository licence. The `prosekit`/React peer minimum is React 18.2. The upstream website uses React 19 and Tailwind 4. Editor APIs and package exports are separable from the styling layer. | **Propose `prosekit`** for editable note artifacts. Use the supported React integration and constrained schema. Verify build and styling inside Harvest and reuse the existing editor shell. [Licence](https://github.com/prosekit/prosekit/blob/5fe37b0a52f831c853bd97539907399b638920de/LICENSE) · [React package](https://github.com/prosekit/prosekit/blob/5fe37b0a52f831c853bd97539907399b638920de/packages/react/package.json) · [Website manifest](https://github.com/prosekit/prosekit/blob/5fe37b0a52f831c853bd97539907399b638920de/website/package.json) |
+
+Compatibility above is repository evidence. A build with these sources in Harvest remains an implementation test. This design adds no dependencies. Seek per-slice approval for new direct dependencies and pinned versions. Candidates are `ai` and the selected provider adapter package for runtime, `prosekit` for the editor, and the Composio server adapter package only after the plugin spike confirms its contract and licence. Keep lottie animations, extra icon libraries and template-only dependencies out of the initial slices.
+
+## 6. Slices and tests
+
+| Slice | Delivery | Exit evidence |
+| --- | --- | --- |
+| AI-1 · runtime and history | Tenant/actor-isolated conversation and turn model, fake streaming adapter, environment gates and quota reservations | Two tenants and multiple roles, denied direct reads with `withTenant` as viewer/plain member, restricted-owner migration and accounting race tests |
+| AI-2 · page and pane (S6) | Kit-backed page/history and shared pane, per-turn context consent, shared composer and recoverable stream | No context leakage on navigation or ministry switch. Browser keyboard/axe, 360/768/1280 and light/dark. Real routes against fakes |
+| AI-3 · CRM tools | Bounded reads, approval card and server-only decisions for CRM-08 task creation and deal movement | Tool injection, stale version, changed hash, role downgrade, direct API abuse, deny/expiry, concurrency with exactly one actual write |
+| AI-4 · artifacts | Typed private drafts and preview, explicit edit/save with the selected note editor | Safe paste/links, optimistic versioning, delete/export scope, accessible previews and diff focus |
+| AI-5 · plugin pilot | Owner/admin connector and tool opt-in, user connection, redacted audit and revocation | Fake provider and approved sandbox only. Manifest changes, disconnect, scope downgrade, audited refusal and send gates tested |
+
+Add unit tests for projection and schemas, provider swapping, bounds, fallback, cursor and usage accounting. Integration proves 404 before auth, tenant switches mid-stream, role/member revocation, no stale data in replay or provider input, RLS, exact approvals and erased-source behavior. Synthetic benchmarks cover realistic tasks and provider differences. No real outbound messages or webhooks outside tests. Run required checks and record unverified areas per PR. Fresh independent review precedes any readiness decision.
+
+## 7. Founder decisions
+
+1. **Pilot access** · Default to an opt-in ministry pilot with synthetic data and bounded read tools first. Confirm eligible roles and fields after privacy review.
+2. **History** · Default to private threads and no background memory. Agree on retention and deletion windows with privacy review.
+3. **Budgets** · Default to firm user and ministry caps. Choose the numbers after synthetic cost testing.
+4. **Connectors** · Default to no enabled plugins. Choose the first read-only plugin and exactly which tool it may expose.
+5. **Dependencies** · Approve the proposed MIT Elements copies and the ProseKit editor candidate per slice, with licence and build results. Review the model and connector adapter packages when their exact versions are proposed.
