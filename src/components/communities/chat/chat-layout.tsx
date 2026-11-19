@@ -1,7 +1,7 @@
 /** Layout and behaviour modelled on bumbmatei-sys/chat-app (Shadcn UI Kit, premium, founder-supplied 19 Nov 2026): app/(auth)/chats/components/chats-view.tsx; code written for Harvest, no kit code copied. Harvest notes: docs/ui-sources.md. */
 "use client";
 
-import { useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, MoreVertical, PanelLeft, Plus, Volume2 } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
@@ -18,30 +18,12 @@ import { chatUnreadTotal, type ChatAccess, type ChatChannel, type ChatChannelSet
 import type { DirectoryMember } from "@/server/community-forum";
 import { cn } from "@/lib/utils";
 import { ChatHeader } from "./chat-header";
+import { ChatViewTabs } from "./chat-view-tabs";
 import { ChannelList, type ChannelManage } from "./channel-list";
 import { ChannelSheet, chatChannelCall, newChannel } from "./channel-sheet";
 import { emptyChatDraft, type ChatDraft } from "./chat-composer";
 import { MessagePane } from "./message-pane";
-
-const onlineEvents = (callback: () => void) => {
-  window.addEventListener("offline", callback);
-  window.addEventListener("online", callback);
-  return () => {
-    window.removeEventListener("offline", callback);
-    window.removeEventListener("online", callback);
-  };
-};
-
-const focusEvents = (callback: () => void) => {
-  window.addEventListener("focus", callback);
-  window.addEventListener("blur", callback);
-  document.addEventListener("visibilitychange", callback);
-  return () => {
-    window.removeEventListener("focus", callback);
-    window.removeEventListener("blur", callback);
-    document.removeEventListener("visibilitychange", callback);
-  };
-};
+import { useOnline, useWindowFocused } from "./message-list";
 
 const fromSetting = (setting: ChatChannelSetting, previous?: ChatChannel): ChatChannel => ({
   id: setting.id, name: setting.name, emoji: setting.emoji, description: setting.description, position: setting.position, archived: setting.archived,
@@ -50,7 +32,7 @@ const fromSetting = (setting: ChatChannelSetting, previous?: ChatChannel): ChatC
 });
 const inOrder = (list: ChatChannelSetting[]) => list.filter(item => !item.archived).sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
 
-export function ChatLayout({ slug, me, access, initial, initialChannel, members, manage: initialManage }: {
+export function ChatLayout({ slug, me, access, initial, initialChannel, members, manage: initialManage, initialDmUnread = 0 }: {
   slug: string;
   me: string;
   access: ChatAccess;
@@ -59,10 +41,13 @@ export function ChatLayout({ slug, me, access, initial, initialChannel, members,
   members: DirectoryMember[];
   /** Channel settings, present only when the server allows this member to manage channels. */
   manage?: ChatChannelSetting[];
+  /** Conversations with unread messages, for the Messages tab. */
+  initialDmUnread?: number;
 }) {
   const t = useTranslations("CommunityChat");
   const base = `/api/communities/${slug}/chat`;
   const [channels, setChannels] = useState(initial);
+  const [dmUnread, setDmUnread] = useState(initialDmUnread);
   const updateBadge = useChatUnreadBadge();
   useEffect(() => updateBadge(chatUnreadTotal(channels)), [channels, updateBadge]);
   const [unreadOnly, setUnreadOnly] = useState(false);
@@ -115,7 +100,7 @@ export function ChatLayout({ slug, me, access, initial, initialChannel, members,
   const paneHeading = useRef<HTMLHeadingElement>(null);
   const nameButton = useRef<HTMLButtonElement>(null);
   const tablet = useMediaQuery("(min-width: 768px)");
-  const online = useSyncExternalStore(onlineEvents, () => navigator.onLine, () => true);
+  const online = useOnline();
 
   const refreshRail = usePolling({
     resource: base,
@@ -123,10 +108,11 @@ export function ChatLayout({ slug, me, access, initial, initialChannel, members,
     poll: async signal => {
       const response = await fetch(`${base}/state`, { signal, cache: "no-store", headers: tag.current ? { "If-None-Match": tag.current } : undefined });
       if (response.ok) {
-        const result: { channels: ChatChannel[] } = await response.json();
+        const result: { channels: ChatChannel[]; dm?: { unreadConversations: number } } = await response.json();
         if (!signal.aborted) {
           tag.current = response.headers.get("ETag");
           setChannels(result.channels);
+          setDmUnread(result.dm?.unreadConversations ?? 0);
         }
       }
       return response;
@@ -134,7 +120,7 @@ export function ChatLayout({ slug, me, access, initial, initialChannel, members,
     onStop: setStopped,
   });
 
-  const focused = useSyncExternalStore(focusEvents, () => document.visibilityState === "visible" && document.hasFocus(), () => false);
+  const focused = useWindowFocused();
   const ordered = channels.filter(channel => !channel.archived).sort((a, b) => Number(a.mute === "all") - Number(b.mute === "all") || a.position - b.position || a.id.localeCompare(b.id));
   const channel = selected ? ordered.find(item => item.id === selected) : ordered[0];
   const channelId = channel?.id;
@@ -269,6 +255,7 @@ export function ChatLayout({ slug, me, access, initial, initialChannel, members,
         <h2 ref={listHeading} tabIndex={-1} className="min-w-0 flex-1 truncate text-lg font-semibold outline-none">{t("channels")}</h2>
         {newButton}
       </div>
+      <ChatViewTabs slug={slug} current="channels" unreadMessages={dmUnread} />
       {adminError && !sheet && <Alert role="alert" variant="destructive" className="mx-4 mb-2 w-auto"><AlertDescription>{adminError}</AlertDescription></Alert>}
       {ordered.length || manage ? list : <p className="px-4 text-sm text-muted-foreground">{t("noChannels")}</p>}
     </section>
@@ -279,6 +266,7 @@ export function ChatLayout({ slug, me, access, initial, initialChannel, members,
           <SheetTrigger asChild><Button variant="ghost" size="icon" className="hidden size-11 md:inline-flex lg:hidden" aria-label={t("channels")}><PanelLeft aria-hidden="true" /></Button></SheetTrigger>
           <SheetContent side="left" className="flex min-h-0 w-[min(24rem,90vw)] flex-col gap-0">
             <SheetHeader className="flex-row items-center justify-between pe-12"><SheetTitle>{t("channels")}</SheetTitle>{newButton}</SheetHeader>
+            <ChatViewTabs slug={slug} current="channels" unreadMessages={dmUnread} />
             {list}
           </SheetContent>
         </Sheet>}>
