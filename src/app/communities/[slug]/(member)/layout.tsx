@@ -6,6 +6,7 @@ import { unreadCount } from "@/server/community-notifications";
 import { moderationCount } from "@/server/community-moderation";
 import { pageSession } from "@/server/page-session";
 import { communityChatEnabled } from "@/server/community-chat";
+import { eventsEnabled } from "@/server/events";
 import { CommunityShell } from "@/components/communities/community-shell";
 
 export const dynamic = "force-dynamic";
@@ -20,5 +21,5 @@ export default async function MemberLayout({ children, params }: { children: Rea
   if (!ctx) redirect(`/communities/${encodeURIComponent(slug)}`);
   const moderation = ctx.canModerate ? await moderationCount(getDb(), session.user.id, ctx.slug) : null;
   const unread = await unreadCount(getDb(), session.user.id, ctx.slug);
-  return <CommunityShell slug={ctx.slug} name={ctx.name} chat={communityChatEnabled() && ctx.chatEnabled} moderation={moderation} notifications={{ unread, prefs: ctx.prefs }}>{children}</CommunityShell>;
+  return <CommunityShell slug={ctx.slug} name={ctx.name} chat={communityChatEnabled() && ctx.chatEnabled} events={eventsEnabled()} moderation={moderation} notifications={{ unread, prefs: ctx.prefs }}>{children}</CommunityShell>;
 }

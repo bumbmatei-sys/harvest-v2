@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { adminDashboardHeaderSource, kitAdminDashboardReferences, chatAppHeaderSource, chatAppProvenance, kitChatAppReferences, kitHeaderItem, modelledHeaderSource, kitProvenance, validateKitRecord, type KitItemRecord } from "../../src/lib/ui-provenance";
+import { adminDashboardHeader, adminDashboardHeaderSource, adminDashboardProvenance, adminDashboardReferences, chatAppHeaderSource, chatAppProvenance, kitChatAppReferences, kitHeaderItem, modelledHeaderSource, kitProvenance, validateKitRecord, type KitItemRecord } from "../../src/lib/ui-provenance";
 import { scanForSecrets } from "../../src/lib/secret-scan";
 
 const root = resolve(__dirname, "../..");
@@ -116,19 +116,34 @@ describe("chat-app provenance", () => {
   });
 });
 
-describe("admin-dashboard provenance", () => {
-  it("lists modelled-on references only with the Admin-dashboard header and never a Derived from header", () => {
-    for (const entry of kitAdminDashboardReferences.files) {
+describe("admin-dashboard provenance (Events C14 calendar, Communities C09b profile)", () => {
+  it("records the founder approval", () => {
+    expect(adminDashboardProvenance).toMatchObject({ commit: "1631106", approvedBy: "founder", approvedOn: "2026-11-19" });
+  });
+  it("lists as copied only files with the Derived from header and a measured share", () => {
+    for (const entry of adminDashboardProvenance.files) {
+      const source = readFileSync(join(root, entry.file), "utf8");
+      expect(adminDashboardHeader(source), entry.file).toEqual({ form: "derived", source: entry.source });
+      expect(entry.identical, entry.file).toBeGreaterThan(0);
+      expect(entry.identical, entry.file).toBeLessThanOrEqual(100);
+    }
+  });
+  it("lists modelled-on files only with the modelled-on header and no copied claim", () => {
+    for (const entry of adminDashboardReferences.files) {
       const source = readFileSync(join(root, entry.file), "utf8");
       expect(existsSync(join(root, entry.file)), entry.file).toBe(true);
-      expect(adminDashboardHeaderSource(source), entry.file).toContain(entry.source.split(", ")[0]);
+      expect(adminDashboardHeader(source)?.form, entry.file).toBe("modelled");
+      expect(adminDashboardHeaderSource(source), entry.file).toBe(entry.source);
       expect(chatAppHeaderSource(source), entry.file).toBeNull();
       expect(kitHeaderItem(source), entry.file).toBeNull();
     }
   });
-  it("finds no file with the header that is missing from the list", () => {
-    const listed = new Set<string>(kitAdminDashboardReferences.files.map(entry => entry.file));
+  it("finds no file with either header that is missing from its list", () => {
+    const copied = new Set<string>(adminDashboardProvenance.files.map(entry => entry.file));
+    const modelled = new Set<string>(adminDashboardReferences.files.map(entry => entry.file));
     const files = ["src", "scripts", "tests"].flatMap(dir => walk(join(root, dir))).map(file => file.slice(root.length + 1));
-    expect(files.filter(file => adminDashboardHeaderSource(readFileSync(join(root, file), "utf8")) !== null && !listed.has(file))).toEqual([]);
+    const read = (file: string) => readFileSync(join(root, file), "utf8");
+    expect(files.filter(file => adminDashboardHeader(read(file))?.form === "derived" && !copied.has(file))).toEqual([]);
+    expect(files.filter(file => adminDashboardHeader(read(file))?.form === "modelled" && !modelled.has(file))).toEqual([]);
   });
 });
