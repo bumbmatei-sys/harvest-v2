@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { qaDatabaseAllowed, qaPreviewDatabases } from "../../src/server/qa-database-allowlist";
+import { qaDatabaseAllowed, qaPreviewDatabases, qaSeedDatabaseUrl } from "../../src/server/qa-database-allowlist";
 import { assertQaSignInSafe, qaSignInMode } from "../../src/server/qa-sign-in-gate";
 import { checkQaBoundary, inspectQaBoundary } from "../../scripts/source-guards";
 import { qaOtpResponse } from "../../src/server/auth-otp-hooks-preview";
@@ -72,4 +72,12 @@ it("keeps environment reads, flag assignment and preview OTP imports inside thei
   expect(inspectQaBoundary("src/server/rogue.ts", "process.env.QA_SIGN_IN_HELPER_SECRET")).toHaveLength(1);
   expect(inspectQaBoundary(".github/workflows/qa.yaml", 'env: { HARVEST_QA_SIGN_IN: "preview" }')).toHaveLength(1);
   expect(inspectQaBoundary(".env.example", "HARVEST_QA_SIGN_IN=preview")).toHaveLength(1);
+});
+
+it("refuses production when selecting a database for the seed reset", () => {
+  const { directHost, database } = qaPreviewDatabases[0];
+  const DATABASE_URL = `postgres://${directHost}/${database}`;
+  expect(qaSeedDatabaseUrl({ DATABASE_URL, VERCEL_ENV: "preview" })).toBe(DATABASE_URL);
+  expect(() => qaSeedDatabaseUrl({ DATABASE_URL, NODE_ENV: "production" })).toThrow("QA_SEED_INVALID_TARGET");
+  expect(() => qaSeedDatabaseUrl({ DATABASE_URL, VERCEL_ENV: "production" })).toThrow("QA_SEED_INVALID_TARGET");
 });
