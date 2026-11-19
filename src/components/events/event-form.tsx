@@ -106,13 +106,13 @@ export function EventForm({ tenantId, eventId, initial, initialFields, listHref,
     {error && <Alert variant="destructive" role="alert"><AlertDescription className="flex flex-wrap items-center gap-3">{error}{stale && <Button type="button" variant="outline" className="min-h-11" onClick={() => location.reload()}>{t("reload")}</Button>}</AlertDescription></Alert>}
     {notice && <Alert role="status"><AlertDescription>{notice}</AlertDescription></Alert>}
     <WizardLayout steps={steps} current={step} onStepChange={(id) => setStep(id as EventStep)} stepsLabel={t("stepsLabel")} stepper={false} focusOnStepChange={hosted}>
-      {step === "details" && <FormSection title={t("steps.details")}>
+      {step === "details" && <FormSection title={<span className="sr-only">{t("steps.details")}</span>}>
         <Field data-invalid={invalid("title")}><FieldLabel htmlFor="event-title">{t("fieldTitle")}</FieldLabel>
           <Input id="event-title" className="min-h-11" value={fields.title} maxLength={120} required disabled={cancelled} aria-invalid={invalid("title")} onChange={(e) => set("title", e.target.value)} />{message("title", "titleRequired")}</Field>
         <Field><FieldLabel htmlFor="event-description">{t("fieldDescription")}</FieldLabel>
           <Textarea id="event-description" rows={5} value={fields.description} maxLength={4000} disabled={cancelled} onChange={(e) => set("description", e.target.value)} /></Field>
       </FormSection>}
-      {step === "schedule" && <FormSection title={t("steps.schedule")}>
+      {step === "schedule" && <FormSection title={<span className="sr-only">{t("steps.schedule")}</span>}>
         <Field><FieldLabel htmlFor="event-zone">{t("fieldTimeZone")}</FieldLabel>
           <NativeSelect id="event-zone" className="min-h-11 w-full" value={fields.timeZone} disabled={cancelled} onChange={(e) => {
             const zone = e.target.value, start = fromLocalInput(fields.startsAt, fields.timeZone), end = fromLocalInput(fields.endsAt, fields.timeZone);
@@ -129,7 +129,7 @@ export function EventForm({ tenantId, eventId, initial, initialFields, listHref,
             {message("end", "invalidEnd")}{message("order", "endBeforeStart")}</Field>
         </div>
       </FormSection>}
-      {step === "access" && <FormSection title={t("steps.access")}>
+      {step === "access" && <FormSection title={<span className="sr-only">{t("steps.access")}</span>}>
         <Field data-invalid={invalid("join")}><FieldLabel htmlFor="event-join">{t("fieldJoinLink")}</FieldLabel>
           <Input id="event-join" type="url" inputMode="url" className="min-h-11" value={fields.joinUrl} maxLength={2048} placeholder={t("joinPlaceholder")} disabled={cancelled} aria-invalid={invalid("join")} onChange={(e) => set("joinUrl", e.target.value)} />{message("join", "invalidLink")}</Field>
         <div className="grid gap-4 sm:grid-cols-2">
