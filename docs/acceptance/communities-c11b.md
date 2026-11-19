@@ -16,28 +16,25 @@ C11b uses the C11a schema and adds no migration. The member page and its API rem
 - Phone (below `md`): the chat page hides the community header and bottom bar through `CommunityShell` `chatView`, fills `100dvh` with top safe-area padding, pads the composer by the bottom safe-area inset and sets `interactiveWidget: resizes-content` so the keyboard resizes the page. The channel list is a full-screen view with a back link to the community; a channel is a separate full-screen view with a back arrow; the thread opens as a full-width sheet. Tablet and desktop keep the rail, header and two-pane layout. Phone is read as below the shell's own `md` (768px) breakpoint; the bottom bar already exists only there.
 - Channel administration from the chat (owner, admin: `chat:manage_channels`): **New channel** in the channel list; a 44px options menu per channel with Edit, Move up/down, Archive and Delete. Edit and New reuse one `ChannelSheet`, now shared with the editor's Channels step. Server support: `PUT /channels/:id` (edit, archive), `DELETE /channels/:id` (removes an empty channel, archives one that has messages), `PUT /channels/reorder`. A new `GET /settings` returns full channel settings (slow mode, invite lists) for managers only (403 otherwise); the chat page and the edit action use it. Controls are not rendered for other roles.
 - Channel info (founder request, 18 Nov): the channel name in the header opens a panel (right-side sheet on tablet and desktop, full screen with a back arrow on phone; Escape closes and focus returns to the name). Contents: name, emoji, description; Notifications (the existing none, mentions_only, all choices); Members (everyone-count with a link to the members page for open channels; eligible members for role channels; the invite list for invite channels, shown to managers only because the server exposes it only to hosts; 20 at a time with Show more, client-side because no members listing route exists); Pinned messages (server pins, at most 5; tap scrolls to the message when loaded, otherwise opens it as a thread); Shared links (distinct links from the loaded history, with a note that it covers loaded messages only; the server cannot list link messages); Shared media and Documents show "Photos and files are coming soon" (attachments wait for the malware scanner; no upload exists). Owners and admins get Edit channel in the panel and Edit, Archive and Delete in a header menu. Report and leave are not included.
-- Not verified in this environment: browsers cannot run here and `@shadcn/react` is not installed, so the new e2e cases, axe runs and the new/updated screenshots (`admin-*` and refreshed chat captures) were not produced; CI must run them. Reviewed by reading only.
+- Verified in a real browser (Chromium, light and dark, 360/768/1280): see Verification.
 
 ## UI sources
 
-Composed from Harvest shared components. The kit's chat blocks (`chat-ui10`, `chat-ui4`, `bubble1`–`bubble7`) were a layout reference only; no kit code is copied, and the bubble is reimplemented as a small component. **The exception to the use-kit rule for this screen was approved by the founder on 18 November 2026; the next screens (DMs, profile, events) adopt the real kit blocks from the start.** Earlier "derived from" headers were wrong and were replaced. See [UI provenance](../ui-sources.md).
-
-`@shadcn/react` ^0.3.1 (official, MIT, no runtime dependencies, sole consumer `ui/message-scroller.tsx`) was approved by the founder on 18 November 2026 and is listed in the third-party licences.
+The chat UI is adopted from the founder-supplied premium Shadcn UI Kit chat app (`bumbmatei-sys/chat-app`, commit `66fd523`, approved 19 November 2026), wired to the real C11a server and Harvest's shared components. This replaces the earlier hand-built layout and the 18 November "layout reference only" exception. Files, sources and changes are in [UI provenance](../ui-sources.md). `@shadcn/react` ^0.3.1 (message scroller) was approved 18 November and `@base-ui/react` 1.7.0 (bubble) on 19 November; both are in the third-party licences. Nothing from the kit's mock store, status, calls or attachments was adopted.
 
 CommunityShell, NotificationBell, ReportDialog, MemberList, StickySaveBar and the moderation DataTable continue to own their existing UI responsibilities.
 
 ## Verification
 
-- Lint, typecheck and production build passed.
-- Unit suite passed 1,104 tests with two workers and a 20-second test timeout.
-- Integration suite passed 815 tests with a 120-second test timeout. A focused restricted-owner test verifies channel selection, pins, replies, invite membership and ministry isolation.
-- Chromium passed one end-to-end scenario using the existing local synthetic test server.
+Run by the author on the head of this change, with Chromium on a disposable database (author-executed; a fresh reviewer session is still required):
 
-The browser test used two signed-in sessions on a disposable database. It covered hosts-only channel creation, send and reply polling, reactions, pinning, mute, offline draft preservation, held-message approval, edit, delete, restore and report submission. The phone test also checked focus when opening a channel with Enter and when returning to the channel list.
+- `tsc`, `eslint src tests` and `check-source` pass.
+- Unit suite: 84 files, 1,132 tests pass (includes the chat-app provenance test, polling hook, composer size, draft payload, link extraction and role matrix).
+- Integration: `community-chat` and `communities` files, 46 tests pass, including `GET /settings` (403 for members and non-managing staff, 404 for non-members, other tenants, unknown communities and chat switched off, 200 for owner and admin).
+- Chromium end to end, `community-chat.spec.ts`, 3 of 3 pass: the full live-chat scenario (axe WCAG 2.2 AA, no horizontal overflow and the 44px send target at 360, 768 and 1280 px in light and dark); phone full screen with no bottom bar or header, one-line composer under 56px, back navigation, and admin create, rename, archive and delete from the chat with the channel confirmed gone from the server state; the channel info panel at 360 and 1280 px in light and dark with axe, overflow, Escape and focus returned to the channel name; and a member who sees no administration controls and is refused `GET /settings`. `community-editor.spec.ts` and `kit-pr7-communities.spec.ts` also pass.
+- Screenshots: [docs/screenshots/communities-c11b](../screenshots/communities-c11b/): `chat-{360,768,1280}-{light,dark}`, `admin-360-light`, `admin-menu-360-light`, `admin-menu-1280-light`, `info-{360,1280}-{light,dark}`.
 
-Six captures passed the axe WCAG checks and the page overflow check at 360, 768 and 1280 px in light and dark mode. The mobile send button measured at least 44 × 44 px. [Screenshots](../screenshots/communities-c11b/)
-
-Verification is author-executed. A separate fresh session reviews the draft head. No production or delivery verification was performed.
+Not verified: the other community end-to-end specs (applications, forum, joining, moderation, notifications), the full integration suite, a production build, real device keyboards and safe-area insets, and any production or delivery behaviour.
 
 ### Reviewer follow-ups (18 Nov)
 
