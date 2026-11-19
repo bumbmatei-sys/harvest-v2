@@ -442,6 +442,13 @@
       "when": 1795400000011,
       "tag": "0063_community_dm_start_privacy",
       "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1795400000012,
+      "tag": "0064_events_e02",
+      "breakpoints": true
     }
   ]
 }
