@@ -12,13 +12,21 @@ import { Textarea } from "@/components/ui/textarea";
 import { moderationLimits, reportReasons, type ReportReason, type ReportTarget } from "@/lib/moderation";
 
 /** Report a post, reply or member to the community's hosts. The reported person never sees who reported them. */
-export function ReportDialog({ slug, targetType, targetId, name, compact = false }: { slug: string; targetType: ReportTarget; targetId: string; name: string; compact?: boolean }) {
+export function ReportDialog({ slug, targetType, targetId, name, compact = false, dm, afterReport }: {
+  slug: string; targetType: ReportTarget; targetId: string; name: string; compact?: boolean;
+  /** A private message: the report goes with its conversation, and the dialog says who will see what. */
+  dm?: { conversationId: string };
+  /** Shown with the thanks, for example an offer to block. Receives a function that closes the dialog. */
+  afterReport?: (close: () => void) => React.ReactNode;
+}) {
   const t = useTranslations("Report"), request = useCrmRequest();
   const [open, setOpen] = useState(false), [reason, setReason] = useState<ReportReason | "">(""), [note, setNote] = useState("");
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [done, setDone] = useState(false);
   async function submit() {
     setBusy(true); setError("");
-    const result = await request(`/api/communities/${slug}${targetType === "message" ? "/chat" : ""}/reports`, { method: "POST", body: { targetType, targetId, reason, ...(note.trim() ? { note: note.trim() } : {}) } });
+    const result = dm
+      ? await request(`/api/communities/${slug}/chat/dms/${dm.conversationId}/report`, { method: "POST", body: { messageId: targetId, reason, ...(note.trim() ? { note: note.trim() } : {}) } })
+      : await request(`/api/communities/${slug}${targetType === "message" ? "/chat" : ""}/reports`, { method: "POST", body: { targetType, targetId, reason, ...(note.trim() ? { note: note.trim() } : {}) } });
     setBusy(false);
     if (result.ok) setDone(true); else setError(result.error);
   }
@@ -29,7 +37,8 @@ export function ReportDialog({ slug, targetType, targetId, name, compact = false
       : <Button variant="outline" className="min-h-11" aria-label={label}><Flag aria-hidden="true" />{t("action")}</Button>}</DialogTrigger>
     <DialogContent className="sm:max-w-md">
       <DialogHeader><DialogTitle>{t(`title.${targetType}`)}</DialogTitle></DialogHeader>
-      {done ? <p role="status" className="text-sm">{t("thanks")}</p> : <div className="space-y-4">
+      {done ? <div className="space-y-3"><p role="status" className="text-sm">{t("thanks")}</p>{afterReport?.(() => setOpen(false))}</div> : <div className="space-y-4">
+        {dm && <p className="text-sm text-muted-foreground">{t("dmNotice")}</p>}
         {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
         <RadioGroup value={reason} onValueChange={(v) => setReason(v as ReportReason)} aria-label={t("reason")} aria-required="true" className="gap-2">
           {reportReasons.map((r) => <Label key={r} htmlFor={`report-${r}`} className="flex min-h-11 items-center gap-3 rounded-md border px-3 font-normal">

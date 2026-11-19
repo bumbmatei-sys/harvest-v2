@@ -17,7 +17,7 @@ export default async function MembersPage({ params }: { params: Promise<{ slug: 
   return <section className="min-w-0 space-y-4 p-4 lg:p-6" aria-labelledby="members-title">
     <h2 id="members-title" className="text-xl font-semibold">{t("members", { count: members.length })}</h2>
     <MemberList label={t("members", { count: members.length })} audience="member" unnamedLabel={t("unnamed")}
-      members={members.map((m) => ({ id: m.userId, name: m.name, role: m.role, joinedAt: m.joinedAt ? new Date(m.joinedAt).toISOString() : null,
+      members={members.map((m) => ({ id: m.userId, href: `/communities/${slug}/members/${encodeURIComponent(m.userId)}`, name: m.name, role: m.role, joinedAt: m.joinedAt ? new Date(m.joinedAt).toISOString() : null,
         action: m.userId !== session.user.id ? <ReportDialog slug={slug} targetType="member" targetId={m.userId} name={m.name.trim() || t("unnamed")} compact /> : undefined }))} />
   </section>;
 }

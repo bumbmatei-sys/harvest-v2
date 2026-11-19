@@ -3,7 +3,7 @@ import { createContext, useContext, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { CalendarDays, Info, LayoutList, Mail, MessagesSquare, Package, ShieldCheck, Users, Wheat } from "lucide-react";
+import { CalendarDays, Info, LayoutList, MessageCircle, MessagesSquare, Package, ShieldCheck, Users, Wheat } from "lucide-react";
 import { NotificationBell } from "@/components/communities/notification-bell";
 import type { NotificationPrefs } from "@/lib/notifications";
 import { usePolling } from "@/hooks/use-polling";
@@ -18,7 +18,7 @@ export function useChatUnreadBadge() { return useContext(ChatUnreadContext); }
  * Members, Messages); style is Studio Admin through the shared tokens. On phones the rail becomes a bottom bar.
  * `chatView` makes the chat full screen on phones, like a messaging app: no header and no bottom bar (the chat supplies its own back control).
  */
-export function CommunityShell({ slug, name, chat = false, chatView = false, initialChatUnread = 0, moderation = null, notifications, children }: { slug: string; name: string; chat?: boolean; chatView?: boolean; initialChatUnread?: number; moderation?: number | null; notifications?: { unread: number; prefs: NotificationPrefs }; children: React.ReactNode }) {
+export function CommunityShell({ slug, name, chat = false, events = false, chatView = false, initialChatUnread = 0, moderation = null, notifications, children }: { slug: string; name: string; chat?: boolean; events?: boolean; chatView?: boolean; initialChatUnread?: number; moderation?: number | null; notifications?: { unread: number; prefs: NotificationPrefs }; children: React.ReactNode }) {
   const t = useTranslations("CommunityShell"), pathname = usePathname(), base = `/communities/${slug}`;
   const [badge, setBadge] = useState(initialChatUnread);
   const etag = useRef<{ slug: string; tag: string | null }>(null);
@@ -39,8 +39,8 @@ export function CommunityShell({ slug, name, chat = false, chatView = false, ini
   type Item = { id: string; icon: typeof Info; soon?: true; href?: string; match?: string[]; badge?: number };
   const items: Item[] = [
     ...(chat ? [{ id: "chat", icon: MessagesSquare, href: `${base}/chat`, match: [`${base}/chat`], badge }] : []), { id: "forum", icon: LayoutList, href: `${base}/forum`, match: [`${base}/forum`, `${base}/posts`] },
-    { id: "events", icon: CalendarDays, soon: true }, { id: "products", icon: Package, soon: true },
-    { id: "members", icon: Users, href: `${base}/members`, match: [`${base}/members`] }, { id: "messages", icon: Mail, soon: true },
+    ...(events ? [{ id: "events", icon: CalendarDays, href: `${base}/events`, match: [`${base}/events`] }] : [{ id: "events", icon: CalendarDays, soon: true as const }]), { id: "products", icon: Package, soon: true },
+    { id: "members", icon: Users, href: `${base}/members`, match: [`${base}/members`] }, chat ? { id: "messages", icon: MessageCircle, href: `${base}/messages`, match: [`${base}/messages`] } : { id: "messages", icon: MessageCircle, soon: true as const },
     { id: "about", icon: Info, href: `${base}/about`, match: [`${base}/about`] },
     // C12a: hosts only, with open reports plus held items as a badge.
     ...(moderation === null ? [] : [{ id: "moderation", icon: ShieldCheck, href: `${base}/moderation`, match: [`${base}/moderation`], badge: moderation }]),
