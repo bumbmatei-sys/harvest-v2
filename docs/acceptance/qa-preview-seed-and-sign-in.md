@@ -4,7 +4,7 @@ This slice adds the synthetic fixtures and QA authentication path from [the QA d
 
 ## Preview setup still pending
 
-The committed database allow-list is empty. The Neon connector available for implementation could not look up the documented project. Verify the current branch identity and direct and pooled hostnames for `vercel-preview` before adding an allow-list entry. Record only branch and endpoint metadata. Keep all connection strings and secret values in their scoped settings. The founder sets the Preview variables, an independent Better Auth secret, `QA_SIGN_IN_SECRET`, and `QA_SIGN_IN_HELPER_SECRET`, with separate values. The preview runtime uses the app-role URL. Use a trusted seed operator connection on that same branch. It must be the migration owner and able to set `harvest_app` for fixture writes governed by the app's policies. The script changes no grants.
+On 19 November 2026 the Neon branch, read-write compute and database records confirmed `vercel-preview` (`br-shy-hall-baslhh18`), its direct hostname and the `harvest` database. The compute metadata reports pooling disabled. The allow-list pins the direct host. Keep connection strings and secret values in their scoped settings. The founder sets the Preview variables, an independent Better Auth secret, `QA_SIGN_IN_SECRET`, and `QA_SIGN_IN_HELPER_SECRET`, with separate values. The preview runtime uses the direct app-role URL. Use a trusted seed operator connection on that same branch. It must be the migration owner and able to set `harvest_app` for fixture writes governed by the app's policies. The script changes no grants.
 
 ## Seed
 

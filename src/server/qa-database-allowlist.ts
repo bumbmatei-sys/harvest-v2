@@ -2,13 +2,17 @@ type PreviewDatabase = {
   branch: "vercel-preview";
   branchId: string;
   directHost: string;
-  pooledHost: string;
+  pooledHost?: string;
   database: string;
 };
 
-// Populate from verified Neon compute metadata for vercel-preview only.
-// An empty allow-list keeps both QA seeding and preview sign-in disabled.
-export const qaPreviewDatabases: readonly PreviewDatabase[] = [];
+// Verified against the Neon branch, compute and database records.
+export const qaPreviewDatabases: readonly PreviewDatabase[] = [{
+  branch: "vercel-preview",
+  branchId: "br-shy-hall-baslhh18",
+  directHost: "ep-misty-pond-ba96mdcl.c-8.eu-central-1.aws.neon.tech",
+  database: "harvest",
+}];
 
 export function qaDatabaseAllowed(value: string | undefined, mode: "preview" | "local",
   allowlist = qaPreviewDatabases): boolean {

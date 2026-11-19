@@ -1,5 +1,5 @@
 import { afterEach, expect, it, vi } from "vitest";
-import { qaDatabaseAllowed } from "../../src/server/qa-database-allowlist";
+import { qaDatabaseAllowed, qaPreviewDatabases } from "../../src/server/qa-database-allowlist";
 import { assertQaSignInSafe, qaSignInMode } from "../../src/server/qa-sign-in-gate";
 import { checkQaBoundary, inspectQaBoundary } from "../../scripts/source-guards";
 import { qaOtpResponse } from "../../src/server/auth-otp-hooks-preview";
@@ -30,6 +30,15 @@ it("keeps the local mode off under Vercel, production, custom staging or a non-t
   const preview = { ...local, HARVEST_QA_SIGN_IN: "preview", VERCEL_ENV: "preview", NODE_ENV: "production" };
   expect(qaSignInMode({ ...preview, VERCEL_TARGET_ENV: "staging" })).toBeNull();
   expect(qaSignInMode({ ...preview, VERCEL_TARGET_ENV: "preview" })).toBeNull();
+});
+
+it("enables Preview with the verified direct endpoint and rejects an unverified pooled hostname", () => {
+  const [target] = qaPreviewDatabases;
+  const direct = `postgresql://${target.directHost}/${target.database}?sslmode=require`;
+  const pooled = direct.replace(".", "-pooler.");
+  const env = { NODE_ENV: "production", VERCEL_ENV: "preview", VERCEL_TARGET_ENV: "preview", HARVEST_QA_SIGN_IN: "preview" };
+  expect(qaSignInMode({ ...env, DATABASE_URL: direct })).toBe("preview");
+  expect(qaSignInMode({ ...env, DATABASE_URL: pooled })).toBeNull();
 });
 
 it("alarms and fails closed for any set production flag", () => {
