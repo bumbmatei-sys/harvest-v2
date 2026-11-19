@@ -36,9 +36,13 @@ export async function newsletterPublicPost(request: Request, kind: "signup" | "c
   if (!newsletterEnabled()) return new Response(null, { status: 404, headers });
   try {
     const body = await bodyText(request);
-    const contentType = request.headers.get("content-type")?.split(";")[0];
-    if (kind === "unsubscribe" && contentType === "application/x-www-form-urlencoded") {
-      if (new URLSearchParams(body).get("List-Unsubscribe") === "One-Click")
+    const fullContentType = request.headers.get("content-type") ?? "";
+    const contentType = fullContentType.split(";")[0].trim().toLowerCase();
+    if (kind === "unsubscribe" && body && (contentType === "application/x-www-form-urlencoded" || contentType === "multipart/form-data")) {
+      const values = contentType === "multipart/form-data"
+        ? (await new Response(body, { headers: { "Content-Type": fullContentType } }).formData()).getAll("List-Unsubscribe")
+        : new URLSearchParams(body).getAll("List-Unsubscribe");
+      if (values.length === 1 && values[0] === "One-Click")
         await unsubscribeNewsletter(getDb(), "list", new URL(request.url).searchParams.get("token"));
     } else if (contentType === "application/json" && body) {
       const value: unknown = JSON.parse(body);

@@ -130,8 +130,10 @@ it("lists and all-newsletters tokens have separate authority, replays and withdr
   const preview = newsletterPublicInfo("unsubscribe");
   expect(preview.status).toBe(200);
   expect((await state(sub.id)).state).toBe("subscribed");
+  const oneClick = new FormData();
+  oneClick.set("List-Unsubscribe", "One-Click");
   const unsubscribe = await newsletterPublicPost(new Request(`http://localhost/api/newsletter/unsubscribe?token=${encodeURIComponent(listToken)}`, {
-    method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: "List-Unsubscribe=One-Click",
+    method: "POST", body: oneClick,
   }), "unsubscribe");
   expect(unsubscribe.status).toBe(202);
   await unsubscribeNewsletter(fixture.db, "list", listToken);
