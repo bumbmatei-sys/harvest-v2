@@ -1,4 +1,4 @@
-/** Composed from Harvest shared components. The Shadcn UI Kit chat blocks were a layout reference only and no kit code is copied here. Exception to the use-kit rule approved by the founder on 18 November 2026 for this screen; the next screens (DMs, profile, events) adopt the real kit blocks from the start. See docs/ui-sources.md. */
+/** Derived from bumbmatei-sys/chat-app (Shadcn UI Kit, premium, founder-supplied 19 Nov 2026): app/(auth)/chats/components/chat-footer.tsx. Harvest changes: docs/ui-sources.md. */
 "use client";
 
 import { useId, useLayoutEffect, useRef, useState } from "react";
@@ -6,7 +6,8 @@ import { AtSign, Send } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { InputGroup, InputGroupAddon, InputGroupButton, InputGroupTextarea } from "@/components/ui/input-group";
+import { Card, CardContent } from "@/components/ui/card";
+import { Textarea } from "@/components/ui/textarea";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { chatBody } from "@/lib/chat";
 import { composerHeight } from "@/lib/chat-composer-size";
@@ -58,26 +59,26 @@ export function ChatComposer({ draft, onChange, onSend, onCancel, busy, blocked,
     onChange({ text: `${prefix}@${person.name} `, mentions: [...mentions, person] });
     setPicker(false);
   }
-  return <form className="min-w-0 shrink-0 px-3 pt-1 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:px-4" onSubmit={event => { event.preventDefault(); if (!disabled) onSend(); }}>
+  return <form className="min-w-0 shrink-0 px-3 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] md:px-0 md:pb-3" onSubmit={event => { event.preventDefault(); if (!disabled) onSend(); }}>
     <label className="sr-only" htmlFor={id}>{label}</label>
-    <InputGroup className="items-end rounded-2xl">
-      <InputGroupTextarea ref={field} id={id} value={draft.text} className="max-h-25 min-h-11 py-2.5 text-base leading-5" maxLength={2000} disabled={blocked || busy}
-        rows={1} placeholder={label} onChange={event => {
-          const text = event.target.value;
-          onChange({ ...draft, text });
-          if (members.length && draft.mentions.length < 10 && /(^|\s)@$/.test(text)) setPicker(true);
-        }}
-        onKeyDown={event => {
-          if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
-            event.preventDefault();
-            if (!disabled) onSend();
-          }
-        }} />
-      <InputGroupAddon align="inline-end" className="gap-0.5 py-0 pr-0.5">
+    <Card className="gap-0 rounded-2xl py-0">
+      <CardContent className="flex items-end gap-1 p-1.5">
+        <Textarea ref={field} id={id} value={draft.text} className="max-h-25 min-h-11 flex-1 resize-none border-transparent bg-transparent py-2.5 text-base leading-5 shadow-none focus-visible:border-transparent focus-visible:ring-0 dark:bg-transparent" maxLength={2000} disabled={blocked || busy}
+          rows={1} placeholder={label} onChange={event => {
+            const text = event.target.value;
+            onChange({ ...draft, text });
+            if (members.length && draft.mentions.length < 10 && /(^|\s)@$/.test(text)) setPicker(true);
+          }}
+          onKeyDown={event => {
+            if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
+              event.preventDefault();
+              if (!disabled) onSend();
+            }
+          }} />
         <Popover open={picker} onOpenChange={setPicker}>
-          <PopoverTrigger asChild><InputGroupButton type="button" className="size-11" aria-label={t("mention")}
-            disabled={blocked || busy || !members.length || draft.mentions.length >= 10}><AtSign aria-hidden="true" /></InputGroupButton></PopoverTrigger>
-          <PopoverContent align="start" className="p-0">
+          <PopoverTrigger asChild><Button type="button" variant="ghost" size="icon" className="size-11 shrink-0 rounded-full" aria-label={t("mention")}
+            disabled={blocked || busy || !members.length || draft.mentions.length >= 10}><AtSign aria-hidden="true" /></Button></PopoverTrigger>
+          <PopoverContent align="end" className="p-0">
             <Command><CommandInput placeholder={t("findMember")} aria-label={t("findMember")} />
               <CommandList><CommandEmpty>{t("noMembers")}</CommandEmpty>
                 {members.map(person => <CommandItem className="min-h-11" value={`${person.name} ${person.id}`}
@@ -86,10 +87,10 @@ export function ChatComposer({ draft, onChange, onSend, onCancel, busy, blocked,
             </Command>
           </PopoverContent>
         </Popover>
-        {onCancel && <Button type="button" variant="ghost" className="min-h-11" onClick={onCancel}>{t("cancel")}</Button>}
-        <InputGroupButton type="submit" variant="default" className="size-11" disabled={disabled}
-          aria-label={t(mode === "edit" ? "saveEdit" : "send")}><Send aria-hidden="true" /></InputGroupButton>
-      </InputGroupAddon>
-    </InputGroup>
+        {onCancel && <Button type="button" variant="ghost" className="min-h-11 shrink-0" onClick={onCancel}>{t("cancel")}</Button>}
+        <Button type="submit" size="icon" className="size-11 shrink-0 rounded-full" disabled={disabled}
+          aria-label={t(mode === "edit" ? "saveEdit" : "send")}><Send aria-hidden="true" /></Button>
+      </CardContent>
+    </Card>
   </form>;
 }

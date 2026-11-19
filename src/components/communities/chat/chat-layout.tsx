@@ -1,8 +1,8 @@
-/** Composed from Harvest shared components. The Shadcn UI Kit chat blocks were a layout reference only and no kit code is copied here. Exception to the use-kit rule approved by the founder on 18 November 2026 for this screen; the next screens (DMs, profile, events) adopt the real kit blocks from the start. See docs/ui-sources.md. */
+/** Derived from bumbmatei-sys/chat-app (Shadcn UI Kit, premium, founder-supplied 19 Nov 2026): app/(auth)/chats/components/chats-view.tsx. Harvest changes: docs/ui-sources.md. */
 "use client";
 
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { ArrowLeft, Hash, MoreVertical, PanelLeft, Volume2 } from "lucide-react";
+import { ArrowLeft, MoreVertical, PanelLeft, Plus, Volume2 } from "lucide-react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -16,6 +16,7 @@ import { channelInput, channelMutes } from "@/lib/chat";
 import type { ChatAccess, ChatChannel, ChatChannelSetting } from "@/lib/chat-view";
 import type { DirectoryMember } from "@/server/community-forum";
 import { cn } from "@/lib/utils";
+import { ChatHeader } from "./chat-header";
 import { ChannelList, type ChannelManage } from "./channel-list";
 import { ChannelSheet, chatChannelCall, newChannel } from "./channel-sheet";
 import { emptyChatDraft, type ChatDraft } from "./chat-composer";
@@ -92,6 +93,7 @@ export function ChatLayout({ slug, me, access, initial, initialChannel, members,
   const tag = useRef<string | null>(null);
   const listHeading = useRef<HTMLHeadingElement>(null);
   const paneHeading = useRef<HTMLHeadingElement>(null);
+  const nameButton = useRef<HTMLButtonElement>(null);
   const tablet = useMediaQuery("(min-width: 768px)");
   const online = useSyncExternalStore(onlineEvents, () => navigator.onLine, () => true);
 
@@ -203,8 +205,12 @@ export function ChatLayout({ slug, me, access, initial, initialChannel, members,
     if (kind === "delete") result = await chatChannelCall(base, `/channels/${id}`, "DELETE");
     else {
       const target = (await latestSettings())?.find(item => item.id === id);
-      const body = target && channelInput.safeParse({ ...target, id: undefined, userIds: undefined, archived: true });
-      if (!target || !body?.success) return t("actionFailed");
+      if (!target) return t("actionFailed");
+      const fields: Partial<ChatChannelSetting> = { ...target };
+      delete fields.id;
+      delete fields.userIds;
+      const body = channelInput.safeParse({ ...fields, archived: true });
+      if (!body.success) return t("actionFailed");
       result = await chatChannelCall(base, `/channels/${id}`, "PUT", body.data);
     }
     if (!result.ok) return t(result.key);
@@ -235,50 +241,47 @@ export function ChatLayout({ slug, me, access, initial, initialChannel, members,
   </DropdownMenu>;
 
   const channelName = confirm && channels.find(item => item.id === confirm.id)?.name;
+  const newButton = manage && <Button variant="outline" size="icon" className="size-11 shrink-0 rounded-full" disabled={manage.busy || !manage.canCreate} onClick={manage.onNew} aria-label={t("newChannel")}><Plus aria-hidden="true" /></Button>;
   // On phones the community header and bottom bar are hidden (CommunityShell chatView), so the chat fills the screen.
-  return <div className="flex h-dvh min-h-64 min-w-0 overflow-hidden pt-[env(safe-area-inset-top)] md:h-[calc(100dvh-3.5rem)] md:pt-0">
-    <section className={cn("min-h-0 w-full min-w-0 flex-col border-r lg:flex lg:w-80 lg:shrink-0", showMobileThread && channel ? "hidden" : "flex md:hidden")}>
-      <div className="flex min-h-14 shrink-0 items-center gap-2 px-3 md:px-4">
-        <Button asChild variant="ghost" size="icon" className="size-11 md:hidden"><Link href={`/communities/${slug}`} prefetch={false} aria-label={t("backToCommunity")}><ArrowLeft aria-hidden="true" /></Link></Button>
+  return <div className="flex h-dvh min-h-64 min-w-0 overflow-hidden bg-background pt-[env(safe-area-inset-top)] md:h-[calc(100dvh-3.5rem)] md:pt-0">
+    <section className={cn("min-h-0 w-full min-w-0 flex-col border-r lg:flex lg:w-96 lg:shrink-0", showMobileThread && channel ? "hidden" : "flex md:hidden")}>
+      <div className="flex min-h-16 shrink-0 items-center gap-2 px-4">
+        <Button asChild variant="ghost" size="icon" className="-ms-2 size-11 md:hidden"><Link href={`/communities/${slug}`} prefetch={false} aria-label={t("backToCommunity")}><ArrowLeft aria-hidden="true" /></Link></Button>
         <h2 ref={listHeading} tabIndex={-1} className="min-w-0 flex-1 truncate text-lg font-semibold outline-none">{t("channels")}</h2>
+        {newButton}
       </div>
-      {adminError && !sheet && <Alert role="alert" variant="destructive" className="mx-3 mb-2 w-auto"><AlertDescription>{adminError}</AlertDescription></Alert>}
+      {adminError && !sheet && <Alert role="alert" variant="destructive" className="mx-4 mb-2 w-auto"><AlertDescription>{adminError}</AlertDescription></Alert>}
       {ordered.length || manage ? list : <p className="px-4 text-sm text-muted-foreground">{t("noChannels")}</p>}
     </section>
     <section className={cn("min-h-0 min-w-0 flex-1 flex-col md:flex", showMobileThread && channel ? "flex" : "hidden")}>
-      <div className="flex min-h-14 shrink-0 items-center gap-2 border-b px-3 sm:px-4">
-        <Button variant="ghost" size="icon" className="size-11 md:hidden" onClick={backToChannels}
-          aria-label={t("backToChannels")}><ArrowLeft aria-hidden="true" /></Button>
-        <Sheet open={listOpen} onOpenChange={setListOpen}>
+      {channel && <ChatHeader channel={channel} onBack={backToChannels} onInfo={() => setInfoOpen(true)} headingRef={paneHeading} nameRef={nameButton}
+        subtitle={channel.accessMode === "all" ? t("memberCount", { count: members.length }) : channel.description ?? undefined}
+        listToggle={<Sheet open={listOpen} onOpenChange={setListOpen}>
           <SheetTrigger asChild><Button variant="ghost" size="icon" className="hidden size-11 md:inline-flex lg:hidden" aria-label={t("channels")}><PanelLeft aria-hidden="true" /></Button></SheetTrigger>
-          <SheetContent side="left" className="flex min-h-0 w-[min(20rem,90vw)] flex-col">
-            <SheetHeader><SheetTitle>{t("channels")}</SheetTitle></SheetHeader>
+          <SheetContent side="left" className="flex min-h-0 w-[min(24rem,90vw)] flex-col gap-0">
+            <SheetHeader className="flex-row items-center justify-between pe-12"><SheetTitle>{t("channels")}</SheetTitle>{newButton}</SheetHeader>
             {list}
           </SheetContent>
-        </Sheet>
-        {channel && <><Hash className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
-          <h2 ref={paneHeading} tabIndex={-1} className="min-w-0 flex-1 truncate font-semibold outline-none">
-            <Button variant="ghost" className="min-h-11 max-w-full justify-start px-2 font-semibold" aria-haspopup="dialog" onClick={() => setInfoOpen(true)}>
-              <span className="truncate">{channel.name}</span></Button></h2>
-          {mutedChannel}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-11" aria-label={t("channelMenu")}><MoreVertical aria-hidden="true" /></Button></DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem className="min-h-11" onSelect={() => setInfoOpen(true)}>{t("channelInfo")}</DropdownMenuItem>
-              {manage && <>
-                <DropdownMenuItem className="min-h-11" disabled={adminBusy} onSelect={() => void edit(channel.id)}>{t("editChannel")}</DropdownMenuItem>
-                <DropdownMenuItem className="min-h-11" disabled={adminBusy} onSelect={() => manage.onArchive(channel.id)}>{t("archive")}</DropdownMenuItem>
-                <DropdownMenuItem className="min-h-11" variant="destructive" disabled={adminBusy} onSelect={() => manage.onDelete(channel.id)}>{t("deleteChannel")}</DropdownMenuItem>
-              </>}
-            </DropdownMenuContent>
-          </DropdownMenu></>}
-      </div>
+        </Sheet>}>
+        {mutedChannel}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-11" aria-label={t("channelMenu")}><MoreVertical aria-hidden="true" /></Button></DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem className="min-h-11" onSelect={() => setInfoOpen(true)}>{t("channelInfo")}</DropdownMenuItem>
+            {manage && <>
+              <DropdownMenuItem className="min-h-11" disabled={adminBusy} onSelect={() => void edit(channel.id)}>{t("editChannel")}</DropdownMenuItem>
+              <DropdownMenuItem className="min-h-11" disabled={adminBusy} onSelect={() => manage.onArchive(channel.id)}>{t("archive")}</DropdownMenuItem>
+              <DropdownMenuItem className="min-h-11" variant="destructive" disabled={adminBusy} onSelect={() => manage.onDelete(channel.id)}>{t("deleteChannel")}</DropdownMenuItem>
+            </>}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </ChatHeader>}
       {!online && <Alert className="m-2 w-auto"><AlertDescription>{t("offline")}</AlertDescription></Alert>}
       {muteError && <Alert role="alert" variant="destructive" className="m-2 w-auto"><AlertDescription>{muteError}</AlertDescription></Alert>}
       {channel && (tablet || showMobileThread) ? <MessagePane key={channel.id} channel={channel} slug={slug} me={me} online={online} focused={focused} access={access}
         members={members} draft={drafts[channel.id] ?? emptyChatDraft} retryIds={retryIds}
         setDraft={draft => setDrafts(existing => ({ ...existing, [channel.id]: draft }))} onRead={refreshRail}
-        info={{ open: infoOpen, onOpenChange: setInfoOpen, setting: settings?.find(item => item.id === channel.id), onMute: value => void mute(value, channel.id),
+        info={{ open: infoOpen, onOpenChange: setInfoOpen, returnFocus: nameButton, setting: settings?.find(item => item.id === channel.id), onMute: value => void mute(value, channel.id),
           onEdit: manage ? () => { setInfoOpen(false); void edit(channel.id); } : undefined }} />
         : !channel && <p className="p-4 text-sm text-muted-foreground">{t(selected ? "unavailable" : "noChannels")}</p>}
     </section>

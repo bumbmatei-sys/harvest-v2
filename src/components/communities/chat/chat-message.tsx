@@ -1,22 +1,21 @@
-/** Composed from Harvest shared components. The Shadcn UI Kit chat blocks were a layout reference only and no kit code is copied here. Exception to the use-kit rule approved by the founder on 18 November 2026 for this screen; the next screens (DMs, profile, events) adopt the real kit blocks from the start. See docs/ui-sources.md. */
+/** Derived from bumbmatei-sys/chat-app (Shadcn UI Kit, premium, founder-supplied 19 Nov 2026): app/(auth)/chats/components/chat-bubbles.tsx. Harvest changes: docs/ui-sources.md. */
 "use client";
 
 import { Ellipsis, MessageSquare, Pin, SmilePlus } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { ReportDialog } from "@/components/communities/report-dialog";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import UserAvatar from "@/components/user-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { chatReactions, chatTokens } from "@/lib/chat";
 import type { ChatMessage } from "@/lib/chat-view";
-import { memberInitials } from "@/lib/community-members";
 import { cn } from "@/lib/utils";
 
 export type ChatAction = "delete" | "restore" | "pin" | "unpin" | "remove" | "restoreRemoved";
 
-export function ChatMessageRow({ message, slug, mine, post, mayModerate, restore, thread, onReply, onEdit, onAction, onReact }: {
+export function ChatMessageRow({ message, slug, mine, post, mayModerate, restore, thread, onReply, onEdit, onAction, onReact, onProfile }: {
   message: ChatMessage;
   slug: string;
   mine: boolean;
@@ -28,6 +27,8 @@ export function ChatMessageRow({ message, slug, mine, post, mayModerate, restore
   onEdit: () => void;
   onAction: (action: ChatAction) => void;
   onReact: (emoji: string) => void;
+  /** Opens the author's profile sheet. */
+  onProfile?: (message: ChatMessage) => void;
 }) {
   const t = useTranslations("CommunityChat"), format = useFormatter();
   const name = message.authorName?.trim() || t(message.authorId ? "member" : "formerMember"), removed = !!message.deletedAt;
@@ -36,27 +37,32 @@ export function ChatMessageRow({ message, slug, mine, post, mayModerate, restore
   const actions = !removed && (mine || mayModerate) || canRestore;
   const renderLinks = (text: string) => text.split(/(https?:\/\/[^\s<>]+)/g).map((part, index) =>
     /^https?:\/\//.test(part) ? <a key={index} href={part} target="_blank" rel="nofollow noopener noreferrer ugc" className="underline underline-offset-2">{part}</a> : part);
-  return <article id={`message-${message.id}`} className={cn("flex min-w-0 gap-2.5", mine && "flex-row-reverse")}>
-    <Avatar className="mt-1"><AvatarFallback aria-hidden="true">{memberInitials(name)}</AvatarFallback></Avatar>
-    <div className={cn("flex min-w-0 flex-1 flex-col gap-1", mine && "items-end")}>
-      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground">
-        <span className="font-medium text-foreground">{mine ? t("you") : name}</span>
-        <time dateTime={new Date(message.createdAt).toISOString()}>{format.dateTime(new Date(message.createdAt), { dateStyle: "short", timeStyle: "short" })}</time>
+  const profile = !mine && message.authorId && onProfile ? () => onProfile(message) : undefined;
+  const text = removed ? t("deleted") : chatTokens(message.body ?? "", message.mentionIds).map((part, index) => {
+    // A token the server did not validate, or one whose member is gone, never shows as a literal <@id>.
+    if (part.type === "text") return <span key={index}>{renderLinks(part.text.replace(/<@[^<>\s]+>/g, ""))}</span>;
+    const person = message.mentions.find(entry => entry.id === part.id);
+    return <b key={index}>{t("mentionName", { name: person?.name || t("formerMember") })}</b>;
+  });
+  const time = <time dateTime={new Date(message.createdAt).toISOString()}>{format.dateTime(new Date(message.createdAt), { timeStyle: "short" })}</time>;
+  return <article id={`message-${message.id}`} className={cn("group flex w-full min-w-0 gap-2.5", mine && "flex-row-reverse")}>
+    {!mine && (profile
+      ? <button type="button" onClick={profile} className="mt-0.5 size-11 shrink-0 self-start rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50" aria-label={t("profileOf", { name })}><UserAvatar name={name} className="mx-auto" /></button>
+      : <span className="mt-0.5 flex size-11 shrink-0 items-start justify-center"><UserAvatar name={name} /></span>)}
+    <div className={cn("flex min-w-0 max-w-[min(85%,42rem)] flex-1 flex-col gap-1", mine ? "items-end" : "items-start")}>
+      {!mine && <div className="flex flex-wrap items-center gap-x-2 text-xs">
+        {profile ? <button type="button" onClick={profile} className="font-medium text-foreground hover:underline">{name}</button> : <span className="font-medium text-foreground">{name}</span>}
+      </div>}
+      <Bubble align={mine ? "end" : "start"} variant={mine ? "default" : "muted"} className="max-w-full">
+        <BubbleContent className="whitespace-pre-wrap">{text}</BubbleContent>
+      </Bubble>
+      <div className={cn("flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-muted-foreground tabular-nums", mine && "justify-end")}>
+        {time}
         {!!message.editedAt && !removed && <span>{t("edited")}</span>}
         {!!message.pinnedAt && active && <Pin className="size-3.5" aria-label={t("pinned")} />}
         {!!message.heldAt && !removed && <Badge variant="outline">{t("held")}</Badge>}
       </div>
-      <Bubble align={mine ? "end" : "start"} variant={mine ? "tinted" : "muted"}>
-        <BubbleContent className="whitespace-pre-wrap">
-          {removed ? t("deleted") : chatTokens(message.body ?? "", message.mentionIds).map((part, index) => {
-            // A token the server did not validate, or one whose member is gone, never shows as a literal <@id>.
-            if (part.type === "text") return <span key={index}>{renderLinks(part.text.replace(/<@[^<>\s]+>/g, ""))}</span>;
-            const person = message.mentions.find(entry => entry.id === part.id);
-            return <b key={index}>{t("mentionName", { name: person?.name || t("formerMember") })}</b>;
-          })}
-        </BubbleContent>
-      </Bubble>
-      {(active || actions || !!message.replyCount) && <div className="flex max-w-full flex-wrap items-center gap-1">
+      {(active || actions || !!message.replyCount) && <div className={cn("flex max-w-full flex-wrap items-center gap-1", mine && "justify-end")}>
         {!thread && (active && post || !!message.replyCount) && <Button variant="ghost" className="min-h-11" onClick={event => onReply(event.currentTarget)}>
           <MessageSquare aria-hidden="true" />{message.replyCount ? t("replies", { count: message.replyCount }) : t("reply")}
         </Button>}

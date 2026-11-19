@@ -1,4 +1,4 @@
-/** Composed from Harvest shared components. The Shadcn UI Kit chat blocks were a layout reference only and no kit code is copied here. Exception to the use-kit rule approved by the founder on 18 November 2026 for this screen; the next screens (DMs, profile, events) adopt the real kit blocks from the start. See docs/ui-sources.md. */
+/** Derived from bumbmatei-sys/chat-app (Shadcn UI Kit, premium, founder-supplied 19 Nov 2026): app/(auth)/chats/components/chat-content.tsx. Harvest changes: docs/ui-sources.md. */
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
@@ -17,6 +17,7 @@ import type { ChatChannelSetting } from "@/lib/chat-view";
 import { mergeChatMessages, type ChatAccess, type ChatChannel, type ChatMessage, type ChatPage } from "@/lib/chat-view";
 import type { DirectoryMember } from "@/server/community-forum";
 import { ChannelInfo } from "./channel-info";
+import { MemberProfileSheet, type ProfilePerson } from "./member-profile-sheet";
 import { ChatComposer, chatDraftPayload, emptyChatDraft, type ChatDraft } from "./chat-composer";
 import { ChatMessageRow, type ChatAction } from "./chat-message";
 
@@ -91,7 +92,7 @@ export function MessagePane({ channel, slug, me, access, members, draft, setDraf
   focused: boolean;
   onRead: () => void;
   /** Channel info panel: its open state lives with the header button that opens it. */
-  info: { open: boolean; onOpenChange: (open: boolean) => void; setting?: ChatChannelSetting; onMute: (value: "none" | "mentions_only" | "all") => void; onEdit?: () => void };
+  info: { open: boolean; returnFocus: RefObject<HTMLElement | null>; onOpenChange: (open: boolean) => void; setting?: ChatChannelSetting; onMute: (value: "none" | "mentions_only" | "all") => void; onEdit?: () => void };
 }) {
   const t = useTranslations("CommunityChat");
   const base = `/api/communities/${slug}/chat`, endpoint = `${base}/channels/${channel.id}`;
@@ -110,6 +111,8 @@ export function MessagePane({ channel, slug, me, access, members, draft, setDraf
   const [confirm, setConfirm] = useState<{ message: ChatMessage; action: "delete" | "remove" }>();
   const [pending, setPending] = useState<{ id: string; text: string; thread?: string }>();
   const [busy, setBusy] = useState(false);
+  const [profile, setProfile] = useState<ProfilePerson>();
+  const profileReturn = useRef<HTMLElement | null>(null);
   const cursor = useRef<string | null>(null), tag = useRef<string | null>(null);
   const latestRootSeq = useRef(0n);
   const threadRequest = useRef(0);
@@ -286,7 +289,12 @@ export function MessagePane({ channel, slug, me, access, members, draft, setDraf
         mayModerate={access.moderate && (item.authorId === me || canActOn(access.role, role))}
         restore={access.restore} thread={inThread} onReply={opener => { threadOpener.current = opener; void openThread(item); }} onEdit={() => startEdit(item)}
         onAction={action => action === "delete" || action === "remove" ? setConfirm({ message: item, action }) : void mutate(item, action)}
-        onReact={emoji => void mutate(item, "reaction", emoji)} />
+        onReact={emoji => void mutate(item, "reaction", emoji)}
+        onProfile={message => {
+          profileReturn.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+          const person = members.find(entry => entry.userId === message.authorId);
+          setProfile({ name: person?.name ?? message.authorName ?? t("formerMember"), role: person?.role, joinedAt: person?.joinedAt });
+        }} />
     </MessageScrollerItem>;
   }
 
@@ -343,8 +351,9 @@ export function MessagePane({ channel, slug, me, access, members, draft, setDraf
         {post && threadMessages.some(item => item.id === thread && !item.deletedAt && !item.heldAt) && composer(true)}
       </SheetContent>
     </Sheet>
-    <ChannelInfo open={info.open} onOpenChange={info.onOpenChange} channel={channel} slug={slug} members={members} pins={displayPins.length ? displayPins : pins}
-      messages={messages} setting={info.setting} onMute={info.onMute} onJump={jump} onEdit={info.onEdit} />
+    <ChannelInfo returnFocus={info.returnFocus} open={info.open} onOpenChange={info.onOpenChange} channel={channel} slug={slug} members={members} pins={displayPins.length ? displayPins : pins}
+      messages={messages} onProfile={person => { profileReturn.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setProfile({ name: person.name, role: person.role, joinedAt: person.joinedAt }); }} setting={info.setting} onMute={info.onMute} onJump={jump} onEdit={info.onEdit} />
+    <MemberProfileSheet person={profile} onClose={() => setProfile(undefined)} returnFocus={profileReturn} />
     <ConfirmDialog open={!!confirm} onOpenChange={open => { if (!open) setConfirm(undefined); }}
       title={t(confirm?.action === "remove" ? "remove" : "deleteMessage")} description={t("deleteDescription")}
       cancelLabel={t("cancel")} confirmLabel={t(confirm?.action === "remove" ? "remove" : "deleteMessage")}
