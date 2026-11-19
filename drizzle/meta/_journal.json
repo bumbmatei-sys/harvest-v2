@@ -428,6 +428,13 @@
       "when": 1795400000009,
       "tag": "0061_free_catalog",
       "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1795400000010,
+      "tag": "0062_community_member_profiles",
+      "breakpoints": true
     }
   ]
 }
