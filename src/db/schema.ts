@@ -78,7 +78,7 @@ export const auditLogs = pgTable("audit_logs", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("audit_logs_tenant_created_idx").on(t.tenantId, t.createdAt), foreignKey({ columns: [t.tenantId], foreignColumns: [workspaces.tenantId] }),
   index("community_chat_mutations_idx").on(t.actorId,t.action,t.createdAt),
-  check("audit_system_actor", sql`${t.actorId} is not null or ${t.action} in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire')`)]);
+  check("audit_system_actor", sql`${t.actorId} is not null or ${t.action} in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated')`)]);
 export const authSchema = { user: users, session: sessions, account: accounts, verification: verifications, rateLimit: rateLimits };
 
 // A campaign belongs to its parent workspace; it never creates another tenant.
@@ -154,7 +154,7 @@ export const contactConsents = pgTable("contact_consents", {
   // CRM-07 adds messaging, form follow-up and newsletter: separate opt-ins, never one bundled box.
   check("consent_purpose", sql`${t.purpose} in ('marketing', 'outreach_follow_up', 'event_administration', 'account_communications', 'legacy_unspecified', 'messaging', 'form_follow_up', 'newsletter')`),
   check("consent_occurrence_bound", sql`${t.occurredAt} <= ${t.recordedAt} + interval '5 minutes'`),
-  check("consent_notice_version", sql`${t.noticeVersion} in ('notice-v1', 'legacy-unversioned', 'connect-immutable', 'subject-withdrawal')`),
+  check("consent_notice_version", sql`${t.noticeVersion} in ('notice-v1', 'legacy-unversioned', 'connect-immutable', 'subject-withdrawal', 'newsletter-subject-v1')`),
   check("consent_redaction", sql`(${t.redactedAt} is null and ${t.contactId} is not null and ${t.channel} is not null and ${t.source} is not null and ${t.evidence} is not null) or (${t.redactedAt} is not null and ${t.channel} is null and ${t.source} is null and ${t.evidence} is null and ${t.recordedBy} is null)`)]);
 // CRM-01: organizations and explicit, tenant-scoped person-organization links.
 export const companies = pgTable("companies", {
@@ -1841,4 +1841,61 @@ export const eventRsvps = pgTable("event_rsvps", {
   index("event_rsvps_going_idx").on(t.tenantId, t.eventId).where(sql`${t.state} = 'going'`),
   index("event_rsvps_waitlist_idx").on(t.tenantId, t.eventId, t.waitlistedAt, t.userId).where(sql`${t.state} = 'waitlisted'`),
   check("event_rsvp_state", sql`${t.state} in ('going','maybe','not_going','waitlisted') and (${t.state} = 'waitlisted') = (${t.waitlistedAt} is not null) and ${t.version} > 0 and jsonb_typeof(${t.sources}) = 'object'`),
+]);
+
+export const newsletterSignupForms = pgTable("newsletter_signup_forms", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  listId: uuid("list_id").notNull(),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  active: boolean("active").notNull().default(false),
+  version: integer("version").notNull().default(1),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  unique("newsletter_signup_form_key").on(t.id),
+  foreignKey({ columns: [t.tenantId, t.listId], foreignColumns: [newsletterLists.tenantId, newsletterLists.id] }),
+  check("newsletter_signup_form_version", sql`${t.version} > 0`),
+]);
+
+export const newsletterSignupChallenges = pgTable("newsletter_signup_challenges", {
+  tokenHash: text("token_hash").primaryKey(),
+  tenantId: uuid("tenant_id").notNull(),
+  formId: uuid("form_id").notNull(),
+  contactId: uuid("contact_id"),
+  formVersion: integer("form_version").notNull(),
+  emailProof: text("email_proof").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+}, (t) => [
+  foreignKey({ columns: [t.tenantId, t.formId], foreignColumns: [newsletterSignupForms.tenantId, newsletterSignupForms.id] }).onDelete("cascade"),
+  foreignKey({ columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }).onDelete("cascade"),
+  index("newsletter_signup_challenges_contact").on(t.tenantId, t.contactId),
+  index("newsletter_signup_challenges_expiry").on(t.expiresAt),
+  check("newsletter_signup_challenge_hashes", sql`${t.tokenHash} ~ '^[0-9a-f]{64}$' and ${t.emailProof} ~ '^[0-9a-f]{64}$'`),
+]);
+
+export const newsletterPreferenceTokens = pgTable("newsletter_preference_tokens", {
+  tokenHash: text("token_hash").primaryKey(),
+  tenantId: uuid("tenant_id").notNull(),
+  subscriberId: uuid("subscriber_id").notNull(),
+  listId: uuid("list_id"),
+  scope: text("scope", { enum: ["list", "all"] }).notNull(),
+  emailProof: text("email_proof").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+}, (t) => [
+  foreignKey({ columns: [t.tenantId, t.subscriberId], foreignColumns: [newsletterSubscribers.tenantId, newsletterSubscribers.id] }).onDelete("cascade"),
+  foreignKey({ columns: [t.tenantId, t.listId, t.subscriberId], foreignColumns: [newsletterSubscriptions.tenantId, newsletterSubscriptions.listId, newsletterSubscriptions.subscriberId] }).onDelete("cascade"),
+  index("newsletter_preference_tokens_expiry").on(t.expiresAt),
+  check("newsletter_preference_token_scope", sql`(${t.scope} = 'list' and ${t.listId} is not null) or (${t.scope} = 'all' and ${t.listId} is null)`),
+  check("newsletter_preference_token_hashes", sql`${t.tokenHash} ~ '^[0-9a-f]{64}$' and ${t.emailProof} ~ '^[0-9a-f]{64}$'`),
+]);
+
+export const newsletterIntakeLimits = pgTable("newsletter_intake_limits", {
+  key: text("key").primaryKey(),
+  windowStart: timestamp("window_start", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  count: integer("count").notNull(),
+}, (t) => [
+  index("newsletter_intake_limits_expiry").on(t.expiresAt),
+  check("newsletter_intake_limit_count", sql`${t.count} > 0`),
 ]);

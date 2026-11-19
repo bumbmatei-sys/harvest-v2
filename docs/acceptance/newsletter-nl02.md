@@ -1,0 +1,19 @@
+# NL-02 newsletter signup and preferences
+
+This server slice uses migration candidate **0060** after the Events 0059 snapshot. It stays off in production before auth or database access. All five HC-02 decisions remain **UNAPPROVED**.
+
+## Signup and confirmation
+
+Ministry owners and admins create a form for a list. New forms are inactive. Versioned enable/disable makes an earlier challenge unusable. The public embed uses `GET /api/newsletter/signup` for the fixed purpose and notice identifier and `POST /api/newsletter/signup` for `{formId,email,notice,accepted:true}`. Every anonymous submission requires a separate, unchecked opt-in followed by proof of the email address. The fixed notice revision identifies the engineering contract. Public copy and a reviewed notice must precede real intake.
+
+The confirmation service checks a 30-minute, single-use challenge against the form version and canonical address. Pending rows hold digests and a canonical-contact ID where one already exists. Raw addresses are transient until confirmation, when an email can be associated with an existing canonical CRM contact or a new one. A confirmation writes the existing newsletter purpose only. NL-01 continues to use `mayContact(...,'newsletter','email')`; the privileged confirmation uses the existing parity-tested SQL gate. Outstanding cross-channel withdrawals, newer withdrawals or list unsubscribe, erasure, and hard suppression take precedence. There is no bulk or inferred consent.
+
+A per-form minute quota and a keyed per-address hourly quota bound signup. There are no global database quotas, so one anonymous caller cannot exhaust signup or confirmation for every form; ingress rate limiting must cover anonymous volume before real intake. Server-side secret material comes from a dedicated `HARVEST_NEWSLETTER_TOKEN_KEY` in non-production. Returns are fixed 202 acknowledgements for valid, unknown, expired and rejected requests. There is no token, subscriber status, or address in the replies. The code returns challenge material only to its internal caller. A future reviewed delivery slice will supply a confirmation link. No sender, queue, email or provider is wired here.
+
+## Preference tokens and lifecycle
+
+An internal owner/admin service issues signed single-use tokens scoped to a list or all newsletters, valid for 30 days and tied to the current canonical address. Public GET is a fixed read-only response. POST takes a scoped JSON action or RFC 8058 `List-Unsubscribe=One-Click` for a list token. Tokens are stored as digests. Rotating the secret invalidates old preference signatures. Neither signature permits granting consent or resetting hard suppression.
+
+List-only unsubscribe updates the list marker. All-newsletters unsubscribe appends a canonical newsletter withdrawal and clears every subscribed marker. The withdrawal hook also handles existing CRM-origin and cross-channel newsletter withdrawals. An upgrade pass reconciles outstanding withdrawals in existing NL-01 data. A later broad grant leaves old list markers unsubscribed. Merge carries restrictive list states and global hard suppression before the original record is erased. It does not copy active memberships or evidentiary list provenance. Existing canonical erasure purges newsletter records and bound pending challenges. Audit holds only internal IDs, fixed actions, counts, status and notice revision.
+
+Restricted-owner integration covers upgrades, two ministries, viewer/member contexts, explicit consent, replay, scope, hard suppression, merge, erasure and redacted responses. Operator expiry cleanup, key rotation with overlapping signatures, protection at the ingress, provider integration, production rollout, and legal policy for notice, retention and erasure remain unverified. The founder still needs to confirm notice wording, retention and whether any jurisdiction should use a separate verified-session single opt-in flow.

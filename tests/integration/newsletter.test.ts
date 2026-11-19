@@ -59,16 +59,16 @@ it('any-channel withdrawals, both clocks and effective read state match mayConta
     const s = await subscriber();
     await setNewsletterSubscription(f.db, 'n-owner', a, list, s.id, { state: 'subscribed', version: 0 });
     await consent(s.contact, 'withdrawn', 'social');
-    await expect(setNewsletterSubscription(f.db, 'n-owner', a, list, s.id, { state: 'subscribed', version: 1 })).rejects.toMatchObject({ status: 403 });
+    await expect(setNewsletterSubscription(f.db, 'n-owner', a, list, s.id, { state: 'subscribed', version: 2 })).rejects.toMatchObject({ status: 403 });
     const page = await listNewsletterSubscribers(f.db, 'n-member', a, list);
     expect(page.subscribers.find(r => r.id === s.id)?.state).toBe('unsubscribed');
     await consent(s.contact, 'granted');
-    await expect(setNewsletterSubscription(f.db, 'n-owner', a, list, s.id, { state: 'subscribed', version: 1 })).rejects.toMatchObject({ status: 403 });
+    await expect(setNewsletterSubscription(f.db, 'n-owner', a, list, s.id, { state: 'subscribed', version: 2 })).rejects.toMatchObject({ status: 403 });
     // A backdated same-channel grant cannot clear the withdrawal, even if recorded later.
     await recordConsent(f.db, 'n-owner', a, s.contact, { noticeVersion: 'notice-v1', purpose: 'newsletter', channel: 'social', status: 'granted', source: 'synthetic', evidence: 'backdated test', occurredAt: '2000-01-01T00:00:00Z' });
-    await expect(setNewsletterSubscription(f.db, 'n-owner', a, list, s.id, { state: 'subscribed', version: 1 })).rejects.toMatchObject({ status: 403 });
+    await expect(setNewsletterSubscription(f.db, 'n-owner', a, list, s.id, { state: 'subscribed', version: 2 })).rejects.toMatchObject({ status: 403 });
     await consent(s.contact, 'granted', 'social');
-    expect((await setNewsletterSubscription(f.db, 'n-owner', a, list, s.id, { state: 'subscribed', version: 1 })).state).toBe('subscribed');
+    expect((await setNewsletterSubscription(f.db, 'n-owner', a, list, s.id, { state: 'subscribed', version: 2 })).state).toBe('subscribed');
 });
 it('global/list suppression is sticky across grants and import replay', async () => {
     const s = await subscriber();
@@ -148,7 +148,7 @@ it('audit metadata excludes contact methods, tags, consent evidence and provider
     const logs = (await f.admin.query("select metadata from audit_logs where action like 'newsletter.%'")).rows;
     expect(logs.length).toBeGreaterThan(0);
     for (const { metadata } of logs) {
-        expect(Object.keys(metadata).every(k => ['contactId', 'source', 'importId', 'rowNumber', 'listId', 'from', 'to', 'version', 'consentId', 'suppressed', 'audienceId', 'savedViewId'].includes(k))).toBe(true);
+        expect(Object.keys(metadata).every(k => ['contactId', 'source', 'importId', 'rowNumber', 'listId', 'from', 'to', 'version', 'consentId', 'suppressed', 'audienceId', 'savedViewId', 'listsChanged'].includes(k))).toBe(true);
     }
     const tables = (await f.admin.query("select relname,relforcerowsecurity from pg_class where relname in ('newsletter_audiences','newsletter_lists','newsletter_subscribers','newsletter_subscriptions','newsletter_segments','newsletter_import_provenance')")).rows;
     expect(tables).toHaveLength(6);
