@@ -40,7 +40,7 @@ export function CommunityShell({ slug, name, chat = false, chatView = false, ini
   const items: Item[] = [
     ...(chat ? [{ id: "chat", icon: MessagesSquare, href: `${base}/chat`, match: [`${base}/chat`], badge }] : []), { id: "forum", icon: LayoutList, href: `${base}/forum`, match: [`${base}/forum`, `${base}/posts`] },
     { id: "events", icon: CalendarDays, soon: true }, { id: "products", icon: Package, soon: true },
-    { id: "members", icon: Users, href: `${base}/members`, match: [`${base}/members`] }, { id: "messages", icon: Mail, soon: true },
+    { id: "members", icon: Users, href: `${base}/members`, match: [`${base}/members`] }, chat ? { id: "messages", icon: Mail, href: `${base}/messages`, match: [`${base}/messages`] } : { id: "messages", icon: Mail, soon: true as const },
     { id: "about", icon: Info, href: `${base}/about`, match: [`${base}/about`] },
     // C12a: hosts only, with open reports plus held items as a badge.
     ...(moderation === null ? [] : [{ id: "moderation", icon: ShieldCheck, href: `${base}/moderation`, match: [`${base}/moderation`], badge: moderation }]),

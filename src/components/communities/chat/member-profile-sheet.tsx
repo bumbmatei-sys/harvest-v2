@@ -6,15 +6,18 @@ import { useFormatter, useTranslations } from "next-intl";
 import UserAvatar from "@/components/user-avatar";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { DmComposeDialog } from "./dm-compose-dialog";
 import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
-export type ProfilePerson = { name: string; role?: string; joinedAt?: string | null };
+export type ProfilePerson = { userId?: string; name: string; role?: string; joinedAt?: string | null };
 
-/** What the community knows about a member: name, role and when they joined. Direct messages arrive in a later release. */
-export function MemberProfileSheet({ person, onClose, returnFocus }: {
+/** What the community knows about a member: name, role and when they joined, and a Message action when `message` is given. */
+export function MemberProfileSheet({ person, onClose, returnFocus, message }: {
   person?: ProfilePerson;
   onClose: () => void;
   returnFocus?: React.RefObject<HTMLElement | null>;
+  /** The viewer, so the action is not offered on their own profile. */
+  message?: { slug: string; me: string };
 }) {
   const t = useTranslations("CommunityChat"), roles = useTranslations("CommunityEditor.roles"), format = useFormatter();
   return <Sheet open={!!person} onOpenChange={open => { if (!open) onClose(); }}>
@@ -30,6 +33,7 @@ export function MemberProfileSheet({ person, onClose, returnFocus }: {
         <SheetDescription className="sr-only">{person.name}</SheetDescription>
         {person.role && <Badge variant="secondary" className="mt-2">{roles(person.role as "owner")}</Badge>}
         {person.joinedAt && <p className="mt-3 text-sm text-muted-foreground">{t("joinedOn", { date: format.dateTime(new Date(person.joinedAt), { dateStyle: "medium" }) })}</p>}
+        {message && person.userId && person.userId !== message.me && <DmComposeDialog slug={message.slug} targetUserId={person.userId} name={person.name} />}
       </div>}
     </SheetContent>
   </Sheet>;

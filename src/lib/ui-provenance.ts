@@ -73,14 +73,18 @@ export const kitProvenance: readonly KitItemRecord[] = [
 
 /**
  * Files really copied from the founder-supplied premium Shadcn UI Kit chat app (repository bumbmatei-sys/chat-app, commit 66fd523, approved
- * 19 November 2026) for Communities C11b. Each file starts with: Derived from bumbmatei-sys/chat-app (Shadcn UI Kit, premium,
- * founder-supplied 19 Nov 2026): <source>. A test checks the header in both directions. Not copied: status and stories, calls,
- * contacts, media lightbox, new-message dialog, authentication pages, and the zustand mock store.
+ * 19 November 2026) for Communities C11b and C11c. Each file starts with: Derived from bumbmatei-sys/chat-app (Shadcn UI Kit, premium,
+ * founder-supplied 19 Nov 2026): <source>. A test checks the header in both directions. bubble.tsx is a near-verbatim copy (97% of lines).
+ * The two C11c files were made by editing the kit file text in place and rewriting what depended on the mock store: the share of lines still
+ * identical to the kit file is stated per file (measured on trimmed lines of 12 or more characters). Not copied: status and stories, calls,
+ * contacts, media lightbox, authentication pages, and the zustand mock store.
  */
 export const chatAppProvenance = {
   repository: "bumbmatei-sys/chat-app", commit: "66fd523", tier: "premium", approvedBy: "founder", approvedOn: "2026-11-19",
   files: [
-  { file: "src/components/ui/bubble.tsx", source: "components/ui/bubble.tsx", localChanges: "Copied; the header is added and the tinted variant uses a primary tint token instead of an oklch literal (source guard). Uses @base-ui/react use-render and merge-props. Own messages use the default variant, others muted." }
+  { file: "src/components/ui/bubble.tsx", source: "components/ui/bubble.tsx", localChanges: "Copied; the header is added and the tinted variant uses a primary tint token instead of an oklch literal (source guard). Uses @base-ui/react use-render and merge-props. Own messages use the default variant, others muted." },
+  { file: "src/components/communities/chat/dm-new-message-dialog.tsx", source: "app/(auth)/chats/components/new-message-dialog.tsx", localChanges: "Adapted copy (C11c): the kit dialog skeleton, search field, person rows, selected-person footer and Continue button are kept; about 27% of lines are still identical to the kit file. Group mode, logo upload, the contact and chat stores and the demo copy are removed. The people list comes from the existing server search, one person is chosen, a message field is added because starting a conversation sends its first message, and every refusal shows one neutral message. Copy comes from the catalogue; targets are 44px." },
+  { file: "src/components/communities/chat/dm-list.tsx", source: "app/(auth)/chats/components/chat-list.tsx, app/(auth)/chats/components/chat-list-item.tsx", localChanges: "Adapted copy (C11c): the kit list and row are kept in structure and class names; about 24% of lines are still identical to the two kit files. The chat store, status icons, message preview, online indicator and group items are removed. Rows are real buttons (the kit row is a clickable div), show the other person's name, time and an unread badge, and carry a 44px options menu (Mute, Hide). Blocked and read-only conversations show a short label." }
   ],
 } as const;
 
@@ -88,7 +92,7 @@ export const chatAppProvenance = {
  * Files whose layout and behaviour are modelled on the same chat app but whose code was written for Harvest: no kit code is copied
  * (a 50-character window comparison against commit 66fd523 found no shared code). Each starts with: Layout and behaviour modelled on
  * bumbmatei-sys/chat-app (Shadcn UI Kit, premium, founder-supplied 19 Nov 2026): <source>; code written for Harvest, no kit code
- * copied. The founder accepted this result on 19 November 2026; the DM, profile and events screens adopt real kit code from the start.
+ * copied. The founder accepted this result on 19 November 2026; the DM, profile and events screens adopt real kit code from the start (the C11c new-message dialog and conversation list are listed in chatAppProvenance above).
  */
 export const kitChatAppReferences = {
   repository: "bumbmatei-sys/chat-app", commit: "66fd523", tier: "premium", acceptedBy: "founder", acceptedOn: "2026-11-19",
@@ -101,7 +105,11 @@ export const kitChatAppReferences = {
   { file: "src/components/communities/chat/chat-message.tsx", source: "app/(auth)/chats/components/chat-bubbles.tsx", localChanges: "Text bubbles with a time line and a hover and focus action menu. Image, video, file and voice bubbles and the lightbox are not adopted (attachments wait for the malware scanner). Reactions, replies, reports and moderation use the real routes." },
   { file: "src/components/communities/chat/chat-composer.tsx", source: "app/(auth)/chats/components/chat-footer.tsx", localChanges: "Card composer with a round send button. The input is a single 44px line that grows to four lines. Emoji picker, file picker and voice recording are not adopted; a mention picker is added." },
   { file: "src/components/communities/chat/channel-info.tsx", source: "app/(auth)/chats/components/group-detail-drawer.tsx", localChanges: "Channel info panel: avatar, name, member count, notifications, members, pinned messages, links, and empty media and documents sections. Leave group is not offered." },
-  { file: "src/components/communities/chat/member-profile-sheet.tsx", source: "app/(auth)/chats/components/user-detail-sheet.tsx", localChanges: "Member profile sheet with name, role and joined date only; no phone, country, website or shared files. Direct messages arrive in a later release." }
+  { file: "src/components/communities/chat/member-profile-sheet.tsx", source: "app/(auth)/chats/components/user-detail-sheet.tsx", localChanges: "Member profile sheet with name, role and joined date only; no phone, country, website or shared files. C11c adds a Message action that opens a compose dialog; it does not vary with the other person." },
+  { file: "src/components/communities/chat/message-list.tsx", source: "app/(auth)/chats/components/chat-content.tsx", localChanges: "The scrolling message list, read mark and screen reader notice moved out of the channel pane so channels and private messages share them (C11c). Nothing from the kit file is copied." },
+  { file: "src/components/communities/chat/dm-message.tsx", source: "app/(auth)/chats/components/chat-bubbles.tsx", localChanges: "Private message row: text bubble, time, edited marker, deleted placeholder, author menu (edit, delete, restore) and a report action on the other person's messages. No reactions, replies, media, voice or status ticks." },
+  { file: "src/components/communities/chat/dm-pane.tsx", source: "app/(auth)/chats/components/chat-content.tsx", localChanges: "Private conversation: shared message list and composer with the real polling hook, an inline not-available state, a read-only banner, a blocked banner with Unblock and a delete confirmation. No mock messages, calls or attachments." },
+  { file: "src/components/communities/chat/dm-layout.tsx", source: "app/(auth)/chats/components/chats-view.tsx", localChanges: "Conversation list beside the open conversation (one pane at a time on phones, no bottom bar). Header actions: mute, profile, hide, block. Status strip and call screen are not used." }
   ],
 } as const;
 

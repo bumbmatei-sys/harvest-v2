@@ -29,7 +29,7 @@ export function chatDraftPayload(draft: ChatDraft) {
   return { body, mention_ids };
 }
 
-export function ChatComposer({ draft, onChange, onSend, onCancel, busy, blocked, members, mode = "send" }: {
+export function ChatComposer({ draft, onChange, onSend, onCancel, busy, blocked, members, mode = "send", mentionable = true, label: custom }: {
   draft: ChatDraft;
   onChange: (draft: ChatDraft) => void;
   onSend: () => void;
@@ -38,6 +38,10 @@ export function ChatComposer({ draft, onChange, onSend, onCancel, busy, blocked,
   blocked: boolean;
   members: ChatPerson[];
   mode?: "send" | "reply" | "edit";
+  /** Private messages have no mentions: the picker is not offered. */
+  mentionable?: boolean;
+  /** Accessible name and placeholder; defaults to the channel wording. */
+  label?: string;
 }) {
   const t = useTranslations("CommunityChat"), id = useId();
   const [picker, setPicker] = useState(false);
@@ -49,7 +53,7 @@ export function ChatComposer({ draft, onChange, onSend, onCancel, busy, blocked,
     element.style.height = "auto";
     element.style.height = `${composerHeight(element.scrollHeight)}px`;
   }, [draft.text]);
-  const label = t(mode === "edit" ? "editMessage" : mode === "reply" ? "reply" : "message");
+  const label = custom ?? t(mode === "edit" ? "editMessage" : mode === "reply" ? "reply" : "message");
   const valid = chatBody.safeParse(chatDraftPayload(draft).body).success;
   const disabled = blocked || busy || !valid;
   function mention(person: ChatPerson) {
@@ -67,7 +71,7 @@ export function ChatComposer({ draft, onChange, onSend, onCancel, busy, blocked,
           rows={1} placeholder={label} onChange={event => {
             const text = event.target.value;
             onChange({ ...draft, text });
-            if (members.length && draft.mentions.length < 10 && /(^|\s)@$/.test(text)) setPicker(true);
+            if (mentionable && members.length && draft.mentions.length < 10 && /(^|\s)@$/.test(text)) setPicker(true);
           }}
           onKeyDown={event => {
             if (event.key === "Enter" && !event.shiftKey && !event.nativeEvent.isComposing) {
@@ -75,7 +79,7 @@ export function ChatComposer({ draft, onChange, onSend, onCancel, busy, blocked,
               if (!disabled) onSend();
             }
           }} />
-        <Popover open={picker} onOpenChange={setPicker}>
+        {mentionable && <Popover open={picker} onOpenChange={setPicker}>
           <PopoverTrigger asChild><Button type="button" variant="ghost" size="icon" className="size-11 shrink-0 rounded-full" aria-label={t("mention")}
             disabled={blocked || busy || !members.length || draft.mentions.length >= 10}><AtSign aria-hidden="true" /></Button></PopoverTrigger>
           <PopoverContent align="end" className="p-0">
@@ -86,7 +90,7 @@ export function ChatComposer({ draft, onChange, onSend, onCancel, busy, blocked,
               </CommandList>
             </Command>
           </PopoverContent>
-        </Popover>
+        </Popover>}
         {onCancel && <Button type="button" variant="ghost" className="min-h-11 shrink-0" onClick={onCancel}>{t("cancel")}</Button>}
         <Button type="submit" size="icon" className="size-11 shrink-0 rounded-full" disabled={disabled}
           aria-label={t(mode === "edit" ? "saveEdit" : "send")}><Send aria-hidden="true" /></Button>
