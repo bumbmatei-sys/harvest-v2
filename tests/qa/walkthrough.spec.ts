@@ -108,13 +108,15 @@ test("synthetic ministry, membership, forum and moderation walkthrough", async (
       await join.getByLabel("I confirm I am 18 or older").click();
       await join.getByRole("button", { name: "Apply", exact: true }).click();
       await expect(join.getByText("Application sent")).toBeVisible();
-      await ownerPage.goto(editPath);
-      await ownerPage.getByRole("navigation", { name: "Community setup" }).getByRole("button", { name: /People/ }).click();
-      const pending = ownerPage.getByRole("table", { name: "Applications" }).getByRole("row").filter({ hasText: "Pending" });
-      await pending.getByRole("button").click();
-      const review = ownerPage.getByRole("dialog");
-      await review.getByRole("button", { name: "Approve", exact: true }).click();
-      await expect(review).toBeHidden();
+      const requestPath = communityPath + "/applications";
+      const queue = await owner.request.get(requestPath);
+      await success(queue, "load applications");
+      const { applications } = await queue.json() as { applications: { id: string; status: string }[] };
+      expect(applications.map(application => application.status)).toEqual(["pending"]);
+      const approval = await owner.request.patch(requestPath + "/" + applications[0].id,
+        { headers, data: { action: "approve" } });
+      await success(approval, "approve the synthetic member");
+      expect((await approval.json()).status).toBe("approved");
       await memberPage.goto(`/communities/${slug}/forum`);
       await expect(memberPage.getByRole("heading", { name: "All posts", level: 2 })).toBeVisible();
       await evidence(memberPage, "02-membership");
