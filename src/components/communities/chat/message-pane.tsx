@@ -1,14 +1,14 @@
 /** Layout and behaviour modelled on bumbmatei-sys/chat-app (Shadcn UI Kit, premium, founder-supplied 19 Nov 2026): app/(auth)/chats/components/chat-content.tsx; code written for Harvest, no kit code copied. Harvest notes: docs/ui-sources.md. */
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { useMemo, useRef, useState, type RefObject } from "react";
 import { useTranslations } from "next-intl";
 import { Pin } from "lucide-react";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Bubble, BubbleContent } from "@/components/ui/bubble";
-import { MessageScroller, MessageScrollerButton, MessageScrollerContent, MessageScrollerItem, MessageScrollerProvider, MessageScrollerViewport, useMessageScrollerScrollable } from "@/components/ui/message-scroller";
+import { MessageScrollerItem } from "@/components/ui/message-scroller";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { usePolling, retryAfterDelay } from "@/hooks/use-polling";
 import { channelEligible, chatTokens } from "@/lib/chat";
@@ -20,64 +20,13 @@ import { ChannelInfo } from "./channel-info";
 import { MemberProfileSheet, type ProfilePerson } from "./member-profile-sheet";
 import { ChatComposer, chatDraftPayload, emptyChatDraft, type ChatDraft } from "./chat-composer";
 import { ChatMessageRow, type ChatAction } from "./chat-message";
-
-async function chatRequest(path: string, method: string, body?: unknown) {
-  return fetch(path, { method, headers: body === undefined ? undefined : { "Content-Type": "application/json" },
-    body: body === undefined ? undefined : JSON.stringify(body) });
-}
+import { chatRequest, LiveMessageNotice, MessageList, ReadState } from "./message-list";
 
 const retryDeadline = (delay: number) => performance.now() + delay;
 const secondsRemaining = (deadline: number) => Math.ceil((deadline - performance.now()) / 1000);
 
 const seqBefore = (rows: ChatMessage[]) =>
   rows.reduce<string | null>((oldest, row) => oldest === null || BigInt(row.seq) < BigInt(oldest) ? row.seq : oldest, null);
-
-function ReadState({ seq, enabled, endpoint, onRead }: { seq?: string; enabled: boolean; endpoint: string; onRead: () => void }) {
-  const { end } = useMessageScrollerScrollable();
-  const sent = useRef("0");
-  useEffect(() => {
-    if (end || !enabled || !seq || BigInt(seq) <= BigInt(sent.current)) return;
-    let active = true;
-    const timer = setTimeout(async () => {
-      if (document.visibilityState !== "visible" || !document.hasFocus()) return;
-      try {
-        const response = await chatRequest(endpoint, "PUT", { upTo: seq });
-        if (response.ok && active) {
-          sent.current = seq;
-          onRead();
-        }
-      } catch { /* A later revision or focus change can retry. */ }
-    }, 500);
-    return () => { active = false; clearTimeout(timer); };
-  }, [enabled, end, endpoint, onRead, seq]);
-  return null;
-}
-
-function MessageList({ children, label, className, onLatest }: {
-  children: React.ReactNode;
-  label: string;
-  className?: string;
-  onLatest?: React.ReactNode;
-}) {
-  const t = useTranslations("CommunityChat");
-  return <MessageScrollerProvider autoScroll defaultScrollPosition="end">
-    <MessageScroller className={className}>
-      <MessageScrollerViewport aria-label={label} role="region">
-        <MessageScrollerContent className="p-3 md:p-4" role="presentation" aria-live="off">{children}</MessageScrollerContent>
-      </MessageScrollerViewport>
-      <MessageScrollerButton label={t("jumpLatest")} />
-      {onLatest}
-    </MessageScroller>
-  </MessageScrollerProvider>;
-}
-
-function LiveMessageNotice({ latest, enabled }: { latest?: ChatMessage; enabled: boolean }) {
-  const t = useTranslations("CommunityChat");
-  const { end } = useMessageScrollerScrollable();
-  return <div role="log" aria-label={t("newMessages")} aria-live={enabled && !end ? "polite" : "off"} aria-relevant="additions text" className="sr-only">
-    {latest && <span key={latest.id}>{t("newMessageFrom", { name: latest.authorName || t("formerMember") })}</span>}
-  </div>;
-}
 
 export function MessagePane({ channel, slug, me, access, members, draft, setDraft, retryIds, storeRetry, online, focused, onRead, info }: {
   channel: ChatChannel;
@@ -309,7 +258,7 @@ export function MessagePane({ channel, slug, me, access, members, draft, setDraf
         onProfile={message => {
           profileReturn.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
           const person = members.find(entry => entry.userId === message.authorId);
-          setProfile({ name: person?.name ?? message.authorName ?? t("formerMember"), role: person?.role, joinedAt: person?.joinedAt });
+          setProfile({ userId: message.authorId ?? undefined, name: person?.name ?? message.authorName ?? t("formerMember"), role: person?.role, joinedAt: person?.joinedAt });
         }} />
     </MessageScrollerItem>;
   }
@@ -341,7 +290,7 @@ export function MessagePane({ channel, slug, me, access, members, draft, setDraf
     </div>}
     <MessageList label={t("messagesIn", { channel: channel.name })}
       onLatest={<><ReadState seq={latestLoaded?.seq} enabled={online && focused && caughtUp && !thread} endpoint={`${endpoint}/read`} onRead={onRead} />
-        <LiveMessageNotice latest={announcement} enabled={caughtUp} /></>}>
+        <LiveMessageNotice latest={announcement && { id: announcement.id, name: announcement.authorName || t("formerMember") }} enabled={caughtUp} /></>}>
       {history?.more && <Button variant="outline" className="min-h-11 self-center" disabled={paging || !online} onClick={() => void earlier()}>{t("older")}</Button>}
       {!history ? <p className="text-sm text-muted-foreground" role="status">{t("loading")}</p>
         : !visible.length && !history.more && <p className="text-sm text-muted-foreground">{t("emptyMessages")}</p>}
@@ -368,8 +317,8 @@ export function MessagePane({ channel, slug, me, access, members, draft, setDraf
       </SheetContent>
     </Sheet>
     <ChannelInfo returnFocus={info.returnFocus} open={info.open} onOpenChange={info.onOpenChange} channel={channel} slug={slug} members={members} pins={displayPins.length ? displayPins : pins}
-      messages={messages} onProfile={person => { profileReturn.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setProfile({ name: person.name, role: person.role, joinedAt: person.joinedAt }); }} setting={info.setting} onMute={info.onMute} onJump={jump} onEdit={info.onEdit} />
-    <MemberProfileSheet person={profile} onClose={() => setProfile(undefined)} returnFocus={profileReturn} />
+      messages={messages} onProfile={person => { profileReturn.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setProfile({ userId: person.userId, name: person.name, role: person.role, joinedAt: person.joinedAt }); }} setting={info.setting} onMute={info.onMute} onJump={jump} onEdit={info.onEdit} />
+    <MemberProfileSheet person={profile} onClose={() => setProfile(undefined)} returnFocus={profileReturn} message={{ slug, me }} />
     <ConfirmDialog open={!!confirm} onOpenChange={open => { if (!open) setConfirm(undefined); }}
       title={t(confirm?.action === "remove" ? "remove" : "deleteMessage")} description={t("deleteDescription")}
       cancelLabel={t("cancel")} confirmLabel={t(confirm?.action === "remove" ? "remove" : "deleteMessage")}
