@@ -9,7 +9,8 @@ import { message } from "../i18n/messages";
 import { communitySlug } from "./communities";
 import { forumContext } from "./community-forum";
 import { AccessError } from "./permissions";
-import { InvalidStoredFile, type StorageAdapter } from "./storage/adapter";
+import type { StorageAdapter } from "./storage/adapter";
+import { inspectCommunityUpload } from "./files/community-upload-verification";
 import { noOpScanner, type FileScanner } from "./files/scanner";
 import { withUser } from "./tenancy";
 
@@ -44,14 +45,7 @@ export async function confirmCommunityUpload(db: Database, storage: StorageAdapt
   let file = await read();
   if (!file) throw unavailable();
   if (file.status === "pending") {
-    let next: "uploaded" | "quarantined" = "uploaded";
-    try {
-      const actual = await storage.inspect(file.key, file);
-      if (actual.size !== file.size || actual.mime !== file.mime || actual.checksum !== file.checksum) throw new InvalidStoredFile(message("Errors.uploadVerificationFailed"));
-    } catch (error) {
-      if (!(error instanceof InvalidStoredFile)) throw new AccessError(409, message("Errors.uploadIsUnavailableFinishUploadingAndRetryConfirmation"));
-      next = "quarantined";
-    }
+    const next = await inspectCommunityUpload(storage, file);
     await setStatus(db, userId, parsed, id, next);
     file = await read();
   }

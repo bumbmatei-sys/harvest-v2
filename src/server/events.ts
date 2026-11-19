@@ -14,7 +14,7 @@ export function eventsEnabled(env: Record<string, string | undefined> = process.
 
 const rsvpState = z.enum(["going", "maybe", "not_going", "waitlisted"]);
 type State = z.infer<typeof rsvpState>;
-type EventRecord = CalendarEvent & { timeZone: string; capacity: number | null; available: number | null; rsvp: State | null; rsvpVersion: number; canClaimSeat: boolean; reminderMinutes: number | null; location: string | null; waitlistEnabled: boolean; joinWindowMinutes?: number | null };
+type EventRecord = CalendarEvent & { timeZone: string; capacity: number | null; available: number | null; rsvp: State | null; rsvpVersion: number; canClaimSeat: boolean; reminderMinutes: number | null; location: string | null; waitlistEnabled: boolean; joinWindowMinutes?: number | null; coverFileId: string | null };
 type RosterEntry = { userId: string; state: State; eligible: boolean };
 type ReminderCandidate = { userId: string; eventVersion: number; rsvpVersion: number; dueAt: string };
 type Action = "list" | "get" | "save" | "publish" | "cancel" | "rsvp" | "join" | "preview_join" | "roster" | "reminder_candidates" | "link_community" | "unlink_community";

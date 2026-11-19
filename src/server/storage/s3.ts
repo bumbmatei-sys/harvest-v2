@@ -5,7 +5,7 @@ import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from 
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { filenameMatchesMime, MAX_FILE_SIZE, type UploadInput } from "../../lib/files";
 import { downloadDisposition } from "../../lib/download-filename";
-import { InvalidStoredFile, type StorageAdapter } from "./adapter";
+import { InvalidStoredFile, type StorageAdapter, type ImageMime } from "./adapter";
 
 export class S3Storage implements StorageAdapter {
   private client: S3Client;
@@ -66,10 +66,10 @@ export class S3Storage implements StorageAdapter {
     }
     return { size, mime, checksum: hash.digest("hex") };
   }
-  presignDownload(key: string, name: string) {
+  presignDownload(key: string, name: string, options?: { inlineImage: ImageMime }) {
     return getSignedUrl(this.client, new GetObjectCommand({ Bucket: this.config.bucket, Key: key,
-      ResponseContentDisposition: downloadDisposition(name),
-      ResponseContentType: "application/octet-stream", ResponseCacheControl: "private, no-store",
+      ResponseContentDisposition: options ? "inline" : downloadDisposition(name),
+      ResponseContentType: options?.inlineImage ?? "application/octet-stream", ResponseCacheControl: "private, no-store",
     }), { expiresIn: 60 });
   }
 }
