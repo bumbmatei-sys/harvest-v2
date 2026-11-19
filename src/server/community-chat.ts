@@ -155,7 +155,7 @@ export function chatManageSettings(db: Database, user: string, slug: string) {
   enabled(); const parsed = communitySlug.parse(slug);
   return withUser(db, user, async tx => {
     const member = await forumContextTx(tx, user, parsed);
-    if (!member) throw notFound();
+    if (!member || !member.chatEnabled) throw notFound();
     if (!communityCan(member.role, "chat:manage_channels")) throw new AccessError(403, message("Errors.forumActionNotAllowed"));
     const community = { tenant: member.tenantId, id: member.id };
     const scope = and(eq(communityChannels.tenantId, community.tenant), eq(communityChannels.communityId, community.id));

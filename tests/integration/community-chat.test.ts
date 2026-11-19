@@ -8,7 +8,7 @@ import { users } from "../../src/db/schema";
 import { createWorkspace } from "../../src/server/workspaces";
 import { createCommunity } from "../../src/server/communities";
 import { withUser, withTenant } from "../../src/server/tenancy";
-import { chatState, chatMessages, saveChatChannel, chatChannelSelection, chatChannelSettings } from "../../src/server/community-chat";
+import { chatState, chatMessages, saveChatChannel, chatChannelSelection, chatChannelSettings, chatManageSettings } from "../../src/server/community-chat";
 vi.mock("server-only", () => ({}));
 let f: Awaited<ReturnType<typeof testDatabase>>, parallel: Pool, tenant: string, otherTenant: string, club: string, otherClub: string, general: string;
 const ids = ["owner", "admin", "mod", "contributor", "member", "second", "pending", "banned", "left", "removed", "outsider", "viewer", "other-owner", "other-member"];
@@ -484,4 +484,23 @@ it("loads pins and replies through the same channel scope and limits editor deta
   const settings = await chatChannelSettings(f.db, "owner", tenant, club);
   expect(settings.channels.find(item => item.id === restricted)?.userIds).toEqual(["member"]);
   await expect(chatChannelSettings(f.db, "other-owner", tenant, club)).rejects.toMatchObject({ status: 403 });
+});
+it("serves full channel settings only to roles that manage channels (GET /settings)", async () => {
+  for (const user of ["owner", "admin"]) {
+    const channels = await chatManageSettings(f.db, user, "chat-club");
+    expect(channels.some(item => item.id === general && item.name === "General"), user).toBe(true);
+    expect(channels[0]).toHaveProperty("slowModeSeconds");
+    expect(channels[0]).toHaveProperty("userIds");
+  }
+  // Plain and staff members who cannot manage channels: refused, never a partial answer.
+  for (const user of ["member", "second", "mod", "contributor"]) await expect(chatManageSettings(f.db, user, "chat-club"), user).rejects.toMatchObject({ status: 403 });
+  // Not a member, not active, a ministry viewer, or another ministry: the community is not visible.
+  for (const user of ["outsider", "pending", "banned", "left", "removed", "viewer", "other-owner", "other-member"]) await expect(chatManageSettings(f.db, user, "chat-club"), user).rejects.toMatchObject({ status: 404 });
+  // A community of another tenant, and an unknown community, read as missing for the owner of this one.
+  await expect(chatManageSettings(f.db, "owner", "chat-third")).rejects.toMatchObject({ status: 404 });
+  await expect(chatManageSettings(f.db, "owner", "no-such-community")).rejects.toMatchObject({ status: 404 });
+  // Chat switched off: not found, even for the owner.
+  await f.admin.query("update communities set chat_enabled=false where id=$1", [club]);
+  try { await expect(chatManageSettings(f.db, "owner", "chat-club")).rejects.toMatchObject({ status: 404 }); }
+  finally { await f.admin.query("update communities set chat_enabled=true where id=$1", [club]); }
 });
