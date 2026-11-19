@@ -2,7 +2,7 @@ import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
-import { chatAppHeaderSource, chatAppProvenance, kitChatAppReferences, kitHeaderItem, modelledHeaderSource, kitProvenance, validateKitRecord, type KitItemRecord } from "../../src/lib/ui-provenance";
+import { adminDashboardHeaderSource, kitAdminDashboardReferences, chatAppHeaderSource, chatAppProvenance, kitChatAppReferences, kitHeaderItem, modelledHeaderSource, kitProvenance, validateKitRecord, type KitItemRecord } from "../../src/lib/ui-provenance";
 import { scanForSecrets } from "../../src/lib/secret-scan";
 
 const root = resolve(__dirname, "../..");
@@ -113,5 +113,22 @@ describe("chat-app provenance", () => {
     const read = (file: string) => readFileSync(join(root, file), "utf8");
     expect(files.filter(file => chatAppHeaderSource(read(file)) !== null && !copied.has(file))).toEqual([]);
     expect(files.filter(file => modelledHeaderSource(read(file)) !== null && !modelled.has(file))).toEqual([]);
+  });
+});
+
+describe("admin-dashboard provenance", () => {
+  it("lists modelled-on references only with the Admin-dashboard header and never a Derived from header", () => {
+    for (const entry of kitAdminDashboardReferences.files) {
+      const source = readFileSync(join(root, entry.file), "utf8");
+      expect(existsSync(join(root, entry.file)), entry.file).toBe(true);
+      expect(adminDashboardHeaderSource(source), entry.file).toContain(entry.source.split(", ")[0]);
+      expect(chatAppHeaderSource(source), entry.file).toBeNull();
+      expect(kitHeaderItem(source), entry.file).toBeNull();
+    }
+  });
+  it("finds no file with the header that is missing from the list", () => {
+    const listed = new Set<string>(kitAdminDashboardReferences.files.map(entry => entry.file));
+    const files = ["src", "scripts", "tests"].flatMap(dir => walk(join(root, dir))).map(file => file.slice(root.length + 1));
+    expect(files.filter(file => adminDashboardHeaderSource(readFileSync(join(root, file), "utf8")) !== null && !listed.has(file))).toEqual([]);
   });
 });
