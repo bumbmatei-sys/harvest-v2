@@ -208,12 +208,53 @@ it("caps consecutive messages and serializes opposing find-or-create calls", asy
 it("applies the hourly, daily and message windows", async () => {
   await policy("members");
   for (let i = 0; i < 3; i++) expect((await start("alice", `receiver-${i}`)).outcome).toBe("ok");
-  expect(await start("alice", "receiver-3")).toEqual({ outcome: "rate_limited", retryAfter: 3600 });
+  expect(await start("alice", "receiver-3")).toEqual({ outcome: "not_available" });
   for (let i = 0; i < 10; i++) {
     expect((await start("owner", `receiver-${i}`)).outcome).toBe("ok");
     await fixture.admin.query("update community_dm_messages set created_at=now()-interval '11 minutes' where author_id='owner'");
   }
-  expect(await start("owner", "receiver-10")).toEqual({ outcome: "rate_limited", retryAfter: 86400 });
+  expect(await start("owner", "receiver-10")).toEqual({ outcome: "not_available" });
+});
+
+it("gives a quota-limited sender the same refusal for eligible, opted-out, blocked and absent recipients", async () => {
+  await policy("members");
+  await fixture.admin.query("update community_memberships set dm_accept_members=false where user_id='bob'");
+  await dmBlock(fixture.db, "receiver-4", slug, { targetUserId: "alice" }, false);
+  for (let i = 0; i < 3; i++) expect((await start("alice", `receiver-${i}`)).outcome).toBe("ok");
+  for (const to of ["receiver-3", "bob", "receiver-4", "absent-user", "receiver-0"]) {
+    expect(await start("alice", to)).toEqual({ outcome: "not_available" });
+  }
+  // This address was messageable, and a caller can still use their existing conversation.
+  const id = (await fixture.admin.query(
+    "select id from community_dm_conversations where pair_key = public.community_dm_pair('alice','receiver-0')")).rows[0].id;
+  expect((await send("alice", id, "Continue the conversation")).outcome).toBe("ok");
+  await fixture.admin.query("update community_dm_conversations set created_at=now()-interval '2 hours' where started_by='alice'");
+  await fixture.admin.query("update community_dm_messages set created_at=now()-interval '11 minutes' where author_id='alice'");
+  expect((await start("alice", "receiver-3")).outcome).toBe("ok");
+  for (const to of ["bob", "receiver-4", "absent-user"]) expect(await start("alice", to)).toEqual({ outcome: "not_available" });
+});
+
+it("normalizes address-based burst limits while retaining the known-thread send response", async () => {
+  await policy("members");
+  const opened = await start("alice", "bob");
+  for (let i = 0; i < 4; i++) {
+    expect((await send("bob", opened.conversationId!, "Reply")).outcome).toBe("ok");
+    expect((await send("alice", opened.conversationId!, "Next message")).outcome).toBe("ok");
+  }
+  await fixture.admin.query("update community_dm_messages set created_at=now() where author_id='alice'");
+  expect(await start("alice", "receiver-3")).toEqual({ outcome: "not_available" });
+  expect(await start("alice", "absent-user")).toEqual({ outcome: "not_available" });
+  expect(await send("alice", opened.conversationId!, "Capped send")).toEqual({ outcome: "rate_limited", retryAfter: 10 });
+});
+
+it("keeps reused address requests from distinguishing eligible and absent targets", async () => {
+  await policy("members");
+  const client = randomUUID(), body = "Original submission";
+  expect((await start("alice", "bob", body, client)).outcome).toBe("ok");
+  for (const to of ["receiver-3", "absent-user"]) {
+    expect(await start("alice", to, body, client)).toEqual({ outcome: "not_available" });
+    expect(await start("alice", to, "Changed submission", client)).toEqual({ outcome: "client_id_conflict" });
+  }
 });
 
 it("opens bounded immutable evidence only for a non-party owner or admin and sets decision expiry", async () => {

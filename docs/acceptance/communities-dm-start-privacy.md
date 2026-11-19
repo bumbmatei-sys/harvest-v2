@@ -1,0 +1,7 @@
+# Private-message start privacy
+
+0063 checks the sender's conversation windows and message windows under the sender lock before an address-based start examines a recipient, block, or existing pair. A refused start uses the same `not_available` response regardless of the recipient or the sender's quota. A capped sender can still open a known conversation through their own rail. Sending by its authorized conversation ID retains existing rate and unanswered feedback. A retry through the address-based operation is subject to the sender's current quota.
+
+People search has no quota branch to reorder. It still selects candidates using the messageability predicate, with blocks intentionally ignored in the search projection. Opt-outs, membership and policy can still affect which names appear. Options for a later founder decision are to keep the current suggestions, use an eligibility-independent community directory that respects profile visibility and keeps all eligibility checks on submit, or drop people search and start from an already-visible profile or an existing conversation. This slice leaves search behavior in place.
+
+Verification uses synthetic accounts, two tenants and a restricted migration owner. The tests compare eligible, opted-out, blocked and absent targets under the same sender quota. Production remains hard-off through the existing chat gate. Hosted migration and independent review remain pending. All five HC-02 gates remain **UNAPPROVED**.
