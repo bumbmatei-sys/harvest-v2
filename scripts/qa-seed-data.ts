@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import type { Pool } from "pg";
+import { resetQaWalkthrough } from "./qa-walkthrough-reset";
 
 const prefix = "QA Seed ";
 const seededAt = "2026-01-05T12:00:00Z";
@@ -29,6 +30,7 @@ export async function seedQaData(pool: Pool, reset: boolean) {
     const pollution = await client.query(`
       select exists(select from public.users where email !~ '^[^@]+@(qa[.]harvest[.]invalid|example[.]test)$') as found`);
     if (pollution.rows[0]?.found !== false) throw new Error("QA_SEED_NON_SYNTHETIC_USERS");
+    if (reset) await resetQaWalkthrough(client);
     for (const person of people) {
       await client.query(`
         insert into public.users (id, name, email, email_verified, created_at, updated_at)

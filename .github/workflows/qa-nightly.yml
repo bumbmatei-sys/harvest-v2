@@ -23,16 +23,18 @@ jobs:
       - name: Check preview configuration
         env:
           QA_PREVIEW_URL: ${{ vars.QA_PREVIEW_URL }}
+          QA_PREVIEW_HOST: ${{ vars.QA_PREVIEW_HOST }}
           QA_PREVIEW_HELPER_KEY: ${{ secrets.QA_PREVIEW_HELPER_KEY }}
         run: |
-          if [ -z "$QA_PREVIEW_URL" ] || [ -z "$QA_PREVIEW_HELPER_KEY" ]; then
-            echo "Configure the preview origin and helper key before dispatch."
+          if [ -z "$QA_PREVIEW_URL" ] || [ -z "$QA_PREVIEW_HOST" ] || [ -z "$QA_PREVIEW_HELPER_KEY" ]; then
+            echo "Configure the preview origin, pinned hostname and helper key before dispatch."
             exit 1
           fi
       - name: Walk through synthetic communities
         id: browser
         env:
           QA_PREVIEW_URL: ${{ vars.QA_PREVIEW_URL }}
+          QA_PREVIEW_HOST: ${{ vars.QA_PREVIEW_HOST }}
           QA_PREVIEW_HELPER_KEY: ${{ secrets.QA_PREVIEW_HELPER_KEY }}
           QA_PREVIEW_BYPASS: ${{ secrets.QA_PREVIEW_BYPASS }}
         run: |
