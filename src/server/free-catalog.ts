@@ -33,7 +33,7 @@ const draft = z.discriminatedUnion("kind", [
 const edit = z.object({ version, draft }).strict();
 const transition = z.object({ version, state: z.enum(["draft", "published", "archived"]) }).strict();
 const link = z.object({ position: z.number().int().min(0).max(1000) }).strict();
-const notFound = () => new AccessError(404, message("Errors.communityNotFound"));
+const notFound = () => new AccessError(404, message("Errors.catalogItemNotFound"));
 const conflict = () => new AccessError(409, message("Errors.thisRecordChangedReloadAndTryAgain"));
 const invalid = () => new AccessError(400, message("Errors.checkTheSuppliedDetails"));
 

@@ -120,6 +120,9 @@ it("forces RLS on every new table and denies raw cross-tenant operations", async
   expect((await f.admin.query(`select relname from pg_class where relrowsecurity and relforcerowsecurity and
     (relname like 'catalog_%' or relname='community_product_links') order by relname`)).rows.map((row) => row.relname))
     .toEqual(["catalog_enrolments", "catalog_files", "catalog_items", "catalog_lessons", "community_product_links"]);
+  expect((await f.admin.query(`select roles::text[] as roles from pg_policies
+    where schemaname='public' and tablename='files' and policyname='catalog_resolver_file'`)).rows)
+    .toEqual([{ roles: [f.migrationOwner] }]);
   const input = course("safe-content");
   const item = await createCatalogItem(f.db, owner, tenant, input);
   await expect(withTenant(f.db, other, foreignTenant, "workspace:read", (tx) =>

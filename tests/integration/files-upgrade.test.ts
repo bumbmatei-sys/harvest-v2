@@ -13,7 +13,10 @@ it("upgrades a database at main+#3 to 0004_files while preserving OTP issuance s
     expect(otp).toEqual({ count: 1, reservation_id: "11111111-1111-4111-8111-111111111111" });
     const { rows: [table] } = await fixture.admin.query("select relrowsecurity, relforcerowsecurity from pg_class where oid = 'files'::regclass");
     expect(table).toEqual({ relrowsecurity: true, relforcerowsecurity: true });
-    expect((await fixture.admin.query("select policyname from pg_policies where tablename = 'files' order by policyname")).rows.map((row) => row.policyname)).toEqual(["files_public_delivery", "files_tenant"]);
+    const { rows: policies } = await fixture.admin.query(`select policyname from pg_policies
+      where schemaname = 'public' and tablename = 'files' and ('harvest_app' = any(roles) or 'public' = any(roles))
+      order by policyname`);
+    expect(policies.map((row) => row.policyname)).toEqual(["files_public_delivery", "files_tenant"]);
     expect((await fixture.db.execute("select * from files")).rows).toEqual([]);
   } finally { await fixture.close(); }
 });
