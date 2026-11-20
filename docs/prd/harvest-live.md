@@ -238,3 +238,21 @@ Actual costs vary with video tiles/bitrates, durations, cloud plan, egress, rete
 - Region pinning / compliance needs and encryption design for AI and recording workflows.
 
 **No deployment, provider purchase, billing activation, merge or production changes authorized by this PRD.**
+
+
+## 14. Founder decision — BYO Google Meet and Zoom accounts (20 Nov 2026)
+
+**Decision supersedes the earlier native-media recommendation for the initial Harvest Live implementation.** Harvest Live will initially support **Google Meet and Zoom Meetings as two OAuth-connected meeting providers**. Each workspace/user connects their own eligible account and selects a default provider. Harvest is the scheduling, invitation, access, event/community/course integration and metadata control plane. Video calls occur in the provider's own interface, with its branding and account-level feature/plan restrictions. Do **not** use LiveKit Cloud or Zoom Video SDK for initial implementation, do not buy media capacity, and do not imply a white-label video grid.
+
+### Integration contract
+- Secure Google OAuth and Zoom OAuth with minimal scopes, encrypted token storage, refresh, disconnect/revoke, and account ownership isolation. Determine whether connections belong to individual hosts or workspace service accounts; support explicit host ownership.
+- Google Meet: create and manage spaces/meeting links using authorized Google APIs and/or Google Calendar conference data, subject to account capabilities and API constraints.
+- Zoom Meetings: use OAuth and Zoom Meetings APIs for scheduling, editing, cancellation and join/start URLs, subject to account permissions and rate limits.
+- Persist provider, connected-account reference, external meeting ID, join URL, host ownership, schedule, recurrence mapping, status and link to Harvest group/course/event. Never store passwords or expose provider OAuth secrets.
+- Each organizer can choose Google Meet or Zoom when scheduling; workspace may define a default. Do not silently fall back between providers or create duplicate meetings on retry.
+- Guest participants may follow provider join URLs without connecting their own accounts when provider policy allows; provider login or access controls still apply.
+- Webhooks/polling synchronize changes where supported; reconcile provider-side edits, deleted meetings and token revocation.
+- Recording, transcript, attendance, AI summaries, webinars and livestream features are **conditional on the provider, organizer subscription, granted scopes, artifact availability, and consent**. Do not promise parity across providers. Ingest artifacts only when legitimately accessible and approved; process with the existing AI abstraction if enabled.
+- Costs: Harvest pays normal app/API hosting and integration maintenance, **not per-participant media minutes** for BYO standard meetings. Connected organizations pay their own Zoom/Google subscription costs if needed. Optional AI processing/storage/notifications may still cost Harvest and need metering.
+- Full native LiveKit/Zoom Video SDK architecture in sections 2–13 is **deferred exploratory reference**, not the approved initial implementation. Prior LIVE-01..LIVE-11 slices must be re-scoped to provider connections and scheduling before work begins.
+- This decision does not expand the Professional V1 launch scope automatically. Draft PR remains documentation-only; no merge, deploy, or provider configuration without separate approval.
