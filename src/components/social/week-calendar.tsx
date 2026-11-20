@@ -33,7 +33,7 @@ interface WeekViewProps {
   events: CalendarEvent[];
   onEventSelect: (event: CalendarEvent) => void;
   /** What a post looks like inside its block (platform marks, time and text). */
-  renderChip: (event: CalendarEvent) => React.ReactNode;
+  renderChip: (event: CalendarEvent, isOverlapLead: boolean) => React.ReactNode;
   /** A post or draft dropped on a quarter hour of a day. */
   onDropAt: (day: Date, time: number, data: DataTransfer) => void;
   /** Label for the grid (screen readers). */
@@ -285,8 +285,8 @@ export function WeekView({ currentDate, events, onEventSelect, renderChip, onDro
                     e.dataTransfer.setData("application/x-harvest-post", positionedEvent.event.id);
                     e.dataTransfer.effectAllowed = "move";
                   }}
-                  className={cn("@container bg-card hover:bg-muted/60 focus-visible:ring-ring/50 flex size-full min-h-11 min-w-0 flex-col gap-0.5 overflow-hidden rounded-md border p-1 text-left text-xs shadow-xs outline-none focus-visible:ring-[3px] sm:min-h-0", positionedEvent.group && "pe-9")}>
-                  {renderChip(positionedEvent.event)}
+                  className={cn("@container bg-card hover:bg-muted/60 focus-visible:ring-ring/50 flex size-full min-h-11 min-w-0 flex-col gap-0.5 overflow-hidden rounded-md border p-1 text-left text-xs shadow-xs outline-none focus-visible:ring-[3px]", positionedEvent.group ? "pe-9" : "sm:min-h-0")}>
+                  {renderChip(positionedEvent.event, Boolean(positionedEvent.group))}
                 </button>
               </div>
             ))}
