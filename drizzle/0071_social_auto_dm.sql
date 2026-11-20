@@ -44,7 +44,8 @@ CREATE TABLE "social_auto_dm_rules" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "social_auto_dm_rules_tenant_id_id_pk" PRIMARY KEY("tenant_id","id"),
 	CONSTRAINT "social_auto_dm_rule_connection_key" UNIQUE("tenant_id","connection_id","id"),
-	CONSTRAINT "social_auto_dm_rule_shape" CHECK ("social_auto_dm_rules"."version" > 0 and jsonb_typeof("social_auto_dm_rules"."rule") = 'object' and octet_length("social_auto_dm_rules"."rule"::text) <= 24000 and ("social_auto_dm_rules"."enabled" = ("social_auto_dm_rules"."enabled_by" is not null and "social_auto_dm_rules"."enabled_at" is not null)))
+	CONSTRAINT "social_auto_dm_rule_shape" CHECK ("social_auto_dm_rules"."version" > 0 and jsonb_typeof("social_auto_dm_rules"."rule") = 'object' and octet_length("social_auto_dm_rules"."rule"::text) <= 24000 and ("social_auto_dm_rules"."enabled" = ("social_auto_dm_rules"."enabled_by" is not null and "social_auto_dm_rules"."enabled_at" is not null))),
+	CONSTRAINT "social_auto_dm_rule_limits" CHECK (case when jsonb_typeof("social_auto_dm_rules"."rule"->'cooldownMinutes') = 'number' and "social_auto_dm_rules"."rule"->>'cooldownMinutes' ~ '^[0-9]{1,6}$' then ("social_auto_dm_rules"."rule"->>'cooldownMinutes')::integer between 1 and 43200 else false end and case when jsonb_typeof("social_auto_dm_rules"."rule"->'recipientDaily') = 'number' and "social_auto_dm_rules"."rule"->>'recipientDaily' ~ '^[0-9]{1,6}$' then ("social_auto_dm_rules"."rule"->>'recipientDaily')::integer between 1 and 5 else false end and case when jsonb_typeof("social_auto_dm_rules"."rule"->'ruleDaily') = 'number' and "social_auto_dm_rules"."rule"->>'ruleDaily' ~ '^[0-9]{1,6}$' then ("social_auto_dm_rules"."rule"->>'ruleDaily')::integer between 1 and 500 else false end)
 );
 --> statement-breakpoint
 ALTER TABLE "social_auto_dm_jobs" ADD CONSTRAINT "social_auto_dm_job_rule_fk" FOREIGN KEY ("tenant_id","connection_id","rule_id") REFERENCES "public"."social_auto_dm_rules"("tenant_id","connection_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -222,7 +223,10 @@ BEGIN
   SELECT status,health,health_code INTO c FROM public.social_connections WHERE (tenant_id,id)=(p_tenant,j.connection_id) FOR SHARE;
   IF NOT FOUND OR c.status<>'active' OR c.health='failing' OR coalesce(c.health_code,'') ~ 'expired|token_revoked|reauth' THEN RETURN 'ineligible'; END IF;
   IF NOT EXISTS (SELECT 1 FROM public.social_webhook_events e WHERE (e.tenant_id,e.id)=(p_tenant,j.event_id)
-    AND p_deadline <= e.occurred_at + CASE WHEN e.event_type='comment.received' THEN interval '7 days' ELSE interval '24 hours' END)
+    AND p_deadline <= e.occurred_at + CASE WHEN e.event_type='comment.received' THEN interval '7 days' ELSE interval '24 hours' END
+    -- Defence in depth: the worker-supplied conversation must be the signed event's own subject.
+    AND CASE WHEN e.event_type='message.received' THEN e.subject_ref IS NOT DISTINCT FROM p_conversation
+      ELSE (p_conversation IS NULL OR p_conversation = e.subject_ref) END)
     THEN RETURN 'ineligible'; END IF;
   -- One transaction per connection serializes cap reservations across concurrent rules.
   PERFORM pg_advisory_xact_lock(hashtextextended(p_tenant::text || ':' || j.connection_id::text,713));
@@ -261,13 +265,13 @@ BEGIN
     IF EXISTS (SELECT 1 FROM public.social_auto_dm_jobs x WHERE (x.tenant_id,x.connection_id,x.event_id)=(p_tenant,j.connection_id,j.event_id)
       AND x.id<>j.id AND x.step='primary' AND x.first_attempt_at IS NOT NULL) THEN RETURN 'cooldown'; END IF;
     IF EXISTS (SELECT 1 FROM public.social_auto_dm_jobs x WHERE (x.tenant_id,x.rule_id,x.recipient_key)=(p_tenant,j.rule_id,p_recipient)
-      AND x.id<>j.id AND x.step='primary' AND x.first_attempt_at>now()-make_interval(mins=>(r.rule->>'cooldownMinutes')::integer))
+      AND x.id<>j.id AND x.step='primary' AND x.first_attempt_at>now()-make_interval(mins=>coalesce((r.rule->>'cooldownMinutes')::integer,43200)))
     THEN RETURN 'cooldown'; END IF;
     cutoff := date_trunc('day',now(),coalesce(h.timezone,'UTC'));
     IF (SELECT count(*) FROM public.social_auto_dm_jobs x WHERE (x.tenant_id,x.rule_id)=(p_tenant,j.rule_id)
-          AND x.id<>j.id AND x.step='primary' AND x.first_attempt_at>=cutoff) >= (r.rule->>'ruleDaily')::integer
+          AND x.id<>j.id AND x.step='primary' AND x.first_attempt_at>=cutoff) >= coalesce((r.rule->>'ruleDaily')::integer,0)
        OR (SELECT count(*) FROM public.social_auto_dm_jobs x WHERE (x.tenant_id,x.rule_id,x.recipient_key)=(p_tenant,j.rule_id,p_recipient)
-          AND x.id<>j.id AND x.step='primary' AND x.first_attempt_at>=cutoff) >= (r.rule->>'recipientDaily')::integer
+          AND x.id<>j.id AND x.step='primary' AND x.first_attempt_at>=cutoff) >= coalesce((r.rule->>'recipientDaily')::integer,0)
     THEN RETURN 'limit'; END IF;
   END IF;
   UPDATE public.social_auto_dm_jobs SET state='dispatching',recipient_key=p_recipient,prefix=p_variant,policy_version=p_policy,request_hash=p_request_hash,attempts=attempts+1,

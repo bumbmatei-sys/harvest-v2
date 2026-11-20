@@ -216,3 +216,30 @@ it("binds a composer rule to a published delivery and sends a private reply befo
   } finally { sent.mockRestore(); }
   expect((await report(rule.id)).activity.map(job=>job.step)).toEqual(["public","primary"]);
 });
+
+it("refuses a worker-supplied conversation that is not the signed event subject", async () => {
+  const r=await enable(draft("subject-bind"));
+  const ref=randomUUID();
+  await inbound("subject-bind",randomUUID(),ref);
+  const { rows:[{ claim }] }=await f.workerPool.query("select public.social_auto_dm_claim(20) as claim");
+  const job=(claim as Array<{ tenant_id:string; id:string; lease:string; rule_id:string }>).find(row=>row.rule_id===r.id)!;
+  expect(job).toBeTruthy();
+  const hex=(ch:string)=>ch.repeat(64);
+  const begin=(conversation:string|null)=>f.workerPool.query("select public.social_auto_dm_begin($1,$2,$3,$4,$5,$6,0,'rule',$7) as state",
+    [job.tenant_id,job.id,job.lease,hex("a"),conversation,new Date(Date.now()+60_000),hex("b")]);
+  expect((await begin(randomUUID())).rows[0].state).toBe("ineligible");
+  expect((await begin(null)).rows[0].state).toBe("ineligible");
+  const { rows:[after] }=await f.admin.query("select state,attempts from social_auto_dm_jobs where id=$1",[job.id]);
+  expect(after).toMatchObject({ state:"leased",attempts:0 });
+  await f.workerPool.query("select public.social_auto_dm_finish($1,$2,$3,'skipped','ineligible',null,0,null,null)",[job.tenant_id,job.id,job.lease]);
+});
+
+it("rejects rules whose limits are missing, null or out of bounds", async () => {
+  const insert=(rule:Record<string,unknown>)=>f.admin.query("insert into social_auto_dm_rules(tenant_id,connection_id,rule) values ($1,$2,$3)",[p.tenant,c,JSON.stringify(rule)]);
+  const ok={ cooldownMinutes:60,recipientDaily:1,ruleDaily:10 };
+  await insert(ok);
+  for (const bad of [{ ...ok,ruleDaily:undefined },{ ...ok,cooldownMinutes:null },{ ...ok,recipientDaily:"3" },{ ...ok,ruleDaily:0 },
+    { ...ok,recipientDaily:6 },{ ...ok,cooldownMinutes:1.5 },{ ...ok,ruleDaily:501 },{}]) {
+    await expect(insert(bad)).rejects.toMatchObject({ code:"23514" });
+  }
+});

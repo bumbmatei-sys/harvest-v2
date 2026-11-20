@@ -2261,6 +2261,7 @@ export const socialAutoDmRules = pgTable("social_auto_dm_rules", {
   foreignKey({ columns: [t.tenantId, t.postId], foreignColumns: [socialPosts.tenantId, socialPosts.id] }),
   index("social_auto_dm_active_idx").on(t.tenantId,t.connectionId).where(sql`${t.enabled}`),
   check("social_auto_dm_rule_shape", sql`${t.version} > 0 and jsonb_typeof(${t.rule}) = 'object' and octet_length(${t.rule}::text) <= 24000 and (${t.enabled} = (${t.enabledBy} is not null and ${t.enabledAt} is not null))`),
+  check("social_auto_dm_rule_limits", sql`case when jsonb_typeof(${t.rule}->'cooldownMinutes') = 'number' and ${t.rule}->>'cooldownMinutes' ~ '^[0-9]{1,6}$' then (${t.rule}->>'cooldownMinutes')::integer between 1 and 43200 else false end and case when jsonb_typeof(${t.rule}->'recipientDaily') = 'number' and ${t.rule}->>'recipientDaily' ~ '^[0-9]{1,6}$' then (${t.rule}->>'recipientDaily')::integer between 1 and 5 else false end and case when jsonb_typeof(${t.rule}->'ruleDaily') = 'number' and ${t.rule}->>'ruleDaily' ~ '^[0-9]{1,6}$' then (${t.rule}->>'ruleDaily')::integer between 1 and 500 else false end`),
 ]);
 
 export const socialAutoDmJobs = pgTable("social_auto_dm_jobs", {
