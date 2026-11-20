@@ -79,7 +79,7 @@ export function setNewsletterSubscription(db: Database, user: string, workspace:
         return { listId, subscriberId, state: r.state, version: r.version };
     });
 }
-async function segmentState(tx: Transaction, tenantId: string, id: string) {
+export async function segmentState(tx: Transaction, tenantId: string, id: string) {
     const [s] = await tx.select({ view: crmSavedViews }).from(newsletterSegments).innerJoin(crmSavedViews, and(eq(crmSavedViews.tenantId, newsletterSegments.tenantId), eq(crmSavedViews.id, newsletterSegments.savedViewId))).where(and(eq(newsletterSegments.tenantId, tenantId), eq(newsletterSegments.id, id), eq(crmSavedViews.objectType, 'person'), eq(crmSavedViews.version,newsletterSegments.savedViewVersion), isNull(crmSavedViews.ownerUserId)));
     if (!s)
         throw missing();

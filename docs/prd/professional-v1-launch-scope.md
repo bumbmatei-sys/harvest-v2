@@ -47,7 +47,7 @@ No seventh launch system. An exception requires documented pilot customer adopti
 
 Items added to launch scope:
 - **Email, calendars and files** through the Zernio provider layer: Gmail and Outlook mail, Google and Microsoft calendars, Google Drive and OneDrive files. Each admin connects their own mailbox.
-- **Newsletter**: provider Amazon SES (founder decision 20 Nov, replaces Plunk); email-only consent purposes already exist. Resend remains for sign-in and community mail.
+- **Newsletter** uses Amazon SES per the 20 Nov founder decision. Each ministry uses its own verified domain and independently verified sender and reply-to mailboxes. Email-only newsletter consent applies. Resend remains transactional.
 - **Link in bio** and **website builder**.
 - **Native blog articles**, scheduled in the social scheduler and sent via Zernio to WordPress, Wix, Shopify and Webflow.
 - **Documents and spreadsheets.**

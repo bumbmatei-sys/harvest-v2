@@ -4,10 +4,13 @@ import { getAuth } from "./auth-instance";
 import { AccessError } from "./permissions";
 import { ZodError } from "zod";
 import { requiredEnv } from "../lib/env";
-export async function verifiedUser(request: Request) {
+export async function verifiedSessionUser(request: Request) {
   const session = await getAuth().api.getSession({ headers: request.headers });
   if (!session) throw new AccessError(401, message("Errors.signInToContinue"));
-  return session.user.id;
+  return session.user;
+}
+export async function verifiedUser(request: Request) {
+  return (await verifiedSessionUser(request)).id;
 }
 export function verifyOrigin(request: Request) {
   if (request.headers.get("origin") !== new URL(requiredEnv("BETTER_AUTH_URL")).origin) {

@@ -440,12 +440,18 @@ describe("definers without superuser or BYPASSRLS", () => {
       await fixture.admin.query(`grant usage on schema public to ${role}`);
       await fixture.admin.query(`grant select, insert, update, delete on ${tables.join(", ")} to ${role}`);
       await fixture.admin.query(`grant execute on function public.erase_contact(uuid, uuid) to ${role}`);
-      // The newsletter wrapper in merge_contacts reads and writes these under their own scoped (app.nl02_tenant) policy.
+      await fixture.admin.query(`grant execute on function public.newsletter_capability(text,text) to ${role}`);
+      await fixture.admin.query(`grant select, update on newsletter_deliveries to ${role}`);
+      await fixture.admin.query(`create policy test_crm06_newsletter_deliveries on newsletter_deliveries to ${role}
+        using (tenant_id = nullif(current_setting('app.nl_send_tenant',true),'')::uuid)
+        with check (tenant_id = nullif(current_setting('app.nl_send_tenant',true),'')::uuid)`);
+      // The newsletter wrappers scope access to delivery jobs and subscriber rows independently.
       await fixture.admin.query(`grant select, insert, update, delete on newsletter_subscribers, newsletter_subscriptions to ${role}`);
       for (const table of ["newsletter_subscribers", "newsletter_subscriptions"]) await fixture.admin.query(`create policy test_crm06_nl02 on ${table} to ${role} using (tenant_id = nullif(current_setting('app.nl02_tenant',true),'')::uuid) with check (tenant_id = nullif(current_setting('app.nl02_tenant',true),'')::uuid)`);
       for (const table of tables) await fixture.admin.query(`create policy test_crm06_definer on ${table} to ${role} using (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid) with check (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid)`);
       await fixture.admin.query(`alter function public.merge_contacts(uuid,uuid,uuid) owner to ${role}`);
       // The renamed canonical merge shares its owner with the wrapper; the consent guards identify the merge definer by owner.
+      await fixture.admin.query(`alter function public.merge_contacts_before_newsletter_sending(uuid,uuid,uuid) owner to ${role}`);
       await fixture.admin.query(`alter function public.merge_contacts_before_nl02(uuid,uuid,uuid) owner to ${role}`);
       await fixture.admin.query(`alter function public.rollback_crm_import(uuid,uuid) owner to ${role}`);
       const tenant = (await createWorkspace(fixture.db, "owner-a", "Restricted definers")).tenantId;
@@ -461,11 +467,12 @@ describe("definers without superuser or BYPASSRLS", () => {
       expect((await getContact(fixture.db, "owner-a", tenant, kept.id)).effectiveConsents).toMatchObject([{ status: "withdrawn" }]);
       const run = await runImport("owner-a", tenant, csv([["Name", "Email"], ["Synthetic Restricted", "restricted-import@example.test"]]));
       await expect(rollbackImport(fixture.db, "owner-a", tenant, run.id)).resolves.toMatchObject({ result: { removed: 1 } });
-      expect((await fixture.admin.query("select proowner::regrole::text as owner from pg_proc where proname in ('merge_contacts', 'merge_contacts_before_nl02', 'rollback_crm_import')")).rows).toEqual([{ owner: role }, { owner: role }, { owner: role }]);
+      expect((await fixture.admin.query("select proowner::regrole::text as owner from pg_proc where proname in ('merge_contacts', 'merge_contacts_before_nl02', 'merge_contacts_before_newsletter_sending', 'rollback_crm_import')")).rows).toEqual(Array.from({ length: 4 }, () => ({ owner: role })));
     } finally {
-      await fixture.admin.query("do $$ begin execute format('alter function public.merge_contacts(uuid,uuid,uuid) owner to %I', current_user); execute format('alter function public.merge_contacts_before_nl02(uuid,uuid,uuid) owner to %I', current_user); execute format('alter function public.rollback_crm_import(uuid,uuid) owner to %I', current_user); end $$");
+      await fixture.admin.query("do $$ begin execute format('alter function public.merge_contacts(uuid,uuid,uuid) owner to %I', current_user); execute format('alter function public.merge_contacts_before_nl02(uuid,uuid,uuid) owner to %I', current_user); execute format('alter function public.merge_contacts_before_newsletter_sending(uuid,uuid,uuid) owner to %I', current_user); execute format('alter function public.rollback_crm_import(uuid,uuid) owner to %I', current_user); end $$");
       for (const table of tables) await fixture.admin.query(`drop policy if exists test_crm06_definer on ${table}`);
       for (const table of ["newsletter_subscribers", "newsletter_subscriptions"]) await fixture.admin.query(`drop policy if exists test_crm06_nl02 on ${table}`);
+      await fixture.admin.query("drop policy if exists test_crm06_newsletter_deliveries on newsletter_deliveries");
       await fixture.admin.query(`drop owned by ${role}`);
       await fixture.admin.query(`drop role ${role}`);
     }
