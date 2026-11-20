@@ -145,7 +145,8 @@ test("social publish: accounts, composer with rings and media, review, queue, ca
     await page.getByRole("tab", { name: "Public" }).click();
     await expect(sidebar.getByRole("button", { name: "Social media" })).toBeVisible();
     await expect(sidebar.getByRole("link", { name: "Planner" })).toBeVisible();
-    for (const hidden of ["Compose", "Calendar", "Queue", "Inbox", "Auto-replies", "Analytics"]) await expect(sidebar.getByRole("link", { name: hidden, exact: true })).toHaveCount(0);
+    await expect(sidebar.getByRole("link", { name: "Inbox", exact: true })).toBeVisible();
+    for (const hidden of ["Compose", "Calendar", "Queue", "Auto-replies", "Analytics"]) await expect(sidebar.getByRole("link", { name: hidden, exact: true })).toHaveCount(0);
     await sidebar.screenshot({ path: `${shots}/sidebar-public-1280-${scheme}.png`, animations: "disabled" });
     await page.getByRole("tab", { name: "Operations" }).click();
     await expect(sidebar.getByRole("link", { name: "Social accounts" })).toBeVisible();
