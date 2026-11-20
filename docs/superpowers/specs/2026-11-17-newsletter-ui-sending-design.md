@@ -58,7 +58,7 @@ Test/preview uses a local synthetic mailbox/fake provider. No real test email ou
 
 ## Sending through the newsletter port
 
-**Founder direction (`docs/prd/professional-v1-launch-scope.md`, 16 Nov scope exception; not known to have changed): the newsletter provider is Plunk; email-only consent purposes already exist; Resend remains for sign-in and community mail.** Newsletter sending therefore goes through a **Harvest-owned newsletter port** (Harvest domain types, fake provider for tests) with a Plunk adapter behind it. The vendor name appears only in docs and the adapter file, never in UI copy or domain logic.
+**Founder direction (`docs/prd/professional-v1-launch-scope.md`, 16 Nov scope exception; not known to have changed): the newsletter provider is Plunk (superseded 20 Nov: Amazon SES, see the decisions log); email-only consent purposes already exist; Resend remains for sign-in and community mail.** Newsletter sending therefore goes through a **Harvest-owned newsletter port** (Harvest domain types, fake provider for tests) with a Plunk adapter behind it. The vendor name appears only in docs and the adapter file, never in UI copy or domain logic.
 
 Provider separation: the Zernio `MailProvider` stays for per-admin Office mail (Operations), and Resend stays for sign-in and community mail. Neither is used for newsletter bulk sending; the existing `MailProvider` send/reply/draft/label operations are not a bulk-newsletter contract. Do not call a direct vendor SDK outside the adapter, reuse the app's authentication mail sender, or silently send bulk campaigns from an admin's Office mailbox.
 
