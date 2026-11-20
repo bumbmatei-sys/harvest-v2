@@ -1,7 +1,8 @@
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import { socialConnections, socialPosts, socialWebhookEvents } from "../../db/schema";
 import type { JobHandler } from "../jobs/handlers";
+import { deliveryKey } from "./types";
 import { JobFailure } from "../jobs/primitives";
 
 // Applies one stored webhook event inside the shared job transaction. Idempotent: an already-processed event does nothing.
@@ -17,10 +18,14 @@ export const applySocialWebhook: JobHandler = async (tx, job) => {
   const bump = { updatedAt: sql`now()`, version: sql`${socialPosts.version} + 1` };
   const unlock = { lockToken: null, lockedAt: null };
   if ((event.eventType === "post.published" || event.eventType === "post.failed" || event.eventType === "post.partial") && event.subjectRef) {
-    // Only a post that was accepted by the provider and is awaiting its final answer can move; anything else is already settled.
-    const where = and(eq(socialPosts.tenantId, job.tenantId), eq(socialPosts.connectionId, event.connectionId), eq(socialPosts.providerPostRef, event.subjectRef), eq(socialPosts.status, "publishing"));
-    if (event.eventType === "post.published") await tx.update(socialPosts).set({ status: "published", publishedAt: sql`now()`, lastErrorCode: null, ...unlock, ...bump }).where(where);
-    else await tx.update(socialPosts).set({ status: "failed", lastErrorCode: event.eventType === "post.partial" ? "PARTIAL_PUBLISH" : "PROVIDER_REJECTED", ...unlock, ...bump }).where(where);
+    // A trusted provider event can settle a grouped delivery even if it arrived before the response.
+    const correlation = event.detail.correlationKey;
+    const where = and(eq(socialPosts.tenantId, job.tenantId), eq(socialPosts.connectionId, event.connectionId), inArray(socialPosts.status, ["publishing", "unknown"]),
+      or(eq(socialPosts.providerPostRef, event.subjectRef), deliveryKey(correlation)
+        ? and(isNull(socialPosts.providerPostRef), isNotNull(socialPosts.draftId), eq(socialPosts.idempotencyKey, correlation)) : undefined));
+    const detail = { providerPostRef: event.subjectRef, ...unlock, ...bump };
+    if (event.eventType === "post.published") await tx.update(socialPosts).set({ status: "published", publishedAt: sql`now()`, lastErrorCode: null, ...detail }).where(where);
+    else await tx.update(socialPosts).set({ status: "failed", lastErrorCode: event.eventType === "post.partial" ? "PARTIAL_PUBLISH" : "PROVIDER_REJECTED", ...detail }).where(where);
   } else if (event.eventType === "account.disconnected") {
     await tx.update(socialConnections).set({ status: "revoked", health: "failing", healthCode: "account_disconnected", healthCheckedAt: sql`now()`, updatedAt: sql`now()`, version: sql`${socialConnections.version} + 1` })
       .where(and(eq(socialConnections.tenantId, job.tenantId), eq(socialConnections.id, event.connectionId), sql`${socialConnections.status} <> 'revoked'`));

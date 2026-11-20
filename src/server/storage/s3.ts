@@ -1,13 +1,13 @@
 import { message } from "../../i18n/messages";
 import "server-only";
 import { createHash } from "node:crypto";
-import { GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client } from "@aws-sdk/client-s3";
+import { AbortMultipartUploadCommand, CompleteMultipartUploadCommand, CreateMultipartUploadCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, S3Client, UploadPartCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { filenameMatchesMime, MAX_FILE_SIZE, type UploadInput } from "../../lib/files";
+import { filenameMatchesMime, MAX_FILE_SIZE } from "../../lib/files";
 import { downloadDisposition } from "../../lib/download-filename";
-import { InvalidStoredFile, type StorageAdapter, type ImageMime } from "./adapter";
+import { InvalidStoredFile, type StorageAdapter, type ImageMime, type MultipartStorage, type UploadObject, type UploadPart } from "./adapter";
 
-export class S3Storage implements StorageAdapter {
+export class S3Storage implements StorageAdapter, MultipartStorage {
   private client: S3Client;
   constructor(private config: { endpoint: string; bucket: string; region: string; accessKeyId: string; secretAccessKey: string }) {
     const endpoint = new URL(config.endpoint);
@@ -18,7 +18,7 @@ export class S3Storage implements StorageAdapter {
       requestChecksumCalculation: "WHEN_REQUIRED", responseChecksumValidation: "WHEN_REQUIRED", maxAttempts: 2,
     });
   }
-  async presignUpload(key: string, input: UploadInput) {
+  async presignUpload(key: string, input: UploadObject) {
     const expiresIn = 300;
     const command = new PutObjectCommand({ Bucket: this.config.bucket, Key: key,
       ContentType: input.mime, ContentLength: input.size, IfNoneMatch: "*",
@@ -28,6 +28,27 @@ export class S3Storage implements StorageAdapter {
     });
     // The browser supplies Content-Length automatically from the File body.
     return { url, method: "PUT" as const, headers: { "Content-Type": input.mime, "If-None-Match": "*" }, expiresIn };
+  }
+  async startMultipart(key: string, mime: string) {
+    const result = await this.client.send(new CreateMultipartUploadCommand({ Bucket: this.config.bucket, Key: key, ContentType: mime }),
+      { abortSignal: AbortSignal.timeout(15_000) });
+    if (!result.UploadId) throw new Error("MULTIPART_UNAVAILABLE");
+    return result.UploadId;
+  }
+  async presignPart(key: string, uploadId: string, partNumber: number, size: number) {
+    const expiresIn = 300;
+    const command = new UploadPartCommand({ Bucket: this.config.bucket, Key: key, UploadId: uploadId, PartNumber: partNumber, ContentLength: size });
+    const url = await getSignedUrl(this.client, command, { expiresIn, signableHeaders: new Set(["content-length"]) });
+    return { url, method: "PUT" as const, headers: {}, expiresIn };
+  }
+  async completeMultipart(key: string, uploadId: string, parts: UploadPart[]) {
+    await this.client.send(new CompleteMultipartUploadCommand({ Bucket: this.config.bucket, Key: key, UploadId: uploadId, IfNoneMatch: "*",
+      MultipartUpload: { Parts: parts.map(part => ({ PartNumber: part.partNumber, ETag: part.etag })) },
+    }), { abortSignal: AbortSignal.timeout(30_000) });
+  }
+  async abortMultipart(key: string, uploadId: string) {
+    await this.client.send(new AbortMultipartUploadCommand({ Bucket: this.config.bucket, Key: key, UploadId: uploadId }),
+      { abortSignal: AbortSignal.timeout(15_000) });
   }
   async inspect(key: string, expected: { size: number; mime: string; name: string }) {
     const expectedSize = expected.size;

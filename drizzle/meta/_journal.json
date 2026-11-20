@@ -456,6 +456,13 @@
       "when": 1795400000013,
       "tag": "0065_event_covers",
       "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1795400000014,
+      "tag": "0066_social_publish",
+      "breakpoints": true
     }
   ]
 }

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "../../db/client";
 import { auditLogs, socialConnections, socialPosts } from "../../db/schema";
@@ -8,6 +8,8 @@ import { uuidInput } from "../../lib/contact-input";
 import { AccessError } from "../permissions";
 import { withTenant } from "../tenancy";
 import { credentialBinding, openCredential, sealCredential } from "./credential-envelope";
+import { platformCapabilities } from "../../lib/social/platforms";
+import { mediaRulesFor, mediaRulesVersion } from "../../lib/social/media";
 import { SocialProviderError } from "./port";
 import { assertEnabled, defaultSocialDeps, type SocialDeps } from "./registry";
 import { socialPlatforms, socialProviders } from "./types";
@@ -39,6 +41,13 @@ const audit = (tx: Parameters<Parameters<typeof withTenant>[4]>[0], tenantId: st
 
 const publicConnection = (row: typeof socialConnections.$inferSelect) => ({
   id: row.id, provider: row.provider, platform: row.platform, externalAccountRef: row.externalAccountRef, displayName: row.displayName,
+  availability: row.status === "active" && row.health !== "failing" ? "available" : "unavailable",
+  capabilities: platformCapabilities[row.platform], mediaRulesVersion,
+  mediaCapabilities: {
+    post: mediaRulesFor(row.platform, "post"), story: mediaRulesFor(row.platform, "story"),
+    article: mediaRulesFor(row.platform, "article"), reel: mediaRulesFor(row.platform, "post", "reel"),
+    short: mediaRulesFor(row.platform, "post", "short"),
+  },
   status: row.status, health: row.health, healthCode: row.healthCode, healthCheckedAt: row.healthCheckedAt, version: row.version, createdAt: row.createdAt,
 });
 const publicPost = (row: typeof socialPosts.$inferSelect) => ({
@@ -145,7 +154,7 @@ export async function reschedulePost(db: Database, userId: string, workspace: st
     let row;
     try {
       [row] = await tx.transaction((inner) => inner.update(socialPosts).set({ status: at ? "scheduled" : "draft", scheduledFor: at, nextAttemptAt: at, updatedAt: sql`now()`, version: sql`${socialPosts.version} + 1` })
-        .where(and(eq(socialPosts.tenantId, tenantId), eq(socialPosts.id, id), inArray(socialPosts.status, ["draft", "scheduled"]))).returning());
+        .where(and(eq(socialPosts.tenantId, tenantId), eq(socialPosts.id, id), isNull(socialPosts.draftId), inArray(socialPosts.status, ["draft", "scheduled"]))).returning());
     } catch (error) {
       // The guard refuses to move or edit a post that has had an attempt (it may already be with the provider): make a new post instead.
       if (hasCode(error, "P0001")) throw stale();
@@ -161,7 +170,7 @@ export async function cancelPost(db: Database, userId: string, workspace: string
   const id = uuidInput.parse(postId);
   return withTenant(db, userId, uuidInput.parse(workspace), "social:schedule", async (tx, tenantId) => {
     const [row] = await tx.update(socialPosts).set({ status: "cancelled", updatedAt: sql`now()`, version: sql`${socialPosts.version} + 1` })
-      .where(and(eq(socialPosts.tenantId, tenantId), eq(socialPosts.id, id), inArray(socialPosts.status, ["draft", "scheduled", "failed"]))).returning();
+      .where(and(eq(socialPosts.tenantId, tenantId), eq(socialPosts.id, id), isNull(socialPosts.draftId), inArray(socialPosts.status, ["draft", "scheduled", "failed"]))).returning();
     if (!row) throw await missingOrStale(tx, tenantId, id);
     await audit(tx, tenantId, userId, "social.post_cancel", id, { status: "cancelled" });
     return { post: publicPost(row) };
@@ -175,7 +184,7 @@ export async function retryPost(db: Database, userId: string, workspace: string,
     try {
       const [row] = await tx.transaction((inner) => inner.update(socialPosts).set({ status: "scheduled", attempts: 0, nextAttemptAt: sql`now()`, scheduledFor: sql`greatest(${socialPosts.scheduledFor}, now())`,
         updatedAt: sql`now()`, version: sql`${socialPosts.version} + 1` })
-        .where(and(eq(socialPosts.tenantId, tenantId), eq(socialPosts.id, id), eq(socialPosts.status, "failed"), sql`${socialPosts.providerPostRef} is null`)).returning());
+        .where(and(eq(socialPosts.tenantId, tenantId), eq(socialPosts.id, id), isNull(socialPosts.draftId), eq(socialPosts.status, "failed"), sql`${socialPosts.providerPostRef} is null`)).returning());
       if (!row) throw await missingOrStale(tx, tenantId, id);
       await audit(tx, tenantId, userId, "social.post_retry", id, { status: "scheduled" });
       return { post: publicPost(row) };
