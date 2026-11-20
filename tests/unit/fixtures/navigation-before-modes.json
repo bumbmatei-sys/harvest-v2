@@ -19,16 +19,6 @@
     "followUp=followUp=/workspaces/t/connect/follow-up",
     "files=files=/workspaces/t/files"
    ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
-   ]
   ]
  ],
  "owner|church|communities": [
@@ -52,16 +42,6 @@
     "files=files=/workspaces/t/files",
     "communities=communities=/workspaces/t/communities"
    ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
-   ]
   ]
  ],
  "owner|ministry_nonprofit|base": [
@@ -83,16 +63,6 @@
     "campaigns=campaigns=/workspaces/t/campaigns",
     "followUp=followUp=/workspaces/t/connect/follow-up",
     "files=files=/workspaces/t/files"
-   ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
    ]
   ]
  ],
@@ -117,16 +87,6 @@
     "files=files=/workspaces/t/files",
     "communities=communities=/workspaces/t/communities"
    ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
-   ]
   ]
  ],
  "owner|evangelist_missionary|base": [
@@ -148,16 +108,6 @@
     "campaigns=campaigns=/workspaces/t/campaigns",
     "followUp=followUp=/workspaces/t/connect/follow-up",
     "files=files=/workspaces/t/files"
-   ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
    ]
   ]
  ],
@@ -182,16 +132,6 @@
     "files=files=/workspaces/t/files",
     "communities=communities=/workspaces/t/communities"
    ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
-   ]
   ]
  ],
  "owner|creator|base": [
@@ -213,16 +153,6 @@
     "campaigns=campaigns=/workspaces/t/campaigns",
     "followUp=followUp=/workspaces/t/connect/follow-up",
     "files=files=/workspaces/t/files"
-   ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
    ]
   ]
  ],
@@ -247,16 +177,6 @@
     "files=files=/workspaces/t/files",
     "communities=communities=/workspaces/t/communities"
    ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
-   ]
   ]
  ],
  "owner|null|base": [
@@ -278,16 +198,6 @@
     "campaigns=campaigns=/workspaces/t/campaigns",
     "followUp=followUp=/workspaces/t/connect/follow-up",
     "files=files=/workspaces/t/files"
-   ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
    ]
   ]
  ],
@@ -312,16 +222,6 @@
     "files=files=/workspaces/t/files",
     "communities=communities=/workspaces/t/communities"
    ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
-   ]
   ]
  ],
  "admin|church|base": [
@@ -343,16 +243,6 @@
     "campaigns=campaigns=/workspaces/t/campaigns",
     "followUp=followUp=/workspaces/t/connect/follow-up",
     "files=files=/workspaces/t/files"
-   ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
    ]
   ]
  ],
@@ -377,16 +267,6 @@
     "files=files=/workspaces/t/files",
     "communities=communities=/workspaces/t/communities"
    ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
-   ]
   ]
  ],
  "admin|ministry_nonprofit|base": [
@@ -408,16 +288,6 @@
     "campaigns=campaigns=/workspaces/t/campaigns",
     "followUp=followUp=/workspaces/t/connect/follow-up",
     "files=files=/workspaces/t/files"
-   ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
    ]
   ]
  ],
@@ -442,16 +312,6 @@
     "files=files=/workspaces/t/files",
     "communities=communities=/workspaces/t/communities"
    ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
-   ]
   ]
  ],
  "admin|evangelist_missionary|base": [
@@ -473,16 +333,6 @@
     "campaigns=campaigns=/workspaces/t/campaigns",
     "followUp=followUp=/workspaces/t/connect/follow-up",
     "files=files=/workspaces/t/files"
-   ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
    ]
   ]
  ],
@@ -507,16 +357,6 @@
     "files=files=/workspaces/t/files",
     "communities=communities=/workspaces/t/communities"
    ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
-   ]
   ]
  ],
  "admin|creator|base": [
@@ -538,16 +378,6 @@
     "campaigns=campaigns=/workspaces/t/campaigns",
     "followUp=followUp=/workspaces/t/connect/follow-up",
     "files=files=/workspaces/t/files"
-   ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
    ]
   ]
  ],
@@ -572,16 +402,6 @@
     "files=files=/workspaces/t/files",
     "communities=communities=/workspaces/t/communities"
    ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
-   ]
   ]
  ],
  "admin|null|base": [
@@ -603,16 +423,6 @@
     "campaigns=campaigns=/workspaces/t/campaigns",
     "followUp=followUp=/workspaces/t/connect/follow-up",
     "files=files=/workspaces/t/files"
-   ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
    ]
   ]
  ],
@@ -637,16 +447,6 @@
     "files=files=/workspaces/t/files",
     "communities=communities=/workspaces/t/communities"
    ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
-   ]
   ]
  ],
  "member|church|base": [
@@ -668,16 +468,6 @@
     "campaigns=campaigns=/workspaces/t/campaigns",
     "followUp=followUp=/workspaces/t/connect/follow-up",
     "files=files=/workspaces/t/files"
-   ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
    ]
   ]
  ],
@@ -702,16 +492,6 @@
     "files=files=/workspaces/t/files",
     "communities=communities=/workspaces/t/communities"
    ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
-   ]
   ]
  ],
  "member|ministry_nonprofit|base": [
@@ -733,16 +513,6 @@
     "campaigns=campaigns=/workspaces/t/campaigns",
     "followUp=followUp=/workspaces/t/connect/follow-up",
     "files=files=/workspaces/t/files"
-   ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
    ]
   ]
  ],
@@ -767,16 +537,6 @@
     "files=files=/workspaces/t/files",
     "communities=communities=/workspaces/t/communities"
    ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
-   ]
   ]
  ],
  "member|evangelist_missionary|base": [
@@ -798,16 +558,6 @@
     "campaigns=campaigns=/workspaces/t/campaigns",
     "followUp=followUp=/workspaces/t/connect/follow-up",
     "files=files=/workspaces/t/files"
-   ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
    ]
   ]
  ],
@@ -832,16 +582,6 @@
     "files=files=/workspaces/t/files",
     "communities=communities=/workspaces/t/communities"
    ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
-   ]
   ]
  ],
  "member|creator|base": [
@@ -863,16 +603,6 @@
     "campaigns=campaigns=/workspaces/t/campaigns",
     "followUp=followUp=/workspaces/t/connect/follow-up",
     "files=files=/workspaces/t/files"
-   ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
    ]
   ]
  ],
@@ -897,16 +627,6 @@
     "files=files=/workspaces/t/files",
     "communities=communities=/workspaces/t/communities"
    ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
-   ]
   ]
  ],
  "member|null|base": [
@@ -928,16 +648,6 @@
     "campaigns=campaigns=/workspaces/t/campaigns",
     "followUp=followUp=/workspaces/t/connect/follow-up",
     "files=files=/workspaces/t/files"
-   ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
    ]
   ]
  ],
@@ -962,16 +672,6 @@
     "files=files=/workspaces/t/files",
     "communities=communities=/workspaces/t/communities"
    ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
-   ]
   ]
  ],
  "viewer|church|base": [
@@ -991,16 +691,6 @@
    [
     "campaigns=campaigns=/workspaces/t/campaigns",
     "files=files=/workspaces/t/files"
-   ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
    ]
   ]
  ],
@@ -1023,16 +713,6 @@
     "files=files=/workspaces/t/files",
     "communities=communities=/workspaces/t/communities"
    ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
-   ]
   ]
  ],
  "viewer|ministry_nonprofit|base": [
@@ -1052,16 +732,6 @@
    [
     "campaigns=campaigns=/workspaces/t/campaigns",
     "files=files=/workspaces/t/files"
-   ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
    ]
   ]
  ],
@@ -1084,16 +754,6 @@
     "files=files=/workspaces/t/files",
     "communities=communities=/workspaces/t/communities"
    ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
-   ]
   ]
  ],
  "viewer|evangelist_missionary|base": [
@@ -1113,16 +773,6 @@
    [
     "campaigns=campaigns=/workspaces/t/campaigns",
     "files=files=/workspaces/t/files"
-   ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
    ]
   ]
  ],
@@ -1145,16 +795,6 @@
     "files=files=/workspaces/t/files",
     "communities=communities=/workspaces/t/communities"
    ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
-   ]
   ]
  ],
  "viewer|creator|base": [
@@ -1174,16 +814,6 @@
    [
     "campaigns=campaigns=/workspaces/t/campaigns",
     "files=files=/workspaces/t/files"
-   ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
    ]
   ]
  ],
@@ -1206,16 +836,6 @@
     "files=files=/workspaces/t/files",
     "communities=communities=/workspaces/t/communities"
    ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
-   ]
   ]
  ],
  "viewer|null|base": [
@@ -1235,16 +855,6 @@
    [
     "campaigns=campaigns=/workspaces/t/campaigns",
     "files=files=/workspaces/t/files"
-   ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
    ]
   ]
  ],
@@ -1266,16 +876,6 @@
     "campaigns=campaigns=/workspaces/t/campaigns",
     "files=files=/workspaces/t/files",
     "communities=communities=/workspaces/t/communities"
-   ]
-  ],
-  [
-   "settings",
-   "settings",
-   [
-    "crmFields=crmFields=/workspaces/t/crm/settings/fields",
-    "pipelineSettings=pipelineSettings=/workspaces/t/crm/settings/pipelines",
-    "appearance=appearance=/workspaces/t/appearance",
-    "ministrySettings=ministrySettings=/workspaces/t/settings"
    ]
   ]
  ]

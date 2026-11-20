@@ -34,7 +34,7 @@ const abilities = (caps: Capabilities): { key: string; level: Level }[] => [
  * Connected accounts with health, what each can do, and an explicit unavailable state (never an empty list). Linking an account here is for the
  * non-production test provider only (`testConnect`): one button, no sign-in flow and no field that asks for a credential.
  */
-export function AccountsBoard({ tenantId, testConnect, testCredential }: { tenantId: string; testConnect: boolean; testCredential: string }) {
+export function AccountsBoard({ tenantId, testConnect, testCredential, embedded = false }: { tenantId: string; testConnect: boolean; testCredential: string; /** Inside the Settings pop-up: its panel owns the heading, so only the action row remains. */ embedded?: boolean }) {
   const t = useTranslations("SocialPublish.accounts"), caps = useTranslations("SocialPublish.capabilities"), reason = useReason(), locale = useLocale();
   const data = useSocialData(tenantId), api = socialApi(tenantId);
   const [busy, setBusy] = useState<string | null>(null), [addOpen, setAddOpen] = useState(false), [platform, setPlatform] = useState<SocialPlatform>("instagram"), [error, setError] = useState("");
@@ -52,8 +52,9 @@ export function AccountsBoard({ tenantId, testConnect, testCredential }: { tenan
     catch (cause) { setError(cause instanceof SocialApiError && cause.conflict ? t("alreadyLinked") : t("addFailed")); }
     finally { setBusy(null); }
   }
-  const header = <div className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-[28px] font-semibold tracking-tight">{t("title")}</h1><p className="mt-1 text-sm text-muted-foreground">{t("subtitle")}</p></div>
-    {testConnect && data.state === "ready" && <Button type="button" size="responsive" onClick={() => { setPlatform(postable.find((value) => !taken.has(value)) ?? "instagram"); setAddOpen(true); }}><Plus aria-hidden="true" />{t("addTest")}</Button>}</div>;
+  const addButton = testConnect && data.state === "ready" && <Button type="button" size="responsive" onClick={() => { setPlatform(postable.find((value) => !taken.has(value)) ?? "instagram"); setAddOpen(true); }}><Plus aria-hidden="true" />{t("addTest")}</Button>;
+  const header = embedded ? (addButton ? <div className="flex justify-end">{addButton}</div> : null)
+    : <div className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-[28px] font-semibold tracking-tight">{t("title")}</h1><p className="mt-1 text-sm text-muted-foreground">{t("subtitle")}</p></div>{addButton}</div>;
   if (data.state === "loading") return <div className="space-y-4" aria-busy="true">{header}<Skeleton className="h-40 w-full" /></div>;
   if (data.state === "unavailable") return <div className="space-y-4">{header}<EmptyState icon={ShieldAlert} title={t("unavailableTitle")} description={t("notAvailableBody")} solid /></div>;
   if (data.state === "error") return <div className="space-y-4">{header}<Alert variant="destructive" role="alert"><AlertDescription>{t("loadFailed")} <Button type="button" variant="link" onClick={data.reload}>{t("retry")}</Button></AlertDescription></Alert></div>;

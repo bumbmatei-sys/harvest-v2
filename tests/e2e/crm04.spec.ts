@@ -179,7 +179,9 @@ test("CRM-04: pipelines, deals, board moves, list, deal detail, related deals, s
   await expect(page.getByRole("list", { name: "Deals" }).getByRole("link", { name: "Synthetic youth camp sponsor" })).toBeVisible();
 
   // Pipeline settings: reorder a stage, and see it hold after a reload and on the board.
-  await page.getByRole("navigation", { name: "Ministry navigation" }).getByRole("link", { name: "Pipeline settings" }).click();
+  // Pipeline settings left the sidebar: open it from the Settings pop-up's CRM section.
+  await page.goto(`${root}/crm/people/${person}?settings=crm`);
+  await page.getByRole("dialog", { name: "Settings", exact: true }).getByRole("link", { name: "Pipeline settings", exact: true }).click();
   await expect(page).toHaveURL(`${root}/crm/settings/pipelines`);
   const stages = page.getByRole("table", { name: "Stages of Pipeline" });
   await stages.getByRole("button", { name: "Move Proposal up" }).click();

@@ -288,3 +288,14 @@ Built with the premium kit under the standing kit rule, with no per-item founder
 | `src/components/social/inbox/inbox-composer.tsx` | modelled on | chat-app `app/(auth)/chats/components/chat-footer.tsx` | 5 of 84 (5%) |
 
 Message rows reuse the existing kit-derived `src/components/ui/bubble.tsx`. The coloured platform marks are the networks' brand colours (`src/lib/theme-registry.ts`), drawn from the same Simple Icons paths as the Planner marks.
+
+### Settings pop-up (profile menu)
+
+The Settings pop-up uses five items from the founder's private premium kit repositories, approved by the founder on 20 Nov 2026: `bumbmatei-sys/chat-app` (commit `66fd523`) `components/settings-dialog.tsx` (pop-up shell) and `components/user-avatar.tsx` (avatar block, already in the repository), and `bumbmatei-sys/admin-dashboard` (commit `1631106`) `pages/settings/components/sidebar-nav.tsx` (section list), `pages/settings/account/page.tsx` (profile form layout) and `pages/settings/notifications/page.tsx` (bordered link rows). **No kit file is copied.** The kit dialog and tabs are `@base-ui/react`, which the shared Harvest dialog is not, so every file is written for Harvest on its Radix Dialog, Field, Input, RadioGroup and Button, and starts with the modelled-on header. `scripts/ui-identical.sh` finds, per current file: 4 of 40 non-blank lines (10%) of `settings-dialog.tsx` identical to the kit dialog, 4 of 43 (9%) of `settings-nav.tsx` against `sidebar-nav.tsx`, and 4 of 149 (2%) and 6 of 149 (4%) of `settings-panels.tsx` against the account and notifications pages (imports and closing tags). Not used: billing, appearance and display pages, the kit's switch rows and fixture data, react-hook-form and zod.
+
+| Harvest file | Status | Kit source | Harvest notes |
+| --- | --- | --- | --- |
+| `src/components/settings/settings-dialog.tsx` | modelled on | chat-app `components/settings-dialog.tsx` | Title, section list beside scrolling content; full-screen sheet below 768px. |
+| `src/components/settings/settings-nav.tsx` | modelled on | admin-dashboard `settings/components/sidebar-nav.tsx` | Icon rows grouped You and Ministry, a scrollable tab row on phones, roving arrow-key focus. |
+| `src/components/settings/settings-panels.tsx` | modelled on | admin-dashboard `settings/account/page.tsx`, `settings/notifications/page.tsx` | Profile, Account, Ministry details, Connections (the social accounts board embedded) and CRM link rows. |
+| `src/components/user-avatar.tsx` | modelled on (existing) | chat-app `components/user-avatar.tsx` | Reused unchanged in the profile and account panels. |
