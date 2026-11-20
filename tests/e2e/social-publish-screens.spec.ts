@@ -369,7 +369,9 @@ test("social publish: accounts, composer with rings and media, review, queue, ca
   // Drag the draft onto a day (native drag and drop), then confirm.
   const target = new Date(later); target.setDate(target.getDate() + 2);
   // The drafts column reflows once after the page loads; let it settle so the pointer presses the intended card.
-  await expect(page.getByTestId("draft-item")).toHaveCount(2); await page.waitForTimeout(1500);
+  await expect(page.getByTestId("draft-item")).toHaveCount(2);
+  // Scroll the target into view first: dragTo would otherwise scroll the shell after pressing the source and the pointer would land on the next card.
+  await cell(target).scrollIntoViewIfNeeded(); await page.waitForTimeout(300);
   await page.getByTestId("draft-item").filter({ hasText: "Midweek" }).dragTo(cell(target));
   await expect(page.getByRole("alertdialog")).toContainText("It will be sent at");
   await page.getByRole("alertdialog").getByRole("button", { name: "Schedule", exact: true }).click();
