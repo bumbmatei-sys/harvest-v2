@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Database, Transaction } from "../../db/client";
 import { newsletterCampaigns as campaigns, newsletterCampaignRevisions as revisions, newsletterCampaignLists as lists,
   newsletterCampaignSegments as segments } from "../../db/schema";
+import { message } from "../../i18n/messages";
 import { newsletterContent, newsletterStarters } from "../../lib/newsletter-content";
 import { audit, campaignPreview, conflict, digest, id, pageInput, unavailable, version, withNewsletter } from "./access";
 import { assertVerified, identity } from "./identities";
@@ -76,8 +77,8 @@ async function saveDraft(tx: Transaction, tenant: string, actor: string, input: 
   if (input.replyToId) await identity(tx, tenant, input.replyToId);
   const preview = await campaignPreview(tx, tenant, content, input.preheader);
   const [campaign] = previous ? await tx.update(campaigns).set({
-    name: input.name, version: previous.version + 1, revision: previous.revision + 1, state: "draft", reviewDigest: null,
-    scheduledAt: null, timezone: null, senderVersion: null, replyVersion: null, senderDomainVersion: null, replyDomainVersion: null,
+    name: input.name, version: previous.version + 1, revision: previous.revision + 1, state: "draft", reviewDigest: null, reviewExpiresAt: null,
+    scheduledAt: null, timezone: null, senderVersion: null, replyVersion: null, senderDomainVersion: null,
   }).where(scope(tenant, previous.id)).returning()
     : await tx.insert(campaigns).values({ tenantId: tenant, name: input.name, createdBy: actor }).returning();
   const key = { tenantId: tenant, campaignId: campaign.id, revision: campaign.revision };
@@ -128,7 +129,7 @@ async function reviewData(tx: Transaction, tenant: string, row: Awaited<ReturnTy
   if (dispatch.mode === "schedule" && Date.parse(dispatch.schedule.at) <= Date.now()) throw conflict("SCHEDULE_IN_PAST");
   const identities = {
     senderVersion: from.identity.version, replyVersion: reply.identity.version,
-    senderDomainVersion: from.domain.version, replyDomainVersion: reply.domain.version,
+    senderDomainVersion: from.domain!.version,
   };
   const summary = { from: from.identity.address, replyTo: reply.identity.address, preview, estimate, dispatch,
     lists: pins.lists.map(({ id, name }) => ({ id, name })), segments: pins.segments.map(({ id, version }) => ({ id, version })) };
@@ -143,10 +144,11 @@ export function reviewCampaign(db: Database, actor: string, workspace: string, c
     if (row.campaign.version !== input.version || !["draft", "reviewed"].includes(row.campaign.state)) throw conflict("STALE_VERSION");
     const review = await reviewData(tx, tenant, row, input.dispatch);
     const token = randomBytes(32).toString("base64url");
-    await tx.update(campaigns).set({ version: input.version + 1, state: "reviewed", ...review.identities,
+    const expiresAt = new Date(Date.now() + 10 * 60_000);
+    await tx.update(campaigns).set({ version: input.version + 1, state: "reviewed", ...review.identities, reviewExpiresAt: expiresAt,
       reviewDigest: digest(token + review.fingerprint) }).where(scope(tenant, campaignId));
     await audit(tx, tenant, actor, "newsletter.campaign.review", campaignId, input.version + 1);
-    return { ...review.summary, token, version: input.version + 1 };
+    return { ...review.summary, token, expiresAt, version: input.version + 1 };
   });
 }
 
@@ -157,7 +159,8 @@ export function dispatchCampaign(db: Database, actor: string, workspace: string,
     if (input.dispatch.mode !== mode || row.campaign.version !== input.version ||
         row.campaign.state !== "reviewed" || !row.campaign.reviewDigest) throw conflict("REVIEW_REQUIRED");
     const review = await reviewData(tx, tenant, row, input.dispatch);
-    if (!timingSafeEqual(Buffer.from(row.campaign.reviewDigest, "hex"), Buffer.from(digest(input.token + review.fingerprint), "hex"))) {
+    if (!row.campaign.reviewExpiresAt || row.campaign.reviewExpiresAt.getTime() <= Date.now() ||
+        !timingSafeEqual(Buffer.from(row.campaign.reviewDigest, "hex"), Buffer.from(digest(input.token + review.fingerprint), "hex"))) {
       throw conflict("REVIEW_REQUIRED");
     }
     const scheduledAt = mode === "schedule" && input.dispatch.mode === "schedule" ? new Date(input.dispatch.schedule.at) : new Date();
@@ -177,7 +180,7 @@ export function dispatchCampaign(db: Database, actor: string, workspace: string,
           (tenant_id,campaign_id,revision,subscriber_id,list_id,subscription_version,address_binding,state,skip_reason,selected_at,next_check_at)
         values ${sql.join(values, sql`,`)}`);
     }
-    await tx.update(campaigns).set({ state, version: input.version + 1, scheduledAt, timezone, reviewDigest: null,
+    await tx.update(campaigns).set({ state, version: input.version + 1, scheduledAt, timezone, reviewDigest: null, reviewExpiresAt: null,
       frozenAt: selectedAt }).where(scope(tenant, campaignId));
     await audit(tx, tenant, actor, "newsletter.campaign.dispatch", campaignId, input.version + 1);
     return { state, scheduledAt, timezone, version: input.version + 1, deliveryMode: "synthetic" };
@@ -189,7 +192,7 @@ export function cancelCampaign(db: Database, actor: string, workspace: string, c
     const input = versionInput.parse(raw);
     const { campaign } = await readCampaign(tx, tenant, campaignId, true);
     if (campaign.version !== input.version || !["draft", "reviewed", "scheduled", "sending"].includes(campaign.state)) throw conflict("STALE_VERSION");
-    await tx.update(campaigns).set({ state: "cancelled", reviewDigest: null, version: input.version + 1 }).where(scope(tenant, campaignId));
+    await tx.update(campaigns).set({ state: "cancelled", reviewDigest: null, reviewExpiresAt: null, version: input.version + 1 }).where(scope(tenant, campaignId));
     await tx.execute(sql`select public.newsletter_cancel_queued(${tenant}::uuid,${campaignId}::uuid)`);
     await audit(tx, tenant, actor, "newsletter.campaign.cancel", campaignId, input.version + 1);
     return { state: "cancelled", version: input.version + 1 };
@@ -200,10 +203,16 @@ export function testCampaign(db: Database, actor: string, workspace: string, cam
   return withNewsletter(db, actor, workspace, "newsletter:delivery", async (tx, tenant) => {
     if (!z.email().safeParse(adminAddress).success) throw unavailable();
     const { revision } = await readCampaign(tx, tenant, campaignId);
-    return { to: adminAddress!, subject: "[TEST] " + revision.subject, preheader: revision.preheader, ...(await campaignPreview(tx, tenant, revision.content, revision.preheader)) };
+    if (!revision.senderId || !revision.replyToId) throw conflict("IDENTITY_REQUIRED");
+    const sender = await identity(tx, tenant, revision.senderId);
+    const reply = await identity(tx, tenant, revision.replyToId);
+    assertVerified(sender, true);
+    assertVerified(reply, false);
+    return { to: adminAddress!, from: sender.identity.address, replyTo: reply.identity.address,
+      subject: message("NewsletterEmail.testSubject", { subject: revision.subject }),
+      preheader: revision.preheader, ...(await campaignPreview(tx, tenant, revision.content, revision.preheader)) };
   }).then(async preview => {
-    const result = await new FakeNewsletterProvider().submit({ ...preview, idempotencyKey: randomUUID(),
-      from: "newsletter@example.test", replyTo: "newsletter@example.test" });
+    const result = await new FakeNewsletterProvider().submit({ ...preview, deliveryId: randomUUID() });
     return { test: true, mailbox: "synthetic", state: result.state };
   });
 }

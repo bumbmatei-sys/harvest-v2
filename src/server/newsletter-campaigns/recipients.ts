@@ -45,6 +45,10 @@ export async function resolveRecipients(tx: Transaction, tenant: string, selecti
     addressId: sql<string | null>`(select ${contactIdentifiers.id} from ${contactIdentifiers}
       where ${contactIdentifiers.tenantId}=${tenant}::uuid and ${contactIdentifiers.contactId}=${contacts.id}
       and ${contactIdentifiers.kind}='email')`,
+    addressBlock: sql<"global_suppressed" | "list_suppressed" | null>`(select public.newsletter_address_block(
+      ${tenant}::uuid,${contactIdentifiers.normalizedValue},${newsletterSubscriptions.listId}) from ${contactIdentifiers}
+      where ${contactIdentifiers.tenantId}=${tenant}::uuid and ${contactIdentifiers.contactId}=${contacts.id}
+      and ${contactIdentifiers.kind}='email')`,
     hasAddress: exists(tx.select({ id: contactIdentifiers.id }).from(contactIdentifiers).where(and(eq(contactIdentifiers.tenantId, tenant),
       eq(contactIdentifiers.contactId, contacts.id), eq(contactIdentifiers.kind, "email")))),
     contactVersion: contacts.version,
@@ -59,11 +63,11 @@ export async function resolveRecipients(tx: Transaction, tenant: string, selecti
   const skipped: Partial<Record<Skip, number>> = {};
   let eligible = 0;
   for (const [contactId, memberships] of groups) {
-    const subscribed = memberships.find(row => row.state === "subscribed");
+    const subscribed = memberships.find(row => row.state === "subscribed" && !row.addressBlock);
     const row = subscribed ?? memberships[0];
     let reason: Skip | null = null;
-    if (row.globalSuppressed) reason = "global_suppressed";
-    else if (!subscribed) reason = memberships.some(item => item.state === "bounced" || item.state === "suppressed") ? "list_suppressed" : "not_subscribed";
+    if (row.globalSuppressed || row.addressBlock === "global_suppressed") reason = "global_suppressed";
+    else if (!subscribed) reason = memberships.some(item => item.state === "bounced" || item.state === "suppressed" || item.addressBlock === "list_suppressed") ? "list_suppressed" : "not_subscribed";
     else {
       const decision = await mayContact(tx, tenant, contactId, "newsletter", "email");
       if (!decision.allowed) reason = decision.reason === "consent_withdrawn" ? decision.reason : "consent_missing";

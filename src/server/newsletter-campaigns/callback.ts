@@ -37,7 +37,7 @@ export async function newsletterCallback(request: Request, env = process.env,
       if (event) {
         pool = open(workerDatabaseUrl(env));
         await requireWorkerRole(pool);
-        const apply = () => pool!.query("select public.newsletter_delivery_event($1,$2,$3)", [event.reference, event.type, event.at]);
+        const apply = () => pool!.query("select public.newsletter_delivery_event($1,$2,$3,$4)", [event.deliveryId, event.reference, event.type, event.at]);
         try { await apply(); }
         catch (error) {
           if (!error || typeof error !== "object" || !("code" in error) || error.code !== "40001") throw error;

@@ -6,15 +6,15 @@ import { newsletterKey, signNewsletterPreference } from "../newsletter-public";
 import { requireWorkerRole } from "../worker-role";
 import { newsletterOrigin } from "./access";
 import { FakeNewsletterProvider } from "./fake-provider";
-import { LIVE_NEWSLETTER_ENABLED } from "./provider-adapter";
+import { LIVE_NEWSLETTER_ENABLED } from "./ses-adapter";
 
-type Claimed = { tenant: string; key: string; lease: string; state: "queued" | "unknown" };
+type Claimed = { tenant: string; key: string; lease: string };
 type Authorized = { email: string; firstName: string; ministryName: string; from: string; replyTo: string;
   subject: string; preheader: string | null; content: unknown; images: string[] };
 
-export function newsletterWorkerEnabled(env: NodeJS.ProcessEnv, flag: string) {
+export function newsletterWorkerEnabled(env: Record<string, string | undefined>, flag: string) {
   return !LIVE_NEWSLETTER_ENABLED && env.NODE_ENV !== "production" && env.VERCEL_ENV !== "production" &&
-    (env.NODE_ENV === "test" || env.NODE_ENV === "development" || env.VERCEL_ENV === "preview") && env[flag] === "1";
+    (env.NODE_ENV === "test" || env.NODE_ENV === "development") && env[flag] === "1";
 }
 
 export async function runNewsletterWorker(pool: Pool, env: NodeJS.ProcessEnv, provider: FakeNewsletterProvider,
@@ -31,12 +31,6 @@ export async function runNewsletterWorker(pool: Pool, env: NodeJS.ProcessEnv, pr
   for (const job of claimed) {
     try {
       const ids = [job.tenant, job.key, job.lease];
-      if (job.state === "unknown") {
-        const status = await provider.status(job.key);
-        if (status.state === "accepted") await pool.query("select public.newsletter_delivery_complete($1,$2,$3,'accepted',$4)", [...ids, status.reference]);
-        else await pool.query("select public.newsletter_delivery_fail($1,$2,$3,true)", ids);
-        continue;
-      }
       const nonce = randomBytes(32).toString("base64url");
       const unsubscribe = new URL("/api/newsletter/unsubscribe", origin);
       unsubscribe.searchParams.set("token", signNewsletterPreference(key, "list", nonce));
@@ -55,7 +49,7 @@ export async function runNewsletterWorker(pool: Pool, env: NodeJS.ProcessEnv, pr
       }
       // No DB transaction spans the submission. Once authorized, loss of the receipt is ambiguous.
       try {
-        const status = await provider.submit({ ...message, idempotencyKey: job.key, to: payload.email, from: payload.from,
+        const status = await provider.submit({ ...message, deliveryId: job.key, to: payload.email, from: payload.from,
           replyTo: payload.replyTo, subject: payload.subject, preheader: payload.preheader });
         if (status.state === "accepted") await pool.query("select public.newsletter_delivery_complete($1,$2,$3,'accepted',$4)", [...ids, status.reference]);
         else await pool.query("select public.newsletter_delivery_fail($1,$2,$3,$4)", [...ids, status.state === "unknown"]);

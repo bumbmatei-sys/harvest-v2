@@ -1,10 +1,12 @@
-import { createHmac, randomUUID } from "node:crypto";
+import { createHmac, createSign, generateKeyPairSync, randomUUID } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
-import { expect, it } from "vitest";
+import { expect, it, vi } from "vitest";
 import { newsletterContent, renderNewsletter } from "../../src/lib/newsletter-content";
 import { FakeNewsletterProvider } from "../../src/server/newsletter-campaigns/fake-provider";
 import { newsletterCallback } from "../../src/server/newsletter-campaigns/callback";
 import { scheduleInput } from "../../src/server/newsletter-campaigns/schedule";
+import { buildSesSend, sesAdapter } from "../../src/server/newsletter-campaigns/ses-adapter";
+import { newsletterWorkerEnabled } from "../../src/server/newsletter-campaigns/worker";
 
 const unsubscribe = "https://example.test/api/newsletter/unsubscribe?token=signed";
 const rich = (text: string, href = "https://example.test/?a=1&b=2") => [
@@ -52,12 +54,12 @@ it("accepts both annotated fall-back instants and rejects a DST gap and wrong of
 });
 
 it("authenticates a bounded envelope and discards addresses and raw text", () => {
-  const key = Buffer.alloc(32, 7), provider = new FakeNewsletterProvider(key), now = new Date(), reference = randomUUID();
-  const body = Buffer.from(JSON.stringify({ reference, type: "bounced", at: now.toISOString(), email: "reader@example.test", raw: "text" }));
+  const key = Buffer.alloc(32, 7), provider = new FakeNewsletterProvider(key), now = new Date(), deliveryId = randomUUID(), reference = "provider-" + randomUUID();
+  const body = Buffer.from(JSON.stringify({ deliveryId, reference, type: "bounced", at: now.toISOString(), email: "reader@example.test", raw: "text" }));
   const timestamp = now.getTime().toString();
   const signature = createHmac("sha256", key).update(timestamp).update(".").update(body).digest("hex");
   const headers = new Headers({ "x-newsletter-timestamp": timestamp, "x-newsletter-signature": signature });
-  expect(provider.verifyCallback(body, headers, now)).toEqual({ reference, type: "bounced", at: now });
+  expect(provider.verifyCallback(body, headers, now)).toEqual({ deliveryId, reference, type: "bounced", at: now });
   expect(provider.verifyCallback(Buffer.concat([body, Buffer.from(" ")]), headers, now)).toBeNull();
   expect(provider.verifyCallback(body, headers, new Date(now.getTime() + 301_000))).toBeNull();
 });
@@ -71,15 +73,72 @@ it("answers 404 while disabled before touching credentials or the body", async (
 
 it("keeps vendor names and live transport out of the newsletter domain", () => {
   const source = "src/server/newsletter-campaigns";
-  const vendor = new RegExp(["pl", "unk"].join(""), "i");
+  const vendor = /\b(?:plunk|amazon ses|aws ses|sesAdapter)\b/i;
   for (const file of readdirSync(source)) {
     const contents = readFileSync(source + "/" + file, "utf8");
-    if (file !== "provider-adapter.ts") expect(contents).not.toMatch(vendor);
+    if (file !== "ses-adapter.ts") expect(contents).not.toMatch(vendor);
     expect(contents).not.toMatch(/\bfetch\s*\(|node:https|node:http|@aws-sdk|from ["']resend["']/);
   }
-  expect(readFileSync(source + "/provider-adapter.ts", "utf8")).toMatch(/export const LIVE_NEWSLETTER_ENABLED = false;/);
+  expect(readFileSync(source + "/ses-adapter.ts", "utf8")).toMatch(/export const LIVE_NEWSLETTER_ENABLED = false;/);
   const migration = readFileSync("drizzle/0073_newsletter_sending.sql", "utf8");
   const deliveryColumns = migration.match(/CREATE TABLE "newsletter_deliveries" \([\s\S]*?\n\);/)?.[0];
   expect(deliveryColumns).toBeTruthy();
   expect(deliveryColumns).not.toMatch(/"(email|body|html|payload|headers|remote_address|user_agent)"/i);
+});
+
+it("permits explicit synthetic worker flags only in development or test", () => {
+  const flag = "HARVEST_NEWSLETTER_WORKER_ENABLED";
+  expect(newsletterWorkerEnabled({ NODE_ENV: "test", [flag]: "1" }, flag)).toBe(true);
+  expect(newsletterWorkerEnabled({ VERCEL_ENV: "preview", [flag]: "1" }, flag)).toBe(false);
+  expect(newsletterWorkerEnabled({ NODE_ENV: "production", VERCEL_ENV: "preview", [flag]: "1" }, flag)).toBe(false);
+  expect(newsletterWorkerEnabled({ NODE_ENV: "development", VERCEL_ENV: "production", [flag]: "1" }, flag)).toBe(false);
+});
+
+it("puts the immutable delivery tag, headers, and text alternative in the injected send contract", async () => {
+  const deliveryId = randomUUID();
+  const newsletter = { deliveryId, from: "updates@ministry.example.test", to: "reader@example.test", replyTo: "replies@example.test",
+    subject: "Update", preheader: "This week", html: "<p>Hello</p>", text: "Hello",
+    headers: { "List-Unsubscribe": "<" + unsubscribe + ">", "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } };
+  expect(buildSesSend(newsletter, "test-config")).toMatchObject({
+    ConfigurationSetName: "test-config", EmailTags: [{ Name: "harvest_delivery_id", Value: deliveryId }],
+    Content: { Simple: { Body: { Html: { Data: newsletter.html }, Text: { Data: newsletter.text } },
+      Headers: [{ Name: "List-Unsubscribe", Value: newsletter.headers["List-Unsubscribe"] },
+        { Name: "List-Unsubscribe-Post", Value: newsletter.headers["List-Unsubscribe-Post"] }] } },
+  });
+  const send = vi.fn().mockResolvedValue({ MessageId: "fake-test-receipt" });
+  const adapter = sesAdapter({ topicArn: "test", certificates: new Map() }, { configurationSet: "test-config", send });
+  expect(await adapter.submit(newsletter)).toEqual({ state: "failed" });
+  expect(send).not.toHaveBeenCalled();
+});
+
+it("verifies an injected SNS signature, topic, certificate URL and timestamp before projecting delivery evidence", () => {
+  const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
+  const certURL = "https://sns.us-east-1.amazonaws.com/SimpleNotificationService-abc123.pem";
+  const topic = "arn:aws:sns:us-east-1:123456789012:synthetic";
+  const now = new Date(), deliveryId = randomUUID(), reference = "0100-provider-id";
+  const mail = { timestamp: now.toISOString(), messageId: reference, tags: { harvest_delivery_id: [deliveryId] } };
+  const adapter = sesAdapter({ topicArn: topic, certificates: new Map([[certURL, publicKey.export({ type: "spki", format: "pem" })]]) });
+  const envelope = { Type: "Notification", MessageId: randomUUID(), TopicArn: topic,
+    Timestamp: now.toISOString(), SignatureVersion: "2", SigningCertURL: certURL,
+    Message: JSON.stringify({ eventType: "Delivery", mail, delivery: { timestamp: now.toISOString(), recipients: ["reader@example.test"] } }) };
+  function signed(overrides: Partial<typeof envelope> = {}) {
+    const event = { ...envelope, ...overrides };
+    const fields = ["Message", "MessageId", "Timestamp", "TopicArn", "Type"] as const;
+    const signature = createSign("RSA-SHA256").update(fields.flatMap(field => [field, event[field]]).join("\n") + "\n")
+      .sign(privateKey, "base64");
+    return { ...event, Signature: signature };
+  }
+  const verify = (body: ReturnType<typeof signed>) =>
+    adapter.verifyCallback(Buffer.from(JSON.stringify(body)), new Headers(), now);
+  expect(verify(signed())).toEqual({ deliveryId, reference, type: "delivered", at: now });
+  expect(verify({ ...signed(), Message: "{}" })).toBeNull();
+  expect(verify(signed({ TopicArn: topic + "-other" }))).toBeNull();
+  expect(verify(signed({ SigningCertURL: certURL + "?alternate=1" }))).toBeNull();
+  expect(verify(signed({ SigningCertURL: certURL.replace(".amazonaws.com", ".amazonaws.com.example.test") }))).toBeNull();
+  expect(verify(signed({ Timestamp: new Date(now.getTime() - 301_000).toISOString() }))).toBeNull();
+  expect(verify(signed({ SignatureVersion: "1" }))).toBeNull();
+  expect(verify(signed({ Message: JSON.stringify({ eventType: "Bounce", mail,
+    bounce: { timestamp: now.toISOString(), bounceType: "Transient" } }) }))).toBeNull();
+  expect(verify(signed({ Message: JSON.stringify({ eventType: "Bounce", mail,
+    bounce: { timestamp: now.toISOString(), bounceType: "Permanent" } }) }))).toMatchObject({ type: "bounced" });
 });

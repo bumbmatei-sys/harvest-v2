@@ -1,4 +1,12 @@
 {
+  "NewsletterEmail": {
+    "unsubscribe": "Unsubscribe",
+    "fallbackFirstName": "friend",
+    "fallbackMinistry": "our ministry",
+    "confirmMailboxSubject": "Confirm your newsletter email address",
+    "confirmMailboxText": "Enter this code in Harvest to confirm your newsletter email address: {code}",
+    "testSubject": "[TEST] {subject}"
+  },
   "Metadata": {
     "title": "Harvest",
     "description": "Your Harvest ministry"

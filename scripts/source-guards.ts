@@ -153,14 +153,14 @@ export function checkSocialBoundary(directories: string[] = ["src", "scripts"]):
 
 // Newsletter uses its own provider port and a transport-free adapter.
 export function checkNewsletterBoundary(): BoundaryViolation[] {
-  const adapter = "src/server/newsletter-campaigns/provider-adapter.ts";
-  const vendor = new RegExp(["pl", "unk"].join(""), "i");
+  const adapter = "src/server/newsletter-campaigns/ses-adapter.ts";
+  const vendor = /\b(?:plunk|amazon ses|aws ses|sesAdapter)\b/i;
   const source = [...sourceFiles("src"), ...sourceFiles("scripts"), ...sourceFiles("messages")];
   return source.filter(file => /\.(?:tsx?|json)$/.test(file)).flatMap(file => {
     const text = readFileSync(file, "utf8");
     const found: BoundaryViolation[] = [];
     const add = (rule: string) => found.push({ file, rule });
-    if (file !== adapter && vendor.test(text)) add("newsletter vendor name outside the adapter");
+    if (file !== adapter && vendor.test(text) && file !== "scripts/source-guards.ts") add("newsletter vendor name outside the adapter");
     if (file === adapter && !/export const LIVE_NEWSLETTER_ENABLED = false;/.test(text)) {
       add("newsletter live switch must remain literally false");
     }

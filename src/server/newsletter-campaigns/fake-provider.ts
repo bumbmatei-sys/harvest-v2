@@ -1,22 +1,24 @@
-import { createHmac, timingSafeEqual } from "node:crypto";
+import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
-import { newsletterEvents, type NewsletterProvider } from "./port";
+import { newsletterEvents, type DomainRecord, type NewsletterProvider } from "./port";
 
-const callback = z.object({ reference: z.uuid(), type: z.enum(newsletterEvents), at: z.iso.datetime() });
+const callback = z.object({ deliveryId: z.uuid(), reference: z.string().min(1).max(255),
+  type: z.enum(newsletterEvents), at: z.iso.datetime() });
 
 export class FakeNewsletterProvider implements NewsletterProvider {
-  readonly #accepted = new Set<string>();
-  constructor(private readonly key?: Buffer, private readonly loseFirstReceipt = false) {}
+  readonly #accepted = new Map<string, string>();
+  constructor(private readonly key?: Buffer, private readonly loseReceipt = false) {}
 
-  async submit({ idempotencyKey }: Parameters<NewsletterProvider["submit"]>[0]) {
-    const previouslyAccepted = this.#accepted.has(idempotencyKey);
-    this.#accepted.add(idempotencyKey);
-    if (this.loseFirstReceipt && !previouslyAccepted) return { state: "unknown" } as const;
-    return { state: "accepted", reference: idempotencyKey } as const;
+  async submit({ deliveryId }: Parameters<NewsletterProvider["submit"]>[0]) {
+    const reference = this.#accepted.get(deliveryId) ?? "fake-" + randomUUID();
+    this.#accepted.set(deliveryId, reference);
+    if (this.loseReceipt) return { state: "unknown" } as const;
+    return { state: "accepted", reference } as const;
   }
 
-  async status(key: string) {
-    return this.#accepted.has(key) ? { state: "accepted", reference: key } as const : { state: "unknown" } as const;
+  // Test-only observation of what the synthetic provider would echo back.
+  receiptForTest(deliveryId: string) {
+    return this.#accepted.get(deliveryId);
   }
 
   verifyCallback(body: Uint8Array, headers: Headers, now: Date) {
@@ -35,10 +37,12 @@ export class FakeNewsletterProvider implements NewsletterProvider {
     } catch { return null; }
   }
 
-  async domain(address: string) {
-    return address.endsWith(".example.test") || address.endsWith("@example.test")
-      ? { ownership: true, spf: true, dkim: true, dmarc: true } : null;
+  async domain(domain: string, records: readonly DomainRecord[]) {
+    return domain.endsWith(".example.test") && domain !== "newsletter.example.test" &&
+      ["ownership", "spf", "dkim", "bounce"].every(purpose => records.some(record => record.purpose === purpose))
+      ? { ownership: true, spf: true, dkim: true, bounce: true, dmarc: false } : null;
   }
 
-  async quota() { return null; }
+  // A caller can inject a test inbox to read the synthetic message.
+  readonly confirmMailbox: (message: { to: string; subject: string; text: string }) => Promise<void> = async () => {};
 }

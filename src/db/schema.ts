@@ -2036,22 +2036,31 @@ export const newsletterConnections = pgTable("newsletter_connections", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
   id: uuid("id").notNull().defaultRandom(),
   domain: text("domain").notNull(),
-  enabled: boolean("enabled").notNull().default(false),
+  records: jsonb("records").$type<import("../server/newsletter-campaigns/port").DomainRecord[]>().notNull(),
+  ownership: boolean("ownership").notNull().default(false),
   spf: boolean("spf").notNull().default(false),
   dkim: boolean("dkim").notNull().default(false),
+  bounce: boolean("bounce").notNull().default(false),
   dmarc: boolean("dmarc").notNull().default(false),
+  checkedAt: timestamp("checked_at", { withTimezone: true }),
   version: integer("version").notNull().default(1),
-}, t => [primaryKey({ columns: [t.tenantId, t.id] }), unique().on(t.tenantId, t.domain)]);
+}, t => [primaryKey({ columns: [t.tenantId, t.id] }), unique().on(t.tenantId, t.domain),
+  uniqueIndex("newsletter_verified_domain").on(t.domain).where(sql`${t.ownership} and ${t.spf} and ${t.dkim} and ${t.bounce}`)]);
 
 export const newsletterIdentities = pgTable("newsletter_identities", {
-  tenantId: uuid("tenant_id").notNull(),
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
   id: uuid("id").notNull().defaultRandom(),
-  connectionId: uuid("connection_id").notNull(),
+  connectionId: uuid("connection_id"),
   address: text("address").notNull(),
+  purpose: text("purpose", { enum: ["sender", "reply-to"] }).notNull().default("sender"),
   ownershipVerified: boolean("ownership_verified").notNull().default(false),
+  confirmationDigest: text("confirmation_digest"),
+  confirmationExpiresAt: timestamp("confirmation_expires_at", { withTimezone: true }),
   enabled: boolean("enabled").notNull().default(true),
   version: integer("version").notNull().default(1),
-}, t => [primaryKey({ columns: [t.tenantId, t.id] }), unique().on(t.tenantId, t.address),
+}, t => [primaryKey({ columns: [t.tenantId, t.id] }), unique().on(t.tenantId, t.address, t.purpose),
+  check("newsletter_identity_purpose", sql`(${t.purpose}='sender' and ${t.connectionId} is not null)
+    or (${t.purpose}='reply-to' and ${t.connectionId} is null)`),
   foreignKey({ columns: [t.tenantId, t.connectionId], foreignColumns: [newsletterConnections.tenantId, newsletterConnections.id] })]);
 
 export const newsletterTemplates = pgTable("newsletter_templates", {
@@ -2080,13 +2089,13 @@ export const newsletterCampaigns = pgTable("newsletter_campaigns", {
   revision: integer("revision").notNull().default(1),
   state: text("state", { enum: newsletterCampaignStates }).notNull().default("draft"),
   reviewDigest: text("review_digest"),
+  reviewExpiresAt: timestamp("review_expires_at", { withTimezone: true }),
   scheduledAt: timestamp("scheduled_at", { withTimezone: true }),
   timezone: text("timezone"),
   frozenAt: timestamp("frozen_at", { withTimezone: true }),
   senderVersion: integer("sender_version"),
   replyVersion: integer("reply_version"),
   senderDomainVersion: integer("sender_domain_version"),
-  replyDomainVersion: integer("reply_domain_version"),
 }, t => [primaryKey({ columns: [t.tenantId, t.id] }),
   index("newsletter_campaign_due_idx").on(t.state, t.scheduledAt),
   check("newsletter_campaign_state", sql`${t.state} in ('draft','reviewed','scheduled','sending','sent','partial','failed','cancelled')`)]);
@@ -2132,7 +2141,7 @@ export const newsletterCampaignSegments = pgTable("newsletter_campaign_segments"
 export const newsletterSkipReasons = ["global_suppressed", "list_suppressed", "not_subscribed", "consent_missing", "consent_withdrawn", "person_unavailable", "address_unavailable", "eligibility_changed", "review_invalidated", "cancelled"] as const;
 export const newsletterDeliveries = pgTable("newsletter_deliveries", {
   tenantId: uuid("tenant_id").notNull(),
-  id: uuid("id").notNull().defaultRandom(), // immutable delivery id and idempotency key
+  id: uuid("id").notNull().defaultRandom(), // immutable provider-echoed delivery correlation
   campaignId: uuid("campaign_id").notNull(),
   revision: integer("revision").notNull(),
   subscriberId: uuid("subscriber_id"),
@@ -2152,11 +2161,14 @@ export const newsletterDeliveries = pgTable("newsletter_deliveries", {
   bouncedAt: timestamp("bounced_at", { withTimezone: true }),
   complainedAt: timestamp("complained_at", { withTimezone: true }),
   unsubscribedAt: timestamp("unsubscribed_at", { withTimezone: true }),
-  providerRef: uuid("provider_ref"),
+  providerRef: text("provider_ref"),
+  attemptedAddressHash: text("attempted_address_hash"),
 }, t => [
   primaryKey({ columns: [t.tenantId, t.id] }),
   unique("newsletter_delivery_subscriber_unique").on(t.tenantId, t.campaignId, t.revision, t.subscriberId),
   unique("newsletter_delivery_reference_unique").on(t.providerRef),
+  unique("newsletter_delivery_correlation_unique").on(t.id),
+  index("newsletter_delivery_retention_idx").on(t.selectedAt, t.id),
   index("newsletter_delivery_due_idx").on(t.state, t.nextCheckAt, t.leaseUntil),
   foreignKey({ name: "newsletter_delivery_revision_fk", columns: [t.tenantId, t.campaignId, t.revision], foreignColumns: [newsletterCampaignRevisions.tenantId, newsletterCampaignRevisions.campaignId, newsletterCampaignRevisions.revision] }),
   foreignKey({ name: "newsletter_delivery_subscriber_fk", columns: [t.tenantId, t.subscriberId], foreignColumns: [newsletterSubscribers.tenantId, newsletterSubscribers.id] }).onDelete("set null"),
@@ -2165,3 +2177,30 @@ export const newsletterDeliveries = pgTable("newsletter_deliveries", {
   check("newsletter_delivery_state", sql`${t.state} in ('queued','unknown','accepted','failed','skipped')`),
   check("newsletter_delivery_reason", sql`(${t.state} = 'skipped') = (${t.skipReason} is not null) and (${t.skipReason} is null or ${t.skipReason} in ('global_suppressed','list_suppressed','not_subscribed','consent_missing','consent_withdrawn','person_unavailable','address_unavailable','eligibility_changed','review_invalidated','cancelled'))`),
 ]);
+
+
+// Only anonymous counts are carried forward when individual delivery evidence expires.
+export const newsletterArchivedCounts = pgTable("newsletter_archived_counts", {
+  tenantId: uuid("tenant_id").notNull(),
+  campaignId: uuid("campaign_id").notNull(),
+  day: date("day").notNull(),
+  metric: text("metric").notNull(),
+  count: bigint("count", { mode: "number" }).notNull(),
+}, t => [primaryKey({ columns: [t.tenantId, t.campaignId, t.day, t.metric] }),
+  foreignKey({ columns: [t.tenantId, t.campaignId], foreignColumns: [newsletterCampaigns.tenantId, newsletterCampaigns.id] })]);
+
+export const newsletterSuppressions = pgTable("newsletter_suppressions", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  // The nil UUID denotes a ministry-wide block. Any other scope is a newsletter list.
+  scope: uuid("scope").notNull(),
+  addressHash: text("address_hash").notNull(),
+  reason: text("reason").notNull(),
+  blockedAt: timestamp("blocked_at", { withTimezone: true }).notNull(),
+}, t => [primaryKey({ columns: [t.tenantId, t.scope, t.addressHash, t.reason] }),
+  check("newsletter_suppression_reason", sql`${t.reason} in ('unsubscribe','hard_bounce','complaint')`)]);
+
+export const newsletterRetentionRuns = pgTable("newsletter_retention_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  ranAt: timestamp("ran_at", { withTimezone: true }).notNull().defaultNow(),
+  purged: integer("purged").notNull(),
+});

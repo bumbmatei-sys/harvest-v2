@@ -1,5 +1,5 @@
 {
-  "id": "3b2d49fc-d399-4ed9-93a5-fe12c8c09ef1",
+  "id": "511277a9-91ff-4cf6-b9a2-d092092773dd",
   "prevId": "c21a3bc0-1b8e-4b61-a777-6ca9aacab12d",
   "version": "7",
   "dialect": "postgresql",
@@ -15861,6 +15861,75 @@
       },
       "isRLSEnabled": false
     },
+    "public.newsletter_archived_counts": {
+      "name": "newsletter_archived_counts",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "campaign_id": {
+          "name": "campaign_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "day": {
+          "name": "day",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "metric": {
+          "name": "metric",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "count": {
+          "name": "count",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "newsletter_archived_counts_tenant_id_campaign_id_newsletter_campaigns_tenant_id_id_fk": {
+          "name": "newsletter_archived_counts_tenant_id_campaign_id_newsletter_campaigns_tenant_id_id_fk",
+          "tableFrom": "newsletter_archived_counts",
+          "tableTo": "newsletter_campaigns",
+          "columnsFrom": [
+            "tenant_id",
+            "campaign_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "newsletter_archived_counts_tenant_id_campaign_id_day_metric_pk": {
+          "name": "newsletter_archived_counts_tenant_id_campaign_id_day_metric_pk",
+          "columns": [
+            "tenant_id",
+            "campaign_id",
+            "day",
+            "metric"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.newsletter_audiences": {
       "name": "newsletter_audiences",
       "schema": "",
@@ -16310,6 +16379,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "review_expires_at": {
+          "name": "review_expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "scheduled_at": {
           "name": "scheduled_at",
           "type": "timestamp with time zone",
@@ -16342,12 +16417,6 @@
         },
         "sender_domain_version": {
           "name": "sender_domain_version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reply_domain_version": {
-          "name": "reply_domain_version",
           "type": "integer",
           "primaryKey": false,
           "notNull": false
@@ -16446,8 +16515,14 @@
           "primaryKey": false,
           "notNull": true
         },
-        "enabled": {
-          "name": "enabled",
+        "records": {
+          "name": "records",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ownership": {
+          "name": "ownership",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
@@ -16467,12 +16542,25 @@
           "notNull": true,
           "default": false
         },
+        "bounce": {
+          "name": "bounce",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "dmarc": {
           "name": "dmarc",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "checked_at": {
+          "name": "checked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         },
         "version": {
           "name": "version",
@@ -16482,7 +16570,24 @@
           "default": 1
         }
       },
-      "indexes": {},
+      "indexes": {
+        "newsletter_verified_domain": {
+          "name": "newsletter_verified_domain",
+          "columns": [
+            {
+              "expression": "domain",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"newsletter_connections\".\"ownership\" and \"newsletter_connections\".\"spf\" and \"newsletter_connections\".\"dkim\" and \"newsletter_connections\".\"bounce\"",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "newsletter_connections_tenant_id_workspaces_tenant_id_fk": {
           "name": "newsletter_connections_tenant_id_workspaces_tenant_id_fk",
@@ -16656,12 +16761,39 @@
         },
         "provider_ref": {
           "name": "provider_ref",
-          "type": "uuid",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "attempted_address_hash": {
+          "name": "attempted_address_hash",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         }
       },
       "indexes": {
+        "newsletter_delivery_retention_idx": {
+          "name": "newsletter_delivery_retention_idx",
+          "columns": [
+            {
+              "expression": "selected_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "newsletter_delivery_due_idx": {
           "name": "newsletter_delivery_due_idx",
           "columns": [
@@ -16780,6 +16912,13 @@
           "columns": [
             "provider_ref"
           ]
+        },
+        "newsletter_delivery_correlation_unique": {
+          "name": "newsletter_delivery_correlation_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id"
+          ]
         }
       },
       "policies": {},
@@ -16816,7 +16955,7 @@
           "name": "connection_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "address": {
           "name": "address",
@@ -16824,12 +16963,31 @@
           "primaryKey": false,
           "notNull": true
         },
+        "purpose": {
+          "name": "purpose",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'sender'"
+        },
         "ownership_verified": {
           "name": "ownership_verified",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
           "default": false
+        },
+        "confirmation_digest": {
+          "name": "confirmation_digest",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "confirmation_expires_at": {
+          "name": "confirmation_expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         },
         "enabled": {
           "name": "enabled",
@@ -16848,6 +17006,19 @@
       },
       "indexes": {},
       "foreignKeys": {
+        "newsletter_identities_tenant_id_workspaces_tenant_id_fk": {
+          "name": "newsletter_identities_tenant_id_workspaces_tenant_id_fk",
+          "tableFrom": "newsletter_identities",
+          "tableTo": "workspaces",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "tenant_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "newsletter_identities_tenant_id_connection_id_newsletter_connections_tenant_id_id_fk": {
           "name": "newsletter_identities_tenant_id_connection_id_newsletter_connections_tenant_id_id_fk",
           "tableFrom": "newsletter_identities",
@@ -16874,17 +17045,23 @@
         }
       },
       "uniqueConstraints": {
-        "newsletter_identities_tenant_id_address_unique": {
-          "name": "newsletter_identities_tenant_id_address_unique",
+        "newsletter_identities_tenant_id_address_purpose_unique": {
+          "name": "newsletter_identities_tenant_id_address_purpose_unique",
           "nullsNotDistinct": false,
           "columns": [
             "tenant_id",
-            "address"
+            "address",
+            "purpose"
           ]
         }
       },
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "newsletter_identity_purpose": {
+          "name": "newsletter_identity_purpose",
+          "value": "(\"newsletter_identities\".\"purpose\"='sender' and \"newsletter_identities\".\"connection_id\" is not null)\n    or (\"newsletter_identities\".\"purpose\"='reply-to' and \"newsletter_identities\".\"connection_id\" is null)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.newsletter_import_provenance": {
@@ -17275,6 +17452,39 @@
           "value": "\"newsletter_preference_tokens\".\"token_hash\" ~ '^[0-9a-f]{64}$' and \"newsletter_preference_tokens\".\"email_proof\" ~ '^[0-9a-f]{64}$'"
         }
       },
+      "isRLSEnabled": false
+    },
+    "public.newsletter_retention_runs": {
+      "name": "newsletter_retention_runs",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "ran_at": {
+          "name": "ran_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "purged": {
+          "name": "purged",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.newsletter_segments": {
@@ -17918,6 +18128,78 @@
         "newsletter_subscription_version": {
           "name": "newsletter_subscription_version",
           "value": "\"newsletter_subscriptions\".\"version\">=1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.newsletter_suppressions": {
+      "name": "newsletter_suppressions",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "scope": {
+          "name": "scope",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "address_hash": {
+          "name": "address_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "blocked_at": {
+          "name": "blocked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "newsletter_suppressions_tenant_id_workspaces_tenant_id_fk": {
+          "name": "newsletter_suppressions_tenant_id_workspaces_tenant_id_fk",
+          "tableFrom": "newsletter_suppressions",
+          "tableTo": "workspaces",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "tenant_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "newsletter_suppressions_tenant_id_scope_address_hash_reason_pk": {
+          "name": "newsletter_suppressions_tenant_id_scope_address_hash_reason_pk",
+          "columns": [
+            "tenant_id",
+            "scope",
+            "address_hash",
+            "reason"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "newsletter_suppression_reason": {
+          "name": "newsletter_suppression_reason",
+          "value": "\"newsletter_suppressions\".\"reason\" in ('unsubscribe','hard_bounce','complaint')"
         }
       },
       "isRLSEnabled": false

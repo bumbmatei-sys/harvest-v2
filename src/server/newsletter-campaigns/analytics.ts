@@ -64,6 +64,6 @@ export function newsletterAnalytics(db: Database, actor: string, workspace: stri
     const suppressedDays = days.some(day => day.visibility === "suppressed");
     return { campaign: record ?? null, range: { from, until, timezone: "UTC", cohort: "selected" }, days,
       totals: suppressedDays ? { visibility: "suppressed" as const } :
-        shape(totals, totals.selected ? [...eligibility.values()].reduce((a, b) => a + b, 0) : 0, reasons) };
+        shape(totals, eligibility.size === days.length ? [...eligibility.values()].reduce((a, b) => a + b, 0) : null, reasons) };
   });
 }

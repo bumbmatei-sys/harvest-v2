@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { message } from "../i18n/messages";
 import { sanitizeRichText, type RichBlock, type RichDoc, type RichInline } from "./rich-text";
 
 export function newsletterHttps(value: string) {
@@ -61,7 +62,7 @@ export function renderNewsletter(definition: unknown, context: Context) {
   const unsubscribe = newsletterHttps(context.unsubscribe);
   if (!unsubscribe || /[<>]/.test(unsubscribe)) throw new Error("NEWSLETTER_UNSUBSCRIBE_UNAVAILABLE");
   const merge = (value: string) => value.replace(/\{\{(firstName|ministryName)\}\}/g, (_, key: "firstName" | "ministryName") =>
-    context[key]?.trim() || (key === "firstName" ? "friend" : "our ministry"));
+    context[key]?.trim() || (message(key === "firstName" ? "NewsletterEmail.fallbackFirstName" : "NewsletterEmail.fallbackMinistry")));
 
   function renderInline(nodes: RichInline[] = []) {
     return nodes.map(node => {
@@ -116,8 +117,9 @@ export function renderNewsletter(definition: unknown, context: Context) {
       case "footer": return [];
     }
   });
-  rendered.push({ html: '<footer><p>' + escape(merge("{{ministryName}}")) + ' · <a href="' + escape(unsubscribe) + '">Unsubscribe</a></p></footer>',
-    text: merge("{{ministryName}}") + " · Unsubscribe (" + unsubscribe + ")" });
+  const unsubscribeLabel = message("NewsletterEmail.unsubscribe");
+  rendered.push({ html: '<footer><p>' + escape(merge("{{ministryName}}")) + ' · <a href="' + escape(unsubscribe) + '">' + escape(unsubscribeLabel) + '</a></p></footer>',
+    text: merge("{{ministryName}}") + " · " + unsubscribeLabel + " (" + unsubscribe + ")" });
   const preheader = context.preheader?.trim();
   const hiddenPreheader = preheader ? '<div style="display:none;max-height:0;overflow:hidden">' + escape(preheader) + '</div>' : '';
   return {

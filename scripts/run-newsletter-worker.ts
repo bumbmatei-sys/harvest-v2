@@ -1,16 +1,31 @@
 import { createPool } from "../src/db/pool";
 import { FakeNewsletterProvider } from "../src/server/newsletter-campaigns/fake-provider";
+import { purgeNewsletterDeliveries, recheckNewsletterDomains } from "../src/server/newsletter-campaigns/maintenance";
 import { newsletterWorkerEnabled, runNewsletterWorker } from "../src/server/newsletter-campaigns/worker";
 import { workerDatabaseUrl } from "../src/server/worker-role";
 
-if (newsletterWorkerEnabled(process.env, "HARVEST_NEWSLETTER_WORKER_ENABLED")) {
+const action = process.argv[2] ?? "deliver";
+const flags = new Map([
+  ["deliver", "HARVEST_NEWSLETTER_WORKER_ENABLED"],
+  ["recheck-domains", "HARVEST_NEWSLETTER_DOMAIN_RECHECK_ENABLED"],
+  ["purge", "HARVEST_NEWSLETTER_RETENTION_ENABLED"],
+]);
+const flag = flags.get(action);
+if (!flag) throw new Error("UNKNOWN_NEWSLETTER_WORKER_ACTION");
+
+if (newsletterWorkerEnabled(process.env, flag)) {
   let pool;
   try {
     pool = createPool(workerDatabaseUrl());
     pool.on("error", () => console.error("newsletter_worker_pool_failed"));
-    const result = await runNewsletterWorker(pool, process.env, new FakeNewsletterProvider(), { log: line => console.error(line) });
-    console.log(JSON.stringify(result));
-    if (result?.errors || result?.unknown || result?.failed) process.exitCode = 1;
+    const provider = new FakeNewsletterProvider();
+    if (action === "purge") console.log(JSON.stringify(await purgeNewsletterDeliveries(pool, process.env)));
+    else if (action === "recheck-domains") console.log(JSON.stringify(await recheckNewsletterDomains(pool, process.env, provider)));
+    else {
+      const result = await runNewsletterWorker(pool, process.env, provider, { log: line => console.error(line) });
+      console.log(JSON.stringify(result));
+      if (result?.errors || result?.unknown || result?.failed) process.exitCode = 1;
+    }
   } catch {
     console.error("newsletter_worker_failed");
     process.exitCode = 1;

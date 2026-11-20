@@ -11,6 +11,8 @@ import { createIdentity, updateIdentity } from "../../src/server/newsletter-camp
 import { estimateRecipients } from "../../src/server/newsletter-campaigns/recipients";
 import { FakeNewsletterProvider } from "../../src/server/newsletter-campaigns/fake-provider";
 import { runNewsletterWorker } from "../../src/server/newsletter-campaigns/worker";
+import { purgeNewsletterDeliveries, recheckNewsletterDomains } from "../../src/server/newsletter-campaigns/maintenance";
+import { issueNewsletterPreference, unsubscribeNewsletter } from "../../src/server/newsletter-public";
 import { newsletterCallback } from "../../src/server/newsletter-campaigns/callback";
 import { newsletterAnalytics } from "../../src/server/newsletter-campaigns/analytics";
 import { writeTemplate } from "../../src/server/newsletter-campaigns/templates";
@@ -23,6 +25,7 @@ const env: NodeJS.ProcessEnv = { NODE_ENV: "test", HARVEST_NEWSLETTER_WORKER_ENA
 const callbackKey = "54".repeat(32);
 const dispatch = { mode: "now" } as const;
 let fixture: Awaited<ReturnType<typeof testDatabase>>;
+let senderVersion = 2;
 let tenant: string, other: string, audience: string, senderId: string, replyToId: string, foreignList: string;
 
 beforeAll(async () => {
@@ -35,14 +38,32 @@ beforeAll(async () => {
   audience = (await createNewsletterAudience(fixture.db, owner, tenant, { name: "Audience" })).id;
   const foreignAudience = await createNewsletterAudience(fixture.db, otherOwner, other, { name: "Other audience" });
   foreignList = (await createNewsletterList(fixture.db, otherOwner, other, foreignAudience.id, { name: "Other list" })).id;
-  senderId = (await createIdentity(fixture.db, owner, tenant, { address: "sender@example.test" })).identity.id;
-  replyToId = (await createIdentity(fixture.db, owner, tenant, { address: "replies@example.test" })).identity.id;
+  const sender = await verifyMailbox("sender@sending.example.test", "sender");
+  senderId = sender.identity.id;
+  expect(sender.domain?.status).toBe("pending");
+  expect(sender.domain?.records.map(record => record.purpose)).toEqual(["ownership", "dkim", "spf", "bounce", "dmarc"]);
+  expect(sender.domain?.records.at(-1)?.optional).toBe(true);
+  replyToId = (await verifyMailbox("external-replies@outlook.com", "reply-to")).identity.id;
+  expect(await recheckDomains()).toEqual({ checked: 1 });
 }, 60_000);
 afterAll(async () => {
   expect(fetch).not.toHaveBeenCalled();
   vi.restoreAllMocks();
   await fixture?.close();
 });
+
+const recheckDomains = (provider = new FakeNewsletterProvider()) => recheckNewsletterDomains(fixture.workerPool,
+  { ...env, HARVEST_NEWSLETTER_DOMAIN_RECHECK_ENABLED: "1" }, provider);
+
+async function verifyMailbox(address: string, purpose: "sender" | "reply-to") {
+  const confirmMailbox = vi.fn<FakeNewsletterProvider["confirmMailbox"]>();
+  const created = await createIdentity(fixture.db, owner, tenant, { address, purpose }, { confirmMailbox });
+  expect(created.identity).toMatchObject({ ownershipVerified: false, confirmationPending: true });
+  expect(confirmMailbox.mock.calls[0][0].to).toBe(address);
+  const code = confirmMailbox.mock.calls[0][0].text.split(" ").at(-1);
+  expect(JSON.stringify(created)).not.toContain(code);
+  return updateIdentity(fixture.db, owner, tenant, created.identity.id, { action: "confirm", code, version: 1 });
+}
 
 const makeList = async () => (await createNewsletterList(fixture.db, owner, tenant, audience, { name: "List" })).id;
 const content = [{ type: "richText", doc: { type: "doc", content: [
@@ -158,23 +179,22 @@ it.each(["withdraw", "erase", "disable", "merge"] as const)("lets %s win after c
       await mergeContacts(fixture.db, owner, tenant, target.id, { sourceId: person.contactId,
         targetVersion: preview.kept.version, sourceVersion: preview.merged.version });
     }
-    if (action === "disable") await updateIdentity(fixture.db, owner, tenant, senderId, { enabled: false, version: 1 });
+    if (action === "disable") await updateIdentity(fixture.db, owner, tenant, senderId, { enabled: false, version: senderVersion++ });
   } });
   expect(result).toMatchObject({ claimed: 1, errors: 0 });
   expect(submit).not.toHaveBeenCalled();
   expect((await rows(campaign))[0]).toMatchObject({ state: "skipped", attempted_at: null });
   if (action === "erase" || action === "merge") expect((await rows(campaign))[0].subscriber_id).toBeNull();
   expect(await status(campaign)).toBe("failed");
-  if (action === "disable") await updateIdentity(fixture.db, owner, tenant, senderId, { enabled: true, version: 2 });
+  if (action === "disable") await updateIdentity(fixture.db, owner, tenant, senderId, { enabled: true, version: senderVersion++ });
 });
 
-it("recovers a lost lease and unknown receipt using the same idempotency key and accepts replay-safe out-of-order callbacks", async () => {
+it("recovers a lost lease and reconciles a lost receipt by delivery tag and accepts replay-safe out-of-order callbacks", async () => {
   const list = await makeList();
   const person = await subscribe([list]);
   const campaign = await queue(list);
   const provider = new FakeNewsletterProvider(undefined, true);
   const submit = vi.spyOn(provider, "submit");
-  const queryStatus = vi.spyOn(provider, "status");
   const { rows: [{ claimed: [lease] }] } = await fixture.workerPool.query("select public.newsletter_delivery_claim(1,2) as claimed");
   expect((await worker(provider))?.claimed).toBe(0);
   await fixture.admin.query("update newsletter_deliveries set lease_until=now()-interval '1 second' where id=$1", [lease.key]);
@@ -182,18 +202,19 @@ it("recovers a lost lease and unknown receipt using the same idempotency key and
   const [unknown] = await rows(campaign);
   expect(unknown.state).toBe("unknown");
   expect(submit).toHaveBeenCalledTimes(1);
-  expect(submit.mock.calls[0][0]).toMatchObject({ idempotencyKey: unknown.id, to: person.email });
+  expect(submit.mock.calls[0][0]).toMatchObject({ deliveryId: unknown.id, to: person.email, from: "sender@sending.example.test", replyTo: "external-replies@outlook.com" });
   expect(submit.mock.calls[0][0].headers["List-Unsubscribe"]).toMatch(/token=[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+/);
-  expect((await fixture.workerPool.query("select public.newsletter_delivery_complete($1,$2,$3,'accepted',$2) as completed",
-    [tenant, unknown.id, lease.lease])).rows[0].completed).toBe(false);
+  expect((await fixture.workerPool.query("select public.newsletter_delivery_complete($1,$2,$3,'accepted',$4) as completed",
+    [tenant, unknown.id, lease.lease, "stale-receipt"])).rows[0].completed).toBe(false);
   await fixture.admin.query("update newsletter_deliveries set next_check_at=now() where id=$1", [unknown.id]);
-  expect((await worker(provider))?.claimed).toBe(1);
-  expect(queryStatus).toHaveBeenCalledWith(unknown.id);
+  expect((await worker(provider))?.claimed).toBe(0);
+  expect((await rows(campaign))[0].provider_ref).toBeNull();
+  expect(provider.receiptForTest(unknown.id)).not.toBe(unknown.id);
   expect(submit).toHaveBeenCalledTimes(1);
 
   const received = new Date(Date.now() + 1000);
-  const incoming = async (type: string, delay: number, authentic = true) => {
-    const body = JSON.stringify({ reference: unknown.id, type, at: new Date(received.getTime() + delay).toISOString(),
+  const incoming = async (type: string, delay: number, authentic = true, reference = provider.receiptForTest(unknown.id)) => {
+    const body = JSON.stringify({ deliveryId: unknown.id, reference, type, at: new Date(received.getTime() + delay).toISOString(),
       email: person.email, raw: "secret raw text" });
     const timestamp = received.getTime().toString();
     const signature = createHmac("sha256", Buffer.from(callbackKey, "hex")).update(timestamp + "." + body).digest("hex");
@@ -208,8 +229,9 @@ it("recovers a lost lease and unknown receipt using the same idempotency key and
   for (const [type, delay] of [["complained", 30], ["delivered", -10], ["complained", 30]] as const) {
     expect((await incoming(type, delay)).status).toBe(202);
   }
+  await incoming("bounced", 35, true, "foreign-receipt");
   const [outcome] = await rows(campaign);
-  expect(outcome).toMatchObject({ state: "accepted", delivered_at: expect.any(Date), complained_at: expect.any(Date) });
+  expect(outcome).toMatchObject({ state: "accepted", provider_ref: provider.receiptForTest(unknown.id), delivered_at: expect.any(Date), complained_at: expect.any(Date), bounced_at: null });
   expect(JSON.stringify(outcome)).not.toMatch(/secret raw text|@example\.test/);
   expect((await estimateRecipients(fixture.db, owner, tenant, { listIds: [list] })).skipped).toEqual({ global_suppressed: 1 });
   const logs = await fixture.admin.query("select * from audit_logs where action like 'newsletter.%'");
@@ -269,7 +291,7 @@ it("invalidates list and saved segment reviews and preserves shared view deletio
   expect((await rows(live))[0]).toMatchObject({ state: "skipped", skip_reason: "review_invalidated" });
 });
 
-it("blocks duplicate target delivery after an accepted source merges and suppresses the erased source's cohort", async () => {
+it("runs the delivery wrapper, preference wrapper and core CRM merge in one transaction", async () => {
   const list = await makeList();
   const first = await subscribe([list]), second = await subscribe([list]);
   const campaign = await queue(list);
@@ -279,17 +301,139 @@ it("blocks duplicate target delivery after an accepted source merges and suppres
   const accepted = (await rows(campaign)).find(row => row.state === "accepted");
   expect(accepted).toBeTruthy();
   const [source, target] = accepted.subscriber_id === first.subscriberId ? [first, second] : [second, first];
+  const preferences = await makeList();
+  await setNewsletterSubscription(fixture.db, owner, tenant, preferences, source.subscriberId, { state: "unsubscribed", version: 0 });
   const preview = await previewMerge(fixture.db, owner, tenant, target.contactId, source.contactId);
   await mergeContacts(fixture.db, owner, tenant, target.contactId, { sourceId: source.contactId,
     sourceVersion: preview.merged.version, targetVersion: preview.kept.version });
   await worker(provider);
   expect(submit).toHaveBeenCalledTimes(1);
   expect(await status(campaign)).toBe("partial");
-  await fixture.workerPool.query("select public.newsletter_delivery_event($1,'bounced',now())", [accepted.id]);
+  expect((await fixture.admin.query("select state from newsletter_subscriptions where list_id=$1 and subscriber_id=$2",
+    [preferences, target.subscriberId])).rows).toEqual([{ state: "unsubscribed" }]);
+  expect((await fixture.admin.query("select id from contacts where id=$1 and erased_at is null", [source.contactId])).rows)
+    .toEqual([]);
+  expect((await fixture.admin.query("select count(*)::int as n from contact_consents where contact_id=$1 and status='granted'",
+    [target.contactId])).rows[0].n).toBe(2);
+  await fixture.workerPool.query("select public.newsletter_delivery_event($1,$2,'bounced',now())", [accepted.id, accepted.provider_ref]);
   const after = await rows(campaign);
   expect(after.find(row => row.id === accepted.id)).toMatchObject({ subscriber_id: null, address_binding: null,
     suppression_subscriber_id: target.subscriberId, bounced_at: expect.any(Date) });
   expect((await estimateRecipients(fixture.db, owner, tenant, { listIds: [list] })).skipped).toEqual({ global_suppressed: 1 });
   expect((await newsletterAnalytics(fixture.db, owner, tenant, {}, campaign)).totals).toEqual({ visibility: "suppressed" });
   await expect(fixture.pool.query("select attempted_at from newsletter_deliveries")).rejects.toHaveProperty("code", "42501");
+});
+
+it("rejects expired and reused review tokens at the ten-minute boundary", async () => {
+  const list = await makeList();
+  await subscribe([list]);
+  const campaign = await draft([list]);
+  const reviewed = await review(campaign.id);
+  const clock = vi.spyOn(Date, "now").mockReturnValue(reviewed.expiresAt.getTime());
+  try {
+    await expect(dispatchCampaign(fixture.db, owner, tenant, campaign.id, { version: reviewed.version,
+      token: reviewed.token, dispatch }, "now")).rejects.toMatchObject({ status: 409 });
+  } finally { clock.mockRestore(); }
+  expect(await rows(campaign.id)).toEqual([]);
+  const fresh = await review(campaign.id, reviewed.version);
+  const send = { version: fresh.version, token: fresh.token, dispatch };
+  await dispatchCampaign(fixture.db, owner, tenant, campaign.id, send, "now");
+  await expect(dispatchCampaign(fixture.db, owner, tenant, campaign.id, send, "now")).rejects.toHaveProperty("status", 409);
+  await cancelCampaign(fixture.db, owner, tenant, campaign.id, { version: fresh.version + 1 });
+});
+
+it("requires independent mailbox proof and blocks a domain that fails and later passes its recheck", async () => {
+  const list = await makeList();
+  await subscribe([list]);
+  const localSender = await verifyMailbox("updates@alternate.example.test", "sender");
+  const mailbox = { confirmMailbox: vi.fn<FakeNewsletterProvider["confirmMailbox"]>() };
+  const unverified = await createIdentity(fixture.db, owner, tenant, { address: localSender.identity.address, purpose: "reply-to" }, mailbox);
+  expect(unverified.domain).toBeNull();
+  expect(unverified.identity.ownershipVerified).toBe(false);
+  const current = await writeCampaign(fixture.db, owner, tenant, { ...input([list]), senderId: localSender.identity.id });
+  const tryReview = () => review(current.id);
+  await expect(tryReview()).rejects.toHaveProperty("status", 409);
+  expect(await recheckDomains()).toEqual({ checked: 1 });
+  const wrongReply = await writeCampaign(fixture.db, owner, tenant, { ...input([list]), replyToId: unverified.identity.id });
+  await expect(review(wrongReply.id)).rejects.toHaveProperty("status", 409);
+  await expect(updateIdentity(fixture.db, owner, tenant, unverified.identity.id, { action: "confirm",
+    code: "x".repeat(43), version: 1 })).rejects.toHaveProperty("status", 409);
+
+  const reviewed = await tryReview();
+  await dispatchCampaign(fixture.db, owner, tenant, current.id, { version: reviewed.version, token: reviewed.token, dispatch }, "now");
+  const makeDue = () => fixture.admin.query("update newsletter_connections set checked_at=now()-interval '25 hours' where id=$1",
+    [localSender.domain?.id]);
+  await makeDue();
+  const dns = new FakeNewsletterProvider();
+  vi.spyOn(dns, "domain").mockResolvedValueOnce(null);
+  expect(await recheckDomains(dns)).toEqual({ checked: 1 });
+  await makeDue();
+  expect(await recheckDomains(dns)).toEqual({ checked: 1 });
+  const provider = new FakeNewsletterProvider(), submit = vi.spyOn(provider, "submit");
+  await worker(provider);
+  expect(submit).not.toHaveBeenCalled();
+  expect((await rows(current.id))[0]).toMatchObject({ skip_reason: "review_invalidated", attempted_at: null });
+});
+
+it("purges bounded aged batches once and preserves anonymous analytics and address-only blocks", async () => {
+  const list = await makeList();
+  const recipient = await subscribe([list]);
+  for (let index = 0; index < 4; index++) await subscribe([list]);
+  const campaign = await queue(list);
+  await worker();
+  const attempt = (await rows(campaign)).find(row => row.subscriber_id === recipient.subscriberId)!;
+  await fixture.workerPool.query("select public.newsletter_delivery_event($1,$2,'bounced',now())", [attempt.id, attempt.provider_ref]);
+  const { rows: [{ day, until }] } = await fixture.admin.query(`update newsletter_deliveries set selected_at=now()-interval '91 days'
+    where campaign_id=$1 returning (selected_at at time zone 'UTC')::date::text as day,
+    ((selected_at at time zone 'UTC')::date+1)::text as until`, [campaign]);
+  const report = () => newsletterAnalytics(fixture.db, owner, tenant, { from: day, until }, campaign);
+  const before = await report();
+  expect(before.totals).toMatchObject({ selected: 5, attempted: 5, currentlyEligible: 4,
+    outcomes: { bounced: { state: "recorded", count: 1 } } });
+  const retention = { ...env, HARVEST_NEWSLETTER_RETENTION_ENABLED: "1" };
+  expect(await purgeNewsletterDeliveries(fixture.workerPool, env)).toBeNull();
+  expect(await purgeNewsletterDeliveries(fixture.workerPool, { ...retention, NODE_ENV: "production" })).toBeNull();
+  await expect(purgeNewsletterDeliveries(fixture.pool, retention)).rejects.toThrow("WORKER_ROLE_REQUIRED");
+  await expect(purgeNewsletterDeliveries(fixture.workerPool, retention, 501)).rejects.toHaveProperty("code", "22023");
+  expect(await purgeNewsletterDeliveries(fixture.workerPool, retention, 2)).toEqual({ purged: 2 });
+  expect(await rows(campaign)).toHaveLength(3);
+  expect((await report()).totals).toEqual({ ...before.totals, currentlyEligible: null });
+  expect(await purgeNewsletterDeliveries(fixture.workerPool, retention)).toEqual({ purged: 3 });
+  expect(await purgeNewsletterDeliveries(fixture.workerPool, retention)).toEqual({ purged: 0 });
+  expect(await rows(campaign)).toEqual([]);
+  await fixture.workerPool.query("select public.newsletter_delivery_event($1,$2,'bounced',now())", [attempt.id, attempt.provider_ref]);
+  expect((await report()).totals).toEqual({ ...before.totals, currentlyEligible: null });
+  const archive = (await fixture.admin.query("select * from newsletter_archived_counts where campaign_id=$1", [campaign])).rows;
+  expect(archive.every(row => Object.keys(row).sort().join() === "campaign_id,count,day,metric,tenant_id")).toBe(true);
+  const audit = (await fixture.admin.query("select purged from newsletter_retention_runs order by ran_at")).rows;
+  expect(audit).toEqual([{ purged: 2 }, { purged: 3 }, { purged: 0 }]);
+
+  await eraseContact(fixture.db, owner, tenant, recipient.contactId);
+  const recreated = await createContact(fixture.db, owner, tenant, { name: "New contact", email: recipient.email });
+  await consent(recreated.id, "granted");
+  const subscriber = await addNewsletterSubscriber(fixture.db, owner, tenant, { contactId: recreated.id });
+  await setNewsletterSubscription(fixture.db, owner, tenant, list, subscriber.id, { state: "subscribed", version: 0 });
+  expect((await estimateRecipients(fixture.db, owner, tenant, { listIds: [list] })).skipped).toEqual({ global_suppressed: 1 });
+  const blocks = (await fixture.admin.query("select * from newsletter_suppressions where reason='hard_bounce'")).rows;
+  expect(blocks.some(row => row.scope === "00000000-0000-0000-0000-000000000000" && /^[a-f0-9]{64}$/.test(row.address_hash))).toBe(true);
+  expect(JSON.stringify(blocks)).not.toContain(recipient.email);
+});
+
+it("retains a list unsubscribe through erasure without widening it to other lists", async () => {
+  const list = await makeList(), second = await makeList();
+  const recipient = await subscribe([list]);
+  vi.stubEnv("HARVEST_NEWSLETTER_TOKEN_KEY", env.HARVEST_NEWSLETTER_TOKEN_KEY);
+  try {
+    const token = await issueNewsletterPreference(fixture.db, owner, tenant, recipient.subscriberId, { scope: "list", listId: list });
+    await unsubscribeNewsletter(fixture.db, "list", token);
+  } finally { vi.unstubAllEnvs(); }
+  await eraseContact(fixture.db, owner, tenant, recipient.contactId);
+  const recreated = await createContact(fixture.db, owner, tenant, { name: "New contact", email: recipient.email });
+  await consent(recreated.id, "granted");
+  const subscriber = await addNewsletterSubscriber(fixture.db, owner, tenant, { contactId: recreated.id });
+  for (const listId of [list, second]) {
+    await setNewsletterSubscription(fixture.db, owner, tenant, listId, subscriber.id, { state: "subscribed", version: 0 });
+  }
+  expect(await estimateRecipients(fixture.db, owner, tenant, { listIds: [list] })).toMatchObject({ skipped: { list_suppressed: 1 } });
+  expect(await estimateRecipients(fixture.db, owner, tenant, { listIds: [list, second] })).toMatchObject({ eligible: 1, skipped: {} });
 });
