@@ -424,6 +424,19 @@ test("social publish: accounts, composer with rings and media, review, queue, ca
         // Desktop: overlapping posts collapse into one chip plus a "+N" button whose list rows are 44px targets; chips themselves are never slivers.
         for (const chip of await page.locator('[data-slot="week-view"] [data-post-id]').all()) { const box = (await chip.boundingBox())!; expect(box.height, "week chip height").toBeGreaterThanOrEqual(43.5); expect(box.width, "week chip width").toBeGreaterThanOrEqual(24); }
         for (const more of await page.getByTestId("overlap-more").all()) { const box = (await more.boundingBox())!; expect(box.height, "+N button").toBeGreaterThanOrEqual(43.5); }
+        if (width === 1280) {
+          const leads = page.locator('[data-slot="week-view"] div:has(> [data-testid="overlap-more"]) > [data-post-id]');
+          await expect(leads.first()).toBeVisible();
+          for (const lead of await leads.all()) {
+            const title = lead.getByTestId("overlap-lead-title");
+            await expect(title).toBeVisible();
+            await expect(title).toHaveText(/\S/);
+            const box = (await title.boundingBox())!;
+            expect(box.width, "overlap lead title has room for text").toBeGreaterThanOrEqual(12);
+            expect(box.height, "overlap lead title is not screen-reader-only").toBeGreaterThanOrEqual(14);
+            await expect(title).toHaveCSS("text-overflow", "ellipsis");
+          }
+        }
       }
     } });
   // The overlap list (desktop): "+N" opens every post at that time as 44px rows; Escape closes it and keeps focus on the button.
