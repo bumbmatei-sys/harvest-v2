@@ -1,3 +1,5 @@
+import type { AnalyticsDayRange, AnalyticsPost, AnalyticsQuery, AnalyticsSlot } from "./analytics-contract";
+import type { AccountMetric, Metrics } from "../../lib/social/analytics";
 import type { AutoDmEvent, AutoDmEvidence } from "./auto-dm-contract";
 import type { InboxEntry, InboxItemQuery, InboxListQuery, InboxMessage, InboxReplyEligibility, InboxReplyQuery, InboxReplyRequest } from "./inbox-contract";
 import { SocialProviderError, type SocialProvider, type SocialSender } from "./port";
@@ -162,6 +164,33 @@ export class FakeProvider implements SocialProvider, SocialSender {
       return { allowed: false, reason: "target_unavailable" };
     return this.replyEligibility.get(this.inboxKey(query)) ?? { allowed: true, expiresAt: null, media: true, quote: true };
   }
+  analyticsPosts = new Map<string, AnalyticsPost[]>();
+  analyticsAccounts = new Map<string, { day: string; metrics: Metrics<AccountMetric> }[]>();
+  analyticsTimes = new Map<string, AnalyticsSlot[]>();
+
+  async readPostAnalytics(cred: SocialCredential, query: AnalyticsQuery & AnalyticsDayRange & { page: number; limit: number; order: "date" | "engagement" }) {
+    this.enter("readPostAnalytics", cred);
+    query.signal.throwIfAborted();
+    const posts = (this.analyticsPosts.get(query.accountRef) ?? []).filter(row => {
+      const day = row.publishedAt.toISOString().slice(0,10);
+      return day >= query.from && day <= query.to;
+    });
+    const start = (query.page - 1) * query.limit;
+    return { posts: posts.slice(start,start+query.limit), nextPage: start+query.limit<posts.length ? query.page+1 : null, pending:false };
+  }
+
+  async readAccountAnalytics(cred: SocialCredential, query: AnalyticsQuery & AnalyticsDayRange) {
+    this.enter("readAccountAnalytics", cred);
+    query.signal.throwIfAborted();
+    return { days: (this.analyticsAccounts.get(query.accountRef) ?? []).filter(row => row.day >= query.from && row.day <= query.to), partial: false };
+  }
+
+  async readBestPostingTimes(cred: SocialCredential, query: AnalyticsQuery) {
+    this.enter("readBestPostingTimes", cred);
+    query.signal.throwIfAborted();
+    return this.analyticsTimes.get(query.accountRef) ?? [];
+  }
+
   autoDmEvidence = new Map<string, AutoDmEvidence>();
 
   async readAutoDmEvidence(cred: SocialCredential, query: AutoDmEvent) {

@@ -131,6 +131,7 @@ export function inspectSocialBoundary(file: string, source: string): BoundaryVio
   }
   if (!SOCIAL_SEND_HOMES.includes(norm) && /\b(?:sendMessage|replyToComment)\s*\(/.test(source)) add("sending entry point outside the port and adapters");
   if (!SOCIAL_SEND_HOMES.includes(norm) && !["src/server/social/inbox-reply-worker.ts","src/server/social/auto-dm-worker.ts"].includes(norm) && /\b(?:dispatchInboxReply|reconcileInboxReply)\s*\(/.test(source)) add("inbox sender used outside its worker");
+  if (norm === "src/server/social/analytics-worker.ts" && !/export const SOCIAL_ANALYTICS_REFRESH_ENABLED = false;/.test(source)) add("SOCIAL_ANALYTICS_REFRESH_ENABLED must be the literal constant false");
   if (norm === "src/server/social/auto-dm-worker.ts" && !/export const SOCIAL_AUTO_DM_SENDER_ENABLED = false;/.test(source)) add("SOCIAL_AUTO_DM_SENDER_ENABLED must be the literal constant false");
   if (norm === "src/server/social/inbox-reply.ts" && !/export const SOCIAL_HUMAN_REPLY_ENABLED = false;/.test(source)) add("SOCIAL_HUMAN_REPLY_ENABLED must be the literal constant false");
   if (norm.startsWith("src/app/") && specifiers(source).some(s => /inbox-reply-worker(?:\.ts)?$/.test(s))) add("inbox worker imported by app");

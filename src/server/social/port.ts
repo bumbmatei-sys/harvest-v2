@@ -1,3 +1,5 @@
+import type { AnalyticsDayRange, AnalyticsPosts, AnalyticsQuery, AnalyticsSlot } from "./analytics-contract";
+import type { AccountMetric, Metrics } from "../../lib/social/analytics";
 import type { AutoDmEvent, AutoDmEvidence } from "./auto-dm-contract";
 import type { InboxEntry, InboxItemQuery, InboxListQuery, InboxReadPage, InboxReplyEligibility, InboxReplyQuery, InboxReplyRequest } from "./inbox-contract";
 import type {
@@ -34,6 +36,9 @@ export interface SocialProvider {
   listInbox(cred: SocialCredential, query: InboxListQuery): Promise<Page<InboxEntry>>;
   readInbox(cred: SocialCredential, query: InboxItemQuery): Promise<InboxReadPage>;
   inboxReplyEligibility(cred: SocialCredential, query: InboxReplyQuery): Promise<InboxReplyEligibility>;
+  readPostAnalytics(cred: SocialCredential, query: AnalyticsQuery & AnalyticsDayRange & { page: number; limit: number; order: "date" | "engagement" }): Promise<AnalyticsPosts>;
+  readAccountAnalytics(cred: SocialCredential, query: AnalyticsQuery & AnalyticsDayRange): Promise<{ days: { day: string; metrics: Metrics<AccountMetric> }[]; partial: boolean }>;
+  readBestPostingTimes(cred: SocialCredential, query: AnalyticsQuery): Promise<AnalyticsSlot[]>;
   readAutoDmEvidence(cred: SocialCredential, query: AutoDmEvent): Promise<AutoDmEvidence | null>;
   /** Constant-time check of the delivery signature against every accepted secret. */
   verifyWebhook(rawBody: string, signature: string | null, secrets: readonly string[]): boolean;
