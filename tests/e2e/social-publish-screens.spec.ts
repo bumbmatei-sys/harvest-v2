@@ -15,13 +15,17 @@ test.use({ actionTimeout: 30000, reducedMotion: "reduce" });
 const shots = process.env.SOCIAL_SHOTS ?? "/tmp/social-pr1-shots";
 const credential = "harvest-test-credential";
 
-async function audit(page: Page, name: string, options: { shot?: boolean; disable?: string[]; restore?: () => Promise<void> } = {}) {
+async function audit(page: Page, name: string, options: { shot?: boolean; disable?: string[]; restore?: () => Promise<void>; ready?: (width: number) => Promise<void>; check?: (width: number, scheme: string) => Promise<void> } = {}) {
   const session = await page.context().newCDPSession(page);
   for (const scheme of ["light", "dark"] as const) for (const [width, height, scale] of [[1280, 1900, 1], [360, 2600, 2]] as const) {
     if (width === 1280) { await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" }); await page.reload(); await expect(page.locator("html")).toHaveAttribute("data-theme", scheme); await options.restore?.(); }
     await page.setViewportSize({ width, height });
     await session.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: scale, mobile: false });
     await page.evaluate(() => document.fonts.ready.then(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))));
+    // The page must be fully loaded before axe, the overflow check and the screenshot: no skeleton, no busy region, and the page's own ready signal.
+    await options.ready?.(width);
+    await expect(page.locator('[data-slot="skeleton"], [aria-busy="true"]'), `${name} ${scheme} ${width} still loading`).toHaveCount(0);
+    await options.check?.(width, scheme);
     await settleForAxe(page);
     let builder = new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]);
     if (options.disable?.length) builder = builder.disableRules(options.disable);
@@ -130,7 +134,7 @@ test("social publish: accounts, composer with rings and media, review, queue, ca
   await instagramCard.getByRole("button", { name: "Check health" }).click();
   await expect(page.getByText("Account updated").first()).toBeVisible();
   await expect(instagramCard.getByText("Healthy")).toBeVisible();
-  await audit(page, "accounts");
+  await audit(page, "accounts", { ready: async () => { await expect(page.getByTestId("account-card")).toHaveCount(5); await expect(page.getByTestId("marker-legend")).toBeVisible(); } });
 
   // ---- Sidebar: the Social media group (Public mode) and Social accounts under Settings (Operations mode) ----------------------------------------
   const sidebar = page.getByRole("complementary", { name: "Ministry sidebar" });
@@ -331,7 +335,11 @@ test("social publish: accounts, composer with rings and media, review, queue, ca
   await expect(page.locator("[data-queue-column=drafts]")).toContainText("Easter service planning");
   await snap(page, "queue-1280-light");
   await tapTargets(page, '[data-testid="queue-item"] button');
-  await audit(page, "queue");
+  await audit(page, "queue", { ready: async () => {
+    const columns = page.locator("[data-queue-column]"); await expect(columns).toHaveCount(3);
+    for (const name of ["drafts", "scheduled", "sent"]) await expect(page.locator(`[data-queue-column=${name}]`)).toBeVisible();
+    await expect(page.getByTestId("queue-item").first()).toBeVisible(); await expect(page.getByTestId("draft-item").first()).toBeVisible();
+  } });
   // Reschedule by date and time, with the confirm in the dialog.
   const midweek = page.getByTestId("queue-item").filter({ hasText: "Midweek prayer" });
   await midweek.getByRole("button", { name: "Reschedule" }).click();
@@ -365,7 +373,8 @@ test("social publish: accounts, composer with rings and media, review, queue, ca
   const cell = (date: Date) => page.locator(`[data-slot="month-view"] [data-day="${dayKey(date)}"]`);
   await expect(cell(new Date(later)).getByText("Midweek prayer").first()).toBeVisible();
   await snap(page, "calendar-month-1280-light");
-  await audit(page, "calendar-month");
+  await audit(page, "calendar-month", { ready: async () => { await expect(page.locator('[data-slot="month-view"]')).toBeVisible(); await expect(cell(new Date(later)).getByText("Midweek prayer").first()).toBeVisible(); },
+    check: async () => { await expect(page.locator('[data-slot="month-view"] > div').nth(1).locator("> div").first(), "month grid starts on Monday").toHaveText("Mon"); } });
   // Drag the draft onto a day (native drag and drop), then confirm.
   const target = new Date(later); target.setDate(target.getDate() + 2);
   // The drafts column reflows once after the page loads; let it settle so the pointer presses the intended card.
@@ -395,7 +404,36 @@ test("social publish: accounts, composer with rings and media, review, queue, ca
   await expect(page.locator('[data-slot="week-view"]')).toBeVisible();
   await expect(page.locator(`[data-slot="week-view"] [data-post-id]`).first()).toBeVisible();
   await snap(page, "calendar-week-1280-light");
-  await audit(page, "calendar-week");
+  await audit(page, "calendar-week", { ready: async (width) => {
+      if (width < 768) { await expect(page.getByTestId("day-agenda")).toBeVisible(); await expect(page.getByTestId("agenda-day")).toHaveCount(7); await expect(page.locator('[data-slot="week-view"]')).toHaveCount(0); }
+      else { await expect(page.locator('[data-slot="week-view"]')).toBeVisible(); await expect(page.locator('[data-slot="week-view"] [data-post-id]').first()).toBeVisible(); await expect(page.getByTestId("draft-item").first()).toBeVisible(); }
+    },
+    check: async (width) => {
+      if (width < 768) {
+        // Phone: day buttons and every row are full-size touch targets with readable, unclipped text; the busiest day is chosen so rows exist.
+        const days = page.getByTestId("agenda-day"); for (const day of await days.all()) { const box = (await day.boundingBox())!; expect(box.height, "agenda day button").toBeGreaterThanOrEqual(43.5); expect(box.width, "agenda day button width").toBeGreaterThanOrEqual(36); }
+        await page.locator('[data-testid="agenda-day"]:not([aria-label*="no posts"])').first().click();
+        const rows = page.getByTestId("planner-row"); await expect(rows.first()).toBeVisible();
+        for (const row of await rows.all()) {
+          const box = (await row.boundingBox())!; expect(box.height, "agenda row").toBeGreaterThanOrEqual(43.5); expect(box.width, "agenda row is full width").toBeGreaterThanOrEqual(300);
+          const open = (await row.getByRole("button", { name: "Open" }).boundingBox())!; expect(open.height, "agenda row Open").toBeGreaterThanOrEqual(43.5);
+          const text = row.locator("p").first(); await expect(text).toBeVisible(); const metrics = await text.evaluate((node) => { const range = document.createRange(); range.selectNodeContents(node); return { text: node.textContent ?? "", box: node.getBoundingClientRect().height, clipped: node.scrollWidth > node.clientWidth + 1 && getComputedStyle(node).textOverflow !== "ellipsis" }; });
+          expect(metrics.text.trim().length, "agenda row text").toBeGreaterThan(0); expect(metrics.box, "agenda row text height").toBeGreaterThanOrEqual(14); expect(metrics.clipped, "agenda row text clipped").toBe(false);
+        }
+      } else {
+        // Desktop: overlapping posts collapse into one chip plus a "+N" button whose list rows are 44px targets; chips themselves are never slivers.
+        for (const chip of await page.locator('[data-slot="week-view"] [data-post-id]').all()) { const box = (await chip.boundingBox())!; expect(box.height, "week chip height").toBeGreaterThanOrEqual(43.5); expect(box.width, "week chip width").toBeGreaterThanOrEqual(24); }
+        for (const more of await page.getByTestId("overlap-more").all()) { const box = (await more.boundingBox())!; expect(box.height, "+N button").toBeGreaterThanOrEqual(43.5); }
+      }
+    } });
+  // The overlap list (desktop): "+N" opens every post at that time as 44px rows; Escape closes it and keeps focus on the button.
+  await expect(page.getByTestId("overlap-more").first()).toBeVisible();
+  await page.getByTestId("overlap-more").first().click();
+  const stack = page.getByTestId("overlap-list"); await expect(stack).toBeVisible();
+  const stackRows = stack.getByTestId("overlap-row"); expect(await stackRows.count()).toBeGreaterThanOrEqual(2);
+  for (const stackRow of await stackRows.all()) { await expect(stackRow).toBeVisible(); const box = (await stackRow.boundingBox())!; expect(box.height, "overlap row").toBeGreaterThanOrEqual(43.5); expect((await stackRow.innerText()).trim().length, "overlap row text").toBeGreaterThan(0); }
+  await snap(page, "calendar-week-overlap-1280-light");
+  await page.keyboard.press("Escape"); await expect(stack).toHaveCount(0);
   await page.getByLabel("Platform").selectOption("instagram");
   await expect(page).toHaveURL(/platform=instagram/);
   await page.getByLabel("Status").selectOption("failed");
