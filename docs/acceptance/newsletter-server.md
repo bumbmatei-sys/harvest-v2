@@ -14,6 +14,6 @@ Migration 0073 calls `merge_contacts_before_newsletter_sending` from the public 
 
 ## Verification
 
-Lint and typecheck passed. The full unit project passed 1,234 tests in 97 files. Local Drizzle generation against the current 0068-based branch reported no schema changes. The focused newsletter and restricted migration-owner suites passed 18 tests in 3 files.
+Lint and typecheck passed. The full unit project passed **1,234 tests in 97 files**. The full integration project passed **904 tests in 107 files** on embedded PostgreSQL. The focused newsletter and restricted migration-owner suites passed **18 tests in 3 files**. Local Drizzle generation against the current 0068-based branch reported no schema changes.
 
 Hosted Neon, real DNS and mailbox ownership messages, real SES intake and event delivery, production quotas, received MIME and DKIM, hosted monitoring, and a fresh independent review of this follow-up remain unverified. The post-social snapshot check awaits the founder’s confirmation that the stack is merged. [Delivery and SES evidence](newsletter-sending.md)
