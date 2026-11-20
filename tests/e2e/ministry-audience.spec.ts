@@ -50,7 +50,8 @@ test("ministry type at creation, in settings, and read-only for viewers", async 
 
   const tenant = (await (await page.request.get("/api/workspaces")).json()).find((item: { name: string }) => item.name === "Grace Mission").tenantId as string;
   await page.goto(`/workspaces/${tenant}/crm/people`);
-  await page.getByRole("navigation", { name: "Ministry navigation" }).getByRole("link", { name: "Ministry settings", exact: true }).click();
+  // Ministry settings left the sidebar; the page stays reachable at its own address (the Settings pop-up has its own spec).
+  await page.goto(`/workspaces/${tenant}/settings`);
   await expect(page.getByRole("heading", { name: "Ministry settings", exact: true })).toBeVisible();
   await expect(page.getByRole("radio", { name: "Evangelist or missionary", exact: true })).toBeChecked();
   await page.getByRole("radio", { name: "Church", exact: true }).check();

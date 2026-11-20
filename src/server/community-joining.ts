@@ -94,6 +94,14 @@ export type MyInvite = { inviteId: string; slug: string; name: string; expiresAt
 export type MyApplication = { id: string; slug: string; name: string; status: "pending" | "info_requested" | "declined"; infoRequest: string | null;
   answers: Answers; questionsVersion: number; joinQuestions: Question[]; currentQuestionsVersion: number; updatedAt: string };
 
+/** The published communities the person is an active member of, for the Settings pop-up's profile section (one member-path query, no invitations or hosted lists). */
+export function joinedCommunities(db: Database, userId: string) {
+  return withUser(db, userId, (tx) => tx.select({ slug: communities.slug, name: communities.name }).from(communityMemberships)
+    .innerJoin(communities, and(eq(communities.tenantId, communityMemberships.tenantId), eq(communities.id, communityMemberships.communityId)))
+    .where(and(eq(communityMemberships.userId, userId), eq(communityMemberships.status, "active"), eq(communities.status, "published")))
+    .orderBy(communities.name));
+}
+
 /** Joined (member path), Invited (definer, matched to the verified email), Applications (definer, own only, no reviewer notes)
  * and Hosted (staff path per ministry). */
 export async function myCommunities(db: Database, userId: string) {

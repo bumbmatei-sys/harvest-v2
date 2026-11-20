@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { joinParts } from "@/lib/social/join";
-import Link from "next/link";
+import { SettingsLink } from "@/components/settings/settings-link";
 import { AlertTriangle, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import type { CharacterCount } from "@/lib/social/characters";
@@ -61,8 +61,8 @@ export function PlatformRing({ platform, accountName, count, selected, disabledR
   </HoverCard>;
 }
 
-/** The dashed circle beside the account circles that opens Settings > Social accounts (the founder's first version has the same "+"). */
+/** The dashed circle beside the account circles that opens Settings > Connections (the founder's first version has the same "+"). */
 export function ConnectCircle({ href, label }: { href: string; label: string }) {
-  return <Link href={href} prefetch={false} aria-label={label} title={label} data-testid="connect-account"
-    className="inline-flex size-11 items-center justify-center rounded-full border border-dashed text-muted-foreground outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50"><Plus className="size-4" aria-hidden="true" /></Link>;
+  return <SettingsLink section="connections" href={href} aria-label={label} title={label} data-testid="connect-account"
+    className="inline-flex size-11 items-center justify-center rounded-full border border-dashed text-muted-foreground outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50"><Plus className="size-4" aria-hidden="true" /></SettingsLink>;
 }

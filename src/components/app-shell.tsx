@@ -5,7 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { Building2, ChevronRight, LogOut } from "lucide-react";
+import { Building2, ChevronRight, LogOut, Settings } from "lucide-react";
 import { modeAvailability, resolveMode, resolveModeNavigation, resolveNavigation, sectionLabel, type NavFeature, type NavMode } from "@/lib/navigation";
 import { availableModes, displayMode, modeForShortcut, modeSnapshot, rememberMode, subscribeMode } from "@/lib/shell-mode";
 import { ModeSwitcher, modeLabelKey } from "@/components/mode-switcher";
@@ -25,6 +25,9 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MinistrySearchDialog, MinistrySwitcher } from "@/components/ministry-switcher";
+import { SettingsProvider } from "@/components/settings/settings-host";
+import { useSettings } from "@/components/settings/settings-context";
+import type { ShellSettings } from "@/lib/settings-sections";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 
 type Workspace = { tenantId: string; name: string; role: string; audience?: Audience | null; memberCount?: number };
@@ -57,7 +60,8 @@ function AccountMenu({ email, workspaces, selected, busy, container, onSignOut }
   const { setOpenMobile } = useSidebar();
   const [searchOpen, setSearchOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const searchPending = useRef(false);
+  const searchPending = useRef(false), settingsPending = useRef(false);
+  const settings = useSettings();
   const closeSidebar = () => setOpenMobile(false);
   return <>
     <DropdownMenu modal={false}><DropdownMenuTrigger asChild>
@@ -65,10 +69,11 @@ function AccountMenu({ email, workspaces, selected, busy, container, onSignOut }
         <Avatar className="size-8 shrink-0 border border-sidebar-border" aria-hidden="true"><AvatarFallback className="bg-transparent uppercase">{email.slice(0, 1)}</AvatarFallback></Avatar>
       </Button>
     </DropdownMenuTrigger><DropdownMenuContent container={container} side="top" align="start" collisionPadding={8} className="w-72 max-w-[calc(100vw-1rem)] rounded-[12px]"
-      onCloseAutoFocus={(event) => { if (searchPending.current) { searchPending.current = false; event.preventDefault(); } }}>
+      onCloseAutoFocus={(event) => { if (searchPending.current || settingsPending.current) { searchPending.current = false; settingsPending.current = false; event.preventDefault(); } }}>
       <DropdownMenuLabel className="truncate text-xs">{email}</DropdownMenuLabel><DropdownMenuSeparator />
       <MinistrySwitcher ministries={workspaces} selected={selected} onNavigate={closeSidebar} onOpenSearch={() => { searchPending.current = true; setSearchOpen(true); }} />
       <DropdownMenuSeparator />
+      <DropdownMenuItem className="min-h-11 lg:min-h-0" onSelect={() => { settingsPending.current = true; closeSidebar(); settings?.open(undefined, triggerRef.current); }}><Settings aria-hidden="true" />{t("settings")}</DropdownMenuItem>
       <DropdownMenuItem asChild className="min-h-11 lg:min-h-0"><Link href="/profile" onClick={closeSidebar}>{t("profile")}</Link></DropdownMenuItem>
       <DropdownMenuSeparator /><BrandThemeMenu /><DropdownMenuSeparator />
       <DropdownMenuItem className="min-h-11 lg:min-h-0" disabled={busy} onSelect={onSignOut}><LogOut aria-hidden="true" />{t("signOut")}</DropdownMenuItem>
@@ -123,9 +128,13 @@ function ModeNavigation({ selected, workspace, pathname, features, announce }: {
       {mode === "operations" && <SidebarGroup className="px-[13px] py-0 group-data-[collapsible=icon]:px-0">
         <SidebarMenu className="gap-px"><NavigationLink href="/workspaces" active={false} label={t("workspaces")} icon={<Building2 aria-hidden="true" />} /></SidebarMenu>
       </SidebarGroup>}
-      {groups.map((group) => <NavigationGroup key={group.id} label={t(group.label)} icon={group.icon ? <group.icon aria-hidden="true" className="size-3.5" /> : undefined}>
-        {group.items.map(({ id, href, active, label, icon: Icon }) => <NavigationLink key={id} href={href} active={active} label={t(label)} icon={<Icon aria-hidden="true" />} />)}
-      </NavigationGroup>)}
+      {groups.map((group) => group.pinned
+        ? <SidebarGroup key={group.id} className="px-[13px] py-0 group-data-[collapsible=icon]:px-0"><SidebarMenu className="gap-px">
+          {group.items.map(({ id, href, active, label, icon: Icon }) => <NavigationLink key={id} href={href} active={active} label={t(label)} icon={<Icon aria-hidden="true" />} />)}
+        </SidebarMenu></SidebarGroup>
+        : <NavigationGroup key={group.id} label={t(group.label)} icon={group.icon ? <group.icon aria-hidden="true" className="size-3.5" /> : undefined}>
+          {group.items.map(({ id, href, active, label, icon: Icon }) => <NavigationLink key={id} href={href} active={active} label={t(label)} icon={<Icon aria-hidden="true" />} />)}
+        </NavigationGroup>)}
     </nav>;
   return <>
     {/* One compact header row: logo left, mode icons right (a single mode needs no switcher). */}
@@ -141,8 +150,10 @@ function ModeNavigation({ selected, workspace, pathname, features, announce }: {
     <SidebarContent className="gap-0 pt-1">{editing && editor ? <EditingSidebar context={editor} id={modeNavId} /> : entries}</SidebarContent>
   </>;
 }
-export function AppShell({ children, workspaces, selected, email, brandTheme = "harvest", defaultOpen = true, features = [], header, modeSwitcher = false }: {
+export function AppShell({ children, workspaces, selected, email, brandTheme = "harvest", defaultOpen = true, features = [], header, modeSwitcher = false, settings = {} }: {
   features?: readonly NavFeature[]; header?: AppShellHeaderSlots;
+  /** What the Settings pop-up can offer beyond the account: set by pages that know (workspace layout, profile). */
+  settings?: ShellSettings;
   /** Shell slice 2 flag: three-mode switcher and per-mode sidebar. Off renders the single sidebar exactly as before. */
   modeSwitcher?: boolean;
   children: React.ReactNode; workspaces: Workspace[]; selected?: string; email: string; brandTheme?: BrandTheme; defaultOpen?: boolean;
@@ -226,5 +237,6 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
     </SidebarInset>
   </SidebarProvider>;
   // Editors register their sidebar through this provider only when the shell-modes flag is on; otherwise they render their own step list.
-  return modeSwitcher && selected ? <EditorProvider>{shell}</EditorProvider> : shell;
+  const withEditor = modeSwitcher && selected ? <EditorProvider>{shell}</EditorProvider> : shell;
+  return <SettingsProvider shell={{ email, tenantId: workspace ? selected : undefined, ministryName: workspace?.name, role: workspace?.role, audience: workspace?.audience, features, settings }}>{withEditor}</SettingsProvider>;
 }

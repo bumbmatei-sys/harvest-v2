@@ -43,9 +43,9 @@ test("CW-01: mobile shell Tab reaches every navigation link and campaign targets
     await expect(sheet).toBeVisible();
     const navigation = sheet.getByRole("navigation", { name: "Ministry navigation" });
     const links = navigation.getByRole("link");
-    // Ministries entry plus all CRM, Ministry and Settings links (Ministry settings added in PR B, Follow-up in Kit PR 6).
+    // Ministries entry plus the CRM, Connect, Office and Ministry links. The Settings group left the sidebar (Settings pop-up, 20 Nov): five fewer links than before.
     // Follow-up (followup:work) and Communities (ADR 0013, while the flag is on) are the 13th and 14th links; with the mode switcher on, Communities moves to the Public sidebar and Social accounts (Settings) is the 15th Operations link. Operations "Events" (feature "events", C14) adds one more link in both modes.
-    await expect(links).toHaveCount(process.env.HARVEST_SHELL_MODES === "disabled" ? 17 : 15);
+    await expect(links).toHaveCount(process.env.HARVEST_SHELL_MODES === "disabled" ? 12 : 10);
     const expected = new Set(await links.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href"))));
     await sheet.getByRole("link", { name: "Harvest", exact: true }).focus();
     for (let tab = 0; tab < 30 && expected.size; tab++) {

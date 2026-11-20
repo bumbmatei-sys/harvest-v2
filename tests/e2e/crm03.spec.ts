@@ -62,8 +62,9 @@ test("CRM-03: custom fields, saved views, filters, columns and keyboard grid edi
   }
 
   // Fields settings: empty state, then create a select field through the dialog.
-  await page.goto(`${root}/crm/people`);
-  await page.getByRole("navigation", { name: "Ministry navigation" }).getByRole("link", { name: "CRM fields" }).click();
+  // CRM fields left the sidebar: it is reached from the Settings pop-up (deep link to its CRM section).
+  await page.goto(`${root}/crm/people?settings=crm`);
+  await page.getByRole("dialog", { name: "Settings", exact: true }).getByRole("link", { name: "CRM fields", exact: true }).click();
   await expect(page).toHaveURL(`${root}/crm/settings/fields`);
   await expect(page.getByRole("heading", { name: "No custom fields for People" })).toBeVisible();
   await page.getByRole("button", { name: "New field" }).first().click();

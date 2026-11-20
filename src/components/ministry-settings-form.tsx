@@ -8,13 +8,15 @@ import type { Audience } from "@/lib/audience";
 import { AudienceField } from "@/components/audience-field";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { StickySaveBar } from "@/components/sticky-save-bar";
+import { Button } from "@/components/ui/button";
 import { notify } from "@/lib/toast";
 
-export function MinistrySettingsForm({ tenantId, current, writable }: { tenantId: string; current: Audience | null; writable: boolean }) {
+/** `inline` (the Settings pop-up) ends the form with its own Save button: the sticky bar belongs to full pages. */
+export function MinistrySettingsForm({ tenantId, current, writable, inline = false }: { tenantId: string; current: Audience | null; writable: boolean; inline?: boolean }) {
   const t = useTranslations("ComponentsMinistrySettingsForm");
   const router = useRouter(), hydrated = useHydrated();
   const [audience, setAudience] = useState(current), [saved, setSaved] = useState(current), [busy, setBusy] = useState(false), [error, setError] = useState("");
-  const dirty = writable && audience !== saved;
+  const dirty = writable && audience !== saved, formId = inline ? "ministry-settings-form-inline" : "ministry-settings-form";
   async function save(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault(); if (!audience || audience === saved) return;
     setBusy(true); setError("");
@@ -26,10 +28,11 @@ export function MinistrySettingsForm({ tenantId, current, writable }: { tenantId
     } catch { setError(t("couldNotConnectPleaseTryAgain")); }
     finally { setBusy(false); }
   }
-  return <form id="ministry-settings-form" onSubmit={save} className="space-y-4">
+  return <form id={formId} onSubmit={save} className="space-y-4">
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-    <AudienceField id="ministry-audience" value={audience} onChange={setAudience} disabled={!hydrated || !writable || busy} />
-    {writable ? <StickySaveBar form="ministry-settings-form" dirty={dirty} busy={busy} saveDisabled={!audience} onDiscard={() => { setAudience(saved); setError(""); }} />
+    <AudienceField id={`ministry-audience${inline ? "-inline" : ""}`} value={audience} onChange={setAudience} disabled={!hydrated || !writable || busy} />
+    {writable && inline ? <Button type="submit" className="min-h-11" disabled={!hydrated || busy || !dirty || !audience}>{t(busy ? "saving" : "save")}</Button>
+      : writable ? <StickySaveBar form={formId} dirty={dirty} busy={busy} saveDisabled={!audience} onDiscard={() => { setAudience(saved); setError(""); }} />
       : <Alert><AlertDescription>{t("onlyOwnersAndAdmins")}</AlertDescription></Alert>}
   </form>;
 }
