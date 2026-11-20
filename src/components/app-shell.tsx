@@ -34,16 +34,16 @@ function NavigationLink({ href, label, icon, active }: { href: string; label: st
   const { setOpenMobile, isMobile } = useSidebar();
   return <SidebarMenuItem><SidebarMenuButton asChild isActive={active} tooltip={isMobile ? undefined : label} className={menuButton}><Link href={href} aria-current={active ? "page" : undefined} onClick={() => setOpenMobile(false)}>{icon}<span className="group-data-[collapsible=icon]:sr-only">{label}</span></Link></SidebarMenuButton></SidebarMenuItem>;
 }
-function NavigationGroup({ label, children }: { label: string; children: React.ReactNode }) {
+function NavigationGroup({ label, icon, children }: { label: string; icon?: React.ReactNode; children: React.ReactNode }) {
   const { state, isMobile } = useSidebar();
   if (isMobile) return <SidebarGroup className="mt-6 px-[13px] py-0">
-    <SidebarGroupLabel className="h-6 px-2 text-[12px] font-normal text-sidebar-foreground/85">{label}</SidebarGroupLabel>
+    <SidebarGroupLabel className="h-6 gap-1.5 px-2 text-[12px] font-normal text-sidebar-foreground/85">{icon}{label}</SidebarGroupLabel>
     <SidebarGroupContent><SidebarMenu className="gap-px">{children}</SidebarMenu></SidebarGroupContent>
   </SidebarGroup>;
   return <Collapsible defaultOpen className="group/collapsible">
     <SidebarGroup className="mt-6 px-[13px] py-0 group-data-[collapsible=icon]:mt-3 group-data-[collapsible=icon]:px-0">
       <SidebarGroupLabel asChild className="h-6 gap-1 px-2 text-[12px] font-normal text-sidebar-foreground/85 group-data-[collapsible=icon]:hidden">
-        <CollapsibleTrigger>{label}<ChevronRight aria-hidden="true" className="size-[11px] transition-transform group-data-[state=open]/collapsible:rotate-90" /></CollapsibleTrigger>
+        <CollapsibleTrigger>{icon}{label}<ChevronRight aria-hidden="true" className="size-[11px] transition-transform group-data-[state=open]/collapsible:rotate-90" /></CollapsibleTrigger>
       </SidebarGroupLabel>
       <CollapsibleContent forceMount={state === "collapsed" ? true : undefined}>
         <SidebarGroupContent><SidebarMenu className="gap-px">{children}</SidebarMenu></SidebarGroupContent>
@@ -123,7 +123,7 @@ function ModeNavigation({ selected, workspace, pathname, features, announce }: {
       {mode === "operations" && <SidebarGroup className="px-[13px] py-0 group-data-[collapsible=icon]:px-0">
         <SidebarMenu className="gap-px"><NavigationLink href="/workspaces" active={false} label={t("workspaces")} icon={<Building2 aria-hidden="true" />} /></SidebarMenu>
       </SidebarGroup>}
-      {groups.map((group) => <NavigationGroup key={group.id} label={t(group.label)}>
+      {groups.map((group) => <NavigationGroup key={group.id} label={t(group.label)} icon={group.icon ? <group.icon aria-hidden="true" className="size-3.5" /> : undefined}>
         {group.items.map(({ id, href, active, label, icon: Icon }) => <NavigationLink key={id} href={href} active={active} label={t(label)} icon={<Icon aria-hidden="true" />} />)}
       </NavigationGroup>)}
     </nav>;
@@ -184,7 +184,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
           <SidebarGroup className="px-[13px] py-0 group-data-[collapsible=icon]:px-0">
             <SidebarMenu className="gap-px"><NavigationLink href="/workspaces" active={!selected} label={t("workspaces")} icon={<Building2 aria-hidden="true" />} /></SidebarMenu>
           </SidebarGroup>
-          {selected && resolveNavigation({ tenantId: selected, role: workspace?.role, audience: workspace?.audience, pathname, features }).map((group) => <NavigationGroup key={group.id} label={t(group.label)}>
+          {selected && resolveNavigation({ tenantId: selected, role: workspace?.role, audience: workspace?.audience, pathname, features }).map((group) => <NavigationGroup key={group.id} label={t(group.label)} icon={group.icon ? <group.icon aria-hidden="true" className="size-3.5" /> : undefined}>
             {group.items.map(({ id, href, active, label, icon: Icon }) => <NavigationLink key={id} href={href} active={active} label={t(label)} icon={<Icon aria-hidden="true" />} />)}
           </NavigationGroup>)}
         </nav></SidebarContent>}

@@ -2,11 +2,14 @@ import { createHash, randomBytes } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { sha256File, Sha256 } from "../../src/lib/social/sha256";
-import { buildDocument, emptyComposer, emptyDestination, ringFor, ringTone, stateFromDocument, type Attachment, type ComposerState } from "../../src/lib/social/composer-state";
+import { buildDocument, emptyShared, emptyComposer, emptyDestination, ringFor, ringTone, stateFromDocument, type Attachment, type ComposerState } from "../../src/lib/social/composer-state";
 import { composerInput } from "../../src/lib/social/composer";
 import { joinParts } from "../../src/lib/social/join";
+import { platformCapabilities } from "../../src/lib/social/platforms";
+import { sharedSupport } from "../../src/lib/social/composer-state";
 
-const conn = [{ id: "11111111-1111-4111-8111-111111111111", platform: "twitter" as const }, { id: "22222222-2222-4222-8222-222222222222", platform: "instagram" as const }, { id: "33333333-3333-4333-8333-333333333333", platform: "tiktok" as const }];
+const caps = (platform: "twitter" | "instagram" | "tiktok") => platformCapabilities[platform];
+const conn = [{ id: "11111111-1111-4111-8111-111111111111", platform: "twitter" as const, capabilities: caps("twitter") }, { id: "22222222-2222-4222-8222-222222222222", platform: "instagram" as const, capabilities: caps("instagram") }, { id: "33333333-3333-4333-8333-333333333333", platform: "tiktok" as const, capabilities: caps("tiktok") }];
 const image = (key: string, over: Partial<Attachment> = {}): Attachment => ({ key, fileId: `00000000-0000-4000-8000-00000000000${key}`, name: `${key}.jpg`, mime: "image/jpeg", size: 10, kind: "image", previewUrl: null, altText: "", phase: "ready", progress: 100, error: null, ...over });
 
 describe("sha256", () => {
@@ -53,10 +56,11 @@ describe("rings and documents", () => {
     expect(composerInput.safeParse(document).success).toBe(true);
   });
   it("per-account media and text overrides become custom variants; options only where set", () => {
-    const state: ComposerState = { ...base, attachments: [image("1"), image("3")],
-      destinations: { instagram: { ...emptyDestination(), mediaKeys: ["1"], options: { ...emptyDestination().options, firstComment: "More" } }, twitter: { ...emptyDestination(), custom: true, content: "own" } } };
+    const state: ComposerState = { ...base, shared: { ...emptyShared(), firstCommentOn: true, firstComment: "More" }, attachments: [image("1"), image("3")],
+      destinations: { instagram: { ...emptyDestination(), mediaKeys: ["1"], options: emptyDestination().options }, twitter: { ...emptyDestination(), custom: true, content: "own" } } };
     const { variants } = buildDocument(state, conn);
     expect(variants.instagram).toMatchObject({ mode: "custom", media: [{ fileId: "00000000-0000-4000-8000-000000000001" }], options: { firstComment: "More" } });
+    // X has no first comment, so the shared row does not reach it.
     expect(variants.twitter).toEqual({ mode: "custom", content: "own" });
     expect(variants.tiktok).toBeUndefined();
   });
@@ -67,6 +71,14 @@ describe("rings and documents", () => {
     expect(confirmed.variants.tiktok?.options?.tiktok).toEqual({ privacy: "SELF_ONLY", confirmedPreview: true, consent: true });
     const restored = stateFromDocument(confirmed);
     expect(restored.destinations.tiktok?.options).toMatchObject({ tiktokPrivacy: "SELF_ONLY", tiktokConfirmed: false });
+  });
+  it("shared option rows reach only the platforms that support them, mirroring the server", () => {
+    expect(sharedSupport(conn[0], "post", "none")).toEqual({ firstComment: false, repost: true, madeWithAi: false, link: false });
+    expect(sharedSupport(conn[0], "post", "image").madeWithAi).toBe(true);
+    expect(sharedSupport(conn[1], "post", "image").firstComment).toBe(true);
+    expect(sharedSupport(conn[2], "post", "image").madeWithAi).toBe(false);
+    expect(sharedSupport(conn[2], "post", "video").madeWithAi).toBe(true);
+    expect(sharedSupport(conn[1], "story", "image")).toEqual({ firstComment: false, repost: false, madeWithAi: false, link: false });
   });
   it("joins only the parts that exist", () => { expect(joinParts(["a", "", null, "b"])).toBe("a · b"); });
 });
