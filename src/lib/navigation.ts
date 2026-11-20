@@ -1,4 +1,4 @@
-import { BarChart3, Bot, Building, Calendar, CalendarCheck, CalendarDays, Church, ClipboardList, Compass, FileText, FileUp, Files, Flag, Globe, HandCoins, HeartHandshake, Inbox, Kanban, Link2, ListChecks, Mail, MailOpen, Radio, Sheet, ClipboardCheck, Users, MessageCircleReply, MessagesSquare, Newspaper, Palette, QrCode, ShoppingBag, Landmark, Share2, SlidersHorizontal, UserCog, UsersRound, Workflow, type LucideIcon } from "lucide-react";
+import { BarChart3, Bot, Building, Calendar, CalendarCheck, CalendarDays, Church, ClipboardList, Compass, FileText, FileUp, Files, Flag, Globe, HandCoins, HeartHandshake, Kanban, Link2, ListChecks, Mail, MailOpen, Radio, Sheet, ClipboardCheck, Users, MessageCircleReply, MessageSquareText, MessagesSquare, Newspaper, Palette, QrCode, ShoppingBag, Landmark, Share2, SlidersHorizontal, UserCog, UsersRound, Workflow, type LucideIcon } from "lucide-react";
 import type { Audience } from "./audience";
 import { can, type Permission } from "./permissions";
 
@@ -81,9 +81,9 @@ export const navEntries: readonly NavEntry[] = [
   // C14: owners and admins; hidden unless the server reports Events enabled (never in production).
   { id: "events", group: "workspace", mode: "operations", label: "events", icon: CalendarCheck, path: "/events", match: under("/events"), permission: "communities:manage", feature: "events" },
   { id: "files", group: "workspace", mode: "operations", label: "files", icon: Files, path: "/files", match: has("/files") },
-  // The Social media group: Planner opens the page whose own tabs are Compose, Calendar and Queue. Inbox, Auto-DM and Analytics stay planned until their screens exist.
+  // The Social media group: Planner opens the page whose own tabs are Compose, Calendar and Queue. Inbox is live (owners and admins); Auto-DM and Analytics stay planned until their screens exist.
   { id: "planner", group: "publishing", mode: "public", label: "planner", icon: CalendarDays, path: "/social/planner", match: (pathname) => under("/social/planner")(pathname) || under("/social/compose")(pathname), permission: "social:schedule", feature: "social" },
-  { id: "inbox", group: "publishing", mode: "public", status: "planned", label: "inbox", icon: Inbox, path: "/inbox", match: under("/inbox") },
+  { id: "inbox", group: "publishing", mode: "public", label: "inbox", icon: MessageSquareText, path: "/social/inbox", match: under("/social/inbox"), permission: "social:inbox", feature: "social" },
   { id: "socialAnalytics", group: "publishing", mode: "public", status: "planned", label: "socialAnalytics", icon: BarChart3, path: "/social/analytics", match: under("/social/analytics") },
   { id: "autoDm", group: "publishing", mode: "public", status: "planned", label: "autoDm", icon: MessageCircleReply, path: "/inbox/auto-dm", match: under("/inbox/auto-dm") },
   { id: "articles", group: "publishing", mode: "public", status: "planned", label: "articles", icon: Newspaper, path: "/articles", match: under("/articles") },
