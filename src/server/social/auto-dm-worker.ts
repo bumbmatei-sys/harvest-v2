@@ -1,5 +1,6 @@
-import { createHmac } from "node:crypto";
-import { autoDmCapabilities, autoDmOpen, autoDmRuleInput, matchAutoDm, renderAutoDm, type AutoDmPlatform } from "../../lib/social/auto-dm";
+import { createHmac, randomUUID } from "node:crypto";
+import { autoDmCapabilities, autoDmOpen, autoDmRuleInput, matchAutoDm, renderAutoDm, type AutoDmPlatform, type AutoDmRule } from "../../lib/social/auto-dm";
+import { FakeProvider } from "./fake-provider";
 import { credentialBinding, openCredential } from "./credential-envelope";
 import type { InboxMedia, InboxReplyQuery } from "./inbox-contract";
 import { SocialProviderError, type SocialProvider, type SocialSender } from "./port";
@@ -133,4 +134,16 @@ export async function runSocialAutoDm(pool: Pool, { fake, recipientKey, limit = 
     } catch { result.worker_error = (result.worker_error ?? 0) + 1; }
   }
   return result;
+}
+
+/** Preview uses a new, in-process fake. It accepts no connection credential, recipient or storage URL. */
+export async function sendSyntheticAutoDmTest(platform: AutoDmPlatform, rule: AutoDmRule, text: string) {
+  const fake = new FakeProvider({ permissive: true });
+  const id = randomUUID();
+  await fake.dispatchInboxReply({ secret: "synthetic-test" }, {
+    accountRef: "synthetic-account", platform, ref: "synthetic-recipient", kind: "dm", mode: "message",
+    targetRef: null, signal: AbortSignal.timeout(1_000), idempotencyKey: `harvest-auto-dm-test:${id}`,
+    text, quickReplies: rule.response.quickReplies,
+  });
+  return { state: "sent_to_fake" as const, id };
 }

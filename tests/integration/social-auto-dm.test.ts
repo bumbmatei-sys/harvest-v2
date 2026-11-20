@@ -3,7 +3,7 @@ import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { createContact, recordConsent } from "../../src/server/contacts";
 import { useKeyProvider } from "../../src/server/connect-key-provider";
 import { drainJobs } from "../../src/server/jobs/service";
-import { autoDmActivity, changeAutoDmRule, createAutoDmRule, listAutoDmRules } from "../../src/server/social/auto-dm";
+import { autoDmActivity, changeAutoDmRule, createAutoDmRule, listAutoDmRules, previewAutoDmRule } from "../../src/server/social/auto-dm";
 import { runSocialAutoDm } from "../../src/server/social/auto-dm-worker";
 import { linkConnection, setConnectionEnabled } from "../../src/server/social/service";
 import { receiveSocialWebhook } from "../../src/server/social/webhook";
@@ -156,4 +156,30 @@ it("refuses the extended human-agent window even when the provider marks a reply
   await run();
   expect(provider.sent).toHaveLength(before);
   expect((await report(r.id)).counts).toEqual(expect.arrayContaining([expect.objectContaining({state:"skipped",reason:"ineligible",count:1})]));
+});
+
+it("sends only to an ephemeral synthetic fixture in test mode", async () => {
+  const before = (await f.admin.query("select count(*)::int as n from social_auto_dm_jobs")).rows[0].n;
+  const realCalls = provider.sent.length;
+  const input = {platform:"instagram",rule:draft("test-send"),sample:"Test-send",testSend:true};
+  expect(await previewAutoDmRule(f.db,p.owner,p.tenant,input,deps)).toMatchObject({
+    result:"matched",response:"Here is the requested link, Example",testDelivery:{state:"sent_to_fake",id:expect.any(String)},
+  });
+  expect(await previewAutoDmRule(f.db,p.owner,p.tenant,{...input,sample:"does not match"},deps)).toMatchObject({testDelivery:null});
+  await expect(previewAutoDmRule(f.db,p.viewer,p.tenant,input,deps)).rejects.toMatchObject({status:404});
+  expect(provider.sent).toHaveLength(realCalls);
+  expect((await f.admin.query("select count(*)::int as n from social_auto_dm_jobs")).rows[0].n).toBe(before);
+});
+
+it("enforces the per-recipient daily limit after the cooldown has elapsed", async () => {
+  const r=await enable(draft("daily-cap",{cooldownMinutes:1,recipientDaily:1,ruleDaily:10}));
+  const recipient=randomUUID();
+  await inbound("daily-cap",recipient);
+  await run();
+  const previous=(await report(r.id)).activity[0].id;
+  await f.admin.query("update social_auto_dm_jobs set first_attempt_at=now()-interval '2 minutes' where id=$1",[previous]);
+  await inbound("daily-cap",recipient);
+  await run();
+  expect((await report(r.id)).counts).toEqual(expect.arrayContaining([expect.objectContaining({state:"sent",count:1}),
+    expect.objectContaining({reason:"limit",count:1})]));
 });
