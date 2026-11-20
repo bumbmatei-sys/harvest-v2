@@ -47,7 +47,7 @@ No seventh launch system. An exception requires documented pilot customer adopti
 
 Items added to launch scope:
 - **Email, calendars and files** through the Zernio provider layer: Gmail and Outlook mail, Google and Microsoft calendars, Google Drive and OneDrive files. Each admin connects their own mailbox.
-- **Newsletter**: provider Plunk; email-only consent purposes already exist. Resend remains for sign-in and community mail.
+- **Newsletter**: provider Amazon SES (founder decision 20 Nov, replaces Plunk); email-only consent purposes already exist. Resend remains for sign-in and community mail.
 - **Link in bio** and **website builder**.
 - **Native blog articles**, scheduled in the social scheduler and sent via Zernio to WordPress, Wix, Shopify and Webflow.
 - **Documents and spreadsheets.**
@@ -79,3 +79,7 @@ Parallelize only after contracts are settled. PR counts and durations must be es
 
 ## Engineering instructions
 Before any new implementation PR: read this contract, `CLAUDE.md`, `docs/design-system.md`, relevant PRDs, acceptance and open PRs. Produce a requirements-to-code gap matrix and dependency-ordered PR plan, distinguishing known evidence from assumptions. Present contradictions for founder approval. Do not delete future features or claim scope decisions are completed engineering.
+
+## Scope exception, 20 Nov 2026 (Ads)
+
+**Recorded founder direction, not an approval.** On 20 Nov 2026 the founder asked for paid ads (Meta Ads and Google Ads first, other networks later) inside the Social media system because the social provider exposes them through its API. It is recorded as part of the social system, not a seventh system, and still needs its own PRD review (`docs/prd/public-mode-social-discover-navigation.md` section 5.5), independent review and acceptance records. It approves no deployment, real ad account, spend, provider add-on, outbound communication or payment activation; the five HC-02 decisions stay **UNAPPROVED**. Ministries use their own ad accounts and ad-network billing; Harvest handles no ad payments.
