@@ -157,3 +157,16 @@ describe("three-mode registry (slice 1)", () => {
     expect(result.groups.flatMap((group) => group.items.filter((item) => item.active).map((item) => item.id))).toEqual(["pipelines"]);
   });
 });
+
+describe("sidebar icons", () => {
+  it("gives every row its own icon, across the whole registry", () => {
+    const seen = new Map<unknown, string>();
+    for (const entry of navEntries) {
+      expect(seen.get(entry.icon), `${entry.id} reuses the icon of ${seen.get(entry.icon)}`).toBeUndefined();
+      seen.set(entry.icon, entry.id);
+    }
+  });
+  it("gives the Social media group its own icon", () => {
+    expect(groupsByMode.public.find((group) => group.id === "publishing")?.icon).toBeDefined();
+  });
+});

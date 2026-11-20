@@ -1,4 +1,4 @@
-import { BarChart3, Bot, Building, Calendar, CalendarCheck, CalendarDays, Church, ClipboardList, Compass, FileText, FileUp, Files, Flag, Globe, HandCoins, HeartHandshake, Inbox, Kanban, Link2, ListChecks, Mail, MailOpen, Radio, Sheet, ClipboardCheck, Users, MessageCircleReply, MessagesSquare, Newspaper, Palette, QrCode, ShoppingBag, SlidersHorizontal, UserCog, UsersRound, Workflow, type LucideIcon } from "lucide-react";
+import { BarChart3, Bot, Building, Calendar, CalendarCheck, CalendarDays, Church, ClipboardList, Compass, FileText, FileUp, Files, Flag, Globe, HandCoins, HeartHandshake, Inbox, Kanban, Link2, ListChecks, Mail, MailOpen, Radio, Sheet, ClipboardCheck, Users, MessageCircleReply, MessagesSquare, Newspaper, Palette, QrCode, ShoppingBag, Landmark, Share2, SlidersHorizontal, UserCog, UsersRound, Workflow, type LucideIcon } from "lucide-react";
 import type { Audience } from "./audience";
 import { can, type Permission } from "./permissions";
 
@@ -43,13 +43,13 @@ export type NavEntry = {
 };
 export type NavFeature = "communities" | "events" | "social";
 export type NavItem = { id: string; label: NavLabelKey; icon: LucideIcon; href: string; active: boolean };
-export type NavGroup = { id: NavGroupId; label: NavLabelKey; items: NavItem[] };
+export type NavGroup = { id: NavGroupId; label: NavLabelKey; icon?: LucideIcon; items: NavItem[] };
 
 const legacyGroups: readonly { id: LegacyNavGroupId; label: NavLabelKey }[] = [{ id: "crm", label: "crm" }, { id: "workspace", label: "workspace" }, { id: "settings", label: "settings" }];
 /** Groups of each mode's sidebar, in display order. Settings stays the last group of Operations. */
-export const groupsByMode: Record<NavMode, readonly { id: NavGroupId; label: NavLabelKey }[]> = {
+export const groupsByMode: Record<NavMode, readonly { id: NavGroupId; label: NavLabelKey; icon?: LucideIcon }[]> = {
   operations: [{ id: "crm", label: "crm" }, { id: "connect", label: "connect" }, { id: "office", label: "office" }, { id: "workspace", label: "workspace" }, { id: "settings", label: "settings" }],
-  public: [{ id: "publishing", label: "publishing" }, { id: "community", label: "community" }, { id: "commerce", label: "commerce" }],
+  public: [{ id: "publishing", label: "publishing", icon: Share2 }, { id: "community", label: "community" }, { id: "commerce", label: "commerce" }],
   assistant: [{ id: "chat", label: "chat" }],
 };
 const has = (part: string) => (pathname: string) => pathname.includes(part);
@@ -71,7 +71,7 @@ export const navEntries: readonly NavEntry[] = [
   { id: "calendar", group: "office", mode: "operations", status: "planned", label: "calendar", icon: Calendar, path: "/calendar", match: under("/calendar") },
   { id: "documents", group: "office", mode: "operations", status: "planned", label: "documents", icon: FileText, path: "/docs", match: under("/docs") },
   { id: "spreadsheets", group: "office", mode: "operations", status: "planned", label: "spreadsheets", icon: Sheet, path: "/sheets", match: under("/sheets") },
-  { id: "churchProfile", group: "workspace", mode: "operations", status: "planned", label: "churchProfile", icon: Church, path: "/church-profile", match: under("/church-profile") },
+  { id: "churchProfile", group: "workspace", mode: "operations", status: "planned", label: "churchProfile", icon: Landmark, path: "/church-profile", match: under("/church-profile") },
   { id: "volunteers", group: "workspace", mode: "operations", status: "planned", label: "volunteers", icon: Users, path: "/volunteers", match: under("/volunteers") },
   { id: "livestream", group: "workspace", mode: "operations", status: "planned", label: "livestream", icon: Radio, path: "/livestream", match: under("/livestream") },
   { id: "giving", group: "workspace", mode: "operations", status: "planned", label: "giving", icon: HandCoins, path: "/giving", match: under("/giving") },
