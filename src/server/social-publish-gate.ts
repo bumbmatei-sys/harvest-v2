@@ -24,7 +24,7 @@ export const SOCIAL_TEST_CREDENTIAL = "harvest-test-credential";
 export const socialTestAccountRef = (platform: string) => `test-${platform}`;
 const fake = new FakeProvider({ validSecret: SOCIAL_TEST_CREDENTIAL, accounts: socialPlatforms.map((platform) => ({ platform, accountRef: socialTestAccountRef(platform), displayName: `Test ${platform}` })) });
 // Invented inbox conversations, comments and mentions for the Inbox screens. They exist only inside this in-memory fake, which only the open gate can reach.
-seedSyntheticInbox(fake);
+if (socialPublishGateOpen()) seedSyntheticInbox(fake);
 /** The dependencies every Publish route uses: the test deps while the gate is open, the hard-off defaults otherwise. */
 export function socialRouteDeps(env: Record<string, string | undefined> = process.env): SocialDeps {
   return socialPublishGateOpen(env) ? { enabled: true, provider: (id) => { if (id === "fake") return fake; throw new AccessError(404, message("Errors.workspaceUnavailable")); }, now: () => new Date() } : defaultSocialDeps();

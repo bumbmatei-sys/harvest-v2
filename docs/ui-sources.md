@@ -274,3 +274,17 @@ Layout and flow follow the founder's first Harvest version (private repository `
 | `composer.tsx`, `composer-preview.tsx`, `destination-card.tsx`, `planner.tsx`, `social-nav.tsx` | layout from v1 | harvest-agent `SocialScheduler.tsx`, `PostPreview.tsx`, `MediaAttachments.tsx`, `PageHeader.tsx`, `shell-nav.ts` | none copied | Post to circles with a dashed connect circle, one text card with media and toolbar inside, option rows, preview tabs with an Each platform list; the Planner header and Compose, Calendar, Queue tabs; the three-column queue; the week grid with a drafts aside; the Social media sidebar group. |
 
 Kit blocks looked at and not used: the kit kanban (`components/ui/kanban.tsx`, dnd-kit is not an approved dependency; the queue columns are Harvest cards), the event dialog, the agenda and day views, and recharts radial charts (the ring is hand-written SVG). Platform marks remain their owners' trademarks and are used only to name the network.
+
+### Inbox screens (Social media > Inbox)
+
+Built with the premium kit under the standing kit rule, with no per-item founder approval of these exact files (the PR names them for review). Sources: admin-dashboard `apps/mail` (`mail.tsx`, `mail-list.tsx`, `nav.tsx`, `nav-desktop.tsx`, `mail-display.tsx`) and `apps/chat` (`chat-header.tsx`, `chat-bubbles.tsx`) at commit `1631106`, and chat-app `chat-footer.tsx` at `66fd523`. **No kit file is copied**; all five Harvest files are **modelled on** the kit layout and written for Harvest. Measured with `scripts/ui-identical.sh` (trimmed non-blank lines unchanged from the kit file, Harvest file as denominator, best match per Harvest file; the matches are import and boilerplate lines), run 21 Nov 2026:
+
+| Harvest file | Status | Kit source | Identical lines |
+| --- | --- | --- | --- |
+| `src/components/social/inbox/inbox.tsx` | modelled on | `apps/mail/components/mail.tsx` | 6 of 140 (4%) |
+| `src/components/social/inbox/inbox-list.tsx` | modelled on | `apps/mail/components/mail-list.tsx` | 7 of 114 (6%) |
+| `src/components/social/inbox/inbox-filters.tsx` | modelled on | `apps/mail/components/nav.tsx` (nav-desktop.tsx: 3 of 57, 5%) | 4 of 57 (7%) |
+| `src/components/social/inbox/inbox-thread.tsx` | modelled on | `apps/chat/components/chat-bubbles.tsx` (mail-display.tsx: 4 of 185, 2%; chat-header.tsx: 3 of 185, 1%) | 9 of 185 (4%) |
+| `src/components/social/inbox/inbox-composer.tsx` | modelled on | chat-app `app/(auth)/chats/components/chat-footer.tsx` | 5 of 84 (5%) |
+
+Message rows reuse the existing kit-derived `src/components/ui/bubble.tsx`. The coloured platform marks are the networks' brand colours (`src/lib/theme-registry.ts`), drawn from the same Simple Icons paths as the Planner marks.
