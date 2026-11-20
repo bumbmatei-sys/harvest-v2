@@ -34,6 +34,24 @@ Stays elsewhere (unchanged): Events, forms and questionnaires, CRM, Connect, cam
 
 Navigation is implemented only through the typed registry in `src/lib/navigation.ts` (no second nav system, no per-module shell clone). Route registrations and permissions are part of each feature PR.
 
+### 2b. Operations mode sidebar (approved by the founder, 20 Nov)
+
+Operations is the internal side. The same rule applies: collapsible groups, every group header and every row with its own unique icon, unbuilt entries hidden, and the typed registry as the only source. Home (dashboard) is pinned above the groups. Order:
+
+1. **Office** (briefcase): **Mail** (the email inbox; each admin connects their own Gmail or Outlook and only that admin reads it), **Calendar** (Google and Outlook), **Files** (Google Drive and OneDrive; moves here from the workspace group), then later **Docs** (notes app), **Sheets**, **Meetings** and **Web** (see below).
+2. **People** (contacts): People, Organizations, Pipelines, Tasks, Imports (the CRM).
+3. **Connect** (QR code): Follow-up (queue and cases), QR codes and links, Responses, Forms and questionnaires.
+4. **Ministry** (church): Campaigns, Events, Volunteers, Ministry page (the public profile), Livestream (parked, hidden until built). Events lives in Operations (16 Nov decision); a community's own events tab stays inside the community.
+5. **Giving** (hand with a coin), its own group: Overview (totals and trends), Donations (gifts recorded or confirmed by the ministry: Harvest does not process card payments, never says "verified" or "payment received" for money it did not receive, money in cents), Fundraising (pledge campaigns with goals; design merged), Pledges, Donors (linked to People in the CRM), Funds (designated funds such as missions or building), Giving page (the public page with the ministry's own payment links), Statements (annual giving statements and receipts, later) and Finances (basic income and expenses, later). Dodo stays SaaS billing only; commerce and donation providers are undecided.
+
+**Settings is NOT in the sidebar** (founder, 20 Nov). It is a pop-up opened from the profile menu at the bottom of the sidebar, like a normal SaaS product, with a left list of sections and scrollable content (full screen on phones). Sections: **You** (Profile with name, photo and language; Notifications; Appearance with light and dark; Security and sessions) and **Ministry** (Ministry details; Branding; Team and roles; **Connections**, one place for Gmail and Outlook, calendars, Drive and OneDrive and the social accounts; CRM with fields and pipelines; Privacy and data; Billing later). CRM fields, Pipeline settings, Appearance, Ministry settings and Social accounts therefore leave the sidebar. Mail, Calendar and Files also show a "Connect" button in their empty state. The UI source is chosen from the premium kit (candidates found in the founder's kit repositories: the chat app's `settings-dialog.tsx` as the pop-up shell and the admin dashboard's settings pages for content layouts); the founder sees renderings before anything is built.
+
+#### Later additions to Office (founder, 20 Nov)
+
+- **Meetings:** a video-meeting experience like Zoom inside Harvest, with AI recording that produces a transcript and notes (saved into Docs, summarised by the assistant). Needs its own design and privacy review before building: choice of a meeting provider behind a Harvest-owned port (no in-house video stack), explicit recording consent and a visible notice to every participant, who may start a recording, storage, retention and erasure of recordings and transcripts, minors and safeguarding, and the AI-processing agreement. Hidden until built.
+- **Web (embed any website):** a page type that embeds an external website in an iframe inside Harvest, for example the church's own website or any other site. Design points: https only, an allow-list of embedded addresses per ministry managed by owners and admins, a restrictive iframe `sandbox`, no Harvest credentials or cookies ever passed to the embedded site, honest handling of sites that forbid framing (`X-Frame-Options` or `frame-ancestors`): show an "open in a new tab" fallback instead of a blank frame, and permissions for who sees each embed. Hidden until built.
+
+
 ## 3. Discover
 
 Discover is a **marketplace**, like Skool's Discover, where people find communities and also everything on offer from **every** ministry and creator on Harvest: communities, courses, digital products, coaching and anything else sold or given. It is not limited to one ministry's own items.
