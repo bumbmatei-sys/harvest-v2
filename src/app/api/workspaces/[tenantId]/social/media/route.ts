@@ -10,5 +10,5 @@ export function POST(request: Request, context: Context) {
 }
 
 export function GET(request: Request, context: Context) {
-  return publishResponse(request, context, false, (db, user, { tenantId }) => getSocialUploadUsage(db, user, tenantId));
+  return publishResponse(request, context, false, (db, user, { tenantId }, deps) => getSocialUploadUsage(db, user, tenantId, deps));
 }
