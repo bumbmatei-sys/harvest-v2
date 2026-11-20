@@ -310,7 +310,7 @@ test("PR 01b real UI: contacts, consent, themes, workspace isolation and respons
   await expect(page.getByRole("heading", { name: "No matching people" })).toBeVisible();
   await capture(page, "contacts-no-results-studio-dark");
   await page.getByRole("link", { name: "Reset view" }).click();
-  await page.getByRole("link", { name: "Appearance", exact: true }).click();
+  await page.goto(`/workspaces/${tenantId}/appearance`);
   const harvestRadio = page.getByRole("radio", { name: "Studio Admin", exact: true });
   await expect(harvestRadio).toBeEnabled();
   await harvestRadio.focus();

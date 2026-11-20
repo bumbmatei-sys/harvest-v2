@@ -1,6 +1,6 @@
 /** Layout and behaviour modelled on bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied 19 Nov 2026): app/dashboard/(auth)/pages/settings/components/sidebar-nav.tsx; code written for Harvest, no kit code copied. Harvest notes: docs/ui-sources.md. */
 "use client";
-import { useRef } from "react";
+import { useEffect, useRef } from "react";
 import { useTranslations } from "next-intl";
 import { settingsGroups, type SettingsSection, type SettingsSectionId } from "@/lib/settings-sections";
 import { cn } from "@/lib/utils";
@@ -12,6 +12,8 @@ import { cn } from "@/lib/utils";
 export function SettingsNav({ sections, section, onSection }: { sections: readonly SettingsSection[]; section: SettingsSectionId | null; onSection: (section: SettingsSectionId) => void }) {
   const t = useTranslations("SettingsDialog");
   const listRef = useRef<HTMLElement>(null);
+  // On phones the list is a scrolling row: keep the open section in view (a deep link can name one past the edge).
+  useEffect(() => { listRef.current?.querySelector<HTMLElement>('[aria-current="page"]')?.scrollIntoView({ block: "nearest", inline: "nearest" }); }, [section]);
   function onKeyDown(event: React.KeyboardEvent<HTMLElement>) {
     const keys: Record<string, number | "first" | "last"> = { ArrowDown: 1, ArrowRight: 1, ArrowUp: -1, ArrowLeft: -1, Home: "first", End: "last" };
     const move = keys[event.key];
