@@ -52,7 +52,7 @@ export function AccountsBoard({ tenantId, testConnect, testCredential }: { tenan
     catch (cause) { setError(cause instanceof SocialApiError && cause.conflict ? t("alreadyLinked") : t("addFailed")); }
     finally { setBusy(null); }
   }
-  const header = <div className="flex flex-wrap items-end justify-between gap-3"><h1 className="text-[28px] font-semibold tracking-tight">{t("title")}</h1>
+  const header = <div className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-[28px] font-semibold tracking-tight">{t("title")}</h1><p className="mt-1 text-sm text-muted-foreground">{t("subtitle")}</p></div>
     {testConnect && data.state === "ready" && <Button type="button" size="responsive" onClick={() => { setPlatform(postable.find((value) => !taken.has(value)) ?? "instagram"); setAddOpen(true); }}><Plus aria-hidden="true" />{t("addTest")}</Button>}</div>;
   if (data.state === "loading") return <div className="space-y-4" aria-busy="true">{header}<Skeleton className="h-40 w-full" /></div>;
   if (data.state === "unavailable") return <div className="space-y-4">{header}<EmptyState icon={ShieldAlert} title={t("unavailableTitle")} description={t("notAvailableBody")} solid /></div>;

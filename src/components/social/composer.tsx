@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { CalendarClock, Laugh, Save, Send, ShieldAlert } from "lucide-react";
+import { CalendarClock, ChevronDown, Laugh, Save, Send, ShieldAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -10,13 +10,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { EditorShell } from "@/components/editor/editor-shell";
 import { EmptyState } from "@/components/empty-state";
-import { FormSection } from "@/components/form-section";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { StatusBadge } from "@/components/status-badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { socialApi, SocialApiError, type Delivery, type DestinationPreview, type Target } from "@/lib/social/api";
-import { buildDocument, destinationOf, emptyComposer, itemLimit, ringFor, stateFromDocument, uploading, type Attachment, type ComposerState, type DestinationState } from "@/lib/social/composer-state";
+import { buildDocument, destinationOf, emptyComposer, mediaMode, ringFor, stateFromDocument, uploading, type Attachment, type ComposerState, type DestinationState } from "@/lib/social/composer-state";
 import { mediaKind } from "@/lib/social/media";
 import { acceptsMime, PutError, uploadMedia } from "@/lib/social/media-upload";
 import { notify } from "@/lib/toast";
@@ -24,28 +23,26 @@ import { ComposerPreview } from "@/components/social/composer-preview";
 import { DeliveryResults } from "@/components/social/delivery-results";
 import { DestinationCard } from "@/components/social/destination-card";
 import { DraftsPanel } from "@/components/social/drafts-panel";
-import { MediaByDestination } from "@/components/social/media-by-destination";
 import { MediaStrip } from "@/components/social/media-strip";
-import { PlatformRing } from "@/components/social/platform-ring";
+import { ConnectCircle, PlatformRing } from "@/components/social/platform-ring";
+import { OptionRows } from "@/components/social/option-rows";
 import { ReviewDialog } from "@/components/social/review-dialog";
 import { ScheduleDialog } from "@/components/social/schedule-dialog";
 import { ScheduleManager } from "@/components/social/schedule-manager";
-import { SocialNav } from "@/components/social/social-nav";
+import { SocialHeader, SocialToolbar } from "@/components/social/social-nav";
 import { useReason } from "@/components/social/use-reason";
 import { useSocialData } from "@/components/social/use-social-data";
 import { platformLabels } from "@/lib/social/labels";
 import { browserTimeZone } from "@/lib/social/time";
 
 const emoji = ["🙏", "✝️", "❤️", "🙌", "😊", "🎉", "📖", "🕊️", "🌟", "🔥", "👏", "💛", "☀️", "🌿", "🎶", "📣", "📅", "📍", "✨", "😇", "🤝", "💬", "🙂", "😍"];
-const steps = ["write", "media", "platforms"] as const;
-type Step = (typeof steps)[number];
 
 export function Composer({ tenantId, initialDraftId }: { tenantId: string; initialDraftId: string | null }) {
   const t = useTranslations("SocialPublish.composer"), reason = useReason(), router = useRouter(), params = useSearchParams();
   const data = useSocialData(tenantId), api = useMemo(() => socialApi(tenantId), [tenantId]);
   const [state, setState] = useState<ComposerState>(() => emptyComposer()), [draft, setDraft] = useState<{ id: string; version: number } | null>(null);
   const [previews, setPreviews] = useState<DestinationPreview[]>([]), [previewing, setPreviewing] = useState(false);
-  const [step, setStep] = useState<Step>("write"), [open, setOpen] = useState<Record<string, boolean>>({}), [busy, setBusy] = useState<"" | "save" | "schedule" | "publish">("");
+  const [open, setOpen] = useState<Record<string, boolean>>({}), [busy, setBusy] = useState<"" | "save" | "schedule" | "publish">("");
   const [error, setError] = useState(""), [notice, setNotice] = useState<{ kind: "saved" | "scheduled"; id?: string } | null>(null);
   const [scheduleOpen, setScheduleOpen] = useState(false), [manageOpen, setManageOpen] = useState(false), [draftsOpen, setDraftsOpen] = useState(false);
   const [review, setReview] = useState<{ token: string; expiresAt: string; destinations: DestinationPreview[]; version: number } | null>(null);
@@ -175,70 +172,73 @@ export function Composer({ tenantId, initialDraftId }: { tenantId: string; initi
     catch (cause) { notify.error(describe(cause)); }
   }
 
-  const goto = (id: string) => { setStep(id as Step); window.document.getElementById(`step-${id}`)?.scrollIntoView({ behavior: "smooth", block: "start" }); };
-  const nav = <SocialNav tenantId={tenantId} active="create" schedules={data.schedules} schedule={schedule} onSchedule={setSchedule} onManage={() => setManageOpen(true)} draftCount={data.drafts.length} onDrafts={() => setDraftsOpen(true)} />;
-
-  if (data.state === "loading") return <div className="space-y-4" aria-busy="true"><Skeleton className="h-11 w-64" /><Skeleton className="h-64 w-full" /></div>;
-  if (data.state === "unavailable") return <div className="space-y-4">{nav}<EmptyState icon={ShieldAlert} title={t("unavailableTitle")} description={t("unavailable")} solid /></div>;
-  if (data.state === "error") return <div className="space-y-4">{nav}<Alert variant="destructive" role="alert"><AlertDescription>{t("loadFailed")} <Button type="button" variant="link" onClick={data.reload}>{t("retry")}</Button></AlertDescription></Alert></div>;
-  if (data.connections.length === 0) return <div className="space-y-4">{nav}<EmptyState icon={ShieldAlert} title={t("noAccounts")} solid action={<Button asChild size="responsive"><Link href={`/workspaces/${tenantId}/social/accounts`} prefetch={false}>{t("goToAccounts")}</Link></Button>} /></div>;
+  const tz = browserTimeZone();
+  const toolbarProps = { schedules: data.schedules, schedule, onSchedule: setSchedule, onManage: () => setManageOpen(true), draftCount: data.drafts.length, onDrafts: () => setDraftsOpen(true) };
+  if (data.state === "loading") return <div className="space-y-4" aria-busy="true"><Skeleton className="h-16 w-full" /><Skeleton className="h-64 w-full" /></div>;
+  const frame = (body: React.ReactNode) => <div className="min-w-0 space-y-4"><SocialHeader tenantId={tenantId} active="compose" zone={tz} />{body}</div>;
+  if (data.state === "unavailable") return frame(<EmptyState icon={ShieldAlert} title={t("unavailableTitle")} description={t("unavailable")} solid />);
+  if (data.state === "error") return frame(<Alert variant="destructive" role="alert"><AlertDescription>{t("loadFailed")} <Button type="button" variant="link" onClick={data.reload}>{t("retry")}</Button></AlertDescription></Alert>);
+  if (data.connections.length === 0) return frame(<EmptyState icon={ShieldAlert} title={t("noAccounts")} solid action={<Button asChild size="responsive"><Link href={`/workspaces/${tenantId}/social/accounts`} prefetch={false}>{t("goToAccounts")}</Link></Button>} />);
 
   const typeSupported = (type: ComposerState["type"]) => data.connections.some((connection) => connection.availability === "available" && connection.capabilities.postTypes[type] !== "unavailable");
-  const actions = <div className="flex flex-wrap items-center gap-2">
+  const off = blocked || busy !== "";
+  const actions = <>
     <Button type="button" variant="outline" size="responsive" aria-disabled={busy !== "" || undefined} onClick={saveDraft}><Save aria-hidden="true" />{t("saveDraft")}</Button>
-    <Button type="button" variant="outline" size="responsive" aria-disabled={blocked || busy !== "" || undefined} onClick={() => { if (!blocked && !busy) setScheduleOpen(true); }}><CalendarClock aria-hidden="true" />{t("schedule")}</Button>
-    <Button type="button" size="responsive" aria-disabled={blocked || busy !== "" || undefined} onClick={() => { if (!blocked && !busy) startPublish(); }}><Send aria-hidden="true" />{t("publishNow")}</Button>
-  </div>;
-  const stepList = steps.map((id) => ({ id, label: t(`steps.${id}`), done: id === "write" ? state.content.trim().length > 0 && selected.length > 0 : id === "media" ? state.attachments.length > 0 : selected.length > 0 }));
-  return <>
-    <EditorShell breadcrumb={nav} title={t("title")} status={draft ? <StatusBadge tone="neutral" label={t("draft")} /> : undefined} actions={actions} steps={stepList} current={step} onStep={goto} stepsLabel={t("stepsLabel")} previewLabel={t("preview")}
-      preview={<ComposerPreview state={state} connections={data.connections} previews={shownPreviews} />}>
-      {blockedText && <p role="status" className="text-sm text-muted-foreground" data-testid="blocked-reason">{blockedText}</p>}
-      {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
-      {notice && <Alert role="status" data-testid="composer-notice"><AlertDescription>{notice.kind === "saved" ? t("savedNotice") : <>{t("scheduledNotice")} <Link href={`/workspaces/${tenantId}/social/planner?view=queue`} prefetch={false} className="underline">{t("viewQueue")}</Link></>}</AlertDescription></Alert>}
-      {result && <FormSection title={t("results")}><DeliveryResults deliveries={result.deliveries} connections={data.connections} retrying={retrying} onRetry={(delivery) => void retry(delivery)} /></FormSection>}
-
-      <section id="step-write" className="scroll-mt-4 min-w-0"><FormSection title={t("steps.write")}>
-        <div className="space-y-2">
+    <div className="inline-flex" role="group" aria-label={t("schedule")}>
+      <Button type="button" variant="outline" size="responsive" className="rounded-r-none" aria-disabled={off || undefined} onClick={() => { if (!off) setScheduleOpen(true); }}><CalendarClock aria-hidden="true" />{t("schedule")}</Button>
+      <DropdownMenu><DropdownMenuTrigger asChild><Button type="button" variant="outline" size="icon-responsive" className="-ml-px rounded-l-none" aria-label={t("scheduleMore")} aria-disabled={off || undefined}><ChevronDown aria-hidden="true" /></Button></DropdownMenuTrigger>
+        <DropdownMenuContent align="end"><DropdownMenuItem disabled={off} className="min-h-11 lg:min-h-8" onSelect={() => setScheduleOpen(true)}>{t("pickTime")}</DropdownMenuItem>
+          <DropdownMenuItem disabled={off} className="min-h-11 lg:min-h-8" onSelect={() => void doSchedule({ kind: "next", ...(schedule ? { scheduleId: schedule } : {}) })}>{t("nextSlot")}</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
+    </div>
+    <Button type="button" size="responsive" aria-disabled={off || undefined} onClick={() => { if (!off) startPublish(); }}><Send aria-hidden="true" />{t("publishNow")}</Button>
+  </>;
+  const tiktok = selected.find((connection) => connection.platform === "tiktok");
+  const mode = mediaMode(state.attachments.filter((item) => item.phase === "ready"));
+  return <div className="min-w-0 space-y-4">
+    <SocialHeader tenantId={tenantId} active="compose" zone={tz} />
+    <SocialToolbar {...toolbarProps}>{draft && <StatusBadge tone="neutral" label={t("draft")} />}{actions}</SocialToolbar>
+    {blockedText && <p role="status" className="text-sm text-muted-foreground" data-testid="blocked-reason">{blockedText}</p>}
+    {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
+    {notice && <Alert role="status" data-testid="composer-notice"><AlertDescription>{notice.kind === "saved" ? t("savedNotice") : <>{t("scheduledNotice")} <Link href={`/workspaces/${tenantId}/social/planner?view=queue`} prefetch={false} className="underline">{t("viewQueue")}</Link></>}</AlertDescription></Alert>}
+    {result && <section className="space-y-2 rounded-xl border bg-card p-4"><h2 className="text-sm font-semibold">{t("results")}</h2><DeliveryResults deliveries={result.deliveries} connections={data.connections} retrying={retrying} onRetry={(delivery) => void retry(delivery)} /></section>}
+    <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_24rem]">
+      <section className="min-w-0 space-y-4 rounded-xl border bg-card p-4" aria-label={t("title")} data-testid="composer">
+        <div className="space-y-1">
           <ToggleGroup type="single" variant="outline" value={state.type} aria-label={t("postType")} onValueChange={(value) => { if (value) setState((current) => ({ ...current, type: value as ComposerState["type"] })); }}>
             <ToggleGroupItem value="post" className="min-h-11 px-4 lg:min-h-9">{t("types.post")}</ToggleGroupItem>
             <ToggleGroupItem value="article" disabled className="min-h-11 px-4 lg:min-h-9">{t("types.article")}</ToggleGroupItem>
             <ToggleGroupItem value="story" disabled={!typeSupported("story")} className="min-h-11 px-4 lg:min-h-9">{t("types.story")}</ToggleGroupItem>
           </ToggleGroup>
-          <p className="text-sm text-muted-foreground" data-testid="type-note">{t("articleNote")}{!typeSupported("story") && ` ${t("storyNote")}`}</p>
+          <p className="text-xs text-muted-foreground" data-testid="type-note">{t("articleNote")}{!typeSupported("story") && ` ${t("storyNote")}`}</p>
         </div>
-        <fieldset className="space-y-2"><legend className="text-sm font-medium">{t("accounts")}</legend>
-          <div className="flex flex-wrap gap-2" role="group" aria-label={t("accounts")}>
-            {data.connections.map((connection) => {
-              const name = connection.displayName ?? platformLabels[connection.platform];
-              const disabledReason = connection.availability === "unavailable" ? t("accountNeedsAttention") : connection.capabilities.postTypes[state.type] === "unavailable" ? t("typeUnsupported", { platform: platformLabels[connection.platform] }) : undefined;
-              return <PlatformRing key={connection.id} platform={connection.platform} accountName={name} count={ringFor(state, connection.platform)} selected={state.connectionIds.includes(connection.id)} disabledReason={disabledReason} onToggle={() => toggle(connection.id)} />;
-            })}
-          </div>
-        </fieldset>
-        <div className="space-y-2">
-          <div className="flex items-center justify-between gap-2"><label htmlFor="post-text" className="text-sm font-medium">{t("text")}</label>
-            <Popover><PopoverTrigger asChild><Button type="button" variant="ghost" size="icon-responsive" aria-label={t("emoji")}><Laugh aria-hidden="true" /></Button></PopoverTrigger>
-              <PopoverContent className="w-64"><div className="grid grid-cols-6 gap-1" role="group" aria-label={t("emoji")}>{emoji.map((value) => <button key={value} type="button" onClick={() => insertEmoji(value)} className="min-h-11 rounded-md text-xl outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50 lg:min-h-9">{value}</button>)}</div></PopoverContent></Popover></div>
-          <Textarea id="post-text" value={state.content} onChange={(event) => setState((current) => ({ ...current, content: event.target.value }))} className="min-h-40" />
+        <div className="flex flex-wrap items-center gap-2" role="group" aria-label={t("postTo")}>
+          <span className="mr-1 text-sm font-medium" id="post-to">{t("postTo")}</span>
+          {data.connections.map((connection) => {
+            const name = connection.displayName ?? platformLabels[connection.platform];
+            const disabledReason = connection.availability === "unavailable" ? t("accountNeedsAttention") : connection.capabilities.postTypes[state.type] === "unavailable" ? t("typeUnsupported", { platform: platformLabels[connection.platform] }) : undefined;
+            return <PlatformRing key={connection.id} platform={connection.platform} accountName={name} count={ringFor(state, connection.platform)} selected={state.connectionIds.includes(connection.id)} disabledReason={disabledReason} onToggle={() => toggle(connection.id)} />;
+          })}
+          <ConnectCircle href={`/workspaces/${tenantId}/social/accounts`} label={t("connectAnother")} />
         </div>
-      </FormSection></section>
-
-      <section id="step-media" className="scroll-mt-4 min-w-0"><FormSection title={t("steps.media")}>
-        <MediaStrip attachments={state.attachments} onFiles={addFiles} onMove={moveAttachment} onRemove={removeAttachment} onCancel={removeAttachment}
-          onAlt={(key, altText) => patchAttachment(key, { altText })} />
-        <MediaByDestination previews={shownPreviews} attachments={state.attachments} loading={previewing}
-          itemMax={(id) => { const connection = data.connections.find((item) => item.id === id); return connection ? itemLimit(connection, state.type, destinationOf(state, connection.platform).options.format) : null; }} />
-      </FormSection></section>
-
-      <section id="step-platforms" className="scroll-mt-4 min-w-0"><FormSection title={t("steps.platforms")}>
-        {selected.length === 0 ? <p className="text-sm text-muted-foreground">{t("noneSelected")}</p> : <div className="space-y-2">
-          {selected.map((connection) => <DestinationCard key={connection.id} connection={connection} type={state.type} state={destinationOf(state, connection.platform)} count={ringFor(state, connection.platform)}
-            attachments={state.attachments} preview={shownPreviews.find((item) => item.account.id === connection.id)} open={open[connection.id] ?? false}
-            onOpenChange={(value) => setOpen((current) => ({ ...current, [connection.id]: value }))} onChange={(next) => setDestination(connection.platform, next)} />)}
-        </div>}
-      </FormSection></section>
-    </EditorShell>
+        <MediaStrip attachments={state.attachments} onFiles={addFiles} onMove={moveAttachment} onRemove={removeAttachment} onCancel={removeAttachment} onAlt={(key, altText) => patchAttachment(key, { altText })}
+          toolbar={<Popover><PopoverTrigger asChild><Button type="button" variant="ghost" size="icon-responsive" aria-label={t("emoji")}><Laugh aria-hidden="true" /></Button></PopoverTrigger>
+            <PopoverContent className="w-64"><div className="grid grid-cols-6 gap-1" role="group" aria-label={t("emoji")}>{emoji.map((value) => <button key={value} type="button" onClick={() => insertEmoji(value)} className="min-h-11 rounded-md text-xl outline-none hover:bg-muted focus-visible:ring-[3px] focus-visible:ring-ring/50 lg:min-h-9">{value}</button>)}</div></PopoverContent></Popover>}>
+          <Textarea id="post-text" aria-label={t("text")} placeholder={t("placeholder")} value={state.content} onChange={(event) => setState((current) => ({ ...current, content: event.target.value }))}
+            className="min-h-32 resize-y border-0 bg-transparent px-0 shadow-none focus-visible:ring-0 dark:bg-transparent" />
+        </MediaStrip>
+        <OptionRows connections={selected} type={state.type} mode={mode} shared={state.shared} onShared={(shared) => setState((current) => ({ ...current, shared }))}
+          tiktok={tiktok ? destinationOf(state, "tiktok").options : undefined} onTiktok={(patch) => setDestination("tiktok", { ...destinationOf(state, "tiktok"), options: { ...destinationOf(state, "tiktok").options, ...patch } })} />
+      </section>
+      <aside className="min-w-0 space-y-4" aria-label={t("preview")}>
+        <ComposerPreview state={state} connections={data.connections} previews={shownPreviews} />
+        <section className="space-y-2" aria-labelledby="each-platform"><h2 id="each-platform" className="text-sm font-semibold">{t("eachPlatform")}</h2>
+          {selected.length === 0 ? <p className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">{t("noneSelected")}</p> : <div className="space-y-2">
+            {selected.map((connection) => <DestinationCard key={connection.id} connection={connection} type={state.type} state={destinationOf(state, connection.platform)} count={ringFor(state, connection.platform)}
+              attachments={state.attachments} preview={shownPreviews.find((item) => item.account.id === connection.id)} open={open[connection.id] ?? false}
+              onOpenChange={(value) => setOpen((current) => ({ ...current, [connection.id]: value }))} onChange={(next) => setDestination(connection.platform, next)} />)}</div>}
+        </section>
+      </aside>
+    </div>
     <ScheduleDialog key={String(scheduleOpen)} open={scheduleOpen} onOpenChange={setScheduleOpen} title={t("scheduleTitle")} confirmLabel={t("scheduleConfirm")} schedules={data.schedules} scheduleId={schedule || undefined} onConfirm={doSchedule} />
     <ReviewDialog open={review !== null} onOpenChange={(next) => { if (!next) setReview(null); }} destinations={review?.destinations ?? []} expiresAt={review?.expiresAt} onConfirm={confirmPublish} />
     <ScheduleManager tenantId={tenantId} open={manageOpen} onOpenChange={setManageOpen} schedules={data.schedules} onChanged={data.reload} />
@@ -246,5 +246,5 @@ export function Composer({ tenantId, initialDraftId }: { tenantId: string; initi
       <SheetHeader><SheetTitle>{t("draftsTitle")}</SheetTitle></SheetHeader>
       <div className="p-4 pt-0"><DraftsPanel tenantId={tenantId} drafts={data.drafts} connections={data.connections} onDuplicate={(item) => void duplicateDraft(item)} /></div>
     </SheetContent></Sheet>
-  </>;
+  </div>;
 }
