@@ -16,6 +16,7 @@ import { usePolling } from "@/hooks/use-polling";
 import { channelInput, channelMutes } from "@/lib/chat";
 import { chatUnreadTotal, type ChatAccess, type ChatChannel, type ChatChannelSetting } from "@/lib/chat-view";
 import type { DirectoryMember } from "@/server/community-forum";
+import type { HiddenChatMember } from "@/server/community-chat";
 import { cn } from "@/lib/utils";
 import { ChatHeader } from "./chat-header";
 import { ChatViewTabs } from "./chat-view-tabs";
@@ -32,13 +33,15 @@ const fromSetting = (setting: ChatChannelSetting, previous?: ChatChannel): ChatC
 });
 const inOrder = (list: ChatChannelSetting[]) => list.filter(item => !item.archived).sort((a, b) => a.position - b.position || a.id.localeCompare(b.id));
 
-export function ChatLayout({ slug, me, access, initial, initialChannel, members, manage: initialManage, initialDmUnread = 0 }: {
+export function ChatLayout({ slug, me, access, initial, initialChannel, members, hidden = [], manage: initialManage, initialDmUnread = 0 }: {
   slug: string;
   me: string;
   access: ChatAccess;
   initial: ChatChannel[];
   initialChannel?: string;
   members: DirectoryMember[];
+  /** Private and unlisted members: id and role only, used to keep a role on a message author. Never listed or counted. */
+  hidden?: HiddenChatMember[];
   /** Channel settings, present only when the server allows this member to manage channels. */
   manage?: ChatChannelSetting[];
   /** Conversations with unread messages, for the Messages tab. */
@@ -286,7 +289,7 @@ export function ChatLayout({ slug, me, access, initial, initialChannel, members,
       {!online && <Alert className="m-2 w-auto"><AlertDescription>{t("offline")}</AlertDescription></Alert>}
       {muteError && <Alert role="alert" variant="destructive" className="m-2 w-auto"><AlertDescription>{muteError}</AlertDescription></Alert>}
       {channel && (tablet || showMobileThread) ? <MessagePane key={channel.id} channel={channel} slug={slug} me={me} online={online} focused={focused} access={access}
-        members={members} draft={drafts[channel.id] ?? emptyChatDraft} retryIds={retryIds} storeRetry={storeRetry}
+        members={members} hidden={hidden} draft={drafts[channel.id] ?? emptyChatDraft} retryIds={retryIds} storeRetry={storeRetry}
         setDraft={draft => saveDraft(channel.id, draft)} onRead={refreshRail}
         info={{ open: infoOpen, onOpenChange: setInfoOpen, returnFocus: nameButton, setting: settings?.find(item => item.id === channel.id), onMute: value => void mute(value, channel.id),
           onEdit: manage ? () => { setInfoOpen(false); void edit(channel.id); } : undefined }} />

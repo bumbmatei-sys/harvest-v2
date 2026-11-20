@@ -63,8 +63,8 @@ it("defaults to members, projects only volunteered details and rejects forged or
   expect(writes.find(result => result.status === "rejected")).toMatchObject({ reason: { status: 409 } });
   expect(await read("peer")).toEqual({ member: { userId: "alice", name: fields.displayName, role: "member", joinedAt: null },
     profile: { ...fields, visibility: "members" } });
-  const names = (await memberDirectory(f.db, "peer", clubSlug)).members.map(m => m.userId);
-  expect(names).toContain("alice");
+  const directory = (await memberDirectory(f.db, "peer", clubSlug)).members;
+  expect(directory.find(m => m.userId === "alice")).toMatchObject({ name: fields.displayName });
 });
 
 it("treats hidden, nonmember and other-tenant targets identically for peers and moderators", async () => {
@@ -93,10 +93,11 @@ it("inherits the account deletion cascade and erases voluntarily stored fields a
   await expect(read("owner")).rejects.toMatchObject(unavailable);
   expect(await own("alice", "get")).toMatchObject({ ...fields, visibility: "private", version: 1 });
   await expect(own("alice", "save", { version: 1, ...fields })).rejects.toMatchObject(unavailable);
-  expect(await own("alice", "erase", { version: 1 })).toEqual({ displayName: null, bio: null, language: null, links: [], visibility: "private", version: 2 });
+  expect(await own("alice", "erase", { version: 1 })).toEqual({ displayName: null, bio: null, language: null, links: [], visibility: "members", version: 2 });
+  expect((await memberDirectory(f.db, "peer", clubSlug)).members.some(m => m.userId === "alice")).toBe(false);
   await f.admin.query("update community_memberships set status='active' where community_id=$1 and user_id='alice'", [club]);
-  await expect(read("peer")).rejects.toMatchObject(unavailable);
-  await expect(read("owner")).resolves.toMatchObject({ profile: { bio: null, links: [], visibility: "private" } });
+  await expect(read("peer")).resolves.toMatchObject({ member: { name: "alice" }, profile: { bio: null, links: [], visibility: "members" } });
+  expect((await memberDirectory(f.db, "peer", clubSlug)).members.find(m => m.userId === "alice")).toMatchObject({ name: "alice" });
 
   await own("cascade", "save", { version: 0, ...fields });
   await f.admin.query("delete from users where id='cascade'");

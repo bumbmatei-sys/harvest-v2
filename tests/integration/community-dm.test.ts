@@ -5,7 +5,8 @@ import { Pool } from "pg";
 import { afterAll, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { users } from "../../src/db/schema";
 import * as schema from "../../src/db/schema";
-import { chatState, saveChatSettings } from "../../src/server/community-chat";
+import { chatStaffPage, chatState, saveChatSettings } from "../../src/server/community-chat";
+import { ownCommunityProfile } from "../../src/server/community-profile-details";
 import { dmBlock, dmDecide, dmEvidence, dmList, dmMessages, dmReport, dmReports, dmStart } from "../../src/server/community-dm";
 import { createCommunity } from "../../src/server/communities";
 import { listNotifications, markRead } from "../../src/server/community-notifications";
@@ -59,6 +60,21 @@ beforeEach(async () => {
   await fixture.admin.query("delete from community_reports where target_type='dm_message'; delete from community_dm_blocks; delete from community_dm_conversations; delete from community_notifications where kind in ('dm','host_queue')");
   await fixture.admin.query("update communities set chat_enabled=true,dm_policy='channels_only'; update community_memberships set dm_accept_members=true,muted_until=null");
   await fixture.admin.query("update community_memberships set role='admin',status='active' where user_id='admin'");
+});
+
+it("keeps a private partner resolvable in a conversation without any roster trace", async () => {
+  await policy("members");
+  await ownCommunityProfile(fixture.db, "bob", slug, "save", { version: 0, displayName: "Private bob", visibility: "private" });
+  const opened = await start("alice", "bob");
+  expect(opened.outcome).toBe("ok");
+  const items = (await dmList(fixture.db, "alice", slug)).items as { id: string; otherId: string; otherName: string | null }[];
+  const item = items.find(entry => entry.id === opened.conversationId);
+  expect(item).toMatchObject({ otherId: "bob", otherName: "bob" });
+  const roster = (await chatStaffPage(fixture.db, "alice", slug))!;
+  expect(roster.members.some(entry => entry.userId === "bob")).toBe(false);
+  // A hidden plain member leaves no trace; the header name comes from the conversation and the role defaults to member.
+  expect(roster.hidden.some(entry => entry.userId === "bob")).toBe(false);
+  await fixture.admin.query("delete from community_member_profiles where community_id=$1", [club]);
 });
 
 it("allows DM reads only to participants with active access even through a ministry context", async () => {

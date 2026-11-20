@@ -16,6 +16,7 @@ import { canActOn } from "@/lib/moderation";
 import type { ChatChannelSetting } from "@/lib/chat-view";
 import { mergeChatMessages, type ChatAccess, type ChatChannel, type ChatMessage, type ChatPage } from "@/lib/chat-view";
 import type { DirectoryMember } from "@/server/community-forum";
+import type { HiddenChatMember } from "@/server/community-chat";
 import { ChannelInfo } from "./channel-info";
 import { MemberProfileSheet, type ProfilePerson } from "./member-profile-sheet";
 import { ChatComposer, chatDraftPayload, emptyChatDraft, type ChatDraft } from "./chat-composer";
@@ -28,12 +29,13 @@ const secondsRemaining = (deadline: number) => Math.ceil((deadline - performance
 const seqBefore = (rows: ChatMessage[]) =>
   rows.reduce<string | null>((oldest, row) => oldest === null || BigInt(row.seq) < BigInt(oldest) ? row.seq : oldest, null);
 
-export function MessagePane({ channel, slug, me, access, members, draft, setDraft, retryIds, storeRetry, online, focused, onRead, info }: {
+export function MessagePane({ channel, slug, me, access, members, hidden = [], draft, setDraft, retryIds, storeRetry, online, focused, onRead, info }: {
   channel: ChatChannel;
   slug: string;
   me: string;
   access: ChatAccess;
   members: DirectoryMember[];
+  hidden?: HiddenChatMember[];
   draft: ChatDraft;
   setDraft: (draft: ChatDraft) => void;
   retryIds: Map<string, { request: string; id: string }>;
@@ -248,7 +250,7 @@ export function MessagePane({ channel, slug, me, access, members, draft, setDraf
   }
 
   function row(item: ChatMessage, inThread = false) {
-    const role = members.find(member => member.userId === item.authorId)?.role ?? "member";
+    const role = (members.find(member => member.userId === item.authorId) ?? hidden.find(member => member.userId === item.authorId))?.role ?? "member";
     return <MessageScrollerItem key={item.id} messageId={item.id}>
       <ChatMessageRow message={item} slug={slug} mine={item.authorId === me} post={post && online}
         mayModerate={access.moderate && (item.authorId === me || canActOn(access.role, role))}
@@ -258,7 +260,8 @@ export function MessagePane({ channel, slug, me, access, members, draft, setDraf
         onProfile={message => {
           profileReturn.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
           const person = members.find(entry => entry.userId === message.authorId);
-          setProfile({ userId: message.authorId ?? undefined, name: person?.name ?? message.authorName ?? t("formerMember"), role: person?.role, joinedAt: person?.joinedAt });
+          const role = person?.role ?? hidden.find(entry => entry.userId === message.authorId)?.role;
+          setProfile({ userId: message.authorId ?? undefined, name: person?.name ?? message.authorName ?? t("formerMember"), role, joinedAt: person?.joinedAt });
         }} />
     </MessageScrollerItem>;
   }
