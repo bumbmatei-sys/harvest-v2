@@ -44,10 +44,10 @@ export default async function MessagesPage({ params, searchParams }: {
     forum ? unreadCount(db, me, slug) : 0,
     forum?.context.canModerate ? moderationCount(db, me, slug) : null,
   ]);
-  const members = staff?.members ?? forum?.members ?? [];
+  const members = staff?.members ?? forum?.members ?? [], hidden = staff?.hidden ?? [];
   const name = staff?.scope.name ?? forum?.context.name ?? slug;
   return <CommunityShell slug={slug} name={name} chat chatView moderation={moderation} notifications={forum ? { unread, prefs: forum.context.prefs } : undefined}>
     <DmLayout key={`${me}:${slug}:${conversation.data ?? ""}`} slug={slug} me={me} initial={list as unknown as DmList} initialConversation={conversation.data}
-      members={members} host={communityCan(role, "chat:manage_channels")} />
+      members={members} hidden={hidden} host={communityCan(role, "chat:manage_channels")} />
   </CommunityShell>;
 }

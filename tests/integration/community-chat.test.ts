@@ -51,19 +51,37 @@ it("initializes General and state for every community", async () => {
   expect((await f.admin.query("select count(*)::int n from community_channels where name='General'")).rows[0].n).toBe(4);
   expect((await f.admin.query("select count(*)::int n from community_chat_state")).rows[0].n).toBe(4);
 });
-it("keeps private profiles out of the directory while preserving chat roles and authors", async () => {
+it("reduces private and unlisted members to id and role in the chat roster", async () => {
   const slug = "chat-club";
-  for (const actor of ["mod", "member"]) {
-    await ownCommunityProfile(f.db, actor, slug, "save", { version: 0, displayName: "Private name", bio: "Private bio", visibility: "private" });
+  for (const [actor, visibility] of [["mod", "private"], ["member", "private"], ["contributor", "unlisted"]] as const) {
+    await ownCommunityProfile(f.db, actor, slug, "save", { version: 0, displayName: "Hidden name", bio: "Hidden bio", visibility });
   }
-  const roster = (await chatStaffPage(f.db, "second", slug))!.members;
-  expect(roster.find(entry => entry.userId === "mod")).toEqual({ userId: "mod", name: "mod", role: "moderator", joinedAt: null });
-  expect(roster.find(entry => entry.userId === "member")).toEqual({ userId: "member", name: "member", role: "member", joinedAt: null });
+  const peer = (await chatStaffPage(f.db, "second", slug))!;
+  // Hidden members never appear by name, and the mention, channel-list and count source (`members`) omits them, posted or not.
+  expect(peer.members.some(entry => ["mod", "member", "contributor"].includes(entry.userId))).toBe(false);
+  expect(JSON.stringify(peer.members)).not.toMatch(/Hidden name|"name":"(mod|member|contributor)"/);
+  // Only id and role remain, which keeps a staff badge on messages the viewer already sees.
+  expect(peer.hidden).toEqual(expect.arrayContaining([{ userId: "mod", role: "moderator" }, { userId: "member", role: "member" }, { userId: "contributor", role: "contributor" }]));
+  const direct = await withUser(f.db, "second", async tx => (await tx.execute<{ m: Record<string, unknown> }>(sql`select public.community_chat_member_roster(${slug}) m`)).rows.map(row => row.m));
+  const hiddenMod = direct.find(entry => entry.userId === "mod")!;
+  expect(hiddenMod).toEqual({ userId: "mod", role: "moderator", hidden: true });
+  expect(hiddenMod).not.toHaveProperty("name");
+  expect(hiddenMod).not.toHaveProperty("joinedAt");
+  // The viewer still sees themselves, and visible members keep name, role and joined date.
+  expect((await chatStaffPage(f.db, "member", slug))!.members.find(entry => entry.userId === "member")).toMatchObject({ name: "member", role: "member" });
+  expect(peer.members.find(entry => entry.userId === "second")).toMatchObject({ name: "second", role: "member" });
+  // Owners and admins keep the staff roster with everyone.
+  for (const actor of ["owner", "admin"]) {
+    const staff = (await chatStaffPage(f.db, actor, slug))!;
+    expect(staff.hidden).toEqual([]);
+    for (const id of ["mod", "member", "contributor"]) expect(staff.members.find(entry => entry.userId === id)).toMatchObject({ name: id });
+  }
   const directory = (await memberDirectory(f.db, "second", slug)).members;
-  expect(directory.some(entry => ["mod", "member"].includes(entry.userId))).toBe(false);
+  expect(directory.some(entry => ["mod", "member", "contributor"].includes(entry.userId))).toBe(false);
+  // Message authors keep their names from the message payload.
   const author = await channel("Private profile author");
   const id = await messageId("member", "My message still has an author", author);
-  const history = await chatMessages(f.db, "member", slug, author, {});
+  const history = await chatMessages(f.db, "second", slug, author, {});
   expect(history.events).toContainEqual(expect.objectContaining({ id, authorId: "member", authorName: "member" }));
   await expect(chatStaffPage(f.db, "outsider", slug)).resolves.toBeUndefined();
   await f.admin.query("delete from community_member_profiles where community_id=$1", [club]);
