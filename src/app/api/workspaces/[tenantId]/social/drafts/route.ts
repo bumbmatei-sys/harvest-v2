@@ -7,11 +7,11 @@ export const runtime = "nodejs";
 type Context = { params: Promise<{ tenantId: string }> };
 
 export function GET(request: Request, context: Context) {
-  return publishResponse(request, context, false, (db, user, { tenantId }) =>
-    listUnscheduledDrafts(db, user, tenantId, searchParamsRecord(request.url)));
+  return publishResponse(request, context, false, (db, user, { tenantId }, deps) =>
+    listUnscheduledDrafts(db, user, tenantId, searchParamsRecord(request.url), deps));
 }
 
 export function POST(request: Request, context: Context) {
-  return publishResponse(request, context, true, async (db, user, { tenantId }) =>
-    saveDraft(db, user, tenantId, await request.json()), 201);
+  return publishResponse(request, context, true, async (db, user, { tenantId }, deps) =>
+    saveDraft(db, user, tenantId, await request.json(), deps), 201);
 }

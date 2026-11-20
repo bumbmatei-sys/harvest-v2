@@ -28,10 +28,16 @@ interface MonthViewProps {
   onDaySelect: (day: Date) => void;
   selectedDay: Date | null;
   monthHref: (month: string) => string;
+  /** Message namespace for the header, day and overflow labels (previousMonth, nextMonth, dayCell, moreEvents). Events by default. */
+  namespace?: "Events" | "SocialPublish.planner";
+  /** Replaces the text of a chip (Social shows a platform mark and the post text). */
+  renderChip?: (event: CalendarEvent) => React.ReactNode;
+  /** Makes chips draggable and days drop targets: `onDropOnDay` receives the day and what was dropped (an event id, or a draft). */
+  onDropOnDay?: (day: Date, data: DataTransfer) => void;
 }
 
-export function MonthCalendar({ currentDate, events, onDaySelect, selectedDay, monthHref }: MonthViewProps) {
-  const t = useTranslations("Events");
+export function MonthCalendar({ currentDate, events, onDaySelect, selectedDay, monthHref, namespace = "Events", renderChip, onDropOnDay }: MonthViewProps) {
+  const t = useTranslations(namespace as "Events");
   const days = useMemo(() => {
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(monthStart);
@@ -98,7 +104,10 @@ export function MonthCalendar({ currentDate, events, onDaySelect, selectedDay, m
                   key={day.toString()}
                   className="group border-border/70 data-outside-cell:bg-muted/25 data-outside-cell:text-muted-foreground border-r border-b last:border-r-0"
                   data-today={(mounted && isToday(day)) || undefined}
-                  data-outside-cell={!isCurrentMonth || undefined}>
+                  data-outside-cell={!isCurrentMonth || undefined}
+                  data-day={format(day, "yyyy-MM-dd")}
+                  onDragOver={onDropOnDay ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } : undefined}
+                  onDrop={onDropOnDay ? (e) => { e.preventDefault(); onDropOnDay(day, e.dataTransfer); } : undefined}>
                   <button
                     type="button"
                     onClick={() => onDaySelect(day)}
@@ -120,13 +129,15 @@ export function MonthCalendar({ currentDate, events, onDaySelect, selectedDay, m
                       {sortEvents(allDayEvents).slice(0, 3).map((event) => (
                         <span
                           key={event.id}
+                          draggable={onDropOnDay ? true : undefined}
+                          onDragStart={onDropOnDay ? (e) => { e.dataTransfer.setData("application/x-harvest-post", event.id); e.dataTransfer.effectAllowed = "move"; } : undefined}
                           data-past-event={event.ended || undefined}
                           data-cancelled={event.status === "cancelled" || undefined}
                           className="bg-primary/10 text-foreground flex h-6 items-center truncate rounded px-2 text-xs font-medium data-cancelled:line-through data-past-event:opacity-70">
-                          <span className="truncate">
+                          {renderChip ? renderChip(event) : <span className="truncate">
                             <span className="font-normal opacity-70">{format(event.start, "h:mma").toLowerCase()} </span>
                             {event.title}
-                          </span>
+                          </span>}
                         </span>
                       ))}
                       {allDayEvents.length > 3 && <span className="text-muted-foreground px-1 text-xs">{t("moreEvents", { count: allDayEvents.length - 3 })}</span>}

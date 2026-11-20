@@ -6,6 +6,6 @@ export const runtime = "nodejs";
 type Context = { params: Promise<{ tenantId: string }> };
 
 export function GET(request: Request, context: Context) {
-  return publishResponse(request, context, false, (db, user, { tenantId }) =>
-    listPlanner(db, user, tenantId, searchParamsRecord(request.url)));
+  return publishResponse(request, context, false, (db, user, { tenantId }, deps) =>
+    listPlanner(db, user, tenantId, searchParamsRecord(request.url), deps));
 }

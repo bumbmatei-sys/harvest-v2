@@ -5,11 +5,11 @@ export const runtime = "nodejs";
 type Context = { params: Promise<{ tenantId: string }> };
 
 export function GET(request: Request, context: Context) {
-  return publishResponse(request, context, false, (db, user, { tenantId }) =>
-    listPostingSchedules(db, user, tenantId));
+  return publishResponse(request, context, false, (db, user, { tenantId }, deps) =>
+    listPostingSchedules(db, user, tenantId, deps));
 }
 
 export function POST(request: Request, context: Context) {
-  return publishResponse(request, context, true, async (db, user, { tenantId }) =>
-    createPostingSchedule(db, user, tenantId, await request.json()), 201);
+  return publishResponse(request, context, true, async (db, user, { tenantId }, deps) =>
+    createPostingSchedule(db, user, tenantId, await request.json(), deps), 201);
 }

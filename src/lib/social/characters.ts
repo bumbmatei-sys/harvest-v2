@@ -6,7 +6,7 @@ type Counter = (text: string, context?: CharacterContext) => CharacterCount;
 
 export const normalizeSocialText = (text: string) => text.replace(/\r\n?/g, "\n");
 
-const segmenter = new Intl.Segmenter(undefined, { granularity: "grapheme" });
+const segmenter = new Intl.Segmenter("en", { granularity: "grapheme" });
 const graphemes = (text: string) => Array.from(segmenter.segment(normalizeSocialText(text)), ({ segment }) => segment);
 const codePoints = (text: string) => Array.from(normalizeSocialText(text)).length;
 const count = (used: number, limit: number | null, rule: CharacterCount["rule"]): CharacterCount =>
