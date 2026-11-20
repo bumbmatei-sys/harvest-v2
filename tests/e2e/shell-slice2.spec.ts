@@ -156,7 +156,7 @@ test("mode switcher keyboard: arrows, Home/End and Ctrl/Cmd+Alt shortcuts", asyn
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await page.keyboard.press("Control+Alt+Digit2");
   await expect(tab(page, "Public")).toHaveAttribute("aria-selected", "true");
-  await expect(nav(page).getByRole("link", { name: "Communities", exact: true })).toBeFocused();
+  await expect(nav(page).getByRole("link", { name: "Planner", exact: true })).toBeFocused();
   await page.keyboard.press("Control+Alt+Digit3");
   await expect(tab(page, "Public")).toHaveAttribute("aria-selected", "true");
   await page.keyboard.press("Meta+Alt+Digit1");
