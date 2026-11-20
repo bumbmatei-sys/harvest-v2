@@ -7,6 +7,7 @@ import { uuidInput } from "@/lib/contact-input";
 import { AppShell } from "@/components/app-shell";
 import { communitiesEnabled } from "@/server/communities-mode";
 import { eventsEnabled } from "@/server/events";
+import { socialScreensEnabled } from "@/server/social-publish-gate";
 import { shellModesEnabled } from "@/server/shell-modes";
 export default async function WorkspaceLayout({ children, params }: { children: React.ReactNode; params: Promise<{ tenantId: string }> }) {
   const session = await pageSession(), { tenantId } = await params;
@@ -15,5 +16,5 @@ export default async function WorkspaceLayout({ children, params }: { children: 
   if (!uuidInput.safeParse(tenantId).success) return <AppShell defaultOpen={defaultOpen} workspaces={workspaces} email={session.user.email}>{children}</AppShell>;
   const workspace = await getWorkspace(getDb(), session.user.id, tenantId).catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; });
   if (!workspace) return <AppShell defaultOpen={defaultOpen} workspaces={workspaces} email={session.user.email}>{children}</AppShell>;
-  return <AppShell defaultOpen={defaultOpen} workspaces={workspaces} selected={tenantId} email={session.user.email} brandTheme={workspace.brandTheme} features={[...(communitiesEnabled() ? ["communities" as const] : []), ...(eventsEnabled() ? ["events" as const] : [])]} modeSwitcher={shellModesEnabled()}>{children}</AppShell>;
+  return <AppShell defaultOpen={defaultOpen} workspaces={workspaces} selected={tenantId} email={session.user.email} brandTheme={workspace.brandTheme} features={[...(communitiesEnabled() ? ["communities" as const] : []), ...(eventsEnabled() ? ["events" as const] : []), ...(socialScreensEnabled() ? ["social" as const] : [])]} modeSwitcher={shellModesEnabled()}>{children}</AppShell>;
 }

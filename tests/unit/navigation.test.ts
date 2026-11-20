@@ -91,8 +91,8 @@ describe("three-mode registry (slice 1)", () => {
   });
   it("reserves not-yet-built modules as planned, including blog articles", () => {
     const planned = navEntries.filter((entry) => entry.status === "planned").map((entry) => entry.id);
-    expect(planned).toEqual(expect.arrayContaining(["articles", "composer", "planner", "inbox", "autoDm", "website", "linkInBio", "newsletter", "products", "discover", "assistant", "responses", "connectLinks", "forms", "mail", "calendar", "documents", "spreadsheets", "giving", "volunteers", "livestream", "churchProfile"]));
-    expect(navEntries.filter((entry) => entry.status !== "planned").map((entry) => entry.id)).toEqual(["people", "companies", "pipelines", "tasks", "imports", "campaigns", "followUp", "events", "files", "communities", "crmFields", "pipelineSettings", "appearance", "ministrySettings"]);
+    expect(planned).toEqual(expect.arrayContaining(["articles", "inbox", "autoDm", "website", "linkInBio", "newsletter", "products", "discover", "assistant", "responses", "connectLinks", "forms", "mail", "calendar", "documents", "spreadsheets", "giving", "volunteers", "livestream", "churchProfile"]));
+    expect(navEntries.filter((entry) => entry.status !== "planned").map((entry) => entry.id)).toEqual(["people", "companies", "pipelines", "tasks", "imports", "campaigns", "followUp", "events", "files", "composer", "planner", "socialAccounts", "communities", "crmFields", "pipelineSettings", "appearance", "ministrySettings"]);
   });
   it("never renders, links or labels a planned entry", () => {
     const plannedIds = new Set(navEntries.filter((entry) => entry.status === "planned").map((entry) => entry.id));

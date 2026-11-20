@@ -6,6 +6,6 @@ export const runtime = "nodejs";
 type Context = { params: Promise<{ tenantId: string; scheduleId: string }> };
 
 export function GET(request: Request, context: Context) {
-  return publishResponse(request, context, false, (db, user, { tenantId, scheduleId }) =>
-    listScheduleQueue(db, user, tenantId, scheduleId, searchParamsRecord(request.url)));
+  return publishResponse(request, context, false, (db, user, { tenantId, scheduleId }, deps) =>
+    listScheduleQueue(db, user, tenantId, scheduleId, searchParamsRecord(request.url), deps));
 }

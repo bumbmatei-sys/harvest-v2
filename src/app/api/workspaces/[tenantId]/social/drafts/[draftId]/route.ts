@@ -5,11 +5,11 @@ export const runtime = "nodejs";
 type Context = { params: Promise<{ tenantId: string; draftId: string }> };
 
 export function GET(request: Request, context: Context) {
-  return publishResponse(request, context, false, (db, user, { tenantId, draftId }) =>
-    readDraft(db, user, tenantId, draftId));
+  return publishResponse(request, context, false, (db, user, { tenantId, draftId }, deps) =>
+    readDraft(db, user, tenantId, draftId, deps));
 }
 
 export function PATCH(request: Request, context: Context) {
-  return publishResponse(request, context, true, async (db, user, { tenantId, draftId }) =>
-    changeDraft(db, user, tenantId, draftId, await request.json()));
+  return publishResponse(request, context, true, async (db, user, { tenantId, draftId }, deps) =>
+    changeDraft(db, user, tenantId, draftId, await request.json(), deps));
 }

@@ -1,4 +1,4 @@
-import { Bot, Building, Calendar, CalendarDays, CalendarRange, Church, ClipboardList, Compass, FileText, FileUp, Files, Flag, Globe, HandCoins, HeartHandshake, Inbox, Kanban, Link2, ListChecks, Mail, MailOpen, Radio, Sheet, ClipboardCheck, Users, MessageCircleReply, MessagesSquare, Newspaper, Palette, PenLine, QrCode, ShoppingBag, SlidersHorizontal, UsersRound, Workflow, type LucideIcon } from "lucide-react";
+import { Bot, Building, Calendar, CalendarDays, CalendarRange, Church, ClipboardList, Compass, FileText, FileUp, Files, Flag, Globe, HandCoins, HeartHandshake, Inbox, Kanban, Link2, ListChecks, Mail, MailOpen, Radio, Sheet, ClipboardCheck, Users, MessageCircleReply, MessagesSquare, Newspaper, Palette, PenLine, QrCode, ShoppingBag, Share2, SlidersHorizontal, UsersRound, Workflow, type LucideIcon } from "lucide-react";
 import type { Audience } from "./audience";
 import { can, type Permission } from "./permissions";
 
@@ -6,7 +6,7 @@ import { can, type Permission } from "./permissions";
 export type NavLabelKey = "communities" | "crm" | "workspace" | "settings" | "people" | "companies" | "pipelines" | "tasks" | "imports" | "campaigns" | "followUp" | "files" | "crmFields" | "pipelineSettings" | "appearance" | "ministrySettings" | "profile"
   | "office" | "forms" | "mail" | "calendar" | "documents" | "spreadsheets" | "giving" | "volunteers" | "livestream" | "churchProfile"
   | "connect" | "qrAndLinks" | "responses" | "events"
-  | "publishing" | "community" | "commerce" | "chat" | "composer" | "planner" | "inbox" | "autoDm" | "articles" | "website" | "linkInBio" | "newsletter" | "discover" | "products" | "assistant"
+  | "publishing" | "community" | "commerce" | "chat" | "composer" | "planner" | "socialAccounts" | "inbox" | "autoDm" | "articles" | "website" | "linkInBio" | "newsletter" | "discover" | "products" | "assistant"
   | "modeOperations" | "modePublic" | "modeAssistant";
 /** Shell modes (three-mode shell spec, 16 Nov 2026). The names are final. */
 export type NavMode = "operations" | "public" | "assistant";
@@ -41,7 +41,7 @@ export type NavEntry = {
   /** Shown only when the server reports this feature as enabled (activation flags, ADR 0013 §11). */
   feature?: NavFeature;
 };
-export type NavFeature = "communities" | "events";
+export type NavFeature = "communities" | "events" | "social";
 export type NavItem = { id: string; label: NavLabelKey; icon: LucideIcon; href: string; active: boolean };
 export type NavGroup = { id: NavGroupId; label: NavLabelKey; items: NavItem[] };
 
@@ -81,8 +81,9 @@ export const navEntries: readonly NavEntry[] = [
   // C14: owners and admins; hidden unless the server reports Events enabled (never in production).
   { id: "events", group: "workspace", mode: "operations", label: "events", icon: CalendarDays, path: "/events", match: under("/events"), permission: "communities:manage", feature: "events" },
   { id: "files", group: "workspace", mode: "operations", label: "files", icon: Files, path: "/files", match: has("/files") },
-  { id: "composer", group: "publishing", mode: "public", status: "planned", label: "composer", icon: PenLine, path: "/social/compose", match: under("/social/compose") },
-  { id: "planner", group: "publishing", mode: "public", status: "planned", label: "planner", icon: CalendarRange, path: "/social/planner", match: under("/social/planner") },
+  { id: "composer", group: "publishing", mode: "public", label: "composer", icon: PenLine, path: "/social/compose", match: under("/social/compose"), permission: "social:schedule", feature: "social" },
+  { id: "planner", group: "publishing", mode: "public", label: "planner", icon: CalendarRange, path: "/social/planner", match: under("/social/planner"), permission: "social:schedule", feature: "social" },
+  { id: "socialAccounts", group: "publishing", mode: "public", label: "socialAccounts", icon: Share2, path: "/social/accounts", match: under("/social/accounts"), permission: "social:connect", feature: "social" },
   { id: "inbox", group: "publishing", mode: "public", status: "planned", label: "inbox", icon: Inbox, path: "/inbox", match: under("/inbox") },
   { id: "autoDm", group: "publishing", mode: "public", status: "planned", label: "autoDm", icon: MessageCircleReply, path: "/inbox/auto-dm", match: under("/inbox/auto-dm") },
   { id: "articles", group: "publishing", mode: "public", status: "planned", label: "articles", icon: Newspaper, path: "/articles", match: under("/articles") },

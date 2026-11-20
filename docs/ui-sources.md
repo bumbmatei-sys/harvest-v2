@@ -257,3 +257,16 @@ The profile page is **modelled on** the founder-supplied premium Admin-dashboard
 | `src/components/communities/chat/member-profile-sheet.tsx` | modelled on (chat-app, unchanged source) | chat-app `user-detail-sheet.tsx` | `MemberSummary` extracted; link to the full profile. |
 
 Not used from the kit: contact details, skills, connections, the transaction table, download buttons and every fixture. Directory names link to the profile through the existing `MemberList`. Voluntary fields (bio, links, language, visibility) and avatar upload have no server support yet and are not built.
+
+### Social Publish screens (composer, queue, planner, accounts)
+
+Source: the founder-supplied premium kit template `bumbmatei-sys/admin-dashboard` (commit `1631106`; no secrets copied), under the standing kit rule of 17 Nov and the approvals recorded above. Everything else on these screens uses Harvest's shared components (AppShell, EditorShell, FormSection, StatusBadge, ConfirmDialog, EmptyState, Dialog, Sheet, Popover, forms).
+
+| Harvest file | Status | Kit source | Identical lines | Notes |
+| --- | --- | --- | --- | --- |
+| `src/components/ui/hover-card.tsx` | **copied** | `components/ui/hover-card.tsx` | 22 of 24 (92%) | The popup of the platform ring: limit and characters written, on hover, focus and tap. State variants changed to Radix `data-[state=...]`. |
+| `src/components/ui/attachment.tsx` | **copied** | `components/ui/attachment.tsx` | 83 of 84 (99%) | The media strip cards with upload states. |
+| `src/components/events/month-calendar.tsx` | copied (Events), **extended** | `apps/calendar/components/month-view.tsx` | 40 of 99 (40%, re-measured) | Optional message namespace, chip renderer and drag-and-drop day targets. |
+| `src/components/social/week-calendar.tsx` | modelled on | `apps/calendar/components/week-view.tsx` | none copied | Week by day and hour; posts are buttons, native drag-and-drop. |
+
+The ring itself (`src/components/social/platform-ring.tsx`) is hand-written SVG and has no kit source: the kit's circular progress is a recharts radial chart, and recharts is not used here. Platform logos are not bundled (licensing); a monogram stands in. Not used from the kit: dnd-kit, the event dialog, colour palette classes, the current-time indicator and the reel component. The in-repo upload control is a form for the Files API; the social media uploader shares its signed-PUT helper (`src/lib/put-file.ts`) and follows the same create, upload, confirm, scan flow against the Publish media routes.

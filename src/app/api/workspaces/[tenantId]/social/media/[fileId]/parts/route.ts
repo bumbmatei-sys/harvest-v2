@@ -6,6 +6,6 @@ export const runtime = "nodejs";
 type Context = { params: Promise<{ tenantId: string; fileId: string }> };
 
 export function POST(request: Request, context: Context) {
-  return publishResponse(request, context, true, async (db, user, { tenantId, fileId }) =>
-    signSocialUpload(db, user, tenantId, fileId, await request.json(), getStorage()));
+  return publishResponse(request, context, true, async (db, user, { tenantId, fileId }, deps) =>
+    signSocialUpload(db, user, tenantId, fileId, await request.json(), getStorage(), deps));
 }
