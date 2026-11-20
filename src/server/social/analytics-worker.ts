@@ -1,4 +1,4 @@
-import { analyticsCapabilities, analyticsRetentionDays, isoAnalyticsDay, projectMetrics, type AnalyticsStatus } from "../../lib/social/analytics";
+import { analyticsCapabilities, isoAnalyticsDay, projectMetrics, type AnalyticsStatus } from "../../lib/social/analytics";
 import type { SocialPlatform } from "../../lib/social/platforms";
 import { credentialBinding, openCredential } from "./credential-envelope";
 import { referenceInput } from "./inbox-access";
@@ -14,6 +14,7 @@ const emptyPosts = { posts: [], nextPage: null, pending: false };
 const emptyAccounts = { days: [], partial: false };
 const utcDay = (instant: number) => new Date(instant).toISOString().slice(0,10);
 const dayMs = 86_400_000;
+const providerPostRangeDays = 366;
 
 export async function runSocialAnalyticsRefresh(pool: Pool, fake: SocialProvider & { id: "fake" }, limit = 4) {
   if (fake.id !== "fake") throw new Error("ANALYTICS_WORKER_UNAVAILABLE");
@@ -29,15 +30,15 @@ export async function runSocialAnalyticsRefresh(pool: Pool, fake: SocialProvider
         const credential = openCredential(claim.credential_envelope,credentialBinding(claim.tenant_id,claim.connection_id));
         const query = { accountRef: claim.external_account_ref, platform: claim.platform, signal: AbortSignal.timeout(8_000) };
         const now = Date.now(), to = utcDay(now), from = utcDay(now - 31*dayMs);
-        const size = claim.platform === "youtube" ? 8 : 30;
+        const size = ["youtube","linkedin"].includes(claim.platform) ? 8 : 30;
         const [postRead,accountRead,timeRead] = await Promise.allSettled([
-          caps.post.length ? fake.readPostAnalytics(credential,{ ...query, from:utcDay(now-analyticsRetentionDays*dayMs), to, page, limit:size, order:"date" }) : emptyPosts,
+          caps.post.length ? fake.readPostAnalytics(credential,{ ...query, from:utcDay(now-(providerPostRangeDays-1)*dayMs), to, page, limit:size, order:"date" }) : emptyPosts,
           caps.account.length ? fake.readAccountAnalytics(credential,{ ...query, from, to }) : emptyAccounts,
           caps.bestTimes ? fake.readBestPostingTimes(credential,query) : [],
         ]);
         const reads = [postRead,accountRead,timeRead];
         const errorList = reads.filter(read => read.status === "rejected").map(read => read.reason as unknown);
-        const retryAfter = Math.max(0,...errorList.map(error=>error instanceof SocialProviderError ? error.retryAfterMs ?? 0 : 0));
+        const retryAfter = Math.max(postRead.status==="fulfilled" && "retryAfterMs" in postRead.value ? postRead.value.retryAfterMs ?? 0 : 0,...errorList.map(error=>error instanceof SocialProviderError ? error.retryAfterMs ?? 0 : 0));
         const expired = errorList.some(error=>error instanceof SocialProviderError && (error.code==="AUTH" || error.code==="EXPIRED"));
         if (expired) {
           state = "expired";

@@ -13,8 +13,8 @@ export type AnalyticsStatus = typeof analyticsStatuses[number];
 const supportedPostMetrics: Partial<Record<SocialPlatform, readonly PostMetric[]>> = {
   twitter: ["impressions","likes","comments","shares","saves","clicks"],
   instagram: ["impressions","reach","views","likes","comments","shares","saves","videoViews","watchTimeSeconds"],
-  facebook: ["reach","views","likes","comments","shares","clicks","videoViews","watchTimeSeconds"],
-  linkedin: ["impressions","reach","likes","comments","shares","clicks"],
+  facebook: ["impressions","reach","views","likes","comments","shares","clicks","videoViews","watchTimeSeconds"],
+  linkedin: ["impressions","reach","likes","comments","shares","saves","clicks","views","videoViews"],
   tiktok: ["views","likes","comments","shares","clicks","videoViews","watchTimeSeconds"],
   youtube: ["views","likes","comments","shares","videoViews","watchTimeSeconds"],
   pinterest: ["impressions","saves","clicks"],
@@ -23,7 +23,7 @@ const supportedPostMetrics: Partial<Record<SocialPlatform, readonly PostMetric[]
   threads: ["views","likes","comments","shares"],
   snapchat: ["views","reach","shares"],
 };
-const accountViews: readonly SocialPlatform[] = ["instagram","facebook","tiktok"];
+const accountViews: readonly SocialPlatform[] = ["instagram","facebook","tiktok","linkedin"];
 const followerPlatforms: readonly SocialPlatform[] = ["twitter","instagram","facebook","linkedin","tiktok","youtube","pinterest","threads"];
 export function analyticsCapabilities(platform: SocialPlatform) {
   return {

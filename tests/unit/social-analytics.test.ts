@@ -12,7 +12,7 @@ it("makes the documented analytics matrix exhaustive and omits unserved platform
   const postPlatforms=socialPlatforms.filter(platform=>analyticsCapabilities(platform).post.length);
   expect(postPlatforms).toEqual(["twitter","instagram","facebook","linkedin","tiktok","youtube","pinterest","reddit","bluesky","threads","snapchat"]);
   const profilePlatforms=socialPlatforms.filter(platform=>analyticsCapabilities(platform).account.includes("profileViews"));
-  expect(profilePlatforms).toEqual(["instagram","facebook","tiktok"]);
+  expect(profilePlatforms).toEqual(["instagram","facebook","linkedin","tiktok"]);
   expect(analyticsCapabilities("reddit").post).toEqual(["score","comments"]);
   expect(analyticsCapabilities("googlebusiness")).toEqual({post:[],account:[],bestTimes:false});
   expect(projectMetrics({likes:0,reach:null,views:Infinity,comments:"1",shares:-3,score:-2,body:"canary"},
@@ -30,7 +30,7 @@ it("projects only the authorized account and documented fields from a provider p
       ]},
     { _id:"inaccessible",publishedAt:"2026-10-15T14:00:00Z",platforms:[{accountId:"other",platform:"instagram",analytics:{likes:900}}]},
     { _id:"pending",publishedAt:"2026-10-15T14:00:00Z",platforms:[{accountId:"authorized",platform:"instagram",syncStatus:"pending",analytics:{likes:0}}]},
-  ],pagination:{totalPages:2} }));
+  ],pagination:{pages:2} }));
   const vendor = new ZernioAdapter({fetch});
   const result=await vendor.readPostAnalytics(credential,page);
   expect(result).toEqual({posts:[
@@ -66,4 +66,22 @@ it("keeps analytics network access disabled without an injected transport", asyn
     await expect(vendor.readBestPostingTimes(credential,query)).rejects.toMatchObject({code:"DISABLED"});
     expect(fetch).not.toHaveBeenCalled();
   } finally { fetch.mockRestore(); }
+});
+
+it("uses YouTube daily analytics for share and watch metrics instead of placeholder zeroes", async () => {
+  const vendor=new ZernioAdapter({fetch:async url=> url.includes("daily-views")
+    ? Response.json({videoId:"native-ref",dailyViews:[{shares:0,estimatedMinutesWatched:1},{shares:2,estimatedMinutesWatched:3.2}]})
+    : Response.json({posts:[{_id:"youtube-1",publishedAt:"2026-10-20T12:34:00Z",mediaType:"video",
+      platforms:[{accountId:"authorized",platform:"youtube",platformPostId:"native-ref",analytics:{views:10,shares:0}}]}]})});
+  const data=await vendor.readPostAnalytics(credential,{...page,platform:"youtube"});
+  expect(data.posts[0].metrics).toMatchObject({shares:2,watchTimeSeconds:252,videoViews:10});
+});
+
+it("requires LinkedIn account-type evidence for measured saves and clicks", async () => {
+  const vendor=new ZernioAdapter({fetch:async url=> url.includes("linkedin-post-analytics")
+    ? Response.json({accountId:"authorized",postUrn:"urn:li:share:1",accountType:"organization",analytics:{clicks:0,saves:0}})
+    : Response.json({posts:[{_id:"linkedin-1",publishedAt:"2026-10-20T12:34:00Z",mediaType:"text",
+      platforms:[{accountId:"authorized",platform:"linkedin",platformPostId:"urn:li:share:1",analytics:{impressions:3,views:0,clicks:0,saves:0}}]}]})});
+  const data=await vendor.readPostAnalytics(credential,{...page,platform:"linkedin"});
+  expect(data.posts[0].metrics).toEqual({impressions:3,clicks:0});
 });
