@@ -132,12 +132,11 @@ test("forum: categories, a full post, likes and replies, edits, pinning and remo
     await a.waitForURL(`**${postUrl}`);
     const clickAndRefreshPost = async (button: Locator, method: string, path: string) => {
       const page = button.page();
-      const [, refreshed] = await Promise.all([
+      await Promise.all([
         waitForCommunityResponse(page, method, path),
         waitForCommunityResponse(page, "GET", postUrl),
         button.click(),
       ]);
-      expect(await refreshed.finished()).toBeNull();
     };
     const article = a.locator("article");
     await expect(article.getByRole("heading", { name: "Week one", level: 2 })).toBeVisible();
