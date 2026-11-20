@@ -130,6 +130,9 @@ export function inspectSocialBoundary(file: string, source: string): BoundaryVio
     if (/(?:from|import)\s*\(?\s*["'][^"']*zernio-adapter["']/.test(source) && norm !== SOCIAL_REGISTRY && !officeRegistry) add("adapter imported outside the registry");
   }
   if (!SOCIAL_SEND_HOMES.includes(norm) && /\b(?:sendMessage|replyToComment)\s*\(/.test(source)) add("sending entry point outside the port and adapters");
+  if (!SOCIAL_SEND_HOMES.includes(norm) && norm !== "src/server/social/inbox-reply-worker.ts" && /\b(?:dispatchInboxReply|reconcileInboxReply)\s*\(/.test(source)) add("inbox sender used outside its worker");
+  if (norm === "src/server/social/inbox-reply.ts" && !/export const SOCIAL_HUMAN_REPLY_ENABLED = false;/.test(source)) add("SOCIAL_HUMAN_REPLY_ENABLED must be the literal constant false");
+  if (norm.startsWith("src/app/") && specifiers(source).some(s => /inbox-reply-worker(?:\.ts)?$/.test(s))) add("inbox worker imported by app");
   if (!SOCIAL_SEND_HOMES.includes(norm) && norm !== SOCIAL_REGISTRY && /\bgetSocialSender\b/.test(source)) add("sender accessor used outside the registry");
   if (inSocial || inOffice) {
     if (/process\.env/.test(source)) add("environment read inside the social layer (kill switches are constants)");

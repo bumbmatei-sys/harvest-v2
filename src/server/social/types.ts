@@ -27,7 +27,7 @@ export type PublishRequest = {
   scheduledFor?: Date;
 };
 export type ProviderPostStatus = "scheduled" | "publishing" | "published" | "partial" | "failed" | "cancelled";
-export type PublishResult = { postRef: string; status: ProviderPostStatus };
+export type PublishResult = { postRef: string; status: ProviderPostStatus; errorCategory?: string | null };
 export type PostStatusResult = { postRef: string; status: ProviderPostStatus; errorCategory: string | null };
 
 export type Page<T> = { items: T[]; nextCursor: string | null };
@@ -45,7 +45,7 @@ export type SendResult = { ref: string };
 export type InboundEventKind =
   | "post.scheduled" | "post.published" | "post.partial" | "post.failed" | "post.cancelled"
   | "account.connected" | "account.disconnected"
-  | "message.received" | "message.sent" | "message.failed" | "comment.received" | "other";
+  | "message.received" | "message.sent" | "message.failed" | "comment.received" | "mention.received" | "other";
 export type InboundEvent = {
   eventId: string;
   kind: InboundEventKind;

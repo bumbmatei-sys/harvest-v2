@@ -1,3 +1,4 @@
+import type { InboxEntry, InboxItemQuery, InboxListQuery, InboxMessage, InboxReplyEligibility, InboxReplyQuery, InboxReplyRequest } from "./inbox-contract";
 import { SocialProviderError, type SocialProvider, type SocialSender } from "./port";
 import { deliveryKey } from "./types";
 import { isSocialPlatform } from "../../lib/social/platforms";
@@ -38,6 +39,11 @@ export class FakeProvider implements SocialProvider, SocialSender {
   conversations: Conversation[];
   messages: Message[];
   comments: Comment[];
+  inboxEntries: InboxEntry[] = [];
+  inboxMessages = new Map<string, InboxMessage[]>();
+  replyEligibility = new Map<string, InboxReplyEligibility>();
+  private readonly replyResults = new Map<string, SendResult>();
+  ambiguousNextReply = false;
   health = new Map<string, SocialAccountHealth>();
   constructor(private readonly options: FakeOptions = {}) {
     this.validSecret = options.validSecret ?? "fake-credential";
@@ -104,7 +110,7 @@ export class FakeProvider implements SocialProvider, SocialSender {
     const b = body as Record<string, unknown>, str = (v: unknown, max = 200) => typeof v === "string" && v.length >= 1 && v.length <= max ? v : null;
     const eventId = str(b.id), type = str(b.type, 100), at = typeof b.timestamp === "string" ? new Date(b.timestamp) : null;
     if (!eventId || !type || !at || Number.isNaN(at.getTime())) return null;
-    const known: InboundEventKind[] = ["post.scheduled", "post.published", "post.partial", "post.failed", "post.cancelled", "account.connected", "account.disconnected", "message.received", "message.sent", "message.failed", "comment.received"];
+    const known: InboundEventKind[] = ["post.scheduled", "post.published", "post.partial", "post.failed", "post.cancelled", "account.connected", "account.disconnected", "message.received", "message.sent", "message.failed", "comment.received", "mention.received"];
     const kind = known.find((k) => k === type) ?? "other";
     const platform = isSocialPlatform(b.platform) ? b.platform : null;
     return { eventId, kind, rawType: kind === "other" ? type : "", accountRef: str(b.accountRef), subjectRef: str(b.subjectRef), platform, errorCategory: str(b.errorCategory, 60), occurredAt: at,
@@ -119,6 +125,58 @@ export class FakeProvider implements SocialProvider, SocialSender {
     this.enter("replyToComment", cred, request.idempotencyKey);
     this.sent.push({ kind: "comment", key: request.idempotencyKey });
     return { ref: `fake-reply-${++this.counter}` };
+  }
+  private inboxKey(query: InboxReplyQuery | InboxItemQuery) {
+    return JSON.stringify([query.accountRef, query.kind, query.ref]);
+  }
+  async listInbox(cred: SocialCredential, query: InboxListQuery) {
+    this.enter("listInbox", cred);
+    query.signal.throwIfAborted();
+    const stored = this.inboxEntries.filter(item => item.accountRef === query.accountRef && item.kind === query.kind);
+    const conversations: InboxEntry[] = query.kind === "dm" ? this.conversations.filter(item => item.accountRef === query.accountRef).map(item => ({
+      kind: "dm", ref: item.conversationRef, accountRef: item.accountRef, title: item.participantName,
+      preview: item.lastMessagePreview, activityAt: item.updatedAt,
+    })) : [];
+    const search = query.search?.toLowerCase();
+    const items = [...stored, ...conversations].filter(item => !search ||
+      [item.title, item.preview].some(value => value?.toLowerCase().includes(search)));
+    return this.page(items, query);
+  }
+  async readInbox(cred: SocialCredential, query: InboxItemQuery) {
+    this.enter("readInbox", cred);
+    query.signal.throwIfAborted();
+    const entry = this.inboxEntries.find(item => item.accountRef === query.accountRef && item.kind === query.kind && item.ref === query.ref);
+    const conversation = query.kind === "dm" && this.conversations.find(item => item.accountRef === query.accountRef && item.conversationRef === query.ref);
+    if (!entry && !conversation) throw new SocialProviderError("NOT_FOUND");
+    const messages = this.inboxMessages.get(this.inboxKey(query)) ?? (conversation ? this.messages.filter(item => item.conversationRef === query.ref)
+      .map(item => ({ ref: item.messageRef, direction: item.direction, text: item.text, at: item.sentAt, attachments: [] })) : []);
+    return { ...this.page(messages, query), title: entry?.title ?? (conversation ? conversation.participantName : null) };
+  }
+  async inboxReplyEligibility(cred: SocialCredential, query: InboxReplyQuery): Promise<InboxReplyEligibility> {
+    this.enter("inboxReplyEligibility", cred);
+    const { items } = await this.readInbox(cred, { ...query, limit: 100 });
+    const health = await this.getAccountHealth(cred, query.accountRef);
+    if (health.health !== "healthy") return { allowed: false, reason: "unhealthy" };
+    if (query.targetRef && !items.some(item => item.ref === query.targetRef && item.canReply !== false && !item.deleted))
+      return { allowed: false, reason: "target_unavailable" };
+    return this.replyEligibility.get(this.inboxKey(query)) ?? { allowed: true, expiresAt: null, media: true, quote: true };
+  }
+  async dispatchInboxReply(cred: SocialCredential, request: InboxReplyRequest) {
+    this.enter("dispatchInboxReply", cred, request.idempotencyKey);
+    const previous = this.replyResults.get(request.idempotencyKey);
+    if (previous) return previous;
+    const result = { ref: `fake-inbox-${++this.counter}` };
+    this.replyResults.set(request.idempotencyKey, result);
+    this.sent.push({ kind: request.mode === "comment" ? "comment" : "message", key: request.idempotencyKey });
+    if (this.ambiguousNextReply) {
+      this.ambiguousNextReply = false;
+      throw new SocialProviderError("UNAVAILABLE");
+    }
+    return result;
+  }
+  async reconcileInboxReply(cred: SocialCredential, request: InboxReplyQuery & { idempotencyKey: string }) {
+    this.enter("reconcileInboxReply", cred, request.idempotencyKey);
+    return this.replyResults.get(request.idempotencyKey) ?? null;
   }
   /** Test helper: a signed delivery body for this fake's wire format. */
   signedEvent(event: { id: string; type: string; timestamp: string; accountRef?: string; subjectRef?: string; platform?: string; errorCategory?: string }, secret: string) {

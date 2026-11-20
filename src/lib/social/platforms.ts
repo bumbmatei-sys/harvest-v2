@@ -61,3 +61,45 @@ export const platformCapabilities: Record<SocialPlatform, Capabilities> = {
   wechat: { ...unavailable, dms: "conditional" },
   sms: { ...unavailable, dms: "conditional" },
 };
+
+export const inboxKinds = ["dm", "comment", "mention", "story"] as const;
+export type InboxKind = typeof inboxKinds[number];
+export const inboxCapabilityVersion = "zernio-f98ece5";
+export type InboxCapabilities = {
+  conversationRead: Availability;
+  messageReply: Availability;
+  commentRead: Availability;
+  commentReply: Availability;
+  privateReply: Availability;
+  messageMedia: Availability;
+  commentMedia: Availability;
+  mentions: Availability;
+  mentionReply: Availability;
+  storyReplies: Availability;
+  liveSearch: Availability;
+  quoteReply: Availability;
+};
+
+const searchPlatforms: readonly SocialPlatform[] = ["facebook", "instagram", "telegram", "whatsapp", "sms", "rcs", "slack", "imessage", "line", "wechat"];
+const mediaPlatforms: readonly SocialPlatform[] = ["facebook", "instagram", "twitter", "telegram", "whatsapp", "slack", "imessage", "sms", "rcs", "line", "wechat", "tiktok"];
+const mentionPlatforms: readonly SocialPlatform[] = ["facebook", "instagram", "linkedin", "slack"];
+const quotePlatforms: readonly SocialPlatform[] = ["whatsapp", "telegram", "slack"];
+
+export function inboxCapabilities(platform: SocialPlatform): InboxCapabilities {
+  const { dms, comments } = platformCapabilities[platform];
+  const meta = platform === "facebook" || platform === "instagram";
+  return {
+    conversationRead: dms,
+    messageReply: dms === "unavailable" ? "unavailable" : "conditional",
+    commentRead: comments,
+    commentReply: comments === "unavailable" ? "unavailable" : "conditional",
+    privateReply: meta ? "conditional" : "unavailable",
+    messageMedia: mediaPlatforms.includes(platform) ? "conditional" : "unavailable",
+    commentMedia: platform === "facebook" ? "conditional" : "unavailable",
+    mentions: mentionPlatforms.includes(platform) ? "conditional" : "unavailable",
+    mentionReply: platform === "instagram" || platform === "slack" ? "conditional" : "unavailable",
+    storyReplies: platform === "instagram" ? "conditional" : "unavailable",
+    liveSearch: searchPlatforms.includes(platform) ? "conditional" : "unavailable",
+    quoteReply: quotePlatforms.includes(platform) ? "conditional" : "unavailable",
+  };
+}
