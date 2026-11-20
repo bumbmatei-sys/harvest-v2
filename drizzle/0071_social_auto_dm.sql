@@ -228,6 +228,11 @@ BEGIN
   PERFORM pg_advisory_xact_lock(hashtextextended(p_tenant::text || ':' || j.connection_id::text,713));
   SELECT * INTO r FROM public.social_auto_dm_rules WHERE (tenant_id,id)=(p_tenant,j.rule_id) FOR SHARE;
   IF NOT FOUND OR NOT r.enabled OR r.version<>j.rule_version THEN RETURN 'ineligible'; END IF;
+  IF j.step='primary' AND p_variant='rule' AND r.rule#>>'{response,fileId}' IS NOT NULL THEN
+    PERFORM 1 FROM public.files f WHERE f.tenant_id=p_tenant AND f.id::text=r.rule#>>'{response,fileId}'
+      AND f.social_upload AND f.status='ready' AND f.social_retired_at IS NULL FOR SHARE;
+    IF NOT FOUND THEN RETURN 'ineligible'; END IF;
+  END IF;
   PERFORM 1 FROM public.workspace_members WHERE (tenant_id,user_id)=(p_tenant,r.enabled_by) AND role_id IN ('owner','admin') FOR SHARE;
   IF NOT FOUND THEN RETURN 'ineligible'; END IF;
   SELECT id,contact_id,assignee_id INTO item FROM public.social_inbox_items
