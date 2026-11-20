@@ -73,4 +73,6 @@ For authorized non-production use, the worker requires `HARVEST_SOCIAL_UPLOAD_CL
 
 ## Verification and decisions
 
+Lint, source guards and typecheck passed. The unit project passed **1,289 tests across 98 files**. The full local integration project passed **915 tests across 109 files**. The focused inbox, media, Publish and webhook run passed **34 tests across five files**. The second `drizzle-kit generate` reported no schema changes, and the `0070` snapshot points to `0069`.
+
 Local verification uses embedded Postgres, the fake provider, mock HTTP responses and an object-storage test double. Hosted Neon, provider accounts and behavior, hosted object storage and live dispatch remain unverified. Separate review is due for the sender, connection credentials, current provider account coverage and human-reply purpose policy. The founder's remaining decision is the policy for which human replies may be sent as service responses, including use of the extended human-agent window. The existing marketing consent rules continue to apply to any later outreach. The working-hours settings carry forward to S05, where Auto-DM is scoped to Instagram and Facebook.
