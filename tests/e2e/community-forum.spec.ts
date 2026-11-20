@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { joinAndWaitForForum, waitForCommunityResponse } from "./helpers/community";
 import { origin, signIn } from "./helpers/session";
 import { settleForAxe } from "./helpers/settle";
 
@@ -43,8 +44,20 @@ async function join(page: Page, slug: string) {
   await page.getByRole("button", { name: "Join", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Join Bible Study" });
   await dialog.getByLabel("I confirm I am 18 or older").click();
-  await dialog.getByRole("button", { name: "Join", exact: true }).click();
-  await expect(page).toHaveURL(new RegExp(`/communities/${slug}/forum$`));
+  await joinAndWaitForForum(page, slug, dialog.getByRole("button", { name: "Join", exact: true }));
+}
+
+async function attachFile(page: Page, slug: string, button: Locator, file: { name: string; mimeType: string; buffer: Buffer }) {
+  const [chooser] = await Promise.all([page.waitForEvent("filechooser"), button.click()]);
+  const filesPath = `/api/communities/${slug}/files`;
+  const [created, confirmed] = await Promise.all([
+    waitForCommunityResponse(page, "POST", filesPath),
+    waitForCommunityResponse(page, "POST", new RegExp(`^${filesPath}/[^/]+/confirm$`)),
+    chooser.setFiles(file),
+  ]);
+  const { file: { id } } = await created.json();
+  expect(new URL(confirmed.url()).pathname).toBe(`${filesPath}/${id}/confirm`);
+  expect(await confirmed.json()).toMatchObject({ id, name: file.name, status: "ready" });
 }
 
 test("forum: categories, a full post, likes and replies, edits, pinning and removal", async ({ page, browser }) => {
@@ -96,10 +109,12 @@ test("forum: categories, a full post, likes and replies, edits, pinning and remo
     await composer.getByLabel("Category", { exact: true }).click();
     await expect(a.getByRole("option", { name: /Announcements/ })).toHaveCount(0);
     await a.getByRole("option", { name: "General", exact: true }).click();
-    await composer.locator('input[type="file"][accept^="image/jpeg,image/png,image/webp"]').first().setInputFiles({ name: "cover.png", mimeType: "image/png", buffer: png });
+    await attachFile(a, slug, composer.getByRole("button", { name: "Add cover", exact: true }),
+      { name: "cover.png", mimeType: "image/png", buffer: png });
     await expect(composer.getByText("cover.png", { exact: true })).toBeVisible();
     await composer.getByLabel("Video link", { exact: true }).fill("https://www.youtube.com/watch?v=dQw4w9WgXcQ");
-    await composer.locator('input[type="file"][accept*="application/pdf"]').setInputFiles({ name: "plan.pdf", mimeType: "application/pdf", buffer: pdf });
+    await attachFile(a, slug, composer.getByRole("button", { name: "Add attachment", exact: true }),
+      { name: "plan.pdf", mimeType: "application/pdf", buffer: pdf });
     await expect(composer.getByText("plan.pdf", { exact: true })).toBeVisible();
     const body = composer.getByRole("textbox", { name: "Post", exact: true });
     await body.click();
@@ -107,9 +122,22 @@ test("forum: categories, a full post, likes and replies, edits, pinning and remo
     await a.keyboard.type("Week one"); await a.keyboard.press("Enter");
     await composer.getByRole("button", { name: "Bulleted list", exact: true }).click();
     await a.keyboard.type("Chapters 1-4"); await a.keyboard.press("Enter"); await a.keyboard.type("Chapters 5-8");
-    await composer.getByRole("button", { name: "Publish", exact: true }).click();
-    await expect(a).toHaveURL(new RegExp(`/communities/${slug}/posts/[0-9a-f-]{36}$`));
-    const postUrl = new URL(a.url()).pathname;
+    const [published] = await Promise.all([
+      waitForCommunityResponse(a, "POST", `/api/communities/${slug}/posts`),
+      composer.getByRole("button", { name: "Publish", exact: true }).click(),
+    ]);
+    const { id } = await published.json();
+    expect(id).toMatch(/^[0-9a-f-]{36}$/);
+    const postUrl = `/communities/${slug}/posts/${id}`;
+    await a.waitForURL(`**${postUrl}`);
+    const clickAndRefreshPost = async (button: Locator, method: string, path: string) => {
+      const page = button.page();
+      await Promise.all([
+        waitForCommunityResponse(page, method, path),
+        waitForCommunityResponse(page, "GET", postUrl),
+        button.click(),
+      ]);
+    };
     const article = a.locator("article");
     await expect(article.getByRole("heading", { name: "Week one", level: 2 })).toBeVisible();
     await expect(article.getByRole("listitem").filter({ hasText: "Chapters 5-8" })).toBeVisible();
@@ -125,7 +153,7 @@ test("forum: categories, a full post, likes and replies, edits, pinning and remo
     await r.getByRole("button", { name: "Like Romans reading plan", exact: true }).click();
     await expect(r.getByRole("button", { name: "Unlike Romans reading plan", exact: true })).toBeVisible();
     await r.getByLabel("Reply", { exact: true }).fill("Count me in.");
-    await r.getByRole("button", { name: "Reply", exact: true }).click();
+    await clickAndRefreshPost(r.getByRole("button", { name: "Reply", exact: true }), "POST", `/api${postUrl}/comments`);
     await expect(r.getByText("Count me in.", { exact: true })).toBeVisible();
     // Members cannot pin; there is no host control for them.
     await expect(r.getByRole("button", { name: "Pin", exact: true })).toHaveCount(0);
@@ -135,15 +163,16 @@ test("forum: categories, a full post, likes and replies, edits, pinning and remo
     await a.getByRole("button", { name: "Edit", exact: true }).click();
     const edit = a.getByRole("dialog", { name: "Edit post" });
     await edit.getByLabel("Title", { exact: true }).fill("Romans reading plan (updated)");
-    await edit.getByRole("button", { name: "Save", exact: true }).click();
+    await clickAndRefreshPost(edit.getByRole("button", { name: "Save", exact: true }), "PATCH", `/api${postUrl}`);
     await expect(a.getByRole("heading", { name: "Romans reading plan (updated)", level: 2 })).toBeVisible();
     await shoot(a, "post");
 
     // The host pins the post and removes the reply.
     await page.goto(postUrl);
-    await page.getByRole("button", { name: "Pin", exact: true }).click();
+    const moderationPath = `/api/communities/${slug}/moderation`;
+    await clickAndRefreshPost(page.getByRole("button", { name: "Pin", exact: true }), "POST", moderationPath);
     await expect(page.getByRole("button", { name: "Unpin", exact: true })).toBeVisible();
-    await page.getByRole("button", { name: /Remove reply by/ }).click();
+    await clickAndRefreshPost(page.getByRole("button", { name: /Remove reply by/ }), "POST", moderationPath);
     await expect(page.getByText("Count me in.", { exact: true })).toHaveCount(0);
     await r.reload();
     await expect(r.getByText("Count me in.", { exact: true })).toHaveCount(0);

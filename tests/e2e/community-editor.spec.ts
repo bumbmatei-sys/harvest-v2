@@ -40,6 +40,7 @@ test("create, edit, guard, conflict and publish a community; viewers are read-on
   const publicMode = page.getByRole("tab", { name: "Public", exact: true });
   if (await publicMode.count()) await publicMode.click();
   await page.getByRole("navigation", { name: "Ministry navigation" }).getByRole("link", { name: "Communities", exact: true }).click();
+  await page.waitForURL(`**/workspaces/${tenant}/communities`);
   await expect(page.getByRole("heading", { name: "Communities", exact: true })).toBeVisible();
   await expect(page.getByText("No communities yet. Create your first one.")).toBeVisible();
   await shoot(page, "list-empty");
