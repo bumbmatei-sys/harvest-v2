@@ -53,16 +53,20 @@ it("initializes General and state for every community", async () => {
 });
 it("reduces private and unlisted members to id and role in the chat roster", async () => {
   const slug = "chat-club";
-  for (const [actor, visibility] of [["mod", "private"], ["member", "private"], ["contributor", "unlisted"]] as const) {
+  for (const [actor, visibility] of [["mod", "private"], ["admin", "unlisted"], ["member", "private"], ["contributor", "unlisted"]] as const) {
     await ownCommunityProfile(f.db, actor, slug, "save", { version: 0, displayName: "Hidden name", bio: "Hidden bio", visibility });
   }
   const peer = (await chatStaffPage(f.db, "second", slug))!;
   // Hidden members never appear by name, and the mention, channel-list and count source (`members`) omits them, posted or not.
-  expect(peer.members.some(entry => ["mod", "member", "contributor"].includes(entry.userId))).toBe(false);
+  expect(peer.members.some(entry => ["mod", "admin", "member", "contributor"].includes(entry.userId))).toBe(false);
   expect(JSON.stringify(peer.members)).not.toMatch(/Hidden name|"name":"(mod|member|contributor)"/);
   // Only id and role remain, which keeps a staff badge on messages the viewer already sees.
-  expect(peer.hidden).toEqual(expect.arrayContaining([{ userId: "mod", role: "moderator" }, { userId: "member", role: "member" }, { userId: "contributor", role: "contributor" }]));
+  expect(peer.hidden).toEqual(expect.arrayContaining([{ userId: "mod", role: "moderator" }, { userId: "admin", role: "admin" }]));
+  // A hidden plain member or contributor leaves no trace at all in the peer's payload, posted or not.
+  expect(peer.hidden.some(entry => ["member", "contributor"].includes(entry.userId))).toBe(false);
+  expect(JSON.stringify(peer)).not.toMatch(/"userId":"(member|contributor)"/);
   const direct = await withUser(f.db, "second", async tx => (await tx.execute<{ m: Record<string, unknown> }>(sql`select public.community_chat_member_roster(${slug}) m`)).rows.map(row => row.m));
+  expect(direct.some(entry => ["member", "contributor"].includes(entry.userId as string))).toBe(false);
   const hiddenMod = direct.find(entry => entry.userId === "mod")!;
   expect(hiddenMod).toEqual({ userId: "mod", role: "moderator", hidden: true });
   expect(hiddenMod).not.toHaveProperty("name");

@@ -10,7 +10,7 @@ BEGIN
     SELECT FROM public.communities WHERE tenant_id = ctx.o_tenant AND id = ctx.o_community AND chat_enabled
   )) THEN
     -- Chat sees every eligible member, but a member whose profile is private or unlisted (and is not the viewer) is
-    -- reduced to an id and a role: no name and no joined date. Community owners and admins keep seeing everyone. That keeps a staff badge resolvable on messages the
+    -- reduced, when they hold a staff role, to an id and a role (no name, no joined date); other hidden members are omitted entirely. Community owners and admins keep seeing everyone. That keeps a staff badge resolvable on messages the
     -- viewer can already see without making a hidden member discoverable. The directory still omits hidden members.
     RETURN QUERY SELECT CASE WHEN p_chat AND coalesce(p.visibility, 'members') <> 'members'
         AND m.user_id <> nullif(current_setting('app.user_id', true), '') AND coalesce(ctx.o_role, '') NOT IN ('owner', 'admin')
@@ -23,6 +23,9 @@ BEGIN
       ON (p.tenant_id, p.community_id, p.user_id) = (m.tenant_id, m.community_id, m.user_id)
     WHERE m.tenant_id = ctx.o_tenant AND m.community_id = ctx.o_community
       AND (p_chat OR coalesce(p.visibility, 'members') = 'members')
+      AND NOT (p_chat AND coalesce(p.visibility, 'members') <> 'members'
+        AND m.user_id <> nullif(current_setting('app.user_id', true), '') AND coalesce(ctx.o_role, '') NOT IN ('owner', 'admin')
+        AND m.role NOT IN ('owner', 'admin', 'moderator'))
       AND public.community_user_can_read(m.tenant_id, m.community_id, m.user_id)
     ORDER BY CASE m.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'moderator' THEN 2 WHEN 'contributor' THEN 3 ELSE 4 END,
       m.joined_at NULLS LAST, m.user_id

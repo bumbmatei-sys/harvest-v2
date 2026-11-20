@@ -62,7 +62,7 @@ beforeEach(async () => {
   await fixture.admin.query("update community_memberships set role='admin',status='active' where user_id='admin'");
 });
 
-it("keeps a private partner resolvable in a conversation without naming them in the roster", async () => {
+it("keeps a private partner resolvable in a conversation without any roster trace", async () => {
   await policy("members");
   await ownCommunityProfile(fixture.db, "bob", slug, "save", { version: 0, displayName: "Private bob", visibility: "private" });
   const opened = await start("alice", "bob");
@@ -72,7 +72,8 @@ it("keeps a private partner resolvable in a conversation without naming them in 
   expect(item).toMatchObject({ otherId: "bob", otherName: "bob" });
   const roster = (await chatStaffPage(fixture.db, "alice", slug))!;
   expect(roster.members.some(entry => entry.userId === "bob")).toBe(false);
-  expect(roster.hidden).toContainEqual({ userId: "bob", role: "member" });
+  // A hidden plain member leaves no trace; the header name comes from the conversation and the role defaults to member.
+  expect(roster.hidden.some(entry => entry.userId === "bob")).toBe(false);
   await fixture.admin.query("delete from community_member_profiles where community_id=$1", [club]);
 });
 
