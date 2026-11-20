@@ -4,9 +4,11 @@ PR #165 adds campaign drafts, immutable revisions, templates, mailbox and domain
 
 ## Merge condition
 
-**Merging #165 first is NOT safe.** Merge the social stack #157, #159, #161 and #162 (migrations 0069–0072) into main before #165. Migration 0073 currently follows the 0068 snapshot on the PR branch. Applying 0073 first can cause Drizzle to skip the earlier migrations when they arrive. Its journal timestamp is `1795400000021`.
+Merging #165 before the social stack would have been unsafe. The original 0073 snapshot followed 0068, and applying 0073 early could have caused Drizzle to skip social migrations 0069–0072 when they arrived.
 
-After the founder confirms the stack is merged, merge main into `codex/newsletter-sending-server` and regenerate 0073 from the full merged schema. Set `prevId` to the 0072 snapshot ID, verify the snapshot includes the social tables and set the 0073 journal `when` strictly above 0072. Confirm that a second `drizzle-kit generate` reports no changes. Preserve the merged migration numbers.
+After #162 completed the social stack (#157, #159, #161 and #162), the newsletter branch was brought onto main `b4adf0bb1b808188f050de1a123c17e1d8e265d2` through merge commit `57d12b04bbb35d9e6434f36873e1d1bd7eb93ad0`. [PR #165 and current head](https://github.com/bumbmatei-sys/harvest-v2/pull/165)
+
+Snapshot 0073 was regenerated from the full merged schema. Its `prevId` is the 0072 snapshot ID `cd1369ab-99f8-426c-ad37-8bbc9716a39f`, and it preserves all 21 social tables. Its journal entry has index 73 and timestamp `1795400000021`, immediately after 0072 at index 72 and timestamp `1795400000020`. Migration 0073 retains the hand-written SQL. A second `drizzle-kit generate` reported no schema changes. The journal and snapshot are ready for the single stack-end review.
 
 ## CRM merge chain
 
@@ -23,6 +25,8 @@ Migration 0073 calls `merge_contacts_before_newsletter_sending` from the public 
 
 ## Verification
 
-Lint and typecheck passed. The full unit project passed **1,235 tests in 97 files**. The full integration project passed **907 tests in 107 files** on embedded PostgreSQL. The focused newsletter and restricted migration-owner suites passed **27 tests in 3 files**. A final newsletter sending run passed **17 tests**, including the database review clock. Two local Drizzle checks reported no schema changes on the current 0068-based branch. Migration 0073 keeps its original snapshot ID, previous ID and journal entry.
+Lint and typecheck passed at the merged schema revision. The full unit project passed **1,336 tests in 103 files**. The full integration project passed **955 tests in 112 files** on embedded PostgreSQL.
 
-Hosted Neon, real DNS and mailbox ownership messages, real SES intake and event delivery, production quotas, received MIME and DKIM, hosted monitoring, and a fresh independent review of this follow-up remain unverified. The post-social snapshot check awaits the founder’s confirmation that the stack is merged. [Delivery and SES evidence](newsletter-sending.md)
+A separate embedded PostgreSQL upgrade started at 0072 with a restricted migration owner. Applying the full journal added exactly one ledger entry for 0073 with the hand-written SQL checksum, preserved the 0072 ledger entries and was a no-op on repeat.
+
+Hosted Neon, real DNS and mailbox ownership messages, real SES intake and event delivery, production quotas, received MIME and DKIM, hosted monitoring, and a fresh independent review of this follow-up remain unverified. [Delivery and SES evidence](newsletter-sending.md)
