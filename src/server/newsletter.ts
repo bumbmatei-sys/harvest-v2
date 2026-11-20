@@ -9,7 +9,7 @@ import { mayContact } from "./consent-gate";
 import { loadDefinitions, resolveState } from "./crm-filters";
 import { peopleQuery } from "./contacts";
 import { AccessError } from "./permissions";
-import { withTenant } from "./tenancy";
+import { withNewsletter } from "./newsletter-access";
 export function newsletterEnabled(env: Record<string, string | undefined> = process.env) { return env.NODE_ENV !== 'production'; }
 export function requireNewsletterEnabled() { if (!newsletterEnabled())
     throw new AccessError(404, message('Errors.thisViewIsNotAvailable')); }
@@ -19,14 +19,14 @@ const nameInput = z.object({ name: z.string().trim().min(1).max(100) }).strict()
 const audit = (tx: Transaction, tenantId: string, actorId: string, action: string, targetId: string, metadata: Record<string, string | number> = {}) => tx.insert(auditLogs).values({ tenantId, actorId, action, targetId, metadata: Object.fromEntries(Object.entries(metadata).map(([k, v]) => [k, String(v)])) });
 async function lockContact(tx: Transaction, tenantId: string, id: string) { const [c] = await tx.select({ id: contacts.id }).from(contacts).where(and(eq(contacts.tenantId, tenantId), eq(contacts.id, id), isNull(contacts.erasedAt))).for('update'); if (!c)
     throw missing(); }
-export function createNewsletterAudience(db: Database, user: string, workspace: string, raw: unknown) { requireNewsletterEnabled(); const input = nameInput.parse(raw); return withTenant(db, user, z.uuid().parse(workspace), 'newsletter:manage', async (tx, tenantId) => { const [r] = await tx.insert(newsletterAudiences).values({ ...input, tenantId, createdBy: user }).returning(); await audit(tx, tenantId, user, 'newsletter.audience.create', r.id); return r; }); }
-export function createNewsletterList(db: Database, user: string, workspace: string, audience: string, raw: unknown) { requireNewsletterEnabled(); const input = nameInput.parse(raw), audienceId = z.uuid().parse(audience); return withTenant(db, user, z.uuid().parse(workspace), 'newsletter:manage', async (tx, tenantId) => { const [a] = await tx.select().from(newsletterAudiences).where(and(eq(newsletterAudiences.tenantId, tenantId), eq(newsletterAudiences.id, audienceId))); if (!a)
+export function createNewsletterAudience(db: Database, user: string, workspace: string, raw: unknown) { requireNewsletterEnabled(); const input = nameInput.parse(raw); return withNewsletter(db, user, workspace, 'newsletter:manage', async (tx, tenantId) => { const [r] = await tx.insert(newsletterAudiences).values({ ...input, tenantId, createdBy: user }).returning(); await audit(tx, tenantId, user, 'newsletter.audience.create', r.id); return r; }); }
+export function createNewsletterList(db: Database, user: string, workspace: string, audience: string, raw: unknown) { requireNewsletterEnabled(); const input = nameInput.parse(raw), audienceId = z.uuid().parse(audience); return withNewsletter(db, user, workspace, 'newsletter:manage', async (tx, tenantId) => { const [a] = await tx.select().from(newsletterAudiences).where(and(eq(newsletterAudiences.tenantId, tenantId), eq(newsletterAudiences.id, audienceId))); if (!a)
     throw missing(); const [r] = await tx.insert(newsletterLists).values({ ...input, tenantId, audienceId, createdBy: user }).returning(); await audit(tx, tenantId, user, 'newsletter.list.create', r.id, { audienceId }); return r; }); }
 /** Import provenance points to existing applied CRM rows; no CSV person/consent duplication. Replays preserve first provenance. */
 export function addNewsletterSubscriber(db: Database, user: string, workspace: string, raw: unknown) {
     requireNewsletterEnabled();
     const input = subscriberInput.parse(raw);
-    return withTenant(db, user, z.uuid().parse(workspace), 'newsletter:manage', async (tx, tenantId) => {
+    return withNewsletter(db, user, workspace, 'newsletter:manage', async (tx, tenantId) => {
         await lockContact(tx, tenantId, input.contactId);
         const [old] = await tx.select().from(newsletterSubscribers).where(and(eq(newsletterSubscribers.tenantId, tenantId), eq(newsletterSubscribers.contactId, input.contactId)));
         if (old)
@@ -40,7 +40,7 @@ export function addNewsletterSubscriber(db: Database, user: string, workspace: s
 export function updateNewsletterSubscriber(db: Database, user: string, workspace: string, subscriber: string, raw: unknown) {
     requireNewsletterEnabled();
     const id = z.uuid().parse(subscriber), input = z.object({ version: z.number().int().positive(), tags: z.array(z.string().regex(/^[a-z0-9][a-z0-9_-]{0,39}$/)).max(50).optional(), suppressed: z.literal(true).optional() }).strict().parse(raw);
-    return withTenant(db, user, z.uuid().parse(workspace), 'newsletter:manage', async (tx, tenantId) => {
+    return withNewsletter(db, user, workspace, 'newsletter:manage', async (tx, tenantId) => {
         const [current] = await tx.select().from(newsletterSubscribers).where(and(eq(newsletterSubscribers.tenantId, tenantId), eq(newsletterSubscribers.id, id)));
         if (!current)
             throw missing();
@@ -55,7 +55,7 @@ export function updateNewsletterSubscriber(db: Database, user: string, workspace
 export function setNewsletterSubscription(db: Database, user: string, workspace: string, list: string, subscriber: string, raw: unknown) {
     requireNewsletterEnabled();
     const input = subscriptionInput.parse(raw), listId = z.uuid().parse(list), subscriberId = z.uuid().parse(subscriber);
-    return withTenant(db, user, z.uuid().parse(workspace), 'newsletter:manage', async (tx, tenantId) => {
+    return withNewsletter(db, user, workspace, 'newsletter:manage', async (tx, tenantId) => {
         const [s] = await tx.select().from(newsletterSubscribers).where(and(eq(newsletterSubscribers.tenantId, tenantId), eq(newsletterSubscribers.id, subscriberId)));
         if (!s)
             throw missing();
@@ -91,7 +91,7 @@ async function segmentState(tx: Transaction, tenantId: string, id: string) {
 export function createNewsletterSegment(db: Database, user: string, workspace: string, audience: string, raw: unknown) {
     requireNewsletterEnabled();
     const input = nameInput.extend({ savedViewId: z.uuid() }).parse(raw), audienceId = z.uuid().parse(audience);
-    return withTenant(db, user, z.uuid().parse(workspace), 'newsletter:manage', async (tx, tenantId) => {
+    return withNewsletter(db, user, workspace, 'newsletter:manage', async (tx, tenantId) => {
         const [v] = await tx.select().from(crmSavedViews).where(and(eq(crmSavedViews.tenantId, tenantId), eq(crmSavedViews.id, input.savedViewId), eq(crmSavedViews.objectType, 'person'), isNull(crmSavedViews.ownerUserId)));
         if (!v)
             throw missing();
@@ -108,7 +108,7 @@ export function createNewsletterSegment(db: Database, user: string, workspace: s
 export function listNewsletterSubscribers(db: Database, user: string, workspace: string, list: string, raw: unknown = {}) {
     requireNewsletterEnabled();
     const page = newsletterPage.parse(raw), listId = z.uuid().parse(list);
-    return withTenant(db, user, z.uuid().parse(workspace), 'newsletter:read', async (tx, tenantId) => {
+    return withNewsletter(db, user, workspace, 'newsletter:read', async (tx, tenantId) => {
         const [l] = await tx.select().from(newsletterLists).where(and(eq(newsletterLists.tenantId, tenantId), eq(newsletterLists.id, listId)));
         if (!l)
             throw missing();
@@ -139,7 +139,7 @@ export function pageNewsletterConfiguration(db: Database, user: string, workspac
     requireNewsletterEnabled();
     const page = newsletterPage.pick({ limit: true, after: true }).parse(raw);
     const table = { audiences: newsletterAudiences, lists: newsletterLists, segments: newsletterSegments }[kind];
-    return withTenant(db, user, z.uuid().parse(workspace), 'newsletter:read', async (tx, tenantId) => {
+    return withNewsletter(db, user, workspace, 'newsletter:read', async (tx, tenantId) => {
         const audienceColumn = kind === 'lists' ? newsletterLists.audienceId : kind === 'segments' ? newsletterSegments.audienceId : undefined;
         const rows = await tx.select({ id: table.id, name: table.name, ...(audienceColumn ? { audienceId: audienceColumn } : {}) }).from(table).where(and(eq(table.tenantId, tenantId), page.after ? gt(table.id, page.after) : undefined)).orderBy(asc(table.id)).limit(page.limit + 1);
         return { items: rows.slice(0, page.limit), nextCursor: rows.length > page.limit ? rows[page.limit - 1].id : null };

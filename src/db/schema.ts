@@ -2030,3 +2030,120 @@ export const communityMemberProfiles = pgTable("community_member_profiles", {
   check("community_member_profile_visibility", sql`${t.visibility} in ('members','unlisted','private')`),
   check("community_member_profile_version", sql`${t.version} > 0`),
 ]);
+
+export const newsletterSenders = pgTable("newsletter_senders", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  id: uuid("id").notNull().defaultRandom(),
+  name: text("name").notNull(),
+  email: text("email").notNull(),
+  replyTo: text("reply_to").notNull(),
+  postalAddress: text("postal_address").notNull(),
+  verifiedAt: timestamp("verified_at", { withTimezone: true }),
+  disabledAt: timestamp("disabled_at", { withTimezone: true }),
+}, t => [primaryKey({ columns: [t.tenantId, t.id] })]);
+
+export const newsletterTemplates = pgTable("newsletter_templates", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  id: uuid("id").notNull().defaultRandom(),
+  name: text("name").notNull(),
+  content: jsonb("content").$type<RichDoc>().notNull(),
+  version: integer("version").notNull().default(1),
+}, t => [primaryKey({ columns: [t.tenantId, t.id] }), check("newsletter_template_version", sql`${t.version} > 0`)]);
+
+function newsletterRevisionKey(): [AnyPgColumn, AnyPgColumn, AnyPgColumn] {
+  return [newsletterRevisions.tenantId, newsletterRevisions.campaignId, newsletterRevisions.version];
+}
+
+export const newsletterCampaigns = pgTable("newsletter_campaigns", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  id: uuid("id").notNull().defaultRandom(),
+  status: text("status").$type<"draft" | "scheduled" | "sending" | "sent" | "cancelled">().notNull().default("draft"),
+  revision: integer("revision").notNull().default(1),
+  approvedRevision: integer("approved_revision"),
+  approvedBy: text("approved_by").references(() => users.id),
+  scheduledFor: timestamp("scheduled_for", { withTimezone: true }),
+  timeZone: text("time_zone"),
+  audienceCursor: uuid("audience_cursor"),
+  audienceResolved: boolean("audience_resolved").notNull().default(false),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "newsletter_campaign_current_revision_fk", columns: [t.tenantId, t.id, t.revision], foreignColumns: newsletterRevisionKey() }),
+  index("newsletter_campaign_due").on(t.status, t.scheduledFor),
+  check("newsletter_campaign_status", sql`${t.status} in ('draft','scheduled','sending','sent','cancelled')`),
+  check("newsletter_campaign_review", sql`(${t.approvedRevision} is null AND ${t.approvedBy} is null AND ${t.scheduledFor} is null AND ${t.timeZone} is null AND ${t.status} IN ('draft','cancelled')) OR
+    (${t.approvedRevision} IS NOT NULL AND ${t.approvedRevision} = ${t.revision} AND ${t.approvedBy} IS NOT NULL AND ${t.scheduledFor} IS NOT NULL AND ${t.timeZone} IS NOT NULL AND ${t.status} <> 'draft')`)]);
+
+export const newsletterRevisions = pgTable("newsletter_revisions", {
+  tenantId: uuid("tenant_id").notNull(),
+  campaignId: uuid("campaign_id").notNull(),
+  version: integer("version").notNull(),
+  subject: text("subject").notNull(),
+  previewText: text("preview_text").notNull(),
+  content: jsonb("content").$type<RichDoc>().notNull(),
+  linkCount: integer("link_count").notNull(),
+  senderId: uuid("sender_id").notNull(),
+  listId: uuid("list_id"),
+  segmentId: uuid("segment_id"),
+  viewId: uuid("view_id"),
+  viewVersion: integer("view_version"),
+}, t => [primaryKey({ columns: [t.tenantId, t.campaignId, t.version] }),
+  foreignKey({ name: "newsletter_revision_campaign_fk", columns: [t.tenantId, t.campaignId], foreignColumns: [newsletterCampaigns.tenantId, newsletterCampaigns.id] }),
+  foreignKey({ name: "newsletter_revision_sender_fk", columns: [t.tenantId, t.senderId], foreignColumns: [newsletterSenders.tenantId, newsletterSenders.id] }),
+  foreignKey({ name: "newsletter_revision_list_fk", columns: [t.tenantId, t.listId], foreignColumns: [newsletterLists.tenantId, newsletterLists.id] }),
+  check("newsletter_revision_version", sql`${t.version} > 0 AND ${t.linkCount} BETWEEN 0 AND 5000`),
+  check("newsletter_revision_subject", sql`length(${t.subject}) between 1 and 150 AND length(${t.previewText}) <= 200
+    AND ${t.subject} !~ '[[:cntrl:]]' AND ${t.previewText} !~ '[[:cntrl:]]'`),
+  check("newsletter_revision_audience", sql`(${t.listId} IS NOT NULL OR ${t.viewId} IS NOT NULL)
+    AND (${t.segmentId} IS NULL OR (${t.listId} IS NOT NULL AND ${t.viewId} IS NOT NULL))
+    AND (${t.viewId} IS NULL) = (${t.viewVersion} IS NULL)`)]);
+
+// Live bindings can disappear on CRM view deletion without mutating a reviewed revision.
+export const newsletterAudienceBindings = pgTable("newsletter_audience_bindings", {
+  tenantId: uuid("tenant_id").notNull(),
+  campaignId: uuid("campaign_id").notNull(),
+  revision: integer("revision").notNull(),
+  viewId: uuid("view_id").notNull(),
+  segmentId: uuid("segment_id"),
+}, t => [primaryKey({ columns: [t.tenantId, t.campaignId, t.revision] }),
+  foreignKey({ name: "newsletter_binding_revision_fk", columns: [t.tenantId, t.campaignId, t.revision], foreignColumns: [newsletterRevisions.tenantId, newsletterRevisions.campaignId, newsletterRevisions.version] }),
+  foreignKey({ name: "newsletter_binding_view_fk", columns: [t.tenantId, t.viewId], foreignColumns: [crmSavedViews.tenantId, crmSavedViews.id] }).onDelete("cascade"),
+  foreignKey({ name: "newsletter_binding_segment_fk", columns: [t.tenantId, t.segmentId], foreignColumns: [newsletterSegments.tenantId, newsletterSegments.id] }).onDelete("cascade"),
+  index("newsletter_binding_view_index").on(t.tenantId, t.viewId),
+  index("newsletter_binding_segment_index").on(t.tenantId, t.segmentId)]);
+
+export const newsletterDeliveries = pgTable("newsletter_deliveries", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  campaignId: uuid("campaign_id").notNull(),
+  revision: integer("revision").notNull(),
+  contactId: uuid("contact_id"),
+  state: text("state").notNull().default("queued"),
+  attempts: integer("attempts").notNull().default(0),
+  reconciliations: integer("reconciliations").notNull().default(0),
+  availableAt: timestamp("available_at", { withTimezone: true }).notNull().defaultNow(),
+  leaseId: uuid("lease_id"),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  acceptedAt: timestamp("accepted_at", { withTimezone: true }),
+  providerId: uuid("provider_id"),
+}, t => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "newsletter_delivery_revision_fk", columns: [t.tenantId, t.campaignId, t.revision], foreignColumns: [newsletterRevisions.tenantId, newsletterRevisions.campaignId, newsletterRevisions.version] }),
+  foreignKey({ name: "newsletter_delivery_contact_fk", columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }).onDelete("cascade"),
+  unique("newsletter_delivery_recipient").on(t.tenantId, t.campaignId, t.revision, t.contactId),
+  unique("newsletter_delivery_provider").on(t.tenantId, t.providerId),
+  index("newsletter_delivery_due").on(t.state, t.availableAt),
+  check("newsletter_delivery_state", sql`${t.state} in ('queued','leased','dispatching','ambiguous','reconciling','accepted','failed','unconfirmed','cancelled')`),
+  check("newsletter_delivery_attempts", sql`${t.attempts} BETWEEN 0 AND 3 AND ${t.reconciliations} BETWEEN 0 AND 3`)]);
+
+export const newsletterDeliveryEvents = pgTable("newsletter_delivery_events", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull(),
+  deliveryId: uuid("delivery_id").notNull(),
+  outcome: text("outcome").notNull(),
+  linkId: integer("link_id"),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+  receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "newsletter_event_delivery_fk", columns: [t.tenantId, t.deliveryId], foreignColumns: [newsletterDeliveries.tenantId, newsletterDeliveries.id] }).onDelete("cascade"),
+  index("newsletter_event_delivery_time").on(t.tenantId, t.deliveryId, t.occurredAt),
+  check("newsletter_event_outcome", sql`${t.outcome} in ('delivered','opened','clicked','bounced','complained','unsubscribed')`),
+  check("newsletter_event_link", sql`(${t.outcome} = 'clicked') = (${t.linkId} IS NOT NULL) AND (${t.linkId} IS NULL OR ${t.linkId} > 0)`)]);

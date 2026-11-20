@@ -4,7 +4,8 @@ import { effectiveNewsletterState, newsletterPage, newsletterStates, subscriberI
 vi.mock('server-only', () => ({}));
 it('newsletter permission matrix', () => { for (const role of ['owner', 'admin', 'member', 'viewer', 'unknown']) {
     expect(can(role, 'newsletter:manage')).toBe(['owner', 'admin'].includes(role));
-    expect(can(role, 'newsletter:read')).toBe(['owner', 'admin', 'member'].includes(role));
+    for (const capability of ['newsletter:read', 'newsletter:review', 'newsletter:analytics'] as const)
+        expect(can(role, capability)).toBe(['owner', 'admin'].includes(role));
 } });
 it('suppression always wins and consent never upgrades an opted-out list state', () => { for (const s of newsletterStates)
     for (const allowed of [true, false])

@@ -6,7 +6,7 @@ import { auditLogs, newsletterLists, newsletterSignupForms } from "../db/schema"
 import { message } from "../i18n/messages";
 import { requireNewsletterEnabled } from "./newsletter";
 import { AccessError } from "./permissions";
-import { withTenant } from "./tenancy";
+import { withNewsletter } from "./newsletter-access";
 
 export const newsletterSignupNotice = "newsletter-subject-v1";
 const missing = () => new AccessError(404, message("Errors.thisViewIsNotAvailable"));
@@ -31,7 +31,7 @@ function signedDigest(key: Buffer, purpose: string, value: string) {
 export function createNewsletterSignupForm(db: Database, actor: string, workspace: string, raw: unknown) {
   requireNewsletterEnabled();
   const { listId } = z.object({ listId: z.uuid() }).strict().parse(raw);
-  return withTenant(db, actor, z.uuid().parse(workspace), "newsletter:manage", async (tx, tenantId) => {
+  return withNewsletter(db, actor, workspace, "newsletter:manage", async (tx, tenantId) => {
     const [list] = await tx.select({ id: newsletterLists.id }).from(newsletterLists)
       .where(and(eq(newsletterLists.tenantId, tenantId), eq(newsletterLists.id, listId)));
     if (!list) throw missing();
@@ -45,7 +45,7 @@ export function updateNewsletterSignupForm(db: Database, actor: string, workspac
   requireNewsletterEnabled();
   const input = z.object({ version: z.number().int().positive().max(2_147_483_646), active: z.boolean() }).strict().parse(raw);
   const formId = z.uuid().parse(id);
-  return withTenant(db, actor, z.uuid().parse(workspace), "newsletter:manage", async (tx, tenantId) => {
+  return withNewsletter(db, actor, workspace, "newsletter:manage", async (tx, tenantId) => {
     const [form] = await tx.update(newsletterSignupForms).set({ active: input.active, version: sql`${newsletterSignupForms.version}+1` })
       .where(and(eq(newsletterSignupForms.tenantId, tenantId), eq(newsletterSignupForms.id, formId), eq(newsletterSignupForms.version, input.version))).returning();
     if (!form) throw missing();
@@ -75,19 +75,23 @@ export async function confirmNewsletterSignup(db: Database, raw: unknown) {
   await db.execute(sql`select public.newsletter_signup_confirm(${input.data.email},${input.data.token})`);
 }
 
+export function signNewsletterPreference(key: Buffer, scope: "list" | "all", nonce: string) {
+  return nonce + "." + signedDigest(key, "newsletter-preference-" + scope, nonce).toString("base64url");
+}
+
 /** Only the owning delivery/service layer should receive this bearer capability. */
 export function issueNewsletterPreference(db: Database, actor: string, workspace: string, id: string, raw: unknown) {
   requireNewsletterEnabled();
   const input = preferenceInput.parse(raw), subscriber = z.uuid().parse(id);
   const key = newsletterKey();
   if (!key) throw missing();
-  return withTenant(db, actor, z.uuid().parse(workspace), "newsletter:manage", async (tx, tenantId) => {
+  return withNewsletter(db, actor, workspace, "newsletter:manage", async (tx, tenantId) => {
     const nonce = randomBytes(32).toString("base64url");
     const listId = input.scope === "list" ? input.listId : null;
     const { rows: [row] } = await tx.execute<{ issued: boolean }>(
       sql`select public.newsletter_preference_issue(${tenantId}::uuid,${subscriber}::uuid,${listId}::uuid,${input.scope},${nonce}) as issued`);
     if (!row.issued) throw missing();
-    return nonce + "." + signedDigest(key, "newsletter-preference-" + input.scope, nonce).toString("base64url");
+    return signNewsletterPreference(key, input.scope, nonce);
   });
 }
 

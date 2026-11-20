@@ -165,7 +165,7 @@ export function checkSonnerBoundary(directories: string[] = ["src", "scripts"]):
 
 /** Catalogue keys may name internal providers; displayed leaf values must remain neutral. */
 export function inspectProviderCopy(value: unknown): BoundaryViolation[] {
-  if (typeof value === "string") return /\b(?:zernio|gmail|outlook|onedrive|google drive|microsoft)\b/i.test(value) ? [{ file: "messages/en.json", rule: "vendor name in user-facing copy" }] : [];
+  if (typeof value === "string") return /\b(?:zernio|plunk|gmail|outlook|onedrive|google drive|microsoft)\b/i.test(value) ? [{ file: "messages/en.json", rule: "vendor name in user-facing copy" }] : [];
   return value && typeof value === "object" ? Object.values(value).flatMap(inspectProviderCopy) : [];
 }
 
@@ -194,4 +194,48 @@ export function checkQaBoundary() {
     readdirSync(directory).filter((file) => /\.ya?ml$/.test(file)).map((file) => join(directory, file)))];
   return [...sourceFiles("src"), ...sourceFiles("scripts"), ...configs]
     .flatMap((file) => inspectQaBoundary(file, readFileSync(file, "utf8")));
+}
+
+const NEWSLETTER_DIRECTORY = "src/server/newsletter-delivery/";
+const newsletterOutcomes = ["tenant_id", "id", "delivery_id", "outcome", "link_id", "occurred_at", "received_at"];
+export function inspectNewsletterBoundary(file: string, source: string): BoundaryViolation[] {
+  const norm = file.replaceAll("\\", "/");
+  const found: BoundaryViolation[] = [];
+  const add = (rule: string) => found.push({ file, rule });
+  if (norm === "drizzle/0073_newsletter_server.sql") {
+    const events = source.match(/CREATE TABLE "newsletter_delivery_events" \(([\s\S]*?)^\);/m);
+    const columns = [...(events?.[1] ?? "").matchAll(/^\s*"([a-z_]+)"\s/gm)].map(match => match[1]);
+    if (columns.join(",") !== newsletterOutcomes.join(",")) add("newsletter callbacks may persist only fixed delivery metadata");
+    const inserts = [...source.matchAll(/insert\s+into\s+public\.newsletter_delivery_events\s*\(([^)]+)\)/gi)];
+    if (inserts.length !== 1 || inserts[0][1].split(",").some(column => !newsletterOutcomes.includes(column.trim())))
+      add("newsletter callback insert must use only metadata columns");
+    if (!/public\.newsletter_consent_allowed\(p_tenant,p_contact,consent\)/.test(source) ||
+        !/address:=public\.newsletter_eligible_address\(p_tenant,d\.contact_id,r\.list_id\)/.test(source))
+      add("newsletter dispatch must recheck canonical consent");
+    return found;
+  }
+  const inNewsletter = norm.startsWith(NEWSLETTER_DIRECTORY) || norm.includes("/newsletter/") ||
+    /\/newsletter(?:-public)?(?:-route)?\.ts$/.test(norm);
+  if (inNewsletter && (/\bfetch\s*\(|globalThis\.fetch|\bXMLHttpRequest\b|console\.(?:log|debug|info|warn)\s*\(/.test(source) ||
+      specifiers(source).some(specifier => /^(?:node:(?:https?|net|tls)|undici|axios|@plunk\/|plunk(?:\/|$))/.test(specifier))))
+    add("newsletter source may not perform network I/O or log request content");
+  if (inNewsletter && /\b(?:trackOpens|trackClicks)\s*:\s*(?!false\b)\S/.test(source))
+    add("newsletter tracking must stay literally false");
+  if (norm === NEWSLETTER_DIRECTORY + "registry.ts") {
+    for (const name of ["NEWSLETTER_INTEGRATION_ENABLED", "NEWSLETTER_SENDER_ENABLED", "NEWSLETTER_TRACKING_ENABLED"])
+      if (!source.includes(`export const ${name} = false;`)) add(`${name} must stay literally false`);
+  }
+  if (norm === NEWSLETTER_DIRECTORY + "plunk-adapter.ts" && !source.includes("export const PLUNK_NEWSLETTER_LIVE_NETWORK = false;"))
+    add("newsletter provider network must stay literally false");
+  if (norm !== NEWSLETTER_DIRECTORY + "registry.ts" && specifiers(source).some(specifier => basename(specifier) === "plunk-adapter"))
+    add("newsletter provider adapter may only be imported by its registry");
+  if (norm.startsWith("scripts/") && specifiers(source).some(specifier => specifier.includes("newsletter-delivery/worker")))
+    add("newsletter worker must not be installed");
+  return found;
+}
+
+export function checkNewsletterBoundary() {
+  const files = ["drizzle/0073_newsletter_server.sql", ...sourceFiles("src"), ...sourceFiles("scripts")]
+    .filter(file => file !== "scripts/source-guards.ts");
+  return files.flatMap(file => inspectNewsletterBoundary(file, readFileSync(file, "utf8")));
 }

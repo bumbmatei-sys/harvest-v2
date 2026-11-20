@@ -30,12 +30,12 @@ beforeAll(async () => {
 }, 90000);
 afterAll(async () => { expect(fetch).not.toHaveBeenCalled(); vi.restoreAllMocks(); await f?.close(); });
 it('permission matrix and two-tenant RLS hold in services and direct SQL', async () => {
-    for (const u of ['n-owner', 'n-admin', 'n-member'])
+    for (const u of ['n-owner', 'n-admin'])
         expect((await pageNewsletterConfiguration(f.db, u, a, 'audiences')).items).toHaveLength(1);
-    for (const u of ['n-viewer', 'n-foreign'])
-        await expect(pageNewsletterConfiguration(f.db, u, a, 'audiences')).rejects.toMatchObject({ status: 403 });
+    for (const u of ['n-member', 'n-viewer', 'n-foreign'])
+        await expect(pageNewsletterConfiguration(f.db, u, a, 'audiences')).rejects.toMatchObject({ status: 404 });
     for (const u of ['n-member', 'n-viewer'])
-        await expect(createNewsletterAudience(f.db, u, a, { name: 'Denied' })).rejects.toMatchObject({ status: 403 });
+        await expect(createNewsletterAudience(f.db, u, a, { name: 'Denied' })).rejects.toMatchObject({ status: 404 });
     await expect(createNewsletterList(f.db, 'n-foreign', b, audience, { name: 'Foreign' })).rejects.toMatchObject({ status: 404 });
     const rows = await withTenant(f.db, 'n-foreign', b, 'newsletter:manage', tx => tx.execute(sql `select * from newsletter_audiences`));
     expect(rows.rows).toEqual([]);
@@ -60,7 +60,7 @@ it('any-channel withdrawals, both clocks and effective read state match mayConta
     await setNewsletterSubscription(f.db, 'n-owner', a, list, s.id, { state: 'subscribed', version: 0 });
     await consent(s.contact, 'withdrawn', 'social');
     await expect(setNewsletterSubscription(f.db, 'n-owner', a, list, s.id, { state: 'subscribed', version: 2 })).rejects.toMatchObject({ status: 403 });
-    const page = await listNewsletterSubscribers(f.db, 'n-member', a, list);
+    const page = await listNewsletterSubscribers(f.db, 'n-admin', a, list);
     expect(page.subscribers.find(r => r.id === s.id)?.state).toBe('unsubscribed');
     await consent(s.contact, 'granted');
     await expect(setNewsletterSubscription(f.db, 'n-owner', a, list, s.id, { state: 'subscribed', version: 2 })).rejects.toMatchObject({ status: 403 });
@@ -77,7 +77,7 @@ it('global/list suppression is sticky across grants and import replay', async ()
     await consent(s.contact, 'granted');
     await expect(setNewsletterSubscription(f.db, 'n-owner', a, list, s.id, { state: 'subscribed', version: 1 })).rejects.toMatchObject({ status: 409 });
     expect((await addNewsletterSubscriber(f.db, 'n-owner', a, { contactId: s.contact })).suppressed).toBe(true);
-    expect((await listNewsletterSubscribers(f.db, 'n-member', a, list)).subscribers.find(r => r.id === s.id)?.state).toBe('suppressed');
+    expect((await listNewsletterSubscribers(f.db, 'n-admin', a, list)).subscribers.find(r => r.id === s.id)?.state).toBe('suppressed');
     await expect(withTenant(f.db, 'n-owner', a, 'newsletter:manage', tx => tx.execute(sql `update newsletter_subscribers set suppressed=false where id=${s.id}::uuid`))).rejects.toThrow();
     const t = await subscriber();
     await setNewsletterSubscription(f.db, 'n-owner', a, list, t.id, { state: 'suppressed', version: 0 });
@@ -87,7 +87,7 @@ it('bounced/unsubscribed states do not become subscribed after a grant; stale up
     const s = await subscriber();
     await setNewsletterSubscription(f.db, 'n-owner', a, list, s.id, { state: 'bounced', version: 0 });
     await consent(s.contact, 'granted');
-    expect((await listNewsletterSubscribers(f.db, 'n-member', a, list)).subscribers.find(r => r.id === s.id)?.state).toBe('bounced');
+    expect((await listNewsletterSubscribers(f.db, 'n-admin', a, list)).subscribers.find(r => r.id === s.id)?.state).toBe('bounced');
     await expect(setNewsletterSubscription(f.db, 'n-owner', a, list, s.id, { state: 'subscribed', version: 0 })).rejects.toMatchObject({ status: 409 });
 });
 it('CRM import provenance is referenced and immutable; fabricated provenance is refused', async () => {
@@ -102,7 +102,7 @@ it('CRM import provenance is referenced and immutable; fabricated provenance is 
     const stored = (await f.admin.query('select source,import_id,row_number,imported_at,created_by from newsletter_import_provenance where subscriber_id=$1', [imported.id])).rows[0];
     expect(stored).toMatchObject({ source: 'csv_import', import_id: imp.id, row_number: 1, created_by: 'n-owner' });
     expect(stored.imported_at).toBeTruthy();
-    expect((await withTenant(f.db, 'n-member', a, 'newsletter:read', tx => tx.execute(sql `select * from newsletter_import_provenance`))).rows).toEqual([]);
+    expect((await withTenant(f.db, 'n-member', a, 'workspace:read', tx => tx.execute(sql `select * from newsletter_import_provenance`))).rows).toEqual([]);
     expect((await addNewsletterSubscriber(f.db, 'n-owner', a, { contactId: importedContact })).replayed).toBe(true);
 });
 it('bounded keyset pages, tag filtering and canonical CRM saved-segment predicates', async () => {
@@ -117,16 +117,16 @@ it('bounded keyset pages, tag filtering and canonical CRM saved-segment predicat
     let after: string | undefined;
     const collected: string[] = [];
     do {
-        const p = await listNewsletterSubscribers(f.db, 'n-member', a, localList, { limit: 2, ...(after ? { after } : {}) });
+        const p = await listNewsletterSubscribers(f.db, 'n-admin', a, localList, { limit: 2, ...(after ? { after } : {}) });
         collected.push(...p.subscribers.map(s => s.id));
         after = p.nextCursor ?? undefined;
     } while (after);
     expect(collected).toEqual(ids.sort());
     expect(new Set(collected).size).toBe(5);
-    expect((await listNewsletterSubscribers(f.db, 'n-member', a, localList, { tag: 'even' })).subscribers).toHaveLength(3);
+    expect((await listNewsletterSubscribers(f.db, 'n-admin', a, localList, { tag: 'even' })).subscribers).toHaveLength(3);
     const view = await createView(f.db, 'n-owner', a, { objectType: 'person', name: 'Newsletter people', shared: true, state: fullState({ filters: [{ field: 'name', op: 'contains', value: 'Synthetic' }] }) });
     const seg = await createNewsletterSegment(f.db, 'n-owner', a, audience, { name: 'Shared segment', savedViewId: view.id });
-    expect((await listNewsletterSubscribers(f.db, 'n-member', a, localList, { segmentId: seg.id })).subscribers).toHaveLength(5);
+    expect((await listNewsletterSubscribers(f.db, 'n-admin', a, localList, { segmentId: seg.id })).subscribers).toHaveLength(5);
 });
 it('SQL defense matches canonical consent gate for none/grant/unknown/withdrawal/regrant and blocks direct bypass', async () => {
     for (const shape of ['none', 'grant', 'unknown', 'withdrawn', 'regrant']) {
@@ -159,5 +159,5 @@ it('CRM member edits invalidate a pinned segment instead of silently broadening 
  const v=await createView(f.db,'n-owner',a,{objectType:'person',name:'Pinned view',shared:true,state:fullState({q:'Synthetic'})});
  const segment=await createNewsletterSegment(f.db,'n-owner',a,audience,{name:'Pinned segment',savedViewId:v.id});
  await updateView(f.db,'n-member',a,'person',v.id,{version:v.version,state:fullState({})});
- await expect(listNewsletterSubscribers(f.db,'n-member',a,list,{segmentId:segment.id})).rejects.toMatchObject({status:404});
+ await expect(listNewsletterSubscribers(f.db,'n-admin',a,list,{segmentId:segment.id})).rejects.toMatchObject({status:404});
 });

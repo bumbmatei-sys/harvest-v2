@@ -89,7 +89,7 @@ it("upgrades a previously blocked NL-01 marker without inventing consent", async
 
 it("scopes manager forms and hides token, challenge and rate tables through withTenant", async () => {
   for (const actor of [reader, viewer]) {
-    await expect(createNewsletterSignupForm(fixture.db, actor, tenant, { listId: list })).rejects.toMatchObject({ status: 403 });
+    await expect(createNewsletterSignupForm(fixture.db, actor, tenant, { listId: list })).rejects.toMatchObject({ status: 404 });
     expect(await withTenant(fixture.db, actor, tenant, "workspace:read", async tx =>
       (await tx.execute(sql`select id from newsletter_signup_forms`)).rows)).toEqual([]);
     for (const table of ["newsletter_signup_challenges", "newsletter_preference_tokens", "newsletter_intake_limits"]) {
