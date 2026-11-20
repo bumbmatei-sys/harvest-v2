@@ -1,3 +1,4 @@
+import type { AutoDmEvent, AutoDmEvidence } from "./auto-dm-contract";
 import type { InboxEntry, InboxItemQuery, InboxListQuery, InboxMessage, InboxReadPage, InboxReplyEligibility, InboxReplyQuery, InboxReplyRequest } from "./inbox-contract";
 import { isMediaFetchFailure, SocialProviderError, type SocialProvider, type SocialSender } from "./port";
 import { verifyBodySignature } from "./webhook-signature";
@@ -397,6 +398,9 @@ export class ZernioAdapter implements SocialProvider, SocialSender {
       body.attachmentUrl = attachment.url;
       if (mode === "message") body.attachmentType = attachment.type;
     }
+    if (request.quickReplies?.length) {
+      body.quickReplies = request.quickReplies.map(button => ({ title: button.title, payload: button.key }));
+    }
     let path = `/inbox/comments/${enc(ref)}`;
     if (mode === "message" || (mode === "mention" && request.platform === "slack")) {
       path = `/inbox/conversations/${enc(ref)}/messages`;
@@ -428,6 +432,41 @@ export class ZernioAdapter implements SocialProvider, SocialSender {
     return null;
   }
 
+  async readAutoDmEvidence(cred: SocialCredential, query: AutoDmEvent): Promise<AutoDmEvidence | null> {
+    if (query.kind === "comment.received") {
+      const page = await this.inboxGet(cred, `/inbox/comments/${enc(query.subjectRef)}`, { ...query, limit: 100 });
+      const items = this.rows(page, "comments").flatMap(row => [row, ...(Array.isArray(row.replies) ? row.replies.map(record) : [])]);
+      const row = items.find(item => item.id === query.activityRef);
+      if (!row || row.isOwn === true || row.canReply !== true) return null;
+      const sender = record(row.from), recipientRef = text(sender.id), at = date(row.createdTime ?? row.createdAt);
+      if (!recipientRef || !at) return null;
+      return { trigger: "comment", recipientRef, at, lastInboundAt: at, text: text(row.message ?? row.text, 10_000),
+        firstName: text(sender.name, 100), firstInbound: false, entryKey: null, postRef: query.subjectRef,
+        conversationRef: null, targetRef: query.activityRef };
+    }
+
+    const path = `/inbox/conversations/${enc(query.subjectRef)}`;
+    const conversation = record((await this.inboxGet(cred, path, query)).data);
+    if (conversation.id !== query.subjectRef || conversation.accountId !== query.accountRef || conversation.platform !== query.platform
+      || ["other", "ai_agent"].includes(String(conversation.threadControl))) return null;
+    const page = await this.inboxGet(cred, `${path}/messages`, { ...query, limit: 100 }, { sortOrder: "desc" });
+    const incoming = this.rows(page, "messages").filter(item => item.direction === "incoming" && item.isDeleted !== true);
+    const row = incoming.find(item => item.id === query.activityRef);
+    if (!row) return null;
+    const at = date(row.createdAt ?? row.timestamp);
+    const recipientRef = text(row.senderId);
+    if (!at || !recipientRef || (conversation.participantId && conversation.participantId !== recipientRef)) return null;
+    const metadata = record(row.metadata), entryKey = text(metadata.postbackPayload, 70);
+    const trigger = entryKey ? query.platform === "instagram" ? "ice_breaker" : "persistent_menu"
+      : query.platform === "instagram" && (row.isStoryMention === true || metadata.isStoryMention === true) ? "story_mention"
+        : query.platform === "instagram" && (record(row.storyReply).storyId || record(metadata.storyReply).storyId) ? "story_reply" : "dm";
+    const latest = incoming.map(item => date(item.createdAt ?? item.timestamp)?.getTime() ?? 0);
+    return { trigger, recipientRef, at, lastInboundAt: new Date(Math.max(at.getTime(), ...latest)),
+      text: text(row.message, 10_000), firstName: text(conversation.participantName, 100),
+      firstInbound: incoming.length === 1 && this.inboxCursor(page) === null, entryKey, postRef: null,
+      conversationRef: query.subjectRef, targetRef: query.activityRef };
+  }
+
   verifyWebhook(rawBody: string, signature: string | null, secrets: readonly string[]) { return verifyBodySignature(rawBody, signature, secrets); }
   parseWebhookEvent(rawBody: string): InboundEvent | null {
     let parsed: unknown;
@@ -447,7 +486,10 @@ export class ZernioAdapter implements SocialProvider, SocialSender {
     const platform = [account.platform, message.platform, firstTarget.platform].find(isPlatform) ?? null;
     // Only identifiers leave this function. Message and comment text, sender names and similar content are dropped here.
     return {
-      eventId, kind, rawType: kind === "other" ? safeCode(name) ?? "" : "",
+      eventId, kind,
+      ...(kind === "message.received" ? { activityRef: text(message.platformMessageId ?? message.id) ?? undefined }
+        : kind === "comment.received" ? { activityRef: text(comment.platformCommentId ?? comment.id) ?? undefined } : {}),
+      rawType: kind === "other" ? safeCode(name) ?? "" : "",
       accountRef: text(account.accountId ?? account.id) ?? text(firstTarget.accountId),
       subjectRef: kind.startsWith("post.") ? text(post.id ?? post._id) : kind.startsWith("message.") ? text(message.conversationId) : kind === "comment.received" ? text(comment.postId ?? comment.platformPostId ?? comment.id) : kind === "mention.received" ? text(mention.id) : null,
       platform, errorCategory: failed && mediaFetchTarget(failed) ? "MEDIA_FETCH_FAILED" : failed ? safeCode(failed.errorCategory) : null, occurredAt,

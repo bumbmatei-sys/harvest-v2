@@ -35,6 +35,6 @@ export type InboxItemQuery = InboxAccount & InboxReference & { cursor?: string; 
 export type InboxReplyQuery = InboxAccount & InboxReference & { mode: InboxReplyMode; targetRef: string | null; signal: AbortSignal };
 export type InboxMedia = { type: "image" | "video" | "audio" | "file"; url: string };
 export type InboxReplyRequest = Omit<InboxReplyQuery, "signal"> & {
-  idempotencyKey: string; text: string; attachment?: InboxMedia; humanAgent?: boolean; mediaRef?: string;
+  idempotencyKey: string; text: string; quickReplies?: { title: string; key: string }[]; attachment?: InboxMedia; humanAgent?: boolean; mediaRef?: string;
 };
 export type InboxReadPage = Page<InboxMessage> & { title?: string | null };

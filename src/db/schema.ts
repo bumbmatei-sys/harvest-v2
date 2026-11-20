@@ -1,3 +1,4 @@
+import type { AutoDmRule } from "../lib/social/auto-dm";
 import { socialUploadLimits } from "../lib/social/upload-limits";
 import { socialMediaMimes, type MediaMetadata } from "../lib/social/media";
 import { socialPlatforms, type SocialPlatform } from "../lib/social/platforms";
@@ -1584,7 +1585,7 @@ export const socialWebhookEvents = pgTable("social_webhook_events", {
   connectionId: uuid("connection_id").notNull(), provider: text("provider").notNull(), providerEventId: text("provider_event_id").notNull(),
   eventType: text("event_type").notNull(), externalAccountRef: text("external_account_ref").notNull(), subjectRef: text("subject_ref"),
   // Allow-listed, content-free: platform and error category only. No message text, sender names or comment bodies are ever stored.
-  detail: jsonb("detail").$type<{ platform?: string; errorCategory?: string; correlationKey?: string }>().notNull().default(sql`'{}'::jsonb`),
+  detail: jsonb("detail").$type<{ platform?: string; errorCategory?: string; correlationKey?: string; activityRef?: string }>().notNull().default(sql`'{}'::jsonb`),
   bodyHash: text("body_hash").notNull(),
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
   receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
@@ -2242,4 +2243,51 @@ export const socialPostMediaGrants = pgTable("social_post_media_grants", {
   primaryKey({ columns: [t.tenantId, t.postId] }),
   uniqueIndex("social_post_media_grant_id_idx").on(t.id),
   foreignKey({ name: "social_post_media_grant_delivery_fk", columns: [t.tenantId, t.postId], foreignColumns: [socialPosts.tenantId, socialPosts.id] }).onDelete("cascade"),
+]);
+
+export const socialAutoDmRules = pgTable("social_auto_dm_rules", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(),
+  connectionId: uuid("connection_id").notNull(), postId: uuid("post_id"),
+  rule: jsonb("rule").$type<AutoDmRule>().notNull(),
+  enabled: boolean("enabled").notNull().default(false), version: integer("version").notNull().default(1),
+  enabledBy: text("enabled_by"), enabledAt: timestamp("enabled_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  unique("social_auto_dm_rule_connection_key").on(t.tenantId, t.connectionId, t.id),
+  foreignKey({ columns: [t.tenantId, t.connectionId], foreignColumns: [socialConnections.tenantId, socialConnections.id] }),
+  foreignKey({ columns: [t.tenantId, t.postId], foreignColumns: [socialPosts.tenantId, socialPosts.id] }),
+  index("social_auto_dm_active_idx").on(t.tenantId,t.connectionId).where(sql`${t.enabled}`),
+  check("social_auto_dm_rule_shape", sql`${t.version} > 0 and jsonb_typeof(${t.rule}) = 'object' and octet_length(${t.rule}::text) <= 24000 and (${t.enabled} = (${t.enabledBy} is not null and ${t.enabledAt} is not null))`),
+]);
+
+export const socialAutoDmJobs = pgTable("social_auto_dm_jobs", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(),
+  connectionId: uuid("connection_id").notNull(), ruleId: uuid("rule_id").notNull(), ruleVersion: integer("rule_version").notNull(),
+  eventId: uuid("event_id").notNull(), step: text("step").$type<"primary" | "public" | "followup">().notNull().default("primary"),
+  recipientKey: text("recipient_key"), requestHash: text("request_hash"), prefix: text("prefix").$type<"rule" | "away">(),
+  policyVersion: integer("policy_version"),
+  state: text("state").notNull().default("queued"), reason: text("reason"),
+  attempts: integer("attempts").notNull().default(0), leasedUntil: timestamp("leased_until", { withTimezone: true }),
+  lease: uuid("lease"),
+  firstAttemptAt: timestamp("first_attempt_at", { withTimezone: true }),
+  nextAt: timestamp("next_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  deliveryRef: text("delivery_ref"),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "social_auto_dm_job_rule_fk", columns: [t.tenantId, t.connectionId, t.ruleId], foreignColumns: [socialAutoDmRules.tenantId, socialAutoDmRules.connectionId, socialAutoDmRules.id] }),
+  foreignKey({ name: "social_auto_dm_job_event_fk", columns: [t.tenantId, t.eventId], foreignColumns: [socialWebhookEvents.tenantId,socialWebhookEvents.id] }),
+  uniqueIndex("social_auto_dm_job_event_idx").on(t.tenantId,t.connectionId,t.ruleId,t.ruleVersion,t.eventId,t.step),
+  index("social_auto_dm_due_idx").on(t.state,t.nextAt),
+  index("social_auto_dm_activity_idx").on(t.tenantId,t.ruleId,t.createdAt),
+  check("social_auto_dm_job_shape", sql`${t.state} in ('queued','leased','dispatching','unknown','sent','skipped','handed_off','cancelled') and
+    ${t.step} in ('primary','public','followup') and ${t.attempts} between 0 and 3 and ${t.ruleVersion} > 0 and
+    (${t.reason} is null or ${t.reason} in ('cooldown','limit','outside_hours','ineligible','suppressed','provider_error')) and
+    (${t.recipientKey} is null or ${t.recipientKey} ~ '^[0-9a-f]{64}$') and
+    (${t.requestHash} is null or ${t.requestHash} ~ '^[0-9a-f]{64}$') and
+    (${t.prefix} is null or ${t.prefix} in ('rule','away')) and
+    (${t.deliveryRef} is null or length(${t.deliveryRef}) between 1 and 200) and
+    ((${t.lease} is null) = (${t.leasedUntil} is null))`),
 ]);
