@@ -78,11 +78,17 @@ export async function runSocialInboxReplies(pool: Queryable, options: Options) {
         || (job.mode === "message" && job.targetRef && (!eligible.quote || caps.quoteReply === "unavailable"))) {
         await finish("cancelled"); continue;
       }
+      if (job.platform === "tiktok" && job.mode === "message" && (transient.text.length > 6_000 || (transient.text && transient.fileId))) {
+        await finish("failed"); continue;
+      }
       let attachment: InboxMedia | undefined;
       if (transient.fileId) {
         const { rows: [{ file }] } = await pool.query<{ file: File | null }>("select public.social_inbox_reply_file($1,$2,$3) as file", params);
         const type = file && attachmentType(file);
-        if (!file || !type || !eligible.media || !options.releaseMedia || file.size > limits[type]
+        const exactMime = file && ["image/jpeg", "image/png"].includes(file.mime);
+        const exceedsPlatform = file && ((job.platform === "tiktok" && (!exactMime || file.size > 3_000_000)) ||
+          (job.platform === "instagram" && (type === "image" ? !exactMime || file.size > 8_000_000 : file.size > 25_000_000)));
+        if (!file || !type || exceedsPlatform || !eligible.media || !options.releaseMedia || file.size > limits[type]
           || (job.mode === "comment" && (type !== "image" || caps.commentMedia === "unavailable"))
           || (job.mode === "message" && caps.messageMedia === "unavailable")
           || (job.mode !== "message" && job.mode !== "comment")) { await finish("failed"); continue; }

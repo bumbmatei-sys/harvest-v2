@@ -81,8 +81,8 @@ export type InboxCapabilities = {
 };
 
 const searchPlatforms: readonly SocialPlatform[] = ["facebook", "instagram", "telegram", "whatsapp", "sms", "rcs", "slack", "imessage", "line", "wechat"];
-const mediaPlatforms: readonly SocialPlatform[] = ["facebook", "instagram", "twitter", "telegram", "whatsapp", "slack", "imessage", "sms", "rcs", "line", "wechat", "tiktok", "bluesky"];
-const mentionPlatforms: readonly SocialPlatform[] = ["facebook", "instagram", "linkedin"];
+const mediaPlatforms: readonly SocialPlatform[] = ["facebook", "instagram", "twitter", "telegram", "whatsapp", "slack", "imessage", "sms", "rcs", "line", "wechat", "tiktok"];
+const mentionPlatforms: readonly SocialPlatform[] = ["facebook", "instagram", "linkedin", "slack"];
 const quotePlatforms: readonly SocialPlatform[] = ["whatsapp", "telegram", "slack"];
 
 export function inboxCapabilities(platform: SocialPlatform): InboxCapabilities {
@@ -97,7 +97,7 @@ export function inboxCapabilities(platform: SocialPlatform): InboxCapabilities {
     messageMedia: mediaPlatforms.includes(platform) ? "conditional" : "unavailable",
     commentMedia: platform === "facebook" ? "conditional" : "unavailable",
     mentions: mentionPlatforms.includes(platform) ? "conditional" : "unavailable",
-    mentionReply: platform === "instagram" ? "conditional" : "unavailable",
+    mentionReply: platform === "instagram" || platform === "slack" ? "conditional" : "unavailable",
     storyReplies: platform === "instagram" ? "conditional" : "unavailable",
     liveSearch: searchPlatforms.includes(platform) ? "conditional" : "unavailable",
     quoteReply: quotePlatforms.includes(platform) ? "conditional" : "unavailable",

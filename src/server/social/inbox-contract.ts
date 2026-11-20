@@ -18,6 +18,7 @@ export type InboxMessage = {
   attachments: InboxAttachment[];
   storyReply?: boolean;
   storyMention?: boolean;
+  mentionsBot?: boolean;
   deleted?: boolean;
   canReply?: boolean;
   canPrivateReply?: boolean;

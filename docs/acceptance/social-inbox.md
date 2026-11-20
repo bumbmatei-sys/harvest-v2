@@ -40,16 +40,16 @@ The matrix is versioned in `src/lib/social/platforms.ts` and reuses the 25 accou
 
 | Capability | Platforms evidenced in the contract or Publish inventory |
 | --- | --- |
-| Conversations and human message replies | Facebook, Instagram, X, Bluesky, Reddit, Telegram, WhatsApp, iMessage, SMS, LINE and WeChat. TikTok, Slack and RCS are conditional account/inventory entries. Their generic conversation list coverage needs provider confirmation. |
+| Conversations and human message replies | Facebook, Instagram, X, Bluesky, Reddit, Telegram, WhatsApp, iMessage, SMS, LINE and WeChat. TikTok Business, Slack and RCS have documented inbox support in their platform guides and need account-specific verification. [TikTok Inbox](https://docs.zernio.com/platforms/tiktok#inbox) · [Slack Inbox](https://docs.zernio.com/platforms/slack/inbox) · [RCS](https://docs.zernio.com/platforms/rcs) |
 | Organic comment threads and replies | Facebook, Instagram, X, Bluesky, Threads, YouTube, LinkedIn, Reddit and TikTok Business. Some platforms only expose the first feed page. |
 | Comment-to-DM private reply | Facebook and Instagram, subject to scope, comment eligibility and the seven-day window. One active, confirmed or ambiguous Harvest attempt per comment. |
-| Mentions | Facebook, Instagram and LinkedIn. The mention reply endpoint is Instagram only. |
+| Mentions | Facebook, Instagram and LinkedIn use the mention feed. Slack bot mentions are read and replied to through conversation history. The dedicated mention reply endpoint is Instagram only. |
 | Story replies | Instagram message history carries a story reply marker. The server walks that history through separate bounded cursors. |
 | Live conversation search | Facebook, Instagram, Telegram, WhatsApp, SMS, RCS, Slack, iMessage, LINE and WeChat. |
 | Quote replies | WhatsApp and Telegram. Slack uses the target as a thread reference. |
 | Inbox unavailable in this inventory | Pinterest, Google Business Profile, Discord, Snapchat, WordPress, Shopify, Wix and Webflow. Google Business Profile reviews and Discord outbound-only bot DMs use different contracts. |
 
-Message attachments have platform-specific formats and limits. Comment attachments are Facebook images. The worker verifies the upload is private, ready and scanned and takes only the existing file ID. Known reply windows include Meta's 24-hour window with the human-agent extension, WhatsApp's 24-hour free-form window, WeChat's 48-hour window, and Meta's private-reply window. The endpoint reports unavailable if the adapter cannot verify required scope or target evidence. [Send inbox message](https://docs.zernio.com/messages/send-inbox-message) · [Instagram inbox](https://docs.zernio.com/platforms/instagram#inbox)
+Message attachments use the scanned upload formats and the documented platform limits where represented. TikTok accepts either text or one supported image per message. Bluesky and Reddit DM attachments are unavailable. Comment attachments are Facebook images. The worker verifies the upload is private, ready and scanned and takes only the existing file ID. Known reply windows include Meta's 24-hour window with the human-agent extension, WhatsApp's 24-hour free-form window, WeChat's 48-hour window, and Meta's private-reply window. The endpoint reports unavailable if the adapter cannot verify required scope or target evidence. [Send inbox message](https://docs.zernio.com/messages/send-inbox-message) · [Instagram inbox](https://docs.zernio.com/platforms/instagram#inbox)
 
 ## Reply and data boundary
 
@@ -73,6 +73,6 @@ For authorized non-production use, the worker requires `HARVEST_SOCIAL_UPLOAD_CL
 
 ## Verification and decisions
 
-Lint, source guards and typecheck passed. The unit project passed **1,289 tests across 98 files**. The full local integration project passed **915 tests across 109 files**. The focused inbox, media, Publish and webhook run passed **34 tests across five files**. The second `drizzle-kit generate` reported no schema changes, and the `0070` snapshot points to `0069`.
+Lint, source guards and typecheck passed. The unit project passed **1,291 tests across 98 files**. The full local integration project passed **915 tests across 109 files**. The focused inbox, media, Publish and webhook run passed **34 tests across five files**. The second `drizzle-kit generate` reported no schema changes, and the `0070` snapshot points to `0069`.
 
 Local verification uses embedded Postgres, the fake provider, mock HTTP responses and an object-storage test double. Hosted Neon, provider accounts and behavior, hosted object storage and live dispatch remain unverified. Separate review is due for the sender, connection credentials, current provider account coverage and human-reply purpose policy. The founder's remaining decision is the policy for which human replies may be sent as service responses, including use of the extended human-agent window. The existing marketing consent rules continue to apply to any later outreach. The working-hours settings carry forward to S05, where Auto-DM is scoped to Instagram and Facebook.

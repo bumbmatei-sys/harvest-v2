@@ -258,8 +258,9 @@ export class ZernioAdapter implements SocialProvider, SocialSender {
 
   async listInbox(cred: SocialCredential, query: InboxListQuery): Promise<Page<InboxEntry>> {
     const { accountRef, kind, platform, search } = query;
-    if (kind === "story") {
-      // Story replies are part of Instagram message history. Walk both cursors without a provider-side body cache.
+    if (kind === "story" || (kind === "mention" && platform === "slack")) {
+      // Instagram story replies and Slack bot mentions arrive through message history. Walk both cursors.
+      const matches = kind === "story" ? (message: InboxMessage) => message.storyReply : (message: InboxMessage) => message.mentionsBot;
       const progress = query.cursor ? JSON.parse(query.cursor) as { top?: string; ref?: string; next?: string; messages?: string } : {};
       const conversation = progress.ref ? null : await this.listInbox(cred, { ...query, kind: "dm", cursor: progress.top, limit: 1 });
       const entry = conversation?.items[0];
@@ -267,10 +268,10 @@ export class ZernioAdapter implements SocialProvider, SocialSender {
       const next = progress.next ?? conversation?.nextCursor ?? undefined;
       if (!ref) return { items: [], nextCursor: next ? JSON.stringify({ top: next }) : null };
       const page = await this.readInbox(cred, { ...query, ref, cursor: progress.messages, limit: 10 });
-      const story = page.items.find(message => message.storyReply && message.direction === "incoming");
+      const match = page.items.find(message => matches(message) && message.direction === "incoming");
       return {
-        items: story ? [{ accountRef, kind, ref, title: page.title ?? null, preview: story.text, activityAt: story.at }] : [],
-        nextCursor: !story && page.nextCursor ? JSON.stringify({ ref, next, messages: page.nextCursor }) : next ? JSON.stringify({ top: next }) : null,
+        items: match ? [{ accountRef, kind, ref, title: page.title ?? null, preview: match.text, activityAt: match.at }] : [],
+        nextCursor: !match && page.nextCursor ? JSON.stringify({ ref, next, messages: page.nextCursor }) : next ? JSON.stringify({ top: next }) : null,
       };
     }
     let rows: Record<string, unknown>[], nextCursor: string | null;
@@ -289,14 +290,14 @@ export class ZernioAdapter implements SocialProvider, SocialSender {
       const ref = text(row.id);
       if (!ref || row.accountId !== accountRef || row.platform !== platform) return [];
       return [{ kind, accountRef, ref, title: text(row.participantName ?? row.authorName, 200),
-        preview: text(row.lastMessage ?? row.content, 500), activityAt: date(row.updatedTime ?? row.publishedAt ?? row.createdTime ?? row.createdAt) }];
+        preview: text(row.lastMessage ?? row.content, 500), activityAt: date(row.updatedAt ?? row.updatedTime ?? row.publishedAt ?? row.createdTime ?? row.createdAt) }];
     });
     return { items, nextCursor };
   }
 
   async readInbox(cred: SocialCredential, query: InboxItemQuery): Promise<InboxReadPage> {
     const { accountRef, ref, kind } = query;
-    if (kind === "mention") {
+    if (kind === "mention" && query.platform !== "slack") {
       const page = await this.inboxMentions(cred, query);
       const match = page.items.find(item => item.id === ref && item.platform === query.platform);
       if (!match && !page.nextCursor) throw new SocialProviderError("NOT_FOUND");
@@ -336,10 +337,11 @@ export class ZernioAdapter implements SocialProvider, SocialSender {
     const granted = (scope: string) => scopes.some(entry => entry.scope === scope && entry.granted === true);
     const allowedArea = (area: "messaging" | "comments") => areas[area] === "granted" ||
       (areas[area] === undefined && (inboxWriteScopes[platform]?.[area] ?? []).some(granted));
-    if (!(mode === "message" ? allowedArea("messaging") : allowedArea("comments")) || (mode === "private" && !allowedArea("messaging")))
+    const messageMode = mode === "message" || (mode === "mention" && platform === "slack");
+    if (!(messageMode ? allowedArea("messaging") : allowedArea("comments")) || (mode === "private" && !allowedArea("messaging")))
       return { allowed: false, reason: "permissions" };
 
-    if (mode === "mention") {
+    if (mode === "mention" && platform !== "slack") {
       let cursor: string | undefined;
       for (let page = 0; page < 4; page++) {
         const { items, nextCursor } = await this.inboxMentions(cred, { accountRef, signal, cursor, limit: 100 });
@@ -354,7 +356,7 @@ export class ZernioAdapter implements SocialProvider, SocialSender {
       }
       return { allowed: false, reason: "target_unavailable" };
     }
-    if (mode !== "message") {
+    if (!messageMode) {
       const body = await this.inboxGet(cred, `/inbox/comments/${enc(ref)}`, { accountRef, signal, limit: 100 });
       const target = this.rows(body, "comments").flatMap(row => [row, ...(Array.isArray(row.replies) ? row.replies.map(record) : [])]).find(row => row.id === targetRef);
       if (!target || target.canReply !== true) return { allowed: false, reason: "target_unavailable" };
@@ -365,7 +367,8 @@ export class ZernioAdapter implements SocialProvider, SocialSender {
     }
 
     const { items } = await this.readInbox(cred, { ...query, limit: 100 });
-    if (targetRef && !items.some(message => message.ref === targetRef && !message.deleted))
+    if ((mode === "mention" && (!targetRef || !items.some(message => message.ref === targetRef && message.mentionsBot && !message.deleted)))
+      || (targetRef && !items.some(message => message.ref === targetRef && !message.deleted)))
       return { allowed: false, reason: "target_unavailable" };
     const lastInbound = items.filter(message => message.direction === "incoming" && !message.deleted && message.at)
       .reduce<Date | null>((latest, item) => !latest || item.at! > latest ? item.at : latest, null);
@@ -395,7 +398,7 @@ export class ZernioAdapter implements SocialProvider, SocialSender {
       if (mode === "message") body.attachmentType = attachment.type;
     }
     let path = `/inbox/comments/${enc(ref)}`;
-    if (mode === "message") {
+    if (mode === "message" || (mode === "mention" && request.platform === "slack")) {
       path = `/inbox/conversations/${enc(ref)}/messages`;
       if (targetRef) body.replyTo = targetRef;
       if (request.humanAgent) Object.assign(body, { messageTag: "HUMAN_AGENT", messagingType: "MESSAGE_TAG" });
@@ -410,7 +413,7 @@ export class ZernioAdapter implements SocialProvider, SocialSender {
     } else {
       body.commentId = targetRef ?? undefined;
     }
-    const headers = mode === "message" || mode === "comment" ? { "Idempotency-Key": request.idempotencyKey } : undefined;
+    const headers = mode === "message" || mode === "comment" || (mode === "mention" && request.platform === "slack") ? { "Idempotency-Key": request.idempotencyKey } : undefined;
     const response = record(await this.once(cred, "POST", path, { body, headers }));
     const responseData = record(response.data), comment = record(response.comment);
     const sent = text(responseData.messageId ?? responseData.commentId ?? responseData.id ?? response.messageId ?? response.commentId ?? comment.id);
@@ -503,7 +506,8 @@ function inboxMessage(row: Record<string, unknown>): InboxMessage[] {
   const deliveryStatus = status === "sent" || status === "delivered" || status === "read" || status === "played" || status === "failed" || status === "deleted" ? status : undefined;
   return [{ ref, direction, deleted, text: deleted ? null : text(row.message, 10_000),
     at: date(row.createdAt ?? row.sentAt ?? row.timestamp), attachments, storyReply: !!storyRef,
-    storyMention: row.isStoryMention === true, deliveryStatus, replyTo: text(record(row.metadata).quotedMessageId) ?? undefined,
+    storyMention: row.isStoryMention === true, mentionsBot: record(row.metadata).mentionsBot === true,
+    canReply: record(row.metadata).mentionsBot === true && !deleted, deliveryStatus, replyTo: text(record(row.metadata).quotedMessageId) ?? undefined,
     ...(storyRef && !deleted ? { story: { ref: storyRef, url: httpsUrl(story.storyUrl) } } : {}),
   }];
 }

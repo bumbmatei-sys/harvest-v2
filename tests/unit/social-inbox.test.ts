@@ -23,7 +23,8 @@ it.each(socialPlatforms)("returns the full capability shape for %s", platform =>
   expect(caps.conversationRead !== "unavailable").toBe(conversation.includes(platform));
   expect(caps.commentRead !== "unavailable").toBe(comments.includes(platform));
   expect(caps.privateReply !== "unavailable").toBe(["facebook", "instagram"].includes(platform));
-  expect(caps.mentions !== "unavailable").toBe(["facebook", "instagram", "linkedin"].includes(platform));
+  expect(caps.mentions !== "unavailable").toBe(["facebook", "instagram", "linkedin", "slack"].includes(platform));
+  if (platform === "bluesky" || platform === "reddit") expect(caps.messageMedia).toBe("unavailable");
   expect(caps.storyReplies !== "unavailable").toBe(platform === "instagram");
 });
 
@@ -108,4 +109,32 @@ it("refuses production and default-off cleanup before creating database or stora
   expect(await runSocialUploadCleanupWorker("run", { NODE_ENV: "test" }, pool, storage, output)).toBe(0);
   expect(pool).not.toHaveBeenCalled();
   expect(storage).not.toHaveBeenCalled();
+});
+
+it("reads Slack bot mentions through message history and threads a human reply", async () => {
+  const platform = "slack" as const;
+  const requests: { path: string; body: string | null; key: string | null }[] = [];
+  const adapter = new ZernioAdapter({ fetch: async (url, request) => {
+    const path = new URL(url).pathname;
+    requests.push({ path, body: typeof request.body === "string" ? request.body : null, key: new Headers(request.headers).get("Idempotency-Key") });
+    if (request.method === "POST") return Response.json({ success: true, data: { messageId: "outbound" } });
+    if (path.endsWith("/conversations")) return Response.json({ data: [{ ...participant, platform }] });
+    if (path.endsWith("/messages")) return Response.json({ messages: [{ ...message, platform, metadata: { mentionsBot: true } }] });
+    if (path.endsWith("/health")) return Response.json({ accountId: "account", platform, status: "healthy", tokenStatus: { valid: true },
+      permissions: { scopeAreas: { messaging: "granted" } } });
+    return Response.json({ data: { ...participant, platform } });
+  } });
+  const query = { ...base, platform, kind: "mention" as const, ref: "conversation", mode: "mention" as const, targetRef: "message" };
+  expect(await adapter.listInbox(credential, query)).toMatchObject({ items: [{ kind: "mention", ref: "conversation" }] });
+  expect(await adapter.inboxReplyEligibility(credential, query)).toMatchObject({ allowed: true, quote: true });
+  expect(await adapter.dispatchInboxReply(credential, { ...query, idempotencyKey: "test-key", text: "Fixture text" })).toEqual({ ref: "outbound" });
+  expect(requests.at(-1)).toEqual({ path: "/api/v1/inbox/conversations/conversation/messages",
+    body: JSON.stringify({ accountId: "account", message: "Fixture text", replyTo: "message" }), key: "test-key" });
+});
+
+it("maps a documented terminal media-fetch failure to a fixed outcome", async () => {
+  const adapter = new ZernioAdapter({ fetch: async () => Response.json({ post: { _id: "post-1", status: "failed",
+    platforms: [{ platform: "instagram", status: "failed", errorMessage: "Media fetch failed, retrying... (failed after 3 attempts)" }] } }, { status: 207 }) });
+  expect(await adapter.publishPost(credential, { accountRef: "account", platform: "instagram", draftType: "post",
+    idempotencyKey: "test-key", content: "Fixture", media: [] })).toEqual({ postRef: "post-1", status: "failed", errorCategory: "MEDIA_FETCH_FAILED" });
 });

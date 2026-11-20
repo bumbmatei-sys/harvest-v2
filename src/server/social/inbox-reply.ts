@@ -86,6 +86,9 @@ export async function submitInboxReply(db: Database, user: string, workspace: st
       return { row: existing, transient };
     }
     const caps = view.capabilities;
+    if (input.mode === "message" && account.platform === "tiktok" && (text.length > 6_000 || (text && input.fileId))) {
+      throw publishInvalid("INBOX_TIKTOK_MESSAGE_FORMAT");
+    }
     if (view.state !== "available") throw publishConflict("INBOX_ACCOUNT_UNAVAILABLE");
     if (!inboxModes[item.kind].includes(input.mode) || caps[replyCapability[input.mode]] === "unavailable"
       || ((input.mode === "private" || input.mode === "comment") && !input.targetRef)
