@@ -13,6 +13,7 @@ import { useMediaQuery } from "@/hooks/use-media-query";
 import { usePolling } from "@/hooks/use-polling";
 import { dmName, dmUnreadTotal, sortDmList, type DmConversation, type DmList as DmListData } from "@/lib/dm-view";
 import type { DirectoryMember } from "@/server/community-forum";
+import type { HiddenChatMember } from "@/server/community-chat";
 import { cn } from "@/lib/utils";
 import { emptyChatDraft, type ChatDraft } from "./chat-composer";
 import { ChatHeader } from "./chat-header";
@@ -24,12 +25,13 @@ import { DmPane } from "./dm-pane";
 import { MemberProfileSheet, type ProfilePerson } from "./member-profile-sheet";
 
 /** Private messages inside the chat area: the conversation list beside the open conversation (one pane at a time on phones). */
-export function DmLayout({ slug, me, initial, initialConversation, members, host }: {
+export function DmLayout({ slug, me, initial, initialConversation, members, hidden = [], host }: {
   slug: string;
   me: string;
   initial: DmListData;
   initialConversation?: string;
   members: DirectoryMember[];
+  hidden?: HiddenChatMember[];
   /** Owners and admins can always start a conversation; members only while the community allows it. */
   host: boolean;
 }) {
@@ -103,6 +105,7 @@ export function DmLayout({ slug, me, initial, initialConversation, members, host
 
   const name = conversation ? dmName(conversation, t("formerMember")) : "";
   const person = conversation?.otherId ? members.find(entry => entry.userId === conversation.otherId) : undefined;
+  const partnerRole = person?.role ?? (conversation?.otherId ? hidden.find(entry => entry.userId === conversation.otherId)?.role : undefined);
   const blocked = !!conversation?.otherId && blockedIds.has(conversation.otherId);
   const newButton = canStart && <Button variant="outline" size="icon" className="size-11 shrink-0 rounded-full" onClick={() => setComposeOpen(true)} aria-label={t("newMessage")}><Plus aria-hidden="true" /></Button>;
   return <div className="flex h-dvh min-h-64 min-w-0 overflow-hidden bg-background pt-[env(safe-area-inset-top)] md:h-[calc(100dvh-3.5rem)] md:pt-0">
@@ -119,14 +122,14 @@ export function DmLayout({ slug, me, initial, initialConversation, members, host
     </section>
     <section className={cn("min-h-0 min-w-0 flex-1 flex-col md:flex", showMobilePane ? "flex" : "hidden")}>
       {conversation ? <>
-        <ChatHeader person={name} backLabel={t("backToMessages")} onBack={backToList} onInfo={() => setProfile({ name, role: person?.role, joinedAt: person?.joinedAt })}
+        <ChatHeader person={name} backLabel={t("backToMessages")} onBack={backToList} onInfo={() => setProfile({ name, role: partnerRole, joinedAt: person?.joinedAt })}
           headingRef={paneHeading} nameRef={nameButton} listToggle={null}>
           <Button variant="ghost" size="icon" className="size-11" aria-pressed={conversation.muted} aria-label={t(conversation.muted ? "unmute" : "mute")}
             onClick={() => mute(conversation, !conversation.muted)}>{conversation.muted ? <VolumeX aria-hidden="true" /> : <Volume2 aria-hidden="true" />}</Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="size-11" aria-label={t("conversationMenu")}><MoreVertical aria-hidden="true" /></Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem className="min-h-11" onSelect={() => setProfile({ name, role: person?.role, joinedAt: person?.joinedAt })}>{t("viewProfile")}</DropdownMenuItem>
+              <DropdownMenuItem className="min-h-11" onSelect={() => setProfile({ name, role: partnerRole, joinedAt: person?.joinedAt })}>{t("viewProfile")}</DropdownMenuItem>
               <DropdownMenuItem className="min-h-11" onSelect={() => void hide(conversation)}>{t("hide")}</DropdownMenuItem>
               {conversation.otherId && (blocked
                 ? <DropdownMenuItem className="min-h-11" onSelect={() => unblock(conversation)}>{t("unblock")}</DropdownMenuItem>
