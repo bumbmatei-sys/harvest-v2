@@ -8,11 +8,11 @@
 
 ## 1. Decision and objectives
 
-Cloudflare is the intended long-term infrastructure platform for Harvest. Move web application hosting, infrastructure scheduling, background execution, edge services and eligible ancillary services onto Cloudflare. **Retain Neon PostgreSQL as the primary database, Drizzle ORM, Next.js application code, Better Auth, existing Studio Admin/shadcn UI and tenant-security model.** No PostgreSQL-to-SQLite conversion or D1 adoption for core data.
+Cloudflare is the intended long-term infrastructure platform for Harvest. Move web application hosting, infrastructure scheduling, background execution, edge services and eligible ancillary services onto Cloudflare. **Retain Neon PostgreSQL as the primary database, Drizzle ORM, Next.js application code, Better Auth, existing Studio Admin/shadcn UI and tenant-security model.** No PostgreSQL-to-SQLite conversion or D1 adoption for core data. Reason (recorded 20 Nov): D1 is SQLite, so it has no row-level security, no roles or SECURITY DEFINER functions, no FORCE RLS and none of the Postgres features the 68+ migrations and the tenant-isolation tests depend on; moving would be a rewrite of the data layer and the security model, with a smaller per-database size limit, not a hosting change.
 
 Target: predictable low hosting costs, fewer infrastructure vendors, globally served application, durable jobs and a straightforward deployment/rollback process. Preserve existing user functionality, data, visual design, tenant membership permissions, data retention policies and feature activation gates. Do not expand Professional V1 functionality merely because a Cloudflare product exists.
 
-The target is not a literal elimination of every external API. Neon, GitHub, CircleCI, Zernio, Dodo Payments, separately approved commerce/donation providers, connected Google/Zoom accounts and selected AI model providers remain external as needed. No migration of those service contracts is implied.
+The target is not a literal elimination of every external API. Neon, GitHub, Zernio, Dodo Payments, separately approved commerce/donation providers, connected Google/Zoom accounts and selected AI model providers remain external as needed. No migration of those service contracts is implied.
 
 ## 2. Migration boundary and architecture
 
@@ -30,7 +30,7 @@ The target is not a literal elimination of every external API. Neon, GitHub, Cir
 | AI | Future assistant, provider-neutral plan | Vercel AI SDK on Workers, Cloudflare AI Gateway (optional Workers AI/Agents SDK) | Future; no Vercel hosting dependency |
 | Outbound CRM webhooks | Node HTTP/DNS pinned transport | Validated Workers-equivalent secure transport or isolated Cloudflare Container | High-risk adaptation |
 | DNS/CDN/security | Existing domain/edge config | Cloudflare DNS, TLS, WAF, managed rules and appropriate limits | Migrate/retain existing as applicable |
-| CI/CD | GitHub + CircleCI Free | Existing exact-head review, protected release workflow, Cloudflare deployment target | Retain |
+| CI/CD | GitHub + GitHub Actions | Existing exact-head review, protected release workflow, Cloudflare deployment target | Retain |
 | Website Builder | Future feature | Workers Static Assets; Cloudflare for SaaS for customer domain onboarding when separately approved | Future |
 | Video | Approved BYO Google Meet and Zoom Meetings direction | Same provider APIs; no hosted video media infrastructure | Retain |
 
@@ -38,7 +38,7 @@ Architecture: browser -> Cloudflare DNS/TLS/CDN/WAF -> Harvest web Worker -> Neo
 
 ## 3. Repository-specific findings
 
-The audited repository contains 192 API route files; the earlier pinned audit counted 117 PostgreSQL table declarations and 68 migrations. Counts are snapshots, not migration requirements. Review changed code on the current implementation branch before each slice.
+The audited repository contains 192 API route files; the earlier pinned audit counted 117 PostgreSQL table declarations and 68 migrations (main now has more: 0069 onward are in open PRs and later). Counts are snapshots, not migration requirements. Review changed code on the current implementation branch before each slice.
 
 - `package.json`: Next.js 16, React 19, Better Auth, pg, Neon serverless, Drizzle, AWS SDK S3, Resend and next-intl; Node >=22; existing npm/Node build and tests.
 - `next.config.ts`: next-intl configuration plus QA OTP and test mailer build aliases, including webpack-specific behavior.
@@ -51,7 +51,7 @@ The audited repository contains 192 API route files; the earlier pinned audit co
 - `scripts/run-social-publisher.ts`: test-only fake provider and session-level PostgreSQL advisory lock; Hyperdrive transaction pooling does not support that lock. Redesign before enabling production workers.
 - `src/server/webhooks/destination.ts`: DNS lookup, IP blocking and pinned HTTPS connection with TLS hostname validation; critical SSRF/DNS rebinding protection.
 - `docs/setup/worker-role.md`: restricted worker-only functions; do not grant elevated privileges or share app/owner credentials.
-- `docs/setup/production-migrations.md`, `.circleci/config.yml`: production migration and deployment authorization remain separate from PR test jobs. Do not bypass CI controls.
+- `docs/setup/production-migrations.md`, `.github/workflows/ci.yml`: production migration and deployment authorization remain separate from PR test jobs. Do not bypass CI controls.
 
 No Cloudflare runtime build, performance test, DNS cutover or paid provisioning was performed during the research. The migration is feasible in principle, not certified.
 
@@ -157,7 +157,7 @@ Maintenance target: managed infrastructure, no independently maintained VM for t
 
 ## 11. Deployment and rollback
 
-- Keep GitHub and CircleCI as release source of truth; retain exact-head manual reviews, trusted main-only migration workflow and restricted contexts. Never execute untrusted PR code with deployment or database-owner credentials. No auto-deployment from unreviewed branches.
+- Keep GitHub and GitHub Actions as release source of truth; retain exact-head manual reviews, trusted main-only migration workflow and restricted contexts. Never execute untrusted PR code with deployment or database-owner credentials. No auto-deployment from unreviewed branches.
 - Create distinct least-privilege staging/production deployment credentials and Cloudflare bindings. Use secrets management, do not expose credentials in logs or PRs. Disallow unsafe public preview access to production.
 - Prepare staging from isolated Neon branch; stage R2, mock providers and test identity. Run smoke and security tests. Production change requires exact approved commit and environment, tested rollback steps and explicit activation checklist.
 - Before cutover, record DNS/current configuration, provider webhook/OAuth callback registrations, origin URL, deployment/version, health baselines and Neon restore point. Use backwards-compatible DB changes; document migration dependencies. Existing production migration runbook applies.
