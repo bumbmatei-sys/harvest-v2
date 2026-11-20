@@ -1,258 +1,196 @@
-# Harvest Live — Product Requirements Document and Backend Architecture
+# Harvest Live — Product Requirements Document
 
-**Status:** Proposed PRD for founder review; full-suite direction approved, architecture and cost policy proposed  
+**Status:** Draft for review — founder-approved provider direction  
 **Date:** 20 November 2026  
-**Release:** Post-launch / Future Vision unless separately approved; does not modify Professional V1 freeze  
-**Scope:** Native meetings, webinars, livestreams, recordings, transcription, AI summaries and Harvest integrations.
+**Release:** Post-launch / future vision unless separately approved; does not expand Professional V1 scope  
+**Decision:** Google Meet and Zoom Meetings, connected with each organization's own accounts. **No LiveKit, no Zoom Video SDK, no Harvest-hosted video infrastructure.**
 
-## 1. Product vision
+## 1. Product definition
 
-Harvest Live is a fully Harvest-branded communications suite for churches, ministries, nonprofits, evangelists and missionaries. Support small discipleship calls, online classrooms, prayer meetings, church leadership meetings, webinars, services and public livestreams. Use the existing Harvest design interface and app shell; **do not build a proprietary SFU or send real-time video through Next.js/Vercel**.
+Harvest Live is a unified meeting management experience inside Harvest. Churches, ministries, nonprofits, evangelists and missionaries can connect Google Meet and/or Zoom Meetings, schedule sessions, invite participants, manage meeting links and associate meetings with Communities, Groups, Courses, Events and Campaigns.
 
-### Key outcomes
-- Host and join secure interactive video/audio meetings.
-- Run webinars with differentiated host, panelist and attendee privileges.
-- Broadcast public livestreams through scalable viewer distribution.
-- Record with clear consent, retention and access policies.
-- Generate searchable transcripts and AI-generated summaries, highlights and action items.
-- Link sessions to Harvest events, groups, communities, courses, campaigns and CRM with appropriate permissions.
-- Meter all costly usage per workspace, enforce limits and provide transparent costs.
+Harvest controls the scheduling and organizational interface. **The actual call opens in Google Meet or Zoom, with that provider's video interface and branding.** Harvest does not replace the provider's meeting grid, media controls, conferencing servers or subscription entitlements.
 
-## 2. Proposed architecture
+### Goals
+- Connect Google Meet and Zoom accounts through secure OAuth.
+- Create, update, cancel and list provider-backed meetings where APIs allow.
+- Choose default provider at workspace or organizer level and override per meeting.
+- Show meetings, invitations, provider, host, joining links and schedule in Harvest's existing UI.
+- Link meetings to Harvest entities, enforce workspace access, and send reminders.
+- Optionally sync provider-supported attendance, recordings and transcripts.
+- Optionally generate AI summaries from authorized transcripts, with consent and cost controls.
+- Support webinar or livestream workflows **only where the connected provider's account and APIs support them**; show provider-specific capability differences.
 
-| Layer | Technology / responsibility |
+### Non-goals
+- No custom WebRTC/video SDK or embedded white-label conferencing interface.
+- No LiveKit client/server SDK, SFU, media recording pipeline or media billing.
+- No promise of uniform Zoom/Google features, recording access, transcription or live-stream controls.
+- No assumption that provider recordings or transcripts are accessible on all account tiers.
+- No Harvest-owned participant-minute video charges.
+
+## 2. Architecture
+
+| Layer | Implementation |
 |---|---|
-| Frontend | Existing Studio Admin / shadcn UI + LiveKit JS/React SDK; responsive, accessible meeting experience |
-| Harvest API | Next.js route handlers/server services: auth, schedules, RBAC, room grants, join tokens, session records, policy, usage |
-| Database | Neon PostgreSQL with tenant RLS: meetings, sessions, participants, grants, artifacts, usage, consent and audit |
-| Real-time media | LiveKit Cloud SFU for WebRTC audio/video/data; optional self-hosted adapter later |
-| Meeting signaling | LiveKit SDK plus Harvest-owned authoritative permissions; webhook-driven reconciliation |
-| Recording/export | LiveKit Egress, signed storage destination and asynchronous job state machine |
-| Storage | Cloudflare R2 private recordings/transcripts/captions/thumbnails; short-lived signed downloads |
-| Transcription | Provider adapter, initially Deepgram Nova-3 or LiveKit Inference STT after quality/cost test |
-| AI processing | Existing provider-agnostic Vercel AI SDK abstraction; structured summaries, chapters, action items, citations/timecodes |
-| Jobs | Durable queue/worker for webhooks, reminders, recording processing, transcription, AI summaries and retention purges |
-| Broadcast | LiveKit host/panelist room -> Egress/RTMP/HLS -> dedicated CDN/streaming provider for large audiences |
-| Observability | Per-room quality, join failures, provider webhooks, job retry metrics, recording/transcript errors, usage ledger |
+| Frontend | Existing Harvest Studio Admin / shadcn interface; meeting list, calendar, creation form, connection settings, join button, recordings/summaries when available |
+| Backend | Next.js server services for OAuth, provider adapters, meeting lifecycle, invitations, permissions, webhooks and synchronization |
+| Database | Neon PostgreSQL with tenant isolation and provider metadata |
+| Google provider | Google OAuth, Google Meet REST API and/or Google Calendar conference integration as appropriate to granted scopes and capabilities |
+| Zoom provider | Zoom OAuth, Zoom Meetings API, provider webhooks and eligible recording/report APIs |
+| Media transport | **Google Meet or Zoom**; not hosted, proxied or customized by Harvest |
+| Background work | Existing durable worker/queue for reminders, token refresh, provider synchronization, webhook processing and optional artifact/AI processing |
+| Optional files | Private Cloudflare R2 for permitted downloaded transcripts/artifacts, if enabled; avoid unnecessary copies |
+| Optional AI | Existing provider-agnostic AI integration for transcript-based summaries, only with consent and access rights |
 
-**Boundaries:** Vercel manages control-plane APIs, not persistent media processing. LiveKit manages WebRTC transport. Never treat LiveKit room membership alone as sufficient authorization; Harvest checks tenant/user permissions before issuing short-lived scoped tokens. Provider credentials remain server-side. Keep an adapter boundary for LiveKit, transcription, CDN and AI providers.
+**User flow:** Harvest UI → Harvest API → selected provider API for meeting creation → meeting URL saved in Neon → participants open Google Meet or Zoom. No embedded provider video stream is required.
 
-## 3. Product modes
+## 3. Account connections and ownership
 
-### 3.1 Meetings
-- Schedule or instant-start, recurring meetings, invitation links, calendar integration, timezones.
-- Host/co-host/participant/guest, passcode or invite-only access, lobby/waiting room and lock.
-- Mic/camera, screen sharing, chat, reactions, hand raise, participant controls, mute/remove, layout and device selection.
-- Optional breakout rooms (independent LiveKit rooms with coordinated membership and return).
-- Optional recordings, transcript, AI summary, captions and attendance.
-- Guest join may be allowed only through validated meeting-specific grants, with rate limiting and short-lived tokens.
+- Each authorized organizer connects their own Google or Zoom account using OAuth.
+- Support a workspace-managed account only if the provider's terms and organizational permissions permit it.
+- Store encrypted OAuth tokens server-side, never provider passwords or secrets in browser storage.
+- Request minimum scopes; handle refresh, expiry, revocation, reconnection and disconnection.
+- Clearly show connected account identity, account owner, provider and available capabilities.
+- Workspace admins can configure whether members may connect personal accounts and choose a default provider.
+- Never let one workspace use another workspace's tokens or external meeting identifiers.
+- A connected account does not automatically confer rights to recordings or attendee reports.
 
-### 3.2 Webinars
-- Host, co-host, panelist, attendee roles; moderated questions and chat; hand raising and stage promotion.
-- Registration/attendance and optional approval, with purpose-specific consent.
-- Attendee media publishing disabled by default; server-validated stage promotion.
-- Webinar capacity and interactive limits enforced by subscription and provider concurrency.
-- For high audience counts, transition attendees to a broadcast player instead of an SFU gallery.
+## 4. Meeting workflows
 
-### 3.3 Livestreams
-- Public/unlisted/private broadcasts with scheduling, landing page, embeddable player and moderated live chat.
-- LiveKit host/panelist room -> broadcast egress -> streaming/CDN vendor. Support RTMP/HLS distribution and multiple destinations if vendor capability permits.
-- Do not assume YouTube/Facebook retransmission rights or APIs; validate provider scopes and platform policies.
-- Viewer authentication and paywall/entitlement when appropriate; no leakage of private room token to broadcast audience.
-- Account for ingest, encoding/transcoding, CDN viewer minutes, recording and storage separately.
+1. Organizer connects a Google or Zoom account in Settings → Integrations → Video Meetings.
+2. Organizer selects a provider, meeting title, date, timezone, duration, participants and optional recurring schedule.
+3. Harvest validates permissions and provider capability, creates the meeting through provider API, and stores the external meeting ID and join link.
+4. Invitations and reminders are delivered using Harvest's existing communications infrastructure.
+5. Participants click Join in Harvest and enter the provider's meeting experience. Some providers may require their own login, passcode or waiting-room approval.
+6. Harvest syncs changes and status when supported by webhooks or authorized polling; reconcile external edits and cancellations.
+7. If supported and enabled, authorized organizers import attendance, recording references or transcripts for post-meeting workflows.
 
-### 3.4 Recordings and media library
-- Host starts/stops recording with explicit recording indication and required participant notice/consent workflow.
-- Composite MP4 for meetings/webinars; optional separate tracks after feasibility/cost review.
-- Store encrypted/private recordings in R2, metadata in Neon, signed download/playback with entitlement checks.
-- Playback with captions, chapters, bookmarks, transcript-linked seek and retention controls.
-- Failed/partial egress recovery, provider webhook reconciliation, orphaned recording cleanup and audit logs.
+### Integrations
+- **Communities / Groups:** recurring discipleship calls, prayer groups, membership-based invitation visibility.
+- **Courses:** class sessions, teacher/learner links and optional recording references.
+- **Events / Campaigns:** session schedules, attendee registration and reminders.
+- **CRM:** contact association and attendance only when permission and data-sharing purpose permit.
+- **Calendar:** Google Calendar integration where authorized; avoid duplicate invitations.
 
-### 3.5 Transcription and AI
-- On-demand or policy-approved automatic transcription; language selection, timestamps and speaker labels when supported.
-- AI-generated concise summary, structured outline, decisions, action items, optional sermon/class notes and highlights.
-- Ground summaries in transcript segments with clickable timecodes; distinguish uncertain speech and allow corrections.
-- No automatic external publishing, contact creation or task assignment without user approval.
-- Redact/limit sensitive data before sending to AI providers; tenant-controlled retention, deletion and opt-out.
-- Prompt-injection defenses: meeting speech/transcripts are untrusted content, never instructions for tools.
+## 5. Provider capability policy
 
-## 4. Roles and authorization
+| Capability | Google Meet | Zoom Meetings |
+|---|---|---|
+| OAuth account connection | Yes, subject to Google consent/scopes | Yes, subject to Zoom app/scopes |
+| Create meeting links | Meet API / Calendar integration | Meetings API |
+| Join call | Opens Google Meet interface | Opens Zoom interface |
+| Custom Harvest video grid | No | No (standard Meetings integration) |
+| Provider account features/limits | Google account / Workspace plan | Zoom account / plan |
+| Recording / transcript import | Conditional on API access, plan, organizer permissions and availability | Conditional on API access, plan, organizer permissions and availability |
+| Attendance / participant reports | Conditional on supported endpoints and access | Conditional on supported endpoints and access |
+| Webinars / livestreaming | Only provider-supported workflows | Only provider-supported workflows and eligible account/add-ons |
 
-Permissions: `live.create`, `live.host`, `live.moderate`, `live.join`, `live.broadcast`, `live.record`, `live.transcribe`, `live.summarize`, `live.viewArtifacts`, `live.export`, `live.manageSettings`. Enforce tenant RLS and per-session membership/entitlement. Public broadcast viewers have no access to internal room API. Every privileged operation must be checked server-side and audited.
+**No false parity:** UI should display feature availability by provider and account, and disable unsupported operations with an explanation. Zoom Webinars is not included merely because Zoom Meetings is connected. Neither provider offers Harvest a fully customizable video interface through these standard integrations.
 
-## 5. Primary user journeys
+## 6. Permissions and security
 
-1. Admin creates recurring discipleship meeting linked to a Community, invites members and joins as host; members use permitted join links.
-2. Ministry creates webinar, opens registration, assigns panelists, hosts Q&A, records and reviews attendance.
-3. Church streams service: hosts connect via LiveKit, audience watches CDN player; broadcast can be embedded on Harvest site.
-4. Host records with required notices; egress completion triggers storage verification, transcription and optional AI summary.
-5. Authorized user opens recording and timecoded transcript, edits summary, approves action items and optionally publishes a replay.
-6. Workspace owner sets limits/retention and reviews minutes, bandwidth, transcoding, transcription, AI and CDN costs.
+Permissions: `live.connectProvider`, `live.manageConnections`, `live.create`, `live.edit`, `live.cancel`, `live.view`, `live.invite`, `live.viewAttendance`, `live.viewArtifacts`, `live.generateSummary`, `live.manageSettings`.
 
-## 6. Backend entities (proposed)
+- Check workspace tenant isolation, organizer ownership and entity membership for each operation.
+- Validate OAuth state and PKCE where applicable; encrypt tokens and restrict scopes.
+- Verify provider webhook signatures, deduplicate event IDs, handle retries/out-of-order updates.
+- Avoid exposing provider start URLs, host tokens or OAuth credentials to unauthorized users.
+- Record audit events for account connection, meeting creation, deletion, artifact access and AI processing.
+- Apply provider-specific rate limits, API errors and subscription feature checks.
+- Meeting recordings, pastoral discussions and prayer requests may contain sensitive information. Obtain appropriate notice/consent and use strict access controls.
+- Separate meeting participation from consent to transcription, AI processing or marketing.
 
-- `live_meetings(id,workspace_id,title,mode,visibility,starts_at,ends_at,recurrence,policy_json,created_by)`
-- `live_sessions(id,meeting_id,provider_room_id,status,started_at,ended_at,host_id)`
-- `live_invites(id,meeting_id,recipient_ref,role,expires_at,redeemed_at)`
-- `live_participants(id,session_id,user_id,guest_ref,role,joined_at,left_at)`
-- `live_role_grants(id,session_id,principal_id,role,granted_by)`
-- `live_webhook_events(id,provider,event_id,payload_hash,received_at,processed_at)`
-- `live_recordings(id,session_id,provider_egress_id,r2_key,status,duration_seconds,size_bytes,retention_until)`
-- `live_transcripts(id,recording_id,language,provider,status,storage_key)`
-- `live_transcript_segments(id,transcript_id,start_ms,end_ms,speaker,text,confidence)`
-- `live_ai_artifacts(id,recording_id,kind,model,status,content_json,approved_by)`
-- `live_broadcasts(id,session_id,cdn_provider,stream_ref,visibility,status)`
-- `live_usage_events(id,workspace_id,session_id,meter,quantity,unit,provider_event_id)`
-- `live_usage_aggregates(workspace_id,period,meter,total_quantity,estimated_cost)`
-- `live_consent_events(id,session_id,participant_ref,purpose,version,action,created_at)`
-- `live_audit_events(id,workspace_id,actor_id,action,target_ref,created_at)`
+## 7. Proposed data model
 
-Use explicit unique keys for webhook idempotency and provider references. Reconcile usage with vendor invoices. Apply deletion/retention to recordings, transcripts, embeddings and AI artifacts, including downstream provider copies when supported.
+- `live_provider_connections(id, workspace_id, owner_user_id, provider, external_account_id, encrypted_credentials_ref, scopes, status, created_at)`
+- `live_meetings(id, workspace_id, organizer_user_id, provider_connection_id, provider, external_meeting_id, title, starts_at, ends_at, timezone, recurrence_json, join_url, status, entity_type, entity_id)`
+- `live_meeting_invites(id, meeting_id, contact_id, email, invitation_status, sent_at)`
+- `live_provider_sync_events(id, provider, external_event_id, connection_id, status, processed_at)`
+- `live_attendance(id, meeting_id, participant_ref, joined_at, left_at, source)` — optional when provider exposes it
+- `live_artifacts(id, meeting_id, kind, provider_artifact_id, storage_key, status, retention_until)` — optional and access-controlled
+- `live_ai_summaries(id, meeting_id, source_artifact_id, status, content_json, approved_by, created_at)` — optional
+- `live_audit_events(id, workspace_id, actor_id, action, target_ref, created_at)`
 
-## 7. Proposed service endpoints
+Use stable unique provider identifiers, idempotency keys and tenant RLS. Store the minimum required provider data. Avoid copying full media files unless expressly needed.
 
-- `POST /api/live/meetings`, `GET /api/live/meetings`, `PATCH /api/live/meetings/:id`
-- `POST /api/live/meetings/:id/invites`, `POST /api/live/meetings/:id/join-token`
-- `POST /api/live/sessions/:id/start`, `POST /api/live/sessions/:id/end`
-- `POST /api/live/sessions/:id/moderation`, `POST /api/live/sessions/:id/breakouts`
-- `POST /api/live/sessions/:id/recordings/start`, `POST /api/live/sessions/:id/recordings/stop`
-- `POST /api/live/sessions/:id/broadcast/start`, `POST /api/live/sessions/:id/broadcast/stop`
-- `POST /api/live/recordings/:id/transcribe`, `POST /api/live/recordings/:id/summarize`
-- `GET /api/live/recordings/:id/playback-token`, `GET /api/live/usage`
-- `POST /api/webhooks/livekit`, `POST /api/webhooks/live-broadcast`
+## 8. Proposed API endpoints
 
-All proposed; no endpoints asserted as implemented.
+- `GET /api/live/providers` — available provider connections/capabilities
+- `GET /api/live/oauth/:provider/start` — initiate authorized OAuth
+- `GET /api/live/oauth/:provider/callback` — validate OAuth and save connection
+- `DELETE /api/live/connections/:id` — disconnect and revoke where supported
+- `GET /api/live/meetings` — tenant-scoped list
+- `POST /api/live/meetings` — create on selected provider
+- `PATCH /api/live/meetings/:id` — update provider-backed meeting
+- `DELETE /api/live/meetings/:id` — cancel according to organizer privileges
+- `POST /api/live/meetings/:id/invitations` — invite participants
+- `POST /api/webhooks/live/google`, `POST /api/webhooks/live/zoom` — only supported provider events
+- `POST /api/live/meetings/:id/summarize` — optional, authorized transcript available
 
-## 8. State machines and reliability
+These are proposals, not implemented endpoints.
 
-- Meeting: draft -> scheduled -> live -> ended/cancelled.
-- Recording: requested -> starting -> active -> stopping -> processing -> ready/failed.
-- Transcript: queued -> processing -> ready/failed; summary: queued -> generating -> review -> approved/failed.
-- Broadcast: scheduled -> starting -> live -> stopping -> ended/failed.
-- Webhooks: verify signature, deduplicate, queue processing, replay safely, reconcile missing/out-of-order events.
-- Issue tokens with short TTL and narrow grants; revocation/moderation must propagate to provider.
-- On network disruption, rejoin safely; do not duplicate recordings, billing events or participant attendance.
+## 9. Cost model
 
-## 9. Cost model — verified public list prices as of 20 Nov 2026
+**Harvest's standard video-media infrastructure cost: $0 per participant-minute**, because Google Meet or Zoom carries the media using the organizer's account.
 
-Sources:
-- https://livekit.com/pricing
-- https://docs.livekit.io/deploy/admin/billing/
-- https://deepgram.com/pricing
-- https://developers.cloudflare.com/r2/pricing/
+| Item | Who pays | Notes |
+|---|---|---|
+| Google Meet / Google Workspace subscription | Connected organizer or organization | Free or paid plan according to features/limits |
+| Zoom Meetings subscription | Connected organizer or organization | Free or paid plan according to features/limits |
+| Google / Zoom standard integration API | Normally no per-participant media charge to Harvest | Provider API quotas, app approval, and any applicable commercial terms must be verified |
+| Harvest backend and database | Harvest | Existing Vercel/Neon operations, webhooks, scheduler, monitoring |
+| Reminders/email | Harvest or organization | Depends on email service/usage |
+| Optional transcript import / R2 storage | Harvest or charged feature | Storage and API operations; provider feature entitlement required |
+| Optional AI summaries | Harvest or charged feature | LLM token costs and optional speech-to-text if transcript unavailable |
 
-### LiveKit Cloud plans
-| Meter | Build | Ship | Scale |
-|---|---|---|---|
-| Base/month | $0 | from $50 | from $500 |
-| WebRTC participant-minutes included | 5,000 | 150,000 | 1,500,000 |
-| Participant overage/minute | hard free cap | $0.0005 | $0.0004 |
-| Downstream GB included | 50 | 250 | 3 TB |
-| Downstream GB overage | hard free cap | $0.12 | $0.10 |
-| Shared video transcode minutes (import/record/export) | 60 | 600 | 8,000 |
-| Video transcode overage/minute | hard free cap | $0.02 | $0.015 |
-| Concurrent connections | 100 | 1,000 | 5,000 |
+**Do not reuse the LiveKit participant-minute, SFU bandwidth or transcoding estimates** from the abandoned native-video proposal. There is no $50/month LiveKit base plan for this architecture. The user's Google/Zoom subscription pricing is outside Harvest's own video costs. Build provider cost alerts for optional AI processing/storage, not video minutes.
 
-These are plan-wide usage and concurrency quotas, not promised room capacities. Egress/ingress concurrent quotas and duration limits also apply. Scale plan may be cheaper at high volume; compare total cost, not just base fee.
+## 10. Reliability and UX
 
-### Additional services
-- Cloudflare R2 Standard: **$0.015 per GB-month** after 10 GB-month free; Class A $4.50/million, Class B $0.36/million after free operations; no R2 egress charge, but CDN/transcoding/other vendor fees may apply.
-- Deepgram Nova-3 monolingual prerecorded STT: **$0.0077/min** pay-as-you-go; multilingual **$0.0092/min**; diarization **+$0.002/min** if enabled.
-- AI summaries: token-metered and model-dependent; set a configurable per-session allowance. No unsupported fixed price promise.
-- Large livestream delivery: **TBD** until CDN vendor, bitrate, playback protocol and viewer-minutes are specified. Do not model 10,000 HLS viewers as LiveKit interactive participants.
-- Other: Vercel/Neon/queue operations, CDN, email notifications, taxes, support, regional data controls and optional AI agent costs.
-
-### Formula
-- `participant_minutes = sum(joined_seconds)/60`
-- `downstream_GB ≈ sum(average_downstream_Mbps × connected_seconds / 8000)` (decimal GB)
-- `recording_transcode_minutes = sum(composite_egress_seconds)/60`
-- `stt_minutes = sum(transcribed_audio_seconds)/60`
-- `storage_GB_month = average_recording_GB_stored_over_month`
-- `total = plan_base + participant_overage + bandwidth_overage + transcode_overage + R2 + STT + LLM + CDN + other`
-
-**Illustrative Ship scenarios, not invoices:** assume 1.5 Mbps average downstream per participant, one composite recording for a share of sessions, 0.04 GB stored per recorded minute, all recorded audio transcribed, no separate CDN, no AI LLM charges and no R2 free-tier offsets:
-1. Small: 40 meetings × 12 people × 60 min, 50% recorded = 28,800 participant-min, ~324 GB downstream, 1,200 recording minutes. Base $50 + downstream ~$8.88 + transcode $12 + STT $9.24 + R2 ~$0.72 = **~$80.84/month**.
-2. Medium: 200 meetings × 20 people × 60 min, 50% recorded = 240,000 participant-min, ~2,700 GB downstream, 6,000 recording minutes. Base $50 + participant overage $45 + downstream $294 + transcode $108 + STT $46.20 + R2 $3.60 = **~$546.80/month**.
-3. Large: 500 meetings × 40 people × 60 min, 50% recorded = 1,200,000 participant-min, ~13,500 GB downstream, 15,000 recording minutes. **Compare Scale plan**, dedicated CDN and realistic concurrency; do not extrapolate Ship uncritically.
-
-Actual costs vary with video tiles/bitrates, durations, cloud plan, egress, retention, AI models, CDN, regional taxes and provider terms. Pilot with measured bytes/participant-minute before defining customer pricing.
-
-### Cost safeguards
-- Workspace monthly limits for participant-minutes, GB, recordings, transcription, AI and livestream delivery.
-- Pre-session estimate, in-session usage meter, admin warning thresholds (e.g. 50/80/100%), concurrency limits and per-meeting maximum duration.
-- Optional recording/transcription/AI disabled by default unless admin policy permits.
-- Graceful limit behavior: prevent new costly sessions/recordings rather than unexpectedly disconnecting ongoing pastoral calls; define hard-cap policy explicitly.
-- Ledger of raw provider meter events, estimates and reconciled invoice charges; no double-count on webhook retries.
-- Separate public-broadcast viewer-minute billing and safeguards.
-- Never activate a paid plan or create billable cloud resources without separate founder approval.
-
-## 10. Security, privacy and compliance
-
-- Record/transcribe only with jurisdiction-appropriate notice, consent and organizer authority; provide visible in-call indicators.
-- Religious discussions, pastoral counseling and prayer requests can be highly sensitive. Private-by-default, strict tenant and per-session permissions, no cross-workspace search.
-- Store recordings and transcripts privately with short-lived signed access; encrypt data and restrict key access.
-- Explicit retention per workspace and content type; user-facing deletion and export, audit trails and provider deletion requests.
-- Separate consent for recording, transcription, AI processing, marketing/follow-up; participation is not marketing consent.
-- Evaluate E2EE compatibility with server-side recording, live captions and AI processing: do not promise both without a validated design.
-- Never silently feed transcripts into CRM, fundraising or external outreach.
-- Moderation: host removal, guest abuse/rate limits, waiting rooms, link expiry and spam controls.
-- Validate vendor DPAs, residency requirements, subprocessor lists and data-processing regions before production.
+- If no provider is connected, show Connect Google Meet and Connect Zoom actions.
+- If account expires, show Reconnect; do not silently create meetings on another provider.
+- If a meeting cannot be created, retain the unsaved form and explain provider error.
+- Detect duplicate submissions and avoid duplicate provider meetings.
+- If an organizer disconnects an account, preserve historical Harvest metadata where permitted, but do not promise access to external meetings or recordings.
+- Handle timezone and recurrence differences with explicit mappings and tests.
+- Provider-side modifications should reconcile without overwriting more recent user edits.
 
 ## 11. Acceptance tests
 
-- [ ] Host schedules recurring group meeting; member with valid grant joins; unrelated tenant cannot mint join token.
-- [ ] Guest invitation expires, role is limited, removed guest cannot rejoin without renewed grant.
-- [ ] Meeting handles reconnect, screen share, hand raise, chat and host moderation.
-- [ ] Webinar attendees cannot publish media or promote themselves; host can promote panelist.
-- [ ] Broadcast viewers can watch through CDN without interactive room access; invalid stream token rejected.
-- [ ] Recording requires approved policy and visible indicator; start/stop/retry are idempotent.
-- [ ] Recording arrives in private R2; only authorized users can play/download; retention purge works.
-- [ ] Transcript timestamps match recording, errors/retries recover; AI summary includes transcript references.
-- [ ] AI tool actions require explicit approval and cannot obey malicious transcript instructions.
-- [ ] Usage ledger reconciles participant minutes, downstream bytes, transcode, STT, storage, LLM and CDN to provider data.
-- [ ] Quota thresholds, concurrency and budget safeguards work; no surprise unbounded usage.
-- [ ] Accessibility, mobile experience, privacy, load, failure injection and cross-tenant regression tests pass.
+- [ ] Two organizations connect distinct Google accounts; no cross-tenant access.
+- [ ] Two organizations connect distinct Zoom accounts; no cross-tenant access.
+- [ ] Organizer can choose provider and set a default.
+- [ ] Google meeting creation returns valid join URL; Join opens Google Meet.
+- [ ] Zoom meeting creation returns valid join URL; Join opens Zoom.
+- [ ] Unauthorized organizer cannot create/cancel meetings through another person's account.
+- [ ] Token refresh, disconnect, revoked consent and reconnect work.
+- [ ] Provider webhook retries and duplicate create requests do not duplicate records.
+- [ ] Recurring meetings, timezone changes and provider-side cancellation reconcile.
+- [ ] Community/course/event membership restricts meeting visibility appropriately.
+- [ ] Unsupported recording/webinar/transcript options are not falsely advertised.
+- [ ] Optional transcript/summary access is permissioned, consented, auditable and deletable.
+- [ ] No LiveKit SDK, LiveKit credentials, LiveKit server or Zoom Video SDK required.
 
-## 12. Proposed implementation PR slices
+## 12. Implementation slices
 
-1. **LIVE-01:** ADR, provider abstraction, Neon schemas, RLS, role/capability matrix, quotas.
-2. **LIVE-02:** LiveKit integration, scoped join tokens, room/session lifecycle, webhook signature/idempotency.
-3. **LIVE-03:** Native meeting UX wiring, media tracks, reconnect, screen share, chat and moderation.
-4. **LIVE-04:** Calendar/scheduling, invitations, recurring meetings, reminders, group/course/event links.
-5. **LIVE-05:** Webinar roles, registration, moderated Q&A, presenter controls.
-6. **LIVE-06:** Livestream pipeline, HLS/CDN vendor adapter, viewer authorization, cost metering.
-7. **LIVE-07:** Recording/egress state machine, private R2, signed playback, retention and consent.
-8. **LIVE-08:** STT adapter, transcripts, captions, diarization, search and timed playback.
-9. **LIVE-09:** AI summaries, chapters, action items, review/approval, model routing and cost limits.
-10. **LIVE-10:** Billing meter reconciliation, budget controls, admin analytics, observability and hardening.
-11. **LIVE-11:** Pilot testing, load and network failure drills, privacy/security review and operational runbooks.
+1. **LIVE-01:** Provider-neutral architecture, Neon schema, tenant RLS and role matrix.
+2. **LIVE-02:** Google OAuth and Google Meet/Calendar adapter.
+3. **LIVE-03:** Zoom OAuth and Meetings API adapter.
+4. **LIVE-04:** Harvest meeting scheduling UI integration, provider selection, meeting CRUD and join links.
+5. **LIVE-05:** Invitations, reminders, recurrence, calendar and Communities/Courses/Events integration.
+6. **LIVE-06:** Webhook synchronization, provider errors, token lifecycle, audit and monitoring.
+7. **LIVE-07:** Conditional attendance/recording/transcript metadata integration, with provider capability detection.
+8. **LIVE-08:** Optional transcript-based AI summaries, consent, cost caps and review flow.
+9. **LIVE-09:** Security, provider API integration tests, quota/rate-limit resilience and pilot.
 
-## 13. Open decisions requiring review
+## 13. Open implementation decisions
 
-- Broadcast/CDN provider and viewer pricing (Cloudflare Stream, Mux or other) after benchmark.
-- Whether webinars use interactive LiveKit attendees up to a capped threshold, then broadcast fallback.
-- Default retention and consent policies by jurisdiction; explicit recording/transcription defaults.
-- Live captions vs post-meeting transcription and per-language quality requirements.
-- Whether breakout rooms, live translation, phone dial-in and multi-destination streaming are first-wave or later slices.
-- Exact plan limits, internal markup and customer-facing billing model.
-- Region pinning / compliance needs and encryption design for AI and recording workflows.
+- Whether OAuth connections are organizer-owned only or also workspace-managed.
+- Exact Google Meet API vs Calendar conference creation behavior for each account tier.
+- Google OAuth verification and Zoom app review/distribution requirements.
+- Whether provider recordings are linked only or imported into R2 when permitted.
+- AI summary availability and pricing/limits; whether to offer provider-native transcripts only.
+- Whether to expose webinar/livestream management at all in first integration release.
+- Default workspace provider and permission rules.
 
-**No deployment, provider purchase, billing activation, merge or production changes authorized by this PRD.**
-
-
-## 14. Founder decision — BYO Google Meet and Zoom accounts (20 Nov 2026)
-
-**Decision supersedes the earlier native-media recommendation for the initial Harvest Live implementation.** Harvest Live will initially support **Google Meet and Zoom Meetings as two OAuth-connected meeting providers**. Each workspace/user connects their own eligible account and selects a default provider. Harvest is the scheduling, invitation, access, event/community/course integration and metadata control plane. Video calls occur in the provider's own interface, with its branding and account-level feature/plan restrictions. Do **not** use LiveKit Cloud or Zoom Video SDK for initial implementation, do not buy media capacity, and do not imply a white-label video grid.
-
-### Integration contract
-- Secure Google OAuth and Zoom OAuth with minimal scopes, encrypted token storage, refresh, disconnect/revoke, and account ownership isolation. Determine whether connections belong to individual hosts or workspace service accounts; support explicit host ownership.
-- Google Meet: create and manage spaces/meeting links using authorized Google APIs and/or Google Calendar conference data, subject to account capabilities and API constraints.
-- Zoom Meetings: use OAuth and Zoom Meetings APIs for scheduling, editing, cancellation and join/start URLs, subject to account permissions and rate limits.
-- Persist provider, connected-account reference, external meeting ID, join URL, host ownership, schedule, recurrence mapping, status and link to Harvest group/course/event. Never store passwords or expose provider OAuth secrets.
-- Each organizer can choose Google Meet or Zoom when scheduling; workspace may define a default. Do not silently fall back between providers or create duplicate meetings on retry.
-- Guest participants may follow provider join URLs without connecting their own accounts when provider policy allows; provider login or access controls still apply.
-- Webhooks/polling synchronize changes where supported; reconcile provider-side edits, deleted meetings and token revocation.
-- Recording, transcript, attendance, AI summaries, webinars and livestream features are **conditional on the provider, organizer subscription, granted scopes, artifact availability, and consent**. Do not promise parity across providers. Ingest artifacts only when legitimately accessible and approved; process with the existing AI abstraction if enabled.
-- Costs: Harvest pays normal app/API hosting and integration maintenance, **not per-participant media minutes** for BYO standard meetings. Connected organizations pay their own Zoom/Google subscription costs if needed. Optional AI processing/storage/notifications may still cost Harvest and need metering.
-- Full native LiveKit/Zoom Video SDK architecture in sections 2–13 is **deferred exploratory reference**, not the approved initial implementation. Prior LIVE-01..LIVE-11 slices must be re-scoped to provider connections and scheduling before work begins.
-- This decision does not expand the Professional V1 launch scope automatically. Draft PR remains documentation-only; no merge, deploy, or provider configuration without separate approval.
+**This document supersedes the earlier native LiveKit/Zoom Video SDK design. No merge, deployment, provider purchase or production change is authorized by this draft.**
