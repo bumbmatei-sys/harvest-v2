@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
-import { expect, test, type Browser, type Page } from "@playwright/test";
+import { expect, test, type Browser, type Locator, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { joinAndWaitForForum, waitForCommunityResponse } from "./helpers/community";
 import { origin, signIn } from "./helpers/session";
 import { settleForAxe } from "./helpers/settle";
 
@@ -41,7 +42,15 @@ test("rules and questions, open join with answers, applications reviewed by the 
   const tenant = (await (await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Grace Community Church", audience: "church" } })).json()).tenantId as string;
   const slug = `prayer-${Date.now().toString(36)}`;
   const community = (await (await page.request.post(`/api/workspaces/${tenant}/communities`, { headers: { origin }, data: { name: "Prayer Circle", slug } })).json()) as { id: string };
-  const editUrl = `/workspaces/${tenant}/communities/${community.id}/edit`;
+  const communityPath = `/workspaces/${tenant}/communities/${community.id}`;
+  const editUrl = `${communityPath}/edit`;
+  const saveDraft = async () => {
+    await Promise.all([
+      waitForCommunityResponse(page, "PATCH", `/api${communityPath}`),
+      page.getByRole("button", { name: "Save draft", exact: true }).click(),
+    ]);
+    await expect(page.getByText("Saved.", { exact: true })).toBeVisible();
+  };
 
   // The owner builds rules and questions in the Joining step.
   await page.goto(editUrl);
@@ -66,10 +75,12 @@ test("rules and questions, open join with answers, applications reviewed by the 
   await addQuestion("Short answer", "Your city", [], true);
   await addQuestion("Single choice", "Are you part of a church?", ["Yes", "No"], true);
   await addQuestion("Checkboxes", "What would you like?", ["Prayer", "Study"]);
-  await page.getByRole("button", { name: "Save draft", exact: true }).click();
-  await expect(page.getByText("Saved.", { exact: true })).toBeVisible();
+  await saveDraft();
   const header = page.locator("header").filter({ has: page.getByRole("heading", { level: 1 }) });
-  await header.getByRole("button", { name: "Publish", exact: true }).click();
+  await Promise.all([
+    waitForCommunityResponse(page, "POST", `/api${communityPath}/publish`),
+    header.getByRole("button", { name: "Publish", exact: true }).click(),
+  ]);
   await expect(page.getByText("Published.", { exact: true })).toBeVisible();
   await shoot(page, "editor-joining", async () => { await steps.getByRole("button", { name: /Joining/ }).click(); await expect(page.getByLabel("Rule 1", { exact: true })).toHaveValue("Be kind."); });
 
@@ -92,16 +103,14 @@ test("rules and questions, open join with answers, applications reviewed by the 
     await expect(join).toBeDisabled();
     await dialog.getByLabel("I accept the community rules").click();
     await dialog.getByLabel("I confirm I am 18 or older").click();
-    await join.click();
-    await expect(member.page).toHaveURL(new RegExp(`/communities/${slug}/forum$`));
+    await joinAndWaitForForum(member.page, slug, join);
   } finally { await member.context.close(); }
 
   // Approval on: requests become applications.
   await page.goto(editUrl);
   await steps.getByRole("button", { name: /Joining/ }).click();
   await page.getByLabel("People apply first", { exact: true }).click();
-  await page.getByRole("button", { name: "Save draft", exact: true }).click();
-  await expect(page.getByText("Saved.", { exact: true })).toBeVisible();
+  await saveDraft();
 
   const apply = async (city: string) => {
     const someone = await person(browser);
@@ -113,7 +122,11 @@ test("rules and questions, open join with answers, applications reviewed by the 
     await dialog.getByLabel("No", { exact: true }).click();
     await dialog.getByLabel("I accept the community rules").click();
     await dialog.getByLabel("I confirm I am 18 or older").click();
-    await dialog.getByRole("button", { name: "Apply", exact: true }).click();
+    const [applied] = await Promise.all([
+      waitForCommunityResponse(someone.page, "POST", `/api/communities/${slug}/join`),
+      dialog.getByRole("button", { name: "Apply", exact: true }).click(),
+    ]);
+    expect(await applied.json()).toMatchObject({ outcome: "applied" });
     await expect(dialog.getByRole("status").filter({ hasText: "Application sent" })).toBeVisible();
     return someone;
   };
@@ -137,11 +150,19 @@ test("rules and questions, open join with answers, applications reviewed by the 
       }
       throw new Error(`no application from ${city}`);
     };
+    const queuePath = `/api${communityPath}/applications`;
+    const decide = async (sheet: Locator, action: string) => {
+      await Promise.all([
+        waitForCommunityResponse(page, "PATCH", new RegExp(`^${queuePath}/[^/]+$`)),
+        waitForCommunityResponse(page, "GET", queuePath),
+        sheet.getByRole("button", { name: action, exact: true }).click(),
+      ]);
+      await expect(sheet).toBeHidden();
+    };
     let sheet = await review("Iasi");
     await sheet.getByLabel("Private note", { exact: true }).fill("Knows the pastor");
     await sheet.getByLabel("Ask for more information", { exact: true }).fill("Which group do you attend?");
-    await sheet.getByRole("button", { name: "Send request", exact: true }).click();
-    await expect(sheet).toBeHidden();
+    await decide(sheet, "Send request");
 
     // The applicant sees the request (never the note), edits the answers and sends them again.
     await applicant.page.reload();
@@ -151,7 +172,11 @@ test("rules and questions, open join with answers, applications reviewed by the 
     await applicant.page.getByRole("button", { name: "Edit answers", exact: true }).click();
     const edit = applicant.page.getByRole("dialog");
     await edit.getByLabel(/Your city/).fill("Iasi, Sunday group");
-    await edit.getByRole("button", { name: "Send", exact: true }).click();
+    const ownApplicationPath = /^\/api\/account\/community-applications\/[^/]+$/;
+    await Promise.all([
+      waitForCommunityResponse(applicant.page, "PATCH", ownApplicationPath),
+      edit.getByRole("button", { name: "Send", exact: true }).click(),
+    ]);
     await expect(edit).toBeHidden();
     await expect(applicant.page.getByText("Pending", { exact: true })).toBeVisible();
 
@@ -159,19 +184,20 @@ test("rules and questions, open join with answers, applications reviewed by the 
     await expect(sheet.getByLabel("Private note", { exact: true })).toHaveValue("Knows the pastor");
     await shoot(page, "applications-review", async () => { await review("Iasi, Sunday group"); });
     sheet = page.getByRole("dialog");
-    await sheet.getByRole("button", { name: "Approve", exact: true }).click();
-    await expect(sheet).toBeHidden();
+    await decide(sheet, "Approve");
     await applicant.page.goto(`/communities/${slug}/forum`);
     await expect(applicant.page.getByRole("heading", { name: "All posts", level: 2 })).toBeVisible();
 
     sheet = await review("Brasov");
-    await sheet.getByRole("button", { name: "Decline", exact: true }).click();
-    await expect(sheet).toBeHidden();
+    await decide(sheet, "Decline");
     await declined.page.goto("/account/communities");
     await expect(declined.page.getByText("Declined", { exact: true })).toBeVisible();
 
     await withdrawing.page.goto("/account/communities");
-    await withdrawing.page.getByRole("button", { name: "Withdraw", exact: true }).click();
+    await Promise.all([
+      waitForCommunityResponse(withdrawing.page, "PATCH", ownApplicationPath),
+      withdrawing.page.getByRole("button", { name: "Withdraw", exact: true }).click(),
+    ]);
     await expect(withdrawing.page.getByText("No applications.", { exact: true })).toBeVisible();
     await page.goto(editUrl);
     await steps.getByRole("button", { name: /People/ }).click();
