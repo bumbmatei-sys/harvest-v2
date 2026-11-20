@@ -167,15 +167,16 @@ it("requires a schedule within 60 days with a specific validation message", () =
   } finally { clock.mockRestore(); }
 });
 
-it("fails closed at web and worker startup and reports only suppression key ring status and count", async () => {
+it("keeps production web startup available and fails worker startup with a secret-free suppression health report", async () => {
   const info = vi.spyOn(console, "info").mockImplementation(() => {});
   const error = vi.spyOn(console, "error").mockImplementation(() => {});
   const ring = JSON.stringify(["ab".repeat(32), "cd".repeat(32)]);
   try {
     vi.stubEnv("NEXT_RUNTIME", "nodejs");
+    vi.stubEnv("NODE_ENV", "production");
     for (const invalid of [undefined, "invalid json", JSON.stringify(["ab".repeat(32), "ab".repeat(32)])]) {
       vi.stubEnv("HARVEST_NEWSLETTER_SUPPRESSION_KEYS", invalid);
-      await expect(register()).rejects.toThrow(/^NEWSLETTER_SUPPRESSION_KEYS_UNAVAILABLE$/);
+      await expect(register()).resolves.toBeUndefined();
       expect(() => checkNewsletterSuppressionStartup("worker", process.env)).toThrow(/^NEWSLETTER_SUPPRESSION_KEYS_UNAVAILABLE$/);
     }
     expect(error.mock.calls.flat().map(line => JSON.parse(line))).toEqual(Array.from({ length: 3 }, () => ["web", "worker"]).flat().map(runtime =>

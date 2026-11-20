@@ -29,7 +29,9 @@ export function checkNewsletterSuppressionStartup(runtime: "web" | "worker", env
   const output = JSON.stringify({ event: "newsletter_suppression_key_ring", runtime, ...health });
   if (health.status === "missing") {
     console.error(output);
-    throw new Error("NEWSLETTER_SUPPRESSION_KEYS_UNAVAILABLE");
+    // The web app can boot. Newsletter operations enforce the ring before using it.
+    if (runtime === "worker") throw new Error("NEWSLETTER_SUPPRESSION_KEYS_UNAVAILABLE");
+    return;
   }
   console.info(output);
 }
