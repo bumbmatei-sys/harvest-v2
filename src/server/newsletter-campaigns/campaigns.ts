@@ -9,8 +9,9 @@ import { newsletterContent, newsletterStarters } from "../../lib/newsletter-cont
 import { audit, campaignPreview, conflict, digest, id, pageInput, unavailable, version, withNewsletter } from "./access";
 import { assertVerified, identity } from "./identities";
 import { resolveRecipients, selectionInput, selectionPins } from "./recipients";
-import { scheduleInput, type NewsletterSchedule } from "./schedule";
+import { newsletterReviewLifetimeMs, newsletterScheduleHorizonMs, scheduleInput, type NewsletterSchedule } from "./schedule";
 import { readTemplate } from "./templates";
+import { AccessError } from "../permissions";
 import { FakeNewsletterProvider } from "./fake-provider";
 
 const header = z.string().trim().min(1).regex(/^[^\u0000-\u001f\u007f]+$/);
@@ -24,6 +25,14 @@ const draftInput = z.object({
 const validDraft = (v: z.infer<typeof draftInput>) => [v.content, v.templateId, v.starterId].filter(Boolean).length === 1;
 const reviewInput = z.object({ version, dispatch: scheduleInput }).strict();
 const dispatchInput = reviewInput.extend({ token: z.string().regex(/^[A-Za-z0-9_-]{43}$/) });
+const scheduleTooFar = () => new AccessError(400, message("NewsletterEmail.scheduleTooFar"), { code: "SCHEDULE_TOO_FAR" });
+
+function parseReviewInput<T>(schema: z.ZodType<T>, raw: unknown): T {
+  const result = schema.safeParse(raw);
+  if (result.success) return result.data;
+  if (result.error.issues.some(issue => issue.message === message("NewsletterEmail.scheduleTooFar"))) throw scheduleTooFar();
+  throw result.error;
+}
 const versionInput = z.object({ version }).strict();
 
 function scope(tenant: string, campaign: string) {
@@ -139,14 +148,20 @@ async function reviewData(tx: Transaction, tenant: string, row: Awaited<ReturnTy
 
 export function reviewCampaign(db: Database, actor: string, workspace: string, campaignId: string, raw: unknown) {
   return withNewsletter(db, actor, workspace, "newsletter:delivery", async (tx, tenant) => {
-    const input = reviewInput.parse(raw);
+    const input = parseReviewInput(reviewInput, raw);
     const row = await readCampaign(tx, tenant, campaignId, true);
     if (row.campaign.version !== input.version || !["draft", "reviewed"].includes(row.campaign.state)) throw conflict("STALE_VERSION");
     const review = await reviewData(tx, tenant, row, input.dispatch);
     const token = randomBytes(32).toString("base64url");
-    const expiresAt = new Date(Date.now() + 10 * 60_000);
-    await tx.update(campaigns).set({ version: input.version + 1, state: "reviewed", ...review.identities, reviewExpiresAt: expiresAt,
-      reviewDigest: digest(token + review.fingerprint) }).where(scope(tenant, campaignId));
+    const [saved] = await tx.update(campaigns).set({ version: input.version + 1, state: "reviewed", ...review.identities,
+      reviewExpiresAt: sql`statement_timestamp() + ${newsletterReviewLifetimeMs} * interval '1 millisecond'`,
+      reviewDigest: digest(token + review.fingerprint) }).where(scope(tenant, campaignId))
+      .returning({ expiresAt: campaigns.reviewExpiresAt });
+    const expiresAt = saved.expiresAt!;
+    if (input.dispatch.mode === "schedule" &&
+        Date.parse(input.dispatch.schedule.at) > expiresAt.getTime() - newsletterReviewLifetimeMs + newsletterScheduleHorizonMs) {
+      throw scheduleTooFar();
+    }
     await audit(tx, tenant, actor, "newsletter.campaign.review", campaignId, input.version + 1);
     return { ...review.summary, token, expiresAt, version: input.version + 1 };
   });
@@ -154,7 +169,7 @@ export function reviewCampaign(db: Database, actor: string, workspace: string, c
 
 export function dispatchCampaign(db: Database, actor: string, workspace: string, campaignId: string, raw: unknown, mode: NewsletterSchedule["mode"]) {
   return withNewsletter(db, actor, workspace, "newsletter:delivery", async (tx, tenant) => {
-    const input = dispatchInput.parse(raw);
+    const input = parseReviewInput(dispatchInput, raw);
     const row = await readCampaign(tx, tenant, campaignId, true);
     if (input.dispatch.mode !== mode || row.campaign.version !== input.version ||
         row.campaign.state !== "reviewed" || !row.campaign.reviewDigest) throw conflict("REVIEW_REQUIRED");
@@ -164,6 +179,9 @@ export function dispatchCampaign(db: Database, actor: string, workspace: string,
       throw conflict("REVIEW_REQUIRED");
     }
     const scheduledAt = mode === "schedule" && input.dispatch.mode === "schedule" ? new Date(input.dispatch.schedule.at) : new Date();
+    if (scheduledAt.getTime() > row.campaign.reviewExpiresAt.getTime() - newsletterReviewLifetimeMs + newsletterScheduleHorizonMs) {
+      throw scheduleTooFar();
+    }
     const timezone = input.dispatch.mode === "schedule" ? input.dispatch.schedule.timezone : "UTC";
     const state = review.summary.estimate.eligible ? "scheduled" : "failed";
     const selectedAt = new Date();

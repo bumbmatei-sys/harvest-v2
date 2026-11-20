@@ -8,6 +8,7 @@ import { mayContact } from "../consent-gate";
 import { loadDefinitions } from "../crm-filters";
 import { segmentState } from "../newsletter";
 import { conflict, unavailable, withNewsletter } from "./access";
+import { installNewsletterSuppressionKeys } from "./suppression-keys";
 
 const ids = z.array(z.uuid()).max(20).transform(values => [...new Set(values)].sort());
 export const selectionInput = z.object({ listIds: ids.refine(values => values.length > 0), segmentIds: ids.default([]) }).strict();
@@ -33,6 +34,7 @@ export async function selectionPins(tx: Transaction, tenant: string, selection: 
 const maximumMemberships = 5000;
 export async function resolveRecipients(tx: Transaction, tenant: string, selection: Selection,
   pins: Awaited<ReturnType<typeof selectionPins>>) {
+  await installNewsletterSuppressionKeys(tx);
   const base = and(eq(newsletterSubscriptions.tenantId, tenant), inArray(newsletterSubscriptions.listId, selection.listIds));
   const filters = [];
   for (const segment of pins.segments) {

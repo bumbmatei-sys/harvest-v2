@@ -16015,6 +16015,47 @@
       },
       "isRLSEnabled": false
     },
+    "public.newsletter_callback_receipts": {
+      "name": "newsletter_callback_receipts",
+      "schema": "",
+      "columns": {
+        "message_id": {
+          "name": "message_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "newsletter_callback_receipt_expiry_idx": {
+          "name": "newsletter_callback_receipt_expiry_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.newsletter_campaign_lists": {
       "name": "newsletter_campaign_lists",
       "schema": "",
@@ -16582,7 +16623,7 @@
             }
           ],
           "isUnique": true,
-          "where": "\"newsletter_connections\".\"ownership\" and \"newsletter_connections\".\"spf\" and \"newsletter_connections\".\"dkim\" and \"newsletter_connections\".\"bounce\"",
+          "where": "\"newsletter_connections\".\"ownership\" and \"newsletter_connections\".\"spf\" and \"newsletter_connections\".\"dkim\" and \"newsletter_connections\".\"bounce\" and \"newsletter_connections\".\"dmarc\"",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -16770,9 +16811,43 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "attempted_key_version": {
+          "name": "attempted_key_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "operator_review_at": {
+          "name": "operator_review_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {
+        "newsletter_unknown_age_idx": {
+          "name": "newsletter_unknown_age_idx",
+          "columns": [
+            {
+              "expression": "attempted_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"newsletter_deliveries\".\"state\" = 'unknown'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "newsletter_delivery_retention_idx": {
           "name": "newsletter_delivery_retention_idx",
           "columns": [
@@ -16923,9 +16998,13 @@
       },
       "policies": {},
       "checkConstraints": {
+        "newsletter_attempted_hash_pair": {
+          "name": "newsletter_attempted_hash_pair",
+          "value": "(\"newsletter_deliveries\".\"attempted_address_hash\" is null) = (\"newsletter_deliveries\".\"attempted_key_version\" is null)"
+        },
         "newsletter_delivery_state": {
           "name": "newsletter_delivery_state",
-          "value": "\"newsletter_deliveries\".\"state\" in ('queued','unknown','accepted','failed','skipped')"
+          "value": "\"newsletter_deliveries\".\"state\" in ('queued','unknown','operator_review','accepted','failed','skipped')"
         },
         "newsletter_delivery_reason": {
           "name": "newsletter_delivery_reason",
@@ -18154,6 +18233,12 @@
           "primaryKey": false,
           "notNull": true
         },
+        "key_version": {
+          "name": "key_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
         "reason": {
           "name": "reason",
           "type": "text",
@@ -18184,10 +18269,11 @@
         }
       },
       "compositePrimaryKeys": {
-        "newsletter_suppressions_tenant_id_scope_address_hash_reason_pk": {
-          "name": "newsletter_suppressions_tenant_id_scope_address_hash_reason_pk",
+        "newsletter_suppressions_tenant_id_key_version_scope_address_hash_reason_pk": {
+          "name": "newsletter_suppressions_tenant_id_key_version_scope_address_hash_reason_pk",
           "columns": [
             "tenant_id",
+            "key_version",
             "scope",
             "address_hash",
             "reason"

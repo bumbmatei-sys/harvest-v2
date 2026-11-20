@@ -1,8 +1,8 @@
 import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
-import { newsletterEvents, type DomainRecord, type NewsletterProvider } from "./port";
+import { callbackClockSkewMs, callbackTimestampValid, newsletterEvents, type DomainRecord, type NewsletterProvider } from "./port";
 
-const callback = z.object({ deliveryId: z.uuid(), reference: z.string().min(1).max(255),
+const callback = z.object({ messageId: z.uuid(), deliveryId: z.uuid(), reference: z.string().min(1).max(255),
   type: z.enum(newsletterEvents), at: z.iso.datetime() });
 
 export class FakeNewsletterProvider implements NewsletterProvider {
@@ -25,7 +25,7 @@ export class FakeNewsletterProvider implements NewsletterProvider {
     const timestamp = headers.get("x-newsletter-timestamp");
     const signature = headers.get("x-newsletter-signature");
     if (!this.key || !timestamp || !/^\d{13}$/.test(timestamp) ||
-        Math.abs(now.getTime() - Number(timestamp)) > 300_000 ||
+        !callbackTimestampValid(Number(timestamp), now) ||
         !signature || !/^[0-9a-f]{64}$/.test(signature)) return null;
     const expected = createHmac("sha256", this.key).update(timestamp).update(".").update(body).digest();
     if (!timingSafeEqual(expected, Buffer.from(signature, "hex"))) return null;
@@ -33,14 +33,15 @@ export class FakeNewsletterProvider implements NewsletterProvider {
       const parsed = callback.safeParse(JSON.parse(Buffer.from(body).toString("utf8")));
       if (!parsed.success) return null;
       const at = new Date(parsed.data.at);
-      return at.getTime() <= now.getTime() + 300_000 ? { ...parsed.data, at } : null;
+      return at.getTime() <= now.getTime() + callbackClockSkewMs ? { ...parsed.data, at, signedAt: new Date(Number(timestamp)) } : null;
     } catch { return null; }
   }
 
   async domain(domain: string, records: readonly DomainRecord[]) {
     return domain.endsWith(".example.test") && domain !== "newsletter.example.test" &&
       ["ownership", "spf", "dkim", "bounce"].every(purpose => records.some(record => record.purpose === purpose))
-      ? { ownership: true, spf: true, dkim: true, bounce: true, dmarc: false } : null;
+      ? { ownership: true, spf: true, dkim: true, bounce: true, dmarc: records.some(record => record.purpose === "dmarc" && record.type === "TXT" &&
+        record.name === "_dmarc." + domain && /^v=DMARC1;\s*p=(none|quarantine|reject)(?:\s*;|$)/i.test(record.value)) } : null;
   }
 
   // A caller can inject a test inbox to read the synthetic message.

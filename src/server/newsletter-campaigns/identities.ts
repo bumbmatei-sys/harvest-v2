@@ -21,7 +21,7 @@ const emailDomain = (address: string) => address.slice(address.lastIndexOf("@") 
 
 function domainVerified(domain: typeof newsletterConnections.$inferSelect) {
   return Boolean(domain.checkedAt && domain.checkedAt.getTime() > Date.now() - domainMaxAgeMs &&
-    domain.ownership && domain.spf && domain.dkim && domain.bounce);
+    domain.ownership && domain.spf && domain.dkim && domain.bounce && domain.dmarc);
 }
 
 function identityResponse(row: typeof newsletterIdentities.$inferSelect, domain: typeof newsletterConnections.$inferSelect | null) {
@@ -39,7 +39,7 @@ function dnsInstructions(domain: string, code: string): DomainRecord[] {
     { purpose: "dkim", type: "CNAME", name: selector + "._domainkey." + domain, value: selector + ".dkim.example.test" },
     { purpose: "spf", type: "TXT", name: bounce, value: "v=spf1 include:mail.example.test -all" },
     { purpose: "bounce", type: "MX", name: bounce, value: "10 feedback.example.test" },
-    { purpose: "dmarc", type: "TXT", name: "_dmarc." + domain, value: "v=DMARC1; p=none", optional: true },
+    { purpose: "dmarc", type: "TXT", name: "_dmarc." + domain, value: "v=DMARC1; p=none" },
   ];
 }
 

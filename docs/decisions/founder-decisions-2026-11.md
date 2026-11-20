@@ -58,7 +58,7 @@ The founder delegated the open product choices from the Codex PRs #135 (events),
 ## Newsletter decisions (founder, 20 Nov)
 
 - Amazon SES handles newsletter delivery behind Harvest’s provider interface. Resend remains transactional. Ministries see provider-neutral instructions and use Harvest without an AWS account.
-- Each ministry sends from its own verified domain. Harvest provides ownership, SPF, DKIM, bounce-domain and optional DMARC records. A changed or unverified domain blocks sends.
+- Each ministry sends from its own verified domain. Harvest provides ownership, SPF, DKIM, bounce-domain and DMARC records. The before-activation follow-up requires DMARC at `p=none` or stricter. A changed or unverified domain blocks sends.
 - The ministry owns its sender mailbox and confirms control from a message sent to that address. A reply-to can use an external mailbox and requires a separate confirmation.
 - Retain campaigns, templates and active subscribers as needed. Purge individual delivery records after 90 days with a bounded worker job. Retain anonymous aggregates indefinitely and keep scoped suppression records with only an address reference, reason and time.
 - PR #165 follows the social stack (#157, #159, #161, #162; migrations 0069–0072). All five HC-02 gates remain UNAPPROVED. Live sending, production migrations and schedules remain off.

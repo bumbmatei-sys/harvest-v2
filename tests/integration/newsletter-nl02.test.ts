@@ -25,6 +25,7 @@ const optIn = (email: string, formId = form) => ({ formId, email, notice: newsle
 
 beforeAll(async () => {
   vi.stubEnv("HARVEST_NEWSLETTER_TOKEN_KEY", randomBytes(32).toString("hex"));
+  vi.stubEnv("HARVEST_NEWSLETTER_SUPPRESSION_KEYS", JSON.stringify([randomBytes(32).toString("hex")]));
   vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("unexpected_network"));
   fixture = await testDatabase({ migrationOwner: true, beforeNewsletterNl02Migration: async pool => {
     expect((await pool.query("select to_regclass('public.newsletter_signup_forms') t")).rows[0].t).toBeNull();

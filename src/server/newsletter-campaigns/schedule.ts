@@ -1,4 +1,9 @@
 import { z } from "zod";
+import { message } from "../../i18n/messages";
+
+export const newsletterScheduleHorizonMs = 60 * 24 * 60 * 60_000;
+export const newsletterReviewLifetimeMs = 10 * 60_000;
+
 
 const localSchedule = z.object({
   at: z.iso.datetime({ offset: true, precision: 0 }),
@@ -15,5 +20,9 @@ const localSchedule = z.object({
 export const scheduleInput = z.discriminatedUnion("mode", [
   z.object({ mode: z.literal("now") }).strict(),
   z.object({ mode: z.literal("schedule"), schedule: localSchedule }).strict(),
-]);
+]).superRefine((input, ctx) => {
+  if (input.mode === "schedule" && Date.parse(input.schedule.at) > Date.now() + newsletterScheduleHorizonMs) {
+    ctx.addIssue({ code: "custom", path: ["schedule", "at"], message: message("NewsletterEmail.scheduleTooFar") });
+  }
+});
 export type NewsletterSchedule = z.infer<typeof scheduleInput>;

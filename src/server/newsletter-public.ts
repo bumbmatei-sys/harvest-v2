@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Database } from "../db/client";
 import { auditLogs, newsletterLists, newsletterSignupForms } from "../db/schema";
 import { message } from "../i18n/messages";
+import { installNewsletterSuppressionKeys } from "./newsletter-campaigns/suppression-keys";
 import { requireNewsletterEnabled } from "./newsletter";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
@@ -76,7 +77,10 @@ export async function confirmNewsletterSignup(db: Database, raw: unknown) {
   requireNewsletterEnabled();
   const input = confirmationInput.safeParse(raw);
   if (!input.success || !newsletterKey()) return;
-  await db.execute(sql`select public.newsletter_signup_confirm(${input.data.email},${input.data.token})`);
+  await db.transaction(async tx => {
+    await installNewsletterSuppressionKeys(tx);
+    await tx.execute(sql`select public.newsletter_signup_confirm(${input.data.email},${input.data.token})`);
+  });
 }
 
 /** Only the owning delivery/service layer should receive this bearer capability. */
@@ -103,5 +107,8 @@ export async function unsubscribeNewsletter(db: Database, scope: "list" | "all",
   const expected = signedDigest(key, "newsletter-preference-" + scope, nonce);
   const supplied = Buffer.from(signature, "base64url");
   if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) return;
-  await db.execute(sql`select public.newsletter_unsubscribe(${nonce},${scope})`);
+  await db.transaction(async tx => {
+    await installNewsletterSuppressionKeys(tx);
+    await tx.execute(sql`select public.newsletter_unsubscribe(${nonce},${scope})`);
+  });
 }

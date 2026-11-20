@@ -4,7 +4,7 @@ import { expect, it, vi } from "vitest";
 import { newsletterContent, renderNewsletter } from "../../src/lib/newsletter-content";
 import { FakeNewsletterProvider } from "../../src/server/newsletter-campaigns/fake-provider";
 import { newsletterCallback } from "../../src/server/newsletter-campaigns/callback";
-import { scheduleInput } from "../../src/server/newsletter-campaigns/schedule";
+import { newsletterScheduleHorizonMs, scheduleInput } from "../../src/server/newsletter-campaigns/schedule";
 import { buildSesSend, sesAdapter } from "../../src/server/newsletter-campaigns/ses-adapter";
 import { newsletterWorkerEnabled } from "../../src/server/newsletter-campaigns/worker";
 
@@ -44,24 +44,29 @@ it("requires an authorized image and refuses raw embeds and a duplicate footer",
 });
 
 it("accepts both annotated fall-back instants and rejects a DST gap and wrong offset", () => {
-  const parses = (at: string, timezone = "America/New_York") =>
-    scheduleInput.safeParse({ mode: "schedule", schedule: { at, timezone } }).success;
-  expect(parses("2027-11-07T01:30:00-04:00")).toBe(true);
-  expect(parses("2027-11-07T01:30:00-05:00")).toBe(true);
-  expect(parses("2027-03-14T02:30:00-05:00")).toBe(false);
-  expect(parses("2027-11-07T01:30:00-06:00")).toBe(false);
-  expect(parses("2027-11-07T01:30:00-04:00", "garbage")).toBe(false);
+  const clock = vi.spyOn(Date, "now").mockReturnValue(Date.parse("2027-10-07T00:00:00Z"));
+  try {
+    const parses = (at: string, timezone = "America/New_York") =>
+      scheduleInput.safeParse({ mode: "schedule", schedule: { at, timezone } }).success;
+    expect(parses("2027-11-07T01:30:00-04:00")).toBe(true);
+    expect(parses("2027-11-07T01:30:00-05:00")).toBe(true);
+    clock.mockReturnValue(Date.parse("2027-02-14T00:00:00Z"));
+    expect(parses("2027-03-14T02:30:00-05:00")).toBe(false);
+    clock.mockReturnValue(Date.parse("2027-10-07T00:00:00Z"));
+    expect(parses("2027-11-07T01:30:00-06:00")).toBe(false);
+    expect(parses("2027-11-07T01:30:00-04:00", "garbage")).toBe(false);
+  } finally { clock.mockRestore(); }
 });
 
 it("authenticates a bounded envelope and discards addresses and raw text", () => {
-  const key = Buffer.alloc(32, 7), provider = new FakeNewsletterProvider(key), now = new Date(), deliveryId = randomUUID(), reference = "provider-" + randomUUID();
-  const body = Buffer.from(JSON.stringify({ deliveryId, reference, type: "bounced", at: now.toISOString(), email: "reader@example.test", raw: "text" }));
+  const key = Buffer.alloc(32, 7), provider = new FakeNewsletterProvider(key), now = new Date(), deliveryId = randomUUID(), reference = "provider-" + randomUUID(), messageId = randomUUID();
+  const body = Buffer.from(JSON.stringify({ messageId, deliveryId, reference, type: "bounced", at: now.toISOString(), email: "reader@example.test", raw: "text" }));
   const timestamp = now.getTime().toString();
   const signature = createHmac("sha256", key).update(timestamp).update(".").update(body).digest("hex");
   const headers = new Headers({ "x-newsletter-timestamp": timestamp, "x-newsletter-signature": signature });
-  expect(provider.verifyCallback(body, headers, now)).toEqual({ deliveryId, reference, type: "bounced", at: now });
+  expect(provider.verifyCallback(body, headers, now)).toEqual({ messageId, signedAt: now, deliveryId, reference, type: "bounced", at: now });
   expect(provider.verifyCallback(Buffer.concat([body, Buffer.from(" ")]), headers, now)).toBeNull();
-  expect(provider.verifyCallback(body, headers, new Date(now.getTime() + 301_000))).toBeNull();
+  expect(provider.verifyCallback(body, headers, new Date(now.getTime() + 86_400_001))).toBeNull();
 });
 
 it("answers 404 while disabled before touching credentials or the body", async () => {
@@ -130,15 +135,32 @@ it("verifies an injected SNS signature, topic, certificate URL and timestamp bef
   }
   const verify = (body: ReturnType<typeof signed>) =>
     adapter.verifyCallback(Buffer.from(JSON.stringify(body)), new Headers(), now);
-  expect(verify(signed())).toEqual({ deliveryId, reference, type: "delivered", at: now });
+  expect(verify(signed())).toEqual({ messageId: envelope.MessageId, signedAt: now, deliveryId, reference, type: "delivered", at: now });
   expect(verify({ ...signed(), Message: "{}" })).toBeNull();
   expect(verify(signed({ TopicArn: topic + "-other" }))).toBeNull();
   expect(verify(signed({ SigningCertURL: certURL + "?alternate=1" }))).toBeNull();
   expect(verify(signed({ SigningCertURL: certURL.replace(".amazonaws.com", ".amazonaws.com.example.test") }))).toBeNull();
-  expect(verify(signed({ Timestamp: new Date(now.getTime() - 301_000).toISOString() }))).toBeNull();
+  expect(verify(signed({ Timestamp: new Date(now.getTime() - 86_400_000).toISOString() }))).not.toBeNull();
+  expect(verify(signed({ Timestamp: new Date(now.getTime() - 86_400_001).toISOString() }))).toBeNull();
+  expect(verify(signed({ Timestamp: new Date(now.getTime() + 300_001).toISOString() }))).toBeNull();
   expect(verify(signed({ SignatureVersion: "1" }))).toBeNull();
   expect(verify(signed({ Message: JSON.stringify({ eventType: "Bounce", mail,
     bounce: { timestamp: now.toISOString(), bounceType: "Transient" } }) }))).toBeNull();
   expect(verify(signed({ Message: JSON.stringify({ eventType: "Bounce", mail,
     bounce: { timestamp: now.toISOString(), bounceType: "Permanent" } }) }))).toMatchObject({ type: "bounced" });
+});
+
+
+it("requires a schedule within 60 days with a specific validation message", () => {
+  const now = Date.parse("2026-11-20T12:00:00Z");
+  const clock = vi.spyOn(Date, "now").mockReturnValue(now);
+  const input = (delta: number) => ({ mode: "schedule", schedule: {
+    timezone: "UTC", at: new Date(now + delta).toISOString().replace(".000Z", "Z"),
+  } });
+  try {
+    expect(scheduleInput.safeParse(input(newsletterScheduleHorizonMs)).success).toBe(true);
+    expect(scheduleInput.safeParse(input(newsletterScheduleHorizonMs + 1000)).error?.issues[0]).toMatchObject({
+      path: ["schedule", "at"], message: "Schedule the newsletter within 60 days of review.",
+    });
+  } finally { clock.mockRestore(); }
 });

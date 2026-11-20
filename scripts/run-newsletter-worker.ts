@@ -24,7 +24,7 @@ if (newsletterWorkerEnabled(process.env, flag)) {
     else {
       const result = await runNewsletterWorker(pool, process.env, provider, { log: line => console.error(line) });
       console.log(JSON.stringify(result));
-      if (result?.errors || result?.unknown || result?.failed) process.exitCode = 1;
+      if (result?.errors || result?.unknown || result?.operatorReview || result?.failed) process.exitCode = 1;
     }
   } catch {
     console.error("newsletter_worker_failed");

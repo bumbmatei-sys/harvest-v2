@@ -1,5 +1,14 @@
 export const newsletterEvents = ["accepted", "delivered", "bounced", "complained", "unsubscribed"] as const;
+export const callbackWindowMs = 24 * 60 * 60_000;
+export const callbackClockSkewMs = 5 * 60_000;
+export function callbackTimestampValid(timestamp: number, now: Date) {
+  const age = now.getTime() - timestamp;
+  return age >= -callbackClockSkewMs && age <= callbackWindowMs;
+}
+
 export type NewsletterEvent = {
+  messageId: string;
+  signedAt: Date;
   deliveryId: string;
   reference: string;
   type: typeof newsletterEvents[number];
@@ -7,7 +16,7 @@ export type NewsletterEvent = {
 };
 export type DomainStatus = { ownership: boolean; spf: boolean; dkim: boolean; bounce: boolean; dmarc: boolean };
 export type DomainRecord = { purpose: "ownership" | "spf" | "dkim" | "bounce" | "dmarc"; type: "TXT" | "CNAME" | "MX";
-  name: string; value: string; optional?: true };
+  name: string; value: string };
 export type NewsletterSubmission = {
   deliveryId: string;
   to: string;

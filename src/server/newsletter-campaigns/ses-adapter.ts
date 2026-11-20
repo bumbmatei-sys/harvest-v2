@@ -1,10 +1,9 @@
 import { createVerify } from "node:crypto";
 import { z } from "zod";
-import type { NewsletterProvider, NewsletterSubmission } from "./port";
+import { callbackClockSkewMs, callbackTimestampValid, type NewsletterProvider, type NewsletterSubmission } from "./port";
 
 export const LIVE_NEWSLETTER_ENABLED = false;
 const tag = "harvest_delivery_id";
-const windowMs = 300_000;
 
 export function buildSesSend(message: NewsletterSubmission, configurationSet: string) {
   return {
@@ -22,7 +21,7 @@ export function buildSesSend(message: NewsletterSubmission, configurationSet: st
 }
 
 const notification = z.object({
-  Type: z.literal("Notification"), Message: z.string(), MessageId: z.string(), Subject: z.string().optional(),
+  Type: z.literal("Notification"), Message: z.string(), MessageId: z.uuid(), Subject: z.string().optional(),
   Timestamp: z.iso.datetime(), TopicArn: z.string(), SignatureVersion: z.literal("2"), Signature: z.base64(),
   SigningCertURL: z.string(),
 });
@@ -60,7 +59,7 @@ export function sesAdapter(config: TrustedSns, submission?: {
         const envelope = notification.parse(JSON.parse(Buffer.from(body).toString("utf8")));
         const topic = /^arn:aws:sns:([a-z0-9-]+):\d{12}:[A-Za-z0-9_-]+$/.exec(config.topicArn);
         if (!topic || envelope.TopicArn !== config.topicArn ||
-            Math.abs(now.getTime() - Date.parse(envelope.Timestamp)) > windowMs) return null;
+            !callbackTimestampValid(Date.parse(envelope.Timestamp), now)) return null;
         const prefix = "https://sns." + topic[1] + ".amazonaws.com/";
         if (!envelope.SigningCertURL.startsWith(prefix) ||
             !/^SimpleNotificationService-[a-fA-F0-9]+\.pem$/.test(envelope.SigningCertURL.slice(prefix.length))) return null;
@@ -78,8 +77,8 @@ export function sesAdapter(config: TrustedSns, submission?: {
           Complaint: { type: "complained", timestamp: event.complaint?.timestamp },
         } as const;
         const { type, timestamp } = details[event.eventType];
-        if (!timestamp || Date.parse(timestamp) > now.getTime() + windowMs) return null;
-        return { deliveryId: event.mail.tags[tag][0], reference: event.mail.messageId, type, at: new Date(timestamp) };
+        if (!timestamp || Date.parse(timestamp) > now.getTime() + callbackClockSkewMs) return null;
+        return { messageId: envelope.MessageId, signedAt: new Date(envelope.Timestamp), deliveryId: event.mail.tags[tag][0], reference: event.mail.messageId, type, at: new Date(timestamp) };
       } catch { return null; }
     },
     // Live registration, DNS lookup and quota provisioning remain outside this hard-off adapter.

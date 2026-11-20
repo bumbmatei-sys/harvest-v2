@@ -1,3 +1,12 @@
+CREATE EXTENSION IF NOT EXISTS pgcrypto WITH SCHEMA public;
+--> statement-breakpoint
+CREATE TABLE "newsletter_callback_receipts" (
+  "message_id" uuid PRIMARY KEY NOT NULL,
+  "expires_at" timestamp with time zone NOT NULL
+);
+--> statement-breakpoint
+CREATE INDEX "newsletter_callback_receipt_expiry_idx" ON "newsletter_callback_receipts" USING btree ("expires_at");
+--> statement-breakpoint
 CREATE TABLE "newsletter_archived_counts" (
 	"tenant_id" uuid NOT NULL,
 	"campaign_id" uuid NOT NULL,
@@ -101,11 +110,14 @@ CREATE TABLE "newsletter_deliveries" (
 	"unsubscribed_at" timestamp with time zone,
 	"provider_ref" text,
 	"attempted_address_hash" text,
+  "attempted_key_version" text,
+  "operator_review_at" timestamp with time zone,
+  CONSTRAINT "newsletter_attempted_hash_pair" CHECK (("newsletter_deliveries"."attempted_address_hash" is null) = ("newsletter_deliveries"."attempted_key_version" is null)),
 	CONSTRAINT "newsletter_deliveries_tenant_id_id_pk" PRIMARY KEY("tenant_id","id"),
 	CONSTRAINT "newsletter_delivery_subscriber_unique" UNIQUE("tenant_id","campaign_id","revision","subscriber_id"),
 	CONSTRAINT "newsletter_delivery_reference_unique" UNIQUE("provider_ref"),
 	CONSTRAINT "newsletter_delivery_correlation_unique" UNIQUE("id"),
-	CONSTRAINT "newsletter_delivery_state" CHECK ("newsletter_deliveries"."state" in ('queued','unknown','accepted','failed','skipped')),
+	CONSTRAINT "newsletter_delivery_state" CHECK ("newsletter_deliveries"."state" in ('queued','unknown','operator_review','accepted','failed','skipped')),
 	CONSTRAINT "newsletter_delivery_reason" CHECK (("newsletter_deliveries"."state" = 'skipped') = ("newsletter_deliveries"."skip_reason" is not null) and ("newsletter_deliveries"."skip_reason" is null or "newsletter_deliveries"."skip_reason" in ('global_suppressed','list_suppressed','not_subscribed','consent_missing','consent_withdrawn','person_unavailable','address_unavailable','eligibility_changed','review_invalidated','cancelled')))
 );
 --> statement-breakpoint
@@ -136,9 +148,10 @@ CREATE TABLE "newsletter_suppressions" (
 	"tenant_id" uuid NOT NULL,
 	"scope" uuid NOT NULL,
 	"address_hash" text NOT NULL,
+  "key_version" text NOT NULL,
 	"reason" text NOT NULL,
 	"blocked_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "newsletter_suppressions_tenant_id_scope_address_hash_reason_pk" PRIMARY KEY("tenant_id","scope","address_hash","reason"),
+	CONSTRAINT "newsletter_suppressions_tenant_id_key_version_scope_address_hash_reason_pk" PRIMARY KEY("tenant_id","key_version","scope","address_hash","reason"),
 	CONSTRAINT "newsletter_suppression_reason" CHECK ("newsletter_suppressions"."reason" in ('unsubscribe','hard_bounce','complaint'))
 );
 --> statement-breakpoint
@@ -181,7 +194,8 @@ ALTER TABLE "newsletter_suppressions" ADD CONSTRAINT "newsletter_suppressions_te
 ALTER TABLE "newsletter_template_revisions" ADD CONSTRAINT "newsletter_template_revisions_tenant_id_template_id_newsletter_templates_tenant_id_id_fk" FOREIGN KEY ("tenant_id","template_id") REFERENCES "public"."newsletter_templates"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "newsletter_templates" ADD CONSTRAINT "newsletter_templates_tenant_id_workspaces_tenant_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."workspaces"("tenant_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "newsletter_campaign_due_idx" ON "newsletter_campaigns" USING btree ("state","scheduled_at");--> statement-breakpoint
-CREATE UNIQUE INDEX "newsletter_verified_domain" ON "newsletter_connections" USING btree ("domain") WHERE "newsletter_connections"."ownership" and "newsletter_connections"."spf" and "newsletter_connections"."dkim" and "newsletter_connections"."bounce";--> statement-breakpoint
+CREATE UNIQUE INDEX "newsletter_verified_domain" ON "newsletter_connections" USING btree ("domain") WHERE "newsletter_connections"."ownership" and "newsletter_connections"."spf" and "newsletter_connections"."dkim" and "newsletter_connections"."bounce" and "newsletter_connections"."dmarc";--> statement-breakpoint
+CREATE INDEX "newsletter_unknown_age_idx" ON "newsletter_deliveries" USING btree ("attempted_at","id") WHERE "newsletter_deliveries"."state" = 'unknown';--> statement-breakpoint
 CREATE INDEX "newsletter_delivery_retention_idx" ON "newsletter_deliveries" USING btree ("selected_at","id");--> statement-breakpoint
 CREATE INDEX "newsletter_delivery_due_idx" ON "newsletter_deliveries" USING btree ("state","next_check_at","lease_until");
 --> statement-breakpoint
@@ -268,13 +282,17 @@ BEGIN
         ELSE false END)
       OR (NEW.state='draft' AND NEW.revision<>OLD.revision+1)
       OR (NEW.state<>'draft' AND NEW.revision<>OLD.revision)
+      OR (NEW.state='reviewed' AND (NEW.review_expires_at<=clock_timestamp() OR NEW.review_expires_at>clock_timestamp()+interval '10 minutes'))
+      OR (OLD.state='reviewed' AND NEW.state IN ('scheduled','failed') AND
+        (OLD.review_expires_at<=clock_timestamp() OR NEW.scheduled_at>OLD.review_expires_at-interval '10 minutes'+interval '1440 hours'))
       OR (NEW.state IN ('scheduled','sending','sent','partial','failed') AND
         (NEW.frozen_at IS NULL OR NEW.scheduled_at IS NULL OR NEW.timezone IS NULL))
     THEN RAISE check_violation; END IF;
   ELSIF TG_TABLE_NAME='newsletter_deliveries' THEN
     IF NEW.state NOT IN ('queued','skipped') OR NOT EXISTS (
       SELECT FROM public.newsletter_campaigns c WHERE c.tenant_id=NEW.tenant_id AND c.id=NEW.campaign_id
-        AND c.revision=NEW.revision AND c.state='reviewed' AND c.review_expires_at>clock_timestamp())
+        AND c.revision=NEW.revision AND c.state='reviewed' AND c.review_expires_at>clock_timestamp()
+        AND NEW.next_check_at<=c.review_expires_at-interval '10 minutes'+interval '1440 hours')
       OR NEW.subscriber_id IS NULL OR NEW.list_id IS NULL
       OR NOT EXISTS (SELECT FROM public.newsletter_campaign_lists l WHERE l.tenant_id=NEW.tenant_id
         AND l.campaign_id=NEW.campaign_id AND l.revision=NEW.revision AND l.list_id=NEW.list_id)
@@ -299,7 +317,7 @@ LANGUAGE sql SET search_path=pg_catalog,pg_temp AS $$
       count(*) + coalesce((SELECT sum(count) FROM public.newsletter_archived_counts
       WHERE tenant_id=p_tenant AND campaign_id=p_campaign AND metric='selected'),0) AS selected
       FROM public.newsletter_deliveries WHERE tenant_id=p_tenant AND campaign_id=p_campaign
-      HAVING count(*) FILTER (WHERE state IN ('queued','unknown'))=0
+      HAVING count(*) FILTER (WHERE state IN ('queued','unknown','operator_review'))=0
   )
   UPDATE public.newsletter_campaigns SET state=CASE WHEN totals.accepted=0 THEN 'failed'
     WHEN totals.selected=totals.accepted THEN 'sent' ELSE 'partial' END,version=version+1
@@ -353,7 +371,7 @@ CREATE FUNCTION public.newsletter_delivery_authorize(p_tenant uuid,p_key uuid,p_
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 DECLARE d public.newsletter_deliveries; c public.newsletter_campaigns; r public.newsletter_campaign_revisions;
   subscriber public.newsletter_subscribers; contact public.contacts; subscription public.newsletter_subscriptions;
-  address record; assets jsonb; sender text; reply text; ministry text; reason text; consent uuid;
+  address record; fingerprint record; assets jsonb; sender text; reply text; ministry text; reason text; consent uuid;
 BEGIN
   IF session_user<>'harvest_worker' THEN RAISE insufficient_privilege; END IF;
   PERFORM set_config('app.nl_send_worker','on',true);
@@ -405,7 +423,7 @@ BEGIN
       ON cfg.tenant_id=i.tenant_id AND cfg.id=i.connection_id
       WHERE i.tenant_id=p_tenant AND i.id=r.sender_id AND i.version=c.sender_version AND cfg.version=c.sender_domain_version
         AND i.ownership_verified AND i.enabled AND i.purpose='sender'
-        AND cfg.ownership AND cfg.spf AND cfg.dkim AND cfg.bounce
+        AND cfg.ownership AND cfg.spf AND cfg.dkim AND cfg.bounce AND cfg.dmarc
         AND cfg.checked_at>clock_timestamp()-interval '48 hours'
         AND split_part(i.address,'@',2)=cfg.domain AND cfg.domain ~ '[.]example[.]test$' AND cfg.domain<>'newsletter.example.test' FOR SHARE OF i,cfg;
     SELECT i.address INTO reply FROM public.newsletter_identities i
@@ -436,8 +454,10 @@ BEGIN
     VALUES(public.nl02_hash(p_nonce),p_tenant,subscriber.id,d.list_id,'list',
       public.nl02_hash(p_nonce||':'||address.normalized_value),clock_timestamp()+interval '30 days');
   UPDATE public.newsletter_campaigns SET state='sending',version=version+1 WHERE tenant_id=p_tenant AND id=c.id AND state='scheduled';
+  SELECT * INTO STRICT fingerprint FROM public.newsletter_suppression_digests(p_tenant,address.normalized_value)
+    WHERE write_key;
   UPDATE public.newsletter_deliveries SET state='unknown',attempted_at=clock_timestamp(),
-    attempted_address_hash=public.newsletter_address_hash(p_tenant,address.normalized_value)
+    attempted_address_hash=fingerprint.address_hash,attempted_key_version=fingerprint.key_version
     WHERE tenant_id=p_tenant AND id=p_key;
   RETURN jsonb_build_object('email',address.normalized_value,'firstName',split_part(btrim(contact.name),' ',1),'ministryName',ministry,
     'from',sender,'replyTo',reply,'content',r.content,'subject',r.subject,'preheader',r.preheader,'images',assets);
@@ -473,14 +493,45 @@ BEGIN
 END $$;
 
 --> statement-breakpoint
+CREATE FUNCTION public.newsletter_mark_unknown_for_review(p_limit integer) RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+DECLARE marked integer;
+BEGIN
+  IF session_user<>'harvest_worker' THEN RAISE insufficient_privilege; END IF;
+  IF p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 500 THEN RAISE invalid_parameter_value; END IF;
+  PERFORM set_config('app.nl_send_worker','on',true);
+  WITH due AS (
+    SELECT id FROM public.newsletter_deliveries WHERE state='unknown'
+      AND attempted_at<=clock_timestamp()-interval '48 hours'
+      AND (lease_until IS NULL OR lease_until<=clock_timestamp())
+    ORDER BY attempted_at,id LIMIT p_limit FOR UPDATE SKIP LOCKED
+  )
+  UPDATE public.newsletter_deliveries d SET state='operator_review',operator_review_at=clock_timestamp(),lease=NULL,lease_until=NULL
+    FROM due WHERE d.id=due.id;
+  GET DIAGNOSTICS marked=ROW_COUNT;
+  RETURN marked;
+END $$;
+
 CREATE FUNCTION public.newsletter_delivery_health() RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 BEGIN
   IF session_user<>'harvest_worker' THEN RAISE insufficient_privilege; END IF;
   PERFORM set_config('app.nl_send_worker','on',true);
-  RETURN (SELECT jsonb_build_object('pending',count(*) FILTER (WHERE state='queued' AND next_check_at<=clock_timestamp()),
-    'unknown',count(*) FILTER (WHERE state='unknown'),'failed',count(*) FILTER (WHERE state='failed'))
-    FROM public.newsletter_deliveries);
+  RETURN (WITH totals AS (
+    SELECT count(*) FILTER (WHERE state='queued' AND next_check_at<=statement_timestamp()) AS pending,
+      count(*) FILTER (WHERE state='unknown') AS unknown,count(*) FILTER (WHERE state='failed') AS failed,
+      count(*) FILTER (WHERE state='operator_review') AS review
+    FROM public.newsletter_deliveries
+  ), ministries AS (
+    SELECT tenant_id, count(*) FILTER (WHERE state='unknown') AS unknown,
+      count(*) FILTER (WHERE state='operator_review') AS review,
+      greatest(0,floor(extract(epoch FROM statement_timestamp()-min(attempted_at)))) AS oldest
+    FROM public.newsletter_deliveries WHERE state IN ('unknown','operator_review') GROUP BY tenant_id
+  )
+  SELECT jsonb_build_object('pending',pending,'unknown',unknown,'failed',failed,'operatorReview',review,'unresolvedByMinistry',
+    (SELECT coalesce(jsonb_agg(jsonb_build_object('ministryId',tenant_id,'unknown',m.unknown,'operatorReview',m.review,
+      'oldestUnknownAgeSeconds',oldest) ORDER BY oldest DESC,tenant_id),'[]'::jsonb) FROM ministries m))
+  FROM totals);
 END $$;
 
 --> statement-breakpoint
@@ -494,7 +545,7 @@ BEGIN
     OR coalesce(length(p_ref),0) NOT BETWEEN 1 AND 255
     OR p_time IS NULL OR p_time>clock_timestamp()+interval '5 minutes' THEN RETURN; END IF;
   SELECT * INTO d FROM public.newsletter_deliveries WHERE id=p_delivery AND (provider_ref IS NULL OR provider_ref=p_ref)
-    AND state IN ('unknown','accepted') AND attempted_at<=p_time+interval '5 seconds';
+    AND state IN ('unknown','operator_review','accepted') AND attempted_at<=p_time+interval '5 seconds';
   IF NOT FOUND THEN RETURN; END IF;
   PERFORM set_config('app.nl_send_tenant',d.tenant_id::text,true);
   recipient:=coalesce(d.suppression_subscriber_id,d.subscriber_id);
@@ -507,7 +558,7 @@ BEGIN
   IF coalesce(d.suppression_subscriber_id,d.subscriber_id) IS DISTINCT FROM recipient THEN
     RAISE serialization_failure;
   END IF;
-  IF d.state NOT IN ('unknown','accepted') OR (d.provider_ref IS NOT NULL AND d.provider_ref<>p_ref) THEN RETURN; END IF;
+  IF d.state NOT IN ('unknown','operator_review','accepted') OR (d.provider_ref IS NOT NULL AND d.provider_ref<>p_ref) THEN RETURN; END IF;
   changed:=CASE p_type WHEN 'accepted' THEN d.accepted_at IS NULL WHEN 'delivered' THEN d.delivered_at IS NULL
     WHEN 'bounced' THEN d.bounced_at IS NULL WHEN 'complained' THEN d.complained_at IS NULL
     WHEN 'unsubscribed' THEN d.unsubscribed_at IS NULL END;
@@ -521,7 +572,7 @@ BEGIN
     WHERE tenant_id=d.tenant_id AND id=d.id;
   IF d.attempted_address_hash IS NOT NULL AND p_type IN ('bounced','complained','unsubscribed') THEN
     PERFORM public.newsletter_record_suppression(d.tenant_id,CASE WHEN p_type='unsubscribed' THEN d.list_id END,
-      d.attempted_address_hash,CASE p_type WHEN 'bounced' THEN 'hard_bounce' WHEN 'complained' THEN 'complaint'
+      d.attempted_address_hash,d.attempted_key_version,CASE p_type WHEN 'bounced' THEN 'hard_bounce' WHEN 'complained' THEN 'complaint'
         ELSE 'unsubscribe' END,p_time);
   END IF;
   IF s.id IS NOT NULL AND p_type IN ('bounced','complained') THEN
@@ -539,13 +590,43 @@ END $$;
 REVOKE ALL ON FUNCTION public.newsletter_delivery_claim(integer,integer),
   public.newsletter_delivery_authorize(uuid,uuid,uuid,text),public.newsletter_delivery_complete(uuid,uuid,uuid,text,text),
   public.newsletter_delivery_fail(uuid,uuid,uuid,boolean),public.newsletter_delivery_health(),
+  public.newsletter_mark_unknown_for_review(integer),
   public.newsletter_delivery_event(uuid,text,text,timestamptz) FROM PUBLIC,harvest_app;
 DO $$ BEGIN
   IF EXISTS (SELECT FROM pg_roles WHERE rolname='harvest_worker') THEN
     GRANT EXECUTE ON FUNCTION public.newsletter_delivery_claim(integer,integer),
   public.newsletter_delivery_authorize(uuid,uuid,uuid,text),public.newsletter_delivery_complete(uuid,uuid,uuid,text,text),
   public.newsletter_delivery_fail(uuid,uuid,uuid,boolean),public.newsletter_delivery_health(),
+  public.newsletter_mark_unknown_for_review(integer),
   public.newsletter_delivery_event(uuid,text,text,timestamptz) TO harvest_worker;
+  END IF;
+END $$;
+
+ALTER TABLE public.newsletter_callback_receipts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.newsletter_callback_receipts FORCE ROW LEVEL SECURITY;
+REVOKE ALL ON public.newsletter_callback_receipts FROM PUBLIC,harvest_app;
+DO $$ BEGIN
+  EXECUTE format($p$CREATE POLICY newsletter_callback_owner ON public.newsletter_callback_receipts TO %I
+    USING (session_user='harvest_worker' AND current_setting('app.nl_send_worker',true)='on')
+    WITH CHECK (session_user='harvest_worker' AND current_setting('app.nl_send_worker',true)='on')$p$,current_user);
+END $$;
+
+CREATE FUNCTION public.newsletter_apply_callback(p_message uuid,p_signed timestamptz,p_delivery uuid,p_ref text,p_type text,p_time timestamptz)
+RETURNS void LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+BEGIN
+  IF session_user<>'harvest_worker' THEN RAISE insufficient_privilege; END IF;
+  PERFORM set_config('app.nl_send_worker','on',true);
+  IF p_message IS NULL OR p_signed IS NULL OR p_signed<statement_timestamp()-interval '24 hours'
+    OR p_signed>statement_timestamp()+interval '5 minutes' THEN RETURN; END IF;
+  INSERT INTO public.newsletter_callback_receipts(message_id,expires_at)
+    VALUES(p_message,p_signed+interval '24 hours') ON CONFLICT DO NOTHING;
+  IF NOT FOUND THEN RETURN; END IF;
+  PERFORM public.newsletter_delivery_event(p_delivery,p_ref,p_type,p_time);
+END $$;
+REVOKE ALL ON FUNCTION public.newsletter_apply_callback(uuid,timestamptz,uuid,text,text,timestamptz) FROM PUBLIC,harvest_app;
+DO $$ BEGIN
+  IF EXISTS (SELECT FROM pg_roles WHERE rolname='harvest_worker') THEN
+    GRANT EXECUTE ON FUNCTION public.newsletter_apply_callback(uuid,timestamptz,uuid,text,text,timestamptz) TO harvest_worker;
   END IF;
 END $$;
 
@@ -557,8 +638,11 @@ DECLARE prior_tenant text:=current_setting('app.nl_send_tenant',true);
 BEGIN
   PERFORM set_config('app.nl_send_tenant',OLD.tenant_id::text,true);
   UPDATE public.newsletter_deliveries SET subscriber_id=NULL,address_binding=NULL,subscription_version=NULL,
-    attempted_address_hash=CASE WHEN suppression_subscriber_id IS NOT NULL THEN attempted_address_hash END
+    attempted_address_hash=CASE WHEN suppression_subscriber_id<>OLD.id THEN attempted_address_hash END,
+    attempted_key_version=CASE WHEN suppression_subscriber_id<>OLD.id THEN attempted_key_version END
     WHERE tenant_id=OLD.tenant_id AND subscriber_id=OLD.id;
+  UPDATE public.newsletter_deliveries SET attempted_address_hash=NULL,attempted_key_version=NULL
+    WHERE tenant_id=OLD.tenant_id AND suppression_subscriber_id=OLD.id;
   PERFORM set_config('app.nl_send_tenant',coalesce(prior_tenant,''),true);
   RETURN OLD;
 END $$;
@@ -688,7 +772,7 @@ BEGIN
   )
   SELECT to_char(daily.selected_day,'YYYY-MM-DD'),
     CASE WHEN suppressed_days.selected_day IS NULL THEN
-      '{"selected":0,"skipped":0,"queued":0,"attempted":0,"accepted":0,"failed":0,"delivered":0,"bounced":0,"complained":0,"unsubscribed":0}'::jsonb
+      '{"selected":0,"skipped":0,"queued":0,"unknown":0,"operatorReview":0,"attempted":0,"accepted":0,"failed":0,"delivered":0,"bounced":0,"complained":0,"unsubscribed":0}'::jsonb
       || daily.totals END,
     CASE WHEN suppressed_days.selected_day IS NULL THEN daily.detail END
   FROM daily LEFT JOIN suppressed_days USING (selected_day) ORDER BY daily.selected_day;
@@ -765,7 +849,7 @@ BEGIN
   owns:=coalesce(p_ownership,false) AND current_domain ~ '[.]example[.]test$'
     AND current_domain<>'newsletter.example.test' AND NOT EXISTS (
       SELECT FROM public.newsletter_connections other WHERE other.domain=current_domain AND other.tenant_id<>p_tenant
-        AND other.ownership AND other.spf AND other.dkim AND other.bounce);
+        AND other.ownership AND other.spf AND other.dkim AND other.bounce AND other.dmarc);
   UPDATE public.newsletter_connections c SET checked_at=clock_timestamp(),ownership=owns,spf=has_spf,
     dkim=has_dkim,bounce=has_bounce,dmarc=has_dmarc,
     version=c.version+((c.ownership,c.spf,c.dkim,c.bounce,c.dmarc) IS DISTINCT FROM
@@ -776,20 +860,42 @@ END $$;
 REVOKE ALL ON FUNCTION public.newsletter_domains_due(integer),
   public.newsletter_domain_check(uuid,uuid,text,boolean,boolean,boolean,boolean,boolean) FROM PUBLIC,harvest_app;
 
-CREATE FUNCTION public.newsletter_address_hash(p_tenant uuid,p_address text) RETURNS text
-LANGUAGE sql IMMUTABLE STRICT SET search_path=pg_catalog,pg_temp AS $$
-  SELECT public.nl02_hash('newsletter-suppression:'||p_tenant::text||':'||lower(btrim(p_address)))
-$$;
+-- The server supplies pepper material in a transaction-local setting via bound parameters.
+-- A digest of each random key identifies its version and prevents silent reuse with different material.
+CREATE FUNCTION public.newsletter_suppression_digests(p_tenant uuid,p_address text)
+RETURNS TABLE(key_version text,address_hash text,write_key boolean)
+LANGUAGE plpgsql STABLE SET search_path=pg_catalog,pg_temp AS $$
+DECLARE keys jsonb;
+BEGIN
+  keys:=nullif(current_setting('app.nl_suppression_keys',true),'')::jsonb;
+  IF keys IS NULL OR jsonb_typeof(keys)<>'array' THEN RAISE insufficient_privilege; END IF;
+  IF jsonb_array_length(keys) NOT BETWEEN 1 AND 8 OR EXISTS (
+    SELECT FROM jsonb_array_elements_text(keys) k(value) WHERE value IS NULL OR value !~ '^[a-f0-9]{64}$'
+  ) THEN RAISE insufficient_privilege; END IF;
+  RETURN QUERY SELECT encode(sha256(decode(value,'hex')),'hex'),
+    encode(public.hmac(convert_to('newsletter-suppression:'||p_tenant::text||':'||lower(btrim(p_address)),'UTF8'),
+      decode(value,'hex'),'sha256'),'hex'), ordinality=1
+    FROM jsonb_array_elements_text(keys) WITH ORDINALITY k(value,ordinality);
+END $$;
 
-CREATE FUNCTION public.newsletter_record_suppression(p_tenant uuid,p_list uuid,p_hash text,p_reason text,p_blocked timestamptz)
+CREATE FUNCTION public.newsletter_record_suppression(p_tenant uuid,p_list uuid,p_hash text,p_version text,p_reason text,p_blocked timestamptz)
 RETURNS void LANGUAGE plpgsql SET search_path=pg_catalog,pg_temp AS $$
 DECLARE prior text:=current_setting('app.nl_send_tenant',true);
 BEGIN
   PERFORM set_config('app.nl_send_tenant',p_tenant::text,true);
-  INSERT INTO public.newsletter_suppressions AS s(tenant_id,scope,address_hash,reason,blocked_at)
-    VALUES(p_tenant,coalesce(p_list,'00000000-0000-0000-0000-000000000000'),p_hash,p_reason,p_blocked)
-    ON CONFLICT(tenant_id,scope,address_hash,reason) DO UPDATE SET blocked_at=greatest(s.blocked_at,excluded.blocked_at);
+  INSERT INTO public.newsletter_suppressions AS s(tenant_id,scope,address_hash,key_version,reason,blocked_at)
+    VALUES(p_tenant,coalesce(p_list,'00000000-0000-0000-0000-000000000000'),p_hash,p_version,p_reason,p_blocked)
+    ON CONFLICT(tenant_id,key_version,scope,address_hash,reason) DO UPDATE SET blocked_at=greatest(s.blocked_at,excluded.blocked_at);
   PERFORM set_config('app.nl_send_tenant',coalesce(prior,''),true);
+END $$;
+
+-- Call under the tenant suppression policy. A retired or missing key cannot make a previous block invisible.
+CREATE FUNCTION public.newsletter_check_suppression_keys(p_tenant uuid) RETURNS void
+LANGUAGE plpgsql STABLE SET search_path=pg_catalog,pg_temp AS $$
+BEGIN
+  PERFORM 1 FROM public.newsletter_suppression_digests(p_tenant,NULL) WHERE write_key;
+  IF EXISTS (SELECT FROM public.newsletter_suppressions s WHERE s.tenant_id=p_tenant AND s.key_version NOT IN
+    (SELECT key_version FROM public.newsletter_suppression_digests(p_tenant,NULL))) THEN RAISE insufficient_privilege; END IF;
 END $$;
 
 CREATE FUNCTION public.newsletter_address_block(p_tenant uuid,p_address text,p_list uuid) RETURNS text
@@ -801,23 +907,24 @@ BEGIN
       SELECT FROM public.workspace_members WHERE tenant_id=p_tenant AND user_id=nullif(current_setting('app.user_id',true),'')
         AND public.newsletter_capability(role_id,'newsletter:campaigns'))) THEN RAISE insufficient_privilege; END IF;
   PERFORM set_config('app.nl_send_tenant',p_tenant::text,true);
+  PERFORM public.newsletter_check_suppression_keys(p_tenant);
   SELECT CASE WHEN bool_or(scope='00000000-0000-0000-0000-000000000000') THEN 'global_suppressed'
-    WHEN count(*)>0 THEN 'list_suppressed' END INTO result FROM public.newsletter_suppressions
-    WHERE tenant_id=p_tenant AND address_hash=public.newsletter_address_hash(p_tenant,p_address)
-      AND scope IN ('00000000-0000-0000-0000-000000000000',p_list);
+    WHEN count(*)>0 THEN 'list_suppressed' END INTO result FROM public.newsletter_suppressions s
+    JOIN public.newsletter_suppression_digests(p_tenant,p_address) k USING (key_version,address_hash)
+    WHERE s.tenant_id=p_tenant AND scope IN ('00000000-0000-0000-0000-000000000000',p_list);
   PERFORM set_config('app.nl_send_tenant',coalesce(prior,''),true);
   RETURN result;
 END $$;
-REVOKE ALL ON FUNCTION public.newsletter_address_hash(uuid,text),
-  public.newsletter_record_suppression(uuid,uuid,text,text,timestamptz),
-  public.newsletter_address_block(uuid,text,uuid) FROM PUBLIC,harvest_app;
+REVOKE ALL ON FUNCTION public.newsletter_suppression_digests(uuid,text),
+  public.newsletter_record_suppression(uuid,uuid,text,text,text,timestamptz),
+  public.newsletter_check_suppression_keys(uuid),public.newsletter_address_block(uuid,text,uuid) FROM PUBLIC,harvest_app;
 GRANT EXECUTE ON FUNCTION public.newsletter_address_block(uuid,text,uuid) TO harvest_app;
 
 CREATE FUNCTION public.newsletter_delivery_metrics(d public.newsletter_deliveries,p_expired boolean)
 RETURNS TABLE(metric text) LANGUAGE sql IMMUTABLE SET search_path=pg_catalog,pg_temp AS $$
   SELECT metric FROM (VALUES ('selected',true),('skipped',d.state='skipped' OR (p_expired AND d.state='queued')),
     ('queued',NOT p_expired AND d.state='queued'),('attempted',d.attempted_at IS NOT NULL),('accepted',d.accepted_at IS NOT NULL),
-    ('failed',d.state='failed'),('delivered',d.delivered_at IS NOT NULL),('bounced',d.bounced_at IS NOT NULL),
+    ('failed',d.state='failed'),('unknown',d.state='unknown'),('operatorReview',d.state='operator_review'),('delivered',d.delivered_at IS NOT NULL),('bounced',d.bounced_at IS NOT NULL),
     ('complained',d.complained_at IS NOT NULL),('unsubscribed',d.unsubscribed_at IS NOT NULL),
     ('reason:'||d.skip_reason,d.skip_reason IS NOT NULL),('reason:expired',p_expired AND d.state='queued')
   ) AS m(metric,include) WHERE include
@@ -865,6 +972,12 @@ BEGIN
     PERFORM public.newsletter_finish_campaign(campaign.tenant_id,campaign.id);
     EXIT WHEN purged>=p_limit;
   END LOOP;
+  WITH expired AS (
+    SELECT message_id FROM public.newsletter_callback_receipts WHERE expires_at<cutoff+interval '2160 hours'
+    ORDER BY expires_at,message_id LIMIT p_limit FOR UPDATE SKIP LOCKED
+  )
+  DELETE FROM public.newsletter_callback_receipts receipt USING expired
+    WHERE receipt.message_id=expired.message_id;
   INSERT INTO public.newsletter_retention_runs(purged) VALUES(purged);
   RETURN purged;
 END $$;
@@ -881,7 +994,7 @@ END $$;
 --> statement-breakpoint
 CREATE OR REPLACE FUNCTION public.nl02_apply_unsubscribe(p_nonce text,p_scope text) RETURNS void
 LANGUAGE plpgsql SET search_path=pg_catalog,pg_temp AS $$
-DECLARE token public.newsletter_preference_tokens; contact uuid; email text;
+DECLARE token public.newsletter_preference_tokens; contact uuid; email text; fingerprint record;
 BEGIN
   SELECT * INTO token FROM public.newsletter_preference_tokens
     WHERE token_hash=public.nl02_hash(p_nonce) AND scope=p_scope AND expires_at>clock_timestamp();
@@ -897,8 +1010,9 @@ BEGIN
   DELETE FROM public.newsletter_preference_tokens WHERE token_hash=token.token_hash AND expires_at>clock_timestamp();
   IF NOT FOUND THEN RETURN; END IF;
 
+  SELECT * INTO STRICT fingerprint FROM public.newsletter_suppression_digests(token.tenant_id,email) WHERE write_key;
   PERFORM public.newsletter_record_suppression(token.tenant_id,token.list_id,
-    public.newsletter_address_hash(token.tenant_id,email),'unsubscribe',clock_timestamp());
+    fingerprint.address_hash,fingerprint.key_version,'unsubscribe',clock_timestamp());
   IF token.scope='list' THEN
     UPDATE public.newsletter_subscriptions SET state='unsubscribed',consent_id=NULL,version=version+1,updated_at=clock_timestamp()
       WHERE tenant_id=token.tenant_id AND subscriber_id=token.subscriber_id AND list_id=token.list_id AND state='subscribed';
@@ -995,14 +1109,16 @@ END $$;
 CREATE FUNCTION public.newsletter_apply_verified_opt_in(p_tenant uuid,p_list uuid,p_address text,p_issued_at timestamptz) RETURNS boolean
 LANGUAGE plpgsql SET search_path=pg_catalog,pg_temp AS $$
 DECLARE prior text:=current_setting('app.nl_send_tenant',true); blocked boolean;
-  hash text:=public.newsletter_address_hash(p_tenant,p_address);
 BEGIN
   PERFORM set_config('app.nl_send_tenant',p_tenant::text,true);
-  SELECT EXISTS (SELECT FROM public.newsletter_suppressions
-    WHERE tenant_id=p_tenant AND address_hash=hash AND scope IN ('00000000-0000-0000-0000-000000000000',p_list)
+  PERFORM public.newsletter_check_suppression_keys(p_tenant);
+  SELECT EXISTS (SELECT FROM public.newsletter_suppressions s
+    JOIN public.newsletter_suppression_digests(p_tenant,p_address) k USING (key_version,address_hash)
+    WHERE s.tenant_id=p_tenant AND scope IN ('00000000-0000-0000-0000-000000000000',p_list)
       AND (reason<>'unsubscribe' OR blocked_at>=p_issued_at)) INTO blocked;
   IF NOT blocked THEN
-    DELETE FROM public.newsletter_suppressions WHERE tenant_id=p_tenant AND address_hash=hash
+    DELETE FROM public.newsletter_suppressions s USING public.newsletter_suppression_digests(p_tenant,p_address) k
+      WHERE s.tenant_id=p_tenant AND (s.key_version,s.address_hash)=(k.key_version,k.address_hash)
       AND scope IN ('00000000-0000-0000-0000-000000000000',p_list) AND reason='unsubscribe' AND blocked_at<p_issued_at;
   END IF;
   PERFORM set_config('app.nl_send_tenant',coalesce(prior,''),true);
