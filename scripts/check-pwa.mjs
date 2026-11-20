@@ -47,6 +47,7 @@ const server = spawn(process.execPath, ["node_modules/next/dist/bin/next", "star
   stdio: "ignore", env: { ...process.env, NEXT_TELEMETRY_DISABLED: "1",
     DATABASE_URL: "postgresql://unused:unused@127.0.0.1:1/harvest_test_unused", DATABASE_URL_UNPOOLED: "",
     BETTER_AUTH_SECRET: randomBytes(48).toString("base64url"), BETTER_AUTH_URL: "http://127.0.0.1:3200",
+    HARVEST_NEWSLETTER_SUPPRESSION_KEYS: JSON.stringify([randomBytes(32).toString("hex")]),
     RESEND_API_KEY: "re_local_audit_unused", EMAIL_FROM: "Harvest <audit@example.test>" },
 });
 let chrome, browser;

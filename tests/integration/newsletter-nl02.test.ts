@@ -28,6 +28,10 @@ beforeAll(async () => {
   vi.stubEnv("HARVEST_NEWSLETTER_SUPPRESSION_KEYS", JSON.stringify([randomBytes(32).toString("hex")]));
   vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("unexpected_network"));
   fixture = await testDatabase({ migrationOwner: true, beforeNewsletterNl02Migration: async pool => {
+    // Rehearse an installation whose extension schema is outside the function search path.
+    await pool.query('CREATE SCHEMA "crypto-extensions"; CREATE EXTENSION pgcrypto WITH SCHEMA "crypto-extensions"');
+    const owner = await pool.query<{ datdba: string }>("SELECT pg_get_userbyid(datdba) AS datdba FROM pg_database WHERE datname=current_database()");
+    await pool.query(`GRANT USAGE ON SCHEMA "crypto-extensions" TO "${owner.rows[0].datdba}"`);
     expect((await pool.query("select to_regclass('public.newsletter_signup_forms') t")).rows[0].t).toBeNull();
     const { tenant, contact, consent, audience, list, subscriber } = migrated;
     const connection = await pool.connect();
@@ -118,6 +122,32 @@ it("requires explicit consent and matching confirmation with one canonical grant
   const rateEmail = address();
   for (let i = 0; i < 3; i++) await challenge(rateEmail);
   expect(await startNewsletterSignup(fixture.db, optIn(rateEmail))).toBeNull();
+});
+
+it("returns a retryable failure without consuming signup or unsubscribe tokens when the key ring is missing", async () => {
+  const email = address(), token = await challenge(email);
+  const subscribed = await join();
+  const preference = await issueNewsletterPreference(fixture.db, owner, tenant, subscribed.id, { scope: "list", listId: list });
+  const keyRing = process.env.HARVEST_NEWSLETTER_SUPPRESSION_KEYS;
+  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  const post = (kind: "confirm" | "unsubscribe", body: object) => newsletterPublicPost(
+    new Request(`http://localhost/api/newsletter/${kind}`, { method: "POST", body: JSON.stringify(body),
+      headers: { "Content-Type": "application/json" } }), kind);
+  try {
+    vi.stubEnv("HARVEST_NEWSLETTER_SUPPRESSION_KEYS", undefined);
+    expect((await post("confirm", { email, token })).status).toBe(503);
+    expect((await post("unsubscribe", { scope: "list", token: preference })).status).toBe(503);
+    expect(error.mock.calls).toEqual(Array.from({ length: 2 }, () => ["NEWSLETTER_SUPPRESSION_KEYS_UNAVAILABLE"]));
+    expect((await fixture.admin.query("select 1 from contact_identifiers where normalized_value=$1", [email])).rowCount).toBe(0);
+    expect((await state(subscribed.id)).state).toBe("subscribed");
+  } finally {
+    vi.stubEnv("HARVEST_NEWSLETTER_SUPPRESSION_KEYS", keyRing);
+    error.mockRestore();
+  }
+  expect((await post("confirm", { email, token })).status).toBe(202);
+  expect((await fixture.admin.query("select 1 from contact_identifiers where normalized_value=$1", [email])).rowCount).toBe(1);
+  expect((await post("unsubscribe", { scope: "list", token: preference })).status).toBe(202);
+  expect((await state(subscribed.id)).state).toBe("unsubscribed");
 });
 
 it("lists and all-newsletters tokens have separate authority, replays and withdrawals stay idempotent", async () => {

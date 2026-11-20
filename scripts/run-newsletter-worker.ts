@@ -2,6 +2,7 @@ import { createPool } from "../src/db/pool";
 import { FakeNewsletterProvider } from "../src/server/newsletter-campaigns/fake-provider";
 import { purgeNewsletterDeliveries, recheckNewsletterDomains } from "../src/server/newsletter-campaigns/maintenance";
 import { newsletterWorkerEnabled, runNewsletterWorker } from "../src/server/newsletter-campaigns/worker";
+import { checkNewsletterSuppressionStartup } from "../src/server/newsletter-campaigns/suppression-keys";
 import { workerDatabaseUrl } from "../src/server/worker-role";
 
 const action = process.argv[2] ?? "deliver";
@@ -11,11 +12,15 @@ const flags = new Map([
   ["purge", "HARVEST_NEWSLETTER_RETENTION_ENABLED"],
 ]);
 const flag = flags.get(action);
-if (!flag) throw new Error("UNKNOWN_NEWSLETTER_WORKER_ACTION");
-
-if (newsletterWorkerEnabled(process.env, flag)) {
+if (action === "check-suppression") {
+  try { checkNewsletterSuppressionStartup("worker"); }
+  catch { process.exitCode = 1; }
+} else if (!flag) {
+  throw new Error("UNKNOWN_NEWSLETTER_WORKER_ACTION");
+} else if (newsletterWorkerEnabled(process.env, flag)) {
   let pool;
   try {
+    checkNewsletterSuppressionStartup("worker");
     pool = createPool(workerDatabaseUrl());
     pool.on("error", () => console.error("newsletter_worker_pool_failed"));
     const provider = new FakeNewsletterProvider();

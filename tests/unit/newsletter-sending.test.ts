@@ -1,6 +1,8 @@
 import { createHmac, createSign, generateKeyPairSync, randomUUID } from "node:crypto";
 import { readdirSync, readFileSync } from "node:fs";
 import { expect, it, vi } from "vitest";
+import { register } from "../../src/instrumentation";
+import { checkNewsletterSuppressionStartup } from "../../src/server/newsletter-campaigns/suppression-keys";
 import { newsletterContent, renderNewsletter } from "../../src/lib/newsletter-content";
 import { FakeNewsletterProvider } from "../../src/server/newsletter-campaigns/fake-provider";
 import { newsletterCallback } from "../../src/server/newsletter-campaigns/callback";
@@ -163,4 +165,29 @@ it("requires a schedule within 60 days with a specific validation message", () =
       path: ["schedule", "at"], message: "Schedule the newsletter within 60 days of review.",
     });
   } finally { clock.mockRestore(); }
+});
+
+it("fails closed at web and worker startup and reports only suppression key ring status and count", async () => {
+  const info = vi.spyOn(console, "info").mockImplementation(() => {});
+  const error = vi.spyOn(console, "error").mockImplementation(() => {});
+  const ring = JSON.stringify(["ab".repeat(32), "cd".repeat(32)]);
+  try {
+    vi.stubEnv("NEXT_RUNTIME", "nodejs");
+    for (const invalid of [undefined, "invalid json", JSON.stringify(["ab".repeat(32), "ab".repeat(32)])]) {
+      vi.stubEnv("HARVEST_NEWSLETTER_SUPPRESSION_KEYS", invalid);
+      await expect(register()).rejects.toThrow(/^NEWSLETTER_SUPPRESSION_KEYS_UNAVAILABLE$/);
+      expect(() => checkNewsletterSuppressionStartup("worker", process.env)).toThrow(/^NEWSLETTER_SUPPRESSION_KEYS_UNAVAILABLE$/);
+    }
+    expect(error.mock.calls.flat().map(line => JSON.parse(line))).toEqual(Array.from({ length: 3 }, () => ["web", "worker"]).flat().map(runtime =>
+      ({ event: "newsletter_suppression_key_ring", runtime, status: "missing", keyVersionCount: 0 })));
+    vi.stubEnv("HARVEST_NEWSLETTER_SUPPRESSION_KEYS", ring);
+    await register();
+    checkNewsletterSuppressionStartup("worker", process.env);
+    expect(info.mock.calls.flat().map(line => JSON.parse(line))).toEqual(["web", "worker"].map(runtime =>
+      ({ event: "newsletter_suppression_key_ring", runtime, status: "present", keyVersionCount: 2 })));
+  } finally {
+    vi.unstubAllEnvs();
+    info.mockRestore();
+    error.mockRestore();
+  }
 });

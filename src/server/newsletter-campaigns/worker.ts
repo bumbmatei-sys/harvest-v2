@@ -24,10 +24,10 @@ export async function runNewsletterWorker(pool: Pool, env: NodeJS.ProcessEnv, pr
   options: { limit?: number; leaseSeconds?: number; beforeAuthorize?: () => Promise<void>;
     log?: (metadata: string) => void } = {}) {
   if (!newsletterWorkerEnabled(env, "HARVEST_NEWSLETTER_WORKER_ENABLED")) return null;
-  await requireWorkerRole(pool);
   const key = newsletterKey(env);
   if (!key) throw new Error("NEWSLETTER_CREDENTIAL_UNAVAILABLE");
   const suppressionKeys = newsletterSuppressionKeys(env);
+  await requireWorkerRole(pool);
   const origin = newsletterOrigin();
   const { rows: [{ claimed }] } = await pool.query<{ claimed: Claimed[] }>(
     "select public.newsletter_delivery_claim($1,$2) as claimed", [options.limit ?? 20, options.leaseSeconds ?? 120]);

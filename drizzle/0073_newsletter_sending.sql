@@ -862,6 +862,26 @@ REVOKE ALL ON FUNCTION public.newsletter_domains_due(integer),
 
 -- The server supplies pepper material in a transaction-local setting via bound parameters.
 -- A digest of each random key identifies its version and prevents silent reuse with different material.
+DO $migration$
+DECLARE crypto_schema name;
+BEGIN
+  SELECT n.nspname INTO crypto_schema
+  FROM pg_catalog.pg_extension e
+  JOIN pg_catalog.pg_namespace n ON n.oid=e.extnamespace
+  JOIN pg_catalog.pg_depend d ON d.refclassid='pg_catalog.pg_extension'::regclass
+    AND d.refobjid=e.oid AND d.classid='pg_catalog.pg_proc'::regclass AND d.deptype='e'
+    AND d.objid=pg_catalog.to_regprocedure(pg_catalog.format('%I.hmac(bytea,bytea,text)',n.nspname))
+  WHERE e.extname='pgcrypto';
+  IF crypto_schema IS NULL THEN
+    RAISE EXCEPTION '0073 requires pgcrypto hmac(bytea,bytea,text) in the pgcrypto extension schema';
+  END IF;
+  IF NOT pg_catalog.has_schema_privilege(crypto_schema,'USAGE') OR NOT pg_catalog.has_function_privilege(
+    pg_catalog.to_regprocedure(pg_catalog.format('%I.hmac(bytea,bytea,text)',crypto_schema)),'EXECUTE'
+  ) THEN
+    RAISE EXCEPTION '0073 migration owner needs USAGE on the pgcrypto schema and EXECUTE on hmac(bytea,bytea,text)';
+  END IF;
+  -- Bind the extension member's qualified name without broadening the function search path.
+  EXECUTE pg_catalog.format($definition$
 CREATE FUNCTION public.newsletter_suppression_digests(p_tenant uuid,p_address text)
 RETURNS TABLE(key_version text,address_hash text,write_key boolean)
 LANGUAGE plpgsql STABLE SET search_path=pg_catalog,pg_temp AS $$
@@ -873,10 +893,12 @@ BEGIN
     SELECT FROM jsonb_array_elements_text(keys) k(value) WHERE value IS NULL OR value !~ '^[a-f0-9]{64}$'
   ) THEN RAISE insufficient_privilege; END IF;
   RETURN QUERY SELECT encode(sha256(decode(value,'hex')),'hex'),
-    encode(public.hmac(convert_to('newsletter-suppression:'||p_tenant::text||':'||lower(btrim(p_address)),'UTF8'),
-      decode(value,'hex'),'sha256'),'hex'), ordinality=1
+    encode(%I.hmac(convert_to('newsletter-suppression:'||p_tenant::text||':'||lower(btrim(p_address)),'UTF8'),
+      decode(value,'hex'),'sha256'::text),'hex'), ordinality=1
     FROM jsonb_array_elements_text(keys) WITH ORDINALITY k(value,ordinality);
 END $$;
+  $definition$,crypto_schema);
+END $migration$;
 
 CREATE FUNCTION public.newsletter_record_suppression(p_tenant uuid,p_list uuid,p_hash text,p_version text,p_reason text,p_blocked timestamptz)
 RETURNS void LANGUAGE plpgsql SET search_path=pg_catalog,pg_temp AS $$
