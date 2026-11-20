@@ -130,6 +130,15 @@ test("forum: categories, a full post, likes and replies, edits, pinning and remo
     expect(id).toMatch(/^[0-9a-f-]{36}$/);
     const postUrl = `/communities/${slug}/posts/${id}`;
     await a.waitForURL(`**${postUrl}`);
+    const clickAndRefreshPost = async (button: Locator, method: string, path: string) => {
+      const page = button.page();
+      const [, refreshed] = await Promise.all([
+        waitForCommunityResponse(page, method, path),
+        waitForCommunityResponse(page, "GET", postUrl),
+        button.click(),
+      ]);
+      expect(await refreshed.finished()).toBeNull();
+    };
     const article = a.locator("article");
     await expect(article.getByRole("heading", { name: "Week one", level: 2 })).toBeVisible();
     await expect(article.getByRole("listitem").filter({ hasText: "Chapters 5-8" })).toBeVisible();
@@ -145,7 +154,7 @@ test("forum: categories, a full post, likes and replies, edits, pinning and remo
     await r.getByRole("button", { name: "Like Romans reading plan", exact: true }).click();
     await expect(r.getByRole("button", { name: "Unlike Romans reading plan", exact: true })).toBeVisible();
     await r.getByLabel("Reply", { exact: true }).fill("Count me in.");
-    await r.getByRole("button", { name: "Reply", exact: true }).click();
+    await clickAndRefreshPost(r.getByRole("button", { name: "Reply", exact: true }), "POST", `/api${postUrl}/comments`);
     await expect(r.getByText("Count me in.", { exact: true })).toBeVisible();
     // Members cannot pin; there is no host control for them.
     await expect(r.getByRole("button", { name: "Pin", exact: true })).toHaveCount(0);
@@ -155,15 +164,16 @@ test("forum: categories, a full post, likes and replies, edits, pinning and remo
     await a.getByRole("button", { name: "Edit", exact: true }).click();
     const edit = a.getByRole("dialog", { name: "Edit post" });
     await edit.getByLabel("Title", { exact: true }).fill("Romans reading plan (updated)");
-    await edit.getByRole("button", { name: "Save", exact: true }).click();
+    await clickAndRefreshPost(edit.getByRole("button", { name: "Save", exact: true }), "PATCH", `/api${postUrl}`);
     await expect(a.getByRole("heading", { name: "Romans reading plan (updated)", level: 2 })).toBeVisible();
     await shoot(a, "post");
 
     // The host pins the post and removes the reply.
     await page.goto(postUrl);
-    await page.getByRole("button", { name: "Pin", exact: true }).click();
+    const moderationPath = `/api/communities/${slug}/moderation`;
+    await clickAndRefreshPost(page.getByRole("button", { name: "Pin", exact: true }), "POST", moderationPath);
     await expect(page.getByRole("button", { name: "Unpin", exact: true })).toBeVisible();
-    await page.getByRole("button", { name: /Remove reply by/ }).click();
+    await clickAndRefreshPost(page.getByRole("button", { name: /Remove reply by/ }), "POST", moderationPath);
     await expect(page.getByText("Count me in.", { exact: true })).toHaveCount(0);
     await r.reload();
     await expect(r.getByText("Count me in.", { exact: true })).toHaveCount(0);
