@@ -48,6 +48,8 @@ export type InboundEventKind =
   | "message.received" | "message.sent" | "message.failed" | "comment.received" | "mention.received" | "other";
 export type InboundEvent = {
   eventId: string;
+  activityRef?: string;
+  publishedPostRef?: string;
   kind: InboundEventKind;
   /** The provider's own event name, kept only for `other`, bounded. */
   rawType: string;

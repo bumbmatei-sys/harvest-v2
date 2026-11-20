@@ -1,3 +1,4 @@
+import type { AutoDmEvent, AutoDmEvidence } from "./auto-dm-contract";
 import type { InboxEntry, InboxItemQuery, InboxListQuery, InboxReadPage, InboxReplyEligibility, InboxReplyQuery, InboxReplyRequest } from "./inbox-contract";
 import type {
   Comment, CommentReplyRequest, Conversation, InboundEvent, Message, Page, PageQuery, PostStatusResult, PublishRequest, PublishResult,
@@ -33,6 +34,7 @@ export interface SocialProvider {
   listInbox(cred: SocialCredential, query: InboxListQuery): Promise<Page<InboxEntry>>;
   readInbox(cred: SocialCredential, query: InboxItemQuery): Promise<InboxReadPage>;
   inboxReplyEligibility(cred: SocialCredential, query: InboxReplyQuery): Promise<InboxReplyEligibility>;
+  readAutoDmEvidence(cred: SocialCredential, query: AutoDmEvent): Promise<AutoDmEvidence | null>;
   /** Constant-time check of the delivery signature against every accepted secret. */
   verifyWebhook(rawBody: string, signature: string | null, secrets: readonly string[]): boolean;
   /** Returns null for a body that is not a recognisable event. Never returns message or comment text. */

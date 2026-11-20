@@ -1,3 +1,4 @@
+import type { AutoDmEvent, AutoDmEvidence } from "./auto-dm-contract";
 import type { InboxEntry, InboxItemQuery, InboxListQuery, InboxMessage, InboxReplyEligibility, InboxReplyQuery, InboxReplyRequest } from "./inbox-contract";
 import { SocialProviderError, type SocialProvider, type SocialSender } from "./port";
 import { deliveryKey } from "./types";
@@ -113,7 +114,8 @@ export class FakeProvider implements SocialProvider, SocialSender {
     const known: InboundEventKind[] = ["post.scheduled", "post.published", "post.partial", "post.failed", "post.cancelled", "account.connected", "account.disconnected", "message.received", "message.sent", "message.failed", "comment.received", "mention.received"];
     const kind = known.find((k) => k === type) ?? "other";
     const platform = isSocialPlatform(b.platform) ? b.platform : null;
-    return { eventId, kind, rawType: kind === "other" ? type : "", accountRef: str(b.accountRef), subjectRef: str(b.subjectRef), platform, errorCategory: str(b.errorCategory, 60), occurredAt: at,
+    return { eventId, kind, activityRef: str(b.activityRef) ?? undefined, rawType: kind === "other" ? type : "", accountRef: str(b.accountRef), subjectRef: str(b.subjectRef), platform, errorCategory: str(b.errorCategory, 60), occurredAt: at,
+      ...(str(b.publishedPostRef) ? { publishedPostRef:str(b.publishedPostRef)! } : {}),
       ...(kind.startsWith("post.") && deliveryKey(b.correlationKey) ? { correlationKey: b.correlationKey } : {}) };
   }
   async sendMessage(cred: SocialCredential, request: SendMessageRequest): Promise<SendResult> {
@@ -161,6 +163,14 @@ export class FakeProvider implements SocialProvider, SocialSender {
       return { allowed: false, reason: "target_unavailable" };
     return this.replyEligibility.get(this.inboxKey(query)) ?? { allowed: true, expiresAt: null, media: true, quote: true };
   }
+  autoDmEvidence = new Map<string, AutoDmEvidence>();
+
+  async readAutoDmEvidence(cred: SocialCredential, query: AutoDmEvent) {
+    this.enter("readAutoDmEvidence", cred);
+    query.signal.throwIfAborted();
+    return this.autoDmEvidence.get(JSON.stringify([query.accountRef, query.subjectRef, query.activityRef])) ?? null;
+  }
+
   async dispatchInboxReply(cred: SocialCredential, request: InboxReplyRequest) {
     this.enter("dispatchInboxReply", cred, request.idempotencyKey);
     const previous = this.replyResults.get(request.idempotencyKey);
