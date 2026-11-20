@@ -178,12 +178,12 @@ async function shellMatrix(page: Page) {
     await capture(page, `shell-collapsed-${brand}-${mode}`);
     // Closed groups must still expose their icon links in the collapsed rail.
     await trigger.click();
-    await sidebar.getByRole("button", { name: "CRM", exact: true }).click();
+    await sidebar.getByRole("button", { name: "People", exact: true }).click();
     await expect(sidebar.getByRole("link", { name: "People", exact: true })).toBeHidden();
     await page.keyboard.press("Control+b");
     await expect(sidebar.getByRole("link", { name: "People", exact: true })).toBeVisible();
     await page.keyboard.press("Control+b");
-    await sidebar.getByRole("button", { name: "CRM", exact: true }).click();
+    await sidebar.getByRole("button", { name: "People", exact: true }).click();
     await page.setViewportSize({ width: 390, height: 844 });
     await expect(inset).toHaveCSS("margin-top", "0px");
     await expect(inset).toHaveCSS("border-radius", "0px");
