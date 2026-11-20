@@ -3,7 +3,7 @@ import type {
   SendMessageRequest, SendResult, SocialAccount, SocialAccountHealth, SocialCredential, SocialProviderId,
 } from "./types";
 
-export const providerErrorCodes = ["AUTH", "RATE_LIMITED", "INVALID_REQUEST", "NOT_FOUND", "CONFLICT", "UNAVAILABLE", "DISABLED"] as const;
+export const providerErrorCodes = ["AUTH", "RATE_LIMITED", "INVALID_REQUEST", "NOT_FOUND", "CONFLICT", "UNAVAILABLE", "DISABLED", "MEDIA_EXPIRED"] as const;
 export type ProviderErrorCode = typeof providerErrorCodes[number];
 /**
  * The only error a provider may throw. The message is the fixed code: never a response body, token or request content.

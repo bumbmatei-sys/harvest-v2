@@ -1,8 +1,9 @@
 import { SocialProviderError, type SocialProvider, type SocialSender } from "./port";
 import { verifyBodySignature } from "./webhook-signature";
-import { socialPlatforms, type Comment, type CommentReplyRequest, type Conversation, type InboundEvent, type InboundEventKind, type Message, type Page, type PageQuery,
+import { isSocialPlatform } from "../../lib/social/platforms";
+import { deliveryKey, type Comment, type CommentReplyRequest, type Conversation, type InboundEvent, type InboundEventKind, type Message, type Page, type PageQuery,
   type PostStatusResult, type ProviderPostStatus, type PublishRequest, type PublishResult, type SendMessageRequest, type SendResult, type SocialAccount,
-  type SocialAccountHealth, type SocialCredential, type SocialPlatform } from "./types";
+  type SocialAccountHealth, type SocialCredential } from "./types";
 
 // The ONLY module that names the vendor host or speaks the vendor wire format. Nothing outside this file (and the registry that
 // constructs it) may import it, mention the host, or import a vendor HTTP client (scripts/source-guards.ts, tests/unit/social-source-guard.test.ts).
@@ -23,7 +24,7 @@ export type ZernioOptions = {
   now?: () => Date;
 };
 const MAX_BACKOFF_MS = 30_000;
-const isPlatform = (value: unknown): value is SocialPlatform => (socialPlatforms as readonly string[]).includes(value as string);
+const isPlatform = isSocialPlatform;
 const record = (value: unknown): Record<string, unknown> => (value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {});
 const text = (value: unknown, max = 200): string | null => (typeof value === "string" && value.length >= 1 && value.length <= max ? value : null);
 const date = (value: unknown): Date | null => { if (typeof value !== "string") return null; const d = new Date(value); return Number.isNaN(d.getTime()) ? null : d; };
@@ -110,13 +111,57 @@ export class ZernioAdapter implements SocialProvider, SocialSender {
     return { accountRef, health, code: health === "healthy" ? null : (text(record(body.health).code ?? body.code, 60)?.replace(/[^a-z0-9_.-]/gi, "_") ?? null) };
   }
   async publishPost(cred: SocialCredential, request: PublishRequest): Promise<PublishResult> {
+    const { platform, options, draftType, coverUrl } = request;
+    const settings: Record<string, unknown> = {};
+    if (options?.firstComment !== undefined) settings.firstComment = options.firstComment;
+    if (options?.title !== undefined && draftType !== "article") settings.title = options.title;
+    if (draftType === "story" || options?.format === "reel") settings.contentType = draftType === "story" ? "story" : "reel";
+    if (platform === "twitter" && draftType === "article") {
+      settings.article = {
+        title: options?.title, content_state: { blocks: request.content.split("\n").map(text => ({ type: "unstyled", text })), entities: [] },
+        ...(coverUrl ? { cover: { url: coverUrl } } : {}),
+      };
+    }
+    if (platform === "twitter" && options?.madeWithAi !== undefined) settings.madeWithAi = options.madeWithAi;
+    if ((platform === "instagram" || platform === "pinterest") && options?.madeWithAi !== undefined) settings.isAiGenerated = options.madeWithAi;
+    if (platform === "youtube" && options?.madeWithAi !== undefined) settings.containsSyntheticMedia = options.madeWithAi;
+    if (platform === "instagram") {
+      if (options?.coverTimeMs !== undefined) settings.thumbOffset = options.coverTimeMs;
+      if (coverUrl) settings.instagramThumbnail = coverUrl;
+    }
+    if (platform === "pinterest") {
+      if (options?.boardId) settings.boardId = options.boardId;
+      if (coverUrl) settings.coverImageUrl = coverUrl;
+      if (options?.coverTimeMs !== undefined) settings.coverImageKeyFrameTime = options.coverTimeMs / 1000;
+      if (options?.linkUrl) settings.link = options.linkUrl;
+    }
+    if (platform === "reddit") {
+      if (options?.subreddit) settings.subreddit = options.subreddit;
+      if (options?.linkUrl) settings.url = options.linkUrl;
+      if (coverUrl) settings.videoPosterUrl = coverUrl;
+    }
+    if (platform === "googlebusiness" && options?.linkUrl) settings.callToAction = { type: "LEARN_MORE", url: options.linkUrl };
+    if (platform === "discord" && options?.channelId) settings.channelId = options.channelId;
+    const tiktok = options?.tiktok ? {
+      privacy_level: options.tiktok.privacy, content_preview_confirmed: options.tiktok.confirmedPreview, express_consent_given: options.tiktok.consent,
+      ...(options.madeWithAi !== undefined ? { video_made_with_ai: options.madeWithAi } : {}),
+      ...(options.coverTimeMs !== undefined ? { video_cover_timestamp_ms: options.coverTimeMs } : {}),
+      ...(coverUrl ? { video_cover_image_url: coverUrl } : {}),
+      ...(request.media.every(media => media.kind === "image") ? { description: request.content } : {}),
+    } : undefined;
+    const target = { platform, accountId: request.accountRef, ...(Object.keys(settings).length ? { platformSpecificData: settings } : {}) };
+    const mediaItems = request.media.map(media => ({
+      type: media.kind, url: media.url, ...(media.altText !== undefined ? { altText: media.altText } : {}),
+      ...(media.subtitles?.length ? { subtitles: media.subtitles } : {}),
+      ...(media.thumbnailUrl && (platform === "facebook" || platform === "youtube" || platform === "linkedin") ? { thumbnail: media.thumbnailUrl } : {}),
+    }));
     const body: Record<string, unknown> = {
-      content: request.content, platforms: [{ platform: request.platform, accountId: request.accountRef }],
-      ...(request.media.length ? { mediaItems: request.media.map((m) => ({ type: m.kind, url: m.url })) } : {}),
+      content: draftType === "article" ? "" : request.content, platforms: [target],
+      ...(draftType ? { metadata: { harvestDeliveryKey: request.idempotencyKey } } : {}), ...(mediaItems.length ? { mediaItems } : {}), ...(tiktok ? { tiktokSettings: tiktok } : {}),
       ...(request.scheduledFor ? { scheduledFor: request.scheduledFor.toISOString().replace(/\.\d{3}Z$/, ""), timezone: "UTC" } : { publishNow: true }),
     };
     // One key per logical post, sent on every attempt: the provider returns the original for 24 hours, so a retry cannot double-post.
-    const parsed = record(await this.call(cred, "POST", "/posts", { body, headers: { "Idempotency-Key": request.idempotencyKey }, idempotent: true }));
+    const parsed = record(await this.call(cred, "POST", "/posts", { body, headers: { "Idempotency-Key": request.idempotencyKey }, idempotent: !draftType }));
     const post = record(parsed.post), postRef = text(post._id ?? post.id), status = post.status;
     if (!postRef) throw new SocialProviderError("UNAVAILABLE");
     return { postRef, status: postStatuses.includes(status as ProviderPostStatus) ? status as ProviderPostStatus : "publishing" };
@@ -175,6 +220,7 @@ export class ZernioAdapter implements SocialProvider, SocialSender {
     const kind = map[name] ?? "other", post = record(b.post), account = record(b.account), message = record(b.message), comment = record(b.comment);
     const firstTarget = record((Array.isArray(post.platforms) ? post.platforms : [])[0]);
     const failed = (Array.isArray(post.platforms) ? post.platforms : []).map(record).find((p) => text(p.errorCategory));
+    const correlationKey = record(post.metadata).harvestDeliveryKey;
     const platform = [account.platform, message.platform, firstTarget.platform].find(isPlatform) ?? null;
     // Only identifiers leave this function. Message and comment text, sender names and similar content are dropped here.
     return {
@@ -182,6 +228,7 @@ export class ZernioAdapter implements SocialProvider, SocialSender {
       accountRef: text(account.accountId ?? account.id) ?? text(firstTarget.accountId),
       subjectRef: kind.startsWith("post.") ? text(post.id ?? post._id) : kind.startsWith("message.") ? text(message.conversationId) : kind === "comment.received" ? text(comment.id) : null,
       platform, errorCategory: failed ? safeCode(failed.errorCategory) : null, occurredAt,
+      ...(kind.startsWith("post.") && deliveryKey(correlationKey) ? { correlationKey } : {}),
     };
   }
 

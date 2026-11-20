@@ -20,7 +20,9 @@ try {
   const lock = await client.query<{ locked: boolean }>("select pg_try_advisory_lock(hashtext('harvest:social-publisher')) as locked");
   if (!lock.rows[0].locked) console.log(JSON.stringify({ alreadyRunning: true }));
   else {
-    try { console.log(JSON.stringify(await runSocialPublisher(client, () => fake))); }
+    try { console.log(JSON.stringify(await runSocialPublisher(client, () => fake, {
+      releaseMedia: async ({ id }) => ({ url: `https://media.example.test/${id}`, expiresAt: new Date(Date.now() + 60_000) }),
+    }))); }
     finally { await client.query("select pg_advisory_unlock(hashtext('harvest:social-publisher'))").catch(() => undefined); }
   }
 } catch { console.error("social_publisher_failed"); process.exitCode = 1; }

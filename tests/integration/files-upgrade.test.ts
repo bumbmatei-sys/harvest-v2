@@ -16,7 +16,7 @@ it("upgrades a database at main+#3 to 0004_files while preserving OTP issuance s
     const { rows: policies } = await fixture.admin.query(`select policyname from pg_policies
       where schemaname = 'public' and tablename = 'files' and ('harvest_app' = any(roles) or 'public' = any(roles))
       order by policyname`);
-    expect(policies.map((row) => row.policyname)).toEqual(["files_public_delivery", "files_tenant"]);
+    expect(policies.map((row) => row.policyname)).toEqual(["files_public_delivery", "files_tenant", "social_file_admin"]);
     expect((await fixture.db.execute("select * from files")).rows).toEqual([]);
   } finally { await fixture.close(); }
 });

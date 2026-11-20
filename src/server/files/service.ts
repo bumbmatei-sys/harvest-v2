@@ -45,7 +45,7 @@ export async function confirmUpload(db: Database, storage: StorageAdapter, userI
   const pending = await withTenant(db, userId, workspaceHint, "workspace:read", async (tx, tenantId, role) => {
     requireWriter(role);
     const [file] = await tx.select().from(files).where(and(eq(files.tenantId, tenantId), eq(files.id, fileId)));
-    if (!file) throw new AccessError(404, message("Errors.fileNotFound"));
+    if (!file || file.socialUpload) throw new AccessError(404, message("Errors.fileNotFound"));
     if (file.ownerId !== userId) throw new AccessError(403, message("Errors.onlyTheUploaderCanConfirmThisFile"));
     return file;
   });
@@ -68,7 +68,7 @@ export async function confirmUpload(db: Database, storage: StorageAdapter, userI
   return withTenant(db, userId, workspaceHint, "workspace:read", async (tx, tenantId, role) => {
     requireWriter(role);
     const [file] = await tx.select().from(files).where(and(eq(files.tenantId, tenantId), eq(files.id, fileId))).for("update");
-    if (!file) throw new AccessError(404, message("Errors.fileNotFound"));
+    if (!file || file.socialUpload) throw new AccessError(404, message("Errors.fileNotFound"));
     if (file.ownerId !== userId) throw new AccessError(403, message("Errors.onlyTheUploaderCanConfirmThisFile"));
     if (file.status !== "uploaded") return present(file);
     const verdict = await scanner.scan({ key: file.key, size: file.size, mime: file.mime, checksum: file.checksum });

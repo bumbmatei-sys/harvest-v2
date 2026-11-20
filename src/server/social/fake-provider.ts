@@ -1,4 +1,6 @@
 import { SocialProviderError, type SocialProvider, type SocialSender } from "./port";
+import { deliveryKey } from "./types";
+import { isSocialPlatform } from "../../lib/social/platforms";
 import { signBody, verifyBodySignature } from "./webhook-signature";
 import type {
   Comment, Conversation, InboundEvent, InboundEventKind, Message, Page, PageQuery, PostStatusResult, ProviderPostStatus, PublishRequest, PublishResult,
@@ -104,8 +106,9 @@ export class FakeProvider implements SocialProvider, SocialSender {
     if (!eventId || !type || !at || Number.isNaN(at.getTime())) return null;
     const known: InboundEventKind[] = ["post.scheduled", "post.published", "post.partial", "post.failed", "post.cancelled", "account.connected", "account.disconnected", "message.received", "message.sent", "message.failed", "comment.received"];
     const kind = known.find((k) => k === type) ?? "other";
-    const platform = ["facebook", "instagram", "threads", "tiktok", "youtube"].find((p) => p === b.platform) as InboundEvent["platform"] | undefined;
-    return { eventId, kind, rawType: kind === "other" ? type : "", accountRef: str(b.accountRef), subjectRef: str(b.subjectRef), platform: platform ?? null, errorCategory: str(b.errorCategory, 60), occurredAt: at };
+    const platform = isSocialPlatform(b.platform) ? b.platform : null;
+    return { eventId, kind, rawType: kind === "other" ? type : "", accountRef: str(b.accountRef), subjectRef: str(b.subjectRef), platform, errorCategory: str(b.errorCategory, 60), occurredAt: at,
+      ...(kind.startsWith("post.") && deliveryKey(b.correlationKey) ? { correlationKey: b.correlationKey } : {}) };
   }
   async sendMessage(cred: SocialCredential, request: SendMessageRequest): Promise<SendResult> {
     this.enter("sendMessage", cred, request.idempotencyKey);
