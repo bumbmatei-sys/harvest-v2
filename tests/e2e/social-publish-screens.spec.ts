@@ -373,7 +373,7 @@ test("social publish: accounts, composer with rings and media, review, queue, ca
   const cell = (date: Date) => page.locator(`[data-slot="month-view"] [data-day="${dayKey(date)}"]`);
   await expect(cell(new Date(later)).getByText("Midweek prayer").first()).toBeVisible();
   await snap(page, "calendar-month-1280-light");
-  await audit(page, "calendar-month", { ready: async () => { await expect(page.locator('[data-slot="month-view"]')).toBeVisible(); await expect(cell(new Date(later)).getByText("Midweek prayer").first()).toBeVisible(); },
+  await audit(page, "calendar-month", { ready: async (width) => { await expect(page.locator('[data-slot="month-view"]')).toBeVisible(); if (width >= 640) await expect(cell(new Date(later)).getByText("Midweek prayer").first()).toBeVisible(); else await expect(cell(new Date(later)).getByRole("button")).toBeVisible(); },
     check: async () => { await expect(page.locator('[data-slot="month-view"] > div').nth(1).locator("> div").first(), "month grid starts on Monday").toHaveText("Mon"); } });
   // Drag the draft onto a day (native drag and drop), then confirm.
   const target = new Date(later); target.setDate(target.getDate() + 2);
