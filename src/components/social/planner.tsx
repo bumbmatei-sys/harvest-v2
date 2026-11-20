@@ -201,7 +201,7 @@ export function Planner({ tenantId, view }: { tenantId: string; view: "queue" | 
         {logo(item)}<span className="sr-only">{lineOf(item)}</span><StatusBadge tone={deliveryTone(item.status)} label={status(item.status)} dot />
         {item.status === "failed" && item.lastErrorCode && <span className="text-destructive">{reason(item.lastErrorCode)}</span>}
         {item.retryable && item.draftId && <Button type="button" variant="ghost" size="xs" className="min-h-11 lg:min-h-6" disabled={retrying === item.id} onClick={() => void retryItem(item)}><RotateCw aria-hidden="true" />{t("retry")}</Button>}</li>)}</ul>}
-      {kind !== "sent" && <div className="flex items-center gap-1 border-t pt-2" data-testid="queue-actions">
+      {kind !== "sent" && <div className="mt-1 flex items-center gap-1 border-t pt-2" data-testid="queue-actions">
         <Button type="button" variant="outline" size="responsive" className="mr-auto" onClick={() => setDetail(first)}><Pencil aria-hidden="true" />{t("edit")}</Button>
         {entry.every((item) => item.status === "queued" || item.status === "scheduled") && <Button type="button" variant="ghost" size="icon-responsive" title={t("reschedule")} aria-label={t("reschedule")} onClick={() => setAction({ kind: "reschedule", items: entry, whole: true })}><CalendarClock aria-hidden="true" /></Button>}
         <Button type="button" variant="ghost" size="icon-responsive" title={t("duplicate")} aria-label={t("duplicate")} disabled={!first.draftId} onClick={() => void duplicate(first.draftId!, first.version)}><Copy aria-hidden="true" /></Button>

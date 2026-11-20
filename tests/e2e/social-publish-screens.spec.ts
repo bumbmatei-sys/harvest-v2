@@ -368,11 +368,12 @@ test("social publish: accounts, composer with rings and media, review, queue, ca
   await audit(page, "calendar-month");
   // Drag the draft onto a day (native drag and drop), then confirm.
   const target = new Date(later); target.setDate(target.getDate() + 2);
+  // The drafts column reflows once after the page loads; let it settle so the pointer presses the intended card.
+  await expect(page.getByTestId("draft-item")).toHaveCount(2); await page.waitForTimeout(1500);
   await page.getByTestId("draft-item").filter({ hasText: "Midweek" }).dragTo(cell(target));
   await expect(page.getByRole("alertdialog")).toContainText("It will be sent at");
   await page.getByRole("alertdialog").getByRole("button", { name: "Schedule", exact: true }).click();
   await expect(page.getByText("Draft scheduled").first()).toBeVisible();
-  await page.waitForTimeout(3000); await snap(page, "debug-month");
   await expect(cell(target).getByText(/Midweek prayer/).first()).toBeVisible();
   // Month cell select shows a list with an Open button: the keyboard path to a post.
   await cell(later).getByRole("button").first().click();
