@@ -1,5 +1,5 @@
 -- Chat and the members directory share the existing eligibility and ordering.
--- Only the members directory uses the optional profile fields in its projection.
+-- Only the members directory uses the optional profile fields. Chat hides private and unlisted members down to id and role.
 CREATE FUNCTION public.community_member_roster(p_slug text, p_chat boolean) RETURNS SETOF jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE ctx record;
@@ -9,14 +9,23 @@ BEGIN
   IF ctx.o_tenant IS NOT NULL AND (NOT p_chat OR EXISTS (
     SELECT FROM public.communities WHERE tenant_id = ctx.o_tenant AND id = ctx.o_community AND chat_enabled
   )) THEN
-    RETURN QUERY SELECT jsonb_build_object('userId', m.user_id,
-      'name', CASE WHEN p_chat THEN u.name ELSE coalesce(p.display_name, u.name) END,
-      'role', m.role, 'joinedAt', m.joined_at)
+    -- Chat sees every eligible member, but a member whose profile is private or unlisted (and is not the viewer) is
+    -- reduced, when they hold a staff role, to an id and a role (no name, no joined date); other hidden members are omitted entirely. Community owners and admins keep seeing everyone. That keeps a staff badge resolvable on messages the
+    -- viewer can already see without making a hidden member discoverable. The directory still omits hidden members.
+    RETURN QUERY SELECT CASE WHEN p_chat AND coalesce(p.visibility, 'members') <> 'members'
+        AND m.user_id <> nullif(current_setting('app.user_id', true), '') AND coalesce(ctx.o_role, '') NOT IN ('owner', 'admin')
+      THEN jsonb_build_object('userId', m.user_id, 'role', m.role, 'hidden', true)
+      ELSE jsonb_build_object('userId', m.user_id,
+        'name', CASE WHEN p_chat THEN u.name ELSE coalesce(p.display_name, u.name) END,
+        'role', m.role, 'joinedAt', m.joined_at) END
     FROM public.community_memberships m JOIN public.users u ON u.id = m.user_id
     LEFT JOIN public.community_member_profiles p
-      ON NOT p_chat AND (p.tenant_id, p.community_id, p.user_id) = (m.tenant_id, m.community_id, m.user_id)
+      ON (p.tenant_id, p.community_id, p.user_id) = (m.tenant_id, m.community_id, m.user_id)
     WHERE m.tenant_id = ctx.o_tenant AND m.community_id = ctx.o_community
-      AND coalesce(p.visibility, 'members') = 'members'
+      AND (p_chat OR coalesce(p.visibility, 'members') = 'members')
+      AND NOT (p_chat AND coalesce(p.visibility, 'members') <> 'members'
+        AND m.user_id <> nullif(current_setting('app.user_id', true), '') AND coalesce(ctx.o_role, '') NOT IN ('owner', 'admin')
+        AND m.role NOT IN ('owner', 'admin', 'moderator'))
       AND public.community_user_can_read(m.tenant_id, m.community_id, m.user_id)
     ORDER BY CASE m.role WHEN 'owner' THEN 0 WHEN 'admin' THEN 1 WHEN 'moderator' THEN 2 WHEN 'contributor' THEN 3 ELSE 4 END,
       m.joined_at NULLS LAST, m.user_id
