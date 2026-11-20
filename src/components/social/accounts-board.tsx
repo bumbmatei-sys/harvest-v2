@@ -82,6 +82,7 @@ export function AccountsBoard({ tenantId, testConnect, testCredential }: { tenan
           </div>
         </li>)}
       </ul>}
+    {data.connections.some((connection) => abilities(connection.capabilities).some(({ level }) => level === "conditional")) && <p className="text-xs text-muted-foreground" data-testid="marker-legend">{caps("markerLegend")}</p>}
     <Dialog open={addOpen} onOpenChange={(open) => { if (busy !== "add") setAddOpen(open); }}><DialogContent className="max-w-sm">
       <DialogHeader><DialogTitle>{t("addTest")}</DialogTitle><DialogDescription>{t("addTestLead")}</DialogDescription></DialogHeader>
       <label className="block space-y-1 text-sm font-medium">{t("platform")}<NativeSelect value={platform} onChange={(event) => setPlatform(event.target.value as SocialPlatform)} className="min-h-11">

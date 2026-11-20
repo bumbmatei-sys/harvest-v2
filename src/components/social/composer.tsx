@@ -103,7 +103,7 @@ export function Composer({ tenantId, initialDraftId }: { tenantId: string; initi
       setState((current) => ({ ...current, attachments: [...current.attachments, base] }));
       void uploadMedia(tenantId, file, { signal: controller.signal, phase: (phase) => patchAttachment(key, { phase }), progress: (progress) => patchAttachment(key, { progress }) })
         .then((stored) => patchAttachment(key, { fileId: stored.id, phase: stored.status === "ready" ? "ready" : "quarantined", progress: 100,
-          ...(stored.mediaMetadata ?? {}), error: stored.status === "ready" ? null : null }))
+          ...(stored.mediaMetadata ?? {}), error: null }))
         .catch((cause: unknown) => {
           if (controller.signal.aborted) return;
           patchAttachment(key, { phase: "failed", error: cause instanceof PutError ? t(cause.code === "CONNECTION" ? "uploadConnection" : "uploadFailed") : describe(cause) });

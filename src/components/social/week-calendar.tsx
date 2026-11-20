@@ -18,6 +18,7 @@ import {
   startOfWeek
 } from "date-fns";
 
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { isMultiDayEvent } from "@/lib/calendar-days";
 import { useCurrentTimeIndicator } from "@/hooks/use-current-time-indicator";
 import type { CalendarEvent } from "@/lib/event-view";
@@ -37,6 +38,8 @@ interface WeekViewProps {
   onDropAt: (day: Date, time: number, data: DataTransfer) => void;
   /** Label for the grid (screen readers). */
   label: string;
+  /** Posts that overlap in time collapse into the first one plus a "+N" button that opens a list of all of them. */
+  overlap: { moreLabel: (count: number) => string; moreText: (count: number) => string; title: string; renderRow: (event: CalendarEvent) => React.ReactNode };
 }
 
 interface PositionedEvent {
@@ -46,9 +49,11 @@ interface PositionedEvent {
   left: number;
   width: number;
   zIndex: number;
+  /** Every post in an overlapping group (lead first); only set on the lead. */
+  group?: CalendarEvent[];
 }
 
-export function WeekView({ currentDate, events, onEventSelect, renderChip, onDropAt, label }: WeekViewProps) {
+export function WeekView({ currentDate, events, onEventSelect, renderChip, onDropAt, label, overlap }: WeekViewProps) {
   const days = useMemo(() => {
     const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
     const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
@@ -169,11 +174,22 @@ export function WeekView({ currentDate, events, onEventSelect, renderChip, onDro
         });
       });
 
-      // Overlapping posts sit side by side, each taking an equal share of the day column, so none is hidden behind another.
-      positionedEvents.forEach((item, index) => {
-        const mine = spans[index], group = spans.filter((other) => other.start < mine.end && other.end > mine.start), count = Math.max(...group.map((other) => other.column)) + 1;
-        item.width = 1 / count; item.left = mine.column / count;
+      // Posts that overlap in time (directly or through a chain) collapse into the first one, full width, and a "+N" button lists all of them.
+      const clusters: number[][] = [];
+      positionedEvents.forEach((_, index) => {
+        const mine = spans[index];
+        const joined = clusters.filter((cluster) => cluster.some((other) => spans[other].start < mine.end && spans[other].end > mine.start));
+        const merged = [index, ...joined.flat()].sort((x, y) => x - y);
+        joined.forEach((cluster) => clusters.splice(clusters.indexOf(cluster), 1));
+        clusters.push(merged);
       });
+      const hidden = new Set<number>();
+      clusters.forEach((cluster) => {
+        const [lead, ...rest] = cluster;
+        positionedEvents[lead].width = 1; positionedEvents[lead].left = 0;
+        if (rest.length > 0) { positionedEvents[lead].group = cluster.map((index) => positionedEvents[index].event); rest.forEach((index) => hidden.add(index)); }
+      });
+      positionedEvents.splice(0, positionedEvents.length, ...positionedEvents.filter((_, index) => !hidden.has(index)));
       return positionedEvents;
     });
 
@@ -239,6 +255,27 @@ export function WeekView({ currentDate, events, onEventSelect, renderChip, onDro
                   zIndex: positionedEvent.zIndex
                 }}
                 onClick={(e) => e.stopPropagation()}>
+                {positionedEvent.group && <Popover>
+                  <PopoverTrigger asChild>
+                    <button type="button" data-testid="overlap-more" aria-label={overlap.moreLabel(positionedEvent.group.length - 1)}
+                      className="bg-primary text-primary-foreground focus-visible:ring-ring/50 absolute inset-y-0 right-0.5 z-10 flex min-h-11 w-8 items-center justify-center rounded-md text-xs font-semibold outline-none focus-visible:ring-[3px]">
+                      <span aria-hidden="true">{overlap.moreText(positionedEvent.group.length - 1)}</span>
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start" className="w-72 space-y-1 p-2" data-testid="overlap-list">
+                    <p className="text-muted-foreground px-2 py-1 text-xs font-medium">{overlap.title}</p>
+                    <ul className="m-0 list-none space-y-1 p-0">
+                      {positionedEvent.group.map((member) => (
+                        <li key={member.id}>
+                          <button type="button" data-testid="overlap-row" onClick={() => onEventSelect(member)}
+                            className="hover:bg-muted focus-visible:ring-ring/50 flex min-h-11 w-full items-center gap-2 rounded-md px-2 text-left text-sm outline-none focus-visible:ring-[3px]">
+                            {overlap.renderRow(member)}
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  </PopoverContent>
+                </Popover>}
                 <button
                   type="button"
                   draggable
@@ -248,7 +285,7 @@ export function WeekView({ currentDate, events, onEventSelect, renderChip, onDro
                     e.dataTransfer.setData("application/x-harvest-post", positionedEvent.event.id);
                     e.dataTransfer.effectAllowed = "move";
                   }}
-                  className="@container bg-card hover:bg-muted/60 focus-visible:ring-ring/50 flex size-full min-h-11 min-w-0 flex-col gap-0.5 overflow-hidden rounded-md border p-1 text-left text-xs shadow-xs outline-none focus-visible:ring-[3px] sm:min-h-0">
+                  className={cn("@container bg-card hover:bg-muted/60 focus-visible:ring-ring/50 flex size-full min-h-11 min-w-0 flex-col gap-0.5 overflow-hidden rounded-md border p-1 text-left text-xs shadow-xs outline-none focus-visible:ring-[3px] sm:min-h-0", positionedEvent.group && "pe-9")}>
                   {renderChip(positionedEvent.event)}
                 </button>
               </div>

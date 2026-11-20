@@ -43,14 +43,14 @@ export function Planner({ tenantId, view }: { tenantId: string; view: "queue" | 
   const t = useTranslations("SocialPublish.planner"), status = useTranslations("SocialPublish.status"), reason = useReason(), locale = useLocale();
   const router = useRouter(), pathname = usePathname(), params = useSearchParams();
   const data = useSocialData(tenantId), api = useMemo(() => socialApi(tenantId), [tenantId]);
-  const zone = useMemo(() => browserTimeZone(), []), wide = useMediaQuery("(min-width: 1280px)");
+  const zone = useMemo(() => browserTimeZone(), []), wide = useMediaQuery("(min-width: 1280px)"), phone = useMediaQuery("(max-width: 767px)");
   const mode = params.get("mode") === "month" ? "month" : "week", schedule = params.get("schedule") ?? "";
   const account = params.get("account") ?? "", platform = params.get("platform") ?? "", statusFilter = params.get("status") ?? "";
   const [now] = useState(() => new Date());
   const month = parseMonth(params.get("month") ?? undefined, now);
   const weekStart = startOfWeek(params.get("week") ? parseISO(params.get("week")!) : now, { weekStartsOn: 1 });
   const [items, setItems] = useState<PlannerItem[] | null>(null), [failed, setFailed] = useState(false), [reloadKey, setReloadKey] = useState(0);
-  const [selectedDay, setSelectedDay] = useState<Date | null>(null), [detail, setDetail] = useState<PlannerItem | null>(null), [action, setAction] = useState<Action | null>(null);
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null), [agendaPick, setAgendaPick] = useState<Date | null>(null), [detail, setDetail] = useState<PlannerItem | null>(null), [action, setAction] = useState<Action | null>(null);
   const [manageOpen, setManageOpen] = useState(false), [draftsOpen, setDraftsOpen] = useState(false), [busyDraft, setBusyDraft] = useState<string | null>(null);
   const [retrying, setRetrying] = useState<string | null>(null), weekScroll = useRef<HTMLDivElement>(null);
   const setParam = useCallback((patch: Record<string, string>) => {
@@ -226,6 +226,23 @@ export function Planner({ tenantId, view }: { tenantId: string; view: "queue" | 
   const row = (item: PlannerItem) => <li key={item.id} className="flex flex-wrap items-center gap-3 rounded-lg border bg-card p-3" data-testid="planner-row" data-status={item.status}>
     <div className="flex min-w-0 flex-1 items-center gap-2">{logo(item)}<div className="min-w-0"><p className="truncate text-sm font-medium">{item.summary || t("noText")}</p><p className="truncate text-xs text-muted-foreground">{joinParts([lineOf(item), formatWhen(item.at, zoneOf(item), locale)])}</p></div></div>
     <StatusBadge tone={deliveryTone(item.status)} label={status(item.status)} dot /><Button type="button" variant="outline" size="responsive" onClick={() => setDetail(item)}>{t("open")}</Button></li>;
+  // Phones: one day at a time (day strip + that day's posts as full-width rows) instead of seven cramped columns.
+  const weekDays = Array.from({ length: 7 }, (_, index) => addDays(weekStart, index));
+  const agendaDay = (agendaPick && weekDays.some((day) => isSameDay(day, agendaPick)) ? agendaPick : weekDays.find((day) => isSameDay(day, now))) ?? weekDays[0];
+  const agendaItems = visible.filter((item) => isSameDay(new Date(item.at), agendaDay)).sort((a, b) => a.at.localeCompare(b.at));
+  const agenda = <div className="space-y-3" data-testid="day-agenda">
+    <div role="group" aria-label={t("agendaDays")} className="grid grid-cols-7 gap-1">
+      {weekDays.map((day) => { const count = visible.filter((item) => isSameDay(new Date(item.at), day)).length, picked = isSameDay(day, agendaDay);
+        return <button key={day.toISOString()} type="button" data-testid="agenda-day" aria-pressed={picked} aria-label={t("agendaDay", { day: format(day, "EEEE, MMMM d"), count })} onClick={() => setAgendaPick(day)}
+          className={cn("flex min-h-11 min-w-0 flex-col items-center justify-center rounded-lg border text-xs outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50", picked ? "border-primary bg-primary text-primary-foreground" : "bg-card text-muted-foreground")}>
+          <span aria-hidden="true">{format(day, "EEEEE")}</span><span aria-hidden="true" className="text-sm font-semibold">{format(day, "d")}</span>
+          <span aria-hidden="true" className={cn("mt-0.5 size-1 rounded-full", count > 0 ? (picked ? "bg-primary-foreground" : "bg-primary") : "bg-transparent")} /></button>; })}
+    </div>
+    <section aria-live="polite" aria-labelledby="planner-agenda-day" className="space-y-2"><h2 id="planner-agenda-day" className="text-sm font-medium text-muted-foreground">{format(agendaDay, "EEEE, MMMM d")}</h2>
+      {agendaItems.length === 0 ? <p className="text-sm text-muted-foreground">{t("emptyDay")}</p> : <ul className="m-0 list-none space-y-2 p-0">{agendaItems.map(row)}</ul>}</section>
+  </div>;
+  const overlapRow = (event: CalendarEvent) => { const item = byId.get(event.id); if (!item) return null;
+    return <>{logo(item)}<span className="min-w-0 flex-1 truncate"><span className="text-muted-foreground">{formatClock(item.at, zone, locale)} </span>{event.title}</span><span className="sr-only">{joinParts([item.platform ? platformLabels[item.platform] : "", status(item.status)], ", ")}</span></>; };
   const title = mode === "week" ? new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(weekStart) : new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(month);
   const prev = mode === "week" ? href({ mode: "week", week: format(addDays(weekStart, -7), "yyyy-MM-dd") }) : href({ mode: "month", month: format(addMonths(month, -1), "yyyy-MM") });
   const next = mode === "week" ? href({ mode: "week", week: format(addDays(weekStart, 7), "yyyy-MM-dd") }) : href({ mode: "month", month: format(addMonths(month, 1), "yyyy-MM") });
@@ -258,10 +275,11 @@ export function Planner({ tenantId, view }: { tenantId: string; view: "queue" | 
     <div className="grid min-w-0 items-start gap-4 xl:grid-cols-[minmax(0,1fr)_18rem]">
       <div className="min-w-0 space-y-4">
         {failed && <Alert variant="destructive" role="alert"><AlertDescription>{t("loadFailed")}</AlertDescription></Alert>}
-        {mode === "month" ? <><MonthCalendar currentDate={month} events={events} selectedDay={selectedDay} onDaySelect={setSelectedDay} monthHref={(value) => href({ mode: "month", month: value })} namespace="SocialPublish.planner" renderChip={monthChip} onDropOnDay={dropOnDay} />
+        {mode === "month" ? <><MonthCalendar currentDate={month} events={events} selectedDay={selectedDay} onDaySelect={setSelectedDay} monthHref={(value) => href({ mode: "month", month: value })} namespace="SocialPublish.planner" weekStartsOn={1} renderChip={monthChip} onDropOnDay={dropOnDay} />
           <section aria-live="polite" aria-labelledby="planner-day" className="space-y-2"><h2 id="planner-day" className="text-sm font-medium text-muted-foreground">{selectedDay ? format(selectedDay, "EEEE, MMMM d") : t("selectDay")}</h2>
             {selectedDay && (dayItems.length === 0 ? <p className="text-sm text-muted-foreground">{t("emptyDay")}</p> : <ul className="m-0 list-none space-y-2 p-0">{dayItems.map(row)}</ul>)}</section></>
-          : <div className="overflow-hidden rounded-xl border bg-card"><div ref={weekScroll} tabIndex={0} role="region" aria-label={t("calendarScroll")} className="max-h-[42rem] overflow-y-auto outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"><WeekView currentDate={weekStart} events={events} label={t("weekGrid")} renderChip={weekChip} onEventSelect={(event) => { const item = byId.get(event.id); if (item) setDetail(item); }} onDropAt={dropAt} /></div></div>}
+          : phone ? (items === null && !failed ? <Skeleton className="h-64 w-full" /> : agenda)
+          : <div className="overflow-hidden rounded-xl border bg-card"><div ref={weekScroll} tabIndex={0} role="region" aria-label={t("calendarScroll")} className="max-h-[42rem] overflow-y-auto outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"><WeekView currentDate={weekStart} events={events} label={t("weekGrid")} overlap={{ moreText: (count) => t("overlapMore", { count }), moreLabel: (count) => t("overlapLabel", { count }), title: t("overlapTitle"), renderRow: overlapRow }} renderChip={weekChip} onEventSelect={(event) => { const item = byId.get(event.id); if (item) setDetail(item); }} onDropAt={dropAt} /></div></div>}
       </div>
       {wide && <aside aria-label={t("draftsTitle")} className="min-w-0 space-y-2 rounded-xl border bg-muted/30 p-3"><h2 className="text-sm font-semibold">{t("draftsTitle")}</h2>{drafts}</aside>}
     </div></div>;

@@ -4007,6 +4007,11 @@
       "moreEvents": "+{count} more",
       "weekGrid": "Week",
       "calendarScroll": "Scheduled posts by hour",
+      "overlapMore": "+{count}",
+      "overlapLabel": "{count, plural, one {# more post at this time} other {# more posts at this time}}",
+      "overlapTitle": "Posts at this time",
+      "agendaDays": "Days of the week",
+      "agendaDay": "{day}, {count, plural, =0 {no posts} one {# post} other {# posts}}",
       "month": "Month",
       "week": "Week",
       "viewMode": "Calendar view",
@@ -4111,7 +4116,8 @@
       "supported": "available",
       "conditional": "needs an eligible account",
       "unavailable": "not available",
-      "marker": "*"
+      "marker": "*",
+      "markerLegend": "* Needs an eligible account"
     },
     "reasons": {
       "UNKNOWN": "This does not meet the platform's rules.",
