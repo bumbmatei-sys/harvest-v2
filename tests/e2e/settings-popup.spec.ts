@@ -161,6 +161,8 @@ test("Settings pop-up: open, sections by role, keyboard, deep link, Planner entr
     await expect(dialog(other.page)).toBeVisible();
     const names = await sections(other.page).getByRole("button").allInnerTexts();
     expect(names, role).toEqual(role === "admin" ? ["Profile", "Account", "Ministry details", "Connections", "CRM"] : ["Profile", "Account"]);
+    // The non-production test credential travels only to staff: a member's page payload never carries it.
+    expect((await other.page.content()).includes("harvest-test-credential"), `${role} payload carries the test credential`).toBe(role === "admin");
     if (role !== "admin") await expect(section(other.page, "Profile"), `${role} deep link falls back`).toHaveAttribute("aria-current", "page");
     await other.context.close();
   }

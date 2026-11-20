@@ -37,6 +37,8 @@ Server: `shellSettings` (`src/server/shell-settings.ts`) tells the shell which c
 
 ## Not verified or not built
 
+- Founder confirmation point: members and viewers no longer have a UI path to the read-only Ministry settings, Appearance, CRM fields and Pipeline pages (the routes still answer by URL and enforce their own permissions). "Every built route stays reachable" therefore holds for staff (owner, admin) only.
+
 - Home (pinned) is not in the registry: there is no Home page, and a planned entry at the ministry root would claim the neutral path that decides the mode. Add it with the page.
 - Privacy and data and Billing sections: not built (no screen). Notifications and appearance preferences of the kit are not adopted.
 - Profile section is hidden in production (the routes answer 404 there) and needs a community membership; avatar upload stays parked.
@@ -46,4 +48,4 @@ Server: `shellSettings` (`src/server/shell-settings.ts`) tells the shell which c
 
 ## Provenance
 
-Five approved kit items, none copied (see `docs/ui-sources.md`, "Settings pop-up"): chat-app `settings-dialog.tsx` (7% of lines incidentally identical by `scripts/ui-identical.sh`), admin-dashboard `sidebar-nav.tsx`, `account/page.tsx` (2%) and `notifications/page.tsx` (4%), chat-app `user-avatar.tsx` (existing file reused). Recorded in `kitChatAppReferences` and `adminDashboardReferences`.
+Five approved kit items, none copied (see `docs/ui-sources.md`, "Settings pop-up"): chat-app `settings-dialog.tsx` (4 of 40 lines, 10%, by `scripts/ui-identical.sh`), admin-dashboard `sidebar-nav.tsx` (4 of 43, 9%), `account/page.tsx` (4 of 149, 2%) and `notifications/page.tsx` (4%), chat-app `user-avatar.tsx` (existing file reused). Recorded in `kitChatAppReferences` and `adminDashboardReferences`.
