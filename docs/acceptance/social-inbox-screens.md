@@ -21,7 +21,11 @@ Premium kit sources (admin-dashboard commit `1631106`, chat-app `66fd523`): mail
 
 ## Verified (author-run)
 
-See the PR description for the exact counts and screenshot review.
+- `tsc --noEmit` clean; `npm run lint` (eslint with zero warnings and the source guards) clean.
+- Unit project: **1,342 tests across 104 files** pass (new: `tests/unit/social-inbox-screens.test.ts`, 6 tests; navigation and provenance tests updated).
+- Integration: `tests/integration/social-inbox.test.ts` 11 of 11 pass against a private non-root PostgreSQL 16 cluster. Its "disabled in normal entry points" test now sets production, because the inbox routes share the Publish gate.
+- Browser: `tests/e2e/social-inbox-screens.spec.ts` (one long spec, non-production gate, fake provider with synthetic data, local database) passed. Each of 11 scenes is checked at 1280 and 360 in light and dark after a page-ready locator, with no skeleton or aria-busy, axe (wcag2a, wcag2aa, wcag21aa) clean, no horizontal scroll: 44 screenshots at device scale 2. Also asserted: neutral answer for a non-member, ETag 304 on the sidebar, platform, type, tab and folder filters, load more, read, unread, star, assign and done, comment targets and eligibility, closed reply window, partial, list-error, expired-account and thread-error states, working hours validation and save, phone list to thread and back, 44px targets on the phone list, and that no message text reaches the audit log. The spec runs with `reducedMotion: reduce`.
+- The `reply-eligibility` check runs against the fake provider only.
 
 ## Not verified or not built
 

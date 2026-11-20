@@ -339,10 +339,14 @@ it("authenticates, deduplicates and applies metadata-only webhook refreshes", as
 it("keeps live reads disabled in normal HTTP entry points with private no-store responses", async () => {
   const request = new Request("https://fixture.invalid", { method: "POST", body: "{}" });
   const context = { params: Promise.resolve({ tenantId: people.tenant }) };
-  for (const response of [await sidebarRoute(request, context), await inboxRoute(request, context)]) {
-    expect(response.status).toBe(404);
-    expect(response.headers.get("cache-control")).toBe("private, no-store");
-  }
+  // The routes share the Publish gate: closed in production, so the hard-off defaults answer.
+  vi.stubEnv("NODE_ENV", "production");
+  try {
+    for (const response of [await sidebarRoute(request, context), await inboxRoute(request, context)]) {
+      expect(response.status).toBe(404);
+      expect(response.headers.get("cache-control")).toBe("private, no-store");
+    }
+  } finally { vi.unstubAllEnvs(); }
   const result = await withTenant(f.db, people.owner, people.tenant, "social:inbox",
     tx => tx.execute(sql`select public.social_inbox_can(${people.tenant}::uuid, 'social:assign') as allowed`));
   expect(result.rows[0].allowed).toBe(true);

@@ -9,11 +9,10 @@ import { Button } from "@/components/ui/button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "@/components/ui/input-group";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
 import { PlatformLogo } from "@/components/social/platform-logo";
-import { accountProblem, tabFolders, typeFilters, type Filters, type InboxFolder, type InboxItem, type InboxPage, type ServiceState } from "@/lib/social/inbox";
+import { accountProblem, tabFolders, typeFilters, type Filters, type InboxItem, type InboxPage, type ServiceState } from "@/lib/social/inbox";
 import { platformLabels } from "@/lib/social/labels";
 import type { InboxKind } from "@/lib/social/platforms";
 import { cn } from "@/lib/utils";
@@ -29,7 +28,6 @@ export function InboxList({ tenantId, view, filters, search, selected, me, accou
   onFilters: (filters: Filters) => void; onSearch: (value: string) => void; onSelect: (id: string) => void; onLoadMore: () => void; onRetry: () => void; onFilterPane: () => void;
 }) {
   const t = useTranslations("SocialInbox"), [draft, setDraft] = useState(search);
-  const tabValue = (tabFolders as readonly string[]).includes(filters.folder) ? filters.folder : "";
   const searching = search.trim().length > 0;
   const problems = view.channels.filter((channel) => accountProblem(channel) !== null);
   const filtered = filters.folder !== "all" || !!filters.platform || !!filters.account || !!filters.kind || !!filters.label || searching;
@@ -43,11 +41,10 @@ export function InboxList({ tenantId, view, filters, search, selected, me, accou
           {typeFilters.map((kind) => <NativeSelectOption key={kind} value={kind}>{kind === "all" ? t("type.all") : t(`type.${kind}`)}</NativeSelectOption>)}
         </NativeSelect>
       </div>
-      <Tabs value={tabValue} onValueChange={(value) => onFilters({ ...filters, folder: value as InboxFolder })}>
-        <TabsList className="h-auto w-full flex-wrap justify-start" aria-label={t("tabs.label")}>
-          {tabFolders.map((folder) => <TabsTrigger key={folder} value={folder} className="min-h-11 flex-none px-3 lg:min-h-8">{t(`tabs.${folder}`)}</TabsTrigger>)}
-        </TabsList>
-      </Tabs>
+      <div role="group" aria-label={t("tabs.label")} className="inline-flex w-full flex-wrap rounded-lg bg-muted p-[3px]">
+        {tabFolders.map((folder) => <button key={folder} type="button" aria-pressed={filters.folder === folder} onClick={() => onFilters({ ...filters, folder })}
+          className={cn("inline-flex min-h-11 flex-1 items-center justify-center rounded-md px-3 text-sm font-medium whitespace-nowrap outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 lg:min-h-8", filters.folder === folder ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground")}>{t(`tabs.${folder}`)}</button>)}
+      </div>
       <form role="search" onSubmit={(event) => { event.preventDefault(); onSearch(draft.trim()); }}>
         <InputGroup className="min-h-11 lg:min-h-9">
           <InputGroupAddon><Search aria-hidden="true" /></InputGroupAddon>

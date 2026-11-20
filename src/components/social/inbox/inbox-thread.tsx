@@ -47,7 +47,7 @@ export function InboxThread({ tenantId, api, itemId, hint, me, assignees, sendEn
     } catch (error) {
       if (run !== seq.current) return;
       if (error instanceof SocialApiError && error.unavailable) setLoad({ status: "gone" });
-      else if (!quiet) setLoad({ status: "error" });
+      else setLoad((current) => quiet && current.status === "ready" ? current : { status: "error" });
     }
   }, [api, itemId]);
   const retry = () => { setLoad({ status: "loading" }); void read(false); };
@@ -132,12 +132,12 @@ export function InboxThread({ tenantId, api, itemId, hint, me, assignees, sendEn
       <Button type="button" variant="outline" size="responsive" onClick={retry}>{t("retry")}</Button></AlertDescription></Alert></div>}
 
     {!problem && !delayed && <>
-      <div className="min-h-0 flex-1 overflow-y-auto p-4" data-testid="messages">
+      <div className="min-h-0 flex-1 overflow-y-auto p-4" data-testid="messages" role="region" aria-label={t("thread.messages")} tabIndex={0}>
         {nextCursor && <div className="mb-4 flex justify-center"><Button type="button" variant="outline" size="responsive" disabled={more === "loading"} onClick={() => void loadMore()}>{more === "loading" ? t("loadingMore") : t("thread.loadMore")}</Button></div>}
         {more === "error" && <Alert variant="destructive" role="alert" className="mb-4"><AlertDescription>{t("thread.moreFailed")}</AlertDescription></Alert>}
         {messages.length === 0
           ? <EmptyState size="compact" icon={Mail} title={t("thread.noMessages")} />
-          : <ol className="flex flex-col gap-4" aria-label={t("thread.messages")}>
+          : <ol className="flex flex-col gap-4">
               {messages.map((message) => <li key={message.ref}>{comments
                 ? <CommentRow message={message} kind={kind} selected={target?.ref === message.ref} describedBy={hideNote} onTarget={(mode) => setTarget({ ref: message.ref, mode })} />
                 : <MessageRow message={message} name={title} format={format} />}</li>)}

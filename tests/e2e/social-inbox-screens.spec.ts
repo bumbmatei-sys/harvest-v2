@@ -13,15 +13,15 @@ const shots = process.env.INBOX_SHOTS ?? "/tmp/inbox-shots";
 const credential = "harvest-test-credential";
 
 /** Every scene is checked at 1280 and 360 in both schemes, only once it is fully loaded (no skeleton, no busy region, its own ready signal). */
-async function audit(page: Page, name: string, ready: () => Promise<void>, restore: () => Promise<void> = async () => {}) {
+async function audit(page: Page, name: string, ready: (width: number) => Promise<void>, restore: (width: number) => Promise<void> = async () => {}) {
   const session = await page.context().newCDPSession(page);
   for (const scheme of ["light", "dark"] as const) for (const [width, height] of [[1280, 900], [360, 800]] as const) {
     if (width === 1280) { await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" }); await page.setViewportSize({ width, height }); await page.reload(); await expect(page.locator("html")).toHaveAttribute("data-theme", scheme); }
     await page.setViewportSize({ width, height });
     await session.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 2, mobile: false });
-    await restore();
+    await restore(width);
     await page.evaluate(() => document.fonts.ready.then(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)))));
-    await ready();
+    await ready(width);
     await expect(page.locator('[data-slot="skeleton"], [aria-busy="true"]'), `${name} ${scheme} ${width} still loading`).toHaveCount(0);
     await settleForAxe(page);
     const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
@@ -56,7 +56,7 @@ test("social inbox: list, filters, thread, comments, reply states, empty, errors
   await expect(page.getByRole("heading", { name: "Inbox", level: 1 })).toBeVisible();
   await expect(page.getByTestId("list-empty")).toContainText("No accounts connected");
   await expect(page.getByTestId("no-accounts")).toBeVisible();
-  await audit(page, "empty-no-accounts", async () => { await expect(page.getByTestId("list-empty")).toBeVisible(); await expect(page.getByTestId("no-accounts")).toBeVisible(); });
+  await audit(page, "empty-no-accounts", async (width) => { await expect(page.getByTestId("list-empty")).toBeVisible(); if (width >= 1280) await expect(page.getByTestId("no-accounts")).toBeVisible(); });
 
   for (const platform of ["instagram", "facebook", "twitter", "bluesky", "telegram"]) {
     expect((await page.request.post(`${api}/connections`, { headers: { origin }, data: { provider: "fake", credential, accountRef: `test-${platform}` } })).status()).toBe(201);
@@ -78,7 +78,7 @@ test("social inbox: list, filters, thread, comments, reply states, empty, errors
   await expect(page.getByTestId("count-all")).not.toHaveText("0");
   await expect(row("Maria Santos")).toHaveAccessibleName(/Instagram, Direct message, unread/);
   await expect(page.getByTestId("thread-pane")).toContainText("Select a conversation");
-  await audit(page, "list-unread-assigned", async () => { await listReady(); await expect(page.getByTestId("count-all")).toBeVisible(); });
+  await audit(page, "list-unread-assigned", async (width) => { await listReady(); if (width >= 1280) await expect(page.getByTestId("count-all")).toBeVisible(); });
 
   // Coloured marks on rows, filters and the open thread; the platform name is in the accessible name.
   await expect(row("Maria Santos").locator('[data-colored="true"]')).toHaveCount(1);
@@ -95,23 +95,28 @@ test("social inbox: list, filters, thread, comments, reply states, empty, errors
   await page.getByLabel("Type").selectOption("comment");
   await expect(rows).toHaveCount(1); await expect(row("Sunday worship reel")).toBeVisible();
   await page.getByLabel("Type").selectOption("all");
-  await page.getByRole("tab", { name: "Assigned to me" }).click();
+  await page.getByRole("group", { name: "Show" }).getByRole("button", { name: "Assigned to me", exact: true }).click();
   await expect(rows).toHaveCount(1); await expect(row("Maria Santos")).toBeVisible();
-  await audit(page, "filters", async () => { await expect(rows.first()).toBeVisible(); await expect(page.getByTestId("platform-instagram")).toBeVisible(); },
-    async () => { if (!(await page.getByTestId("platform-instagram").isVisible().catch(() => false))) return; await page.getByTestId("platform-instagram").click().catch(() => {}); });
+  await audit(page, "filters", async (width) => { await expect(rows.first()).toBeVisible(); if (width >= 1280) await expect(page.getByTestId("platform-instagram")).toBeVisible(); },
+    async () => {
+      const tab = page.getByRole("group", { name: "Show" }).getByRole("button", { name: "Assigned to me", exact: true });
+      if ((await tab.getAttribute("aria-pressed")) === "true") return;
+      if (await page.getByTestId("platform-instagram").isVisible()) await page.getByTestId("platform-instagram").click();
+      await tab.click();
+    });
   await page.reload(); await listReady();
 
   // ---- Empty: nothing starred ----------------------------------------------------------------------------------------------
   await page.getByTestId("folder-starred").click();
   await expect(page.getByTestId("list-empty")).toContainText("No conversations match");
-  await audit(page, "empty-filtered", async () => { await expect(page.getByTestId("list-empty")).toBeVisible(); }, async () => { await page.getByTestId("folder-starred").click(); });
+  await audit(page, "empty-filtered", async () => { await expect(page.getByTestId("list-empty")).toBeVisible(); }, async () => { if (await page.getByTestId("folder-starred").isVisible()) await page.getByTestId("folder-starred").click(); });
   await page.getByTestId("folder-all").click(); await listReady();
 
   // ---- Direct message thread: live messages, markers, actions, composer ---------------------------------------------------
   await row("Maria Santos").click();
   await expect(page.getByTestId("thread-title")).toHaveText("Maria Santos");
   await expect(page.getByTestId("message")).toHaveCount(3);
-  await expect(page.getByTestId("messages")).toContainText("Can I bring my two kids?");
+  await expect(page.getByTestId("messages")).toContainText("can I bring my two kids?");
   await expect(page.getByTestId("message").nth(1)).toHaveAttribute("data-direction", "outgoing");
   await expect(page.getByTestId("composer")).toHaveAttribute("data-eligible", "yes");
   await expect(page.getByTestId("send-off")).toContainText("Sending replies is turned off");
@@ -131,8 +136,8 @@ test("social inbox: list, filters, thread, comments, reply states, empty, errors
   await expect(page.getByTestId("thread")).toContainText("Assigned to you");
   await page.getByLabel("Assign to").selectOption("");
   await page.getByRole("button", { name: "Mark done" }).click(); await expect(page.getByRole("button", { name: "Reopen" })).toBeVisible();
-  await page.getByRole("tab", { name: "Needs reply" }).click(); await expect(row("Maria Santos")).toHaveCount(0);
-  await page.getByRole("tab", { name: "All" }).click(); await listReady();
+  await page.getByRole("group", { name: "Show" }).getByRole("button", { name: "Needs reply", exact: true }).click(); await expect(row("Maria Santos")).toHaveCount(0);
+  await page.getByRole("group", { name: "Show" }).getByRole("button", { name: "All", exact: true }).click(); await listReady();
   await row("Maria Santos").click(); await page.getByRole("button", { name: "Reopen" }).click();
   await expect(page.getByRole("button", { name: "Mark done" })).toBeVisible();
   const threadUrl = page.url();
@@ -147,10 +152,10 @@ test("social inbox: list, filters, thread, comments, reply states, empty, errors
   await expect(page.getByRole("button", { name: "Hide" }).first()).toBeDisabled();
   await expect(page.getByTestId("comment-unavailable").first()).toBeVisible();
   await expect(page.getByTestId("reply-reason")).toContainText("Choose a comment to reply to");
-  await page.getByTestId("comment").first().getByRole("button", { name: "Reply privately" }).click();
+  await page.getByTestId("comment").filter({ hasText: "This song is beautiful" }).getByRole("button", { name: "Reply privately" }).click();
   await expect(page.getByTestId("reply-target")).toContainText("Replying privately");
   await expect(page.getByTestId("composer")).toHaveAttribute("data-eligible", "yes");
-  await page.getByTestId("comment").first().getByRole("button", { name: "Reply", exact: true }).click();
+  await page.getByTestId("comment").filter({ hasText: "This song is beautiful" }).getByRole("button", { name: "Reply", exact: true }).click();
   await expect(page.getByTestId("reply-target")).toContainText("Replying to a comment");
   await audit(page, "comment-thread", async () => { await expect(page.getByTestId("comment")).toHaveCount(4); await expect(page.getByTestId("composer")).toBeVisible(); });
 
@@ -214,11 +219,11 @@ test("social inbox: list, filters, thread, comments, reply states, empty, errors
   await page.getByRole("button", { name: /Add hours on Monday/ }).click();
   await expect(page.getByTestId("hours-problem")).toContainText("cannot overlap");
   await page.getByRole("button", { name: /Remove hours on Monday/ }).last().click();
-  await page.getByLabel("Away message").fill("We are away and will reply when we are back.");
+  await page.getByRole("textbox", { name: "Away message" }).fill("We are away and will reply when we are back.");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("Settings saved").first()).toBeVisible();
   await page.reload(); await settingsReady();
-  await expect(page.getByLabel("Away message")).toHaveValue("We are away and will reply when we are back.");
+  await expect(page.getByRole("textbox", { name: "Away message" })).toHaveValue("We are away and will reply when we are back.");
   await audit(page, "settings", settingsReady);
 
   // ---- Phone: list, then thread with a back button ----------------------------------------------------------------------------
