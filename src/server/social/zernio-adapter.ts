@@ -545,7 +545,7 @@ export class ZernioAdapter implements SocialProvider, SocialSender {
       const page = await this.inboxGet(cred, `/inbox/comments/${enc(query.subjectRef)}`, { ...query, limit: 100 });
       const items = this.rows(page, "comments").flatMap(row => [row, ...(Array.isArray(row.replies) ? row.replies.map(record) : [])]);
       const row = items.find(item => item.id === query.activityRef);
-      if (!row || row.isOwn === true || row.canReply !== true) return null;
+      if (!row || row.isOwn === true || record(row.from).isOwner === true || row.isHidden === true || row.canReply !== true) return null;
       const sender = record(row.from), recipientRef = text(sender.id), at = date(row.createdTime ?? row.createdAt);
       if (!recipientRef || !at) return null;
       return { trigger: "comment", recipientRef, at, lastInboundAt: at, text: text(row.message ?? row.text, 10_000),
@@ -558,13 +558,15 @@ export class ZernioAdapter implements SocialProvider, SocialSender {
     if (conversation.id !== query.subjectRef || conversation.accountId !== query.accountRef || conversation.platform !== query.platform
       || ["other", "ai_agent"].includes(String(conversation.threadControl))) return null;
     const page = await this.inboxGet(cred, `${path}/messages`, { ...query, limit: 100 }, { sortOrder: "desc" });
-    const incoming = this.rows(page, "messages").filter(item => item.direction === "incoming" && item.isDeleted !== true);
+    const incoming = this.rows(page, "messages").filter(item => item.direction === "incoming" && item.isDeleted !== true && item.noRenderableContent !== true);
     const row = incoming.find(item => item.id === query.activityRef);
     if (!row) return null;
     const at = date(row.createdAt ?? row.timestamp);
     const recipientRef = text(row.senderId);
     if (!at || !recipientRef || (conversation.participantId && conversation.participantId !== recipientRef)) return null;
-    const metadata = record(row.metadata), entryKey = text(metadata.postbackPayload, 70);
+    const metadata = record(row.metadata);
+    if (metadata.standby === true) return null;
+    const entryKey = text(metadata.postbackPayload, 70);
     const trigger = entryKey ? query.platform === "instagram" ? "ice_breaker" : "persistent_menu"
       : query.platform === "instagram" && (row.isStoryMention === true || metadata.isStoryMention === true) ? "story_mention"
         : query.platform === "instagram" && (record(row.storyReply).storyId || record(metadata.storyReply).storyId) ? "story_reply" : "dm";
@@ -599,7 +601,7 @@ export class ZernioAdapter implements SocialProvider, SocialSender {
         : kind === "comment.received" ? { activityRef: text(comment.platformCommentId ?? comment.id) ?? undefined } : {}),
       rawType: kind === "other" ? safeCode(name) ?? "" : "",
       accountRef: text(account.accountId ?? account.id) ?? text(firstTarget.accountId),
-      subjectRef: kind.startsWith("post.") ? text(post.id ?? post._id) : kind.startsWith("message.") ? text(message.conversationId) : kind === "comment.received" ? text(comment.postId ?? comment.platformPostId ?? comment.id) : kind === "mention.received" ? text(mention.id) : null,
+      subjectRef: kind.startsWith("post.") ? text(post.id ?? post._id) : kind.startsWith("message.") ? text(record(b.conversation).platformConversationId ?? message.conversationId) : kind === "comment.received" ? text(comment.postId ?? comment.platformPostId ?? comment.id) : kind === "mention.received" ? text(mention.id) : null,
       platform, errorCategory: failed && mediaFetchTarget(failed) ? "MEDIA_FETCH_FAILED" : failed ? safeCode(failed.errorCategory) : null, occurredAt,
       ...(kind.startsWith("post.") && deliveryKey(correlationKey) ? { correlationKey } : {}),
     };

@@ -2,8 +2,9 @@ import { and, asc, desc, eq, lt, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../../db/client";
 import { files, socialAutoDmJobs, socialAutoDmRules, socialConnections, socialPosts, workspaceMembers } from "../../db/schema";
-import { autoDmCapabilities, autoDmRuleInput, matchAutoDm, renderAutoDm, type AutoDmRule } from "../../lib/social/auto-dm";
+import { autoDmCapabilities, autoDmRuleInput, autoDmPlatforms, matchAutoDm, renderAutoDm, type AutoDmRule } from "../../lib/social/auto-dm";
 import { socialPlatforms } from "../../lib/social/platforms";
+import { sendSyntheticAutoDmTest } from "./auto-dm-worker";
 import { auditInbox, digest, inboxAccounts, withInbox } from "./inbox-access";
 import { inboxCursor, openInboxCursor } from "./inbox-tokens";
 import { publishConflict, publishInvalid, recordId, unavailable, versionInput } from "./publish-access";
@@ -120,10 +121,15 @@ export function autoDmActivity(db: Database, user: string, workspace: string, id
   }, "social:auto_dm");
 }
 
-export function previewAutoDmRule(db: Database, user: string, workspace: string, raw: unknown, deps: SocialDeps = defaultSocialDeps()) {
-  const input = z.object({ platform: z.enum(socialPlatforms), rule: autoDmRuleInput, sample: z.string().max(2_000).nullable() }).strict().parse(raw);
-  return withInbox(db, user, workspace, deps, async () => {
-    if (autoDmCapabilities(input.platform)[input.rule.trigger] === "unavailable") throw publishInvalid("AUTO_DM_TRIGGER_UNAVAILABLE");
-    return { result: matchAutoDm(input.rule.match, input.sample), response: renderAutoDm(input.rule.response.text, "Example") };
-  }, "social:auto_dm");
+export async function previewAutoDmRule(db: Database, user: string, workspace: string, raw: unknown, deps: SocialDeps = defaultSocialDeps()) {
+  const input = z.object({ platform: z.enum(socialPlatforms), rule: autoDmRuleInput, sample: z.string().max(2_000).nullable(),
+    testSend: z.boolean().default(false) }).strict().parse(raw);
+  await withInbox(db,user,workspace,deps,async () => undefined,"social:auto_dm");
+  const platform = autoDmPlatforms.find(value => value === input.platform);
+  if (!platform || autoDmCapabilities(platform)[input.rule.trigger] === "unavailable") throw publishInvalid("AUTO_DM_TRIGGER_UNAVAILABLE");
+  const result = matchAutoDm(input.rule.match,input.sample);
+  const response = renderAutoDm(input.rule.response.text,"Example");
+  const testDelivery = input.testSend && result === "matched" && !input.rule.handoffUserId
+    ? await sendSyntheticAutoDmTest(platform,input.rule,response) : null;
+  return { result,response,testDelivery };
 }
