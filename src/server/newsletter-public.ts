@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Database } from "../db/client";
 import { auditLogs, newsletterLists, newsletterSignupForms } from "../db/schema";
 import { message } from "../i18n/messages";
+import { installNewsletterSuppressionKeys } from "./newsletter-campaigns/suppression-keys";
 import { requireNewsletterEnabled } from "./newsletter";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
@@ -19,13 +20,17 @@ const preferenceInput = z.discriminatedUnion("scope", [
   z.object({ scope: z.literal("all") }).strict(),
 ]);
 
-function newsletterKey() {
-  const raw = process.env.HARVEST_NEWSLETTER_TOKEN_KEY;
+export function newsletterKey(env = process.env) {
+  const raw = env.HARVEST_NEWSLETTER_TOKEN_KEY;
   return raw && /^[0-9a-f]{64}$/i.test(raw) ? Buffer.from(raw, "hex") : null;
 }
 
 function signedDigest(key: Buffer, purpose: string, value: string) {
   return createHmac("sha256", key).update(purpose).update(":").update(value).digest();
+}
+
+export function signNewsletterPreference(key: Buffer, scope: "list" | "all", nonce: string) {
+  return nonce + "." + signedDigest(key, "newsletter-preference-" + scope, nonce).toString("base64url");
 }
 
 export function createNewsletterSignupForm(db: Database, actor: string, workspace: string, raw: unknown) {
@@ -72,7 +77,10 @@ export async function confirmNewsletterSignup(db: Database, raw: unknown) {
   requireNewsletterEnabled();
   const input = confirmationInput.safeParse(raw);
   if (!input.success || !newsletterKey()) return;
-  await db.execute(sql`select public.newsletter_signup_confirm(${input.data.email},${input.data.token})`);
+  await db.transaction(async tx => {
+    await installNewsletterSuppressionKeys(tx);
+    await tx.execute(sql`select public.newsletter_signup_confirm(${input.data.email},${input.data.token})`);
+  });
 }
 
 /** Only the owning delivery/service layer should receive this bearer capability. */
@@ -87,7 +95,7 @@ export function issueNewsletterPreference(db: Database, actor: string, workspace
     const { rows: [row] } = await tx.execute<{ issued: boolean }>(
       sql`select public.newsletter_preference_issue(${tenantId}::uuid,${subscriber}::uuid,${listId}::uuid,${input.scope},${nonce}) as issued`);
     if (!row.issued) throw missing();
-    return nonce + "." + signedDigest(key, "newsletter-preference-" + input.scope, nonce).toString("base64url");
+    return signNewsletterPreference(key, input.scope, nonce);
   });
 }
 
@@ -99,5 +107,8 @@ export async function unsubscribeNewsletter(db: Database, scope: "list" | "all",
   const expected = signedDigest(key, "newsletter-preference-" + scope, nonce);
   const supplied = Buffer.from(signature, "base64url");
   if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) return;
-  await db.execute(sql`select public.newsletter_unsubscribe(${nonce},${scope})`);
+  await db.transaction(async tx => {
+    await installNewsletterSuppressionKeys(tx);
+    await tx.execute(sql`select public.newsletter_unsubscribe(${nonce},${scope})`);
+  });
 }

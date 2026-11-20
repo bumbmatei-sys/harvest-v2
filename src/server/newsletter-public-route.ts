@@ -1,4 +1,5 @@
 import { getDb } from "../db/client";
+import { newsletterSuppressionHealth } from "./newsletter-campaigns/suppression-keys";
 import { newsletterEnabled } from "./newsletter";
 import { confirmNewsletterSignup, newsletterSignupNotice, startNewsletterSignup, unsubscribeNewsletter } from "./newsletter-public";
 
@@ -34,6 +35,10 @@ export function newsletterPublicInfo(kind: "signup" | "unsubscribe") {
 
 export async function newsletterPublicPost(request: Request, kind: "signup" | "confirm" | "unsubscribe") {
   if (!newsletterEnabled()) return new Response(null, { status: 404, headers });
+  if (newsletterSuppressionHealth().status === "missing") {
+    console.error("NEWSLETTER_SUPPRESSION_KEYS_UNAVAILABLE");
+    return new Response(null, { status: 503, headers });
+  }
   try {
     const body = await bodyText(request);
     const fullContentType = request.headers.get("content-type") ?? "";
