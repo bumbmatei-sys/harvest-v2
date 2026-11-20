@@ -153,8 +153,8 @@ describe("controlled contact erasure", () => {
   it("keeps FORCE RLS, WITH CHECK and append-only facts even with a forged redaction flag", async () => {
     const { rows } = await fixture.admin.query("select relrowsecurity,relforcerowsecurity from pg_class where relname in ('contacts','contact_identifiers','contact_consents')");
     expect(rows).toHaveLength(3); expect(rows.every((row) => row.relrowsecurity && row.relforcerowsecurity)).toBe(true);
-    const policies = await fixture.admin.query("select qual,with_check from pg_policies where tablename in ('contacts','contact_identifiers','contact_consents')");
-    expect(policies.rows.every((row) => row.qual && row.with_check)).toBe(true);
+    const policies = await fixture.admin.query("select cmd,qual,with_check from pg_policies where tablename in ('contacts','contact_identifiers','contact_consents')");
+    expect(policies.rows.every((row) => row.qual && (row.cmd === "SELECT" || row.with_check))).toBe(true);
     await expect(withTenant(fixture.db, "eraser-a", tenantA, "contacts:read", async (tx) => {
       await tx.execute(sql`select set_config('app.consent_redaction', 'true', true)`);
       await tx.execute(sql`update contact_consents set evidence = null`);

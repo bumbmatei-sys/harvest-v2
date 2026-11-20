@@ -16,7 +16,7 @@ export const jsonResponse = json;
 /** A tiny stateful double of the documented endpoints. `script()` queues responses that pre-empt it (for error and retry tests). */
 export function zernioDouble(): ZernioDouble {
   const requests: RecordedRequest[] = [], queued: (Response | Error)[] = [], posts = new Map<string, { status: string; key: string | null }>(), byKey = new Map<string, string>();
-  const accounts = [{ _id: "acc-ig-1", platform: "instagram", username: "grace_church" }, { _id: "acc-x-1", platform: "twitter", username: "not_supported" }];
+  const accounts = [{ _id: "acc-ig-1", platform: "instagram", username: "grace_church" }, { _id: "acc-x-1", platform: "metaads", username: "not_supported" }];
   const conversations = [1, 2, 3].map((n) => ({ id: `conv-${n}`, platform: "instagram", accountId: "acc-ig-1", participantName: `Person ${n}`, lastMessage: `hello ${n}`, updatedTime: "2026-11-09T14:00:03Z", status: "active", unreadCount: n }));
   let counter = 0;
   const page = (items: unknown[], cursor: string | null, limit: number, key: "data" | "comments") => {

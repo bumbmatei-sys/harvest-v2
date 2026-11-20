@@ -64,14 +64,21 @@ export async function receiveSocialWebhook(database: Database | (() => Database)
     const bodyHash = rawBodyHash(Buffer.from(rawBody, "utf8"));
     await db.transaction(async (tx) => {
       await tx.execute(sql`select set_config('app.tenant_id', ${target.tenant_id}, true)`);
-      const detail: { platform?: string; errorCategory?: string } = {};
+      const detail: { platform?: string; errorCategory?: string; correlationKey?: string; activityRef?: string; publishedPostRef?: string } = {};
       if (event.platform) detail.platform = event.platform;
       if (event.errorCategory) detail.errorCategory = event.errorCategory;
+      if (event.activityRef) detail.activityRef = event.activityRef;
+      if (event.publishedPostRef) detail.publishedPostRef = event.publishedPostRef;
+      if (event.correlationKey) detail.correlationKey = event.correlationKey;
       const [inserted] = await tx.insert(socialWebhookEvents).values({ tenantId: target.tenant_id, connectionId: target.connection_id, provider: provider.id, providerEventId: event.eventId,
         eventType: event.kind, externalAccountRef: event.accountRef!, subjectRef: event.subjectRef, detail, bodyHash, occurredAt: event.occurredAt,
       }).onConflictDoNothing({ target: [socialWebhookEvents.tenantId, socialWebhookEvents.provider, socialWebhookEvents.providerEventId] }).returning({ id: socialWebhookEvents.id });
       // A duplicate id inserts nothing and queues nothing, whatever its body.
-      if (inserted) await appendOutboxEvent(tx, target.tenant_id, { kind: "social.webhook", idempotencyKey: `social-webhook:${inserted.id}`, payload: { eventId: inserted.id } });
+      if (inserted) {
+        const inboxRefresh = event.kind.startsWith("message.") || event.kind === "comment.received" || event.kind === "mention.received";
+        await appendOutboxEvent(tx, target.tenant_id, { kind: "social.webhook", idempotencyKey: `social-webhook:${inserted.id}`,
+          payload: { eventId: inserted.id, ...(inboxRefresh ? { connectionId: target.connection_id, reference: event.subjectRef } : {}) } });
+      }
     });
   } catch { console.error("social_webhook_store_failed"); return Response.json({ error: message("Errors.somethingWentWrongPleaseTryAgain") }, { status: 500, headers: noStore }); }
   return accepted();

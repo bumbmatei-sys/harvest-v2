@@ -3,6 +3,7 @@ import { useTranslations, useFormatter } from "next-intl";
 import { message, errorMessage } from "../../i18n/messages";
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { putFile, PutError, type PutGrant } from "@/lib/put-file";
 import { FILE_MIME_TYPES, MAX_FILE_SIZE, uploadInput } from "@/lib/files";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,16 +17,11 @@ async function checkedJson(response: Response) {
   if (!response.ok) throw new Error(errorMessage(data.error, "ComponentsFilesUploadControl.requestFailedPleaseTryAgain"));
   return data;
 }
-function putFile(file: File, grant: { url: string; method: string; headers: Record<string, string> }, onProgress: (value: number) => void) {
-  return new Promise<void>((resolve, reject) => {
-    const xhr = new XMLHttpRequest();
-    xhr.open(grant.method, grant.url); xhr.timeout = 120_000;
-    for (const [name, value] of Object.entries(grant.headers)) xhr.setRequestHeader(name, value);
-    xhr.upload.onprogress = (event) => { if (event.lengthComputable) onProgress(Math.round(event.loaded / event.total * 100)); };
-    xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error(message("ComponentsFilesUploadControl.uploadFailedChooseTheFileAndTryAgain")));
-    xhr.onerror = xhr.ontimeout = () => reject(new Error(message("ComponentsFilesUploadControl.uploadConnectionFailedPleaseTryAgain")));
-    xhr.send(file);
-  });
+async function putGrant(file: File, grant: PutGrant, onProgress: (value: number) => void) {
+  try { await putFile(file, grant, onProgress); }
+  catch (error) {
+    throw new Error(error instanceof PutError && error.code === "FAILED" ? message("ComponentsFilesUploadControl.uploadFailedChooseTheFileAndTryAgain") : message("ComponentsFilesUploadControl.uploadConnectionFailedPleaseTryAgain"));
+  }
 }
 export function UploadControl({ tenantId, canUpload }: { tenantId: string; canUpload: boolean }) {
   const t = useTranslations("ComponentsFilesUploadControl");
@@ -58,7 +54,7 @@ export function UploadControl({ tenantId, canUpload }: { tenantId: string; canUp
       const input = uploadInput.parse({ name: file.name, mime: file.type, size: file.size, checksum, visibility: data.get("visibility") });
       const result = await checkedJson(await fetch(base, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(input) }));
       setPhase(t("uploading"));
-      await putFile(file, result.upload, setProgress);
+      await putGrant(file, result.upload, setProgress);
       setProgress(100); setPhase(t("verifyingFile")); setRetryId(result.file.id);
       await confirm(result.file.id); form.reset();
     } catch (error) { setError(error instanceof Error ? error.message : t("couldNotUploadPleaseTryAgain")); }

@@ -1,3 +1,9 @@
+import { accountMetrics, postMetrics, type AccountMetric, type AnalyticsStatus, type Metrics, type PostMetric } from "../lib/social/analytics";
+import type { AutoDmRule } from "../lib/social/auto-dm";
+import { socialUploadLimits } from "../lib/social/upload-limits";
+import { socialMediaMimes, type MediaMetadata } from "../lib/social/media";
+import { socialPlatforms, type SocialPlatform } from "../lib/social/platforms";
+import type { ComposerInput, DeliveryPayload, WeeklySlot } from "../lib/social/composer";
 import type { LandingDefinition } from "../lib/connect-landing";
 import type { RichDoc } from "../lib/rich-text";
 import type { BrandTheme } from "../lib/theme-registry";
@@ -466,19 +472,30 @@ export const files = pgTable("files", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
   ownerId: text("owner_id").notNull(),
   key: text("key").notNull(), name: text("name").notNull(), mime: text("mime").notNull(),
-  size: integer("size").notNull(), checksum: text("checksum").notNull(),
+  size: bigint("size", { mode: "number" }).notNull(), checksum: text("checksum").notNull(),
   status: text("status", { enum: ["pending", "uploaded", "quarantined", "ready"] }).notNull().default("pending"),
   visibility: text("visibility", { enum: ["private", "public"] }).notNull().default("private"),
+  socialUpload: boolean("social_upload").notNull().default(false),
+  mediaMetadata: jsonb("media_metadata").$type<MediaMetadata>(),
+  multipartId: text("multipart_id"),
+  socialRetiredAt: timestamp("social_retired_at", { withTimezone: true }),
+  socialConfirmUntil: timestamp("social_confirm_until", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   uniqueIndex("files_key_idx").on(t.key), unique("files_tenant_id_id_unique").on(t.tenantId, t.id), index("files_tenant_created_idx").on(t.tenantId, t.createdAt),
   foreignKey({ columns: [t.tenantId, t.ownerId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }),
-  check("files_size", sql`${t.size} BETWEEN 1 AND 10485760`),
+  check("files_size", sql`${t.size} BETWEEN 1 AND (case when ${t.socialUpload} then ${sql.raw(String(socialUploadLimits.fileBytes))} else 10485760 end)`),
   check("files_checksum", sql`${t.checksum} ~ '^[a-f0-9]{64}$'`),
   check("files_status", sql`${t.status} IN ('pending', 'uploaded', 'quarantined', 'ready')`),
   check("files_visibility", sql`${t.visibility} IN ('private', 'public')`),
-  check("files_mime", sql`${t.mime} IN ('image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'text/plain')`),
+  check("files_mime", sql`(${t.socialUpload} and ${t.mime} IN (${sql.raw(socialMediaMimes.map(mime => "'" + mime + "'").join(", "))}))
+    or (not ${t.socialUpload} and ${t.mime} IN ('image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'text/plain'))`),
+  check("files_social_upload_shape", sql`(not ${t.socialUpload} and ${t.mediaMetadata} is null and ${t.multipartId} is null)
+    or (${t.socialUpload} and ${t.visibility} = 'private' and (${t.status} <> 'ready' or (jsonb_typeof(${t.mediaMetadata}) = 'object' and ${t.mediaMetadata} is not null))
+       and (${t.multipartId} is null or length(${t.multipartId}) between 1 and 2048))`),
+  check("files_social_operation_scope", sql`${t.socialUpload} or (${t.socialRetiredAt} is null and ${t.socialConfirmUntil} is null)`),
+  index("social_upload_cleanup_idx").on(t.createdAt, t.id).where(sql`${t.socialUpload} and ${t.status} in ('pending','uploaded')`),
   check("files_key_scope", sql`${t.key} = 'workspaces/' || ${t.tenantId}::text || '/files/' || ${t.id}::text`),
   check("files_name", sql`length(${t.name}) BETWEEN 1 AND 200`),
 ]);
@@ -1450,10 +1467,10 @@ export const communityNotifications = pgTable("community_notifications", {
 // Social provider integration layer (migration 0051). Foundation only: nothing here can reach a provider.
 // Provider credentials are stored ONLY as sealed envelopes (src/server/social/credential-envelope.ts).
 export const socialConnectionStatuses = ["active", "disabled", "revoked"] as const;
-export const socialPostStatuses = ["draft", "scheduled", "publishing", "published", "failed", "cancelled"] as const;
+export const socialPostStatuses = ["draft", "scheduled", "publishing", "published", "failed", "cancelled", "unknown"] as const;
 export const socialConnections = pgTable("social_connections", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
-  provider: text("provider").$type<"zernio" | "fake">().notNull(), platform: text("platform").notNull(),
+  provider: text("provider").$type<"zernio" | "fake">().notNull(), platform: text("platform").$type<SocialPlatform>().notNull(),
   externalAccountRef: text("external_account_ref").notNull(), displayName: text("display_name"),
   status: text("status").$type<typeof socialConnectionStatuses[number]>().notNull().default("active"),
   health: text("health").$type<"unknown" | "healthy" | "degraded" | "failing">().notNull().default("unknown"),
@@ -1468,17 +1485,61 @@ export const socialConnections = pgTable("social_connections", {
   uniqueIndex("social_connections_account_idx").on(t.provider, t.externalAccountRef).where(sql`${t.status} <> 'revoked'`),
   index("social_connections_tenant_idx").on(t.tenantId, t.createdAt),
   check("social_connection_provider", sql`${t.provider} in ('zernio', 'fake')`),
-  check("social_connection_platform", sql`${t.platform} in ('facebook', 'instagram', 'threads', 'tiktok', 'youtube')`),
+  check("social_connection_platform", sql`${t.platform} in (${sql.raw(socialPlatforms.map(platform => "'" + platform + "'").join(", "))})`),
   check("social_connection_status", sql`${t.status} in ('active', 'disabled', 'revoked')`),
   check("social_connection_health", sql`${t.health} in ('unknown', 'healthy', 'degraded', 'failing') and (${t.healthCode} is null or ${t.healthCode} ~ '^[a-z0-9_.-]{1,60}$')`),
   check("social_connection_fields", sql`length(${t.externalAccountRef}) between 1 and 200 and (${t.displayName} is null or length(${t.displayName}) between 1 and 120)`),
   // Shape only: a sealed envelope has these keys and nothing resembling a plain token field.
   check("social_connection_envelope", sql`jsonb_typeof(${t.credentialEnvelope}) = 'object' and ${t.credentialEnvelope} ?& array['version', 'keyId', 'binding', 'iv', 'tag', 'ciphertext'] and not (${t.credentialEnvelope} ?| array['secret', 'token', 'apiKey', 'accessToken']) and octet_length(${t.credentialEnvelope}::text) <= 4096`),
 ]);
-export const socialPostErrorCodes = ["PROVIDER_AUTH", "PROVIDER_REJECTED", "PROVIDER_CONFLICT", "PROVIDER_UNAVAILABLE", "PROVIDER_RATE_LIMITED", "MAX_ATTEMPTS", "IDEMPOTENCY_WINDOW_EXPIRED", "CONNECTION_UNAVAILABLE", "PARTIAL_PUBLISH", "DISABLED", "CREDENTIAL_UNAVAILABLE", "UNCONFIRMED"] as const;
+export const socialSchedules = pgTable("social_schedules", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  id: uuid("id").notNull().defaultRandom(),
+  platform: text("platform").$type<SocialPlatform>(),
+  name: text("name").notNull(),
+  timezone: text("timezone").notNull(),
+  slots: jsonb("slots").$type<WeeklySlot[]>().notNull(),
+  version: integer("version").notNull().default(1),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  uniqueIndex("social_schedule_scope_idx").on(t.tenantId, sql`coalesce(${t.platform}, '')`).where(sql`${t.archivedAt} is null`),
+  check("social_schedule_platform", sql`${t.platform} in (${sql.raw(socialPlatforms.map(platform => "'" + platform + "'").join(", "))})`),
+  check("social_schedule_shape", sql`length(${t.name}) between 1 and 120 and length(${t.timezone}) between 1 and 80
+    and jsonb_typeof(${t.slots}) = 'array' and jsonb_array_length(${t.slots}) between 1 and 84 and ${t.version} > 0`),
+]);
+export const socialDrafts = pgTable("social_drafts", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  id: uuid("id").notNull().defaultRandom(),
+  document: jsonb("document").$type<ComposerInput>().notNull(),
+  status: text("status").$type<"draft" | "submitted" | "cancelled">().notNull().default("draft"),
+  version: integer("version").notNull().default(1),
+  reviewHash: text("review_hash"),
+  reviewBy: text("review_by").references(() => users.id),
+  reviewExpires: timestamp("review_expires", { withTimezone: true }),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  index("social_drafts_planner_idx").on(t.tenantId, t.status, t.updatedAt, t.id),
+  check("social_draft_shape", sql`${t.status} in ('draft', 'submitted', 'cancelled') and ${t.version} > 0
+    and jsonb_typeof(${t.document}) = 'object' and octet_length(${t.document}::text) <= 1100000
+    and ((${t.reviewHash} is null and ${t.reviewBy} is null and ${t.reviewExpires} is null)
+      or (${t.status} = 'draft' and ${t.reviewHash} ~ '^[0-9a-f]{64}$' and ${t.reviewHash} is not null and ${t.reviewBy} is not null and ${t.reviewExpires} is not null))`),
+]);
+export const socialPostErrorCodes = ["PROVIDER_AUTH", "PROVIDER_REJECTED", "PROVIDER_CONFLICT", "PROVIDER_UNAVAILABLE", "PROVIDER_RATE_LIMITED", "MAX_ATTEMPTS", "IDEMPOTENCY_WINDOW_EXPIRED", "CONNECTION_UNAVAILABLE", "PARTIAL_PUBLISH", "DISABLED", "CREDENTIAL_UNAVAILABLE", "UNCONFIRMED", "MEDIA_UNAVAILABLE", "MEDIA_URL_EXPIRED"] as const;
 export const socialPosts = pgTable("social_posts", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
   connectionId: uuid("connection_id").notNull(),
+  draftId: uuid("draft_id"),
+  scheduleId: uuid("schedule_id"),
+  displayTimezone: text("display_timezone").notNull().default("UTC"),
+  delivery: jsonb("delivery").$type<DeliveryPayload>(),
+  repeatNumber: integer("repeat_number").notNull().default(0),
   status: text("status").$type<typeof socialPostStatuses[number]>().notNull().default("draft"),
   content: text("content").notNull(), media: jsonb("media").$type<{ kind: "image" | "video"; url: string }[]>().notNull().default(sql`'[]'::jsonb`),
   scheduledFor: timestamp("scheduled_for", { withTimezone: true }),
@@ -1495,16 +1556,24 @@ export const socialPosts = pgTable("social_posts", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  unique("social_posts_tenant_connection_id_key").on(t.tenantId, t.connectionId, t.id),
   foreignKey({ columns: [t.tenantId, t.connectionId], foreignColumns: [socialConnections.tenantId, socialConnections.id] }),
+  foreignKey({ columns: [t.tenantId, t.draftId], foreignColumns: [socialDrafts.tenantId, socialDrafts.id] }),
+  foreignKey({ columns: [t.tenantId, t.scheduleId], foreignColumns: [socialSchedules.tenantId, socialSchedules.id] }),
+  uniqueIndex("social_posts_draft_destination_idx").on(t.tenantId, t.draftId, t.connectionId, t.repeatNumber),
+  index("social_posts_schedule_queue_idx").on(t.tenantId, t.scheduleId, t.scheduledFor),
+  check("social_post_delivery", sql`(${t.draftId} is null and ${t.delivery} is null and ${t.scheduleId} is null and ${t.repeatNumber} = 0)
+    or (${t.draftId} is not null and ${t.delivery} is not null and jsonb_typeof(${t.delivery}) = 'object'
+      and octet_length(${t.delivery}::text) <= 70000 and ${t.media} = '[]'::jsonb and ${t.repeatNumber} between 0 and 52)`),
   uniqueIndex("social_posts_idempotency_idx").on(t.tenantId, t.idempotencyKey),
   index("social_posts_due_idx").on(t.status, t.nextAttemptAt).where(sql`${t.status} in ('scheduled', 'publishing')`),
   index("social_posts_tenant_idx").on(t.tenantId, t.status, t.scheduledFor),
   index("social_posts_provider_ref_idx").on(t.tenantId, t.connectionId, t.providerPostRef).where(sql`${t.providerPostRef} is not null`),
-  check("social_post_status", sql`${t.status} in ('draft', 'scheduled', 'publishing', 'published', 'failed', 'cancelled')`),
-  check("social_post_content", sql`length(${t.content}) between 1 and 10000 and jsonb_typeof(${t.media}) = 'array' and jsonb_array_length(${t.media}) <= 10 and octet_length(${t.media}::text) <= 8192`),
+  check("social_post_status", sql`${t.status} in ('draft', 'scheduled', 'publishing', 'published', 'failed', 'cancelled', 'unknown')`),
+  check("social_post_content", sql`((${t.draftId} is null and length(${t.content}) between 1 and 10000) or (${t.draftId} is not null and length(${t.content}) <= 100000)) and jsonb_typeof(${t.media}) = 'array' and jsonb_array_length(${t.media}) <= 10 and octet_length(${t.media}::text) <= 8192`),
   check("social_post_counters", sql`${t.attempts} >= 0 and ${t.maxAttempts} between 1 and 10 and ${t.attempts} <= ${t.maxAttempts} and ${t.version} >= 1`),
   check("social_post_key", sql`length(${t.idempotencyKey}) between 8 and 100`),
-  check("social_post_error", sql`${t.lastErrorCode} is null or ${t.lastErrorCode} in ('PROVIDER_AUTH', 'PROVIDER_REJECTED', 'PROVIDER_CONFLICT', 'PROVIDER_UNAVAILABLE', 'PROVIDER_RATE_LIMITED', 'MAX_ATTEMPTS', 'IDEMPOTENCY_WINDOW_EXPIRED', 'CONNECTION_UNAVAILABLE', 'PARTIAL_PUBLISH', 'DISABLED', 'CREDENTIAL_UNAVAILABLE', 'UNCONFIRMED')`),
+  check("social_post_error", sql`${t.lastErrorCode} is null or ${t.lastErrorCode} in ('PROVIDER_AUTH', 'PROVIDER_REJECTED', 'PROVIDER_CONFLICT', 'PROVIDER_UNAVAILABLE', 'PROVIDER_RATE_LIMITED', 'MAX_ATTEMPTS', 'IDEMPOTENCY_WINDOW_EXPIRED', 'CONNECTION_UNAVAILABLE', 'PARTIAL_PUBLISH', 'DISABLED', 'CREDENTIAL_UNAVAILABLE', 'UNCONFIRMED', 'MEDIA_UNAVAILABLE', 'MEDIA_URL_EXPIRED', 'MEDIA_FETCH_FAILED')`),
   // Shape per state. The trigger in migration 0051 adds the legal transitions.
   check("social_post_state_shape", sql`(${t.status} <> 'scheduled' or (${t.scheduledFor} is not null and ${t.nextAttemptAt} is not null and ${t.lockToken} is null and ${t.lockedAt} is null))
     and (${t.status} <> 'publishing' or (${t.firstAttemptAt} is not null and ((${t.lockToken} is not null and ${t.lockedAt} is not null) or (${t.lockToken} is null and ${t.lockedAt} is null and ${t.providerPostRef} is not null and ${t.nextAttemptAt} is not null))))
@@ -1518,7 +1587,7 @@ export const socialWebhookEvents = pgTable("social_webhook_events", {
   connectionId: uuid("connection_id").notNull(), provider: text("provider").notNull(), providerEventId: text("provider_event_id").notNull(),
   eventType: text("event_type").notNull(), externalAccountRef: text("external_account_ref").notNull(), subjectRef: text("subject_ref"),
   // Allow-listed, content-free: platform and error category only. No message text, sender names or comment bodies are ever stored.
-  detail: jsonb("detail").$type<{ platform?: string; errorCategory?: string }>().notNull().default(sql`'{}'::jsonb`),
+  detail: jsonb("detail").$type<{ platform?: string; errorCategory?: string; correlationKey?: string; activityRef?: string; publishedPostRef?: string }>().notNull().default(sql`'{}'::jsonb`),
   bodyHash: text("body_hash").notNull(),
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
   receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
@@ -2029,6 +2098,257 @@ export const communityMemberProfiles = pgTable("community_member_profiles", {
   check("community_member_profile_links", sql`public.community_member_profile_links_valid(${t.links})`),
   check("community_member_profile_visibility", sql`${t.visibility} in ('members','unlisted','private')`),
   check("community_member_profile_version", sql`${t.version} > 0`),
+]);
+
+// Social inbox retains routing and Harvest workflow metadata only.
+export const socialInboxItems = pgTable("social_inbox_items", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  connectionId: uuid("connection_id").notNull(),
+  providerRef: text("provider_ref").notNull(),
+  kind: text("kind").$type<"dm" | "comment" | "mention" | "story">().notNull(),
+  activityAt: timestamp("activity_at", { withTimezone: true }),
+  status: text("status").$type<"open" | "done">().notNull().default("open"),
+  assigneeId: text("assignee_id"),
+  starred: boolean("starred").notNull().default(false),
+  snoozedUntil: timestamp("snoozed_until", { withTimezone: true }),
+  contactId: uuid("contact_id"),
+  version: integer("version").notNull().default(1),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  uniqueIndex("social_inbox_item_identity").on(t.tenantId, t.connectionId, t.kind, t.providerRef),
+  foreignKey({ name: "social_inbox_item_connection_fk", columns: [t.tenantId, t.connectionId], foreignColumns: [socialConnections.tenantId, socialConnections.id] }),
+  foreignKey({ name: "social_inbox_item_assignee_fk", columns: [t.tenantId, t.assigneeId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }),
+  foreignKey({ name: "social_inbox_item_contact_fk", columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }),
+  index("social_inbox_item_activity_idx").on(t.tenantId, t.activityAt, t.id),
+  check("social_inbox_item_shape", sql`${t.kind} in ('dm','comment','mention','story') and ${t.status} in ('open','done') and length(${t.providerRef}) between 1 and 200 and ${t.version} > 0`),
+]);
+export const socialInboxReads = pgTable("social_inbox_reads", {
+  tenantId: uuid("tenant_id").notNull(),
+  itemId: uuid("item_id").notNull(),
+  readerId: text("reader_id").notNull(),
+  readThrough: timestamp("read_through", { withTimezone: true }).notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.itemId, t.readerId] }),
+  foreignKey({ name: "social_inbox_read_item_fk", columns: [t.tenantId, t.itemId], foreignColumns: [socialInboxItems.tenantId, socialInboxItems.id] }).onDelete("cascade"),
+  foreignKey({ name: "social_inbox_read_reader_fk", columns: [t.tenantId, t.readerId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }).onDelete("cascade"),
+]);
+export const socialInboxLabels = pgTable("social_inbox_labels", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  id: uuid("id").notNull().defaultRandom(),
+  name: text("name").notNull(),
+  version: integer("version").notNull().default(1),
+  archived: boolean("archived").notNull().default(false),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  uniqueIndex("social_inbox_label_name_idx").on(t.tenantId, sql`lower(${t.name})`).where(sql`not ${t.archived}`),
+  check("social_inbox_label_shape", sql`length(trim(${t.name})) between 1 and 80 and ${t.version} > 0`),
+]);
+export const socialInboxItemLabels = pgTable("social_inbox_item_labels", {
+  tenantId: uuid("tenant_id").notNull(),
+  itemId: uuid("item_id").notNull(),
+  labelId: uuid("label_id").notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.itemId, t.labelId] }),
+  foreignKey({ name: "social_inbox_item_label_item_fk", columns: [t.tenantId, t.itemId], foreignColumns: [socialInboxItems.tenantId, socialInboxItems.id] }).onDelete("cascade"),
+  foreignKey({ name: "social_inbox_item_label_label_fk", columns: [t.tenantId, t.labelId], foreignColumns: [socialInboxLabels.tenantId, socialInboxLabels.id] }),
+]);
+export const socialInboxNotes = pgTable("social_inbox_notes", {
+  tenantId: uuid("tenant_id").notNull(),
+  itemId: uuid("item_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  authorId: text("author_id").notNull().references(() => users.id),
+  note: text("note").notNull(),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.itemId, t.id] }),
+  foreignKey({ name: "social_inbox_note_item_fk", columns: [t.tenantId, t.itemId], foreignColumns: [socialInboxItems.tenantId, socialInboxItems.id] }).onDelete("cascade"),
+  check("social_inbox_note_shape", sql`length(trim(${t.note})) between 1 and 5000 and ${t.version} > 0`),
+]);
+export const socialInboxSavedReplies = pgTable("social_inbox_saved_replies", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  id: uuid("id").notNull().defaultRandom(),
+  name: text("name").notNull(),
+  template: text("template").notNull(),
+  version: integer("version").notNull().default(1),
+  archived: boolean("archived").notNull().default(false),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  check("social_inbox_saved_reply_shape", sql`length(trim(${t.name})) between 1 and 80 and length(trim(${t.template})) between 1 and 5000 and ${t.version} > 0`),
+]);
+export const socialInboxHours = pgTable("social_inbox_hours", {
+  tenantId: uuid("tenant_id").notNull(),
+  connectionId: uuid("connection_id").notNull(),
+  timezone: text("timezone").notNull(),
+  hours: jsonb("hours").$type<{ day: number; start: string; end: string }[]>().notNull(),
+  awayTemplate: text("away_template"),
+  version: integer("version").notNull().default(1),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.connectionId] }),
+  foreignKey({ name: "social_inbox_hours_connection_fk", columns: [t.tenantId, t.connectionId], foreignColumns: [socialConnections.tenantId, socialConnections.id] }),
+  check("social_inbox_hours_shape", sql`length(${t.timezone}) between 1 and 80 and jsonb_typeof(${t.hours}) = 'array' and jsonb_array_length(${t.hours}) <= 28 and length(${t.hours}::text) <= 2400 and (${t.awayTemplate} is null or length(${t.awayTemplate}) between 1 and 5000) and ${t.version} > 0`),
+]);
+export const socialInboxReplies = pgTable("social_inbox_replies", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull(),
+  itemId: uuid("item_id").notNull(),
+  actorId: text("actor_id").notNull().references(() => users.id),
+  connectionVersion: integer("connection_version").notNull(),
+  mode: text("mode").$type<"message" | "comment" | "private" | "mention">().notNull(),
+  fingerprint: text("fingerprint").notNull(),
+  targetRef: text("target_ref"),
+  fileId: uuid("file_id"),
+  state: text("state").$type<"queued" | "leased" | "dispatching" | "unknown" | "confirmed" | "failed" | "cancelled">().notNull().default("queued"),
+  attempts: integer("attempts").notNull().default(0),
+  reconcileAttempts: integer("reconcile_attempts").notNull().default(0),
+  firstAttemptAt: timestamp("first_attempt_at", { withTimezone: true }),
+  nextAt: timestamp("next_at", { withTimezone: true }).notNull().defaultNow(),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  leaseId: uuid("lease_id"),
+  providerDeliveryRef: text("provider_delivery_ref"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  version: integer("version").notNull().default(1),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "social_inbox_reply_item_fk", columns: [t.tenantId, t.itemId], foreignColumns: [socialInboxItems.tenantId, socialInboxItems.id] }),
+  foreignKey({ name: "social_inbox_reply_file_fk", columns: [t.tenantId, t.fileId], foreignColumns: [files.tenantId, files.id] }),
+  uniqueIndex("social_inbox_private_reply_once").on(t.tenantId, t.itemId, t.targetRef)
+    .where(sql`${t.mode} = 'private' and ${t.state} in ('queued','leased','dispatching','unknown','confirmed')`),
+  index("social_inbox_reply_due_idx").on(t.state, t.nextAt, t.id),
+  check("social_inbox_reply_shape", sql`${t.mode} in ('message','comment','private','mention') and ${t.state} in ('queued','leased','dispatching','unknown','confirmed','failed','cancelled') and ${t.fingerprint} ~ '^[a-zA-Z0-9_.:-]{1,100}:[a-f0-9]{64}$' and ${t.attempts} between 0 and 3 and ${t.reconcileAttempts} between 0 and 3 and ${t.version} > 0 and ((${t.leaseId} is null) = (${t.leaseUntil} is null)) and ((${t.attempts} = 0) = (${t.firstAttemptAt} is null)) and ((${t.state} = 'confirmed') = (${t.providerDeliveryRef} is not null)) and (${t.targetRef} is null or length(${t.targetRef}) between 1 and 200) and (${t.providerDeliveryRef} is null or length(${t.providerDeliveryRef}) between 1 and 200)`),
+]);
+
+// Only item IDs already encountered in an expiring, per-reader aggregate scan.
+export const socialInboxScanItems = pgTable("social_inbox_scan_items", {
+  tenantId: uuid("tenant_id").notNull(),
+  readerId: text("reader_id").notNull(),
+  scanId: uuid("scan_id").notNull(),
+  itemId: uuid("item_id").notNull(),
+  firstPage: integer("first_page").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.readerId, t.scanId, t.itemId] }),
+  foreignKey({ name: "social_inbox_scan_reader_fk", columns: [t.tenantId, t.readerId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }).onDelete("cascade"),
+  foreignKey({ name: "social_inbox_scan_item_fk", columns: [t.tenantId, t.itemId], foreignColumns: [socialInboxItems.tenantId, socialInboxItems.id] }).onDelete("cascade"),
+  index("social_inbox_scan_expiry_idx").on(t.tenantId, t.readerId, t.expiresAt),
+  check("social_inbox_scan_page", sql`${t.firstPage} >= 0`),
+]);
+
+export const socialPostMediaGrants = pgTable("social_post_media_grants", {
+  tenantId: uuid("tenant_id").notNull(),
+  postId: uuid("post_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  claimId: uuid("claim_id").notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.postId] }),
+  uniqueIndex("social_post_media_grant_id_idx").on(t.id),
+  foreignKey({ name: "social_post_media_grant_delivery_fk", columns: [t.tenantId, t.postId], foreignColumns: [socialPosts.tenantId, socialPosts.id] }).onDelete("cascade"),
+]);
+
+export const socialAutoDmRules = pgTable("social_auto_dm_rules", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(),
+  connectionId: uuid("connection_id").notNull(), postId: uuid("post_id"),
+  rule: jsonb("rule").$type<AutoDmRule>().notNull(),
+  enabled: boolean("enabled").notNull().default(false), version: integer("version").notNull().default(1),
+  enabledBy: text("enabled_by"), enabledAt: timestamp("enabled_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  unique("social_auto_dm_rule_connection_key").on(t.tenantId, t.connectionId, t.id),
+  foreignKey({ columns: [t.tenantId, t.connectionId], foreignColumns: [socialConnections.tenantId, socialConnections.id] }),
+  foreignKey({ columns: [t.tenantId, t.postId], foreignColumns: [socialPosts.tenantId, socialPosts.id] }),
+  index("social_auto_dm_active_idx").on(t.tenantId,t.connectionId).where(sql`${t.enabled}`),
+  check("social_auto_dm_rule_shape", sql`${t.version} > 0 and jsonb_typeof(${t.rule}) = 'object' and octet_length(${t.rule}::text) <= 24000 and (${t.enabled} = (${t.enabledBy} is not null and ${t.enabledAt} is not null))`),
+  check("social_auto_dm_rule_limits", sql`case when jsonb_typeof(${t.rule}->'cooldownMinutes') = 'number' and ${t.rule}->>'cooldownMinutes' ~ '^[0-9]{1,6}$' then (${t.rule}->>'cooldownMinutes')::integer between 1 and 43200 else false end and case when jsonb_typeof(${t.rule}->'recipientDaily') = 'number' and ${t.rule}->>'recipientDaily' ~ '^[0-9]{1,6}$' then (${t.rule}->>'recipientDaily')::integer between 1 and 5 else false end and case when jsonb_typeof(${t.rule}->'ruleDaily') = 'number' and ${t.rule}->>'ruleDaily' ~ '^[0-9]{1,6}$' then (${t.rule}->>'ruleDaily')::integer between 1 and 500 else false end`),
+]);
+
+export const socialAutoDmJobs = pgTable("social_auto_dm_jobs", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(),
+  connectionId: uuid("connection_id").notNull(), ruleId: uuid("rule_id").notNull(), ruleVersion: integer("rule_version").notNull(),
+  eventId: uuid("event_id").notNull(), step: text("step").$type<"primary" | "public" | "followup">().notNull().default("primary"),
+  recipientKey: text("recipient_key"), requestHash: text("request_hash"), prefix: text("prefix").$type<"rule" | "away">(),
+  policyVersion: integer("policy_version"),
+  state: text("state").notNull().default("queued"), reason: text("reason"),
+  attempts: integer("attempts").notNull().default(0), leasedUntil: timestamp("leased_until", { withTimezone: true }),
+  lease: uuid("lease"),
+  firstAttemptAt: timestamp("first_attempt_at", { withTimezone: true }),
+  nextAt: timestamp("next_at", { withTimezone: true }).notNull().defaultNow(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  completedAt: timestamp("completed_at", { withTimezone: true }),
+  deliveryRef: text("delivery_ref"),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "social_auto_dm_job_rule_fk", columns: [t.tenantId, t.connectionId, t.ruleId], foreignColumns: [socialAutoDmRules.tenantId, socialAutoDmRules.connectionId, socialAutoDmRules.id] }),
+  foreignKey({ name: "social_auto_dm_job_event_fk", columns: [t.tenantId, t.eventId], foreignColumns: [socialWebhookEvents.tenantId,socialWebhookEvents.id] }),
+  uniqueIndex("social_auto_dm_job_event_idx").on(t.tenantId,t.connectionId,t.ruleId,t.ruleVersion,t.eventId,t.step),
+  index("social_auto_dm_due_idx").on(t.state,t.nextAt),
+  index("social_auto_dm_activity_idx").on(t.tenantId,t.ruleId,t.createdAt),
+  check("social_auto_dm_job_shape", sql`${t.state} in ('queued','leased','dispatching','unknown','sent','skipped','handed_off','cancelled') and
+    ${t.step} in ('primary','public','followup') and ${t.attempts} between 0 and 3 and ${t.ruleVersion} > 0 and
+    (${t.reason} is null or ${t.reason} in ('cooldown','limit','outside_hours','ineligible','suppressed','provider_error')) and
+    (${t.recipientKey} is null or ${t.recipientKey} ~ '^[0-9a-f]{64}$') and
+    (${t.requestHash} is null or ${t.requestHash} ~ '^[0-9a-f]{64}$') and
+    (${t.prefix} is null or ${t.prefix} in ('rule','away')) and
+    (${t.deliveryRef} is null or length(${t.deliveryRef}) between 1 and 200) and
+    ((${t.lease} is null) = (${t.leasedUntil} is null))`),
+]);
+
+const numericAnalytics = (column: AnyPgColumn, fields: readonly string[]) =>
+  sql`jsonb_typeof(${column}) = 'object' AND ${column} - array[${sql.raw(fields.map(field => "'" + field + "'").join(","))}] = '{}'::jsonb
+    AND NOT jsonb_path_exists(${column}, '$.keyvalue() ? (@.value.type() != "number")')`;
+
+export const socialAnalyticsPosts = pgTable("social_analytics_posts", {
+  tenantId: uuid("tenant_id").notNull(), connectionId: uuid("connection_id").notNull(),
+  providerRef: text("provider_ref").notNull(), plannerPostId: uuid("planner_post_id"),
+  day: date("day").notNull(), capturedAt: timestamp("captured_at", { withTimezone: true }).notNull(),
+  publishedAt: timestamp("published_at", { withTimezone: true }).notNull(),
+  metrics: jsonb("metrics").$type<Metrics<PostMetric>>().notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId,t.connectionId,t.providerRef,t.day] }),
+  foreignKey({ name: "social_analytics_posts_connection_fk", columns:[t.tenantId,t.connectionId], foreignColumns:[socialConnections.tenantId,socialConnections.id] }),
+  foreignKey({ name: "social_analytics_posts_planner_fk", columns:[t.tenantId,t.connectionId,t.plannerPostId], foreignColumns:[socialPosts.tenantId,socialPosts.connectionId,socialPosts.id] }),
+  index("social_analytics_post_day_idx").on(t.day,t.tenantId),
+  index("social_analytics_post_planner_idx").on(t.tenantId,t.plannerPostId,t.day),
+  check("social_analytics_post_shape", sql`length(${t.providerRef}) between 1 and 200 and ${t.publishedAt} <= ${t.capturedAt} and ${t.day} = (${t.capturedAt} at time zone 'UTC')::date and ${numericAnalytics(t.metrics, postMetrics)}`),
+]);
+
+export const socialAnalyticsAccounts = pgTable("social_analytics_accounts", {
+  tenantId: uuid("tenant_id").notNull(), connectionId: uuid("connection_id").notNull(), day: date("day").notNull(),
+  capturedAt: timestamp("captured_at", { withTimezone: true }).notNull(),
+  metrics: jsonb("metrics").$type<Metrics<AccountMetric>>().notNull(),
+}, (t) => [
+  primaryKey({ columns:[t.tenantId,t.connectionId,t.day] }),
+  foreignKey({ name:"social_analytics_accounts_connection_fk", columns:[t.tenantId,t.connectionId], foreignColumns:[socialConnections.tenantId,socialConnections.id] }),
+  index("social_analytics_account_day_idx").on(t.day,t.tenantId),
+  check("social_analytics_account_shape", sql`${numericAnalytics(t.metrics, accountMetrics)}`),
+]);
+
+export const socialAnalyticsTimes = pgTable("social_analytics_times", {
+  tenantId: uuid("tenant_id").notNull(), connectionId: uuid("connection_id").notNull(), day: date("day").notNull(),
+  weekday: integer("weekday").notNull(), hour: integer("hour").notNull(),
+  engagement: doublePrecision("engagement").notNull(), samples: integer("samples").notNull(),
+}, (t) => [
+  primaryKey({ columns:[t.tenantId,t.connectionId,t.day,t.weekday,t.hour] }),
+  foreignKey({ name:"social_analytics_times_account_fk", columns:[t.tenantId,t.connectionId,t.day],
+    foreignColumns:[socialAnalyticsAccounts.tenantId,socialAnalyticsAccounts.connectionId,socialAnalyticsAccounts.day] }).onDelete("cascade"),
+  check("social_analytics_time_shape", sql`${t.weekday} between 0 and 6 and ${t.hour} between 0 and 23 and ${t.samples} > 0 and ${t.engagement} between 0 and 9007199254740991`),
+]);
+
+export const socialAnalyticsRefresh = pgTable("social_analytics_refresh", {
+  tenantId: uuid("tenant_id").notNull(), connectionId: uuid("connection_id").notNull(),
+  state: text("state").$type<AnalyticsStatus>().notNull().default("pending"),
+  checkedAt: timestamp("checked_at", { withTimezone: true }), refreshedAt: timestamp("refreshed_at", { withTimezone: true }),
+  dueAt: timestamp("due_at", { withTimezone: true }).notNull().defaultNow(),
+  lease: uuid("lease"), leasedUntil: timestamp("leased_until", { withTimezone: true }),
+  failures: integer("failures").notNull().default(0),
+  page: integer("page").notNull().default(1),
+}, (t) => [
+  primaryKey({ columns:[t.tenantId,t.connectionId] }),
+  foreignKey({ name:"social_analytics_refresh_connection_fk", columns:[t.tenantId,t.connectionId], foreignColumns:[socialConnections.tenantId,socialConnections.id] }),
+  index("social_analytics_refresh_due_idx").on(t.dueAt),
+  check("social_analytics_refresh_shape", sql`${t.state} in ('pending','ready','partial','delayed','expired','unavailable') and ${t.failures} between 0 and 20 and ${t.page} between 1 and 10000 and ((${t.lease} is null) = (${t.leasedUntil} is null))`),
 ]);
 
 // Newsletter authored material lives in revisions, independently of delivery evidence.

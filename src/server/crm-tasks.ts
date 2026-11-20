@@ -81,20 +81,23 @@ function taskPayload(task: TaskRow, actorId: string) {
 export function createTask(db: Database, userId: string, workspace: string, data: TaskInput) {
   const parsed = taskInput.safeParse(data);
   if (!parsed.success) throw new AccessError(400, message("Errors.checkTheTaskDetails"));
-  const input = parsed.data;
-  return withTenant(db, userId, uuidInput.parse(workspace), "tasks:write", async (tx, tenantId) => {
-    const relations = { contactId: input.contactId ?? null, companyId: input.companyId ?? null, opportunityId: input.opportunityId ?? null };
-    await checkRelations(tx, tenantId, relations);
-    await checkMember(tx, tenantId, input.assigneeUserId);
-    const [task] = await tx.insert(crmTasks).values({
-      tenantId, title: input.title, body: input.body, priority: input.priority, dueAt: input.dueAt ?? null,
-      assigneeUserId: input.assigneeUserId ?? null, ...relations, createdBy: userId,
-    }).returning().catch(guarded);
-    await audit(tx, tenantId, userId, "task.create", task.id, relationMetadata(relations));
-    await notifyAssignee(tx, tenantId, userId, task.id, task.assigneeUserId);
-    await emitCrmEvent(tx, tenantId, "crm.task.created", `crm:task:${task.id}:created`, taskPayload(task, userId));
-    return { id: task.id, version: task.version };
-  });
+  return withTenant(db, userId, uuidInput.parse(workspace), "tasks:write", (tx, tenantId) =>
+    createTaskInTenant(tx, userId, tenantId, parsed.data));
+}
+
+/** Called with an authorized tenant transaction and tasks:write permission. */
+export async function createTaskInTenant(tx: Transaction, userId: string, tenantId: string, input: ReturnType<typeof taskInput.parse>) {
+  const relations = { contactId: input.contactId ?? null, companyId: input.companyId ?? null, opportunityId: input.opportunityId ?? null };
+  await checkRelations(tx, tenantId, relations);
+  await checkMember(tx, tenantId, input.assigneeUserId);
+  const [task] = await tx.insert(crmTasks).values({
+    tenantId, title: input.title, body: input.body, priority: input.priority, dueAt: input.dueAt ?? null,
+    assigneeUserId: input.assigneeUserId ?? null, ...relations, createdBy: userId,
+  }).returning().catch(guarded);
+  await audit(tx, tenantId, userId, "task.create", task.id, relationMetadata(relations));
+  await notifyAssignee(tx, tenantId, userId, task.id, task.assigneeUserId);
+  await emitCrmEvent(tx, tenantId, "crm.task.created", `crm:task:${task.id}:created`, taskPayload(task, userId));
+  return { id: task.id, version: task.version };
 }
 
 /**

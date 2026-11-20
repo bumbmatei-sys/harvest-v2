@@ -1,9 +1,13 @@
+import type { AnalyticsDayRange, AnalyticsPosts, AnalyticsQuery, AnalyticsSlot } from "./analytics-contract";
+import type { AccountMetric, Metrics } from "../../lib/social/analytics";
+import type { AutoDmEvent, AutoDmEvidence } from "./auto-dm-contract";
+import type { InboxEntry, InboxItemQuery, InboxListQuery, InboxReadPage, InboxReplyEligibility, InboxReplyQuery, InboxReplyRequest } from "./inbox-contract";
 import type {
   Comment, CommentReplyRequest, Conversation, InboundEvent, Message, Page, PageQuery, PostStatusResult, PublishRequest, PublishResult,
   SendMessageRequest, SendResult, SocialAccount, SocialAccountHealth, SocialCredential, SocialProviderId,
 } from "./types";
 
-export const providerErrorCodes = ["AUTH", "RATE_LIMITED", "INVALID_REQUEST", "NOT_FOUND", "CONFLICT", "UNAVAILABLE", "DISABLED"] as const;
+export const providerErrorCodes = ["AUTH", "RATE_LIMITED", "INVALID_REQUEST", "NOT_FOUND", "CONFLICT", "UNAVAILABLE", "DISABLED", "MEDIA_EXPIRED", "EXPIRED", "UNSUPPORTED", "MEDIA_FETCH_FAILED"] as const;
 export type ProviderErrorCode = typeof providerErrorCodes[number];
 /**
  * The only error a provider may throw. The message is the fixed code: never a response body, token or request content.
@@ -29,17 +33,29 @@ export interface SocialProvider {
   listConversations(cred: SocialCredential, query: PageQuery): Promise<Page<Conversation>>;
   listMessages(cred: SocialCredential, query: PageQuery & { conversationRef: string }): Promise<Page<Message>>;
   listComments(cred: SocialCredential, query: PageQuery & { postRef: string }): Promise<Page<Comment>>;
+  listInbox(cred: SocialCredential, query: InboxListQuery): Promise<Page<InboxEntry>>;
+  readInbox(cred: SocialCredential, query: InboxItemQuery): Promise<InboxReadPage>;
+  inboxReplyEligibility(cred: SocialCredential, query: InboxReplyQuery): Promise<InboxReplyEligibility>;
+  readPostAnalytics(cred: SocialCredential, query: AnalyticsQuery & AnalyticsDayRange & { page: number; limit: number; order: "date" | "engagement" }): Promise<AnalyticsPosts>;
+  readAccountAnalytics(cred: SocialCredential, query: AnalyticsQuery & AnalyticsDayRange): Promise<{ days: { day: string; metrics: Metrics<AccountMetric> }[]; partial: boolean }>;
+  readBestPostingTimes(cred: SocialCredential, query: AnalyticsQuery): Promise<AnalyticsSlot[]>;
+  readAutoDmEvidence(cred: SocialCredential, query: AutoDmEvent): Promise<AutoDmEvidence | null>;
   /** Constant-time check of the delivery signature against every accepted secret. */
   verifyWebhook(rawBody: string, signature: string | null, secrets: readonly string[]): boolean;
   /** Returns null for a body that is not a recognisable event. Never returns message or comment text. */
   parseWebhookEvent(rawBody: string): InboundEvent | null;
 }
 
-/**
- * Sending is deliberately separate. Nothing hands out a sender yet: replies and Auto-DMs are a later feature
- * gated by the consent layer. Only the port and the adapters may mention these methods (source guard).
- */
+/** The reviewed human-reply worker is the only domain consumer of this separate port. */
 export interface SocialSender {
   sendMessage(cred: SocialCredential, request: SendMessageRequest): Promise<SendResult>;
   replyToComment(cred: SocialCredential, request: CommentReplyRequest): Promise<SendResult>;
+  dispatchInboxReply(cred: SocialCredential, request: InboxReplyRequest): Promise<SendResult>;
+  /** Absent proof must be inconclusive. An empty listing cannot prove non-delivery. */
+  reconcileInboxReply(cred: SocialCredential, request: InboxReplyQuery & { idempotencyKey: string }): Promise<SendResult | null>;
+}
+
+
+export function isMediaFetchFailure(code: unknown) {
+  return typeof code === "string" && ["media_url_unreachable", "media_download_failed", "media_fetch_failed", "media_url_expired"].includes(code.toLowerCase());
 }

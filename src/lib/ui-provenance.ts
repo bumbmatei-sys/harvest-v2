@@ -124,7 +124,11 @@ export const adminDashboardProvenance = {
   repository: "bumbmatei-sys/admin-dashboard", commit: "1631106", tier: "premium", approvedBy: "founder", approvedOn: "2026-11-19",
   files: [
   { file: "src/lib/calendar-days.ts", source: "app/dashboard/(auth)/apps/calendar/utils.ts", identical: 95, localChanges: "Five day-bucketing helpers copied (isMultiDayEvent, getEventsForDay, sortEvents, getSpanningEventsForDay, getAllEventsForDay); only the CalendarEvent import changed. Colour, border-radius, agenda and add-hours helpers not copied." },
-  { file: "src/components/events/month-calendar.tsx", source: "app/dashboard/(auth)/apps/calendar/components/month-view.tsx", identical: 47, localChanges: "Month grid structure, week and day computation and cell classes kept. Drag and drop, create-on-click, the overflow popover and the visibility hook removed; cells are buttons that select a day (dots on phones, titled chips from 640px), a header with previous and next month links added, raw palette colours replaced by theme tokens, today applied after mount, copy from the catalogue." },
+  { file: "src/components/events/month-calendar.tsx", source: "app/dashboard/(auth)/apps/calendar/components/month-view.tsx", identical: 47, localChanges: "Month grid structure, week and day computation and cell classes kept. Social Publish extends it (optional namespace, chip renderer, native drag-and-drop day targets and a weekStartsOn option, Monday for Social; 68 of 144 lines, 47%, by scripts/ui-identical.sh). Kit drag and drop (dnd-kit), create-on-click, the overflow popover and the visibility hook removed; cells are buttons that select a day (dots on phones, titled chips from 640px), a header with previous and next month links added, raw palette colours replaced by theme tokens, today applied after mount, copy from the catalogue." },
+  { file: "src/components/ui/hover-card.tsx", source: "components/ui/hover-card.tsx", identical: 94, localChanges: "Copied for the Social Publish platform rings (hover, focus and tap popup with the character limit). Only change: the kit's data-open and data-closed state variants became data-[state=open] and data-[state=closed], because the Radix hover card sets data-state." },
+  { file: "src/components/ui/attachment.tsx", source: "components/ui/attachment.tsx", identical: 95, localChanges: "Copied (95% is the independent reviewer's count of 80 of 84 lines against the public registry item, with 3 class-string differences; not reproduced here because the registry did not answer; against the founder's kit repo copy at 1631106 the file is 99%, only the header line added). Used for the Social Publish media strip cards (idle, uploading, processing, error and done states). The kit's shimmer, scroll-fade-x and scrollbar-none utility classes are not defined in Harvest and have no effect." },
+  { file: "src/components/social/week-calendar.tsx", source: "app/dashboard/(auth)/apps/calendar/components/week-view.tsx", identical: 71, localChanges: "Social Publish week of posts (225 of 313 lines by scripts/ui-identical.sh against kit commit 1631106). Kept: the header row, hour column, per-day columns, event positioning and overlap grouping, the quarter-hour cells and the current-time line. Changed: the week starts on Monday (the planner API groups weeks that way); the all-day section is removed (posts have no all-day form); dnd-kit (DraggableEvent, DroppableCell) is replaced by native HTML drag-and-drop on a post button and on each quarter-hour cell, which report the drop to the planner; overlapping posts collapse into the first one plus a \"+N\" button with a Popover list (the kit shows side-by-side slivers); the block content is supplied by the planner." },
+  { file: "src/hooks/use-current-time-indicator.ts", source: "app/dashboard/(auth)/apps/calendar/hooks/use-current-time-indicator.ts", identical: 88, localChanges: "Copied for the week view's current-time line; the week starts on Monday and the start and end hours are local constants." },
   ],
 } as const;
 
@@ -139,6 +143,7 @@ export const adminDashboardReferences = {
   files: [
   { file: "src/components/communities/member-profile-view.tsx", source: "app/dashboard/(auth)/pages/profile/page.tsx, components/profile-card.tsx, components/latest-activity.tsx", localChanges: "Profile page: a two-column grid with the profile card (shared member summary, post and reply counts) and a latest-activity timeline of the member's posts and replies, with tabs for the viewer's own page. The kit's contact details, skills, connections, transaction table and download buttons are not used; counts and activity come from the existing forum data." },
   { file: "src/components/communities/member-profile-settings.tsx", source: "app/dashboard/(auth)/pages/profile/components/complete-your-profile.tsx", localChanges: "Settings card of rows that open the service owning each setting (account name, notification switches, member messages). The kit's progress checklist is not used." },
+  { file: "src/components/social/option-rows.tsx", source: "app/dashboard/(auth)/pages/settings/notifications/page.tsx", localChanges: "The composer's option rows (first comment, auto repost, made with AI, link, TikTok consent) take the kit settings form's bordered switch row: title and a line about where it applies on the left, the switch on the right, details below when on. Written for Harvest on its Switch, Input and Textarea without react-hook-form or zod." },
   { file: "src/components/events/events-board.tsx", source: "app/dashboard/(auth)/apps/calendar/components/agenda-view.tsx", localChanges: "Upcoming list grouped under day headings, beside the month calendar and a list and calendar switch kept in the URL. The kit's agenda view is a client-side range of days; Harvest's list is server data." },
   ],
 } as const;
@@ -183,3 +188,20 @@ export function adminDashboardHeader(source: string): { form: "derived" | "model
 }
 /** Returns the admin-dashboard source named by a file's leading header (either form), or null. */
 export function adminDashboardHeaderSource(source: string): string | null { return adminDashboardHeader(source)?.source ?? null; }
+
+/**
+ * Files ported from the founder's own first Harvest version (private repository bumbmatei-sys/harvest-agent, read-only). Its code is the founder's, so it may
+ * be ported; only layout, structure and the platform logo marks are taken, never its Firebase, auth or data plumbing. `similarity` is the share of the file's
+ * non-blank lines (at least 12 characters) that are identical after trimming, which is low here because the marks are long single-line data in a
+ * different file shape; `marks` counts the logo paths that are the same data as the source.
+ */
+export const harvestAgentPorts = {
+  repository: "bumbmatei-sys/harvest-agent", approvedBy: "founder", approvedOn: "2026-11-20",
+  files: [
+    { file: "src/components/social/platform-logo.tsx", source: "src/components/admin/social/PlatformLogo.tsx", similarity: 2, marks: "7 of 20 marks are the source's paths (Facebook, Instagram, Threads, TikTok, YouTube, WordPress, Wix); 13 more from the same Simple Icons 16.36.0 release (CC0-1.0); LinkedIn, Slack, Google Business Profile, SMS and RCS use neutral marks", localChanges: "Ported and extended to every platform the provider layer lists; typed on Harvest's platform keys; labels from the shared label table; neutral fallbacks." },
+  ],
+  layoutReferences: [
+    { file: "src/components/social/composer.tsx, composer-preview.tsx, destination-card.tsx", source: "SocialScheduler.tsx, PostPreview.tsx, MediaAttachments.tsx", note: "Layout and flow only: Post to circles with a dashed connect circle, one text card with media and toolbar inside, option rows, preview with an Each platform list. Code written for Harvest on its shared components and the kit." },
+    { file: "src/components/social/planner.tsx, social-nav.tsx", source: "SocialScheduler.tsx (Queue, calendar), PageHeader.tsx, shell-nav.ts", note: "Layout and flow only: the Planner header with Compose, Calendar and Queue tabs, a three-column queue (Drafts, Scheduled by day, Sent), the week grid with a drafts aside, and the Social media sidebar group with Accounts under Settings." },
+  ],
+} as const;

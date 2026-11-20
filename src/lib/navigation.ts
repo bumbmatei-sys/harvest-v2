@@ -1,4 +1,4 @@
-import { Bot, Building, Calendar, CalendarDays, CalendarRange, Church, ClipboardList, Compass, FileText, FileUp, Files, Flag, Globe, HandCoins, HeartHandshake, Inbox, Kanban, Link2, ListChecks, Mail, MailOpen, Radio, Sheet, ClipboardCheck, Users, MessageCircleReply, MessagesSquare, Newspaper, Palette, PenLine, QrCode, ShoppingBag, SlidersHorizontal, UsersRound, Workflow, type LucideIcon } from "lucide-react";
+import { BarChart3, Bot, Building, Calendar, CalendarCheck, CalendarDays, Church, ClipboardList, Compass, FileText, FileUp, Files, Flag, Globe, HandCoins, HeartHandshake, Inbox, Kanban, Link2, ListChecks, Mail, MailOpen, Radio, Sheet, ClipboardCheck, Users, MessageCircleReply, MessagesSquare, Newspaper, Palette, QrCode, ShoppingBag, Landmark, Share2, SlidersHorizontal, UserCog, UsersRound, Workflow, type LucideIcon } from "lucide-react";
 import type { Audience } from "./audience";
 import { can, type Permission } from "./permissions";
 
@@ -6,7 +6,7 @@ import { can, type Permission } from "./permissions";
 export type NavLabelKey = "communities" | "crm" | "workspace" | "settings" | "people" | "companies" | "pipelines" | "tasks" | "imports" | "campaigns" | "followUp" | "files" | "crmFields" | "pipelineSettings" | "appearance" | "ministrySettings" | "profile"
   | "office" | "forms" | "mail" | "calendar" | "documents" | "spreadsheets" | "giving" | "volunteers" | "livestream" | "churchProfile"
   | "connect" | "qrAndLinks" | "responses" | "events"
-  | "publishing" | "community" | "commerce" | "chat" | "composer" | "planner" | "inbox" | "autoDm" | "articles" | "website" | "linkInBio" | "newsletter" | "discover" | "products" | "assistant"
+  | "publishing" | "community" | "commerce" | "chat" | "composer" | "planner" | "socialAccounts" | "socialAnalytics" | "inbox" | "autoDm" | "articles" | "website" | "linkInBio" | "newsletter" | "discover" | "products" | "assistant"
   | "modeOperations" | "modePublic" | "modeAssistant";
 /** Shell modes (three-mode shell spec, 16 Nov 2026). The names are final. */
 export type NavMode = "operations" | "public" | "assistant";
@@ -41,15 +41,15 @@ export type NavEntry = {
   /** Shown only when the server reports this feature as enabled (activation flags, ADR 0013 §11). */
   feature?: NavFeature;
 };
-export type NavFeature = "communities" | "events";
+export type NavFeature = "communities" | "events" | "social";
 export type NavItem = { id: string; label: NavLabelKey; icon: LucideIcon; href: string; active: boolean };
-export type NavGroup = { id: NavGroupId; label: NavLabelKey; items: NavItem[] };
+export type NavGroup = { id: NavGroupId; label: NavLabelKey; icon?: LucideIcon; items: NavItem[] };
 
 const legacyGroups: readonly { id: LegacyNavGroupId; label: NavLabelKey }[] = [{ id: "crm", label: "crm" }, { id: "workspace", label: "workspace" }, { id: "settings", label: "settings" }];
 /** Groups of each mode's sidebar, in display order. Settings stays the last group of Operations. */
-export const groupsByMode: Record<NavMode, readonly { id: NavGroupId; label: NavLabelKey }[]> = {
+export const groupsByMode: Record<NavMode, readonly { id: NavGroupId; label: NavLabelKey; icon?: LucideIcon }[]> = {
   operations: [{ id: "crm", label: "crm" }, { id: "connect", label: "connect" }, { id: "office", label: "office" }, { id: "workspace", label: "workspace" }, { id: "settings", label: "settings" }],
-  public: [{ id: "publishing", label: "publishing" }, { id: "community", label: "community" }, { id: "commerce", label: "commerce" }],
+  public: [{ id: "publishing", label: "publishing", icon: Share2 }, { id: "community", label: "community" }, { id: "commerce", label: "commerce" }],
   assistant: [{ id: "chat", label: "chat" }],
 };
 const has = (part: string) => (pathname: string) => pathname.includes(part);
@@ -71,7 +71,7 @@ export const navEntries: readonly NavEntry[] = [
   { id: "calendar", group: "office", mode: "operations", status: "planned", label: "calendar", icon: Calendar, path: "/calendar", match: under("/calendar") },
   { id: "documents", group: "office", mode: "operations", status: "planned", label: "documents", icon: FileText, path: "/docs", match: under("/docs") },
   { id: "spreadsheets", group: "office", mode: "operations", status: "planned", label: "spreadsheets", icon: Sheet, path: "/sheets", match: under("/sheets") },
-  { id: "churchProfile", group: "workspace", mode: "operations", status: "planned", label: "churchProfile", icon: Church, path: "/church-profile", match: under("/church-profile") },
+  { id: "churchProfile", group: "workspace", mode: "operations", status: "planned", label: "churchProfile", icon: Landmark, path: "/church-profile", match: under("/church-profile") },
   { id: "volunteers", group: "workspace", mode: "operations", status: "planned", label: "volunteers", icon: Users, path: "/volunteers", match: under("/volunteers") },
   { id: "livestream", group: "workspace", mode: "operations", status: "planned", label: "livestream", icon: Radio, path: "/livestream", match: under("/livestream") },
   { id: "giving", group: "workspace", mode: "operations", status: "planned", label: "giving", icon: HandCoins, path: "/giving", match: under("/giving") },
@@ -79,11 +79,12 @@ export const navEntries: readonly NavEntry[] = [
   // HC-13: the follow-up queue. Owners, admins and members open it (a member sees only the cases assigned to them); viewers never see a dead link.
   { id: "followUp", group: "connect", legacyGroup: "workspace", mode: "operations", label: "followUp", icon: HeartHandshake, path: "/connect/follow-up", match: has("/connect/follow-up"), permission: "followup:work" },
   // C14: owners and admins; hidden unless the server reports Events enabled (never in production).
-  { id: "events", group: "workspace", mode: "operations", label: "events", icon: CalendarDays, path: "/events", match: under("/events"), permission: "communities:manage", feature: "events" },
+  { id: "events", group: "workspace", mode: "operations", label: "events", icon: CalendarCheck, path: "/events", match: under("/events"), permission: "communities:manage", feature: "events" },
   { id: "files", group: "workspace", mode: "operations", label: "files", icon: Files, path: "/files", match: has("/files") },
-  { id: "composer", group: "publishing", mode: "public", status: "planned", label: "composer", icon: PenLine, path: "/social/compose", match: under("/social/compose") },
-  { id: "planner", group: "publishing", mode: "public", status: "planned", label: "planner", icon: CalendarRange, path: "/social/planner", match: under("/social/planner") },
+  // The Social media group: Planner opens the page whose own tabs are Compose, Calendar and Queue. Inbox, Auto-DM and Analytics stay planned until their screens exist.
+  { id: "planner", group: "publishing", mode: "public", label: "planner", icon: CalendarDays, path: "/social/planner", match: (pathname) => under("/social/planner")(pathname) || under("/social/compose")(pathname), permission: "social:schedule", feature: "social" },
   { id: "inbox", group: "publishing", mode: "public", status: "planned", label: "inbox", icon: Inbox, path: "/inbox", match: under("/inbox") },
+  { id: "socialAnalytics", group: "publishing", mode: "public", status: "planned", label: "socialAnalytics", icon: BarChart3, path: "/social/analytics", match: under("/social/analytics") },
   { id: "autoDm", group: "publishing", mode: "public", status: "planned", label: "autoDm", icon: MessageCircleReply, path: "/inbox/auto-dm", match: under("/inbox/auto-dm") },
   { id: "articles", group: "publishing", mode: "public", status: "planned", label: "articles", icon: Newspaper, path: "/articles", match: under("/articles") },
   { id: "website", group: "publishing", mode: "public", status: "planned", label: "website", icon: Globe, path: "/website", match: under("/website") },
@@ -94,6 +95,8 @@ export const navEntries: readonly NavEntry[] = [
   { id: "discover", group: "community", mode: "public", status: "planned", label: "discover", icon: Compass, path: "/discover/manage", match: under("/discover/manage") },
   { id: "products", group: "commerce", mode: "public", status: "planned", label: "products", icon: ShoppingBag, path: "/products", match: under("/products") },
   { id: "assistant", group: "chat", mode: "assistant", status: "planned", label: "assistant", icon: Bot, path: "/assistant", match: under("/assistant") },
+  // Accounts live in Settings, as in the first Harvest version; the composer links here from its "+" beside Post to.
+  { id: "socialAccounts", group: "settings", mode: "operations", label: "socialAccounts", icon: UserCog, path: "/social/accounts", match: under("/social/accounts"), permission: "social:connect", feature: "social" },
   { id: "crmFields", group: "settings", mode: "operations", label: "crmFields", icon: SlidersHorizontal, path: "/crm/settings/fields", match: has("/crm/settings/fields") },
   { id: "pipelineSettings", group: "settings", mode: "operations", label: "pipelineSettings", icon: Workflow, path: "/crm/settings/pipelines", match: has("/crm/settings/pipelines") },
   { id: "appearance", group: "settings", mode: "operations", label: "appearance", icon: Palette, path: "/appearance", match: (p) => p.endsWith("/appearance") },

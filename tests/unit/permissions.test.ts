@@ -29,7 +29,7 @@ describe("shared permission rules", () => {
 });
 
 describe("social provider permissions", () => {
-  const keys = ["social:connect", "social:schedule", "social:inbox"] as const;
+  const keys = ["social:connect", "social:schedule", "social:inbox", "social:reply", "social:assign", "social:saved_replies"] as const;
   it("are owner/admin only, and unknown roles are denied", () => {
     for (const key of keys) {
       expect(["owner", "admin", "member", "viewer"].map((role) => libCan(role, key)), key).toEqual([true, true, false, false]);
