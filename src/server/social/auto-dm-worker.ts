@@ -142,7 +142,7 @@ export async function sendSyntheticAutoDmTest(platform: AutoDmPlatform, rule: Au
   const id = randomUUID();
   await fake.dispatchInboxReply({ secret: "synthetic-test" }, {
     accountRef: "synthetic-account", platform, ref: "synthetic-recipient", kind: "dm", mode: "message",
-    targetRef: null, signal: AbortSignal.timeout(1_000), idempotencyKey: `harvest-auto-dm-test:${id}`,
+    targetRef: null, idempotencyKey: `harvest-auto-dm-test:${id}`,
     text, quickReplies: rule.response.quickReplies,
   });
   return { state: "sent_to_fake" as const, id };
