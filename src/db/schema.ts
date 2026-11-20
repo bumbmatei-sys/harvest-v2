@@ -1,3 +1,4 @@
+import { accountMetrics, postMetrics, type AccountMetric, type AnalyticsStatus, type Metrics, type PostMetric } from "../lib/social/analytics";
 import type { AutoDmRule } from "../lib/social/auto-dm";
 import { socialUploadLimits } from "../lib/social/upload-limits";
 import { socialMediaMimes, type MediaMetadata } from "../lib/social/media";
@@ -1555,6 +1556,7 @@ export const socialPosts = pgTable("social_posts", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  unique("social_posts_tenant_connection_id_key").on(t.tenantId, t.connectionId, t.id),
   foreignKey({ columns: [t.tenantId, t.connectionId], foreignColumns: [socialConnections.tenantId, socialConnections.id] }),
   foreignKey({ columns: [t.tenantId, t.draftId], foreignColumns: [socialDrafts.tenantId, socialDrafts.id] }),
   foreignKey({ columns: [t.tenantId, t.scheduleId], foreignColumns: [socialSchedules.tenantId, socialSchedules.id] }),
@@ -2291,4 +2293,60 @@ export const socialAutoDmJobs = pgTable("social_auto_dm_jobs", {
     (${t.prefix} is null or ${t.prefix} in ('rule','away')) and
     (${t.deliveryRef} is null or length(${t.deliveryRef}) between 1 and 200) and
     ((${t.lease} is null) = (${t.leasedUntil} is null))`),
+]);
+
+const numericAnalytics = (column: AnyPgColumn, fields: readonly string[]) =>
+  sql`jsonb_typeof(${column}) = 'object' AND ${column} - array[${sql.raw(fields.map(field => "'" + field + "'").join(","))}] = '{}'::jsonb
+    AND NOT jsonb_path_exists(${column}, '$.keyvalue() ? (@.value.type() != "number")')`;
+
+export const socialAnalyticsPosts = pgTable("social_analytics_posts", {
+  tenantId: uuid("tenant_id").notNull(), connectionId: uuid("connection_id").notNull(),
+  providerRef: text("provider_ref").notNull(), plannerPostId: uuid("planner_post_id"),
+  day: date("day").notNull(), capturedAt: timestamp("captured_at", { withTimezone: true }).notNull(),
+  publishedAt: timestamp("published_at", { withTimezone: true }).notNull(),
+  metrics: jsonb("metrics").$type<Metrics<PostMetric>>().notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId,t.connectionId,t.providerRef,t.day] }),
+  foreignKey({ name: "social_analytics_posts_connection_fk", columns:[t.tenantId,t.connectionId], foreignColumns:[socialConnections.tenantId,socialConnections.id] }),
+  foreignKey({ name: "social_analytics_posts_planner_fk", columns:[t.tenantId,t.connectionId,t.plannerPostId], foreignColumns:[socialPosts.tenantId,socialPosts.connectionId,socialPosts.id] }),
+  index("social_analytics_post_day_idx").on(t.day,t.tenantId),
+  index("social_analytics_post_planner_idx").on(t.tenantId,t.plannerPostId,t.day),
+  check("social_analytics_post_shape", sql`length(${t.providerRef}) between 1 and 200 and ${t.publishedAt} <= ${t.capturedAt} and ${t.day} = (${t.capturedAt} at time zone 'UTC')::date and ${numericAnalytics(t.metrics, postMetrics)}`),
+]);
+
+export const socialAnalyticsAccounts = pgTable("social_analytics_accounts", {
+  tenantId: uuid("tenant_id").notNull(), connectionId: uuid("connection_id").notNull(), day: date("day").notNull(),
+  capturedAt: timestamp("captured_at", { withTimezone: true }).notNull(),
+  metrics: jsonb("metrics").$type<Metrics<AccountMetric>>().notNull(),
+}, (t) => [
+  primaryKey({ columns:[t.tenantId,t.connectionId,t.day] }),
+  foreignKey({ name:"social_analytics_accounts_connection_fk", columns:[t.tenantId,t.connectionId], foreignColumns:[socialConnections.tenantId,socialConnections.id] }),
+  index("social_analytics_account_day_idx").on(t.day,t.tenantId),
+  check("social_analytics_account_shape", sql`${numericAnalytics(t.metrics, accountMetrics)}`),
+]);
+
+export const socialAnalyticsTimes = pgTable("social_analytics_times", {
+  tenantId: uuid("tenant_id").notNull(), connectionId: uuid("connection_id").notNull(), day: date("day").notNull(),
+  weekday: integer("weekday").notNull(), hour: integer("hour").notNull(),
+  engagement: doublePrecision("engagement").notNull(), samples: integer("samples").notNull(),
+}, (t) => [
+  primaryKey({ columns:[t.tenantId,t.connectionId,t.day,t.weekday,t.hour] }),
+  foreignKey({ name:"social_analytics_times_account_fk", columns:[t.tenantId,t.connectionId,t.day],
+    foreignColumns:[socialAnalyticsAccounts.tenantId,socialAnalyticsAccounts.connectionId,socialAnalyticsAccounts.day] }).onDelete("cascade"),
+  check("social_analytics_time_shape", sql`${t.weekday} between 0 and 6 and ${t.hour} between 0 and 23 and ${t.samples} > 0 and ${t.engagement} between 0 and 9007199254740991`),
+]);
+
+export const socialAnalyticsRefresh = pgTable("social_analytics_refresh", {
+  tenantId: uuid("tenant_id").notNull(), connectionId: uuid("connection_id").notNull(),
+  state: text("state").$type<AnalyticsStatus>().notNull().default("pending"),
+  checkedAt: timestamp("checked_at", { withTimezone: true }), refreshedAt: timestamp("refreshed_at", { withTimezone: true }),
+  dueAt: timestamp("due_at", { withTimezone: true }).notNull().defaultNow(),
+  lease: uuid("lease"), leasedUntil: timestamp("leased_until", { withTimezone: true }),
+  failures: integer("failures").notNull().default(0),
+  page: integer("page").notNull().default(1),
+}, (t) => [
+  primaryKey({ columns:[t.tenantId,t.connectionId] }),
+  foreignKey({ name:"social_analytics_refresh_connection_fk", columns:[t.tenantId,t.connectionId], foreignColumns:[socialConnections.tenantId,socialConnections.id] }),
+  index("social_analytics_refresh_due_idx").on(t.dueAt),
+  check("social_analytics_refresh_shape", sql`${t.state} in ('pending','ready','partial','delayed','expired','unavailable') and ${t.failures} between 0 and 20 and ${t.page} between 1 and 10000 and ((${t.lease} is null) = (${t.leasedUntil} is null))`),
 ]);

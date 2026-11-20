@@ -1,3 +1,5 @@
+import type { AnalyticsDayRange, AnalyticsPost, AnalyticsPosts, AnalyticsQuery, AnalyticsSlot } from "./analytics-contract";
+import { analyticsCapabilities, isoAnalyticsDay, projectMetrics, type AccountMetric, type Metrics } from "../../lib/social/analytics";
 import type { AutoDmEvent, AutoDmEvidence } from "./auto-dm-contract";
 import type { InboxEntry, InboxItemQuery, InboxListQuery, InboxMessage, InboxReadPage, InboxReplyEligibility, InboxReplyQuery, InboxReplyRequest } from "./inbox-contract";
 import { isMediaFetchFailure, SocialProviderError, type SocialProvider, type SocialSender } from "./port";
@@ -442,6 +444,132 @@ export class ZernioAdapter implements SocialProvider, SocialSender {
   async reconcileInboxReply(): Promise<SendResult | null> {
     // No documented read or event carries the client key back. Matching by message content/time would misattribute other human activity.
     return null;
+  }
+
+  private async analyticsGet(cred: SocialCredential, query: AnalyticsQuery, path: string, filters: Record<string,string>) {
+    const params = new URLSearchParams(filters);
+    return record(await this.once(cred,"GET",`${path}?${params}`,{signal:query.signal}));
+  }
+
+  async readPostAnalytics(cred: SocialCredential, query: AnalyticsQuery & AnalyticsDayRange & { page: number; limit: number; order: "date" | "engagement" }): Promise<AnalyticsPosts> {
+    const fields = analyticsCapabilities(query.platform).post;
+    if (!fields.length) return {posts:[],nextPage:null,pending:false};
+    const raw = await this.analyticsGet(cred,query,"/analytics",{accountId:query.accountRef,platform:query.platform,fromDate:query.from,toDate:query.to,
+      page:String(query.page),limit:String(query.limit),sortBy:query.order,order:"desc"});
+    if (raw.hasAnalyticsAccess === false) throw new SocialProviderError("UNSUPPORTED");
+    let pending = Number(record(record(raw.overview).dataStaleness).staleAccountCount) > 0;
+    let retryAfterMs = 0;
+    const posts = this.rows(raw,"posts").flatMap((row): AnalyticsPost[] => {
+      const account = (Array.isArray(row.platforms) ? row.platforms.map(record) : []).find(p => p.accountId === query.accountRef && p.platform === query.platform);
+      if (!account || row.isAd === true || (account.status && account.status !== "published")) return [];
+      const ref = text(row.latePostId ?? row._id), publishedAt = date(row.publishedAt), nativeRef = text(account.platformPostId);
+      if (!ref || !publishedAt) return [];
+      if (account.syncStatus === "pending") pending = true;
+      const values = account.syncStatus === "unavailable" || account.syncStatus === "pending" ? {} : record(account.analytics);
+      const video = row.mediaType === "video" || query.platform === "youtube";
+      const reels = String(row.mediaProductType ?? "").toLowerCase() === "reels";
+      const milliseconds = values.igReelsVideoViewTotalTime;
+      const metrics = projectMetrics({ ...values,
+        views: query.platform === "linkedin" && !video ? undefined : values.views,
+        videoViews: video ? values.views : undefined,
+        saves: query.platform === "linkedin" ? undefined : values.saves,
+        shares: query.platform === "youtube" ? undefined : values.shares,
+        watchTimeSeconds: typeof milliseconds === "number" && (reels || milliseconds > 0) ? milliseconds / 1000 : undefined,
+        clicks: query.platform === "linkedin" ? undefined : query.platform === "tiktok" || query.platform === "facebook"
+          ? typeof values.clicks === "number" && values.clicks > 0 ? values.clicks : undefined
+          : values.clicks,
+        score: query.platform === "reddit" ? values.likes : undefined,
+      }, fields);
+      return [{ref,nativeRef:nativeRef ?? undefined,publishedAt,metrics}];
+    });
+    if (query.platform === "youtube" || query.platform === "linkedin") {
+      const youtube = query.platform === "youtube";
+      for (let index=0; index<posts.length; index+=4) {
+        await Promise.all(posts.slice(index,index+4).map(async row => {
+          if (!row.nativeRef || !Object.keys(row.metrics).length || retryAfterMs > 0) return;
+          try {
+            if (youtube) {
+              const video = await this.analyticsGet(cred,query,"/analytics/youtube/daily-views",{
+                accountId:query.accountRef,videoId:row.nativeRef,fromDate:row.publishedAt.toISOString().slice(0,10),toDate:query.to,
+              });
+              if (video.stale === true) { pending=true; return; }
+              if (video.videoId !== row.nativeRef || record(video.scopeStatus).hasAnalyticsScope === false) return;
+              const days = this.rows(video,"dailyViews");
+              for (const [source,metric,multiplier] of [["estimatedMinutesWatched","watchTimeSeconds",60],["shares","shares",1]] as const) {
+                const values = days.map(day => day[source]);
+                if (values.length && values.every(value => typeof value === "number" && Number.isFinite(value) && value >= 0)) {
+                  row.metrics[metric]=(values as number[]).reduce((sum,value)=>sum+value,0)*multiplier;
+                }
+              }
+            } else {
+              const detail = await this.analyticsGet(cred,query,`/accounts/${enc(query.accountRef)}/linkedin-post-analytics`,{urn:row.nativeRef});
+              if (detail.accountId !== query.accountRef || detail.postUrn !== row.nativeRef) return;
+              const metric = detail.accountType === "personal" ? "saves" : detail.accountType === "organization" ? "clicks" : null;
+              if (metric) Object.assign(row.metrics,projectMetrics(record(detail.analytics),[metric]));
+            }
+          } catch (error) {
+            if (error instanceof SocialProviderError && ["NOT_FOUND","UNSUPPORTED"].includes(error.code)) return;
+            pending=true;
+            if (error instanceof SocialProviderError) retryAfterMs=Math.max(retryAfterMs,error.retryAfterMs ?? 0);
+          }
+        }));
+      }
+    }
+    const pagination = record(raw.pagination);
+    const pages = pagination.pages ?? pagination.totalPages;
+    const totalPages = typeof pages === "number" ? pages : null;
+    const more = pagination.hasMore === true || (totalPages !== null ? query.page < totalPages : this.rows(raw,"posts").length === query.limit);
+    return {posts,nextPage:more ? query.page+1:null,pending,...(retryAfterMs ? {retryAfterMs} : {})};
+  }
+
+  async readAccountAnalytics(cred: SocialCredential, query: AnalyticsQuery & AnalyticsDayRange) {
+    const capabilities = analyticsCapabilities(query.platform).account;
+    const days = new Map<string,Metrics<AccountMetric>>();
+    const add = (day: unknown, key: AccountMetric, value: unknown) => {
+      if (!isoAnalyticsDay.safeParse(day).success || typeof day !== "string" || day < query.from || day > query.to) return;
+      const metrics = projectMetrics({[key]:value},[key]);
+      if (metrics[key] !== undefined) days.set(day,{...days.get(day),...metrics});
+    };
+    const dateRange = {fromDate:query.from,toDate:query.to};
+    let partial = false;
+    if (capabilities.includes("followers")) {
+      try {
+        const follower = await this.analyticsGet(cred,query,"/accounts/follower-stats",{accountIds:query.accountRef,granularity:"daily",...dateRange});
+        const data = record(follower.stats)[query.accountRef];
+        if (Array.isArray(data)) for (const row of data.map(record)) add(row.date,"followers",row.followers);
+      } catch (error) {
+        if (error instanceof SocialProviderError && error.code!=="UNSUPPORTED" && error.code!=="NOT_FOUND") throw error;
+      }
+    }
+    if (capabilities.includes("profileViews")) {
+      try {
+        const singleDay = query.platform === "instagram" || query.platform === "linkedin";
+        const metric = query.platform === "facebook" || query.platform === "linkedin" ? "page_views_total" : "profile_views";
+        const route = query.platform === "facebook" ? "page-insights" : query.platform === "linkedin" ? "org-aggregate-analytics" : "account-insights";
+        const insights = await this.analyticsGet(cred,query,`/analytics/${query.platform}/${route}`,{
+          accountId:query.accountRef,fromDate:singleDay ? query.to : query.from,toDate:query.to,metrics:metric,metricType:singleDay ? "total_value":"time_series",
+        });
+        if (insights.accountId !== query.accountRef) throw new SocialProviderError("UNAVAILABLE");
+        const values = record(record(insights.metrics)[metric]);
+        if (singleDay) add(query.to,"profileViews",values.total);
+        else if (Array.isArray(values.values)) for (const row of values.values.map(record)) add(row.date,"profileViews",row.value);
+      } catch (error) {
+        if (error instanceof SocialProviderError && (error.code==="AUTH" || error.code==="EXPIRED" || error.code==="RATE_LIMITED" || error.code==="DISABLED")) throw error;
+        partial = !(error instanceof SocialProviderError && (error.code==="UNSUPPORTED" || error.code==="NOT_FOUND"));
+      }
+    }
+    return {days:[...days.entries()].map(([day,metrics])=>({day,metrics})),partial};
+  }
+
+  async readBestPostingTimes(cred: SocialCredential, query: AnalyticsQuery): Promise<AnalyticsSlot[]> {
+    if (!analyticsCapabilities(query.platform).bestTimes) return [];
+    const data = await this.analyticsGet(cred,query,"/analytics/best-time",{accountId:query.accountRef,platform:query.platform});
+    return this.rows(data,"slots").flatMap(row => {
+      const {day_of_week:day,hour,avg_engagement:engagement,post_count:samples}=row;
+      return typeof day==="number" && Number.isInteger(day) && day>=0 && day<=6 && typeof hour==="number" && Number.isInteger(hour) && hour>=0 && hour<24
+        && typeof engagement==="number" && Number.isFinite(engagement) && engagement>=0 && engagement<=Number.MAX_SAFE_INTEGER
+        && typeof samples==="number" && Number.isInteger(samples) && samples>0 && samples<=2147483647 ? [{day,hour,engagement,samples}] : [];
+    });
   }
 
   async readAutoDmEvidence(cred: SocialCredential, query: AutoDmEvent): Promise<AutoDmEvidence | null> {
