@@ -20,7 +20,7 @@ async function inspectRule(tx: Transaction, tenant: string, id: string, rule: Au
     .where(and(eq(socialConnections.tenantId, tenant), eq(socialConnections.id, id))).for("share");
   if (!account) throw unavailable();
   if (autoDmCapabilities(account.platform)[rule.trigger] === "unavailable") throw publishInvalid("AUTO_DM_TRIGGER_UNAVAILABLE");
-  if (activation && (account.status !== "active" || account.health === "failing")) throw publishConflict("AUTO_DM_ACCOUNT_UNAVAILABLE");
+  if (activation && (account.status !== "active" || account.health === "failing" || /expired|token_revoked|reauth/.test(account.healthCode ?? ""))) throw publishConflict("AUTO_DM_ACCOUNT_UNAVAILABLE");
   if (rule.postId) {
     const [post] = await tx.select().from(socialPosts).where(and(eq(socialPosts.tenantId, tenant), eq(socialPosts.connectionId, id),
       eq(socialPosts.id, rule.postId))).for("share");

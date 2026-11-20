@@ -117,6 +117,7 @@ export class FakeProvider implements SocialProvider, SocialSender {
     const kind = known.find((k) => k === type) ?? "other";
     const platform = isSocialPlatform(b.platform) ? b.platform : null;
     return { eventId, kind, activityRef: str(b.activityRef) ?? undefined, rawType: kind === "other" ? type : "", accountRef: str(b.accountRef), subjectRef: str(b.subjectRef), platform, errorCategory: str(b.errorCategory, 60), occurredAt: at,
+      ...(str(b.publishedPostRef) ? { publishedPostRef:str(b.publishedPostRef)! } : {}),
       ...(kind.startsWith("post.") && deliveryKey(b.correlationKey) ? { correlationKey: b.correlationKey } : {}) };
   }
   async sendMessage(cred: SocialCredential, request: SendMessageRequest): Promise<SendResult> {

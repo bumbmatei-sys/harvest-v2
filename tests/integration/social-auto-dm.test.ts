@@ -5,7 +5,8 @@ import { useKeyProvider } from "../../src/server/connect-key-provider";
 import { drainJobs } from "../../src/server/jobs/service";
 import { autoDmActivity, changeAutoDmRule, createAutoDmRule, listAutoDmRules, previewAutoDmRule } from "../../src/server/social/auto-dm";
 import { runSocialAutoDm } from "../../src/server/social/auto-dm-worker";
-import { linkConnection, setConnectionEnabled } from "../../src/server/social/service";
+import { linkConnection, schedulePost, setConnectionEnabled } from "../../src/server/social/service";
+import { runSocialPublisher } from "../../src/server/social/publisher";
 import { receiveSocialWebhook } from "../../src/server/social/webhook";
 import { saveInboxHours } from "../../src/server/social/inbox-metadata";
 import { testDatabase } from "../database";
@@ -182,4 +183,36 @@ it("enforces the per-recipient daily limit after the cooldown has elapsed", asyn
   await run();
   expect((await report(r.id)).counts).toEqual(expect.arrayContaining([expect.objectContaining({state:"sent",count:1}),
     expect.objectContaining({reason:"limit",count:1})]));
+});
+
+it("binds a composer rule to a published delivery and sends a private reply before the public follow-through", async () => {
+  const {post}=await schedulePost(f.db,p.owner,p.tenant,{connectionId:c,content:"fixture",
+    scheduledFor:new Date(Date.now()+3_600_000).toISOString()},deps);
+  const keyword="post-rule";
+  const {rule}=await create(draft(keyword,{trigger:"comment",postId:post.id,response:{text:"The requested details",publicReply:"Check your inbox"}}));
+  await expect(change(rule.id,{action:"review",version:1})).rejects.toMatchObject({status:409});
+  await f.admin.query("update social_posts set scheduled_for=now()-interval '1 second',next_attempt_at=now()-interval '1 second' where id=$1",[post.id]);
+  expect(await runSocialPublisher(f.workerPool,()=>provider)).toMatchObject({published:1});
+  const {rows:[published]}=await f.admin.query("select provider_post_ref from social_posts where id=$1",[post.id]);
+  const review=await change(rule.id,{action:"review",version:1});
+  await change(rule.id,{action:"enable",version:1,reviewToken:review.review!.token});
+  const activityRef=randomUUID(), at=new Date(), ref="native-comment-post";
+  provider.autoDmEvidence.set(JSON.stringify(["acc-ig-1",ref,activityRef]),{
+    trigger:"comment",recipientRef:randomUUID(),at,lastInboundAt:at,text:keyword,firstName:null,firstInbound:false,
+    entryKey:null,postRef:ref,conversationRef:null,targetRef:activityRef,
+  });
+  provider.inboxEntries.push({accountRef:"acc-ig-1",kind:"comment",ref,title:null,preview:null,activityAt:at});
+  provider.inboxMessages.set(JSON.stringify(["acc-ig-1","comment",ref]),[
+    {ref:activityRef,direction:"incoming",text:keyword,at,attachments:[],canReply:true},
+  ]);
+  const payload=event(randomUUID(),"comment.received",{timestamp:at.toISOString(),subjectRef:ref,activityRef,publishedPostRef:published.provider_post_ref});
+  expect((await receiveSocialWebhook(f.db,signedRequest(payload),"fake",deps)).status).toBe(202);
+  await drainJobs(f.db,p.owner,p.tenant,"test-worker");
+  const sent=vi.spyOn(provider,"dispatchInboxReply");
+  try {
+    expect(await run()).toMatchObject({sent:1});
+    expect(await run()).toMatchObject({sent:1});
+    expect(sent.mock.calls.map(call=>[call[1].mode,call[1].text])).toEqual([["private","The requested details"],["comment","Check your inbox"]]);
+  } finally { sent.mockRestore(); }
+  expect((await report(rule.id)).activity.map(job=>job.step)).toEqual(["public","primary"]);
 });

@@ -39,7 +39,6 @@ export const autoDmRuleInput = z.object({
   require(!rule.response.publicReply || rule.trigger === "comment", "response");
   require((!rule.response.fileId && !rule.response.followup) || rule.trigger !== "comment", "response");
   require(!rule.response.followup || rule.purpose !== "service", "response");
-  require(!rule.handoffUserId || rule.trigger !== "comment", "handoffUserId");
   require(rule.purpose !== "service" || rule.serviceOnly, "serviceOnly");
   require((rule.trigger === "ice_breaker" || rule.trigger === "persistent_menu") === !!rule.entryKey, "entryKey");
   require(rule.trigger !== "comment" && rule.trigger !== "dm" || rule.match.keywords.length > 0, "match");

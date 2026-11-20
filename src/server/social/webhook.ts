@@ -64,10 +64,11 @@ export async function receiveSocialWebhook(database: Database | (() => Database)
     const bodyHash = rawBodyHash(Buffer.from(rawBody, "utf8"));
     await db.transaction(async (tx) => {
       await tx.execute(sql`select set_config('app.tenant_id', ${target.tenant_id}, true)`);
-      const detail: { platform?: string; errorCategory?: string; correlationKey?: string; activityRef?: string } = {};
+      const detail: { platform?: string; errorCategory?: string; correlationKey?: string; activityRef?: string; publishedPostRef?: string } = {};
       if (event.platform) detail.platform = event.platform;
       if (event.errorCategory) detail.errorCategory = event.errorCategory;
       if (event.activityRef) detail.activityRef = event.activityRef;
+      if (event.publishedPostRef) detail.publishedPostRef = event.publishedPostRef;
       if (event.correlationKey) detail.correlationKey = event.correlationKey;
       const [inserted] = await tx.insert(socialWebhookEvents).values({ tenantId: target.tenant_id, connectionId: target.connection_id, provider: provider.id, providerEventId: event.eventId,
         eventType: event.kind, externalAccountRef: event.accountRef!, subjectRef: event.subjectRef, detail, bodyHash, occurredAt: event.occurredAt,
