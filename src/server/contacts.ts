@@ -89,7 +89,7 @@ export function peopleQuery(tx: Transaction, tenantId: string, state: ReturnType
   return { where, order };
 }
 
-async function loadLiveContact(tx: Transaction, tenantId: string, id: string, lock?: "update" | "share") {
+export async function loadLiveContact(tx: Transaction, tenantId: string, id: string, lock?: "update" | "share") {
   const query = tx.select().from(contacts).where(and(eq(contacts.tenantId, tenantId), eq(contacts.id, id), isNull(contacts.erasedAt)));
   const [row] = lock ? await query.for(lock) : await query;
   if (!row) throw contactMissing();

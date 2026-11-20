@@ -2,7 +2,8 @@ import { publishOptionsInput, type DeliveryPayload } from "../../lib/social/comp
 import { mediaKind, type MediaMetadata } from "../../lib/social/media";
 import { destinationErrors, inspectAttachments } from "./compose-validation";
 import { credentialBinding, openCredential } from "./credential-envelope";
-import { SocialProviderError, type SocialProvider } from "./port";
+import { isMediaFetchFailure, SocialProviderError, type SocialProvider } from "./port";
+import { postingMediaLifetime, postingMediaUrl } from "./posting-media";
 import { classifyFailure, retryDelaySeconds } from "./state";
 import { socialPlatforms, socialProviders, type MediaRef, type SocialPlatform, type SocialProviderId } from "./types";
 
@@ -21,6 +22,9 @@ export type PublisherOptions = {
   batch?: number;
   leaseSeconds?: number;
   releaseMedia?: (file: AuthorizedFile) => Promise<{ url: string; expiresAt: Date }>;
+  /** Trusted public origin of the revocable posting-media route. */
+  postingMediaOrigin?: string;
+  providerFetchWindowSeconds?: Partial<Record<SocialProviderId, number>>;
   now?: () => Date;
 };
 export type PublisherResult = { claimed: number; published: number; accepted: number; retried: number; failed: number; stale: number; errored: number; unknown?: number };
@@ -52,7 +56,8 @@ export async function runSocialPublisher(pool: Queryable, providerFor: ProviderF
         if (c.action === "reconcile") {
           const status = await provider.getPostStatus(credential, c.providerPostRef!);
           if (status.status === "published") await complete(c, "published", null, null, 0);
-          else if (status.status === "failed" || status.status === "partial") await complete(c, "failed", null, status.status === "partial" ? "PARTIAL_PUBLISH" : "PROVIDER_REJECTED", 0);
+          else if (status.status === "failed" || status.status === "partial") await complete(c, "failed", null,
+            status.status === "partial" ? "PARTIAL_PUBLISH" : c.delivery && isMediaFetchFailure(status.errorCategory) ? "MEDIA_FETCH_FAILED" : "PROVIDER_REJECTED", 0);
           else if (status.status === "cancelled") await complete(c, "failed", null, "PROVIDER_REJECTED", 0);
           else await complete(c, "accepted", null, null, RECONCILE_DELAY_SECONDS);
         } else {
@@ -74,14 +79,25 @@ export async function runSocialPublisher(pool: Queryable, providerFor: ProviderF
               continue;
             }
             try {
-              const signed = await Promise.all(files.map(async file => {
-                if (!options.releaseMedia) throw new SocialProviderError("MEDIA_EXPIRED");
-                const release = await options.releaseMedia(file);
-                return [file.id, release] as const;
-              }));
+              const lifetime = postingMediaLifetime(options.providerFetchWindowSeconds?.[c.provider]);
               const now = (options.now ?? (() => new Date()))();
+              let grant: { id: string; expiresAt: string } | null = null;
+              if (files.length && options.postingMediaOrigin) {
+                const result = await pool.query<{ grant: { id: string; expiresAt: string } | null }>("select public.social_post_media_grant($1,$2,$3,$4) as grant",
+                  [c.tenantId, c.postId, c.lockToken, lifetime]);
+                grant = result.rows[0].grant;
+                if (!grant) throw new SocialProviderError("MEDIA_EXPIRED");
+              }
+              const signed = await Promise.all(files.map(async file => {
+                if (options.postingMediaOrigin && grant) {
+                  const expiresAt = new Date(grant.expiresAt);
+                  return [file.id, { url: postingMediaUrl(options.postingMediaOrigin, grant.id, file.id, expiresAt), expiresAt }] as const;
+                }
+                if (!options.releaseMedia) throw new SocialProviderError("MEDIA_EXPIRED");
+                return [file.id, await options.releaseMedia(file)] as const;
+              }));
               if (signed.some(([, release]) => !Number.isFinite(release.expiresAt.getTime()) || release.expiresAt <= now ||
-                !/^https:\/\//i.test(release.url))) throw new SocialProviderError("MEDIA_EXPIRED");
+                release.expiresAt.getTime() > now.getTime() + lifetime * 1000 || !/^https:\/\//i.test(release.url))) throw new SocialProviderError("MEDIA_EXPIRED");
               const urls = new Map(signed.map(([id, release]) => [id, release.url]));
               coverUrl = delivery.options?.coverFileId ? urls.get(delivery.options.coverFileId) : undefined;
               const subtitles = checked.subtitles.map(track => ({ url: urls.get(track.fileId)!, language: track.language }));
@@ -104,12 +120,17 @@ export async function runSocialPublisher(pool: Queryable, providerFor: ProviderF
             ...(delivery ? { draftType: delivery.type, options: publishOptions, coverUrl } : {}),
           });
           if (sent.status === "published") await complete(c, "published", sent.postRef, null, 0);
-          else if (sent.status === "failed" || sent.status === "partial" || sent.status === "cancelled") await complete(c, "failed", sent.postRef, sent.status === "partial" ? "PARTIAL_PUBLISH" : "PROVIDER_REJECTED", 0);
+          else if (sent.status === "failed" || sent.status === "partial" || sent.status === "cancelled") await complete(c, "failed", sent.postRef, sent.status === "partial" ? "PARTIAL_PUBLISH" :
+            c.delivery && isMediaFetchFailure(sent.errorCategory) ? "MEDIA_FETCH_FAILED" : "PROVIDER_REJECTED", 0);
           else await complete(c, "accepted", sent.postRef, null, RECONCILE_DELAY_SECONDS);
         }
       } catch (error) {
         if (c.delivery && c.action === "publish" && (!(error instanceof SocialProviderError) || error.code === "UNAVAILABLE" || error.code === "CONFLICT")) {
           await complete(c, "unknown", null, null, 0);
+          continue;
+        }
+        if (c.delivery && error instanceof SocialProviderError && error.code === "MEDIA_FETCH_FAILED" && c.action === "publish") {
+          await complete(c, "retry", null, "MEDIA_FETCH_FAILED", retryDelaySeconds(c.attempts));
           continue;
         }
         if (error instanceof SocialProviderError && error.code === "MEDIA_EXPIRED" && c.action === "publish") {

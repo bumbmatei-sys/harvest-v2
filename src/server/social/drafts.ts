@@ -25,8 +25,9 @@ const childKey = (tenant: string, id: string) => and(eq(socialPosts.tenantId, te
 const clearReview = { reviewBy: null, reviewExpires: null, reviewHash: null };
 const version = (current: Draft) => ({ version: current.version + 1, updatedAt: sql`now()` });
 
-const retryable = ["PROVIDER_RATE_LIMITED", "CONNECTION_UNAVAILABLE", "CREDENTIAL_UNAVAILABLE", "MEDIA_UNAVAILABLE", "MEDIA_URL_EXPIRED", "PROVIDER_AUTH"];
+const retryable = ["PROVIDER_RATE_LIMITED", "CONNECTION_UNAVAILABLE", "CREDENTIAL_UNAVAILABLE", "MEDIA_UNAVAILABLE", "MEDIA_URL_EXPIRED", "MEDIA_FETCH_FAILED", "PROVIDER_AUTH"];
 export function canRetry(post: Pick<Post, "status" | "providerPostRef" | "firstAttemptAt" | "lastErrorCode">, now: Date) {
+  if (post.status === "failed" && post.lastErrorCode === "MEDIA_FETCH_FAILED") return true;
   return post.status === "failed" && !post.providerPostRef && retryable.includes(post.lastErrorCode ?? "") &&
     (!post.firstAttemptAt || now.getTime() - post.firstAttemptAt.getTime() < 23 * 3_600_000);
 }
@@ -35,6 +36,8 @@ export const presentDelivery = (post: Post, now: Date) => ({
   displayTimezone: post.displayTimezone, version: post.version, scheduledFor: post.scheduledFor, publishedAt: post.publishedAt,
   firstAttemptAt: post.firstAttemptAt, attempts: post.attempts, lastErrorCode: post.lastErrorCode, repeatNumber: post.repeatNumber,
   retryable: canRetry(post, now),
+  retryRequiresReview: post.status === "failed" && post.lastErrorCode === "MEDIA_FETCH_FAILED" &&
+    (!!post.providerPostRef || !!post.firstAttemptAt && now.getTime() - post.firstAttemptAt.getTime() >= 23 * 3_600_000),
 });
 const present = (draft: Draft, children: Post[], now: Date) => ({
   id: draft.id, document: draft.document, status: draft.status, version: draft.version, createdAt: draft.createdAt, updatedAt: draft.updatedAt,
@@ -110,6 +113,7 @@ export function changeDraft(db: Database, user: string, workspace: string, id: s
     const { draft, children } = await get(tx, tenant, id, true);
     if (input.version !== draft.version) throw publishConflict();
     const now = deps.now();
+    const retryDrafts: { deliveryId: string; draftId: string }[] = [];
     if (input.action === "duplicate" || input.action === "editAfterAttempt") {
       if (input.action === "editAfterAttempt" && !children.some(child => child.firstAttemptAt)) throw publishConflict("NO_ATTEMPT");
       const document = input.action === "duplicate" ? draft.document : input.document ?? {
@@ -139,6 +143,13 @@ export function changeDraft(db: Database, user: string, workspace: string, id: s
         const preview = previews.find(candidate => candidate.account.id === post.connectionId);
         if (!preview) throw unavailable();
         requireReady([preview]);
+        if (presentDelivery(post, now).retryRequiresReview) {
+          const document = { ...draft.document, connectionIds: [post.connectionId] };
+          const replacement = await create(tx, tenant, user, document);
+          await auditPublish(tx, tenant, user, "social.draft_media_recovery", replacement.id);
+          retryDrafts.push({ deliveryId: post.id, draftId: replacement.id });
+          continue;
+        }
         await tx.update(socialPosts).set({ status: "scheduled", attempts: 0, nextAttemptAt: now,
           version: post.version + 1, updatedAt: sql`now()` }).where(and(eq(socialPosts.tenantId, tenant), eq(socialPosts.id, post.id)));
       }
@@ -205,6 +216,6 @@ export function changeDraft(db: Database, user: string, workspace: string, id: s
     }
     await auditPublish(tx, tenant, user, `social.draft_${input.action}`, id);
     const updated = await get(tx, tenant, id);
-    return { draft: present(updated.draft, updated.children, now) };
+    return { draft: present(updated.draft, updated.children, now), ...(retryDrafts.length ? { retryDrafts } : {}) };
   });
 }

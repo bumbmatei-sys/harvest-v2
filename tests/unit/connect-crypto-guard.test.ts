@@ -8,10 +8,9 @@ const RAW_OPEN_ALLOWED = ["src/server/connect-decrypt.ts"];
 const CRYPTO_ALLOWED = [
   "src/server/connect-decrypt.ts", "src/server/connect-intake.ts", "src/server/connect-invitations.ts", "src/server/connect-key-rotation.ts",
 ];
-// Social provider credentials (src/server/social) are sealed with the same key provider and AES-GCM primitives under their own purposes.
-// These two modules are the only additions: the credential envelope and the webhook-secret derivation. Nothing else may follow them.
-const SOCIAL_CRYPTO = ["src/server/social/credential-envelope.ts"];
-const SOCIAL_KEY_USERS = [...SOCIAL_CRYPTO, "src/server/social/webhook-secrets.ts"];
+// Social credentials, inbox cursors and posting grants use separate key purposes. Only the listed crypto modules may resolve keys.
+const SOCIAL_CRYPTO = ["src/server/social/credential-envelope.ts", "src/server/social/inbox-tokens.ts"];
+const SOCIAL_KEY_USERS = [...SOCIAL_CRYPTO, "src/server/social/webhook-secrets.ts", "src/server/social/posting-media.ts"];
 const importsOf = (source: string) => [...source.matchAll(/import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+["']([^"']+)["']/g)].map((m) => ({ names: m[1], from: m[2] }));
 const scan = () => sourceFiles("src").filter((f) => /\.tsx?$/.test(f)).map((file) => ({ file, source: readFileSync(file, "utf8") }));
 

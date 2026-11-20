@@ -72,7 +72,11 @@ export async function receiveSocialWebhook(database: Database | (() => Database)
         eventType: event.kind, externalAccountRef: event.accountRef!, subjectRef: event.subjectRef, detail, bodyHash, occurredAt: event.occurredAt,
       }).onConflictDoNothing({ target: [socialWebhookEvents.tenantId, socialWebhookEvents.provider, socialWebhookEvents.providerEventId] }).returning({ id: socialWebhookEvents.id });
       // A duplicate id inserts nothing and queues nothing, whatever its body.
-      if (inserted) await appendOutboxEvent(tx, target.tenant_id, { kind: "social.webhook", idempotencyKey: `social-webhook:${inserted.id}`, payload: { eventId: inserted.id } });
+      if (inserted) {
+        const inboxRefresh = event.kind.startsWith("message.") || event.kind === "comment.received" || event.kind === "mention.received";
+        await appendOutboxEvent(tx, target.tenant_id, { kind: "social.webhook", idempotencyKey: `social-webhook:${inserted.id}`,
+          payload: { eventId: inserted.id, ...(inboxRefresh ? { connectionId: target.connection_id, reference: event.subjectRef } : {}) } });
+      }
     });
   } catch { console.error("social_webhook_store_failed"); return Response.json({ error: message("Errors.somethingWentWrongPleaseTryAgain") }, { status: 500, headers: noStore }); }
   return accepted();

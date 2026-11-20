@@ -27,6 +27,7 @@ export function classifyFailure(error: unknown, attempt: number): Outcome {
   switch (error.code) {
     case "RATE_LIMITED": return { outcome: "retry", code: "PROVIDER_RATE_LIMITED", delaySeconds: Math.min(3600, Math.max(backoff, Math.ceil((error.retryAfterMs ?? 0) / 1000))) };
     case "UNAVAILABLE": return { outcome: "retry", code: "PROVIDER_UNAVAILABLE", delaySeconds: backoff };
+    case "EXPIRED":
     case "AUTH": return { outcome: "failed", code: "PROVIDER_AUTH", delaySeconds: 0 };
     case "CONFLICT": return { outcome: "failed", code: "PROVIDER_CONFLICT", delaySeconds: 0 };
     case "DISABLED": return { outcome: "failed", code: "DISABLED", delaySeconds: 0 };

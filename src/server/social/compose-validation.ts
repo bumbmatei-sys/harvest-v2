@@ -1,4 +1,4 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import type { Transaction } from "../../db/client";
 import { files, socialConnections } from "../../db/schema";
 import type { ComposerInput, ComposerOptions } from "../../lib/social/composer";
@@ -121,7 +121,7 @@ export async function inspectComposer(tx: Transaction, tenantId: string, input: 
     for (const track of variant.options?.subtitles ?? []) fileIds.add(track.fileId);
   }
   const rows = fileIds.size ? await tx.select({ id: files.id, mime: files.mime, size: files.size, metadata: files.mediaMetadata })
-    .from(files).where(and(eq(files.tenantId, tenantId), eq(files.status, "ready"), inArray(files.id, [...fileIds]))).for("share") : [];
+    .from(files).where(and(eq(files.tenantId, tenantId), eq(files.status, "ready"), isNull(files.socialRetiredAt), inArray(files.id, [...fileIds]))).for("share") : [];
   if (!allowUnavailable && fileIds.size !== rows.length) throw unavailable();
   const filesById = new Map(rows.map(file => [file.id, { ...file, ...file.metadata }]));
   const previews = connections.map(connection => {
