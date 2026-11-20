@@ -1585,7 +1585,7 @@ export const socialWebhookEvents = pgTable("social_webhook_events", {
   connectionId: uuid("connection_id").notNull(), provider: text("provider").notNull(), providerEventId: text("provider_event_id").notNull(),
   eventType: text("event_type").notNull(), externalAccountRef: text("external_account_ref").notNull(), subjectRef: text("subject_ref"),
   // Allow-listed, content-free: platform and error category only. No message text, sender names or comment bodies are ever stored.
-  detail: jsonb("detail").$type<{ platform?: string; errorCategory?: string; correlationKey?: string; activityRef?: string }>().notNull().default(sql`'{}'::jsonb`),
+  detail: jsonb("detail").$type<{ platform?: string; errorCategory?: string; correlationKey?: string; activityRef?: string; publishedPostRef?: string }>().notNull().default(sql`'{}'::jsonb`),
   bodyHash: text("body_hash").notNull(),
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
   receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),

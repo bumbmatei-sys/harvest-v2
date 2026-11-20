@@ -167,7 +167,7 @@ BEGIN
     WHERE state='leased' AND leased_until<=now();
   WITH due AS (
     SELECT j.tenant_id,j.id,j.state,c.platform,c.external_account_ref,c.credential_envelope,r.rule,
-      e.event_type,e.subject_ref,e.detail->>'activityRef' AS activity_ref,e.occurred_at,p.provider_post_ref,
+      e.event_type,e.subject_ref,e.detail->>'activityRef' AS activity_ref,e.detail->>'publishedPostRef' AS published_post_ref,e.occurred_at,p.provider_post_ref,
       h.timezone,h.hours,h.away_template,h.version AS policy_revision,
       f.id AS file_id,f.key AS file_key,f.mime AS file_mime,f.size AS file_size
     FROM public.social_auto_dm_jobs j JOIN public.social_auto_dm_rules r ON (r.tenant_id,r.id)=(j.tenant_id,j.rule_id)
@@ -219,8 +219,8 @@ BEGIN
   SELECT * INTO j FROM public.social_auto_dm_jobs WHERE (tenant_id,id,lease)=(p_tenant,p_job,p_lease) AND state='leased';
   IF NOT FOUND OR p_recipient !~ '^[a-f0-9]{64}$' OR p_recipient IS NULL OR p_deadline IS NULL OR p_deadline<=clock_timestamp()
     OR p_request_hash IS NULL OR p_request_hash !~ '^[0-9a-f]{64}$' OR p_variant IS NULL OR p_variant NOT IN ('rule','away') THEN RETURN 'ineligible'; END IF;
-  SELECT status,health INTO c FROM public.social_connections WHERE (tenant_id,id)=(p_tenant,j.connection_id) FOR SHARE;
-  IF NOT FOUND OR c.status<>'active' OR c.health='failing' THEN RETURN 'ineligible'; END IF;
+  SELECT status,health,health_code INTO c FROM public.social_connections WHERE (tenant_id,id)=(p_tenant,j.connection_id) FOR SHARE;
+  IF NOT FOUND OR c.status<>'active' OR c.health='failing' OR coalesce(c.health_code,'') ~ 'expired|token_revoked|reauth' THEN RETURN 'ineligible'; END IF;
   IF NOT EXISTS (SELECT 1 FROM public.social_webhook_events e WHERE (e.tenant_id,e.id)=(p_tenant,j.event_id)
     AND p_deadline <= e.occurred_at + CASE WHEN e.event_type='comment.received' THEN interval '7 days' ELSE interval '24 hours' END)
     THEN RETURN 'ineligible'; END IF;
@@ -280,7 +280,7 @@ END $$;
 CREATE FUNCTION public.social_auto_dm_finish(p_tenant uuid,p_job uuid,p_lease uuid,p_state text,p_reason text,p_result text,p_delay integer,
   p_recipient text,p_conversation text) RETURNS text
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-DECLARE j public.social_auto_dm_jobs%ROWTYPE; r public.social_auto_dm_rules%ROWTYPE; can_run boolean;
+DECLARE j public.social_auto_dm_jobs%ROWTYPE; r public.social_auto_dm_rules%ROWTYPE; can_run boolean; handoff_kind text;
 BEGIN
   PERFORM set_config('app.social_auto_dm_worker','on',true);
   PERFORM set_config('app.social_definer','on',true);
@@ -297,14 +297,17 @@ BEGIN
     p_state := 'skipped'; p_reason := CASE WHEN can_run THEN 'provider_error' ELSE 'ineligible' END;
   END IF;
   IF p_state='handed_off' THEN
-    IF NOT can_run OR p_conversation IS NULL OR r.rule->>'handoffUserId' IS NULL OR NOT EXISTS (
+    SELECT CASE WHEN e.event_type='comment.received' THEN 'comment' ELSE 'dm' END INTO handoff_kind
+    FROM public.social_webhook_events e WHERE (e.tenant_id,e.id,e.connection_id,e.subject_ref)=(j.tenant_id,j.event_id,j.connection_id,p_conversation);
+    IF NOT can_run OR handoff_kind IS NULL OR r.rule->>'handoffUserId' IS NULL OR NOT EXISTS (
       SELECT 1 FROM public.workspace_members WHERE (tenant_id,user_id)=(p_tenant,r.rule->>'handoffUserId') AND role_id IN ('owner','admin')
-    ) THEN p_state:='skipped'; p_reason:='ineligible'; END IF;
+    ) OR NOT EXISTS (SELECT 1 FROM public.workspace_members WHERE (tenant_id,user_id)=(p_tenant,r.enabled_by) AND role_id IN ('owner','admin'))
+    THEN p_state:='skipped'; p_reason:='ineligible'; END IF;
     IF p_state='handed_off' THEN
       PERFORM set_config('app.tenant_id',p_tenant::text,true);
       PERFORM set_config('app.user_id',r.enabled_by,true);
       INSERT INTO public.social_inbox_items(tenant_id,connection_id,provider_ref,kind,assignee_id,status)
-      VALUES (p_tenant,j.connection_id,p_conversation,'dm',r.rule->>'handoffUserId','open')
+      VALUES (p_tenant,j.connection_id,p_conversation,handoff_kind,r.rule->>'handoffUserId','open')
       ON CONFLICT (tenant_id,connection_id,kind,provider_ref) DO UPDATE
         SET assignee_id=coalesce(social_inbox_items.assignee_id,excluded.assignee_id),status='open',version=social_inbox_items.version+1;
     END IF;

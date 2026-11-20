@@ -11,7 +11,7 @@ type Pool = { query<R extends Record<string, unknown>>(query: string, values: un
 type Job = {
   tenant_id: string; id: string; connection_id: string; lease: string; state: "leased" | "unknown";
   event_type: "message.received" | "comment.received"; subject_ref: string; activity_ref: string; occurred_at: string;
-  platform: AutoDmPlatform; external_account_ref: string; credential_envelope: unknown;
+  platform: AutoDmPlatform; external_account_ref: string; credential_envelope: unknown; published_post_ref: string | null;
   rule: unknown; provider_post_ref: string | null; step: "primary" | "public" | "followup";
   prefix: "rule" | "away" | null; policy_revision: number | null; timezone: string | null;
   hours: { day: number; start: string; end: string }[] | null; away_template: string | null;
@@ -58,12 +58,13 @@ export async function runSocialAutoDm(pool: Pool, { fake, recipientKey, limit = 
       const config = rule.data;
       try {
         const evidence = await fake.readAutoDmEvidence(credential, { ...account, kind: job.event_type, subjectRef: job.subject_ref, activityRef: job.activity_ref });
+        const matchedPost = config.postRef || job.provider_post_ref;
         const sameTrigger = evidence && (config.trigger === evidence.trigger ||
           (config.trigger === "welcome" && evidence.trigger === "dm" && evidence.firstInbound));
         if (!evidence || !sameTrigger || evidence.targetRef !== job.activity_ref ||
             (evidence.conversationRef === null ? evidence.postRef !== job.subject_ref : evidence.conversationRef !== job.subject_ref) ||
             (config.entryKey && config.entryKey !== evidence.entryKey) ||
-            ((config.postRef || job.provider_post_ref) && (config.postRef || job.provider_post_ref) !== evidence.postRef) ||
+            (matchedPost && matchedPost !== evidence.postRef && matchedPost !== job.published_post_ref) ||
             Math.abs(evidence.at.getTime() - new Date(job.occurred_at).getTime()) > 300_000) {
           await finish("skipped", "ineligible"); continue;
         }
@@ -76,7 +77,10 @@ export async function runSocialAutoDm(pool: Pool, { fake, recipientKey, limit = 
         if (outside && (config.hours !== "away" || !job.away_template || job.step !== "primary")) {
           await finish("skipped", "outside_hours"); continue;
         }
-        if (config.handoffUserId) { await finish("handed_off"); continue; }
+        if (config.handoffUserId) {
+          conversation ??= evidence.postRef;
+          await finish("handed_off"); continue;
+        }
         const target = conversation ?? evidence.postRef;
         if (!target) { await finish("skipped", "ineligible"); continue; }
         const query: InboxReplyQuery = { ...account, ref: target, kind: conversation ? "dm" : "comment",

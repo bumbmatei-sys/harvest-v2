@@ -49,6 +49,7 @@ export type InboundEventKind =
 export type InboundEvent = {
   eventId: string;
   activityRef?: string;
+  publishedPostRef?: string;
   kind: InboundEventKind;
   /** The provider's own event name, kept only for `other`, bounded. */
   rawType: string;

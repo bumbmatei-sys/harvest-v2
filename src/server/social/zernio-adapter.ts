@@ -358,8 +358,10 @@ export class ZernioAdapter implements SocialProvider, SocialSender {
       return { allowed: false, reason: "target_unavailable" };
     }
     if (!messageMode) {
-      const body = await this.inboxGet(cred, `/inbox/comments/${enc(ref)}`, { accountRef, signal, limit: 100 });
-      const target = this.rows(body, "comments").flatMap(row => [row, ...(Array.isArray(row.replies) ? row.replies.map(record) : [])]).find(row => row.id === targetRef);
+      const meta = platform === "instagram" || platform === "facebook";
+      const target = targetRef && meta ? await this.lookupMetaComment(cred,{accountRef,signal},ref,targetRef)
+        : this.rows(await this.inboxGet(cred,`/inbox/comments/${enc(ref)}`,{accountRef,signal,limit:100}),"comments")
+          .flatMap(row => [row, ...(Array.isArray(row.replies) ? row.replies.map(record) : [])]).find(row => row.id === targetRef);
       if (!target || target.canReply !== true) return { allowed: false, reason: "target_unavailable" };
       if (mode === "comment") return { allowed: true, expiresAt: null, media: capabilities.commentMedia !== "unavailable", quote: false };
       const at = date(target.createdTime);
@@ -384,6 +386,16 @@ export class ZernioAdapter implements SocialProvider, SocialSender {
       return this.inboxWindow(lastInbound, platform === "whatsapp" ? 24 : 48, media, quote);
     }
     return { allowed: true, expiresAt: null, media, quote };
+  }
+
+  private async lookupMetaComment(cred: SocialCredential, query: { accountRef: string; signal: AbortSignal }, postRef: string, commentRef: string) {
+    const path = `/inbox/comments/${enc(postRef)}`;
+    const targeted = await this.inboxGet(cred,path,{ ...query,limit:1 },{ commentId:commentRef });
+    const comment = record(targeted.comment);
+    if (comment.id === commentRef) return comment;
+    const page = await this.inboxGet(cred,path,{ ...query,limit:100 });
+    return this.rows(page,"comments").flatMap(row => [row, ...(Array.isArray(row.replies) ? row.replies.map(record) : [])])
+      .find(item=>item.id===commentRef);
   }
 
   private inboxWindow(at: Date, hours: number, media: boolean, quote: boolean): InboxReplyEligibility {
@@ -434,9 +446,7 @@ export class ZernioAdapter implements SocialProvider, SocialSender {
 
   async readAutoDmEvidence(cred: SocialCredential, query: AutoDmEvent): Promise<AutoDmEvidence | null> {
     if (query.kind === "comment.received") {
-      const page = await this.inboxGet(cred, `/inbox/comments/${enc(query.subjectRef)}`, { ...query, limit: 100 });
-      const items = this.rows(page, "comments").flatMap(row => [row, ...(Array.isArray(row.replies) ? row.replies.map(record) : [])]);
-      const row = items.find(item => item.id === query.activityRef);
+      const row = await this.lookupMetaComment(cred,query,query.subjectRef,query.activityRef);
       if (!row || row.isOwn === true || record(row.from).isOwner === true || row.isHidden === true || row.canReply !== true) return null;
       const sender = record(row.from), recipientRef = text(sender.id), at = date(row.createdTime ?? row.createdAt);
       if (!recipientRef || !at) return null;
@@ -450,9 +460,9 @@ export class ZernioAdapter implements SocialProvider, SocialSender {
     if (conversation.id !== query.subjectRef || conversation.accountId !== query.accountRef || conversation.platform !== query.platform
       || ["other", "ai_agent"].includes(String(conversation.threadControl))) return null;
     const page = await this.inboxGet(cred, `${path}/messages`, { ...query, limit: 100 }, { sortOrder: "desc" });
-    const incoming = this.rows(page, "messages").filter(item => item.direction === "incoming" && item.isDeleted !== true && item.noRenderableContent !== true);
+    const incoming = this.rows(page, "messages").filter(item => item.direction === "incoming" && item.isDeleted !== true);
     const row = incoming.find(item => item.id === query.activityRef);
-    if (!row) return null;
+    if (!row || row.noRenderableContent === true) return null;
     const at = date(row.createdAt ?? row.timestamp);
     const recipientRef = text(row.senderId);
     if (!at || !recipientRef || (conversation.participantId && conversation.participantId !== recipientRef)) return null;
@@ -474,7 +484,7 @@ export class ZernioAdapter implements SocialProvider, SocialSender {
     let parsed: unknown;
     try { parsed = JSON.parse(rawBody); } catch { return null; }
     const b = record(parsed), eventId = text(b.id), name = text(b.event, 100);
-    if (!eventId || !name) return null;
+    if (!eventId || !name || b.test === true) return null;
     // Providers sign the body but not a timestamp. A missing timestamp falls back to receipt time.
     const occurredAt = b.timestamp === undefined ? this.now() : date(b.timestamp);
     if (!occurredAt) return null;
@@ -485,15 +495,16 @@ export class ZernioAdapter implements SocialProvider, SocialSender {
     const firstTarget = record((Array.isArray(post.platforms) ? post.platforms : [])[0]);
     const failed = (Array.isArray(post.platforms) ? post.platforms : []).map(record).find((p) => text(p.errorCategory));
     const correlationKey = record(post.metadata).harvestDeliveryKey;
-    const platform = [account.platform, message.platform, firstTarget.platform].find(isPlatform) ?? null;
+    const platform = [account.platform, message.platform, comment.platform, firstTarget.platform].find(isPlatform) ?? null;
     // Only identifiers leave this function. Message and comment text, sender names and similar content are dropped here.
     return {
       eventId, kind,
       ...(kind === "message.received" ? { activityRef: text(message.platformMessageId ?? message.id) ?? undefined }
-        : kind === "comment.received" ? { activityRef: text(comment.platformCommentId ?? comment.id) ?? undefined } : {}),
+        : kind === "comment.received" && record(comment.author).isOwnAccount !== true && comment.isLive !== true
+          ? { activityRef: text(comment.id) ?? undefined, publishedPostRef: text(comment.postId) ?? undefined } : {}),
       rawType: kind === "other" ? safeCode(name) ?? "" : "",
       accountRef: text(account.accountId ?? account.id) ?? text(firstTarget.accountId),
-      subjectRef: kind.startsWith("post.") ? text(post.id ?? post._id) : kind.startsWith("message.") ? text(record(b.conversation).platformConversationId ?? message.conversationId) : kind === "comment.received" ? text(comment.postId ?? comment.platformPostId ?? comment.id) : kind === "mention.received" ? text(mention.id) : null,
+      subjectRef: kind.startsWith("post.") ? text(post.id ?? post._id) : kind.startsWith("message.") ? text(record(b.conversation).platformConversationId ?? message.conversationId) : kind === "comment.received" ? text(comment.platformPostId ?? comment.postId ?? comment.id) : kind === "mention.received" ? text(mention.id) : null,
       platform, errorCategory: failed && mediaFetchTarget(failed) ? "MEDIA_FETCH_FAILED" : failed ? safeCode(failed.errorCategory) : null, occurredAt,
       ...(kind.startsWith("post.") && deliveryKey(correlationKey) ? { correlationKey } : {}),
     };
