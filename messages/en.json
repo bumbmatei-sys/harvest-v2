@@ -3766,7 +3766,8 @@
       "drafts": "Drafts",
       "title": "Planner",
       "subtitle": "Write, schedule and see every post. Timezone {zone}.",
-      "compose": "Compose"
+      "compose": "Compose",
+      "accounts": "Social accounts"
     },
     "ring": {
       "usedOf": "{used} / {limit}",
@@ -4005,6 +4006,7 @@
       "dayCell": "{day}, {count, plural, one {# post} other {# posts}}",
       "moreEvents": "+{count} more",
       "weekGrid": "Week",
+      "calendarScroll": "Scheduled posts by hour",
       "month": "Month",
       "week": "Week",
       "viewMode": "Calendar view",

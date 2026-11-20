@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { CalendarClock, FileText, ListOrdered, PenLine, Settings2 } from "lucide-react";
+import { CalendarClock, FileText, ListOrdered, PenLine, Settings2, UserCog } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
@@ -27,6 +27,7 @@ export function SocialHeader({ tenantId, active, zone, children }: { tenantId: s
           className={cn("inline-flex min-h-11 items-center gap-2 rounded-md px-4 text-sm font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 lg:min-h-9", active === id ? "bg-background shadow-sm" : "text-muted-foreground hover:text-foreground")}>
           <Icon className="size-4" aria-hidden="true" />{label}</Link>)}
       </nav>
+      <Button asChild variant="outline" size="responsive"><Link href={`${base}/accounts`} prefetch={false}><UserCog aria-hidden="true" />{t("accounts")}</Link></Button>
       {children}
     </div>
   </header>;
