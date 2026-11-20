@@ -32,13 +32,13 @@ The target is not a literal elimination of every external API. Neon, GitHub, Zer
 | DNS/CDN/security | Existing domain/edge config | Cloudflare DNS, TLS, WAF, managed rules and appropriate limits | Migrate/retain existing as applicable |
 | CI/CD | GitHub + GitHub Actions | Existing exact-head review, protected release workflow, Cloudflare deployment target | Retain |
 | Website Builder | Future feature | Workers Static Assets; Cloudflare for SaaS for customer domain onboarding when separately approved | Future |
-| Video | Approved BYO Google Meet and Zoom Meetings direction | Same provider APIs; no hosted video media infrastructure | Retain |
+| Video | Proposed direction (not an approved decision): bring-your-own Google Meet and Zoom Meetings, with the meeting provider still a choice behind a Harvest-owned port | Same provider APIs; no hosted video media infrastructure | Retain |
 
 Architecture: browser -> Cloudflare DNS/TLS/CDN/WAF -> Harvest web Worker -> Neon via Hyperdrive (app role), R2, authorized external APIs. Separately, Cron triggers and Queues -> background Worker -> Neon via dedicated role(s) + approved integrations. Use a separate isolated webhook transport if needed; do not attach migration-owner credentials to any runtime. Static assets are served directly when possible; authenticated content bypasses shared caches.
 
 ## 3. Repository-specific findings
 
-The audited repository contains 192 API route files; the earlier pinned audit counted 117 PostgreSQL table declarations and 68 migrations (main now has more: 0069 onward are in open PRs and later). Counts are snapshots, not migration requirements. Review changed code on the current implementation branch before each slice.
+The audited repository contains 192 API route files; the earlier pinned audit counted 117 PostgreSQL table declarations and 68 migrations (see `drizzle/meta/_journal.json` for the current count). Counts are snapshots, not migration requirements. Review changed code on the current implementation branch before each slice.
 
 - `package.json`: Next.js 16, React 19, Better Auth, pg, Neon serverless, Drizzle, AWS SDK S3, Resend and next-intl; Node >=22; existing npm/Node build and tests.
 - `next.config.ts`: next-intl configuration plus QA OTP and test mailer build aliases, including webpack-specific behavior.
@@ -103,7 +103,7 @@ This is a release blocker if it cannot be demonstrated safe. Current transport e
 Use distinct explicit deployment environment configuration (local / preview / staging / production), verified against resource identity and DB allowlists. Production denies QA bypass regardless of omitted/misconfigured environment values, forbids test credentials and fails closed on invalid settings. Preserve OTP rate limits, database session behavior, cookie flags/domain, trusted request origin, login throttling and audit. Configure trusted proxy/IP headers for Cloudflare and test spoofed headers.
 
 ### Email
-Cloudflare Email Service is a migration candidate, not presumed feature-equivalent to Resend. Confirm account/region availability, domain authentication (SPF/DKIM/DMARC), sending limits, bounce/suppression handling, signed delivery webhooks, sender identity, API functionality, reliability and opt-out handling for eligible newsletter/marketing traffic. Validate OTP synchronous delivery/error handling under the current auth policy. Implement provider interface with Resend fallback; do not change sender DNS or send real emails without approval. Keep external newsletter/marketing product scope separate, and retain Resend if Cloudflare lacks required functionality or deliverability.
+Cloudflare Email Service is evaluated only as a possible replacement for Resend for sign-in (OTP) and other transactional mail, and is not presumed feature-equivalent. Newsletter delivery is Amazon SES per the 20 Nov decision (decisions log) and is out of scope of this migration. Confirm account/region availability, domain authentication (SPF/DKIM/DMARC), sending limits, bounce/suppression handling, signed delivery webhooks, sender identity, API functionality and reliability for transactional mail. Validate OTP synchronous delivery/error handling under the current auth policy. Implement provider interface with Resend fallback; do not change sender DNS or send real emails without approval. Keep external newsletter/marketing product scope separate, and retain Resend (the transactional provider today) if Cloudflare lacks required functionality or deliverability.
 
 ### R2 and caching
 Keep existing private buckets, scoped credentials, CORS, conditional upload protection, checksums, MIME validation, deletion controls and presigned URL expiry. Native R2 bindings may optimize server-side access only if security and semantics remain equivalent; retain S3 presigning if needed. Test the actual Worker stream path and memory under concurrent file verification; keep the current direct-to-R2 upload model rather than buffering large uploads in a Worker. No shared CDN caching of signed URLs, private API results, contact data or tenant-scoped SSR HTML. Public caching requires explicit cache-key and invalidation policy. Separate environment buckets.
@@ -136,7 +136,7 @@ Indicative engineering estimate: 2–4 weeks of focused AI-assisted development 
 
 ## 10. Cost planning (USD/month)
 
-Published Workers Paid model: $5/account minimum; 10M dynamic requests and 30M CPU-ms included; additional requests $0.30/M and CPU $0.02/M ms. Hyperdrive included on eligible Workers paid plan within documented limits. R2 Standard: 10 GB-month included; $0.015/GB-month thereafter; operation allowances and overages separate, internet egress free. Queues: 1M operations included; $0.40/M afterward; typical successful message <64 KiB uses write/read/delete (3 operations), retries cost extra. Email: 3,000 outgoing emails included on paid plan then $0.35/1,000 under published rate, subject to plan/availability. Verify all pricing and account-specific limits before activating or committing spend.
+Published Workers Paid model: $5/account minimum; 10M dynamic requests and 30M CPU-ms included; additional requests $0.30/M and CPU $0.02/M ms. Hyperdrive availability and limits per plan to be verified against current Cloudflare documentation. R2 Standard: 10 GB-month included; $0.015/GB-month thereafter; operation allowances and overages separate, internet egress free. Queues: 1M operations included; $0.40/M afterward; typical successful message <64 KiB uses write/read/delete (3 operations), retries cost extra. Email: 3,000 outgoing emails included on paid plan then $0.35/1,000 under published rate, subject to plan/availability. Verify all pricing and account-specific limits before activating or committing spend.
 
 | Monthly workload assumption | Early | Growing | Established |
 |---|---:|---:|---:|
@@ -174,6 +174,8 @@ Maintenance target: managed infrastructure, no independently maintained VM for t
 - Cloudflare Email Service eligibility, OTP deliverability, events/suppression, sending reputation and feature parity with Resend; no replacement until approved.
 - Cloudflare resources limits and actual workload billing from staging.
 - Production migration job/role readiness, approval boundaries and whether any future rollout order needs a separate product decision.
+- Privacy and sub-processors: Cloudflare becomes a data processor for church, pastoral and donor data. Before any production use: sub-processor/DPA review, data location of Workers, Hyperdrive, R2, Queues and logs, and a general rule that no personal data goes in queue payloads or Worker logs (IDs only; redacted structured logs). This migration approves or alters none of the five HC-02 gates (all stay UNAPPROVED); moving hosting enables no real-data intake and no real invitation delivery.
+- Hyperdrive and Workers behaviour stated here (session advisory locks unsupported, transaction pooling, free-plan availability) is from Cloudflare documentation and must be verified in staging.
 - Website Builder, Agents SDK, AI Gateway, Workflows, additional data services and paid security are optional future scope, not prerequisites for moving the existing application.
 
 ## 13. References
