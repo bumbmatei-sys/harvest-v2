@@ -40,6 +40,8 @@ Navigation (typed registry, `src/lib/navigation.ts`): the Public sidebar has a *
 
 ## Verified
 
+Rework run (20 Nov, final head): `tsc` and `lint` clean; unit 1276 of 1276 pass (includes the new unique-icons and group-icon tests); integration `social` project 47 of 47 in 4 files; browser `social-publish-screens` passes (3.3 min), `shell-slice2`, `kit-pr2-shell` and `campaigns` pass (11 passed, 2 skipped in the combined run), `kit-pr7-communities` failed once on a join redirect timing and passed on rerun. Screenshots (light and dark, 1280 and 360, scale 2): `/tmp/social-pr1-shots-v3`. The older bullets below predate the rework and keep their original counts.
+
 - `npx tsc --noEmit` clean; `npm run lint` clean (zero warnings, source guards).
 - Unit: 99 files, 1273 tests pass, including the new `social-publish-gate.test.ts` (gate closed in production, fake provider only, sender still throws, counter locale), `social-screens.test.ts` (SHA-256 against node, rings from the shared counter, document building, TikTok confirmation, catalogue keys), the provenance and source-guard tests.
 - Integration: `tests/integration/social-publish.test.ts` 9 of 9 still pass with the routes now taking the gate's dependencies.
