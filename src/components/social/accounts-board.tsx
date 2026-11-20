@@ -67,7 +67,7 @@ export function AccountsBoard({ tenantId, testConnect, testCredential }: { tenan
             <RingMark platform={connection.platform} active={false} />
             <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{platformLabels[connection.platform]}</p><p className="truncate text-xs text-muted-foreground">{connection.displayName}</p></div>
             <StatusBadge tone={connection.availability === "available" ? "success" : "danger"} label={t(connection.availability)} dot />
-            <StatusBadge tone={healthTone(connection.health)} label={t(`health.${connection.health}`)} />
+            <StatusBadge tone={healthTone(connection.health)} label={t.has(`health.${connection.health}`) ? t(`health.${connection.health}`) : t("health.unknown")} />
           </div>
           {connection.healthCheckedAt && <p className="text-xs text-muted-foreground">{t("checked", { time: new Intl.DateTimeFormat(locale, { dateStyle: "medium", timeStyle: "short" }).format(new Date(connection.healthCheckedAt)) })}</p>}
           {connection.healthCode && <p className="text-xs text-destructive">{reason(connection.healthCode)}</p>}

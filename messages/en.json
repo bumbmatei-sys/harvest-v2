@@ -4066,7 +4066,8 @@
       "health": {
         "healthy": "Healthy",
         "degraded": "Degraded",
-        "failing": "Failing"
+        "failing": "Failing",
+        "unknown": "Not checked"
       },
       "checked": "Checked {time}",
       "capabilities": "What this account can do",

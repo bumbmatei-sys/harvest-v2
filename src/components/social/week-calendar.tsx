@@ -35,12 +35,12 @@ export function WeekCalendar({ weekStart, events, weekHref, renderChip, onSelect
         {days.map((day) => <span key={key(day)} className={cn("py-2 text-center text-xs sm:text-sm", isToday(day) ? "font-semibold text-foreground" : "text-muted-foreground")}>
           <span className="sm:hidden">{format(day, "EEEEE")} {format(day, "d")}</span><span className="max-sm:hidden">{format(day, "EEE d")}</span></span>)}
       </div>
-      <div role="grid" aria-label={t("weekGrid")} className="grid grid-cols-[2.25rem_repeat(7,minmax(0,1fr))] sm:grid-cols-[3.5rem_repeat(7,minmax(0,1fr))]">
-        {hours.map((hour) => <div key={hour} role="row" className="contents">
-          <span role="rowheader" className="border-b px-1 pt-1 text-right text-[10px] text-muted-foreground sm:text-xs">{format(new Date(2024, 0, 1, hour), "h a")}</span>
+      <div role="group" aria-label={t("weekGrid")} className="grid grid-cols-[2.25rem_repeat(7,minmax(0,1fr))] sm:grid-cols-[3.5rem_repeat(7,minmax(0,1fr))]">
+        {hours.map((hour) => <div key={hour} className="contents">
+          <span aria-hidden="true" className="border-b px-1 pt-1 text-right text-[10px] text-muted-foreground sm:text-xs">{format(new Date(2024, 0, 1, hour), "h a")}</span>
           {days.map((day) => {
             const here = at(day, hour);
-            return <div key={key(day)} role="gridcell" data-day={key(day)} data-hour={hour} aria-label={`${format(day, "EEEE")} ${format(new Date(2024, 0, 1, hour), "h a")}`}
+            return <div key={key(day)} data-day={key(day)} data-hour={hour}
               onDragOver={(event) => { event.preventDefault(); event.dataTransfer.dropEffect = "move"; }} onDrop={(event) => { event.preventDefault(); onDropOnHour(day, hour, event.dataTransfer); }}
               className="flex min-h-11 min-w-0 flex-col gap-0.5 border-b border-l p-0.5">
               {here.map((event) => <button key={event.id} type="button" onClick={() => onSelect(event)} draggable data-post-id={event.id}

@@ -59,7 +59,7 @@ export function DestinationCard({ connection, type, state, count, attachments, p
     <CollapsibleContent className="px-3 pb-3">
       <Row label={t("text")}>
         <div className="flex min-h-11 items-center gap-2 sm:min-h-9"><Switch id={`${id}-custom`} checked={state.custom} aria-label={t("customText", { platform: label })}
-          onCheckedChange={(custom) => onChange({ ...state, custom })} /><label htmlFor={`${id}-custom`} className="text-sm">{t("customText", { platform: label })}</label></div>
+          onCheckedChange={(custom) => onChange({ ...state, custom })} /><label htmlFor={`${id}-custom`} className="flex min-h-11 flex-1 items-center text-sm sm:min-h-9">{t("customText", { platform: label })}</label></div>
         {state.custom && <Textarea value={state.content} onChange={(event) => onChange({ ...state, content: event.target.value })} aria-label={t("textFor", { platform: label })} className="min-h-24" />}
       </Row>
       {ready.length > 0 && <Row label={t("media")}>
@@ -96,7 +96,7 @@ export function DestinationCard({ connection, type, state, count, attachments, p
         {eligibility(caps.firstComment)}<Textarea id={`${id}-comment`} value={options.firstComment} onChange={(event) => set({ firstComment: event.target.value })} className="min-h-20" /></Row>}
       {caps.repost === "unavailable" || !post ? <Row label={t("repost")} unavailable={unavailableText} /> : <Row label={t("repost")}>
         <div className="flex min-h-11 items-center gap-2 sm:min-h-9"><Switch id={`${id}-repost`} checked={options.repostOn} aria-label={t("repost")} onCheckedChange={(repostOn) => set({ repostOn })} />
-          <label htmlFor={`${id}-repost`} className="text-sm">{t("repostOn")}</label></div>
+          <label htmlFor={`${id}-repost`} className="flex min-h-11 flex-1 items-center text-sm sm:min-h-9">{t("repostOn")}</label></div>
         {options.repostOn && <div className="grid gap-2 sm:grid-cols-3">
           <label className="space-y-1 text-sm">{t("everyDays")}<Input type="number" min={7} max={365} value={options.repostDays} onChange={(event) => set({ repostDays: event.target.value })} className="min-h-11 lg:min-h-9" /></label>
           <label className="space-y-1 text-sm">{t("stopRule")}<NativeSelect value={options.stopKind} onChange={(event) => set({ stopKind: event.target.value as "count" | "date" })} className="min-h-11 lg:min-h-9">
@@ -108,7 +108,7 @@ export function DestinationCard({ connection, type, state, count, attachments, p
       </Row>}
       {caps.madeWithAi === "unavailable" || !post ? <Row label={t("madeWithAi")} unavailable={unavailableText} /> : <Row label={t("madeWithAi")}>
         {eligibility(caps.madeWithAi)}<div className="flex min-h-11 items-center gap-2 sm:min-h-9"><Switch id={`${id}-ai`} checked={options.madeWithAi} aria-label={t("madeWithAi")} onCheckedChange={(madeWithAi) => set({ madeWithAi })} />
-          <label htmlFor={`${id}-ai`} className="text-sm">{t("madeWithAiOn")}</label></div></Row>}
+          <label htmlFor={`${id}-ai`} className="flex min-h-11 flex-1 items-center text-sm sm:min-h-9">{t("madeWithAiOn")}</label></div></Row>}
       {caps.link === "unavailable" || !post ? <Row label={t("link")} unavailable={unavailableText} /> : caps.link === "inline"
         ? <Row label={t("link")}><p className="flex min-h-11 items-center text-sm text-muted-foreground sm:min-h-9">{t("linkInline")}</p></Row>
         : <Row label={t("link")} htmlFor={`${id}-link`}><Input id={`${id}-link`} type="url" inputMode="url" value={options.linkUrl} onChange={(event) => set({ linkUrl: event.target.value })} className="min-h-11 lg:min-h-9" /></Row>}
