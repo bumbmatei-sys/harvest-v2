@@ -19090,6 +19090,10 @@
         "social_auto_dm_rule_shape": {
           "name": "social_auto_dm_rule_shape",
           "value": "\"social_auto_dm_rules\".\"version\" > 0 and jsonb_typeof(\"social_auto_dm_rules\".\"rule\") = 'object' and octet_length(\"social_auto_dm_rules\".\"rule\"::text) <= 24000 and (\"social_auto_dm_rules\".\"enabled\" = (\"social_auto_dm_rules\".\"enabled_by\" is not null and \"social_auto_dm_rules\".\"enabled_at\" is not null))"
+        },
+        "social_auto_dm_rule_limits": {
+          "name": "social_auto_dm_rule_limits",
+          "value": "case when jsonb_typeof(\"social_auto_dm_rules\".\"rule\"->'cooldownMinutes') = 'number' and \"social_auto_dm_rules\".\"rule\"->>'cooldownMinutes' ~ '^[0-9]{1,6}$' then (\"social_auto_dm_rules\".\"rule\"->>'cooldownMinutes')::integer between 1 and 43200 else false end and case when jsonb_typeof(\"social_auto_dm_rules\".\"rule\"->'recipientDaily') = 'number' and \"social_auto_dm_rules\".\"rule\"->>'recipientDaily' ~ '^[0-9]{1,6}$' then (\"social_auto_dm_rules\".\"rule\"->>'recipientDaily')::integer between 1 and 5 else false end and case when jsonb_typeof(\"social_auto_dm_rules\".\"rule\"->'ruleDaily') = 'number' and \"social_auto_dm_rules\".\"rule\"->>'ruleDaily' ~ '^[0-9]{1,6}$' then (\"social_auto_dm_rules\".\"rule\"->>'ruleDaily')::integer between 1 and 500 else false end"
         }
       },
       "isRLSEnabled": false

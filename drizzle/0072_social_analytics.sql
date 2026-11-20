@@ -192,7 +192,7 @@ END $$;
 --> statement-breakpoint
 REVOKE ALL ON FUNCTION public.social_analytics_claim(integer),
   public.social_analytics_complete(uuid,uuid,uuid,integer,text,integer,integer,jsonb,jsonb,jsonb),
-  public.social_analytics_prune(integer) FROM PUBLIC;
+  public.social_analytics_prune(integer) FROM PUBLIC, harvest_app;
 --> statement-breakpoint
 DO $$ BEGIN
   IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname='harvest_worker') THEN

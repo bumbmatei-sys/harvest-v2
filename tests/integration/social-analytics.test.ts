@@ -121,6 +121,10 @@ it("leases refresh work once and upserts one numeric snapshot per stable key per
 });
 
 it("refuses application worker calls and direct worker table reads or writes", async () => {
+  for (const fn of ["social_analytics_claim(integer)","social_analytics_complete(uuid,uuid,uuid,integer,text,integer,integer,jsonb,jsonb,jsonb)","social_analytics_prune(integer)"]) {
+    const { rows:[priv] }=await f.admin.query("select has_function_privilege('harvest_app',$1::regprocedure,'EXECUTE') as app, has_function_privilege('harvest_worker',$1::regprocedure,'EXECUTE') as worker, has_function_privilege('public',$1::regprocedure,'EXECUTE') as pub",[`public.${fn}`]);
+    expect(priv).toEqual({ app:false,worker:true,pub:false });
+  }
   for (const name of ["claim","prune"]) await expect(f.pool.query(`select public.social_analytics_${name}(1)`)).rejects.toMatchObject({code:"42501"});
   await expect(f.workerPool.query("select * from social_analytics_refresh")).rejects.toMatchObject({code:"42501"});
   await expect(f.workerPool.query("delete from social_analytics_posts")).rejects.toMatchObject({code:"42501"});
