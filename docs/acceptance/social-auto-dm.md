@@ -45,6 +45,13 @@ Job rows and logs carry identifiers, keyed recipient references, versions, times
 
 Hosted Neon, the real provider, account-specific scope behavior and independent sender review are pending. Before activation the founder needs to confirm the service-template review and consent policy. The standard-window limit is already specified.
 
+## Known limits and gate placement
+
+- **Review-to-enable gate (app-enforced).** The ten-minute signed review token over the rule version and digest is checked in the service. The database trigger requires only an owner or admin actor (`enabled_by` equals the session user), an unchanged rule and a version increment. A raw `UPDATE` run by an admin database session can therefore enable a revision without a token. This is accepted for an admin-only, hard-off surface. Binding the digest in the database needs a new stored column and is deferred to activation review.
+- **Rule limits fail closed.** A database check requires `cooldownMinutes` (1 to 43200), `recipientDaily` (1 to 5) and `ruleDaily` (1 to 500) to exist as integers. `begin` also falls back to the strictest value (maximum cooldown, zero sends) if one is ever absent.
+- **Conversation binding.** `begin` refuses a conversation reference that differs from the signed event subject, in addition to the check in `finish`.
+- **Consent window.** Consent is checked under lock in `begin`. The provider call follows that transaction, and the interval between them cannot be closed. A withdrawal recorded in that instant can still result in a send. Remote acceptance is irreversible.
+
 ## Verification
 
 Lint and typecheck passed. The full unit project passed 1,311 tests in 101 files. The full integration project passed 926 tests in 110 files against local PostgreSQL. Eleven focused Auto-DM integration tests cover rule review, current consent and withdrawal, comment-to-DM ordering, quotas, hand-off, synthetic preview, and ambiguous delivery reconciliation. The full Auto-DM integration rerun used a 60-second test and hook timeout after a CRM import test timed out at 30 seconds while suites overlapped. Drizzle generated the 0071 snapshot and a second generation reported no schema changes.
