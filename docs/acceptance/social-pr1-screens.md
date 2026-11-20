@@ -11,7 +11,7 @@ Screens for the Publish server in `docs/acceptance/social-publish.md` (migration
 | Calendar | `/social/planner?view=calendar` | Month (the Events calendar, extended) and week (Monday first); filters for account, platform and status; drafts column (xl) or sheet; drag a post or a draft, or use the date and time field. |
 | Accounts | `/social/accounts` | Cards with availability, health, capabilities (supported, needs an eligible account, not available), enable and health check; explicit unavailable state; "Add test account" (non-production fake provider only, no sign-in flow, no credential field). |
 
-Navigation: `composer`, `planner` are live and `socialAccounts` is new in Public mode, Publishing group, behind the `social` feature and the `social:schedule` / `social:connect` permissions. No new shell.
+Navigation (typed registry, `src/lib/navigation.ts`): the Public sidebar has a **Social media** group (share icon) with one row, **Planner** (calendar-days icon); Compose, Calendar and Queue are tabs inside the Planner page (`/social/compose` still opens the Compose tab and highlights Planner). Inbox, Auto-replies and Analytics stay planned and hidden. **Social accounts is not a Public sidebar row**: it is reachable from the "+" beside "Post to" and from the labelled "Social accounts" button in the Planner header; the registry entry sits in Operations > Settings only until the founder's Settings pop-up (profile menu at the bottom of the sidebar, with a Connections section that lists the social accounts) is built in its own PR, after which that row should be removed. Every row in every mode has its own icon (unit test). Behind the `social` feature and the `social:schedule` / `social:connect` permissions. No new shell.
 
 ## Founder requirements
 
@@ -34,7 +34,8 @@ Navigation: `composer`, `planner` are live and `socialAccounts` is new in Public
 - Restored drafts show attachments as placeholders (the draft stores file ids, not names or thumbnails; no file read route exists).
 - Subtitle tracks and a cover image upload are not in the composer (the cover frame is).
 - A media inspector does not exist in the HTTP layer, so uploads cannot be confirmed end to end here; the browser spec answers the three media routes itself and seeds ready files, everything else is the real server.
-- Platform logos are not bundled: a monogram stands in.
+- Platform logos are ported marks (see `docs/ui-sources.md`); LinkedIn, Slack, Google Business Profile, SMS and RCS use neutral marks. Use of the marks is subject to each platform's brand guidelines.
+- Week view: posts sharing an hour split the day column; when a chip is narrower than about 4.5rem it shows only the logo (text is still read by screen readers and the dialog opens on click).
 - Per-ministry rate and quota messages, analytics tab, inbox and Auto-DM are later slices.
 
 ## Verified

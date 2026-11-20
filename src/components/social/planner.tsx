@@ -118,8 +118,8 @@ export function Planner({ tenantId, view }: { tenantId: string; view: "queue" | 
     return <>{logo(item)}<span className="truncate max-sm:sr-only"><span className="opacity-70">{formatClock(item.at, zone, locale)} </span>{event.title}</span>
       <span className="sr-only">{joinParts([item.platform ? platformLabels[item.platform] : "", status(item.status), formatClock(item.at, zone, locale)], ", ")}</span></>; };
   const weekChip = (event: CalendarEvent) => { const item = byId.get(event.id); if (!item) return null;
-    return <><span className="flex items-center gap-1 text-[11px] text-muted-foreground">{logo(item)}<span className="truncate">{formatClock(item.at, zone, locale)}</span>{item.status === "failed" && <span className="font-medium text-destructive max-sm:sr-only">{status("failed")}</span>}</span>
-      <span className="line-clamp-2 break-words max-sm:sr-only">{event.title}</span>
+    return <><span className="flex items-center gap-1 text-[11px] text-muted-foreground">{logo(item)}<span className="truncate @max-[3.5rem]:sr-only">{formatClock(item.at, zone, locale)}</span>{item.status === "failed" && <span className="font-medium text-destructive max-sm:sr-only @max-[3.5rem]:sr-only">{status("failed")}</span>}</span>
+      <span className="line-clamp-2 break-words max-sm:sr-only @max-[3.5rem]:sr-only">{event.title}</span>
       <span className="sr-only">{joinParts([item.platform ? platformLabels[item.platform] : "", status(item.status), event.title], ", ")}</span></>; };
 
   // Actions ---------------------------------------------------------------------------------------------

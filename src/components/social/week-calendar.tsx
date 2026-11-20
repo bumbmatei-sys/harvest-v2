@@ -189,7 +189,7 @@ export function WeekView({ currentDate, events, onEventSelect, renderChip, onDro
 
   return (
     <div data-slot="week-view" aria-label={label} role="group" className="flex h-full flex-col" style={{ "--week-cells-height": `${WeekCellsHeight}px` } as React.CSSProperties}>
-      <div className="bg-background/80 border-border/70 sticky top-0 z-30 grid grid-cols-8 border-b backdrop-blur-md">
+      <div className="bg-card/80 border-border/70 sticky top-0 z-30 grid grid-cols-8 border-b backdrop-blur-md">
         <div className="text-muted-foreground py-2 text-center text-sm">
           <span className="max-[479px]:sr-only">{format(new Date(), "O")}</span>
         </div>
@@ -213,7 +213,7 @@ export function WeekView({ currentDate, events, onEventSelect, renderChip, onDro
               key={hour.toString()}
               className="border-border/70 relative min-h-[var(--week-cells-height)] border-b last:border-b-0">
               {index > 0 && (
-                <span className="bg-background text-muted-foreground absolute -top-3 left-0 flex h-6 w-16 max-w-full items-center justify-end pe-2 text-[10px] sm:pe-4 sm:text-xs">
+                <span className="bg-card text-muted-foreground absolute -top-3 left-0 flex h-6 w-16 max-w-full items-center justify-end pe-2 text-[10px] sm:pe-4 sm:text-xs">
                   {format(hour, "h a")}
                 </span>
               )}
@@ -248,7 +248,7 @@ export function WeekView({ currentDate, events, onEventSelect, renderChip, onDro
                     e.dataTransfer.setData("application/x-harvest-post", positionedEvent.event.id);
                     e.dataTransfer.effectAllowed = "move";
                   }}
-                  className="bg-card hover:bg-muted/60 focus-visible:ring-ring/50 flex size-full min-h-11 min-w-0 flex-col gap-0.5 overflow-hidden rounded-md border p-1 text-left text-xs shadow-xs outline-none focus-visible:ring-[3px] sm:min-h-0">
+                  className="@container bg-card hover:bg-muted/60 focus-visible:ring-ring/50 flex size-full min-h-11 min-w-0 flex-col gap-0.5 overflow-hidden rounded-md border p-1 text-left text-xs shadow-xs outline-none focus-visible:ring-[3px] sm:min-h-0">
                   {renderChip(positionedEvent.event)}
                 </button>
               </div>
