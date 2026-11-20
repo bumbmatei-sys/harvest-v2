@@ -63,3 +63,8 @@ The versioned table in `src/lib/social/media.ts` lists what this composer accept
 The test publisher uses the fake provider, injected credentials and synthetic releases. Both hard-off constants and the disabled sender remain in place. Inbox message and comment bodies remain live pass-through. The five HC-02 activation gates remain **UNAPPROVED**.
 
 Hosted Neon, real provider behavior and the hosted storage/media pipeline require separate evidence. Video and image confirmation uses trusted inspection and a scanner port. With the default no-op scanner a social upload remains unready, and the HTTP handler has no production media inspector configured. Real account linking requires a reviewed OAuth ownership flow. Product decisions still pending are whether repeat expiry should also delete previous remote copies and the Blogs API article-distribution contract. Current repeat rules only stop future copies.
+
+## Known gaps (Publish screens)
+
+- Restored drafts show generic attachment tiles: the draft stores file ids, not names or thumbnails, and no file read route exists yet.
+- Real uploads and video are untested: the browser spec answers the media routes itself and seeds ready files; the test files are not decodable video, so cover-frame and reel interactions with real video are unverified.

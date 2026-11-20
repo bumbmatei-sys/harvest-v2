@@ -34,25 +34,27 @@ interface MonthViewProps {
   renderChip?: (event: CalendarEvent) => React.ReactNode;
   /** Makes chips draggable and days drop targets: `onDropOnDay` receives the day and what was dropped (an event id, or a draft). */
   onDropOnDay?: (day: Date, data: DataTransfer) => void;
+  /** First day of the week: 0 Sunday (Events default), 1 Monday (Social, like its week view). */
+  weekStartsOn?: 0 | 1;
 }
 
-export function MonthCalendar({ currentDate, events, onDaySelect, selectedDay, monthHref, namespace = "Events", renderChip, onDropOnDay }: MonthViewProps) {
+export function MonthCalendar({ currentDate, events, onDaySelect, selectedDay, monthHref, namespace = "Events", renderChip, onDropOnDay, weekStartsOn = 0 }: MonthViewProps) {
   const t = useTranslations(namespace as "Events");
   const days = useMemo(() => {
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(monthStart);
-    const calendarStart = startOfWeek(monthStart, { weekStartsOn: 0 });
-    const calendarEnd = endOfWeek(monthEnd, { weekStartsOn: 0 });
+    const calendarStart = startOfWeek(monthStart, { weekStartsOn });
+    const calendarEnd = endOfWeek(monthEnd, { weekStartsOn });
 
     return eachDayOfInterval({ start: calendarStart, end: calendarEnd });
-  }, [currentDate]);
+  }, [currentDate, weekStartsOn]);
 
   const weekdays = useMemo(() => {
     return Array.from({ length: 7 }).map((_, i) => {
-      const date = addDays(startOfWeek(new Date(2024, 0, 7)), i);
+      const date = addDays(startOfWeek(new Date(2024, 0, 7), { weekStartsOn }), i);
       return format(date, "EEE");
     });
-  }, []);
+  }, [weekStartsOn]);
 
   const weeks = useMemo(() => {
     const result = [];
