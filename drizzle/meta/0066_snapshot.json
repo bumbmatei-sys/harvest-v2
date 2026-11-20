@@ -1,5 +1,5 @@
 {
-  "id": "1fb74a34-28b9-495c-9171-e17ccd2d3aff",
+  "id": "27008e48-3899-435b-b406-956c457eaff5",
   "prevId": "0f9ef445-745a-4c56-8182-b5cc7cb7af38",
   "version": "7",
   "dialect": "postgresql",
@@ -14833,7 +14833,7 @@
         },
         "size": {
           "name": "size",
-          "type": "bigint",
+          "type": "integer",
           "primaryKey": false,
           "notNull": true
         },
@@ -14856,25 +14856,6 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'private'"
-        },
-        "social_upload": {
-          "name": "social_upload",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "media_metadata": {
-          "name": "media_metadata",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "multipart_id": {
-          "name": "multipart_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
         },
         "created_at": {
           "name": "created_at",
@@ -14974,7 +14955,7 @@
       "checkConstraints": {
         "files_size": {
           "name": "files_size",
-          "value": "\"files\".\"size\" BETWEEN 1 AND (case when \"files\".\"social_upload\" then 274877906944 else 10485760 end)"
+          "value": "\"files\".\"size\" BETWEEN 1 AND 10485760"
         },
         "files_checksum": {
           "name": "files_checksum",
@@ -14990,11 +14971,7 @@
         },
         "files_mime": {
           "name": "files_mime",
-          "value": "(\"files\".\"social_upload\" and \"files\".\"mime\" IN ('image/jpeg', 'image/png', 'image/webp', 'image/gif', 'video/mp4', 'video/quicktime', 'video/webm', 'video/x-msvideo', 'video/x-ms-wmv', 'video/x-flv', 'video/3gpp', 'application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'application/vnd.ms-powerpoint', 'application/vnd.openxmlformats-officedocument.presentationml.presentation', 'application/zip', 'text/plain', 'application/x-subrip', 'text/vtt'))\n    or (not \"files\".\"social_upload\" and \"files\".\"mime\" IN ('image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'text/plain'))"
-        },
-        "files_social_upload_shape": {
-          "name": "files_social_upload_shape",
-          "value": "(not \"files\".\"social_upload\" and \"files\".\"media_metadata\" is null and \"files\".\"multipart_id\" is null)\n    or (\"files\".\"social_upload\" and \"files\".\"visibility\" = 'private' and (\"files\".\"status\" <> 'ready' or (jsonb_typeof(\"files\".\"media_metadata\") = 'object' and \"files\".\"media_metadata\" is not null))\n       and (\"files\".\"multipart_id\" is null or length(\"files\".\"multipart_id\") between 1 and 2048))"
+          "value": "\"files\".\"mime\" IN ('image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'text/plain')"
         },
         "files_key_scope": {
           "name": "files_key_scope",
@@ -18345,7 +18322,7 @@
         },
         "social_connection_platform": {
           "name": "social_connection_platform",
-          "value": "\"social_connections\".\"platform\" in ('twitter', 'instagram', 'facebook', 'linkedin', 'tiktok', 'youtube', 'pinterest', 'reddit', 'bluesky', 'threads', 'googlebusiness', 'telegram', 'snapchat', 'whatsapp', 'discord', 'slack', 'wordpress', 'shopify', 'wix', 'webflow', 'rcs', 'imessage', 'line', 'wechat', 'sms')"
+          "value": "\"social_connections\".\"platform\" in ('facebook', 'instagram', 'threads', 'tiktok', 'youtube')"
         },
         "social_connection_status": {
           "name": "social_connection_status",
@@ -18362,177 +18339,6 @@
         "social_connection_envelope": {
           "name": "social_connection_envelope",
           "value": "jsonb_typeof(\"social_connections\".\"credential_envelope\") = 'object' and \"social_connections\".\"credential_envelope\" ?& array['version', 'keyId', 'binding', 'iv', 'tag', 'ciphertext'] and not (\"social_connections\".\"credential_envelope\" ?| array['secret', 'token', 'apiKey', 'accessToken']) and octet_length(\"social_connections\".\"credential_envelope\"::text) <= 4096"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.social_drafts": {
-      "name": "social_drafts",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "document": {
-          "name": "document",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'draft'"
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "review_hash": {
-          "name": "review_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "review_by": {
-          "name": "review_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "review_expires": {
-          "name": "review_expires",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "social_drafts_planner_idx": {
-          "name": "social_drafts_planner_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "updated_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "social_drafts_tenant_id_workspaces_tenant_id_fk": {
-          "name": "social_drafts_tenant_id_workspaces_tenant_id_fk",
-          "tableFrom": "social_drafts",
-          "tableTo": "workspaces",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "columnsTo": [
-            "tenant_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "social_drafts_review_by_users_id_fk": {
-          "name": "social_drafts_review_by_users_id_fk",
-          "tableFrom": "social_drafts",
-          "tableTo": "users",
-          "columnsFrom": [
-            "review_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "social_drafts_created_by_users_id_fk": {
-          "name": "social_drafts_created_by_users_id_fk",
-          "tableFrom": "social_drafts",
-          "tableTo": "users",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "social_drafts_tenant_id_id_pk": {
-          "name": "social_drafts_tenant_id_id_pk",
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "social_draft_shape": {
-          "name": "social_draft_shape",
-          "value": "\"social_drafts\".\"status\" in ('draft', 'submitted', 'cancelled') and \"social_drafts\".\"version\" > 0\n    and jsonb_typeof(\"social_drafts\".\"document\") = 'object' and octet_length(\"social_drafts\".\"document\"::text) <= 1100000\n    and ((\"social_drafts\".\"review_hash\" is null and \"social_drafts\".\"review_by\" is null and \"social_drafts\".\"review_expires\" is null)\n      or (\"social_drafts\".\"status\" = 'draft' and \"social_drafts\".\"review_hash\" ~ '^[0-9a-f]{64}$' and \"social_drafts\".\"review_hash\" is not null and \"social_drafts\".\"review_by\" is not null and \"social_drafts\".\"review_expires\" is not null))"
         }
       },
       "isRLSEnabled": false
@@ -18559,38 +18365,6 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
-        },
-        "draft_id": {
-          "name": "draft_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "schedule_id": {
-          "name": "schedule_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "display_timezone": {
-          "name": "display_timezone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'UTC'"
-        },
-        "delivery": {
-          "name": "delivery",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "repeat_number": {
-          "name": "repeat_number",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
         },
         "status": {
           "name": "status",
@@ -18709,66 +18483,6 @@
         }
       },
       "indexes": {
-        "social_posts_draft_destination_idx": {
-          "name": "social_posts_draft_destination_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "draft_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "connection_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "repeat_number",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "social_posts_schedule_queue_idx": {
-          "name": "social_posts_schedule_queue_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "schedule_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "scheduled_for",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "social_posts_idempotency_idx": {
           "name": "social_posts_idempotency_idx",
           "columns": [
@@ -18909,36 +18623,6 @@
           ],
           "onDelete": "no action",
           "onUpdate": "no action"
-        },
-        "social_posts_tenant_id_draft_id_social_drafts_tenant_id_id_fk": {
-          "name": "social_posts_tenant_id_draft_id_social_drafts_tenant_id_id_fk",
-          "tableFrom": "social_posts",
-          "tableTo": "social_drafts",
-          "columnsFrom": [
-            "tenant_id",
-            "draft_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "social_posts_tenant_id_schedule_id_social_schedules_tenant_id_id_fk": {
-          "name": "social_posts_tenant_id_schedule_id_social_schedules_tenant_id_id_fk",
-          "tableFrom": "social_posts",
-          "tableTo": "social_schedules",
-          "columnsFrom": [
-            "tenant_id",
-            "schedule_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
@@ -18953,17 +18637,13 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "social_post_delivery": {
-          "name": "social_post_delivery",
-          "value": "(\"social_posts\".\"draft_id\" is null and \"social_posts\".\"delivery\" is null and \"social_posts\".\"schedule_id\" is null and \"social_posts\".\"repeat_number\" = 0)\n    or (\"social_posts\".\"draft_id\" is not null and \"social_posts\".\"delivery\" is not null and jsonb_typeof(\"social_posts\".\"delivery\") = 'object'\n      and octet_length(\"social_posts\".\"delivery\"::text) <= 70000 and \"social_posts\".\"media\" = '[]'::jsonb and \"social_posts\".\"repeat_number\" between 0 and 52)"
-        },
         "social_post_status": {
           "name": "social_post_status",
-          "value": "\"social_posts\".\"status\" in ('draft', 'scheduled', 'publishing', 'published', 'failed', 'cancelled', 'unknown')"
+          "value": "\"social_posts\".\"status\" in ('draft', 'scheduled', 'publishing', 'published', 'failed', 'cancelled')"
         },
         "social_post_content": {
           "name": "social_post_content",
-          "value": "((\"social_posts\".\"draft_id\" is null and length(\"social_posts\".\"content\") between 1 and 10000) or (\"social_posts\".\"draft_id\" is not null and length(\"social_posts\".\"content\") <= 100000)) and jsonb_typeof(\"social_posts\".\"media\") = 'array' and jsonb_array_length(\"social_posts\".\"media\") <= 10 and octet_length(\"social_posts\".\"media\"::text) <= 8192"
+          "value": "length(\"social_posts\".\"content\") between 1 and 10000 and jsonb_typeof(\"social_posts\".\"media\") = 'array' and jsonb_array_length(\"social_posts\".\"media\") <= 10 and octet_length(\"social_posts\".\"media\"::text) <= 8192"
         },
         "social_post_counters": {
           "name": "social_post_counters",
@@ -18975,161 +18655,11 @@
         },
         "social_post_error": {
           "name": "social_post_error",
-          "value": "\"social_posts\".\"last_error_code\" is null or \"social_posts\".\"last_error_code\" in ('PROVIDER_AUTH', 'PROVIDER_REJECTED', 'PROVIDER_CONFLICT', 'PROVIDER_UNAVAILABLE', 'PROVIDER_RATE_LIMITED', 'MAX_ATTEMPTS', 'IDEMPOTENCY_WINDOW_EXPIRED', 'CONNECTION_UNAVAILABLE', 'PARTIAL_PUBLISH', 'DISABLED', 'CREDENTIAL_UNAVAILABLE', 'UNCONFIRMED', 'MEDIA_UNAVAILABLE', 'MEDIA_URL_EXPIRED')"
+          "value": "\"social_posts\".\"last_error_code\" is null or \"social_posts\".\"last_error_code\" in ('PROVIDER_AUTH', 'PROVIDER_REJECTED', 'PROVIDER_CONFLICT', 'PROVIDER_UNAVAILABLE', 'PROVIDER_RATE_LIMITED', 'MAX_ATTEMPTS', 'IDEMPOTENCY_WINDOW_EXPIRED', 'CONNECTION_UNAVAILABLE', 'PARTIAL_PUBLISH', 'DISABLED', 'CREDENTIAL_UNAVAILABLE', 'UNCONFIRMED')"
         },
         "social_post_state_shape": {
           "name": "social_post_state_shape",
           "value": "(\"social_posts\".\"status\" <> 'scheduled' or (\"social_posts\".\"scheduled_for\" is not null and \"social_posts\".\"next_attempt_at\" is not null and \"social_posts\".\"lock_token\" is null and \"social_posts\".\"locked_at\" is null))\n    and (\"social_posts\".\"status\" <> 'publishing' or (\"social_posts\".\"first_attempt_at\" is not null and ((\"social_posts\".\"lock_token\" is not null and \"social_posts\".\"locked_at\" is not null) or (\"social_posts\".\"lock_token\" is null and \"social_posts\".\"locked_at\" is null and \"social_posts\".\"provider_post_ref\" is not null and \"social_posts\".\"next_attempt_at\" is not null))))\n    and (\"social_posts\".\"status\" = 'publishing' or (\"social_posts\".\"lock_token\" is null and \"social_posts\".\"locked_at\" is null))\n    and (\"social_posts\".\"status\" <> 'scheduled' or \"social_posts\".\"provider_post_ref\" is null)\n    and (\"social_posts\".\"status\" <> 'published' or (\"social_posts\".\"provider_post_ref\" is not null and \"social_posts\".\"published_at\" is not null))\n    and (\"social_posts\".\"status\" <> 'failed' or \"social_posts\".\"last_error_code\" is not null)"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.social_schedules": {
-      "name": "social_schedules",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "platform": {
-          "name": "platform",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "timezone": {
-          "name": "timezone",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "slots": {
-          "name": "slots",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "archived_at": {
-          "name": "archived_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "social_schedule_scope_idx": {
-          "name": "social_schedule_scope_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "coalesce(\"platform\", '')",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"social_schedules\".\"archived_at\" is null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "social_schedules_tenant_id_workspaces_tenant_id_fk": {
-          "name": "social_schedules_tenant_id_workspaces_tenant_id_fk",
-          "tableFrom": "social_schedules",
-          "tableTo": "workspaces",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "columnsTo": [
-            "tenant_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "social_schedules_created_by_users_id_fk": {
-          "name": "social_schedules_created_by_users_id_fk",
-          "tableFrom": "social_schedules",
-          "tableTo": "users",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "social_schedules_tenant_id_id_pk": {
-          "name": "social_schedules_tenant_id_id_pk",
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "social_schedule_platform": {
-          "name": "social_schedule_platform",
-          "value": "\"social_schedules\".\"platform\" in ('twitter', 'instagram', 'facebook', 'linkedin', 'tiktok', 'youtube', 'pinterest', 'reddit', 'bluesky', 'threads', 'googlebusiness', 'telegram', 'snapchat', 'whatsapp', 'discord', 'slack', 'wordpress', 'shopify', 'wix', 'webflow', 'rcs', 'imessage', 'line', 'wechat', 'sms')"
-        },
-        "social_schedule_shape": {
-          "name": "social_schedule_shape",
-          "value": "length(\"social_schedules\".\"name\") between 1 and 120 and length(\"social_schedules\".\"timezone\") between 1 and 80\n    and jsonb_typeof(\"social_schedules\".\"slots\") = 'array' and jsonb_array_length(\"social_schedules\".\"slots\") between 1 and 84 and \"social_schedules\".\"version\" > 0"
         }
       },
       "isRLSEnabled": false

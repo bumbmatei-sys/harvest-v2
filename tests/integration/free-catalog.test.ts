@@ -7,7 +7,7 @@ import { communityAccess, createCommunity } from "../../src/server/communities";
 import { createWorkspace, putMember } from "../../src/server/workspaces";
 import { withTenant } from "../../src/server/tenancy";
 import {
-  catalogDownload, createCatalogItem, enrolInCatalogItem, getCatalogContent, getCatalogDraft,
+  catalogDownload, createCatalogItem, enrolInCatalogItem, getCatalogContent, getCatalogDraft, listCatalog,
   getPublicCatalogItem, setCatalogState, setCommunityProductLink, updateCatalogItem,
 } from "../../src/server/free-catalog";
 
@@ -48,7 +48,7 @@ it("separates metadata, authoring, anonymous publication and the enrolment grant
   const draft = await createCatalogItem(f.db, admin, tenant, input);
   expect(await getCatalogDraft(f.db, owner, tenant, draft.id)).toMatchObject({ state: "draft", lessons: [{ body }, { body }] });
   for (const user of [viewer, member]) {
-    expect(await getCatalogDraft(f.db, user, tenant, draft.id)).not.toHaveProperty("lessons");
+    await expect(getCatalogDraft(f.db, user, tenant, draft.id)).rejects.toMatchObject(notFound);
     await expect(updateCatalogItem(f.db, user, tenant, draft.id, { draft: input, version: 1 })).rejects.toMatchObject(notFound);
     await expect(withTenant(f.db, user, tenant, "workspace:read", (tx) => tx.select().from(catalogLessons))).resolves.toEqual([]);
   }
@@ -74,6 +74,43 @@ it("separates metadata, authoring, anonymous publication and the enrolment grant
   await setCatalogState(f.db, owner, tenant, draft.id, { version: 2, state: "archived" });
   await expect(getCatalogContent(f.db, learner, input.slug)).rejects.toMatchObject(notFound);
   await expect(getPublicCatalogItem(f.db, input.slug)).rejects.toMatchObject(notFound);
+});
+
+it("keeps draft metadata from members and viewers in lists, direct lookups and SQL", async () => {
+  const privateDraft = { ...course("editor-only"), title: "Unpublished title", summary: "Unpublished summary" };
+  const item = await createCatalogItem(f.db, admin, tenant, privateDraft);
+  const published = await createCatalogItem(f.db, owner, tenant, course("visible-catalog-item"));
+  await setCatalogState(f.db, owner, tenant, published.id, { version: 1, state: "published" });
+  for (const user of [owner, admin]) {
+    await expect(listCatalog(f.db, user, tenant, null)).resolves.toContainEqual(expect.objectContaining({
+      id: item.id, title: privateDraft.title, summary: privateDraft.summary, slug: privateDraft.slug,
+    }));
+  }
+  for (const user of [viewer, member]) {
+    const items = await listCatalog(f.db, user, tenant, null);
+    expect(items.some(entry => entry.id === item.id)).toBe(false);
+    expect(items).toContainEqual(expect.objectContaining({ id: published.id, state: "published" }));
+    await expect(getCatalogDraft(f.db, user, tenant, item.id)).rejects.toMatchObject(notFound);
+    await expect(getCatalogDraft(f.db, user, tenant, published.id)).resolves.not.toHaveProperty("lessons");
+    await expect(withTenant(f.db, user, tenant, "workspace:read", tx => tx.execute(sql`
+      select title, summary, slug from catalog_items where id = ${item.id}::uuid
+    `))).resolves.toMatchObject({ rows: [] });
+  }
+});
+
+it("returns the same validation error for local and foreign draft addresses on create and edit", async () => {
+  const local = course("local-draft-address"), remote = course("foreign-draft-address");
+  await createCatalogItem(f.db, admin, tenant, local);
+  await createCatalogItem(f.db, other, foreignTenant, remote);
+  const editable = await createCatalogItem(f.db, owner, tenant, course("unique-editable-address"));
+  const validation = { status: 400, message: "Check the supplied details.", details: { reason: "address_unavailable" } };
+  for (const item of [local, remote]) {
+    await expect(createCatalogItem(f.db, owner, tenant, item)).rejects.toMatchObject(validation);
+    await expect(updateCatalogItem(f.db, owner, tenant, editable.id, { version: 1, draft: item })).rejects.toMatchObject(validation);
+  }
+  await expect(updateCatalogItem(f.db, owner, tenant, editable.id, { version: 2, draft: remote }))
+    .rejects.toMatchObject({ status: 409, message: "This record changed since you opened it. Reload to see the latest version, then try again." });
+  await expect(getCatalogDraft(f.db, owner, tenant, editable.id)).resolves.toMatchObject({ version: 1, slug: "unique-editable-address" });
 });
 
 it("links the canonical published item to a same-ministry community without granting access", async () => {

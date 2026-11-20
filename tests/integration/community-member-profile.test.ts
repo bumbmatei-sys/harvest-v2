@@ -5,8 +5,9 @@ import { users } from "../../src/db/schema";
 import { createWorkspace } from "../../src/server/workspaces";
 import { createCommunity, getCommunity, listCategories, publishCommunity, updateCommunity } from "../../src/server/communities";
 import { enterCommunity } from "../../src/server/community-joining";
-import { deletePost, saveComment, savePost } from "../../src/server/community-forum";
+import { deletePost, memberDirectory, saveComment, savePost } from "../../src/server/community-forum";
 import { memberProfile } from "../../src/server/community-member-profile";
+import { ownCommunityProfile } from "../../src/server/community-profile-details";
 
 // C09b screens: the read-only profile projection: neutral 404, viewer-readable activity, no held or removed content.
 let f: Awaited<ReturnType<typeof testDatabase>>, general: string;
@@ -75,4 +76,23 @@ it("pages the activity", async () => {
   expect(two.activity.length).toBeGreaterThan(0);
   expect(new Set([...one.activity, ...two.activity].map((a) => a.id)).size).toBe(one.activity.length + two.activity.length);
   expect((await memberProfile(f.db, "p-two", slug, "p-one", "garbage")).page).toBe(1);
+});
+
+it("resolves a member beyond the directory cap and resolves an unlisted member by direct link", async () => {
+  const [club] = (await f.admin.query("select id, tenant_id from communities where slug=$1", [slug])).rows;
+  await f.admin.query(`insert into users(id,name,email)
+    select 'profile-cap-' || n, 'Synthetic member ' || n, 'profile-cap-' || n || '@example.test'
+    from generate_series(1, 1000) n`);
+  await f.admin.query(`insert into community_memberships(tenant_id,community_id,user_id,role,status)
+    select $1,$2,id,'contributor','active' from users where id like 'profile-cap-%'`, [club.tenant_id, club.id]);
+  const directory = (await memberDirectory(f.db, "p-one", slug)).members;
+  expect(directory).toHaveLength(1000);
+  expect(directory.some(m => m.userId === "p-two")).toBe(false);
+  await expect(memberProfile(f.db, "p-one", slug, "p-two")).resolves.toMatchObject({ member: { name: "Second Member" } });
+  await ownCommunityProfile(f.db, "p-two", slug, "save", { version: 0, displayName: "Link-only name", visibility: "unlisted" });
+  await expect(memberProfile(f.db, "p-one", slug, "p-two")).resolves.toMatchObject({ member: { name: "Link-only name" } });
+  await f.admin.query("update community_memberships set status='left' where community_id=$1 and user_id='p-two'", [club.id]);
+  for (const target of ["p-two", "p-outsider", "nobody"]) {
+    await expect(memberProfile(f.db, "p-one", slug, target)).rejects.toMatchObject({ status: 404, message: "Community not found." });
+  }
 });

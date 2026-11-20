@@ -461,7 +461,28 @@
       "idx": 66,
       "version": "7",
       "when": 1795400000014,
-      "tag": "0066_social_publish",
+      "tag": "0066_member_profile_followups",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1795400000015,
+      "tag": "0067_catalog_draft_privacy",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1795400000016,
+      "tag": "0068_event_cover_cleanup",
+      "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1795400000017,
+      "tag": "0069_social_publish",
       "breakpoints": true
     }
   ]

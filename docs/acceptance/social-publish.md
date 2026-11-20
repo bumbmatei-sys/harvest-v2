@@ -1,6 +1,6 @@
 # Social Publish server acceptance
 
-Migration **0066** follows **0065** on main at `71affc019920b20be14c158389aa611f4ea66ea1`. The branch adds server facilities for S01 and S02 of the approved Social design.
+Migration **0069** follows **0068** on main. The branch adds server facilities for S01 and S02 of the approved Social design.
 
 ## Contract for the screens
 
