@@ -1,8 +1,9 @@
 import { getDb } from "@/db/client";
-import { errorResponse, verifiedUser, verifyOrigin } from "./http";
+import { errorResponse, verifiedSessionUser, verifyOrigin } from "./http";
 import { newsletterEnabled } from "./newsletter";
 export function newsletterRoute<P>(run: (args: {
     db: ReturnType<typeof getDb>;
+    getOwnAddress: () => string | undefined;
     user: string;
     params: P;
     body: unknown;
@@ -16,9 +17,9 @@ export function newsletterRoute<P>(run: (args: {
         try {
             if (write)
                 verifyOrigin(request);
-            const user = await verifiedUser(request), params = await context.params;
-            const body = write ? await request.json() : undefined;
-            return Response.json(await run({ db: getDb(), user, params, body, request }), { headers: { 'Cache-Control': 'private, no-store' } });
+            const sessionUser = await verifiedSessionUser(request), params = await context.params;
+            const body = write && request.body ? await request.json() : undefined;
+            return Response.json(await run({ db: getDb(), user: sessionUser.id, getOwnAddress: () => sessionUser.emailVerified ? sessionUser.email : undefined, params, body, request }), { headers: { 'Cache-Control': 'private, no-store' } });
         }
         catch (e) {
             return errorResponse(e);

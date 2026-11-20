@@ -505,6 +505,13 @@
       "when": 1795400000020,
       "tag": "0072_social_analytics",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1795400000021,
+      "tag": "0073_newsletter_sending",
+      "breakpoints": true
     }
   ]
 }
