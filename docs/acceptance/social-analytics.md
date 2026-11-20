@@ -50,4 +50,6 @@ Post snapshots are keyed by connection, provider post reference, and UTC capture
 
 ## Verification
 
-Full local verification is in progress. Hosted Neon, real provider account scopes and responses, and production scheduling are unverified. No founder decision is required for the draft. A later activation review should confirm the refresh interval and scope-dependent availability.
+Lint and typecheck passed. The full unit project passed 1,318 tests in 102 files. The full integration project passed 935 tests in 111 files against local PostgreSQL. The focused stack run passed 20 tests covering Auto-DM and Analytics. Drizzle generated the snapshot and a second generation reported no schema changes. The journal still increases through 0070, 0071 and 0072.
+
+Hosted Neon, real provider account scopes and responses, and production scheduling are unverified. No founder decision is required for the draft. A later activation review should confirm the refresh interval and scope-dependent availability.
