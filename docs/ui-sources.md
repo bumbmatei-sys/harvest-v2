@@ -223,6 +223,21 @@ Not used from the kit: status and stories, calls, contacts, lightbox, new-messag
 
 The editor uses its existing Channels step, MemberList and StickySaveBar. Moderation uses the existing DataTable and ReportDialog. NotificationBell stays in CommunityShell. Copy comes from the locale catalogue and colours from theme tokens.
 
+
+### Events C14 calendar
+
+The founder's private premium kit repository `bumbmatei-sys/admin-dashboard` (commit `1631106`, `apps/calendar`; no secrets were copied or stored) is the first source for the Events month calendar. **Two files are copied**, one **modelled on**; nothing else in the Events screens has a kit source (they use Harvest's shared components: the community shell, EditorShell, WizardLayout, FormSection, StickySaveBar, DataTable, StatusBadge, EmptyState and ConfirmDialog). The share is the measured fraction of the file's non-blank lines of at least 12 characters (the header line included in the count) that also appear, identical after trimming, in the source file.
+
+| Harvest file | Status | Kit source (`app/dashboard/(auth)/apps/calendar/`) | Identical lines | Harvest notes |
+| --- | --- | --- | --- | --- |
+| `src/lib/calendar-days.ts` | **copied** | `utils.ts` | 36 of 38 (95%) | Five day-bucketing helpers; only the `CalendarEvent` import changed. Colour, border-radius, agenda and add-hours helpers not copied. |
+| `src/components/events/month-calendar.tsx` | **copied, heavily adapted** | `components/month-view.tsx` | 41 of 88 (47%) | Month grid, week and day computation and cell classes kept. Drag and drop, create-on-click, the overflow popover and the visibility hook removed. Cells are buttons that select a day (dots on phones, titled chips from 640px); a header with previous and next month links; raw palette colours replaced by theme tokens; weekday and outside-day text at full contrast (axe); today applied after mount. |
+| `src/components/events/events-board.tsx` | modelled on | `components/agenda-view.tsx` | none copied | Upcoming list under day headings beside the calendar, with a list and calendar switch kept in the URL. |
+
+**Approval record.** Source: premium kit repository `bumbmatei-sys/admin-dashboard`, commit `1631106` (`apps/calendar`). Approved by the founder on 2026-11-19 under the standing kit rule of 17 Nov ("if we can use a premium component from the ui kit, use it, that is why I paid for it"; `docs/decisions/founder-decisions-2026-11.md` section 3), with the licence settled on 17 Nov ("License settled, go ahead"). The same record is `adminDashboardProvenance` (`approvedBy: "founder"`, `approvedOn: "2026-11-19"`) in `src/lib/ui-provenance.ts`. This is the standing decision applied to these files, not a separate per-file request.
+
+Not used from the kit calendar: week, day and agenda views, the event dialog, drag and drop (`@dnd-kit`), the colour palette classes and the current-time indicator. Times are shown in each event's own time zone; calendar maths runs on wall-clock dates in that zone, so a viewer's zone never moves an event to another day. The Harvest tests check both headers in both directions (`tests/unit/ui-provenance.test.ts`).
+
 ### Communities C11c private messages
 
 The private message screens use the same founder-supplied premium chat app (`bumbmatei-sys/chat-app`, commit `66fd523`; no secrets were copied), per the founder's 17 Nov rule to use the kit wherever it fits. **Two files are adapted copies**: they were made by editing the kit file text in place and rewriting what depended on the mock store, and they start with `Derived from bumbmatei-sys/chat-app (...)`. The share of lines still identical to the kit file (trimmed lines of 12 or more characters) is stated so the claim is checkable: `chat/dm-new-message-dialog.tsx` from `new-message-dialog.tsx` (about 27%) and `chat/dm-list.tsx` from `chat-list.tsx` and `chat-list-item.tsx` (about 24%). Both are listed in `chatAppProvenance`; the unit test enforces the header in both directions. `ui/bubble.tsx` stays the only near-verbatim copy (97%).
@@ -230,3 +245,15 @@ The private message screens use the same founder-supplied premium chat app (`bum
 The other new files are **modelled on** the kit and written for Harvest (a 50-character window comparison found at most 1% shared text): `chat/message-list.tsx` (moved out of `message-pane.tsx`, shared by channels and private messages), `chat/dm-message.tsx`, `chat/dm-pane.tsx` and `chat/dm-layout.tsx`. `chat/chat-view-tabs.tsx`, `chat/dm-api.ts` and `chat/dm-compose-dialog.tsx` have no kit source. Harvest's shared composer, header, scroller, `ReportDialog`, `ConfirmDialog` and `UserAvatar` are extended, not duplicated.
 
 Not used from the kit: group mode and logo upload in the new-message dialog, the contact and chat stores, status and stories, calls, the lightbox, reactions and replies in private messages.
+
+### Communities C09b member profile screens
+
+The profile page is **modelled on** the founder-supplied premium Admin-dashboard template, the private repository `bumbmatei-sys/Admin-dashboard` (commit `1631106`, premium, `pages/profile`; recorded in `adminDashboardReferences` beside the Events files, under the same approval record; no secrets were copied). **No kit file is copied**: the kit files are fixture pages (contact details, transactions, release notes), so the two new files are Harvest code written to the same layout, and no line is claimed as derived. The compact member sheet from the chat screens is extended, not copied again: its header became `MemberSummary`, shared with the page, and the sheet gained a link to the full profile.
+
+| Harvest file | Status | Kit source (`app/dashboard/(auth)/pages/profile/` unless noted) | Harvest notes |
+| --- | --- | --- | --- |
+| `src/components/communities/member-profile-view.tsx` | modelled on | `page.tsx`, `components/profile-card.tsx`, `components/latest-activity.tsx` | Profile card with post and reply counts, latest-activity timeline, Settings tab on the viewer's own page. |
+| `src/components/communities/member-profile-settings.tsx` | modelled on | `components/complete-your-profile.tsx` | Rows that open the service owning each setting; no second copy of any preference. |
+| `src/components/communities/chat/member-profile-sheet.tsx` | modelled on (chat-app, unchanged source) | chat-app `user-detail-sheet.tsx` | `MemberSummary` extracted; link to the full profile. |
+
+Not used from the kit: contact details, skills, connections, the transaction table, download buttons and every fixture. Directory names link to the profile through the existing `MemberList`. Voluntary fields (bio, links, language, visibility) and avatar upload have no server support yet and are not built.

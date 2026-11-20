@@ -7,6 +7,8 @@ const database = await testDatabase();
 const storage = await storageMock();
 // Browser tests may simulate a slow database (for loading states) on this disposable DB only.
 if (process.env.HARVEST_E2E_MAILBOX) await writeFile(`${process.env.HARVEST_E2E_MAILBOX}.database`, database.appURL, { mode: 0o600 });
+// Browser specs that must seed rows the app role cannot write (for example Events placements) read this privileged URL; it never leaves the disposable database.
+if (process.env.HARVEST_E2E_MAILBOX) await writeFile(`${process.env.HARVEST_E2E_MAILBOX}.admin`, database.admin.options.connectionString ?? "", { mode: 0o600 });
 const connectKey=randomBytes(32).toString("hex");
 if(process.env.HARVEST_E2E_MAILBOX)await writeFile(`${process.env.HARVEST_E2E_MAILBOX}.connect-worker`,JSON.stringify({DATABASE_URL:database.appURL,HARVEST_CONNECT_TEST_KEY:connectKey}),{mode:0o600});
 const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--turbopack", "--hostname", "127.0.0.1", "--port", "3100"], {

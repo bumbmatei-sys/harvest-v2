@@ -11,7 +11,7 @@ import { createWorkspace, putMember } from "../../src/server/workspaces";
 import { createCommunity } from "../../src/server/communities";
 import { withTenant } from "../../src/server/tenancy";
 import { dispatchOutbox } from "../../src/server/jobs/outbox";
-import { downloadEvent, eventJoinLink, eventReminderCandidates, eventRoster, getEvent, listEvents, rsvpEvent, saveEvent, transitionEvent } from "../../src/server/events";
+import { downloadEvent, eventJoinLink, eventReminderCandidates, eventRoster, getEvent, listEvents, rsvpEvent, saveEvent, setEventPlacement, transitionEvent } from "../../src/server/events";
 
 const people = ["event-owner", "event-admin", "event-member", "event-viewer", "reader-a", "reader-b", "other-owner"];
 const url = "https://meeting.example.test/private";
@@ -252,4 +252,70 @@ it("returns due reminder candidates only for eligible Going members through the 
   expect(await due()).toEqual([]);
   await transitionEvent(fixture.db, "event-owner", tenant, id, { version: 4, action: "cancel" });
   expect(await due()).toEqual([]);
+});
+
+it("links and unlinks only same-ministry events for current managers, with idempotent audits", async () => {
+  const id = randomUUID();
+  await saveEvent(fixture.db, "event-owner", tenant, id, input());
+  await admission(community, "reader-a");
+  for (const user of ["reader-a", "event-member", "event-viewer", "other-owner"]) {
+    await expect(setEventPlacement(fixture.db, user, tenant, id, community, true)).rejects.toMatchObject(missing);
+  }
+  await expect(setEventPlacement(fixture.db, "event-admin", tenant, id, foreignCommunity, true)).rejects.toMatchObject(missing);
+  await expect(setEventPlacement(fixture.db, "event-admin", tenant, randomUUID(), community, true)).rejects.toMatchObject(missing);
+
+  const pools = [new Pool({ connectionString: fixture.appURL }), new Pool({ connectionString: fixture.appURL })];
+  try {
+    expect(await Promise.all(pools.map((pool, i) =>
+      setEventPlacement(drizzle(pool, { schema }), i ? "event-admin" : "event-owner", tenant, id, community, true))))
+      .toEqual([{ linked: true }, { linked: true }]);
+  } finally {
+    await Promise.all(pools.map(pool => pool.end()));
+  }
+  await expect(summary("reader-a", id)).rejects.toMatchObject(missing);
+  await transitionEvent(fixture.db, "event-owner", tenant, id, { action: "publish", version: 1 });
+  expect((await rsvp("reader-a", id)).outcome).toBe("ok");
+  expect(await setEventPlacement(fixture.db, "event-admin", tenant, id, community, false)).toEqual({ linked: false });
+  expect(await setEventPlacement(fixture.db, "event-admin", tenant, id, community, false)).toEqual({ linked: false });
+  await expect(summary("reader-a", id)).rejects.toMatchObject(missing);
+  await setEventPlacement(fixture.db, "event-admin", tenant, id, community, true);
+  expect(await summary("reader-a", id)).toMatchObject({ rsvp: null, available: 1 });
+  const changes = await fixture.admin.query("select action, metadata from audit_logs where target_id=$1 and action in ('events.link_community','events.unlink_community') order by created_at", [id]);
+  expect(changes.rows).toEqual(["link_community", "unlink_community", "link_community"].map(action =>
+    ({ action: "events." + action, metadata: { communityId: community } })));
+});
+
+it("reads the saved join window only for managers and preserves omitted fields on edit", async () => {
+  const id = randomUUID(), fields = input({ startsAt: when(120), endsAt: when(180) });
+  await saveEvent(fixture.db, "event-owner", tenant, id, { ...fields, location: "Central hall, 42 Sample Road", joinWindowMinutes: 7 });
+  await setEventPlacement(fixture.db, "event-owner", tenant, id, community, true);
+  await transitionEvent(fixture.db, "event-owner", tenant, id, { action: "publish", version: 1 });
+  await admission(community, "reader-a");
+  expect(await summary("event-admin", id)).toMatchObject({ location: "Central hall, 42 Sample Road", waitlistEnabled: true, joinWindowMinutes: 7 });
+  const saved = await saveEvent(fixture.db, "event-admin", tenant, id, { ...fields, version: 2, title: "Updated name" });
+  expect(saved).toMatchObject({ event: { location: "Central hall, 42 Sample Road", joinWindowMinutes: 7 } });
+  const view = await summary("reader-a", id);
+  expect(view).toMatchObject({ location: "Central hall, 42 Sample Road", waitlistEnabled: true });
+  expect(view).not.toHaveProperty("joinWindowMinutes");
+  expect(view).not.toHaveProperty("joinUrl");
+  await expect(eventJoinLink(fixture.db, "reader-a", tenant, id)).rejects.toMatchObject(missing);
+  await expect(saveEvent(fixture.db, "event-owner", tenant, id, { ...fields, version: 3, location: "x".repeat(241) }))
+    .rejects.toMatchObject({ name: "ZodError" });
+  await expect(summary("reader-a", "malformed")).rejects.toMatchObject(missing);
+});
+
+it("preserves existing FIFO entries when closing the waitlist to new entries", async () => {
+  const times = { startsAt: when(120), endsAt: when(180) };
+  const id = await create({ times });
+  for (const user of ["reader-a", "reader-b", "event-member"]) await admission(community, user);
+  await rsvp("reader-a", id);
+  const queued = await rsvp("reader-b", id, "waitlisted");
+  expect(queued).toMatchObject({ event: { rsvp: "waitlisted", rsvpVersion: 1 } });
+
+  await saveEvent(fixture.db, "event-admin", tenant, id, { ...input(times), version: 2, waitlistEnabled: false });
+  expect(await summary("reader-b", id)).toMatchObject({ waitlistEnabled: false, rsvp: "waitlisted" });
+  await expect(rsvp("event-member", id, "waitlisted")).rejects.toMatchObject({ status: 400 });
+  await rsvp("reader-a", id, "not_going", 1);
+  expect(await rsvp("event-member", id)).toEqual({ outcome: "full" });
+  expect(await rsvp("reader-b", id, "going", 1)).toMatchObject({ event: { rsvp: "going" } });
 });

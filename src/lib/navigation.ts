@@ -41,7 +41,7 @@ export type NavEntry = {
   /** Shown only when the server reports this feature as enabled (activation flags, ADR 0013 §11). */
   feature?: NavFeature;
 };
-export type NavFeature = "communities";
+export type NavFeature = "communities" | "events";
 export type NavItem = { id: string; label: NavLabelKey; icon: LucideIcon; href: string; active: boolean };
 export type NavGroup = { id: NavGroupId; label: NavLabelKey; items: NavItem[] };
 
@@ -78,7 +78,8 @@ export const navEntries: readonly NavEntry[] = [
   { id: "campaigns", group: "workspace", mode: "operations", label: "campaigns", icon: Flag, path: "/campaigns", match: has("/campaigns") },
   // HC-13: the follow-up queue. Owners, admins and members open it (a member sees only the cases assigned to them); viewers never see a dead link.
   { id: "followUp", group: "connect", legacyGroup: "workspace", mode: "operations", label: "followUp", icon: HeartHandshake, path: "/connect/follow-up", match: has("/connect/follow-up"), permission: "followup:work" },
-  { id: "events", group: "workspace", mode: "operations", status: "planned", label: "events", icon: CalendarDays, path: "/events", match: under("/events") },
+  // C14: owners and admins; hidden unless the server reports Events enabled (never in production).
+  { id: "events", group: "workspace", mode: "operations", label: "events", icon: CalendarDays, path: "/events", match: under("/events"), permission: "communities:manage", feature: "events" },
   { id: "files", group: "workspace", mode: "operations", label: "files", icon: Files, path: "/files", match: has("/files") },
   { id: "composer", group: "publishing", mode: "public", status: "planned", label: "composer", icon: PenLine, path: "/social/compose", match: under("/social/compose") },
   { id: "planner", group: "publishing", mode: "public", status: "planned", label: "planner", icon: CalendarRange, path: "/social/planner", match: under("/social/planner") },

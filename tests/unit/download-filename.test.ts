@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { downloadDisposition } from "../../src/lib/download-filename";
 import { csvResponse } from "../../src/server/csv-response";
 import { S3Storage } from "../../src/server/storage/s3";
@@ -59,4 +60,14 @@ describe("actual download header boundaries", () => {
       `attachment; filename="O'Brien (final).csv"; filename*=UTF-8''O%27Brien%20%28final%29.csv`);
     expect(downloadDisposition("../a\r\nb.csv")).toBe(`attachment; filename="__a__b.csv"; filename*=UTF-8''__a__b.csv`);
   });
+});
+
+it("signs an inline cover with its verified image type and the same short expiry", async () => {
+  const storage = new S3Storage({ endpoint: "http://localhost:9000", bucket: "test", region: "test", accessKeyId: "test", secretAccessKey: "test" });
+  await storage.presignDownload("workspaces/test/events/test/files/test", "picture.png", { inlineImage: "image/png" });
+  expect(getSignedUrl).toHaveBeenLastCalledWith(expect.anything(), expect.objectContaining({
+    input: expect.objectContaining({
+      ResponseContentType: "image/png", ResponseContentDisposition: "inline", ResponseCacheControl: "private, no-store",
+    }),
+  }), { expiresIn: 60 });
 });

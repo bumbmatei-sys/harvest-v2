@@ -421,6 +421,62 @@
       "when": 1795400000008,
       "tag": "0060_newsletter_nl02",
       "breakpoints": true
+    },
+    {
+      "idx": 61,
+      "version": "7",
+      "when": 1795400000009,
+      "tag": "0061_free_catalog",
+      "breakpoints": true
+    },
+    {
+      "idx": 62,
+      "version": "7",
+      "when": 1795400000010,
+      "tag": "0062_community_member_profiles",
+      "breakpoints": true
+    },
+    {
+      "idx": 63,
+      "version": "7",
+      "when": 1795400000011,
+      "tag": "0063_community_dm_start_privacy",
+      "breakpoints": true
+    },
+    {
+      "idx": 64,
+      "version": "7",
+      "when": 1795400000012,
+      "tag": "0064_events_e02",
+      "breakpoints": true
+    },
+    {
+      "idx": 65,
+      "version": "7",
+      "when": 1795400000013,
+      "tag": "0065_event_covers",
+      "breakpoints": true
+    },
+    {
+      "idx": 66,
+      "version": "7",
+      "when": 1795400000014,
+      "tag": "0066_member_profile_followups",
+      "breakpoints": true
+    },
+    {
+      "idx": 67,
+      "version": "7",
+      "when": 1795400000015,
+      "tag": "0067_catalog_draft_privacy",
+      "breakpoints": true
+    },
+    {
+      "idx": 68,
+      "version": "7",
+      "when": 1795400000016,
+      "tag": "0068_event_cover_cleanup",
+      "breakpoints": true
     }
   ]
 }

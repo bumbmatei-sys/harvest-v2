@@ -31,7 +31,7 @@ export async function appendOutboxEvent(tx: Transaction, tenantId: string, data:
   return row;
 }
 export async function dispatchOutbox(tx: Transaction, tenantId: string, limit: number) {
-  // Canonical Events records are reserved for a separately gated consumer.
+  // The cover cleanup worker consumes events.cover_cleanup directly. Other Events kinds stay reserved.
   const events = await tx.select().from(outboxEvents).where(and(eq(outboxEvents.tenantId, tenantId), isNull(outboxEvents.dispatchedAt), notLike(outboxEvents.kind, "events.%")))
     .orderBy(asc(outboxEvents.createdAt), asc(outboxEvents.id)).limit(limit).for("update", { skipLocked: true });
   let dispatched = 0;

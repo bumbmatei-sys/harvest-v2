@@ -105,11 +105,41 @@ export const kitChatAppReferences = {
   { file: "src/components/communities/chat/chat-message.tsx", source: "app/(auth)/chats/components/chat-bubbles.tsx", localChanges: "Text bubbles with a time line and a hover and focus action menu. Image, video, file and voice bubbles and the lightbox are not adopted (attachments wait for the malware scanner). Reactions, replies, reports and moderation use the real routes." },
   { file: "src/components/communities/chat/chat-composer.tsx", source: "app/(auth)/chats/components/chat-footer.tsx", localChanges: "Card composer with a round send button. The input is a single 44px line that grows to four lines. Emoji picker, file picker and voice recording are not adopted; a mention picker is added." },
   { file: "src/components/communities/chat/channel-info.tsx", source: "app/(auth)/chats/components/group-detail-drawer.tsx", localChanges: "Channel info panel: avatar, name, member count, notifications, members, pinned messages, links, and empty media and documents sections. Leave group is not offered." },
-  { file: "src/components/communities/chat/member-profile-sheet.tsx", source: "app/(auth)/chats/components/user-detail-sheet.tsx", localChanges: "Member profile sheet with name, role and joined date only; no phone, country, website or shared files. C11c adds a Message action that opens a compose dialog; it does not vary with the other person." },
+  { file: "src/components/communities/chat/member-profile-sheet.tsx", source: "app/(auth)/chats/components/user-detail-sheet.tsx", localChanges: "Member profile sheet with name, role and joined date only; no phone, country, website or shared files. C11c adds a Message action that opens a compose dialog; it does not vary with the other person. C09b screens extract the header as MemberSummary (shared with the profile page) and add a link to the full profile." },
   { file: "src/components/communities/chat/message-list.tsx", source: "app/(auth)/chats/components/chat-content.tsx", localChanges: "The scrolling message list, read mark and screen reader notice moved out of the channel pane so channels and private messages share them (C11c). Nothing from the kit file is copied." },
   { file: "src/components/communities/chat/dm-message.tsx", source: "app/(auth)/chats/components/chat-bubbles.tsx", localChanges: "Private message row: text bubble, time, edited marker, deleted placeholder, author menu (edit, delete, restore) and a report action on the other person's messages. No reactions, replies, media, voice or status ticks." },
   { file: "src/components/communities/chat/dm-pane.tsx", source: "app/(auth)/chats/components/chat-content.tsx", localChanges: "Private conversation: shared message list and composer with the real polling hook, an inline not-available state, a read-only banner, a blocked banner with Unblock and a delete confirmation. No mock messages, calls or attachments." },
   { file: "src/components/communities/chat/dm-layout.tsx", source: "app/(auth)/chats/components/chats-view.tsx", localChanges: "Conversation list beside the open conversation (one pane at a time on phones, no bottom bar). Header actions: mute, profile, hide, block. Status strip and call screen are not used." }
+  ],
+} as const;
+
+/**
+ * Files really copied from the founder-supplied premium Shadcn UI Kit admin dashboard (repository bumbmatei-sys/admin-dashboard, commit
+ * 1631106, apps/calendar) for Events C14. Each starts with: Derived from bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium,
+ * founder-supplied): <source>. Harvest changes: docs/ui-sources.md. `identical` is the share of the file's non-blank lines (at least 12
+ * characters) that also appear, character for character after trimming, in the source file; it is measured, not estimated.
+ * Not copied: drag and drop, the week, day and agenda views, the event dialog, the colour classes (raw palette colours) and the visibility hook.
+ */
+export const adminDashboardProvenance = {
+  repository: "bumbmatei-sys/admin-dashboard", commit: "1631106", tier: "premium", approvedBy: "founder", approvedOn: "2026-11-19",
+  files: [
+  { file: "src/lib/calendar-days.ts", source: "app/dashboard/(auth)/apps/calendar/utils.ts", identical: 95, localChanges: "Five day-bucketing helpers copied (isMultiDayEvent, getEventsForDay, sortEvents, getSpanningEventsForDay, getAllEventsForDay); only the CalendarEvent import changed. Colour, border-radius, agenda and add-hours helpers not copied." },
+  { file: "src/components/events/month-calendar.tsx", source: "app/dashboard/(auth)/apps/calendar/components/month-view.tsx", identical: 47, localChanges: "Month grid structure, week and day computation and cell classes kept. Drag and drop, create-on-click, the overflow popover and the visibility hook removed; cells are buttons that select a day (dots on phones, titled chips from 640px), a header with previous and next month links added, raw palette colours replaced by theme tokens, today applied after mount, copy from the catalogue." },
+  ],
+} as const;
+
+/**
+ * Files modelled on the same dashboard (the calendar for Events C14; pages/profile for the Communities C09b member profile screens),
+ * written for Harvest with no kit code copied; the kit fixtures (contacts, transactions, release notes) are not used. Same repository,
+ * commit and founder approval as `adminDashboardProvenance`. Each starts with: Layout and behaviour modelled on
+ * bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied[ 19 Nov 2026]): <source>; code written for Harvest, no kit code copied.
+ */
+export const adminDashboardReferences = {
+  repository: "bumbmatei-sys/admin-dashboard", commit: "1631106", tier: "premium",
+  files: [
+  { file: "src/components/communities/member-profile-view.tsx", source: "app/dashboard/(auth)/pages/profile/page.tsx, components/profile-card.tsx, components/latest-activity.tsx", localChanges: "Profile page: a two-column grid with the profile card (shared member summary, post and reply counts) and a latest-activity timeline of the member's posts and replies, with tabs for the viewer's own page. The kit's contact details, skills, connections, transaction table and download buttons are not used; counts and activity come from the existing forum data." },
+  { file: "src/components/communities/member-profile-settings.tsx", source: "app/dashboard/(auth)/pages/profile/components/complete-your-profile.tsx", localChanges: "Settings card of rows that open the service owning each setting (account name, notification switches, member messages). The kit's progress checklist is not used." },
+  { file: "src/components/events/events-board.tsx", source: "app/dashboard/(auth)/apps/calendar/components/agenda-view.tsx", localChanges: "Upcoming list grouped under day headings, beside the month calendar and a list and calendar switch kept in the URL. The kit's agenda view is a client-side range of days; Harvest's list is server data." },
   ],
 } as const;
 
@@ -141,3 +171,15 @@ const headerPattern = /^\s*\/\*\*\s*Derived from Shadcn UI Kit item ([a-z][a-z0-
 export function kitHeaderItem(source: string): string | null {
   return headerPattern.exec(source)?.[1] ?? null;
 }
+
+const adminDerivedHeader = /^\s*\/\*\*\s*Derived from bumbmatei-sys\/admin-dashboard \(Shadcn UI Kit, premium, founder-supplied\): (.+?)\. Harvest changes:/i;
+const adminModelledHeader = /^\s*\/\*\*\s*Layout and behaviour modelled on bumbmatei-sys\/admin-dashboard \(Shadcn UI Kit, premium, founder-supplied(?: 19 Nov 2026)?\): (.+?); code written for Harvest, no kit code copied\./i;
+/** Reads a file's leading admin-dashboard provenance header in either form ("Derived from ..." or "Layout and behaviour modelled on ..."), or null when it has neither. */
+export function adminDashboardHeader(source: string): { form: "derived" | "modelled"; source: string } | null {
+  const derived = adminDerivedHeader.exec(source)?.[1];
+  if (derived) return { form: "derived", source: derived };
+  const modelled = adminModelledHeader.exec(source)?.[1];
+  return modelled ? { form: "modelled", source: modelled } : null;
+}
+/** Returns the admin-dashboard source named by a file's leading header (either form), or null. */
+export function adminDashboardHeaderSource(source: string): string | null { return adminDashboardHeader(source)?.source ?? null; }

@@ -174,15 +174,38 @@ async function withChatStaff<T>(db: Database, user: string, slug: string, run: (
   }
 }
 
-export function chatStaffPage(db: Database, user: string, slug: string) {
+/** A member whose profile is private or unlisted: only enough to show a role on someone the viewer already sees. */
+export type HiddenChatMember = { userId: string; role: string };
+
+/** Chat and messages bootstrap. Ministry staff keep their existing roster and scope. */
+export async function chatStaffPage(db: Database, user: string, slug: string) {
   enabled();
-  return withChatStaff(db, user, communitySlug.parse(slug), async (tx, tenant, scope) => {
+  const parsed = communitySlug.parse(slug);
+  const staff = await withChatStaff(db, user, parsed, async (tx, tenant, scope) => {
     const rows = await tx.select({ userId: users.id, name: users.name, role: communityMemberships.role, joinedAt: communityMemberships.joinedAt })
       .from(communityMemberships).innerJoin(users, eq(users.id, communityMemberships.userId))
       .where(and(eq(communityMemberships.tenantId, tenant), eq(communityMemberships.communityId, scope.id), eq(communityMemberships.status, "active")))
       .orderBy(asc(communityMemberships.joinedAt), asc(users.id)).limit(2000);
     const members: DirectoryMember[] = rows.map(row => ({ ...row, joinedAt: row.joinedAt?.toISOString() ?? null }));
-    return { scope, members };
+    return { scope, members, hidden: [] as HiddenChatMember[] };
+  });
+  if (staff) return staff;
+  return withUser(db, user, async tx => {
+    const member = await forumContextTx(tx, user, parsed);
+    if (!member?.chatEnabled || !communityCan(member.role, "chat:read")) return;
+    const { rows } = await tx.execute<{ member: DirectoryMember | (HiddenChatMember & { hidden: true }) }>(
+      sql`select public.community_chat_member_roster(${parsed}) as member`);
+    // A private or unlisted member arrives as id and role only. They never join the named list (mentions, channel lists, counts).
+    const members: DirectoryMember[] = [], hidden: HiddenChatMember[] = [];
+    for (const { member: row } of rows) {
+      if ("hidden" in row) hidden.push({ userId: row.userId, role: row.role });
+      else members.push(row);
+    }
+    return {
+      scope: { id: member.id, name: member.name, slug: member.slug, role: member.role, muted: !!member.mutedUntil },
+      members,
+      hidden,
+    };
   });
 }
 

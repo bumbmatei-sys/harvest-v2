@@ -9,6 +9,8 @@ import { createWorkspace } from "../../src/server/workspaces";
 import { createCommunity } from "../../src/server/communities";
 import { withUser, withTenant } from "../../src/server/tenancy";
 import { chatState, chatMessages, saveChatChannel, chatChannelSelection, chatChannelSettings, chatStaffPage, chatManageSettings } from "../../src/server/community-chat";
+import { memberDirectory } from "../../src/server/community-forum";
+import { ownCommunityProfile } from "../../src/server/community-profile-details";
 vi.mock("server-only", () => ({}));
 let f: Awaited<ReturnType<typeof testDatabase>>, parallel: Pool, tenant: string, otherTenant: string, club: string, otherClub: string, general: string;
 const ids = ["owner", "admin", "mod", "contributor", "member", "second", "pending", "banned", "left", "removed", "outsider", "viewer", "other-owner", "other-member"];
@@ -48,6 +50,45 @@ afterAll(async () => { await parallel?.end(); await f?.close(); vi.unstubAllEnvs
 it("initializes General and state for every community", async () => {
   expect((await f.admin.query("select count(*)::int n from community_channels where name='General'")).rows[0].n).toBe(4);
   expect((await f.admin.query("select count(*)::int n from community_chat_state")).rows[0].n).toBe(4);
+});
+it("reduces private and unlisted members to id and role in the chat roster", async () => {
+  const slug = "chat-club";
+  for (const [actor, visibility] of [["mod", "private"], ["admin", "unlisted"], ["member", "private"], ["contributor", "unlisted"]] as const) {
+    await ownCommunityProfile(f.db, actor, slug, "save", { version: 0, displayName: "Hidden name", bio: "Hidden bio", visibility });
+  }
+  const peer = (await chatStaffPage(f.db, "second", slug))!;
+  // Hidden members never appear by name, and the mention, channel-list and count source (`members`) omits them, posted or not.
+  expect(peer.members.some(entry => ["mod", "admin", "member", "contributor"].includes(entry.userId))).toBe(false);
+  expect(JSON.stringify(peer.members)).not.toMatch(/Hidden name|"name":"(mod|member|contributor)"/);
+  // Only id and role remain, which keeps a staff badge on messages the viewer already sees.
+  expect(peer.hidden).toEqual(expect.arrayContaining([{ userId: "mod", role: "moderator" }, { userId: "admin", role: "admin" }]));
+  // A hidden plain member or contributor leaves no trace at all in the peer's payload, posted or not.
+  expect(peer.hidden.some(entry => ["member", "contributor"].includes(entry.userId))).toBe(false);
+  expect(JSON.stringify(peer)).not.toMatch(/"userId":"(member|contributor)"/);
+  const direct = await withUser(f.db, "second", async tx => (await tx.execute<{ m: Record<string, unknown> }>(sql`select public.community_chat_member_roster(${slug}) m`)).rows.map(row => row.m));
+  expect(direct.some(entry => ["member", "contributor"].includes(entry.userId as string))).toBe(false);
+  const hiddenMod = direct.find(entry => entry.userId === "mod")!;
+  expect(hiddenMod).toEqual({ userId: "mod", role: "moderator", hidden: true });
+  expect(hiddenMod).not.toHaveProperty("name");
+  expect(hiddenMod).not.toHaveProperty("joinedAt");
+  // The viewer still sees themselves, and visible members keep name, role and joined date.
+  expect((await chatStaffPage(f.db, "member", slug))!.members.find(entry => entry.userId === "member")).toMatchObject({ name: "member", role: "member" });
+  expect(peer.members.find(entry => entry.userId === "second")).toMatchObject({ name: "second", role: "member" });
+  // Owners and admins keep the staff roster with everyone.
+  for (const actor of ["owner", "admin"]) {
+    const staff = (await chatStaffPage(f.db, actor, slug))!;
+    expect(staff.hidden).toEqual([]);
+    for (const id of ["mod", "member", "contributor"]) expect(staff.members.find(entry => entry.userId === id)).toMatchObject({ name: id });
+  }
+  const directory = (await memberDirectory(f.db, "second", slug)).members;
+  expect(directory.some(entry => ["mod", "member", "contributor"].includes(entry.userId))).toBe(false);
+  // Message authors keep their names from the message payload.
+  const author = await channel("Private profile author");
+  const id = await messageId("member", "My message still has an author", author);
+  const history = await chatMessages(f.db, "second", slug, author, {});
+  expect(history.events).toContainEqual(expect.objectContaining({ id, authorId: "member", authorName: "member" }));
+  await expect(chatStaffPage(f.db, "outsider", slug)).resolves.toBeUndefined();
+  await f.admin.query("delete from community_member_profiles where community_id=$1", [club]);
 });
 it("isolates two tenants, two communities and every new table; denies app writes", async () => {
   await messageId();
