@@ -44,3 +44,7 @@ The worker uses the separate reply sender port and calls only the injected fake.
 Job rows and logs carry identifiers, keyed recipient references, versions, times, and fixed outcomes. The authored template is rule configuration. Inbound text, rendered names, outbound responses and raw webhook bodies stay out of storage. Rate-limited attempts reuse their job identity. Ambiguous delivery can be confirmed by the fake using that identity. In the absence of positive evidence the delivery stays unknown and is never retried blindly.
 
 Hosted Neon, the real provider, account-specific scope behavior and independent sender review are pending. Before activation the founder needs to confirm the service-template review and consent policy. The standard-window limit is already specified.
+
+## Verification
+
+Lint and typecheck passed. The full unit project passed 1,311 tests in 101 files. The full integration project passed 926 tests in 110 files against local PostgreSQL. Eleven focused Auto-DM integration tests cover rule review, current consent and withdrawal, comment-to-DM ordering, quotas, hand-off, synthetic preview, and ambiguous delivery reconciliation. The full Auto-DM integration rerun used a 60-second test and hook timeout after a CRM import test timed out at 30 seconds while suites overlapped. Drizzle generated the 0071 snapshot and a second generation reported no schema changes.
