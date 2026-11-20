@@ -29,7 +29,8 @@
     "communities:purge-notifications": "tsx scripts/purge-community-notifications.ts",
     "communities:send-email": "tsx scripts/send-community-email.ts",
     "connect:retention": "tsx scripts/connect-retention.ts",
-    "social:publish:test": "tsx scripts/run-social-publisher.ts"
+    "social:publish:test": "tsx scripts/run-social-publisher.ts",
+    "newsletter:deliver:test": "tsx scripts/run-newsletter-worker.ts"
   },
   "engines": {
     "node": ">=22"

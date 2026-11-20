@@ -19,13 +19,17 @@ const preferenceInput = z.discriminatedUnion("scope", [
   z.object({ scope: z.literal("all") }).strict(),
 ]);
 
-function newsletterKey() {
-  const raw = process.env.HARVEST_NEWSLETTER_TOKEN_KEY;
+export function newsletterKey(env = process.env) {
+  const raw = env.HARVEST_NEWSLETTER_TOKEN_KEY;
   return raw && /^[0-9a-f]{64}$/i.test(raw) ? Buffer.from(raw, "hex") : null;
 }
 
 function signedDigest(key: Buffer, purpose: string, value: string) {
   return createHmac("sha256", key).update(purpose).update(":").update(value).digest();
+}
+
+export function signNewsletterPreference(key: Buffer, scope: "list" | "all", nonce: string) {
+  return nonce + "." + signedDigest(key, "newsletter-preference-" + scope, nonce).toString("base64url");
 }
 
 export function createNewsletterSignupForm(db: Database, actor: string, workspace: string, raw: unknown) {
@@ -87,7 +91,7 @@ export function issueNewsletterPreference(db: Database, actor: string, workspace
     const { rows: [row] } = await tx.execute<{ issued: boolean }>(
       sql`select public.newsletter_preference_issue(${tenantId}::uuid,${subscriber}::uuid,${listId}::uuid,${input.scope},${nonce}) as issued`);
     if (!row.issued) throw missing();
-    return nonce + "." + signedDigest(key, "newsletter-preference-" + input.scope, nonce).toString("base64url");
+    return signNewsletterPreference(key, input.scope, nonce);
   });
 }
 

@@ -151,6 +151,27 @@ export function checkSocialBoundary(directories: string[] = ["src", "scripts"]):
   return [...violations, ...inspectProviderCopy(JSON.parse(readFileSync("messages/en.json", "utf8")))];
 }
 
+// Newsletter uses its own provider port and a transport-free adapter.
+export function checkNewsletterBoundary(): BoundaryViolation[] {
+  const adapter = "src/server/newsletter-campaigns/provider-adapter.ts";
+  const vendor = new RegExp(["pl", "unk"].join(""), "i");
+  const source = [...sourceFiles("src"), ...sourceFiles("scripts"), ...sourceFiles("messages")];
+  return source.filter(file => /\.(?:tsx?|json)$/.test(file)).flatMap(file => {
+    const text = readFileSync(file, "utf8");
+    const found: BoundaryViolation[] = [];
+    const add = (rule: string) => found.push({ file, rule });
+    if (file !== adapter && vendor.test(text)) add("newsletter vendor name outside the adapter");
+    if (file === adapter && !/export const LIVE_NEWSLETTER_ENABLED = false;/.test(text)) {
+      add("newsletter live switch must remain literally false");
+    }
+    if ((file.includes("newsletter-campaigns/") || file === "scripts/run-newsletter-worker.ts") &&
+        /\bfetch\s*\(|globalThis\.fetch|node:https?\b|\bXMLHttpRequest\b|["']resend["']/.test(text)) {
+      add("newsletter sends must stay transport-free");
+    }
+    return found;
+  });
+}
+
 // ---- Toast library boundary: only the Harvest adapter and helper may import `sonner` (kinds, copy and actions stay uniform). ----
 const SONNER_HOMES = ["src/lib/toast.ts", "src/components/ui/sonner.tsx"];
 export function inspectSonnerBoundary(file: string, source: string): BoundaryViolation[] {
