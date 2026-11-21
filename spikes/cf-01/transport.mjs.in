@@ -1,0 +1,43 @@
+import { Miniflare, convertV4MiniflareOptions } from "miniflare";
+
+let intercepted = 0;
+const mf = new Miniflare(convertV4MiniflareOptions({
+  modules: true,
+  cf: false,
+  compatibilityDate: "2026-11-17",
+  compatibilityFlags: ["nodejs_compat"],
+  outboundService: () => {
+    intercepted++;
+    return new Response("local fixture");
+  },
+  script: `
+    import { lookup } from "node:dns/promises";
+    import { BlockList } from "node:net";
+    import { request } from "node:https";
+    export default { async fetch() {
+      const result = {};
+      try { result.loopback = await lookup("localhost", { all: true }); }
+      catch (e) { result.dnsError = String(e); }
+      try {
+        const blocked = new BlockList();
+        blocked.addSubnet("127.0.0.0", 8, "ipv4");
+        result.blocked = blocked.check("127.0.0.1", "ipv4");
+      } catch (e) { result.blockListError = String(e); }
+      result.lookupCalled = false;
+      result.https = await new Promise(resolve => {
+        const req = request({ hostname: "fixture.invalid", port: 443, method: "POST",
+          lookup() { result.lookupCalled = true; throw new Error("lookup sentinel"); }
+        }, res => { res.resume(); resolve(res.statusCode); });
+        req.on("error", e => resolve(String(e)));
+        req.end();
+      }).catch(e => String(e));
+      return Response.json(result);
+    } }
+  `,
+}));
+try {
+  const response = await mf.dispatchFetch("http://local.test/");
+  console.log(JSON.stringify({ result: await response.json(), intercepted }));
+} finally {
+  await mf.dispose();
+}

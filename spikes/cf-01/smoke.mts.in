@@ -1,0 +1,92 @@
+import { createServer } from "node:http";
+import { randomBytes } from "node:crypto";
+import { readFileSync, readdirSync } from "node:fs";
+import { execFileSync } from "node:child_process";
+import { createTestHarness } from "wrangler";
+import { testDatabase } from "./tests/database";
+
+if (!process.env.LD_PRELOAD?.endsWith("/loopback.so")) throw new Error("Loopback guard required");
+const db = await testDatabase();
+let otp: string | undefined;
+let mailRequests = 0;
+const mail = createServer(async (req, res) => {
+  mailRequests++;
+  const buffers = [];
+  for await (const chunk of req) buffers.push(chunk);
+  otp = JSON.parse(Buffer.concat(buffers).toString()).text?.match(/\b\d{6}\b/)?.[0];
+  res.writeHead(200, { "content-type": "application/json" }).end('{"id":"local"}');
+});
+await new Promise(resolve => mail.listen(0, "127.0.0.1", resolve));
+const origin = "http://localhost";
+const harness = createTestHarness({ workers: [{ configPath: process.argv[2],
+  vars: { DATABASE_URL: db.appURL, BETTER_AUTH_SECRET: randomBytes(48).toString("hex"), BETTER_AUTH_URL: origin,
+    RESEND_API_KEY: "fixture", EMAIL_FROM: "test@example.invalid", RESEND_BASE_URL: "http://127.0.0.1:" + mail.address().port },
+}] });
+async function request(path, options = {}) {
+  const res = await harness.fetch(origin + path, { redirect: "manual", ...options });
+  return { res, body: await res.text() };
+}
+function processes() {
+  const result = [];
+  for (const pid of readdirSync("/proc").filter(s => /^\d+$/.test(s))) {
+    try {
+      if (readFileSync(`/proc/${pid}/comm`, "utf8").trim() !== "workerd") continue;
+      const stat = readFileSync(`/proc/${pid}/stat`, "utf8").split(" ");
+      const kb = Number(readFileSync(`/proc/${pid}/status`, "utf8").match(/VmRSS:\s+(\d+)/)[1]);
+      result.push({ pid, ticks: Number(stat[13]) + Number(stat[14]), kb });
+    } catch { /* process exited */ }
+  }
+  return result;
+}
+try {
+  let start = performance.now();
+  await harness.listen();
+  console.log("local harness listen ms", Math.round(performance.now()-start));
+  start = performance.now();
+  const page = await request("/sign-in", { headers: { "accept-language": "ro" } });
+  console.log("first sign-in", page.res.status, Math.round(performance.now()-start), "ms",
+    "English HTML", /<html[^>]+lang="en"/.test(page.body), "translated heading", page.body.includes("Sign in to Harvest"));
+  for (const path of ["/offline.html", "/offline", "/offline.css", "/sw.js", "/manifest.webmanifest", "/icons/icon-192.png",
+    "/api/qa/otp", "/account/welcome", "/connect/claim", "/workspaces/not-a-uuid/cf01-header",
+    "/workspaces/00000000-0000-4000-8000-000000000001/cf01-header", "/cf01-header"]) {
+    const {res, body} = await request(path, { headers: { "x-harvest-workspace":"spoof" } });
+    console.log(path, res.status, res.headers.get("content-type"), res.headers.get("cache-control"),
+      res.headers.get("referrer-policy"), res.headers.get("location"), path.endsWith("header") ? body.slice(0,100) : path.endsWith(".png") ? "PNG " + body.startsWith("\uFFFDPNG") : body.slice(0,35));
+  }
+  const action = await request("/cf01-action");
+  const key = action.body.match(/name="(\$ACTION_ID_[^"]+)"/)?.[1];
+  if (key) {
+    const data = new FormData();
+    data.set(key, "");
+    const {res} = await request("/cf01-action", { method:"POST", headers:{origin, host:"localhost"}, body:data });
+    console.log("action POST", res.status, res.headers.get("location"));
+    const flight = await request("/cf01-action", { method: "POST", headers: {
+      origin, host: "localhost", "next-action": key.slice("$ACTION_ID_".length), "content-type":"text/plain;charset=UTF-8",
+    }, body:"[]" });
+    console.log("hydrated action", flight.res.status, flight.res.headers.get("x-action-redirect"),
+      flight.res.headers.get("location"), flight.body.includes("/cf01-action?received=1"));
+  } else console.log("action form missing", action.res.status);
+  const email = "cf01@example.invalid";
+  const headers = { origin, "x-forwarded-for":"192.0.2.1", "content-type":"application/json" };
+  const issue = await request("/api/auth/email-otp/send-verification-otp", {method:"POST", headers, body:JSON.stringify({email,type:"sign-in"})});
+  console.log("OTP issue", issue.res.status, "local fake calls", mailRequests);
+  if (otp) {
+    const verify = await request("/api/auth/sign-in/email-otp", {method:"POST",headers,body:JSON.stringify({email,otp})});
+    const cookie = verify.res.headers.getSetCookie().map(s => s.split(";")[0]).join("; ");
+    const list = await request("/api/workspaces", {headers:{...headers,cookie}});
+    console.log("verify",verify.res.status,"has cookie",Boolean(cookie),"list",list.res.status);
+  }
+  const before = processes();
+  const counts = {};
+  start = performance.now();
+  for (let i=0;i<50;i++) {
+    const {res} = await request("/api/qa/otp");
+    counts[res.status] = (counts[res.status] ?? 0) + 1;
+  }
+  console.log("50 QA lookups", counts, "elapsed ms", Math.round(performance.now()-start),
+    "workerd before/after", before, processes(), "ticks/s",execFileSync("getconf",["CLK_TCK"],{encoding:"utf8"}).trim());
+} finally {
+  await harness.close();
+  mail.close();
+  await db.close();
+}

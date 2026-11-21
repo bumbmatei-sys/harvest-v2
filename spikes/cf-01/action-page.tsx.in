@@ -1,0 +1,9 @@
+import { redirect } from "next/navigation";
+
+export default function ActionProbe() {
+  async function submit() {
+    "use server";
+    redirect("/cf01-action?received=1");
+  }
+  return <form action={submit}><button>Submit local action</button></form>;
+}
