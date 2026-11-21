@@ -2601,3 +2601,15 @@ export const newsletterCallbackReceipts = pgTable("newsletter_callback_receipts"
   messageId: uuid("message_id").primaryKey(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 }, t => [index("newsletter_callback_receipt_expiry_idx").on(t.expiresAt)]);
+
+export const workerJobLeases = pgTable("worker_job_leases", {
+  job: text("job").primaryKey(),
+  token: uuid("token").notNull(),
+  scheduledFor: timestamp("scheduled_for", { withTimezone: true }).notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+});
+
+export const workerJobReceipts = pgTable("worker_job_receipts", {
+  job: text("job").notNull().references(() => workerJobLeases.job),
+  scheduledFor: timestamp("scheduled_for", { withTimezone: true }).notNull(),
+}, (t) => [primaryKey({ columns: [t.job, t.scheduledFor] })]);

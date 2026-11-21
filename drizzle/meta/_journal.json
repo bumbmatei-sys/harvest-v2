@@ -526,6 +526,13 @@
       "when": 1795400000023,
       "tag": "0075_office_server",
       "breakpoints": true
+    },
+    {
+      "idx": 77,
+      "version": "7",
+      "when": 1795400000025,
+      "tag": "0077_worker_job_leases",
+      "breakpoints": true
     }
   ]
 }

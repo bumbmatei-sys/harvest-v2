@@ -1,6 +1,6 @@
-import { checkNewsletterBoundary, checkQaBoundary, checkSocialBoundary, checkSonnerBoundary, checkSources } from "./source-guards";
+import { checkNewsletterBoundary, checkQaBoundary, checkSocialBoundary, checkSonnerBoundary, checkSources, checkWorkerJobsBoundary } from "./source-guards";
 const violations = checkSources();
-const boundary = [...checkSocialBoundary(), ...checkNewsletterBoundary(), ...checkSonnerBoundary(), ...checkQaBoundary()];
+const boundary = [...checkSocialBoundary(), ...checkNewsletterBoundary(), ...checkSonnerBoundary(), ...checkQaBoundary(), ...checkWorkerJobsBoundary()];
 for (const { file, rule } of boundary) console.error(`${file}: boundary: ${rule}`);
 if (boundary.length) process.exitCode = 1;
 for (const { file, line, rule, text } of violations) console.error(`${file}:${line} ${rule}: ${text}`);
