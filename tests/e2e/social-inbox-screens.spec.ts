@@ -159,7 +159,7 @@ test("social inbox: list, filters, thread, comments, reply states, empty, errors
   await row("Sunday worship reel").click();
   await expect(page.getByTestId("comment")).toHaveCount(4);
   await expect(page.getByTestId("hide-note")).toContainText("Hiding comments is not available yet");
-  await expect(page.getByRole("button", { name: "Hide" }).first()).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Hide", exact: true }).first()).toBeDisabled();
   await expect(page.getByTestId("comment-unavailable").first()).toBeVisible();
   await expect(page.getByTestId("reply-reason")).toContainText("Choose a comment to reply to");
   await page.getByTestId("comment").filter({ hasText: "This song is beautiful" }).getByRole("button", { name: "Reply privately" }).click();
@@ -240,6 +240,7 @@ test("social inbox: list, filters, thread, comments, reply states, empty, errors
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(`/workspaces/${tenant}/social/planner`);
   await expect(page.getByRole("tablist", { name: "Menu mode" })).toBeVisible();
+  await expect(page.locator('[data-slot="skeleton"], [aria-busy="true"]')).toHaveCount(0);
   await page.screenshot({ path: `${shots}/sidebar-before-planner-1280-light.png`, animations: "disabled" });
   await page.getByRole("link", { name: "Inbox", exact: true }).click();
   const inboxSide = page.getByRole("group", { name: "Inbox sidebar" });
