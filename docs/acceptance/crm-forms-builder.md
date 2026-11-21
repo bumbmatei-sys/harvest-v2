@@ -23,14 +23,14 @@ The hosted form and its submission path do not exist and are **not a small glue 
 4. **Save to CRM on submit**: creating or reusing a person (and organization), the consent record, owner assignment, labels and hidden-field source attachment must go through the existing consent gate and HC-06 association rules. The mapping, owner, labels and destination are captured in the definition so that path can read them. CRM "lists" do not exist; the destinations are People, Organizations and pipelines (labels are free text, there is no tag table).
 5. **File uploads** and **branching, ranking, payments, server-side partial answers**: out of scope by instruction. The Files block shows an inert drop zone that says uploads are not available; the signature pad keeps the drawing in memory only.
 
-A follow-up migration would be 0076+ (check `drizzle/meta/_journal.json`, 0075 is the Office server PR): published form state and slug, a responses table with FORCE RLS, and definers for public read and insert.
+The definition size is bounded (see Size limit below). A follow-up migration would be 0076+ (check `drizzle/meta/_journal.json`, 0075 is the Office server PR): published form state and slug, a responses table with FORCE RLS, and definers for public read and insert.
 
 ## Reuse and exceptions
 
 - Reused: `DataTable`, `EmptyState`, `Collapsible`, `Popover`, `DropdownMenu`, `Tabs`, `Progress`, `NativeSelect`, `useContextualSidebar` (editor-context), `useUnsavedChangesGuard`, `useCrmRequest`, the navigation registry (one entry, `crmForms`), `withTenant`, the `forms` and `form_versions` tables, `notify`. The question list in Communities (`QuestionListEditor`) was inspected and **not** extended: it is a four-type flat list with no mapping, drag, layout or per-page mode; this builder's block schema is a superset, and the Communities consumer stays on its own contract (a migration of it to the new block model is a possible later step).
 - **EditorShell exception**: EditorShell is a step-sequence layout (steps, centre, preview column). The requested layout is top Build / Settings / Preview tabs with a settings sidebar, so the page composes the shared pieces directly and registers nothing with the editing sidebar.
 - New shared pieces with real consumers: `PublicForm` and `FormField` are used by Preview and the Settings canvas (and will be the hosted form's renderer); the three kit blocks are used by `FormField`.
-- Provenance: see `docs/ui-sources.md` (CRM forms builder). Three free kit items, measured 43%, 41% and 57% identical lines; everything else is Harvest-written. No product code, text, icon or branding from the reference screenshots is used.
+- Provenance: see `docs/ui-sources.md` (CRM forms builder). Founder rule (21 Nov): paid kit where suitable, otherwise free. Radio and checkbox cards derive from premium `form-layout20` (50% identical lines each), the drop zone from premium `form-layout15` (55%); rating and signature have no suitable kit item (reasons in ui-sources.md) and are Harvest-written. No product code, text, icon or branding from the reference screenshots is used.
 - Dependencies (founder-approved 21 Nov): `@dnd-kit/sortable` 10.0.0, `@dnd-kit/modifiers` 9.0.0, `@dnd-kit/utilities` 3.2.2.
 
 ## Evidence
@@ -42,6 +42,20 @@ A follow-up migration would be 0076+ (check `drizzle/meta/_journal.json`, 0075 i
 - The e2e saw and fixed three real defects: the template was lost on reload (now in the URL), the add-question search kept its text after a pick, and unsaved edits inside the debounce window were not guarded on leave.
 
 - Full runs on this head: lint, source guards and typecheck clean; unit 1400 passed; integration 117 files, 989 tests passed (local PostgreSQL); Playwright: the builder spec, `kit-pr2-shell` and `layout` (6 tests) passed. The Neon check does not apply (no migration).
+
+## Size limit
+
+`form_versions.definition` has a 65,536-byte table check. The schema alone allowed about 92 KB, so create, save and duplicate now measure the serialized definition and answer 400 ("This form is too large to save...") before the database check can fail; the editor shows that message and does not retry (retrying cannot help).
+
+## Reproducing the provenance measurements
+
+Fetch each premium item (`curl -s https://shadcnuikit.com/r/<item>.json`, concatenate the `files[].content` into a file, here `fl20.tsx` for `form-layout20` and `fl15.tsx` for `form-layout15`) and run `scripts/ui-identical.sh <kit-file> <harvest-file>`. Output on this head:
+
+```
+15 of 30 (50%) src/components/forms/kit-radio-cards.tsx      (form-layout20)
+15 of 30 (50%) src/components/forms/kit-checkbox-cards.tsx   (form-layout20)
+10 of 18 (55%) src/components/forms/kit-drop-zone.tsx        (form-layout15)
+```
 
 ## Known limits
 

@@ -5296,7 +5296,8 @@
       "notFound": "That form is not available.",
       "stale": "This form was changed elsewhere. Reload and try again.",
       "destination": "Choose a destination that exists in this ministry.",
-      "template": "Choose a valid template."
+      "template": "Choose a valid template.",
+      "tooLarge": "This form is too large to save. Remove some questions or options."
     },
     "bar": {
       "saving": "Saving",

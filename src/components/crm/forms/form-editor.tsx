@@ -21,7 +21,7 @@ import { FormSettingsPanel, type Destination, type Member } from "@/components/c
 import { commit, formIssues, formLimits, redo, startHistory, undo, type FormDefinition, type FormDestination, type FormSettings } from "@/lib/crm-forms";
 
 type Tab = "build" | "settings" | "preview";
-type Save = "saved" | "saving" | "error" | "conflict";
+type Save = "saved" | "saving" | "error" | "conflict" | "rejected";
 const AUTOSAVE_MS = 900;
 
 function destinationOf(value: string): FormDestination | null {
@@ -50,7 +50,7 @@ export function FormEditor({ tenantId, formId, initial, revision, destinations, 
   const { destination, setDestination, leave } = useUnsavedChangesGuard(shown !== "saved");
   const issues = useMemo(() => formIssues(form), [form]);
 
-  const change = useCallback((fn: (f: FormDefinition) => FormDefinition, key?: string) => setHistory((h) => commit(h, fn(h.present), Date.now(), key ?? null)), []);
+  const change = useCallback((fn: (f: FormDefinition) => FormDefinition, key?: string) => { setSave((current) => current === "rejected" ? "saved" : current); setHistory((h) => commit(h, fn(h.present), Date.now(), key ?? null)); }, []);
   const changeSettings = useCallback((fn: (s: FormSettings) => FormSettings, key?: string) => change((f) => ({ ...f, settings: fn(f.settings) }), key), [change]);
 
   const flush = useCallback(async (definition: FormDefinition) => {
@@ -60,11 +60,11 @@ export function FormEditor({ tenantId, formId, initial, revision, destinations, 
     const result = await request<{ revision: number }>(`/api/workspaces/${tenantId}/crm/forms/${formId}`, { method: "PUT", body: { definition, revision: rev.current } });
     busy.current = false;
     if (result.ok) { rev.current = result.data.revision; setSavedJson(body); setSave("saved"); }
-    else setSave(result.status === 409 ? "conflict" : "error");
+    else if (result.status === 400 && result.details?.reason === "too_large") setSave("rejected"); else setSave(result.status === 409 ? "conflict" : "error");
   }, [request, tenantId, formId]);
 
   useEffect(() => {
-    if (save === "conflict" || !dirty) return;
+    if (save === "conflict" || save === "rejected" || !dirty) return;
     const timer = setTimeout(() => void flush(form), AUTOSAVE_MS);
     return () => clearTimeout(timer);
   }, [form, flush, save, dirty]);
@@ -95,6 +95,7 @@ export function FormEditor({ tenantId, formId, initial, revision, destinations, 
       </div>
     </header>
     {save === "conflict" && <Alert variant="destructive" role="alert"><AlertDescription className="flex flex-wrap items-center gap-3">{t("errors.conflict")}<Button type="button" variant="outline" className="min-h-11" onClick={() => location.reload()}>{t("errors.reload")}</Button></AlertDescription></Alert>}
+    {save === "rejected" && <Alert variant="destructive" role="alert"><AlertDescription>{t("errors.tooLarge")}</AlertDescription></Alert>}
     {save === "error" && <Alert variant="destructive" role="alert"><AlertDescription className="flex flex-wrap items-center gap-3">{t("errors.saveFailed")}<Button type="button" variant="outline" className="min-h-11" onClick={() => void flush(form)}>{t("errors.retry")}</Button></AlertDescription></Alert>}
 
     <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)} className="gap-4">

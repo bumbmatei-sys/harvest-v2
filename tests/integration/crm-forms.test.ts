@@ -40,6 +40,19 @@ describe("CRM forms drafts (no migration: forms and form_versions)", () => {
     await expect(saveCrmForm(fixture.db, "owner-a", tenantA, id, { definition: { ...definition, blocks: [] }, revision: 2 })).rejects.toThrow();
     await expect(saveCrmForm(fixture.db, "owner-a", tenantA, id, { definition: { ...definition, logoUrl: "http://x.test/a.png" }, revision: 2 })).rejects.toThrow();
   });
+  it("answers a schema-valid but oversize definition with a clear 400, not a database 500", async () => {
+    const { id } = await createCrmForm(fixture.db, "owner-a", tenantA, { template: null, destination: { type: "people" } });
+    const { definition } = await getCrmForm(fixture.db, "owner-a", tenantA, id);
+    const consent = definition.blocks[definition.blocks.length - 1];
+    const big = Array.from({ length: 39 }, (_, i) => ({ id: `big${String(i).padStart(5, "0")}`, type: "dropdown" as const, label: "x".repeat(200), required: false, mapTo: null,
+      options: Array.from({ length: 20 }, (_, j) => `${j}`.padEnd(100, "o")) }));
+    const oversize = { ...definition, blocks: [...big, consent] };
+    expect(Buffer.byteLength(JSON.stringify(oversize))).toBeGreaterThan(65536);
+    await expect(saveCrmForm(fixture.db, "owner-a", tenantA, id, { definition: oversize, revision: 1 })).rejects.toMatchObject({ status: 400, details: { reason: "too_large" } });
+    // Nothing was written: the form is unchanged and still saves a normal edit at the same revision.
+    expect((await getCrmForm(fixture.db, "owner-a", tenantA, id)).definition.revision).toBe(1);
+    await expect(saveCrmForm(fixture.db, "owner-a", tenantA, id, { definition: { ...definition, title: "Fits" }, revision: 1 })).resolves.toMatchObject({ revision: 2 });
+  });
   it("accepts a pipeline destination only from the same ministry", async () => {
     await expect(createCrmForm(fixture.db, "owner-a", tenantA, { template: null, destination: { type: "pipeline", pipelineId: pipelineA } })).resolves.toBeTruthy();
     await expect(createCrmForm(fixture.db, "owner-b", tenantB, { template: null, destination: { type: "pipeline", pipelineId: pipelineA } })).rejects.toMatchObject({ status: 400 });
