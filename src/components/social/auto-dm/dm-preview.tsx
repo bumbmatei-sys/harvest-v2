@@ -15,7 +15,7 @@ export function DmPreview({ platform, accountName, rule, mediaName }: { platform
   const sampleKeyword = rule.match.keywords[0] ?? t("sampleComment");
   return <section aria-label={t("title")} data-testid="dm-preview" className="overflow-hidden rounded-xl border bg-card">
     <header className="flex items-center gap-2 border-b px-3 py-2.5">
-      <span className="flex size-8 items-center justify-center rounded-full bg-muted"><PlatformLogo platform={platform} className="size-4" /></span>
+      <span className="flex size-8 items-center justify-center rounded-full bg-muted"><PlatformLogo colored platform={platform} className="size-4" /></span>
       <div className="min-w-0"><p className="truncate text-sm font-medium">{accountName}</p><p className="text-xs text-muted-foreground">{platformLabels[platform]}</p></div>
     </header>
     <div className="space-y-2 p-3">

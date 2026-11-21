@@ -35,7 +35,7 @@ export function HoursPanel({ tenantId, accounts }: { tenantId: string; accounts:
     <ul className="grid gap-3 lg:grid-cols-2">{accounts.map((account) => {
       const current = settings[account.id], name = account.name ?? platformLabels[account.platform];
       return <li key={account.id} className="space-y-3 rounded-xl border bg-card p-4" data-testid="hours-card" data-platform={account.platform}>
-        <div className="flex items-center justify-between gap-2"><div className="flex min-w-0 items-center gap-2"><span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted"><PlatformLogo platform={account.platform} className="size-4" /></span>
+        <div className="flex items-center justify-between gap-2"><div className="flex min-w-0 items-center gap-2"><span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-muted"><PlatformLogo colored platform={account.platform} className="size-4" /></span>
           <div className="min-w-0"><p className="truncate text-sm font-medium">{name}</p><p className="text-xs text-muted-foreground">{platformLabels[account.platform]}</p></div></div>
           <Button type="button" variant="outline" size="responsive" onClick={() => setEditing(account)}><Clock aria-hidden="true" />{t("edit")}</Button></div>
         {current === undefined ? <Skeleton className="h-12 w-full" /> : current === "error" ? <p role="alert" className="text-sm text-destructive">{t("loadFailed")}</p> : <div className="space-y-2 text-sm">

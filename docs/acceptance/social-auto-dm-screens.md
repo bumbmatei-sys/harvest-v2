@@ -32,7 +32,7 @@ Screens for the merged Auto-DM server (`docs/acceptance/social-auto-dm.md`, #161
 - Per-rule counts use one request per rule (four at a time).
 - Mode "any" is shown only if a loaded rule already has it (it matches like "contains").
 - Real provider behaviour, real sending and every HC-02 decision are untouched.
-- TODO: the platform marks are the existing monochrome ones. PR #176 adds a coloured variant to `src/components/social/platform-logo.tsx`; switch to it after that merges (do not duplicate the file).
+- The Instagram and Facebook marks in the Auto-DM screens use the coloured variant of `platform-logo.tsx` added by #176 (merged). The composer option row keeps the shared monochrome marks.
 
 ## Kit items
 

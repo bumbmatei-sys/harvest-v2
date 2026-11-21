@@ -23,7 +23,7 @@ export function RuleRow({ tenantId, rule, account, stats, busy, onSwitch }: {
   return <li className="rounded-xl border bg-card" data-testid="rule-row" data-rule-id={rule.id} data-enabled={rule.enabled}>
     <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1.5fr)_minmax(0,1.1fr)_auto] lg:items-center">
       <div className="flex min-w-0 items-start gap-3">
-        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted">{account ? <PlatformLogo platform={account.platform} className="size-4" /> : null}</span>
+        <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted">{account ? <PlatformLogo colored platform={account.platform} className="size-4" /> : null}</span>
         <div className="min-w-0 space-y-1">
           <Link href={base} prefetch={false} className="block truncate font-medium outline-none hover:underline focus-visible:underline">{rule.name}</Link>
           <p className="text-xs text-muted-foreground">{[labels.trigger(rule.trigger), labels.scope(rule), account ? account.name ?? platformLabels[account.platform] : t("accountMissing")].join(sym.dot)}</p>

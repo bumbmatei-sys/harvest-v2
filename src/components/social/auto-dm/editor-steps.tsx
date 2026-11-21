@@ -153,7 +153,7 @@ export function LimitsStep({ rule, update, account, you, onEditHours, issues }: 
     </div>
     <RadioCards name={`${id}-hours`} label={t("hoursTitle")} columns={3} value={rule.hours} onChange={(hours) => update((current) => ({ ...current, hours }))}
       options={(["ignore", "skip", "away"] as const).map((mode) => ({ value: mode, title: t(`hoursMode.${mode}`), note: t(`hoursNote.${mode}`) }))} />
-    {rule.hours !== "ignore" && <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm"><span className="inline-flex items-center gap-2">{account && <PlatformLogo platform={account.platform} className="size-4" />}{t("hoursFor", { account: account ? account.name ?? platformLabels[account.platform] : "-" })}</span>
+    {rule.hours !== "ignore" && <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 text-sm"><span className="inline-flex items-center gap-2">{account && <PlatformLogo colored platform={account.platform} className="size-4" />}{t("hoursFor", { account: account ? account.name ?? platformLabels[account.platform] : "-" })}</span>
       <Button type="button" variant="outline" size="responsive" onClick={onEditHours}>{t("editHours")}</Button></div>}
     <label className="block space-y-1 text-sm font-medium">{t("handoff")}
       <NativeSelect value={rule.handoffUserId ?? ""} onChange={(event) => update((current) => ({ ...current, handoffUserId: event.target.value || null }))} className={field}>

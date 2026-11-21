@@ -54,7 +54,7 @@ export function EnableReview({ tenantId, rule, account, open, onOpenChange, onEn
     {state === "ready" && shown && <div className="space-y-4 text-sm">
       <HardOffNotice compact />
       <dl className="divide-y rounded-lg border px-3">
-        {row(t("account"), <span className="inline-flex items-center gap-1.5">{account && <PlatformLogo platform={account.platform} className="size-3.5" />}{account ? account.name ?? platformLabels[account.platform] : sym.dash}</span>)}
+        {row(t("account"), <span className="inline-flex items-center gap-1.5">{account && <PlatformLogo colored platform={account.platform} className="size-3.5" />}{account ? account.name ?? platformLabels[account.platform] : sym.dash}</span>)}
         {row(t("trigger"), `${labels.trigger(shown.trigger)} · ${labels.scope(shown)}`)}
         {shown.match.keywords.length > 0 && row(t("keywords"), `${shown.match.keywords.join(", ")} (${labels.mode(shown.match.mode)})`)}
         {row(t("limits"), t("limitsValue", { cooldown: labels.cooldown(shown.cooldownMinutes), person: shown.recipientDaily, rule: shown.ruleDaily }))}

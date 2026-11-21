@@ -275,6 +275,20 @@ Layout and flow follow the founder's first Harvest version (private repository `
 
 Kit blocks looked at and not used: the kit kanban (`components/ui/kanban.tsx`, dnd-kit is not an approved dependency; the queue columns are Harvest cards), the event dialog, the agenda and day views, and recharts radial charts (the ring is hand-written SVG). Platform marks remain their owners' trademarks and are used only to name the network.
 
+### Inbox screens (Social media > Inbox)
+
+Built with the premium kit under the standing kit rule, with no per-item founder approval of these exact files (the PR names them for review). Sources: admin-dashboard `apps/mail` (`mail.tsx`, `mail-list.tsx`, `nav.tsx`, `nav-desktop.tsx`, `mail-display.tsx`) and `apps/chat` (`chat-header.tsx`, `chat-bubbles.tsx`) at commit `1631106`, and chat-app `chat-footer.tsx` at `66fd523`. **No kit file is copied**; all five Harvest files are **modelled on** the kit layout and written for Harvest. Measured with `scripts/ui-identical.sh` (trimmed non-blank lines unchanged from the kit file, Harvest file as denominator, best match per Harvest file; the matches are import and boilerplate lines), run 21 Nov 2026:
+
+| Harvest file | Status | Kit source | Identical lines |
+| --- | --- | --- | --- |
+| `src/components/social/inbox/inbox.tsx` | modelled on | `apps/mail/components/mail.tsx` | 6 of 140 (4%) |
+| `src/components/social/inbox/inbox-list.tsx` | modelled on | `apps/mail/components/mail-list.tsx` | 7 of 114 (6%) |
+| `src/components/social/inbox/inbox-filters.tsx` | modelled on | `apps/mail/components/nav.tsx` (nav-desktop.tsx: 3 of 57, 5%) | 4 of 57 (7%) |
+| `src/components/social/inbox/inbox-thread.tsx` | modelled on | `apps/chat/components/chat-bubbles.tsx` (mail-display.tsx: 4 of 185, 2%; chat-header.tsx: 3 of 185, 1%) | 9 of 185 (4%) |
+| `src/components/social/inbox/inbox-composer.tsx` | modelled on | chat-app `app/(auth)/chats/components/chat-footer.tsx` | 5 of 84 (5%) |
+
+Message rows reuse the existing kit-derived `src/components/ui/bubble.tsx`. The coloured platform marks are the networks' brand colours (`src/lib/theme-registry.ts`), drawn from the same Simple Icons paths as the Planner marks.
+
 ### Settings pop-up (profile menu)
 
 The Settings pop-up uses five items from the founder's private premium kit repositories, approved by the founder on 20 Nov 2026: `bumbmatei-sys/chat-app` (commit `66fd523`) `components/settings-dialog.tsx` (pop-up shell) and `components/user-avatar.tsx` (avatar block, already in the repository), and `bumbmatei-sys/admin-dashboard` (commit `1631106`) `pages/settings/components/sidebar-nav.tsx` (section list), `pages/settings/account/page.tsx` (profile form layout) and `pages/settings/notifications/page.tsx` (bordered link rows). **No kit file is copied.** The kit dialog and tabs are `@base-ui/react`, which the shared Harvest dialog is not, so every file is written for Harvest on its Radix Dialog, Field, Input, RadioGroup and Button, and starts with the modelled-on header. `scripts/ui-identical.sh` finds, per current file: 4 of 40 non-blank lines (10%) of `settings-dialog.tsx` identical to the kit dialog, 4 of 43 (9%) of `settings-nav.tsx` against `sidebar-nav.tsx`, and 4 of 149 (2%) and 6 of 149 (4%) of `settings-panels.tsx` against the account and notifications pages (imports and closing tags). Not used: billing, appearance and display pages, the kit's switch rows and fixture data, react-hook-form and zod.

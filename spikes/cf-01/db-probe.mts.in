@@ -1,0 +1,61 @@
+import { randomBytes } from "node:crypto";
+import { Miniflare, convertV4MiniflareOptions } from "miniflare";
+import { build } from "esbuild";
+import { testDatabase } from "./tests/database";
+
+const origin = "http://localhost";
+const bundle = await build({
+  entryPoints: ["db-worker.ts"], bundle: true, platform: "node", format: "esm",
+  conditions: ["workerd", "react-server"], write: false, external: ["cloudflare:*", "pg-native"],
+  banner: { js: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url);' },
+  plugins: [{
+    name: "local-mail-only",
+    setup(plugin) {
+      plugin.onResolve({ filter: /^resend$/ }, () => ({ path: "mailbox", namespace: "fixture" }));
+      plugin.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({
+        contents: 'import { env } from "cloudflare:workers"; export class Resend { emails = { send: async (message) => { await env.MAILBOX.fetch("http://mailbox.invalid", {method:"POST", body: message.text}); return {data:{id:"fixture"},error:null}; } }; }',
+      }));
+    },
+  }],
+});
+const fixture = await testDatabase();
+let otp: string | undefined;
+const options = convertV4MiniflareOptions({
+  cf: false, modules: true, compatibilityDate: "2026-11-17", compatibilityFlags: ["nodejs_compat"],
+  script: bundle.outputFiles[0].text,
+  bindings: { DATABASE_URL: fixture.appURL, BETTER_AUTH_URL: origin,
+    BETTER_AUTH_SECRET: randomBytes(32).toString("hex"), RESEND_API_KEY: "fixture", EMAIL_FROM: "test@example.invalid" },
+  serviceBindings: { MAILBOX: async (request) => {
+    otp = (await request.text()).match(/\b\d{6}\b/)?.[0];
+    return new Response();
+  } },
+});
+let mf = new Miniflare(options);
+async function resetIfRequested() {
+  if (!process.argv.includes("--fresh-isolate")) return;
+  await mf.dispose();
+  mf = new Miniflare(options);
+}
+try {
+  for (const path of ["/scoped", "/scoped", "/shared", "/shared"]) {
+    const result = await mf.dispatchFetch(origin + path);
+    console.log(path, result.status, (await result.text()).slice(0,140));
+  }
+  const email = "cf01@example.invalid";
+  const headers = { origin, "content-type": "application/json", "x-forwarded-for": "192.0.2.1" };
+  const issue = await mf.dispatchFetch(origin + "/api/auth/email-otp/send-verification-otp",
+    { method: "POST", headers, body: JSON.stringify({ email, type: "sign-in" }) });
+  console.log("issue", issue.status, "local mail received", Boolean(otp));
+  if (otp) {
+    await resetIfRequested();
+    const verify = await mf.dispatchFetch(origin + "/api/auth/sign-in/email-otp",
+      { method: "POST", headers, body: JSON.stringify({ email, otp }) });
+    const cookie = verify.headers.getSetCookie().map(value => value.split(";")[0]).join("; ");
+    await resetIfRequested();
+    const list = await mf.dispatchFetch(origin + "/api/workspaces", { headers: { ...headers, cookie } });
+    console.log("verify", verify.status, "cookie present", Boolean(cookie), "workspaces", list.status);
+  }
+} finally {
+  await mf.dispose();
+  await fixture.close();
+}
