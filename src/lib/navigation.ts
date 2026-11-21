@@ -85,7 +85,7 @@ export const navEntries: readonly NavEntry[] = [
   { id: "planner", group: "publishing", mode: "public", label: "planner", icon: CalendarDays, path: "/social/planner", match: (pathname) => under("/social/planner")(pathname) || under("/social/compose")(pathname), permission: "social:schedule", feature: "social" },
   { id: "inbox", group: "publishing", mode: "public", status: "planned", label: "inbox", icon: Inbox, path: "/inbox", match: under("/inbox") },
   { id: "socialAnalytics", group: "publishing", mode: "public", status: "planned", label: "socialAnalytics", icon: BarChart3, path: "/social/analytics", match: under("/social/analytics") },
-  { id: "autoDm", group: "publishing", mode: "public", status: "planned", label: "autoDm", icon: MessageCircleReply, path: "/inbox/auto-dm", match: under("/inbox/auto-dm") },
+  { id: "autoDm", group: "publishing", mode: "public", label: "autoDm", icon: MessageCircleReply, path: "/social/auto-dm", match: under("/social/auto-dm"), permission: "social:auto_dm", feature: "social" },
   { id: "articles", group: "publishing", mode: "public", status: "planned", label: "articles", icon: Newspaper, path: "/articles", match: under("/articles") },
   { id: "website", group: "publishing", mode: "public", status: "planned", label: "website", icon: Globe, path: "/website", match: under("/website") },
   { id: "linkInBio", group: "publishing", mode: "public", status: "planned", label: "linkInBio", icon: Link2, path: "/link-in-bio", match: under("/link-in-bio") },

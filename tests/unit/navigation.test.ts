@@ -91,8 +91,8 @@ describe("three-mode registry (slice 1)", () => {
   });
   it("reserves not-yet-built modules as planned, including blog articles", () => {
     const planned = navEntries.filter((entry) => entry.status === "planned").map((entry) => entry.id);
-    expect(planned).toEqual(expect.arrayContaining(["articles", "socialAnalytics", "inbox", "autoDm", "website", "linkInBio", "newsletter", "products", "discover", "assistant", "responses", "connectLinks", "forms", "mail", "calendar", "documents", "spreadsheets", "giving", "volunteers", "livestream", "churchProfile"]));
-    expect(navEntries.filter((entry) => entry.status !== "planned").map((entry) => entry.id)).toEqual(["people", "companies", "pipelines", "tasks", "imports", "campaigns", "followUp", "events", "files", "planner", "communities", "socialAccounts", "crmFields", "pipelineSettings", "appearance", "ministrySettings"]);
+    expect(planned).toEqual(expect.arrayContaining(["articles", "socialAnalytics", "inbox", "website", "linkInBio", "newsletter", "products", "discover", "assistant", "responses", "connectLinks", "forms", "mail", "calendar", "documents", "spreadsheets", "giving", "volunteers", "livestream", "churchProfile"]));
+    expect(navEntries.filter((entry) => entry.status !== "planned").map((entry) => entry.id)).toEqual(["people", "companies", "pipelines", "tasks", "imports", "campaigns", "followUp", "events", "files", "planner", "autoDm", "communities", "socialAccounts", "crmFields", "pipelineSettings", "appearance", "ministrySettings"]);
   });
   it("never renders, links or labels a planned entry", () => {
     const plannedIds = new Set(navEntries.filter((entry) => entry.status === "planned").map((entry) => entry.id));
@@ -128,7 +128,7 @@ describe("three-mode registry (slice 1)", () => {
   it("derives the mode from the path, including nested and dynamic routes", () => {
     const mode = (path: string, choice?: NavMode | null) => resolveMode({ pathname: `${root}${path}`, choice });
     for (const path of ["/crm/people", `/crm/people/${id}`, `/contacts/${id}`, `/crm/deals/${id}`, "/crm/settings/fields", "/campaigns", `/campaigns/${id}/connect/${id}/landing`, "/connect/follow-up", `/connect/follow-up/${id}`, "/files", "/appearance", "/settings", "/events", "/connect/responses", "/mail", "/calendar", "/connect/forms", "/docs", "/sheets", "/giving", "/volunteers", "/livestream", "/church-profile"]) expect(mode(path)).toEqual({ mode: "operations", neutral: false });
-    for (const path of ["/communities", `/communities/${id}/edit`, "/social/planner", "/inbox/auto-dm", "/articles", `/articles/${id}`, "/link-in-bio", "/newsletter", "/products", "/discover/manage"]) expect(mode(path)).toEqual({ mode: "public", neutral: false });
+    for (const path of ["/communities", `/communities/${id}/edit`, "/social/planner", "/social/auto-dm", "/articles", `/articles/${id}`, "/link-in-bio", "/newsletter", "/products", "/discover/manage"]) expect(mode(path)).toEqual({ mode: "public", neutral: false });
     expect(mode("/assistant")).toEqual({ mode: "assistant", neutral: false });
     expect(mode(`/assistant/${id}`)).toEqual({ mode: "assistant", neutral: false });
   });
