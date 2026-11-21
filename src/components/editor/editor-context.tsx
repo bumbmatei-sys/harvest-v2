@@ -52,7 +52,8 @@ export function useContextualSidebar(spec: ContextualSpec | null) {
     register(token, key === null ? null : JSON.parse(key) as ContextualSpec);
   }, [register, key, token]);
   useEffect(() => () => register?.(token, null), [register, token]);
-  return { hosted: register !== null, slot };
+  // Hosted only while a spec is registered: a page that asks for nothing (null) must keep rendering its panel inline.
+  return { hosted: register !== null && spec !== null, slot };
 }
 
 /** The registered editor context, or null (also null when there is no provider). Read by the sidebar. */

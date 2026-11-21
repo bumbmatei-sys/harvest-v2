@@ -5,6 +5,7 @@ import { expect as base, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { Client } from "pg";
 import { origin, signIn } from "./helpers/session";
+import { releaseSocialConnectionsAfterEach } from "./helpers/social-accounts";
 import { settleForAxe } from "./helpers/settle";
 
 // Social Publish screens: accounts, composer (rings, media, options, review), queue, calendar and drafts, against the real Publish routes with the
@@ -82,6 +83,9 @@ async function tapTargets(page: Page, selector: string) {
   await page.setViewportSize({ width: 1280, height: 900 });
 }
 
+// Releases this spec's fake accounts when it ends (see helpers/social-accounts.ts).
+const releaseAfter = releaseSocialConnectionsAfterEach();
+
 test("social publish: accounts, composer with rings and media, review, queue, calendar and drafts", async ({ page }) => {
   test.setTimeout(900_000);
   await mkdir(shots, { recursive: true });
@@ -89,6 +93,7 @@ test("social publish: accounts, composer with rings and media, review, queue, ca
   page.on("pageerror", (error) => errors.push(error.message));
   const email = await signIn(page);
   const tenant = (await (await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Grace Community Church", audience: "church" } })).json()).tenantId as string;
+  releaseAfter(tenant);
   const api = `/api/workspaces/${tenant}/social`, base = `/workspaces/${tenant}/social`;
   const admin = new Client({ connectionString: await readFile(`${process.env.HARVEST_E2E_MAILBOX}.admin`, "utf8") });
   await admin.connect();
@@ -146,7 +151,7 @@ test("social publish: accounts, composer with rings and media, review, queue, ca
     await expect(sidebar.getByRole("button", { name: "Social media" })).toBeVisible();
     await expect(sidebar.getByRole("link", { name: "Planner" })).toBeVisible();
     await expect(sidebar.getByRole("link", { name: "Inbox", exact: true })).toBeVisible();
-    for (const hidden of ["Compose", "Calendar", "Queue", "Auto-replies", "Analytics"]) await expect(sidebar.getByRole("link", { name: hidden, exact: true })).toHaveCount(0);
+    for (const hidden of ["Compose", "Calendar", "Queue", "Analytics"]) await expect(sidebar.getByRole("link", { name: hidden, exact: true })).toHaveCount(0);
     await sidebar.screenshot({ path: `${shots}/sidebar-public-1280-${scheme}.png`, animations: "disabled" });
     await page.getByRole("tab", { name: "Operations" }).click();
     // Social accounts left the Operations sidebar: it lives in the Settings pop-up (Connections) and the Planner button.

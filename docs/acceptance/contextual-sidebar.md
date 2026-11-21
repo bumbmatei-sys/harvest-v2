@@ -12,6 +12,21 @@ One reusable "contextual sidebar" slot in the shared AppShell, behind the existi
 - **Flag off.** Without `HARVEST_SHELL_MODES` there is no provider, `hosted` is false and the Inbox keeps its previous inline three-pane layout and Sheet; the legacy single sidebar is untouched.
 - **Community editor.** Uses the shared `ContextualBack` and the same swap (no logo row or mode switcher while editing; the way out is the back arrow, which the existing unsaved-changes guard still intercepts).
 
-## Verification
+## Verification (author-run, local)
 
-See the PR description for the exact commands, counts and screenshots. Not verified: see the "Not verified" list there.
+`hosted` is true only while a spec is registered, so a page that asks for nothing keeps its panel inline.
+
+| Command | Result |
+| --- | --- |
+| `npm run typecheck` | exit 0 |
+| `npm run lint` (eslint zero warnings plus source guards) | exit 0 |
+| `npx vitest run --project unit` | 107 files, 1,374 tests passed |
+| One Playwright run, private non-root PostgreSQL 16: `shell-slice3a`, `shell-slice3b`, `shell-slice2`, `kit-pr2-shell`, `social-inbox-screens`, `social-publish-screens` | exit 0: 26 passed, 4 skipped (the flag-off parity tests) |
+
+Asserted in the Inbox spec: back arrow focus on swap-in and on the current entry after Back, account group and list collapse with focus, 44px (at least 43.5) targets for the back arrow, an account toggle and a folder in the phone drawer and for the list toggles at 768, the phone drawer closing on a filter choice, and the flag-off layout (inline filters, no "Inbox sidebar" group) when `HARVEST_SHELL_MODES=disabled`. The editor specs assert no mode switcher while editing and the guarded back arrow.
+
+## Not verified
+
+- A flag-off run (`HARVEST_SHELL_MODES=disabled`) of the shell and Inbox specs: the flag-off branch of the Inbox spec is written but was not executed here.
+- Integration tests, and the campaigns and settings-popup specs. `campaigns.spec.ts:48` (flag-off link count) fails the same way on main and is tracked separately.
+- Dark and 768px captures of the new sidebar beyond the Inbox spec's scenes; hosted environments.

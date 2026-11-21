@@ -200,7 +200,7 @@
     "planner": "Planner",
     "socialAccounts": "Social accounts",
     "inbox": "Inbox",
-    "autoDm": "Auto-replies",
+    "autoDm": "Auto-DM",
     "articles": "Blog",
     "website": "Website",
     "linkInBio": "Link in bio",
@@ -3866,7 +3866,10 @@
       "eachPlatform": "Each platform",
       "pickTime": "Pick a date and time",
       "nextSlot": "Next free slot",
-      "scheduleMore": "More ways to schedule"
+      "scheduleMore": "More ways to schedule",
+      "blockedAutoDm": "Auto-DM needs a keyword, a reply and the confirmation.",
+      "autoDmCreated": "Auto-DM rule created. It is off.",
+      "autoDmFailed": "The post is in, but the Auto-DM rule could not be created: {reason}"
     },
     "destination": {
       "unavailableOn": "Not available on {platform}",
@@ -4241,7 +4244,413 @@
       "privacyFriends": "Friends",
       "privacyFollowers": "Followers",
       "privacyOnlyMe": "Only me",
-      "tiktokConfirm": "I have checked the preview and I consent to publish"
+      "tiktokConfirm": "I have checked the preview and I consent to publish",
+      "autoDm": "Auto-DM people who comment a keyword",
+      "autoDmNone": "Instagram or Facebook posts only",
+      "autoDmOff": "Rule starts off",
+      "autoDmKeyword": "Keyword",
+      "autoDmReply": "Reply",
+      "autoDmFlagged": "Likely promotional wording: {words}.",
+      "autoDmAttest": "This reply only answers the comment. It has no offers, sales or fundraising asks.",
+      "autoDmNote": "A rule is created when the post is scheduled. Turn it on in Auto-DM once the post is live.",
+      "autoDmOpen": "Open Auto-DM"
+    }
+  },
+  "SocialAutoDm": {
+    "title": "Auto-DM",
+    "subtitle": "Automatic direct messages for Instagram and Facebook.",
+    "newRule": "New rule",
+    "back": "All rules",
+    "retry": "Retry",
+    "loadFailed": "Auto-DM could not be loaded.",
+    "unavailableTitle": "Auto-DM is not available",
+    "unavailable": "This area is not available to you.",
+    "noAccountsTitle": "No Instagram or Facebook account",
+    "noAccounts": "Connect an Instagram or Facebook account to create rules.",
+    "goToAccounts": "Social accounts",
+    "emptyTitle": "No rules yet",
+    "empty": "Create a rule to answer comments, messages and story replies automatically.",
+    "notFoundTitle": "Rule not found",
+    "notFound": "This rule is not available.",
+    "hardOff": {
+      "badge": "Sending off",
+      "title": "Sending is switched off",
+      "body": "Rules are saved, reviewed and tested here. Test mode uses a disposable recipient, and nothing is sent to anyone."
+    },
+    "tabs": {
+      "label": "Auto-DM sections",
+      "rules": "Rules",
+      "templates": "Templates",
+      "hours": "Hours"
+    },
+    "tiles": {
+      "active": "Rules on",
+      "triggered": "Triggered",
+      "sent": "Replies sent",
+      "skipped": "Skipped",
+      "handedOff": "Handed off"
+    },
+    "list": {
+      "accountMissing": "Account unavailable",
+      "keywords": "Keywords",
+      "counts": {
+        "triggered": "Triggered",
+        "sent": "Sent",
+        "skipped": "Skipped",
+        "handedOff": "Handed off"
+      },
+      "last": "Last activity {when}",
+      "never": "No activity yet",
+      "accountAttention": "Account needs attention",
+      "on": "On",
+      "off": "Off",
+      "switch": "Turn {name} on or off",
+      "edit": "Edit",
+      "activity": "Activity",
+      "enabledToast": "{name} is on",
+      "disabledToast": "{name} is off"
+    },
+    "triggers": {
+      "comment": {
+        "name": "Comment keyword",
+        "note": "Someone comments a keyword on a post."
+      },
+      "dm": {
+        "name": "Message keyword",
+        "note": "Someone messages a keyword."
+      },
+      "story_reply": {
+        "name": "Story reply",
+        "note": "Someone replies to a story."
+      },
+      "story_mention": {
+        "name": "Story mention",
+        "note": "Someone mentions the account in a story."
+      },
+      "welcome": {
+        "name": "Welcome message",
+        "note": "A person's first message. Earlier history can be missing."
+      },
+      "ice_breaker": {
+        "name": "Ice-breaker",
+        "note": "Someone picks a question set up on the account."
+      },
+      "persistent_menu": {
+        "name": "Menu entry",
+        "note": "Someone picks an item of the account menu."
+      },
+      "live_comment": {
+        "name": "Live comment",
+        "note": "Someone comments during a live video."
+      }
+    },
+    "scope": {
+      "any": "Any post",
+      "harvestPost": "One Harvest post",
+      "reference": "One post by reference",
+      "every": "Every time",
+      "entry": "Entry {key}"
+    },
+    "steps": {
+      "label": "Rule steps",
+      "trigger": "Trigger",
+      "match": "Match",
+      "response": "Response",
+      "limits": "Limits and hours",
+      "review": "Review",
+      "done": "Done",
+      "needs": "{count, plural, one {# to fix} other {# to fix}}"
+    },
+    "trigger": {
+      "name": "Rule name",
+      "namePlaceholder": "Prayer night guide",
+      "account": "Account",
+      "accountLocked": "A rule stays on its account.",
+      "when": "When",
+      "unavailable": "Unavailable",
+      "reasons": {
+        "platform": "Auto-DM supports Instagram and Facebook only.",
+        "instagramOnly": "Instagram only.",
+        "facebookOnly": "Facebook only.",
+        "noLiveLookup": "No verified way to read live comments yet."
+      },
+      "post": "Which post",
+      "harvestPost": "A Harvest post",
+      "reference": "A post by reference",
+      "noPosts": "No planned or live posts for this account.",
+      "pickPost": "Pick a post",
+      "currentPost": "Current post",
+      "untitled": "Untitled post",
+      "postStatus": {
+        "scheduled": "Scheduled",
+        "queued": "Queued",
+        "publishing": "Publishing",
+        "published": "Live"
+      },
+      "referenceLabel": "Provider post reference",
+      "liveNote": "The rule can be turned on once the post is live.",
+      "entryKey": "Entry key",
+      "accountOption": "{name} ({platform})"
+    },
+    "match": {
+      "keywords": "Keywords",
+      "keywordsOptional": "Keywords (optional)",
+      "mode": "Match",
+      "modes": {
+        "contains": "Contains",
+        "word": "Whole word",
+        "exact": "Exact",
+        "any": "Any keyword"
+      },
+      "caseSensitive": "Match capital letters",
+      "exclude": "Skip when it contains",
+      "stop": "Stop when it contains",
+      "every": "This trigger answers every time. No keywords needed."
+    },
+    "tags": {
+      "remove": "Remove {value}",
+      "placeholder": "Type a word and press Enter",
+      "full": "Up to {max} words"
+    },
+    "response": {
+      "purpose": "Purpose",
+      "commentServiceOnly": "Replies to comments can only answer what was asked.",
+      "consentBacked": "Needs a linked contact with current permission.",
+      "dm": "Direct message",
+      "insertName": "Insert first name",
+      "publicReply": "Public reply",
+      "publicReplyNote": "Posted under the comment after the private message.",
+      "quickReplies": "Quick replies",
+      "quickReplyTitle": "Quick reply {number}",
+      "removeQuickReply": "Remove quick reply {number}",
+      "addQuickReply": "Add quick reply",
+      "quickReplyEmpty": "Give every quick reply a title.",
+      "mediaUnavailable": "Media can be attached to message rules, not to private replies to comments.",
+      "media": "Media",
+      "mediaAttached": "Attached file",
+      "mediaRemove": "Remove media",
+      "mediaAttach": "Attach image or video",
+      "mediaUploading": "Uploading",
+      "mediaLimits": "JPEG or PNG up to 8 MB, MP4 up to 16 MB.",
+      "mediaRefused": "Use a JPEG or PNG up to 8 MB or an MP4 up to 16 MB.",
+      "mediaFailed": "The file could not be attached.",
+      "followup": "Follow-up message",
+      "followupNote": "Sent later in the same conversation.",
+      "followupDelay": "Minutes to wait",
+      "flagged": "Likely promotional wording: {words}. A service reply must not contain offers, sales or fundraising asks.",
+      "attest": "This text only answers what the person asked. It has no offers, sales or fundraising asks.",
+      "attestNote": "Recorded with this version. Confirm again after changing the text."
+    },
+    "purposes": {
+      "service": "Service reply",
+      "outreach_follow_up": "Outreach follow-up",
+      "account_communications": "Account communications",
+      "messaging": "Messaging",
+      "marketing": "Marketing"
+    },
+    "limits": {
+      "cooldown": "Wait between replies to a person",
+      "recipientDaily": "Per person each day",
+      "ruleDaily": "Per rule each day",
+      "hoursTitle": "Working hours",
+      "hoursMode": {
+        "ignore": "Reply any time",
+        "skip": "Skip outside hours",
+        "away": "Away message outside hours"
+      },
+      "hoursNote": {
+        "ignore": "Hours are not checked.",
+        "skip": "No reply when closed.",
+        "away": "The away message goes out instead."
+      },
+      "hoursFor": "Hours for {account}",
+      "editHours": "Edit hours",
+      "handoff": "Hand off to a person",
+      "handoffNone": "No hand-off",
+      "handoffMe": "Me ({name})",
+      "handoffOther": "Another owner or admin"
+    },
+    "cooldown": {
+      "minutes": "{count, plural, one {# minute} other {# minutes}}",
+      "hours": "{count, plural, one {# hour} other {# hours}}",
+      "days": "{count, plural, one {# day} other {# days}}"
+    },
+    "editor": {
+      "fixFirst": "Complete the highlighted steps first.",
+      "savedOff": "Saved. The rule is off until you review it again.",
+      "saved": "Saved.",
+      "created": "Rule created. It is off.",
+      "ready": "Everything is filled in.",
+      "missing": "{step}: {count, plural, one {# to fix} other {# to fix}}",
+      "afterSaveNew": "A new rule is saved off. Turn it on after saving, with the review.",
+      "afterSaveExisting": "Saving a change turns the rule off until it is reviewed again.",
+      "save": "Save rule",
+      "create": "Create rule",
+      "saving": "Saving",
+      "review": "Review and turn on",
+      "turnOff": "Turn off",
+      "saveFirst": "Save your changes before the review."
+    },
+    "review": {
+      "title": "Review before turning on",
+      "preparing": "Preparing the review",
+      "account": "Account",
+      "trigger": "Trigger",
+      "keywords": "Keywords",
+      "limits": "Limits",
+      "limitsValue": "Wait {cooldown}, {person} a day per person, {rule} a day per rule",
+      "hours": "Hours",
+      "handoff": "Hand-off",
+      "handoffOn": "To a person",
+      "handoffOff": "None",
+      "purpose": "Purpose",
+      "version": "Version",
+      "textTitle": "Exact text",
+      "kinds": {
+        "dm": "Direct message",
+        "publicReply": "Public reply",
+        "followup": "Follow-up"
+      },
+      "serviceConfirmed": "Confirmed as service-only, version {version}",
+      "serviceMissing": "Service-only not confirmed",
+      "flagged": "Likely promotional wording: {words}.",
+      "expired": "This review expired.",
+      "again": "Start again",
+      "read": "I have read the exact text above.",
+      "cancel": "Cancel",
+      "enable": "Turn on"
+    },
+    "preview": {
+      "title": "Preview",
+      "comment": "Comment",
+      "sampleComment": "keyword",
+      "publicReply": "Public reply",
+      "dm": "Direct message",
+      "empty": "The reply shows here.",
+      "quickReplies": "Quick replies",
+      "followup": "Follow-up after {minutes} minutes"
+    },
+    "test": {
+      "title": "Test mode",
+      "fake": "Fake recipient",
+      "sample": "Sample comment or message",
+      "sampleOptional": "Sample text (optional)",
+      "check": "Check match",
+      "send": "Send a test",
+      "notReady": "Complete the steps to test.",
+      "handoffNoSend": "Hand-off rules have no test delivery.",
+      "result": {
+        "matched": "Matches",
+        "excluded": "Does not match",
+        "stop": "Stopped by a stop word",
+        "unavailable": "Needs text to decide"
+      },
+      "delivered": "Sent to a disposable test recipient (reference {id}). Nothing left Harvest."
+    },
+    "activity": {
+      "loadFailed": "The activity could not be loaded.",
+      "counts": {
+        "triggered": "Triggered",
+        "sent": "Sent",
+        "skipped": "Skipped",
+        "handedOff": "Handed off",
+        "inProgress": "In progress"
+      },
+      "skippedBy": "Skipped because",
+      "reasons": {
+        "cooldown": "Cooldown",
+        "limit": "Daily limit",
+        "outside_hours": "Outside hours",
+        "ineligible": "Not eligible",
+        "suppressed": "Opted out",
+        "provider_error": "Provider error",
+        "other": "Other"
+      },
+      "emptyTitle": "No activity yet",
+      "empty": "Nobody has triggered this rule.",
+      "log": "Activity log",
+      "when": "When",
+      "step": "Step",
+      "result": "Result",
+      "reason": "Reason",
+      "version": "Version",
+      "event": "Event",
+      "steps": {
+        "primary": "Message",
+        "public": "Public reply",
+        "followup": "Follow-up"
+      },
+      "states": {
+        "queued": "Queued",
+        "leased": "Queued",
+        "dispatching": "Sending",
+        "unknown": "Unknown",
+        "sent": "Sent",
+        "skipped": "Skipped",
+        "handed_off": "Handed off",
+        "cancelled": "Cancelled"
+      },
+      "older": "Load older",
+      "privacy": "The log holds identifiers and outcomes only. Message text and names are never stored."
+    },
+    "templates": {
+      "title": "Template review",
+      "lead": "Every message text with its service-only confirmation. Likely promotional wording is flagged for you. The flag is not a legal review.",
+      "emptyTitle": "No templates yet",
+      "empty": "Templates appear here once you create a rule.",
+      "kinds": {
+        "dm": "Direct message",
+        "publicReply": "Public reply",
+        "followup": "Follow-up"
+      },
+      "version": "version {version}",
+      "confirmed": "Service-only confirmed",
+      "notConfirmed": "Not confirmed",
+      "flagged": "Flagged: {words}",
+      "clear": "No flagged wording",
+      "review": "Review text"
+    },
+    "hours": {
+      "title": "Working hours",
+      "lead": "Hours and the away message are the same ones the Inbox uses.",
+      "edit": "Edit hours",
+      "none": "No hours set.",
+      "open": "Open hours",
+      "loadFailed": "The hours could not be loaded.",
+      "awaySet": "Away message set",
+      "awayNone": "No away message",
+      "timezone": "Time zone",
+      "day": "Day",
+      "from": "From",
+      "to": "To",
+      "remove": "Remove {day}",
+      "add": "Add hours",
+      "invalid": "Each range must end after it starts and not overlap another.",
+      "away": "Away message",
+      "saved": "Saved.",
+      "save": "Save hours",
+      "range": "{day} {start}-{end}"
+    },
+    "rule": {
+      "subtitle": "Version {version}",
+      "newSubtitle": "Trigger, match, reply and limits.",
+      "tabs": "Rule sections",
+      "settings": "Settings",
+      "activity": "Activity"
+    },
+    "reasons": {
+      "UNKNOWN": "Something went wrong. Try again.",
+      "UNAVAILABLE": "This is not available to you.",
+      "STALE_VERSION": "This record changed. Reload and try again.",
+      "INVALID": "Check the details and try again.",
+      "NETWORK": "Connection problem. Try again.",
+      "AUTO_DM_TRIGGER_UNAVAILABLE": "This trigger is not available for the account.",
+      "AUTO_DM_ACCOUNT_UNAVAILABLE": "The account needs attention before the rule can be turned on.",
+      "AUTO_DM_POST_NOT_LIVE": "The post is not live yet. Turn the rule on once it is published.",
+      "AUTO_DM_MEDIA_UNAVAILABLE": "The media file cannot be used.",
+      "AUTO_DM_RULE_LIMIT": "The limit of 250 rules is reached.",
+      "AUTO_DM_ALREADY_ENABLED": "The rule is already on.",
+      "AUTO_DM_REVIEW_REQUIRED": "The review expired. Start it again."
     }
   },
   "SocialInbox": {

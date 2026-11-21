@@ -3,6 +3,7 @@ import { expect as base, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { Client } from "pg";
 import { origin, signIn } from "./helpers/session";
+import { releaseSocialConnectionsAfterEach } from "./helpers/social-accounts";
 import { settleForAxe } from "./helpers/settle";
 
 // Social Inbox screens against the real Inbox routes with the non-production fake provider (synthetic conversations only). Reply sending is hard-off, so the
@@ -10,6 +11,7 @@ import { settleForAxe } from "./helpers/settle";
 const expect = base.configure({ timeout: 30_000 });
 test.use({ actionTimeout: 30000, reducedMotion: "reduce" });
 const shots = process.env.INBOX_SHOTS ?? "/tmp/inbox-shots";
+const off = process.env.HARVEST_SHELL_MODES === "disabled";
 const credential = "harvest-test-credential";
 
 /** Every scene is checked at 1280 and 360 in both schemes, only once it is fully loaded (no skeleton, no busy region, its own ready signal). */
@@ -34,10 +36,8 @@ async function audit(page: Page, name: string, ready: (width: number) => Promise
   await page.setViewportSize({ width: 1280, height: 900 });
 }
 
-// The fake provider only knows the fixed `test-<platform>` accounts, and an account can be active in one ministry at a time (unique index on provider and
-// external account). Specs share one server and database, so this spec revokes its connections when it ends, pass or fail, and the next spec can link them.
-let release: (() => Promise<void>) | null = null;
-test.afterEach(async () => { await release?.(); release = null; });
+// Releases this spec's fake accounts when it ends (see helpers/social-accounts.ts).
+const releaseAfter = releaseSocialConnectionsAfterEach();
 
 test("social inbox: list, filters, thread, comments, reply states, empty, errors, settings and phone", async ({ page, browser }) => {
   test.setTimeout(900_000);
@@ -49,11 +49,7 @@ test("social inbox: list, filters, thread, comments, reply states, empty, errors
   const api = `/api/workspaces/${tenant}/social`, base = `/workspaces/${tenant}/social/inbox`;
   const admin = new Client({ connectionString: await readFile(`${process.env.HARVEST_E2E_MAILBOX}.admin`, "utf8") });
   await admin.connect();
-  release = async () => {
-    const cleanup = new Client({ connectionString: await readFile(`${process.env.HARVEST_E2E_MAILBOX}.admin`, "utf8") });
-    await cleanup.connect();
-    try { await cleanup.query("update social_connections set status='revoked' where tenant_id=$1 and status <> 'revoked'", [tenant]); } finally { await cleanup.end(); }
-  };
+  releaseAfter(tenant);
   const rows = page.getByTestId("row"), row = (text: string) => rows.filter({ hasText: text });
   const listReady = async () => { await expect(page.getByTestId("list")).toBeVisible(); await expect(rows.first()).toBeVisible(); };
 
@@ -237,56 +233,79 @@ test("social inbox: list, filters, thread, comments, reply states, empty, errors
   await audit(page, "settings", settingsReady);
 
   // ---- Contextual sidebar: the folders and accounts panel is the whole sidebar, with a back arrow on top -------------------------------------------
-  await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto(`/workspaces/${tenant}/social/planner`);
-  await expect(page.getByRole("tablist", { name: "Menu mode" })).toBeVisible();
-  await expect(page.locator('[data-slot="skeleton"], [aria-busy="true"]')).toHaveCount(0);
-  await page.screenshot({ path: `${shots}/sidebar-before-planner-1280-light.png`, animations: "disabled" });
-  await page.getByRole("link", { name: "Inbox", exact: true }).click();
-  const inboxSide = page.getByRole("group", { name: "Inbox sidebar" });
-  await expect(inboxSide).toBeVisible(); await listReady();
-  await expect(page.getByRole("tablist", { name: "Menu mode" })).toHaveCount(0);
-  await expect(inboxSide.getByTestId("folder-all")).toBeVisible();
-  await expect(page.getByTestId("inbox").getByTestId("folder-all")).toHaveCount(0);
-  const back = inboxSide.getByRole("link", { name: "Back to Planner" });
-  await expect(back).toBeFocused();
-  expect((await back.boundingBox())!.height).toBeGreaterThanOrEqual(35);
-  // Account groups collapse and expand with disclosure semantics.
-  const toggle = inboxSide.getByTestId("toggle-instagram");
-  await expect(toggle).toHaveAttribute("aria-expanded", "true"); await expect(inboxSide.getByText("Test instagram")).toBeVisible();
-  await toggle.click(); await expect(toggle).toHaveAttribute("aria-expanded", "false"); await expect(inboxSide.getByText("Test instagram")).toBeHidden();
-  await toggle.click(); await expect(inboxSide.getByText("Test instagram")).toBeVisible();
-  // The conversation list collapses so the thread can take the full width; focus follows the toggle.
-  await row("Maria Santos").click();
-  const threadWidth = async () => (await page.getByTestId("thread-pane").boundingBox())!.width;
-  const wide = await threadWidth();
-  await page.getByTestId("list-collapse").click();
-  await expect(page.getByTestId("list-pane")).toBeHidden(); await expect(page.getByTestId("list-expand")).toBeFocused();
-  await expect(page.getByTestId("list-expand")).toHaveAttribute("aria-expanded", "false");
-  expect(await threadWidth()).toBeGreaterThan(wide + 200);
-  await page.screenshot({ path: `${shots}/list-collapsed-1280-light.png`, animations: "disabled" });
-  await page.getByTestId("list-expand").click();
-  await expect(page.getByTestId("list-pane")).toBeVisible(); await expect(page.getByTestId("list-collapse")).toBeFocused();
-  await page.screenshot({ path: `${shots}/sidebar-after-inbox-1280-light.png`, animations: "disabled" });
-  // Back returns to the normal Harvest sidebar and puts focus on a current entry.
-  await back.click();
-  await expect(page).toHaveURL(/\/social\/planner/);
-  await expect(inboxSide).toHaveCount(0);
-  await expect(page.getByRole("tablist", { name: "Menu mode" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Inbox", exact: true })).toBeVisible();
-  // Phone: the same panel is the drawer's content.
-  await page.setViewportSize({ width: 360, height: 800 });
+  if (off) {
+    // Flag off: the filters stay inline beside the list and there is no contextual sidebar.
+    await page.goto(base); await listReady();
+    await expect(page.getByRole("group", { name: "Inbox sidebar" })).toHaveCount(0);
+    await expect(page.getByRole("complementary", { name: "Filters" })).toBeVisible();
+    await expect(page.getByTestId("inbox").getByTestId("folder-all")).toBeVisible();
+  } else {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(`/workspaces/${tenant}/social/planner`);
+    await expect(page.getByRole("tablist", { name: "Menu mode" })).toBeVisible();
+    await expect(page.locator('[data-slot="skeleton"], [aria-busy="true"]')).toHaveCount(0);
+    await page.screenshot({ path: `${shots}/sidebar-before-planner-1280-light.png`, animations: "disabled" });
+    await page.getByRole("link", { name: "Inbox", exact: true }).click();
+    const inboxSide = page.getByRole("group", { name: "Inbox sidebar" });
+    await expect(inboxSide).toBeVisible(); await listReady();
+    await expect(page.getByRole("tablist", { name: "Menu mode" })).toHaveCount(0);
+    await expect(inboxSide.getByTestId("folder-all")).toBeVisible();
+    await expect(page.getByTestId("inbox").getByTestId("folder-all")).toHaveCount(0);
+    const back = inboxSide.getByRole("link", { name: "Back to Planner" });
+    await expect(back).toBeFocused();
+    expect((await back.boundingBox())!.height).toBeGreaterThanOrEqual(35);
+    // Account groups collapse and expand with disclosure semantics.
+    const toggle = inboxSide.getByTestId("toggle-instagram");
+    await expect(toggle).toHaveAttribute("aria-expanded", "true"); await expect(inboxSide.getByText("Test instagram")).toBeVisible();
+    await toggle.click(); await expect(toggle).toHaveAttribute("aria-expanded", "false"); await expect(inboxSide.getByText("Test instagram")).toBeHidden();
+    await toggle.click(); await expect(inboxSide.getByText("Test instagram")).toBeVisible();
+    // The conversation list collapses so the thread can take the full width; focus follows the toggle.
+    await row("Maria Santos").click();
+    const threadWidth = async () => (await page.getByTestId("thread-pane").boundingBox())!.width;
+    const wide = await threadWidth();
+    await page.getByTestId("list-collapse").click();
+    await expect(page.getByTestId("list-pane")).toBeHidden(); await expect(page.getByTestId("list-expand")).toBeFocused();
+    await expect(page.getByTestId("list-expand")).toHaveAttribute("aria-expanded", "false");
+    expect(await threadWidth()).toBeGreaterThan(wide + 200);
+    await page.screenshot({ path: `${shots}/list-collapsed-1280-light.png`, animations: "disabled" });
+    await page.getByTestId("list-expand").click();
+    await expect(page.getByTestId("list-pane")).toBeVisible(); await expect(page.getByTestId("list-collapse")).toBeFocused();
+    await expect(page.getByTestId("messages")).toBeVisible();
+    await expect(page.locator('[data-slot="skeleton"], [aria-busy="true"]')).toHaveCount(0);
+    await page.screenshot({ path: `${shots}/sidebar-after-inbox-1280-light.png`, animations: "disabled" });
+    // Back returns to the normal Harvest sidebar and puts focus on a current entry.
+    await back.click();
+    await expect(page).toHaveURL(/\/social\/planner/);
+    await expect(inboxSide).toHaveCount(0);
+    await expect(page.getByRole("tablist", { name: "Menu mode" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Inbox", exact: true })).toBeVisible();
+    await expect(page.getByRole("navigation", { name: /^Ministry navigation/ }).getByRole("link", { name: "Planner", exact: true })).toBeFocused();
+    // Phone: the same panel is the drawer's content.
+    await page.setViewportSize({ width: 360, height: 800 });
+    await page.goto(base); await listReady();
+    await page.screenshot({ path: `${shots}/sidebar-after-inbox-360-light.png`, animations: "disabled" });
+    await page.getByRole("button", { name: "Filters" }).click();
+    const drawer = page.getByRole("dialog", { name: "Sidebar" });
+    await expect(drawer.getByRole("group", { name: "Inbox sidebar" })).toBeVisible();
+    await expect(drawer.getByRole("link", { name: "Back to Planner" })).toBeVisible();
+    // 44px targets below 1024px: the back arrow and the account group toggles in the drawer.
+    for (const target of [drawer.getByRole("link", { name: "Back to Planner" }), drawer.getByTestId("toggle-instagram"), drawer.getByTestId("folder-unread")]) {
+      expect((await target.boundingBox())!.height, "drawer target").toBeGreaterThanOrEqual(43.5);
+    }
+    await page.screenshot({ path: `${shots}/sidebar-drawer-360-light.png`, animations: "disabled" });
+    await drawer.getByTestId("folder-unread").click();
+    await expect(drawer).toBeHidden();
+    await page.getByRole("button", { name: "Filters" }).click();
+    await page.keyboard.press("Escape"); await expect(drawer).toBeHidden();
+    await page.setViewportSize({ width: 1280, height: 900 });
+  }
+
+  // Tablet: the list collapse and expand toggles are 44px below 1024px.
+  await page.setViewportSize({ width: 768, height: 900 });
   await page.goto(base); await listReady();
-  await page.screenshot({ path: `${shots}/sidebar-after-inbox-360-light.png`, animations: "disabled" });
-  await page.getByRole("button", { name: "Filters" }).click();
-  const drawer = page.getByRole("dialog", { name: "Sidebar" });
-  await expect(drawer.getByRole("group", { name: "Inbox sidebar" })).toBeVisible();
-  await expect(drawer.getByRole("link", { name: "Back to Planner" })).toBeVisible();
-  await page.screenshot({ path: `${shots}/sidebar-drawer-360-light.png`, animations: "disabled" });
-  await drawer.getByTestId("folder-unread").click();
-  await expect(drawer).toBeHidden();
-  await page.getByRole("button", { name: "Filters" }).click();
-  await page.keyboard.press("Escape"); await expect(drawer).toBeHidden();
+  expect((await page.getByTestId("list-collapse").boundingBox())!.height, "list collapse").toBeGreaterThanOrEqual(43.5);
+  await page.getByTestId("list-collapse").click();
+  expect((await page.getByTestId("list-expand").boundingBox())!.height, "list expand").toBeGreaterThanOrEqual(43.5);
   await page.setViewportSize({ width: 1280, height: 900 });
 
   // ---- Phone: list, then thread with a back button ----------------------------------------------------------------------------
