@@ -41,6 +41,8 @@ A follow-up migration would be 0076+ (check `drizzle/meta/_journal.json`, 0075 i
 - Screenshots: `docs/screenshots/crm-forms-builder/` (list-empty, list, new-destination, build, settings, preview; phone/tablet/desktop; light/dark).
 - The e2e saw and fixed three real defects: the template was lost on reload (now in the URL), the add-question search kept its text after a pick, and unsaved edits inside the debounce window were not guarded on leave.
 
+- Full runs on this head: lint, source guards and typecheck clean; unit 1400 passed; integration 117 files, 989 tests passed (local PostgreSQL); Playwright: the builder spec, `kit-pr2-shell` and `layout` (6 tests) passed. The Neon check does not apply (no migration).
+
 ## Known limits
 
 - Colour swatches use theme tokens, so the form follows the active theme; a "chart" button colour can have lower contrast in a custom theme (the default button and the checked screens pass axe).
