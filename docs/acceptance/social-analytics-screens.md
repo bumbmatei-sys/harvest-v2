@@ -40,4 +40,17 @@ The platform table, posts list, heatmap, range picker, banners, drawer, data hoo
 
 ## Verified and not verified
 
-Filled in after the final run; see the pull request description for the exact counts.
+Verified locally (synthetic data, local PostgreSQL 16, Chromium, fake provider):
+
+- `npx tsc --noEmit` and `npm run lint` (ESLint plus source guards) clean. Unit project: 105 files, 1,364 tests passed (adds `tests/unit/social-analytics-view.test.ts` for the pure helpers and the navigation entry, and updates `navigation.test.ts` and the provenance record).
+- One Playwright spec, `tests/e2e/social-analytics-screens.spec.ts` (1 test, passed): the route and the neutral 404 for a signed-in stranger; skeletons then data; reduced motion (`data-entrance="off"`, zero running animations, no `.animate-in` element, final numbers at once); unavailable shown as "Unavailable" for a Reddit-only scope; metric, top/bottom, heatmap source and range interactions; the 366-day rule; 44px targets at 390; expired and delayed banners; empty state; error then retry; the no-preference run (entrance `playing` then `done`, a filter change replays nothing); and no request other than GET during the visit. axe (WCAG 2 A/AA, 2.1 AA) and a no-horizontal-scroll check pass in light and dark at 1280 and 360 for: overview, heatmap, top posts, range filter open, post drawer, unavailable metrics, partial, empty. Each audit waits for the ready flag, the settled entrance and no skeleton or `aria-busy`.
+- Screenshots (device scale 2, light and dark, 1280 and 360) were opened and read; none is blank or a skeleton.
+
+Not verified or not built:
+
+- First-load JS of the route before and after: not measured (no `next build` was run; disk and shared CPU). The route is the only importer of `recharts`; `motion` is lazy and used only by the count-up.
+- No hosted Neon run, no real provider data or scopes, no production behaviour. The screen only works through the non-production gate.
+- No rank-by selector, no CSV export, no comparison of platforms in one chart, no per-account series chart, no URL-persisted filters, no unit tests for the React components themselves (covered by the browser spec).
+- Timezone is the browser's; there is no selector for another zone.
+- Entrance timing was checked by state, not by frame capture; counts at 360 for the sparkline tooltips are hover-only.
+- Nothing here is approved by the founder or an independent reviewer.
