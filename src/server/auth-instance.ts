@@ -7,11 +7,13 @@ import { makeAuth } from "./auth";
 
 const parseList = (value?: string) => value?.split(",").map((item) => item.trim()).filter(Boolean);
 type Auth = ReturnType<typeof makeAuth>;
-type WorkerRequestEnvironment = Omit<Extract<DatabaseEnvironment, { runtime: "workers" }>, "runtime" | "role"> & {
+export type WorkerRequestEnvironment = Omit<Extract<DatabaseEnvironment, { runtime: "workers" }>, "runtime" | "role"> & {
   BETTER_AUTH_SECRET: string;
   BETTER_AUTH_URL: string;
   AUTH_IP_ADDRESS_HEADERS?: string;
   AUTH_TRUSTED_PROXIES?: string;
+  cookiePrefix?: string;
+  mail?: Parameters<typeof makeAuth>[1]["mail"];
 };
 const requestAuth = new AsyncLocalStorage<{ get: () => Auth }>();
 let nodeAuth: Auth | undefined;
@@ -24,6 +26,7 @@ export function withWorkerRequest<T>(env: WorkerRequestEnvironment, request: Req
     return requestAuth.run({
       get: () => auth ??= makeAuth(db, {
         secret: env.BETTER_AUTH_SECRET, baseURL: env.BETTER_AUTH_URL,
+        cookiePrefix: env.cookiePrefix, mail: env.mail,
         ipAddressHeaders: parseList(env.AUTH_IP_ADDRESS_HEADERS), trustedProxies: parseList(env.AUTH_TRUSTED_PROXIES),
       }),
     }, run);
