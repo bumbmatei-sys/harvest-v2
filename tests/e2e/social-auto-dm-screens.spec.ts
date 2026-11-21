@@ -4,6 +4,7 @@ import { expect as base, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { Client } from "pg";
 import { origin, signIn } from "./helpers/session";
+import { releaseSocialConnectionsAfterEach } from "./helpers/social-accounts";
 import { settleForAxe } from "./helpers/settle";
 
 // Auto-DM screens against the real Auto-DM routes with the non-production fake provider: rules list, editor, enable review, test mode, activity,
@@ -55,6 +56,9 @@ async function overlayShots(page: Page, name: string, restore: () => Promise<voi
   await page.setViewportSize({ width: 1280, height: 900 }); await page.reload();
 }
 
+// Releases this spec's fake accounts when it ends (see helpers/social-accounts.ts).
+const releaseAfter = releaseSocialConnectionsAfterEach();
+
 test("social auto-dm: empty states, rules, editor, review, test mode, activity, templates, hours and the composer row", async ({ page }) => {
   test.setTimeout(900_000);
   await mkdir(shots, { recursive: true });
@@ -62,6 +66,7 @@ test("social auto-dm: empty states, rules, editor, review, test mode, activity, 
   page.on("pageerror", (error) => errors.push(error.message));
   const email = await signIn(page);
   const tenant = (await (await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Grace Community Church", audience: "church" } })).json()).tenantId as string;
+  releaseAfter(tenant);
   const api = `/api/workspaces/${tenant}/social`, base = `/workspaces/${tenant}/social/auto-dm`;
   const admin = new Client({ connectionString: await readFile(`${process.env.HARVEST_E2E_MAILBOX}.admin`, "utf8") });
   await admin.connect();
