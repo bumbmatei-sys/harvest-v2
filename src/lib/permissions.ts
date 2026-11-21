@@ -5,7 +5,7 @@ export type Permission = "workspace:read" | "members:write" | "roles:write" | "c
   // CRM-06: imports and exports run for writers; merging and the sensitive export columns are owner/admin.
   | "campaigns:read" | "campaigns:write" | "crm:import" | "crm:export" | "crm:export_sensitive" | "contacts:merge"
   // CRM-08: outbound webhook endpoints are owner/admin configuration.
-  | "webhooks:manage"
+  | "webhooks:manage" | "crm:read_diagnostics"
   // HC-02: restricted pending Connect responses (metadata, withdrawal, erasure, retention) are owner/admin.
   | "connect:privacy"
   // HC-03: publishing, disabling, rotating and archiving a public QR/short-URL link is owner/admin,
