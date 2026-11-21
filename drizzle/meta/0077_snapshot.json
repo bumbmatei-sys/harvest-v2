@@ -1,6 +1,6 @@
 {
-  "id": "9fa0c7fd-db06-4643-b4bc-3d55d3d93a15",
-  "prevId": "2212d0b0-4df8-404a-9521-a24752cdbf04",
+  "id": "79b3d523-12bf-4209-bd82-4a0db7624064",
+  "prevId": "85082c13-0692-4e8b-bb64-7305fc17ec3c",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -438,7 +438,7 @@
       "checkConstraints": {
         "audit_system_actor": {
           "name": "audit_system_actor",
-          "value": "\"audit_logs\".\"actor_id\" is not null or \"audit_logs\".\"action\" in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated', 'community.profile_save', 'community.profile_withdraw', 'community.profile_erase')"
+          "value": "\"audit_logs\".\"actor_id\" is not null or \"audit_logs\".\"action\" in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated', 'community.profile_save', 'community.profile_withdraw', 'community.profile_erase', 'crm.form.submit')"
         }
       },
       "isRLSEnabled": false
@@ -10258,6 +10258,19 @@
           "notNull": true,
           "default": "''"
         },
+        "form_owner_id": {
+          "name": "form_owner_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "form_labels": {
+          "name": "form_labels",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "ARRAY[]::text[]"
+        },
         "normalized_name": {
           "name": "normalized_name",
           "type": "text",
@@ -10379,6 +10392,19 @@
             "tenant_id"
           ],
           "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "contacts_form_owner_id_users_id_fk": {
+          "name": "contacts_form_owner_id_users_id_fk",
+          "tableFrom": "contacts",
+          "tableTo": "users",
+          "columnsFrom": [
+            "form_owner_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -11284,6 +11310,638 @@
         "crm_value_text_length": {
           "name": "crm_value_text_length",
           "value": "\"crm_field_values\".\"value_text\" is null or length(\"crm_field_values\".\"value_text\") between 1 and 500"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.crm_form_addresses": {
+      "name": "crm_form_addresses",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "form_id": {
+          "name": "form_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version_id": {
+          "name": "version_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "retired_at": {
+          "name": "retired_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "crm_form_address_slug_idx": {
+          "name": "crm_form_address_slug_idx",
+          "columns": [
+            {
+              "expression": "slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "crm_form_address_form_fk": {
+          "name": "crm_form_address_form_fk",
+          "tableFrom": "crm_form_addresses",
+          "tableTo": "forms",
+          "columnsFrom": [
+            "tenant_id",
+            "form_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "crm_form_address_version_fk": {
+          "name": "crm_form_address_version_fk",
+          "tableFrom": "crm_form_addresses",
+          "tableTo": "crm_form_publications",
+          "columnsFrom": [
+            "tenant_id",
+            "form_id",
+            "version_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "form_id",
+            "version_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "crm_form_addresses_tenant_id_form_id_pk": {
+          "name": "crm_form_addresses_tenant_id_form_id_pk",
+          "columns": [
+            "tenant_id",
+            "form_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "crm_form_address_slug": {
+          "name": "crm_form_address_slug",
+          "value": "public.valid_crm_form_slug(\"crm_form_addresses\".\"slug\")"
+        },
+        "crm_form_address_state": {
+          "name": "crm_form_address_state",
+          "value": "(\"crm_form_addresses\".\"version_id\" is null) = (\"crm_form_addresses\".\"retired_at\" is not null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.crm_form_publications": {
+      "name": "crm_form_publications",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "form_id": {
+          "name": "form_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version_id": {
+          "name": "version_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "notice_version_id": {
+          "name": "notice_version_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "published_by": {
+          "name": "published_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "definition": {
+          "name": "definition",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "published_at": {
+          "name": "published_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "crm_form_publications_published_by_users_id_fk": {
+          "name": "crm_form_publications_published_by_users_id_fk",
+          "tableFrom": "crm_form_publications",
+          "tableTo": "users",
+          "columnsFrom": [
+            "published_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "crm_form_publication_form_fk": {
+          "name": "crm_form_publication_form_fk",
+          "tableFrom": "crm_form_publications",
+          "tableTo": "forms",
+          "columnsFrom": [
+            "tenant_id",
+            "form_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "crm_form_publication_version_fk": {
+          "name": "crm_form_publication_version_fk",
+          "tableFrom": "crm_form_publications",
+          "tableTo": "form_versions",
+          "columnsFrom": [
+            "tenant_id",
+            "version_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "crm_form_publication_notice_fk": {
+          "name": "crm_form_publication_notice_fk",
+          "tableFrom": "crm_form_publications",
+          "tableTo": "privacy_notice_versions",
+          "columnsFrom": [
+            "tenant_id",
+            "notice_version_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "crm_form_publications_tenant_id_form_id_version_id_pk": {
+          "name": "crm_form_publications_tenant_id_form_id_version_id_pk",
+          "columns": [
+            "tenant_id",
+            "form_id",
+            "version_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "crm_form_publication_definition": {
+          "name": "crm_form_publication_definition",
+          "value": "jsonb_typeof(\"crm_form_publications\".\"definition\") = 'object' and \"crm_form_publications\".\"definition\"->>'kind' = 'crm-form-v1' and octet_length(\"crm_form_publications\".\"definition\"::text) <= 65536"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.crm_form_quotas": {
+      "name": "crm_form_quotas",
+      "schema": "",
+      "columns": {
+        "scope": {
+          "name": "scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "minute": {
+          "name": "minute",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "crm_form_quota_expiry_idx": {
+          "name": "crm_form_quota_expiry_idx",
+          "columns": [
+            {
+              "expression": "minute",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "crm_form_quotas_scope_minute_pk": {
+          "name": "crm_form_quotas_scope_minute_pk",
+          "columns": [
+            "scope",
+            "minute"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.crm_form_receipts": {
+      "name": "crm_form_receipts",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "crm_form_receipt_expiry_idx": {
+          "name": "crm_form_receipt_expiry_idx",
+          "columns": [
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.crm_form_responses": {
+      "name": "crm_form_responses",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "form_id": {
+          "name": "form_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version_id": {
+          "name": "version_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contact_id": {
+          "name": "contact_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "company_id": {
+          "name": "company_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "campaign_id": {
+          "name": "campaign_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "qr_link_id": {
+          "name": "qr_link_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "owner_id": {
+          "name": "owner_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "labels": {
+          "name": "labels",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "answers": {
+          "name": "answers",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "consent_block_id": {
+          "name": "consent_block_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "request_hash": {
+          "name": "request_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_contact": {
+          "name": "created_contact",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "submitted_at": {
+          "name": "submitted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "crm_form_responses_listing_idx": {
+          "name": "crm_form_responses_listing_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "form_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "submitted_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "crm_form_responses_contact_idx": {
+          "name": "crm_form_responses_contact_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "contact_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "crm_form_responses_expiry_idx": {
+          "name": "crm_form_responses_expiry_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "expires_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "crm_form_responses_owner_id_users_id_fk": {
+          "name": "crm_form_responses_owner_id_users_id_fk",
+          "tableFrom": "crm_form_responses",
+          "tableTo": "users",
+          "columnsFrom": [
+            "owner_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "crm_form_response_publication_fk": {
+          "name": "crm_form_response_publication_fk",
+          "tableFrom": "crm_form_responses",
+          "tableTo": "crm_form_publications",
+          "columnsFrom": [
+            "tenant_id",
+            "form_id",
+            "version_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "form_id",
+            "version_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "crm_form_response_contact_fk": {
+          "name": "crm_form_response_contact_fk",
+          "tableFrom": "crm_form_responses",
+          "tableTo": "contacts",
+          "columnsFrom": [
+            "tenant_id",
+            "contact_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "crm_form_response_company_fk": {
+          "name": "crm_form_response_company_fk",
+          "tableFrom": "crm_form_responses",
+          "tableTo": "companies",
+          "columnsFrom": [
+            "tenant_id",
+            "company_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "crm_form_response_campaign_fk": {
+          "name": "crm_form_response_campaign_fk",
+          "tableFrom": "crm_form_responses",
+          "tableTo": "campaigns",
+          "columnsFrom": [
+            "tenant_id",
+            "campaign_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "crm_form_response_qr_fk": {
+          "name": "crm_form_response_qr_fk",
+          "tableFrom": "crm_form_responses",
+          "tableTo": "campaign_response_links",
+          "columnsFrom": [
+            "tenant_id",
+            "qr_link_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "crm_form_responses_tenant_id_id_pk": {
+          "name": "crm_form_responses_tenant_id_id_pk",
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "crm_form_response_answers": {
+          "name": "crm_form_response_answers",
+          "value": "jsonb_typeof(\"crm_form_responses\".\"answers\") = 'object' and octet_length(\"crm_form_responses\".\"answers\"::text) <= 65536 and (\"crm_form_responses\".\"answers\"->>\"crm_form_responses\".\"consent_block_id\" = 'yes') is true"
+        },
+        "crm_form_response_request_hash": {
+          "name": "crm_form_response_request_hash",
+          "value": "\"crm_form_responses\".\"request_hash\" ~ '^[a-f0-9]{64}$'"
+        },
+        "crm_form_response_expiry": {
+          "name": "crm_form_response_expiry",
+          "value": "\"crm_form_responses\".\"expires_at\" > \"crm_form_responses\".\"submitted_at\""
         }
       },
       "isRLSEnabled": false
