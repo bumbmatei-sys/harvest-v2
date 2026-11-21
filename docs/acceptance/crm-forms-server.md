@@ -27,7 +27,7 @@ Hosted forms do not yet write HC-06 `contact_sources` rows. Shared CRM source fi
 
 ## What remains unverified
 
-The draft builder in PR #189 still renders a fixed badge count. The form-detail API returns the actual count for that existing screen to consume after #189 lands. This server PR adds no screens. Production migrations, load testing, live collection, reviewed notice text and operational retention scheduling are outside the local verification.
+The builder from PR #189 renders a fixed badge count. Wiring that badge to the form-detail API remains a screen follow-up. Production migrations, load testing, live collection, reviewed notice text and operational retention scheduling are outside the local verification.
 
 ## Founder decisions
 

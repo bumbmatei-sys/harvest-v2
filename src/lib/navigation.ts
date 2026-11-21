@@ -1,4 +1,4 @@
-import { BadgeDollarSign, BookOpen, Bot, Briefcase, Building, Calendar, CalendarCheck, CalendarClock, CalendarDays, ClipboardCheck, ClipboardList, ClipboardPen, Compass, Contact, ContactRound, FileText, FileUp, Files, Flag, Gift, Globe, GraduationCap, Handshake, HandCoins, HeartHandshake, Kanban, LayoutDashboard, LayoutTemplate, Link2, ListChecks, Mail, MailOpen, MailPlus, MessageCircleReply, MessageSquareText, MessagesSquare, Newspaper, Package, Palette, PiggyBank, Podcast, QrCode, Radio, ScanQrCode, Settings, Share2, Sheet, SlidersHorizontal, Sparkles, Target, TicketPercent, UserCheck, UserCog, UserRoundCheck, Users, UsersRound, Wallet, Church, Landmark, ChartLine, ChartNoAxesCombined, Workflow, type LucideIcon } from "lucide-react";
+import { BadgeDollarSign, BookOpen, Bot, Briefcase, Building, Calendar, CalendarCheck, CalendarClock, CalendarDays, ClipboardCheck, ClipboardList, ClipboardPen, Compass, Contact, ContactRound, FileText, FileUp, Files, Flag, Gift, Globe, GraduationCap, Handshake, HandCoins, HeartHandshake, Kanban, LayoutDashboard, LayoutTemplate, Link2, ListChecks, Mail, MailOpen, MailPlus, MessageCircleReply, MessageSquareText, MessagesSquare, Newspaper, Package, Palette, PiggyBank, Podcast, QrCode, Radio, ScanQrCode, Settings, Share2, Sheet, SlidersHorizontal, Sparkles, Target, TicketPercent, UserCheck, UserCog, UserRoundCheck, Users, UsersRound, Wallet, Church, Landmark, ChartLine, ChartNoAxesCombined, Workflow, TextCursorInput, type LucideIcon } from "lucide-react";
 import type { Audience } from "./audience";
 import { can, type Permission } from "./permissions";
 
@@ -77,6 +77,8 @@ export const navEntries: readonly NavEntry[] = [
   { id: "tasks", group: "crm", mode: "operations", label: "tasks", icon: ListChecks, path: "/crm/tasks", match: has("/crm/tasks") },
   // CRM-06: imports run for owners, admins and members; viewers never see a dead link.
   { id: "imports", group: "crm", mode: "operations", label: "imports", icon: FileUp, path: "/crm/imports", match: has("/crm/imports"), permission: "crm:import" },
+  // CRM forms builder: owners and admins build forms that save people to the CRM.
+  { id: "crmForms", group: "crm", mode: "operations", label: "forms", icon: TextCursorInput, path: "/crm/forms", match: has("/crm/forms"), permission: "crm:forms_manage" },
   // Operations > Connect. Reserved entries (status planned) are never rendered or linked; their module's PR flips the status.
   { id: "connectLinks", group: "connect", mode: "operations", status: "planned", label: "qrAndLinks", icon: ScanQrCode, path: "/connect/links", match: under("/connect/links") },
   { id: "responses", group: "connect", mode: "operations", status: "planned", label: "responses", icon: ClipboardList, path: "/connect/responses", match: under("/connect/responses") },

@@ -8,6 +8,7 @@ import { z } from "zod";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
 
+// CRM builder drafts use the crm-form-v1 definition. Published versions are kept immutable.
 const text: FormText = (key, values) => message(`CrmForms.${key}` as Parameters<typeof message>[0], values);
 const gone = () => new AccessError(404, message("CrmForms.errors.notFound"));
 const stale = () => new AccessError(409, message("CrmForms.errors.stale"), { reason: "stale" });

@@ -323,3 +323,20 @@ Premium kit repository `bumbmatei-sys/admin-dashboard` (commit `1631106`, no sec
 | `src/components/social/analytics/series-card.tsx` | **derived** | `sales/components/revenue-chart.tsx` | 10 of 61 (16%) | Titled card with the measure switch; area chart with gaps. Mostly shared imports. |
 
 Everything else on the screen (platform table, ranked posts, heatmap, range picker, banners, post drawer, data hook, entrance hook) is written for Harvest on shared components and has no kit source. New dependencies: `recharts` 3.10.1 and `motion` 13.1.1, both approved (16 Nov and 20 Nov). Chart colours are the existing `--chart-1..5` tokens.
+
+## CRM forms builder (21 Nov 2026)
+
+Layout follows a reference form builder shown to the founder in screenshots (forms list with a template row, new-form template grid and "where do submissions go" picker, Build / Settings / Preview tabs, the add-question menu with submenus, a Start page and End page rail, the Settings sidebar). **No code, text, icon, colour or brand from that product is used**: the structure was rebuilt from Harvest's shared shadcn components and Studio Admin tokens, "Create task in list" became "Save to CRM", and the hosting-vendor branding toggle was left out.
+
+Kit rule, founder 21 Nov 2026: "Use anything that is pro in the kit. If nothing is suitable then use free." Searched: the 22 premium `form-layout` blocks, `checkout`, `customer-reviews` and `review-card` (Shadcn UI Kit registry, retrieved 2026-11-21, fetched from `https://shadcnuikit.com/r/<name>.json`), and the founder's premium repositories `bumbmatei-sys/admin-dashboard` (1631106) and `bumbmatei-sys/chat-app` (66fd523), which contain no form builder, rating, signature or dropzone. Percentages are the share of the Harvest file's non-blank lines unchanged from the kit file, measured with `scripts/ui-identical.sh` (commands in `docs/acceptance/crm-forms-builder.md`).
+
+| Block | Harvest file | Source used | Form | Identical lines |
+| --- | --- | --- | --- | --- |
+| Choice list (radio cards) | `src/components/forms/kit-radio-cards.tsx` | `form-layout20` (premium) | **derived** | 15 of 30 (50%) |
+| Multiple choice (checkbox cards) | `src/components/forms/kit-checkbox-cards.tsx` | `form-layout20` (premium) | **derived** | 15 of 30 (50%) |
+| Files (inert drop zone) | `src/components/forms/kit-drop-zone.tsx` | `form-layout15` (premium) | **derived** | 10 of 18 (55%) |
+| Rating | `form-fields.tsx` | none (Harvest-written) | - | The premium review items only display stars; none is an input and no free item is either. |
+| Signature | `form-fields.tsx` | none (Harvest-written) | - | No kit item is a signature pad. |
+| Text, number, date, dropdown, checkbox, Yes/No | `form-fields.tsx` | shadcn primitives | - | Plain primitives; the premium form blocks are whole-page react-hook-form screens, not reusable fields. |
+
+The free items first tried (`radio-group8`, `checkbox9`, `file-upload1`) were replaced by the premium ones above. Everything else (the field renderer, one-per-page form, builder canvas, add-question menu, settings sidebar, forms list and new-form flow) is written for Harvest on shared components (DataTable, EmptyState, Collapsible, Popover, DropdownMenu, Tabs, `useContextualSidebar`, `useUnsavedChangesGuard`). New dependencies, approved by the founder on 21 Nov 2026: `@dnd-kit/sortable` 10.0.0, `@dnd-kit/utilities` 3.2.2 and `@dnd-kit/modifiers` 9.0.0 (all MIT, `@dnd-kit/core` 6.3.1 was already installed).
