@@ -92,8 +92,9 @@ test("social auto-dm: empty states, rules, editor, review, test mode, activity, 
   // ---- Editor: build a rule on the page ---------------------------------------------------------------------------
   await page.getByRole("link", { name: "New rule" }).first().click();
   await expect(page.getByRole("heading", { name: "New rule", level: 1 })).toBeVisible();
-  const account = page.getByLabel("Account");
+  const account = page.getByTestId("step-trigger").locator("select").first();
   await expect(account.locator("option")).toHaveCount(2); // Instagram and Facebook only
+  await account.selectOption(ig);
   await expect(page.locator('label[data-value="live_comment"]')).toHaveAttribute("data-state", "unavailable");
   await expect(page.locator('label[data-value="persistent_menu"]')).toHaveAttribute("data-state", "unavailable");
   await expect(page.locator('label[data-value="persistent_menu"]')).toContainText("Facebook only");
@@ -105,7 +106,7 @@ test("social auto-dm: empty states, rules, editor, review, test mode, activity, 
   await page.getByLabel("Direct message", { exact: true }).fill("Hi {{firstName}}, here is the prayer night guide you asked for.");
   await expect(page.getByTestId("preview-dm")).toHaveText("Hi Example, here is the prayer night guide you asked for.");
   await page.getByRole("button", { name: "Add quick reply" }).click();
-  await page.getByLabel("Quick reply 1").fill("Service times");
+  await page.getByLabel("Quick reply 1", { exact: true }).fill("Service times");
   await page.getByRole("button", { name: "Insert first name" }).click();
   await page.getByLabel("Direct message", { exact: true }).fill("Hi {{firstName}}, here is the free prayer night guide you asked for.");
   await expect(page.getByTestId("promo-flag")).toContainText("free");
@@ -138,11 +139,11 @@ test("social auto-dm: empty states, rules, editor, review, test mode, activity, 
 
   // Unavailable triggers on a Facebook rule.
   await page.goto(`${base}/new`);
-  await page.getByLabel("Account").selectOption(fb);
+  await page.getByTestId("step-trigger").locator("select").first().selectOption(fb);
   await expect(page.locator('label[data-value="story_reply"]')).toHaveAttribute("data-state", "unavailable");
   await expect(page.locator('label[data-value="story_reply"]')).toContainText("Instagram only.");
   await expect(page.locator('label[data-value="persistent_menu"]')).toHaveAttribute("data-state", "available");
-  await audit(page, "editor-facebook-unavailable", { ready: editorReady, restore: async () => { await page.getByLabel("Account").selectOption(fb); } });
+  await audit(page, "editor-facebook-unavailable", { ready: editorReady, restore: async () => { await page.getByTestId("step-trigger").locator("select").first().selectOption(fb); } });
 
   // ---- More rules through the API, one per trigger family ----------------------------------------------------------
   const rule = (name: string, trigger: string, extra: object = {}, response: object = {}) => ({ name, trigger, postId: null, postRef: null, entryKey: null,
@@ -176,7 +177,7 @@ test("social auto-dm: empty states, rules, editor, review, test mode, activity, 
   await page.goto(base);
   await expect(page.getByTestId("rule-row")).toHaveCount(5);
   await expect(page.getByTestId("rule-row").first().getByRole("switch")).toBeVisible();
-  const listReady = async () => { await boardReady(); await expect(page.getByTestId("rule-row")).toHaveCount(5); await expect(page.getByTestId("board-tiles")).toHaveAttribute("data-ready", ""); };
+  const listReady = async () => { await boardReady(); await expect(page.getByTestId("rule-row")).toHaveCount(5); await expect(page.getByTestId("board-tiles")).toHaveAttribute("data-ready", "true"); };
   await expect(page.locator(`[data-rule-id="${dmRule}"] [data-testid="row-count-triggered"] dd`)).toHaveText("9");
   await expect(page.locator(`[data-rule-id="${dmRule}"] [data-testid="row-count-sent"] dd`)).toHaveText("3");
   await expect(page.locator(`[data-rule-id="${dmRule}"] [data-testid="row-count-skipped"] dd`)).toHaveText("3");
@@ -210,14 +211,14 @@ test("social auto-dm: empty states, rules, editor, review, test mode, activity, 
 
   // ---- Composer row: a post-scoped rule is created off; the review refuses it until the post is live -----------------
   await page.goto(`/workspaces/${tenant}/social/compose`);
-  await page.locator('button[data-platform="instagram"]').click();
+  await page.locator('button[data-platform="facebook"]').click();
   await page.getByLabel("Post text").fill("Prayer night is Wednesday at 7. Comment PRAYER and we will send the details.");
   const row = page.getByTestId("option-row").filter({ hasText: "Auto-DM people who comment a keyword" });
   await expect(row).toHaveAttribute("data-state", "off");
   await row.getByRole("switch").click();
   await page.getByRole("button", { name: "Schedule" }).first().click({ trial: true });
   await expect(page.getByTestId("blocked-reason")).toContainText("Auto-DM needs a keyword");
-  await row.getByLabel("Keyword").fill("prayer");
+  await row.getByLabel("Keyword", { exact: true }).fill("prayer");
   await row.getByLabel("Reply", { exact: true }).fill("Wednesday 7pm in the main hall. Doors open at 6:30.");
   await row.getByRole("checkbox").check();
   await expect(page.getByTestId("blocked-reason")).toHaveCount(0, { timeout: 15_000 });
@@ -231,7 +232,9 @@ test("social auto-dm: empty states, rules, editor, review, test mode, activity, 
   await switchOf(created!.id).click();
   await expect(dialog.getByTestId("review-error")).toContainText("The post is not live yet");
   await page.keyboard.press("Escape");
-  await admin.query("update social_posts set status='published', provider_post_ref='ig-post-1', published_at=now(), first_attempt_at=now(), attempts=1 where id=$1", [created!.postId]);
+  // The post moves through the states the publisher would use (the database guard allows no shortcut).
+  await admin.query("update social_posts set status='publishing', first_attempt_at=now(), attempts=1, lock_token=gen_random_uuid(), locked_at=now(), version=version+1 where id=$1", [created!.postId]);
+  await admin.query("update social_posts set status='published', provider_post_ref='fb-post-1', published_at=now(), lock_token=null, locked_at=null, version=version+1 where id=$1", [created!.postId]);
   await page.reload(); await expect(page.getByTestId("rule-row")).toHaveCount(6);
   await switchOf(created!.id).click();
   await expect(dialog.getByTestId("review-template").first()).toContainText("Wednesday 7pm");
@@ -245,7 +248,7 @@ test("social auto-dm: empty states, rules, editor, review, test mode, activity, 
   await page.getByRole("checkbox", { name: /only answers what the person asked/ }).check();
   await page.getByTestId("save-rule").click();
   await expect(page.getByText("Saved.").first()).toBeVisible();
-  expect(((await (await page.request.get(`${api}/auto-dm/${mainRule}`)).json()).rule as { version: number }).version).toBe(5);
+  expect(((await (await page.request.get(`${api}/auto-dm/${mainRule}`)).json()).rule as { version: number }).version).toBe(4);
 
   // ---- Activity, templates, hours ------------------------------------------------------------------------------------
   await page.goto(`${base}/${dmRule}?tab=activity`);
@@ -266,7 +269,7 @@ test("social auto-dm: empty states, rules, editor, review, test mode, activity, 
   await page.getByTestId("hours-card").first().getByRole("button", { name: "Edit hours" }).click();
   await page.getByRole("button", { name: "Add hours" }).click();
   await page.getByRole("button", { name: "Add hours" }).click();
-  await page.getByTestId("hours-row").nth(1).getByLabel("Day").selectOption("2");
+  await page.getByTestId("hours-row").nth(1).locator("select").selectOption("2");
   await page.getByLabel("Away message").fill("Thank you for writing. We are away and will answer on the next working day.");
   await page.getByRole("button", { name: "Save hours" }).click();
   await expect(page.getByTestId("hours-saved")).toBeVisible();

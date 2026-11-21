@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TabNav } from "@/components/social/auto-dm/tab-nav";
 import { EmptyState } from "@/components/empty-state";
 import { AutoDmHeader } from "@/components/social/auto-dm/auto-dm-header";
 import { EnableReview } from "@/components/social/auto-dm/enable-review";
@@ -54,11 +54,7 @@ export function AutoDmBoard({ tenantId }: { tenantId: string }) {
   }
   return frame(<>
     <HardOffNotice />
-    <Tabs value={tab} onValueChange={setTab}>
-      <TabsList className="h-auto max-w-full self-start overflow-x-auto" aria-label={t("tabs.label")}>
-        {tabs.map((name) => <TabsTrigger key={name} value={name} className="min-h-11 px-4 lg:min-h-8">{t(`tabs.${name}`)}{name === "rules" && <span className="ml-1.5 rounded-full bg-background/60 px-1.5 text-xs tabular-nums">{data.rules.length}</span>}</TabsTrigger>)}
-      </TabsList>
-    </Tabs>
+    <TabNav label={t("tabs.label")} value={tab} onChange={setTab} items={tabs.map((name) => ({ value: name, label: t(`tabs.${name}`), count: name === "rules" ? data.rules.length : undefined }))} />
     {tab === "rules" && <div className="space-y-4">
       <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5" data-testid="board-tiles" data-ready={loadedStats || undefined}>{tiles.map(([key, value]) => <div key={key} className="rounded-xl border bg-card p-3" data-testid={`tile-${key}`}>
         <dt className="text-xs text-muted-foreground">{t(`tiles.${key}`)}</dt><dd className="mt-1 text-2xl font-semibold tabular-nums">{key === "active" || loadedStats ? value : sym.pending}</dd></div>)}</dl>

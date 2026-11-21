@@ -7,7 +7,7 @@ import { useTranslations } from "next-intl";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TabNav } from "@/components/social/auto-dm/tab-nav";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
 import { AutoDmHeader } from "@/components/social/auto-dm/auto-dm-header";
@@ -35,8 +35,7 @@ export function RuleScreen({ tenantId, ruleId, you }: { tenantId: string; ruleId
     <AutoDmHeader title={existing ? existing.name : t("newRule")} subtitle={existing ? t("rule.subtitle", { version: existing.version }) : t("rule.newSubtitle")}>
       {existing && <StatusBadge tone={existing.enabled ? "success" : "neutral"} dot label={existing.enabled ? t("list.on") : t("list.off")} />}{back}</AutoDmHeader>
     <HardOffNotice />
-    {existing && <Tabs value={tab} onValueChange={setTab}><TabsList aria-label={t("rule.tabs")}>
-      <TabsTrigger value="settings" className="min-h-11 px-4 lg:min-h-8">{t("rule.settings")}</TabsTrigger><TabsTrigger value="activity" className="min-h-11 px-4 lg:min-h-8">{t("rule.activity")}</TabsTrigger></TabsList></Tabs>}
+    {existing && <TabNav label={t("rule.tabs")} value={tab} onChange={setTab} items={[{ value: "settings", label: t("rule.settings") }, { value: "activity", label: t("rule.activity") }]} />}
     {tab === "activity" && existing ? <RuleActivity tenantId={tenantId} ruleId={existing.id} stamp={stamp} />
       : <RuleEditor key={existing ? `${existing.id}` : "new"} tenantId={tenantId} you={you} existing={existing} accounts={data.accounts} onChanged={(rule) => { data.replace(rule); setStamp((value) => value + 1); }} />}
   </div>;
