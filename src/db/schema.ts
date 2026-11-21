@@ -1603,7 +1603,7 @@ export const socialWebhookEvents = pgTable("social_webhook_events", {
   check("social_webhook_body_hash", sql`${t.bodyHash} ~ '^[a-f0-9]{64}$'`),
 ]);
 
-// Personal external connections are separate from shared social accounts and R2 uploads.
+// Personal Office connections store grants and references. Credentials belong to the provider.
 export const officeConnections = pgTable("office_connections", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
   id: uuid("id").notNull().defaultRandom(),
@@ -1611,14 +1611,81 @@ export const officeConnections = pgTable("office_connections", {
   kind: text("kind").$type<"mail" | "calendar" | "files">().notNull(),
   provider: text("provider").$type<"fake" | "zernio">().notNull(),
   externalAccountRef: text("external_account_ref").notNull(),
-  credentialEnvelope: jsonb("credential_envelope").$type<Record<string, unknown>>().notNull(),
+  platform: text("platform").$type<"google" | "microsoft">(),
+  profileRef: text("profile_ref"),
+  health: text("health").$type<"healthy" | "unavailable" | "reconnect_needed">().notNull().default("reconnect_needed"),
+  grants: integer("grants").notNull().default(0),
+  noticeVersion: integer("notice_version"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, t => [primaryKey({ columns: [t.tenantId, t.id] }),
+}, t => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
   uniqueIndex("office_connection_account_idx").on(t.tenantId, t.ownerUserId, t.kind, t.provider, t.externalAccountRef),
+  unique("office_connection_owner_key").on(t.tenantId, t.ownerUserId, t.id),
+  uniqueIndex("office_connection_personal_kind_idx").on(t.tenantId, t.ownerUserId, t.kind).where(sql`${t.platform} is not null`),
+  uniqueIndex("office_connection_provider_account_idx").on(t.provider, t.externalAccountRef).where(sql`${t.platform} is not null`),
+  foreignKey({ name: "office_connection_member_fk", columns: [t.tenantId, t.ownerUserId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }).onDelete("cascade"),
   check("office_connection_kind", sql`${t.kind} in ('mail', 'calendar', 'files')`),
   check("office_connection_provider", sql`${t.provider} in ('fake', 'zernio')`),
   check("office_connection_ref", sql`length(${t.externalAccountRef}) between 1 and 200`),
-  check("office_connection_envelope", sql`jsonb_typeof(${t.credentialEnvelope}) = 'object' and ${t.credentialEnvelope} ?& array['version','keyId','binding','iv','tag','ciphertext'] and not (${t.credentialEnvelope} ?| array['secret','token','apiKey','accessToken']) and octet_length(${t.credentialEnvelope}::text) <= 4096`),
+  check("office_connection_grant_shape", sql`${t.health} in ('healthy','unavailable','reconnect_needed')
+    and (${t.grants} = 0 or (${t.kind} = 'mail' and ${t.grants} = 1) or (${t.kind} = 'calendar' and ${t.grants} = 2) or (${t.kind} = 'files' and ${t.grants} = 4))
+    and ((${t.platform} is null and ${t.profileRef} is null and ${t.noticeVersion} is null and ${t.grants} = 0 and ${t.health} = 'reconnect_needed')
+      or (${t.platform} is not null and ${t.platform} in ('google','microsoft') and ${t.profileRef} is not null and length(${t.profileRef}) between 1 and 200 and ${t.noticeVersion} is not null and ${t.noticeVersion} > 0))
+    and (${t.health} <> 'healthy' or ${t.grants} <> 0)`),
+]);
+
+export const officeConnectAttempts = pgTable("office_connect_attempts", {
+  tenantId: uuid("tenant_id").notNull(),
+  ownerUserId: text("owner_user_id").notNull(),
+  id: uuid("id").notNull(),
+  kind: text("kind").$type<"mail" | "calendar" | "files">().notNull(),
+  platform: text("platform").$type<"google" | "microsoft">().notNull(),
+  connectionId: uuid("connection_id"),
+  provider: text("provider").$type<"fake" | "zernio">().notNull(),
+  profileRef: text("profile_ref").notNull(),
+  handoffRef: text("handoff_ref").notNull(),
+  noticeVersion: integer("notice_version").notNull(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+}, t => [
+  primaryKey({ columns: [t.tenantId, t.ownerUserId, t.kind] }),
+  foreignKey({ name: "office_attempt_member_fk", columns: [t.tenantId, t.ownerUserId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }).onDelete("cascade"),
+  foreignKey({ name: "office_attempt_connection_fk", columns: [t.tenantId, t.ownerUserId, t.connectionId], foreignColumns: [officeConnections.tenantId, officeConnections.ownerUserId, officeConnections.id] }).onDelete("cascade"),
+  check("office_attempt_shape", sql`${t.kind} in ('mail','calendar','files') and ${t.platform} in ('google','microsoft') and ${t.provider} in ('fake','zernio')
+    and length(${t.profileRef}) between 1 and 200 and length(${t.handoffRef}) between 1 and 200 and ${t.noticeVersion} > 0`),
+]);
+
+export const officeThreadMarkers = pgTable("office_thread_markers", {
+  tenantId: uuid("tenant_id").notNull(),
+  ownerUserId: text("owner_user_id").notNull(),
+  connectionId: uuid("connection_id").notNull(),
+  threadRef: text("thread_ref").notNull(),
+  read: boolean("read").notNull().default(false),
+  starred: boolean("starred").notNull().default(false),
+  contactId: uuid("contact_id"),
+}, t => [
+  primaryKey({ columns: [t.tenantId, t.ownerUserId, t.connectionId, t.threadRef] }),
+  foreignKey({ name: "office_marker_connection_fk", columns: [t.tenantId, t.ownerUserId, t.connectionId], foreignColumns: [officeConnections.tenantId, officeConnections.ownerUserId, officeConnections.id] }).onDelete("cascade"),
+  foreignKey({ name: "office_marker_contact_fk", columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }).onDelete("cascade"),
+  check("office_marker_ref", sql`length(${t.threadRef}) between 1 and 200`),
+]);
+
+export const officeContactReferences = pgTable("office_contact_references", {
+  tenantId: uuid("tenant_id").notNull(),
+  ownerUserId: text("owner_user_id").notNull(),
+  connectionId: uuid("connection_id").notNull(),
+  contactId: uuid("contact_id").notNull(),
+  kind: text("kind").$type<"event" | "file">().notNull(),
+  itemRef: text("item_ref").notNull(),
+  name: text("name"),
+  startsAt: timestamp("starts_at", { withTimezone: true }),
+  endsAt: timestamp("ends_at", { withTimezone: true }),
+}, t => [
+  primaryKey({ columns: [t.tenantId, t.ownerUserId, t.connectionId, t.contactId, t.kind, t.itemRef] }),
+  foreignKey({ name: "office_reference_connection_fk", columns: [t.tenantId, t.ownerUserId, t.connectionId], foreignColumns: [officeConnections.tenantId, officeConnections.ownerUserId, officeConnections.id] }).onDelete("cascade"),
+  foreignKey({ name: "office_reference_contact_fk", columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }).onDelete("cascade"),
+  check("office_reference_shape", sql`length(${t.itemRef}) between 1 and 200 and
+    ((${t.kind} = 'file' and ${t.name} is not null and length(${t.name}) between 1 and 500 and ${t.startsAt} is null and ${t.endsAt} is null)
+    or (${t.kind} = 'event' and ${t.name} is null and ${t.startsAt} is not null and ${t.endsAt} is not null and ${t.startsAt} < ${t.endsAt}))`),
 ]);
 
 // Counter only: no visitor identifiers, headers, per-scan row or sub-day timestamp.

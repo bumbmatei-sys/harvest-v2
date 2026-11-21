@@ -1,5 +1,6 @@
 import { getDb, type Database } from "../../db/client";
 import { errorResponse, verifiedUser, verifyOrigin } from "../http";
+import { readBoundedJson } from "../request-json";
 import { PublishValidationError, publishInvalid } from "./publish-access";
 import { socialRouteDeps } from "../social-publish-gate";
 import { assertEnabled, type SocialDeps } from "./registry";
@@ -34,24 +35,8 @@ export async function inboxResponse<P>(request: Request, context: { params: Prom
   }
 }
 
-export async function inboxJson(request: Request, max = 32_768): Promise<unknown> {
-  const reader = request.body?.getReader();
-  if (!reader) throw new SyntaxError();
-  const chunks: Uint8Array[] = [];
-  let size = 0;
-  try {
-    for (;;) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      size += value.byteLength;
-      if (size > max) {
-        await reader.cancel();
-        throw publishInvalid("INBOX_REQUEST_TOO_LARGE");
-      }
-      chunks.push(value);
-    }
-    return JSON.parse(new TextDecoder("utf-8", { fatal: true }).decode(Buffer.concat(chunks)));
-  } finally { reader.releaseLock(); }
+export function inboxJson(request: Request, max = 32_768): Promise<unknown> {
+  return readBoundedJson(request, max, () => publishInvalid("INBOX_REQUEST_TOO_LARGE"));
 }
 
 export type InboxContext<T extends Record<string, string> = Record<never, never>> = {
