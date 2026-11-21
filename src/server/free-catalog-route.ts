@@ -1,3 +1,4 @@
+import { workerSettings } from "./worker-settings";
 import { getDb, type Database } from "../db/client";
 import { freeCatalogEnabled } from "./free-catalog-mode";
 import { errorResponse, verifiedUser, verifyOrigin } from "./http";
@@ -7,7 +8,7 @@ export function catalogRoute<P>(
   mode: "public" | "read" | "write",
 ) {
   return async (request: Request, context: { params: Promise<P> }) => {
-    if (!freeCatalogEnabled()) return new Response(null, { status: 404 });
+    if (!freeCatalogEnabled(workerSettings.getStore()?.features)) return new Response(null, { status: 404 });
     try {
       if (mode === "write") verifyOrigin(request);
       const user = mode === "public" ? "" : await verifiedUser(request);

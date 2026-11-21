@@ -1,11 +1,11 @@
 import { message } from "../../i18n/messages";
 import "server-only";
-import { createHash } from "node:crypto";
 import { AbortMultipartUploadCommand, CompleteMultipartUploadCommand, CreateMultipartUploadCommand, GetObjectCommand, HeadObjectCommand, PutObjectCommand, UploadPartCommand } from "@aws-sdk/client-s3";
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
-import { filenameMatchesMime, MAX_FILE_SIZE } from "../../lib/files";
+import { MAX_FILE_SIZE } from "../../lib/files";
 import { downloadDisposition } from "../../lib/download-filename";
 import { InvalidStoredFile, type StorageAdapter, type ImageMime, type MultipartStorage, type UploadObject, type UploadPart } from "./adapter";
+import { inspectFileBytes } from "./inspect";
 import { connectStorage, type storageConfig } from "./s3-connection";
 
 export class S3Storage implements StorageAdapter, MultipartStorage {
@@ -53,34 +53,8 @@ export class S3Storage implements StorageAdapter, MultipartStorage {
     if (head.ContentLength !== expectedSize || expectedSize > MAX_FILE_SIZE) throw new InvalidStoredFile(message("Errors.storedSizeDiffersFromUploadIntent"));
     const object = await this.client.send(new GetObjectCommand({ ...input, IfMatch: head.ETag }), options);
     if (!object.Body) throw new InvalidStoredFile(message("Errors.missingUploadBody"));
-    const hash = createHash("sha256");
-    let size = 0;
-    let prefix = Buffer.alloc(0);
-    const decoder = new TextDecoder("utf-8", { fatal: true });
-    let validText = true;
-    for await (const chunk of object.Body as AsyncIterable<Uint8Array>) {
-      size += chunk.byteLength;
-      if (size > expectedSize) {
-        (object.Body as { destroy?: () => void }).destroy?.();
-        throw new InvalidStoredFile(message("Errors.storedFileExceedsExpectedSize"));
-      }
-      hash.update(chunk);
-      if (prefix.length < 12) prefix = Buffer.concat([prefix, chunk.subarray(0, 12 - prefix.length)]);
-      if (validText) {
-        if (chunk.includes(0)) validText = false;
-        else try { decoder.decode(chunk, { stream: true }); } catch { validText = false; }
-      }
-    }
-    if (validText) try { decoder.decode(); } catch { validText = false; }
-    const mime = prefix.subarray(0, 3).equals(Buffer.from([0xff, 0xd8, 0xff])) ? "image/jpeg"
-      : prefix.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) ? "image/png"
-      : prefix.subarray(0, 4).equals(Buffer.from("RIFF")) && prefix.subarray(8, 12).equals(Buffer.from("WEBP")) ? "image/webp"
-      : prefix.subarray(0, 5).equals(Buffer.from("%PDF-")) ? "application/pdf"
-      : validText ? "text/plain" : null;
-    if (size !== expectedSize || mime !== expected.mime || mime !== head.ContentType || !filenameMatchesMime(expected.name, mime)) {
-      throw new InvalidStoredFile(message("Errors.storedBytesDeclaredTypeAndFilenameExtensionMust"));
-    }
-    return { size, mime, checksum: hash.digest("hex") };
+    return inspectFileBytes(object.Body as AsyncIterable<Uint8Array>, expected, head.ContentType,
+      () => (object.Body as { destroy?: () => void }).destroy?.());
   }
   presignDownload(key: string, name: string, options?: { inlineImage: ImageMime }) {
     return getSignedUrl(this.client, new GetObjectCommand({ Bucket: this.config.bucket, Key: key,
