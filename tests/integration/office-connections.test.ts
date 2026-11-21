@@ -9,6 +9,8 @@ import { grant, type OfficeAccount, type OfficePlatform } from "../../src/server
 import { OfficeMailReview } from "../../src/server/office-provider/review";
 import { runOffice } from "../../src/server/office-provider/service";
 import type { ConnectionKind } from "../../src/server/office-provider/types";
+import { createContact, eraseContact } from "../../src/server/contacts";
+import { mergeContacts, previewMerge } from "../../src/server/crm-merge";
 import { withUser } from "../../src/server/tenancy";
 
 vi.mock("server-only", () => ({}));
@@ -253,4 +255,65 @@ it("enforces personal ownership and composite references through direct SQL and 
   try {
     for (const table of tables) expect((await f.admin.query(`select * from ${table}`)).rows).toEqual([]);
   } finally { await f.admin.query("RESET ROLE"); }
+});
+
+it.each(["erase", "merge"] as const)("cleans another admin's private Office links on contact %s", async action => {
+  const { owner, tenant } = people;
+  const source = await createContact(f.db, owner, tenant, { name: "Source contact" });
+  const target = await createContact(f.db, owner, tenant, { name: "Kept contact" });
+  const files = await connect("files", "microsoft", otherAdmin);
+  const calendar = await connect("calendar", "microsoft", otherAdmin);
+  const mail = await connect("mail", "microsoft", otherAdmin);
+  const suffixes = [`${action}-source`, `${action}-target`];
+  provider.seed(credential, files.account, { files: suffixes.map(ref => ({
+    ref, name: `${ref}.txt`, kind: "file", parentRef: null, mimeType: "text/plain", size: 7, webUrl: null,
+  })) });
+  provider.seed(credential, calendar.account, { events: suffixes.map(ref => ({
+    ref, title: "Private appointment", start: "2026-11-22T10:00:00Z", end: "2026-11-22T11:00:00Z",
+    calendarRef: "primary", attendees: [], meetingLink: null,
+  })) });
+  provider.seed(credential, mail.account, { messages: suffixes.map(threadRef => ({
+    threadRef, ref: `message-${threadRef}`, subject: mailSubject, body: mailBody, from: address, to: [address], labelRefs: ["inbox"],
+  })) });
+  for (const [index, person] of [source, target].entries()) {
+    const ref = suffixes[index];
+    expect(await run("fileLink", { fileRef: ref, contactId: person.id }, files.id, otherAdmin)).toMatchObject({
+      data: { ref, name: `${ref}.txt` },
+    });
+    expect(await run("eventLink", { eventRef: ref, contactId: person.id }, calendar.id, otherAdmin)).toMatchObject({
+      data: { ref, startsAt: new Date("2026-11-22T10:00:00Z"), endsAt: new Date("2026-11-22T11:00:00Z") },
+    });
+    expect(await run("marker", { threadRef: ref, contactId: person.id, read: true, starred: true }, mail.id, otherAdmin))
+      .toMatchObject({ data: { ref, contactId: person.id, read: true, starred: true } });
+  }
+
+  // Forging the trigger's transaction setting does not grant the caller access.
+  await withUser(f.db, owner, async tx => {
+    await tx.execute(sql`select set_config('app.tenant_id', ${tenant}, true), set_config('app.office_erasure_contact', ${source.id}, true)`);
+    expect((await tx.execute(sql`delete from public.office_contact_references where contact_id = ${source.id} returning item_ref`)).rows).toEqual([]);
+    expect((await tx.execute(sql`update public.office_thread_markers set contact_id = null where contact_id = ${source.id} returning thread_ref`)).rows).toEqual([]);
+  });
+
+  if (action === "erase") {
+    expect(await eraseContact(f.db, owner, tenant, source.id)).toEqual({ erased: true });
+  } else {
+    const preview = await previewMerge(f.db, owner, tenant, target.id, source.id);
+    expect(await mergeContacts(f.db, owner, tenant, target.id, {
+      sourceId: source.id, targetVersion: preview.kept.version, sourceVersion: preview.merged.version,
+    })).toMatchObject({ id: target.id });
+  }
+  expect((await f.admin.query("select id from contacts where tenant_id=$1 and id=$2", [tenant, source.id])).rows).toEqual([]);
+  const references = await f.admin.query(`select contact_id, item_ref, kind, name, starts_at, ends_at
+    from office_contact_references where tenant_id=$1 and item_ref=any($2) order by kind`, [tenant, suffixes]);
+  expect(references.rows).toEqual([
+    { contact_id: target.id, item_ref: suffixes[1], kind: "event", name: null,
+      starts_at: new Date("2026-11-22T10:00:00Z"), ends_at: new Date("2026-11-22T11:00:00Z") },
+    { contact_id: target.id, item_ref: suffixes[1], kind: "file", name: `${suffixes[1]}.txt`, starts_at: null, ends_at: null },
+  ]);
+  const markers = await f.admin.query(`select thread_ref, contact_id, read, starred
+    from office_thread_markers where tenant_id=$1 and thread_ref=any($2) order by thread_ref`, [tenant, suffixes]);
+  expect(markers.rows).toEqual([
+    { thread_ref: suffixes[0], contact_id: null, read: true, starred: true },
+    { thread_ref: suffixes[1], contact_id: target.id, read: true, starred: true },
+  ]);
 });

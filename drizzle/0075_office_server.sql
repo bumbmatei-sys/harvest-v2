@@ -148,3 +148,45 @@ CREATE POLICY office_audit_metadata_only ON public.audit_logs AS RESTRICTIVE FOR
     AND metadata = jsonb_build_object('outcome', metadata->>'outcome')
     AND metadata->>'outcome' IN ('started','failed','healthy','unavailable','reconnect_needed','temporarily_unavailable','disabled','disconnected','available')
   ));
+
+--> statement-breakpoint
+-- The erasure trigger is the only path that needs to reach personal Office rows
+-- across owners. The application role keeps its existing personal policies.
+DO $$
+DECLARE scoped_contact text := $scope$
+  tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid
+  AND contact_id = nullif(current_setting('app.office_erasure_contact', true), '')::uuid
+$scope$;
+BEGIN
+  EXECUTE format('CREATE POLICY office_reference_erasure_read ON public.office_contact_references FOR SELECT TO %I USING (%s)', current_user, scoped_contact);
+  EXECUTE format('CREATE POLICY office_reference_erasure_delete ON public.office_contact_references FOR DELETE TO %I USING (%s)', current_user, scoped_contact);
+  -- PostgreSQL checks SELECT visibility both before and after a filtered UPDATE.
+  EXECUTE format($policy$CREATE POLICY office_marker_erasure_read ON public.office_thread_markers FOR SELECT TO %I USING (
+    tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid
+    AND nullif(current_setting('app.office_erasure_contact', true), '') IS NOT NULL
+    AND (contact_id IS NULL OR contact_id = nullif(current_setting('app.office_erasure_contact', true), '')::uuid)
+  )$policy$, current_user);
+  EXECUTE format($policy$CREATE POLICY office_marker_erasure_unlink ON public.office_thread_markers FOR UPDATE TO %I
+    USING (%s)
+    WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid AND contact_id IS NULL)$policy$,
+    current_user, scoped_contact);
+END $$;
+--> statement-breakpoint
+CREATE FUNCTION public.office_contact_before_rekey() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE prior_contact text := current_setting('app.office_erasure_contact', true);
+BEGIN
+  -- CRM has already authorized the operation and locked the contact. A merge
+  -- uses the same re-key for its source, so its private links are dropped too.
+  PERFORM set_config('app.office_erasure_contact', OLD.id::text, true);
+  DELETE FROM public.office_contact_references WHERE tenant_id = OLD.tenant_id AND contact_id = OLD.id;
+  UPDATE public.office_thread_markers SET contact_id = NULL WHERE tenant_id = OLD.tenant_id AND contact_id = OLD.id;
+  PERFORM set_config('app.office_erasure_contact', coalesce(prior_contact, ''), true);
+  RETURN NEW;
+END $$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.office_contact_before_rekey() FROM PUBLIC, harvest_app;
+--> statement-breakpoint
+CREATE TRIGGER office_contact_before_rekey BEFORE UPDATE OF id ON public.contacts
+  FOR EACH ROW WHEN (OLD.id IS DISTINCT FROM NEW.id AND NEW.erased_at IS NOT NULL)
+  EXECUTE FUNCTION public.office_contact_before_rekey();
