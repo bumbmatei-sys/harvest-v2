@@ -136,7 +136,7 @@ test("social publish: accounts, composer with rings and media, review, queue, ca
   await expect(instagramCard.getByText("Healthy")).toBeVisible();
   await audit(page, "accounts", { ready: async () => { await expect(page.getByTestId("account-card")).toHaveCount(5); await expect(page.getByTestId("marker-legend")).toBeVisible(); } });
 
-  // ---- Sidebar: the Social media group (Public mode) and Social accounts under Settings (Operations mode) ----------------------------------------
+  // ---- Sidebar: the Social media group (Public mode) and Social accounts in the Settings pop-up ----------------------------------------
   const sidebar = page.getByRole("complementary", { name: "Ministry sidebar" });
   const sidebarSession = await page.context().newCDPSession(page);
   for (const scheme of ["light", "dark"] as const) {
@@ -145,10 +145,11 @@ test("social publish: accounts, composer with rings and media, review, queue, ca
     await page.getByRole("tab", { name: "Public" }).click();
     await expect(sidebar.getByRole("button", { name: "Social media" })).toBeVisible();
     await expect(sidebar.getByRole("link", { name: "Planner" })).toBeVisible();
-    for (const hidden of ["Compose", "Calendar", "Queue", "Inbox", "Auto-replies", "Analytics"]) await expect(sidebar.getByRole("link", { name: hidden, exact: true })).toHaveCount(0);
+    for (const hidden of ["Compose", "Calendar", "Queue", "Inbox", "Analytics"]) await expect(sidebar.getByRole("link", { name: hidden, exact: true })).toHaveCount(0);
     await sidebar.screenshot({ path: `${shots}/sidebar-public-1280-${scheme}.png`, animations: "disabled" });
     await page.getByRole("tab", { name: "Operations" }).click();
-    await expect(sidebar.getByRole("link", { name: "Social accounts" })).toBeVisible();
+    // Social accounts left the Operations sidebar: it lives in the Settings pop-up (Connections) and the Planner button.
+    await expect(sidebar.getByRole("link", { name: "Social accounts" })).toHaveCount(0);
     await sidebar.screenshot({ path: `${shots}/sidebar-settings-1280-${scheme}.png`, animations: "disabled" });
     await page.getByRole("tab", { name: "Public" }).click();
     await page.setViewportSize({ width: 360, height: 800 });

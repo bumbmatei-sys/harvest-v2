@@ -7,7 +7,9 @@ import before from "./fixtures/navigation-before-modes.json";
 const tenantId = "00000000-0000-4000-8000-000000000001";
 const root = `/workspaces/${tenantId}`;
 const shape = (role?: string) => resolveNavigation({ tenantId, role, pathname: root }).map((group) => [group.id, group.items.map((item) => item.id)]);
-const writers = [["crm", ["people", "companies", "pipelines", "tasks", "imports"]], ["workspace", ["campaigns", "followUp", "files"]], ["settings", ["crmFields", "pipelineSettings", "appearance", "ministrySettings"]]];
+// The Settings group left the sidebar (20 Nov): its entries stay in the registry for routes and breadcrumbs, and the Settings pop-up links to them.
+const writers = [["crm", ["people", "companies", "pipelines", "tasks", "imports"]], ["workspace", ["campaigns", "followUp", "files"]]];
+const settingsIds = ["socialAccounts", "crmFields", "pipelineSettings", "appearance", "ministrySettings"];
 
 // The breadcrumb chain AppShell used before the registry (plus the Ministry settings route from PR B), kept as the parity oracle.
 function legacySection(pathname: string) {
@@ -19,17 +21,16 @@ const routes = ["", "/appearance", "/campaigns", `/campaigns/${id}`, `/campaigns
 describe("module registry parity", () => {
   it.each(["owner", "admin", "member"])("shows today's sidebar to %s", (role) => { expect(shape(role)).toEqual(writers); });
   it("hides Imports from viewers and from an unknown membership", () => {
-    const readers = [["crm", ["people", "companies", "pipelines", "tasks"]], ["workspace", ["campaigns", "files"]], writers[2]];
+    const readers = [["crm", ["people", "companies", "pipelines", "tasks"]], ["workspace", ["campaigns", "files"]]];
     expect(shape("viewer")).toEqual(readers);
     expect(shape(undefined)).toEqual(readers);
   });
   it("keeps every route, label and group label", () => {
     const groups = resolveNavigation({ tenantId, role: "owner", pathname: root });
-    expect(groups.map((group) => group.label)).toEqual(["crm", "workspace", "settings"]);
+    expect(groups.map((group) => group.label)).toEqual(["crm", "workspace"]);
     expect(groups.flatMap((group) => group.items.map((item) => [item.label, item.href]))).toEqual([
       ["people", `${root}/crm/people`], ["companies", `${root}/crm/companies`], ["pipelines", `${root}/crm/pipelines`], ["tasks", `${root}/crm/tasks`], ["imports", `${root}/crm/imports`],
       ["campaigns", `${root}/campaigns`], ["followUp", `${root}/connect/follow-up`], ["files", `${root}/files`],
-      ["crmFields", `${root}/crm/settings/fields`], ["pipelineSettings", `${root}/crm/settings/pipelines`], ["appearance", `${root}/appearance`], ["ministrySettings", `${root}/settings`],
     ]);
   });
   it.each(routes)("marks at most one item active and keeps the breadcrumb for %s", (pathname) => {
@@ -40,7 +41,9 @@ describe("module registry parity", () => {
   it("treats deals as Pipelines and pipeline settings separately", () => {
     const active = (pathname: string) => resolveNavigation({ tenantId, role: "owner", pathname }).flatMap((group) => group.items.filter((item) => item.active).map((item) => item.id));
     expect(active(`${root}/crm/deals/${id}`)).toEqual(["pipelines"]);
-    expect(active(`${root}/crm/settings/pipelines`)).toEqual(["pipelineSettings"]);
+    // Pipeline settings is a pop-up destination now: no sidebar row lights up, and the breadcrumb still names it.
+    expect(active(`${root}/crm/settings/pipelines`)).toEqual([]);
+    expect(sectionLabel(`${root}/crm/settings/pipelines`)).toBe("pipelineSettings");
     expect(active(`${root}/contacts/${id}`)).toEqual([]);
   });
   it("ships no audience-specific entries", () => {
@@ -52,7 +55,7 @@ describe("audience rules (fixtures)", () => {
   const fixtures: NavEntry[] = [
     { id: "everyone", group: "workspace", mode: "operations", label: "files", icon: Building, path: "/everyone", match: (p) => p.endsWith("/everyone") },
     { id: "churchOnly", group: "workspace", mode: "operations", label: "campaigns", icon: Building, path: "/church", match: (p) => p.endsWith("/church"), audiences: ["church"] },
-    { id: "renamed", group: "settings", mode: "operations", label: "appearance", icon: Building, path: "/renamed", match: (p) => p.endsWith("/renamed"), audienceLabels: { evangelist_missionary: "profile" } },
+    { id: "renamed", group: "workspace", mode: "operations", label: "appearance", icon: Building, path: "/renamed", match: (p) => p.endsWith("/renamed"), audienceLabels: { evangelist_missionary: "profile" } },
   ];
   const ids = (audience: Parameters<typeof resolveNavigation>[0]["audience"]) => resolveNavigation({ tenantId, role: "owner", audience, pathname: root }, fixtures).flatMap((group) => group.items.map((item) => item.id));
   it("shows unrestricted entries to an unspecified audience", () => { expect(ids(null)).toEqual(["everyone", "renamed"]); });
@@ -78,21 +81,26 @@ describe("three-mode registry (slice 1)", () => {
     expect(new Set(navEntries.map((entry) => entry.id)).size).toBe(navEntries.length);
     for (const entry of navEntries) {
       expect(navModes).toContain(entry.mode);
-      expect(groupsByMode[entry.mode].map((group) => group.id)).toContain(entry.group);
+      // Settings entries belong to no sidebar group on purpose: the Settings pop-up links to them.
+      if (entry.group !== "settings") expect(groupsByMode[entry.mode].map((group) => group.id)).toContain(entry.group);
     }
   });
   it("assigns the founder's modes", () => {
     const mode = (id: string) => navEntries.find((entry) => entry.id === id)?.mode;
     for (const id of ["people", "companies", "pipelines", "tasks", "imports", "campaigns", "followUp", "files", "crmFields", "pipelineSettings", "appearance", "ministrySettings"]) expect(mode(id)).toBe("operations");
-    for (const id of ["communities", "planner", "inbox", "autoDm", "articles", "website", "linkInBio", "newsletter", "discover", "products"]) expect(mode(id)).toBe("public");
+    for (const id of ["communities", "planner", "inbox", "autoDm", "articles", "website", "linkInBio", "newsletterCampaigns", "discover", "products", "courses", "live"]) expect(mode(id)).toBe("public");
     expect(mode("assistant")).toBe("assistant");
     expect(navEntries.filter((entry) => entry.group === "settings").every((entry) => entry.mode === "operations")).toBe(true);
-    expect(groupsByMode.operations.at(-1)?.id).toBe("settings");
   });
   it("reserves not-yet-built modules as planned, including blog articles", () => {
     const planned = navEntries.filter((entry) => entry.status === "planned").map((entry) => entry.id);
+<<<<<<< ours
     expect(planned).toEqual(expect.arrayContaining(["articles", "socialAnalytics", "inbox", "website", "linkInBio", "newsletter", "products", "discover", "assistant", "responses", "connectLinks", "forms", "mail", "calendar", "documents", "spreadsheets", "giving", "volunteers", "livestream", "churchProfile"]));
     expect(navEntries.filter((entry) => entry.status !== "planned").map((entry) => entry.id)).toEqual(["people", "companies", "pipelines", "tasks", "imports", "campaigns", "followUp", "events", "files", "planner", "autoDm", "communities", "socialAccounts", "crmFields", "pipelineSettings", "appearance", "ministrySettings"]);
+=======
+    expect(planned).toEqual(expect.arrayContaining(["articles", "socialAnalytics", "inbox", "ads", "website", "linkInBio", "newsletterCampaigns", "newsletterAudience", "signupForms", "newsletterAnalytics", "products", "courses", "coaching", "coupons", "live", "discover", "assistant", "responses", "connectLinks", "forms", "mail", "calendar", "documents", "spreadsheets", "givingOverview", "donations", "fundraising", "pledges", "donors", "funds", "givingPage", "volunteers", "livestream", "churchProfile"]));
+    expect(navEntries.filter((entry) => entry.status !== "planned").map((entry) => entry.id)).toEqual(["people", "companies", "pipelines", "tasks", "imports", "campaigns", "followUp", "events", "files", "planner", "autoDm", "communities", "socialAccounts", "crmFields", "pipelineSettings", "appearance", "ministrySettings"]);
+>>>>>>> theirs
   });
   it("never renders, links or labels a planned entry", () => {
     const plannedIds = new Set(navEntries.filter((entry) => entry.status === "planned").map((entry) => entry.id));
@@ -111,7 +119,7 @@ describe("three-mode registry (slice 1)", () => {
   });
   it("filters per mode by role, audience and feature", () => {
     const ids = (mode: NavMode, extra: Partial<Parameters<typeof resolveModeNavigation>[0]> = {}) => resolveModeNavigation({ tenantId, role: "owner", pathname: root, mode, ...extra }).groups.flatMap((group) => group.items.map((item) => item.id));
-    expect(ids("operations")).toEqual(["people", "companies", "pipelines", "tasks", "imports", "followUp", "campaigns", "files", "crmFields", "pipelineSettings", "appearance", "ministrySettings"]);
+    expect(ids("operations")).toEqual(["files", "people", "companies", "pipelines", "tasks", "imports", "followUp", "campaigns"]);
     expect(ids("operations", { role: "viewer" })).not.toContain("imports");
     expect(ids("operations", { role: "viewer" })).not.toContain("followUp");
     expect(ids("public")).toEqual([]);
@@ -159,14 +167,72 @@ describe("three-mode registry (slice 1)", () => {
 });
 
 describe("sidebar icons", () => {
-  it("gives every row its own icon, across the whole registry", () => {
+  it("gives every row and every group header its own icon, across the whole registry", () => {
     const seen = new Map<unknown, string>();
     for (const entry of navEntries) {
       expect(seen.get(entry.icon), `${entry.id} reuses the icon of ${seen.get(entry.icon)}`).toBeUndefined();
-      seen.set(entry.icon, entry.id);
+      seen.set(entry.icon, `row ${entry.id}`);
+    }
+    for (const mode of navModes) for (const group of groupsByMode[mode]) {
+      if (group.pinned) { expect(group.icon, `${mode} ${group.id} is pinned and has no header`).toBeUndefined(); continue; }
+      expect(group.icon, `${mode} group ${group.id} needs an icon`).toBeDefined();
+      expect(seen.get(group.icon), `${mode} group ${group.id} reuses the icon of ${seen.get(group.icon)}`).toBeUndefined();
+      seen.set(group.icon, `group ${group.id}`);
     }
   });
   it("gives the Social media group its own icon", () => {
     expect(groupsByMode.public.find((group) => group.id === "publishing")?.icon).toBeDefined();
+  });
+});
+
+describe("approved sidebar structure (20 Nov)", () => {
+  const order = (mode: NavMode) => groupsByMode[mode].map((group) => group.id);
+  it("orders the Operations groups Office, People, Connect, Ministry, Giving", () => {
+    expect(order("operations")).toEqual(["office", "crm", "connect", "workspace", "giving"]);
+    expect(groupsByMode.operations.find((group) => group.id === "crm")?.label).toBe("people");
+  });
+  it("orders the Public groups Discover (pinned), Social media, Newsletter, Website, Community, Courses and products", () => {
+    expect(order("public")).toEqual(["discover", "publishing", "newsletter", "website", "community", "commerce"]);
+    expect(groupsByMode.public.filter((group) => group.pinned).map((group) => group.id)).toEqual(["discover"]);
+  });
+  it("lists the planned rows of every group in the approved order", () => {
+    const rows = (group: string) => navEntries.filter((entry) => entry.group === group).map((entry) => entry.id);
+    expect(rows("office")).toEqual(["mail", "calendar", "documents", "spreadsheets", "files"]);
+    expect(rows("giving")).toEqual(["givingOverview", "donations", "fundraising", "pledges", "donors", "funds", "givingPage"]);
+    expect(rows("publishing")).toEqual(["planner", "inbox", "ads", "socialAnalytics"]);
+    expect(rows("newsletter")).toEqual(["newsletterCampaigns", "newsletterAudience", "signupForms", "newsletterAnalytics"]);
+    expect(rows("website")).toEqual(["linkInBio", "articles", "website"]);
+    expect(rows("community")).toEqual(["communities", "live"]);
+    expect(rows("commerce")).toEqual(["courses", "products", "coaching", "coupons"]);
+  });
+  it("keeps unbuilt groups out of the sidebar", () => {
+    const owner = { tenantId, role: "owner", features: ["communities" as const, "events" as const, "social" as const] };
+    expect(resolveModeNavigation({ ...owner, pathname: root, mode: "operations" }).groups.map((group) => group.id)).toEqual(["office", "crm", "connect", "workspace"]);
+    expect(resolveModeNavigation({ ...owner, pathname: root, mode: "public" }).groups.map((group) => group.id)).toEqual(["publishing", "community"]);
+  });
+  it("moves Files into Office in the per-mode sidebar and keeps it in Ministry in the single sidebar", () => {
+    const owner = { tenantId, role: "owner", pathname: root };
+    expect(resolveModeNavigation({ ...owner, mode: "operations" }).groups.find((group) => group.id === "office")?.items.map((item) => item.id)).toEqual(["files"]);
+    expect(resolveNavigation(owner).find((group) => group.id === "workspace")?.items.map((item) => item.id)).toContain("files");
+  });
+  it("shows Discover as the pinned first row of Public once it is live", () => {
+    const live = navEntries.map((entry) => entry.id === "discover" ? { ...entry, status: undefined } : entry);
+    const groups = resolveModeNavigation({ tenantId, role: "owner", pathname: root, mode: "public" }, live).groups;
+    expect(groups[0]).toMatchObject({ id: "discover", pinned: true });
+    expect(groups[0].items.map((item) => item.id)).toEqual(["discover"]);
+  });
+  it("has no Settings group in any sidebar, and Social accounts is not an Operations row", () => {
+    expect(navModes.flatMap((mode) => order(mode))).not.toContain("settings");
+    for (const role of ["owner", "admin", "member", "viewer"]) for (const features of [[], ["social" as const, "communities" as const, "events" as const]]) {
+      const viewer = { tenantId, role, features, pathname: root };
+      const shown = [...resolveNavigation(viewer).flatMap((group) => group.items), ...navModes.flatMap((mode) => resolveModeNavigation({ ...viewer, mode }).groups.flatMap((group) => group.items))].map((item) => item.id);
+      for (const id of settingsIds) expect(shown, `${role} ${id}`).not.toContain(id);
+    }
+  });
+  it("keeps every Settings route reachable: its breadcrumb and mode still resolve", () => {
+    for (const path of ["/social/accounts", "/crm/settings/fields", "/crm/settings/pipelines", "/appearance", "/settings"]) {
+      expect(sectionLabel(`${root}${path}`, null), path).not.toBeNull();
+      expect(resolveMode({ pathname: `${root}${path}` }).neutral, path).toBe(false);
+    }
   });
 });

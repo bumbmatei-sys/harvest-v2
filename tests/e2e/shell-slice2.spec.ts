@@ -100,7 +100,8 @@ test("mode switcher: tabs, choosing a mode does not navigate, owning mode, persi
   await expect(tab(page, "Public")).toHaveAttribute("aria-selected", "true");
   await page.goto(`/workspaces/${id}/settings`);
   await expect(tab(page, "Operations")).toHaveAttribute("aria-selected", "true");
-  await expect(nav(page).getByRole("link", { name: "Ministry settings", exact: true })).toHaveAttribute("aria-current", "page");
+  // Ministry settings is no sidebar row any more (the Settings pop-up links to it); its breadcrumb still names the page.
+  await expect(nav(page).getByRole("link", { name: "Ministry settings", exact: true })).toHaveCount(0);
   // On such a page the switcher only previews the other sidebar: the page stays and the owning mode returns on the next navigation.
   await tab(page, "Public").click();
   await expect(page).toHaveURL(/\/settings$/);
@@ -112,7 +113,7 @@ test("mode switcher: tabs, choosing a mode does not navigate, owning mode, persi
   await page.goBack();
   await expect(page).toHaveURL(/\/settings$/);
   await expect(tab(page, "Operations")).toHaveAttribute("aria-selected", "true");
-  await expect(nav(page).getByRole("link", { name: "Ministry settings", exact: true })).toBeVisible();
+  await expect(page.locator("[data-shell-header]").getByText("Ministry settings", { exact: true })).toBeVisible();
   await page.goto(`/workspaces/${id}/appearance`);
   await expect(tab(page, "Operations")).toHaveAttribute("aria-selected", "true");
   await page.goto(`/workspaces/${id}/crm/settings/fields`);
@@ -271,7 +272,7 @@ test("role matrix: every role sees only modes with visible entries and today's i
     expect(await tabNames(tablist(view)), role).toEqual(["Operations", "Public"]);
     await expect(view.getByRole("tab", { name: "Assistant" })).toHaveCount(0);
     await expect(nav(view).getByRole("link", { name: "Imports", exact: true }), role).toHaveCount(role === "viewer" ? 0 : 1);
-    await expect(nav(view).getByRole("link", { name: "Ministry settings", exact: true })).toHaveCount(1);
+    await expect(nav(view).getByRole("link", { name: "Ministry settings", exact: true })).toHaveCount(0);
     await tab(view, "Public").click();
     await expect(nav(view).getByRole("link", { name: "Communities", exact: true }), role).toBeVisible();
   }

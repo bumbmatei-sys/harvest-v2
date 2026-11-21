@@ -27,6 +27,7 @@ import { DestinationCard } from "@/components/social/destination-card";
 import { DraftsPanel } from "@/components/social/drafts-panel";
 import { MediaStrip } from "@/components/social/media-strip";
 import { ConnectCircle, PlatformRing } from "@/components/social/platform-ring";
+import { SettingsLink } from "@/components/settings/settings-link";
 import { OptionRows } from "@/components/social/option-rows";
 import { ReviewDialog } from "@/components/social/review-dialog";
 import { ScheduleDialog } from "@/components/social/schedule-dialog";
@@ -197,7 +198,7 @@ export function Composer({ tenantId, initialDraftId }: { tenantId: string; initi
   const frame = (body: React.ReactNode) => <div className="min-w-0 space-y-4"><SocialHeader tenantId={tenantId} active="compose" zone={tz} />{body}</div>;
   if (data.state === "unavailable") return frame(<EmptyState icon={ShieldAlert} title={t("unavailableTitle")} description={t("unavailable")} solid />);
   if (data.state === "error") return frame(<Alert variant="destructive" role="alert"><AlertDescription>{t("loadFailed")} <Button type="button" variant="link" onClick={data.reload}>{t("retry")}</Button></AlertDescription></Alert>);
-  if (data.connections.length === 0) return frame(<EmptyState icon={ShieldAlert} title={t("noAccounts")} solid action={<Button asChild size="responsive"><Link href={`/workspaces/${tenantId}/social/accounts`} prefetch={false}>{t("goToAccounts")}</Link></Button>} />);
+  if (data.connections.length === 0) return frame(<EmptyState icon={ShieldAlert} title={t("noAccounts")} solid action={<Button asChild size="responsive"><SettingsLink section="connections" href={`/workspaces/${tenantId}/social/accounts`}>{t("goToAccounts")}</SettingsLink></Button>} />);
 
   const typeSupported = (type: ComposerState["type"]) => data.connections.some((connection) => connection.availability === "available" && connection.capabilities.postTypes[type] !== "unavailable");
   const off = blocked || busy !== "";

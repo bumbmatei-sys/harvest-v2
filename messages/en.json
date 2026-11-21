@@ -200,13 +200,18 @@
     "planner": "Planner",
     "socialAccounts": "Social accounts",
     "inbox": "Inbox",
+<<<<<<< ours
     "autoDm": "Auto-DM",
     "articles": "Articles",
+=======
+    "autoDm": "Auto-DM",
+    "articles": "Blog",
+>>>>>>> theirs
     "website": "Website",
     "linkInBio": "Link in bio",
     "newsletter": "Newsletter",
     "discover": "Discover",
-    "products": "Courses and products",
+    "products": "Products",
     "assistant": "Assistant chat",
     "office": "Office",
     "forms": "Forms",
@@ -225,7 +230,25 @@
     "modeTooltip": "{mode} (Ctrl/Cmd+Alt+{shortcut})",
     "modeAnnouncement": "{mode} menu",
     "workspaceNavigationMode": "Ministry navigation: {mode}",
-    "socialAnalytics": "Analytics"
+    "socialAnalytics": "Analytics",
+    "overview": "Overview",
+    "donations": "Donations",
+    "fundraising": "Fundraising",
+    "pledges": "Pledges",
+    "donors": "Donors",
+    "funds": "Funds",
+    "givingPage": "Giving page",
+    "ads": "Ads",
+    "live": "Live",
+    "courses": "Courses",
+    "coaching": "Coaching",
+    "coupons": "Coupons",
+    "newsletterCampaigns": "Campaigns",
+    "audience": "Audience",
+    "signupForms": "Sign-up forms",
+    "newsletterAnalytics": "Analytics",
+    "websiteBuilder": "Website builder",
+    "ministryPage": "Ministry page"
   },
   "ComponentsAppearanceForm": {
     "couldNotSaveAppearanceTryAgain": "Could not save appearance. Try again.",
@@ -4631,6 +4654,54 @@
       "AUTO_DM_RULE_LIMIT": "The limit of 250 rules is reached.",
       "AUTO_DM_ALREADY_ENABLED": "The rule is already on.",
       "AUTO_DM_REVIEW_REQUIRED": "The review expired. Start it again."
+    }
+  },
+  "SettingsDialog": {
+    "title": "Settings",
+    "description": "Your profile, your account and your ministry's settings.",
+    "sections": "Settings sections",
+    "groups": {
+      "you": "You",
+      "ministry": "Ministry"
+    },
+    "sectionNames": {
+      "profile": "Profile",
+      "account": "Account",
+      "ministry": "Ministry details",
+      "connections": "Connections",
+      "crm": "CRM"
+    },
+    "profile": {
+      "community": "Community",
+      "displayName": "Display name",
+      "bio": "Bio",
+      "language": "Language",
+      "links": "Links",
+      "linkLabel": "Link {n} label",
+      "linkUrl": "Link {n} address",
+      "addLink": "Add link",
+      "removeLink": "Remove link {n}",
+      "visibility": "Who can see your profile",
+      "visibilityOptions": {
+        "members": "Members: shown in the members list",
+        "unlisted": "Unlisted: members with your link, not in the members list",
+        "private": "Private: your whole profile is visible only to you and this community's owners and admins"
+      },
+      "save": "Save profile",
+      "saving": "Saving…",
+      "saved": "Profile saved.",
+      "linkInvalid": "Each link needs a label and an address starting with https://.",
+      "loadFailed": "Could not load your profile.",
+      "retry": "Try again",
+      "noCommunities": "Join a community to add your profile there."
+    },
+    "account": {
+      "loadFailed": "Could not load your account.",
+      "retry": "Try again"
+    },
+    "ministry": {
+      "name": "Ministry",
+      "role": "Your role"
     }
   }
 }
