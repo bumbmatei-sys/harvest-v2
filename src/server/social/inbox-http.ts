@@ -1,13 +1,13 @@
 import { getDb, type Database } from "../../db/client";
 import { errorResponse, verifiedUser, verifyOrigin } from "../http";
 import { PublishValidationError, publishInvalid } from "./publish-access";
-import { assertEnabled, defaultSocialDeps } from "./registry";
+import { assertEnabled, defaultSocialDeps, type SocialDeps } from "./registry";
 
 const headers = { "Cache-Control": "private, no-store", Vary: "Cookie" };
 export async function inboxResponse<P>(request: Request, context: { params: Promise<P> }, write: boolean,
-  run: (db: Database, user: string, params: P) => Promise<object>, status = 200) {
+  run: (db: Database, user: string, params: P) => Promise<object>, status = 200, deps: SocialDeps = defaultSocialDeps()) {
   try {
-    assertEnabled(defaultSocialDeps());
+    assertEnabled(deps);
     if (write) verifyOrigin(request);
     const user = await verifiedUser(request);
     const result = await run(getDb(), user, await context.params);

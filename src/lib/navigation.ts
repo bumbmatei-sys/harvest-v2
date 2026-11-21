@@ -1,4 +1,4 @@
-import { BadgeDollarSign, BarChart3, BookOpen, Bot, Briefcase, Building, Calendar, CalendarCheck, CalendarClock, CalendarDays, ClipboardCheck, ClipboardList, ClipboardPen, Compass, Contact, ContactRound, FileText, FileUp, Files, Flag, Gift, Globe, GraduationCap, Handshake, HandCoins, HeartHandshake, Inbox, Kanban, LayoutDashboard, LayoutTemplate, Link2, ListChecks, Mail, MailOpen, MailPlus, MessageCircleReply, MessagesSquare, Newspaper, Package, Palette, PiggyBank, Podcast, QrCode, Radio, ScanQrCode, Settings, Share2, Sheet, SlidersHorizontal, Sparkles, Target, TicketPercent, UserCheck, UserCog, UserRoundCheck, Users, UsersRound, Wallet, Church, Landmark, ChartLine, Workflow, type LucideIcon } from "lucide-react";
+import { BadgeDollarSign, BookOpen, Bot, Briefcase, Building, Calendar, CalendarCheck, CalendarClock, CalendarDays, ClipboardCheck, ClipboardList, ClipboardPen, Compass, Contact, ContactRound, FileText, FileUp, Files, Flag, Gift, Globe, GraduationCap, Handshake, HandCoins, HeartHandshake, Inbox, Kanban, LayoutDashboard, LayoutTemplate, Link2, ListChecks, Mail, MailOpen, MailPlus, MessageCircleReply, MessagesSquare, Newspaper, Package, Palette, PiggyBank, Podcast, QrCode, Radio, ScanQrCode, Settings, Share2, Sheet, SlidersHorizontal, Sparkles, Target, TicketPercent, UserCheck, UserCog, UserRoundCheck, Users, UsersRound, Wallet, Church, Landmark, ChartLine, ChartNoAxesCombined, Workflow, type LucideIcon } from "lucide-react";
 import type { Audience } from "./audience";
 import { can, type Permission } from "./permissions";
 
@@ -105,7 +105,7 @@ export const navEntries: readonly NavEntry[] = [
   { id: "inbox", group: "publishing", mode: "public", status: "planned", label: "inbox", icon: Inbox, path: "/inbox", match: under("/inbox") },
   { id: "autoDm", group: "publishing", mode: "public", status: "planned", label: "autoDm", icon: MessageCircleReply, path: "/inbox/auto-dm", match: under("/inbox/auto-dm") },
   { id: "ads", group: "publishing", mode: "public", status: "planned", label: "ads", icon: Target, path: "/social/ads", match: under("/social/ads") },
-  { id: "socialAnalytics", group: "publishing", mode: "public", status: "planned", label: "socialAnalytics", icon: BarChart3, path: "/social/analytics", match: under("/social/analytics") },
+  { id: "socialAnalytics", group: "publishing", mode: "public", label: "socialAnalytics", icon: ChartNoAxesCombined, path: "/social/analytics", match: under("/social/analytics"), permission: "social:analytics", feature: "social" },
   // Public > Newsletter, Website.
   { id: "newsletterCampaigns", group: "newsletter", mode: "public", status: "planned", label: "newsletterCampaigns", icon: MailPlus, path: "/newsletter", match: under("/newsletter") },
   { id: "newsletterAudience", group: "newsletter", mode: "public", status: "planned", label: "audience", icon: ContactRound, path: "/newsletter/audience", match: under("/newsletter/audience") },

@@ -94,8 +94,8 @@ describe("three-mode registry (slice 1)", () => {
   });
   it("reserves not-yet-built modules as planned, including blog articles", () => {
     const planned = navEntries.filter((entry) => entry.status === "planned").map((entry) => entry.id);
-    expect(planned).toEqual(expect.arrayContaining(["articles", "socialAnalytics", "inbox", "autoDm", "ads", "website", "linkInBio", "newsletterCampaigns", "newsletterAudience", "signupForms", "newsletterAnalytics", "products", "courses", "coaching", "coupons", "live", "discover", "assistant", "responses", "connectLinks", "forms", "mail", "calendar", "documents", "spreadsheets", "givingOverview", "donations", "fundraising", "pledges", "donors", "funds", "givingPage", "volunteers", "livestream", "churchProfile"]));
-    expect(navEntries.filter((entry) => entry.status !== "planned").map((entry) => entry.id)).toEqual(["people", "companies", "pipelines", "tasks", "imports", "campaigns", "followUp", "events", "files", "planner", "communities", "socialAccounts", "crmFields", "pipelineSettings", "appearance", "ministrySettings"]);
+    expect(planned).toEqual(expect.arrayContaining(["articles", "inbox", "autoDm", "ads", "website", "linkInBio", "newsletterCampaigns", "newsletterAudience", "signupForms", "newsletterAnalytics", "products", "courses", "coaching", "coupons", "live", "discover", "assistant", "responses", "connectLinks", "forms", "mail", "calendar", "documents", "spreadsheets", "givingOverview", "donations", "fundraising", "pledges", "donors", "funds", "givingPage", "volunteers", "livestream", "churchProfile"]));
+    expect(navEntries.filter((entry) => entry.status !== "planned").map((entry) => entry.id)).toEqual(["people", "companies", "pipelines", "tasks", "imports", "campaigns", "followUp", "events", "files", "planner", "socialAnalytics", "communities", "socialAccounts", "crmFields", "pipelineSettings", "appearance", "ministrySettings"]);
   });
   it("never renders, links or labels a planned entry", () => {
     const plannedIds = new Set(navEntries.filter((entry) => entry.status === "planned").map((entry) => entry.id));
