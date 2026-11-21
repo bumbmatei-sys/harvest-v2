@@ -323,3 +323,15 @@ Premium kit repository `bumbmatei-sys/admin-dashboard` (commit `1631106`, no sec
 | `src/components/social/analytics/series-card.tsx` | **derived** | `sales/components/revenue-chart.tsx` | 10 of 61 (16%) | Titled card with the measure switch; area chart with gaps. Mostly shared imports. |
 
 Everything else on the screen (platform table, ranked posts, heatmap, range picker, banners, post drawer, data hook, entrance hook) is written for Harvest on shared components and has no kit source. New dependencies: `recharts` 3.10.1 and `motion` 13.1.1, both approved (16 Nov and 20 Nov). Chart colours are the existing `--chart-1..5` tokens.
+
+## CRM forms builder (21 Nov 2026)
+
+Layout follows a reference form builder shown to the founder in screenshots (forms list with a template row, new-form template grid and "where do submissions go" picker, Build / Settings / Preview tabs, the add-question menu with submenus, a Start page and End page rail, the Settings sidebar). **No code, text, icon, colour or brand from that product is used**: the structure was rebuilt from Harvest's shared shadcn components and Studio Admin tokens, "Create task in list" became "Save to CRM", and the hosting-vendor branding toggle was left out. The kit repositories (`bumbmatei-sys/admin-dashboard` 1631106, `bumbmatei-sys/chat-app` 66fd523) contain no form builder, so the kit sources are three free registry items from the Shadcn UI Kit (`https://shadcnuikit.com/r/<name>.json`, retrieved 2026-11-21; the exact items were chosen by the builder and are named in the PR for founder review). Percentages are the share of the Harvest file's non-blank lines unchanged from the kit file, measured with `scripts/ui-identical.sh`.
+
+| Harvest file | Kit item | Form | Identical lines | Notes |
+| --- | --- | --- | --- | --- |
+| `src/components/forms/kit-radio-cards.tsx` | `radio-group8` (free) | **derived** | 10 of 23 (43%) | Radio card classes; demo copy removed; options are a prop. |
+| `src/components/forms/kit-checkbox-cards.tsx` | `checkbox9` (free) | **derived** | 10 of 24 (41%) | Checkbox card classes; demo copy removed; list of values. |
+| `src/components/forms/kit-drop-zone.tsx` | `file-upload1` (free) | **derived** | 11 of 19 (57%) | Drop-zone look only; no upload hook or handlers. |
+
+Everything else (the field renderer, one-per-page form, builder canvas, add-question menu, settings sidebar, forms list and new-form flow, the signature pad, the add-question search) is written for Harvest on shared components (DataTable, EmptyState, Collapsible, Popover, DropdownMenu, Tabs, `useContextualSidebar`, `useUnsavedChangesGuard`) and has no kit source. New dependencies, approved by the founder on 21 Nov 2026: `@dnd-kit/sortable` 10.0.0, `@dnd-kit/utilities` 3.2.2 and `@dnd-kit/modifiers` 9.0.0 (all MIT, `@dnd-kit/core` 6.3.1 was already installed).

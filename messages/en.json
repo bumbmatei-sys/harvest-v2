@@ -5101,5 +5101,423 @@
       "noDataTitle": "Nothing to show for this range",
       "noData": "No posts or follower changes were recorded. Try a longer range."
     }
+  },
+  "CrmForms": {
+    "pageTitle": "Forms",
+    "newPageTitle": "New form",
+    "forms": "Forms",
+    "breadcrumb": "Breadcrumb",
+    "newForm": "New form",
+    "templatesHeading": "Templates",
+    "viewOnly": "Only owners and admins can build forms.",
+    "copyOf": "Copy of {title}",
+    "tableLabel": "Forms",
+    "neverViewed": "Never",
+    "search": "Search",
+    "searchLabel": "Search forms",
+    "columns": {
+      "name": "Name",
+      "savesTo": "Saves to",
+      "createdBy": "Created by",
+      "lastViewed": "Last viewed",
+      "actions": "Actions"
+    },
+    "sort": {
+      "label": "Sort",
+      "opened": "Recently opened",
+      "edited": "Recently edited",
+      "name": "Name (A to Z)",
+      "created": "Newest first"
+    },
+    "row": {
+      "open": "Open",
+      "duplicate": "Duplicate",
+      "favorite": "Add {title} to favorites",
+      "unfavorite": "Remove {title} from favorites",
+      "menu": "Actions for {title}"
+    },
+    "sidebar": {
+      "label": "Forms",
+      "all": "All forms",
+      "favorites": "Favorites",
+      "favoritesEmpty": "Star a form to see it here",
+      "recents": "Recents",
+      "recentsEmpty": "Nothing opened yet"
+    },
+    "empty": {
+      "title": "No forms yet",
+      "noMatch": "No forms match"
+    },
+    "destination": {
+      "people": "People",
+      "organizations": "Organizations",
+      "pipeline": "Pipeline: {name}",
+      "none": "Not set",
+      "unknown": "Unavailable"
+    },
+    "new": {
+      "close": "Close",
+      "back": "Back",
+      "chooseTemplate": "Choose a form template",
+      "scratch": "Start from scratch",
+      "whereTitle": "Where should submissions be saved?",
+      "search": "Search",
+      "browse": "Browse",
+      "noResults": "No matches"
+    },
+    "templates": {
+      "prayer": {
+        "name": "Prayer request",
+        "description": "Collect requests and contact details",
+        "q": {
+          "name": "Name",
+          "email": "Email",
+          "phone": "Phone",
+          "request": "How can we pray for you?",
+          "share": "Who may see this request?",
+          "shareOptions": "Only the prayer team|Our ministry team|Anyone who serves"
+        }
+      },
+      "event": {
+        "name": "Event registration",
+        "description": "Sign people up for an event",
+        "q": {
+          "name": "Name",
+          "email": "Email",
+          "phone": "Phone",
+          "guests": "Number of guests",
+          "session": "Which session will you attend?",
+          "sessionOptions": "Morning|Afternoon|Evening",
+          "needs": "Anything we should know?"
+        }
+      },
+      "volunteer": {
+        "name": "Volunteer sign-up",
+        "description": "Match people to serving teams",
+        "q": {
+          "name": "Name",
+          "email": "Email",
+          "phone": "Phone",
+          "areas": "Where would you like to serve?",
+          "areasOptions": "Welcome team|Children|Worship|Media|Prayer|Hospitality",
+          "availability": "When are you available?",
+          "availabilityOptions": "Weekday mornings|Weekday evenings|Weekends",
+          "about": "Tell us about yourself"
+        }
+      },
+      "feedback": {
+        "name": "Feedback",
+        "description": "Ask how a service or event went",
+        "q": {
+          "rating": "How was your experience?",
+          "liked": "What did you appreciate?",
+          "improve": "What could be better?",
+          "name": "Name",
+          "email": "Email"
+        }
+      },
+      "visitor": {
+        "name": "Visitor card",
+        "description": "Welcome first-time guests",
+        "q": {
+          "name": "Name",
+          "email": "Email",
+          "phone": "Phone",
+          "organization": "Church or organization",
+          "heard": "How did you hear about us?",
+          "heardOptions": "A friend|Online|An event|Passing by",
+          "notes": "Anything else?"
+        }
+      }
+    },
+    "defaults": {
+      "title": "Untitled form",
+      "endTitle": "Thank you, '{name}'",
+      "endBody": "We received your response.",
+      "button": "Submit",
+      "start": "Start",
+      "optionOne": "Option 1",
+      "optionTwo": "Option 2",
+      "consentLabel": "I agree to the use of my details",
+      "consentText": "I agree that this ministry may store my details to respond to me. I can ask to see or erase them at any time."
+    },
+    "titleLabel": "Form title",
+    "descriptionLabel": "Form description",
+    "descriptionPlaceholder": "Form description (optional)",
+    "questionsLabel": "Questions",
+    "cover": {
+      "add": "Add cover",
+      "change": "Change cover",
+      "label": "Cover",
+      "options": {
+        "none": "No cover",
+        "dawn": "Dawn",
+        "sea": "Sea",
+        "field": "Field",
+        "dusk": "Dusk",
+        "stone": "Stone"
+      }
+    },
+    "logo": {
+      "add": "Add logo",
+      "change": "Change logo",
+      "url": "Logo image address",
+      "placeholder": "https://",
+      "invalid": "Use an address that starts with https://"
+    },
+    "pages": {
+      "label": "Pages",
+      "start": "Start page",
+      "end": "End page"
+    },
+    "end": {
+      "title": "Thank-you title",
+      "body": "Thank-you message",
+      "insertName": "Insert name"
+    },
+    "issues": {
+      "label": "To finish",
+      "noName": "Add a Name question",
+      "noContact": "Add an Email or Phone question",
+      "noDestination": "Choose where to save",
+      "emptyChoice": "Fill in every option"
+    },
+    "leave": {
+      "title": "Leave this form?",
+      "body": "Your latest changes have not been saved yet.",
+      "stay": "Stay",
+      "leave": "Leave"
+    },
+    "errors": {
+      "conflict": "Someone else changed this form. Reload to continue.",
+      "reload": "Reload",
+      "saveFailed": "Your changes could not be saved.",
+      "retry": "Try again",
+      "notFound": "That form is not available.",
+      "stale": "This form was changed elsewhere. Reload and try again.",
+      "destination": "Choose a destination that exists in this ministry.",
+      "template": "Choose a valid template."
+    },
+    "bar": {
+      "saving": "Saving",
+      "saved": "Saved",
+      "conflictShort": "Out of date",
+      "saveFailed": "Not saved",
+      "undo": "Undo",
+      "redo": "Redo",
+      "responses": "{count, plural, one {# response} other {# responses}}",
+      "views": "Form views",
+      "build": "Build",
+      "settings": "Settings",
+      "preview": "Preview",
+      "open": "Open form",
+      "copy": "Copy",
+      "copyLink": "Copy link",
+      "publish": "Publish",
+      "unavailable": "Hosted forms are not available yet."
+    },
+    "menu": {
+      "add": "Add question",
+      "search": "Search",
+      "results": "Results",
+      "noResults": "No question types match",
+      "types": "Question types",
+      "layout": "Layout",
+      "back": "Back",
+      "newQuestion": "New question",
+      "saveToCrm": "Save to CRM field",
+      "groups": {
+        "crm": "Save to CRM field",
+        "short": "Short text",
+        "long": "Long text",
+        "dates": "Dates",
+        "single": "Single-select",
+        "multi": "Multi-select",
+        "contact": "Contact info",
+        "uploads": "Uploads",
+        "number": "Number",
+        "signature": "Signature",
+        "layout": "Layout"
+      },
+      "items": {
+        "map-name": "Name",
+        "map-email": "Email",
+        "map-phone": "Phone",
+        "map-organization": "Organization",
+        "map-social": "Social handle",
+        "map-notes": "Notes",
+        "short": "Text",
+        "long": "Text area",
+        "date": "Date",
+        "dropdown": "Dropdown",
+        "choice": "Choice list",
+        "checkbox": "Checkbox",
+        "rating": "Rating",
+        "vote": "Yes or no",
+        "multi": "Multiple choice",
+        "email": "Email",
+        "website": "Website",
+        "phone": "Phone",
+        "location": "Location",
+        "upload": "Files",
+        "number": "Number",
+        "money": "Money",
+        "signature": "Signature",
+        "info": "Information block"
+      }
+    },
+    "types": {
+      "short": "Short text",
+      "long": "Long text",
+      "date": "Date",
+      "dropdown": "Dropdown",
+      "choice": "Choice list",
+      "checkbox": "Checkbox",
+      "rating": "Rating",
+      "vote": "Yes or no",
+      "multi": "Multiple choice",
+      "email": "Email",
+      "website": "Website",
+      "phone": "Phone",
+      "location": "Location",
+      "upload": "Files",
+      "number": "Number",
+      "money": "Money",
+      "signature": "Signature",
+      "info": "Information",
+      "consent": "Consent"
+    },
+    "block": {
+      "heading": "Heading",
+      "question": "Question",
+      "body": "Text",
+      "notice": "Consent text",
+      "options": "Options",
+      "optionNumber": "Option {number}",
+      "optionDefault": "Option {number}",
+      "removeOption": "Remove option {number}",
+      "addOption": "Add option",
+      "saveTo": "Save to CRM field",
+      "notMapped": "Not saved to a CRM field",
+      "required": "Required",
+      "requiredBadge": "Required",
+      "savesTo": "Saves to {field}",
+      "drag": "Drag to reorder: {label}",
+      "moveUp": "Move up: {label}",
+      "moveDown": "Move down: {label}",
+      "remove": "Remove: {label}",
+      "removed": "Removed {label}",
+      "edit": "Edit {label}",
+      "editing": "Close",
+      "editHint": "Edit",
+      "mandatory": "Mandatory",
+      "editConsent": "Edit consent",
+      "fields": {
+        "name": "Name",
+        "email": "Email",
+        "phone": "Phone",
+        "organization": "Organization",
+        "social": "Social handle",
+        "notes": "Notes"
+      }
+    },
+    "dnd": {
+      "instructions": "Press space to pick up this question, the arrow keys to move it, space to drop it and escape to cancel.",
+      "start": "Picked up {label}.",
+      "over": "{label} is now number {position} of {total}.",
+      "end": "Dropped {label} at number {position} of {total}.",
+      "cancel": "Cancelled. {label} stays where it was.",
+      "moved": "{label} is now number {position} of {total}."
+    },
+    "field": {
+      "requiredMark": " *",
+      "choose": "Choose",
+      "stars": "{count, plural, one {# star} other {# stars}}",
+      "yes": "Yes",
+      "no": "No",
+      "uploadTitle": "File uploads are not available yet",
+      "uploadHint": "This question will not collect files",
+      "clearSignature": "Clear signature",
+      "errors": {
+        "required": "This is required.",
+        "email": "Enter a valid email address.",
+        "website": "Enter a valid website address.",
+        "phone": "Enter a valid phone number.",
+        "number": "Enter a number.",
+        "consent": "Please agree to continue."
+      }
+    },
+    "public": {
+      "previewNothingSaved": "Preview only. Nothing was saved.",
+      "previewRedirect": "Preview only. People would be sent to {url}.",
+      "resubmit": "Submit another response",
+      "progress": "Question {current} of {total}",
+      "back": "Back",
+      "next": "Next"
+    },
+    "settings": {
+      "after": {
+        "title": "After submitting",
+        "saveTo": "Save to",
+        "notSet": "Choose a destination",
+        "owner": "Assign owner",
+        "noOwner": "No owner",
+        "labels": "Labels",
+        "labelPlaceholder": "Add a label",
+        "addLabel": "Add",
+        "removeLabel": "Remove label {label}"
+      },
+      "submission": {
+        "title": "Submission settings",
+        "redirect": "Redirect URL",
+        "redirectPlaceholder": "https://",
+        "redirectInvalid": "Use an address that starts with https://",
+        "button": "Button label",
+        "resubmit": "Show resubmit button",
+        "spam": "Spam check",
+        "hiddenCampaign": "Attach campaign",
+        "hiddenSource": "Attach QR source"
+      },
+      "layout": {
+        "title": "Layout",
+        "one": "One column",
+        "two": "Two column",
+        "paged": "One per page",
+        "startLabel": "Start button"
+      },
+      "colors": {
+        "title": "Colors",
+        "light": "Light",
+        "dark": "Dark",
+        "background": "Background",
+        "button": "Button color",
+        "backgrounds": {
+          "plain": "Plain",
+          "muted": "Muted",
+          "accent": "Accent",
+          "chart-1": "Color 1",
+          "chart-2": "Color 2",
+          "chart-3": "Color 3",
+          "chart-4": "Color 4",
+          "chart-5": "Color 5"
+        },
+        "buttons": {
+          "primary": "Primary",
+          "foreground": "Neutral",
+          "chart-1": "Color 1",
+          "chart-2": "Color 2",
+          "chart-3": "Color 3",
+          "chart-4": "Color 4",
+          "chart-5": "Color 5",
+          "destructive": "Red"
+        }
+      },
+      "view": {
+        "title": "View settings",
+        "landing": "Default landing page",
+        "preview": "Preview",
+        "build": "Build"
+      }
+    }
   }
 }
