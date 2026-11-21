@@ -1,4 +1,3 @@
-import "server-only";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { runtimeConnectionString } from "../db/request";
 import type { FileBucket } from "./storage/r2";

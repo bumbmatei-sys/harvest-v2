@@ -15,7 +15,7 @@ export type WorkerRequestEnvironment = Omit<Extract<DatabaseEnvironment, { runti
   cookiePrefix?: string;
   mail?: Parameters<typeof makeAuth>[1]["mail"];
 };
-const requestAuth = new AsyncLocalStorage<{ get: () => Auth; origin: string }>();
+const requestAuth = new AsyncLocalStorage<{ get: () => Auth }>();
 let nodeAuth: Auth | undefined;
 
 /** Worker entry point for buffered handlers. Await all DB work before returning. */
@@ -24,7 +24,6 @@ export function withWorkerRequest<T>(env: WorkerRequestEnvironment, request: Req
   return withDb({ runtime: "workers", role: "app", APP_HYPERDRIVE: env.APP_HYPERDRIVE }, async (db) => {
     let auth: Auth | undefined;
     return requestAuth.run({
-      origin: new URL(env.BETTER_AUTH_URL).origin,
       get: () => auth ??= makeAuth(db, {
         secret: env.BETTER_AUTH_SECRET, baseURL: env.BETTER_AUTH_URL,
         cookiePrefix: env.cookiePrefix, mail: env.mail,
@@ -32,10 +31,6 @@ export function withWorkerRequest<T>(env: WorkerRequestEnvironment, request: Req
       }),
     }, run);
   }, { signal: request.signal });
-}
-
-export function getWorkerAuthOrigin() {
-  return requestAuth.getStore()?.origin;
 }
 
 export function getAuth(): Auth {

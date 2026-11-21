@@ -98,4 +98,5 @@ export async function fetchBufferedApi(request: Request, env: WorkerBindings) {
   }
 }
 
-export default { fetch: (request: Request, env: WorkerBindings) => fetchBufferedApi(request, env) };
+const worker = { fetch: (request: Request, env: WorkerBindings) => fetchBufferedApi(request, env) };
+export default worker;
