@@ -34,6 +34,11 @@ async function audit(page: Page, name: string, ready: (width: number) => Promise
   await page.setViewportSize({ width: 1280, height: 900 });
 }
 
+// The fake provider only knows the fixed `test-<platform>` accounts, and an account can be active in one ministry at a time (unique index on provider and
+// external account). Specs share one server and database, so this spec revokes its connections when it ends, pass or fail, and the next spec can link them.
+let release: (() => Promise<void>) | null = null;
+test.afterEach(async () => { await release?.(); release = null; });
+
 test("social inbox: list, filters, thread, comments, reply states, empty, errors, settings and phone", async ({ page, browser }) => {
   test.setTimeout(900_000);
   await mkdir(shots, { recursive: true });
@@ -44,6 +49,11 @@ test("social inbox: list, filters, thread, comments, reply states, empty, errors
   const api = `/api/workspaces/${tenant}/social`, base = `/workspaces/${tenant}/social/inbox`;
   const admin = new Client({ connectionString: await readFile(`${process.env.HARVEST_E2E_MAILBOX}.admin`, "utf8") });
   await admin.connect();
+  release = async () => {
+    const cleanup = new Client({ connectionString: await readFile(`${process.env.HARVEST_E2E_MAILBOX}.admin`, "utf8") });
+    await cleanup.connect();
+    try { await cleanup.query("update social_connections set status='revoked' where tenant_id=$1 and status <> 'revoked'", [tenant]); } finally { await cleanup.end(); }
+  };
   const rows = page.getByTestId("row"), row = (text: string) => rows.filter({ hasText: text });
   const listReady = async () => { await expect(page.getByTestId("list")).toBeVisible(); await expect(rows.first()).toBeVisible(); };
 
