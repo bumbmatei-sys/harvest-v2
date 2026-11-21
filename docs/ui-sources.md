@@ -285,3 +285,14 @@ The Settings pop-up uses five items from the founder's private premium kit repos
 | `src/components/settings/settings-nav.tsx` | modelled on | admin-dashboard `settings/components/sidebar-nav.tsx` | Icon rows grouped You and Ministry, a scrollable tab row on phones, roving arrow-key focus. |
 | `src/components/settings/settings-panels.tsx` | modelled on | admin-dashboard `settings/account/page.tsx`, `settings/notifications/page.tsx` | Profile, Account, Ministry details, Connections (the social accounts board embedded) and CRM link rows. |
 | `src/components/user-avatar.tsx` | modelled on (existing) | chat-app `components/user-avatar.tsx` | Reused unchanged in the profile and account panels. |
+
+### Social Auto-DM screens (rules list, rule editor, enable review, test mode, activity, templates, hours)
+
+Layout and features follow the founder's first Harvest version (private repository `bumbmatei-sys/harvest-agent`, read-only; his own code: `SocialAutoDmView.tsx`, its tests and `auto-dm.ts`) and the Eden Auto-DM screens, with the improvements listed in `docs/acceptance/social-auto-dm-screens.md`. No harvest-agent code was copied: it is a different stack and data layer. Kit reference: admin-dashboard commit `1631106` (premium), under the founder's standing kit rule of 17 Nov.
+
+| Harvest file | Status | Kit source | Identical lines | Notes |
+| --- | --- | --- | --- | --- |
+| `src/components/social/auto-dm/editor-parts.tsx` | modelled on (kit) | admin-dashboard `pages/settings/notifications/page.tsx` | 5 of 49 (10%), imports and closing lines | The bordered switch row; numbered step cards and card radios are Harvest-written. |
+| all other `src/components/social/auto-dm/*` | existing Harvest components | none | not applicable | Built on Stepper (stepper1), EmptyState (empty-state15), StatusBadge (badge1), Sheet, Dialog, Tabs, StickySaveBar and the composer's option-row pattern; no new kit item installed. |
+
+Kit blocks looked at and not used: `workflow-automation` (canvas editor; Auto-DM is a bounded rule, not a workflow graph) and the premium tables (Harvest lists are cards that stack on phones).

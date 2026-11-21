@@ -68,7 +68,7 @@ export function RuleEditor({ tenantId, you, existing, accounts, onChanged }: {
     setUploading(true);
     try {
       const stored = await uploadMedia(tenantId, file, { signal: new AbortController().signal, phase: () => undefined, progress: () => undefined });
-      if (stored.status !== "ready") throw new Error("not ready");
+      if (stored.status !== "ready") throw new Error(stored.status);
       setMediaName(file.name); setRule((value) => ({ ...value, response: { ...value.response, fileId: stored.id } }));
     } catch { setMediaError(t("response.mediaFailed")); } finally { setUploading(false); }
   }

@@ -4389,7 +4389,8 @@
       },
       "referenceLabel": "Provider post reference",
       "liveNote": "The rule can be turned on once the post is live.",
-      "entryKey": "Entry key"
+      "entryKey": "Entry key",
+      "accountOption": "{name} ({platform})"
     },
     "match": {
       "keywords": "Keywords",
@@ -4627,7 +4628,8 @@
       "invalid": "Each range must end after it starts and not overlap another.",
       "away": "Away message",
       "saved": "Saved.",
-      "save": "Save hours"
+      "save": "Save hours",
+      "range": "{day} {start}-{end}"
     },
     "rule": {
       "subtitle": "Version {version}",

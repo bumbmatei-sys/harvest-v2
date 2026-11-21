@@ -15,7 +15,7 @@ import { useRuleLabels } from "@/components/social/auto-dm/rule-labels";
 import type { PlannerItem } from "@/lib/social/api";
 import type { AutoDmRule, AutoDmTrigger } from "@/lib/social/auto-dm";
 import type { AutoDmAccountView } from "@/lib/social/auto-dm-api";
-import { cooldownChoices, promotionalFlags, takesEntry, takesKeywords, triggerOptions, withTrigger, type TriggerReason } from "@/lib/social/auto-dm-ui";
+import { cooldownChoices, promotionalFlags, takesEntry, takesKeywords, triggerOptions, withTrigger, type TriggerReason, sym } from "@/lib/social/auto-dm-ui";
 import { platformLabels } from "@/lib/social/labels";
 import { formatWhen } from "@/components/social/auto-dm/rule-activity";
 
@@ -35,7 +35,7 @@ export function TriggerStep({ rule, update, accounts, connectionId, onConnection
       <Input value={rule.name} maxLength={120} aria-invalid={issues.includes("name") || undefined} onChange={(event) => update((current) => ({ ...current, name: event.target.value }))} className={field} placeholder={t("trigger.namePlaceholder")} /></label>
     <label className="block space-y-1 text-sm font-medium">{t("trigger.account")}
       <NativeSelect value={connectionId} disabled={locked} onChange={(event) => onConnection(event.target.value)} className={field}>
-        {accounts.map((item) => <NativeSelectOption key={item.id} value={item.id}>{item.name ?? platformLabels[item.platform]} ({platformLabels[item.platform]})</NativeSelectOption>)}</NativeSelect>
+        {accounts.map((item) => <NativeSelectOption key={item.id} value={item.id}>{t("trigger.accountOption", { name: item.name ?? platformLabels[item.platform], platform: platformLabels[item.platform] })}</NativeSelectOption>)}</NativeSelect>
       {locked && <span className="block text-xs font-normal text-muted-foreground">{t("trigger.accountLocked")}</span>}</label>
     <RadioCards name={`${id}-trigger`} label={t("trigger.when")} value={rule.trigger} onChange={(next) => update((current) => withTrigger(current, next))}
       options={triggerOptions(account?.platform ?? null, account?.triggers ?? null).map((option) => ({ value: option.trigger, title: t(`triggers.${option.trigger}.name`), disabled: !option.available, icon: icons[option.trigger],
@@ -48,7 +48,7 @@ export function TriggerStep({ rule, update, accounts, connectionId, onConnection
         onChange={(event) => update((current) => ({ ...current, postId: event.target.value || null }))}>
         <NativeSelectOption value="">{t("trigger.pickPost")}</NativeSelectOption>
         {rule.postId && !posts.items.some((item) => item.id === rule.postId) && <NativeSelectOption value={rule.postId}>{t("trigger.currentPost")}</NativeSelectOption>}
-        {posts.items.map((item) => <NativeSelectOption key={item.id} value={item.id}>{(item.summary || t("trigger.untitled")).slice(0, 60)} · {t(`trigger.postStatus.${item.status as "scheduled"}`)} · {formatWhen(item.at)}</NativeSelectOption>)}</NativeSelect>}
+        {posts.items.map((item) => <NativeSelectOption key={item.id} value={item.id}>{[(item.summary || t("trigger.untitled")).slice(0, 60), t(`trigger.postStatus.${item.status as "scheduled"}`), formatWhen(item.at)].join(sym.dot)}</NativeSelectOption>)}</NativeSelect>}
       {scope === "reference" && <label className="block space-y-1 text-sm">{t("trigger.referenceLabel")}
         <Input value={rule.postRef ?? ""} maxLength={200} onChange={(event) => update((current) => ({ ...current, postRef: event.target.value }))} className={field} aria-invalid={issues.includes("postRef") || undefined} /></label>}
       {scope === "harvest" && <p className="text-xs text-muted-foreground">{t("trigger.liveNote")}</p>}
@@ -75,7 +75,6 @@ export function MatchStep({ rule, update, issues }: { rule: AutoDmRule; update: 
   </>;
 }
 
-const slug = (title: string) => title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40) || "reply";
 export function ResponseStep({ rule, update, issues, attested, onAttest, mediaName, onMedia, uploading, mediaError }: {
   rule: AutoDmRule; update: Update; issues: readonly string[]; attested: boolean; onAttest: (value: boolean) => void;
   mediaName: string | null; onMedia: (file: File | null) => void; uploading: boolean; mediaError: string;
@@ -107,11 +106,11 @@ export function ResponseStep({ rule, update, issues, attested, onAttest, mediaNa
         <Button type="button" variant="outline" size="responsive" onClick={insertName}>{t("insertName")}</Button></div>
       <Textarea id={`${id}-text`} ref={text} value={rule.response.text} maxLength={1000} className="min-h-28" aria-invalid={issues.includes("response.text") || undefined}
         onChange={(event) => setResponse({ text: event.target.value })} />
-      <p className="text-right text-xs text-muted-foreground tabular-nums">{rule.response.text.length}/1000</p>
+      <p className="text-right text-xs text-muted-foreground tabular-nums">{sym.of(rule.response.text.length, 1000)}</p>
     </div>
     {comment && <SwitchRow title={t("publicReply")} note={t("publicReplyNote")} checked={rule.response.publicReply !== null} onChecked={(on) => setResponse({ publicReply: on ? "" : null })}>
       <Textarea aria-label={t("publicReply")} value={rule.response.publicReply ?? ""} maxLength={1000} className="min-h-20" onChange={(event) => setResponse({ publicReply: event.target.value })} /></SwitchRow>}
-    <div className="space-y-2"><div className="flex items-center justify-between gap-2"><h3 className="text-sm font-medium">{t("quickReplies")}</h3><span className="text-xs text-muted-foreground tabular-nums">{rule.response.quickReplies.length}/13</span></div>
+    <div className="space-y-2"><div className="flex items-center justify-between gap-2"><h3 className="text-sm font-medium">{t("quickReplies")}</h3><span className="text-xs text-muted-foreground tabular-nums">{sym.of(rule.response.quickReplies.length, 13)}</span></div>
       {rule.response.quickReplies.map((button, index) => <div key={button.key} className="flex items-center gap-2" data-testid="quick-reply">
         <Input aria-label={t("quickReplyTitle", { number: index + 1 })} value={button.title} maxLength={20} className={field}
           onChange={(event) => setResponse({ quickReplies: rule.response.quickReplies.map((item, at) => at === index ? { ...item, title: event.target.value } : item) })} />

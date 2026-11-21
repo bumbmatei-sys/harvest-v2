@@ -8,7 +8,7 @@ import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
 import { Activity } from "lucide-react";
 import { autoDmApi, type ActivityRow, type JobCount, type JobState } from "@/lib/social/auto-dm-api";
-import { summarize } from "@/lib/social/auto-dm-ui";
+import { summarize, sym } from "@/lib/social/auto-dm-ui";
 import type { StatusTone } from "@/lib/status-tone";
 
 const tone: Record<JobState, StatusTone> = { queued: "pending", leased: "pending", dispatching: "pending", unknown: "warning", sent: "success", skipped: "neutral", handed_off: "info", cancelled: "neutral" };
@@ -44,7 +44,7 @@ export function RuleActivity({ tenantId, ruleId, stamp }: { tenantId: string; ru
         <tbody>{rows.map((row) => <tr key={row.id} className="border-b last:border-0" data-state={row.state}>
           <td className="px-3 py-2 whitespace-nowrap">{formatWhen(row.createdAt)}</td><td className="px-3 py-2">{t(`steps.${row.step}`)}</td>
           <td className="px-3 py-2"><StatusBadge tone={tone[row.state]} label={t(`states.${row.state}`)} /></td>
-          <td className="px-3 py-2">{row.reason ? t(`reasons.${row.reason}`) : "-"}</td><td className="px-3 py-2 tabular-nums">{row.version}</td><td className="px-3 py-2 font-mono text-xs">{row.eventId.slice(0, 8)}</td></tr>)}</tbody></table></div>}
+          <td className="px-3 py-2">{row.reason ? t(`reasons.${row.reason}`) : sym.dash}</td><td className="px-3 py-2 tabular-nums">{row.version}</td><td className="px-3 py-2 font-mono text-xs">{row.eventId.slice(0, 8)}</td></tr>)}</tbody></table></div>}
     {more && <Button type="button" variant="outline" size="responsive" aria-disabled={older || undefined} onClick={() => { if (!older) void loadOlder(); }}>{t("older")}</Button>}
     <p className="text-xs text-muted-foreground">{t("privacy")}</p>
   </div>;

@@ -39,7 +39,7 @@ export function HoursPanel({ tenantId, accounts }: { tenantId: string; accounts:
           <div className="min-w-0"><p className="truncate text-sm font-medium">{name}</p><p className="text-xs text-muted-foreground">{platformLabels[account.platform]}</p></div></div>
           <Button type="button" variant="outline" size="responsive" onClick={() => setEditing(account)}><Clock aria-hidden="true" />{t("edit")}</Button></div>
         {current === undefined ? <Skeleton className="h-12 w-full" /> : current === "error" ? <p role="alert" className="text-sm text-destructive">{t("loadFailed")}</p> : <div className="space-y-2 text-sm">
-          {current.hours.length === 0 ? <p className="text-muted-foreground">{t("none")}</p> : <ul className="flex flex-wrap gap-1.5" aria-label={t("open")}>{current.hours.map((slot, index) => <li key={index} className="rounded-md bg-secondary px-2 py-1 text-xs text-secondary-foreground">{days[slot.day - 1]} {slot.start}-{slot.end}</li>)}</ul>}
+          {current.hours.length === 0 ? <p className="text-muted-foreground">{t("none")}</p> : <ul className="flex flex-wrap gap-1.5" aria-label={t("open")}>{current.hours.map((slot, index) => <li key={index} className="rounded-md bg-secondary px-2 py-1 text-xs text-secondary-foreground">{t("range", { day: days[slot.day - 1], start: slot.start, end: slot.end })}</li>)}</ul>}
           <p className="text-xs text-muted-foreground">{current.timezone}</p>
           <p className="flex items-center gap-2 text-xs"><StatusBadge tone={current.awayTemplate ? "success" : "neutral"} label={current.awayTemplate ? t("awaySet") : t("awayNone")} /></p></div>}
       </li>;

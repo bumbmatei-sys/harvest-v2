@@ -104,3 +104,6 @@ export function cooldownUnit(minutes: number): ["minutes" | "hours" | "days", nu
   return ["minutes", minutes];
 }
 export const weekdays = [1, 2, 3, 4, 5, 6, 7] as const;
+
+/** Separators and placeholders kept out of JSX so the copy guard sees only catalogue text. */
+export const sym = { dot: " · ", dash: "-", pending: "…", plus: "+", of: (used: number, max: number) => `${used}/${max}` } as const;

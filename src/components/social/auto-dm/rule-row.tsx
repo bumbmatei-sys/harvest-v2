@@ -1,4 +1,5 @@
 "use client";
+import { sym } from "@/lib/social/auto-dm-ui";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { Switch } from "@/components/ui/switch";
@@ -25,14 +26,14 @@ export function RuleRow({ tenantId, rule, account, stats, busy, onSwitch }: {
         <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-muted">{account ? <PlatformLogo platform={account.platform} className="size-4" /> : null}</span>
         <div className="min-w-0 space-y-1">
           <Link href={base} prefetch={false} className="block truncate font-medium outline-none hover:underline focus-visible:underline">{rule.name}</Link>
-          <p className="text-xs text-muted-foreground">{labels.trigger(rule.trigger)} · {labels.scope(rule)} · {account ? account.name ?? platformLabels[account.platform] : t("accountMissing")}</p>
+          <p className="text-xs text-muted-foreground">{[labels.trigger(rule.trigger), labels.scope(rule), account ? account.name ?? platformLabels[account.platform] : t("accountMissing")].join(sym.dot)}</p>
           {rule.match.keywords.length > 0 && <ul className="flex flex-wrap gap-1" aria-label={t("keywords")}>{rule.match.keywords.slice(0, 3).map((word) => <li key={word} className="rounded-md border px-1.5 py-0.5 text-xs">{word}</li>)}
-            {rule.match.keywords.length > 3 && <li className="px-1 py-0.5 text-xs text-muted-foreground">+{rule.match.keywords.length - 3}</li>}</ul>}
+            {rule.match.keywords.length > 3 && <li className="px-1 py-0.5 text-xs text-muted-foreground">{sym.plus}{rule.match.keywords.length - 3}</li>}</ul>}
         </div>
       </div>
       <div className="min-w-0 space-y-1.5">
         <dl className="grid grid-cols-4 gap-2 text-center sm:text-left">{counts.map(([key, value]) => <div key={key} data-testid={`row-count-${key}`}><dt className="text-[11px] text-muted-foreground">{t(`counts.${key}`)}</dt>
-          <dd className="text-sm font-medium tabular-nums">{value === null ? (stats?.state === "error" ? "-" : "…") : value}</dd></div>)}</dl>
+          <dd className="text-sm font-medium tabular-nums">{value === null ? (stats?.state === "error" ? sym.dash : sym.pending) : value}</dd></div>)}</dl>
         <p className="text-xs text-muted-foreground" data-testid="row-last">{stats?.state === "ready" ? (stats.lastAt ? t("last", { when: formatWhen(stats.lastAt) }) : t("never")) : " "}</p>
       </div>
       <div className="flex flex-wrap items-center gap-2 lg:justify-end">

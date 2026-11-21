@@ -194,7 +194,7 @@ describe("approved sidebar structure (20 Nov)", () => {
     const rows = (group: string) => navEntries.filter((entry) => entry.group === group).map((entry) => entry.id);
     expect(rows("office")).toEqual(["mail", "calendar", "documents", "spreadsheets", "files"]);
     expect(rows("giving")).toEqual(["givingOverview", "donations", "fundraising", "pledges", "donors", "funds", "givingPage"]);
-    expect(rows("publishing")).toEqual(["planner", "inbox", "ads", "socialAnalytics"]);
+    expect(rows("publishing")).toEqual(["planner", "inbox", "autoDm", "ads", "socialAnalytics"]);
     expect(rows("newsletter")).toEqual(["newsletterCampaigns", "newsletterAudience", "signupForms", "newsletterAnalytics"]);
     expect(rows("website")).toEqual(["linkInBio", "articles", "website"]);
     expect(rows("community")).toEqual(["communities", "live"]);

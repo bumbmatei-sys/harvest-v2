@@ -1,3 +1,4 @@
+/** Layout and behaviour modelled on bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): app/dashboard/(auth)/pages/settings/notifications/page.tsx; code written for Harvest, no kit code copied. */
 "use client";
 import { useId } from "react";
 import { Check } from "lucide-react";

@@ -17,7 +17,7 @@ import { RuleRow } from "@/components/social/auto-dm/rule-row";
 import { TemplatesPanel } from "@/components/social/auto-dm/templates-panel";
 import { useAutoDmData, useAutoDmReason, useRuleStats } from "@/components/social/auto-dm/use-auto-dm";
 import { autoDmApi, type AutoDmRuleView } from "@/lib/social/auto-dm-api";
-import { addTotals, emptyTotals } from "@/lib/social/auto-dm-ui";
+import { addTotals, emptyTotals, sym } from "@/lib/social/auto-dm-ui";
 import { notify } from "@/lib/toast";
 
 const tabs = ["rules", "templates", "hours"] as const;
@@ -61,7 +61,7 @@ export function AutoDmBoard({ tenantId }: { tenantId: string }) {
     </Tabs>
     {tab === "rules" && <div className="space-y-4">
       <dl className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-5" data-testid="board-tiles" data-ready={loadedStats || undefined}>{tiles.map(([key, value]) => <div key={key} className="rounded-xl border bg-card p-3" data-testid={`tile-${key}`}>
-        <dt className="text-xs text-muted-foreground">{t(`tiles.${key}`)}</dt><dd className="mt-1 text-2xl font-semibold tabular-nums">{key === "active" || loadedStats ? value : "…"}</dd></div>)}</dl>
+        <dt className="text-xs text-muted-foreground">{t(`tiles.${key}`)}</dt><dd className="mt-1 text-2xl font-semibold tabular-nums">{key === "active" || loadedStats ? value : sym.pending}</dd></div>)}</dl>
       {data.rules.length === 0 ? <EmptyState icon={MessageCircleReply} solid title={t("emptyTitle")} description={t("empty")} action={<Button asChild size="responsive"><Link href={`${base}/new`} prefetch={false}><Plus aria-hidden="true" />{t("newRule")}</Link></Button>} />
         : <ul className="space-y-3" aria-label={t("tabs.rules")}>{data.rules.map((rule) => <RuleRow key={rule.id} tenantId={tenantId} rule={rule} account={accountById.get(rule.connectionId)} stats={stats[rule.id]} busy={busy === rule.id} onSwitch={(item, next) => void onSwitch(item, next)} />)}</ul>}
     </div>}
