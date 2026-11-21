@@ -18,6 +18,7 @@ const names = (accounts: readonly AccountReport[], limit = 3) => accounts.slice(
 /** Partial-result banners: an account that is delayed or whose connection expired, accounts not measured yet, and a truncated report. Numbers that are present stay on screen. */
 export function PartialBanners({ accounts, truncated, accountsHref }: { accounts: readonly AccountReport[]; truncated: boolean; accountsHref: string }) {
   const t = useTranslations("SocialAnalytics.banners"), issues = accountIssues(accounts);
+  if (!issues.expired.length && !issues.delayed.length && !issues.pending.length && !truncated) return null;
   return <div className="flex flex-col gap-3" data-testid="partial-banners">
     {issues.expired.length > 0 && <Alert variant="destructive" data-testid="banner-expired"><CircleAlert aria-hidden="true" />
       <AlertTitle>{t("expiredTitle", { count: issues.expired.length })}</AlertTitle>

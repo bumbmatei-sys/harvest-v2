@@ -64,7 +64,7 @@ export function AnalyticsDashboard({ tenantId }: { tenantId: string }) {
   const header = <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3">
     <div className="min-w-0"><h1 className="text-[28px] font-semibold tracking-tight">{t("title")}</h1><p className="mt-1 text-sm text-muted-foreground">{t("subtitle", { zone: timezone })}</p></div>
     <div className="flex min-w-0 flex-wrap items-center gap-3 max-sm:w-full max-sm:flex-col max-sm:items-stretch">
-      {data.accounts.length > 1 && <NativeSelect value={scopeValue(scope)} onChange={(event) => setScope(parseScope(event.target.value))} className="min-h-11 w-auto min-w-44 lg:min-h-9" aria-label={t("scope.label")} data-testid="scope-select">
+      {data.accounts.length > 1 && <NativeSelect value={scopeValue(scope)} onChange={(event) => setScope(parseScope(event.target.value))} className="min-h-11 w-auto min-w-44 max-sm:w-full lg:min-h-9" aria-label={t("scope.label")} data-testid="scope-select">
         <NativeSelectOption value="all">{t("scope.all")}</NativeSelectOption>
         {platforms.length > 1 && <NativeSelectOptGroup label={t("scope.platforms")}>{platforms.map((platform) => <NativeSelectOption key={platform} value={`platform:${platform}`}>{platformLabels[platform]}</NativeSelectOption>)}</NativeSelectOptGroup>}
         <NativeSelectOptGroup label={t("scope.accounts")}>{data.accounts.map((account) => <NativeSelectOption key={account.id} value={`account:${account.id}`}>{t("scope.account", { name: account.displayName, platform: platformLabels[account.platform] })}</NativeSelectOption>)}</NativeSelectOptGroup>

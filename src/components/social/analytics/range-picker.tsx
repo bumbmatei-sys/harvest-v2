@@ -29,7 +29,7 @@ export function RangePicker({ range, today, onChange }: { range: { from: string;
           {presets.map((days) => <Button key={days} type="button" variant={active === days ? "secondary" : "ghost"} size="responsive" className={cn("justify-start", active === days && "font-semibold")} aria-pressed={active === days} onClick={() => choose(days)}>{t("last", { days })}</Button>)}
         </div>
         <div className="flex flex-col gap-3 border-t pt-4">
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 gap-3">
             <div className="flex flex-col gap-1.5"><Label htmlFor="analytics-from">{t("from")}</Label><Input id="analytics-from" type="date" value={from} max={to || today} className="min-h-11 lg:min-h-9" onChange={(event) => setFrom(event.target.value)} /></div>
             <div className="flex flex-col gap-1.5"><Label htmlFor="analytics-to">{t("to")}</Label><Input id="analytics-to" type="date" value={to} min={from} max={today} className="min-h-11 lg:min-h-9" onChange={(event) => setTo(event.target.value)} /></div>
           </div>

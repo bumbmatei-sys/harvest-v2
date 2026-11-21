@@ -90,7 +90,7 @@ async function seed(page: Page, admin: Client, owner: string, tenant: string): P
 /** Both colour schemes at 1280 and 360 (device scale 2): the page must be fully loaded (no skeleton, no busy region, entrance settled) before axe, the overflow check and the screenshot. */
 async function audit(page: Page, url: string, name: string, options: { after?: () => Promise<void>; locator?: string; full?: boolean } = {}) {
   const session = await page.context().newCDPSession(page);
-  for (const scheme of ["light", "dark"] as const) for (const [width, height] of [[1280, 1000], [360, 800]] as const) {
+  for (const scheme of ["light", "dark"] as const) for (const [width, height] of (options.full === false ? [[1280, 900], [360, 800]] : [[1280, 2400], [360, 4200]]) as const) {
     await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
     await session.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 2, mobile: false });
     await page.setViewportSize({ width, height });
@@ -206,8 +206,8 @@ test("social analytics: cards, series, platforms, posts, heatmap, detail, states
   await expect(page.getByTestId("range-trigger")).toContainText("Last 7 days");
   await expect(page.getByTestId("analytics-page")).toHaveAttribute("data-ready", "true");
   await page.getByTestId("range-trigger").click();
-  await page.getByLabel("From").fill(today);
-  await page.getByLabel("To").fill(from);
+  await page.getByLabel("From", { exact: true }).fill(today);
+  await page.getByLabel("To", { exact: true }).fill(from);
   await expect(page.getByRole("alert").filter({ hasText: "at most 366 days" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Apply" })).toBeDisabled();
   await page.keyboard.press("Escape");
