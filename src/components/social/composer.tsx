@@ -15,6 +15,8 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { StatusBadge } from "@/components/status-badge";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { socialApi, SocialApiError, type Delivery, type DestinationPreview, type Target } from "@/lib/social/api";
+import { autoDmApi } from "@/lib/social/auto-dm-api";
+import { autoDmReady, commentRuleFor, emptyComposerAutoDm, supportsAutoDm, type ComposerAutoDm } from "@/lib/social/auto-dm-composer";
 import { buildDocument, destinationOf, emptyComposer, mediaMode, ringFor, stateFromDocument, uploading, type Attachment, type ComposerState, type DestinationState } from "@/lib/social/composer-state";
 import { mediaKind } from "@/lib/social/media";
 import { acceptsMime, PutError, uploadMedia } from "@/lib/social/media-upload";
@@ -32,6 +34,7 @@ import { ScheduleDialog } from "@/components/social/schedule-dialog";
 import { ScheduleManager } from "@/components/social/schedule-manager";
 import { SocialHeader, SocialToolbar } from "@/components/social/social-nav";
 import { useReason } from "@/components/social/use-reason";
+import { useAutoDmReason } from "@/components/social/auto-dm/use-auto-dm";
 import { useSocialData } from "@/components/social/use-social-data";
 import { platformLabels } from "@/lib/social/labels";
 import { browserTimeZone } from "@/lib/social/time";
@@ -39,7 +42,7 @@ import { browserTimeZone } from "@/lib/social/time";
 const emoji = ["🙏", "✝️", "❤️", "🙌", "😊", "🎉", "📖", "🕊️", "🌟", "🔥", "👏", "💛", "☀️", "🌿", "🎶", "📣", "📅", "📍", "✨", "😇", "🤝", "💬", "🙂", "😍"];
 
 export function Composer({ tenantId, initialDraftId }: { tenantId: string; initialDraftId: string | null }) {
-  const t = useTranslations("SocialPublish.composer"), reason = useReason(), router = useRouter(), params = useSearchParams();
+  const t = useTranslations("SocialPublish.composer"), reason = useReason(), autoReason = useAutoDmReason(), router = useRouter(), params = useSearchParams();
   const data = useSocialData(tenantId), api = useMemo(() => socialApi(tenantId), [tenantId]);
   const [state, setState] = useState<ComposerState>(() => emptyComposer()), [draft, setDraft] = useState<{ id: string; version: number } | null>(null);
   const [previews, setPreviews] = useState<DestinationPreview[]>([]), [previewing, setPreviewing] = useState(false);
@@ -48,7 +51,9 @@ export function Composer({ tenantId, initialDraftId }: { tenantId: string; initi
   const [scheduleOpen, setScheduleOpen] = useState(false), [manageOpen, setManageOpen] = useState(false), [draftsOpen, setDraftsOpen] = useState(false);
   const [review, setReview] = useState<{ token: string; expiresAt: string; destinations: DestinationPreview[]; version: number } | null>(null);
   const [result, setResult] = useState<{ id: string; version: number; deliveries: Delivery[] } | null>(null), [retrying, setRetrying] = useState<string | null>(null);
-  const [schedule, setSchedule] = useState(params.get("schedule") ?? "");
+  const [schedule, setSchedule] = useState(params.get("schedule") ?? ""), [autoDm, setAutoDm] = useState<ComposerAutoDm>(emptyComposerAutoDm);
+  const autoDmRef = useRef(autoDm);
+  useEffect(() => { autoDmRef.current = autoDm; });
   const controllers = useRef(new Map<string, AbortController>());
   const urls = useRef(new Set<string>());
   const stateRef = useRef(state);
@@ -125,9 +130,10 @@ export function Composer({ tenantId, initialDraftId }: { tenantId: string; initi
 
   const shownPreviews = document.connectionIds.length === 0 ? [] : previews;
   const issues = shownPreviews.flatMap((preview) => preview.errors.map((code) => ({ id: preview.account.id, platform: preview.account.platform, code })));
-  const blocked = uploading(state) || selected.length === 0 || (!state.content.trim() && state.attachments.length === 0) || previewing || issues.length > 0;
+  const autoDmBlocked = !autoDmReady(autoDm) && selected.some((connection) => supportsAutoDm(connection.platform));
+  const blocked = uploading(state) || selected.length === 0 || (!state.content.trim() && state.attachments.length === 0) || previewing || issues.length > 0 || autoDmBlocked;
   const blockedText = uploading(state) ? t("blockedUploading") : selected.length === 0 ? t("blockedNoAccount") : !state.content.trim() && state.attachments.length === 0 ? t("blockedEmpty") : previewing ? t("blockedChecking")
-    : issues.length ? t("blockedIssues", { count: issues.length }) : "";
+    : issues.length ? t("blockedIssues", { count: issues.length }) : autoDmBlocked ? t("blockedAutoDm") : "";
 
   async function persist() {
     const body = buildDocument(stateRef.current, data.connections);
@@ -140,9 +146,21 @@ export function Composer({ tenantId, initialDraftId }: { tenantId: string; initi
     try { await work(); } catch (cause) { setError(describe(cause)); throw cause; } finally { setBusy(""); }
   }
   const saveDraft = () => void run("save", async () => { await persist(); setNotice({ kind: "saved" }); data.reload(); }).catch(() => undefined);
+  /** One post-scoped comment rule (off) per Instagram or Facebook delivery; a failure never undoes the post, and says so. */
+  async function createAutoDmRules(deliveries: readonly Delivery[]) {
+    const wish = autoDmRef.current;
+    if (!wish.on || !autoDmReady(wish)) return;
+    const rules = autoDmApi(tenantId);
+    const targets = deliveries.filter((delivery) => delivery.connectionId && supportsAutoDm(data.connections.find((connection) => connection.id === delivery.connectionId)?.platform ?? "twitter"));
+    for (const delivery of targets) {
+      try { await rules.create(delivery.connectionId!, commentRuleFor(wish, delivery.id)); notify.success(t("autoDmCreated")); }
+      catch (cause) { notify.error(t("autoDmFailed", { reason: autoReason(cause) })); }
+    }
+    setAutoDm(emptyComposerAutoDm());
+  }
   const reset = () => { setState(emptyComposer(state.type)); setDraft(null); setPreviews([]); data.reload(); if (initialDraftId) router.replace(`/workspaces/${tenantId}/social/compose`); };
   async function doSchedule(target: Target) {
-    await run("schedule", async () => { const saved = await persist(); const done = await api.change(saved.id, { action: "schedule", version: saved.version, target }); reset(); setNotice({ kind: "scheduled", id: done.draft.id });
+    await run("schedule", async () => { const saved = await persist(); const done = await api.change(saved.id, { action: "schedule", version: saved.version, target }); void createAutoDmRules(done.draft.destinations); reset(); setNotice({ kind: "scheduled", id: done.draft.id });
       notify.success(t("scheduledToast")); });
   }
   const startPublish = () => void run("publish", async () => {
@@ -154,6 +172,7 @@ export function Composer({ tenantId, initialDraftId }: { tenantId: string; initi
     if (!review || !draft) return;
     try {
       const done = await api.change(draft.id, { action: "publishNow", version: review.version, reviewToken: review.token, timezone: browserTimeZone() });
+      void createAutoDmRules(done.draft.destinations);
       setResult({ id: done.draft.id, version: done.draft.version, deliveries: done.draft.destinations }); setReview(null); setState(emptyComposer(state.type)); setDraft(null); setPreviews([]); data.reload();
     } catch (cause) { throw new Error(describe(cause)); }
   }
@@ -227,7 +246,7 @@ export function Composer({ tenantId, initialDraftId }: { tenantId: string; initi
           <Textarea id="post-text" aria-label={t("text")} placeholder={t("placeholder")} value={state.content} onChange={(event) => setState((current) => ({ ...current, content: event.target.value }))}
             className="min-h-32 resize-y border-0 bg-transparent px-0 shadow-none focus-visible:ring-0 dark:bg-transparent" />
         </MediaStrip>
-        <OptionRows connections={selected} type={state.type} mode={mode} shared={state.shared} onShared={(shared) => setState((current) => ({ ...current, shared }))}
+        <OptionRows tenantId={tenantId} autoDm={autoDm} onAutoDm={setAutoDm} connections={selected} type={state.type} mode={mode} shared={state.shared} onShared={(shared) => setState((current) => ({ ...current, shared }))}
           tiktok={tiktok ? destinationOf(state, "tiktok").options : undefined} onTiktok={(patch) => setDestination("tiktok", { ...destinationOf(state, "tiktok"), options: { ...destinationOf(state, "tiktok").options, ...patch } })} />
       </section>
       <aside className="min-w-0 space-y-4" aria-label={t("preview")}>

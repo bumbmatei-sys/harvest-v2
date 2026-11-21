@@ -5,6 +5,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { Client } from "pg";
 import { origin, signIn } from "./helpers/session";
 import { settleForAxe } from "./helpers/settle";
+import { releaseSocialConnectionsAfterEach } from "./helpers/social-accounts";
 
 // Social Analytics screens against the real Analytics routes with synthetic numeric snapshots. Nothing here refreshes anything (the refresh worker is hard-off and the
 // screen has no refresh control); the rows are inserted directly and no provider is called. Accounts are linked through the test provider and then renamed in the
@@ -15,9 +16,7 @@ const shots = process.env.ANALYTICS_SHOTS ?? "/tmp/analytics-shots";
 const credential = "harvest-test-credential";
 const day = 86_400_000;
 
-// Social specs share one database per CI shard, so every connection this spec created is revoked afterwards, pass or fail (the same release as the Inbox spec).
-let release: (() => Promise<void>) | null = null;
-test.afterEach(async () => { await release?.(); release = null; });
+const releaseAfterEach = releaseSocialConnectionsAfterEach();
 
 type Seeded = { tenant: string; owner: string; accounts: Record<string, string>; posts: { yt: string[]; pin: string[] } };
 
@@ -136,11 +135,7 @@ test("social analytics: cards, series, platforms, posts, heatmap, detail, states
   const admin = new Client({ connectionString: await readFile(`${process.env.HARVEST_E2E_MAILBOX}.admin`, "utf8") });
   await admin.connect();
   const owner = (await admin.query("select id from users where email=$1", [email])).rows[0].id as string;
-  release = async () => {
-    const cleanup = new Client({ connectionString: await readFile(`${process.env.HARVEST_E2E_MAILBOX}.admin`, "utf8") });
-    await cleanup.connect();
-    try { await cleanup.query("update social_connections set status='revoked' where tenant_id = any($1) and status <> 'revoked'", [[tenant, empty]]); } finally { await cleanup.end(); }
-  };
+  releaseAfterEach(tenant);
   const data = await seed(page, admin, owner, tenant);
   const url = `/workspaces/${tenant}/social/analytics`;
   const api = `/api/workspaces/${tenant}/social/analytics`;

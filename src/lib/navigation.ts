@@ -103,7 +103,7 @@ export const navEntries: readonly NavEntry[] = [
   { id: "discover", group: "discover", mode: "public", status: "planned", label: "discover", icon: Compass, path: "/discover/manage", match: under("/discover/manage") },
   { id: "planner", group: "publishing", mode: "public", label: "planner", icon: CalendarDays, path: "/social/planner", match: (pathname) => under("/social/planner")(pathname) || under("/social/compose")(pathname), permission: "social:schedule", feature: "social" },
   { id: "inbox", group: "publishing", mode: "public", label: "inbox", icon: MessageSquareText, path: "/social/inbox", match: under("/social/inbox"), permission: "social:inbox", feature: "social" },
-  { id: "autoDm", group: "publishing", mode: "public", status: "planned", label: "autoDm", icon: MessageCircleReply, path: "/inbox/auto-dm", match: under("/inbox/auto-dm") },
+  { id: "autoDm", group: "publishing", mode: "public", label: "autoDm", icon: MessageCircleReply, path: "/social/auto-dm", match: under("/social/auto-dm"), permission: "social:auto_dm", feature: "social" },
   { id: "ads", group: "publishing", mode: "public", status: "planned", label: "ads", icon: Target, path: "/social/ads", match: under("/social/ads") },
   { id: "socialAnalytics", group: "publishing", mode: "public", label: "socialAnalytics", icon: ChartNoAxesCombined, path: "/social/analytics", match: under("/social/analytics"), permission: "social:analytics", feature: "social" },
   // Public > Newsletter, Website.

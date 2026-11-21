@@ -1,11 +1,14 @@
 /** Layout and behaviour modelled on bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): app/dashboard/(auth)/pages/settings/notifications/page.tsx; code written for Harvest, no kit code copied. */
 "use client";
 import { useId } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import type { ConnectionView } from "@/lib/social/api";
 import { sharedSupport, type DestinationOptions, type SharedOptions } from "@/lib/social/composer-state";
 import type { DraftType, SocialPlatform } from "@/lib/social/platforms";
 import { PlatformLogo } from "@/components/social/platform-logo";
+import { supportsAutoDm, type ComposerAutoDm } from "@/lib/social/auto-dm-composer";
+import { promotionalFlags } from "@/lib/social/auto-dm-ui";
 import { StatusBadge } from "@/components/status-badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -35,9 +38,11 @@ function OptionRow({ id, title, applies, none, noneText, checked, onChecked, chi
  * The option rows of the composer: first comment, auto repost, made with AI, link and, for TikTok, who can view and the consent. A row applies to every
  * selected account that supports it, and says which; when none of them does, it stays as an explicit unavailable row.
  */
-export function OptionRows({ connections, type, mode, shared, onShared, tiktok, onTiktok }: {
+export function OptionRows({ connections, type, mode, shared, onShared, tiktok, onTiktok, tenantId, autoDm, onAutoDm }: {
   connections: readonly ConnectionView[]; type: DraftType; mode: "none" | "image" | "video"; shared: SharedOptions; onShared: (next: SharedOptions) => void;
   tiktok?: DestinationOptions; onTiktok: (patch: Partial<DestinationOptions>) => void;
+  /** The Auto-DM row: a comment-keyword rule created for each Instagram or Facebook post when the post is scheduled or published. */
+  tenantId?: string; autoDm?: ComposerAutoDm; onAutoDm?: (next: ComposerAutoDm) => void;
 }) {
   const t = useTranslations("SocialPublish.options"), id = useId();
   const set = (patch: Partial<SharedOptions>) => onShared({ ...shared, ...patch });
@@ -63,6 +68,7 @@ export function OptionRows({ connections, type, mode, shared, onShared, tiktok, 
     <OptionRow id={`${id}-link`} title={t("link")} applies={link} none={link.length === 0} noneText={noAccount ? t("pickAccount") : t("linkNone")}>
       <Input type="url" inputMode="url" aria-label={t("link")} value={shared.linkUrl} onChange={(event) => set({ linkUrl: event.target.value })} className={field} />
     </OptionRow>
+    {autoDm && onAutoDm && tenantId && <AutoDmRow id={`${id}-autodm`} tenantId={tenantId} connections={connections} type={type} value={autoDm} onChange={onAutoDm} />}
     {tiktok && <OptionRow id={`${id}-tiktok`} title={t("tiktok")} applies={["tiktok"]} none={false} noneText="" badge={<StatusBadge tone="warning" label={t("required")} />}>
       <label className="block space-y-1 text-sm">{t("privacy")}
         <NativeSelect value={tiktok.tiktokPrivacy} onChange={(event) => onTiktok({ tiktokPrivacy: event.target.value as DestinationOptions["tiktokPrivacy"] })} className={field}>
@@ -73,4 +79,18 @@ export function OptionRows({ connections, type, mode, shared, onShared, tiktok, 
       <label className="flex min-h-11 items-center gap-2 text-sm lg:min-h-9"><Checkbox checked={tiktok.tiktokConfirmed} onCheckedChange={(checked) => onTiktok({ tiktokConfirmed: checked === true })} />{t("tiktokConfirm")}</label>
     </OptionRow>}
   </div>;
+}
+
+/** "Auto-DM people who comment a keyword": needs a keyword, the reply and the service-only confirmation; the rule is created off and is turned on from Auto-DM once the post is live. */
+function AutoDmRow({ id, tenantId, connections, type, value, onChange }: { id: string; tenantId: string; connections: readonly ConnectionView[]; type: DraftType; value: ComposerAutoDm; onChange: (next: ComposerAutoDm) => void }) {
+  const t = useTranslations("SocialPublish.options"), applies = type === "post" ? connections.filter((connection) => supportsAutoDm(connection.platform)).map((connection) => connection.platform) : [];
+  const none = applies.length === 0, flags = promotionalFlags(value.reply), field = "min-h-11 lg:min-h-9";
+  return <OptionRow id={id} title={t("autoDm")} applies={applies} none={none} noneText={connections.length === 0 ? t("pickAccount") : t("autoDmNone")} checked={value.on} onChecked={(on) => onChange({ ...value, on })}
+    badge={<StatusBadge tone="neutral" label={t("autoDmOff")} />}>
+    <label className="block space-y-1 text-sm">{t("autoDmKeyword")}<Input value={value.keyword} maxLength={80} onChange={(event) => onChange({ ...value, keyword: event.target.value })} className={field} /></label>
+    <label className="block space-y-1 text-sm">{t("autoDmReply")}<Textarea value={value.reply} maxLength={1000} onChange={(event) => onChange({ ...value, reply: event.target.value, attested: event.target.value === value.reply ? value.attested : false })} className="min-h-20" /></label>
+    {flags.length > 0 && <p role="alert" className="text-xs text-warning" data-testid="autodm-flag">{t("autoDmFlagged", { words: flags.join(", ") })}</p>}
+    <label className="flex min-h-11 items-start gap-2 text-sm"><Checkbox checked={value.attested} onCheckedChange={(checked) => onChange({ ...value, attested: checked === true })} className="mt-0.5" />{t("autoDmAttest")}</label>
+    <p className="text-xs text-muted-foreground">{t("autoDmNote")} <Link href={`/workspaces/${tenantId}/social/auto-dm`} prefetch={false} className="underline">{t("autoDmOpen")}</Link></p>
+  </OptionRow>;
 }
