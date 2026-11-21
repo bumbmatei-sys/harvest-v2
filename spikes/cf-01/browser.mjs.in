@@ -1,0 +1,37 @@
+import { chromium } from "@playwright/test";
+
+const origin = "http://127.0.0.1:18788";
+const browser = await chromium.launch({ executablePath: "/usr/bin/chromium",
+  args: ["--disable-background-networking", "--no-first-run"] });
+try {
+  for (const javaScriptEnabled of [false, true]) {
+    const context = await browser.newContext({ javaScriptEnabled });
+    await context.route("**/*", route => new URL(route.request().url()).origin === origin
+      ? route.continue() : route.abort());
+    const page = await context.newPage();
+    try {
+      await page.goto(origin + "/cf01-action");
+      if (javaScriptEnabled) await page.waitForLoadState("networkidle");
+      await page.getByRole("button", { name:"Submit local action" }).click();
+      const passed = await page.waitForURL("**/cf01-action?received=1", { timeout:5000 }).then(() => true, () => false);
+      console.log("action", { javaScriptEnabled, passed, path: new URL(page.url()).pathname });
+      if (javaScriptEnabled) {
+        await page.goto(origin + "/sign-in");
+        await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller), undefined, {timeout:10000});
+        console.log("cached fallback", await page.evaluate(async () => {
+          const response = await caches.match("/offline.html");
+          return response && { status:response.status, redirected:response.redirected, url:response.url };
+        }));
+        await context.setOffline(true);
+        await page.goto(origin + "/sign-in?offline-probe=1", {timeout:10000});
+        console.log("offline title", await page.title());
+      }
+    } catch (error) {
+      console.log("browser observation", javaScriptEnabled, String(error).split("\n")[0]);
+    } finally {
+      await context.close();
+    }
+  }
+} finally {
+  await browser.close();
+}

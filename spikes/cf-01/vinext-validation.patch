@@ -1,0 +1,24 @@
+--- a/src/lib/social/auto-dm.ts
++++ b/src/lib/social/auto-dm.ts
+@@ -34 +34 @@
+-  const require = (condition: unknown, path: string) => {
++  const requireCondition = (condition: unknown, path: string) => {
+@@ -37,9 +37,9 @@
+-  require(!rule.postId || !rule.postRef, "postId");
+-  require((!rule.postId && !rule.postRef) || rule.trigger === "comment", "postRef");
+-  require(!rule.response.publicReply || rule.trigger === "comment", "response");
+-  require((!rule.response.fileId && !rule.response.followup) || rule.trigger !== "comment", "response");
+-  require(!rule.response.followup || rule.purpose !== "service", "response");
+-  require(rule.purpose !== "service" || rule.serviceOnly, "serviceOnly");
+-  require((rule.trigger === "ice_breaker" || rule.trigger === "persistent_menu") === !!rule.entryKey, "entryKey");
+-  require(rule.trigger !== "comment" && rule.trigger !== "dm" || rule.match.keywords.length > 0, "match");
+-  require(new Set(rule.response.quickReplies.map(button => button.key)).size === rule.response.quickReplies.length, "response");
++  requireCondition(!rule.postId || !rule.postRef, "postId");
++  requireCondition((!rule.postId && !rule.postRef) || rule.trigger === "comment", "postRef");
++  requireCondition(!rule.response.publicReply || rule.trigger === "comment", "response");
++  requireCondition((!rule.response.fileId && !rule.response.followup) || rule.trigger !== "comment", "response");
++  requireCondition(!rule.response.followup || rule.purpose !== "service", "response");
++  requireCondition(rule.purpose !== "service" || rule.serviceOnly, "serviceOnly");
++  requireCondition((rule.trigger === "ice_breaker" || rule.trigger === "persistent_menu") === !!rule.entryKey, "entryKey");
++  requireCondition(rule.trigger !== "comment" && rule.trigger !== "dm" || rule.match.keywords.length > 0, "match");
++  requireCondition(new Set(rule.response.quickReplies.map(button => button.key)).size === rule.response.quickReplies.length, "response");

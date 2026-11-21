@@ -1,0 +1,44 @@
+import { once } from "node:events";
+import WebSocket from "ws";
+
+const origin = "http://127.0.0.1:18787";
+const socket = new WebSocket("ws://127.0.0.1:19229/ws");
+await once(socket, "open");
+let id = 0;
+const pending = new Map();
+const outgoing = {};
+socket.addEventListener("message", ({data}) => {
+  const reply = JSON.parse(data);
+  if (reply.method === "Network.requestWillBeSent") {
+    const hostname = new URL(reply.params.request.url).hostname;
+    outgoing[hostname] = (outgoing[hostname] ?? 0) + 1;
+  }
+  pending.get(reply.id)?.(reply.result ?? reply.error);
+  pending.delete(reply.id);
+});
+function command(method) {
+  return new Promise(resolve => {
+    pending.set(++id, resolve);
+    socket.send(JSON.stringify({ id, method }));
+  });
+}
+try {
+  console.log("network", await command("Network.enable"));
+  console.log("heap before", await command("Runtime.getHeapUsage"));
+  const durations = [];
+  const statuses = {};
+  for (let n = 0; n < 51; n++) {
+    const start = performance.now();
+    const response = await fetch(origin + "/sign-in");
+    await response.arrayBuffer();
+    statuses[response.status] = (statuses[response.status] ?? 0) + 1;
+    const ms = performance.now() - start;
+    if (n === 0) console.log("first response wall ms", ms);
+    else durations.push(ms);
+  }
+  durations.sort((a, b) => a - b);
+  console.log("statuses", statuses, "warm p50/p95 ms", durations[24], durations[47]);
+  console.log("heap after", await command("Runtime.getHeapUsage"), "network events by host", outgoing);
+} finally {
+  socket.terminate();
+}
