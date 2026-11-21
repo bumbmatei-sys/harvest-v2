@@ -15,6 +15,12 @@ Screens for the merged Auto-DM server (`docs/acceptance/social-auto-dm.md`, #161
 - **Hours tab and sheet.** The account's working hours and away message, the same record the Inbox settings use.
 - **Composer row.** "Auto-DM people who comment a keyword" in the option rows (Instagram and Facebook only). It needs a keyword, the reply and the service-only confirmation, and creates an **off** post-scoped comment rule for each Instagram or Facebook delivery after scheduling or publishing. The rule can be turned on once the post is live.
 
+## What the controls really are
+
+- The promotional-wording flag is **advisory only**: a client-side word list. There is no server-side wording check, and the flag never blocks Enable.
+- The real controls are the hard-off sender (`SOCIAL_AUTO_DM_SENDER_ENABLED` is a literal `false`; the pages pass it to the notice so the notice cannot go stale), the owner/admin tokenised enable review with the service-only attestation stored in the rule revision, and the legal-review activation gate in `docs/decisions/founder-decisions-2026-11.md`.
+- The attestation reset when a template changes is a client convenience, not a server rule.
+
 ## Verified
 
 - `npx tsc --noEmit` and `npm run lint` (including source guards) clean.

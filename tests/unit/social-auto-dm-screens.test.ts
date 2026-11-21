@@ -59,3 +59,15 @@ describe("auto-dm catalogue", () => {
     expect(missing).toEqual([]);
   });
 });
+
+describe("sender state", () => {
+  it("the pages pass the server constant to the notice, and the constant is still the literal false", () => {
+    expect(readFileSync("src/server/social/auto-dm-worker.ts", "utf8")).toMatch(/export const SOCIAL_AUTO_DM_SENDER_ENABLED = false;/);
+    for (const page of ["page.tsx", "new/page.tsx", "[ruleId]/page.tsx"]) {
+      const source = readFileSync(`src/app/workspaces/[tenantId]/social/auto-dm/${page}`, "utf8");
+      expect(source, page).toContain("sendEnabled={SOCIAL_AUTO_DM_SENDER_ENABLED}");
+    }
+    const notice = readFileSync("src/components/social/auto-dm/hard-off-notice.tsx", "utf8");
+    expect(notice).toContain("useSendEnabled()"); expect(notice).toContain("if (sendEnabled) return null");
+  });
+});
