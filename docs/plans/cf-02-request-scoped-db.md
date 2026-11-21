@@ -4,7 +4,7 @@ The founder approved local CF-02 engineering on 21 November 2026. The base is `b
 
 ## Database and auth lifecycle
 
-- `withDb(env, async (db, connection) => …, { signal, timeoutMs })` owns the database scope. The second argument is the promise-based pg query interface used by the worker’s existing SQL-function client. Workers call `new Client` on the selected binding and close it on success, failure, abort or deadline. A scope serializes whole Drizzle transactions and standalone queries on that client. Transaction callbacks use their supplied `tx`; the root handle rejects reentry. Escaped request and transaction handles refuse subsequent queries.
+- `withDb(env, async (db, connection) => …, { signal, timeoutMs })` owns the database scope. The second argument is the promise-based pg query interface used by the worker’s existing SQL-function client. Workers call `new Client` on the selected binding and close it on success, failure, abort or deadline. A scope serializes whole Drizzle transactions and standalone queries on that client. Transaction callbacks use their supplied `tx` because the root handle rejects reentry. Escaped request and transaction handles refuse subsequent queries.
 - The runtime and role are explicit. Workers supply an `APP_HYPERDRIVE` or `WORKER_HYPERDRIVE` binding according to the role and have no fallback URL. The legacy synchronous accessors accept a current request scope or use the existing Node pool. The Node fallback checks the runtime before using process configuration. The Node scoped factory checks out from a shared pool and releases healthy clients. It discards interrupted checkouts. The Worker deadline defaults to 15 seconds, including connection setup.
 - On Node, existing web entry points still use pooled Drizzle and a Better Auth instance on the shared Node pool. Local Postgres still uses pg and the existing Neon URL path still uses the Neon WebSocket pool. Better Auth options, transactions and callbacks remain the existing ones. The Node runtime expects the documented `harvest_app` URL. A migration owner URL is rejected.
 - `withWorkerRequest(env, request, handler)` wraps an awaited, buffered application handler. Inside it, existing `getDb()` and `getAuth()` calls resolve to that scope, with one lazily built Better Auth instance. Worker secrets and trusted proxy settings come from explicit bindings. Buffered handlers finish all database work before returning. CF-03 must verify where to put the lifecycle boundary for streamed React responses and the selected Next adapter.
@@ -35,6 +35,20 @@ LD_PRELOAD="$CF02_TOOLING/loopback.so" \
   node --import tsx tests/cf02/run-local.ts
 ```
 
+## Verification results
+
+| Check | Result |
+| --- | --- |
+| `npm run lint` | Passed with zero warnings and source guards passing. |
+| `npm run typecheck` | Passed against fresh Next-generated types in a disposable checkout. |
+| Full unit project | 1,361 passed in 105 files at the default test timeout after the competing builds and integration run had finished. |
+| Full integration project | 978 passed in 115 files against embedded PostgreSQL, preserving the 957 existing cases and adding 21. |
+| Focused CF-02 integration | 10 Node scope tests, 10 Workers-style direct pg scope tests and one fake publisher lease test passed. Tests covered tenant isolation under contention, row-lock revocation, rollback and context reset, read-after-write, role denial, connection cleanup, aborts and expiry. |
+| Standalone probe bundles, executed under Node against embedded PostgreSQL | Both bundles built offline. The eight isolation probes and the separate concurrent request check passed. With the fake mailbox, the actual OTP issue, sign-in and workspace routes returned 200/200/200 on the Workers-style database path. |
+| `npm run build` | Passed in a disposable Node checkout. Next generated 24 static entries. |
+| Miniflare/workerd local run | Prepared. The pinned packages were absent from the local installation. An offline install returned `ENOTCACHED`. The Node-hosted probes leave the original workerd regression and workerd socket cleanup unverified. |
+| Real Neon through Hyperdrive | Prepared only. Verified that staging skips by default and in CI. |
+
 ## Neon staging harness · prepared
 
 Run only in a later, separately authorized staging session. The founder supplies a disposable Neon test branch with synthetic data and the existing migrations through 0073. Apply migrations using the existing trusted process. Supply two distinct **direct** branch-origin URLs for the SQL-created `harvest_app` and `harvest_worker` logins. A Cloudflare account needs two distinct staging Hyperdrive configs targeting that branch and database, each using its corresponding login with query caching disabled. Confirm the branch endpoint, role and cache settings in those configurations. The suite can check role privileges and database name through the bindings, while the branch identity and Hyperdrive cache settings are deployment metadata.
@@ -47,7 +61,7 @@ Keep the origin credentials in a secret manager and inject them directly. The te
 
 ## Go or no-go
 
-Continue local engineering and prepare isolated staging. The CF-02 PRD exit criterion requires real Neon through cache-disabled Hyperdrive. Hosting cutover stays **no-go**.
+Continue local engineering and prepare isolated staging. Close the reused-isolate regression on workerd and verify real Neon through cache-disabled Hyperdrive before marking CF-02 complete. Hosting cutover stays **no-go**.
 
 | Slice | Remaining evidence |
 | --- | --- |
