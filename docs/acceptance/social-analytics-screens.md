@@ -36,7 +36,15 @@ The platform table, posts list, heatmap, range picker, banners, drawer, data hoo
 - Entrance: cards fade and rise with a 60 ms stagger (CSS, 300 ms), charts draw in (recharts' own 300 ms animation), numbers count up (0.4 s). It plays once per visit, when data first arrives. Filters, scope changes and the 60 s polling never replay it, and with `prefers-reduced-motion: reduce` it never plays: no entrance classes, no chart animation, no count-up, no running animation.
 - Content is in the DOM at full size from the first data render; the entrance only fades and moves it. The page root carries `data-entrance` (`waiting`, `playing`, `done`, `off`) and `data-ready` so tests know when it has settled.
 - `motion` is imported by one file (`count-up.tsx`), loaded with `React.lazy` only while an entrance plays. The kit's count-up block is the only kit block here that pulls `motion`; the kit's stat card and chart blocks pull `recharts` only. No public page and no other route imports either library.
-- First-load JS for the route, before and after: **NOT MEASURED** (see below).
+- First-load JS (route entry chunks listed in `page_client-reference-manifest.js` of a real `next build`, summed, raw / gzip, with the build run on main `5fd8a46` and on this branch):
+
+| Route | main | this branch |
+| --- | --- | --- |
+| `/workspaces/[tenantId]/social/analytics` | not built (route absent) | 1,302,378 B / 394,002 B gzip (18 chunks) |
+| `/workspaces/[tenantId]/social/planner` | 923,367 B / 286,616 B gzip | 928,069 B / 288,012 B gzip |
+| `/workspaces/[tenantId]/crm/people` | 909,533 B / 282,527 B gzip | 914,145 B / 283,948 B gzip |
+
+  The analytics route carries about 107 KB gzip more than the planner (recharts and the dashboard components). The two unrelated routes grew about 1.4 KB gzip each, from shared layout chunks (navigation registry entry and the added catalogue namespace), not from either library. The `motion` chunk (133 KB raw, 44 KB gzip) is in none of those entry lists; it loads only while an entrance plays. Both builds exited 0.
 
 ## Verified and not verified
 
@@ -48,7 +56,6 @@ Verified locally (synthetic data, local PostgreSQL 16, Chromium, fake provider):
 
 Not verified or not built:
 
-- First-load JS of the route before and after: not measured (no `next build` was run; disk and shared CPU). The route is the only importer of `recharts`; `motion` is lazy and used only by the count-up.
 - No hosted Neon run, no real provider data or scopes, no production behaviour. The screen only works through the non-production gate.
 - No rank-by selector, no CSV export, no comparison of platforms in one chart, no per-account series chart, no URL-persisted filters, no unit tests for the React components themselves (covered by the browser spec).
 - Timezone is the browser's; there is no selector for another zone.

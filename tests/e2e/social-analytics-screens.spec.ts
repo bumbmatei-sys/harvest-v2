@@ -18,12 +18,14 @@ const day = 86_400_000;
 type Seeded = { tenant: string; owner: string; accounts: Record<string, string>; posts: { yt: string[]; pin: string[] } };
 
 async function link(page: Page, tenant: string, platform: string, name: string, admin: Client) {
-  await admin.query("set session_replication_role = replica");
   const response = await page.request.post(`/api/workspaces/${tenant}/social/connections`, { headers: { origin }, data: { provider: "fake", credential, accountRef: `test-${platform}` } });
   expect(response.status()).toBe(201);
   const id = (await response.json()).connection.id as string;
   // The identity trigger is bypassed for this disposable test database only (trigger-free session), so the shared test account is released for other specs.
+  await admin.query("begin");
+  await admin.query("set local session_replication_role = replica");
   await admin.query("update social_connections set external_account_ref=$1, display_name=$2 where id=$3", [`analytics-spec-${randomUUID()}`, name, id]);
+  await admin.query("commit");
   return id;
 }
 
@@ -36,7 +38,8 @@ async function seed(page: Page, admin: Client, owner: string, tenant: string): P
   };
   const now = Date.now();
   // Published rows normally arrive through the publisher; this disposable database takes them directly (trigger-free session, local test data only).
-  await admin.query("set session_replication_role = replica");
+  await admin.query("begin");
+  await admin.query("set local session_replication_role = replica");
   for (const id of Object.values(accounts)) {
     await admin.query("insert into social_analytics_refresh (tenant_id,connection_id,state,checked_at,refreshed_at,due_at) values ($1,$2,'ready',now()-interval '12 minutes',now()-interval '12 minutes',now()+interval '1 hour') on conflict (tenant_id,connection_id) do update set state='ready', refreshed_at=excluded.refreshed_at, due_at=excluded.due_at",
       [tenant, id]);
@@ -84,13 +87,16 @@ async function seed(page: Page, admin: Client, owner: string, tenant: string): P
   for (const [weekday, hour, engagement, samples] of [[0, 9, 14, 6], [1, 18, 22.5, 9], [1, 19, 18, 4], [2, 12, 9, 3], [3, 18, 25, 11], [4, 7, 6, 2], [5, 10, 17, 5], [6, 8, 12, 4], [6, 19, 19, 7]] as const) {
     await admin.query("insert into social_analytics_times (tenant_id,connection_id,day,weekday,hour,engagement,samples) values ($1,$2,$3,$4,$5,$6,$7) on conflict do nothing", [tenant, accounts.yt, today, weekday, hour, engagement, samples]);
   }
+  await admin.query("commit");
   return { tenant, owner, accounts, posts };
 }
 
+const viewportsShort = [[1280, 900], [360, 800]] as const;
+const viewportsFull = [[1280, 2400], [360, 4200]] as const;
 /** Both colour schemes at 1280 and 360 (device scale 2): the page must be fully loaded (no skeleton, no busy region, entrance settled) before axe, the overflow check and the screenshot. */
 async function audit(page: Page, url: string, name: string, options: { after?: () => Promise<void>; locator?: string; full?: boolean } = {}) {
   const session = await page.context().newCDPSession(page);
-  for (const scheme of ["light", "dark"] as const) for (const [width, height] of (options.full === false ? [[1280, 900], [360, 800]] : [[1280, 2400], [360, 4200]]) as const) {
+  for (const scheme of ["light", "dark"] as const) for (const [width, height] of options.full === false ? viewportsShort : viewportsFull) {
     await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
     await session.send("Emulation.setDeviceMetricsOverride", { width, height, deviceScaleFactor: 2, mobile: false });
     await page.setViewportSize({ width, height });
