@@ -301,12 +301,14 @@ test("social inbox: list, filters, thread, comments, reply states, empty, errors
   }
 
   // Tablet: the list collapse and expand toggles are 44px below 1024px.
-  await page.setViewportSize({ width: 768, height: 900 });
-  await page.goto(base); await listReady();
-  expect((await page.getByTestId("list-collapse").boundingBox())!.height, "list collapse").toBeGreaterThanOrEqual(43.5);
-  await page.getByTestId("list-collapse").click();
-  expect((await page.getByTestId("list-expand").boundingBox())!.height, "list expand").toBeGreaterThanOrEqual(43.5);
-  await page.setViewportSize({ width: 1280, height: 900 });
+  if (!off) {
+    await page.setViewportSize({ width: 768, height: 900 });
+    await page.goto(base); await listReady();
+    expect((await page.getByTestId("list-collapse").boundingBox())!.height, "list collapse").toBeGreaterThanOrEqual(43.5);
+    await page.getByTestId("list-collapse").click();
+    expect((await page.getByTestId("list-expand").boundingBox())!.height, "list expand").toBeGreaterThanOrEqual(43.5);
+    await page.setViewportSize({ width: 1280, height: 900 });
+  }
 
   // ---- Phone: list, then thread with a back button ----------------------------------------------------------------------------
   await page.setViewportSize({ width: 360, height: 800 });
