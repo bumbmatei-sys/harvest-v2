@@ -200,13 +200,8 @@
     "planner": "Planner",
     "socialAccounts": "Social accounts",
     "inbox": "Inbox",
-<<<<<<< ours
-    "autoDm": "Auto-DM",
-    "articles": "Articles",
-=======
     "autoDm": "Auto-DM",
     "articles": "Blog",
->>>>>>> theirs
     "website": "Website",
     "linkInBio": "Link in bio",
     "newsletter": "Newsletter",
