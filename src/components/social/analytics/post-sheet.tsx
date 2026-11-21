@@ -27,7 +27,7 @@ export function PostSheet({ tenantId, post, range, timezone, onClose }: { tenant
     <Sheet open={post !== null} onOpenChange={(open) => { if (!open) onClose(); }}>
       <SheetContent className="w-full overflow-y-auto sm:max-w-lg" data-testid="post-sheet">
         <SheetHeader>
-          <SheetTitle className="flex items-center gap-2">{post && <PlatformLogo platform={post.platform} className="size-4" />}{t("title")}</SheetTitle>
+          <SheetTitle className="flex items-center gap-2">{post && <PlatformLogo platform={post.platform} className="size-4" colored />}{t("title")}</SheetTitle>
           <SheetDescription>{post ? t("subtitle", { platform: platformLabels[post.platform], time: format.dateTime(new Date(post.publishedAt), { timeZone: timezone, dateStyle: "medium", timeStyle: "short" }) }) : ""}</SheetDescription>
         </SheetHeader>
         <div className="flex flex-col gap-6 px-4 pb-6" aria-busy={state.status === "loading" || undefined} data-testid="post-detail" data-ready={state.status === "ready" || undefined}>

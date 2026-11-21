@@ -4,11 +4,11 @@ import { listSavedInboxReplies, mutateSavedInboxReply } from "@/server/social/in
 export const runtime = "nodejs";
 
 export function GET(request: Request, context: InboxContext) {
-  return inboxResponse(request, context, false, (db, user, { tenantId }) =>
-    listSavedInboxReplies(db, user, tenantId));
+  return inboxResponse(request, context, false, (db, user, { tenantId }, deps) =>
+    listSavedInboxReplies(db, user, tenantId, deps));
 }
 
 export function POST(request: Request, context: InboxContext) {
-  return inboxResponse(request, context, true, async (db, user, { tenantId }) =>
-    mutateSavedInboxReply(db, user, tenantId, await inboxJson(request)));
+  return inboxResponse(request, context, true, async (db, user, { tenantId }, deps) =>
+    mutateSavedInboxReply(db, user, tenantId, await inboxJson(request), deps));
 }

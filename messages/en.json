@@ -4244,6 +4244,263 @@
       "tiktokConfirm": "I have checked the preview and I consent to publish"
     }
   },
+  "SocialInbox": {
+    "title": "Inbox",
+    "subtitle": "Messages, comments and mentions from every connected account.",
+    "filters": "Filters",
+    "filtersDescription": "Choose a folder, account or label.",
+    "retry": "Try again",
+    "loadingMore": "Loading",
+    "manageAccounts": "Manage accounts",
+    "kind": {
+      "dm": "Direct message",
+      "comment": "Comment",
+      "mention": "Mention",
+      "story": "Story reply"
+    },
+    "type": {
+      "label": "Type",
+      "all": "All types",
+      "dm": "Direct messages",
+      "comment": "Comments",
+      "mention": "Mentions",
+      "story": "Story replies"
+    },
+    "tabs": {
+      "label": "Show",
+      "all": "All",
+      "unread": "Unread",
+      "assigned": "Assigned to me",
+      "open": "Needs reply"
+    },
+    "folders": {
+      "label": "Folders",
+      "all": "All",
+      "unread": "Unread",
+      "assigned": "Assigned to me",
+      "open": "Needs reply",
+      "done": "Done",
+      "starred": "Starred",
+      "coverage": "Counts include conversations Harvest has already seen.",
+      "failed": "Counts could not be loaded.",
+      "loading": "Loading folders"
+    },
+    "accounts": {
+      "label": "Accounts",
+      "none": "No accounts connected.",
+      "problem": {
+        "expired": "Reconnect",
+        "unhealthy": "Problem",
+        "unavailable": "Unavailable",
+        "denied": "No access",
+        "revoked": "Disconnected",
+        "disabled": "Off"
+      }
+    },
+    "labels": {
+      "label": "Labels"
+    },
+    "search": {
+      "label": "Search your notes",
+      "placeholder": "Search your notes",
+      "clear": "Clear search",
+      "results": "Matches in your notes",
+      "openToRead": "Open to read the conversation"
+    },
+    "row": {
+      "unread": "Unread",
+      "assigned": "Assigned",
+      "assignedYou": "Assigned to you",
+      "assignedTo": "Assigned to {name}",
+      "done": "Done",
+      "starred": "Starred",
+      "untitled": "{kind}",
+      "label": "{platform}, {kind}, {unread, select, yes {unread} other {read}}:"
+    },
+    "list": {
+      "label": "Conversations",
+      "loading": "Loading conversations",
+      "loadMore": "Load more",
+      "moreFailed": "More conversations could not be loaded.",
+      "failed": "Conversations could not be loaded.",
+      "refreshFailed": "The list could not be refreshed. Showing the last loaded conversations.",
+      "unavailableTitle": "Inbox not available",
+      "unavailable": "The inbox is not available for this ministry.",
+      "waiting": "Some accounts are slow. Try again in {seconds} seconds."
+    },
+    "partial": {
+      "title": "Some accounts are not fully loaded",
+      "accountsTitle": "Some accounts cannot be read",
+      "state": {
+        "delayed": "slow, retrying",
+        "expired": "needs to be reconnected",
+        "revoked": "disconnected",
+        "denied": "access denied",
+        "unavailable": "unavailable",
+        "unhealthy": "has a problem",
+        "disabled": "is turned off"
+      },
+      "line": "{name}: {state}"
+    },
+    "empty": {
+      "noAccountsTitle": "No accounts connected",
+      "noAccounts": "Connect an account to see its messages here.",
+      "connect": "Connect an account",
+      "title": "No conversations yet",
+      "body": "New messages, comments and mentions appear here.",
+      "pendingTitle": "Still loading accounts",
+      "noMatchTitle": "No conversations match",
+      "noNotesTitle": "No notes match",
+      "clear": "Clear filters",
+      "problemTitle": "Accounts cannot be read",
+      "problem": "An account needs attention, so its conversations are not shown."
+    },
+    "thread": {
+      "label": "Conversation",
+      "back": "Back to conversations",
+      "selectTitle": "Select a conversation",
+      "select": "Choose one from the list to read it here.",
+      "loading": "Loading the conversation",
+      "failed": "The conversation could not be loaded.",
+      "goneTitle": "Conversation not available",
+      "gone": "This conversation is not available.",
+      "delayed": "The account is slow to answer. Try again in {seconds} seconds.",
+      "noMessages": "No messages were returned for this conversation.",
+      "loadMore": "Load more messages",
+      "moreFailed": "More messages could not be loaded.",
+      "messages": "Messages",
+      "sent": "Sent:",
+      "received": "Received:",
+      "deleted": "This message was removed.",
+      "storyReply": "Story reply",
+      "storyMention": "Story mention",
+      "problem": {
+        "expired": "This account needs to be reconnected before its messages can be read.",
+        "unhealthy": "This account has a problem, so its messages cannot be read right now.",
+        "unavailable": "Messages for this account are not available.",
+        "denied": "Access to this account was denied.",
+        "revoked": "This account was disconnected.",
+        "disabled": "This account is turned off."
+      },
+      "meta": "{platform} · {account} · {kind}"
+    },
+    "attachment": {
+      "image": "Image",
+      "video": "Video",
+      "audio": "Audio",
+      "file": "File"
+    },
+    "delivery": {
+      "sent": "Sent",
+      "delivered": "Delivered",
+      "read": "Read",
+      "failed": "Not delivered",
+      "played": "Played",
+      "deleted": "Removed"
+    },
+    "actions": {
+      "label": "Conversation actions",
+      "markRead": "Mark as read",
+      "markUnread": "Mark as unread",
+      "star": "Star",
+      "unstar": "Remove star",
+      "done": "Mark done",
+      "reopen": "Reopen",
+      "assign": "Assign to",
+      "unassigned": "Unassigned",
+      "you": "{name} (you)"
+    },
+    "changes": {
+      "saved": "Updated",
+      "stale": "This conversation changed. Reloaded.",
+      "failed": "The change could not be saved."
+    },
+    "comment": {
+      "reply": "Reply",
+      "replyPrivately": "Reply privately",
+      "hide": "Hide",
+      "hideUnavailable": "Hiding comments is not available yet.",
+      "replyUnavailable": "Replies are not available for this one.",
+      "privateUnavailable": "A private reply is not available for this one."
+    },
+    "composer": {
+      "label": "Reply",
+      "placeholder": "Write a reply",
+      "send": "Send",
+      "checking": "Checking whether you can reply",
+      "off": "Sending replies is turned off for now.",
+      "rule": "Reply only to what the person sent, within the platform's reply window, without offers or promotions.",
+      "until": "You can reply until {time}",
+      "failed": "The reply could not be queued. Try again.",
+      "clearTarget": "Stop replying to this",
+      "target": {
+        "comment": "Replying to a comment",
+        "private": "Replying privately to a comment",
+        "mention": "Replying to a mention"
+      },
+      "receipt": {
+        "queued": "Queued",
+        "leased": "Queued",
+        "dispatching": "Sending",
+        "confirmed": "Sent",
+        "failed": "Not sent",
+        "unknown": "Needs checking",
+        "cancelled": "Cancelled",
+        "unknownHelp": "Check the platform before sending this again."
+      },
+      "reasons": {
+        "unavailable": "Replies are not available for this conversation.",
+        "expired_window": "The platform's reply window has closed.",
+        "permissions": "This account does not allow replies here.",
+        "unhealthy": "The account has a problem. Check its connection.",
+        "target_unavailable": "That item can no longer be replied to.",
+        "select_target": "Choose a comment to reply to.",
+        "expired": "Reconnect the account to reply.",
+        "revoked": "This account was disconnected.",
+        "denied": "Access to this account was denied.",
+        "delayed": "The account is slow right now. Try again shortly.",
+        "disabled": "This account is turned off.",
+        "unknown": "A reply is not allowed here."
+      }
+    },
+    "settings": {
+      "open": "Settings",
+      "back": "Back to inbox",
+      "title": "Inbox settings",
+      "subtitle": "Working hours and away message for each account."
+    },
+    "hours": {
+      "title": "Working hours and away message",
+      "loading": "Loading settings",
+      "failed": "Settings could not be loaded.",
+      "retry": "Try again",
+      "noAccountsTitle": "No accounts connected",
+      "connect": "Connect an account",
+      "account": "Account",
+      "timezone": "Timezone",
+      "week": "Weekly working hours",
+      "closed": "Closed",
+      "from": "{day}, from",
+      "to": "{day}, until",
+      "add": "Add hours on {day}",
+      "remove": "Remove hours on {day}",
+      "away": "Away message",
+      "awayPlaceholder": "We are away right now and will reply when we are back.",
+      "note": "The away message is saved here and is sent only once Auto-DM is turned on.",
+      "save": "Save",
+      "saving": "Saving",
+      "saved": "Settings saved",
+      "conflict": "These settings changed elsewhere. The latest were loaded.",
+      "saveFailed": "The settings could not be saved.",
+      "problem": {
+        "order": "Each end time must be after its start time.",
+        "overlap": "Hours on the same day cannot overlap.",
+        "many": "Use at most 28 windows."
+      },
+      "sep": "to",
+      "accountOption": "{platform} · {name}"
+    }
+  },
   "SettingsDialog": {
     "title": "Settings",
     "description": "Your profile, your account and your ministry's settings.",

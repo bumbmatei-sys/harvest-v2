@@ -1,0 +1,23 @@
+#define _GNU_SOURCE
+#include <arpa/inet.h>
+#include <dlfcn.h>
+#include <errno.h>
+#include <sys/socket.h>
+
+/* Local Linux fixture. Refuse non-loopback TCP connections, including from workerd. */
+int connect(int fd, const struct sockaddr *address, socklen_t size) {
+    if (address && address->sa_family == AF_INET) {
+        const struct sockaddr_in *v4 = (const struct sockaddr_in *)address;
+        if ((ntohl(v4->sin_addr.s_addr) >> 24) != 127) goto refuse;
+    } else if (address && address->sa_family == AF_INET6) {
+        const struct sockaddr_in6 *v6 = (const struct sockaddr_in6 *)address;
+        if (!IN6_IS_ADDR_LOOPBACK(&v6->sin6_addr) &&
+            !(IN6_IS_ADDR_V4MAPPED(&v6->sin6_addr) && v6->sin6_addr.s6_addr[12] == 127))
+            goto refuse;
+    }
+    int (*original)(int, const struct sockaddr *, socklen_t) = dlsym(RTLD_NEXT, "connect");
+    return original(fd, address, size);
+refuse:
+    errno = EACCES;
+    return -1;
+}

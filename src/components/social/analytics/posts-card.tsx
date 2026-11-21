@@ -40,7 +40,7 @@ export function PostsCard({ top, bottom, onOpen, animate, index, timezone }: { t
               const body = <>
                 <span className="grid size-7 shrink-0 place-items-center rounded-md bg-muted text-xs font-medium tabular-nums" aria-hidden="true">{position + 1}</span>
                 <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <span className="flex flex-wrap items-center gap-2 text-sm font-medium"><PlatformLogo platform={post.platform} className="size-4" />{platformLabels[post.platform]}
+                  <span className="flex flex-wrap items-center gap-2 text-sm font-medium"><PlatformLogo platform={post.platform} className="size-4" colored />{platformLabels[post.platform]}
                     {!linked && <StatusBadge tone="neutral" label={t("external")} />}</span>
                   <span className="text-xs text-muted-foreground">{format.dateTime(new Date(post.publishedAt), { timeZone: timezone, dateStyle: "medium", timeStyle: "short" })}</span>
                 </span>

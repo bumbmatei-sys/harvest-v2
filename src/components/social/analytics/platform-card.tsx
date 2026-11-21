@@ -41,13 +41,13 @@ export function PlatformCard({ platforms, accounts, exposureLabel, animate, inde
             {measures.map((measure) => <th key={measure.key} scope="col" className="px-2 py-2 text-right font-medium">{measure.label}</th>)}
           </tr></thead>
           <tbody>{rows.map(({ platform, status, label }) => <tr key={platform.platform} className="border-b last:border-0" data-platform={platform.platform}>
-            <th scope="row" className="py-3 pr-3 text-left font-medium"><span className="flex flex-wrap items-center gap-x-2 gap-y-1"><PlatformLogo platform={platform.platform} className="size-4" /><span>{label}</span>{status && <StatusBadge tone={status === "expired" ? "danger" : "warning"} label={statusLabel[status]} />}</span></th>
+            <th scope="row" className="py-3 pr-3 text-left font-medium"><span className="flex flex-wrap items-center gap-x-2 gap-y-1"><PlatformLogo platform={platform.platform} className="size-4" colored /><span>{label}</span>{status && <StatusBadge tone={status === "expired" ? "danger" : "warning"} label={statusLabel[status]} />}</span></th>
             {measures.map((measure) => <td key={measure.key} className="px-2 py-3 text-right tabular-nums"><ReadingText reading={measure.get(platform)} signed={measure.signed} /></td>)}
           </tr>)}</tbody>
         </table>
         <ul className="flex flex-col divide-y sm:hidden">
           {rows.map(({ platform, status, label }) => <li key={platform.platform} className="flex flex-col gap-3 py-4 first:pt-0 last:pb-0" data-platform={platform.platform}>
-            <span className="flex flex-wrap items-center gap-2 font-medium"><PlatformLogo platform={platform.platform} className="size-4" />{label}{status && <StatusBadge tone={status === "expired" ? "danger" : "warning"} label={statusLabel[status]} />}</span>
+            <span className="flex flex-wrap items-center gap-2 font-medium"><PlatformLogo platform={platform.platform} className="size-4" colored />{label}{status && <StatusBadge tone={status === "expired" ? "danger" : "warning"} label={statusLabel[status]} />}</span>
             <dl className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">{measures.map((measure) => <div key={measure.key}><dt className="text-xs text-muted-foreground">{measure.label}</dt>
               <dd className="tabular-nums"><ReadingText reading={measure.get(platform)} signed={measure.signed} /></dd></div>)}</dl>
           </li>)}
