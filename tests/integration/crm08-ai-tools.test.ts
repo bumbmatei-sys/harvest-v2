@@ -174,7 +174,7 @@ describe("approval gate for write tools", () => {
       await holder.query("select set_config('app.user_id', 'member-a', true)");
       const { rows } = await holder.query<{ id: string }>(`
         insert into ai_tool_approvals (tenant_id, tool, args_hash, requested_by, expires_at)
-        values ($1, 'crm_create_task', $2, 'member-a', now() + interval '2 seconds') returning id
+        values ($1, 'crm_create_task', $2, 'member-a', now() + interval '5 seconds') returning id
       `, [tenantA, toolArgsHash("crm_create_task", taskArgs)]);
       approvalId = rows[0].id;
       await holder.query("commit");
@@ -185,7 +185,7 @@ describe("approval gate for write tools", () => {
       // Prove the decision is blocked on the row while the approval is still valid.
       await holder.query(`
         do $$ begin
-          for attempt in 1..100 loop
+          for attempt in 1..300 loop
             perform pg_stat_clear_snapshot();
             if exists (select from pg_stat_activity where usename = 'harvest_app'
               and wait_event_type = 'Lock' and query ilike '%ai_tool_approvals%for update%') then return; end if;

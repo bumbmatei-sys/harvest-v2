@@ -14,6 +14,16 @@ export function qaSignInMode(env: Env): "preview" | "local" | null {
   return null;
 }
 
+export type QaSignInBindings = {
+  HARVEST_QA_SIGN_IN?: string;
+  QA_SIGN_IN_SECRET?: string;
+  QA_SIGN_IN_HELPER_SECRET?: string;
+};
+
+export function hasQaSignInBindings(env: QaSignInBindings) {
+  return env.HARVEST_QA_SIGN_IN !== undefined || env.QA_SIGN_IN_SECRET !== undefined || env.QA_SIGN_IN_HELPER_SECRET !== undefined;
+}
+
 let alarmLogged = false;
 
 export function assertQaSignInSafe(env: Env) {

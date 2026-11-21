@@ -1,4 +1,8 @@
 {
+  "Office": {
+    "personalConnectionNotice": "Connect an account you use personally. Only you can access this connection in Harvest. Harvest fetches content when you open it and keeps connection details, activity records and references you choose to link. You can disconnect at any time. Connecting does not grant anyone permission to contact people.",
+    "reviewRequired": "Review this message again before sending."
+  },
   "NewsletterEmail": {
     "unsubscribe": "Unsubscribe",
     "fallbackFirstName": "friend",

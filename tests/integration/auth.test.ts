@@ -53,7 +53,8 @@ describe("Better Auth email code against PostgreSQL; Resend is always mocked", (
     const response = await request("/sign-in/email-otp", { email, otp: code });
     expect(response.status).toBe(200);
     const cookie = response.headers.get("set-cookie")?.split(";")[0];
-    expect(cookie).toContain("session_token=");
+    expect(cookie?.startsWith("better-auth.session_token=")).toBe(true);
+    expect(response.headers.getSetCookie().some((value) => value.includes("HttpOnly") && value.includes("SameSite=Lax"))).toBe(true);
     const session = await request("/get-session", undefined, { cookie: cookie! });
     const body = await session.json();
     expect(body.user.email).toBe(email); expect(body.user.emailVerified).toBe(true);

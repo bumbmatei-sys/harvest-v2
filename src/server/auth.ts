@@ -19,6 +19,7 @@ import { authOtpHash, authOtpKey, otpPolicy } from "./auth-otp-hash";
 export { otpPolicy };
 export function makeAuth(db: Database, config: {
   secret: string; baseURL: string; ipAddressHeaders?: string[]; trustedProxies?: string[];
+  cookiePrefix?: string; mail?: Parameters<typeof sendSignInCode>[3];
 }) {
   const ipAddress = { ipAddressHeaders: config.ipAddressHeaders ?? ["x-forwarded-for"], trustedProxies: config.trustedProxies ?? [] };
   if (!ipAddress.ipAddressHeaders.length || findInvalidTrustedProxies(ipAddress.trustedProxies).length) {
@@ -30,7 +31,7 @@ export function makeAuth(db: Database, config: {
     appName: "Harvest", secret: config.secret, baseURL: config.baseURL,
     database: drizzleAdapter(db, { provider: "pg", schema: authSchema, transaction: true }),
     emailAndPassword: { enabled: false },
-    advanced: { ipAddress },
+    advanced: { ipAddress, ...(config.cookiePrefix && { cookiePrefix: config.cookiePrefix }) },
     session: { expiresIn: 60 * 60 * 24 * 7, cookieCache: { enabled: false } },
     rateLimit: { enabled: true, storage: "database", window: 60, max: 30,
       customRules: { "/email-otp/send-verification-otp": { window: 60, max: 3 }, "/sign-in/email-otp": { window: 60, max: 10 } } },
@@ -93,7 +94,8 @@ export function makeAuth(db: Database, config: {
           const [user] = await db.select({ locale: users.locale }).from(users).where(eq(users.email, email)).limit(1);
           const context = getCurrentAuthEndpointContext();
           const locale = resolveLocale(user?.locale, context.getCookie?.("locale"), context.headers?.get("accept-language"));
-          await sendSignInCode(email, otp, locale);
+          if (config.mail) await sendSignInCode(email, otp, locale, config.mail);
+          else await sendSignInCode(email, otp, locale);
         });
       },
     })],
