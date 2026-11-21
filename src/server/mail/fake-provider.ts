@@ -6,8 +6,15 @@ export class FakeMailProvider extends FakeStore implements MailProvider {
   private drafts = new Map<string, MailDraft>();
   private usage = new Map<string, number>();
   constructor(accounts?: readonly string[], private readonly dailyLimit = 100, private readonly now = () => new Date("2026-11-16T12:00:00Z")) { super(accounts); }
-  async listThreads(c: Credential, q: Query) { this.authorize(c, q.accountRef); const threads = new Map<string, { ref: string; subject: string }>(); for (const m of this.entries(this.messages, q.accountRef)) if (!q.search || `${m.subject} ${m.body}`.includes(q.search)) threads.set(m.threadRef, { ref: m.threadRef, subject: m.subject }); return this.page([...threads.values()], q); }
+  async listThreads(c: Credential, q: Query & { folderRef?: string }) { this.authorize(c, q.accountRef); const threads = new Map<string, { ref: string; subject: string }>(); for (const m of this.entries(this.messages, q.accountRef)) if ((!q.folderRef || m.labelRefs.includes(q.folderRef)) && (!q.search || `${m.subject} ${m.body}`.toLowerCase().includes(q.search.toLowerCase()))) threads.set(m.threadRef, { ref: m.threadRef, subject: m.subject }); return this.page([...threads.values()], q); }
   async listMessages(c: Credential, q: Query & { threadRef: string }) { this.authorize(c, q.accountRef); return this.page(this.entries(this.messages, q.accountRef).filter(m => m.threadRef === q.threadRef && (!q.search || `${m.subject} ${m.body}`.includes(q.search))), q); }
+  findMessage(c: Credential, accountRef: string, messageRef: string) {
+    this.authorize(c, accountRef);
+    return structuredClone(this.get(this.messages, accountRef, messageRef));
+  }
+  seedMessage(accountRef: string, message: MailMessage) {
+    this.messages.set(this.key(accountRef, message.ref), structuredClone(message));
+  }
   private entries<T>(map: Map<string, T>, account: string) { return [...map].filter(([key]) => (JSON.parse(key) as string[])[0] === account).map(([, v]) => v); }
   private async write(c: Credential, input: MailWrite, method: string, messageRef?: string) {
     this.authorize(c, input.accountRef);
