@@ -230,3 +230,8 @@ export const platformBrandFill: Record<string, string> = {
 export const platformBrandOutline = { snapchat: "light-dark(#000000, #ffffff)" } as const;
 export const instagramGradient = ["#FEDA75", "#FA7E1E", "#D62976", "#962FBF", "#4F5BD5"] as const;
 export const tiktokAccents = { cyan: "#25F4EE", red: "#FE2C55" } as const;
+/** Mailbox provider marks for Office mail (Gmail and Outlook), in their published brand colours. */
+export const mailMarkColors = {
+  gmail: { blue: "#4285F4", green: "#34A853", yellow: "#FBBC04", red: "#EA4335", darkRed: "#C5221F" },
+  outlook: { deep: "#0A2767", base: "#0364B8", mid: "#0078D4", light: "#28A8EA", pale: "#50D9FF", white: "#FFFFFF" },
+} as const;

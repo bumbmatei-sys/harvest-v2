@@ -289,6 +289,24 @@ Built with the premium kit under the standing kit rule, with no per-item founder
 
 Message rows reuse the existing kit-derived `src/components/ui/bubble.tsx`. The coloured platform marks are the networks' brand colours (`src/lib/theme-registry.ts`), drawn from the same Simple Icons paths as the Planner marks.
 
+### Office Mail screens (Operations > Office > Email)
+
+Built under the standing kit rule ("use anything that is PRO in the kit, if nothing suitable use free"; copying allowed with measured provenance). Source: the paid kit's mail app, admin-dashboard `apps/mail` (`mail.tsx`, `mail-list.tsx`, `nav.tsx`, `nav-desktop.tsx`, `mail-display.tsx`, `mail-display-mobile.tsx`, `account-switcher.tsx`) at commit `1631106`. No chat-app part was needed. **No kit file is copied**: the kit's mail app depends on `react-resizable-panels`, a template editor, a Zustand store and mock `Mail` objects, none of which fit (design 19 Nov: no mock data or fixture types, no Zustand for selection), so every Harvest file is **modelled on** the kit layout and written for Harvest. Measured with `scripts/ui-identical.sh` on 21 Nov 2026 (same method as the Inbox table above):
+
+| Harvest file | Status | Kit source | Identical lines |
+| --- | --- | --- | --- |
+| `src/components/inbox/inbox-frame.tsx` | modelled on | `apps/mail/components/mail.tsx` | 4 of 46 (8%) |
+| `src/components/office/mail/mail-workspace.tsx` | modelled on | `apps/mail/components/mail.tsx` | 6 of 142 (4%) |
+| `src/components/office/mail/mail-list.tsx` | modelled on | `apps/mail/components/mail-list.tsx` | 7 of 98 (7%) |
+| `src/components/office/mail/mail-folders.tsx` | modelled on | `apps/mail/components/nav.tsx` and `nav-desktop.tsx` | 3 of 46 (6%) |
+| `src/components/office/mail/mail-thread.tsx` | modelled on | `apps/mail/components/mail-display.tsx` (mail-display-mobile.tsx: 5 of 94, 5%) | 4 of 94 (4%) |
+| `src/components/office/mail/mail-composer.tsx` | modelled on | `apps/mail/components/mail-display.tsx` | 4 of 99 (4%) |
+| `src/components/office/mail/mail-connect.tsx` | modelled on | `apps/mail/components/account-switcher.tsx` | 4 of 102 (3%) |
+
+The matches are import and boilerplate lines. `InboxFrame` is the layout the social Inbox already used, extracted so both inboxes share one frame (the Inbox now consumes it; its behaviour is unchanged). Reused, not rebuilt: AppShell and the contextual sidebar slot, `EmptyState`, `StatusBadge`, `ConfirmDialog`, the CRM `RecordPicker` for the person link, shared Field, Input, Textarea, Alert and Button primitives. Written for Harvest and not kit-derived: `person-link.tsx`, `mail.tsx`.
+
+Mailbox marks (`src/components/office/provider-logo.tsx`, colours in `src/lib/theme-registry.ts`): Gmail is drawn from the Simple Icons Gmail outline (CC0-1.0) split into the brand colours; Outlook is a simplified envelope page and lettered tile in the brand blues drawn for Harvest. Both are simplified marks, remain their owners' trademarks, are subject to each owner's brand guidelines and are used only to name the connected mailbox. Product names live in `src/lib/office/mail.ts` and the logo registry, never in the message catalogue (source guard).
+
 ### Settings pop-up (profile menu)
 
 The Settings pop-up uses five items from the founder's private premium kit repositories, approved by the founder on 20 Nov 2026: `bumbmatei-sys/chat-app` (commit `66fd523`) `components/settings-dialog.tsx` (pop-up shell) and `components/user-avatar.tsx` (avatar block, already in the repository), and `bumbmatei-sys/admin-dashboard` (commit `1631106`) `pages/settings/components/sidebar-nav.tsx` (section list), `pages/settings/account/page.tsx` (profile form layout) and `pages/settings/notifications/page.tsx` (bordered link rows). **No kit file is copied.** The kit dialog and tabs are `@base-ui/react`, which the shared Harvest dialog is not, so every file is written for Harvest on its Radix Dialog, Field, Input, RadioGroup and Button, and starts with the modelled-on header. `scripts/ui-identical.sh` finds, per current file: 4 of 40 non-blank lines (10%) of `settings-dialog.tsx` identical to the kit dialog, 4 of 43 (9%) of `settings-nav.tsx` against `sidebar-nav.tsx`, and 4 of 149 (2%) and 6 of 149 (4%) of `settings-panels.tsx` against the account and notifications pages (imports and closing tags). Not used: billing, appearance and display pages, the kit's switch rows and fixture data, react-hook-form and zod.

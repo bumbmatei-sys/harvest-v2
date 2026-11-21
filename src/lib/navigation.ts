@@ -48,7 +48,7 @@ export type NavEntry = {
    */
   exitTo?: string;
 };
-export type NavFeature = "communities" | "events" | "social";
+export type NavFeature = "communities" | "events" | "social" | "office";
 export type NavItem = { id: string; label: NavLabelKey; icon: LucideIcon; href: string; active: boolean };
 /** A `pinned` group is rendered without a header, above the other groups (Discover). */
 export type NavGroup = { id: NavGroupId; label: NavLabelKey; icon?: LucideIcon; pinned?: boolean; items: NavItem[] };
@@ -75,16 +75,17 @@ export const navEntries: readonly NavEntry[] = [
   { id: "companies", group: "crm", mode: "operations", label: "companies", icon: Building, path: "/crm/companies", match: has("/crm/companies") },
   { id: "pipelines", group: "crm", mode: "operations", label: "pipelines", icon: Kanban, path: "/crm/pipelines", match: (p) => p.includes("/crm/pipelines") || p.includes("/crm/deals") },
   { id: "tasks", group: "crm", mode: "operations", label: "tasks", icon: ListChecks, path: "/crm/tasks", match: has("/crm/tasks") },
-  // CRM-06: imports run for owners, admins and members; viewers never see a dead link.
-  { id: "imports", group: "crm", mode: "operations", label: "imports", icon: FileUp, path: "/crm/imports", match: has("/crm/imports"), permission: "crm:import" },
   // CRM forms builder: owners and admins build forms that save people to the CRM.
   { id: "crmForms", group: "crm", mode: "operations", label: "forms", icon: TextCursorInput, path: "/crm/forms", match: has("/crm/forms"), permission: "crm:forms_manage" },
+  // CRM-06: imports run for owners, admins and members; viewers never see a dead link.
+  { id: "imports", group: "crm", mode: "operations", label: "imports", icon: FileUp, path: "/crm/imports", match: has("/crm/imports"), permission: "crm:import" },
   // Operations > Connect. Reserved entries (status planned) are never rendered or linked; their module's PR flips the status.
   { id: "connectLinks", group: "connect", mode: "operations", status: "planned", label: "qrAndLinks", icon: ScanQrCode, path: "/connect/links", match: under("/connect/links") },
   { id: "responses", group: "connect", mode: "operations", status: "planned", label: "responses", icon: ClipboardList, path: "/connect/responses", match: under("/connect/responses") },
   { id: "forms", group: "connect", mode: "operations", status: "planned", label: "forms", icon: ClipboardCheck, path: "/connect/forms", match: under("/connect/forms") },
   // Operations > Office (Files moved here from the Ministry group; its legacy sidebar group stays Ministry).
-  { id: "mail", group: "office", mode: "operations", status: "planned", label: "mail", icon: MailOpen, path: "/mail", match: under("/mail") },
+  // Office Mail: each owner or admin's own mailbox. Hidden unless the server reports the Office screens open (never in production); the page takes over the sidebar (exitTo) like the social Inbox.
+  { id: "mail", group: "office", mode: "operations", label: "mail", icon: MailOpen, path: "/mail", match: under("/mail"), permission: "office:mail", feature: "office", exitTo: "files" },
   { id: "calendar", group: "office", mode: "operations", status: "planned", label: "calendar", icon: Calendar, path: "/calendar", match: under("/calendar") },
   { id: "documents", group: "office", mode: "operations", status: "planned", label: "documents", icon: FileText, path: "/docs", match: under("/docs") },
   { id: "spreadsheets", group: "office", mode: "operations", status: "planned", label: "spreadsheets", icon: Sheet, path: "/sheets", match: under("/sheets") },
