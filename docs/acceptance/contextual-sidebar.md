@@ -20,7 +20,7 @@ One reusable "contextual sidebar" slot in the shared AppShell, behind the existi
 | --- | --- |
 | `npm run typecheck` | exit 0 |
 | `npm run lint` (eslint zero warnings plus source guards) | exit 0 |
-| `npx vitest run --project unit` | 107 files, 1,374 tests passed |
+| `npx vitest run --project unit` | 108 files, 1,383 tests passed (after merging main with the analytics screens) |
 | One Playwright run, private non-root PostgreSQL 16: `shell-slice3a`, `shell-slice3b`, `shell-slice2`, `kit-pr2-shell`, `social-inbox-screens`, `social-publish-screens` | exit 0: 26 passed, 4 skipped (the flag-off parity tests) |
 
 Asserted in the Inbox spec: back arrow focus on swap-in and on the current entry after Back, account group and list collapse with focus, 44px (at least 43.5) targets for the back arrow, an account toggle and a folder in the phone drawer and for the list toggles at 768, the phone drawer closing on a filter choice, and the flag-off layout (inline filters, no "Inbox sidebar" group) when `HARVEST_SHELL_MODES=disabled`. The editor specs assert no mode switcher while editing and the guarded back arrow.
