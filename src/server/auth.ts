@@ -94,7 +94,8 @@ export function makeAuth(db: Database, config: {
           const [user] = await db.select({ locale: users.locale }).from(users).where(eq(users.email, email)).limit(1);
           const context = getCurrentAuthEndpointContext();
           const locale = resolveLocale(user?.locale, context.getCookie?.("locale"), context.headers?.get("accept-language"));
-          await sendSignInCode(email, otp, locale, config.mail);
+          if (config.mail) await sendSignInCode(email, otp, locale, config.mail);
+          else await sendSignInCode(email, otp, locale);
         });
       },
     })],
