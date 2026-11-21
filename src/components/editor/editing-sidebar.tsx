@@ -1,11 +1,11 @@
 "use client";
-import Link from "next/link";
-import { ArrowLeft, ExternalLink } from "lucide-react";
+import { ExternalLink } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
 import { SidebarGroup, SidebarMenu, SidebarMenuButton, SidebarMenuItem, useSidebar } from "@/components/ui/sidebar";
 import { editorStepViews, type EditorContext } from "@/lib/editor-context";
 import { menuButton } from "@/components/shell-styles";
+import { ContextualBack } from "@/components/editor/contextual-sidebar";
 import { focusStepHeadingWhenDrawerCloses, StepIndicator, StepStatusText } from "@/components/editor/editor-step-parts";
 
 /**
@@ -18,13 +18,7 @@ export function EditingSidebar({ context, id }: { context: EditorContext; id: st
   const { setOpenMobile, isMobile } = useSidebar();
   const steps = editorStepViews(context.steps, context.current);
   return <div id={id} role="group" aria-label={t("editing", { title: context.title })} data-shell-editing className="flex min-h-full flex-col">
-    <SidebarGroup className="px-[13px] py-0 group-data-[collapsible=icon]:px-0">
-      <SidebarMenu className="gap-px"><SidebarMenuItem>
-        <SidebarMenuButton asChild tooltip={isMobile ? undefined : context.back.label} className={menuButton}>
-          <Link href={context.back.href} aria-label={t("backTo", { label: context.back.label })} onClick={() => setOpenMobile(false)}>
-            <ArrowLeft aria-hidden="true" /><span className="group-data-[collapsible=icon]:sr-only">{context.back.label}</span></Link>
-        </SidebarMenuButton></SidebarMenuItem></SidebarMenu>
-    </SidebarGroup>
+    <ContextualBack href={context.back.href} label={context.back.label} />
     <div className="mt-3 space-y-1 px-[21px] group-data-[collapsible=icon]:hidden">
       <p className="truncate text-sm font-semibold text-sidebar-accent-foreground" title={context.title} data-editor-title>{context.title}</p>
       <div className="flex flex-wrap items-center gap-2">

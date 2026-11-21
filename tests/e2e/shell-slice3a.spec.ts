@@ -46,7 +46,6 @@ const overflow = (page: Page) => page.evaluate(() => document.documentElement.sc
 const sidebar = (page: Page) => page.getByRole("group", { name: /^Editing / });
 const steps = (page: Page) => page.getByRole("navigation", { name: "Community setup" });
 const heading = (page: Page, name: string) => page.getByRole("heading", { name, level: 2 });
-const tab = (page: Page, name: string) => page.getByRole("tablist", { name: "Menu mode" }).getByRole("tab", { name, exact: true });
 /** Visible interactive controls under 44px tall (touch targets). */
 const short = (locator: Locator) => locator.evaluateAll((nodes) => nodes.filter((n) => { const r = n.getBoundingClientRect(); return r.width > 0 && r.height > 0 && r.height < 43.5; }).map((n) => `${n.tagName} ${(n.textContent ?? "").trim().slice(0, 30)}`));
 async function openDrawer(page: Page) {
@@ -98,13 +97,12 @@ test("editing sidebar: swap, steps, back link, open page, mode switcher and prev
   await page.goto(url);
   await expect(page.locator("[data-hydrated=true]")).toBeVisible();
 
-  // Editing state: the entry list is replaced; the logo row and mode switcher stay.
+  // Editing state: the whole sidebar is replaced (back arrow on top; no logo row or mode switcher).
   const side = sidebar(page);
   await expect(side).toBeVisible();
   await expect(side).toHaveAccessibleName("Editing Grace Bible Study");
   await expect(page.getByRole("navigation", { name: /^Ministry navigation/ })).toHaveCount(0);
-  await expect(page.getByRole("tablist", { name: "Menu mode" })).toBeVisible();
-  await expect(tab(page, "Public")).toHaveAttribute("aria-selected", "true");
+  await expect(page.getByRole("tablist", { name: "Menu mode" })).toHaveCount(0);
   const back = side.getByRole("link", { name: "Back to Communities", exact: true });
   await expect(back).toHaveAttribute("href", `/workspaces/${tenant}/communities`);
   await expect(side.locator("[data-editor-title]")).toHaveText("Grace Bible Study");
@@ -141,15 +139,9 @@ test("editing sidebar: swap, steps, back link, open page, mode switcher and prev
   await page.keyboard.press("Enter");
   await expect(heading(page, "Joining")).toBeVisible();
 
-  // The mode switcher stays and works: another mode previews its entries and the editor stays; the owning mode brings the item sidebar back.
-  await tab(page, "Operations").click();
-  await expect(page).toHaveURL(new RegExp(`${url}$`));
-  await expect(side).toHaveCount(0);
-  await expect(page.getByRole("navigation", { name: "Ministry navigation: Operations" })).toBeVisible();
+  // The back arrow is the first focusable row of the sidebar and the way out to the normal Harvest sidebar (the leave guard is covered below).
+  await expect(side.locator("[data-contextual-back] a")).toBeVisible();
   await expect(heading(page, "Joining")).toBeVisible();
-  await tab(page, "Public").click();
-  await expect(sidebar(page)).toBeVisible();
-  await expect(steps(page).getByRole("button", { name: /Joining/ })).toHaveAttribute("aria-current", "step");
 
   // Publish: the checklist lists what is missing, links to its step, and Publish stays off until it is done.
   const header = page.locator("header").filter({ has: page.getByRole("heading", { level: 1 }) });
@@ -198,25 +190,15 @@ test("leave guard: every exit path asks while dirty; steps and mode switches nev
   // Clean: leaving does not ask.
   await page.getByLabel("Tagline (optional)", { exact: true }).fill("Weekly study");
   await expect(sidebar(page).getByText("Unsaved changes")).toBeVisible();
-  // Step links and mode switches do not leave, so they do not ask.
+  // Step links do not leave, so they do not ask.
   await steps(page).getByRole("button", { name: /Joining/ }).click();
-  await tab(page, "Operations").click();
   await expect(dialog).toHaveCount(0);
-  await tab(page, "Public").click();
   await expect(sidebar(page).getByText("Unsaved changes")).toBeVisible();
-  // Back link, logo, and a mode entry in the previewed sidebar all ask; Stay keeps the draft.
+  // The back arrow asks; Stay keeps the draft.
   await sidebar(page).getByRole("link", { name: "Back to Communities", exact: true }).click();
   await expect(dialog).toBeVisible();
   await page.getByRole("button", { name: "Stay", exact: true }).click();
   await expect(dialog).toHaveCount(0);
-  await page.locator("[data-sidebar='header']").getByRole("link", { name: "Harvest" }).click();
-  await expect(dialog).toBeVisible();
-  await page.getByRole("button", { name: "Stay", exact: true }).click();
-  await tab(page, "Operations").click();
-  await page.getByRole("navigation", { name: /^Ministry navigation/ }).getByRole("link", { name: "People", exact: true }).click();
-  await expect(dialog).toBeVisible();
-  await page.getByRole("button", { name: "Stay", exact: true }).click();
-  await tab(page, "Public").click();
   // The breadcrumb link too, and the Open page link is a new tab so it never asks.
   await page.locator("header").filter({ has: page.getByRole("heading", { level: 1 }) }).getByRole("link", { name: "Communities", exact: true }).click();
   await expect(dialog).toBeVisible();
@@ -323,7 +305,7 @@ test("phone and tablet: Step n of m bar, All steps sheet, preview sheet, 44px ta
     // The drawer shows the editing sidebar with 44px targets; choosing a step closes it.
     const drawer = await openDrawer(page);
     await expect(drawer.getByRole("group", { name: "Editing Grace Bible Study" })).toBeVisible();
-    await expect(drawer.getByRole("tablist", { name: "Menu mode" })).toBeVisible();
+    await expect(drawer.getByRole("tablist", { name: "Menu mode" })).toHaveCount(0);
     expect(await short(drawer.locator("[data-editor-steps] button, [data-shell-editing] a"))).toEqual([]);
     await axe(page);
     if (scheme === "light") await page.screenshot({ path: `${evidence}/phone-360-drawer-light.png` });
@@ -388,7 +370,7 @@ test("role matrix: owner and admin edit; member and viewer see the sidebar read-
       await expect(other.locator("[data-hydrated=true]")).toBeVisible();
       await expect(sidebar(other)).toBeVisible();
       await expect(steps(other).getByRole("listitem")).toHaveCount(9);
-      await expect(tab(other, "Public")).toHaveAttribute("aria-selected", "true");
+      await expect(other.getByRole("tablist", { name: "Menu mode" })).toHaveCount(0);
       const writable = role === "admin";
       await expect(other.getByLabel("Name", { exact: true })).toBeEnabled({ enabled: writable });
       await expect(other.getByRole("button", { name: "Save draft", exact: true })).toHaveCount(0);

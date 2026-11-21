@@ -11,7 +11,8 @@ import { availableModes, displayMode, modeForShortcut, modeSnapshot, rememberMod
 import { ModeSwitcher, modeLabelKey } from "@/components/mode-switcher";
 import { menuButton } from "@/components/shell-styles";
 import { EditingSidebar } from "@/components/editor/editing-sidebar";
-import { EditorProvider, useEditorSidebar } from "@/components/editor/editor-context";
+import { ContextualSidebar } from "@/components/editor/contextual-sidebar";
+import { EditorProvider, useContextualPortal, useEditorSidebar } from "@/components/editor/editor-context";
 import type { Audience } from "@/lib/audience";
 import { authClient } from "@/lib/auth-client";
 import { NotificationsMenu } from "@/components/crm/tasks/notifications-menu";
@@ -124,6 +125,19 @@ function ModeNavigation({ selected, workspace, pathname, features, announce }: {
   // that mode's entries so the user is never trapped); the logo row and mode switcher stay.
   const editor = useEditorSidebar();
   const editing = editor !== null && mode === derived;
+  // A page-owned contextual sidebar (Inbox) replaces the whole sidebar the same way, under the same rule.
+  const portal = useContextualPortal();
+  const contextual = !editing && portal.spec !== null && mode === derived;
+  const swapped = editing || contextual;
+  // Focus follows the swap: into the frame's back arrow when it opens, back to the current entry when it closes. Never on first render, so a direct load keeps the page's own focus.
+  const wasSwapped = useRef(swapped);
+  useEffect(() => {
+    if (wasSwapped.current === swapped) return;
+    wasSwapped.current = swapped;
+    const root = document.querySelector<HTMLElement>(`#${modeNavId}`);
+    const target = swapped ? root?.querySelector<HTMLElement>("[data-contextual-back] a") : root?.querySelector<HTMLElement>('a[aria-current="page"], a[href]');
+    target?.focus();
+  }, [swapped]);
   const entries = <nav ref={navRef} id={modeNavId} aria-label={t("workspaceNavigationMode", { mode: modeLabel })} data-shell-mode={mode}>
       {mode === "operations" && <SidebarGroup className="px-[13px] py-0 group-data-[collapsible=icon]:px-0">
         <SidebarMenu className="gap-px"><NavigationLink href="/workspaces" active={false} label={t("workspaces")} icon={<Building2 aria-hidden="true" />} /></SidebarMenu>
@@ -138,7 +152,7 @@ function ModeNavigation({ selected, workspace, pathname, features, announce }: {
     </nav>;
   return <>
     {/* One compact header row: logo left, mode icons right (a single mode needs no switcher). */}
-    <SidebarHeader className="gap-0 p-0 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:py-2">
+    {!swapped && <SidebarHeader className="gap-0 p-0 group-data-[collapsible=icon]:items-center group-data-[collapsible=icon]:py-2">
       <div className="flex h-[52px] items-center justify-between gap-2 pl-4 pr-3 group-data-[collapsible=icon]:h-auto group-data-[collapsible=icon]:flex-col group-data-[collapsible=icon]:px-0">
         <Link href="/workspaces" className="flex min-h-11 min-w-0 items-center gap-1.5 rounded-md outline-none lg:min-h-0 focus-visible:ring-2 focus-visible:ring-sidebar-ring">
           <Image src="/brand/harvest-logo.png" width={24} height={24} alt="" className="size-6 shrink-0 object-contain" />
@@ -146,8 +160,9 @@ function ModeNavigation({ selected, workspace, pathname, features, announce }: {
         </Link>
         {available.length > 1 && <ModeSwitcher modes={available} active={mode} controls={modeNavId} onSelect={(next) => select(next)} />}
       </div>
-    </SidebarHeader>
-    <SidebarContent className="gap-0 pt-1">{editing && editor ? <EditingSidebar context={editor} id={modeNavId} /> : entries}</SidebarContent>
+    </SidebarHeader>}
+    <SidebarContent className="gap-0 pt-1">{editing && editor ? <EditingSidebar context={editor} id={modeNavId} />
+      : contextual && portal.spec ? <ContextualSidebar id={modeNavId} title={portal.spec.title} back={portal.spec.back} label={portal.spec.label} slotRef={portal.setSlot} /> : entries}</SidebarContent>
   </>;
 }
 export function AppShell({ children, workspaces, selected, email, brandTheme = "harvest", defaultOpen = true, features = [], header, modeSwitcher = false, settings = {} }: {
