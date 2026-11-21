@@ -310,3 +310,16 @@ Layout and features follow the founder's first Harvest version (private reposito
 | all other `src/components/social/auto-dm/*` | existing Harvest components | none | not applicable | Built on Stepper (stepper1), EmptyState (empty-state15), StatusBadge (badge1), Sheet, Dialog, Tabs, StickySaveBar and the composer's option-row pattern; no new kit item installed. |
 
 Kit blocks looked at and not used: `workflow-automation` (canvas editor; Auto-DM is a bounded rule, not a workflow graph) and the premium tables (Harvest lists are cards that stack on phones).
+
+### Social Analytics screens
+
+Premium kit repository `bumbmatei-sys/admin-dashboard` (commit `1631106`, no secrets copied), under the founder's standing kit rule of 17 Nov and his 20 Nov instruction that every analytics screen uses the kit's dashboard blocks, animated once per visit. Percentages are the share of the Harvest file's non-blank lines that are unchanged from the kit file, measured with `scripts/ui-identical.sh`; they are also recorded in `adminDashboardProvenance` in `src/lib/ui-provenance.ts`. The kit's own registry items `stat-card12`, `chart56` and `chart60` are not in the repository copy; the local dashboard pages (`finance`, `sales`, `ecommerce`) hold the same block families, so those files were the sources.
+
+| Harvest file | Status | Kit source (`app/dashboard/(auth)/` unless noted) | Identical lines | Harvest notes |
+| --- | --- | --- | --- | --- |
+| `src/components/ui/chart.tsx` | **copied** | `components/ui/chart.tsx` (repository root) | 334 of 337 (99%) | Error text became a code; the recharts selectors that name raw hex colours were removed. |
+| `src/components/social/analytics/count-up.tsx` | **derived** | `components/ui/custom/count-animation.tsx` | 8 of 14 (57%) | Takes a formatter; 0.4 s; the only file importing `motion`, loaded on demand. |
+| `src/components/social/analytics/stat-card.tsx` | **derived** | `finance/components/kpi-cards.tsx` | 14 of 60 (23%) | Card, badge, figure and bar sparkline, rewritten around real readings. |
+| `src/components/social/analytics/series-card.tsx` | **derived** | `sales/components/revenue-chart.tsx` | 10 of 61 (16%) | Titled card with the measure switch; area chart with gaps. Mostly shared imports. |
+
+Everything else on the screen (platform table, ranked posts, heatmap, range picker, banners, post drawer, data hook, entrance hook) is written for Harvest on shared components and has no kit source. New dependencies: `recharts` 3.10.1 and `motion` 13.1.1, both approved (16 Nov and 20 Nov). Chart colours are the existing `--chart-1..5` tokens.

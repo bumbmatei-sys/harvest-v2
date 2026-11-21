@@ -4961,5 +4961,145 @@
       "name": "Ministry",
       "role": "Your role"
     }
+  },
+  "SocialAnalytics": {
+    "title": "Analytics",
+    "subtitle": "Social performance in {zone}.",
+    "scope": {
+      "label": "Accounts",
+      "all": "All accounts",
+      "platforms": "Platforms",
+      "accounts": "Accounts",
+      "account": "{name} ({platform})"
+    },
+    "range": {
+      "label": "Date range",
+      "presets": "Quick ranges",
+      "last": "Last {days} days",
+      "previous": "the previous {days} days",
+      "from": "From",
+      "to": "To",
+      "apply": "Apply",
+      "invalid": "Choose dates up to today, at most 366 days apart.",
+      "span": "{from} – {to}"
+    },
+    "freshness": {
+      "updated": "Updated {time}",
+      "never": "Not updated yet"
+    },
+    "banners": {
+      "expiredTitle": "{count, plural, one {A connection has expired} other {# connections have expired}}",
+      "expired": "{names} must be reconnected. Their numbers are missing until then.",
+      "reconnect": "Reconnect accounts",
+      "delayedTitle": "{count, plural, one {An account is delayed} other {# accounts are delayed}}",
+      "delayed": "{names}: numbers may be incomplete until the next update.",
+      "pendingTitle": "{count, plural, one {An account has not been measured yet} other {# accounts have not been measured yet}}",
+      "pending": "{names}: no numbers yet.",
+      "truncatedTitle": "Showing part of the data",
+      "truncated": "This report reached its size limit. Narrow it with an account or platform."
+    },
+    "cards": {
+      "group": "Summary",
+      "published": "Posts published",
+      "reach": "Reach",
+      "impressions": "Impressions",
+      "views": "Views",
+      "engagement": "Engagement",
+      "followerChange": "Follower change",
+      "unavailable": "Unavailable",
+      "partial": "Partial",
+      "versus": "vs {period}",
+      "noComparison": "No comparison",
+      "increased": "Up compared with {period}",
+      "decreased": "Down compared with {period}",
+      "unchanged": "No change compared with {period}",
+      "partialNote": "{value} (partial)"
+    },
+    "series": {
+      "title": "Over time",
+      "metric": "Measure",
+      "tableCaption": "{metric} per day",
+      "day": "Day",
+      "unavailable": "Unavailable for these accounts in this range.",
+      "unavailableValue": "Unavailable",
+      "subtitle": "{metric} · {zone}"
+    },
+    "platforms": {
+      "title": "By platform",
+      "description": "Each platform's own numbers; unavailable stays unavailable.",
+      "platform": "Platform",
+      "statusExpired": "Reconnect",
+      "statusDelayed": "Delayed",
+      "statusPending": "Not measured yet"
+    },
+    "posts": {
+      "title": "Top and bottom posts",
+      "description": "Ranked by engagement.",
+      "order": "Order",
+      "top": "Top",
+      "bottom": "Bottom",
+      "empty": "No post has an engagement reading in this range.",
+      "external": "Published elsewhere",
+      "open": "Open details for {platform} post, {time}"
+    },
+    "heatmap": {
+      "title": "Best times to post",
+      "zone": "Times in {zone}",
+      "source": "Source",
+      "observed": "Your posts",
+      "provider": "Audience",
+      "best": "Highest: {day} {hour}, average engagement {value} across {samples, plural, one {# sample} other {# samples}}.",
+      "caption": "Average engagement by day and hour in {zone}",
+      "cell": "{day} {hour}: average engagement {value}, {samples, plural, one {# sample} other {# samples}}",
+      "cellEmpty": "{day} {hour}: no data",
+      "less": "Less",
+      "more": "More",
+      "noData": "No data",
+      "empty": "No timing data in this range yet."
+    },
+    "days": {
+      "0": "Monday",
+      "1": "Tuesday",
+      "2": "Wednesday",
+      "3": "Thursday",
+      "4": "Friday",
+      "5": "Saturday",
+      "6": "Sunday"
+    },
+    "detail": {
+      "title": "Post details",
+      "engagementOverTime": "Engagement per day",
+      "noSeries": "No daily engagement readings for this post yet.",
+      "openInPlanner": "Open in planner",
+      "partial": "This account is delayed, so some numbers may be incomplete.",
+      "unavailable": "This post is not available.",
+      "error": "Could not load this post.",
+      "subtitle": "{platform} · {time}"
+    },
+    "postMetrics": {
+      "impressions": "Impressions",
+      "reach": "Reach",
+      "views": "Views",
+      "likes": "Likes",
+      "comments": "Comments",
+      "shares": "Shares",
+      "saves": "Saves",
+      "clicks": "Clicks",
+      "videoViews": "Video views",
+      "watchTimeSeconds": "Watch time (s)",
+      "score": "Score",
+      "engagement": "Engagement"
+    },
+    "states": {
+      "unavailableTitle": "Analytics is not available",
+      "unavailable": "You may not have access, or this ministry has no analytics yet.",
+      "error": "Could not load analytics.",
+      "retry": "Try again",
+      "noAccountsTitle": "No accounts connected",
+      "noAccounts": "Connect a social account to see how your posts perform.",
+      "connect": "Connect an account",
+      "noDataTitle": "Nothing to show for this range",
+      "noData": "No posts or follower changes were recorded. Try a longer range."
+    }
   }
 }
