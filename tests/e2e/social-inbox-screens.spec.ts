@@ -108,10 +108,10 @@ test("social inbox: list, filters, thread, comments, reply states, empty, errors
   await page.getByRole("group", { name: "Show" }).getByRole("button", { name: "Assigned to me", exact: true }).click();
   await expect(rows).toHaveCount(1); await expect(row("Maria Santos")).toBeVisible();
   await audit(page, "filters", async (width) => { await expect(rows.first()).toBeVisible(); if (width >= 1280) await expect(page.getByTestId("platform-instagram")).toBeVisible(); },
-    async () => {
+    async (width) => {
       const tab = page.getByRole("group", { name: "Show" }).getByRole("button", { name: "Assigned to me", exact: true });
       if ((await tab.getAttribute("aria-pressed")) === "true") return;
-      if (await page.getByTestId("platform-instagram").isVisible()) await page.getByTestId("platform-instagram").click();
+      if (width >= 1280) { await expect(page.getByTestId("platform-instagram")).toBeVisible(); await page.getByTestId("platform-instagram").click(); }
       await tab.click();
     });
   await page.reload(); await listReady();
@@ -119,7 +119,7 @@ test("social inbox: list, filters, thread, comments, reply states, empty, errors
   // ---- Empty: nothing starred ----------------------------------------------------------------------------------------------
   await page.getByTestId("folder-starred").click();
   await expect(page.getByTestId("list-empty")).toContainText("No conversations match");
-  await audit(page, "empty-filtered", async () => { await expect(page.getByTestId("list-empty")).toBeVisible(); }, async () => { if (await page.getByTestId("folder-starred").isVisible()) await page.getByTestId("folder-starred").click(); });
+  await audit(page, "empty-filtered", async () => { await expect(page.getByTestId("list-empty")).toBeVisible(); }, async (width) => { if (width >= 1280) { await expect(page.getByTestId("folder-starred")).toBeVisible(); await page.getByTestId("folder-starred").click(); } });
   await page.getByTestId("folder-all").click(); await listReady();
 
   // ---- Direct message thread: live messages, markers, actions, composer ---------------------------------------------------
@@ -235,6 +235,58 @@ test("social inbox: list, filters, thread, comments, reply states, empty, errors
   await page.reload(); await settingsReady();
   await expect(page.getByRole("textbox", { name: "Away message" })).toHaveValue("We are away and will reply when we are back.");
   await audit(page, "settings", settingsReady);
+
+  // ---- Contextual sidebar: the folders and accounts panel is the whole sidebar, with a back arrow on top -------------------------------------------
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto(`/workspaces/${tenant}/social/planner`);
+  await expect(page.getByRole("tablist", { name: "Menu mode" })).toBeVisible();
+  await page.screenshot({ path: `${shots}/sidebar-before-planner-1280-light.png`, animations: "disabled" });
+  await page.getByRole("link", { name: "Inbox", exact: true }).click();
+  const inboxSide = page.getByRole("group", { name: "Inbox sidebar" });
+  await expect(inboxSide).toBeVisible(); await listReady();
+  await expect(page.getByRole("tablist", { name: "Menu mode" })).toHaveCount(0);
+  await expect(inboxSide.getByTestId("folder-all")).toBeVisible();
+  await expect(page.getByTestId("inbox").getByTestId("folder-all")).toHaveCount(0);
+  const back = inboxSide.getByRole("link", { name: "Back to Planner" });
+  await expect(back).toBeFocused();
+  expect((await back.boundingBox())!.height).toBeGreaterThanOrEqual(35);
+  // Account groups collapse and expand with disclosure semantics.
+  const toggle = inboxSide.getByTestId("toggle-instagram");
+  await expect(toggle).toHaveAttribute("aria-expanded", "true"); await expect(inboxSide.getByText("Test instagram")).toBeVisible();
+  await toggle.click(); await expect(toggle).toHaveAttribute("aria-expanded", "false"); await expect(inboxSide.getByText("Test instagram")).toBeHidden();
+  await toggle.click(); await expect(inboxSide.getByText("Test instagram")).toBeVisible();
+  // The conversation list collapses so the thread can take the full width; focus follows the toggle.
+  await row("Maria Santos").click();
+  const threadWidth = async () => (await page.getByTestId("thread-pane").boundingBox())!.width;
+  const wide = await threadWidth();
+  await page.getByTestId("list-collapse").click();
+  await expect(page.getByTestId("list-pane")).toBeHidden(); await expect(page.getByTestId("list-expand")).toBeFocused();
+  await expect(page.getByTestId("list-expand")).toHaveAttribute("aria-expanded", "false");
+  expect(await threadWidth()).toBeGreaterThan(wide + 200);
+  await page.screenshot({ path: `${shots}/list-collapsed-1280-light.png`, animations: "disabled" });
+  await page.getByTestId("list-expand").click();
+  await expect(page.getByTestId("list-pane")).toBeVisible(); await expect(page.getByTestId("list-collapse")).toBeFocused();
+  await page.screenshot({ path: `${shots}/sidebar-after-inbox-1280-light.png`, animations: "disabled" });
+  // Back returns to the normal Harvest sidebar and puts focus on a current entry.
+  await back.click();
+  await expect(page).toHaveURL(/\/social\/planner/);
+  await expect(inboxSide).toHaveCount(0);
+  await expect(page.getByRole("tablist", { name: "Menu mode" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Inbox", exact: true })).toBeVisible();
+  // Phone: the same panel is the drawer's content.
+  await page.setViewportSize({ width: 360, height: 800 });
+  await page.goto(base); await listReady();
+  await page.screenshot({ path: `${shots}/sidebar-after-inbox-360-light.png`, animations: "disabled" });
+  await page.getByRole("button", { name: "Filters" }).click();
+  const drawer = page.getByRole("dialog", { name: "Sidebar" });
+  await expect(drawer.getByRole("group", { name: "Inbox sidebar" })).toBeVisible();
+  await expect(drawer.getByRole("link", { name: "Back to Planner" })).toBeVisible();
+  await page.screenshot({ path: `${shots}/sidebar-drawer-360-light.png`, animations: "disabled" });
+  await drawer.getByTestId("folder-unread").click();
+  await expect(drawer).toBeHidden();
+  await page.getByRole("button", { name: "Filters" }).click();
+  await page.keyboard.press("Escape"); await expect(drawer).toBeHidden();
+  await page.setViewportSize({ width: 1280, height: 900 });
 
   // ---- Phone: list, then thread with a back button ----------------------------------------------------------------------------
   await page.setViewportSize({ width: 360, height: 800 });

@@ -4295,7 +4295,8 @@
         "denied": "No access",
         "revoked": "Disconnected",
         "disabled": "Off"
-      }
+      },
+      "toggle": "{platform} accounts"
     },
     "labels": {
       "label": "Labels"
@@ -4326,7 +4327,9 @@
       "refreshFailed": "The list could not be refreshed. Showing the last loaded conversations.",
       "unavailableTitle": "Inbox not available",
       "unavailable": "The inbox is not available for this ministry.",
-      "waiting": "Some accounts are slow. Try again in {seconds} seconds."
+      "waiting": "Some accounts are slow. Try again in {seconds} seconds.",
+      "collapse": "Hide conversations",
+      "expand": "Show conversations"
     },
     "partial": {
       "title": "Some accounts are not fully loaded",
@@ -4499,7 +4502,8 @@
       },
       "sep": "to",
       "accountOption": "{platform} · {name}"
-    }
+    },
+    "sidebarLabel": "Inbox sidebar"
   },
   "SettingsDialog": {
     "title": "Settings",

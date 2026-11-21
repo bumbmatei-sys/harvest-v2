@@ -42,6 +42,11 @@ export type NavEntry = {
   audienceLabels?: Partial<Record<Audience, NavLabelKey>>;
   /** Shown only when the server reports this feature as enabled (activation flags, ADR 0013 §11). */
   feature?: NavFeature;
+  /**
+   * Entries whose page replaces the whole sidebar with its own contextual panel (Inbox). The id of the entry the panel's back arrow returns to, so the
+   * exit route lives in this registry and never in the page.
+   */
+  exitTo?: string;
 };
 export type NavFeature = "communities" | "events" | "social";
 export type NavItem = { id: string; label: NavLabelKey; icon: LucideIcon; href: string; active: boolean };
@@ -102,7 +107,7 @@ export const navEntries: readonly NavEntry[] = [
   // Public > Discover (pinned above the groups) and Social media. Planner opens the page whose own tabs are Compose, Calendar and Queue.
   { id: "discover", group: "discover", mode: "public", status: "planned", label: "discover", icon: Compass, path: "/discover/manage", match: under("/discover/manage") },
   { id: "planner", group: "publishing", mode: "public", label: "planner", icon: CalendarDays, path: "/social/planner", match: (pathname) => under("/social/planner")(pathname) || under("/social/compose")(pathname), permission: "social:schedule", feature: "social" },
-  { id: "inbox", group: "publishing", mode: "public", label: "inbox", icon: MessageSquareText, path: "/social/inbox", match: under("/social/inbox"), permission: "social:inbox", feature: "social" },
+  { id: "inbox", group: "publishing", mode: "public", label: "inbox", icon: MessageSquareText, path: "/social/inbox", match: under("/social/inbox"), permission: "social:inbox", feature: "social", exitTo: "planner" },
   { id: "autoDm", group: "publishing", mode: "public", status: "planned", label: "autoDm", icon: MessageCircleReply, path: "/inbox/auto-dm", match: under("/inbox/auto-dm") },
   { id: "ads", group: "publishing", mode: "public", status: "planned", label: "ads", icon: Target, path: "/social/ads", match: under("/social/ads") },
   { id: "socialAnalytics", group: "publishing", mode: "public", status: "planned", label: "socialAnalytics", icon: BarChart3, path: "/social/analytics", match: under("/social/analytics") },
@@ -185,4 +190,10 @@ export function resolveModeNavigation({ tenantId, role, audience, pathname, feat
 export function sectionLabel(pathname: string, audience?: Audience | null, entries: readonly NavEntry[] = navEntries): NavLabelKey | null {
   const entry = entries.find((item) => item.status !== "planned" && (item.match(pathname) || item.sectionMatch?.(pathname)));
   return entry ? labelFor(entry, audience) : null;
+}
+
+/** Where a contextual sidebar's back arrow goes: the route and label key of the entry named by `exitTo`, or null when the entry has none. */
+export function contextExit(tenantId: string, entryId: string, entries: readonly NavEntry[] = navEntries): { href: string; label: NavLabelKey } | null {
+  const target = entries.find((entry) => entry.id === entries.find((item) => item.id === entryId)?.exitTo);
+  return target ? { href: `/workspaces/${tenantId}${target.path}`, label: target.label } : null;
 }
