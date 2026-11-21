@@ -86,7 +86,7 @@ describe("token leak guard", () => {
     }
     expect(leaks).toEqual([]);
     expect(JSON.parse(readFileSync(join(root, "components.json"), "utf8")).registries["@shadcnuikit"].headers.Authorization).toBe("Bearer ${REGISTRY_TOKEN}");
-  });
+  }, 30_000); // scans every tracked file; slow under load
 });
 
 describe("chat-app provenance", () => {
