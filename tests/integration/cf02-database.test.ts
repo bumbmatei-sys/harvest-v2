@@ -78,6 +78,9 @@ describe.each(["node", "workers"] as const)("%s request scopes", (runtime) => {
       await expect(withDb({ ...app, pool: worker.pool }, use)).rejects.toThrow("DATABASE_PRINCIPAL_INVALID");
     } else {
       await expect(withDb({ runtime: "workers", role: "app", APP_HYPERDRIVE: { connectionString: fixture.workerURL } }, use)).rejects.toThrow("DATABASE_URL_INVALID");
+      const withOptions = new URL(fixture.appURL);
+      withOptions.searchParams.set("options", "endpoint=fixture");
+      await expect(withDb({ runtime: "workers", role: "app", APP_HYPERDRIVE: { connectionString: withOptions.href } }, use)).rejects.toThrow("DATABASE_URL_INVALID");
       const owner = new URL(fixture.appURL);
       owner.username = fixture.migrationOwner!;
       await expect(withDb({ runtime: "workers", role: "app", APP_HYPERDRIVE: { connectionString: owner.href } }, use)).rejects.toThrow("DATABASE_URL_INVALID");
