@@ -2,11 +2,15 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ArrowLeft, MessagesSquare, Settings2 } from "lucide-react";
+import { ArrowLeft, MessagesSquare, PanelLeftOpen, Settings2 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { useSidebar } from "@/components/ui/sidebar";
+import { useContextualSidebar } from "@/components/editor/editor-context";
+import { contextExit } from "@/lib/navigation";
 import { EmptyState } from "@/components/empty-state";
 import { InboxFilters, type SidebarView } from "@/components/social/inbox/inbox-filters";
 import { InboxList, type ListView } from "@/components/social/inbox/inbox-list";
@@ -24,7 +28,14 @@ const pollMs = 30_000;
  * 768px, one pane at a time on phones.
  */
 export function Inbox({ tenantId, me, sendEnabled, view }: { tenantId: string; me: string; sendEnabled: boolean; view: "inbox" | "settings" }) {
-  const t = useTranslations("SocialInbox");
+  const t = useTranslations("SocialInbox"), nav = useTranslations("ComponentsAppShell");
+  const { setOpenMobile } = useSidebar();
+  const exit = contextExit(tenantId, "inbox");
+  // The folders and accounts panel is the whole sidebar while the Inbox is open (back arrow on top); without the shell-modes flag it stays inline as before.
+  const { hosted, slot } = useContextualSidebar(view === "inbox" && exit ? { title: t("title"), back: { href: exit.href, label: nav(exit.label) }, label: t("sidebarLabel") } : null);
+  const [listOpen, setListOpen] = useState(true), listToggle = useRef<HTMLButtonElement>(null), reopen = useRef<HTMLButtonElement>(null), toggled = useRef(false);
+  useEffect(() => { if (!toggled.current) return; (listOpen ? listToggle : reopen).current?.focus(); }, [listOpen]);
+  const toggleList = (open: boolean) => { toggled.current = true; setListOpen(open); };
   const api = useMemo(() => inboxApi(tenantId), [tenantId]);
   const router = useRouter(), pathname = usePathname(), params = useSearchParams(), selected = params.get("item");
   const [filters, setFilters] = useState<Filters>(defaultFilters), [search, setSearch] = useState("");
@@ -123,26 +134,28 @@ export function Inbox({ tenantId, me, sendEnabled, view }: { tenantId: string; m
   if (view === "settings") return <div className="space-y-4">{header}<InboxSettings tenantId={tenantId} api={api} accounts={accounts} loading={sidebar.status === "loading"} failed={sidebar.status === "error"} onRetry={() => void loadSidebar()} /></div>;
 
   const hint = list.items.find((item) => item.id === selected);
-  const filterPane = <InboxFilters tenantId={tenantId} view={sidebar} filters={filters} onFilters={(next) => { changeFilters(next); setPaneOpen(false); }} onRetry={() => void loadSidebar()} />;
+  const filterPane = <InboxFilters tenantId={tenantId} view={sidebar} filters={filters} onFilters={(next) => { changeFilters(next); setPaneOpen(false); if (hosted) setOpenMobile(false); }} onRetry={() => void loadSidebar()} />;
   return <div className="space-y-4">
     {header}
     <div className="flex flex-col overflow-hidden rounded-xl border bg-card md:h-[calc(100dvh-11.5rem)] md:min-h-[32rem] md:flex-row" data-testid="inbox">
-      <aside className="hidden overflow-y-auto border-r xl:block xl:w-64 xl:shrink-0" aria-label={t("filters")}>{filterPane}</aside>
-      <div className={`min-h-0 min-w-0 flex-col md:w-[22rem] md:shrink-0 md:border-r xl:w-[24rem] ${selected ? "hidden md:flex" : "flex"}`}>
+      {hosted ? slot && createPortal(filterPane, slot)
+        : <aside className="hidden overflow-y-auto border-r xl:block xl:w-64 xl:shrink-0" aria-label={t("filters")}>{filterPane}</aside>}
+      <div id="inbox-list-pane" className={`min-h-0 min-w-0 flex-col md:w-[22rem] md:shrink-0 md:border-r xl:w-[24rem] ${selected ? "hidden" : "flex"} ${listOpen ? "md:flex" : "md:hidden"}`}>
         <InboxList tenantId={tenantId} view={list} filters={filters} search={search} selected={selected} me={me} accountCount={accountCount}
-          onFilters={changeFilters} onSearch={changeSearch} onSelect={(id) => go({ item: id })} onLoadMore={() => void loadMore()} onRetry={retryList} onFilterPane={() => setPaneOpen(true)} />
+          onFilters={changeFilters} onSearch={changeSearch} onSelect={(id) => go({ item: id })} onLoadMore={() => void loadMore()} onRetry={retryList} onFilterPane={() => hosted ? setOpenMobile(true) : setPaneOpen(true)} hosted={hosted} onCollapse={() => toggleList(false)} collapseRef={listToggle} />
       </div>
       <section className={`min-h-0 min-w-0 flex-1 flex-col ${selected ? "flex" : "hidden md:flex"}`} aria-label={t("thread.label")} data-testid="thread-pane">
+        {!listOpen && <div className="hidden border-b p-2 md:block"><Button ref={reopen} type="button" variant="outline" size="responsive" aria-expanded={false} aria-controls="inbox-list-pane" onClick={() => toggleList(true)} data-testid="list-expand"><PanelLeftOpen aria-hidden="true" />{t("list.expand")}</Button></div>}
         {selected
           ? <InboxThread key={selected} tenantId={tenantId} api={api} itemId={selected} hint={hint} me={me} assignees={sidebar.data?.assignees ?? []} sendEnabled={sendEnabled} refreshKey={threadRefresh} onBack={() => go({ item: null })} onChanged={onChanged} />
           : <div className="flex flex-1 items-center justify-center p-6"><EmptyState size="compact" icon={MessagesSquare} title={t("thread.selectTitle")} description={t("thread.select")} /></div>}
       </section>
     </div>
-    <Sheet open={paneOpen} onOpenChange={setPaneOpen}>
+    {!hosted && <Sheet open={paneOpen} onOpenChange={setPaneOpen}>
       <SheetContent side="left" className="w-[min(20rem,90vw)] overflow-y-auto p-0">
         <SheetHeader><SheetTitle>{t("filters")}</SheetTitle><SheetDescription className="sr-only">{t("filtersDescription")}</SheetDescription></SheetHeader>
         {filterPane}
       </SheetContent>
-    </Sheet>
+    </Sheet>}
   </div>;
 }

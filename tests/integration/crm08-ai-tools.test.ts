@@ -127,23 +127,23 @@ describe("approval gate for write tools", () => {
     expect(ledger).toEqual(["ai.tool_approval_request", "ai.tool_approval_approve", "ai.tool_execute"]);
   });
 
-  it("gives a new approval exactly the documented 10-minute lifetime, inside the database's 1-hour backstop", async () => {
+  it("gives a new approval exactly the documented 10-minute lifetime, with the same database limit", async () => {
     const { approvalId } = await requestToolApproval(fixture.db, "member-a", tenantA, "crm_create_task", taskArgs);
     const row = (await fixture.admin.query("select extract(epoch from expires_at - created_at) as seconds from ai_tool_approvals where id = $1", [approvalId])).rows[0];
     expect(APPROVAL_TTL_MINUTES).toBe(10);
     expect(Number(row.seconds)).toBe(600);
-    // The 1-hour SQL backstop: 60 minutes passes, 61 fails the named check.
+    // The SQL backstop also applies to a direct insert as the application role.
     // (The row guard needs the acting person, so insert inside a transaction that sets it, then roll back.)
     const insert = async (minutes: number) => {
-      const client = await fixture.admin.connect();
+      const client = await fixture.pool.connect();
       try {
         await client.query("begin");
-        await client.query("select set_config('app.user_id', 'member-a', true)");
+        await client.query("select set_config('app.user_id', 'member-a', true), set_config('app.tenant_id', $1, true)", [tenantA]);
         return await client.query(`insert into ai_tool_approvals (tenant_id, tool, args_hash, requested_by, expires_at, created_at) values ($1, 'crm_create_task', $2, 'member-a', now() + $3 * interval '1 minute', now())`, [tenantA, "0".repeat(64), minutes]);
       } finally { await client.query("rollback").catch(() => undefined); client.release(); }
     };
-    await expect(insert(60)).resolves.toBeDefined();
-    await expect(insert(61)).rejects.toMatchObject({ code: "23514", constraint: "ai_tool_approval_expiry" });
+    await expect(insert(10)).resolves.toBeDefined();
+    await expect(insert(11)).rejects.toMatchObject({ code: "23514", constraint: "ai_tool_approval_expiry" });
   });
 
   it("makes a decision wait for a concurrent holder of the approval row, then refuse it", async () => {
@@ -164,6 +164,49 @@ describe("approval gate for write tools", () => {
       await expect(decision).rejects.toMatchObject({ status: 409 });
     } finally { await holder.query("rollback").catch(() => undefined); holder.release(); }
     expect((await fixture.admin.query("select status from ai_tool_approvals where id = $1", [approvalId])).rows[0].status).toBe("rejected");
+  });
+
+  it("refuses a decision when the approval expires during a row-lock wait", async () => {
+    const holder = await fixture.admin.connect();
+    let approvalId: string;
+    try {
+      await holder.query("begin");
+      await holder.query("select set_config('app.user_id', 'member-a', true)");
+      const { rows } = await holder.query<{ id: string }>(`
+        insert into ai_tool_approvals (tenant_id, tool, args_hash, requested_by, expires_at)
+        values ($1, 'crm_create_task', $2, 'member-a', now() + interval '2 seconds') returning id
+      `, [tenantA, toolArgsHash("crm_create_task", taskArgs)]);
+      approvalId = rows[0].id;
+      await holder.query("commit");
+      await holder.query("begin");
+      await holder.query("select 1 from ai_tool_approvals where id = $1 for update", [approvalId]);
+      const decision = decideToolApproval(wideDb, "member-a", tenantA, approvalId, "approve");
+      decision.catch(() => undefined);
+      // Prove the decision is blocked on the row while the approval is still valid.
+      await holder.query(`
+        do $$ begin
+          for attempt in 1..100 loop
+            perform pg_stat_clear_snapshot();
+            if exists (select from pg_stat_activity where usename = 'harvest_app'
+              and wait_event_type = 'Lock' and query ilike '%ai_tool_approvals%for update%') then return; end if;
+            perform pg_sleep(0.01);
+          end loop;
+          raise exception 'decision did not wait for the approval lock';
+        end $$
+      `);
+      const { rows: [timing] } = await holder.query("select expires_at > clock_timestamp() as unexpired from ai_tool_approvals where id = $1", [approvalId]);
+      expect(timing.unexpired).toBe(true);
+      await holder.query("select pg_sleep(greatest(0, extract(epoch from expires_at - clock_timestamp()))) from ai_tool_approvals where id = $1", [approvalId]);
+      await holder.query("commit");
+      await expect(decision).rejects.toMatchObject({ status: 409, details: { reason: "approval_expired" } });
+    } finally {
+      await holder.query("rollback").catch(() => undefined);
+      holder.release();
+    }
+    const { rows } = await fixture.admin.query("select status from ai_tool_approvals where id = $1", [approvalId]);
+    expect(rows).toEqual([{ status: "pending" }]);
+    const audit = await fixture.admin.query("select 1 from audit_logs where target_id = $1", [approvalId]);
+    expect(audit.rowCount).toBe(0);
   });
 
   it("makes an execution wait for a concurrent holder of the approval row, then refuse a spent approval", async () => {
@@ -230,7 +273,7 @@ describe("approval gate for write tools", () => {
     let late: string;
     try {
       late = (await fixture.admin.query(`insert into ai_tool_approvals (tenant_id, tool, args_hash, requested_by, status, decided_at, expires_at, created_at)
-        values ($1, 'crm_create_task', $2, 'member-a', 'approved', now() - interval '15 minutes', now() - interval '1 second', now() - interval '20 minutes') returning id`, [tenantA, hash])).rows[0].id;
+        values ($1, 'crm_create_task', $2, 'member-a', 'approved', now() - interval '5 minutes', now() - interval '1 second', now() - interval '10 minutes') returning id`, [tenantA, hash])).rows[0].id;
     } finally { await fixture.admin.query("alter table ai_tool_approvals enable trigger ai_tool_approval_guard"); }
     await expect(executeCrmTool(fixture.db, "member-a", tenantA, "crm_create_task", taskArgs, { approvalId: late })).rejects.toMatchObject({ status: 409, details: { reason: "approval_expired" } });
     expect((await fixture.admin.query("select status from ai_tool_approvals where id = $1", [late])).rows[0].status).toBe("approved");

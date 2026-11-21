@@ -1,6 +1,6 @@
 {
   "id": "2212d0b0-4df8-404a-9521-a24752cdbf04",
-  "prevId": "f565e0cc-996f-40b9-994a-4ce4f91ca3f9",
+  "prevId": "7039a681-c3e1-45ed-a912-6ef64f726fb2",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -299,7 +299,7 @@
         },
         "ai_tool_approval_expiry": {
           "name": "ai_tool_approval_expiry",
-          "value": "\"ai_tool_approvals\".\"expires_at\" > \"ai_tool_approvals\".\"created_at\" and \"ai_tool_approvals\".\"expires_at\" <= \"ai_tool_approvals\".\"created_at\" + interval '1 hour'"
+          "value": "\"ai_tool_approvals\".\"expires_at\" > \"ai_tool_approvals\".\"created_at\" and \"ai_tool_approvals\".\"expires_at\" <= \"ai_tool_approvals\".\"created_at\" + interval '10 minutes'"
         }
       },
       "isRLSEnabled": false

@@ -2,7 +2,7 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { Inbox as InboxIcon, ListFilter, RotateCw, Search, ShieldAlert, Star, TriangleAlert, X } from "lucide-react";
+import { Inbox as InboxIcon, ListFilter, PanelLeftClose, RotateCw, Search, ShieldAlert, Star, TriangleAlert, X } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -23,9 +23,11 @@ export type ListView = {
 };
 
 /** The conversation list: tabs, type and search controls, honest partial and error states, and one row per conversation. */
-export function InboxList({ tenantId, view, filters, search, selected, me, accountCount, onFilters, onSearch, onSelect, onLoadMore, onRetry, onFilterPane }: {
+export function InboxList({ tenantId, view, filters, search, selected, me, accountCount, onFilters, onSearch, onSelect, onLoadMore, onRetry, onFilterPane, hosted, onCollapse, collapseRef }: {
   tenantId: string; view: ListView; filters: Filters; search: string; selected: string | null; me: string; accountCount: number | null;
   onFilters: (filters: Filters) => void; onSearch: (value: string) => void; onSelect: (id: string) => void; onLoadMore: () => void; onRetry: () => void; onFilterPane: () => void;
+  /** True when the filters live in the shell's sidebar: the button only opens that drawer on phones, and the list can collapse. */
+  hosted: boolean; onCollapse: () => void; collapseRef: React.Ref<HTMLButtonElement>;
 }) {
   const t = useTranslations("SocialInbox"), [draft, setDraft] = useState(search);
   const searching = search.trim().length > 0;
@@ -35,8 +37,9 @@ export function InboxList({ tenantId, view, filters, search, selected, me, accou
   return <section className="flex min-h-0 flex-1 flex-col" aria-label={t("list.label")} data-testid="list-pane">
     <div className="space-y-3 border-b p-3">
       <div className="flex items-center gap-2">
-        <Button type="button" variant="outline" size="icon-responsive" className="xl:hidden" aria-label={t("filters")} onClick={onFilterPane}><ListFilter aria-hidden="true" /></Button>
+        <Button type="button" variant="outline" size="icon-responsive" className={hosted ? "md:hidden" : "xl:hidden"} aria-label={t("filters")} onClick={onFilterPane}><ListFilter aria-hidden="true" /></Button>
         <h2 className="min-w-0 flex-1 truncate text-lg font-semibold">{searching ? t("search.results") : t("title")}</h2>
+        {hosted && <Button ref={collapseRef} type="button" variant="ghost" size="icon-responsive" className="max-md:hidden" aria-expanded={true} aria-controls="inbox-list-pane" aria-label={t("list.collapse")} onClick={onCollapse} data-testid="list-collapse"><PanelLeftClose aria-hidden="true" /></Button>}
         <NativeSelect value={filters.kind ?? "all"} className="min-h-11 lg:min-h-9" aria-label={t("type.label")} onChange={(event) => { const value = event.target.value as InboxKind | "all"; onFilters({ ...filters, kind: value === "all" ? undefined : value }); }}>
           {typeFilters.map((kind) => <NativeSelectOption key={kind} value={kind}>{kind === "all" ? t("type.all") : t(`type.${kind}`)}</NativeSelectOption>)}
         </NativeSelect>

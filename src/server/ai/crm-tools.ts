@@ -7,7 +7,7 @@ import { uuidInput } from "../../lib/contact-input";
 import { parseTaskQuery, taskPriorities } from "../../lib/crm-tasks";
 import { getTimeline } from "../activity";
 import { getCompany, listCompanies } from "../companies";
-import { getContact, listContacts } from "../contacts";
+import { getContact, listContacts, pgCode } from "../contacts";
 import { getDeal, listRelatedDeals, moveDeal } from "../crm-deals";
 import { createTask, listTasks } from "../crm-tasks";
 import { workFingerprint } from "../jobs/primitives";
@@ -163,10 +163,7 @@ function lookupTool(name: string) {
   if (!Object.hasOwn(crmTools, name)) throw unavailable();
   return crmTools[name as CrmToolName] as Tool<z.ZodType>;
 }
-/**
- * An approval is valid for 10 minutes. This is the documented maximum. The database check
- * (`ai_tool_approval_expiry`, migration 0025) is a looser 1 hour backstop; tightening it needs a new migration.
- */
+/** The documented lifetime, also enforced by the approval table and transition trigger. */
 export const APPROVAL_TTL_MINUTES = 10;
 
 /** The approval binds this hash: same tool, same validated (defaulted) arguments, nothing else. */
@@ -209,19 +206,24 @@ export async function decideToolApproval(db: Database, userId: string, workspace
     const row = await lockApproval(tx, tenantId, approvalId);
     if (!row || row.requestedBy !== userId) throw new AccessError(404, message("Errors.assistantApprovalInvalid"));
     if (row.status !== "pending") throw new AccessError(409, message("Errors.assistantApprovalUsed"));
-    if (row.expired) throw new AccessError(409, message("Errors.assistantApprovalExpired"));
     // The status guard is a backstop to the row lock: if it ever matches nothing, refuse rather than continue (review on #69).
-    const decided = await tx.update(aiToolApprovals).set({ status: choice === "approve" ? "approved" : "rejected", decidedAt: sql`now()` })
-      .where(and(eq(aiToolApprovals.tenantId, tenantId), eq(aiToolApprovals.id, approvalId), eq(aiToolApprovals.status, "pending"))).returning({ id: aiToolApprovals.id });
+    const decided = await tx.update(aiToolApprovals).set({ status: choice === "approve" ? "approved" : "rejected", decidedAt: sql`statement_timestamp()` })
+      .where(and(eq(aiToolApprovals.tenantId, tenantId), eq(aiToolApprovals.id, approvalId), eq(aiToolApprovals.status, "pending"))).returning({ id: aiToolApprovals.id }).catch(approvalTransitionError);
     if (decided.length === 0) throw new AccessError(409, message("Errors.assistantApprovalUsed"));
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: choice === "approve" ? "ai.tool_approval_approve" : "ai.tool_approval_reject", targetId: approvalId, metadata: { tool: row.tool } });
     return { approvalId, status: choice === "approve" ? "approved" as const : "rejected" as const };
   });
 }
 
+function approvalTransitionError(error: unknown): never {
+  if (pgCode(error) === "55000") {
+    throw new AccessError(409, message("Errors.assistantApprovalExpired"), { reason: "approval_expired" });
+  }
+  throw error;
+}
+
 async function lockApproval(tx: Transaction, tenantId: string, approvalId: string) {
-  const [row] = await tx.select({ requestedBy: aiToolApprovals.requestedBy, tool: aiToolApprovals.tool, argsHash: aiToolApprovals.argsHash, status: aiToolApprovals.status,
-    expired: sql<boolean>`${aiToolApprovals.expiresAt} <= now()` }).from(aiToolApprovals)
+  const [row] = await tx.select({ requestedBy: aiToolApprovals.requestedBy, tool: aiToolApprovals.tool, argsHash: aiToolApprovals.argsHash, status: aiToolApprovals.status }).from(aiToolApprovals)
     .where(and(eq(aiToolApprovals.tenantId, tenantId), eq(aiToolApprovals.id, approvalId))).for("update");
   return row;
 }
@@ -242,9 +244,8 @@ export async function executeCrmTool(db: Database, userId: string, workspace: st
     if (!row || row.requestedBy !== userId || row.tool !== name || row.argsHash !== hash) throw new AccessError(403, message("Errors.assistantApprovalInvalid"), { reason: "approval_mismatch" });
     if (row.status === "pending") throw new AccessError(403, message("Errors.assistantActionNeedsApproval"), { reason: "approval_pending" });
     if (row.status !== "approved") throw new AccessError(409, message("Errors.assistantApprovalUsed"), { reason: "approval_used" });
-    if (row.expired) throw new AccessError(409, message("Errors.assistantApprovalExpired"), { reason: "approval_expired" });
-    const consumed = await tx.update(aiToolApprovals).set({ status: "consumed", consumedAt: sql`now()` })
-      .where(and(eq(aiToolApprovals.tenantId, tenantId), eq(aiToolApprovals.id, approvalId), eq(aiToolApprovals.status, "approved"))).returning({ id: aiToolApprovals.id });
+    const consumed = await tx.update(aiToolApprovals).set({ status: "consumed", consumedAt: sql`statement_timestamp()` })
+      .where(and(eq(aiToolApprovals.tenantId, tenantId), eq(aiToolApprovals.id, approvalId), eq(aiToolApprovals.status, "approved"))).returning({ id: aiToolApprovals.id }).catch(approvalTransitionError);
     if (consumed.length === 0) throw new AccessError(409, message("Errors.assistantApprovalUsed"), { reason: "approval_used" });
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "ai.tool_execute", targetId: approvalId, metadata: { tool: name } });
     // The service runs inside this transaction (as a savepoint) and checks membership and role again.

@@ -670,7 +670,7 @@ export const aiToolApprovals = pgTable("ai_tool_approvals", {
   check("ai_tool_approval_tool", sql`${t.tool} ~ '^crm_[a-z_]{1,60}$'`),
   check("ai_tool_approval_hash", sql`${t.argsHash} ~ '^[a-f0-9]{64}$'`),
   check("ai_tool_approval_status", sql`${t.status} in ('pending', 'approved', 'rejected', 'consumed')`),
-  check("ai_tool_approval_expiry", sql`${t.expiresAt} > ${t.createdAt} and ${t.expiresAt} <= ${t.createdAt} + interval '1 hour'`)]);
+  check("ai_tool_approval_expiry", sql`${t.expiresAt} > ${t.createdAt} and ${t.expiresAt} <= ${t.createdAt} + interval '10 minutes'`)]);
 
 // HC-02: canonical Forms storage (owned by Forms, reused by Connect and later registration forms)
 // and immutable privacy notice versions. Notice copy is supplied and published by the workspace;

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { Building } from "lucide-react";
-import { groupsByMode, modeAvailability, navEntries, navModes, resolveMode, resolveModeNavigation, resolveNavigation, sectionLabel, type NavEntry, type NavMode } from "../../src/lib/navigation";
+import { contextExit, groupsByMode, modeAvailability, navEntries, navModes, resolveMode, resolveModeNavigation, resolveNavigation, sectionLabel, type NavEntry, type NavMode } from "../../src/lib/navigation";
 import { audiences } from "../../src/lib/audience";
 import before from "./fixtures/navigation-before-modes.json";
 
@@ -158,6 +158,14 @@ describe("three-mode registry (slice 1)", () => {
     const result = resolveModeNavigation({ tenantId, role: "owner", pathname: `${root}/crm/deals/${id}` });
     expect(result.mode).toBe("operations");
     expect(result.groups.flatMap((group) => group.items.filter((item) => item.active).map((item) => item.id))).toEqual(["pipelines"]);
+  });
+});
+
+describe("contextual sidebar exit", () => {
+  it("names the Inbox's back target in the registry, never in the page", () => {
+    expect(contextExit(tenantId, "inbox")).toEqual({ href: `/workspaces/${tenantId}/social/planner`, label: "planner" });
+    expect(contextExit(tenantId, "planner")).toBeNull();
+    expect(contextExit(tenantId, "missing")).toBeNull();
   });
 });
 
