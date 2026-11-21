@@ -12,6 +12,7 @@ import { AccessError } from "./permissions";
 import type { StorageAdapter } from "./storage/adapter";
 import { inspectCommunityUpload } from "./files/community-upload-verification";
 import { noOpScanner, type FileScanner } from "./files/scanner";
+import { workerSettings } from "./worker-settings";
 import { withUser } from "./tenancy";
 
 // PR 4b: member uploads (post covers and attachments). Same verification path as ministry files (presigned PUT,
@@ -51,7 +52,7 @@ export async function confirmCommunityUpload(db: Database, storage: StorageAdapt
   }
   if (file.status === "uploaded") {
     const verdict = await scanner.scan({ key: file.key, size: file.size, mime: file.mime, checksum: file.checksum });
-    await setStatus(db, userId, parsed, id, communityUploadReleased(verdict) ? "ready" : "quarantined");
+    await setStatus(db, userId, parsed, id, communityUploadReleased(verdict, workerSettings.getStore()?.features) ? "ready" : "quarantined");
     file = await read();
   }
   return { id: file.id, name: file.name, mime: file.mime, size: file.size, status: file.status, kind: file.kind };

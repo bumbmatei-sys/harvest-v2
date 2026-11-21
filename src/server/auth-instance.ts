@@ -7,13 +7,15 @@ import { makeAuth } from "./auth";
 
 const parseList = (value?: string) => value?.split(",").map((item) => item.trim()).filter(Boolean);
 type Auth = ReturnType<typeof makeAuth>;
-type WorkerRequestEnvironment = Omit<Extract<DatabaseEnvironment, { runtime: "workers" }>, "runtime" | "role"> & {
+export type WorkerRequestEnvironment = Omit<Extract<DatabaseEnvironment, { runtime: "workers" }>, "runtime" | "role"> & {
   BETTER_AUTH_SECRET: string;
   BETTER_AUTH_URL: string;
   AUTH_IP_ADDRESS_HEADERS?: string;
   AUTH_TRUSTED_PROXIES?: string;
+  cookiePrefix?: string;
+  mail?: Parameters<typeof makeAuth>[1]["mail"];
 };
-const requestAuth = new AsyncLocalStorage<{ get: () => Auth }>();
+const requestAuth = new AsyncLocalStorage<{ get: () => Auth; origin: string }>();
 let nodeAuth: Auth | undefined;
 
 /** Worker entry point for buffered handlers. Await all DB work before returning. */
@@ -22,12 +24,18 @@ export function withWorkerRequest<T>(env: WorkerRequestEnvironment, request: Req
   return withDb({ runtime: "workers", role: "app", APP_HYPERDRIVE: env.APP_HYPERDRIVE }, async (db) => {
     let auth: Auth | undefined;
     return requestAuth.run({
+      origin: new URL(env.BETTER_AUTH_URL).origin,
       get: () => auth ??= makeAuth(db, {
         secret: env.BETTER_AUTH_SECRET, baseURL: env.BETTER_AUTH_URL,
+        cookiePrefix: env.cookiePrefix, mail: env.mail,
         ipAddressHeaders: parseList(env.AUTH_IP_ADDRESS_HEADERS), trustedProxies: parseList(env.AUTH_TRUSTED_PROXIES),
       }),
     }, run);
   }, { signal: request.signal });
+}
+
+export function getWorkerAuthOrigin() {
+  return requestAuth.getStore()?.origin;
 }
 
 export function getAuth(): Auth {

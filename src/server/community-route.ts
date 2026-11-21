@@ -1,3 +1,4 @@
+import { workerSettings } from "./worker-settings";
 import { getDb } from "@/db/client";
 import { communitiesEnabled } from "./communities-mode";
 import { errorResponse, verifiedUser, verifyOrigin } from "./http";
@@ -6,7 +7,7 @@ import { errorResponse, verifiedUser, verifyOrigin } from "./http";
 // verified user, JSON in/out, never cached.
 export function communityRoute<P>(run: (args: { db: ReturnType<typeof getDb>; user: string; params: P; body: unknown; request: Request }) => Promise<unknown>, options: { write: boolean }) {
   return async (request: Request, context: { params: Promise<P> }) => {
-    if (!communitiesEnabled()) return new Response(null, { status: 404 });
+    if (!communitiesEnabled(workerSettings.getStore()?.features)) return new Response(null, { status: 404 });
     try {
       if (options.write) verifyOrigin(request);
       const user = await verifiedUser(request), params = await context.params;

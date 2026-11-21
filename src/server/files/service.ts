@@ -9,6 +9,7 @@ import { fileKey, publicFilePath, uploadInput } from "../../lib/files";
 import { AccessError } from "../permissions";
 import { withTenant } from "../tenancy";
 import { InvalidStoredFile, type StorageAdapter } from "../storage/adapter";
+import { workerSettings } from "../worker-settings";
 import { noOpScanner, type FileScanner } from "./scanner";
 
 type StoredFile = typeof files.$inferSelect;
@@ -39,7 +40,8 @@ export function createUpload(db: Database, storage: StorageAdapter, userId: stri
 }
 export async function confirmUpload(db: Database, storage: StorageAdapter, userId: string, workspaceHint: string, fileId: string, scanner: FileScanner = noOpScanner) {
   z.uuid().parse(workspaceHint); z.uuid().parse(fileId);
-  const requirePrivateScan = process.env.FILES_REQUIRE_SCAN_PRIVATE !== undefined && process.env.FILES_REQUIRE_SCAN_PRIVATE !== "false";
+  const requirePrivateScan = workerSettings.getStore()?.requirePrivateScan ??
+    (process.env.FILES_REQUIRE_SCAN_PRIVATE !== undefined && process.env.FILES_REQUIRE_SCAN_PRIVATE !== "false");
   // Authorize and release the connection before reading R2. Objects are write-once;
   // the receipt update below only transitions a still-pending row.
   const pending = await withTenant(db, userId, workspaceHint, "workspace:read", async (tx, tenantId, role) => {

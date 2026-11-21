@@ -1,6 +1,6 @@
 import { message } from "../i18n/messages";
 import "server-only";
-import { getAuth } from "./auth-instance";
+import { getAuth, getWorkerAuthOrigin } from "./auth-instance";
 import { AccessError } from "./permissions";
 import { ZodError } from "zod";
 import { requiredEnv } from "../lib/env";
@@ -13,7 +13,7 @@ export async function verifiedUser(request: Request) {
   return (await verifiedSessionUser(request)).id;
 }
 export function verifyOrigin(request: Request) {
-  if (request.headers.get("origin") !== new URL(requiredEnv("BETTER_AUTH_URL")).origin) {
+  if (request.headers.get("origin") !== (getWorkerAuthOrigin() ?? new URL(requiredEnv("BETTER_AUTH_URL")).origin)) {
     throw new AccessError(403, message("Errors.requestOriginDenied"));
   }
 }
