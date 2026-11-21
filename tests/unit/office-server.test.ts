@@ -75,9 +75,9 @@ describe("Office provider contract", () => {
     expect(operationAvailable("microsoft", "drives", false)).toBe(false);
   });
 
-  it("opts the personal OAuth profile into zero retention and verifies the handoff profile and scope", async () => {
+  it("verifies the personal OAuth handoff profile and scope without changing provider retention", async () => {
     const transport = vi.fn<(url: string, init: RequestInit) => Promise<Response>>()
-      .mockResolvedValueOnce(json({ profile: { _id: mail.profileRef, effectiveContentRetention: "none" } }))
+      .mockResolvedValueOnce(json({ profile: { _id: mail.profileRef } }))
       .mockResolvedValueOnce(json({ handoff: { id: "handoff", url: "https://connect.example.test/office", expiresAt: "2026-11-21T12:30:00Z" } }))
       .mockResolvedValueOnce(json({ id: "handoff", platform: "google", status: "connected", accounts: [{ id: mail.ref, profileId: "another-profile" }] }))
       .mockResolvedValueOnce(json({ id: "handoff", platform: "google", status: "connected", accounts: [{ id: mail.ref, profileId: mail.profileRef }] }))
@@ -85,7 +85,7 @@ describe("Office provider contract", () => {
     const adapter = new ZernioOfficeAdapter(transport);
     const started = await adapter.startConnect(credential, { attemptId: "local-attempt", kind: "mail", platform: "google" });
     const attempt = { ...started, kind: "mail", platform: "google" } as const;
-    expect(JSON.parse(String(transport.mock.calls[0][1].body))).toMatchObject({ contentRetention: "none", externalId: "local-attempt" });
+    expect(JSON.parse(String(transport.mock.calls[0][1].body))).toEqual({ name: "Harvest Office", externalId: "local-attempt" });
     const connect = new URL(transport.mock.calls[1][0]);
     expect(connect.pathname).toBe("/api/v1/connect/google");
     expect(Object.fromEntries(connect.searchParams)).toMatchObject({ scopes: "email", handoff: "true", profileId: mail.profileRef });

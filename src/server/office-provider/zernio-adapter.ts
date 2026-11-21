@@ -28,11 +28,11 @@ const parse = <T>(schema: z.ZodType<T>, input: unknown) => {
 const envelope = <T>(schema: z.ZodType<T>) => z.object({ data: schema });
 const address = z.object({ email: z.string() });
 const addresses = address.array().default([]);
-const subject = z.string().default("");
+const subject = z.string().nullish().transform(value => value ?? "");
 const summary = z.object({ id: ref, subject, snippet: z.string().optional(), latestMessageReceivedAt: z.string().nullish(), latestMessageSentAt: z.string().nullish() })
   .transform(({ id, ...rest }) => ({ ref: id, ...rest }));
-const message = z.object({ id: ref, subject, text: z.string().nullish(), html: z.string().nullish(), from: address.nullish(), to: addresses, date: z.string().optional() })
-  .transform(value => ({ ref: value.id, subject: value.subject, body: value.text ?? "", from: value.from?.email ?? "", to: value.to.map(v => v.email), date: value.date, ...(value.text == null && value.html && { bodyUnavailable: true }) }));
+const message = z.object({ id: ref, subject, text: z.string().nullish(), html: z.string().nullish(), contentNotRetained: z.boolean().optional(), from: address.nullish(), to: addresses, date: z.string().optional() })
+  .transform(value => ({ ref: value.id, subject: value.subject, body: value.text ?? "", from: value.from?.email ?? "", to: value.to.map(v => v.email), date: value.date, ...((value.contentNotRetained || (value.text == null && value.html)) && { bodyUnavailable: true }) }));
 const thread = z.object({ id: ref, accountId: ref.optional(), subject,
   messages: z.array(z.object({ id: ref, accountId: ref.optional(), threadId: ref.optional() }).loose()) });
 const draft = z.object({ id: ref, version: ref, to: addresses, subject, text: z.string().nullish() })
@@ -53,12 +53,13 @@ const event = z.object({
 }));
 const file = z.object({
   id: ref, accountId: ref, provider: z.enum(["google", "microsoft"]), name: z.string().min(1).max(500),
-  kind: z.enum(["file", "folder"]), parentId: ref.nullable(),
-  mimeType: z.string().nullable(), size: z.number().nonnegative().nullable(), webUrl: httpsUrl.nullable(), trashed: z.boolean(),
+  kind: z.enum(["file", "folder"]), parentId: ref.nullable().default(null),
+  mimeType: z.string().nullable().default(null), size: z.number().nonnegative().nullable().default(null),
+  webUrl: httpsUrl.nullable().default(null), trashed: z.boolean().default(false),
 }).transform(({ id, parentId, ...rest }) => ({ ref: id, parentRef: parentId, ...rest }));
 const busyBlock = z.object({ start: dateTime, end: dateTime });
 const freeSlot = z.object({ from: dateTime, to: dateTime }).transform(value => ({ start: value.from, end: value.to }));
-const profilePayload = z.object({ profile: z.object({ _id: ref, effectiveContentRetention: z.literal("none") }) });
+const profilePayload = z.object({ profile: z.object({ _id: ref }) });
 const providerScope = { mail: "email", calendar: "calendar", files: "files" } as const;
 
 /** The only Office wire client. An injected transport is confined to contract tests. */
@@ -105,7 +106,7 @@ export class ZernioOfficeAdapter implements OfficeProvider {
   async startConnect(credential: Credential, request: Parameters<OfficeProvider["startConnect"]>[1]) {
     const { existing, kind, platform, attemptId } = request;
     const profileRef = existing?.profileRef ?? parse(profilePayload, await this.call(credential, "/profiles", {
-      method: "POST", body: { name: "Harvest Office", externalId: attemptId, contentRetention: "none" },
+      method: "POST", body: { name: "Harvest Office", externalId: attemptId },
       headers: { "Idempotency-Key": attemptId },
     })).profile._id;
     const handoff = parse(z.object({ handoff: z.object({ id: ref, url: httpsUrl, expiresAt: dateTime }) }), await this.call(credential, `/connect/${platform}`, {
