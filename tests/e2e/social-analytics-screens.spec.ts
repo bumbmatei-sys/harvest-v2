@@ -15,6 +15,10 @@ const shots = process.env.ANALYTICS_SHOTS ?? "/tmp/analytics-shots";
 const credential = "harvest-test-credential";
 const day = 86_400_000;
 
+// Social specs share one database per CI shard, so every connection this spec created is revoked afterwards, pass or fail (the same release as the Inbox spec).
+let release: (() => Promise<void>) | null = null;
+test.afterEach(async () => { await release?.(); release = null; });
+
 type Seeded = { tenant: string; owner: string; accounts: Record<string, string>; posts: { yt: string[]; pin: string[] } };
 
 async function link(page: Page, tenant: string, platform: string, name: string, admin: Client) {
@@ -132,6 +136,11 @@ test("social analytics: cards, series, platforms, posts, heatmap, detail, states
   const admin = new Client({ connectionString: await readFile(`${process.env.HARVEST_E2E_MAILBOX}.admin`, "utf8") });
   await admin.connect();
   const owner = (await admin.query("select id from users where email=$1", [email])).rows[0].id as string;
+  release = async () => {
+    const cleanup = new Client({ connectionString: await readFile(`${process.env.HARVEST_E2E_MAILBOX}.admin`, "utf8") });
+    await cleanup.connect();
+    try { await cleanup.query("update social_connections set status='revoked' where tenant_id = any($1) and status <> 'revoked'", [[tenant, empty]]); } finally { await cleanup.end(); }
+  };
   const data = await seed(page, admin, owner, tenant);
   const url = `/workspaces/${tenant}/social/analytics`;
   const api = `/api/workspaces/${tenant}/social/analytics`;
