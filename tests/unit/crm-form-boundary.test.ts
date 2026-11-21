@@ -18,10 +18,11 @@ const synthetic = {
 afterEach(() => vi.unstubAllEnvs());
 
 describe("Hosted CRM form boundary", () => {
-  it("guards the literal hard-off constant and both route entry points", () => {
+  it("guards the literal hard-off constant, both public routes and owner transitions", () => {
     expect(checkCrmFormsBoundary()).toEqual([]);
     expect(inspectCrmFormsBoundary("src/server/crm-form-mode.ts", "export const CRM_FORMS_PRODUCTION_ENABLED = true;")).toHaveLength(1);
     expect(inspectCrmFormsBoundary("src/app/f/[slug]/route.ts", "export function GET() {}")).toHaveLength(1);
+    expect(inspectCrmFormsBoundary("src/server/crm-form-publication.ts", "await lockCrmForm(tx, tenantId, id);")).toHaveLength(1);
   });
 
   it("requires an explicit local synthetic setup", () => {

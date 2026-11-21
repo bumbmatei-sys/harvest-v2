@@ -101,6 +101,32 @@ it("upgrades an existing draft as a restricted owner and scopes table and functi
   await expect(fixture.pool.query("select * from public.crm_form_receipts")).rejects.toMatchObject({ code: "42501" });
 });
 
+it("refuses owner publication and retirement in production mode", async () => {
+  const unpublished = await draft();
+  const active = await draft();
+  await publish(active.id, "production-mode-active", active.revision);
+  const transitions = [
+    { formId: unpublished.id, input: { action: "publish", slug: "production-mode-blocked", revision: unpublished.revision } },
+    { formId: active.id, input: { action: "retire" } },
+  ];
+  for (const setting of ["NODE_ENV", "VERCEL_ENV", "HARVEST_ENV"]) {
+    const prior = process.env[setting];
+    process.env[setting] = "production";
+    try {
+      for (const { formId, input } of transitions) {
+        await expect(transitionCrmForm(fixture.db, people.owner, people.tenant, formId, input)).rejects.toMatchObject({ status: 404 });
+      }
+    } finally {
+      if (prior === undefined) delete process.env[setting];
+      else process.env[setting] = prior;
+    }
+  }
+  expect(await getCrmForm(fixture.db, people.owner, people.tenant, unpublished.id)).toMatchObject({ publication: null });
+  expect(await getCrmForm(fixture.db, people.owner, people.tenant, active.id)).toMatchObject({ publication: { state: "published" } });
+  const { rows } = await fixture.admin.query("select count(*)::int n from privacy_notice_versions where tenant_id=$1 and notice_key='crm-hosted-form-v1'", [people.tenant]);
+  expect(rows[0].n).toBe(1);
+});
+
 it("publishes, freezes edits, keeps the slug, binds notice versions and audits retirement", async () => {
   const form = await draft(definition => { definition.title = "First published title"; });
   await expect(publish(form.id, "Admin", form.revision)).rejects.toMatchObject({ status: 400 });

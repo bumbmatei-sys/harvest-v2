@@ -107,15 +107,19 @@ BEGIN
   END LOOP;
   EXECUTE format('CREATE POLICY crm_form_address_resolve ON public.crm_form_addresses FOR SELECT TO %I USING (
     slug = nullif(current_setting(''app.crm_forms_slug'', true), ''''))', current_user);
-  FOREACH rel IN ARRAY ARRAY['crm_form_addresses','crm_form_responses','privacy_notice_versions','workspace_members',
-    'companies','crm_pipelines','crm_pipeline_stages','opportunities'] LOOP
+  FOREACH rel IN ARRAY ARRAY['crm_form_addresses','crm_form_responses','privacy_notice_versions','opportunities'] LOOP
     EXECUTE format('CREATE POLICY crm_form_definer_tenant ON public.%I TO %I USING (%s) WITH CHECK (%s)',
       rel, current_user, tenant_scope, tenant_scope);
   END LOOP;
-  FOREACH rel IN ARRAY ARRAY['forms','form_versions','crm_form_publications'] LOOP
+  FOREACH rel IN ARRAY ARRAY['forms','form_versions','crm_form_publications','companies',
+    'workspace_members','crm_pipelines','crm_pipeline_stages'] LOOP
     EXECUTE format('CREATE POLICY crm_form_definer_read ON public.%I FOR SELECT TO %I USING (%s)', rel, current_user, tenant_scope);
   END LOOP;
-  EXECUTE format('CREATE POLICY crm_form_publication_lock ON public.form_versions FOR UPDATE TO %I USING (%s) WITH CHECK (false)', current_user, tenant_scope);
+  -- PostgreSQL requires an UPDATE policy for FOR SHARE, even on read-only paths.
+  FOREACH rel IN ARRAY ARRAY['form_versions','workspace_members','crm_pipelines','crm_pipeline_stages'] LOOP
+    EXECUTE format('CREATE POLICY crm_form_definer_lock ON public.%I FOR UPDATE TO %I USING (%s) WITH CHECK (false)', rel, current_user, tenant_scope);
+  END LOOP;
+  EXECUTE format('CREATE POLICY crm_form_company_insert ON public.companies FOR INSERT TO %I WITH CHECK (%s)', current_user, tenant_scope);
   EXECUTE format('CREATE POLICY crm_form_publication_insert ON public.crm_form_publications FOR INSERT TO %I WITH CHECK (%s)', current_user, tenant_scope);
   EXECUTE format('CREATE POLICY crm_form_quota_access ON public.crm_form_quotas TO %I USING (%s) WITH CHECK (%s)', current_user, resolved_form, resolved_form);
   EXECUTE format('CREATE POLICY crm_form_receipt_access ON public.crm_form_receipts TO %I USING (%s) WITH CHECK (%s)', current_user, resolved_form, resolved_form);
@@ -195,6 +199,7 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE result text;
   prior_crm_forms_tenant text := current_setting('app.crm_forms_tenant', true);
 BEGIN
+  IF current_database() !~ '^harvest_test(_|$)' THEN RETURN 'not_found'; END IF;
   PERFORM set_config('app.crm_forms_tenant', '', true);
   result := public.crm_form_transition_scoped($1, $2, $3, $4, $5);
   PERFORM set_config('app.crm_forms_tenant', coalesce(prior_crm_forms_tenant, ''), true);

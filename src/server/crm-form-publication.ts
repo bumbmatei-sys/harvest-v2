@@ -5,6 +5,7 @@ import { auditLogs } from "../db/schema";
 import { message } from "../i18n/messages";
 import { uuidInput } from "../lib/contact-input";
 import { formIssues } from "../lib/crm-forms";
+import { syntheticCrmFormsKey } from "./crm-form-mode";
 import { checkDestination, loadCrmForm, lockCrmForm } from "./crm-forms";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
@@ -18,6 +19,7 @@ export function transitionCrmForm(db: Database, userId: string, workspace: strin
   const input = publicationInput.parse(raw);
   const id = uuidInput.parse(formId);
   return withTenant(db, userId, uuidInput.parse(workspace), "crm:forms_manage", async (tx, tenantId) => {
+    if (!syntheticCrmFormsKey()) throw new AccessError(404, message("CrmForms.errors.notFound"));
     await lockCrmForm(tx, tenantId, id);
     let slug: string | null = null;
     let revision: number | null = null;

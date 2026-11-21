@@ -237,6 +237,7 @@ export function checkQaBoundary() {
 export function inspectCrmFormsBoundary(file: string, source: string): BoundaryViolation[] {
   const mode = "src/server/crm-form-mode.ts";
   const handler = "src/server/crm-form-http.ts";
+  const publication = "src/server/crm-form-publication.ts";
   const rule = (rule: string) => [{ file, rule }];
   if (file === mode && (!/^export const CRM_FORMS_PRODUCTION_ENABLED = false;$/m.test(source)
     || !source.includes('!CRM_FORMS_PRODUCTION_ENABLED && [env.NODE_ENV, env.VERCEL_ENV, env.HARVEST_ENV].includes("production")'))) {
@@ -245,6 +246,9 @@ export function inspectCrmFormsBoundary(file: string, source: string): BoundaryV
   if (file === handler && !/const key = syntheticCrmFormsKey\(\);\s*if \(!key\) return unavailable\(\);/.test(source)) {
     return rule("Hosted CRM forms must return 404 before touching the database when disabled");
   }
+  if (file === publication && !/if \(!syntheticCrmFormsKey\(\)\) throw new AccessError\(404, [^\n]+\);\s*await lockCrmForm\(/.test(source)) {
+    return rule("Hosted CRM form transitions must check synthetic mode before locking the form");
+  }
   if (file.startsWith("src/app/f/") && !/return respondToCrmForm\(request, context, (?:true|false)\);/.test(source)) {
     return rule("Hosted CRM forms must enter through the gated Node handler");
   }
@@ -252,6 +256,6 @@ export function inspectCrmFormsBoundary(file: string, source: string): BoundaryV
 }
 
 export function checkCrmFormsBoundary() {
-  return ["src/server/crm-form-mode.ts", "src/server/crm-form-http.ts", ...sourceFiles("src/app/f")]
+  return ["src/server/crm-form-mode.ts", "src/server/crm-form-http.ts", "src/server/crm-form-publication.ts", ...sourceFiles("src/app/f")]
     .flatMap(file => inspectCrmFormsBoundary(file, readFileSync(file, "utf8")));
 }
