@@ -92,6 +92,7 @@ ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_system_actor" CHECK ("audit_logs"
 DO $$
 DECLARE rel text;
   tenant_scope text := $scope$tenant_id = nullif(current_setting('app.crm_forms_tenant', true), '')::uuid$scope$;
+  resolved_form text := $scope$nullif(current_setting('app.crm_forms_tenant', true), '') IS NOT NULL$scope$;
 BEGIN
   FOREACH rel IN ARRAY ARRAY['crm_form_addresses','crm_form_publications','crm_form_responses','crm_form_quotas','crm_form_receipts'] LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', rel);
@@ -107,7 +108,7 @@ BEGIN
   EXECUTE format('CREATE POLICY crm_form_address_resolve ON public.crm_form_addresses FOR SELECT TO %I USING (
     slug = nullif(current_setting(''app.crm_forms_slug'', true), ''''))', current_user);
   FOREACH rel IN ARRAY ARRAY['crm_form_addresses','crm_form_responses','privacy_notice_versions','workspace_members',
-    'companies','crm_pipelines','crm_pipeline_stages','opportunities','campaign_response_links','campaigns'] LOOP
+    'companies','crm_pipelines','crm_pipeline_stages','opportunities'] LOOP
     EXECUTE format('CREATE POLICY crm_form_definer_tenant ON public.%I TO %I USING (%s) WITH CHECK (%s)',
       rel, current_user, tenant_scope, tenant_scope);
   END LOOP;
@@ -116,8 +117,8 @@ BEGIN
   END LOOP;
   EXECUTE format('CREATE POLICY crm_form_publication_lock ON public.form_versions FOR UPDATE TO %I USING (%s) WITH CHECK (false)', current_user, tenant_scope);
   EXECUTE format('CREATE POLICY crm_form_publication_insert ON public.crm_form_publications FOR INSERT TO %I WITH CHECK (%s)', current_user, tenant_scope);
-  EXECUTE format('CREATE POLICY crm_form_quota_access ON public.crm_form_quotas TO %I USING (true) WITH CHECK (true)', current_user);
-  EXECUTE format('CREATE POLICY crm_form_receipt_access ON public.crm_form_receipts TO %I USING (true) WITH CHECK (true)', current_user);
+  EXECUTE format('CREATE POLICY crm_form_quota_access ON public.crm_form_quotas TO %I USING (%s) WITH CHECK (%s)', current_user, resolved_form, resolved_form);
+  EXECUTE format('CREATE POLICY crm_form_receipt_access ON public.crm_form_receipts TO %I USING (%s) WITH CHECK (%s)', current_user, resolved_form, resolved_form);
   EXECUTE format('CREATE POLICY crm_form_submit_audit ON public.audit_logs FOR INSERT TO %I WITH CHECK (
     %s AND actor_id IS NULL AND action = ''crm.form.submit'')', current_user, tenant_scope);
 END $$;
@@ -344,6 +345,8 @@ BEGIN
     active_campaign := p_campaign;
   END IF;
   IF active_campaign IS NOT NULL THEN
+    -- Reuse the exact-campaign row lock that protects Connect submissions.
+    PERFORM set_config('app.connect_campaign', active_campaign::text, true);
     PERFORM 1 FROM public.campaigns WHERE tenant_id = tenant AND id = active_campaign
       AND archived_at IS NULL AND status = 'active' FOR SHARE;
     IF NOT FOUND THEN RAISE invalid_parameter_value; END IF;
@@ -454,6 +457,7 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE result text;
   prior_crm_forms_slug text := current_setting('app.crm_forms_slug', true);
   prior_crm_forms_tenant text := current_setting('app.crm_forms_tenant', true);
+  prior_campaign text := current_setting('app.connect_campaign', true);
   prior_tenant_id text := current_setting('app.tenant_id', true);
   prior_user_id text := current_setting('app.user_id', true);
 BEGIN
@@ -461,11 +465,13 @@ BEGIN
   PERFORM set_config('app.crm_forms_tenant', '', true);
   PERFORM set_config('app.tenant_id', '', true);
   PERFORM set_config('app.user_id', '', true);
+  PERFORM set_config('app.connect_campaign', '', true);
   result := public.crm_form_submit_scoped($1, $2, $3, $4, $5, $6, $7, $8, $9);
   PERFORM set_config('app.crm_forms_slug', coalesce(prior_crm_forms_slug, ''), true);
   PERFORM set_config('app.crm_forms_tenant', coalesce(prior_crm_forms_tenant, ''), true);
   PERFORM set_config('app.tenant_id', coalesce(prior_tenant_id, ''), true);
   PERFORM set_config('app.user_id', coalesce(prior_user_id, ''), true);
+  PERFORM set_config('app.connect_campaign', coalesce(prior_campaign, ''), true);
   RETURN result;
 END $$;
 REVOKE ALL ON FUNCTION public.crm_form_submit(text, uuid, uuid, timestamptz, jsonb, text, uuid, text, text) FROM PUBLIC;
