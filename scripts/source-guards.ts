@@ -121,13 +121,15 @@ export function inspectSocialBoundary(file: string, source: string): BoundaryVio
   const add = (rule: string) => found.push({ file, rule });
   const norm = file.replaceAll("\\", "/");
   const inSocial = norm.startsWith("src/server/social/");
+  const officeWire = norm === "src/server/office-provider/zernio-adapter.ts";
+  const officeWireRegistry = norm === "src/server/office-provider/registry.ts";
   const officeAdapter = /^src\/server\/(?:mail|calendar|files-provider)\/zernio-adapter\.ts$/.test(norm);
   const officeRegistry = /^src\/server\/(?:mail|calendar|files-provider)\/registry\.ts$/.test(norm);
   const inOffice = /^src\/server\/(?:mail|calendar|files-provider|office-provider)\//.test(norm);
-  if (norm !== SOCIAL_ADAPTER && !officeAdapter) {
+  if (norm !== SOCIAL_ADAPTER && !officeAdapter && !officeWire) {
     if (/zernio\.com/i.test(source)) add("vendor host outside the adapter");
     if (specifiers(source).some(s => /^(?:@zernio\/|@getlatedev\/|late-sdk(?:\/|$)|zernio(?:\/|$)|googleapis(?:\/|$)|@microsoft\/microsoft-graph-client)/i.test(s))) add("vendor HTTP client import outside the adapter");
-    if (/(?:from|import)\s*\(?\s*["'][^"']*zernio-adapter["']/.test(source) && norm !== SOCIAL_REGISTRY && !officeRegistry) add("adapter imported outside the registry");
+    if (/(?:from|import)\s*\(?\s*["'][^"']*zernio-adapter["']/.test(source) && norm !== SOCIAL_REGISTRY && !officeRegistry && !officeWireRegistry) add("adapter imported outside the registry");
   }
   if (!SOCIAL_SEND_HOMES.includes(norm) && /\b(?:sendMessage|replyToComment)\s*\(/.test(source)) add("sending entry point outside the port and adapters");
   if (!SOCIAL_SEND_HOMES.includes(norm) && !["src/server/social/inbox-reply-worker.ts","src/server/social/auto-dm-worker.ts"].includes(norm) && /\b(?:dispatchInboxReply|reconcileInboxReply)\s*\(/.test(source)) add("inbox sender used outside its worker");
@@ -138,12 +140,22 @@ export function inspectSocialBoundary(file: string, source: string): BoundaryVio
   if (!SOCIAL_SEND_HOMES.includes(norm) && norm !== SOCIAL_REGISTRY && /\bgetSocialSender\b/.test(source)) add("sender accessor used outside the registry");
   if (inSocial || inOffice) {
     if (/process\.env/.test(source)) add("environment read inside the social layer (kill switches are constants)");
-    if (norm !== SOCIAL_ADAPTER && /\bfetch\s*\(|globalThis\.fetch|\bXMLHttpRequest\b|node:https?\b/.test(source)) add("network call inside the social layer outside the adapter");
+    if (norm !== SOCIAL_ADAPTER && !officeWire && /\bfetch\s*\(|globalThis\.fetch|\bXMLHttpRequest\b|node:https?\b/.test(source)) add("network call inside the social layer outside the adapter");
+  }
+  if (officeWire && !/export const OFFICE_LIVE_NETWORK = false;/.test(source)) add("OFFICE_LIVE_NETWORK must stay literal false");
+  if (officeWireRegistry && /\b(?:fetch|transport)\b/.test(source)) add("office registry cannot inject transport");
+  if (norm === "src/server/office-gate.ts" || /\/office\/route\.ts$/.test(norm)) {
+    if (/\bfetch\s*\(|globalThis\.fetch|\bXMLHttpRequest\b|node:https?\b/.test(source)) add("Office gate and routes cannot make provider network calls");
+    if (/\b(?:testDelivery|simulateDelivery|liveOfficeDeps)\b/.test(source)) add("Office routes cannot use a sender or live registry");
   }
   if (officeAdapter && !/export const ZERNIO_LIVE_NETWORK = false;/.test(source)) add("office adapter must remain disabled");
   if (officeRegistry && !/export const INTEGRATION_ENABLED = false;/.test(source)) add("office registry must remain disabled");
   if (officeRegistry && /\bfetch\b/.test(source)) add("office registry cannot inject transport");
-  if (norm === "src/server/office-provider/connections.ts" && !/export const OFFICE_INTEGRATION_ENABLED = false;/.test(source)) add("office connections must remain disabled");
+  if (norm === "src/server/office-provider/connections.ts") {
+    for (const flag of ["OFFICE_INTEGRATION_ENABLED", "OFFICE_MAIL_SEND_ENABLED", "OFFICE_CALENDAR_WRITE_ENABLED"]) {
+      if (!source.includes(`export const ${flag} = false;`)) add(`${flag} must stay literal false`);
+    }
+  }
   if (norm === SOCIAL_ADAPTER && !/export const ZERNIO_LIVE_NETWORK = false;/.test(source)) add("ZERNIO_LIVE_NETWORK must be the literal constant false");
   if (norm === SOCIAL_REGISTRY && !/export const SOCIAL_INTEGRATION_ENABLED = false;/.test(source)) add("SOCIAL_INTEGRATION_ENABLED must be the literal constant false");
   if (norm === SOCIAL_REGISTRY && /\bfetch\b/.test(source)) add("the registry must not inject a fetch");
