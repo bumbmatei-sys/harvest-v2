@@ -26,6 +26,8 @@ export type Permission = "workspace:read" | "members:write" | "roles:write" | "c
   // Live staff capabilities; community membership is resolved separately.
   | "community:live:view" | "community:live:manage" | "community:live:moderate"
   | "catalog:manage"
+  // CRM forms builder: building and saving form drafts is owner/admin (the same roles the forms tables allow).
+  | "crm:forms_manage"
   | "newsletter:read" | "newsletter:manage" | "newsletter:campaigns" | "newsletter:delivery" | "newsletter:analytics";
 export function can(role: string, permission: Permission): boolean {
   if (permission === "communities:read" || permission === "workspace:read" || permission === "contacts:read" || permission === "companies:read" || permission === "opportunities:read" || permission === "tasks:read" || permission === "notes:read" || permission === "campaigns:read") return roleIds.includes(role as Role);

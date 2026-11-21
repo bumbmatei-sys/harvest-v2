@@ -1,0 +1,61 @@
+import { getDb } from "../db/client";
+import { message } from "../i18n/messages";
+import { syntheticCrmFormsKey } from "./crm-form-mode";
+import { crmFormManifest, resolveCrmForm, submitCrmForm } from "./crm-form-submission";
+import { errorResponse, verifyOrigin } from "./http";
+import { readBoundedJson } from "./request-json";
+import { workerSettings } from "./worker-settings";
+
+export type CrmFormContext = { params: Promise<{ slug: string }> };
+const bodyLimit = 32 * 1024;
+const unavailable = () => Response.json({ error: message("CrmForms.errors.notFound") }, { status: 404 });
+
+class BodyTooLarge extends Error {}
+
+export async function respondToCrmForm(request: Request, context: CrmFormContext, submit: boolean) {
+  const result = await handleCrmForm(request, context, submit);
+  result.headers.set("Cache-Control", "no-store");
+  result.headers.set("Referrer-Policy", "no-referrer");
+  result.headers.set("X-Content-Type-Options", "nosniff");
+  return result;
+}
+
+async function handleCrmForm(request: Request, context: CrmFormContext, submit: boolean) {
+  if (workerSettings.getStore()) return unavailable();
+  const key = syntheticCrmFormsKey();
+  if (!key) return unavailable();
+  try {
+    const { slug } = await context.params;
+    if (!/^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/.test(slug)) return unavailable();
+    let originError: unknown;
+    if (submit) {
+      try { verifyOrigin(request); } catch (error) { originError = error; }
+    }
+    const db = getDb();
+    // Every missing, retired or disabled form returns exactly the same response,
+    // including POSTs that arrive with invalid origins or bodies.
+    const form = await resolveCrmForm(db, slug, submit && !originError);
+    if (!form) return unavailable();
+    if (originError) throw originError;
+    if ("limited" in form) {
+      return Response.json({ error: "rate_limited" }, { status: 429, headers: { "Retry-After": "60" } });
+    }
+    if (!submit) return Response.json(crmFormManifest(form, slug, key));
+    if (request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") {
+      return Response.json({ error: "json_required" }, { status: 415 });
+    }
+    if (Number(request.headers.get("content-length")) > bodyLimit) throw new BodyTooLarge();
+    const input = await readBoundedJson(request, bodyLimit, () => new BodyTooLarge());
+    const outcome = await submitCrmForm(db, form, slug, input, key);
+    switch (outcome) {
+      case "ok": return Response.json({ accepted: true });
+      case "not_found": return unavailable();
+      case "conflict": return Response.json({ error: "submission_conflict" }, { status: 409 });
+      case "invalid": case "spam": return Response.json({ error: "invalid_submission" }, { status: 400 });
+      default: throw new Error("UNKNOWN_FORM_SUBMISSION_OUTCOME");
+    }
+  } catch (error) {
+    if (error instanceof BodyTooLarge) return Response.json({ error: "body_too_large" }, { status: 413 });
+    return errorResponse(error);
+  }
+}
