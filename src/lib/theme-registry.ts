@@ -215,3 +215,18 @@ export const themeStyles = BRAND_THEMES.flatMap((brand) => COLOR_MODES.map((mode
 export const qrExportColors = { background: "#ffffff", standardInk: "#000000" } as const;
 
 export const CHART_TOKENS = ["--chart-1", "--chart-2", "--chart-3", "--chart-4", "--chart-5"] as const;
+
+/**
+ * Network brand colours for the Inbox's coloured platform marks (src/components/social/platform-logo.tsx). They are the networks' published brand colours; black marks use
+ * `light-dark()` so they read on both schemes (the root sets `color-scheme` per mode). Each mark stays subject to its owner's brand guidelines and is used only to name the network.
+ */
+export const platformBrandFill: Record<string, string> = {
+  twitter: "light-dark(#000000, #ffffff)", facebook: "#0866FF", youtube: "#FF0000", pinterest: "#E60023", reddit: "#FF4500", bluesky: "#0085FF",
+  threads: "light-dark(#000000, #ffffff)", telegram: "#26A5E4", whatsapp: "#25D366", discord: "#5865F2", wordpress: "#21759B", shopify: "#5E8E3E",
+  wix: "light-dark(#000000, #ffffff)", webflow: "#146EF5", imessage: "#34C759", line: "#06C755", wechat: "#07C160", snapchat: "#FFFC00",
+  tiktok: "light-dark(#000000, #ffffff)", linkedin: "#0A66C2",
+  slack: "light-dark(#611F69, #E8B5F0)", googlebusiness: "#4285F4", sms: "#34C759", rcs: "#1A73E8",
+};
+export const platformBrandOutline = { snapchat: "light-dark(#000000, #ffffff)" } as const;
+export const instagramGradient = ["#FEDA75", "#FA7E1E", "#D62976", "#962FBF", "#4F5BD5"] as const;
+export const tiktokAccents = { cyan: "#25F4EE", red: "#FE2C55" } as const;
