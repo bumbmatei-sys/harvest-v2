@@ -76,7 +76,7 @@ test("event cover picker: upload, progress, scan state, replace, remove, errors,
   expect((await page.request.put(api, { headers: { origin }, data: { version: 0, title: "Sunday gathering", description: "", timeZone: "UTC", startsAt: new Date(start).toISOString(), endsAt: new Date(start + 3_600_000).toISOString(), capacity: null, reminderMinutes: null, joinUrl: null } })).ok()).toBe(true);
   const requests: string[] = [];
   page.on("request", (request) => { if (request.url().includes("/cover/uploads")) requests.push(request.method() + " " + request.url()); });
-  page.on("console", (message) => { if (message.type() === "error") console.log("CONSOLE", message.text().slice(0, 300)); });
+  page.on("console", (message) => { if (message.type() === "error") console.log("CONSOLE", message.text().slice(0, 900)); });
   page.on("requestfailed", (request) => console.log("FAILED", request.method(), request.url().slice(0, 120), request.failure()?.errorText));
   page.on("response", (response) => { if (response.status() >= 400) console.log("HTTP", response.status(), response.request().method(), response.url().slice(0, 120)); });
   const zone = page.getByTestId("cover-zone"), input = page.getByTestId("cover-input"), image = page.getByTestId("cover-image");
