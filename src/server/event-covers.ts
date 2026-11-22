@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Database } from "../db/client";
 import { message } from "../i18n/messages";
 import { communityUploadInput } from "../lib/forum";
+import { communityUploadReleased } from "./community-files";
 import { eventsEnabled } from "./events";
 import { inspectCommunityUpload } from "./files/community-upload-verification";
 import { noOpScanner, type FileScanner } from "./files/scanner";
@@ -44,14 +45,14 @@ export async function createEventCoverUpload(db: Database, user: string, scope: 
   return { file: fileSummary(file), upload };
 }
 
-export async function confirmEventCoverUpload(db: Database, user: string, scope: Scope, id: string, storage: Storage, scanner: FileScanner = noOpScanner) {
+export async function confirmEventCoverUpload(db: Database, user: string, scope: Scope, id: string, storage: Storage, scanner: FileScanner = noOpScanner, env: Record<string, string | undefined> = process.env) {
   let file = await eventCoverOperation<FileMeta>(db, user, scope, "inspect", id);
   const setStatus = (status: FileMeta["status"]) => eventCoverOperation<FileMeta>(db, user, scope, "status", id, { status });
   if (file.status === "pending") file = await setStatus(await inspectCommunityUpload(storage(), file));
   if (file.status === "uploaded") {
     const verdict = await scanner.scan({ key: file.key, mime: file.mime, size: file.size, checksum: file.checksum });
-    // The scanner port can skip in development. A skipped image stays unavailable and can be scanned again.
-    if (verdict !== "skipped") file = await setStatus(verdict === "clean" ? "ready" : "quarantined");
+    // Same rule as community uploads: a skipped scan releases an image outside production only; in production it stays unavailable and can be scanned again.
+    if (verdict !== "skipped" || env.NODE_ENV !== "production") file = await setStatus(communityUploadReleased(verdict, env) ? "ready" : "quarantined");
   }
   return fileSummary(file);
 }
