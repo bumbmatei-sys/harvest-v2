@@ -195,9 +195,16 @@ test("event cover picker: upload, progress, scan state, replace, remove, errors,
     });
 
     await test.step("keyboard: Select and Replace open the file chooser, Remove asks first", async () => {
-      await page.getByRole("button", { name: "Replace" }).focus();
-      const chooser = page.waitForEvent("filechooser"); await page.keyboard.press("Enter"); expect((await chooser).isMultiple()).toBe(false);
-      await page.getByRole("button", { name: "Remove" }).focus(); await page.keyboard.press("Enter");
+      // Wait until the picker is idle (no upload or scan notice) and the buttons are enabled, then focus explicitly and prove focus before pressing a key.
+      await expect(page.getByTestId("cover-progress")).toHaveCount(0);
+      await expect(page.getByTestId("cover-scanning")).toHaveCount(0);
+      const replace = page.getByRole("button", { name: "Replace" }), remove = page.getByRole("button", { name: "Remove" });
+      await expect(replace).toBeEnabled();
+      await expect(async () => { await replace.focus(); await expect(replace).toBeFocused({ timeout: 1000 }); }).toPass({ timeout: 10_000 });
+      const chooser = page.waitForEvent("filechooser", { timeout: 15_000 }); await page.keyboard.press("Enter"); expect((await chooser).isMultiple()).toBe(false);
+      await expect(remove).toBeEnabled();
+      await expect(async () => { await remove.focus(); await expect(remove).toBeFocused({ timeout: 1000 }); }).toPass({ timeout: 10_000 });
+      await page.keyboard.press("Enter");
       const dialog = page.getByRole("alertdialog", { name: "Remove the cover?" });
       await expect(dialog).toBeVisible(); await page.keyboard.press("Escape"); await expect(dialog).toHaveCount(0);
       await expect(image).toBeVisible();

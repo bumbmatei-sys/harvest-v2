@@ -401,13 +401,16 @@ test("files: load more, partial pages, a failing or reconnecting drive and a dri
   await expect(page.getByTestId("connect-pending")).toBeVisible();
   await page.getByTestId("connect-pending").getByRole("button", { name: "Cancel" }).click();
   stub.overview = overview();
-  stub.override = pendingStub;
   await page.keyboard.press("Escape");
   await page.reload();
   await page.getByTestId("sources-open").click();
   await page.getByTestId("connect-google").click();
-  await expect(page.getByTestId("connect-pending").or(page.getByTestId("source-connection")).first()).toBeVisible();
+  // Keep finishConnect pending until this attempt is cancelled: the full stub rewrites the overview as a side effect, and the page's poll could overwrite the setup below after the reload.
+  await expect(page.getByTestId("connect-pending")).toBeVisible();
   expect(bodies.map((body) => body.connectionId)).toEqual([ONEDRIVE, undefined]);
+  await page.getByTestId("connect-pending").getByRole("button", { name: "Cancel" }).click();
+  await expect(page.getByTestId("connect-pending")).toHaveCount(0);
+  stub.override = pendingStub;
   stub.overview = overview(connection(GOOGLE, "google"), connection(ONEDRIVE, "microsoft", "reconnect_needed", 0));
   await page.reload();
   await page.getByTestId("sources-open").click();
