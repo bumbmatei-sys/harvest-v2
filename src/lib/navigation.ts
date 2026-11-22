@@ -86,7 +86,8 @@ export const navEntries: readonly NavEntry[] = [
   // Operations > Office (Files moved here from the Ministry group; its legacy sidebar group stays Ministry).
   // Office Mail: each owner or admin's own mailbox. Hidden unless the server reports the Office screens open (never in production); the page takes over the sidebar (exitTo) like the social Inbox.
   { id: "mail", group: "office", mode: "operations", label: "mail", icon: MailOpen, path: "/mail", match: under("/mail"), permission: "office:mail", feature: "office", exitTo: "files" },
-  { id: "calendar", group: "office", mode: "operations", status: "planned", label: "calendar", icon: Calendar, path: "/calendar", match: under("/calendar") },
+  // Office Calendar: each owner or admin's own calendar. Hidden unless the server reports the Office screens open (never in production).
+  { id: "calendar", group: "office", mode: "operations", label: "calendar", icon: Calendar, path: "/calendar", match: under("/calendar"), permission: "office:calendar", feature: "office" },
   { id: "documents", group: "office", mode: "operations", status: "planned", label: "documents", icon: FileText, path: "/docs", match: under("/docs") },
   { id: "spreadsheets", group: "office", mode: "operations", status: "planned", label: "spreadsheets", icon: Sheet, path: "/sheets", match: under("/sheets") },
   // Operations > Ministry.

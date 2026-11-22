@@ -29,16 +29,18 @@ interface MonthViewProps {
   selectedDay: Date | null;
   monthHref: (month: string) => string;
   /** Message namespace for the header, day and overflow labels (previousMonth, nextMonth, dayCell, moreEvents). Events by default. */
-  namespace?: "Events" | "SocialPublish.planner";
+  namespace?: "Events" | "SocialPublish.planner" | "OfficeCalendar.month";
   /** Replaces the text of a chip (Social shows a platform mark and the post text). */
   renderChip?: (event: CalendarEvent) => React.ReactNode;
   /** Makes chips draggable and days drop targets: `onDropOnDay` receives the day and what was dropped (an event id, or a draft). */
   onDropOnDay?: (day: Date, data: DataTransfer) => void;
   /** First day of the week: 0 Sunday (Events default), 1 Monday (Social, like its week view). */
   weekStartsOn?: 0 | 1;
+  /** Hides the built-in month header (title and previous or next links) when the page supplies its own toolbar (Office Calendar). */
+  hideHeader?: boolean;
 }
 
-export function MonthCalendar({ currentDate, events, onDaySelect, selectedDay, monthHref, namespace = "Events", renderChip, onDropOnDay, weekStartsOn = 0 }: MonthViewProps) {
+export function MonthCalendar({ currentDate, events, onDaySelect, selectedDay, monthHref, namespace = "Events", renderChip, onDropOnDay, weekStartsOn = 0, hideHeader = false }: MonthViewProps) {
   const t = useTranslations(namespace as "Events");
   const days = useMemo(() => {
     const monthStart = startOfMonth(currentDate);
@@ -76,11 +78,11 @@ export function MonthCalendar({ currentDate, events, onDaySelect, selectedDay, m
 
   return (
     <div data-slot="month-view" className="min-w-0 overflow-hidden rounded-xl border bg-card">
-      <div className="flex min-h-14 items-center justify-between gap-2 border-b px-2 sm:px-4">
+      {!hideHeader && <div className="flex min-h-14 items-center justify-between gap-2 border-b px-2 sm:px-4">
         <Button asChild variant="ghost" size="icon" className="size-11"><Link href={monthHref(monthKey(shiftMonth(currentDate, -1)))} prefetch={false} aria-label={t("previousMonth")}><ChevronLeft aria-hidden="true" /></Link></Button>
         <h2 className="text-base font-semibold" aria-live="polite">{format(currentDate, "MMMM yyyy")}</h2>
         <Button asChild variant="ghost" size="icon" className="size-11"><Link href={monthHref(monthKey(shiftMonth(currentDate, 1)))} prefetch={false} aria-label={t("nextMonth")}><ChevronRight aria-hidden="true" /></Link></Button>
-      </div>
+      </div>}
       <div className="border-border/70 grid grid-cols-7 border-b" aria-hidden="true">
         {weekdays.map((day) => (
           <div key={day} className="text-muted-foreground py-2 text-center text-xs sm:text-sm">
