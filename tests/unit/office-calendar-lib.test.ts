@@ -46,6 +46,7 @@ describe("office calendar library", () => {
     expect(plannerHref("t", { at: "2026-11-25T12:00:00.000Z" })).toMatch(/^\/workspaces\/t\/social\/planner\?view=calendar&mode=week&week=2026-11-2[0-9]$/);
     expect(safeLink("https://meet.example.test/x")).toBe("https://meet.example.test/x");
     expect(safeLink("javascript:alert(1)")).toBeNull();
+    expect(safeLink("http://meet.example.test/x")).toBeNull();
     expect(safeLink(null)).toBeNull();
   });
 });

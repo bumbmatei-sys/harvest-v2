@@ -82,4 +82,4 @@ export function plannerHref(tenantId: string, item: Pick<PlannerItem, "at">) {
 }
 
 /** The first link in a provider's join field only when it is a web address. */
-export const safeLink = (value: string | null | undefined) => { try { const url = new URL(value ?? ""); return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null; } catch { return null; } };
+export const safeLink = (value: string | null | undefined) => { try { const url = new URL(value ?? ""); return url.protocol === "https:" ? url.toString() : null; } catch { return null; } };
