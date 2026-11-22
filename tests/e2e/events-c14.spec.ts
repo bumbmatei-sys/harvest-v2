@@ -121,7 +121,7 @@ test("events: owner form and roster, member list, calendar and detail with RSVP,
       await place(mainId);
       await owner.getByRole("button", { name: "Publish" }).click();
       await expect(owner.getByText("Published.")).toBeVisible();
-      await tall(owner.getByRole("main").getByRole("button"));
+      await tall(owner.getByRole("main").locator("button"));
     });
 
     // The other events: a far one with a link, one near enough to ask, one inside its window, and a draft.
