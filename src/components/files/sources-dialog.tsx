@@ -1,6 +1,6 @@
 /** Layout and behaviour modelled on bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): app/dashboard/(auth)/apps/mail/components/account-switcher.tsx (account choice with provider marks); code written for Harvest, no kit code copied. Harvest notes: docs/ui-sources.md. */
 "use client";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { Cable, RotateCw, Unplug } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -24,8 +24,7 @@ import { notify } from "@/lib/toast";
 export function SourcesDialog({ api, connections, notice, noticeVersion, onChanged }: { api: FilesApi; connections: readonly OfficeConnection[]; notice: string; noticeVersion: number; onChanged: () => void }) {
   const t = useTranslations("FilesScreen.sources");
   const [open, setOpen] = useState(false);
-  const reconnectId = useRef<string | undefined>(undefined);
-  const start = useCallback((platform: OfficePlatform) => api.startConnect(platform, noticeVersion, reconnectId.current), [api, noticeVersion]);
+  const start = useCallback((platform: OfficePlatform, connectionId?: string) => api.startConnect(platform, noticeVersion, connectionId), [api, noticeVersion]);
   const finish = useCallback((attemptId: string) => api.finishConnect(attemptId), [api]);
   const connected = useCallback(() => { onChanged(); }, [onChanged]);
   const { phase, begin, cancel } = useConnectAttempt({ start, finish, onConnected: connected });
@@ -52,7 +51,7 @@ export function SourcesDialog({ api, connections, notice, noticeVersion, onChang
             <span className="flex-1 font-medium">{name}</span>
             <StatusBadge tone={healthy ? "success" : "warning"} label={healthy ? t("connected") : connection.health === "reconnect_needed" || !platform ? t("reconnect") : t("attention")} />
             {!healthy && platform && connection.health !== "reconnect_needed" && <Button type="button" variant="outline" size="responsive" disabled={checking} onClick={() => void check(connection)}>{checking ? <Spinner /> : <RotateCw aria-hidden="true" />}{t("checkAgain")}</Button>}
-            {platform && connection.health === "reconnect_needed" && <Button type="button" variant="outline" size="responsive" disabled={busy} data-testid="source-reconnect" onClick={() => { reconnectId.current = connection.id; void begin(platform); }}>{phase.name === "starting" ? <Spinner /> : <RotateCw aria-hidden="true" />}{t("reconnectWith", { provider: name })}</Button>}
+            {platform && connection.health === "reconnect_needed" && <Button type="button" variant="outline" size="responsive" disabled={busy} data-testid="source-reconnect" onClick={() => { void begin(platform, connection.id); }}>{phase.name === "starting" ? <Spinner /> : <RotateCw aria-hidden="true" />}{t("reconnectWith", { provider: name })}</Button>}
             <ConfirmDialog tone="destructive" title={t("disconnectTitle", { name })} description={t("disconnectBody")} confirmLabel={t("disconnect")} cancelLabel={t("cancel")} busyLabel={t("disconnecting")}
               onConfirm={async () => { const result = await api.disconnect(connection.id); if (result.state !== "disconnected") throw new OfficeApiError(0); notify.success(t("disconnected")); onChanged(); }}
               trigger={<Button type="button" variant="ghost" size="responsive" data-testid="source-disconnect" aria-label={t("disconnectValue", { name })}><Unplug aria-hidden="true" />{t("disconnect")}</Button>} />

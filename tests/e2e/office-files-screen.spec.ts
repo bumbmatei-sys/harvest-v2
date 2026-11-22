@@ -392,9 +392,27 @@ test("files: load more, partial pages, a failing or reconnecting drive and a dri
   await page.getByTestId("sources-open").click();
   await expect(page.getByTestId("source-reconnect")).toBeVisible();
   await expect(page.getByTestId("connect-google")).toHaveCount(0);
+  // Reconnect, cancel, remove the drive: a later plain Connect must not carry the old connection id.
+  const bodies: { connectionId?: string }[] = [];
+  page.on("request", (request) => { if (request.method() === "POST" && /\/office$/.test(request.url())) { const body = request.postDataJSON() as { action: string; connectionId?: string }; if (body.action === "startConnect") bodies.push(body); } });
+  const pendingStub = stub.override;
+  stub.override = (connectionId, action, input) => action === "finishConnect" ? { state: "pending" } : pendingStub(connectionId, action, input);
+  await page.getByTestId("source-reconnect").click();
+  await expect(page.getByTestId("connect-pending")).toBeVisible();
+  await page.getByTestId("connect-pending").getByRole("button", { name: "Cancel" }).click();
+  stub.overview = overview();
+  stub.override = pendingStub;
+  await page.keyboard.press("Escape");
+  await page.reload();
+  await page.getByTestId("sources-open").click();
+  await page.getByTestId("connect-google").click();
+  await expect(page.getByTestId("connect-pending").or(page.getByTestId("source-connection")).first()).toBeVisible();
+  expect(bodies.map((body) => body.connectionId)).toEqual([ONEDRIVE, undefined]);
+  stub.overview = overview(connection(GOOGLE, "google"), connection(ONEDRIVE, "microsoft", "reconnect_needed", 0));
+  await page.reload();
+  await page.getByTestId("sources-open").click();
   await page.getByTestId("source-reconnect").click();
   await expect(page.getByTestId("source-reconnect")).toHaveCount(0);
-  expect(started).toEqual([ONEDRIVE]);
   await page.keyboard.press("Escape");
   await expect(chip(page, "OneDrive")).toBeVisible();
   stub.overview = overview(connection(GOOGLE, "google"), connection(ONEDRIVE, "microsoft", "unavailable", 4));

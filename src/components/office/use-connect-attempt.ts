@@ -10,7 +10,7 @@ export type ConnectPhase = { name: "idle" } | { name: "starting"; platform: Offi
  * is held in memory only, and the page polls the same signed-in account until the attempt connects, fails or expires. Nothing here knows the area.
  */
 export function useConnectAttempt({ start, finish, onConnected }: {
-  start: (platform: OfficePlatform) => Promise<Pending | { state: Failure }>;
+  start: (platform: OfficePlatform, connectionId?: string) => Promise<Pending | { state: Failure }>;
   finish: (attemptId: string) => Promise<Connected | { state: "pending" | "failed" }>;
   onConnected: () => void;
 }) {
@@ -18,10 +18,11 @@ export function useConnectAttempt({ start, finish, onConnected }: {
   const done = useRef(onConnected);
   useEffect(() => { done.current = onConnected; });
 
-  const begin = useCallback(async (platform: OfficePlatform) => {
+  /** `connectionId` reconnects that connection; it is passed per call, so an earlier reconnect never leaks into a later plain connect. */
+  const begin = useCallback(async (platform: OfficePlatform, connectionId?: string) => {
     setPhase({ name: "starting", platform });
     try {
-      const result = await start(platform);
+      const result = await start(platform, connectionId);
       if (result.state !== "pending") { setPhase({ name: "refused" }); return; }
       const pending = result as Pending;
       if (pending.url) window.open(pending.url, "_blank", "noopener,noreferrer");
