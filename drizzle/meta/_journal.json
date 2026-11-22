@@ -526,6 +526,13 @@
       "when": 1795400000023,
       "tag": "0075_office_server",
       "breakpoints": true
+    },
+    {
+      "idx": 76,
+      "version": "7",
+      "when": 1795400000024,
+      "tag": "0076_crm_hosted_forms",
+      "breakpoints": true
     }
   ]
 }

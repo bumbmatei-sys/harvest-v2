@@ -85,7 +85,7 @@ export const auditLogs = pgTable("audit_logs", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("audit_logs_tenant_created_idx").on(t.tenantId, t.createdAt), foreignKey({ columns: [t.tenantId], foreignColumns: [workspaces.tenantId] }),
   index("community_chat_mutations_idx").on(t.actorId,t.action,t.createdAt),
-  check("audit_system_actor", sql`${t.actorId} is not null or ${t.action} in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated', 'community.profile_save', 'community.profile_withdraw', 'community.profile_erase')`)]);
+  check("audit_system_actor", sql`${t.actorId} is not null or ${t.action} in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated', 'community.profile_save', 'community.profile_withdraw', 'community.profile_erase', 'crm.form.submit')`)]);
 export const authSchema = { user: users, session: sessions, account: accounts, verification: verifications, rateLimit: rateLimits };
 
 // A campaign belongs to its parent workspace; it never creates another tenant.
@@ -125,6 +125,9 @@ export const contacts = pgTable("contacts", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
   erasedAt: timestamp("erased_at", { withTimezone: true }),
   id: uuid("id").notNull().defaultRandom(), name: text("name").notNull(), notes: text("notes").notNull().default(""),
+  // Initial routing for a person created from a hosted CRM form.
+  formOwnerId: text("form_owner_id").references(() => users.id, { onDelete: "set null" }),
+  formLabels: text("form_labels").array().notNull().default(sql`ARRAY[]::text[]`),
   // Display-name key for duplicate suggestions only; never an identity or merge key.
   normalizedName: text("normalized_name").notNull().generatedAlwaysAs(sql`lower(regexp_replace(btrim(name), '[[:space:]]+', ' ', 'g'))`),
   version: integer("version").notNull().default(1),
@@ -954,6 +957,56 @@ export const connectLandingStates = pgTable("connect_landing_states", {
   check("connect_landing_states_revision_check", sql`${t.revision} > 0`),
   check("connect_landing_states_definition_check", sql`public.valid_connect_landing(${t.definition})`),
   check("connect_landing_states_check", sql`${t.publishedRevision} is null or ${t.publishedRevision} <= ${t.revision}`)]);
+
+// Hosted CRM publication is separate from Connect publication and its offered purposes.
+export const crmFormPublications = pgTable("crm_form_publications", {
+  tenantId: uuid("tenant_id").notNull(), formId: uuid("form_id").notNull(), versionId: uuid("version_id").notNull(),
+  noticeVersionId: uuid("notice_version_id").notNull(), publishedBy: text("published_by").notNull().references(() => users.id),
+  definition: jsonb("definition").notNull(), publishedAt: timestamp("published_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [primaryKey({ columns: [t.tenantId, t.formId, t.versionId] }),
+  foreignKey({ name: "crm_form_publication_form_fk", columns: [t.tenantId, t.formId], foreignColumns: [forms.tenantId, forms.id] }),
+  foreignKey({ name: "crm_form_publication_version_fk", columns: [t.tenantId, t.versionId], foreignColumns: [formVersions.tenantId, formVersions.id] }),
+  foreignKey({ name: "crm_form_publication_notice_fk", columns: [t.tenantId, t.noticeVersionId], foreignColumns: [privacyNoticeVersions.tenantId, privacyNoticeVersions.id] }),
+  check("crm_form_publication_definition", sql`jsonb_typeof(${t.definition}) = 'object' and ${t.definition}->>'kind' = 'crm-form-v1' and octet_length(${t.definition}::text) <= 65536`)]);
+
+export const crmFormAddresses = pgTable("crm_form_addresses", {
+  tenantId: uuid("tenant_id").notNull(), formId: uuid("form_id").notNull(), slug: text("slug").notNull(),
+  versionId: uuid("version_id"), retiredAt: timestamp("retired_at", { withTimezone: true }),
+}, t => [primaryKey({ columns: [t.tenantId, t.formId] }), uniqueIndex("crm_form_address_slug_idx").on(t.slug),
+  foreignKey({ name: "crm_form_address_form_fk", columns: [t.tenantId, t.formId], foreignColumns: [forms.tenantId, forms.id] }),
+  foreignKey({ name: "crm_form_address_version_fk", columns: [t.tenantId, t.formId, t.versionId], foreignColumns: [crmFormPublications.tenantId, crmFormPublications.formId, crmFormPublications.versionId] }),
+  check("crm_form_address_slug", sql`public.valid_crm_form_slug(${t.slug})`),
+  check("crm_form_address_state", sql`(${t.versionId} is null) = (${t.retiredAt} is not null)`)]);
+
+export const crmFormResponses = pgTable("crm_form_responses", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull(), formId: uuid("form_id").notNull(), versionId: uuid("version_id").notNull(),
+  contactId: uuid("contact_id").notNull(), companyId: uuid("company_id"), campaignId: uuid("campaign_id"), qrLinkId: uuid("qr_link_id"),
+  ownerId: text("owner_id").references(() => users.id, { onDelete: "set null" }),
+  labels: text("labels").array().notNull(), answers: jsonb("answers").notNull(), consentBlockId: text("consent_block_id").notNull(),
+  requestHash: text("request_hash").notNull(),
+  createdContact: boolean("created_contact").notNull(),
+  submittedAt: timestamp("submitted_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+}, t => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "crm_form_response_publication_fk", columns: [t.tenantId, t.formId, t.versionId], foreignColumns: [crmFormPublications.tenantId, crmFormPublications.formId, crmFormPublications.versionId] }),
+  foreignKey({ name: "crm_form_response_contact_fk", columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }),
+  foreignKey({ name: "crm_form_response_company_fk", columns: [t.tenantId, t.companyId], foreignColumns: [companies.tenantId, companies.id] }),
+  foreignKey({ name: "crm_form_response_campaign_fk", columns: [t.tenantId, t.campaignId], foreignColumns: [campaigns.tenantId, campaigns.id] }),
+  foreignKey({ name: "crm_form_response_qr_fk", columns: [t.tenantId, t.qrLinkId], foreignColumns: [campaignResponseLinks.tenantId, campaignResponseLinks.id] }),
+  index("crm_form_responses_listing_idx").on(t.tenantId, t.formId, t.submittedAt, t.id),
+  index("crm_form_responses_contact_idx").on(t.tenantId, t.contactId),
+  index("crm_form_responses_expiry_idx").on(t.tenantId, t.expiresAt),
+  check("crm_form_response_answers", sql`jsonb_typeof(${t.answers}) = 'object' and octet_length(${t.answers}::text) <= 65536 and (${t.answers}->>${t.consentBlockId} = 'yes') is true`),
+  check("crm_form_response_request_hash", sql`${t.requestHash} ~ '^[a-f0-9]{64}$'`),
+  check("crm_form_response_expiry", sql`${t.expiresAt} > ${t.submittedAt}`)]);
+
+// Short-lived anonymous abuse counters and replay keys never contain answers or contact identifiers.
+export const crmFormQuotas = pgTable("crm_form_quotas", {
+  scope: text("scope").notNull(), minute: timestamp("minute", { withTimezone: true }).notNull(), attempts: integer("attempts").notNull(),
+}, t => [primaryKey({ columns: [t.scope, t.minute] }), index("crm_form_quota_expiry_idx").on(t.minute)]);
+export const crmFormReceipts = pgTable("crm_form_receipts", {
+  id: uuid("id").primaryKey(), expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+}, t => [index("crm_form_receipt_expiry_idx").on(t.expiresAt)]);
 
 // HC-06A: minimal provenance; trusted database writers own all mutations.
 export const contactSourceEvents = pgTable("contact_source_events", {

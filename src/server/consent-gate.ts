@@ -54,3 +54,9 @@ export async function mayContact(tx: Transaction, tenantId: string, contactId: s
   if (!person) return { allowed: false, reason: "person_unavailable", event: null };
   return decideConsent(await loadLedger(tx, tenantId, contactId, purpose), purpose, channel);
 }
+
+// A required form acknowledgement records the presented notice and block on the
+// response itself. It never enters the channel-based ledger used by mayContact.
+export function crmFormNoticeAcknowledgement(block: { id: string; type: string; required: boolean }, answer: unknown) {
+  return block.type === "consent" && block.required && answer === "yes" ? block.id : null;
+}
