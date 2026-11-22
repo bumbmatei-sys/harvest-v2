@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import type { Database } from "../db/client";
+import type { Database, Transaction } from "../db/client";
 import { uuidInput } from "../lib/contact-input";
 import { message } from "../i18n/messages";
 import { withTenant } from "./tenancy";
@@ -11,7 +11,20 @@ export type SourceOptions = {
   campaigns: { id: string; name: string; archived: boolean }[];
   links: { id: string; campaignId: string; name: string; archived: boolean }[];
   forms: { id: string; name: string }[];
+  hostedForms: { id: string; name: string }[];
 };
+
+/** Immutable hosted publication titles, keyed by the version used in a source rule. */
+export async function hostedFormSourceOptions(tx: Transaction, tenantId: string, versionIds?: string[]) {
+  const selection = versionIds
+    ? sql`and version_id in (${sql.join(versionIds.map(id => sql`${id}::uuid`), sql`, `)})`
+    : sql.empty();
+  const { rows } = await tx.execute<{ id: string; name: string }>(sql`
+    select version_id::text as id, definition->>'title' as name from crm_form_publications
+    where tenant_id = ${tenantId} ${selection}
+    order by lower(definition->>'title'), version_id ${versionIds ? sql.empty() : sql`limit ${LIMIT}`}`);
+  return rows;
+}
 
 /**
  * Choices for the source-rule editor (HC-06C). Owners and admins only, the same capability as the
@@ -28,6 +41,7 @@ export function sourceOptions(db: Database, userId: string, workspace: string): 
     const links: SourceOptions["links"] = linkRows.map((row) => ({ id: row.id, campaignId: row.campaignId, name: linkDisplayName(row.label, row.campaign), archived: row.archived }));
     const forms = (await tx.execute(sql`select v.id::text, f.name, v.version from form_versions v join forms f on f.tenant_id = v.tenant_id and f.id = v.form_id
       where v.tenant_id = ${tenantId} and v.status in ('published', 'retired') order by lower(f.name), v.version desc, v.id limit ${LIMIT}`)).rows as { id: string; name: string; version: number }[];
-    return { campaigns, links, forms: forms.map((form) => ({ id: form.id, name: message("Crm.sourceFilters.formVersion", { name: form.name, version: form.version }) })) };
+    const hostedForms = await hostedFormSourceOptions(tx, tenantId);
+    return { campaigns, links, hostedForms, forms: forms.map((form) => ({ id: form.id, name: message("Crm.sourceFilters.formVersion", { name: form.name, version: form.version }) })) };
   });
 }

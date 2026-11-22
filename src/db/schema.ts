@@ -1011,19 +1011,22 @@ export const crmFormReceipts = pgTable("crm_form_receipts", {
 // HC-06A: minimal provenance; trusted database writers own all mutations.
 export const contactSourceEvents = pgTable("contact_source_events", {
   id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id").notNull(), contactId: uuid("contact_id").notNull(),
-  kind: text("kind").$type<"manual" | "csv_import" | "connect">().notNull(),
+  kind: text("kind").$type<"manual" | "csv_import" | "connect" | "form">().notNull(),
   outcome: text("outcome").$type<"created" | "updated">().notNull(),
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
   importId: uuid("import_id"), rowNumber: integer("row_number"),
   responseId: uuid("response_id"), entryRoute: text("entry_route").$type<"qr" | "short">(),
+  crmFormResponseId: uuid("crm_form_response_id"),
   revertedAt: timestamp("reverted_at", { withTimezone: true }),
 }, t => [foreignKey({ columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }).onDelete("cascade"),
   foreignKey({ columns: [t.tenantId, t.importId], foreignColumns: [crmImports.tenantId, crmImports.id] }),
   foreignKey({ name: "contact_sources_response_fk", columns: [t.tenantId, t.responseId], foreignColumns: [campaignResponses.tenantId, campaignResponses.id] }).onUpdate("cascade"),
+  foreignKey({ name: "contact_sources_crm_form_response_fk", columns: [t.tenantId, t.crmFormResponseId], foreignColumns: [crmFormResponses.tenantId, crmFormResponses.id] }).onDelete("cascade"),
+  uniqueIndex("contact_sources_crm_form_response_unique").on(t.tenantId, t.crmFormResponseId).where(sql`${t.crmFormResponseId} is not null`),
   uniqueIndex("contact_sources_response_unique").on(t.tenantId, t.responseId).where(sql`${t.kind} = 'connect'`),
   uniqueIndex("contact_sources_import_unique").on(t.tenantId, t.importId, t.rowNumber).where(sql`${t.kind} = 'csv_import'`),
   index("contact_sources_history").on(t.tenantId, t.contactId, t.occurredAt, t.id),
-  check("contact_sources_contract", sql`(${t.kind} = 'manual' and ${t.outcome} = 'created' and ${t.importId} is null and ${t.rowNumber} is null and ${t.revertedAt} is null and ${t.responseId} is null and ${t.entryRoute} is null) or (${t.kind} = 'csv_import' and ${t.outcome} in ('created','updated') and ${t.importId} is not null and ${t.rowNumber} is not null and ${t.rowNumber} > 0 and ${t.responseId} is null and ${t.entryRoute} is null) or (${t.kind} = 'connect' and ${t.outcome} in ('created','updated') and ${t.importId} is null and ${t.rowNumber} is null and ${t.revertedAt} is null and ${t.responseId} is not null and ${t.entryRoute} is not null and ${t.entryRoute} in ('qr','short'))`)]);
+  check("contact_sources_contract", sql`((${t.kind} = 'manual' and ${t.outcome} = 'created' and ${t.importId} is null and ${t.rowNumber} is null and ${t.revertedAt} is null and ${t.responseId} is null and ${t.entryRoute} is null) or (${t.kind} = 'csv_import' and ${t.outcome} in ('created','updated') and ${t.importId} is not null and ${t.rowNumber} is not null and ${t.rowNumber} > 0 and ${t.responseId} is null and ${t.entryRoute} is null) or (${t.kind} = 'connect' and ${t.outcome} in ('created','updated') and ${t.importId} is null and ${t.rowNumber} is null and ${t.revertedAt} is null and ${t.responseId} is not null and ${t.entryRoute} is not null and ${t.entryRoute} in ('qr','short'))) and ${t.crmFormResponseId} is null or (${t.kind} = 'form' and ${t.outcome} in ('created','updated') and ${t.importId} is null and ${t.rowNumber} is null and ${t.revertedAt} is null and ${t.responseId} is null and ${t.entryRoute} is null and ${t.crmFormResponseId} is not null)`)]);
 
 // HC-06B restricted persistence; app access goes through scoped capability services.
 export const connectResponseSubjects = pgTable("connect_response_subjects", {

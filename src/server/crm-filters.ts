@@ -4,7 +4,7 @@ import type { Transaction } from "../db/client";
 import { crmFieldDefinitions } from "../db/schema";
 import { customFieldKey, filterFields, permissionScopes, sortableTypes, builtinSorts, sourceRuleReferences, validateFilter, type FieldDefinition, type Filter, type FilterField, type ObjectType, type PermissionField, type SourceRule, type ViewState } from "../lib/crm-fields";
 import { grantCountsOnChannel, purposeGrantChannels, type ConsentPurpose } from "../lib/consent-purposes";
-import { linkDisplayName } from "./crm-sources";
+import { hostedFormSourceOptions, linkDisplayName } from "./crm-sources";
 import { AccessError } from "./permissions";
 
 export const likePattern = (q: string) => `%${q.replace(/[\\%_]/g, "\\$&")}%`;
@@ -229,9 +229,16 @@ export async function resolveSourceReferences(tx: Transaction, tenantId: string,
     if (rows.length !== refs.links.length) throw invalidSourceRule();
     for (const row of rows) { const name = linkDisplayName(row.label, row.campaign); names.set(row.id, row.archived ? message("Crm.sourceFilters.archivedName", { name }) : name); }
   }
-  if (refs.forms.length) {
-    const rows = (await tx.execute(sql`select v.id::text, f.name, v.version from form_versions v join forms f on f.tenant_id = v.tenant_id and f.id = v.form_id where v.tenant_id = ${tenantId} and v.id in (${ids(refs.forms)})`)).rows as { id: string; name: string; version: number }[];
-    if (rows.length !== refs.forms.length) throw invalidSourceRule();
+  const hostedVersions = sourceRuleReferences(rules.filter(rule => rule.kinds.includes("form"))).forms;
+  if (hostedVersions.length) {
+    const rows = await hostedFormSourceOptions(tx, tenantId, hostedVersions);
+    if (rows.length !== hostedVersions.length) throw invalidSourceRule();
+    for (const row of rows) names.set(row.id, row.name);
+  }
+  const connectVersions = sourceRuleReferences(rules.filter(rule => !rule.kinds.includes("form"))).forms;
+  if (connectVersions.length) {
+    const rows = (await tx.execute(sql`select v.id::text, f.name, v.version from form_versions v join forms f on f.tenant_id = v.tenant_id and f.id = v.form_id where v.tenant_id = ${tenantId} and v.id in (${ids(connectVersions)})`)).rows as { id: string; name: string; version: number }[];
+    if (rows.length !== connectVersions.length) throw invalidSourceRule();
     for (const row of rows) names.set(row.id, message("Crm.sourceFilters.formVersion", { name: row.name, version: row.version }));
   }
   return names;
@@ -239,12 +246,16 @@ export async function resolveSourceReferences(tx: Transaction, tenantId: string,
 
 /**
  * Retained, unreverted source events of the current contact. Row security already limits
- * contact_source_events and campaign_responses to owners/admins and hides Connect evidence whose
- * response is no longer associated and unexpired, so this is exactly what the Source column shows.
+ * source events to owners/admins and hides expired response evidence, so this is exactly
+ * what the Source column shows.
  */
 function sourceEvents(tenantId: string, order: "first" | "latest" | "any") {
-  const base = sql`select s.id, s.kind, s.occurred_at, s.entry_route, r.campaign_id, r.link_id, r.form_version_id
+  const base = sql`select s.id, s.kind, s.occurred_at, s.entry_route,
+      coalesce(r.campaign_id, f.campaign_id) as campaign_id,
+      coalesce(r.link_id, f.qr_link_id) as link_id,
+      coalesce(r.form_version_id, f.version_id) as form_version_id
     from contact_source_events s left join campaign_responses r on r.tenant_id = s.tenant_id and r.id = s.response_id
+    left join crm_form_responses f on f.tenant_id = s.tenant_id and f.id = s.crm_form_response_id
     where s.tenant_id = ${tenantId} and s.contact_id = contacts.id and s.reverted_at is null`;
   if (order === "any") return base;
   const direction = sql.raw(order === "first" ? "asc" : "desc");
@@ -255,6 +266,8 @@ function ruleMatches(tenantId: string, rule: SourceRule): SQL {
   const list = (values: string[], cast: string) => sql.join(values.map((value) => sql`${value}::${sql.raw(cast)}`), sql`, `);
   const conditions: SQL[] = [sql`true`];
   if (rule.kinds.length) conditions.push(sql`e.kind in (${list(rule.kinds, "text")})`);
+  // Saved attribute rules with an implicit kind have always selected Connect.
+  else if (rule.campaigns.length || rule.links.length || rule.forms.length || rule.route) conditions.push(sql`e.kind = 'connect'`);
   if (rule.campaigns.length) conditions.push(sql`e.campaign_id in (${list(rule.campaigns, "uuid")})`);
   if (rule.links.length) conditions.push(sql`e.link_id in (${list(rule.links, "uuid")})`);
   if (rule.forms.length) conditions.push(sql`e.form_version_id in (${list(rule.forms, "uuid")})`);

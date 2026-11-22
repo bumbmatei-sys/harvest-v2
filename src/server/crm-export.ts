@@ -78,7 +78,7 @@ export function exportRecords(db: Database, userId: string, workspace: string, e
         const events = sources.column ? await tx.selectDistinct({ contactId: contactSourceEvents.contactId, kind: contactSourceEvents.kind }).from(contactSourceEvents)
           .where(and(eq(contactSourceEvents.tenantId, tenantId), inArray(contactSourceEvents.contactId, ids), isNull(contactSourceEvents.revertedAt))) : [];
         const sourceText = (id: string) => {
-          const kinds = (["connect", "manual", "csv_import"] as const).filter((kind) => events.some((event) => event.contactId === id && event.kind === kind));
+          const kinds = (["connect", "manual", "csv_import", "form"] as const).filter((kind) => events.some((event) => event.contactId === id && event.kind === kind));
           return kinds.length ? kinds.map((kind) => message(`Crm.sourceHistory.${kind}`)).join("; ") : message("Crm.sourceHistory.unknown");
         };
         for (const row of rows) {

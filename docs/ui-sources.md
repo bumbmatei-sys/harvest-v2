@@ -330,8 +330,13 @@ The Settings pop-up uses five items from the founder's private premium kit repos
 | --- | --- | --- | --- |
 | `src/components/settings/settings-dialog.tsx` | modelled on | chat-app `components/settings-dialog.tsx` | Title, section list beside scrolling content; full-screen sheet below 768px. |
 | `src/components/settings/settings-nav.tsx` | modelled on | admin-dashboard `settings/components/sidebar-nav.tsx` | Icon rows grouped You and Ministry, a scrollable tab row on phones, roving arrow-key focus. |
-| `src/components/settings/settings-panels.tsx` | modelled on | admin-dashboard `settings/account/page.tsx`, `settings/notifications/page.tsx` | Profile, Account, Ministry details, Connections (the social accounts board embedded) and CRM link rows. |
+| `src/components/settings/settings-panels.tsx` | modelled on | admin-dashboard `settings/account/page.tsx`, `settings/notifications/page.tsx` | Account, Ministry details, Connections (the social accounts board embedded) and CRM link rows. 4 of 65 (6%) and 5 of 65 (7%) identical lines. |
+| `src/components/settings/profile-panel.tsx` | modelled on | admin-dashboard `settings/account/page.tsx` | Profile editing (see below). 6 of 152 (3%) identical lines: imports and closing tags. |
 | `src/components/user-avatar.tsx` | modelled on (existing) | chat-app `components/user-avatar.tsx` | Reused unchanged in the profile and account panels. |
+
+#### Profile editing (You > Profile)
+
+Kit blocks inspected first, 22 Nov 2026: admin-dashboard (commit `1631106`) `pages/settings/account/page.tsx` (a react-hook-form fixture: name, date of birth, language, one submit) and chat-app (commit `66fd523`) `components/settings-dialog.tsx` (Profile rows: avatar, display name, a "Private profile" switch). Neither fits a profile with reorderable links, three visibility choices, revision conflicts and hide/clear confirmations, so no block is copied or installed. `profile-panel.tsx` keeps the account page's shape (labelled fields in one form, one save action) and is written on the shared Harvest components: Field and FieldError, Input, Textarea, RadioGroup, `StickySaveBar` (save and discard, with its leave guard), `ConfirmDialog` (hide, clear and discard) and the shared toast helper. `scripts/ui-identical.sh` against the kit account page: 6 of 152 non-blank lines (3%), imports and closing tags. Not used: react-hook-form and zod (the rules live in `src/lib/profile-links.ts`, mirrored from the server and unit tested), the date and language pickers, the chat-app switches and fixture avatar. Link reordering uses move up and move down buttons, not a drag library.
 
 ### Social Auto-DM screens (rules list, rule editor, enable review, test mode, activity, templates, hours)
 
