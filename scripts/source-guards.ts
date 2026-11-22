@@ -259,3 +259,31 @@ export function checkCrmFormsBoundary() {
   return ["src/server/crm-form-mode.ts", "src/server/crm-form-http.ts", "src/server/crm-form-publication.ts", ...sourceFiles("src/app/f")]
     .flatMap(file => inspectCrmFormsBoundary(file, readFileSync(file, "utf8")));
 }
+
+// CF-04 entry points and each registered job ship source-disabled.
+export function checkWorkerJobsBoundary(): BoundaryViolation[] {
+  const registry = "src/worker/jobs/dispatch.ts";
+  const entry = "src/worker/background.ts";
+  const source = readFileSync(registry, "utf8");
+  const handler = readFileSync(entry, "utf8");
+  const gates = ["WORKER_CRON_ENABLED", "WORKER_QUEUE_ENABLED"];
+  const found: BoundaryViolation[] = [];
+  const entries = /^export const jobRegistry = \{\n([\s\S]+?)\n\} as const;$/m.exec(source)?.[1].split("\n");
+  for (const line of entries ?? []) {
+    const gate = /^  \w+: \{ cron: "[^"]+", role: "harvest_worker", enabled: ([A-Z_]+) \},$/.exec(line)?.[1];
+    if (gate) gates.push(gate);
+    else found.push({ file: registry, rule: "Every Worker job must declare its schedule, worker role and hard-off gate" });
+  }
+  if (!entries) found.push({ file: registry, rule: "Worker job registry is missing" });
+  for (const gate of gates) {
+    if (!source.includes(`export const ${gate} = false;`)) {
+      found.push({ file: registry, rule: `Worker gate ${gate} must be literally false` });
+    }
+  }
+  for (const [method, gate] of [["scheduled", "WORKER_CRON_ENABLED"], ["queue", "WORKER_QUEUE_ENABLED"]]) {
+    if (!new RegExp(`async ${method}[^\\n]*\\{\\s*if \\(!${gate}\\) return;`).test(handler)) {
+      found.push({ file: entry, rule: `Worker ${method} must begin with its hard-off guard` });
+    }
+  }
+  return found;
+}
