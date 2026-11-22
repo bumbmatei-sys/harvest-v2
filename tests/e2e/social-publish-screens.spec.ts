@@ -310,7 +310,8 @@ test("social publish: accounts, composer with rings and media, review, queue, ca
   // The review is one-shot: nothing was published before the confirmation (no delivery existed while it was open).
 
   // ---- Schedule: set time, then next free slot ----------------------------------------------------------------------------------
-  const future = new Date(Date.now() + 3 * 86_400_000); future.setUTCHours(10, 0, 0, 0);
+  // Pinned to the 10th of next month (UTC): always in the future, and the move (+1 day) and drag (+2 more days) stay inside one month grid, away from month and week edges, whatever day the suite runs.
+  const today = new Date(), future = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth() + 1, 10, 10, 0, 0));
   const local = (date: Date) => date.toISOString().slice(0, 16);
   await ring("twitter").click(); await ring("bluesky").click();
   await page.getByLabel("Post text").fill("Midweek prayer meeting, Wednesday 7pm.");
