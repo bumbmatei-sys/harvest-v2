@@ -12,6 +12,8 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { EditorShell } from "@/components/editor/editor-shell";
 import { useEditorHosted } from "@/components/editor/editor-context";
 import { EventBadges } from "@/components/events/event-card";
+import { EventCoverPicker, type CoverChange } from "@/components/events/event-cover-picker";
+import { useEventCoverUrl } from "@/components/events/use-event-cover-url";
 import { FormSection } from "@/components/form-section";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -39,12 +41,15 @@ export function EventForm({ tenantId, eventId, initial, initialFields, listHref,
   const t = useTranslations("Events"), request = useCrmRequest(), router = useRouter(), hosted = useEditorHosted();
   const [data, setData] = useState<EventItem | null>(initial), [saved, setSaved] = useState(initialFields), [fields, setFields] = useState(initialFields);
   const [step, setStep] = useState<EventStep>("details"), [busy, setBusy] = useState(false), [error, setError] = useState(""), [notice, setNotice] = useState(""), [stale, setStale] = useState(false);
-  const [touched, setTouched] = useState(false), [confirmCancel, setConfirmCancel] = useState(false);
+  const [touched, setTouched] = useState(false), [confirmCancel, setConfirmCancel] = useState(false), [coverBusy, setCoverBusy] = useState(false);
   const endpoint = `/api/workspaces/${tenantId}/events/${eventId}`;
   const cancelled = data?.status === "cancelled", dirty = !same(fields, saved);
   const problems = fieldProblems(fields), shown = (problem: FieldProblem) => touched && problems.includes(problem);
-  const { destination, setDestination, leave } = useUnsavedChangesGuard(dirty || busy);
+  const { destination, setDestination, leave } = useUnsavedChangesGuard(dirty || busy || coverBusy);
   const set = <K extends keyof EventFields>(key: K, value: EventFields[K]) => { setNotice(""); setFields((previous) => ({ ...previous, [key]: value })); };
+  const cover = useEventCoverUrl(endpoint, data?.coverFileId ?? null);
+  // The cover routes change the event on their own, so the new version must reach the next Save.
+  const coverChanged = ({ coverFileId, version }: CoverChange) => { setNotice(""); setData((previous) => previous && { ...previous, coverFileId, version }); };
   const zones = timeZoneOptions(fields.timeZone);
   const reminders = [...new Set([...reminderPresets, ...(fields.reminder ? [Number(fields.reminder)] : [])])].sort((a, b) => a - b);
 
@@ -90,7 +95,10 @@ export function EventForm({ tenantId, eventId, initial, initialFields, listHref,
   const breadcrumb = <Breadcrumb><BreadcrumbList><BreadcrumbItem><BreadcrumbLink asChild><Link href={listHref}>{t("title")}</Link></BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator /><BreadcrumbItem><BreadcrumbPage>{title}</BreadcrumbPage></BreadcrumbItem></BreadcrumbList></Breadcrumb>;
   const sidebar = { typeLabel: t("typeLabel"), status: { kind: data?.status === "published" ? "live" as const : "draft" as const, label: t(`phases.${data?.status === "published" ? "upcoming" : data?.status ?? "draft"}`) },
     back: { href: listHref, label: t("title") }, dirty };
-  const preview = <Card><CardContent className="space-y-2 pt-6">
+  const preview = <Card className={cover.url && data?.coverFileId ? "gap-0 overflow-hidden py-0" : undefined}>
+    {/* eslint-disable-next-line @next/next/no-img-element -- a short-lived signed address from the server; not optimisable */}
+    {cover.url && data?.coverFileId && <img src={cover.url} alt="" className="aspect-video w-full object-cover" data-testid="cover-preview" onError={cover.failed} />}
+    <CardContent className={cover.url && data?.coverFileId ? "space-y-2 py-6" : "space-y-2 pt-6"}>
     <p className="text-base font-semibold break-words">{fields.title.trim() || t("untitled")}</p>
     <p className="text-sm text-muted-foreground">{t("previewTime", { start: fields.startsAt.replace("T", " "), end: fields.endsAt.replace("T", " "), zone: fields.timeZone })}</p>
     {fields.capacity.trim() && !problems.includes("capacity") && <p className="text-sm text-muted-foreground">{t("seatsTotal", { count: Number(fields.capacity) })}</p>}
@@ -107,6 +115,8 @@ export function EventForm({ tenantId, eventId, initial, initialFields, listHref,
     {notice && <Alert role="status"><AlertDescription>{notice}</AlertDescription></Alert>}
     <WizardLayout steps={steps} current={step} onStepChange={(id) => setStep(id as EventStep)} stepsLabel={t("stepsLabel")} stepper={false} focusOnStepChange={hosted}>
       {step === "details" && <FormSection title={<span className="sr-only">{t("steps.details")}</span>}>
+        <EventCoverPicker endpoint={endpoint} saved={!!data} coverFileId={data?.coverFileId ?? null} version={data?.version ?? 0} url={cover.url} onUrlFailed={cover.failed}
+          onChange={coverChanged} onBusyChange={setCoverBusy} disabled={cancelled} />
         <Field data-invalid={invalid("title")}><FieldLabel htmlFor="event-title">{t("fieldTitle")}</FieldLabel>
           <Input id="event-title" className="min-h-11" value={fields.title} maxLength={120} required disabled={cancelled} aria-invalid={invalid("title")} onChange={(e) => set("title", e.target.value)} />{message("title", "titleRequired")}</Field>
         <Field><FieldLabel htmlFor="event-description">{t("fieldDescription")}</FieldLabel>
