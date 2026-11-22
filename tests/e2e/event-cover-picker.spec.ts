@@ -182,6 +182,7 @@ test("event cover picker: upload, progress, scan state, replace, remove, errors,
     });
 
     await test.step("replace: a new image takes over", async () => {
+      await expect(image).toBeVisible();
       const before = await image.getAttribute("src");
       await confirmOnce("uploaded");
       await input.setInputFiles(file("cover2.png", 3));
