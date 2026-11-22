@@ -1,4 +1,4 @@
-/** Layout and behaviour modelled on bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): app/dashboard/(auth)/apps/calendar/components/event-calendar.tsx (toolbar, view switch, month, week and day views); the month and week grids are Harvest's shared derived components. Harvest notes: docs/ui-sources.md. */
+/** Layout and behaviour modelled on bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): app/dashboard/(auth)/apps/calendar/components/event-calendar.tsx (toolbar, view switch, month, week and day views); code written for Harvest, no kit code copied. The grids are the shared derived month, week and agenda components. Harvest notes: docs/ui-sources.md. */
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";

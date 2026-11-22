@@ -5904,6 +5904,7 @@
     "availability": {
       "label": "Availability",
       "length": "Length",
+      "range": "{start} – {end}",
       "minutes": "{count} minutes",
       "loading": "Loading availability",
       "failed": "Could not load availability.",

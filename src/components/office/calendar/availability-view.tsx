@@ -54,7 +54,7 @@ export function AvailabilityView({ api, connectionId, from, to, onReconnect }: {
       {load.partial && <Alert role="status" data-testid="availability-partial"><TriangleAlert aria-hidden="true" /><AlertDescription>{t("partial")}</AlertDescription></Alert>}
       {days.length === 0 ? <EmptyState icon={CalendarClock} title={t("none")} size="compact" />
         : <ul className="space-y-4" data-testid="availability-list">{days.map(([key, slots]) => <li key={key}><h3 className="mb-2 text-sm font-semibold">{day.format(new Date(slots[0].start))}</h3>
-          <ul className="flex flex-wrap gap-2">{slots.map((slot) => <li key={slot.start} className="rounded-md border px-3 py-2 text-sm" data-testid="slot">{time.format(new Date(slot.start))} – {time.format(new Date(slot.end))}</li>)}</ul></li>)}</ul>}
+          <ul className="flex flex-wrap gap-2">{slots.map((slot) => <li key={slot.start} className="rounded-md border px-3 py-2 text-sm" data-testid="slot">{t("range", { start: time.format(new Date(slot.start)), end: time.format(new Date(slot.end)) })}</li>)}</ul></li>)}</ul>}
     </>}
   </section>;
 }

@@ -1,4 +1,4 @@
-/** Copied from bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): app/dashboard/(auth)/apps/calendar/components/agenda-view.tsx, then adapted. Harvest changes: docs/ui-sources.md. */
+/** Derived from bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): app/dashboard/(auth)/apps/calendar/components/agenda-view.tsx. Harvest changes: docs/ui-sources.md. */
 "use client";
 
 import { useMemo } from "react";

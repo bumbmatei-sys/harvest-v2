@@ -1,4 +1,4 @@
-/** Copied from bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): app/dashboard/(auth)/apps/calendar/components/event-dialog.tsx, then adapted: Sheet for the kit drawer, lucide icons, Harvest catalogue copy, calendar picker, time zone, attendees and meeting link added, and every write removed (the form is built and kept disabled while calendar writes are hard-off). Harvest changes: docs/ui-sources.md. */
+/** Derived from bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): app/dashboard/(auth)/apps/calendar/components/event-dialog.tsx. Harvest changes: docs/ui-sources.md. */
 "use client";
 
 import { useMemo, useState } from "react";
@@ -89,7 +89,8 @@ export function EventDialog({ event, isOpen, onClose, calendars, platform }: Eve
           <SheetTitle>{event?.id ? t("editTitle") : t("newTitle")}</SheetTitle>
           <SheetDescription data-testid="form-writes-note">{w("writesOff")}</SheetDescription>
         </SheetHeader>
-        <fieldset disabled className="grid min-h-0 flex-1 gap-4 overflow-y-auto border-0 p-4">
+        <div tabIndex={0} role="region" aria-label={event?.id ? t("editTitle") : t("newTitle")} className="min-h-0 flex-1 overflow-y-auto outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
+        <fieldset disabled className="grid gap-4 border-0 p-4">
           <div className="*:not-first:mt-1.5">
             <Label htmlFor="title">{t("title")}</Label>
             <Input id="title" value={title} onChange={(e) => setTitle(e.target.value)} />
@@ -260,6 +261,7 @@ export function EventDialog({ event, isOpen, onClose, calendars, platform }: Eve
             <Label htmlFor="meeting-link">{t("meetingLink")}</Label>
           </div>
         </fieldset>
+        </div>
         <SheetFooter className="flex-row border-t sm:justify-between">
           {event?.id && (
             <Button variant="destructive" size="icon-responsive" disabled aria-label={t("delete")}>
