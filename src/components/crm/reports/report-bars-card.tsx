@@ -31,7 +31,7 @@ export function ReportBarsCard({ id, title, description, caption, keyHeader, row
         {drawn && (
           <div aria-hidden="true" data-testid={`report-chart-${id}`}>
             <ChartContainer config={config} className="aspect-auto w-full" style={{ height: 28 + rows.length * (series.length > 1 ? 44 : 32) }}>
-              <BarChart layout="vertical" data={data} margin={{ top: 0, right: 12, bottom: 0, left: 0 }} barGap={2}>
+              <BarChart accessibilityLayer={false} layout="vertical" data={data} margin={{ top: 0, right: 12, bottom: 0, left: 0 }} barGap={2}>
                 <XAxis type="number" hide allowDecimals={false} />
                 <YAxis type="category" dataKey="name" tickLine={false} axisLine={false} width={96} tickMargin={4} />
                 <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
