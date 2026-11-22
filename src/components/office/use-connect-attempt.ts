@@ -38,7 +38,7 @@ export function useConnectAttempt({ start, finish, onConnected }: {
       try {
         const result = await finish(attemptId);
         if (stopped) return;
-        if (result.state === "connected") { done.current(); return; }
+        if (result.state === "connected") { setPhase({ name: "idle" }); done.current(); return; }
         if (result.state === "failed" || (Number.isFinite(until) && Date.now() > until)) { setPhase({ name: "failed" }); return; }
       } catch (error) {
         if (stopped) return;

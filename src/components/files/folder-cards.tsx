@@ -19,7 +19,7 @@ export function FolderCards({ folders, marked, onOpen }: { folders: readonly Fol
         : folder.source.name;
       return <li key={folder.key}>
         <button type="button" onClick={() => onOpen(folder)} data-testid="folder-card" data-source={folder.source.kind}
-          aria-label={marked ? t("entryIn", { kind: "folder", name: folder.name, source: folder.source.name }) : undefined}
+          aria-label={marked ? t("entryIn", { kind: "folder", name: folder.name, source: folder.source.name }) : folder.name}
           className="group flex min-h-11 w-full items-center gap-3 rounded-xl border bg-card p-4 text-start text-card-foreground shadow-sm outline-none transition-colors hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50">
           <EntryIcon glyph={glyphOf(folder)} source={marked ? folder.source : undefined} size="lg" />
           <span className="min-w-0 flex-1"><span className="block truncate font-medium">{folder.name}</span><span className="block truncate text-sm text-muted-foreground">{meta}</span></span>
