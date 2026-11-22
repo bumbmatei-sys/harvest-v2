@@ -1,5 +1,5 @@
 import Image from "next/image";
-import { driveMarkColors as d, mailMarkColors as c } from "@/lib/theme-registry";
+import { calendarMarkColors as k, driveMarkColors as d, mailMarkColors as c } from "@/lib/theme-registry";
 import type { OfficePlatform } from "@/lib/office/mail";
 
 /**
@@ -44,5 +44,30 @@ export function SourceLogo({ source, className = "size-4", label }: { source: "h
     <path d="M9.5 7.2a5.6 5.6 0 0 1 9.4 2.6A4.1 4.1 0 0 1 19.4 18H5.2A3.7 3.7 0 0 1 3.9 10.8 5.6 5.6 0 0 1 9.5 7.2z" style={{ fill: d.onedrive.deep }} />
     <path d="M11.6 9.6a4.6 4.6 0 0 1 7.2 2.4h.4a3.2 3.2 0 0 1 0 6.4H8.4A3.9 3.9 0 0 1 7.6 10.7a4.6 4.6 0 0 1 4-1.1z" style={{ fill: d.onedrive.mid }} />
     <path d="M14.5 13.2h4.7a3.2 3.2 0 0 1 0 5.2H8.4a3 3 0 0 1-1.1-5.7 4.5 4.5 0 0 1 7.2.5z" style={{ fill: d.onedrive.light }} />
+  </svg>;
+}
+
+/**
+ * Source marks for the Calendar screen: the Harvest logo (scheduled social posts), a Google Calendar tile (white page, blue frame, four brand-colour corners) and
+ * an Outlook calendar tile (a page in the brand blues). Drawn for Harvest and simplified, so each is subject to its owner's brand guidelines (clear space, no
+ * recolouring, no implied endorsement), like the mailbox and drive marks, and used only to name where an event lives. Decorative by default: the source name is
+ * always beside the mark or in the accessible name (`label`).
+ */
+export function CalendarLogo({ source, className = "size-4", label }: { source: "harvest" | OfficePlatform; className?: string; label?: string }) {
+  if (source === "harvest") return <SourceLogo source="harvest" className={className} label={label} />;
+  const aria = label ? { role: "img" as const, "aria-label": label } : { "aria-hidden": true as const };
+  if (source === "google") return <svg viewBox="0 0 24 24" className={className} data-source-logo="google-calendar" {...aria}>
+    <rect x="3" y="3" width="18" height="18" rx="2.5" style={{ fill: k.google.white, stroke: k.google.blue, strokeWidth: 1.6 }} />
+    <path d="M3 8h18V5.5A2.5 2.5 0 0 0 18.5 3h-13A2.5 2.5 0 0 0 3 5.5z" style={{ fill: k.google.blue }} />
+    <rect x="3" y="17" width="4" height="4" style={{ fill: k.google.green }} />
+    <rect x="17" y="17" width="4" height="4" style={{ fill: k.google.yellow }} />
+    <rect x="17" y="8" width="4" height="4" style={{ fill: k.google.red }} />
+    <rect x="9" y="11" width="6" height="6" rx="1" style={{ fill: k.google.blue, opacity: 0.85 }} />
+  </svg>;
+  return <svg viewBox="0 0 24 24" className={className} data-source-logo="outlook-calendar" {...aria}>
+    <rect x="3" y="3" width="18" height="18" rx="2.5" style={{ fill: k.outlook.mid }} />
+    <path d="M3 8h18V5.5A2.5 2.5 0 0 0 18.5 3h-13A2.5 2.5 0 0 0 3 5.5z" style={{ fill: k.outlook.base }} />
+    <rect x="12" y="11" width="6" height="6" rx="1" style={{ fill: k.outlook.light }} />
+    <ellipse cx="8" cy="14" rx="2.3" ry="2.7" fill="none" style={{ stroke: k.outlook.white, strokeWidth: 1.5 }} />
   </svg>;
 }
