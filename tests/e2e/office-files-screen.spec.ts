@@ -261,7 +261,7 @@ test("files: three sources, filter combinations, separate same-named folders, na
   await expect(page.getByTestId("folder-card")).toHaveCount(5);
 
   // Open a folder by keyboard, then walk the breadcrumbs.
-  const crumbs = page.getByTestId("files-explorer").getByRole("navigation", { name: /breadcrumb/i });
+  const crumbs = page.getByTestId("files-explorer").getByRole("navigation", { name: "File location" });
   await page.getByRole("button", { name: "Folder Photos, Google Drive" }).focus();
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("files-explorer")).toBeVisible();
@@ -396,7 +396,8 @@ async function audit(page: Page, name: string, ready: () => Promise<void>, resto
     await ready();
     await expect(page.locator('[data-slot="skeleton"], [aria-busy="true"]'), `${name} ${scheme} ${width} still loading`).toHaveCount(0);
     await settleForAxe(page);
-    const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
+    // Every rule axe ships (a superset of WCAG 2.2 A and AA, including best practices such as label-content-name-mismatch).
+    const result = await new AxeBuilder({ page }).analyze();
     expect(result.violations.map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(", ")}`), `${name} ${scheme} ${width}`).toEqual([]);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), `${name} ${scheme} ${width} overflow`).toBe(true);
     await page.screenshot({ path: `${shots}/${name}-${width}-${scheme}.png`, fullPage: true, animations: "disabled" });

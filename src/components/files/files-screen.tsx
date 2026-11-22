@@ -191,7 +191,7 @@ export function FilesScreen({ tenantId, files, canUpload, officeEnabled }: { ten
 
     {explorer
       ? <Card className="gap-0 py-0" data-testid="files-explorer">
-        <CardHeader className="border-b py-4"><Breadcrumb><BreadcrumbList>
+        <CardHeader className="border-b py-4"><Breadcrumb aria-label={t("location")}><BreadcrumbList>
           <BreadcrumbItem><BreadcrumbLink asChild><button type="button" onClick={home} className="inline-flex min-h-11 items-center gap-1.5 rounded-md px-1 lg:min-h-8" data-testid="crumb-root"><Home className="size-4" aria-hidden="true" />{t("title")}</button></BreadcrumbLink></BreadcrumbItem>
           {crumbs.map((crumb) => <Fragment key={crumb.key}><BreadcrumbSeparator />
             <BreadcrumbItem>{crumb.onSelect ? <BreadcrumbLink asChild><button type="button" onClick={crumb.onSelect} className="inline-flex min-h-11 items-center rounded-md px-1 lg:min-h-8">{crumb.label}</button></BreadcrumbLink> : <BreadcrumbPage>{crumb.label}</BreadcrumbPage>}</BreadcrumbItem></Fragment>)}

@@ -27,7 +27,9 @@ export function FilesTable({ entries, marked, label, note, busyId, onOpenFolder,
   const columns: DataTableColumn[] = [
     { id: "name", header: t("columns.name"), card: "title", className: "min-w-0 whitespace-normal break-words" },
     ...(marked ? [{ id: "source", header: t("columns.source"), showFrom: "@lg" as const }] : []),
-    { id: "size", header: t("columns.size"), showFrom: "@md" }, { id: "added", header: t("columns.added"), showFrom: "@lg" }, { id: "status", header: t("columns.status") },
+    { id: "size", header: t("columns.size"), showFrom: "@md" },
+    ...(entries.some((entry) => entry.addedAt) ? [{ id: "added", header: t("columns.added"), showFrom: "@lg" as const }] : []),
+    ...(entries.some((entry) => entry.harvest) ? [{ id: "status", header: t("columns.status") }] : []),
     { id: "actions", header: t("columns.actions"), srOnlyHeader: true, align: "end", card: "actions" },
   ];
   const rows: DataTableRow[] = entries.map((entry) => {
@@ -42,7 +44,7 @@ export function FilesTable({ entries, marked, label, note, busyId, onOpenFolder,
       source: <span className="whitespace-nowrap text-muted-foreground">{entry.source.name}</span>,
       size: size ? <span className="whitespace-nowrap tabular-nums text-muted-foreground">{t("sizeValue", { value: format.number(size.value, size.unit === "B" ? "integer" : "fileSize"), unit: size.unit })}</span> : <span aria-hidden="true">{t("noValue")}</span>,
       added: entry.addedAt ? <time dateTime={entry.addedAt} className="whitespace-nowrap text-muted-foreground">{format.dateTime(new Date(entry.addedAt), "date")}</time> : <span aria-hidden="true">{t("noValue")}</span>,
-      status: harvest ? <StatusBadge tone={scanTone(harvest.status)} label={h(`statusValues.${harvest.status}`)} /> : null,
+      status: harvest ? <StatusBadge tone={scanTone(harvest.status)} label={h(`statusValues.${harvest.status}`)} /> : <span aria-hidden="true">{t("noValue")}</span>,
       actions: harvest ? <>
         {harvest.status === "ready" && <Button variant="outline" size="sm" disabled={busyId === harvest.id} onClick={() => onHarvestAction(entry, "download")} aria-label={h("downloadValue", { name: harvest.name })}>{h("download")}</Button>}
         {harvest.publicUrl && <Button asChild variant="outline" size="sm"><a href={harvest.publicUrl} aria-label={h("publicLinkForValue", { name: harvest.name })}>{h("publicLink")}</a></Button>}

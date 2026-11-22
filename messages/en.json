@@ -458,7 +458,8 @@
       "title": "Upload a file",
       "subtitle": "Files are added to this ministry's Harvest files."
     },
-    "noValue": "–"
+    "noValue": "–",
+    "location": "File location"
   },
   "ComponentsThemeControls": {
     "theme": "Theme",
