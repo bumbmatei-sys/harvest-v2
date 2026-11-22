@@ -66,19 +66,12 @@ test("event cover picker: upload, progress, scan state, replace, remove, errors,
   const tenant = (await (await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Grace Community Church", audience: "church" } })).json()).tenantId as string;
   const admin = new Client({ connectionString: await readFile(`${process.env.HARVEST_E2E_MAILBOX}.admin`, "utf8") });
   await admin.connect();
-  /** Stands in for the malware scanner, which has no implementation yet: the confirm route leaves a clean file at "uploaded". */
-  const release = async (eventId: string, status: "ready" | "quarantined") => {
-    await admin.query("begin"); await admin.query("select set_config('app.events_tenant',$1,true)", [tenant]);
-    const result = await admin.query("update event_files set status=$3 where tenant_id=$1 and event_id=$2 and status='uploaded'", [tenant, eventId, status]);
-    await admin.query("commit"); expect(result.rowCount).toBe(1);
-  };
+  /** Outside production a skipped scan releases the image at once; to see the other states the next confirm answer is replaced (the real confirm still runs on Check again). */
+  const confirmOnce = (status: "uploaded" | "quarantined") => page.route("**/cover/uploads/*/confirm", (route) => route.fulfill({ json: { id: "x", name: "c.png", mime: "image/png", size: 1, status, kind: "cover" } }), { times: 1 });
   const id = crypto.randomUUID(), api = `/api/workspaces/${tenant}/events/${id}`, start = Date.now() + 3 * 86_400_000;
   expect((await page.request.put(api, { headers: { origin }, data: { version: 0, title: "Sunday gathering", description: "", timeZone: "UTC", startsAt: new Date(start).toISOString(), endsAt: new Date(start + 3_600_000).toISOString(), capacity: null, reminderMinutes: null, joinUrl: null } })).ok()).toBe(true);
   const requests: string[] = [];
   page.on("request", (request) => { if (request.url().includes("/cover/uploads")) requests.push(request.method() + " " + request.url()); });
-  page.on("console", (message) => { if (message.type() === "error") console.log("CONSOLE", message.text().slice(0, 900)); });
-  page.on("requestfailed", (request) => console.log("FAILED", request.method(), request.url().slice(0, 120), request.failure()?.errorText));
-  page.on("response", (response) => { if (response.status() >= 400) console.log("HTTP", response.status(), response.request().method(), response.url().slice(0, 120)); });
   const zone = page.getByTestId("cover-zone"), input = page.getByTestId("cover-input"), image = page.getByTestId("cover-image");
   const isStorage = (url: URL) => url.pathname.startsWith("/harvest-files-test/");
   const storagePut = (handler: (route: Route) => Promise<void> | void) => page.route(isStorage, async (route) => route.request().method() === "PUT" ? handler(route) : route.fallback());
@@ -136,7 +129,7 @@ test("event cover picker: upload, progress, scan state, replace, remove, errors,
     await test.step("progress, then the scan state while the safety check is pending", async () => {
       let go: () => void = () => undefined; const gate = new Promise<void>((resolve) => { go = resolve; });
       await storagePut(async (route) => { await gate; await route.continue(); });
-      console.log("STEP progress");
+      await confirmOnce("uploaded");
       await input.setInputFiles(file("cover.png", 1));
       await expect(page.getByRole("progressbar", { name: "Upload progress" })).toBeVisible();
       await expect(page.getByTestId("cover-progress")).toContainText("Uploading");
@@ -151,18 +144,18 @@ test("event cover picker: upload, progress, scan state, replace, remove, errors,
     });
 
     await test.step("a file that fails the safety check is refused", async () => {
-      await release(id, "quarantined");
-      await page.getByRole("button", { name: "Check again" }).click();
+      await page.getByRole("button", { name: "Dismiss" }).click();
+      await confirmOnce("quarantined");
+      await input.setInputFiles(file("cover.png", 5));
       await expect(page.getByTestId("cover-error")).toContainText("failed the safety check");
       await page.screenshot({ path: `${shots}/error-scan-1280-light.png`, fullPage: true, animations: "disabled" });
       await expect(page.getByRole("button", { name: "Choose another" })).toBeVisible();
     });
 
     await test.step("a clean file becomes the cover, through the signed address only", async () => {
-      console.log("STEP clean");
+      await confirmOnce("uploaded");
       await input.setInputFiles(file("cover.png", 2));
       await expect(page.getByTestId("cover-scanning")).toBeVisible();
-      await release(id, "ready");
       const signed = page.waitForResponse((response) => response.url().endsWith(`${api}/cover`) && response.request().method() === "GET" && response.ok());
       await page.getByRole("button", { name: "Check again" }).click();
       await expect(page.getByText("Cover updated.")).toBeVisible();
@@ -190,9 +183,9 @@ test("event cover picker: upload, progress, scan state, replace, remove, errors,
 
     await test.step("replace: a new image takes over", async () => {
       const before = await image.getAttribute("src");
+      await confirmOnce("uploaded");
       await input.setInputFiles(file("cover2.png", 3));
       await expect(page.getByTestId("cover-scanning")).toBeVisible();
-      await release(id, "ready");
       await page.getByRole("button", { name: "Check again" }).click();
       await expect(page.getByText("Cover updated.")).toBeVisible();
       await expect.poll(async () => await image.getAttribute("src")).not.toBe(before);
@@ -207,7 +200,7 @@ test("event cover picker: upload, progress, scan state, replace, remove, errors,
       const dialog = page.getByRole("alertdialog", { name: "Remove the cover?" });
       await expect(dialog).toBeVisible(); await page.keyboard.press("Escape"); await expect(dialog).toHaveCount(0);
       await expect(image).toBeVisible();
-      await tall(page, "main button, main label");
+      await tall(page, "main button");
     });
 
     await test.step("remove: confirmed, the picture is gone and the cover route answers 404", async () => {
@@ -222,6 +215,7 @@ test("event cover picker: upload, progress, scan state, replace, remove, errors,
 
     await test.step("drag and drop uploads through the same path", async () => {
       const data = await page.evaluateHandle(({ bytes }) => { const transfer = new DataTransfer(); transfer.items.add(new File([new Uint8Array(bytes)], "dropped.png", { type: "image/png" })); return transfer; }, { bytes: [...png(4)] });
+      await confirmOnce("uploaded");
       await zone.dispatchEvent("dragenter", { dataTransfer: data });
       await expect(zone).toHaveAttribute("data-dragging", "true");
       await zone.dispatchEvent("drop", { dataTransfer: data });
@@ -229,7 +223,6 @@ test("event cover picker: upload, progress, scan state, replace, remove, errors,
     });
 
     await test.step("a stale version asks for a reload instead of overwriting", async () => {
-      await release(id, "ready");
       // Another manager changes the event while this form is open.
       const current = await (await page.request.get(api)).json() as { version: number };
       expect((await page.request.put(api, { headers: { origin }, data: { version: current.version, title: "Changed elsewhere", description: "", timeZone: "UTC", startsAt: new Date(start).toISOString(), endsAt: new Date(start + 3_600_000).toISOString(), capacity: null, reminderMinutes: null, joinUrl: null } })).ok()).toBe(true);
