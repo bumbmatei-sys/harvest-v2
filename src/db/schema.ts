@@ -1674,7 +1674,8 @@ export const officeConnections = pgTable("office_connections", {
   primaryKey({ columns: [t.tenantId, t.id] }),
   uniqueIndex("office_connection_account_idx").on(t.tenantId, t.ownerUserId, t.kind, t.provider, t.externalAccountRef),
   unique("office_connection_owner_key").on(t.tenantId, t.ownerUserId, t.id),
-  uniqueIndex("office_connection_personal_kind_idx").on(t.tenantId, t.ownerUserId, t.kind).where(sql`${t.platform} is not null`),
+  uniqueIndex("office_connection_personal_kind_idx").on(t.tenantId, t.ownerUserId, t.kind).where(sql`${t.platform} is not null and ${t.kind} <> 'files'`),
+  uniqueIndex("office_connection_personal_files_platform_idx").on(t.tenantId, t.ownerUserId, t.kind, t.platform).where(sql`${t.platform} is not null and ${t.kind} = 'files'`),
   uniqueIndex("office_connection_provider_account_idx").on(t.provider, t.externalAccountRef).where(sql`${t.platform} is not null`),
   foreignKey({ name: "office_connection_member_fk", columns: [t.tenantId, t.ownerUserId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }).onDelete("cascade"),
   check("office_connection_kind", sql`${t.kind} in ('mail', 'calendar', 'files')`),
@@ -1700,7 +1701,9 @@ export const officeConnectAttempts = pgTable("office_connect_attempts", {
   noticeVersion: integer("notice_version").notNull(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 }, t => [
-  primaryKey({ columns: [t.tenantId, t.ownerUserId, t.kind] }),
+  primaryKey({ columns: [t.tenantId, t.ownerUserId, t.id] }),
+  uniqueIndex("office_attempt_personal_kind_idx").on(t.tenantId, t.ownerUserId, t.kind).where(sql`${t.kind} <> 'files'`),
+  uniqueIndex("office_attempt_personal_files_platform_idx").on(t.tenantId, t.ownerUserId, t.kind, t.platform).where(sql`${t.kind} = 'files'`),
   foreignKey({ name: "office_attempt_member_fk", columns: [t.tenantId, t.ownerUserId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }).onDelete("cascade"),
   foreignKey({ name: "office_attempt_connection_fk", columns: [t.tenantId, t.ownerUserId, t.connectionId], foreignColumns: [officeConnections.tenantId, officeConnections.ownerUserId, officeConnections.id] }).onDelete("cascade"),
   check("office_attempt_shape", sql`${t.kind} in ('mail','calendar','files') and ${t.platform} in ('google','microsoft') and ${t.provider} in ('fake','zernio')
