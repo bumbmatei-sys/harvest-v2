@@ -103,6 +103,8 @@ test("Settings pop-up: open, sections by role, keyboard, deep link, Planner entr
   await dialog(page).getByLabel("Link 1 address").fill("http://insecure.example");
   await dialog(page).getByRole("button", { name: "Save profile", exact: true }).click();
   await expect(dialog(page).getByRole("alert")).toContainText("https://");
+  // The invalid draft is still unsaved: the pop-up would ask before switching sections, so drop it here (the guard has its own spec).
+  await page.locator('[data-slot="sticky-save-bar"]').getByRole("button", { name: "Discard", exact: true }).click();
 
   // ---- Keyboard: arrows, Home and End move between sections and open them; Escape closes and returns focus ------------------------------------
   await section(page, "Profile").focus();
