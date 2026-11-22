@@ -76,6 +76,9 @@ test("event cover picker: upload, progress, scan state, replace, remove, errors,
   expect((await page.request.put(api, { headers: { origin }, data: { version: 0, title: "Sunday gathering", description: "", timeZone: "UTC", startsAt: new Date(start).toISOString(), endsAt: new Date(start + 3_600_000).toISOString(), capacity: null, reminderMinutes: null, joinUrl: null } })).ok()).toBe(true);
   const requests: string[] = [];
   page.on("request", (request) => { if (request.url().includes("/cover/uploads")) requests.push(request.method() + " " + request.url()); });
+  page.on("console", (message) => { if (message.type() === "error") console.log("CONSOLE", message.text().slice(0, 300)); });
+  page.on("requestfailed", (request) => console.log("FAILED", request.method(), request.url().slice(0, 120), request.failure()?.errorText));
+  page.on("response", (response) => { if (response.status() >= 400) console.log("HTTP", response.status(), response.request().method(), response.url().slice(0, 120)); });
   const zone = page.getByTestId("cover-zone"), input = page.getByTestId("cover-input"), image = page.getByTestId("cover-image");
   const isStorage = (url: URL) => url.pathname.startsWith("/harvest-files-test/");
   const storagePut = (handler: (route: Route) => Promise<void> | void) => page.route(isStorage, async (route) => route.request().method() === "PUT" ? handler(route) : route.fallback());
@@ -133,14 +136,15 @@ test("event cover picker: upload, progress, scan state, replace, remove, errors,
     await test.step("progress, then the scan state while the safety check is pending", async () => {
       let go: () => void = () => undefined; const gate = new Promise<void>((resolve) => { go = resolve; });
       await storagePut(async (route) => { await gate; await route.continue(); });
+      console.log("STEP progress");
       await input.setInputFiles(file("cover.png", 1));
       await expect(page.getByRole("progressbar", { name: "Upload progress" })).toBeVisible();
       await expect(page.getByTestId("cover-progress")).toContainText("Uploading");
       await expect(input).toBeDisabled();
       await page.screenshot({ path: `${shots}/uploading-1280-light.png`, fullPage: true, animations: "disabled" });
       go();
-      await page.unroute(isStorage);
       await expect(page.getByTestId("cover-scanning")).toContainText("Waiting for the safety check.");
+      await page.unroute(isStorage);
       await page.screenshot({ path: `${shots}/scanning-1280-light.png`, fullPage: true, animations: "disabled" });
       await expect(page.getByRole("button", { name: "Check again" })).toBeVisible();
       await expect(image).toHaveCount(0);
@@ -155,6 +159,7 @@ test("event cover picker: upload, progress, scan state, replace, remove, errors,
     });
 
     await test.step("a clean file becomes the cover, through the signed address only", async () => {
+      console.log("STEP clean");
       await input.setInputFiles(file("cover.png", 2));
       await expect(page.getByTestId("cover-scanning")).toBeVisible();
       await release(id, "ready");
