@@ -52,9 +52,15 @@ async function audit(page: Page, name: string, ready: () => Promise<void>, resto
 /** Opens the folder pane wherever it lives: always visible at 1280, the shell drawer in the shell-modes layout, the sheet without it. */
 async function folderPane(page: Page) {
   const pane = page.getByTestId("folder-pane");
-  if (await pane.isVisible()) return pane;
   const button = page.getByRole("button", { name: "Folders", exact: true });
-  if (await button.isVisible()) await button.click(); else await page.locator('[data-shell-header] [data-sidebar="trigger"]').click();
+  // After a viewport change the layout settles a moment later (media queries, shell drawer), so a toggle clicked against the old layout can close what the new one
+  // shows. Probe again after every attempt and only toggle while the pane is still hidden; the final assertion is unchanged.
+  for (let attempt = 0; attempt < 4; attempt++) {
+    if (await pane.isVisible()) return pane;
+    if (await button.isVisible()) await button.click(); else await page.locator('[data-shell-header] [data-sidebar="trigger"]').click();
+    if (await pane.isVisible().catch(() => false)) return pane;
+    await pane.waitFor({ state: "visible", timeout: 2_000 }).catch(() => undefined);
+  }
   await expect(pane).toBeVisible();
   return pane;
 }

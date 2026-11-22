@@ -103,5 +103,5 @@ export function glyphOf(entry: Pick<FileEntry, "kind" | "mime" | "name">): Glyph
   if (mime.startsWith("text/")) return "text";
   return "file";
 }
-/** Only http and https links are ever opened from provider data. */
-export const safeUrl = (value: string | null | undefined) => { try { const url = new URL(value ?? ""); return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : null; } catch { return null; } };
+/** Only https links are ever opened from provider data. */
+export const safeUrl = (value: string | null | undefined) => { try { const url = new URL(value ?? ""); return url.protocol === "https:" ? url.toString() : null; } catch { return null; } };

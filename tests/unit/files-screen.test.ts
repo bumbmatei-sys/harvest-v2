@@ -78,8 +78,9 @@ describe("merge and sort rules", () => {
 });
 
 describe("provider links", () => {
-  it("opens only http and https links", () => {
+  it("opens only https links", () => {
     expect(safeUrl("https://example.test/a")).toBe("https://example.test/a");
+    expect(safeUrl("http://example.test/a")).toBeNull();
     expect(safeUrl("javascript:alert(1)")).toBeNull();
     expect(safeUrl("data:text/html,x")).toBeNull();
     expect(safeUrl(null)).toBeNull();

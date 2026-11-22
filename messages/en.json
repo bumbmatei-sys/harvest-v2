@@ -451,7 +451,8 @@
       "choose": "Choose a drive",
       "connectWith": "Connect {provider}",
       "failed": "Connecting did not finish. Try again.",
-      "refused": "Connecting is not available right now."
+      "refused": "Connecting is not available right now.",
+      "reconnectWith": "Reconnect {provider}"
     },
     "upload": {
       "open": "Upload",

@@ -34,7 +34,7 @@ function recordActions(page: Page) {
   });
   return actions;
 }
-const allowed = new Set(["files", "preview", "startConnect", "finishConnect", "disconnect"]);
+const allowed = new Set(["files", "preview", "health", "startConnect", "finishConnect", "disconnect"]);
 
 async function upload(page: Page, name: string, mimeType: string, buffer: Buffer) {
   await page.getByRole("button", { name: "Upload", exact: true }).click();
@@ -380,6 +380,31 @@ test("files: load more, partial pages, a failing or reconnecting drive and a dri
   await expect(chip(page, "OneDrive")).toHaveCount(0);
   await expect(chip(page, "Google Drive")).toBeVisible();
   await expect(page.getByText("welcome.txt").first()).toBeVisible();
+
+  // Sources: Reconnect starts a connect for that same connection id and the drive comes back; Check again calls the read-only health action.
+  const started: unknown[] = [];
+  stub.override = (connectionId, action, input) => {
+    if (action === "startConnect") { started.push(connectionId); return { state: "pending", attemptId: "attempt-1", url: null, expiresAt: new Date(Date.now() + 60_000).toISOString() }; }
+    if (action === "finishConnect") { stub.overview = overview(connection(GOOGLE, "google"), connection(ONEDRIVE, "microsoft")); return { state: "connected", connection: connection(ONEDRIVE, "microsoft") }; }
+    if (action === "health") { stub.overview = overview(connection(GOOGLE, "google"), connection(ONEDRIVE, "microsoft")); return { state: "available", data: {} }; }
+    void input; return undefined;
+  };
+  await page.getByTestId("sources-open").click();
+  await expect(page.getByTestId("source-reconnect")).toBeVisible();
+  await expect(page.getByTestId("connect-google")).toHaveCount(0);
+  await page.getByTestId("source-reconnect").click();
+  await expect(page.getByTestId("source-reconnect")).toHaveCount(0);
+  expect(started).toEqual([ONEDRIVE]);
+  await page.keyboard.press("Escape");
+  await expect(chip(page, "OneDrive")).toBeVisible();
+  stub.overview = overview(connection(GOOGLE, "google"), connection(ONEDRIVE, "microsoft", "unavailable", 4));
+  await page.reload();
+  await expect(chip(page, "OneDrive")).toHaveCount(0);
+  await page.getByTestId("sources-open").click();
+  await page.getByRole("dialog", { name: "Sources" }).getByRole("button", { name: "Check again" }).click();
+  await expect(page.getByRole("dialog", { name: "Sources" }).getByRole("button", { name: "Check again" })).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(chip(page, "OneDrive")).toBeVisible();
 });
 
 // ---- Audit: axe (WCAG 2.2 AA), overflow and screenshots at 1280, 768 and 360 in both schemes ----------------------------------------------------------------------

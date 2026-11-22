@@ -1,6 +1,6 @@
 /** Layout and behaviour modelled on bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): app/dashboard/(auth)/apps/mail/components/account-switcher.tsx (account choice with provider marks); code written for Harvest, no kit code copied. Harvest notes: docs/ui-sources.md. */
 "use client";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { Cable, RotateCw, Unplug } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -24,7 +24,8 @@ import { notify } from "@/lib/toast";
 export function SourcesDialog({ api, connections, notice, noticeVersion, onChanged }: { api: FilesApi; connections: readonly OfficeConnection[]; notice: string; noticeVersion: number; onChanged: () => void }) {
   const t = useTranslations("FilesScreen.sources");
   const [open, setOpen] = useState(false);
-  const start = useCallback((platform: OfficePlatform) => api.startConnect(platform, noticeVersion), [api, noticeVersion]);
+  const reconnectId = useRef<string | undefined>(undefined);
+  const start = useCallback((platform: OfficePlatform) => api.startConnect(platform, noticeVersion, reconnectId.current), [api, noticeVersion]);
   const finish = useCallback((attemptId: string) => api.finishConnect(attemptId), [api]);
   const connected = useCallback(() => { onChanged(); }, [onChanged]);
   const { phase, begin, cancel } = useConnectAttempt({ start, finish, onConnected: connected });
@@ -33,7 +34,7 @@ export function SourcesDialog({ api, connections, notice, noticeVersion, onChang
 
   async function check(connection: OfficeConnection) {
     setChecking(true);
-    try { await api.files(connection.id, { limit: 1 }); } catch { /* the refreshed overview shows the outcome */ }
+    try { await api.health(connection.id); } catch { /* the refreshed overview shows the outcome */ }
     setChecking(false); onChanged();
   }
   return <Dialog open={open} onOpenChange={setOpen}>
@@ -51,20 +52,21 @@ export function SourcesDialog({ api, connections, notice, noticeVersion, onChang
             <span className="flex-1 font-medium">{name}</span>
             <StatusBadge tone={healthy ? "success" : "warning"} label={healthy ? t("connected") : connection.health === "reconnect_needed" || !platform ? t("reconnect") : t("attention")} />
             {!healthy && platform && connection.health !== "reconnect_needed" && <Button type="button" variant="outline" size="responsive" disabled={checking} onClick={() => void check(connection)}>{checking ? <Spinner /> : <RotateCw aria-hidden="true" />}{t("checkAgain")}</Button>}
+            {platform && connection.health === "reconnect_needed" && <Button type="button" variant="outline" size="responsive" disabled={busy} data-testid="source-reconnect" onClick={() => { reconnectId.current = connection.id; void begin(platform); }}>{phase.name === "starting" ? <Spinner /> : <RotateCw aria-hidden="true" />}{t("reconnectWith", { provider: name })}</Button>}
             <ConfirmDialog tone="destructive" title={t("disconnectTitle", { name })} description={t("disconnectBody")} confirmLabel={t("disconnect")} cancelLabel={t("cancel")} busyLabel={t("disconnecting")}
               onConfirm={async () => { const result = await api.disconnect(connection.id); if (result.state !== "disconnected") throw new OfficeApiError(0); notify.success(t("disconnected")); onChanged(); }}
               trigger={<Button type="button" variant="ghost" size="responsive" data-testid="source-disconnect" aria-label={t("disconnectValue", { name })}><Unplug aria-hidden="true" />{t("disconnect")}</Button>} />
           </li>;
         })}
       </ul>
-      {connections.length === 0 && (phase.name === "pending"
+      {(connections.length === 0 || phase.name === "pending") && (phase.name === "pending"
         ? <Alert role="status" data-testid="connect-pending"><Spinner /><AlertTitle>{t("pendingTitle")}</AlertTitle><AlertDescription>
           <p>{t("pendingBody")}</p>
           <div className="mt-2 flex flex-wrap gap-2">
             {phase.url && <Button asChild variant="outline" size="responsive"><a href={phase.url} target="_blank" rel="noopener noreferrer">{t("openAgain")}</a></Button>}
             <Button type="button" variant="outline" size="responsive" onClick={cancel}>{t("cancel")}</Button>
           </div></AlertDescription></Alert>
-        : <div className="flex flex-col gap-2 sm:flex-row" role="group" aria-label={t("choose")}>
+        : connections.length > 0 ? null : <div className="flex flex-col gap-2 sm:flex-row" role="group" aria-label={t("choose")}>
           {(["google", "microsoft"] as const).map((platform) => <Button key={platform} type="button" variant="outline" size="responsive" className="sm:flex-1" disabled={busy} onClick={() => void begin(platform)} data-testid={`connect-${platform}`}>
             {phase.name === "starting" && phase.platform === platform ? <Spinner /> : <SourceLogo source={platform} className="size-5" />}{t("connectWith", { provider: sourceNames[platform] })}
           </Button>)}

@@ -10,8 +10,11 @@ export const filesApi = (tenantId: string) => {
     call<Result<T>>(tenantId, { method: "POST", signal, body: { action, connectionId, input } });
   return {
     overview: (signal?: AbortSignal) => call<OfficeOverview>(tenantId, { method: "GET", signal }),
-    startConnect: (platform: OfficePlatform, noticeVersion: number) =>
-      call<Pending | { state: Failure }>(tenantId, { method: "POST", body: { action: "startConnect", input: { kind: "files", platform, noticeVersion } } }),
+    /** With `connectionId` this reconnects that connection (same provider account) instead of adding one. */
+    startConnect: (platform: OfficePlatform, noticeVersion: number, connectionId?: string) =>
+      call<Pending | { state: Failure }>(tenantId, { method: "POST", body: { action: "startConnect", ...(connectionId ? { connectionId } : {}), input: { kind: "files", platform, noticeVersion } } }),
+    /** Read-only: refreshes the stored health and grants of the person's own connection. */
+    health: (connectionId: string) => call<{ state: string }>(tenantId, { method: "POST", body: { action: "health", connectionId, input: {} } }),
     finishConnect: (attemptId: string) => call<Connected | { state: "pending" | "failed" }>(tenantId, { method: "POST", body: { action: "finishConnect", input: { attemptId } } }),
     disconnect: (connectionId: string) => call<{ state: string }>(tenantId, { method: "POST", body: { action: "disconnect", connectionId, input: {} } }),
     files: (connectionId: string, input: { folderRef?: string; search?: string; cursor?: string; limit?: number }, signal?: AbortSignal) => run<Page<DriveItem>>("files", connectionId, input, signal),
