@@ -3862,7 +3862,45 @@
     "rosterNext": "Next page",
     "unnamed": "Unnamed member",
     "previewTime": "{start} to {end}, {zone}",
-    "joinPlaceholder": "https://"
+    "joinPlaceholder": "https://",
+    "cover": {
+      "label": "Cover image",
+      "alt": "Event cover",
+      "drop": "Drop an image here",
+      "limits": "JPG, PNG or WebP, up to {mb} MB",
+      "select": "Select image",
+      "replace": "Replace",
+      "remove": "Remove",
+      "saveFirst": "Save the event to add a cover.",
+      "saved": "Cover updated.",
+      "removed": "Cover removed.",
+      "removeTitle": "Remove the cover?",
+      "removeBody": "The event will have no cover image.",
+      "keep": "Keep cover",
+      "progressLabel": "Upload progress",
+      "cancel": "Cancel",
+      "scanning": "Waiting for the safety check.",
+      "checkAgain": "Check again",
+      "dismiss": "Dismiss",
+      "tryAgain": "Try again",
+      "chooseAnother": "Choose another",
+      "reload": "Reload",
+      "phases": {
+        "preparing": "Preparing",
+        "uploading": "Uploading",
+        "uploadingPercent": "Uploading {percent}%",
+        "verifying": "Checking the image"
+      },
+      "problems": {
+        "type": "Use a JPG, PNG or WebP image.",
+        "size": "The image must be larger than 0 and at most {mb} MB.",
+        "rejected": "This image was not accepted. Choose another.",
+        "interrupted": "The upload was interrupted. Try again.",
+        "failed": "The image could not be uploaded. Try again.",
+        "scan": "The image failed the safety check. Choose another.",
+        "stale": "This event changed since you opened it. Reload, then try again."
+      }
+    }
   },
   "SocialPublish": {
     "nav": {

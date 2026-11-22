@@ -82,7 +82,7 @@ it("never attaches unscanned or quarantined images and permits a clean retry aft
   const { adapter, storage } = fakeStorage();
   const pending = (await createEventCoverUpload(f.db, owner, scope, intent, storage)).file.id;
   await expect(setEventCover(f.db, owner, scope, { fileId: pending, version: 1 })).rejects.toMatchObject(missing);
-  const skipped = await confirmEventCoverUpload(f.db, owner, scope, pending, storage);
+  const skipped = await confirmEventCoverUpload(f.db, owner, scope, pending, storage, undefined, { NODE_ENV: "production" });
   expect(skipped.status).toBe("uploaded");
   await expect(setEventCover(f.db, owner, scope, { fileId: pending, version: 1 })).rejects.toMatchObject(missing);
   const bad = (await createEventCoverUpload(f.db, owner, scope, intent, storage)).file.id;
@@ -95,6 +95,14 @@ it("never attaches unscanned or quarantined images and permits a clean retry aft
   expect((await confirmEventCoverUpload(f.db, owner, scope, pending, storage, clean)).status).toBe("ready");
   await setEventCover(f.db, owner, scope, { fileId: pending, version: 1 });
   expect(adapter.presignDownload).not.toHaveBeenCalled();
+});
+
+it("releases a skipped scan outside production only", async () => {
+  const scope = await draft();
+  const { storage } = fakeStorage();
+  const id = (await createEventCoverUpload(f.db, owner, scope, intent, storage)).file.id;
+  expect((await confirmEventCoverUpload(f.db, owner, scope, id, storage, undefined, { NODE_ENV: "production" })).status).toBe("uploaded");
+  expect((await confirmEventCoverUpload(f.db, owner, scope, id, storage, undefined, { NODE_ENV: "development" })).status).toBe("ready");
 });
 
 it("signs a ready cover only for viewers of the canonical event, with staff-only draft access", async () => {
@@ -213,7 +221,7 @@ it("retires abandoned pending and uploaded files over 24 hours old and cleans th
   const [pending, uploaded, fresh] = await Promise.all(Array.from({ length: 3 }, () =>
     createEventCoverUpload(f.db, owner, scope, intent, storage).then(result => result.file.id)));
   const readyFile = await ready(scope, storage);
-  await confirmEventCoverUpload(f.db, owner, scope, uploaded, storage);
+  await confirmEventCoverUpload(f.db, owner, scope, uploaded, storage, undefined, { NODE_ENV: "production" });
   await f.admin.query("update event_files set created_at=now()-interval '25 hours' where id=any($1::uuid[])", [[pending, uploaded, readyFile]]);
   for (const id of [pending, uploaded, fresh, readyFile]) objects.add(objectKey(scope, id));
 
@@ -228,7 +236,7 @@ it("caps unresolved upload intents at ten per event across managers", async () =
   const scope = await draft();
   const { adapter, storage } = fakeStorage();
   const first = (await createEventCoverUpload(f.db, owner, scope, intent, storage)).file.id;
-  await confirmEventCoverUpload(f.db, owner, scope, first, storage);
+  await confirmEventCoverUpload(f.db, owner, scope, first, storage, undefined, { NODE_ENV: "production" });
   await Promise.all(Array.from({ length: 9 }, () => createEventCoverUpload(f.db, admin, scope, intent, storage)));
   await expect(createEventCoverUpload(f.db, owner, scope, intent, storage)).rejects.toMatchObject({ status: 400 });
   expect(adapter.presignUpload).toHaveBeenCalledTimes(10);

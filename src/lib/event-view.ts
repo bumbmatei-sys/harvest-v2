@@ -6,6 +6,8 @@ export type EventItem = {
   id: string; title: string; description: string; timeZone: string; startsAt: string; endsAt: string; updatedAt: string;
   status: "draft" | "published" | "cancelled"; version: number; capacity: number | null; available: number | null;
   rsvp: EventState | null; rsvpVersion: number; canClaimSeat: boolean; reminderMinutes: number | null;
+  /** Set by the cover routes; the picture itself is only ever read through the signed address the cover route returns. */
+  coverFileId?: string | null;
 };
 export type EventPhase = "draft" | "cancelled" | "ended" | "live" | "upcoming";
 
