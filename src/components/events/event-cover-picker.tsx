@@ -1,4 +1,5 @@
-/** Derived from Shadcn UI Kit (premium, founder-supplied admin-dashboard 1631106): app/dashboard/(auth)/apps/pos-system/components/add-product-dialog.tsx, the image drop zone. Local changes: docs/ui-sources.md. */
+/** Layout and behaviour modelled on bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): app/dashboard/(auth)/apps/pos-system/components/add-product-dialog.tsx; code written for Harvest, no kit code copied. */
+/* eslint-disable @next/next/no-img-element -- the cover is a short-lived signed address from the server; not optimisable */
 "use client";
 import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";

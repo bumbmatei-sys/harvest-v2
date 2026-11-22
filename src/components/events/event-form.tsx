@@ -96,6 +96,7 @@ export function EventForm({ tenantId, eventId, initial, initialFields, listHref,
   const sidebar = { typeLabel: t("typeLabel"), status: { kind: data?.status === "published" ? "live" as const : "draft" as const, label: t(`phases.${data?.status === "published" ? "upcoming" : data?.status ?? "draft"}`) },
     back: { href: listHref, label: t("title") }, dirty };
   const preview = <Card className={cover.url && data?.coverFileId ? "gap-0 overflow-hidden py-0" : undefined}>
+    {/* eslint-disable-next-line @next/next/no-img-element -- a short-lived signed address from the server; not optimisable */}
     {cover.url && data?.coverFileId && <img src={cover.url} alt="" className="aspect-video w-full object-cover" data-testid="cover-preview" onError={cover.failed} />}
     <CardContent className={cover.url && data?.coverFileId ? "space-y-2 py-6" : "space-y-2 pt-6"}>
     <p className="text-base font-semibold break-words">{fields.title.trim() || t("untitled")}</p>
