@@ -75,7 +75,7 @@ export async function loadCrmForm(tx: Parameters<Parameters<typeof withTenant>[4
   const [row] = (await tx.execute(sql`select f.id, f.created_at as "createdAt", coalesce(nullif(u.name, ''), u.email) as "createdBy",
       v.definition, v.id as "draftId", v.version as "draftVersion", a.slug, a.version_id as "publishedId",
       exists (select 1 from crm_form_publications p where p.tenant_id = f.tenant_id and p.form_id = f.id and p.version_id = v.id) as "frozen",
-      (select count(*)::int from crm_form_responses r where r.tenant_id = f.tenant_id and r.form_id = f.id) as "responseCount"
+      (select count(*)::int from crm_form_responses r where r.tenant_id = f.tenant_id and r.form_id = f.id and r.expires_at > now()) as "responseCount"
     from forms f
     join lateral (select id, version, definition from form_versions where tenant_id = f.tenant_id and form_id = f.id
       and status = 'draft' and definition->>'kind' = ${FORM_KIND} order by version desc limit 1) v on true

@@ -29,7 +29,7 @@ export type ListRow = typeof contacts.$inferSelect & {
   identifiers: (typeof contactIdentifiers.$inferSelect)[];
   companies: { contactId: string; companyId: string; name: string; isPrimary: boolean; title: string | null }[];
   custom: Record<string, import("../lib/crm-fields").FieldValue>;
-  sourceKinds?: ("manual" | "csv_import" | "connect")[];
+  sourceKinds?: (typeof contactSourceEvents.$inferSelect.kind)[];
 };
 
 /**
@@ -132,7 +132,11 @@ export function getContact(db: Database, userId: string, workspace: string, cont
     const possibleDuplicates = row.normalizedName.length >= DUPLICATE_MIN_LENGTH ? await tx.select({ id: contacts.id, name: contacts.name, createdAt: contacts.createdAt }).from(contacts)
       .where(and(eq(contacts.tenantId, tenantId), isNull(contacts.erasedAt), eq(contacts.normalizedName, row.normalizedName), ne(contacts.id, id)))
       .orderBy(asc(contacts.createdAt), asc(contacts.id)).limit(5) : [];
-    const sourceHistory = can(role, "contacts:sources_read") ? await tx.select({ id: contactSourceEvents.id, kind: contactSourceEvents.kind, outcome: contactSourceEvents.outcome, sourceLabel: sql<string|null>`public.contact_connect_source_label(${tenantId}::uuid,${contactSourceEvents.id})`, entryRoute: contactSourceEvents.entryRoute, occurredAt: contactSourceEvents.occurredAt, revertedAt: contactSourceEvents.revertedAt }).from(contactSourceEvents)
+    const sourceHistory = can(role, "contacts:sources_read") ? await tx.select({ id: contactSourceEvents.id, kind: contactSourceEvents.kind, outcome: contactSourceEvents.outcome, sourceLabel: sql<string|null>`case when ${contactSourceEvents.kind} = 'form' then (
+      select p.definition->>'title' from crm_form_responses r join crm_form_publications p
+        on (p.tenant_id, p.form_id, p.version_id) = (r.tenant_id, r.form_id, r.version_id)
+      where r.tenant_id = ${tenantId} and r.id = contact_source_events.crm_form_response_id
+    ) else public.contact_connect_source_label(${tenantId}::uuid,${contactSourceEvents.id}) end`, entryRoute: contactSourceEvents.entryRoute, occurredAt: contactSourceEvents.occurredAt, revertedAt: contactSourceEvents.revertedAt }).from(contactSourceEvents)
       .where(and(eq(contactSourceEvents.tenantId, tenantId), eq(contactSourceEvents.contactId, id))).orderBy(desc(contactSourceEvents.occurredAt), desc(contactSourceEvents.id)).limit(51) : undefined;
     return { ...row, identifiers, consents, effectiveConsents, companies: companyLinks, possibleDuplicates, ...(sourceHistory ? {sourceHistory: sourceHistory.slice(0,50), sourceHistoryHasMore: sourceHistory.length > 50} : {}) };
   });

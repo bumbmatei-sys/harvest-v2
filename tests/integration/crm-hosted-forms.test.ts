@@ -3,12 +3,17 @@ import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { GET } from "../../src/app/f/[slug]/route";
 import { POST } from "../../src/app/f/[slug]/submit/route";
+import { fullState, serializeSourceRule, sourceRule } from "../../src/lib/crm-fields";
 import { buildForm, type FormDefinition } from "../../src/lib/crm-forms";
 import { mayContact } from "../../src/server/consent-gate";
 import { createConnectLink, transitionConnectLink } from "../../src/server/connect-links";
-import { createContact, eraseContact } from "../../src/server/contacts";
+import { createContact, eraseContact, getContact, listContacts } from "../../src/server/contacts";
 import { listCrmFormResponses, purgeCrmFormResponses, transitionCrmForm } from "../../src/server/crm-form-publication";
 import { createCrmForm, getCrmForm, saveCrmForm } from "../../src/server/crm-forms";
+import { exportCount, exportRecords } from "../../src/server/crm-export";
+import { resolveListView } from "../../src/server/crm-list-view";
+import { sourceOptions } from "../../src/server/crm-sources";
+import { createView } from "../../src/server/crm-views";
 import { createPipeline } from "../../src/server/crm-deals";
 import { mergeContacts } from "../../src/server/crm-merge";
 import { withTenant } from "../../src/server/tenancy";
@@ -20,7 +25,7 @@ vi.mock("../../src/db/client", () => ({ getDb: () => fixture.db }));
 let fixture: Awaited<ReturnType<typeof testDatabase>>;
 let people: Awaited<ReturnType<typeof seedPeople>>;
 let fetchSpy: ReturnType<typeof noNetwork>;
-const legacy = { tenant: randomUUID(), form: randomUUID(), owner: "legacy-crm-form-owner" };
+const legacy = { tenant: randomUUID(), form: randomUUID(), contact: randomUUID(), owner: "legacy-crm-form-owner" };
 const origin = "http://localhost:3000";
 
 beforeAll(async () => {
@@ -33,6 +38,10 @@ beforeAll(async () => {
     const earlier = buildForm(null, { type: "people" }, key => key, new Date().toISOString());
     await db.query("insert into form_versions(tenant_id,form_id,version,definition,created_by) values($1,$2,1,$3,$4)",
       [legacy.tenant, legacy.form, earlier, legacy.owner]);
+  }, beforeCrmFormProvenanceMigration: async db => {
+    await db.query("insert into contacts(tenant_id,id,name) values($1,$2,'Existing person')", [legacy.tenant, legacy.contact]);
+    await db.query("insert into contact_source_events(tenant_id,contact_id,kind,outcome) values($1,$2,'manual','created')",
+      [legacy.tenant, legacy.contact]);
   } });
   people = await seedPeople(fixture, "hosted-forms");
   vi.stubEnv("HARVEST_CRM_FORMS", "synthetic");
@@ -83,6 +92,9 @@ async function body(slug: string, responseAnswers: Record<string, string> = answ
 
 it("upgrades an existing draft as a restricted owner and scopes table and function privileges", async () => {
   expect(await getCrmForm(fixture.db, legacy.owner, legacy.tenant, legacy.form)).toMatchObject({ responseCount: 0, publication: null });
+  expect(await getContact(fixture.db, legacy.owner, legacy.tenant, legacy.contact)).toMatchObject({
+    sourceHistory: [{ kind: "manual", outcome: "created" }],
+  });
   const { rows: [owner] } = await fixture.admin.query("select rolsuper, rolbypassrls from pg_roles where rolname=$1", [fixture.migrationOwner]);
   expect(owner).toEqual({ rolsuper: false, rolbypassrls: false });
   const { rows } = await fixture.admin.query(`select relname, relforcerowsecurity from pg_class
@@ -113,6 +125,8 @@ it("refuses owner publication and retirement in production mode", async () => {
     const prior = process.env[setting];
     process.env[setting] = "production";
     try {
+      expect((await get("production-mode-active")).status).toBe(404);
+      expect((await post("production-mode-active", "{}")).status).toBe(404);
       for (const { formId, input } of transitions) {
         await expect(transitionCrmForm(fixture.db, people.owner, people.tenant, formId, input)).rejects.toMatchObject({ status: 404 });
       }
@@ -221,11 +235,20 @@ it("accepts an account-less response once, scopes provenance, and exposes a pagi
   const accepted = await send(original);
   expect(accepted.status).toBe(200);
   expect(await accepted.json()).toEqual({ accepted: true });
+  const sources = () => fixture.admin.query(`select s.kind, s.outcome, a.slug, r.form_id, r.campaign_id, r.qr_link_id
+    from contact_source_events s join crm_form_responses r on (r.tenant_id,r.id)=(s.tenant_id,s.crm_form_response_id)
+    join crm_form_addresses a on (a.tenant_id,a.form_id)=(r.tenant_id,r.form_id) where r.form_id=$1
+    order by s.occurred_at`, [form.id]);
+  const firstSource = { kind: "form", outcome: "created", slug: "organization-form", form_id: form.id,
+    campaign_id: local.id, qr_link_id: local.link.id };
+  expect((await sources()).rows).toEqual([firstSource]);
   expect((await send(original)).status).toBe(200);
+  expect((await sources()).rows).toEqual([firstSource]);
   expect((await send({ ...original, answers: { ...withOrganization, choice00: "B" } })).status).toBe(409);
 
   const second = await body("organization-form", { ...withOrganization, fullname: "Unverified overwrite" });
   expect((await send({ ...second, campaign: local.id })).status).toBe(200);
+  expect((await sources()).rows).toEqual([firstSource, { ...firstSource, outcome: "updated", qr_link_id: null }]);
   const page = await listCrmFormResponses(fixture.db, people.owner, people.tenant, form.id, { limit: 1 });
   expect(page).toMatchObject({ count: 2, nextCursor: expect.any(String), responses: [{
     versionId: publication?.versionId, ownerId: people.member, labels: ["Registration", "Visitor"], campaignId: local.id,
@@ -253,8 +276,10 @@ it("accepts an account-less response once, scopes provenance, and exposes a pagi
     [form.id])).rows[0].n).toBe(2);
   expect(await getCrmForm(fixture.db, people.admin, people.tenant, form.id)).toMatchObject({ responseCount: 2 });
   for (const user of [people.member, people.viewer, people.outsider]) {
+    await expect(getCrmForm(fixture.db, user, people.tenant, form.id)).rejects.toMatchObject({ status: 403 });
     await expect(listCrmFormResponses(fixture.db, user, people.tenant, form.id, {})).rejects.toMatchObject({ status: 403 });
   }
+  await expect(getCrmForm(fixture.db, people.outsider, people.other, form.id)).rejects.toMatchObject({ status: 404 });
   await expect(listCrmFormResponses(fixture.db, people.outsider, people.other, form.id, {})).rejects.toMatchObject({ status: 404 });
   await withTenant(fixture.db, people.outsider, people.other, "crm:forms_manage", async tx => {
     expect((await tx.execute(sql`select id from crm_form_responses where tenant_id = ${people.tenant}`)).rows).toEqual([]);
@@ -321,7 +346,7 @@ it("avoids split-identity merges and creates the published pipeline destination 
 
 it("repoints responses on merge, deletes them on erasure, suppresses replay, and purges expired responses", async () => {
   const form = await draft();
-  await publish(form.id, "rights-form", form.revision);
+  const publication = await publish(form.id, "rights-form", form.revision);
   const payload = await body("rights-form", answers("rights@example.test"));
   const send = () => post("rights-form", JSON.stringify(payload));
   expect((await send()).status).toBe(200);
@@ -332,14 +357,76 @@ it("repoints responses on merge, deletes them on erasure, suppresses replay, and
     count: 1, responses: [{ contactId: target.id, answers: payload.answers }],
   });
   expect((await fixture.admin.query("select count(*)::int n from contacts where tenant_id=$1 and id=$2", [people.tenant, source])).rows[0].n).toBe(0);
+  expect(await getContact(fixture.db, people.admin, people.tenant, target.id)).toMatchObject({
+    sourceHistory: expect.arrayContaining([expect.objectContaining({ kind: "form", outcome: "created" })]),
+  });
+  const sourceEvent = (await fixture.admin.query("select id from contact_source_events where contact_id=$1 and kind='form'", [target.id])).rows[0].id;
   await eraseContact(fixture.db, people.owner, people.tenant, target.id);
   expect((await send()).status).toBe(200);
   expect((await fixture.admin.query("select count(*)::int n from crm_form_responses where form_id=$1", [form.id])).rows[0].n).toBe(0);
 
+  expect((await fixture.admin.query("select id from contact_source_events where id=$1", [sourceEvent])).rows).toEqual([]);
+
   const expired = await body("rights-form", answers("expires@example.test"));
   expect((await post("rights-form", JSON.stringify(expired))).status).toBe(200);
+  expect(await getCrmForm(fixture.db, people.owner, people.tenant, form.id)).toMatchObject({ responseCount: 1 });
   await fixture.admin.query(`update crm_form_responses set submitted_at=now()-interval '31 days', expires_at=now()-interval '1 day' where form_id=$1`, [form.id]);
   expect(await getCrmForm(fixture.db, people.owner, people.tenant, form.id)).toMatchObject({ responseCount: 0 });
+  expect(await listCrmFormResponses(fixture.db, people.admin, people.tenant, form.id, {})).toEqual({ count: 0, responses: [], nextCursor: null });
+  expect(await listContacts(fixture.db, people.owner, people.tenant, {
+    s: serializeSourceRule(sourceRule.parse({ mode: "include", kinds: ["form"], forms: [publication?.versionId] })),
+  })).toMatchObject({ total: 0 });
   expect(await purgeCrmFormResponses(fixture.db, people.admin, people.tenant)).toEqual({ removed: 1 });
   expect((await fixture.admin.query("select count(*)::int n from crm_form_responses where form_id=$1", [form.id])).rows[0].n).toBe(0);
+});
+
+it("uses the same hosted source rules for list, count, saved views and export", async () => {
+  const form = await draft(definition => { definition.title = "Welcome registration"; });
+  const publication = await publish(form.id, "source-filter-form", form.revision);
+  const version = publication!.versionId!;
+  const local = await campaign(people.tenant, people.owner, "Source filter campaign");
+  const payload = await body("source-filter-form", answers("source-filter@example.test"));
+  expect((await post("source-filter-form", JSON.stringify({ ...payload, qr: local.link.publicCode }))).status).toBe(200);
+  const [person] = (await fixture.admin.query("select contact_id from crm_form_responses where form_id=$1", [form.id])).rows;
+  const manual = await createContact(fixture.db, people.owner, people.tenant, { name: "Source filter manual", email: "manual-source-filter@example.test" });
+  await createContact(fixture.db, people.outsider, people.other, { name: "Other ministry", email: "source-filter@example.test" });
+
+  form.definition.title = "Unpublished rename";
+  await saveCrmForm(fixture.db, people.admin, people.tenant, form.id, { definition: form.definition, revision: form.revision });
+  expect(await getContact(fixture.db, people.owner, people.tenant, person.contact_id)).toMatchObject({
+    sourceHistory: [{ kind: "form", sourceLabel: "Welcome registration" }],
+  });
+  expect((await sourceOptions(fixture.db, people.admin, people.tenant)).hostedForms).toContainEqual({ id: version, name: "Welcome registration" });
+  expect((await sourceOptions(fixture.db, people.outsider, people.other)).hostedForms).toEqual([]);
+
+  const attributes = { kinds: ["form"], forms: [version], campaigns: [local.id], links: [local.link.id] };
+  const include = sourceRule.parse({ mode: "include", ...attributes });
+  const exclude = sourceRule.parse({ mode: "exclude", ...attributes });
+  const actor = people.owner;
+  const tenant = people.tenant;
+  for (const [rule, expectedId, email] of [[include, person.contact_id, "source-filter@example.test"], [exclude, manual.id, "manual-source-filter@example.test"]] as const) {
+    const state = fullState({ sources: [rule], columns: ["name", "source"] });
+    const params = { s: serializeSourceRule(rule), cols: "name,source" };
+    const list = await listContacts(fixture.db, actor, tenant, params);
+    const count = await exportCount(fixture.db, actor, tenant, "person", params);
+    const csv = await exportRecords(fixture.db, actor, tenant, "person", params);
+    expect(list.rows.some(row => row.id === person.contact_id)).toBe(rule.mode === "include");
+    expect(list.rows.some(row => row.id === manual.id)).toBe(rule.mode === "exclude");
+    expect(list.total).toBe(count.total);
+    expect(list.total).toBe(csv.rows);
+    expect(csv.body).toContain(`,${email},`);
+    expect(csv.body).not.toContain(rule.mode === "include" ? ",manual-source-filter@example.test," : ",source-filter@example.test,");
+    const view = await createView(fixture.db, actor, tenant, { objectType: "person", name: `Hosted source ${rule.mode}`, state });
+    const saved = await resolveListView(fixture.db, actor, tenant, "person", { view: view.id }, true,
+      raw => listContacts(fixture.db, actor, tenant, raw));
+    expect(saved.list.rows.map(row => row.id)).toContain(expectedId);
+    expect(saved.list.rows.map(row => row.id)).toEqual(list.rows.map(row => row.id));
+  }
+  const kindOnly = { s: serializeSourceRule(sourceRule.parse({ mode: "include", kinds: ["form"] })) };
+  expect(await listContacts(fixture.db, people.outsider, people.other, kindOnly)).toMatchObject({ total: 0 });
+  expect(await exportCount(fixture.db, people.outsider, people.other, "person", kindOnly)).toMatchObject({ total: 0 });
+  expect(await exportRecords(fixture.db, people.outsider, people.other, "person", kindOnly)).toMatchObject({ rows: 0 });
+  expect(await listContacts(fixture.db, people.member, tenant, kindOnly)).toMatchObject({ locked: "source_access", total: 0 });
+  expect(await listContacts(fixture.db, people.outsider, people.other, { s: serializeSourceRule(include) }))
+    .toMatchObject({ locked: "invalid_source", total: 0 });
 });
