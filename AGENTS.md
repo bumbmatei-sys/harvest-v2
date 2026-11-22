@@ -12,7 +12,7 @@ UI uses shadcn components only (npx shadcn add ...); do not build from scratch a
 
 ## Harvest shared UI architecture
 
-Studio Admin is the founder-approved primary visual reference for the entire application (shell, pages, tables, forms, editors, dashboards and Harvest Studio inbox). Follow `docs/plans/studio-admin-adoption.md`. Use Harvest's existing shadcn primitives and shared architecture; verify upstream file licenses before adaptation. Do not use OpenShadcnBlocks or reintroduce its registry aliases.
+Studio Admin is the founder-approved primary visual reference for the entire application (shell, pages, tables, forms, editors, dashboards and Harvest Studio inbox). Follow `docs/plans/studio-admin-adoption.md`. Use Harvest's existing shadcn primitives and shared architecture; verify upstream file licenses before adaptation. OpenShadcnBlocks (https://openshadcnblocks.pages.dev) was previously excluded because it was inaccessible; the founder lifted that restriction on 22 Nov 2026 for its open-source blocks (stated MIT), starting with the user-profile blocks as the layout reference for link in bio. Before copying, verify the licence file and record the measured provenance in `docs/ui-sources.md` and `src/lib/ui-provenance.ts`; use only blocks you read and verify, and do not restore its nonfunctional registry aliases.
 
 Theme direction: faithfully match Studio Admin's default colors, typography, spacing and surfaces first, across light/dark modes. Keep existing Harvest gold tokens available for a later optional theme, but do not make gold the default or add the prior palette shortlist as part of this adoption. See `docs/plans/studio-admin-adoption.md`.
 
