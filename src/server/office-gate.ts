@@ -1,4 +1,5 @@
 import "server-only";
+import { notFound } from "next/navigation";
 import { communitiesEnabled } from "./communities-mode";
 import type { OfficeDeps } from "./office-provider/connections";
 import { FakeOfficeProvider } from "./office-provider/fake-provider";
@@ -16,3 +17,8 @@ export function officeRouteDeps(): OfficeDeps | null {
   synthetic ??= { credential, provider: new FakeOfficeProvider(credential.secret, now, true), now, review: new OfficeMailReview(now) };
   return synthetic;
 }
+
+/** The Office screens follow the same gate as the routes: not in production, and only while Communities are on. */
+export const officeScreensEnabled = officeGateOpen;
+/** Office pages answer 404 before any session work while the gate is closed. */
+export function requireOfficeScreens() { if (!officeGateOpen()) notFound(); }
