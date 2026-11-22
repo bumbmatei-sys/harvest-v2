@@ -25,6 +25,8 @@ const mailSubject = "office-mail-subject-canary", mailBody = "office-mail-body-c
 const address = "office-address-canary@example.test", eventTitle = "office-event-title-canary";
 const contactId = randomUUID(), otherContact = randomUUID();
 const legacyMinistry = randomUUID(), legacyId = randomUUID(), legacyOwner = "office-legacy-owner";
+const upgradeAdmin = "office-upgrade-admin";
+const upgradeDriveId = randomUUID(), upgradeOneDriveId = randomUUID(), upgradeAttemptId = randomUUID();
 let fetchSpy: ReturnType<typeof noNetwork>;
 
 beforeAll(async () => {
@@ -37,6 +39,16 @@ beforeAll(async () => {
       values ($1,$2,$3,'mail','fake','legacy-account',
         '{"version":1,"keyId":"legacy","binding":"legacy","iv":"legacy","tag":"legacy","ciphertext":"legacy-envelope-canary"}')`,
     [legacyMinistry, legacyId, legacyOwner]);
+  }, beforeOfficeFilesMigration: async db => {
+    await db.query("insert into users(id,name,email) values($1,$1,$2)", [upgradeAdmin, `${upgradeAdmin}@example.test`]);
+    await db.query("insert into workspace_members(tenant_id,user_id,role_id) values($1,$2,'admin')", [legacyMinistry, upgradeAdmin]);
+    await db.query(`insert into office_connections(tenant_id,id,owner_user_id,kind,provider,external_account_ref,platform,profile_ref,notice_version,health,grants)
+      values ($1,$2,$3,'files','fake','upgrade-drive','google','upgrade-google-profile',1,'healthy',4),
+             ($1,$4,$5,'files','fake','upgrade-onedrive','microsoft','upgrade-microsoft-profile',1,'healthy',4)`,
+    [legacyMinistry, upgradeDriveId, legacyOwner, upgradeOneDriveId, upgradeAdmin]);
+    await db.query(`insert into office_connect_attempts(tenant_id,owner_user_id,id,kind,platform,connection_id,provider,profile_ref,handoff_ref,notice_version,expires_at)
+      values ($1,$2,$3,'files','google',$4,'fake','upgrade-google-profile','upgrade-handoff',1,$5)`,
+    [legacyMinistry, legacyOwner, upgradeAttemptId, upgradeDriveId, new Date(now().getTime() + 60_000)]);
   } });
   people = await seedPeople(f, "office");
   otherAdmin = "office-admin-two";
@@ -68,9 +80,87 @@ async function connect(kind: ConnectionKind, platform: OfficePlatform, actor = p
   return { id, account: { kind, platform, ref: row.external_account_ref, profileRef: row.profile_ref } satisfies OfficeAccount };
 }
 
+it("upgrades populated Files connections and handoffs as a restricted migration owner", async () => {
+  expect(f.migrationOwner).toBeTruthy();
+  for (const [actor, id, platform] of [[legacyOwner, upgradeDriveId, "google"], [upgradeAdmin, upgradeOneDriveId, "microsoft"]]) {
+    const { connections } = await listOfficeConnections(f.db, actor, legacyMinistry, deps);
+    expect(connections.filter(row => row.kind === "files")).toMatchObject([{ id, platform, grants: 4, health: "healthy", noticeVersion: 1 }]);
+  }
+  const pending = await f.admin.query("select id, connection_id, platform from office_connect_attempts where tenant_id=$1", [legacyMinistry]);
+  expect(pending.rows).toEqual([{ id: upgradeAttemptId, connection_id: upgradeDriveId, platform: "google" }]);
+  const second = await connect("files", "microsoft", legacyOwner, legacyMinistry);
+  expect((await listOfficeConnections(f.db, legacyOwner, legacyMinistry, deps)).connections
+    .filter(row => row.kind === "files").map(row => row.id)).toEqual(expect.arrayContaining([upgradeDriveId, second.id]));
+});
+
+it("connects, lists, checks and disconnects each drive independently", async () => {
+  const google = await connect("files", "google");
+  const microsoft = await connect("files", "microsoft");
+  for (const { id, account } of [google, microsoft]) {
+    const file = { ref: `root-${account.platform}`, name: `${account.platform}.txt`, kind: "file" as const,
+      parentRef: null, mimeType: "text/plain", size: 7, webUrl: null };
+    provider.seed(credential, account, { files: [file] });
+    expect(await run("files", {}, id)).toMatchObject({ state: "available", data: { items: [file] } });
+    expect(await run("health", {}, id)).toMatchObject({ state: "available", data: { id, health: "healthy" } });
+    await expect(run("startConnect", { kind: "files", platform: account.platform, noticeVersion: 1 })).rejects.toMatchObject({ status: 409 });
+    await expect(run("files", {}, id, otherAdmin)).rejects.toMatchObject({ status: 404 });
+    await expect(run("health", {}, id, otherAdmin)).rejects.toMatchObject({ status: 404 });
+    await expect(run("disconnect", {}, id, otherAdmin)).rejects.toMatchObject({ status: 404 });
+  }
+  const overview = await listOfficeConnections(f.db, people.admin, people.tenant, deps);
+  expect(overview.connections).toEqual(expect.arrayContaining([
+    expect.objectContaining({ id: google.id, kind: "files", platform: "google" }),
+    expect.objectContaining({ id: microsoft.id, kind: "files", platform: "microsoft" }),
+  ]));
+  expect(overview.connections).toHaveLength(2);
+  expect((await listOfficeConnections(f.db, otherAdmin, people.tenant, deps)).connections).toEqual([]);
+  await withUser(f.db, otherAdmin, async tx => {
+    await tx.execute(sql`select set_config('app.tenant_id', ${people.tenant}, true)`);
+    expect((await tx.execute(sql`select id from office_connections where kind='files'`)).rows).toEqual([]);
+    expect((await tx.execute(sql`select id from audit_logs where action like 'office.%'`)).rows).toEqual([]);
+  });
+  const insertConnection = (actor: string, ref: string) => f.admin.query(
+    `insert into office_connections(tenant_id,owner_user_id,kind,provider,external_account_ref,platform,profile_ref,notice_version)
+     values ($1,$2,'files','fake',$3,'microsoft','alternate-profile',1)`, [people.tenant, actor, ref]);
+  await expect(insertConnection(people.admin, "alternate-account")).rejects.toMatchObject({
+    code: "23505", constraint: "office_connection_personal_files_platform_idx",
+  });
+  await expect(insertConnection(otherAdmin, google.account.ref)).rejects.toMatchObject({
+    code: "23505", constraint: "office_connection_provider_account_idx",
+  });
+  const reconnectId = await start("files", "google", people.admin, people.tenant, google.id);
+  expect(await run("finishConnect", { attemptId: reconnectId })).toMatchObject({ state: "connected", connection: { id: google.id } });
+  expect(await run("disconnect", {}, google.id)).toEqual({ state: "disconnected" });
+  await expect(run("files", {}, google.id)).rejects.toMatchObject({ status: 404 });
+  expect(await run("files", {}, microsoft.id)).toMatchObject({ state: "available", data: { items: [{ ref: "root-microsoft" }] } });
+  expect((await listOfficeConnections(f.db, people.admin, people.tenant, deps)).connections).toMatchObject([{ id: microsoft.id }]);
+  const audit = await f.admin.query(`select action, target_id, metadata from audit_logs where action in ('office.health','office.disconnect')
+    and target_id=any($1) order by action, target_id`, [[google.id, microsoft.id]]);
+  expect(audit.rows).toEqual(expect.arrayContaining([
+    { action: "office.health", target_id: google.id, metadata: { outcome: "healthy" } },
+    { action: "office.health", target_id: microsoft.id, metadata: { outcome: "healthy" } },
+    { action: "office.disconnect", target_id: google.id, metadata: { outcome: "disconnected" } },
+  ]));
+  expect(audit.rows).toHaveLength(3);
+  await run("disconnect", {}, microsoft.id);
+});
+
+it("keeps pending Files handoffs for different platforms independent", async () => {
+  const google = await start("files", "google", people.admin, people.tenant);
+  const microsoft = await start("files", "microsoft", people.admin, people.tenant);
+  const latestGoogle = await start("files", "google", people.admin, people.tenant);
+  await expect(run("finishConnect", { attemptId: google })).rejects.toMatchObject({ status: 404 });
+  for (const [attemptId, platform] of [[microsoft, "microsoft"], [latestGoogle, "google"]]) {
+    const result = await run("finishConnect", { attemptId });
+    expect(result).toMatchObject({ state: "connected", connection: { platform } });
+    if (!("connection" in result) || !result.connection) throw new Error("Expected connection");
+    await run("disconnect", {}, result.connection.id);
+  }
+});
+
 it("migrates a legacy connection to zero grants and replaces it only after a personal handoff", async () => {
   const before = await listOfficeConnections(f.db, legacyOwner, legacyMinistry, deps);
-  expect(before.connections).toMatchObject([{ id: legacyId, grants: 0, health: "reconnect_needed", noticeVersion: null }]);
+  expect(before.connections.filter(row => row.kind === "mail")).toMatchObject([{ id: legacyId, grants: 0, health: "reconnect_needed", noticeVersion: null }]);
   expect(await run("threads", {}, legacyId, legacyOwner, legacyMinistry)).toEqual({ state: "reconnect_needed" });
   const attemptId = await start("mail", "google", legacyOwner, legacyMinistry, legacyId);
   expect(await run("finishConnect", { attemptId }, undefined, legacyOwner, legacyMinistry)).toMatchObject({
@@ -180,6 +270,7 @@ it("serves calendar availability and file references without keeping content or 
   const ms = await connect("files", "microsoft", otherAdmin);
   expect(await run("picker", {}, ms.id, otherAdmin)).toEqual({ state: "unavailable" });
   expect(await run("files", {}, ms.id, otherAdmin)).toEqual({ state: "available", data: { items: [], nextCursor: null } });
+  await run("disconnect", {}, ms.id, otherAdmin);
 });
 
 it("requires an unexpired one-shot review bound to the exact message, even for test delivery", async () => {
@@ -316,4 +407,5 @@ it.each(["erase", "merge"] as const)("cleans another admin's private Office link
     { thread_ref: suffixes[0], contact_id: null, read: true, starred: true },
     { thread_ref: suffixes[1], contact_id: target.id, read: true, starred: true },
   ]);
+  await run("disconnect", {}, files.id, otherAdmin);
 });

@@ -114,13 +114,20 @@ export function officeLifecycle(db: Database, actor: string, workspace: string, 
     if (action !== "health") await lockConnections(tx, tenant, actor);
 
     if (action === "startConnect") {
+      const files = input.kind === "files";
+      const activeSlot = and(owner, eq(officeConnections.kind, input.kind), files
+        ? eq(officeConnections.platform, input.platform) : isNotNull(officeConnections.platform));
       const [existing] = request.connectionId
         ? [await officeConnection(tx, tenant, actor, request.connectionId, true)]
-        : await tx.select().from(officeConnections).where(and(owner, eq(officeConnections.kind, input.kind), isNotNull(officeConnections.platform))).for("update");
+        : await tx.select().from(officeConnections).where(activeSlot).for("update");
       const account = existing ? connectionAccount(existing) : null;
       if (existing && existing.kind !== input.kind) throw unavailable();
-      if (existing && account && (account.platform !== input.platform || existing.provider !== provider.id)) {
+      if (account && ((files && !request.connectionId) || account.platform !== input.platform || existing?.provider !== provider.id)) {
         throw new AccessError(409, message("Errors.thisRecordChangedReloadAndTryAgain"));
+      }
+      if (files && existing && !account) {
+        const [occupied] = await tx.select({ id: officeConnections.id }).from(officeConnections).where(activeSlot).for("update");
+        if (occupied) throw new AccessError(409, message("Errors.thisRecordChangedReloadAndTryAgain"));
       }
       const attemptId = randomUUID();
       let started;
@@ -131,7 +138,8 @@ export function officeLifecycle(db: Database, actor: string, workspace: string, 
         await auditOffice(tx, tenant, actor, action, attemptId, result.state);
         return result;
       }
-      await tx.delete(officeConnectAttempts).where(and(attempts, eq(officeConnectAttempts.kind, input.kind)));
+      await tx.delete(officeConnectAttempts).where(and(attempts, eq(officeConnectAttempts.kind, input.kind),
+        files ? eq(officeConnectAttempts.platform, input.platform) : undefined));
       await tx.insert(officeConnectAttempts).values({
         tenantId: tenant, ownerUserId: actor, id: attemptId, provider: provider.id, connectionId: existing?.id,
         kind: input.kind, platform: input.platform, noticeVersion: input.noticeVersion, profileRef: started.profileRef,
