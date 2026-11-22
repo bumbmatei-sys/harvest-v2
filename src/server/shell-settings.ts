@@ -13,6 +13,7 @@ import { SOCIAL_TEST_CREDENTIAL, socialScreensEnabled } from "./social-publish-g
 export async function shellSettings(db: Database, userId: string, { socialStaff = false }: { socialStaff?: boolean } = {}): Promise<ShellSettings> {
   return {
     communities: memberProfilesEnabled() ? await joinedCommunities(db, userId) : undefined,
+    userId: memberProfilesEnabled() ? userId : undefined,
     socialTestCredential: socialStaff && socialScreensEnabled() ? SOCIAL_TEST_CREDENTIAL : undefined,
   };
 }

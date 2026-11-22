@@ -12,7 +12,7 @@ export type SettingsSectionId = typeof settingsSectionIds[number];
 export type SettingsGroupId = "you" | "ministry";
 export type SettingsSection = { id: SettingsSectionId; group: SettingsGroupId; icon: LucideIcon };
 /** What the server tells the shell about the settings screens that exist: communities the person can edit a profile in, and the non-production test credential. */
-export type ShellSettings = { communities?: readonly { slug: string; name: string }[]; socialTestCredential?: string };
+export type ShellSettings = { communities?: readonly { slug: string; name: string }[]; /** The viewer's own id, for the link to their profile page; present with `communities`. */ userId?: string; socialTestCredential?: string };
 
 const all: readonly (SettingsSection & { visible: (viewer: SettingsViewer) => boolean })[] = [
   { id: "profile", group: "you", icon: UserRound, visible: ({ settings }) => settings.communities !== undefined },
