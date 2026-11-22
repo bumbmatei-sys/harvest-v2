@@ -1,16 +1,14 @@
 /** Layout and behaviour modelled on bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): app/dashboard/(auth)/apps/mail/components/account-switcher.tsx (account choice with provider marks); code written for Harvest, no kit code copied. Harvest notes: docs/ui-sources.md. */
 "use client";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { Mail, RotateCw, TriangleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
 import { ProviderLogo } from "@/components/office/provider-logo";
-import { mailboxLabel, OfficeApiError, platformName, type MailApi, type OfficeConnection, type OfficePlatform } from "@/lib/office/mail";
-
-const pollMs = 3000;
-type Phase = { name: "idle" } | { name: "starting"; platform: OfficePlatform } | { name: "pending"; platform: OfficePlatform; attemptId: string; url: string | null; until: number } | { name: "failed" } | { name: "refused" };
+import { useConnectAttempt } from "@/components/office/use-connect-attempt";
+import { mailboxLabel, platformName, type MailApi, type OfficeConnection, type OfficePlatform } from "@/lib/office/mail";
 
 /**
  * Connect, reconnect and attention states for the signed-in person's own mailbox. The privacy notice is always on screen before the person chooses a
@@ -23,44 +21,11 @@ export function MailConnect({ api, notice, noticeVersion, connection, onConnecte
   const c = useTranslations("OfficeMail.connect");
   const reconnect = connection?.health === "reconnect_needed" || (connection !== null && connection.platform === null);
   const attention = connection !== null && !reconnect && connection.health !== "healthy";
-  const [phase, setPhase] = useState<Phase>({ name: "idle" }), [checking, setChecking] = useState(false);
-  const done = useRef(onConnected);
-  useEffect(() => { done.current = onConnected; });
-
+  const [checking, setChecking] = useState(false);
   const existingId = connection?.id;
-  const start = useCallback(async (platform: OfficePlatform) => {
-    setPhase({ name: "starting", platform });
-    try {
-      const result = await api.startConnect(platform, noticeVersion, existingId);
-      if (result.state !== "pending") { setPhase({ name: "refused" }); return; }
-      const pending = result as { attemptId: string; url: string | null; expiresAt: string };
-      if (pending.url) window.open(pending.url, "_blank", "noopener,noreferrer");
-      setPhase({ name: "pending", platform, attemptId: pending.attemptId, url: pending.url, until: Date.parse(pending.expiresAt) });
-    } catch { setPhase({ name: "refused" }); }
-  }, [api, noticeVersion, existingId]);
-
-  const attemptId = phase.name === "pending" ? phase.attemptId : null, until = phase.name === "pending" ? phase.until : 0;
-  useEffect(() => {
-    if (!attemptId) return;
-    let stopped = false, timer: ReturnType<typeof setTimeout>;
-    const tick = async () => {
-      if (stopped) return;
-      try {
-        const result = await api.finishConnect(attemptId);
-        if (stopped) return;
-        if (result.state === "connected") { done.current(); return; }
-        if (result.state === "failed" || (Number.isFinite(until) && Date.now() > until)) { setPhase({ name: "failed" }); return; }
-      } catch (error) {
-        if (stopped) return;
-        // A dropped request keeps waiting; a refusal ends the attempt.
-        if (!(error instanceof OfficeApiError) || error.status === 0) { timer = setTimeout(tick, pollMs); return; }
-        setPhase({ name: "failed" }); return;
-      }
-      timer = setTimeout(tick, pollMs);
-    };
-    timer = setTimeout(tick, 0);
-    return () => { stopped = true; clearTimeout(timer); };
-  }, [api, attemptId, until]);
+  const start = useCallback((platform: OfficePlatform) => api.startConnect(platform, noticeVersion, existingId), [api, noticeVersion, existingId]);
+  const finish = useCallback((attemptId: string) => api.finishConnect(attemptId), [api]);
+  const { phase, begin, cancel } = useConnectAttempt({ start, finish, onConnected });
 
   async function check() {
     if (!connection) return;
@@ -93,10 +58,10 @@ export function MailConnect({ api, notice, noticeVersion, connection, onConnecte
             <p>{c("pendingBody")}</p>
             <div className="mt-2 flex flex-wrap gap-2">
               {phase.url && <Button asChild variant="outline" size="responsive"><a href={phase.url} target="_blank" rel="noopener noreferrer">{c("openAgain")}</a></Button>}
-              <Button type="button" variant="outline" size="responsive" onClick={() => setPhase({ name: "idle" })}>{c("cancel")}</Button>
+              <Button type="button" variant="outline" size="responsive" onClick={cancel}>{c("cancel")}</Button>
             </div></AlertDescription></Alert>
           : <div className="flex flex-col gap-2 sm:flex-row" role="group" aria-label={c("choose")}>
-            {choices.map((platform) => <Button key={platform} type="button" variant="outline" size="responsive" className="sm:flex-1" disabled={busy} onClick={() => void start(platform)} data-testid={`connect-${platformName[platform]}`}>
+            {choices.map((platform) => <Button key={platform} type="button" variant="outline" size="responsive" className="sm:flex-1" disabled={busy} onClick={() => void begin(platform)} data-testid={`connect-${platformName[platform]}`}>
               {phase.name === "starting" && phase.platform === platform ? <Spinner /> : <ProviderLogo platform={platform} />}
               {reconnect ? c("reconnectWith", { provider: mailboxLabel[platform] }) : c("connectWith", { provider: mailboxLabel[platform] })}
             </Button>)}
