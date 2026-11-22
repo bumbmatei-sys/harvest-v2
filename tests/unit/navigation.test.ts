@@ -8,9 +8,9 @@ const tenantId = "00000000-0000-4000-8000-000000000001";
 const root = `/workspaces/${tenantId}`;
 const shape = (role?: string) => resolveNavigation({ tenantId, role, pathname: root }).map((group) => [group.id, group.items.map((item) => item.id)]);
 // The Settings group left the sidebar (20 Nov): its entries stay in the registry for routes and breadcrumbs, and the Settings pop-up links to them.
-const writers = [["crm", ["people", "companies", "pipelines", "tasks", "imports"]], ["workspace", ["campaigns", "followUp", "files"]]];
+const writers = [["crm", ["people", "companies", "pipelines", "tasks", "crmReports", "imports"]], ["workspace", ["campaigns", "followUp", "files"]]];
 // Forms sits directly above Imports (founder, 21 Nov).
-const withForms = ["people", "companies", "pipelines", "tasks", "crmForms", "imports"];
+const withForms = ["people", "companies", "pipelines", "tasks", "crmReports", "crmForms", "imports"];
 const settingsIds = ["socialAccounts", "crmFields", "pipelineSettings", "appearance", "ministrySettings"];
 
 // The breadcrumb chain AppShell used before the registry (plus the Ministry settings route from PR B), kept as the parity oracle.
@@ -32,7 +32,7 @@ describe("module registry parity", () => {
     const groups = resolveNavigation({ tenantId, role: "owner", pathname: root });
     expect(groups.map((group) => group.label)).toEqual(["crm", "workspace"]);
     expect(groups.flatMap((group) => group.items.map((item) => [item.label, item.href]))).toEqual([
-      ["people", `${root}/crm/people`], ["companies", `${root}/crm/companies`], ["pipelines", `${root}/crm/pipelines`], ["tasks", `${root}/crm/tasks`], ["forms", `${root}/crm/forms`], ["imports", `${root}/crm/imports`],
+      ["people", `${root}/crm/people`], ["companies", `${root}/crm/companies`], ["pipelines", `${root}/crm/pipelines`], ["tasks", `${root}/crm/tasks`], ["reports", `${root}/crm/reports`], ["forms", `${root}/crm/forms`], ["imports", `${root}/crm/imports`],
       ["campaigns", `${root}/campaigns`], ["followUp", `${root}/connect/follow-up`], ["files", `${root}/files`],
     ]);
   });
@@ -90,7 +90,7 @@ describe("three-mode registry (slice 1)", () => {
   });
   it("assigns the founder's modes", () => {
     const mode = (id: string) => navEntries.find((entry) => entry.id === id)?.mode;
-    for (const id of ["people", "companies", "pipelines", "tasks", "imports", "crmForms", "campaigns", "followUp", "files", "crmFields", "pipelineSettings", "appearance", "ministrySettings"]) expect(mode(id)).toBe("operations");
+    for (const id of ["people", "companies", "pipelines", "tasks", "crmReports", "imports", "crmForms", "campaigns", "followUp", "files", "crmFields", "pipelineSettings", "appearance", "ministrySettings"]) expect(mode(id)).toBe("operations");
     for (const id of ["communities", "planner", "inbox", "autoDm", "articles", "website", "linkInBio", "newsletterCampaigns", "discover", "products", "courses", "live"]) expect(mode(id)).toBe("public");
     expect(mode("assistant")).toBe("assistant");
     expect(navEntries.filter((entry) => entry.group === "settings").every((entry) => entry.mode === "operations")).toBe(true);
@@ -98,7 +98,7 @@ describe("three-mode registry (slice 1)", () => {
   it("reserves not-yet-built modules as planned, including blog articles", () => {
     const planned = navEntries.filter((entry) => entry.status === "planned").map((entry) => entry.id);
     expect(planned).toEqual(expect.arrayContaining(["articles", "ads", "website", "linkInBio", "newsletterCampaigns", "newsletterAudience", "signupForms", "newsletterAnalytics", "products", "courses", "coaching", "coupons", "live", "discover", "assistant", "responses", "connectLinks", "forms", "documents", "spreadsheets", "givingOverview", "donations", "fundraising", "pledges", "donors", "funds", "givingPage", "volunteers", "livestream", "churchProfile"]));
-    expect(navEntries.filter((entry) => entry.status !== "planned").map((entry) => entry.id)).toEqual(["people", "companies", "pipelines", "tasks", "crmForms", "imports", "mail", "calendar", "campaigns", "followUp", "events", "files", "planner", "inbox", "autoDm", "socialAnalytics", "communities", "socialAccounts", "crmFields", "pipelineSettings", "appearance", "ministrySettings"]);
+    expect(navEntries.filter((entry) => entry.status !== "planned").map((entry) => entry.id)).toEqual(["people", "companies", "pipelines", "tasks", "crmReports", "crmForms", "imports", "mail", "calendar", "campaigns", "followUp", "events", "files", "planner", "inbox", "autoDm", "socialAnalytics", "communities", "socialAccounts", "crmFields", "pipelineSettings", "appearance", "ministrySettings"]);
   });
   it("never renders, links or labels a planned entry", () => {
     const plannedIds = new Set(navEntries.filter((entry) => entry.status === "planned").map((entry) => entry.id));
@@ -110,17 +110,17 @@ describe("three-mode registry (slice 1)", () => {
     }
     for (const entry of navEntries.filter((item) => item.status === "planned")) expect(sectionLabel(`${root}${entry.path}`)).toBeNull();
   });
-  // Forms (crmForms, owner/admin) was added after this fixture was taken; it is compared on its own in the module parity tests above.
+  // Forms (crmForms, owner/admin) and Reports (crmReports) were added after this fixture was taken; it is compared on its own in the module parity tests above.
   const snapshot = (role: string, audience: (typeof audiences)[number] | null, communities: boolean) =>
-    resolveNavigation({ tenantId: "t", role, audience, pathname: "/workspaces/t", features: communities ? ["communities"] : [] }).map((group) => [group.id, group.label, group.items.filter((item) => item.id !== "crmForms").map((item) => `${item.id}=${item.label}=${item.href}`)]);
+    resolveNavigation({ tenantId: "t", role, audience, pathname: "/workspaces/t", features: communities ? ["communities"] : [] }).map((group) => [group.id, group.label, group.items.filter((item) => item.id !== "crmForms" && item.id !== "crmReports").map((item) => `${item.id}=${item.label}=${item.href}`)]);
   it.each(roles.flatMap((role) => audienceCases.flatMap((audience) => [false, true].map((communities) => [role, audience, communities] as const))))("keeps the sidebar link set of origin/main for %s, %s, communities %s", (role, audience, communities) => {
     expect(snapshot(role, audience, communities)).toEqual((before as Record<string, unknown>)[`${role}|${audience}|${communities ? "communities" : "base"}`]);
   });
   it("filters per mode by role, audience and feature", () => {
     const ids = (mode: NavMode, extra: Partial<Parameters<typeof resolveModeNavigation>[0]> = {}) => resolveModeNavigation({ tenantId, role: "owner", pathname: root, mode, ...extra }).groups.flatMap((group) => group.items.map((item) => item.id));
-    expect(ids("operations")).toEqual(["files", "people", "companies", "pipelines", "tasks", "crmForms", "imports", "followUp", "campaigns"]);
+    expect(ids("operations")).toEqual(["files", "people", "companies", "pipelines", "tasks", "crmReports", "crmForms", "imports", "followUp", "campaigns"]);
     // Email and Calendar need the Office feature and the owner or admin role; they lead the Office group.
-    expect(ids("operations", { features: ["office"] })).toEqual(["mail", "calendar", "files", "people", "companies", "pipelines", "tasks", "crmForms", "imports", "followUp", "campaigns"]);
+    expect(ids("operations", { features: ["office"] })).toEqual(["mail", "calendar", "files", "people", "companies", "pipelines", "tasks", "crmReports", "crmForms", "imports", "followUp", "campaigns"]);
     for (const role of ["member", "viewer"]) for (const id of ["mail", "calendar"]) expect(ids("operations", { features: ["office"], role })).not.toContain(id);
     expect(ids("operations", { features: ["office"], role: "admin" })).toEqual(expect.arrayContaining(["mail", "calendar"]));
     expect(ids("operations")).not.toContain("calendar");

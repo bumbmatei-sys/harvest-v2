@@ -6,7 +6,7 @@
 - The support projection contains lifecycle metadata. The tenant and owner/admin checks are enforced in both the service and the SQL function. The function runs with caller privileges, has a fixed search path, and grants execution to `harvest_app`. CSV contents, filenames, row reports, importer identities, and mapping fields are outside this projection.
 - For existing assignment notifications, `GET /api/workspaces/:tenantId/crm/notifications` returns the caller's assignment notifications and overdue count. `POST` to the same route with `{ "ids": ["…"] }` or `{ "ids": "all" }` marks the caller's own notifications read. See [CRM-05](crm-05.md).
 
-Reporting, CRM retention and further erasure changes, pending-approval limits and human review, notification preferences and new event types, and sync diagnostics are pending the decisions in the [CRM leftovers plan](../plans/crm-leftovers.md).
+CRM reports are built in [CRM reports](crm-reports.md). CRM retention and further erasure changes, pending-approval limits and human review, notification preferences and new event types, and sync diagnostics are pending the decisions in the [CRM leftovers plan](../plans/crm-leftovers.md).
 
 ## Approval and migration
 
