@@ -43,3 +43,8 @@ it("hands the social test credential to staff only", async () => {
   expect((await shellSettings(f.db, "ss-owner", { socialStaff: true })).socialTestCredential).toBe("harvest-test-credential");
   expect((await shellSettings(f.db, "ss-member")).communities).toEqual([{ slug: "bible-study", name: "Bible Study" }]);
 });
+
+it("tells the shell the viewer's own id, for the link to their profile page, and nobody else's", async () => {
+  expect((await shellSettings(f.db, "ss-member")).userId).toBe("ss-member");
+  expect((await shellSettings(f.db, "ss-other")).userId).toBe("ss-other");
+});

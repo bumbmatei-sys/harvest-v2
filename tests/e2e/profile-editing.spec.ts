@@ -56,7 +56,7 @@ async function audit(page: Page, name: string, scheme: string, width: number) {
   expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations, `${name} ${scheme} ${width}`).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name} ${scheme} ${width} page overflow`).toBe(true);
   expect(await panel(page).evaluate((node) => node.scrollWidth <= node.clientWidth), `${name} ${scheme} ${width} panel overflow`).toBe(true);
-  if (shots) await page.screenshot({ path: `${shots}/profile-${name}-${width}-${scheme}.png`, animations: "disabled" });
+  if (shots) { await panel(page).evaluate((node) => { node.scrollTop = 0; }); await page.screenshot({ path: `${shots}/profile-${name}-${width}-${scheme}.png`, animations: "disabled" }); }
 }
 /** Light and dark at 360, 768 and 1280, with axe, overflow and a screenshot each. */
 async function scenes(page: Page, name: string) {
