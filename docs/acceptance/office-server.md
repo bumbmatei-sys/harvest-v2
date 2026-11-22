@@ -1,6 +1,6 @@
 # Office server acceptance
 
-Office exposes personal Mail, Calendar and Files to ministry owners and admins. One admin can have one active connection per area in each ministry. Only the signed-in person who completed the connection can read or use it. A ministry owner has the same personal boundary as an admin. This server slice supplies the API for Operations and Settings → You → Connections. The screens and sidebar changes belong to the separate screens and shell work.
+Office exposes personal Mail, Calendar and Files to ministry owners and admins. In each ministry, an admin can have one active Mail connection, one active Calendar connection, and one active Files connection per platform (Google Drive and OneDrive). Only the signed-in person who completed the connection can read or use it. A ministry owner has the same personal boundary as an admin. This server slice supplies the API for Operations and Settings → You → Connections. The screens and sidebar changes belong to the separate screens and shell work.
 
 ## API handoff
 
@@ -10,7 +10,7 @@ Base path `/api/workspaces/{tenantId}/office`. `GET` returns `{ notice: { key, v
 
 | Action | Input and result |
 | --- | --- |
-| `startConnect` | `{ kind, platform, noticeVersion }` with optional `connectionId` for reconnect. Identity keys are `google` and `microsoft`. Returns `{ state: "pending", attemptId, url, expiresAt }`. The synthetic provider returns `url: null`. Open a hosted authorization URL directly in a new browser tab and keep it out of persisted client state. |
+| `startConnect` | `{ kind, platform, noticeVersion }` with optional `connectionId` for reconnect. Identity keys are `google` and `microsoft`. Files handoffs are independent per platform. A new Files connect for an occupied platform returns a generic 409. To reconnect that platform, supply its existing connection ID. Returns `{ state: "pending", attemptId, url, expiresAt }`. The synthetic provider returns `url: null`. Open a hosted authorization URL directly in a new browser tab and keep it out of persisted client state. |
 | `finishConnect` | `{ attemptId }`. Poll the same signed-in account about every 2–5 seconds while pending. A verified handoff returns `{ state: "connected", connection }`. An expired or failed attempt returns `failed`. The development fake seeds a sample in each connected area. A successful response consumes the attempt. Refresh the connection list after an ambiguous response. |
 | `health`, `disconnect` | `{}` and `connectionId`. Health refreshes the grants and reconnect state. Successful disconnect returns `disconnected` and removes the connection and its local markers and links. Retry a transient disconnect failure. |
 | `threads`, `thread` | `{ cursor?, limit?, folderRef?, search? }` and `{ threadRef }`. Search goes to the provider using its native syntax. Thread details return `ref`, `subject` and `messages` containing plain-text `body`, `from` and `to`. Each thread carries its Harvest `marker`. Render mail as text with remote images off. |
