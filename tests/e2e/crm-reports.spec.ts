@@ -3,6 +3,7 @@ import { expect as baseExpect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { origin, signIn } from "./helpers/session";
 import { expectFullWidthShell } from "./helpers/layout";
+import { settleForAxe } from "./helpers/settle";
 
 // CRM reports browser proof: figures from seeded data, role scopes, period switching by keyboard, the "fewer than 5" display, access denial,
 // and axe plus overflow checks at 360, 768 and 1280 in light and dark. Run it with and without HARVEST_SHELL_MODES=disabled.
@@ -20,6 +21,7 @@ async function setMode(page: Page, mode: "light" | "dark") {
 async function settled(page: Page) {
   await expect(page.getByTestId("reports-page")).toHaveAttribute("data-ready", "true");
   await page.evaluate(() => document.fonts.ready);
+  await settleForAxe(page);
 }
 async function capture(page: Page, name: string) {
   await settled(page);

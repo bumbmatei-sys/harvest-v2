@@ -178,6 +178,25 @@ describe("source performance and contact growth", () => {
   });
 });
 
+describe("source evidence expiry", () => {
+  it("credits a contact whose form evidence has expired to Unknown, because the report reads source events under RLS", async () => {
+    const ministry = (await createWorkspace(fixture.db, "owner-b", "Reports expiry")).tenantId;
+    for (let n = 0; n < 10; n++) {
+      const person = await createContact(fixture.db, "owner-b", ministry, { name: `Synthetic form person ${n}` });
+      const response = randomUUID(), expires = n < 5 ? "2027-12-01T00:00:00Z" : "2026-11-10T00:00:00Z";
+      await backdate("update contacts set created_at = $1 where id = $2", [at.R5, person.id]);
+      await backdate("delete from contact_source_events where contact_id = $1", [person.id]);
+      await backdate(`insert into crm_form_responses(tenant_id, id, form_id, version_id, contact_id, labels, answers, consent_block_id, request_hash, created_contact, submitted_at, expires_at)
+        values ($1, $2, gen_random_uuid(), gen_random_uuid(), $3, '{}', '{"consent":"yes"}'::jsonb, 'consent', $4, true, $5, $6)`, [ministry, response, person.id, "a".repeat(64), at.R4, expires]);
+      await backdate("insert into contact_source_events(tenant_id, contact_id, kind, outcome, occurred_at, crm_form_response_id) values ($1, $2, 'form', 'created', $3, $4)", [ministry, person.id, at.R5, response]);
+    }
+    const { contacts } = await getCrmReport(fixture.db, "owner-b", ministry, "last7", now);
+    expect(contacts?.added).toBe(10);
+    expect(contacts?.sources.find((s) => s.source === "form")).toEqual({ source: "form", added: 5, withDeal: 0 });
+    expect(contacts?.sources.find((s) => s.source === "unknown")).toEqual({ source: "unknown", added: 5, withDeal: 0 });
+  });
+});
+
 describe("access and isolation", () => {
   it("denies viewers, strangers and unknown periods with neutral errors", async () => {
     await expect(report("viewer", "last7")).rejects.toMatchObject({ status: 403 });

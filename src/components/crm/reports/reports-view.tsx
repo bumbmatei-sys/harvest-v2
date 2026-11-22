@@ -79,7 +79,7 @@ export function ReportsView({ tenantId, initial }: { tenantId: string; initial: 
     </div>
     <footer className="flex flex-col gap-1 text-xs text-muted-foreground" data-testid="report-footer">
       <p>{t("footer.line", { start: dateTime(report.window.start, { dateStyle: "medium" }), end: dateTime(report.window.end, { dateStyle: "medium" }), time: dateTime(report.generatedAt, { timeStyle: "short" }) })}</p>
-      <p>{t("footer.small")} {t("footer.cases")}</p>
+      <p>{t("footer.small")} {t("footer.cases")}{contacts && ` ${t("footer.sources")}`}</p>
     </footer>
   </div>;
 }

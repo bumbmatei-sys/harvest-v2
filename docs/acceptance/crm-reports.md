@@ -32,6 +32,13 @@ Tested: unit tests for each rule (`tests/unit/crm-reports.test.ts`) and integrat
 
 Limits, stated plainly: this is a differencing defence for these five fixed periods and one breakdown at a time, not a differential-privacy guarantee. Repeated observations of the live overdue snapshot over time, readers who combine different roles' views (an owner's ministry totals with a member's own totals) and outside knowledge are not covered. Privacy review of the release policy is still required before real data.
 
+## Further limits (reviewer notes, stated plainly)
+
+- **Source evidence expires.** The report reads `contact_source_events` under RLS, and `sources_read` hides an event while its Connect response is expired or unassociated or its hosted-form response has passed `expires_at`. Contacts older than that window from a form or Connect therefore read "Unknown" (or are credited to a later source). The screen footer says so; an integration test covers an expired form response. No migration. **Decision needed (founder):** should source attribution outlive the response?
+- **Windows end at now.** Every window ends at the time of the read (`generatedAt`), so two reads at different times can differ by 1 to 4 in any live figure, not only the overdue snapshot.
+- **Suppression is a presentation rule, not an access boundary.** Owners and admins can already open every person, deal and task; members see only their own scope here and cannot get ministry totals from this route. The residual risks (owner totals versus member totals, repeated snapshots) are accepted; this is not protection against staff.
+- **Member task credit** follows the current assignee, not who completed the task.
+
 ## Evidence (local, synthetic data)
 
 - `npx tsc --noEmit`, `npm run lint` clean. Unit project: 116 files, all pass (one source-guard test hit its 5 s timeout once under full-suite load and passes alone).
