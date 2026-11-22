@@ -97,6 +97,12 @@ Approved for the CRM reports slice (`docs/acceptance/crm-reports.md`); they sett
 - **Fundraising pledge campaigns (16 Nov):** in Operations under Giving. Harvest does not process card payments; the ministry collects through its own payment links and Harvest records pledges and gifts that the ministry confirms (never say verified or payment received); money in cents. Design proposals: `docs/superpowers/specs/2026-11-17-fundraising-pledge-campaigns-design.md` and `...-free-courses-products-design.md`.
 - **Mail, calendar, files (16 Nov):** all through the provider layer, personal per-admin connections, no direct Google or Microsoft OAuth clients. Files screen follows Studio Admin's file manager.
 
+## CRM notifications (22 Nov)
+
+- **Due and overdue (founder-approved defaults):** each fires once per task per kind, on by default for the task's assignee and visible to that person only. Due fires when the due time arrives; overdue when the task is past due and still open (built as one hour after the due time, so a late loader gets overdue instead of both). Rescheduling resets both; completing, archiving, reopening or reassigning withdraws the old assignee's notice and the new assignee gets their own; a person who leaves the ministry gets none. Per-person on/off for each kind, default on.
+- **Delivery:** in-app only. Email and push stay hard-off (literal-false constants and a source guard); no job, cron or queue. Notices are generated lazily and idempotently when the recipient loads the bell. Real-time delivery needs the later job slice. No structured mentions yet.
+- **Sync diagnostics:** the safe support vocabulary is the import lifecycle from CRM-06 (`GET /crm/diagnostics`); email and calendar sync diagnostics stay out of scope until that sync is built.
+
 ## 6. Process rules
 
 - Use Claude or Codex for coding and a separate fresh session for independent review. No force pushes. No merge or deploy without the founder's approval. No real outbound messages or webhooks outside tests.
