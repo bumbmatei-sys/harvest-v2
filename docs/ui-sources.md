@@ -301,11 +301,26 @@ Built under the standing kit rule ("use anything that is PRO in the kit, if noth
 | `src/components/office/mail/mail-folders.tsx` | modelled on | `apps/mail/components/nav.tsx` and `nav-desktop.tsx` | 3 of 46 (6%) |
 | `src/components/office/mail/mail-thread.tsx` | modelled on | `apps/mail/components/mail-display.tsx` (mail-display-mobile.tsx: 5 of 94, 5%) | 4 of 94 (4%) |
 | `src/components/office/mail/mail-composer.tsx` | modelled on | `apps/mail/components/mail-display.tsx` | 4 of 99 (4%) |
-| `src/components/office/mail/mail-connect.tsx` | modelled on | `apps/mail/components/account-switcher.tsx` | 4 of 102 (3%) |
+| `src/components/office/mail/mail-connect.tsx` | modelled on | `apps/mail/components/account-switcher.tsx` | 4 of 70 (5%), re-measured 22 Nov after the hook extraction |
 
 The matches are import and boilerplate lines. `InboxFrame` is the layout the social Inbox already used, extracted so both inboxes share one frame (the Inbox now consumes it; its behaviour is unchanged). Reused, not rebuilt: AppShell and the contextual sidebar slot, `EmptyState`, `StatusBadge`, `ConfirmDialog`, the CRM `RecordPicker` for the person link, shared Field, Input, Textarea, Alert and Button primitives. Written for Harvest and not kit-derived: `person-link.tsx`, `mail.tsx`.
 
 Mailbox marks (`src/components/office/provider-logo.tsx`, colours in `src/lib/theme-registry.ts`): Gmail is drawn from the Simple Icons Gmail outline (CC0-1.0) split into the brand colours; Outlook is a simplified envelope page and lettered tile in the brand blues drawn for Harvest. Both are simplified marks, remain their owners' trademarks, are subject to each owner's brand guidelines and are used only to name the connected mailbox. Product names live in `src/lib/office/mail.ts` and the logo registry, never in the message catalogue (source guard).
+
+### Files screen (Operations > Office > Files)
+
+One Files screen: the ministry's own uploads plus the person's connected Google Drive and OneDrive. Founder design (21 Nov): "Design of Admin Studio file manager, combined with the paid UI kit file-manager screens." Source: the paid kit, admin-dashboard at commit `1631106`: the `file-manager` dashboard page (`page.tsx`, `summary-cards.tsx` folder cards on top, `table-recent-files.tsx` recent files below, `storage-overview-card.tsx`) and `apps/file-manager` (`file-manager.tsx` list view with search and breadcrumbs, `file-upload-dialog.tsx`). The kit's `chart-file-transfer.tsx` and `user-upload-activity.tsx` are not used (no transfer or activity data exists), `project-detail/components/files-tab.tsx` was looked at and is a static mock list, and `bumbmatei-sys/chat-app` has no file-manager block. Pro first, otherwise free: every block used is premium. **No kit file is copied**: the kit's blocks run on mock data, a fixed 2 TB quota, a row menu of actions that are hard-off here (Download, Share, Delete, Move) and its own table state, so every Harvest file is **modelled on** the kit layout and written for Harvest on the shared `DataTable`, `EmptyState`, `StatusBadge`, Dialog, Breadcrumb and Card. Measured with `scripts/ui-identical.sh` on 22 Nov 2026 (Harvest file as denominator, best match per file):
+
+| Harvest file | Status | Kit source | Identical lines |
+| --- | --- | --- | --- |
+| `src/components/files/files-screen.tsx` | modelled on | `file-manager/page.tsx`, `apps/file-manager/components/file-manager.tsx` | 5 of 195 (2%), 8 of 195 (4%) |
+| `src/components/files/folder-cards.tsx` | modelled on | `file-manager/components/summary-cards.tsx` | 1 of 32 (3%) |
+| `src/components/files/files-table.tsx` | modelled on | `table-recent-files.tsx`, `apps/file-manager/components/file-manager.tsx` | 4 of 56 (7%), 5 of 56 (8%) |
+| `src/components/files/entry-icon.tsx` | modelled on | `table-recent-files.tsx`, `apps/file-manager/components/file-manager.tsx` | 1 of 22 (4%), 3 of 22 (13%) |
+| `src/components/files/storage-overview.tsx` | modelled on | `file-manager/components/storage-overview-card.tsx` | 4 of 29 (13%) |
+| `src/components/files/sources-dialog.tsx` | modelled on | `apps/mail/components/account-switcher.tsx` | 3 of 74 (4%) |
+
+The matches are import and boilerplate lines. Source marks (`SourceLogo` in `src/components/office/provider-logo.tsx`, colours in `src/lib/theme-registry.ts` as `driveMarkColors`): the Harvest logo is the app's own; the Google Drive mark is three bars in the brand colours and the OneDrive mark two clouds in the brand blues, both **simplified marks drawn for Harvest**, so each remains subject to its owner's brand guidelines (clear space, no recolouring, no implied endorsement) and to brand-guideline review, exactly like the Gmail and Outlook marks above. They are used only to name where a file lives; product names stay out of the message catalogue (source guard).
 
 ### Settings pop-up (profile menu)
 

@@ -1,44 +1,36 @@
+import type { Metadata } from "next";
 import { getTranslations } from "next-intl/server";
-import Link from "next/link";
 import { headers } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { z } from "zod";
-import { eq } from "drizzle-orm";
 import { getAuth } from "@/server/auth-instance";
 import { getDb } from "@/db/client";
-import { workspaces } from "@/db/schema";
 import { listFiles } from "@/server/files/service";
 import { withTenant } from "@/server/tenancy";
-import { AccessError } from "@/server/permissions";
-import { UploadControl } from "@/components/files/upload-control";
-import { FileList } from "@/components/files/file-list";
-import { Button } from "@/components/ui/button";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { AccessError, can } from "@/server/permissions";
+import { officeScreensEnabled } from "@/server/office-gate";
+import { FilesScreen } from "@/components/files/files-screen";
+
 export const dynamic = "force-dynamic";
-export default async function FilesPage({ params }: { params: Promise<{ tenantId: string }> }) {
+export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("AppWorkspacesFilesPage");
+  return { title: t("pageTitle") };
+}
+
+// The one Files screen: Harvest's own uploads (always) plus, for owners and admins while the non-production Office gate is open, the person's own connected drives.
+// Drive listings are fetched by the browser from the Office routes; this page reads no drive content and changes nothing about uploads, scanning or roles.
+export default async function FilesPage({ params }: { params: Promise<{ tenantId: string }> }) {
   const session = await getAuth().api.getSession({ headers: await headers() });
   if (!session) redirect("/sign-in");
   const parsed = z.uuid().safeParse((await params).tenantId);
   if (!parsed.success) notFound();
   const tenantId = parsed.data;
-  let workspace, files;
+  let access, files;
   try {
-    [workspace, files] = await Promise.all([
-      withTenant(getDb(), session.user.id, tenantId, "workspace:read", async (tx, id, role) => {
-        const [row] = await tx.select({ name: workspaces.name }).from(workspaces).where(eq(workspaces.tenantId, id));
-        return { name: row.name, canUpload: role !== "viewer" };
-      }),
+    [access, files] = await Promise.all([
+      withTenant(getDb(), session.user.id, tenantId, "workspace:read", async (_tx, _id, role) => ({ canUpload: role !== "viewer", officeEnabled: officeScreensEnabled() && can(role, "office:files") })),
       listFiles(getDb(), session.user.id, tenantId),
     ]);
   } catch (error) { if (error instanceof AccessError) notFound(); throw error; }
-  return <div className="space-y-4">
-    <Button asChild variant="outline"><Link href="/workspaces">{t("backToWorkspaces")}</Link></Button>
-    <div className="space-y-1"><p className="text-sm text-muted-foreground">{workspace.name}</p><h1 className="text-2xl font-semibold">{t("workspaceFiles")}</h1></div>
-    {/* The short upload form keeps a readable width; the file list takes the rest on wide screens. */}
-    <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,26rem)_minmax(0,1fr)]">
-      <Card><CardHeader><CardTitle>{t("uploadAFile")}</CardTitle></CardHeader><CardContent><UploadControl tenantId={tenantId} canUpload={workspace.canUpload} /></CardContent></Card>
-      <Card><CardHeader><CardTitle>{t("files")}</CardTitle></CardHeader><CardContent><FileList files={files} tenantId={tenantId} canUpload={workspace.canUpload} /></CardContent></Card>
-    </div>
-  </div>;
+  return <FilesScreen tenantId={tenantId} files={files} canUpload={access.canUpload} officeEnabled={access.officeEnabled} />;
 }

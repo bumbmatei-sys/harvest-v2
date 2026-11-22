@@ -106,10 +106,7 @@
     "pleaseTryAgainInAMoment": "Please try again in a moment."
   },
   "AppWorkspacesFilesPage": {
-    "backToWorkspaces": "Back to ministries",
-    "workspaceFiles": "Ministry files",
-    "uploadAFile": "Upload a file",
-    "files": "Files"
+    "pageTitle": "Files"
   },
   "AppWorkspacesPage": {
     "yOURHARVEST": "YOUR HARVEST",
@@ -332,26 +329,13 @@
   "ComponentsFilesFileList": {
     "couldNotOpenFilePleaseTryAgain": "Could not open file. Please try again.",
     "noFilesYet": "No files yet.",
-    "uploadYourFirstFileAbove": "Upload your first file above.",
     "filesUploadedByWorkspaceMembersWillAppearHere": "Files uploaded by ministry members will appear here.",
-    "latest100WorkspaceFilesOnlyReadyFilesCan": "Latest 100 ministry files. Only ready files can be downloaded.",
-    "file": "File",
-    "size": "Size",
-    "visibility": "Visibility",
-    "status": "Status",
-    "actions": "Actions",
-    "kiB": "KiB",
     "downloadValue": "Download {name}",
     "download": "Download",
     "publicLinkForValue": "Public link for {name}",
     "publicLink": "Public link",
     "retryVerification": "Retry verification",
     "unavailable": "Unavailable",
-    "fileSize": "{size} KiB",
-    "visibilityValues": {
-      "private": "private",
-      "public": "public"
-    },
     "statusValues": {
       "pending": "pending",
       "uploaded": "uploaded",
@@ -383,6 +367,100 @@
     "undefined": "%",
     "retryVerification": "Retry verification",
     "progressStatus": "{phase} {progress}"
+  },
+  "FilesScreen": {
+    "title": "Files",
+    "pageTitle": "Files",
+    "folders": "Folders",
+    "sourceFilter": "Show files from",
+    "allSources": "All",
+    "search": "Search files and folders",
+    "searchPlaceholder": "Search files and folders",
+    "items": "{count, plural, one {# item} other {# items}}",
+    "sizeValue": "{value} {unit}",
+    "entryIn": "{kind, select, folder {Folder {name}, {source}} other {File {name}, {source}}}",
+    "columns": {
+      "name": "Name",
+      "source": "Source",
+      "size": "Size",
+      "added": "Added",
+      "status": "Status",
+      "actions": "Actions"
+    },
+    "preview": "Preview",
+    "previewValue": "Preview {name}",
+    "previewUnavailable": "Preview is not available for this file.",
+    "previewFailed": "Could not open the preview. Try again.",
+    "loading": "Loading",
+    "recent": "Recent files",
+    "viewAll": "View all",
+    "allFiles": "All files",
+    "searchResults": "Search results",
+    "listLabel": "Files and folders",
+    "noMatches": "Nothing matches your search.",
+    "emptyFolder": "This folder is empty.",
+    "uploadYourFirstFile": "Upload your first file.",
+    "latest": "Latest {count} ministry files. Only ready files can be downloaded.",
+    "readyOnly": "Only ready files can be downloaded.",
+    "sourceError": "Could not load {source}.",
+    "sourceState": {
+      "unavailable": "{source} is not available right now.",
+      "reconnect_needed": "Reconnect {source} to see its files.",
+      "temporarily_unavailable": "{source} is busy. Try again in a moment.",
+      "disabled": "{source} files are not available yet.",
+      "gone": "{source} is not available for you."
+    },
+    "sourceAttention": "A connected drive needs attention. Open Sources to fix it.",
+    "partial": "Some results may be missing from a drive.",
+    "retry": "Try again",
+    "loadMore": "Load more",
+    "loadMoreFrom": "Load more from {source}",
+    "loadMoreFailed": "Could not load more.",
+    "groups": {
+      "images": "Images",
+      "documents": "Documents",
+      "text": "Text"
+    },
+    "storage": {
+      "title": "Ministry uploads",
+      "total": "{size} in {count, plural, one {# file} other {# files}}",
+      "breakdown": "Share of storage by type",
+      "limited": "Counting the latest {count} files."
+    },
+    "sources": {
+      "open": "Sources",
+      "title": "Sources",
+      "subtitle": "Where your files come from.",
+      "list": "Connected sources",
+      "always": "Always on",
+      "connected": "Connected",
+      "reconnect": "Reconnect needed",
+      "attention": "Needs attention",
+      "legacy": "Drive",
+      "checkAgain": "Check again",
+      "disconnect": "Disconnect",
+      "disconnectValue": "Disconnect {name}",
+      "disconnectTitle": "Disconnect {name}?",
+      "disconnectBody": "Harvest removes the connection and the file links you made. Nothing in the drive changes.",
+      "disconnecting": "Disconnecting",
+      "disconnected": "Disconnected",
+      "cancel": "Cancel",
+      "pendingTitle": "Finish connecting in the new tab",
+      "pendingBody": "This page continues on its own once you are done.",
+      "openAgain": "Open the connection page",
+      "choose": "Choose a drive",
+      "connectWith": "Connect {provider}",
+      "failed": "Connecting did not finish. Try again.",
+      "refused": "Connecting is not available right now.",
+      "reconnectWith": "Reconnect {provider}"
+    },
+    "upload": {
+      "open": "Upload",
+      "title": "Upload a file",
+      "subtitle": "Files are added to this ministry's Harvest files."
+    },
+    "noValue": "–",
+    "location": "File location"
   },
   "ComponentsThemeControls": {
     "theme": "Theme",

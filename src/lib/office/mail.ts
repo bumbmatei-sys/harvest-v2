@@ -29,7 +29,7 @@ export class OfficeApiError extends Error {
   get signedOut() { return this.status === 401; }
 }
 
-async function call<T>(tenantId: string, init: { method: "GET" | "POST"; body?: unknown; signal?: AbortSignal }): Promise<T> {
+export async function call<T>(tenantId: string, init: { method: "GET" | "POST"; body?: unknown; signal?: AbortSignal }): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`/api/workspaces/${tenantId}/office`, { method: init.method, signal: init.signal, cache: "no-store",

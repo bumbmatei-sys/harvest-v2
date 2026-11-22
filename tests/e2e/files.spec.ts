@@ -34,11 +34,14 @@ test("workspace upload → progress → verified file → private download; publ
   await page.getByRole("radio", { name: "Church", exact: true }).check();
   await page.getByRole("button", { name: "Create ministry" }).click();
   await page.getByRole("link", { name: "Files", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Ministry files" })).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByRole("heading", { name: "Files", exact: true })).toBeVisible({ timeout: 30_000 });
   const tenantId = page.url().match(/workspaces\/([^/]+)/)![1];
   const base = `/api/workspaces/${tenantId}/files`;
   await expect(page.getByText("No files yet.", { exact: false })).toBeVisible();
   await capture("01-empty");
+  // The upload form lives in a dialog on the unified Files screen.
+  const openUpload = async () => { await page.getByRole("button", { name: "Upload", exact: true }).click(); await expect(page.getByRole("dialog", { name: "Upload a file" })).toBeVisible(); };
+  const closeUpload = async () => { await page.keyboard.press("Escape"); await expect(page.getByRole("dialog")).toHaveCount(0); };
   const payload = Buffer.from("Harvest files browser upload\n".repeat(10_000));
   const metadata = { name: "workspace-notes.txt", mime: "text/plain", size: payload.length, checksum: createHash("sha256").update(payload).digest("hex") };
   const unknownFile = randomUUID();
@@ -54,12 +57,14 @@ test("workspace upload → progress → verified file → private download; publ
   let releaseConfirm!: () => void;
   const holdConfirm = new Promise<void>((resolve) => { releaseConfirm = resolve; });
   await page.route("**/files/*/confirm", async (route) => { await holdConfirm; await route.continue(); }, { times: 1 });
+  await openUpload();
   await page.getByLabel("Choose file").setInputFiles({ name: metadata.name, mimeType: metadata.mime, buffer: payload });
   await page.getByRole("button", { name: "Upload file", exact: true }).click();
   await expect(page.getByRole("progressbar", { name: "Upload progress" })).toHaveAttribute("aria-valuenow", "100");
   await capture("02-progress");
   releaseConfirm();
   await expect(page.getByRole("status").filter({ hasText: "File uploaded and ready." })).toBeVisible();
+  await closeUpload();
   const row = page.getByRole("row").filter({ hasText: metadata.name });
   await expect(row.getByText("ready", { exact: true })).toBeVisible();
   await expect(row.getByRole("link", { name: /Public link/ })).toHaveCount(0);
@@ -75,9 +80,12 @@ test("workspace upload → progress → verified file → private download; publ
   const fileId = (await (await page.request.get(base)).json())[0].id;
   expect((await request.get(`${base}/${fileId}/download`)).status()).toBe(401);
   expect((await request.get(`/api/files/public/${tenantId}/${fileId}`)).status()).toBe(404);
+  await openUpload();
   await page.getByLabel("Visibility", { exact: true }).selectOption("public");
   await page.getByLabel("Choose file").setInputFiles({ name: "public-notes.txt", mimeType: "text/plain", buffer: Buffer.from("awaiting malware check") });
   await page.getByRole("button", { name: "Upload file", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "File quarantined" })).toBeVisible();
+  await closeUpload();
   const publicRow = page.getByRole("row").filter({ hasText: "public-notes.txt" });
   await expect(publicRow.getByText("quarantined", { exact: true })).toBeVisible();
   await expect(publicRow.getByRole("button", { name: /Download/ })).toHaveCount(0);
@@ -85,10 +93,12 @@ test("workspace upload → progress → verified file → private download; publ
   await capture("04-quarantined");
   const publicFile = (await (await page.request.get(base)).json()).find((file: { name: string }) => file.name === "public-notes.txt");
   expect((await request.get(`/api/files/public/${tenantId}/${publicFile.id}`)).status()).toBe(404);
+  await openUpload();
   await page.getByLabel("Choose file").setInputFiles({ name: "unsafe.html", mimeType: "text/html", buffer: Buffer.from("<script>bad()</script>") });
   await page.getByRole("button", { name: "Upload file", exact: true }).click();
   await expect(page.getByRole("alert").filter({ hasText: "Choose a JPEG" })).toBeVisible();
   await capture("05-validation");
+  await closeUpload();
   await page.setViewportSize({ width: 390, height: 844 });
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]);
