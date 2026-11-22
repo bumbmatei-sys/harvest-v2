@@ -1138,6 +1138,7 @@
       "title": "Source history",
       "manual": "Manual",
       "csv_import": "CSV import",
+      "form": "Form",
       "unknown": "Unknown",
       "created": "Created",
       "updated": "Updated",
