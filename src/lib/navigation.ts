@@ -1,9 +1,9 @@
-import { BadgeDollarSign, BookOpen, Bot, Briefcase, Building, Calendar, CalendarCheck, CalendarClock, CalendarDays, ClipboardCheck, ClipboardList, ClipboardPen, Compass, Contact, ContactRound, FileText, FileUp, Files, Flag, Gift, Globe, GraduationCap, Handshake, HandCoins, HeartHandshake, Kanban, LayoutDashboard, LayoutTemplate, Link2, ListChecks, Mail, MailOpen, MailPlus, MessageCircleReply, MessageSquareText, MessagesSquare, Newspaper, Package, Palette, PiggyBank, Podcast, QrCode, Radio, ScanQrCode, Settings, Share2, Sheet, SlidersHorizontal, Sparkles, Target, TicketPercent, UserCheck, UserCog, UserRoundCheck, Users, UsersRound, Wallet, Church, Landmark, ChartLine, ChartNoAxesCombined, Workflow, TextCursorInput, type LucideIcon } from "lucide-react";
+import { BadgeDollarSign, ChartColumn, BookOpen, Bot, Briefcase, Building, Calendar, CalendarCheck, CalendarClock, CalendarDays, ClipboardCheck, ClipboardList, ClipboardPen, Compass, Contact, ContactRound, FileText, FileUp, Files, Flag, Gift, Globe, GraduationCap, Handshake, HandCoins, HeartHandshake, Kanban, LayoutDashboard, LayoutTemplate, Link2, ListChecks, Mail, MailOpen, MailPlus, MessageCircleReply, MessageSquareText, MessagesSquare, Newspaper, Package, Palette, PiggyBank, Podcast, QrCode, Radio, ScanQrCode, Settings, Share2, Sheet, SlidersHorizontal, Sparkles, Target, TicketPercent, UserCheck, UserCog, UserRoundCheck, Users, UsersRound, Wallet, Church, Landmark, ChartLine, ChartNoAxesCombined, Workflow, TextCursorInput, type LucideIcon } from "lucide-react";
 import type { Audience } from "./audience";
 import { can, type Permission } from "./permissions";
 
 /** Message keys in `ComponentsAppShell` that the sidebar and breadcrumb may show. */
-export type NavLabelKey = "communities" | "crm" | "workspace" | "settings" | "people" | "companies" | "pipelines" | "tasks" | "imports" | "campaigns" | "followUp" | "files" | "crmFields" | "pipelineSettings" | "appearance" | "ministrySettings" | "profile"
+export type NavLabelKey = "communities" | "crm" | "workspace" | "settings" | "people" | "companies" | "pipelines" | "tasks" | "reports" | "imports" | "campaigns" | "followUp" | "files" | "crmFields" | "pipelineSettings" | "appearance" | "ministrySettings" | "profile"
   | "office" | "forms" | "mail" | "calendar" | "documents" | "spreadsheets" | "giving" | "volunteers" | "livestream" | "churchProfile"
   | "connect" | "qrAndLinks" | "responses" | "events"
   | "publishing" | "community" | "commerce" | "chat" | "composer" | "planner" | "socialAccounts" | "socialAnalytics" | "inbox" | "autoDm" | "articles" | "website" | "linkInBio" | "newsletter" | "discover" | "products" | "assistant"
@@ -75,6 +75,8 @@ export const navEntries: readonly NavEntry[] = [
   { id: "companies", group: "crm", mode: "operations", label: "companies", icon: Building, path: "/crm/companies", match: has("/crm/companies") },
   { id: "pipelines", group: "crm", mode: "operations", label: "pipelines", icon: Kanban, path: "/crm/pipelines", match: (p) => p.includes("/crm/pipelines") || p.includes("/crm/deals") },
   { id: "tasks", group: "crm", mode: "operations", label: "tasks", icon: ListChecks, path: "/crm/tasks", match: has("/crm/tasks") },
+  // CRM reports: read-only aggregates; owners and admins see ministry totals, members their own work, viewers never see a dead link.
+  { id: "crmReports", group: "crm", mode: "operations", label: "reports", icon: ChartColumn, path: "/crm/reports", match: has("/crm/reports"), permission: "crm:reports" },
   // CRM forms builder: owners and admins build forms that save people to the CRM.
   { id: "crmForms", group: "crm", mode: "operations", label: "forms", icon: TextCursorInput, path: "/crm/forms", match: has("/crm/forms"), permission: "crm:forms_manage" },
   // CRM-06: imports run for owners, admins and members; viewers never see a dead link.

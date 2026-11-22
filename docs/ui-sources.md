@@ -378,3 +378,15 @@ Kit rule, founder 21 Nov 2026: "Use anything that is pro in the kit. If nothing 
 | Text, number, date, dropdown, checkbox, Yes/No | `form-fields.tsx` | shadcn primitives | - | Plain primitives; the premium form blocks are whole-page react-hook-form screens, not reusable fields. |
 
 The free items first tried (`radio-group8`, `checkbox9`, `file-upload1`) were replaced by the premium ones above. Everything else (the field renderer, one-per-page form, builder canvas, add-question menu, settings sidebar, forms list and new-form flow) is written for Harvest on shared components (DataTable, EmptyState, Collapsible, Popover, DropdownMenu, Tabs, `useContextualSidebar`, `useUnsavedChangesGuard`). New dependencies, approved by the founder on 21 Nov 2026: `@dnd-kit/sortable` 10.0.0, `@dnd-kit/utilities` 3.2.2 and `@dnd-kit/modifiers` 9.0.0 (all MIT, `@dnd-kit/core` 6.3.1 was already installed).
+
+### CRM reports screen
+
+Route `/workspaces/[tenantId]/crm/reports`. Premium kit repository `bumbmatei-sys/admin-dashboard` (commit `1631106`, no secrets copied), `ai-analytics` dashboard page. Approval basis: the founder's 17 Nov standing kit rule, his 20 Nov decision that every dashboard and report uses the kit's dashboard blocks, and the 22 Nov CRM reports decisions (`docs/decisions/founder-decisions-2026-11.md`); there is no per-item approval, so the PR names the three files. Shared infrastructure reused unchanged: `src/components/ui/chart.tsx` (copied earlier for Social Analytics), Card, Table, Tabs, Badge, Alert, `EmptyState`, `AccessState`. Percentages are measured with `scripts/ui-identical.sh` against the kit commit and recorded in `adminDashboardProvenance`.
+
+| Harvest file | Status | Kit source (`app/dashboard/(auth)/ai-analytics/components/`) | Identical lines | Harvest notes |
+| --- | --- | --- | --- | --- |
+| `src/components/crm/reports/report-stat-cards.tsx` | **derived** | `stat-cards.tsx` | 28 of 60 (46%) | Card, figure and tick-segment bar kept; real readings, withheld figures read "Fewer than 5" with no bar, chart tokens instead of palette colours. |
+| `src/components/crm/reports/report-bars-card.tsx` | **derived** | `usage-by-model-card.tsx` | 10 of 65 (15%) | Titled card with a bar chart; horizontal bars, real data and a table carrying every figure. Mostly shared imports. |
+| `src/components/crm/reports/report-period-tabs.tsx` | **derived** | `time-range-tabs.tsx` | 9 of 20 (45%) | The five fixed periods, 44px targets below 1024px. |
+
+`reports-view.tsx` and the page have no kit source (Harvest composition). `recharts` is the dependency already approved for Social Analytics; `motion` is not used here.
