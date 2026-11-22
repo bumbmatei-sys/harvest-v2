@@ -1,6 +1,6 @@
 # Harvest v2
 
-**Selected application UI reference: [Studio Admin](https://github.com/arhamkhnz/next-shadcn-admin-dashboard).** See [adoption roadmap](docs/plans/studio-admin-adoption.md). Match its premium shell, page layouts, inbox and default visual palette; keep Harvest's shadcn primitives and domain logic. The prior OpenShadcnBlocks registry source was not usable and is no longer selected.
+**Selected application UI reference: [Studio Admin](https://github.com/arhamkhnz/next-shadcn-admin-dashboard).** See [adoption roadmap](docs/plans/studio-admin-adoption.md). Match its premium shell, page layouts, inbox and default visual palette; keep Harvest's shadcn primitives and domain logic. The prior OpenShadcnBlocks registry source was not usable and is no longer the selected source (the restriction on its open-source blocks was lifted on 22 Nov 2026 for link in bio; see CLAUDE.md).
 
 UI and agent starting point: [master design-system specification](docs/design-system.md), [foundation/adoption plan](docs/plans/design-system-foundation.md), [agent rules](AGENTS.md) and [current handoff](CLAUDE.md). The master specification describes the target architecture; implementation status and the proposed order are recorded separately. [HC-06 planning](docs/plans/hc-06.md) includes automatic verified CRM association, source history and the icon-only filter interface.
 
