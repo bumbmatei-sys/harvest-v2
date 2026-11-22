@@ -4946,6 +4946,7 @@
       "linkGroup": "Link {n}",
       "linkLabelShort": "Label",
       "linkUrlShort": "Address",
+      "urlPlaceholder": "https://",
       "linkLabel": "Link {n} label",
       "linkUrl": "Link {n} address",
       "addLink": "Add link",

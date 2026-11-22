@@ -128,7 +128,7 @@ function CommunityProfileForm({ slug, communityName, userId, onDirtyChange }: { 
                 maxLength={maxLinkLabel} aria-invalid={row.label ? true : undefined} aria-describedby={row.label ? `${uid}-link-${index}-label-error` : undefined} disabled={busy} autoComplete="off" />
               {row.label && <FieldError id={`${uid}-link-${index}-label-error`}>{t(`issues.${row.label}`)}</FieldError>}</Field>
             <Field data-invalid={row.url ? true : undefined}><FieldLabel htmlFor={`${uid}-link-${index}-url`}>{t("linkUrlShort")}</FieldLabel>
-              <Input id={`${uid}-link-${index}-url`} aria-label={t("linkUrl", { n: index + 1 })} className="min-h-11" type="url" inputMode="url" placeholder="https://" value={link.url} onChange={(event) => setLink(index, { url: event.target.value })}
+              <Input id={`${uid}-link-${index}-url`} aria-label={t("linkUrl", { n: index + 1 })} className="min-h-11" type="url" inputMode="url" placeholder={t("urlPlaceholder")} value={link.url} onChange={(event) => setLink(index, { url: event.target.value })}
                 maxLength={maxLinkUrl} aria-invalid={row.url ? true : undefined} aria-describedby={row.url ? `${uid}-link-${index}-url-error` : undefined} disabled={busy} autoComplete="off" />
               {row.url && <FieldError id={`${uid}-link-${index}-url-error`}>{t(`issues.${row.url}`)}</FieldError>}</Field>
             <div className="flex justify-end gap-1">
