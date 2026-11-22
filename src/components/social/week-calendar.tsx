@@ -8,6 +8,7 @@ import {
   differenceInMinutes,
   eachDayOfInterval,
   eachHourOfInterval,
+  endOfDay,
   endOfWeek,
   format,
   getHours,
@@ -34,8 +35,12 @@ interface WeekViewProps {
   onEventSelect: (event: CalendarEvent) => void;
   /** What a post looks like inside its block (platform marks, time and text). */
   renderChip: (event: CalendarEvent) => React.ReactNode;
-  /** A post or draft dropped on a quarter hour of a day. */
-  onDropAt: (day: Date, time: number, data: DataTransfer) => void;
+  /** A post or draft dropped on a quarter hour of a day. Omit for a read-only grid: nothing is draggable and no cell accepts a drop. */
+  onDropAt?: (day: Date, time: number, data: DataTransfer) => void;
+  /** `day` shows only the day of `currentDate` (Office Calendar); `week` is the Monday-first week (default). */
+  mode?: "week" | "day";
+  /** All-day and multi-day entries sit in a row above the grid when this is set and any exist. */
+  allDay?: { label: string; render: (event: CalendarEvent) => React.ReactNode };
   /** Label for the grid (screen readers). */
   label: string;
   /** Posts that overlap in time collapse into the first one plus a "+N" button that opens a list of all of them. */
@@ -53,12 +58,13 @@ interface PositionedEvent {
   group?: CalendarEvent[];
 }
 
-export function WeekView({ currentDate, events, onEventSelect, renderChip, onDropAt, label, overlap }: WeekViewProps) {
+export function WeekView({ currentDate, events, onEventSelect, renderChip, onDropAt, label, overlap, mode = "week", allDay }: WeekViewProps) {
   const days = useMemo(() => {
+    if (mode === "day") return [startOfDay(currentDate)];
     const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
     const weekEnd = endOfWeek(currentDate, { weekStartsOn: 1 });
     return eachDayOfInterval({ start: weekStart, end: weekEnd });
-  }, [currentDate]);
+  }, [currentDate, mode]);
 
   const hours = useMemo(() => {
     const dayStart = startOfDay(currentDate);
@@ -201,11 +207,13 @@ export function WeekView({ currentDate, events, onEventSelect, renderChip, onDro
     onEventSelect(event);
   };
 
-  const { currentTimePosition, currentTimeVisible } = useCurrentTimeIndicator(currentDate, "week");
+  const { currentTimePosition, currentTimeVisible } = useCurrentTimeIndicator(currentDate, mode);
+  const cols = mode === "day" ? "grid-cols-[3rem_1fr] sm:grid-cols-[4rem_1fr]" : "grid-cols-8";
+  const spanning = allDay ? events.filter((event) => event.allDay || isMultiDayEvent(event)) : [];
 
   return (
     <div data-slot="week-view" aria-label={label} role="group" className="flex h-full flex-col" style={{ "--week-cells-height": `${WeekCellsHeight}px` } as React.CSSProperties}>
-      <div className="bg-card/80 border-border/70 sticky top-0 z-30 grid grid-cols-8 border-b backdrop-blur-md">
+      <div className={cn("bg-card/80 border-border/70 sticky top-0 z-30 grid border-b backdrop-blur-md", cols)}>
         <div className="text-muted-foreground py-2 text-center text-sm">
           <span className="max-[479px]:sr-only">{format(new Date(), "O")}</span>
         </div>
@@ -222,7 +230,14 @@ export function WeekView({ currentDate, events, onEventSelect, renderChip, onDro
         ))}
       </div>
 
-      <div className="grid flex-1 grid-cols-8 overflow-hidden">
+      {allDay && spanning.length > 0 && <div className={cn("border-border/70 grid border-b", cols)} data-testid="all-day-row">
+        <div className="text-muted-foreground flex items-center justify-end pe-2 text-[10px] sm:pe-4 sm:text-xs">{allDay.label}</div>
+        {days.map((day) => <div key={day.toString()} className="border-border/70 flex min-w-0 flex-col gap-1 border-r p-1 last:border-r-0">
+          {spanning.filter((event) => event.start <= endOfDay(day) && event.end >= day).map((event) => <button key={event.id} type="button" onClick={() => onEventSelect(event)}
+            className="bg-card hover:bg-muted/60 focus-visible:ring-ring/50 flex min-h-11 min-w-0 items-center gap-1 overflow-hidden rounded-md border px-1 text-left text-xs outline-none focus-visible:ring-[3px] sm:min-h-6">{allDay.render(event)}</button>)}
+        </div>)}
+      </div>}
+      <div className={cn("grid flex-1 overflow-hidden", cols)}>
         <div className="border-border/70 grid auto-cols-fr border-r">
           {hours.map((hour, index) => (
             <div
@@ -278,7 +293,7 @@ export function WeekView({ currentDate, events, onEventSelect, renderChip, onDro
                 </Popover>}
                 <button
                   type="button"
-                  draggable
+                  draggable={onDropAt ? true : undefined}
                   data-post-id={positionedEvent.event.id}
                   onClick={(e) => handleEventClick(positionedEvent.event, e)}
                   onDragStart={(e) => {
@@ -316,14 +331,14 @@ export function WeekView({ currentDate, events, onEventSelect, renderChip, onDro
                         key={`${hour.toString()}-${quarter}`}
                         data-day={format(day, "yyyy-MM-dd")}
                         data-time={quarterHourTime}
-                        onDragOver={(e) => {
+                        onDragOver={onDropAt ? (e) => {
                           e.preventDefault();
                           e.dataTransfer.dropEffect = "move";
-                        }}
-                        onDrop={(e) => {
+                        } : undefined}
+                        onDrop={onDropAt ? (e) => {
                           e.preventDefault();
                           onDropAt(day, quarterHourTime, e.dataTransfer);
-                        }}
+                        } : undefined}
                         className={cn(
                           "absolute h-[calc(var(--week-cells-height)/4)] w-full",
                           quarter === 0 && "top-0",

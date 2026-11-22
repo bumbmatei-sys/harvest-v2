@@ -97,8 +97,8 @@ describe("three-mode registry (slice 1)", () => {
   });
   it("reserves not-yet-built modules as planned, including blog articles", () => {
     const planned = navEntries.filter((entry) => entry.status === "planned").map((entry) => entry.id);
-    expect(planned).toEqual(expect.arrayContaining(["articles", "ads", "website", "linkInBio", "newsletterCampaigns", "newsletterAudience", "signupForms", "newsletterAnalytics", "products", "courses", "coaching", "coupons", "live", "discover", "assistant", "responses", "connectLinks", "forms", "calendar", "documents", "spreadsheets", "givingOverview", "donations", "fundraising", "pledges", "donors", "funds", "givingPage", "volunteers", "livestream", "churchProfile"]));
-    expect(navEntries.filter((entry) => entry.status !== "planned").map((entry) => entry.id)).toEqual(["people", "companies", "pipelines", "tasks", "crmReports", "crmForms", "imports", "mail", "campaigns", "followUp", "events", "files", "planner", "inbox", "autoDm", "socialAnalytics", "communities", "socialAccounts", "crmFields", "pipelineSettings", "appearance", "ministrySettings"]);
+    expect(planned).toEqual(expect.arrayContaining(["articles", "ads", "website", "linkInBio", "newsletterCampaigns", "newsletterAudience", "signupForms", "newsletterAnalytics", "products", "courses", "coaching", "coupons", "live", "discover", "assistant", "responses", "connectLinks", "forms", "documents", "spreadsheets", "givingOverview", "donations", "fundraising", "pledges", "donors", "funds", "givingPage", "volunteers", "livestream", "churchProfile"]));
+    expect(navEntries.filter((entry) => entry.status !== "planned").map((entry) => entry.id)).toEqual(["people", "companies", "pipelines", "tasks", "crmReports", "crmForms", "imports", "mail", "calendar", "campaigns", "followUp", "events", "files", "planner", "inbox", "autoDm", "socialAnalytics", "communities", "socialAccounts", "crmFields", "pipelineSettings", "appearance", "ministrySettings"]);
   });
   it("never renders, links or labels a planned entry", () => {
     const plannedIds = new Set(navEntries.filter((entry) => entry.status === "planned").map((entry) => entry.id));
@@ -119,10 +119,11 @@ describe("three-mode registry (slice 1)", () => {
   it("filters per mode by role, audience and feature", () => {
     const ids = (mode: NavMode, extra: Partial<Parameters<typeof resolveModeNavigation>[0]> = {}) => resolveModeNavigation({ tenantId, role: "owner", pathname: root, mode, ...extra }).groups.flatMap((group) => group.items.map((item) => item.id));
     expect(ids("operations")).toEqual(["files", "people", "companies", "pipelines", "tasks", "crmReports", "crmForms", "imports", "followUp", "campaigns"]);
-    // Mail needs the Office feature and the owner or admin role; it leads the Office group.
-    expect(ids("operations", { features: ["office"] })).toEqual(["mail", "files", "people", "companies", "pipelines", "tasks", "crmReports", "crmForms", "imports", "followUp", "campaigns"]);
-    expect(ids("operations", { features: ["office"], role: "member" })).not.toContain("mail");
-    expect(ids("operations", { features: ["office"], role: "viewer" })).not.toContain("mail");
+    // Email and Calendar need the Office feature and the owner or admin role; they lead the Office group.
+    expect(ids("operations", { features: ["office"] })).toEqual(["mail", "calendar", "files", "people", "companies", "pipelines", "tasks", "crmReports", "crmForms", "imports", "followUp", "campaigns"]);
+    for (const role of ["member", "viewer"]) for (const id of ["mail", "calendar"]) expect(ids("operations", { features: ["office"], role })).not.toContain(id);
+    expect(ids("operations", { features: ["office"], role: "admin" })).toEqual(expect.arrayContaining(["mail", "calendar"]));
+    expect(ids("operations")).not.toContain("calendar");
     expect(ids("operations", { role: "viewer" })).not.toContain("imports");
     expect(ids("operations", { role: "viewer" })).not.toContain("followUp");
     expect(ids("public")).toEqual([]);

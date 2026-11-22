@@ -5895,5 +5895,143 @@
       "discardBody": "Unsaved changes are lost.",
       "discard": "Discard"
     }
+  },
+  "OfficeCalendar": {
+    "title": "Calendar",
+    "pageTitle": "Calendar",
+    "subtitle": "Your own calendar. Events are read live and never stored in Harvest.",
+    "loading": "Loading",
+    "unavailableTitle": "Calendar is not available",
+    "unavailable": "Calendar is not available for you right now.",
+    "loadFailed": "Could not load your calendar connection.",
+    "retry": "Try again",
+    "refresh": "Refresh",
+    "toolbar": "Calendar controls",
+    "viewLabel": "View",
+    "views": {
+      "month": "Month",
+      "week": "Week",
+      "day": "Day",
+      "agenda": "Agenda",
+      "availability": "Availability"
+    },
+    "previous": {
+      "month": "Previous month",
+      "week": "Previous week",
+      "day": "Previous day",
+      "agenda": "Previous 30 days",
+      "availability": "Previous week"
+    },
+    "next": {
+      "month": "Next month",
+      "week": "Next week",
+      "day": "Next day",
+      "agenda": "Next 30 days",
+      "availability": "Next week"
+    },
+    "today": "Today",
+    "newEvent": "New event",
+    "showSocial": "Show social posts",
+    "socialSource": "Social posts",
+    "sourceFilter": "Show events from",
+    "allSources": "All",
+    "partial": "Some events may be missing from this view.",
+    "socialFailed": "Could not load social posts.",
+    "socialUnavailable": "Social posts are not available.",
+    "socialPartial": "Some social posts may be missing from this view.",
+    "loadEventsFailed": "Could not load events.",
+    "emptyRange": "No events in this period.",
+    "gridScroll": "Calendar grid",
+    "grid": {
+      "week": "Week of events",
+      "day": "Day of events"
+    },
+    "allDay": "All day",
+    "overlapMore": "+{count}",
+    "overlapLabel": "{count, plural, one {# more event at this time} other {# more events at this time}}",
+    "overlapTitle": "Events at this time",
+    "writesOff": "Creating and editing events isn't available yet",
+    "connect": {
+      "title": "Connect your calendar",
+      "reconnectTitle": "Reconnect your calendar",
+      "attentionTitle": "Your calendar needs attention",
+      "attention": "Harvest cannot reach this calendar right now.",
+      "checkAgain": "Check again",
+      "connectWith": "Connect {provider}",
+      "reconnectWith": "Reconnect {provider}",
+      "pendingTitle": "Finish connecting in the new tab",
+      "pendingBody": "This page continues on its own once you are done.",
+      "openAgain": "Open the connection page",
+      "cancel": "Cancel",
+      "failed": "Connecting did not finish. Try again.",
+      "refused": "Connecting is not available right now.",
+      "choose": "Choose an account"
+    },
+    "account": {
+      "disconnect": "Disconnect",
+      "disconnectTitle": "Disconnect this calendar?",
+      "disconnectBody": "Harvest removes the connection and your person links. Nothing in the calendar changes.",
+      "disconnectConfirm": "Disconnect",
+      "cancel": "Cancel",
+      "disconnecting": "Disconnecting",
+      "disconnected": "Calendar disconnected"
+    },
+    "month": {
+      "previousMonth": "Previous month",
+      "nextMonth": "Next month",
+      "dayCell": "{day}, {count, plural, one {# event} other {# events}}",
+      "moreEvents": "+{count} more"
+    },
+    "detail": {
+      "close": "Close",
+      "untitled": "Untitled event",
+      "calendar": "Calendar",
+      "join": "Meeting link",
+      "joinMeeting": "Join meeting",
+      "attendees": "Attendees",
+      "notes": "Notes",
+      "edit": "Edit",
+      "delete": "Delete",
+      "socialUntitled": "Social post",
+      "socialReadOnly": "Scheduled post, read only",
+      "openPlanner": "Open in planner"
+    },
+    "form": {
+      "newTitle": "New event",
+      "editTitle": "Edit event",
+      "pickDate": "Pick a date",
+      "pickTime": "Select time",
+      "title": "Title",
+      "allDay": "All day",
+      "startDate": "Start date",
+      "startTime": "Start time",
+      "endDate": "End date",
+      "endTime": "End time",
+      "delete": "Delete event",
+      "timeZone": "Time zone",
+      "location": "Location",
+      "notes": "Notes",
+      "calendar": "Calendar",
+      "attendees": "Attendees",
+      "meetingLink": "Add a meeting link",
+      "save": "Save",
+      "close": "Close"
+    },
+    "agenda": {
+      "emptyTitle": "No events",
+      "empty": "There are no events in this period."
+    },
+    "availability": {
+      "label": "Availability",
+      "length": "Length",
+      "range": "{start} – {end}",
+      "minutes": "{count} minutes",
+      "loading": "Loading availability",
+      "failed": "Could not load availability.",
+      "retry": "Try again",
+      "partial": "Only the first free times are shown.",
+      "none": "No free time in this period",
+      "past": "This period is in the past"
+    }
   }
 }

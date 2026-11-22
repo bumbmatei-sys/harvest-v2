@@ -235,6 +235,11 @@ export const mailMarkColors = {
   gmail: { blue: "#4285F4", green: "#34A853", yellow: "#FBBC04", red: "#EA4335", darkRed: "#C5221F" },
   outlook: { deep: "#0A2767", base: "#0364B8", mid: "#0078D4", light: "#28A8EA", pale: "#50D9FF", white: "#FFFFFF" },
 } as const;
+/** Calendar marks for the Office Calendar screen (Google Calendar and Outlook calendar), simplified and in their published brand colours. */
+export const calendarMarkColors = {
+  google: { blue: "#4285F4", green: "#34A853", yellow: "#FBBC04", red: "#EA4335", white: "#FFFFFF" },
+  outlook: { base: "#0364B8", mid: "#0078D4", light: "#28A8EA", white: "#FFFFFF" },
+} as const;
 /** Drive marks for the Files screen (Google Drive and OneDrive), simplified and in their published brand colours. */
 export const driveMarkColors = {
   drive: { green: "#34A853", yellow: "#FBBC04", blue: "#4285F4" },
