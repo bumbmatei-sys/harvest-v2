@@ -43,14 +43,22 @@ test("campaigns: templates, block editor, brand kit, preview, test send and the 
 
   // List: empty, with the eight templates (plus blank) rendered from the blocks.
   await page.goto(`/workspaces/${tenant}/newsletter/campaigns`);
-  await expect(page.getByRole("heading", { name: "Emails", exact: true })).toBeVisible();
-  await expect(page.getByText("No emails yet")).toBeVisible();
-  // The newsletter lives under Public > Newsletter: "Emails" is the active item and the operations "Campaigns" entry is not highlighted.
+  await expect(page.getByRole("heading", { name: "Campaigns", exact: true })).toBeVisible();
+  await expect(page.getByText("No campaigns yet")).toBeVisible();
+  // The newsletter lives only under Public > Newsletter: its "Campaigns" link is the active item, and the Operations Campaigns entry (/campaigns) is neither highlighted nor repeated in the Newsletter group.
   if (process.env.HARVEST_SHELL_MODES !== "disabled") {
     const sidebar = page.locator("[data-sidebar=\"sidebar\"]").first();
-    await expect(sidebar.getByRole("link", { name: "Emails", exact: true })).toHaveAttribute("aria-current", "page");
+    const campaignLinks = sidebar.getByRole("link", { name: "Campaigns", exact: true });
+    await expect(campaignLinks).toHaveCount(1);
+    await expect(campaignLinks).toHaveAttribute("aria-current", "page");
+    await expect(campaignLinks).toHaveAttribute("href", `/workspaces/${tenant}/newsletter/campaigns`);
     await expect(sidebar.getByText("Newsletter", { exact: true })).toBeVisible();
-    await expect(sidebar.getByRole("link", { name: "Campaigns", exact: true })).toHaveCount(0);
+    await expect(sidebar.locator(`a[href="/workspaces/${tenant}/campaigns"]`)).toHaveCount(0);
+    await page.getByRole("tab", { name: "Operations", exact: true }).click();
+    const operations = sidebar.locator(`a[href="/workspaces/${tenant}/campaigns"]`);
+    await expect(operations).toHaveCount(1);
+    await expect(operations).not.toHaveAttribute("aria-current", "page");
+    await page.getByRole("tab", { name: "Public", exact: true }).click();
   }
   await expect(page.locator("section [data-template]")).toHaveCount(9);
   await shoot(page, "list-empty");
@@ -59,7 +67,7 @@ test("campaigns: templates, block editor, brand kit, preview, test send and the 
   await page.locator('section [data-template="weekly-update"]').getByRole("button", { name: "Use Weekly update" }).click();
   await expect(page).toHaveURL(/\/newsletter\/campaigns\/[0-9a-f-]{36}$/);
   const editorUrl = page.url();
-  if (process.env.HARVEST_SHELL_MODES !== "disabled") await expect(page.getByRole("link", { name: "Back to emails" })).toBeVisible();
+  if (process.env.HARVEST_SHELL_MODES !== "disabled") await expect(page.getByRole("link", { name: "Back to campaigns" })).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Subject", exact: true })).toHaveValue("Weekly update");
   expect(await order(page)).toEqual(["header", "hero", "text", "columns", "quote", "event", "footer"]);
   await expect(preview(page).getByText("This week at Grace Community Church")).toBeVisible();
@@ -126,7 +134,7 @@ test("campaigns: templates, block editor, brand kit, preview, test send and the 
   await expect(preview(page).getByText("Welcome, Ana")).toBeVisible();
 
   // Send step: live count, when, inbox check, and a disabled Send.
-  await page.getByRole("navigation", { name: "Email steps" }).getByRole("button", { name: /^Send/ }).click();
+  await page.getByRole("navigation", { name: "Campaign steps" }).getByRole("button", { name: /^Send/ }).click();
   await expect(page.getByText("Choose at least one list.")).toBeVisible();
   await page.getByRole("checkbox", { name: "Weekly list" }).check();
   await expect(page.locator("[data-recipient-count]")).toContainText("people will receive it.");
@@ -143,9 +151,9 @@ test("campaigns: templates, block editor, brand kit, preview, test send and the 
   // The campaign is in the list; search and sort work, and the saved draft reloads with its content.
   await page.goto(`/workspaces/${tenant}/newsletter/campaigns`);
   await expect(page.getByRole("link", { name: "Weekly update" })).toBeVisible();
-  await page.getByRole("searchbox", { name: "Search emails" }).fill("zzz");
-  await expect(page.getByText("No emails match your search.")).toBeVisible();
-  await page.getByRole("searchbox", { name: "Search emails" }).fill("weekly");
+  await page.getByRole("searchbox", { name: "Search campaigns" }).fill("zzz");
+  await expect(page.getByText("No campaigns match your search.")).toBeVisible();
+  await page.getByRole("searchbox", { name: "Search campaigns" }).fill("weekly");
   await page.getByLabel("Sort").selectOption("status");
   await page.goto(editorUrl);
   await expect(page.getByRole("textbox", { name: "Subject", exact: true })).toHaveValue("Grace news this week");
