@@ -6059,7 +6059,7 @@
       "deleting": "Deleting",
       "deleted": "Event deleted",
       "deleteFailed": "Could not delete this event. Try again.",
-      "changedElsewhere": "This event changed elsewhere. It has been reloaded; try again.",
+      "changedElsewhere": "This event changed elsewhere. Close this to reload it.",
       "readOnlyEvent": "Harvest can change only events it created."
     },
     "form": {

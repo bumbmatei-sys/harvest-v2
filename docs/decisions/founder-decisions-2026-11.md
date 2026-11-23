@@ -111,6 +111,19 @@ Approved for the CRM reports slice (`docs/acceptance/crm-reports.md`); they sett
 - **Consent wording:** the ministry keeps writing its own consent line. Harvest always adds "Your details go to [ministry name]. You can ask them to delete them." on the public form and in the published snapshot (ministry name frozen at publish). The checkbox is never pre-ticked. No newsletter or follow-up permission is assumed.
 - **Source credit after expiry (PR 2):** a minimal source tag on the person (form name and submission date, no answers) outlives the response so reports and source filters keep reading the form as the source. Lifetime equals the contact's.
 
+## Office Calendar writes (23 Nov, "approve all defaults")
+
+- **Invites:** version 1 creates events with no attendees, on the person's own calendar only. The attendee field stays disabled with "Invites aren't available yet". Version 2 (documented only, nothing built): attendees with an explicit "Send invites to N people?" confirm, off by default, never anyone marked do-not-contact.
+- **Video link:** a toggle "Add a video link", off by default, using the chosen calendar's own provider (Google Meet, Microsoft Teams). If the account cannot create one the toggle is disabled with a short honest reason; never faked.
+- **Which calendar:** the picker lists only writable calendars, each with the account mark. Default is the calendar this admin used last (kept on their own connection row as a reference only), else the connection's primary calendar. A shared calendar is never chosen silently.
+- **Permission:** write access is a separate grant from the read connection (least privilege), requested only the first time the admin creates an event ("Allow Harvest to add events to your calendar"). Until granted, New event shows the prompt.
+- **Edit and delete:** only events created in Harvest (a minimal list per connection: calendar and event references and a time stamp, no titles, notes or attendees). Other events stay read only. Delete asks for confirmation.
+- **Recurring events:** not in version 1; single events only.
+- **Time zones:** the event uses the chosen calendar's time zone (shown on the form); all-day events are supported.
+- **Conflicts:** updates and deletes carry the provider's event version; if it changed on the provider side the save is refused with "changed elsewhere, reload" (409) and nothing is overwritten. Creates carry a client request id so a retry never duplicates.
+- **Audit:** each create, update and delete writes an audit row with the event reference and outcome only, never content.
+- **Still hard-off:** real provider writes stay behind `OFFICE_CALENDAR_WRITE_ENABLED` (literal false, source guard) and the non-production synthetic provider gate. Details and evidence: `docs/acceptance/office-calendar-writes.md`.
+
 ## 6. Process rules
 
 - Use Claude or Codex for coding and a separate fresh session for independent review. No force pushes. No merge or deploy without the founder's approval. No real outbound messages or webhooks outside tests.

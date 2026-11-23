@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { agendaDays, calendarEvent, isSocialId, overlayStatuses, plannerHref, rangeFor, safeLink, shiftDate, socialEvent, type CalendarItem } from "../../src/lib/office/calendar";
+import { addPlainDays, zonedInstant, zonedParts, agendaDays, calendarEvent, isSocialId, overlayStatuses, plannerHref, rangeFor, safeLink, shiftDate, socialEvent, type CalendarItem } from "../../src/lib/office/calendar";
 import type { PlannerItem } from "../../src/lib/social/api";
 
 const item = (extra: Partial<CalendarItem>): CalendarItem => ({ ref: "e", calendarRef: "c", title: "Meeting", start: "2026-11-23T10:00:00.000Z", end: "2026-11-23T11:00:00.000Z", attendees: [], meetingLink: null, ...extra });
@@ -48,5 +48,20 @@ describe("office calendar library", () => {
     expect(safeLink("javascript:alert(1)")).toBeNull();
     expect(safeLink("http://meet.example.test/x")).toBeNull();
     expect(safeLink(null)).toBeNull();
+  });
+});
+
+describe("zoned event times", () => {
+  it("converts wall-clock times in the calendar's zone, across daylight saving", () => {
+    expect(zonedInstant("2026-11-25", "09:00", "America/New_York")).toBe("2026-11-25T14:00:00.000Z");
+    expect(zonedInstant("2026-07-01", "09:00", "America/New_York")).toBe("2026-07-01T13:00:00.000Z");
+    expect(zonedInstant("2026-11-25", "09:00", "Europe/Bucharest")).toBe("2026-11-25T07:00:00.000Z");
+    expect(zonedInstant("2026-11-25", "24:00", "UTC")).toBe("2026-11-26T00:00:00.000Z");
+  });
+  it("reads an instant back as the same wall clock and adds plain days", () => {
+    expect(zonedParts("2026-11-25T14:00:00.000Z", "America/New_York")).toEqual({ date: "2026-11-25", time: "09:00" });
+    expect(zonedParts("2026-11-25T23:30:00.000Z", "Pacific/Auckland")).toEqual({ date: "2026-11-26", time: "12:30" });
+    expect(addPlainDays("2026-11-30", 1)).toBe("2026-12-01");
+    expect(addPlainDays("2026-03-01", -1)).toBe("2026-02-28");
   });
 });

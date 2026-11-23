@@ -5,8 +5,8 @@ import { origin, signIn } from "./helpers/session";
 import { settleForAxe } from "./helpers/settle";
 
 // Office Calendar screen against the real Office routes with the non-production fake provider (one synthetic sample event), and against a stubbed connection for
-// several calendars, all-day events, the social overlay, partial pages, failures and the reconnect and attention states. Creating, editing and deleting events are
-// hard-off: every test records the Office requests and asserts that no calendar write is ever sent.
+// several calendars, all-day events, the social overlay, partial pages, failures and the reconnect and attention states. Creating, editing and deleting are covered
+// by office-calendar-writes.spec.ts; here the read-only screen never sends a write, and the stubbed states that report writes as disabled keep their notice.
 const expect = base.configure({ timeout: 30_000 });
 test.use({ actionTimeout: 30_000, reducedMotion: "reduce" });
 const shots = process.env.OFFICE_CALENDAR_SHOTS ?? "docs/screenshots/office-calendar";
@@ -58,7 +58,7 @@ function recordActions(page: Page) {
   return actions;
 }
 
-test("office calendar: connect, views, detail, person link, disabled writes, keyboard and disconnect (fake provider)", async ({ page }) => {
+test("office calendar: connect, views, detail, person link, read-only events, grant prompt, keyboard and disconnect (fake provider)", async ({ page }) => {
   test.setTimeout(900_000);
   await mkdir(shots, { recursive: true });
   const errors: string[] = [];
@@ -116,10 +116,10 @@ test("office calendar: connect, views, detail, person link, disabled writes, key
   await expect(panel.getByTestId("detail-when")).toContainText(":");
   await expect(panel.getByTestId("attendees")).toContainText("participant@example.test");
   await expect(panel.getByTestId("join-link")).toHaveCount(0);
-  // Edit and Delete exist, disabled, with the one short notice.
+  // An event Harvest did not create is read only: Edit and Delete are disabled with the one short notice.
   await expect(panel.getByTestId("event-edit")).toBeDisabled();
   await expect(panel.getByTestId("event-delete")).toBeDisabled();
-  await expect(panel.getByTestId("writes-note")).toHaveText("Creating and editing events isn't available yet");
+  await expect(panel.getByTestId("writes-note")).toHaveText("Harvest can change only events it created.");
   await audit(page, "detail", async () => { await page.getByTestId("view-agenda").click().catch(() => undefined); await row.click().catch(() => undefined); await expect(panel.getByTestId("detail-title")).toBeVisible(); }, async () => { await expect(row).toBeVisible(); });
 
   // ---- Link the event to a CRM person: an explicit reference, no contact created, no event title stored -----------------------------------------------
@@ -134,7 +134,7 @@ test("office calendar: connect, views, detail, person link, disabled writes, key
   const overview = await (await page.request.get(`${api}/office`)).json() as { connections: { id: string; kind: string; platform: string; health: string; capabilities: Record<string, string> }[] };
   const connection = overview.connections.find((item) => item.kind === "calendar")!;
   expect(connection).toMatchObject({ platform: "google", health: "healthy" });
-  expect(connection.capabilities).toMatchObject({ events: "available", availability: "available", createEvent: "disabled", updateEvent: "disabled", deleteEvent: "disabled" });
+  expect(connection.capabilities).toMatchObject({ events: "available", availability: "available", createEvent: "available", updateEvent: "available", deleteEvent: "available", meeting: "available" });
   const refs = await (await page.request.post(`${api}/office`, { headers: { origin }, data: { action: "contactReferences", connectionId: connection.id, input: { contactId: person.id } } })).json() as { data: { items: { ref: string; kind: string; name: string | null }[] } };
   expect(refs.data.items).toEqual([expect.objectContaining({ ref: "sample-event", kind: "event", name: null })]);
   expect(JSON.stringify(refs)).not.toContain("Planning meeting");
@@ -145,17 +145,13 @@ test("office calendar: connect, views, detail, person link, disabled writes, key
   expect(((await (await page.request.get(`${api}/contacts`)).json()) as { total: number }).total).toBe(1);
   await page.getByTestId("detail-close").click();
 
-  // ---- New event: the form is in place and entirely disabled; attendees and the meeting link stay off ------------------------------------------------
+  // ---- New event: write access is asked for first (a separate grant), nothing is sent until the person allows it ----------------------------------------
   await page.getByTestId("new-event").click();
   const form = page.getByTestId("event-form");
-  await expect(form.getByTestId("form-writes-note")).toHaveText("Creating and editing events isn't available yet");
-  for (const label of ["Title", "Notes", "Start date", "Start time", "End date", "End time", "Location"]) await expect(form.getByLabel(label, { exact: true })).toBeDisabled();
-  await expect(form.getByLabel("Time zone")).toBeDisabled();
-  await expect(form.getByLabel("Calendar", { exact: true })).toBeDisabled();
-  await expect(form.getByTestId("form-attendees")).toBeDisabled();
-  await expect(form.getByTestId("form-meeting")).toBeDisabled();
-  await expect(form.getByTestId("form-save")).toBeDisabled();
-  await audit(page, "form", async () => { if (!(await form.isVisible())) await page.getByTestId("new-event").click(); await expect(form).toBeVisible(); });
+  await expect(form.getByTestId("grant-prompt")).toContainText("Allow Harvest to add events to your calendar");
+  await expect(form.getByTestId("grant-allow")).toBeVisible();
+  await expect(form.getByLabel("Title", { exact: true })).toHaveCount(0);
+  await audit(page, "form", async () => { if (!(await form.isVisible())) await page.getByTestId("new-event").click(); await expect(form.getByTestId("grant-allow")).toBeVisible(); });
   await page.keyboard.press("Escape");
 
   // ---- Availability ---------------------------------------------------------------------------------------------------------------------------------
@@ -183,7 +179,7 @@ test("office calendar: connect, views, detail, person link, disabled writes, key
   await expect(page.getByTestId("calendar-connect")).toBeVisible();
   expect(((await (await page.request.get(`${api}/office`)).json()) as { connections: unknown[] }).connections).toHaveLength(0);
 
-  // ---- Hard-off: no calendar write request was ever made ---------------------------------------------------------------------------------------------
+  // ---- This read-only walk never sent a calendar write -------------------------------------------------------------------------------------------
   expect(actions.filter((action) => writes.includes(action))).toEqual([]);
   expect(errors).toEqual([]);
 });
@@ -209,9 +205,10 @@ test("office calendar: another admin never sees this admin's connection; members
   expect(((await (await admin.page.request.get(`${api}/office`)).json()) as { connections: unknown[] }).connections).toHaveLength(0);
   expect((await admin.page.request.post(`${api}/office`, { headers: { origin }, data: { action: "events", connectionId: mine, input: window } })).status()).toBe(404);
   expect((await admin.page.request.post(`${api}/office`, { headers: { origin }, data: { action: "event", connectionId: mine, input: { eventRef: "sample-event" } } })).status()).toBe(404);
-  // The server refuses calendar writes for the owner too: hard-off.
-  const refused = await page.request.post(`${api}/office`, { headers: { origin }, data: { action: "createEvent", connectionId: mine, input: { event: { title: "x", start: window.start, end: window.end, attendees: [] }, requestId: crypto.randomUUID() } } });
-  expect((await refused.json()).state).toBe("disabled");
+  // The owner has not granted write access yet: the server refuses a write, and the other admin cannot write on this connection at all.
+  const refused = await page.request.post(`${api}/office`, { headers: { origin }, data: { action: "createEvent", connectionId: mine, input: { calendarRef: "primary", event: { title: "x", start: window.start, end: window.end, attendees: [] }, requestId: crypto.randomUUID() } } });
+  expect((await refused.json()).state).toBe("write_access_needed");
+  expect((await admin.page.request.post(`${api}/office`, { headers: { origin }, data: { action: "createEvent", connectionId: mine, input: { calendarRef: "primary", event: { title: "x", start: window.start, end: window.end, attendees: [] }, requestId: crypto.randomUUID() } } })).status()).toBe(404);
   await page.reload(); await expect(page.getByTestId("calendar")).toBeVisible();
 
   for (const person of [member, stranger]) {

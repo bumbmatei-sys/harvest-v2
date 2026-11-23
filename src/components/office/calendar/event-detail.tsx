@@ -1,6 +1,6 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CalendarDays, ExternalLink, Pencil, Trash2, Users, Video, X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -34,7 +34,7 @@ export function EventDetail({ tenantId, api, connectionId, item, calendarName, p
 }) {
   const t = useTranslations("OfficeCalendar.detail"), p = useTranslations("OfficeMail.person"), w = useTranslations("OfficeCalendar"), locale = useLocale();
   const [busy, setBusy] = useState(false);
-  const mine = writes && item.createdHere === true;
+  const mine = writes && item.createdHere === true, stale = useRef(false);
   const join = safeLink(item.meetingLink);
   async function link(id: string) {
     setBusy(true);
@@ -50,7 +50,7 @@ export function EventDetail({ tenantId, api, connectionId, item, calendarName, p
       if (result.state === "available") { notify.success(t("deleted")); onChanged(); onClose(); return; }
       return t("deleteFailed");
     } catch (error) {
-      if (error instanceof OfficeApiError && error.conflict) { onChanged(); return t("changedElsewhere"); }
+      if (error instanceof OfficeApiError && error.conflict) { stale.current = true; return t("changedElsewhere"); }
       throw error;
     }
   }
@@ -82,7 +82,7 @@ export function EventDetail({ tenantId, api, connectionId, item, calendarName, p
           <Button type="button" variant="outline" size="responsive" disabled={!mine} aria-describedby={mine ? undefined : "detail-writes-note"} onClick={onEdit} data-testid="event-edit"><Pencil aria-hidden="true" />{t("edit")}</Button>
           {mine
             ? <ConfirmDialog trigger={<Button type="button" variant="outline" size="responsive" data-testid="event-delete"><Trash2 aria-hidden="true" />{t("delete")}</Button>}
-              title={t("deleteTitle")} description={t("deleteBody")} confirmLabel={t("delete")} cancelLabel={t("cancel")} busyLabel={t("deleting")} onConfirm={remove} />
+              onOpenChange={(open) => { if (!open && stale.current) { stale.current = false; onChanged(); } }} title={t("deleteTitle")} description={t("deleteBody")} confirmLabel={t("delete")} cancelLabel={t("cancel")} busyLabel={t("deleting")} onConfirm={remove} />
             : <Button type="button" variant="outline" size="responsive" disabled aria-describedby="detail-writes-note" data-testid="event-delete"><Trash2 aria-hidden="true" />{t("delete")}</Button>}
         </div>
         {!mine && <p id="detail-writes-note" className="text-sm text-muted-foreground" data-testid="writes-note">{writes ? t("readOnlyEvent") : w("writesOff")}</p>}
