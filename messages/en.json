@@ -1724,6 +1724,17 @@
     "ctrl": "Ctrl",
     "enterKey": "Enter"
   },
+  "ImportStatus": {
+    "pageTitle": "Import status · Harvest",
+    "title": "Import and sync status",
+    "viewOnly": "Import status is available to owners and admins.",
+    "columns": { "type": "Records", "status": "Status", "started": "Started", "updated": "Updated", "finished": "Finished" },
+    "note": "{count, plural, one {Latest import. Email and calendar sync are not connected yet.} other {Latest # imports. Email and calendar sync are not connected yet.}}",
+    "emptyTitle": "No imports yet",
+    "error": "Import status could not be loaded. Try again in a moment.",
+    "link": "Import status",
+    "none": "Not finished"
+  },
   "Imports": {
     "report": {
       "row": "Row",

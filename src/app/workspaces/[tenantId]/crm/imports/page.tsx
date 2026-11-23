@@ -13,6 +13,7 @@ import { NewImportDialog } from "@/components/crm/imports/new-import-dialog";
 import { ImportStatusBadge } from "@/components/crm/imports/import-status";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -24,7 +25,7 @@ export async function generateMetadata(): Promise<Metadata> {
 
 export default async function ImportsPage({ params, searchParams }: { params: Promise<{ tenantId: string }>; searchParams: Promise<{ entity?: string }> }) {
   const t = await getTranslations("Imports");
-  const crm = await getTranslations("Crm");
+  const crm = await getTranslations("Crm"), status = await getTranslations("ImportStatus");
   const format = await getFormatter();
   const session = await pageSession(), { tenantId } = await params, { entity } = await searchParams;
   if (!uuidInput.safeParse(tenantId).success) return <AccessState />;
@@ -39,7 +40,10 @@ export default async function ImportsPage({ params, searchParams }: { params: Pr
       <div><div className="mb-1.5 flex items-center gap-2 text-xs text-muted-foreground"><FileUp className="size-3.5" aria-hidden="true" />{crm("crm")}</div>
         <h1 className="flex items-center gap-2.5 text-[28px] font-semibold tracking-tight">{t("imports")}<Badge variant="secondary" className="rounded-md tabular-nums">{format.number(imports.length, "integer")}</Badge></h1>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">{t("description")}</p></div>
-      <NewImportDialog tenantId={tenantId} entity={preset} defaultOpen={entity === "person" || entity === "company"} />
+      <div className="flex flex-wrap items-center gap-2">
+        {can(workspace.role, "crm:read_diagnostics") && <Button asChild variant="outline" className="min-h-11"><Link href={`${base}/status`}>{status("link")}</Link></Button>}
+        <NewImportDialog tenantId={tenantId} entity={preset} defaultOpen={entity === "person" || entity === "company"} />
+      </div>
     </div>
     {imports.length === 0
       ? <Empty className="rounded-xl border"><EmptyHeader><EmptyMedia variant="icon"><FileUp aria-hidden="true" /></EmptyMedia>
