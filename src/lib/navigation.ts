@@ -48,7 +48,7 @@ export type NavEntry = {
    */
   exitTo?: string;
 };
-export type NavFeature = "communities" | "events" | "social" | "office";
+export type NavFeature = "communities" | "events" | "social" | "office" | "newsletter";
 export type NavItem = { id: string; label: NavLabelKey; icon: LucideIcon; href: string; active: boolean };
 /** A `pinned` group is rendered without a header, above the other groups (Discover). */
 export type NavGroup = { id: NavGroupId; label: NavLabelKey; icon?: LucideIcon; pinned?: boolean; items: NavItem[] };
@@ -96,7 +96,7 @@ export const navEntries: readonly NavEntry[] = [
   { id: "churchProfile", group: "workspace", mode: "operations", status: "planned", label: "ministryPage", icon: Landmark, path: "/church-profile", match: under("/church-profile") },
   { id: "volunteers", group: "workspace", mode: "operations", status: "planned", label: "volunteers", icon: UserCheck, path: "/volunteers", match: under("/volunteers") },
   { id: "livestream", group: "workspace", mode: "operations", status: "planned", label: "livestream", icon: Radio, path: "/livestream", match: under("/livestream") },
-  { id: "campaigns", group: "workspace", mode: "operations", label: "campaigns", icon: Flag, path: "/campaigns", match: has("/campaigns") },
+  { id: "campaigns", group: "workspace", mode: "operations", label: "campaigns", icon: Flag, path: "/campaigns", match: under("/campaigns") },
   // HC-13: the follow-up queue. Owners, admins and members open it (a member sees only the cases assigned to them); viewers never see a dead link.
   { id: "followUp", group: "connect", legacyGroup: "workspace", mode: "operations", label: "followUp", icon: HeartHandshake, path: "/connect/follow-up", match: has("/connect/follow-up"), permission: "followup:work" },
   // C14: owners and admins; hidden unless the server reports Events enabled (never in production).
@@ -118,7 +118,7 @@ export const navEntries: readonly NavEntry[] = [
   { id: "ads", group: "publishing", mode: "public", status: "planned", label: "ads", icon: Target, path: "/social/ads", match: under("/social/ads") },
   { id: "socialAnalytics", group: "publishing", mode: "public", label: "socialAnalytics", icon: ChartNoAxesCombined, path: "/social/analytics", match: under("/social/analytics"), permission: "social:analytics", feature: "social" },
   // Public > Newsletter, Website.
-  { id: "newsletterCampaigns", group: "newsletter", mode: "public", status: "planned", label: "newsletterCampaigns", icon: MailPlus, path: "/newsletter", match: under("/newsletter") },
+  { id: "newsletterCampaigns", group: "newsletter", mode: "public", label: "newsletterCampaigns", icon: MailPlus, path: "/newsletter/campaigns", match: under("/newsletter/campaigns"), permission: "newsletter:campaigns", feature: "newsletter" },
   { id: "newsletterAudience", group: "newsletter", mode: "public", status: "planned", label: "audience", icon: ContactRound, path: "/newsletter/audience", match: under("/newsletter/audience") },
   { id: "signupForms", group: "newsletter", mode: "public", status: "planned", label: "signupForms", icon: ClipboardPen, path: "/newsletter/forms", match: under("/newsletter/forms") },
   { id: "newsletterAnalytics", group: "newsletter", mode: "public", status: "planned", label: "newsletterAnalytics", icon: ChartLine, path: "/newsletter/analytics", match: under("/newsletter/analytics") },

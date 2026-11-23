@@ -16,6 +16,7 @@ import { sourceOptions } from "../../src/server/crm-sources";
 import { createView } from "../../src/server/crm-views";
 import { createPipeline } from "../../src/server/crm-deals";
 import { mergeContacts } from "../../src/server/crm-merge";
+import { message } from "../../src/i18n/messages";
 import { withTenant } from "../../src/server/tenancy";
 import { testDatabase } from "../database";
 import { noNetwork, seedPeople } from "./social-layer-fixture";
@@ -101,8 +102,8 @@ it("upgrades an existing draft as a restricted owner and scopes table and functi
   const { rows: [owner] } = await fixture.admin.query("select rolsuper, rolbypassrls from pg_roles where rolname=$1", [fixture.migrationOwner]);
   expect(owner).toEqual({ rolsuper: false, rolbypassrls: false });
   const { rows } = await fixture.admin.query(`select relname, relforcerowsecurity from pg_class
-    where relname in ('crm_form_responses','crm_form_addresses','crm_form_publications','crm_form_quotas','crm_form_receipts')`);
-  expect(rows).toHaveLength(5);
+    where relname in ('crm_form_responses','crm_form_addresses','crm_form_publications','crm_form_quotas','crm_form_receipts','contact_form_sources')`);
+  expect(rows).toHaveLength(6);
   expect(rows.every(row => row.relforcerowsecurity)).toBe(true);
   const { rows: procedures } = await fixture.admin.query(`select p.proname, p.prosecdef, p.proconfig,
       has_function_privilege('harvest_worker',p.oid,'execute') as worker,
@@ -373,11 +374,14 @@ it("repoints responses on merge, deletes them on erasure, suppresses replay, and
     sourceHistory: expect.arrayContaining([expect.objectContaining({ kind: "form", outcome: "created" })]),
   });
   const sourceEvent = (await fixture.admin.query("select id from contact_source_events where contact_id=$1 and kind='form'", [target.id])).rows[0].id;
+  // The source tag moved to the kept contact on merge and is gone with the merged one.
+  expect((await fixture.admin.query("select contact_id from contact_form_sources where version_id=$1", [publication!.versionId])).rows).toEqual([{ contact_id: target.id }]);
   await eraseContact(fixture.db, people.owner, people.tenant, target.id);
   expect((await send()).status).toBe(200);
   expect((await fixture.admin.query("select count(*)::int n from crm_form_responses where form_id=$1", [form.id])).rows[0].n).toBe(0);
 
   expect((await fixture.admin.query("select id from contact_source_events where id=$1", [sourceEvent])).rows).toEqual([]);
+  expect((await fixture.admin.query("select count(*)::int n from contact_form_sources where contact_id in ($1, $2)", [target.id, source])).rows[0].n).toBe(0);
 
   const expired = await body("rights-form", answers("expires@example.test"));
   expect((await post("rights-form", JSON.stringify(expired))).status).toBe(200);
@@ -385,10 +389,23 @@ it("repoints responses on merge, deletes them on erasure, suppresses replay, and
   await fixture.admin.query(`update crm_form_responses set submitted_at=now()-interval '31 days', expires_at=now()-interval '1 day' where form_id=$1`, [form.id]);
   expect(await getCrmForm(fixture.db, people.owner, people.tenant, form.id)).toMatchObject({ responseCount: 0 });
   expect(await listCrmFormResponses(fixture.db, people.admin, people.tenant, form.id, {})).toEqual({ count: 0, responses: [], nextCursor: null });
-  expect(await listContacts(fixture.db, people.owner, people.tenant, {
-    s: serializeSourceRule(sourceRule.parse({ mode: "include", kinds: ["form"], forms: [publication?.versionId] })),
-  })).toMatchObject({ total: 0 });
+  // The response expired, but the person keeps the form as their source through the tag.
+  const expiredPerson = (await fixture.admin.query("select contact_id from contact_form_sources where version_id=$1", [publication?.versionId])).rows;
+  expect(expiredPerson).toHaveLength(1);
+  const formRule = { s: serializeSourceRule(sourceRule.parse({ mode: "include", kinds: ["form"], forms: [publication?.versionId] })) };
+  expect(await listContacts(fixture.db, people.owner, people.tenant, formRule)).toMatchObject({ total: 1 });
+  // The Source column and the CSV export agree with the filter once the response has expired.
+  const columns = { s: formRule.s, cols: "name,source" };
+  expect((await listContacts(fixture.db, people.owner, people.tenant, columns)).rows.find(row => row.id === expiredPerson[0].contact_id)?.sourceKinds).toContain("form");
+  const exported = await exportRecords(fixture.db, people.owner, people.tenant, "person", columns);
+  expect(exported.body).toContain(`${message("Crm.sourceHistory.form")}`);
+  expect(exported.body).not.toContain(message("Crm.sourceHistory.unknown"));
+  expect(await listContacts(fixture.db, people.outsider, people.other, formRule)).toMatchObject({ total: 0 });
   expect(await purgeCrmFormResponses(fixture.db, people.admin, people.tenant)).toEqual({ removed: 1 });
+  expect(await listContacts(fixture.db, people.owner, people.tenant, formRule)).toMatchObject({ total: 1 });
+  expect((await listContacts(fixture.db, people.owner, people.tenant, {
+    s: serializeSourceRule(sourceRule.parse({ mode: "exclude", kinds: ["form"] })) })).rows.some(row => row.id === expiredPerson[0].contact_id)).toBe(false);
+  expect(await listContacts(fixture.db, people.member, people.tenant, formRule)).toMatchObject({ locked: "source_access" });
   expect((await fixture.admin.query("select count(*)::int n from crm_form_responses where form_id=$1", [form.id])).rows[0].n).toBe(0);
 });
 
@@ -441,6 +458,21 @@ it("uses the same hosted source rules for list, count, saved views and export", 
   expect(await listContacts(fixture.db, people.member, tenant, kindOnly)).toMatchObject({ locked: "source_access", total: 0 });
   expect(await listContacts(fixture.db, people.outsider, people.other, { s: serializeSourceRule(include) }))
     .toMatchObject({ locked: "invalid_source", total: 0 });
+});
+
+it("keeps one source tag per form when two people who both used the same form are merged", async () => {
+  const form = await draft();
+  const publication = await publish(form.id, "tag-merge-form", form.revision);
+  for (const email of ["tag-one@example.test", "tag-two@example.test"]) {
+    expect((await post("tag-merge-form", JSON.stringify(await body("tag-merge-form", answers(email))))).status).toBe(200);
+  }
+  const { rows: tags } = await fixture.admin.query("select contact_id, occurred_at, form_title from contact_form_sources where version_id=$1 order by occurred_at", [publication!.versionId]);
+  expect(tags).toHaveLength(2);
+  expect(tags[0].form_title).toBe(form.definition.title);
+  const { rows: [target] } = await fixture.admin.query("select version from contacts where tenant_id=$1 and id=$2", [people.tenant, tags[1].contact_id]);
+  await mergeContacts(fixture.db, people.owner, people.tenant, tags[1].contact_id, { sourceId: tags[0].contact_id, sourceVersion: 1, targetVersion: target.version });
+  const { rows: after } = await fixture.admin.query("select contact_id, occurred_at from contact_form_sources where version_id=$1", [publication!.versionId]);
+  expect(after).toEqual([{ contact_id: tags[1].contact_id, occurred_at: tags[0].occurred_at }]);
 });
 
 // Last: this test publishes a form in the second ministry.

@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { message } from "../i18n/messages";
+import { emailDocumentSchema, isEmailDocument, type EmailDocument } from "./email/blocks";
+import { renderEmail } from "./email/render";
 import { sanitizeRichText, type RichBlock, type RichDoc, type RichInline } from "./rich-text";
 
 export function newsletterHttps(value: string) {
@@ -35,7 +37,7 @@ const href = z.string().transform((value, ctx) => {
   return z.NEVER;
 });
 
-export const newsletterContent = z.array(z.discriminatedUnion("type", [
+const legacyContent = z.array(z.discriminatedUnion("type", [
   z.object({ type: z.literal("richText"), doc: rich }).strict(),
   z.object({ type: z.literal("button"), label, href }).strict(),
   z.object({ type: z.literal("image"), fileId: z.uuid(), alt: label }).strict(),
@@ -45,7 +47,10 @@ export const newsletterContent = z.array(z.discriminatedUnion("type", [
 ])).min(1).max(50).refine(blocks => JSON.stringify(blocks).length <= 100_000 &&
   blocks.every((block, index) => block.type !== "footer" || index === blocks.length - 1));
 
-export type NewsletterContent = z.infer<typeof newsletterContent>;
+/** A campaign body: the original block list, or the version 2 email document written by the block editor. */
+export const newsletterContent = z.union([legacyContent, emailDocumentSchema]);
+export type LegacyNewsletterContent = z.infer<typeof legacyContent>;
+export type NewsletterContent = LegacyNewsletterContent | EmailDocument;
 
 const escape = (value: string) => value.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 
@@ -58,7 +63,9 @@ type Context = {
 };
 
 export function renderNewsletter(definition: unknown, context: Context) {
-  const content = newsletterContent.parse(definition);
+  const parsed = newsletterContent.parse(definition);
+  if (isEmailDocument(parsed)) return renderEmail(parsed, context);
+  const content: LegacyNewsletterContent = parsed;
   const unsubscribe = newsletterHttps(context.unsubscribe);
   if (!unsubscribe || /[<>]/.test(unsubscribe)) throw new Error("NEWSLETTER_UNSUBSCRIBE_UNAVAILABLE");
   const merge = (value: string) => value.replace(/\{\{(firstName|ministryName)\}\}/g, (_, key: "firstName" | "ministryName") =>

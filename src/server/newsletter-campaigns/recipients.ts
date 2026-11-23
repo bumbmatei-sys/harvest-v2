@@ -12,6 +12,8 @@ import { installNewsletterSuppressionKeys } from "./suppression-keys";
 
 const ids = z.array(z.uuid()).max(20).transform(values => [...new Set(values)].sort());
 export const selectionInput = z.object({ listIds: ids.refine(values => values.length > 0), segmentIds: ids.default([]) }).strict();
+/** Drafts may be saved before a list is chosen; sending and estimates still need one. */
+export const draftSelectionInput = z.object({ listIds: ids.default([]), segmentIds: ids.default([]) }).strict();
 export type Selection = z.infer<typeof selectionInput>;
 export type Skip = typeof newsletterSkipReasons[number];
 

@@ -236,7 +236,8 @@ export class ZernioOfficeAdapter implements OfficeProvider {
         // Unverified against the live API: all-day, time zone and If-Match (event version) names follow the documented draft and file contracts.
         const body = { accountId, calendarId: calendarRef, start: change.start, end: change.end, allDay: change.allDay, timeZone: change.timezone, title: change.title,
           description: change.description?.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;"),
-          participants: change.attendees.map(email => ({ email })),
+          // An edit leaves provider-side attendees alone: participants is sent on create only, and never as an empty list.
+          ...(request.action === "createEvent" && change.attendees.length > 0 && { participants: change.attendees.map(email => ({ email })) }),
           ...(change.meeting && { conferencing: account.platform === "google" ? "google_meet" : "teams" }),
         };
         const payload = request.action === "createEvent"

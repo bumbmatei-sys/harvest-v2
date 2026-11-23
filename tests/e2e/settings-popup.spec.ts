@@ -150,11 +150,13 @@ test("Settings pop-up: open, sections by role, keyboard, deep link, Planner entr
   await page.keyboard.press("Escape");
   await expect(dialog(page)).toHaveCount(0);
 
-  // ---- Public sidebar: Social media group only (unbuilt groups stay hidden) -------------------------------------------------------------------
+  // ---- Public sidebar: Social media group only (the Newsletter group is live; unbuilt groups stay hidden) -------------------------------------------------------------------
   await page.getByRole("tab", { name: "Public", exact: true }).click();
   await expect(nav.getByRole("button", { name: "Social media", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Planner", exact: true })).toBeVisible();
-  for (const hidden of ["Newsletter", "Website", "Courses and products"]) await expect(nav.getByRole("button", { name: hidden, exact: true })).toHaveCount(0);
+  await expect(nav.getByRole("button", { name: "Newsletter", exact: true })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Emails", exact: true })).toBeVisible();
+  for (const hidden of ["Website", "Courses and products"]) await expect(nav.getByRole("button", { name: hidden, exact: true })).toHaveCount(0);
 
   // ---- Roles: a member and a viewer see only You --------------------------------------------------------------------------------------------
   for (const role of ["admin", "member", "viewer"]) {

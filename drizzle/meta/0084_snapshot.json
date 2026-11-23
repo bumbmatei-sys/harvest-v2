@@ -1,6 +1,6 @@
 {
   "id": "a0e54250-c553-47dd-b5c3-da60ed3a2af5",
-  "prevId": "d0bcdf5f-d5a3-461f-8a20-71cef1aa2458",
+  "prevId": "e3f14ea1-4305-47f2-863c-b9589d931387",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -6429,7 +6429,7 @@
       "checkConstraints": {
         "community_reaction_emoji": {
           "name": "community_reaction_emoji",
-          "value": "\"community_message_reactions\".\"emoji\" in ('👍','❤️','🙏','😊','🎉','👏','💡','🔥','😮','😢','✅','🙌')"
+          "value": "\"community_message_reactions\".\"emoji\" in ('\ud83d\udc4d','\u2764\ufe0f','\ud83d\ude4f','\ud83d\ude0a','\ud83c\udf89','\ud83d\udc4f','\ud83d\udca1','\ud83d\udd25','\ud83d\ude2e','\ud83d\ude22','\u2705','\ud83d\ude4c')"
         }
       },
       "isRLSEnabled": false
@@ -9864,6 +9864,102 @@
         "consent_redaction": {
           "name": "consent_redaction",
           "value": "(\"contact_consents\".\"redacted_at\" is null and \"contact_consents\".\"contact_id\" is not null and \"contact_consents\".\"channel\" is not null and \"contact_consents\".\"source\" is not null and \"contact_consents\".\"evidence\" is not null) or (\"contact_consents\".\"redacted_at\" is not null and \"contact_consents\".\"channel\" is null and \"contact_consents\".\"source\" is null and \"contact_consents\".\"evidence\" is null and \"contact_consents\".\"recorded_by\" is null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.contact_form_sources": {
+      "name": "contact_form_sources",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contact_id": {
+          "name": "contact_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "form_id": {
+          "name": "form_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version_id": {
+          "name": "version_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "form_title": {
+          "name": "form_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "contact_form_sources_contact_fk": {
+          "name": "contact_form_sources_contact_fk",
+          "tableFrom": "contact_form_sources",
+          "tableTo": "contacts",
+          "columnsFrom": [
+            "tenant_id",
+            "contact_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "contact_form_sources_publication_fk": {
+          "name": "contact_form_sources_publication_fk",
+          "tableFrom": "contact_form_sources",
+          "tableTo": "crm_form_publications",
+          "columnsFrom": [
+            "tenant_id",
+            "form_id",
+            "version_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "form_id",
+            "version_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "contact_form_sources_tenant_id_contact_id_version_id_pk": {
+          "name": "contact_form_sources_tenant_id_contact_id_version_id_pk",
+          "columns": [
+            "tenant_id",
+            "contact_id",
+            "version_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "contact_form_sources_title": {
+          "name": "contact_form_sources_title",
+          "value": "length(\"contact_form_sources\".\"form_title\") <= 300"
         }
       },
       "isRLSEnabled": false
@@ -16904,6 +17000,71 @@
         "newsletter_audience_name": {
           "name": "newsletter_audience_name",
           "value": "length(trim(\"newsletter_audiences\".\"name\")) between 1 and 100"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.newsletter_brand_kits": {
+      "name": "newsletter_brand_kits",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kit": {
+          "name": "kit",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "newsletter_brand_kits_tenant_id_workspaces_tenant_id_fk": {
+          "name": "newsletter_brand_kits_tenant_id_workspaces_tenant_id_fk",
+          "tableFrom": "newsletter_brand_kits",
+          "tableTo": "workspaces",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "tenant_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "newsletter_brand_kits_tenant_id_pk": {
+          "name": "newsletter_brand_kits_tenant_id_pk",
+          "columns": [
+            "tenant_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "newsletter_brand_kit_object": {
+          "name": "newsletter_brand_kit_object",
+          "value": "jsonb_typeof(\"newsletter_brand_kits\".\"kit\")='object' AND pg_column_size(\"newsletter_brand_kits\".\"kit\")<=4096"
         }
       },
       "isRLSEnabled": false

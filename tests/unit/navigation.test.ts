@@ -97,8 +97,8 @@ describe("three-mode registry (slice 1)", () => {
   });
   it("reserves not-yet-built modules as planned, including blog articles", () => {
     const planned = navEntries.filter((entry) => entry.status === "planned").map((entry) => entry.id);
-    expect(planned).toEqual(expect.arrayContaining(["articles", "ads", "website", "linkInBio", "newsletterCampaigns", "newsletterAudience", "signupForms", "newsletterAnalytics", "products", "courses", "coaching", "coupons", "live", "discover", "assistant", "responses", "connectLinks", "forms", "documents", "spreadsheets", "givingOverview", "donations", "fundraising", "pledges", "donors", "funds", "givingPage", "volunteers", "livestream", "churchProfile"]));
-    expect(navEntries.filter((entry) => entry.status !== "planned").map((entry) => entry.id)).toEqual(["people", "companies", "pipelines", "tasks", "crmReports", "crmForms", "imports", "mail", "calendar", "campaigns", "followUp", "events", "files", "planner", "inbox", "autoDm", "socialAnalytics", "communities", "socialAccounts", "crmFields", "pipelineSettings", "appearance", "ministrySettings"]);
+    expect(planned).toEqual(expect.arrayContaining(["articles", "ads", "website", "linkInBio", "newsletterAudience", "signupForms", "newsletterAnalytics", "products", "courses", "coaching", "coupons", "live", "discover", "assistant", "responses", "connectLinks", "forms", "documents", "spreadsheets", "givingOverview", "donations", "fundraising", "pledges", "donors", "funds", "givingPage", "volunteers", "livestream", "churchProfile"]));
+    expect(navEntries.filter((entry) => entry.status !== "planned").map((entry) => entry.id)).toEqual(["people", "companies", "pipelines", "tasks", "crmReports", "crmForms", "imports", "mail", "calendar", "campaigns", "followUp", "events", "files", "planner", "inbox", "autoDm", "socialAnalytics", "newsletterCampaigns", "communities", "socialAccounts", "crmFields", "pipelineSettings", "appearance", "ministrySettings"]);
   });
   it("never renders, links or labels a planned entry", () => {
     const plannedIds = new Set(navEntries.filter((entry) => entry.status === "planned").map((entry) => entry.id));
@@ -140,7 +140,7 @@ describe("three-mode registry (slice 1)", () => {
   it("derives the mode from the path, including nested and dynamic routes", () => {
     const mode = (path: string, choice?: NavMode | null) => resolveMode({ pathname: `${root}${path}`, choice });
     for (const path of ["/crm/people", `/crm/people/${id}`, `/contacts/${id}`, `/crm/deals/${id}`, "/crm/settings/fields", "/campaigns", `/campaigns/${id}/connect/${id}/landing`, "/connect/follow-up", `/connect/follow-up/${id}`, "/files", "/appearance", "/settings", "/events", "/connect/responses", "/mail", "/calendar", "/connect/forms", "/docs", "/sheets", "/giving", "/volunteers", "/livestream", "/church-profile"]) expect(mode(path)).toEqual({ mode: "operations", neutral: false });
-    for (const path of ["/communities", `/communities/${id}/edit`, "/social/planner", "/social/inbox", "/social/auto-dm", "/articles", `/articles/${id}`, "/link-in-bio", "/newsletter", "/products", "/discover/manage"]) expect(mode(path)).toEqual({ mode: "public", neutral: false });
+    for (const path of ["/communities", `/communities/${id}/edit`, "/social/planner", "/social/inbox", "/social/auto-dm", "/articles", `/articles/${id}`, "/link-in-bio", "/newsletter/campaigns", `/newsletter/campaigns/${id}`, "/products", "/discover/manage"]) expect(mode(path)).toEqual({ mode: "public", neutral: false });
     expect(mode("/assistant")).toEqual({ mode: "assistant", neutral: false });
     expect(mode(`/assistant/${id}`)).toEqual({ mode: "assistant", neutral: false });
   });
