@@ -74,6 +74,11 @@ test("office calendar writes: grant, create once, edit, delete with a confirm, v
   const actions = recordActions(page);
   await signIn(page);
   const tenant = await ministry(page, "Grace Community Church"), api = `/api/workspaces/${tenant}`, calendar = `/workspaces/${tenant}/calendar`;
+  // The new-event form defaults to the next quarter hour of the browser clock, read in the calendar's zone (New York, UTC-5). Late in the UTC day that default
+  // event crosses UTC midnight (about 19:00 UTC) or its end date rolls to tomorrow (about 22:46 to 23:44 UTC), and the agenda then lists the one event on two
+  // days. Pin the page clock to midday UTC today so the default start and end are always on the same day, whatever time the run happens.
+  const pinned = new Date(); pinned.setUTCHours(12, 0, 0, 0);
+  await page.clock.setFixedTime(pinned);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(calendar);
   await page.getByTestId("connect-google").click();
@@ -107,12 +112,6 @@ test("office calendar writes: grant, create once, edit, delete with a confirm, v
 
   // Create: one request, one event, a video link from the calendar's own provider.
   await form.getByLabel("Title", { exact: true }).fill("Prayer breakfast");
-  // The form defaults to the next quarter hour of the runner's clock, read in the calendar's zone (New York): late in the UTC day that spans UTC midnight and the
-  // agenda lists the one event on two days. Fixed morning times keep the event inside one day whatever time the test runs.
-  await form.getByLabel("Start time").click();
-  await page.getByRole("option", { name: "9:00 AM", exact: true }).click();
-  await form.getByLabel("End time").click();
-  await page.getByRole("option", { name: "10:00 AM", exact: true }).click();
   await form.getByLabel("Notes", { exact: true }).fill("Bring a friend");
   await meeting.click();
   await expect(meeting).toBeChecked();
