@@ -2,7 +2,7 @@ import { message } from "../i18n/messages";
 import { and, asc, count, desc, eq, exists, getTableColumns, gt, ilike, inArray, isNull, ne, notExists, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Database, Transaction } from "../db/client";
-import { auditLogs, companies, contactCompanyLinks, contactConsents, contactIdentifiers, contactSourceEvents, contacts } from "../db/schema";
+import { auditLogs, companies, contactCompanyLinks, contactConsents, contactIdentifiers, contactFormSources, contactSourceEvents, contacts } from "../db/schema";
 import { contactInput, consentInput, uuidInput, type ContactInput, type ConsentInput } from "../lib/contact-input";
 import { CRM_PAGE_SIZE, DUPLICATE_MIN_LENGTH, contactPatch, linkInput, linkPatch, newContactInput, type ContactPatch, type LinkInput, type LinkPatch, type NewContactInput } from "../lib/crm-input";
 import { paramsToState } from "../lib/crm-fields";
@@ -66,6 +66,9 @@ export function listContacts(db: Database, userId: string, workspace: string, pa
     const { values, related } = await loadRecordValues(tx, tenantId, "person", ids, active);
     const sourceKinds = sourceAccess && ids.length ? await tx.selectDistinct({contactId: contactSourceEvents.contactId, kind: contactSourceEvents.kind}).from(contactSourceEvents)
       .where(and(eq(contactSourceEvents.tenantId, tenantId), inArray(contactSourceEvents.contactId, ids), isNull(contactSourceEvents.revertedAt))) : [];
+    // The form tag outlives the response, so an expired response still shows the form as the source.
+    if (sourceAccess && ids.length) for (const tag of await tx.selectDistinct({ contactId: contactFormSources.contactId }).from(contactFormSources)
+      .where(and(eq(contactFormSources.tenantId, tenantId), inArray(contactFormSources.contactId, ids)))) sourceKinds.push({ contactId: tag.contactId, kind: "form" });
     const filterNames = await relatedFilterNames(tx, tenantId, "person", state.filters, definitions);
     const listRows: ListRow[] = rows.map((row) => ({ ...row, identifiers: identifiers.filter((item) => item.contactId === row.id), companies: links.filter((link) => link.contactId === row.id), custom: values.get(row.id) ?? {}, ...(sourceAccess ? { sourceKinds: sourceKinds.filter(event => event.contactId === row.id).map(event => event.kind) } : {}) }));
     return { rows: listRows, total, page, state, definitions: active, related: Object.fromEntries([...related, ...filterNames, ...sourceNames]) as Record<string, string>, locked: null as "source_access" | "invalid_source" | null };

@@ -1,6 +1,6 @@
 {
-  "id": "093acc1f-b8d1-4ec8-a56b-c618ec668cc9",
-  "prevId": "d0bcdf5f-d5a3-461f-8a20-71cef1aa2458",
+  "id": "e3f14ea1-4305-47f2-863c-b9589d931387",
+  "prevId": "d1a3f9c3-b8a7-4f7a-89cf-0af50465561f",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -9864,6 +9864,102 @@
         "consent_redaction": {
           "name": "consent_redaction",
           "value": "(\"contact_consents\".\"redacted_at\" is null and \"contact_consents\".\"contact_id\" is not null and \"contact_consents\".\"channel\" is not null and \"contact_consents\".\"source\" is not null and \"contact_consents\".\"evidence\" is not null) or (\"contact_consents\".\"redacted_at\" is not null and \"contact_consents\".\"channel\" is null and \"contact_consents\".\"source\" is null and \"contact_consents\".\"evidence\" is null and \"contact_consents\".\"recorded_by\" is null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.contact_form_sources": {
+      "name": "contact_form_sources",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contact_id": {
+          "name": "contact_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "form_id": {
+          "name": "form_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version_id": {
+          "name": "version_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "form_title": {
+          "name": "form_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "occurred_at": {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "contact_form_sources_contact_fk": {
+          "name": "contact_form_sources_contact_fk",
+          "tableFrom": "contact_form_sources",
+          "tableTo": "contacts",
+          "columnsFrom": [
+            "tenant_id",
+            "contact_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "contact_form_sources_publication_fk": {
+          "name": "contact_form_sources_publication_fk",
+          "tableFrom": "contact_form_sources",
+          "tableTo": "crm_form_publications",
+          "columnsFrom": [
+            "tenant_id",
+            "form_id",
+            "version_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "form_id",
+            "version_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "contact_form_sources_tenant_id_contact_id_version_id_pk": {
+          "name": "contact_form_sources_tenant_id_contact_id_version_id_pk",
+          "columns": [
+            "tenant_id",
+            "contact_id",
+            "version_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "contact_form_sources_title": {
+          "name": "contact_form_sources_title",
+          "value": "length(\"contact_form_sources\".\"form_title\") <= 300"
         }
       },
       "isRLSEnabled": false

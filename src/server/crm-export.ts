@@ -1,7 +1,7 @@
 import { message } from "../i18n/messages";
 import { and, count, eq, getTableColumns, inArray, isNull } from "drizzle-orm";
 import type { Database } from "../db/client";
-import { auditLogs, companies, contactCompanyLinks, contactIdentifiers, contactSourceEvents, contacts } from "../db/schema";
+import { auditLogs, companies, contactCompanyLinks, contactIdentifiers, contactFormSources, contactSourceEvents, contacts } from "../db/schema";
 import { uuidInput } from "../lib/contact-input";
 import { defaultColumns, paramsToState, type FieldDefinition, type FieldValue, type RawParams, type ViewState } from "../lib/crm-fields";
 import { CSV_BOM, csvLine } from "../lib/csv";
@@ -77,6 +77,9 @@ export function exportRecords(db: Database, userId: string, workspace: string, e
         // Row security returns only retained, unreverted evidence: the same as the Source column.
         const events = sources.column ? await tx.selectDistinct({ contactId: contactSourceEvents.contactId, kind: contactSourceEvents.kind }).from(contactSourceEvents)
           .where(and(eq(contactSourceEvents.tenantId, tenantId), inArray(contactSourceEvents.contactId, ids), isNull(contactSourceEvents.revertedAt))) : [];
+        // The form tag outlives the response, so an expired response still exports the form as the source.
+        if (sources.column) for (const tag of await tx.selectDistinct({ contactId: contactFormSources.contactId }).from(contactFormSources)
+          .where(and(eq(contactFormSources.tenantId, tenantId), inArray(contactFormSources.contactId, ids)))) events.push({ contactId: tag.contactId, kind: "form" });
         const sourceText = (id: string) => {
           const kinds = (["connect", "manual", "csv_import", "form"] as const).filter((kind) => events.some((event) => event.contactId === id && event.kind === kind));
           return kinds.length ? kinds.map((kind) => message(`Crm.sourceHistory.${kind}`)).join("; ") : message("Crm.sourceHistory.unknown");
