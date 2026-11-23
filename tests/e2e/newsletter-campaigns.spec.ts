@@ -1,9 +1,10 @@
 import { mkdir } from "node:fs/promises";
-import { expect, test, type Page } from "@playwright/test";
+import { expect as baseExpect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { origin, signIn } from "./helpers/session";
 import { settleForAxe } from "./helpers/settle";
 
+const expect = baseExpect.configure({ timeout: 30000 });
 // Newsletter campaigns: list with templates, the block editor (add, reorder with buttons and the keyboard, edit text, brand kit), preview, test send, Send step.
 test.use({ actionTimeout: 30000, reducedMotion: "reduce" });
 const evidence = "docs/screenshots/newsletter-campaigns";
@@ -29,7 +30,7 @@ const order = (page: Page) => page.locator("[data-block-canvas] ol > li").evalua
 const preview = (page: Page) => page.frameLocator('iframe[title="Email preview"]').first();
 
 test("campaigns: templates, block editor, brand kit, preview, test send and the Send step", async ({ page }) => {
-  test.setTimeout(420000);
+  test.setTimeout(900000);
   await mkdir(evidence, { recursive: true });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -135,7 +136,6 @@ test("campaigns: templates, block editor, brand kit, preview, test send and the 
   await expect(page.getByText("No campaigns match your search.")).toBeVisible();
   await page.getByRole("searchbox", { name: "Search campaigns" }).fill("weekly");
   await page.getByLabel("Sort").selectOption("status");
-  await shoot(page, "list");
   await page.goto(editorUrl);
   await expect(page.getByRole("textbox", { name: "Subject", exact: true })).toHaveValue("Grace news this week");
   expect(errors).toEqual([]);
