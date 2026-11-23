@@ -242,7 +242,7 @@
     "courses": "Courses",
     "coaching": "Coaching",
     "coupons": "Coupons",
-    "newsletterCampaigns": "Emails",
+    "newsletterCampaigns": "Campaigns",
     "audience": "Audience",
     "signupForms": "Sign-up forms",
     "newsletterAnalytics": "Analytics",
@@ -6119,13 +6119,13 @@
     }
   },
   "NewsletterCampaigns": {
-    "pageTitle": "Emails",
-    "heading": "Emails",
-    "newCampaign": "New email",
+    "pageTitle": "Campaigns",
+    "heading": "Campaigns",
+    "newCampaign": "New campaign",
     "startFromTemplate": "Start from a template",
     "blank": "Blank",
     "blankHint": "Start with an empty email.",
-    "search": "Search emails",
+    "search": "Search campaigns",
     "sort": "Sort",
     "sortName": "Name",
     "sortStatus": "Status",
@@ -6139,10 +6139,10 @@
     "duplicate": "Duplicate",
     "menu": "Actions for {name}",
     "notScheduled": "Not scheduled",
-    "emptyTitle": "No emails yet",
+    "emptyTitle": "No campaigns yet",
     "emptyBody": "Pick a template above to write your first email.",
-    "noMatch": "No emails match your search.",
-    "createFailed": "Could not create the email.",
+    "noMatch": "No campaigns match your search.",
+    "createFailed": "Could not create the campaign.",
     "pickTemplate": "Choose a template",
     "pickTemplateReplace": "Replace the email with this template? Your current blocks will be lost.",
     "useTemplate": "Use {name}",
@@ -6208,12 +6208,12 @@
       "footer": "Sign-off"
     },
     "editor": {
-      "breadcrumb": "Emails",
+      "breadcrumb": "Campaigns",
       "write": "Write",
       "send": "Send",
-      "steps": "Email steps",
+      "steps": "Campaign steps",
       "preview": "Preview",
-      "name": "Email name",
+      "name": "Campaign name",
       "subject": "Subject",
       "previewText": "Preview text",
       "saving": "Saving",
@@ -6251,7 +6251,7 @@
       "dndOver": "{label} is over position {position} of {total}.",
       "dndEnd": "{label} dropped at position {position} of {total}.",
       "dndCancel": "Cancelled. {label} stays where it was.",
-      "back": "Back to emails",
+      "back": "Back to campaigns",
       "draft": "Draft",
       "insertField": "Insert {field}"
     },
@@ -6311,7 +6311,7 @@
       "linkOne": "Website",
       "linkTwo": "Watch",
       "note": "With gratitude,\n'{{ministryName}}'",
-      "name": "Untitled email",
+      "name": "Untitled campaign",
       "subject": "Subject"
     },
     "design": {
@@ -6410,7 +6410,7 @@
     "preview": {
       "firstName": "Ana"
     },
-    "viewOnly": "Only owners and admins can write emails."
+    "viewOnly": "Only owners and admins can write campaigns."
   },
   "NewsletterAudience": {
     "pageTitle": "Audience",
