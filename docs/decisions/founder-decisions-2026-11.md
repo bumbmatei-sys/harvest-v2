@@ -124,6 +124,15 @@ Approved for the CRM reports slice (`docs/acceptance/crm-reports.md`); they sett
 - **Audit:** each create, update and delete writes an audit row with the event reference and outcome only, never content.
 - **Still hard-off:** real provider writes stay behind `OFFICE_CALENDAR_WRITE_ENABLED` (literal false, source guard) and the non-production synthetic provider gate. Details and evidence: `docs/acceptance/office-calendar-writes.md`.
 
+## Provider, newsletter and activation follow-ups (founder, 23 Nov)
+
+- **Composio vs Zernio:** stay on Zernio for social, blog publishing and Office (mail, calendar, files). Composio may be added later only for the AI assistant's extra tools, behind approvals. Open question: whether Zernio counts mail, calendar and files connections as billable accounts (to confirm with Zernio before Office is enabled).
+- **Newsletter navigation naming:** the newsletter email screens are labelled "Emails" under Public > Newsletter. "Campaigns" is reserved for the CRM/operations wizard that creates a crusade or evangelistic event. The Write and Send steps live in the shell's editing sidebar (shared EditorShell hosted mode), not in an in-page column.
+- **Email cover image:** later, together with image upload (images are https links only for now). Reuse the event cover picker pattern.
+- **Mailing address before sending:** before sending is ever enabled, the server must enforce a non-empty brand mailing address at review and at send. Until then the renderer prints "Mailing address not set".
+- **Before real calendar writes are enabled:** Zernio must confirm incremental write consent, the event version / If-Match field and its 409/412 mapping, the all-day, timeZone and conferencing field names, meeting links on non-primary calendars, and HTML notes handling. Attendees and invites remain version 2.
+- **Reviewer follow-ups before activation:** freeze the fixed form consent line (or a wording-version id) into each publication, and list form title retention among the HC-02 retention items. Neither approves any HC-02 gate.
+
 ## 6. Process rules
 
 - Use Claude or Codex for coding and a separate fresh session for independent review. No force pushes. No merge or deploy without the founder's approval. No real outbound messages or webhooks outside tests.
