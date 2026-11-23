@@ -2,7 +2,7 @@
 import { useTranslations } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Bookmark, UserPlus } from "lucide-react";
+import { Bookmark, Plus, UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -53,4 +53,31 @@ export function AddToListButton({ tenantId, listId }: { tenantId: string; listId
       if (outcome === "added" || outcome === "already") { router.refresh(); return null; }
       return outcome === "needs_consent" ? t("needsConsent") : outcome === "opted_out" ? t("optedOut") : outcome === "suppressed" ? t("suppressedPerson") : t("personUnavailable");
     }} />;
+}
+
+/** Creates a list and opens it. */
+export function NewListButton({ tenantId }: { tenantId: string }) {
+  const t = useTranslations("NewsletterAudience");
+  const router = useRouter(), request = useRequest();
+  const [open, setOpen] = useState(false), [name, setName] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState("");
+  async function save(event: React.SubmitEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setBusy(true); setError("");
+    const result = await request<{ id: string }>(`/api/workspaces/${tenantId}/newsletter/audience/lists`, { method: "POST", body: { name } });
+    setBusy(false);
+    if (!result.ok) { setError(result.status === 409 ? t("nameTakenOrChanged") : result.error); return; }
+    setOpen(false); setName("");
+    router.push(`/workspaces/${tenantId}/newsletter/audience/list/${result.data.id}`);
+  }
+  return <>
+    <Button variant="outline" onClick={() => { setOpen(true); setError(""); }} className="min-h-11 lg:min-h-9"><Plus aria-hidden="true" />{t("newList")}</Button>
+    <Dialog open={open} onOpenChange={(value) => { if (!busy) setOpen(value); }}>
+      <DialogContent><form onSubmit={save} className="space-y-4">
+        <DialogHeader><DialogTitle>{t("newList")}</DialogTitle></DialogHeader>
+        <Field><FieldLabel htmlFor="audience-new-list-name">{t("listName")}</FieldLabel><Input id="audience-new-list-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={100} required autoFocus className="h-11 lg:h-9" /></Field>
+        {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
+        <DialogFooter><Button type="button" variant="outline" disabled={busy} onClick={() => setOpen(false)} className="min-h-11 lg:min-h-9">{t("cancel")}</Button><Button type="submit" disabled={busy || !name.trim()} className="min-h-11 lg:min-h-9">{t("save")}</Button></DialogFooter>
+      </form></DialogContent>
+    </Dialog>
+  </>;
 }

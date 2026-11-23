@@ -18,7 +18,7 @@ import { listParts } from "@/components/crm/list-parts";
 import { ListPage } from "@/components/crm/list-page";
 import { personRows } from "@/components/crm/person-rows";
 import { AudienceLens as LensStrip } from "@/components/newsletter/audience-lens";
-import { AddToListButton, SaveGroupButton } from "@/components/newsletter/audience-actions";
+import { AddToListButton, NewListButton, SaveGroupButton } from "@/components/newsletter/audience-actions";
 import Link from "next/link";
 import { Upload } from "lucide-react";
 
@@ -79,7 +79,7 @@ export default async function AudiencePage({ params, searchParams }: { params: P
   return <ListPage tenantId={tenantId} objectType="person" icon={ContactRound} eyebrow={t("heading")} title={title} description="" total={list.total} page={list.page}
     basePath={path}
     lens={<LensStrip tenantId={tenantId} counts={overview.counts} lists={overview.lists} groups={overview.groups} current={lensKey(lens)} canManage={manage} />}
-    toolbarExtra={manage ? <div className="mb-3 flex flex-wrap items-center gap-2">{listLens && <AddToListButton tenantId={tenantId} listId={listLens.id} />}<SaveGroupButton tenantId={tenantId} /></div> : null}
+    toolbarExtra={manage ? <>{listLens && <AddToListButton tenantId={tenantId} listId={listLens.id} />}<NewListButton tenantId={tenantId} /><SaveGroupButton tenantId={tenantId} /></> : null}
     actions={can(workspace.role, "crm:import") ? <Button size="responsive" variant="outline" asChild><Link href={`/workspaces/${tenantId}/crm/imports?entity=person`}><Upload aria-hidden="true" />{imports("importAction")}</Link></Button> : undefined}
     create={null} viewOnly={manage ? null : t("viewOnly")} notice={notice} state={list.state} viewId={viewId} query={query}
     parts={{ ...parts, gridColumns }} related={list.related} views={parts.summaries} current={parts.summaries.find((view) => view.id === current.id)!} modified={modified} writable={manage || writable} rows={rows}

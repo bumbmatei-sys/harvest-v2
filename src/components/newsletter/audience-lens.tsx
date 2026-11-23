@@ -3,7 +3,7 @@ import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { MoreHorizontal, Pencil, Plus, Trash2 } from "lucide-react";
+import { MoreHorizontal, Pencil, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -29,21 +29,19 @@ export function AudienceLens({ tenantId, counts, lists, groups, current, canMana
   const t = useTranslations("NewsletterAudience");
   const router = useRouter(), request = useRequest();
   const base = `/workspaces/${tenantId}/newsletter/audience`, api = `/api/workspaces/${tenantId}/newsletter/audience`;
-  const [dialog, setDialog] = useState<{ mode: "create" } | { mode: "rename"; list: AudienceListItem } | null>(null);
+  const [dialog, setDialog] = useState<{ mode: "rename"; list: AudienceListItem } | null>(null);
   const [name, setName] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState("");
   const [removing, setRemoving] = useState<AudienceListItem | null>(null);
-  function open(next: typeof dialog) { setDialog(next); setName(next?.mode === "rename" ? next.list.name : ""); setError(""); }
+  function open(next: typeof dialog) { setDialog(next); setName(next?.list.name ?? ""); setError(""); }
   async function save(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!dialog) return;
     setBusy(true); setError("");
-    const result = dialog.mode === "create"
-      ? await request<{ id: string }>(`${api}/lists`, { method: "POST", body: { name } })
-      : await request<{ id: string }>(`${api}/lists/${dialog.list.id}`, { method: "PATCH", body: { name, version: dialog.list.version } });
+    const result = await request<{ id: string }>(`${api}/lists/${dialog.list.id}`, { method: "PATCH", body: { name, version: dialog.list.version } });
     setBusy(false);
     if (!result.ok) { setError(result.status === 409 ? t("nameTakenOrChanged") : result.error); return; }
     setDialog(null);
-    if (dialog.mode === "create") router.push(`${base}/list/${result.data.id}`); else router.refresh();
+    router.refresh();
   }
   async function remove(list: AudienceListItem) {
     const result = await request(`${api}/lists/${list.id}`, { method: "DELETE", body: { version: list.version } });
@@ -57,33 +55,25 @@ export function AudienceLens({ tenantId, counts, lists, groups, current, canMana
       {statusKeys.map((key) => <Link key={key} href={key === "all" ? base : `${base}/${key}`} aria-current={current === key ? "page" : undefined} className={cn(pill, current === key ? active : idle)}>
         {t(`status.${key}`)}<Badge variant="secondary" className="rounded-md tabular-nums">{counts[key].toLocaleString()}</Badge></Link>)}
     </nav>
-    <div className="flex flex-wrap items-start gap-x-6 gap-y-3">
-      <div className="min-w-0 space-y-1.5">
-        <h2 className="text-xs font-medium text-muted-foreground">{t("lists")}</h2>
-        <ul className="flex flex-wrap items-center gap-2">
-          {lists.map((list) => <li key={list.id} className="flex items-center">
-            <Link href={`${base}/list/${list.id}`} aria-current={current === `list:${list.id}` ? "page" : undefined} className={cn(pill, canManage && "rounded-r-none border-r-0", current === `list:${list.id}` ? active : idle)}>
-              <span className="max-w-48 truncate">{list.name}</span><Badge variant="secondary" className="rounded-md tabular-nums">{list.subscribed.toLocaleString()}</Badge></Link>
-            {canManage && <DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label={t("listActions", { name: list.name })} className="size-11 rounded-l-none lg:size-8"><MoreHorizontal aria-hidden="true" /></Button></DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onSelect={() => open({ mode: "rename", list })}><Pencil aria-hidden="true" />{t("rename")}</DropdownMenuItem>
-                <DropdownMenuItem variant="destructive" onSelect={() => setRemoving(list)}><Trash2 aria-hidden="true" />{t("delete")}</DropdownMenuItem>
-              </DropdownMenuContent></DropdownMenu>}
-          </li>)}
-          {canManage && <li><Button variant="outline" onClick={() => open({ mode: "create" })} className="min-h-11 lg:min-h-8"><Plus aria-hidden="true" />{t("newList")}</Button></li>}
-          {lists.length === 0 && !canManage && <li className="text-sm text-muted-foreground">{t("noLists")}</li>}
-        </ul>
-      </div>
-      {groups.length > 0 && <div className="min-w-0 space-y-1.5">
-        <h2 className="text-xs font-medium text-muted-foreground">{t("groups")}</h2>
-        <ul className="flex flex-wrap items-center gap-2">
-          {groups.map((group) => <li key={group.id}><Link href={`${base}/group/${group.id}`} aria-current={current === `group:${group.id}` ? "page" : undefined} className={cn(pill, current === `group:${group.id}` ? active : idle)}><span className="max-w-48 truncate">{group.name}</span></Link></li>)}
-        </ul>
-      </div>}
-    </div>
+    {(lists.length > 0 || groups.length > 0) && <div className="flex flex-wrap items-center gap-2">
+      <ul aria-label={t("lists")} className="contents">
+        {lists.map((list) => <li key={list.id} className="flex items-center">
+          <Link href={`${base}/list/${list.id}`} aria-current={current === `list:${list.id}` ? "page" : undefined} className={cn(pill, canManage && "rounded-r-none border-r-0", current === `list:${list.id}` ? active : idle)}>
+            <span className="max-w-48 truncate">{list.name}</span><Badge variant="secondary" className="rounded-md tabular-nums">{list.subscribed.toLocaleString()}</Badge></Link>
+          {canManage && <DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label={t("listActions", { name: list.name })} className="size-11 rounded-l-none lg:size-8"><MoreHorizontal aria-hidden="true" /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => open({ mode: "rename", list })}><Pencil aria-hidden="true" />{t("rename")}</DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onSelect={() => setRemoving(list)}><Trash2 aria-hidden="true" />{t("delete")}</DropdownMenuItem>
+            </DropdownMenuContent></DropdownMenu>}
+        </li>)}
+      </ul>
+      <ul aria-label={t("groups")} className="contents">
+        {groups.map((group) => <li key={group.id}><Link href={`${base}/group/${group.id}`} aria-current={current === `group:${group.id}` ? "page" : undefined} className={cn(pill, current === `group:${group.id}` ? active : idle)}><span className="max-w-48 truncate">{group.name}</span></Link></li>)}
+      </ul>
+    </div>}
     <Dialog open={dialog !== null} onOpenChange={(value) => { if (!value && !busy) setDialog(null); }}>
       <DialogContent><form onSubmit={save} className="space-y-4">
-        <DialogHeader><DialogTitle>{dialog?.mode === "rename" ? t("renameList") : t("newList")}</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>{t("renameList")}</DialogTitle></DialogHeader>
         <Field><FieldLabel htmlFor="audience-list-name">{t("listName")}</FieldLabel><Input id="audience-list-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={100} required autoFocus className="h-11 lg:h-9" /></Field>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <DialogFooter><Button type="button" variant="outline" disabled={busy} onClick={() => setDialog(null)} className="min-h-11 lg:min-h-9">{t("cancel")}</Button><Button type="submit" disabled={busy || !name.trim()} className="min-h-11 lg:min-h-9">{t("save")}</Button></DialogFooter>

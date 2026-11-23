@@ -43,9 +43,8 @@ export async function ListPage({ tenantId, objectType, icon: Icon, title, descri
     {viewOnly && <Alert><AlertDescription>{viewOnly}</AlertDescription></Alert>}
     {lens}
     <ListState state={state} viewId={viewId}>
-      {toolbarExtra}
       <ListToolbar tenantId={tenantId} objectType={objectType} fields={parts.fields} sorts={parts.sorts} columns={parts.available} visibleColumns={parts.visible} related={related}
-        views={views} currentView={current} modified={modified} writable={writable} searchLabel={copy.searchLabel} searchPlaceholder={copy.searchPlaceholder} sourceAccess={sourceAccess} />
+        views={views} currentView={current} modified={modified} writable={writable} searchLabel={copy.searchLabel} searchPlaceholder={copy.searchPlaceholder} sourceAccess={sourceAccess} leading={toolbarExtra} />
       <div className="mt-3 space-y-3"><ListResults>
         {rows.length ? <RecordGrid tenantId={tenantId} objectType={objectType} columns={parts.gridColumns} rows={rows} density={state.density} label={title} nameLabel={t("name")} writable={writable} />
           : <EmptyState solid className="min-h-[280px]" icon={Icon} headingLevel={2} title={filtered ? copy.noMatch : page > 1 ? copy.pageEmpty : copy.emptyTitle}
