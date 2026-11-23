@@ -1730,7 +1730,13 @@
     "pageTitle": "Import status · Harvest",
     "title": "Import and sync status",
     "viewOnly": "Import status is available to owners and admins.",
-    "columns": { "type": "Records", "status": "Status", "started": "Started", "updated": "Updated", "finished": "Finished" },
+    "columns": {
+      "type": "Records",
+      "status": "Status",
+      "started": "Started",
+      "updated": "Updated",
+      "finished": "Finished"
+    },
     "note": "{count, plural, one {Latest import. Email and calendar sync is not available yet.} other {Latest # imports. Email and calendar sync is not available yet.}}",
     "emptyTitle": "No imports yet",
     "error": "Import status could not be loaded. Try again in a moment.",
@@ -5178,9 +5184,18 @@
       },
       "visibility": "Who can see your profile",
       "visibilityOptions": {
-        "members": { "title": "Members", "detail": "Shown in the members list." },
-        "unlisted": { "title": "Unlisted", "detail": "Not in the list; members with your link can open it." },
-        "private": { "title": "Private", "detail": "Only you and this community's owners and admins." }
+        "members": {
+          "title": "Members",
+          "detail": "Shown in the members list."
+        },
+        "unlisted": {
+          "title": "Unlisted",
+          "detail": "Not in the list; members with your link can open it."
+        },
+        "private": {
+          "title": "Private",
+          "detail": "Only you and this community's owners and admins."
+        }
       },
       "save": "Save profile",
       "saving": "Saving…",
@@ -6078,5 +6093,296 @@
       "none": "No free time in this period",
       "past": "This period is in the past"
     }
+  },
+  "NewsletterCampaigns": {
+    "pageTitle": "Campaigns",
+    "heading": "Campaigns",
+    "newCampaign": "New campaign",
+    "startFromTemplate": "Start from a template",
+    "blank": "Blank",
+    "blankHint": "Start with an empty email.",
+    "search": "Search campaigns",
+    "sort": "Sort",
+    "sortName": "Name",
+    "sortStatus": "Status",
+    "columns": {
+      "name": "Name",
+      "status": "Status",
+      "when": "Scheduled",
+      "actions": "Actions"
+    },
+    "open": "Open",
+    "duplicate": "Duplicate",
+    "menu": "Actions for {name}",
+    "notScheduled": "Not scheduled",
+    "emptyTitle": "No campaigns yet",
+    "emptyBody": "Pick a template above to write your first email.",
+    "noMatch": "No campaigns match your search.",
+    "createFailed": "Could not create the campaign.",
+    "pickTemplate": "Choose a template",
+    "pickTemplateReplace": "Replace the email with this template? Your current blocks will be lost.",
+    "useTemplate": "Use {name}",
+    "cancel": "Cancel",
+    "replace": "Replace",
+    "status": {
+      "draft": "Draft",
+      "reviewed": "Ready",
+      "scheduled": "Scheduled",
+      "sending": "Sending",
+      "sent": "Sent",
+      "cancelled": "Cancelled",
+      "failed": "Failed"
+    },
+    "templates": {
+      "weekly-update": {
+        "name": "Weekly update",
+        "description": "News, events and a short word for the week."
+      },
+      "event-invite": {
+        "name": "Event invite",
+        "description": "Invite people to a gathering."
+      },
+      "prayer-praise": {
+        "name": "Prayer and praise",
+        "description": "Share thanks and prayer requests."
+      },
+      "sermon-recap": {
+        "name": "Sermon recap",
+        "description": "Key points and questions for the week."
+      },
+      "fundraising-appeal": {
+        "name": "Fundraising appeal",
+        "description": "Tell the story and ask for a gift."
+      },
+      "welcome": {
+        "name": "Welcome",
+        "description": "Greet new people warmly."
+      },
+      "seasonal-greeting": {
+        "name": "Seasonal greeting",
+        "description": "A warm note for the season."
+      },
+      "digest": {
+        "name": "Digest",
+        "description": "Several short stories in one email."
+      }
+    },
+    "blocks": {
+      "header": "Header",
+      "hero": "Hero",
+      "text": "Text",
+      "imageText": "Image with text",
+      "columns": "Two columns",
+      "quote": "Quote or scripture",
+      "event": "Event card",
+      "giving": "Giving button",
+      "video": "Video",
+      "social": "Social links",
+      "divider": "Divider",
+      "spacer": "Spacer",
+      "footer": "Sign-off"
+    },
+    "editor": {
+      "breadcrumb": "Campaigns",
+      "write": "Write",
+      "send": "Send",
+      "steps": "Campaign steps",
+      "preview": "Preview",
+      "name": "Campaign name",
+      "subject": "Subject",
+      "previewText": "Preview text",
+      "saving": "Saving",
+      "saved": "Saved",
+      "saveFailed": "Not saved",
+      "conflict": "Changed elsewhere. Reload to continue.",
+      "fixFields": "Fix the highlighted fields to save.",
+      "undo": "Undo",
+      "redo": "Redo",
+      "addBlock": "Add block",
+      "searchBlocks": "Search blocks",
+      "noBlocks": "No matching block.",
+      "templates": "Templates",
+      "design": "Design",
+      "sendTest": "Send me a test",
+      "testSent": "Test sent to the test inbox.",
+      "testFailed": "Could not send the test.",
+      "editBlock": "Edit {label}",
+      "drag": "Drag {label}",
+      "moveUp": "Move {label} up",
+      "moveDown": "Move {label} down",
+      "remove": "Remove {label}",
+      "duplicateBlock": "Duplicate {label}",
+      "removed": "Removed {label}.",
+      "moved": "{label} moved to position {position} of {total}.",
+      "added": "Added {label}.",
+      "mergeFields": "Insert field",
+      "firstName": "First name",
+      "ministryName": "Ministry name",
+      "desktop": "Desktop",
+      "mobile": "Mobile",
+      "previewTitle": "Email preview",
+      "blockCount": "{count, plural, one {# block} other {# blocks}}",
+      "dndStart": "Picked up {label}.",
+      "dndOver": "{label} is over position {position} of {total}.",
+      "dndEnd": "{label} dropped at position {position} of {total}.",
+      "dndCancel": "Cancelled. {label} stays where it was.",
+      "back": "Back to campaigns",
+      "draft": "Draft"
+    },
+    "fields": {
+      "title": "Title",
+      "showLogo": "Show logo",
+      "align": "Alignment",
+      "alignLeft": "Left",
+      "alignCenter": "Centre",
+      "imageUrl": "Image link",
+      "alt": "Image description",
+      "heading": "Heading",
+      "text": "Text",
+      "buttonLabel": "Button label",
+      "buttonUrl": "Button link",
+      "side": "Image side",
+      "sideLeft": "Left",
+      "sideRight": "Right",
+      "leftHeading": "Left heading",
+      "leftText": "Left text",
+      "rightHeading": "Right heading",
+      "rightText": "Right text",
+      "cite": "Source",
+      "date": "Date",
+      "time": "Time",
+      "location": "Location",
+      "thumbnailUrl": "Thumbnail link",
+      "videoUrl": "Video link",
+      "caption": "Caption",
+      "note": "Sign-off",
+      "size": "Size",
+      "small": "Small",
+      "medium": "Medium",
+      "large": "Large",
+      "linkLabel": "Label {number}",
+      "linkUrl": "Link {number}",
+      "addLink": "Add link",
+      "removeLink": "Remove link {number}",
+      "richText": "Email text",
+      "invalidLink": "Use a secure https link.",
+      "none": "No settings for this block."
+    },
+    "defaults": {
+      "title": "{{ministryName}}",
+      "heading": "Heading",
+      "text": "Write something here.",
+      "button": "Learn more",
+      "cite": "Source",
+      "date": "Date",
+      "time": "Time",
+      "location": "Location",
+      "caption": "Caption",
+      "leftHeading": "Left",
+      "leftText": "Text",
+      "rightHeading": "Right",
+      "rightText": "Text",
+      "linkOne": "Website",
+      "linkTwo": "Watch",
+      "note": "With gratitude,\\n{{ministryName}}",
+      "name": "Untitled campaign",
+      "subject": "Subject"
+    },
+    "design": {
+      "title": "Brand kit",
+      "logo": "Logo link",
+      "primary": "Main colour",
+      "accent": "Accent colour",
+      "canvas": "Background",
+      "font": "Font",
+      "buttonStyle": "Button style",
+      "buttonRadius": "Button corners",
+      "address": "Mailing address",
+      "solid": "Solid",
+      "outline": "Outline",
+      "square": "Square",
+      "soft": "Soft",
+      "pill": "Pill",
+      "save": "Save brand kit",
+      "saved": "Brand kit saved.",
+      "saveFailed": "Could not save the brand kit.",
+      "applied": "Applied to this email.",
+      "fonts": {
+        "helvetica": "Helvetica",
+        "georgia": "Georgia",
+        "trebuchet": "Trebuchet",
+        "verdana": "Verdana",
+        "palatino": "Palatino",
+        "tahoma": "Tahoma"
+      }
+    },
+    "send": {
+      "who": "Who gets it",
+      "lists": "Lists",
+      "groups": "Saved groups",
+      "noLists": "No lists yet. Create one under Audience.",
+      "chooseList": "Choose at least one list.",
+      "count": "{eligible} of {selected} people will receive it.",
+      "skipped": "{count} skipped.",
+      "autoSkip": "Unsubscribed and bounced people are skipped automatically.",
+      "countFailed": "Could not count recipients.",
+      "counting": "Counting",
+      "when": "When",
+      "now": "Now",
+      "pickTime": "Pick a time",
+      "time": "Date and time",
+      "summary": "Summary",
+      "from": "From",
+      "replyTo": "Reply to",
+      "noSender": "No verified sender",
+      "subject": "Subject",
+      "recipients": "Recipients",
+      "inbox": "Inbox check",
+      "schedule": "Schedule",
+      "sendNow": "Send",
+      "notReady": "Sending is not available yet.",
+      "fixFirst": "Fix the failed checks first."
+    },
+    "checks": {
+      "subject": {
+        "pass": "Subject looks good.",
+        "warn": "Subject is long. Keep it under 60 characters.",
+        "fail": "Add a subject."
+      },
+      "preview": {
+        "pass": "Preview text added.",
+        "warn": "Add preview text.",
+        "fail": "Add preview text."
+      },
+      "address": {
+        "pass": "Mailing address set.",
+        "warn": "Add a mailing address.",
+        "fail": "Add a mailing address in the brand kit."
+      },
+      "unsubscribe": {
+        "pass": "Unsubscribe link is added automatically.",
+        "warn": "",
+        "fail": ""
+      },
+      "imageAlt": {
+        "pass": "Images have descriptions.",
+        "warn": "{count, plural, one {# image has} other {# images have}} no description.",
+        "fail": ""
+      },
+      "links": {
+        "pass": "Links are ready.",
+        "warn": "",
+        "fail": "{count, plural, one {# button has} other {# buttons have}} no link."
+      },
+      "content": {
+        "pass": "Email has content.",
+        "warn": "",
+        "fail": "Add some content."
+      }
+    },
+    "preview": {
+      "firstName": "Ana"
+    },
+    "viewOnly": "Only owners and admins can write campaigns."
   }
 }

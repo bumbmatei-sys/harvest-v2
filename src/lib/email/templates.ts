@@ -72,3 +72,8 @@ const blocksFor: Record<TemplateId, () => EmailBlock[]> = {
 export function templateDocument(id: TemplateId, brand: BrandKit = defaultBrand): EmailDocument {
   return { version: 2, brand, blocks: blocksFor[id]() };
 }
+
+/** An empty email: header, one paragraph and a sign-off. */
+export function blankDocument(brand: BrandKit = defaultBrand): EmailDocument {
+  return { version: 2, brand, blocks: [head("bl-head"), text("bl-text", doc(hello, "")), foot("bl-foot", "")] };
+}

@@ -48,7 +48,7 @@ export type NavEntry = {
    */
   exitTo?: string;
 };
-export type NavFeature = "communities" | "events" | "social" | "office";
+export type NavFeature = "communities" | "events" | "social" | "office" | "newsletter";
 export type NavItem = { id: string; label: NavLabelKey; icon: LucideIcon; href: string; active: boolean };
 /** A `pinned` group is rendered without a header, above the other groups (Discover). */
 export type NavGroup = { id: NavGroupId; label: NavLabelKey; icon?: LucideIcon; pinned?: boolean; items: NavItem[] };
@@ -118,7 +118,7 @@ export const navEntries: readonly NavEntry[] = [
   { id: "ads", group: "publishing", mode: "public", status: "planned", label: "ads", icon: Target, path: "/social/ads", match: under("/social/ads") },
   { id: "socialAnalytics", group: "publishing", mode: "public", label: "socialAnalytics", icon: ChartNoAxesCombined, path: "/social/analytics", match: under("/social/analytics"), permission: "social:analytics", feature: "social" },
   // Public > Newsletter, Website.
-  { id: "newsletterCampaigns", group: "newsletter", mode: "public", status: "planned", label: "newsletterCampaigns", icon: MailPlus, path: "/newsletter", match: under("/newsletter") },
+  { id: "newsletterCampaigns", group: "newsletter", mode: "public", label: "newsletterCampaigns", icon: MailPlus, path: "/newsletter/campaigns", match: under("/newsletter/campaigns"), permission: "newsletter:campaigns", feature: "newsletter" },
   { id: "newsletterAudience", group: "newsletter", mode: "public", status: "planned", label: "audience", icon: ContactRound, path: "/newsletter/audience", match: under("/newsletter/audience") },
   { id: "signupForms", group: "newsletter", mode: "public", status: "planned", label: "signupForms", icon: ClipboardPen, path: "/newsletter/forms", match: under("/newsletter/forms") },
   { id: "newsletterAnalytics", group: "newsletter", mode: "public", status: "planned", label: "newsletterAnalytics", icon: ChartLine, path: "/newsletter/analytics", match: under("/newsletter/analytics") },
