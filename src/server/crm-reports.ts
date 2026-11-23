@@ -82,8 +82,12 @@ export function getCrmReport(db: Database, userId: string, workspace: string, pe
     // unreverted source event; "with a deal" = an unarchived deal in an open or won stage.
     const contactCells = (await tx.execute<{ region: number; key: string; leaf: string; n: number }>(sql`
       with first_source as (
-        select distinct on (e.contact_id) e.contact_id, e.kind from public.contact_source_events e
-        where e.tenant_id = ${tenantId}::uuid and e.reverted_at is null order by e.contact_id, e.occurred_at, e.id)
+        select distinct on (u.contact_id) u.contact_id, u.kind from (
+          select e.contact_id, e.kind, e.occurred_at, e.id::text as tie from public.contact_source_events e
+          where e.tenant_id = ${tenantId}::uuid and e.reverted_at is null
+          union all -- the form tag outlives the response, so an expired form response still credits the form
+          select t.contact_id, 'form', t.occurred_at, t.version_id::text from public.contact_form_sources t where t.tenant_id = ${tenantId}::uuid) u
+        order by u.contact_id, u.occurred_at, u.tie)
       select ${regionOf(sql`c.created_at`, bounded)} as region, coalesce(f.kind, 'unknown') as key,
         case when exists (select 1 from public.opportunities o join public.crm_pipeline_stages st on st.tenant_id = o.tenant_id and st.pipeline_id = o.pipeline_id and st.id = o.stage_id
           where o.tenant_id = c.tenant_id and o.contact_id = c.id and o.archived_at is null and st.kind in ('open', 'won')) then 'withDeal' else 'noDeal' end as leaf,

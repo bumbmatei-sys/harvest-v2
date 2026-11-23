@@ -1632,7 +1632,7 @@
     "footer": {
       "small": "Counts below 5 are hidden to protect people; some other figures may be hidden with them.",
       "cases": "Task figures cover CRM tasks, not Connect follow-up cases.",
-      "sources": "Source evidence expires with the response, so older contacts may read Unknown.",
+      "sources": "Source evidence for Connect responses expires with the response, so older contacts from Connect may read Unknown.",
       "line": "{start} to {end} · Times are in UTC · Updated {time}"
     },
     "chart": {

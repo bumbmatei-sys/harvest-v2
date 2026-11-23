@@ -21,3 +21,15 @@ Founder-approved 23 Nov ("approve all"); see `docs/decisions/founder-decisions-2
 
 - `tests/integration/crm-hosted-forms.test.ts`: per-form and per-visitor limits, proof cap, visitor isolation, ministry isolation, neutral errors, no raw address in quota scopes, 90-day expiry, frozen ministry name.
 - `tests/unit/crm-form-fixed-notice.test.ts`: fixed line, fallback wording, unticked box, visitor key derivation.
+
+# Source tag that outlives the response (PR 2)
+
+Migration `0082_crm_form_source_tag` (0081 is PR 1; main ended at 0080 and no open PR claimed 0082 when checked).
+
+- **What it stores.** One row per person per published form version in `contact_form_sources`: the immutable publication title, the first submission time, and the version and form IDs. No answers and no response ID. Nothing beyond what the contact already has.
+- **Lifetime.** The tag lives as long as the contact. Response expiry and the manual purge do not touch it. Erasing a contact deletes it. A merge moves it to the kept contact, keeping the earliest time when both people used the same form.
+- **Access.** Row security is forced. Owners and admins read their own ministry's tags; no app role writes them. The submit definer writes the tag in the same trigger that records the source event, so a replayed submission adds nothing. The merge and erase paths run as the definer owner.
+- **Readers.** The CRM report's first-source credit and the shared source filters (list, count, saved views, export) treat the tag as a form source. In the filters the tag only stands in once no retained event exists for that form version, so campaign and link rules still match while the response exists. After expiry, kind and form-version rules still match; campaign and link rules cannot, because that attribution lives only on the response.
+- **Source column and export.** The People list Source column and the CSV export add the tag's Form kind to the retained events, so a person the Form filter includes after expiry no longer reads Unknown there. The kinds are a set, so a retained event for the same form changes nothing.
+- **Not changed.** The contact detail source history still hides expired responses. Responses accepted before 0082 have no tag and no backfill (hosted forms were hard-off, so no production data exists). Connect source evidence still expires with its response, and the report footer now says so.
+- **Evidence.** `tests/integration/crm-hosted-forms.test.ts` (expiry and purge keep the form source in filters, other ministry and members see nothing, merge moves and de-duplicates, erasure removes, restricted-owner upgrade with FORCE RLS) and `tests/integration/crm-reports.test.ts` (an expired response with a tag still counts as form-sourced; without one it reads Unknown).
