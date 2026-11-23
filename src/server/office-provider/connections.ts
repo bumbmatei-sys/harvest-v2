@@ -7,8 +7,8 @@ import { auditLogs, officeConnectAttempts, officeConnections } from "../../db/sc
 import { message } from "../../i18n/messages";
 import { AccessError, type Permission } from "../permissions";
 import { withTenant } from "../tenancy";
-import { operationAvailable } from "./capabilities";
-import { available, grant, officeNotice, operationKind, type Health, type OfficeAccount, type OfficeProvider, type OfficeRequest, type OfficeResult } from "./port";
+import { officeEvidence, operationAvailable } from "./capabilities";
+import { available, calendarWriteGrant, grant, officeNotice, operationKind, type Health, type OfficeAccount, type OfficeProvider, type OfficeRequest, type OfficeResult } from "./port";
 import type { OfficeMailReview } from "./review";
 import { OfficeProviderError, type Credential } from "./types";
 
@@ -23,7 +23,14 @@ export type OfficeDeps = {
   review: OfficeMailReview;
   /** Injected by unit and integration tests only. The HTTP gate never supplies a sender. */
   testDelivery?: true;
+  /** Set by the non-production route gate only. Calendar writes also need the synthetic provider and a non-production environment. */
+  calendarWrites?: true;
 };
+
+const calendarWriteActions = ["createEvent", "updateEvent", "deleteEvent"];
+/** The literal flag, or the synthetic provider behind the non-production route gate (`officeGateOpen`, which never opens in production). Real provider writes stay behind OFFICE_CALENDAR_WRITE_ENABLED. */
+export const calendarWritesOn = (deps: Pick<OfficeDeps, "provider" | "calendarWrites">) =>
+  OFFICE_CALENDAR_WRITE_ENABLED || (deps.calendarWrites === true && deps.provider.id === "fake");
 
 export const unavailable = () => new AccessError(404, message("Errors.workspaceUnavailable"));
 export async function withOffice<T>(db: Database, actor: string, workspace: string, permission: Permission, deps: OfficeDeps | null,
@@ -50,17 +57,20 @@ function connectionView(row: Connection, deps: OfficeDeps) {
   return {
     id: row.id, kind: row.kind, platform: row.platform, health: compatible ? row.health : "reconnect_needed",
     grants: compatible ? row.grants : 0, noticeVersion: row.noticeVersion,
-    capabilities: Object.fromEntries(operations.filter(action => operationKind[action] === row.kind).map(action => [
+    capabilities: {
+      ...(row.kind === "calendar" && row.platform && { meeting: compatible && (row.platform === "google" ? officeEvidence.googleCalendar.meet : officeEvidence.microsoftCalendar.teams) === "documented" ? "available" : "unavailable" }),
+      ...Object.fromEntries(operations.filter(action => operationKind[action] === row.kind).map(action => [
       action, compatible && row.platform && operationAvailable(row.platform, action, row.provider === "fake")
-        ? (["createEvent", "updateEvent", "deleteEvent"].includes(action) && !OFFICE_CALENDAR_WRITE_ENABLED ? "disabled" : "available")
+        ? (calendarWriteActions.includes(action) && !calendarWritesOn(deps) ? "disabled" : "available")
         : "unavailable",
-    ])),
+    ]))},
     ...(row.kind === "mail" && { send: "disabled" }),
   };
 }
 
-export const auditOffice = (tx: Transaction, tenantId: string, actorId: string, action: OfficeRequest["action"], targetId: string, outcome: string) =>
-  tx.insert(auditLogs).values({ tenantId, actorId, action: `office.${action}`, targetId, metadata: { outcome } });
+/** Outcome only; calendar writes add the provider event reference. Never titles, notes, times or attendees. */
+export const auditOffice = (tx: Transaction, tenantId: string, actorId: string, action: OfficeRequest["action"], targetId: string, outcome: string, eventRef?: string) =>
+  tx.insert(auditLogs).values({ tenantId, actorId, action: `office.${action}`, targetId, metadata: eventRef ? { outcome, eventRef } : { outcome } });
 
 export async function officeConnection(tx: Transaction, tenant: string, owner: string, id: string | undefined, write: boolean) {
   if (!id) throw unavailable();
@@ -80,7 +90,8 @@ export function listOfficeConnections(db: Database, actor: string, workspace: st
 }
 
 const cleanHealth = (value: Health, kind: Connection["kind"]): Health => {
-  const grants = value.grants & grant[kind];
+  const base = value.grants & grant[kind];
+  const grants = base ? base | (kind === "calendar" ? value.grants & calendarWriteGrant : 0) : 0;
   return { health: grants ? value.health : "reconnect_needed", grants };
 };
 
@@ -114,6 +125,10 @@ export function officeLifecycle(db: Database, actor: string, workspace: string, 
     if (action !== "health") await lockConnections(tx, tenant, actor);
 
     if (action === "startConnect") {
+      if (input.access === "write" && !calendarWritesOn(current)) {
+        await auditOffice(tx, tenant, actor, action, randomUUID(), "disabled");
+        return { state: "disabled" } as const;
+      }
       const files = input.kind === "files";
       const activeSlot = and(owner, eq(officeConnections.kind, input.kind), files
         ? eq(officeConnections.platform, input.platform) : isNotNull(officeConnections.platform));
@@ -132,7 +147,7 @@ export function officeLifecycle(db: Database, actor: string, workspace: string, 
       const attemptId = randomUUID();
       let started;
       try {
-        started = await provider.startConnect(credential, { attemptId, kind: input.kind, platform: input.platform, existing: account ?? undefined });
+        started = await provider.startConnect(credential, { attemptId, kind: input.kind, platform: input.platform, access: input.access, existing: account ?? undefined });
       } catch (error) {
         const result = providerFailure(error);
         await auditOffice(tx, tenant, actor, action, attemptId, result.state);

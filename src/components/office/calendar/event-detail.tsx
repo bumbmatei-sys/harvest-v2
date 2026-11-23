@@ -1,9 +1,10 @@
 "use client";
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CalendarDays, ExternalLink, Pencil, Trash2, Users, Video, X } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { PersonLink } from "@/components/office/mail/person-link";
 import { CalendarLogo } from "@/components/office/provider-logo";
@@ -11,7 +12,7 @@ import { PlatformLogo } from "@/components/social/platform-logo";
 import { platformLabels } from "@/lib/social/labels";
 import { plannerHref, safeLink, type CalendarApi, type CalendarItem } from "@/lib/office/calendar";
 import type { PlannerItem } from "@/lib/social/api";
-import type { OfficePlatform } from "@/lib/office/mail";
+import { OfficeApiError, type OfficePlatform } from "@/lib/office/mail";
 import { notify } from "@/lib/toast";
 
 /** Meeting provider names, in code like every product name (never in the message catalogue). */
@@ -25,14 +26,15 @@ export function whenText(start: Date, end: Date, allDay: boolean, locale: string
 
 /**
  * The event detail panel: time, calendar, join link and attendees the provider returned (live, held in component state only), the explicit link to a CRM person,
- * and Edit and Delete, which stay disabled while calendar writes are hard-off on the server.
+ * and Edit and Delete, which work only for events created in Harvest and only while the server says writes are available.
  */
-export function EventDetail({ tenantId, api, connectionId, item, calendarName, platform, start, end, allDay, contactId, onLinked, onClose }: {
+export function EventDetail({ tenantId, api, connectionId, item, calendarName, platform, start, end, allDay, contactId, writes, onLinked, onEdit, onChanged, onClose }: {
   tenantId: string; api: CalendarApi; connectionId: string; item: CalendarItem; calendarName: string; platform: OfficePlatform; start: Date; end: Date; allDay: boolean;
-  contactId: string | null; onLinked: (contactId: string | null) => void; onClose: () => void;
+  contactId: string | null; writes: boolean; onLinked: (contactId: string | null) => void; onEdit: () => void; onChanged: () => void; onClose: () => void;
 }) {
   const t = useTranslations("OfficeCalendar.detail"), p = useTranslations("OfficeMail.person"), w = useTranslations("OfficeCalendar"), locale = useLocale();
   const [busy, setBusy] = useState(false);
+  const mine = writes && item.createdHere === true, stale = useRef(false);
   const join = safeLink(item.meetingLink);
   async function link(id: string) {
     setBusy(true);
@@ -41,6 +43,16 @@ export function EventDetail({ tenantId, api, connectionId, item, calendarName, p
       if (result.state !== "available") return p("failed");
       onLinked(id); notify.success(p("linkedToast")); return null;
     } catch { return p("failed"); } finally { setBusy(false); }
+  }
+  async function remove() {
+    try {
+      const result = await api.deleteEvent(connectionId, { calendarRef: item.calendarRef, eventRef: item.ref, version: item.version ?? "" });
+      if (result.state === "available") { notify.success(t("deleted")); onChanged(); onClose(); return; }
+      return t("deleteFailed");
+    } catch (error) {
+      if (error instanceof OfficeApiError && error.conflict) { stale.current = true; return t("changedElsewhere"); }
+      throw error;
+    }
   }
   async function unlink() {
     if (!contactId) return;
@@ -67,10 +79,13 @@ export function EventDetail({ tenantId, api, connectionId, item, calendarName, p
       <div className="flex flex-wrap items-center gap-2 border-t pt-4"><PersonLink tenantId={tenantId} contactId={contactId} busy={busy} onLink={(person) => link(person.id)} onUnlink={() => void unlink()} /></div>
       <div className="space-y-2 border-t pt-4">
         <div className="flex flex-wrap gap-2">
-          <Button type="button" variant="outline" size="responsive" disabled aria-describedby="detail-writes-note" data-testid="event-edit"><Pencil aria-hidden="true" />{t("edit")}</Button>
-          <Button type="button" variant="outline" size="responsive" disabled aria-describedby="detail-writes-note" data-testid="event-delete"><Trash2 aria-hidden="true" />{t("delete")}</Button>
+          <Button type="button" variant="outline" size="responsive" disabled={!mine} aria-describedby={mine ? undefined : "detail-writes-note"} onClick={onEdit} data-testid="event-edit"><Pencil aria-hidden="true" />{t("edit")}</Button>
+          {mine
+            ? <ConfirmDialog trigger={<Button type="button" variant="outline" size="responsive" data-testid="event-delete"><Trash2 aria-hidden="true" />{t("delete")}</Button>}
+              onOpenChange={(open) => { if (!open && stale.current) { stale.current = false; onChanged(); } }} title={t("deleteTitle")} description={t("deleteBody")} confirmLabel={t("delete")} cancelLabel={t("cancel")} busyLabel={t("deleting")} onConfirm={remove} />
+            : <Button type="button" variant="outline" size="responsive" disabled aria-describedby="detail-writes-note" data-testid="event-delete"><Trash2 aria-hidden="true" />{t("delete")}</Button>}
         </div>
-        <p id="detail-writes-note" className="text-sm text-muted-foreground" data-testid="writes-note">{w("writesOff")}</p>
+        {!mine && <p id="detail-writes-note" className="text-sm text-muted-foreground" data-testid="writes-note">{writes ? t("readOnlyEvent") : w("writesOff")}</p>}
       </div>
     </div>
   </>;

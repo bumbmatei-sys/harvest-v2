@@ -6054,7 +6054,15 @@
       "delete": "Delete",
       "socialUntitled": "Social post",
       "socialReadOnly": "Scheduled post, read only",
-      "openPlanner": "Open in planner"
+      "openPlanner": "Open in planner",
+      "cancel": "Cancel",
+      "deleteTitle": "Delete this event?",
+      "deleteBody": "It is removed from your calendar.",
+      "deleting": "Deleting",
+      "deleted": "Event deleted",
+      "deleteFailed": "Could not delete this event. Try again.",
+      "changedElsewhere": "This event changed elsewhere. Close this to reload it.",
+      "readOnlyEvent": "Harvest can change only events it created."
     },
     "form": {
       "newTitle": "New event",
@@ -6068,14 +6076,30 @@
       "endDate": "End date",
       "endTime": "End time",
       "delete": "Delete event",
-      "timeZone": "Time zone",
-      "location": "Location",
       "notes": "Notes",
       "calendar": "Calendar",
       "attendees": "Attendees",
-      "meetingLink": "Add a meeting link",
+      "meetingLink": "Add a video link",
       "save": "Save",
-      "close": "Close"
+      "close": "Close",
+      "created": "Event created",
+      "updated": "Event updated",
+      "grantTitle": "Allow Harvest to add events to your calendar",
+      "grantAllow": "Allow",
+      "grantFailed": "Access was not granted. Try again.",
+      "loadingCalendars": "Loading calendars",
+      "pickCalendar": "Choose a calendar",
+      "noCalendars": "No calendar here can be changed.",
+      "timeZoneIs": "Time zone: {zone}",
+      "invitesOff": "Invites aren't available yet",
+      "meetingOff": "A video link can't be added for this account",
+      "reload": "Reload",
+      "problem": {
+        "failed": "Could not save the event. Try again.",
+        "changed": "This event changed elsewhere. Reload and try again.",
+        "grant": "Allow Harvest to add events to your calendar first.",
+        "invalid": "Check the event details and try again."
+      }
     },
     "agenda": {
       "emptyTitle": "No events",

@@ -22,7 +22,7 @@ import { PlatformLogo } from "@/components/social/platform-logo";
 import { WeekView } from "@/components/social/week-calendar";
 import type { CalendarEvent } from "@/lib/event-view";
 import { showMarks, toggleSource, shownSources, type Selection, type Source } from "@/lib/files-screen";
-import { calendarEvent, calendarLabel, calendarViews, isSocialId, overlayStatuses, rangeFor, shiftDate, socialEvent, type CalendarApi, type CalendarItem, type CalendarView, type NamedCalendar } from "@/lib/office/calendar";
+import { calendarEvent, calendarLabel, calendarViews, isSocialId, overlayStatuses, rangeFor, shiftDate, socialEvent, writesAvailable, type CalendarApi, type CalendarItem, type CalendarView, type NamedCalendar } from "@/lib/office/calendar";
 import type { Result, Page, OfficeConnection } from "@/lib/office/mail";
 import { socialApi, type PlannerItem } from "@/lib/social/api";
 import { cn } from "@/lib/utils";
@@ -47,10 +47,10 @@ async function readAll<T>(page: (cursor?: string) => Promise<Result<Page<T>>>): 
 /**
  * The connected calendar: month, week, day and availability over the person's live events, the optional read-only overlay of scheduled social posts, source
  * chips with small marks when more than one source is shown, and the event detail panel. Everything is fetched for this one connection and held in memory only.
- * Creating, editing and deleting events are hard-off: the controls exist, disabled, and nothing here ever sends a calendar write.
+ * Creating, editing and deleting go through the Office route only when the server says writes are available (synthetic provider outside production); otherwise the controls stay disabled.
  */
-export function CalendarWorkspace({ tenantId, api, connection, socialOverlay, disconnect, onReconnect }: {
-  tenantId: string; api: CalendarApi; connection: OfficeConnection; socialOverlay: boolean; disconnect: React.ReactNode; onReconnect: () => void;
+export function CalendarWorkspace({ tenantId, api, connection, noticeVersion, socialOverlay, disconnect, onReconnect, onGranted }: {
+  tenantId: string; api: CalendarApi; connection: OfficeConnection; noticeVersion: number; socialOverlay: boolean; disconnect: React.ReactNode; onReconnect: () => void; onGranted: () => void;
 }) {
   const t = useTranslations("OfficeCalendar"), locale = useLocale();
   const router = useRouter(), pathname = usePathname(), params = useSearchParams();
@@ -59,7 +59,7 @@ export function CalendarWorkspace({ tenantId, api, connection, socialOverlay, di
   const dateParam = params.get("date"), parsed = dateParam ? parseISO(dateParam) : null;
   const date = useMemo(() => startOfDay(parsed && isValid(parsed) ? parsed : new Date()), [dateParam]); // eslint-disable-line react-hooks/exhaustive-deps
   const overlayOn = socialOverlay && params.get("social") === "1";
-  const availabilityOn = connection.capabilities.availability === "available";
+  const availabilityOn = connection.capabilities.availability === "available", writes = writesAvailable(connection);
 
   const go = useCallback((next: Record<string, string | null>) => {
     const query = new URLSearchParams(params.toString());
@@ -72,7 +72,7 @@ export function CalendarWorkspace({ tenantId, api, connection, socialOverlay, di
   const fromIso = range.from.toISOString(), toIso = range.to.toISOString();
   const [calendars, setCalendars] = useState<NamedCalendar[]>([]);
   const [events, setEvents] = useState<Feed<CalendarItem>>(feed()), [posts, setPosts] = useState<Feed<PlannerItem>>(feed());
-  const [selection, setSelection] = useState<Selection>(new Set()), [selected, setSelected] = useState<string | null>(null), [form, setForm] = useState(false);
+  const [selection, setSelection] = useState<Selection>(new Set()), [selected, setSelected] = useState<string | null>(null), [form, setForm] = useState<{ item: CalendarItem | null } | null>(null);
   const [links, setLinks] = useState<Record<string, string>>({}), [version, setVersion] = useState(0);
   const events_ = view !== "availability";
   const [now, setNow] = useState(() => Date.now());
@@ -171,7 +171,7 @@ export function CalendarWorkspace({ tenantId, api, connection, socialOverlay, di
       <Button type="button" variant="ghost" size="icon-responsive" aria-label={t(`next.${view}`)} onClick={() => setDate(shiftDate(view, date, 1))} data-testid="next"><ChevronRight aria-hidden="true" /></Button>
       <h2 className="min-w-0 flex-1 basis-40 text-base font-semibold" aria-live="polite" data-testid="calendar-title">{title}</h2>
       <Button type="button" variant="ghost" size="icon-responsive" aria-label={t("refresh")} onClick={() => setVersion((value) => value + 1)} data-testid="refresh"><RotateCw aria-hidden="true" /></Button>
-      <Button type="button" size="responsive" onClick={() => setForm(true)} data-testid="new-event"><Plus aria-hidden="true" />{t("newEvent")}</Button>
+      <Button type="button" size="responsive" onClick={() => setForm({ item: null })} data-testid="new-event"><Plus aria-hidden="true" />{t("newEvent")}</Button>
     </div>
     <div className="flex flex-wrap items-center gap-2">
       <ToggleGroup type="single" variant="outline" value={view} onValueChange={(value) => { if (value) go({ view: value === "month" ? null : value }); }} aria-label={t("viewLabel")} data-testid="view-switch">
@@ -209,11 +209,12 @@ export function CalendarWorkspace({ tenantId, api, connection, socialOverlay, di
     <Sheet open={detail !== null} onOpenChange={(open) => { if (!open) setSelected(null); }}>
       <SheetContent side="right" showCloseButton={false} className="w-full gap-3 pt-4 sm:max-w-md" data-testid="event-panel">
         {detail?.item && <EventDetail key={detail.event.id} tenantId={tenantId} api={api} connectionId={connection.id} item={detail.item} calendarName={calendarName(detail.item.calendarRef)} platform={platform}
-          start={detail.event.start} end={detail.event.end} allDay={!!detail.event.allDay} contactId={links[detail.event.id] ?? null}
-          onLinked={(contactId) => setLinks((current) => { const next = { ...current }; if (contactId) next[detail.event.id] = contactId; else delete next[detail.event.id]; return next; })} onClose={() => setSelected(null)} />}
+          start={detail.event.start} end={detail.event.end} allDay={!!detail.event.allDay} contactId={links[detail.event.id] ?? null} writes={writes}
+          onLinked={(contactId) => setLinks((current) => { const next = { ...current }; if (contactId) next[detail.event.id] = contactId; else delete next[detail.event.id]; return next; })} onEdit={() => { setForm({ item: detail.item! }); setSelected(null); }} onChanged={() => setVersion((value) => value + 1)} onClose={() => setSelected(null)} />}
         {detail?.post && <SocialDetail tenantId={tenantId} item={detail.post} start={detail.event.start} onClose={() => setSelected(null)} />}
       </SheetContent>
     </Sheet>
-    <EventDialog event={null} isOpen={form} onClose={() => setForm(false)} platform={platform} calendars={calendars.length ? calendars : [{ ref: "primary", name: calendarLabel[platform] }]} />
+    {form && <EventDialog key={form.item ? `${form.item.calendarRef}:${form.item.ref}:${form.item.version}` : "new"} event={form.item} isOpen onClose={() => setForm(null)} api={api} connection={connection} noticeVersion={noticeVersion}
+      onChanged={() => { setSelected(null); setVersion((value) => value + 1); }} onGranted={onGranted} />}
   </div>;
 }

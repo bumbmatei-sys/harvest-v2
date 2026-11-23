@@ -17,8 +17,8 @@ type Load = { status: "loading" } | { status: "error" } | { status: "unavailable
 
 /**
  * Office, Calendar. Each owner or admin connects their own calendar; the connection is private to that person. This component owns the connection lifecycle
- * (none, reconnect needed, needs attention, healthy) and shows the calendar only for a healthy connection. Creating, editing and deleting events is hard-off on
- * the server and shown disabled in the workspace.
+ * (none, reconnect needed, needs attention, healthy) and shows the calendar only for a healthy connection. Creating, editing and deleting events are available only where the server says so (never in production) and shown disabled otherwise;
+ * the workspace asks for write access the first time.
  */
 export function OfficeCalendar({ tenantId, socialOverlay }: { tenantId: string; socialOverlay: boolean }) {
   const t = useTranslations("OfficeCalendar");
@@ -49,7 +49,7 @@ export function OfficeCalendar({ tenantId, socialOverlay }: { tenantId: string; 
   if (load.status === "error") return <div className="space-y-4">{header}<Alert variant="destructive" role="alert" data-testid="overview-error"><AlertDescription className="flex flex-wrap items-center gap-2">{t("loadFailed")}
     <Button type="button" variant="outline" size="responsive" onClick={() => { setLoad({ status: "loading" }); void refresh(); }}><RotateCw aria-hidden="true" />{t("retry")}</Button></AlertDescription></Alert></div>;
 
-  const { overview } = load, healthy = connection?.health === "healthy" && connection.platform !== null && connection.grants === 2;
+  const { overview } = load, healthy = connection?.health === "healthy" && connection.platform !== null && (connection.grants & 2) === 2;
   if (!connection || !healthy) return <div className="space-y-4">{header}<CalendarConnect api={api} notice={notice("personalConnectionNotice")} noticeVersion={overview.notice.version} connection={connection} onConnected={() => void refresh(true)} onRefresh={reconnect} disconnect={disconnect} /></div>;
-  return <div className="space-y-4">{header}<CalendarWorkspace key={connection.id} tenantId={tenantId} api={api} connection={connection} socialOverlay={socialOverlay} disconnect={disconnect} onReconnect={reconnect} /></div>;
+  return <div className="space-y-4">{header}<CalendarWorkspace key={connection.id} tenantId={tenantId} api={api} connection={connection} noticeVersion={overview.notice.version} socialOverlay={socialOverlay} onGranted={() => void refresh(true)} disconnect={disconnect} onReconnect={reconnect} /></div>;
 }

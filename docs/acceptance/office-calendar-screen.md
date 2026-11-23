@@ -1,6 +1,6 @@
 # Office Calendar screen acceptance
 
-Operations > Office > Calendar: the UI for each owner's or admin's own calendar, on top of the merged Office server (PR #185, migration 0075), in the pattern of Email (#191) and Files (#193, #194). No server change, no migration, no new dependency. Nothing is activated: the gate is closed in production, every calendar write is hard-off, and all five HC-02 gates remain UNAPPROVED.
+Operations > Office > Calendar: the UI for each owner's or admin's own calendar, on top of the merged Office server (PR #185, migration 0075), in the pattern of Email (#191) and Files (#193, #194). No server change, no migration, no new dependency. Nothing is activated: the gate is closed in production, every real calendar write is hard-off, and all five HC-02 gates remain UNAPPROVED.
 
 ## Done
 
@@ -12,34 +12,25 @@ Operations > Office > Calendar: the UI for each owner's or admin's own calendar,
 - **Source chips and marks.** Sources are the connection's calendars (as the provider lists them) and, while the overlay is on, Social posts. With more than one source shown: All plus one chip per source (any, any combination or all; empty is All, same helpers as Files) and a small mark on each event. Calendar marks (`CalendarLogo`) are simplified Google Calendar and Outlook marks flagged subject to brand-guideline review; the Harvest logo marks social posts.
 - **Link to a CRM person.** Explicit reference through the CRM `RecordPicker` and the `eventLink` action (`PersonLink`, shared with Email); unlink through `removeReference`. The server stores only the event reference and its times, never the title (the e2e asserts this).
 - **Show social posts.** A toggle (URL `social=1`), offered only when the social planner is available to the person. Scheduled, queued and publishing posts from the existing planner read API (`GET .../social/planner?from&to&timezone`, the same range read the planner uses) appear read-only: time, platform mark, short title (60 characters), a detail panel that links to the planner week. Drafts, published and cancelled posts are not shown. An overlay failure or a 404 is stated and the calendar still shows. Nothing leaves Harvest.
-- **Event form and Edit/Delete, in place but disabled.** "New event" opens the form (copied from the kit's event dialog, adapted): title, notes, start and end date and time, all-day, time zone, location, calendar picker, attendees, automatic meeting link. Every control and Save are disabled, with the one notice "Creating and editing events isn't available yet". Edit and Delete in the detail panel are disabled with the same notice. Drag to reschedule is not present at all (the grids render nothing draggable). Turning writes on later needs the server slice and a switch (below).
+- **Event form and Edit/Delete.** "New event" opens the form (copied from the kit's event dialog, adapted): title, notes, start and end date and time, all-day, calendar picker, time zone, attendees, video link. While the server reports writes as unavailable (always in production) every control and Save are disabled with the one notice "Creating and editing events isn't available yet", and Edit and Delete in the detail panel show the same notice. Where the server reports writes as available (the non-production fake provider) the form works as described in `docs/acceptance/office-calendar-writes.md`. Drag to reschedule is not present at all (the grids render nothing draggable).
 
 ## Hard-off
 
 `OFFICE_CALENDAR_WRITE_ENABLED`, `OFFICE_MAIL_SEND_ENABLED`, `OFFICE_INTEGRATION_ENABLED` and `OFFICE_LIVE_NETWORK` stay literal `false`. The e2e records every Office request in all three specs and asserts that none of `createEvent`, `updateEvent` or `deleteEvent` is ever sent, and calls `createEvent` directly to confirm the server answers `disabled`. The routes use the in-memory fake provider; no real provider call, no real message.
 
-## Writes are a separate server slice (open decisions)
+## Writes (decided and built separately)
 
-The existing write schema (`createEvent`, `updateEvent`, `deleteEvent`) takes title, description, start, end, attendees, a `meeting` flag, a calendar reference and a request id. The form shows more fields than the schema carries. Decisions needed before writes are enabled:
-
-1. **Attendee invites** (outbound email from the provider): consent, wording, whether to allow at all; the field stays disabled until decided.
-2. **Automatic Meet or Teams link:** whether and when; the toggle stays disabled.
-3. **Which calendar a new event goes to:** the picker exists; default calendar, read-only calendars (the provider's `readOnly` flag), and per-person rules.
-4. **Recurring events:** reads expand them; editing a series or one occurrence is undefined.
-5. **Time zones:** the schema carries ISO instants only; the form shows the browser zone. Zone per event, all-day dates and floating times need a decision.
-6. **Conflict handling:** provider versions or etags on update and delete (the server has none for events; Email drafts have), and what the UI says on a 409.
-7. **Idempotent retries:** `createEvent` takes a request id; update and delete need one too, and the form must keep one id per attempt (as the Email composer does).
-8. Also missing from the schema: **location** and **all-day** (see gaps).
+The open decisions that were listed here (invites, video link, which calendar, recurring events, time zones, conflicts, retries, location and all-day) were answered by the founder on 23 Nov and built as a separate slice behind the fake provider: see `docs/acceptance/office-calendar-writes.md` and `docs/decisions/founder-decisions-2026-11.md`. The form's controls are enabled only when the server reports writes as available (non-production synthetic provider); otherwise the disabled notice stays. Location was dropped from the form (no provider field).
 
 ## Deferred by design
 
-Create, edit, delete, RSVP and drag to reschedule (hard-off); the kit's `events-popup` (the week grid has the overlap popover, the month "+N more" opens the day); free/busy overlay of other people; several calendar connections (the server allows one Calendar connection per admin); push refresh (on demand only); Settings > Connections entry for Office.
+RSVP and drag to reschedule; recurring events and invites (version 2); create, edit and delete exist only against the fake provider (see the writes record); the kit's `events-popup` (the week grid has the overlap popover, the month "+N more" opens the day); free/busy overlay of other people; several calendar connections (the server allows one Calendar connection per admin); push refresh (on demand only); Settings > Connections entry for Office.
 
 ## Server gaps found (reported, nothing invented)
 
 1. **No read by event for person links.** `contactReferences` lists references per contact, not per event, so the panel cannot show that an event is already linked after a reload; the link state lives in the page for the session (the reference itself is stored and removable).
-2. **No location field** on `EventDetail` or in the write schema; the panel shows none and the form field is disabled.
-3. **No all-day or time zone on writes** (see decision 5); reads carry `allDay` and plain dates.
+2. **No location field** on `EventDetail` or in the write schema; the panel shows none and the form has no location field.
+3. Writes now carry all-day and the calendar time zone (see the writes record).
 4. **`events` has no calendar filter in the UI** beyond `calendarRef`; the chips filter the fetched range locally (the range is complete or reported partial), they do not re-query.
 5. **The fake provider** seeds one event, so realism (several calendars, all-day, meeting links, paging) comes from route stubs in the e2e.
 6. **Planner range read is suitable** (from, to, timezone, paging): nothing was missing for the overlay. It returns drafts too, which the overlay drops client-side by status.

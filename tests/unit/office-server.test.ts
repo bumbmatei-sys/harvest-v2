@@ -39,7 +39,7 @@ describe("Office activation boundary", () => {
     const transport = vi.fn();
     const adapter = new ZernioOfficeAdapter(transport);
     expect(await adapter.perform(credential, { ...mail, kind: "calendar" }, {
-      action: "deleteEvent", input: { eventRef: "event" },
+      action: "deleteEvent", input: { eventRef: "event", calendarRef: "primary", version: "v1" },
     })).toEqual({ state: "disabled" });
     expect(transport).not.toHaveBeenCalled();
   });
