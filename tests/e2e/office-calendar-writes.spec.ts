@@ -107,6 +107,12 @@ test("office calendar writes: grant, create once, edit, delete with a confirm, v
 
   // Create: one request, one event, a video link from the calendar's own provider.
   await form.getByLabel("Title", { exact: true }).fill("Prayer breakfast");
+  // The form defaults to the next quarter hour of the runner's clock, read in the calendar's zone (New York): late in the UTC day that spans UTC midnight and the
+  // agenda lists the one event on two days. Fixed morning times keep the event inside one day whatever time the test runs.
+  await form.getByLabel("Start time").click();
+  await page.getByRole("option", { name: "9:00 AM", exact: true }).click();
+  await form.getByLabel("End time").click();
+  await page.getByRole("option", { name: "10:00 AM", exact: true }).click();
   await form.getByLabel("Notes", { exact: true }).fill("Bring a friend");
   await meeting.click();
   await expect(meeting).toBeChecked();
