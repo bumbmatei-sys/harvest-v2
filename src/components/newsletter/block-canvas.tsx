@@ -47,8 +47,8 @@ function SortableBlock({ block, index, count, selected, label, onSelect, onPatch
       <button ref={setActivatorNodeRef} type="button" {...attributes} {...listeners} aria-label={t("drag", { label })}
         className="flex size-11 touch-none items-center justify-center rounded-md text-muted-foreground outline-none hover:bg-accent focus-visible:ring-[3px] focus-visible:ring-ring/50"><GripVertical aria-hidden="true" /></button>
       <button type="button" aria-expanded={selected} aria-label={t("editBlock", { label })} onClick={onSelect}
-        className="flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50">
-        <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" /><Badge variant="secondary">{types(block.type)}</Badge>
+        className="flex min-h-11 min-w-44 flex-1 items-center gap-2 overflow-hidden rounded-md px-2 text-left outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50">
+        <Icon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" /><Badge variant="secondary" className="shrink-0">{types(block.type)}</Badge>
         <span className="truncate text-sm text-muted-foreground">{text}</span></button>
       <Button type="button" variant="ghost" size="icon" className="size-11" disabled={index === 0} aria-label={t("moveUp", { label })} onClick={() => onMove(-1)}><ArrowUp aria-hidden="true" /></Button>
       <Button type="button" variant="ghost" size="icon" className="size-11" disabled={index === count - 1} aria-label={t("moveDown", { label })} onClick={() => onMove(1)}><ArrowDown aria-hidden="true" /></Button>

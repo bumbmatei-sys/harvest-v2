@@ -23,7 +23,7 @@ import { blankDocument, templateDocument, type TemplateId } from "@/lib/email/te
 import { commit, redo, startHistory, undo } from "@/lib/crm-forms";
 import { notify } from "@/lib/toast";
 
-export type CampaignData = { id: string; name: string; version: number; subject: string; preheader: string | null; senderId: string | null; replyToId: string | null;
+export type CampaignData = { id: string; name: string; state: string; version: number; subject: string; preheader: string | null; senderId: string | null; replyToId: string | null;
   content: unknown; selection: { listIds: string[]; segmentIds: string[] } };
 type Draft = { name: string; subject: string; preheader: string; doc: EmailDocument; listIds: string[]; segmentIds: string[]; senderId: string | null; replyToId: string | null };
 type Save = "saved" | "saving" | "error" | "conflict";
@@ -104,6 +104,8 @@ export function CampaignEditor({ tenantId, ministryName, campaign, brandKit, lis
 
   const shown = save === "saved" && dirty ? (valid ? "saving" : "invalid") : save;
   const status = shown === "saving" ? e("saving") : shown === "saved" ? e("saved") : shown === "conflict" ? e("conflict") : shown === "invalid" ? e("fixFields") : e("saveFailed");
+  const sidebar = { typeLabel: t("heading"), status: { kind: "draft" as const, label: t(`status.${campaign.state}` as "status.draft") },
+    back: { href: `/workspaces/${tenantId}/newsletter/campaigns`, label: e("back") }, dirty: shown !== "saved" };
   const preview = <EmailPreview doc={draft.doc} preheader={draft.preheader} ministryName={ministryName} firstName={t("preview.firstName")} />;
 
   return <div data-newsletter-editor>
@@ -119,7 +121,7 @@ export function CampaignEditor({ tenantId, ministryName, campaign, brandKit, lis
         <Button type="button" variant="outline" className="min-h-11" onClick={() => void sendTest()}><Send aria-hidden="true" />{e("sendTest")}</Button>
       </>}
       steps={[{ id: "write", label: e("write") }, { id: "send", label: e("send") }]} current={step} onStep={setStep} stepsLabel={e("steps")}
-      preview={preview} previewLabel={e("preview")}>
+      preview={preview} previewLabel={e("preview")} sidebar={sidebar}>
       {save === "conflict" && <Alert variant="destructive"><AlertDescription>{e("conflict")}</AlertDescription></Alert>}
       {step === "write" ? <>
         <FormSection title={e("write")}>

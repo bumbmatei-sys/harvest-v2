@@ -36,5 +36,5 @@ export default async function CampaignEditorPage({ params }: { params: Promise<{
   const option = (row: { id: string; name: string; audienceId?: string }) => ({ id: row.id, name: row.name, audienceId: row.audienceId ?? "" });
   const senders = identities.items.filter((row) => row.identity.ownershipVerified).map((row) => ({ id: row.identity.id, address: row.identity.address }));
   return <CampaignEditor tenantId={tenantId} ministryName={workspace.name} brandKit={{ kit: kit.kit, version: kit.version }} lists={lists.items.map(option)} groups={segments.items.map(option)} senders={senders}
-    campaign={{ id: campaign.id, name: campaign.name, version: campaign.version, subject: campaign.subject, preheader: campaign.preheader, senderId: campaign.senderId, replyToId: campaign.replyToId, content: campaign.content, selection: campaign.selection }} />;
+    campaign={{ id: campaign.id, name: campaign.name, state: campaign.state, version: campaign.version, subject: campaign.subject, preheader: campaign.preheader, senderId: campaign.senderId, replyToId: campaign.replyToId, content: campaign.content, selection: campaign.selection }} />;
 }
