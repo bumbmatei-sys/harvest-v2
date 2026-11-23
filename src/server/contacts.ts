@@ -1,5 +1,6 @@
 import { message } from "../i18n/messages";
 import { and, asc, count, desc, eq, exists, getTableColumns, gt, ilike, inArray, isNull, ne, notExists, or, sql } from "drizzle-orm";
+import type { SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import type { Database, Transaction } from "../db/client";
 import { auditLogs, companies, contactCompanyLinks, contactConsents, contactIdentifiers, contactFormSources, contactSourceEvents, contacts } from "../db/schema";
@@ -30,14 +31,18 @@ export type ListRow = typeof contacts.$inferSelect & {
   companies: { contactId: string; companyId: string; name: string; isPrimary: boolean; title: string | null }[];
   custom: Record<string, import("../lib/crm-fields").FieldValue>;
   sourceKinds?: (typeof contactSourceEvents.$inferSelect.kind)[];
+  /** Columns a lens (the newsletter Audience) added through `ListExtension.columns`. */
+  extra?: Record<string, unknown>;
 };
+/** A lens over the same People list: extra predicate and extra columns, never a second query path. */
+export type ListExtension = { where?: (tx: Transaction, tenantId: string) => Promise<SQL | undefined>; columns?: (tenantId: string) => Record<string, SQL> };
 
 /**
  * People list. The URL-style parameters are parsed, then validated against the
  * tenant's live field definitions; anything unknown rejects the whole view (400).
  * Every filter compiles to SQL; nothing is filtered on the client.
  */
-export function listContacts(db: Database, userId: string, workspace: string, params: ListParams = {}) {
+export function listContacts(db: Database, userId: string, workspace: string, params: ListParams = {}, extension: ListExtension = {}) {
   const parsed = paramsToState("person", params);
   if (!parsed) throw invalidView();
   return withTenant(db, userId, uuidInput.parse(workspace), "contacts:read", async (tx, tenantId, role) => {
@@ -53,9 +58,11 @@ export function listContacts(db: Database, userId: string, workspace: string, pa
       if (locked) return { rows: [] as ListRow[], total: 0, page, state, definitions: definitions.filter((field) => !field.archivedAt), related: {} as Record<string, string>, locked };
     }
     const marketing = marketingEmailState(tenantId);
-    const { where, order } = peopleQuery(tx, tenantId, state, definitions, sourceAccess);
+    const { where: baseWhere, order } = peopleQuery(tx, tenantId, state, definitions, sourceAccess);
+    const lens = await extension.where?.(tx, tenantId), where = lens ? and(baseWhere, lens) : baseWhere;
+    const extraColumns = extension.columns?.(tenantId) ?? {}, extraKeys = Object.keys(extraColumns);
     const [{ total }] = await tx.select({ total: count() }).from(contacts).where(where);
-    const rows = await tx.select({ ...getTableColumns(contacts), marketingEmail: marketing }).from(contacts).where(where).orderBy(...order).limit(CRM_PAGE_SIZE).offset((page - 1) * CRM_PAGE_SIZE);
+    const rows = await tx.select({ ...getTableColumns(contacts), marketingEmail: marketing, ...extraColumns }).from(contacts).where(where).orderBy(...order).limit(CRM_PAGE_SIZE).offset((page - 1) * CRM_PAGE_SIZE);
     const ids = rows.map((row) => row.id);
     const identifiers = ids.length ? await tx.select().from(contactIdentifiers).where(and(eq(contactIdentifiers.tenantId, tenantId), inArray(contactIdentifiers.contactId, ids))) : [];
     const links = ids.length ? await tx.select({ contactId: contactCompanyLinks.contactId, companyId: companies.id, name: companies.name, isPrimary: contactCompanyLinks.isPrimary, title: contactCompanyLinks.title })
@@ -70,7 +77,7 @@ export function listContacts(db: Database, userId: string, workspace: string, pa
     if (sourceAccess && ids.length) for (const tag of await tx.selectDistinct({ contactId: contactFormSources.contactId }).from(contactFormSources)
       .where(and(eq(contactFormSources.tenantId, tenantId), inArray(contactFormSources.contactId, ids)))) sourceKinds.push({ contactId: tag.contactId, kind: "form" });
     const filterNames = await relatedFilterNames(tx, tenantId, "person", state.filters, definitions);
-    const listRows: ListRow[] = rows.map((row) => ({ ...row, identifiers: identifiers.filter((item) => item.contactId === row.id), companies: links.filter((link) => link.contactId === row.id), custom: values.get(row.id) ?? {}, ...(sourceAccess ? { sourceKinds: sourceKinds.filter(event => event.contactId === row.id).map(event => event.kind) } : {}) }));
+    const listRows: ListRow[] = rows.map(({ ...row }) => ({ ...(extraKeys.length ? { extra: Object.fromEntries(extraKeys.map((key) => [key, (row as Record<string, unknown>)[key]])) } : {}), ...row, identifiers: identifiers.filter((item) => item.contactId === row.id), companies: links.filter((link) => link.contactId === row.id), custom: values.get(row.id) ?? {}, ...(sourceAccess ? { sourceKinds: sourceKinds.filter(event => event.contactId === row.id).map(event => event.kind) } : {}) }));
     return { rows: listRows, total, page, state, definitions: active, related: Object.fromEntries([...related, ...filterNames, ...sourceNames]) as Record<string, string>, locked: null as "source_access" | "invalid_source" | null };
   });
 }

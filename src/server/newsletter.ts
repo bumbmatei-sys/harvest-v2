@@ -141,7 +141,7 @@ export function pageNewsletterConfiguration(db: Database, user: string, workspac
     const table = { audiences: newsletterAudiences, lists: newsletterLists, segments: newsletterSegments }[kind];
     return withTenant(db, user, z.uuid().parse(workspace), 'newsletter:read', async (tx, tenantId) => {
         const audienceColumn = kind === 'lists' ? newsletterLists.audienceId : kind === 'segments' ? newsletterSegments.audienceId : undefined;
-        const rows = await tx.select({ id: table.id, name: table.name, ...(audienceColumn ? { audienceId: audienceColumn } : {}) }).from(table).where(and(eq(table.tenantId, tenantId), page.after ? gt(table.id, page.after) : undefined)).orderBy(asc(table.id)).limit(page.limit + 1);
+        const rows = await tx.select({ id: table.id, name: table.name, ...(audienceColumn ? { audienceId: audienceColumn } : {}) }).from(table).where(and(eq(table.tenantId, tenantId), kind === 'lists' ? isNull(newsletterLists.archivedAt) : undefined, page.after ? gt(table.id, page.after) : undefined)).orderBy(asc(table.id)).limit(page.limit + 1);
         return { items: rows.slice(0, page.limit), nextCursor: rows.length > page.limit ? rows[page.limit - 1].id : null };
     });
 }

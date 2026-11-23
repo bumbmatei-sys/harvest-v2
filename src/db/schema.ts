@@ -1830,7 +1830,7 @@ export const newsletterAudiences = pgTable("newsletter_audiences", {
 },t=>[primaryKey({columns:[t.tenantId,t.id]}),check("newsletter_audience_name",sql`length(trim(${t.name})) between 1 and 100`)]);
 export const newsletterLists = pgTable("newsletter_lists", {
  tenantId:uuid("tenant_id").notNull(),id:uuid("id").notNull().defaultRandom(),audienceId:uuid("audience_id").notNull(),name:text("name").notNull(),
- version:integer("version").notNull().default(1), createdBy:text("created_by").notNull().references(()=>users.id),createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),
+ version:integer("version").notNull().default(1), createdBy:text("created_by").notNull().references(()=>users.id),createdAt:timestamp("created_at",{withTimezone:true}).notNull().defaultNow(),archivedAt:timestamp("archived_at",{withTimezone:true}),
 },t=>[primaryKey({columns:[t.tenantId,t.id]}),foreignKey({columns:[t.tenantId,t.audienceId],foreignColumns:[newsletterAudiences.tenantId,newsletterAudiences.id]}),check("newsletter_list_name",sql`length(trim(${t.name})) between 1 and 100`)]);
 export const newsletterSubscribers = pgTable("newsletter_subscribers", {
  tenantId:uuid("tenant_id").notNull(),id:uuid("id").notNull().defaultRandom(),contactId:uuid("contact_id").notNull(),
