@@ -7,7 +7,7 @@ A read-only screen for ministry owners and admins at `/workspaces/:tenantId/crm/
 - Data comes from `GET /api/workspaces/:tenantId/crm/diagnostics` (the same service call, `crm:read_diagnostics`): record type, status, started, updated and finished timestamps, newest first, at most 50. No file names or row data are requested or shown (the e2e proves a file name never appears).
 - Status vocabulary is exactly what the server returns: Mapping, Previewed, Importing, Completed, Failed, Rolled back, using the existing Imports status labels and `StatusBadge` tones. Label text carries the meaning; colour only supports it.
 - Honest states: empty ("No imports yet"), loading error (the table's error slot), and a view-only alert for roles without the permission.
-- Email and calendar sync status is not built; the table note says only that they are not connected yet.
+- Email and calendar sync status is not built; the table note says only that email and calendar sync is not available yet.
 
 ## Reuse and provenance
 
