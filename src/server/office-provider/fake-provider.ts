@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { FakeMailProvider } from "../mail/fake-provider";
 import { FakeStore } from "./fake-store";
 import {
-  available, grant, type EventDetail, type FileDetail, type Health, type OfficeAccount, type OfficeProvider,
+  available, calendarWriteGrant, grant, type EventDetail, type FileDetail, type Health, type OfficeAccount, type OfficeProvider,
   type OfficeResult, type ProviderRequest, type SendContent,
 } from "./port";
 import { OfficeProviderError, type Credential } from "./types";
@@ -10,13 +10,16 @@ import { OfficeProviderError, type Credential } from "./types";
 const testCredential = { secret: "fake-credential" };
 type Window = { start: string; end: string };
 type Draft = { ref: string; version: string; subject: string; to: string[]; body: string };
+export type FakeCalendar = { ref: string; name: string; primary?: boolean; readOnly?: boolean; timezone?: string | null };
+const defaultCalendars: FakeCalendar[] = [{ ref: "primary", name: "Personal calendar", primary: true, timezone: "America/New_York" }];
 type FakeAccount = OfficeAccount & {
   health: Health;
+  calendars: FakeCalendar[];
   events: EventDetail[];
   files: FileDetail[];
   drafts: Map<string, Draft>;
 };
-type Attempt = { account: FakeAccount; expiresAt: Date };
+type Attempt = { account: FakeAccount; expiresAt: Date; access?: "write" };
 const missing = () => new OfficeProviderError("NOT_FOUND");
 const conflict = () => new OfficeProviderError("CONFLICT");
 
@@ -61,11 +64,11 @@ export class FakeOfficeProvider implements OfficeProvider {
     const known = request.existing ? this.connected.get(request.existing.ref) : undefined;
     const account: FakeAccount = known ? this.getAccount(credential, request.existing!) : {
       ref: randomUUID(), profileRef: randomUUID(), platform: request.platform, kind: request.kind,
-      health: { health: "healthy", grants: grant[request.kind] }, events: [], files: [], drafts: new Map(),
+      health: { health: "healthy", grants: grant[request.kind] }, calendars: structuredClone(defaultCalendars), events: [], files: [], drafts: new Map(),
       ...request.existing,
     };
     const expiresAt = new Date(now.getTime() + 30 * 60_000);
-    this.attempts.set(request.attemptId, { account, expiresAt });
+    this.attempts.set(request.attemptId, { account, expiresAt, access: request.access });
     return { profileRef: account.profileRef, handoffRef: request.attemptId, expiresAt, url: null };
   }
 
@@ -75,7 +78,7 @@ export class FakeOfficeProvider implements OfficeProvider {
     const account = attempt?.account;
     if (!attempt || !account || attempt.expiresAt <= this.now() || account.profileRef !== request.profileRef ||
       account.platform !== request.platform || account.kind !== request.kind || (request.expectedRef && account.ref !== request.expectedRef)) return { state: "failed" };
-    account.health = { health: "healthy", grants: grant[account.kind] };
+    account.health = { health: "healthy", grants: grant[account.kind] | (attempt.access === "write" ? calendarWriteGrant : 0) };
     const firstConnection = !this.connected.has(account.ref);
     this.connected.set(account.ref, account);
     if (account.kind === "mail" && !this.mailbox.has(account.ref)) this.mailbox.set(account.ref, new FakeMailProvider([account.ref]));
@@ -146,7 +149,7 @@ export class FakeOfficeProvider implements OfficeProvider {
         getDraft(input.draftRef);
         stored.drafts.delete(input.draftRef);
         return available({ deleted: true });
-      case "calendars": return available({ items: [{ ref: "primary", name: "Personal calendar", primary: true }] });
+      case "calendars": return available({ items: structuredClone(stored.calendars) });
       case "events": return paged(stored.events.filter(row => (!input.calendarRef || row.calendarRef === input.calendarRef) &&
         Date.parse(row.start) < Date.parse(input.end) && Date.parse(row.end) > Date.parse(input.start)), input);
       case "event": return available(await this.event(credential, account, input.eventRef, input.calendarRef));
@@ -167,15 +170,18 @@ export class FakeOfficeProvider implements OfficeProvider {
       case "createEvent":
       case "updateEvent": {
         const write = () => {
-          const previous = action === "updateEvent" ? stored.events.find(event => event.ref === input.eventRef &&
-            (!input.calendarRef || event.calendarRef === input.calendarRef)) : null;
+          const calendar = stored.calendars.find(row => row.ref === input.calendarRef);
+          if (!calendar) throw missing();
+          if (calendar.readOnly) throw new OfficeProviderError("INVALID_REQUEST");
+          const previous = action === "updateEvent" ? stored.events.find(event => event.ref === input.eventRef && event.calendarRef === input.calendarRef) : null;
           if (action === "updateEvent" && !previous) throw missing();
+          if (previous && "version" in input && previous.version !== input.version) throw conflict();
           const eventRef = previous?.ref ?? randomUUID();
           const meetingKind = account.platform === "google" ? "meet" as const : "teams" as const;
-          const { meeting, ...fields } = input.event;
-          const result = { ...fields, ref: eventRef, calendarRef: input.calendarRef ?? previous?.calendarRef ?? "primary",
-            meetingLink: meeting ? `https://meeting.example.test/${eventRef}` : previous?.meetingLink ?? null,
-            meetingKind: meeting ? meetingKind : previous?.meetingKind,
+          const { meeting, timezone, ...fields } = input.event;
+          const result: EventDetail = { ...fields, ref: eventRef, calendarRef: input.calendarRef, version: randomUUID(), timezone: timezone ?? calendar.timezone ?? undefined,
+            meetingLink: meeting ? `https://meeting.example.test/${eventRef}` : null,
+            meetingKind: meeting ? meetingKind : undefined,
           };
           stored.events = [...stored.events.filter(event => event.ref !== eventRef), result];
           return available(structuredClone(result));
@@ -184,6 +190,7 @@ export class FakeOfficeProvider implements OfficeProvider {
       }
       case "deleteEvent": {
         const previous = await this.event(credential, account, input.eventRef, input.calendarRef);
+        if (previous.version !== input.version) throw conflict();
         stored.events = stored.events.filter(event => event.ref !== previous.ref);
         return available({ deleted: true });
       }
@@ -220,10 +227,18 @@ export class FakeOfficeProvider implements OfficeProvider {
     });
   }
 
-  seed(credential: Credential, account: OfficeAccount, values: { messages?: Parameters<FakeMailProvider["seedMessage"]>[1][]; events?: EventDetail[]; files?: FileDetail[] }) {
+  /** Test and demo helper: the provider changes an event on its side, so its version moves. */
+  touchEvent(credential: Credential, account: OfficeAccount, eventRef: string) {
+    const event = this.getAccount(credential, account).events.find(row => row.ref === eventRef);
+    if (!event) throw missing();
+    event.version = randomUUID();
+  }
+
+  seed(credential: Credential, account: OfficeAccount, values: { messages?: Parameters<FakeMailProvider["seedMessage"]>[1][]; calendars?: FakeCalendar[]; events?: EventDetail[]; files?: FileDetail[] }) {
     const stored = this.getAccount(credential, account);
+    if (values.calendars) stored.calendars = structuredClone(values.calendars);
     for (const message of values.messages ?? []) this.mailbox.get(account.ref)?.seedMessage(account.ref, message);
-    if (values.events) stored.events = structuredClone(values.events);
+    if (values.events) stored.events = structuredClone(values.events).map(event => ({ version: "seed", ...event }));
     if (values.files) stored.files = structuredClone(values.files);
   }
 

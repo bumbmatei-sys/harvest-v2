@@ -4,6 +4,8 @@ import type { ConnectionKind, Credential } from "./types";
 export const officeNotice = { version: 1, key: "Office.personalConnectionNotice" } as const;
 export const officeKinds = ["mail", "calendar", "files"] as const;
 export const grant = { mail: 1, calendar: 2, files: 4 } as const;
+/** A second, separate grant for calendar connections: permission to add events. Requested only when the person first creates one. */
+export const calendarWriteGrant = 8;
 export const platform = z.enum(["google", "microsoft"]);
 export type OfficePlatform = z.infer<typeof platform>;
 export type OfficeProviderId = "fake" | "zernio";
@@ -21,10 +23,17 @@ export const mailContent = z.strictObject({
   to: z.array(z.email().max(254)).max(20), subject: text(500), body: text(20_000),
 });
 const sendContent = mailContent.extend({ messageRef: ref.optional() }).refine(value => value.body.trim() && (value.messageRef || (value.to.length > 0 && value.subject.trim())));
+const plainDate = z.iso.date();
+const zoneName = z.string().min(1).max(100).refine(value => { try { new Intl.DateTimeFormat("en", { timeZone: value }); return true; } catch { return false; } });
+/** A single event (no recurrence). An all-day event uses plain dates with an exclusive end; a timed one uses instants. Attendees are accepted by the schema but refused by the server in version 1. */
 const event = z.strictObject({
-  ...range, title: text(500).min(1), description: text(8000).optional(),
+  start: z.union([dateTime, plainDate]), end: z.union([dateTime, plainDate]), allDay: z.boolean().optional(), timezone: zoneName.optional(),
+  title: text(500).min(1), description: text(8000).optional(),
   attendees: z.array(z.email().max(254)).max(50), meeting: z.boolean().optional(),
-}).refine(value => Date.parse(value.start) < Date.parse(value.end));
+}).refine(value => {
+  const dated = plainDate.safeParse(value.start).success && plainDate.safeParse(value.end).success;
+  return (value.allDay ? dated : !plainDate.safeParse(value.start).success && !plainDate.safeParse(value.end).success) && Date.parse(value.start) < Date.parse(value.end);
+});
 
 export const providerOperations = {
   threads: z.strictObject({ ...page, folderRef: ref.optional(), search: text(300).min(1).optional() }),
@@ -36,14 +45,14 @@ export const providerOperations = {
   createDraft: z.strictObject({ content: mailContent, requestId: z.uuid() }),
   updateDraft: z.strictObject({ draftRef: ref, version: ref, content: mailContent }),
   deleteDraft: z.strictObject({ draftRef: ref }),
-  calendars: z.strictObject({}),
+  calendars: z.strictObject({ writableOnly: z.boolean().optional() }),
   events: z.strictObject({ ...page, ...range, calendarRef: ref.optional() }),
   event: z.strictObject({ eventRef: ref, calendarRef: ref.optional() }),
   freeBusy: z.strictObject({ ...range, calendarRef: ref.optional() }),
   availability: z.strictObject({ ...range, durationMinutes: z.number().int().min(5).max(480) }),
-  createEvent: z.strictObject({ calendarRef: ref.optional(), event, requestId: z.uuid() }),
-  updateEvent: z.strictObject({ eventRef: ref, calendarRef: ref.optional(), event }),
-  deleteEvent: z.strictObject({ eventRef: ref, calendarRef: ref.optional() }),
+  createEvent: z.strictObject({ calendarRef: ref, event, requestId: z.uuid() }),
+  updateEvent: z.strictObject({ eventRef: ref, calendarRef: ref, version: ref, event }),
+  deleteEvent: z.strictObject({ eventRef: ref, calendarRef: ref, version: ref }),
   drives: z.strictObject({}),
   files: z.strictObject({ ...page, folderRef: ref.optional(), search: text(300).min(1).optional() }),
   file: z.strictObject({ fileRef: ref }),
@@ -58,7 +67,8 @@ export type SendContent = z.infer<typeof sendContent>;
 
 export const officeActions = {
   ...providerOperations,
-  startConnect: z.strictObject({ kind: z.enum(officeKinds), platform, noticeVersion: z.literal(officeNotice.version) }),
+  startConnect: z.strictObject({ kind: z.enum(officeKinds), platform, noticeVersion: z.literal(officeNotice.version), access: z.literal("write").optional() })
+    .refine(value => value.access === undefined || value.kind === "calendar"),
   finishConnect: z.strictObject({ attemptId: z.uuid() }),
   health: z.strictObject({}),
   disconnect: z.strictObject({}),
@@ -86,12 +96,12 @@ export type OfficeAccount = { ref: string; platform: OfficePlatform; kind: Conne
 export type Health = { health: OfficeHealth; grants: number };
 export type ConnectAttempt = { profileRef: string; handoffRef: string; url: string | null; expiresAt: Date };
 export type ConnectResult = { state: "pending" | "failed" } | { state: "connected"; accountRef: string; health: Health };
-export type OfficeResult<T extends object = object> = { state: "available"; data: T } | { state: "unavailable" | "reconnect_needed" | "temporarily_unavailable" | "disabled" };
+export type OfficeResult<T extends object = object> = { state: "available"; data: T } | { state: "unavailable" | "reconnect_needed" | "temporarily_unavailable" | "disabled" | "write_access_needed" };
 export const available = <T extends object>(data: T) => ({ state: "available", data }) as const;
 
 export interface OfficeProvider {
   readonly id: OfficeProviderId;
-  startConnect(credential: Credential, request: { attemptId: string; platform: OfficePlatform; kind: ConnectionKind; existing?: OfficeAccount }): Promise<ConnectAttempt>;
+  startConnect(credential: Credential, request: { attemptId: string; platform: OfficePlatform; kind: ConnectionKind; access?: "write"; existing?: OfficeAccount }): Promise<ConnectAttempt>;
   finishConnect(credential: Credential, request: { platform: OfficePlatform; kind: ConnectionKind; profileRef: string; handoffRef: string; expectedRef?: string }): Promise<ConnectResult>;
   health(credential: Credential, account: OfficeAccount): Promise<Health>;
   disconnect(credential: Credential, account: OfficeAccount): Promise<void>;
@@ -102,5 +112,5 @@ export interface OfficeProvider {
 }
 
 export type ThreadDetail = { ref: string; subject: string; messages: { ref: string; subject: string; body: string; from: string; to: string[]; date?: string; bodyUnavailable?: boolean }[] };
-export type EventDetail = { ref: string; calendarRef: string; title: string; description?: string; start: string; end: string; allDay?: boolean; attendees: string[]; meetingLink: string | null; meetingKind?: "meet" | "teams" };
+export type EventDetail = { ref: string; calendarRef: string; version?: string; timezone?: string; title: string; description?: string; start: string; end: string; allDay?: boolean; attendees: string[]; meetingLink: string | null; meetingKind?: "meet" | "teams" };
 export type FileDetail = { ref: string; name: string; kind: "file" | "folder"; parentRef: string | null; mimeType: string | null; size: number | null; webUrl: string | null };

@@ -42,11 +42,11 @@ const calendar = z.object({ id: ref, name: z.string(), primary: z.boolean().opti
   .transform(({ id, ...rest }) => ({ ref: id, ...rest }));
 const eventDate = z.union([dateTime, z.iso.date()]);
 const event = z.object({
-  id: ref, calendarId: ref, title: z.string(), start: eventDate, end: eventDate,
+  id: ref, calendarId: ref, title: z.string(), start: eventDate, end: eventDate, version: z.string().min(1).max(200).nullish(), timeZone: z.string().nullish(),
   description: z.string().nullish(), allDay: z.boolean().optional(), participants: addresses,
   conferencing: z.object({ url: httpsUrl.optional(), provider: z.enum(["google_meet", "teams", "other"]).optional() }).nullish(),
 }).transform((value): EventDetail => ({
-  ref: value.id, calendarRef: value.calendarId, title: value.title, start: value.start, end: value.end, allDay: value.allDay,
+  ref: value.id, calendarRef: value.calendarId, ...(value.version && { version: value.version }), ...(value.timeZone && { timezone: value.timeZone }), title: value.title, start: value.start, end: value.end, allDay: value.allDay,
   description: value.description && !/<[^>]*>/.test(value.description) ? value.description : undefined,
   attendees: value.participants.map(v => v.email), meetingLink: value.conferencing?.url ?? null,
   meetingKind: value.conferencing?.provider === "google_meet" ? "meet" : value.conferencing?.provider === "teams" ? "teams" : undefined,
@@ -105,6 +105,8 @@ export class ZernioOfficeAdapter implements OfficeProvider {
 
   async startConnect(credential: Credential, request: Parameters<OfficeProvider["startConnect"]>[1]) {
     const { existing, kind, platform, attemptId } = request;
+    // The documented connect call takes one scope area per kind ("calendar"). No separate, incremental calendar write scope is documented, so a write grant is not requested.
+    if (request.access === "write") throw new OfficeProviderError("UNAVAILABLE");
     const profileRef = existing?.profileRef ?? parse(profilePayload, await this.call(credential, "/profiles", {
       method: "POST", body: { name: "Harvest Office", externalId: attemptId },
       headers: { "Idempotency-Key": attemptId },
@@ -231,19 +233,20 @@ export class ZernioOfficeAdapter implements OfficeProvider {
       case "updateEvent": {
         if (!OFFICE_CALENDAR_WRITE_ENABLED) return { state: "disabled" };
         const { calendarRef, event: change } = request.input;
-        const body = { accountId, calendarId: calendarRef, start: change.start, end: change.end, title: change.title,
+        // Unverified against the live API: all-day, time zone and If-Match (event version) names follow the documented draft and file contracts.
+        const body = { accountId, calendarId: calendarRef, start: change.start, end: change.end, allDay: change.allDay, timeZone: change.timezone, title: change.title,
           description: change.description?.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;"),
           participants: change.attendees.map(email => ({ email })),
           ...(change.meeting && { conferencing: account.platform === "google" ? "google_meet" : "teams" }),
         };
         const payload = request.action === "createEvent"
           ? await this.call(credential, "/calendar/events", { method: "POST", body, headers: { "Idempotency-Key": request.input.requestId } })
-          : await this.call(credential, `/calendar/events/${segment(request.input.eventRef)}`, { method: "PATCH", body });
+          : await this.call(credential, `/calendar/events/${segment(request.input.eventRef)}`, { method: "PATCH", body, headers: { "If-Match": request.input.version } });
         return available(parse(envelope(event), payload).data);
       }
       case "deleteEvent":
         if (!OFFICE_CALENDAR_WRITE_ENABLED) return { state: "disabled" };
-        await this.call(credential, `/calendar/events/${segment(request.input.eventRef)}`, { method: "DELETE",
+        await this.call(credential, `/calendar/events/${segment(request.input.eventRef)}`, { method: "DELETE", headers: { "If-Match": request.input.version },
           query: { ...query, calendarId: request.input.calendarRef },
         });
         return available({ deleted: true });

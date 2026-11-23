@@ -1684,6 +1684,8 @@ export const officeConnections = pgTable("office_connections", {
   health: text("health").$type<"healthy" | "unavailable" | "reconnect_needed">().notNull().default("reconnect_needed"),
   grants: integer("grants").notNull().default(0),
   noticeVersion: integer("notice_version"),
+  /** The calendar this admin last created an event in. A reference only, never event content. */
+  writeCalendarRef: text("write_calendar_ref"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => [
   primaryKey({ columns: [t.tenantId, t.id] }),
@@ -1696,11 +1698,26 @@ export const officeConnections = pgTable("office_connections", {
   check("office_connection_kind", sql`${t.kind} in ('mail', 'calendar', 'files')`),
   check("office_connection_provider", sql`${t.provider} in ('fake', 'zernio')`),
   check("office_connection_ref", sql`length(${t.externalAccountRef}) between 1 and 200`),
+  check("office_connection_write_calendar", sql`${t.writeCalendarRef} is null or length(${t.writeCalendarRef}) between 1 and 200`),
   check("office_connection_grant_shape", sql`${t.health} in ('healthy','unavailable','reconnect_needed')
-    and (${t.grants} = 0 or (${t.kind} = 'mail' and ${t.grants} = 1) or (${t.kind} = 'calendar' and ${t.grants} = 2) or (${t.kind} = 'files' and ${t.grants} = 4))
+    and (${t.grants} = 0 or (${t.kind} = 'mail' and ${t.grants} = 1) or (${t.kind} = 'calendar' and ${t.grants} in (2, 10)) or (${t.kind} = 'files' and ${t.grants} = 4))
     and ((${t.platform} is null and ${t.profileRef} is null and ${t.noticeVersion} is null and ${t.grants} = 0 and ${t.health} = 'reconnect_needed')
       or (${t.platform} is not null and ${t.platform} in ('google','microsoft') and ${t.profileRef} is not null and length(${t.profileRef}) between 1 and 200 and ${t.noticeVersion} is not null and ${t.noticeVersion} > 0))
     and (${t.health} <> 'healthy' or ${t.grants} <> 0)`),
+]);
+
+// Events created in Harvest, so only those can be edited or deleted. References and a time only: no title, notes or attendees, and no link to a contact.
+export const officeCalendarEvents = pgTable("office_calendar_events", {
+  tenantId: uuid("tenant_id").notNull(),
+  ownerUserId: text("owner_user_id").notNull(),
+  connectionId: uuid("connection_id").notNull(),
+  calendarRef: text("calendar_ref").notNull(),
+  eventRef: text("event_ref").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [
+  primaryKey({ columns: [t.tenantId, t.ownerUserId, t.connectionId, t.calendarRef, t.eventRef] }),
+  foreignKey({ name: "office_calendar_event_connection_fk", columns: [t.tenantId, t.ownerUserId, t.connectionId], foreignColumns: [officeConnections.tenantId, officeConnections.ownerUserId, officeConnections.id] }).onDelete("cascade"),
+  check("office_calendar_event_ref", sql`length(${t.calendarRef}) between 1 and 200 and length(${t.eventRef}) between 1 and 200`),
 ]);
 
 export const officeConnectAttempts = pgTable("office_connect_attempts", {
