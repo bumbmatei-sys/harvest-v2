@@ -5699,6 +5699,8 @@
       }
     },
     "public": {
+      "fixedNotice": "Your details go to {ministry}. You can ask them to delete them.",
+      "fixedNoticeFallback": "the ministry that published this form",
       "previewNothingSaved": "Preview only. Nothing was saved.",
       "previewRedirect": "Preview only. People would be sent to {url}.",
       "resubmit": "Submit another response",

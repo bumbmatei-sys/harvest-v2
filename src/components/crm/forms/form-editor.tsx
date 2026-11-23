@@ -34,8 +34,8 @@ function destinationOf(value: string): FormDestination | null {
  * Start page and End page rail; Settings is a collapsible sidebar beside the live form; Preview is the form as a respondent sees it.
  * Drafts autosave. Publishing and the hosted link are not available yet, so those controls say so instead of pretending.
  */
-export function FormEditor({ tenantId, formId, initial, revision, destinations, members }: {
-  tenantId: string; formId: string; initial: FormDefinition; revision: number; destinations: Destination[]; members: Member[];
+export function FormEditor({ tenantId, formId, initial, revision, destinations, members, ministryName }: {
+  ministryName?: string; tenantId: string; formId: string; initial: FormDefinition; revision: number; destinations: Destination[]; members: Member[];
 }) {
   const t = useTranslations("CrmForms"), tb = useTranslations("CrmForms.bar");
   const request = useCrmRequest();
@@ -127,11 +127,11 @@ export function FormEditor({ tenantId, formId, initial, revision, destinations, 
     </TabsContent>
 
     <TabsContent value="settings" className="min-w-0"><div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-      <div inert className="min-w-0 max-lg:hidden" aria-hidden="true"><PublicForm form={form} idPrefix="settings-preview" /></div>
+      <div inert className="min-w-0 max-lg:hidden" aria-hidden="true"><PublicForm form={form} ministryName={ministryName} idPrefix="settings-preview" /></div>
       <FormSettingsPanel form={form} destinations={destinations} members={members} onSettings={changeSettings} onDestination={destinationChange} />
     </div></TabsContent>
 
-    <TabsContent value="preview"><div className="mx-auto w-full max-w-3xl" data-preview-tab><PublicForm form={form} idPrefix="preview" /></div></TabsContent>
+    <TabsContent value="preview"><div className="mx-auto w-full max-w-3xl" data-preview-tab><PublicForm form={form} ministryName={ministryName} idPrefix="preview" /></div></TabsContent>
     </Tabs>
     <p className="sr-only" role="status" aria-live="polite">{live}</p>
 

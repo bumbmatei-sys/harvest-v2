@@ -1,7 +1,8 @@
 import { getDb } from "../db/client";
 import { message } from "../i18n/messages";
 import { syntheticCrmFormsKey } from "./crm-form-mode";
-import { crmFormManifest, resolveCrmForm, submitCrmForm } from "./crm-form-submission";
+import { crmFormManifest, resolveCrmForm, submitCrmForm, type CrmFormCharge } from "./crm-form-submission";
+import { crmFormVisitorKey } from "./crm-form-visitor";
 import { errorResponse, verifyOrigin } from "./http";
 import { readBoundedJson } from "./request-json";
 import { workerSettings } from "./worker-settings";
@@ -34,7 +35,10 @@ async function handleCrmForm(request: Request, context: CrmFormContext, submit: 
     const db = getDb();
     // Every missing, retired or disabled form returns exactly the same response,
     // including POSTs that arrive with invalid origins or bodies.
-    const form = await resolveCrmForm(db, slug, submit && !originError);
+    const visitor = crmFormVisitorKey(request, key);
+    if (!visitor) return Response.json({ error: "unavailable" }, { status: 503 });
+    const charge: CrmFormCharge = originError ? { mode: "peek" } : { mode: submit ? "submit" : "proof", visitor };
+    const form = await resolveCrmForm(db, slug, charge);
     if (!form) return unavailable();
     if (originError) throw originError;
     if ("limited" in form) {

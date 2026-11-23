@@ -48,3 +48,5 @@ The builder from PR #189 renders a fixed badge count. Wiring that badge to `resp
 ## Local verification
 
 The focused local suites passed 14 hosted-form and draft tests under PostgreSQL, including a populated upgrade using a migration owner without superuser or bypass rights. The 18 CRM import and restricted-owner merge regression tests also passed. The repeat Drizzle generation reported no schema changes. The journal timestamp increases from 0075, and the 0076 snapshot points back to the 0075 snapshot. The draft PR records the full-project results and the tested head.
+
+See [hosted forms server defaults](crm-forms-defaults.md): the rate limits, 90-day response window and fixed consent line there replace the 30/600 per minute limits and 30-day window described above.

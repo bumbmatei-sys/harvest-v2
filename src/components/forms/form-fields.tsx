@@ -49,8 +49,8 @@ function SignaturePad({ id, label, value, onChange, disabled }: { id: string; la
 const errorKey: Record<AnswerError, string> = { required: "required", email: "email", website: "website", phone: "phone", number: "number", consent: "consent" };
 
 /** One form block as a respondent sees it. Pure presentation: values and errors come from the caller, nothing is sent. */
-export function FormField({ block, value, onChange, error, disabled = false, idPrefix, autoFocus = false, onEnter }: {
-  block: FormBlock; value: Value; onChange: (value: string | string[]) => void; error?: AnswerError; disabled?: boolean; idPrefix: string; autoFocus?: boolean; onEnter?: () => void;
+export function FormField({ block, value, onChange, error, disabled = false, idPrefix, autoFocus = false, onEnter, fixedNotice }: {
+  block: FormBlock; fixedNotice?: string; value: Value; onChange: (value: string | string[]) => void; error?: AnswerError; disabled?: boolean; idPrefix: string; autoFocus?: boolean; onEnter?: () => void;
 }) {
   const t = useTranslations("CrmForms.field"), id = `${idPrefix}-${block.id}`, errorId = `${id}-error`;
   const mark = <span aria-hidden="true">{t("requiredMark")}</span>;
@@ -62,7 +62,8 @@ export function FormField({ block, value, onChange, error, disabled = false, idP
   if (block.type === "consent") return <div className="space-y-2 rounded-md border bg-card p-4" data-block-type="consent">
     <div className="flex items-start gap-3">
       <Checkbox id={id} checked={value === "yes"} disabled={disabled} aria-invalid={error ? true : undefined} aria-describedby={`${id}-text${error ? ` ${errorId}` : ""}`} onCheckedChange={(on) => onChange(on === true ? "yes" : "")} className="mt-1 size-5" />
-      <div className="space-y-1"><Label htmlFor={id} className="min-h-6 text-sm font-medium">{block.label}{mark}</Label><p id={`${id}-text`} className="whitespace-pre-line text-sm text-muted-foreground">{block.text}</p></div>
+      <div className="space-y-1"><Label htmlFor={id} className="min-h-6 text-sm font-medium">{block.label}{mark}</Label><p id={`${id}-text`} className="whitespace-pre-line text-sm text-muted-foreground">{block.text}</p>
+        {fixedNotice && <p className="text-sm text-muted-foreground" data-fixed-notice>{fixedNotice}</p>}</div>
     </div>{message}</div>;
   const labelId = `${id}-label`;
   const group = (children: React.ReactNode) => <fieldset className="min-w-0 space-y-2" data-block-type={block.type}><legend id={labelId} className="mb-2 text-sm font-medium">{label}</legend>{children}{message}</fieldset>;

@@ -103,6 +103,14 @@ Approved for the CRM reports slice (`docs/acceptance/crm-reports.md`); they sett
 - **Delivery:** in-app only. Email and push stay hard-off (literal-false constants and a source guard); no job, cron or queue. Notices are generated lazily and idempotently when the recipient loads the bell. Real-time delivery needs the later job slice. No structured mentions yet.
 - **Sync diagnostics:** the safe support vocabulary is the import lifecycle from CRM-06 (`GET /crm/diagnostics`); email and calendar sync diagnostics stay out of scope until that sync is built.
 
+## Hosted forms server defaults (23 Nov, "approve all")
+
+- **Rate limits (public form):** 5 submissions per minute per visitor per form, 20 per minute per visitor across forms, 300 per minute per ministry (replaces the 600 all-forms bucket), and 30 per minute per visitor for issuing the anti-spam proof. Neutral 429 errors.
+- **Response retention:** 90 days for new responses (was 30). Existing responses keep their stored expiry.
+- **Purge:** the manual owner/admin purge stays. No schedule is installed. When the CF-04 jobs slice is enabled the purge should run daily with a failure alert.
+- **Consent wording:** the ministry keeps writing its own consent line. Harvest always adds "Your details go to [ministry name]. You can ask them to delete them." on the public form and in the published snapshot (ministry name frozen at publish). The checkbox is never pre-ticked. No newsletter or follow-up permission is assumed.
+- **Source credit after expiry (PR 2):** a minimal source tag on the person (form name and submission date, no answers) outlives the response so reports and source filters keep reading the form as the source. Lifetime equals the contact's.
+
 ## 6. Process rules
 
 - Use Claude or Codex for coding and a separate fresh session for independent review. No force pushes. No merge or deploy without the founder's approval. No real outbound messages or webhooks outside tests.

@@ -37,8 +37,8 @@ export function FormHeader({ form, answers }: { form: FormDefinition; answers: F
  * The form a respondent sees: one or two columns, or one question per page (progress, Back, Next and Enter). Used by the Preview tab and the Settings
  * canvas today and by the hosted form later. `onSubmit` is optional: in the builder nothing is saved or sent, and the end page says so.
  */
-export function PublicForm({ form, idPrefix = "pf", onSubmit, preview = true, className }: {
-  form: FormDefinition; idPrefix?: string; onSubmit?: (answers: FormAnswers) => void | Promise<void>; preview?: boolean; className?: string;
+export function PublicForm({ form, ministryName, idPrefix = "pf", onSubmit, preview = true, className }: {
+  form: FormDefinition; ministryName?: string | null; idPrefix?: string; onSubmit?: (answers: FormAnswers) => void | Promise<void>; preview?: boolean; className?: string;
 }) {
   const t = useTranslations("CrmForms.public");
   const { settings } = form;
@@ -47,6 +47,8 @@ export function PublicForm({ form, idPrefix = "pf", onSubmit, preview = true, cl
   const paged = settings.layout === "paged";
   const steps = useMemo(() => pagedSteps(form.blocks), [form.blocks]);
   const set = (block: FormBlock, value: string | string[]) => { setAnswers((current) => ({ ...current, [block.id]: value })); setErrors((current) => { const next = { ...current }; delete next[block.id]; return next; }); };
+  // Harvest's fixed minimum line sits under the ministry's own consent text. The checkbox is never pre-ticked.
+  const fixedNotice = t("fixedNotice", { ministry: ministryName?.trim() || t("fixedNoticeFallback") });
   const submitClass = cn("min-h-11 w-full", buttonClass[settings.buttonColor]);
 
   async function submit() {
@@ -89,7 +91,7 @@ export function PublicForm({ form, idPrefix = "pf", onSubmit, preview = true, cl
         : <form noValidate onSubmit={(event) => { event.preventDefault(); next(); }} className="space-y-6" data-form-step={step + 1}>
           <div className="space-y-2"><Progress value={((step + 1) / steps.length) * 100} aria-label={t("progress", { current: step + 1, total: steps.length })} />
             <p className="text-xs text-muted-foreground">{t("progress", { current: step + 1, total: steps.length })}</p></div>
-          <div className="space-y-6" key={step}>{blocks.map((block, i) => <FormField key={block.id} block={block} value={answers[block.id]} onChange={(value) => set(block, value)} error={errors[block.id]} idPrefix={idPrefix} autoFocus={i === blocks.length - 1} onEnter={block.type === "long" || block.type === "consent" ? undefined : next} />)}</div>
+          <div className="space-y-6" key={step}>{blocks.map((block, i) => <FormField key={block.id} block={block} value={answers[block.id]} onChange={(value) => set(block, value)} error={errors[block.id]} idPrefix={idPrefix} fixedNotice={block.type === "consent" ? fixedNotice : undefined} autoFocus={i === blocks.length - 1} onEnter={block.type === "long" || block.type === "consent" ? undefined : next} />)}</div>
           <div className="flex items-center justify-between gap-2">
             <Button type="button" variant="outline" className="min-h-11" onClick={() => setStep(step - 1)}><ArrowLeft aria-hidden="true" />{t("back")}</Button>
             <Button type="submit" className={cn("min-h-11", buttonClass[settings.buttonColor])} disabled={busy}>{step >= steps.length - 1 ? settings.buttonLabel : t("next")}{step < steps.length - 1 && <ArrowRight aria-hidden="true" />}</Button>
@@ -101,7 +103,7 @@ export function PublicForm({ form, idPrefix = "pf", onSubmit, preview = true, cl
     <FormHeader form={form} answers={answers} />
     <div className={cn("grid gap-5", settings.layout === "two" && "sm:grid-cols-2")}>
       {form.blocks.map((block) => <div key={block.id} className={cn("min-w-0", settings.layout === "two" && wide.includes(block.type) && "sm:col-span-2")}>
-        <FormField block={block} value={answers[block.id]} onChange={(value) => set(block, value)} error={errors[block.id]} idPrefix={idPrefix} /></div>)}
+        <FormField block={block} value={answers[block.id]} onChange={(value) => set(block, value)} error={errors[block.id]} idPrefix={idPrefix} fixedNotice={block.type === "consent" ? fixedNotice : undefined} /></div>)}
     </div>
     <Button type="submit" className={submitClass} disabled={busy}>{settings.buttonLabel}</Button>
   </form>);
