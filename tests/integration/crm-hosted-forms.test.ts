@@ -16,6 +16,7 @@ import { sourceOptions } from "../../src/server/crm-sources";
 import { createView } from "../../src/server/crm-views";
 import { createPipeline } from "../../src/server/crm-deals";
 import { mergeContacts } from "../../src/server/crm-merge";
+import { message } from "../../src/i18n/messages";
 import { withTenant } from "../../src/server/tenancy";
 import { testDatabase } from "../database";
 import { noNetwork, seedPeople } from "./social-layer-fixture";
@@ -393,6 +394,12 @@ it("repoints responses on merge, deletes them on erasure, suppresses replay, and
   expect(expiredPerson).toHaveLength(1);
   const formRule = { s: serializeSourceRule(sourceRule.parse({ mode: "include", kinds: ["form"], forms: [publication?.versionId] })) };
   expect(await listContacts(fixture.db, people.owner, people.tenant, formRule)).toMatchObject({ total: 1 });
+  // The Source column and the CSV export agree with the filter once the response has expired.
+  const columns = { s: formRule.s, cols: "name,source" };
+  expect((await listContacts(fixture.db, people.owner, people.tenant, columns)).rows.find(row => row.id === expiredPerson[0].contact_id)?.sourceKinds).toContain("form");
+  const exported = await exportRecords(fixture.db, people.owner, people.tenant, "person", columns);
+  expect(exported.body).toContain(`${message("Crm.sourceHistory.form")}`);
+  expect(exported.body).not.toContain(message("Crm.sourceHistory.unknown"));
   expect(await listContacts(fixture.db, people.outsider, people.other, formRule)).toMatchObject({ total: 0 });
   expect(await purgeCrmFormResponses(fixture.db, people.admin, people.tenant)).toEqual({ removed: 1 });
   expect(await listContacts(fixture.db, people.owner, people.tenant, formRule)).toMatchObject({ total: 1 });

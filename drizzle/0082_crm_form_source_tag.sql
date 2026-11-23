@@ -60,6 +60,8 @@ CREATE TRIGGER crm_form_source_before_erase BEFORE UPDATE ON public.contacts
   FOR EACH ROW WHEN (OLD.erased_at IS NULL AND NEW.erased_at IS NOT NULL)
   EXECUTE FUNCTION public.crm_form_source_before_erase();
 --> statement-breakpoint
+-- NOTE: this patches the text of merge_contacts_scoped as defined by migration 0076's merge wrapper (it replaces
+-- the crm_form_responses repoint line). If that wrapper is ever redefined, port this step with it.
 -- A merge moves the tags to the kept contact (earliest time per form version) before the merged person is erased.
 DO $$
 DECLARE def text; patched text;
