@@ -189,7 +189,7 @@ export function FormEditor({ tenantId, formId, initial, revision, destinations, 
         </AlertDialogHeader>
         {dialog === "publish" && <div className="space-y-1.5">
           <label htmlFor="form-slug" className="text-sm font-medium">{t("publish.address")}</label>
-          <div className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground"><span className="shrink-0">/f/</span>
+          <div className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground"><span className="shrink-0">{t("publish.prefix")}</span>
             <Input id="form-slug" value={slug} readOnly={publication !== null} maxLength={64} autoComplete="off" spellCheck={false} className="h-11 min-w-0" aria-invalid={slug !== "" && !slugPattern.test(slug)} onChange={(event) => { setSlug(event.target.value.toLowerCase()); setActionError(""); }} /></div>
           {publication !== null && <p className="text-xs text-muted-foreground">{t("publish.addressLocked")}</p>}
         </div>}

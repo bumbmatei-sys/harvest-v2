@@ -5580,6 +5580,7 @@
       "title": "Publish this form?",
       "body": "This version is frozen and the consent text becomes its privacy notice. Later edits are saved as a new draft until you publish again.",
       "address": "Public address",
+      "prefix": "/f/",
       "addressLocked": "The address stays the same for this form.",
       "confirm": "Publish",
       "cancel": "Cancel",

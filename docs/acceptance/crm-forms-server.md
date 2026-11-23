@@ -31,9 +31,13 @@ The source history label comes from the immutable published title already stored
 
 `GET /api/workspaces/:tenantId/crm/forms/:formId` returns a private, non-cacheable JSON object with `id: string`, `definition: FormDefinition`, `createdAt: string` (ISO timestamp), `createdBy: string`, `responseCount: number` and `publication: { slug: string; state: "published" | "retired"; versionId: string | null } | null`. Owners and admins can read the count for their ministry. It is the number of responses with `expires_at > now()` across the form's published versions, including after retirement. A draft with no responses returns zero. The paginated response endpoint returns the same total as `count`, independent of cursor or page size.
 
+## Builder wiring (follow-up PR)
+
+No server behaviour changed except one additive field: the form load now also returns `unpublishedChanges: boolean` (published and the draft edited since). The builder now shows the real `responseCount`, and its Publish, Publish changes, Unpublish, Copy link and Open controls call `POST .../forms/:formId/publication` and show the server's state (draft, published, unpublished) and public address `/f/:slug`. The page passes `hostedAvailable` (true only when `syntheticCrmFormsKey()` is set); in production the controls stay disabled and say hosted forms are not available in this environment, and a 404 from the endpoint does the same. The People source rule editor lists named hosted forms (one choice per published version, labelled by its immutable publication title) when the single kind **Form** is selected. A form republished with the same title appears once per version.
+
 ## What remains unverified
 
-The builder from PR #189 renders a fixed badge count. Wiring that badge to `responseCount` and adding named hosted publication choices to the source rule editor remain screen follow-ups. Production migrations, load testing, live collection, reviewed notice text and operational retention scheduling are outside the local verification.
+Production migrations, load testing, live collection, reviewed notice text and operational retention scheduling are outside the local verification.
 
 ## Founder decisions
 
