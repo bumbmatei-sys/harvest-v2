@@ -13,7 +13,7 @@ import { useListState } from "./list-state";
 import { ViewMenu, type ViewSummary } from "./view-menu";
 
 export function ListToolbar({ tenantId, objectType, fields, sorts, columns, visibleColumns, related, views, currentView, modified, writable, searchLabel, searchPlaceholder, sourceAccess = false, leading }: {
-  tenantId: string; objectType: ObjectType; fields: FieldMeta[]; sorts: { value: string; label: string }[]; sourceAccess?: boolean; /** Extra controls on the view bar line (the newsletter Audience puts its list and group buttons here). */ leading?: React.ReactNode;
+  tenantId: string; objectType: ObjectType; fields: FieldMeta[]; sorts: { value: string; label: string }[]; sourceAccess?: boolean; /** A lens (newsletter Audience) puts its actions on the view bar line, right aligned; its filter then sits beside the search and Sort and Columns stay right. */ leading?: React.ReactNode;
   columns: { key: string; label: string }[]; visibleColumns: string[]; related: Record<string, string>;
   views: ViewSummary[]; currentView: ViewSummary; modified: boolean; writable: boolean; searchLabel: string; searchPlaceholder: string;
 }) {
@@ -45,25 +45,28 @@ export function ListToolbar({ tenantId, objectType, fields, sorts, columns, visi
   // One chip row for conditions and source rules; the first three show, the rest open the panel.
   const chips = [...state.filters.map((filter, index) => ({ kind: "filter" as const, index, text: chipText(filter) })),
     ...state.sources.map((rule, index) => ({ kind: "source" as const, index, text: sourceChipText(rule) }))];
+  const filterBuilder = (
+    <FilterBuilder fields={fields} tenantId={tenantId} filters={state.filters} sources={state.sources} sourceAccess={sourceAccess && objectType === "person"} open={filterOpen} editing={editing}
+          relatedNames={{ ...names, ...related }} chipText={chipText} sourceChipText={sourceChipText}
+          onOpenChange={(open) => { setFilterOpen(open); if (!open) setEditing(null); }}
+          onApply={(filters, sources, addedNames) => { setNames((current) => ({ ...current, ...addedNames })); navigate({ filters, sources }); }} />
+  );
   const sortKey = state.sort.replace(/^-/, ""), descending = state.sort.startsWith("-");
-  // With `leading` (a lens), the view bar, its buttons, search and tools are one wrapping row, so the table starts higher.
-  const row = "flex flex-wrap items-center gap-2", inline = leading ? "contents" : row;
   return <div className="space-y-3">
-   <div className={leading ? row : "space-y-3"}>
-    <div className={inline}><ViewMenu tenantId={tenantId} objectType={objectType} views={views} current={currentView} modified={modified} writable={writable} />{leading}</div>
-    <div className={inline}>
-      <form role="search" className="min-w-0 flex-1 basis-60" onSubmit={(event) => { event.preventDefault(); navigate({ q: query.trim() }); }}>
+    {leading ? <div className="flex flex-wrap items-center gap-2"><ViewMenu tenantId={tenantId} objectType={objectType} views={views} current={currentView} modified={modified} writable={writable} /><div className="ml-auto flex flex-wrap items-center gap-2">{leading}</div></div> : <ViewMenu tenantId={tenantId} objectType={objectType} views={views} current={currentView} modified={modified} writable={writable} />}
+    <div className="flex flex-wrap items-center gap-2">
+      <div className={leading ? "flex min-w-0 flex-1 basis-60 items-center gap-2" : "contents"}>
+      <form role="search" className={leading ? "min-w-0 flex-1" : "min-w-0 flex-1 basis-60"} onSubmit={(event) => { event.preventDefault(); navigate({ q: query.trim() }); }}>
         <InputGroup className="h-11 border-transparent bg-muted lg:h-9">
           <InputGroupAddon><Search aria-hidden="true" /></InputGroupAddon>
           <InputGroupInput type="search" name="q" aria-label={searchLabel} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={searchPlaceholder} maxLength={100} />
           {query && <InputGroupAddon align="inline-end"><InputGroupButton size="icon-xs" aria-label={t("clearSearch")} onClick={() => { setQuery(""); navigate({ q: "" }); }}><X aria-hidden="true" /></InputGroupButton></InputGroupAddon>}
         </InputGroup>
       </form>
-      <div className={inline}>
-        <FilterBuilder fields={fields} tenantId={tenantId} filters={state.filters} sources={state.sources} sourceAccess={sourceAccess && objectType === "person"} open={filterOpen} editing={editing}
-          relatedNames={{ ...names, ...related }} chipText={chipText} sourceChipText={sourceChipText}
-          onOpenChange={(open) => { setFilterOpen(open); if (!open) setEditing(null); }}
-          onApply={(filters, sources, addedNames) => { setNames((current) => ({ ...current, ...addedNames })); navigate({ filters, sources }); }} />
+      {leading && filterBuilder}
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {!leading && filterBuilder}
         <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild><Button variant="outline" size="responsive"><ArrowDownUp aria-hidden="true" /><span className="sr-only sm:not-sr-only">{t("sortLabel", { sort: `${sorts.find((item) => item.value === sortKey)?.label ?? sortKey} ${descending ? "↓" : "↑"}` })}</span></Button></DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
@@ -80,7 +83,6 @@ export function ListToolbar({ tenantId, objectType, fields, sorts, columns, visi
         <ColumnsMenu available={columns} visible={visibleColumns} density={state.density} onChange={(next) => navigate(next)} />
       </div>
     </div>
-   </div>
     {(chips.length > 0 || state.q) && <ul aria-label={t("activeFilters")} className="flex flex-wrap items-center gap-1.5">
       {chips.slice(0, 3).map((chip) => { const source = chip.kind === "source"; return <li key={`${chip.kind}-${chip.index}`}><Badge variant="secondary" className="max-w-full gap-0 rounded-md p-0 text-xs font-normal">
         <Button variant="ghost" className="h-11 min-w-0 max-w-64 justify-start px-2 text-xs font-normal lg:h-8" aria-label={source ? t("sourceFilters.editRule", { rule: chip.text }) : t("editFilter", { filter: chip.text })}
