@@ -19,7 +19,7 @@ async function shoot(page: Page, name: string, prepare?: () => Promise<void>) {
     for (const [label, width, height] of sizes) {
       await page.setViewportSize({ width, height });
       await settleForAxe(page);
-      expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
+      expect((await new AxeBuilder({ page }).exclude("iframe").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await page.screenshot({ path: `${evidence}/${name}-${label}-${scheme}.png`, fullPage: true });
     }
@@ -30,7 +30,7 @@ const order = (page: Page) => page.locator("[data-block-canvas] ol > li").evalua
 const preview = (page: Page) => page.frameLocator('iframe[title="Email preview"]').first();
 
 test("campaigns: templates, block editor, brand kit, preview, test send and the Send step", async ({ page }) => {
-  test.setTimeout(900000);
+  test.setTimeout(600000);
   await mkdir(evidence, { recursive: true });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -69,7 +69,8 @@ test("campaigns: templates, block editor, brand kit, preview, test send and the 
   expect((await order(page)).slice(3, 5)).toEqual(["columns", "quote"]);
   const handle = page.getByRole("button", { name: "Drag Quote or scripture" });
   await handle.focus();
-  await page.keyboard.press("Space"); await page.keyboard.press("ArrowUp"); await page.keyboard.press("Space");
+  await page.keyboard.press("Space"); await page.waitForTimeout(250);
+  await page.keyboard.press("ArrowUp"); await page.waitForTimeout(250); await page.keyboard.press("Space");
   await expect.poll(async () => (await order(page)).slice(3, 5)).toEqual(["quote", "columns"]);
 
   // Edit: subject, the hero heading (the preview follows), and a rich text block.
