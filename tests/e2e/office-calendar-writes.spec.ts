@@ -74,6 +74,11 @@ test("office calendar writes: grant, create once, edit, delete with a confirm, v
   const actions = recordActions(page);
   await signIn(page);
   const tenant = await ministry(page, "Grace Community Church"), api = `/api/workspaces/${tenant}`, calendar = `/workspaces/${tenant}/calendar`;
+  // The new-event form defaults to the next quarter hour of the browser clock, read in the calendar's zone (New York, UTC-5). Late in the UTC day that default
+  // event crosses UTC midnight (about 19:00 UTC) or its end date rolls to tomorrow (about 22:46 to 23:44 UTC), and the agenda then lists the one event on two
+  // days. Pin the page clock to midday UTC today so the default start and end are always on the same day, whatever time the run happens.
+  const pinned = new Date(); pinned.setUTCHours(12, 0, 0, 0);
+  await page.clock.setFixedTime(pinned);
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto(calendar);
   await page.getByTestId("connect-google").click();
