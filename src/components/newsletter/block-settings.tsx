@@ -45,7 +45,7 @@ export function BlockSettings({ block, onChange }: { block: EmailBlock; onChange
     const invalid = kind === "url" && typeof value === "string" && value !== "" && !httpsUrl(value);
     return <div key={key} className="space-y-2">
       <div className="flex items-center justify-between gap-2"><Label htmlFor={id}>{t(key)}</Label>
-        {kind !== "url" && <span className="flex gap-1">{merge.map((token) => <Button key={token} type="button" variant="ghost" size="sm" className="min-h-11 text-xs" aria-label={`${e("mergeFields")}: ${e(token === merge[0] ? "firstName" : "ministryName")}`} onClick={() => insert(key, token)}>{e(token === merge[0] ? "firstName" : "ministryName")}</Button>)}</span>}</div>
+        {kind !== "url" && <span className="flex gap-1">{merge.map((token) => <Button key={token} type="button" variant="ghost" size="sm" className="min-h-11 text-xs" aria-label={e("insertField", { field: e(token === merge[0] ? "firstName" : "ministryName") })} onClick={() => insert(key, token)}>{e(token === merge[0] ? "firstName" : "ministryName")}</Button>)}</span>}</div>
       {kind === "area" ? <Textarea id={id} rows={3} maxLength={800} value={String(value ?? "")} onChange={(ev) => onChange({ [key]: ev.target.value }, `${block.id}-${key}`)} />
         : <Input id={id} className="min-h-11" inputMode={kind === "url" ? "url" : undefined} maxLength={kind === "url" ? 2000 : 200} aria-invalid={invalid || undefined} aria-describedby={invalid ? `${id}-error` : undefined} value={String(value ?? "")} onChange={(ev) => onChange({ [key]: ev.target.value }, `${block.id}-${key}`)} />}
       {invalid && <p id={`${id}-error`} className="text-sm text-destructive">{t("invalidLink")}</p>}

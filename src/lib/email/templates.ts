@@ -8,7 +8,6 @@ const hello = "Hello {{firstName}},";
 const doc = (...paragraphs: string[]): RichDoc => richParagraphs(...paragraphs);
 const heading = (text: string): RichDoc => ({ type: "doc", content: [{ type: "heading", attrs: { level: 2 }, content: [{ type: "text", text }] }] });
 const list = (items: string[]): RichDoc => ({ type: "doc", content: [{ type: "bulletList", content: items.map(item => ({ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: item }] }] })) }] });
-const spacer = (id: string, size: "small" | "medium" | "large" = "medium"): EmailBlock => ({ id, type: "spacer", size });
 const head = (id: string): EmailBlock => ({ id, type: "header", title: "{{ministryName}}", showLogo: true, align: "left" });
 const text = (id: string, rich: RichDoc): EmailBlock => ({ id, type: "text", doc: rich });
 const foot = (id: string, note: string): EmailBlock => ({ id, type: "footer", note });

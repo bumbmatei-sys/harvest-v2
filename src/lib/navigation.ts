@@ -96,7 +96,7 @@ export const navEntries: readonly NavEntry[] = [
   { id: "churchProfile", group: "workspace", mode: "operations", status: "planned", label: "ministryPage", icon: Landmark, path: "/church-profile", match: under("/church-profile") },
   { id: "volunteers", group: "workspace", mode: "operations", status: "planned", label: "volunteers", icon: UserCheck, path: "/volunteers", match: under("/volunteers") },
   { id: "livestream", group: "workspace", mode: "operations", status: "planned", label: "livestream", icon: Radio, path: "/livestream", match: under("/livestream") },
-  { id: "campaigns", group: "workspace", mode: "operations", label: "campaigns", icon: Flag, path: "/campaigns", match: has("/campaigns") },
+  { id: "campaigns", group: "workspace", mode: "operations", label: "campaigns", icon: Flag, path: "/campaigns", match: under("/campaigns") },
   // HC-13: the follow-up queue. Owners, admins and members open it (a member sees only the cases assigned to them); viewers never see a dead link.
   { id: "followUp", group: "connect", legacyGroup: "workspace", mode: "operations", label: "followUp", icon: HeartHandshake, path: "/connect/follow-up", match: has("/connect/follow-up"), permission: "followup:work" },
   // C14: owners and admins; hidden unless the server reports Events enabled (never in production).

@@ -20,7 +20,7 @@ export function EmailPreview({ doc, preheader, ministryName, firstName }: { doc:
         {id === "desktop" ? <Monitor aria-hidden="true" /> : <Smartphone aria-hidden="true" />}{t(id)}</Button>)}
     </div>
     <div className="overflow-hidden rounded-xl border bg-muted/30">
-      <iframe title={t("previewTitle")} sandbox="" srcDoc={html} data-device={device} className={cn("mx-auto block h-[640px] max-w-full border-0 bg-white", device === "mobile" ? "w-[375px]" : "w-[640px]")} />
+      <iframe title={t("previewTitle")} sandbox="" srcDoc={html} data-device={device} className={cn("mx-auto block h-[640px] max-w-full border-0 bg-card", device === "mobile" ? "w-[375px]" : "w-[640px]")} />
     </div>
   </div>;
 }
@@ -28,7 +28,7 @@ export function EmailPreview({ doc, preheader, ministryName, firstName }: { doc:
 /** A small, non-interactive rendering of a document for pickers (scaled; no static images). */
 export function EmailThumbnail({ doc, ministryName, title }: { doc: EmailDocument; ministryName: string; title: string }) {
   const html = useMemo(() => renderEmail(doc, { ...sample, ministryName, firstName: "Ana" }).html, [doc, ministryName]);
-  return <div className="relative h-44 w-full overflow-hidden rounded-lg border bg-white" aria-hidden="true">
+  return <div className="relative h-44 w-full overflow-hidden rounded-lg border bg-card" aria-hidden="true">
     <iframe title={title} sandbox="" srcDoc={html} tabIndex={-1} loading="lazy" className="pointer-events-none absolute left-0 top-0 h-[880px] w-[640px] origin-top-left border-0" style={{ transform: "scale(0.4)" }} />
   </div>;
 }

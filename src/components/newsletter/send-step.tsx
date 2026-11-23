@@ -24,14 +24,13 @@ export function SendStep({ tenantId, lists, groups, senders, listIds, segmentIds
   onSelection: (listIds: string[], segmentIds: string[]) => void; onIdentity: (key: "senderId" | "replyToId", id: string | null) => void; subject: string; checks: InboxCheck[];
 }) {
   const t = useTranslations("NewsletterCampaigns.send"), c = useTranslations("NewsletterCampaigns.checks"), request = useCrmRequest();
-  const [estimate, setEstimate] = useState<Estimate | null>(null), [state, setState] = useState<"idle" | "loading" | "error">("idle");
+  const [estimate, setEstimate] = useState<Estimate | null>(null), [state, setState] = useState<"idle" | "error">("idle");
   const [when, setWhen] = useState<"now" | "later">("now"), [at, setAt] = useState("");
   const selection = JSON.stringify([listIds, segmentIds]);
 
   useEffect(() => {
-    if (listIds.length === 0) { setEstimate(null); setState("idle"); return; }
+    if (listIds.length === 0) return;
     let live = true;
-    setState("loading");
     const timer = setTimeout(async () => {
       const result = await request<Estimate>(`/api/workspaces/${tenantId}/newsletter/recipient-estimate`, { method: "POST", body: { listIds, segmentIds } });
       if (!live) return;
@@ -48,7 +47,7 @@ export function SendStep({ tenantId, lists, groups, senders, listIds, segmentIds
   };
   const toggleGroup = (id: string, on: boolean) => onSelection(listIds, on ? [...segmentIds, id] : segmentIds.filter((x) => x !== id));
   const skipped = estimate ? Object.values(estimate.skipped).reduce((n, v) => n + (v ?? 0), 0) : 0;
-  const icon = (level: InboxCheck["level"]) => level === "pass" ? <CircleCheck className="size-4 text-emerald-600" aria-hidden="true" /> : level === "warn" ? <TriangleAlert className="size-4 text-amber-600" aria-hidden="true" /> : <CircleAlert className="size-4 text-destructive" aria-hidden="true" />;
+  const icon = (level: InboxCheck["level"]) => level === "pass" ? <CircleCheck className="size-4 text-primary" aria-hidden="true" /> : level === "warn" ? <TriangleAlert className="size-4 text-foreground" aria-hidden="true" /> : <CircleAlert className="size-4 text-destructive" aria-hidden="true" />;
   const ready = inboxReady(checks) && listIds.length > 0;
 
   return <div className="space-y-6" data-send-step>
@@ -60,7 +59,7 @@ export function SendStep({ tenantId, lists, groups, senders, listIds, segmentIds
         {groups.map((g) => { const allowed = lists.some((l) => listIds.includes(l.id) && l.audienceId === g.audienceId);
           return <Label key={g.id} className="flex min-h-11 items-center gap-3 font-normal"><Checkbox disabled={!allowed} checked={segmentIds.includes(g.id)} onCheckedChange={(v) => toggleGroup(g.id, v === true)} />{g.name}</Label>; })}</fieldset>}
       <div role="status" aria-live="polite" className="rounded-lg border bg-muted/30 p-3 text-sm" data-recipient-count>
-        {listIds.length === 0 ? t("chooseList") : state === "loading" && !estimate ? t("counting") : state === "error" ? t("countFailed")
+        {listIds.length === 0 ? t("chooseList") : state === "error" ? t("countFailed") : !estimate ? t("counting")
           : estimate && <><p className="font-medium">{t("count", { eligible: estimate.eligible, selected: estimate.selected })}</p>{skipped > 0 && <p className="text-muted-foreground">{t("skipped", { count: skipped })}</p>}</>}
         <p className="mt-1 text-muted-foreground">{t("autoSkip")}</p></div>
     </FormSection>
@@ -76,7 +75,7 @@ export function SendStep({ tenantId, lists, groups, senders, listIds, segmentIds
           <dd><NativeSelect id={`nl-${key}`} className="w-full" value={(key === "senderId" ? senderId : replyToId) ?? ""} onChange={(e) => onIdentity(key, e.target.value || null)}>
             <NativeSelectOption value="">{t("noSender")}</NativeSelectOption>{senders.map((s) => <NativeSelectOption key={s.id} value={s.id}>{s.address}</NativeSelectOption>)}</NativeSelect></dd></div>)}
         <div><dt className="text-muted-foreground">{t("subject")}</dt><dd className="font-medium">{subject}</dd></div>
-        <div><dt className="text-muted-foreground">{t("recipients")}</dt><dd className="font-medium">{estimate ? t("count", { eligible: estimate.eligible, selected: estimate.selected }) : "-"}</dd></div>
+        <div><dt className="text-muted-foreground">{t("recipients")}</dt><dd className="font-medium">{estimate && listIds.length > 0 ? t("count", { eligible: estimate.eligible, selected: estimate.selected }) : t("pending")}</dd></div>
       </dl>
     </FormSection>
     <FormSection title={t("inbox")}>

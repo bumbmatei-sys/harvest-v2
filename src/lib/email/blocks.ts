@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { emailColors } from "./email-theme-registry";
 import { sanitizeRichText, type RichBlock, type RichDoc, type RichInline } from "../rich-text";
 
 /** Newsletter email document (version 2): a list of blocks plus the ministry brand kit, rendered by `renderEmail`. */
@@ -32,7 +33,7 @@ export const brandKitSchema = z.object({
 }).strict();
 export type BrandKit = z.infer<typeof brandKitSchema>;
 export const defaultBrand: BrandKit = {
-  logoUrl: "", primary: "#1f4d3a", accent: "#c8963e", canvas: "#f4f1ea", font: "georgia",
+  logoUrl: "", primary: emailColors.defaultPrimary, accent: emailColors.defaultAccent, canvas: emailColors.defaultCanvas, font: "georgia",
   buttonStyle: "solid", buttonRadius: "soft", address: "",
 };
 

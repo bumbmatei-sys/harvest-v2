@@ -1,5 +1,6 @@
 import { message } from "../../i18n/messages";
 import type { RichBlock, RichInline } from "../rich-text";
+import { emailColors as K } from "./email-theme-registry";
 import { fontStacks, httpsUrl, radiusPx, type EmailBlock, type EmailDocument } from "./blocks";
 
 export type RenderContext = { preheader?: string | null; firstName?: string; ministryName?: string; unsubscribe: string };
@@ -10,7 +11,7 @@ const clamp = (hex: string, fallback: string) => /^#[0-9a-f]{6}$/i.test(hex) ? h
 /** Readable ink on a colour: near-black or white by relative luminance. */
 export function onColor(hex: string) {
   const [r, g, b] = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16) / 255).map(v => v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4);
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4 ? "#1a1a1a" : "#ffffff";
+  return 0.2126 * r + 0.7152 * g + 0.0722 * b > 0.4 ? K.black : K.white;
 }
 /** Mix a colour toward white (amount 0..1). */
 export function tint(hex: string, amount: number) {
@@ -24,9 +25,9 @@ export function renderEmail(doc: EmailDocument, context: RenderContext) {
   const unsubscribe = httpsUrl(context.unsubscribe);
   if (!unsubscribe || /[<>]/.test(unsubscribe)) throw new Error("NEWSLETTER_UNSUBSCRIBE_UNAVAILABLE");
   const brand = doc.brand;
-  const primary = clamp(brand.primary, "#1f4d3a"), accent = clamp(brand.accent, "#c8963e"), canvas = clamp(brand.canvas, "#f4f1ea");
+  const primary = clamp(brand.primary, K.defaultPrimary), accent = clamp(brand.accent, K.defaultAccent), canvas = clamp(brand.canvas, K.defaultCanvas);
   const font = fontStacks[brand.font] ?? fontStacks.helvetica;
-  const ink = "#23272e", muted = "#5d6470";
+  const ink = K.ink, muted = K.muted;
   const merge = (value: string) => value.replace(/\{\{(firstName|ministryName)\}\}/g, (_, key: "firstName" | "ministryName") =>
     context[key]?.trim() || message(key === "firstName" ? "NewsletterEmail.fallbackFirstName" : "NewsletterEmail.fallbackMinistry"));
   const esc = (value: string) => escapeHtml(merge(value));
@@ -47,8 +48,8 @@ export function renderEmail(doc: EmailDocument, context: RenderContext) {
     const url = httpsUrl(href), labelText = merge(label).trim();
     if (!url || !labelText) return { html: "", text: "" };
     const solid = brand.buttonStyle === "solid" || onPrimary;
-    const background = onPrimary ? "#ffffff" : primary, fg = onPrimary ? primary : onColor(primary);
-    const border = onPrimary ? "#ffffff" : primary;
+    const background = onPrimary ? K.white : primary, fg = onPrimary ? primary : onColor(primary);
+    const border = onPrimary ? K.white : primary;
     const textColor = solid ? fg : primary, fill = solid ? background : "transparent";
     const arc = Math.min(50, Math.round(radius / 0.44));
     const html = `<table role="presentation" cellpadding="0" cellspacing="0" border="0" align="${align}" style="margin:8px 0 20px"><tr><td align="center"${solid ? ` bgcolor="${background}"` : ""} class="em-button" style="border-radius:${radius}px;border:2px solid ${border};background:${fill}">`
@@ -142,7 +143,7 @@ export function renderEmail(doc: EmailDocument, context: RenderContext) {
       case "event": {
         const btn = button(block.buttonLabel, block.buttonUrl);
         const when = [block.date, block.time].map(merge).filter(Boolean).join(" · ");
-        return { html: pad(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0"><tr><td class="em-card" style="padding:24px 28px;border:1px solid ${tint(primary, 0.7)};border-top:4px solid ${primary};background:#ffffff"><p style="margin:0 0 6px;font-family:${font};font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:${accent}">${escapeHtml(when)}</p>${h(2, block.title)}${block.location ? para(block.location, `color:${muted};margin-bottom:8px;`) : ""}${btn.html}</td></tr></table>`),
+        return { html: pad(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0"><tr><td class="em-card" style="padding:24px 28px;border:1px solid ${tint(primary, 0.7)};border-top:4px solid ${primary};background:${K.white}"><p style="margin:0 0 6px;font-family:${font};font-size:12px;letter-spacing:0.12em;text-transform:uppercase;color:${accent}">${escapeHtml(when)}</p>${h(2, block.title)}${block.location ? para(block.location, `color:${muted};margin-bottom:8px;`) : ""}${btn.html}</td></tr></table>`),
           text: [merge(block.title), when, merge(block.location), btn.text].filter(Boolean).join("\n") };
       }
       case "giving": {
@@ -178,10 +179,10 @@ export function renderEmail(doc: EmailDocument, context: RenderContext) {
   const preheader = context.preheader?.trim() ?? "";
   const hidden = preheader ? `<div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:${canvas}">${escapeHtml(preheader)}</div>` : "";
   const css = `@media only screen and (max-width:620px){.em-wrap{width:100%!important}.em-pad{padding-left:20px!important;padding-right:20px!important}.em-stack{display:block!important;width:100%!important;padding:0 0 12px!important}.em-hero{padding-top:36px!important}}`
-    + `@media (prefers-color-scheme:dark){.em-bg{background:#121417!important}.em-shell{background:#1b1e23!important}.em-ink{color:#eceef1!important}.em-card{background:#232830!important;border-color:#3a414c!important}.em-quote{background:#2a2f37!important}}`;
+    + `@media (prefers-color-scheme:dark){.em-bg{background:${K.darkCanvas}!important}.em-shell{background:${K.darkCard}!important}.em-ink{color:${K.darkInk}!important}.em-card{background:${K.darkPanel}!important;border-color:${K.darkBorder}!important}.em-quote{background:${K.darkQuote}!important}}`;
   const html = `<!doctype html><html lang="en" xmlns:v="urn:schemas-microsoft-com:vml" xmlns:o="urn:schemas-microsoft-com:office:office"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark"><!--[if mso]><xml><o:OfficeDocumentSettings><o:PixelsPerInch>96</o:PixelsPerInch></o:OfficeDocumentSettings></xml><![endif]--><style>${css}</style></head>`
     + `<body class="em-bg" style="margin:0;padding:0;background:${canvas}">${hidden}<table role="presentation" class="em-bg" width="100%" cellpadding="0" cellspacing="0" border="0" bgcolor="${canvas}" style="background:${canvas}"><tr><td align="center" style="padding:24px 12px">`
-    + `<table role="presentation" class="em-wrap em-shell" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="#ffffff" style="width:600px;max-width:600px;background:#ffffff">${rendered.map(p => p.html).join("")}${footerHtml}</table></td></tr></table></body></html>`;
+    + `<table role="presentation" class="em-wrap em-shell" width="600" cellpadding="0" cellspacing="0" border="0" bgcolor="${K.white}" style="width:600px;max-width:600px;background:${K.white}">${rendered.map(p => p.html).join("")}${footerHtml}</table></td></tr></table></body></html>`;
   const text = [preheader, ...rendered.map(p => p.text), footerText].filter(Boolean).join("\n\n").trim();
   return { html, text, headers: { "List-Unsubscribe": `<${unsubscribe}>`, "List-Unsubscribe-Post": "List-Unsubscribe=One-Click" } };
 }

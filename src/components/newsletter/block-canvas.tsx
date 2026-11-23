@@ -61,7 +61,7 @@ function SortableBlock({ block, index, count, selected, label, onSelect, onPatch
 
 /** The block canvas: drag (or Move up and Move down) to reorder, select a block to edit its settings, add from the searchable menu. */
 export function BlockCanvas({ blocks, change, selected, setSelected, notify, copy }: {
-  blocks: EmailBlock[]; change: Change; selected: string | null; setSelected: (id: string | null) => void; notify: (message: string) => void; copy: (type: BlockType) => Record<string, string>;
+  blocks: EmailBlock[]; change: Change; selected: string | null; setSelected: (id: string | null) => void; notify: (message: string) => void; copy: () => Record<string, string>;
 }) {
   const t = useTranslations("NewsletterCampaigns.editor"), types = useTranslations("NewsletterCampaigns.blocks");
   const [open, setOpen] = useState(false);
@@ -80,7 +80,7 @@ export function BlockCanvas({ blocks, change, selected, setSelected, notify, cop
   }
   const move = (index: number, by: number) => { change((list) => moveBlock(list, index, index + by)); notify(t("moved", { label: name(blocks[index].id), position: index + by + 1, total: blocks.length })); };
   function add(type: BlockType) {
-    const block = newBlock(type, copy(type));
+    const block = newBlock(type, copy());
     change((list) => { const at = list.findIndex((x) => x.id === selected); return at < 0 ? [...list, block] : [...list.slice(0, at + 1), block, ...list.slice(at + 1)]; });
     setSelected(block.id); setOpen(false); notify(t("added", { label: types(type) }));
     requestAnimationFrame(() => document.querySelector<HTMLElement>(`[data-block="${block.id}"]`)?.scrollIntoView({ block: "nearest" }));
