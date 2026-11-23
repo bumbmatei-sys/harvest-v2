@@ -2694,3 +2694,11 @@ export const workerJobReceipts = pgTable("worker_job_receipts", {
   job: text("job").notNull().references(() => workerJobLeases.job),
   scheduledFor: timestamp("scheduled_for", { withTimezone: true }).notNull(),
 }, (t) => [primaryKey({ columns: [t.job, t.scheduledFor] })]);
+
+/** The ministry's default newsletter brand kit (logo, colours, font, button style, mailing address). One row per ministry. */
+export const newsletterBrandKits = pgTable("newsletter_brand_kits", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  kit: jsonb("kit").$type<import("../lib/email/blocks").BrandKit>().notNull(),
+  version: integer("version").notNull().default(1),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [primaryKey({ columns: [t.tenantId] }), check("newsletter_brand_kit_object", sql`jsonb_typeof(${t.kit})='object' AND pg_column_size(${t.kit})<=4096`)]);

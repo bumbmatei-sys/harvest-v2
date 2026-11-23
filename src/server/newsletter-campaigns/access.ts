@@ -51,7 +51,7 @@ export function newsletterOrigin() {
 export async function campaignPreview(tx: Transaction, tenant: string, content: NewsletterContent, preheader?: string | null) {
   const [ministry] = await tx.select({ name: workspaces.name }).from(workspaces).where(eq(workspaces.tenantId, tenant));
   const images = new Map<string, string>();
-  for (const block of content) {
+  for (const block of Array.isArray(content) ? content : []) {
     if (block.type !== "image" || images.has(block.fileId)) continue;
     const [file] = await tx.select({ id: files.id }).from(files).where(and(eq(files.tenantId, tenant),
       eq(files.id, block.fileId), eq(files.status, "ready"), eq(files.visibility, "public"), inArray(files.mime, ["image/jpeg", "image/png", "image/webp"]))).for("share");

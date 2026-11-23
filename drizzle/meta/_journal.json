@@ -575,6 +575,13 @@
       "when": 1795423839833,
       "tag": "0082_crm_form_source_tag",
       "breakpoints": true
+    },
+    {
+      "idx": 83,
+      "version": "7",
+      "when": 1795441394003,
+      "tag": "0083_newsletter_brand_kits",
+      "breakpoints": true
     }
   ]
 }
