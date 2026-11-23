@@ -1,10 +1,12 @@
-# Newsletter campaigns screens (PR 1)
+# Newsletter emails screens (PR 1)
 
-Campaigns list, a block-based email editor with a ministry brand kit, eight starter templates and an inbox check, on the merged newsletter server (#165, NL-01, NL-02). Sending stays hard-off: the Send and Schedule button is disabled, nothing reaches a provider, test sends go to the synthetic sink only. All five HC-02 gates remain UNAPPROVED.
+User-facing name: "Emails" (Public > Newsletter), so it never reads as the Campaigns module (the crusade and evangelistic-event wizard, nav id `campaigns`). Internal ids, routes (`/newsletter/campaigns`) and database names keep "campaign".
+
+Emails list, a block-based email editor with a ministry brand kit, eight starter templates and an inbox check, on the merged newsletter server (#165, NL-01, NL-02). Sending stays hard-off: the Send and Schedule button is disabled, nothing reaches a provider, test sends go to the synthetic sink only. All five HC-02 gates remain UNAPPROVED.
 
 ## Done
 
-- `/workspaces/[tenantId]/newsletter/campaigns` (list: status, search, sort, New campaign, template row, DataTable) and `/newsletter/campaigns/[campaignId]` (editor). Sidebar entry through the typed registry (`newsletterCampaigns`, icon MailPlus, feature `newsletter`, permission `newsletter:campaigns`, live only outside production like the server routes).
+- `/workspaces/[tenantId]/newsletter/campaigns` (list: status, search, sort, New email, template row, DataTable) and `/newsletter/campaigns/[campaignId]` (editor). Sidebar entry "Emails" through the typed registry (`newsletterCampaigns`, icon MailPlus, feature `newsletter`, permission `newsletter:campaigns`, live only outside production like the server routes).
 - Editor on the shared `EditorShell` (steps Write | Send, preview column, undo and redo, autosave with version check). Write: name, subject, preview text, block canvas (searchable add menu, drag with pointer, touch and keyboard sensors plus Move up and Move down, duplicate, remove, per-block settings), Design (brand kit sheet), Templates (confirm before replacing), live preview (sandboxed frame, desktop and mobile), Send me a test (synthetic sink). Send: lists and saved groups with a live recipient count, Now or Pick a time, From and Reply to, subject and recipient summary, inbox check, disabled Schedule or Send with a short notice.
 - Blocks: header, hero, text (Tiptap, shared `RichTextEditor`), image with text, two columns, quote or scripture, event card, giving button, video thumbnail, social links, divider, spacer, sign-off.
 - Email renderer (`src/lib/email/render.ts`): tables, inline styles, 600px, mobile and dark-mode media rules, VML plus anchor buttons, https-only links and images, escaped user text, merge fields with fallbacks, plain-text alternative, unsubscribe and mailing address footer always appended (not a block, cannot be removed). Literal colours live in `email-theme-registry.ts` (the source guard allows them only there).
