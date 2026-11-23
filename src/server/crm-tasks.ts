@@ -317,7 +317,10 @@ async function generateDueNotifications(tx: Transaction, tenantId: string, userI
   ] as const) {
     if (!enabled) continue;
     const candidates = tx.select({ tenantId: crmTasks.tenantId, recipientUserId: crmTasks.assigneeUserId, taskId: crmTasks.id, dueAt: crmTasks.dueAt, kind: sql<string>`${kind}` })
-      .from(crmTasks).where(and(eq(crmTasks.tenantId, tenantId), eq(crmTasks.assigneeUserId, userId), eq(crmTasks.status, "open"), isNull(crmTasks.archivedAt), window)).limit(200);
+      .from(crmTasks).where(and(eq(crmTasks.tenantId, tenantId), eq(crmTasks.assigneeUserId, userId), eq(crmTasks.status, "open"), isNull(crmTasks.archivedAt), window,
+        // Skip tasks that already have this notice, so a backlog larger than the cap drains over repeated loads.
+        sql`not exists (select 1 from crm_notifications n where n.tenant_id = ${crmTasks.tenantId} and n.task_id = ${crmTasks.id} and n.recipient_user_id = ${userId} and n.kind = ${kind} and n.due_at = ${crmTasks.dueAt})`))
+      .orderBy(asc(crmTasks.dueAt), asc(crmTasks.id)).limit(200);
     await tx.execute(sql`insert into crm_notifications (tenant_id, recipient_user_id, actor_user_id, task_id, due_at, kind) select c."tenant_id", c."recipient_user_id", c."recipient_user_id", c."task_id", c."due_at", c."kind" from (${candidates}) as c(tenant_id, recipient_user_id, task_id, due_at, kind) on conflict do nothing`);
   }
 }
