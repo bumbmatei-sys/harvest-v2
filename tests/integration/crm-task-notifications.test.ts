@@ -20,10 +20,10 @@ async function task(assignee: string | null, dueHoursAgo: number | null) {
 
 beforeAll(async () => {
   fixture = await testDatabase();
-  await fixture.db.insert(users).values(["owner-n", "ann", "bob", "cy", "owner-o"].map((id) => ({ id, name: `Synthetic ${id}`, email: `${id}@example.test` })));
+  await fixture.db.insert(users).values(["owner-n", "ann", "bob", "cy", "dee", "owner-o"].map((id) => ({ id, name: `Synthetic ${id}`, email: `${id}@example.test` })));
   tenant = (await createWorkspace(fixture.db, "owner-n", "Notices")).tenantId;
   other = (await createWorkspace(fixture.db, "owner-o", "Other")).tenantId;
-  for (const id of ["ann", "bob", "cy"]) await putMember(fixture.db, "owner-n", tenant, `${id}@example.test`, "member");
+  for (const id of ["ann", "bob", "cy", "dee"]) await putMember(fixture.db, "owner-n", tenant, `${id}@example.test`, "member");
 });
 afterAll(async () => { await fixture?.close(); });
 
@@ -61,6 +61,26 @@ describe("due and overdue task notifications", () => {
     expect(version).toBeGreaterThan(resched.version);
     const total = await fixture.admin.query("select count(*)::int as n from crm_notifications where task_id = $1 and kind = 'task_overdue'", [resched.id]);
     expect(total.rows[0].n).toBe(2);
+  });
+
+  it("drains a backlog larger than the per-load cap, one notice each, oldest first", async () => {
+    const total = 450;
+    // The task guard requires the creator to be the acting user, so seed inside one transaction that sets it.
+    await fixture.admin.query("begin");
+    await fixture.admin.query("select set_config('app.user_id', 'owner-n', true), set_config('app.tenant_id', $1, true)", [tenant]);
+    await fixture.admin.query(
+      `insert into crm_tasks (tenant_id, title, status, assignee_user_id, due_at, created_by)
+       select $1, 'Backlog ' || n, 'open', 'dee', now() - interval '3 hours' - (n || ' minutes')::interval, 'owner-n' from generate_series(1, $2) n`, [tenant, total]);
+    await fixture.admin.query("commit");
+    const counts: number[] = [];
+    for (let load = 0; load < 4; load += 1) {
+      await listNotifications(fixture.db, "dee", tenant);
+      counts.push((await fixture.admin.query("select count(*)::int as n from crm_notifications where recipient_user_id = 'dee' and kind = 'task_overdue'")).rows[0].n);
+    }
+    expect(counts[0]).toBe(200);
+    expect(counts[counts.length - 1]).toBe(total);
+    const dup = await fixture.admin.query("select count(*)::int as n from (select task_id from crm_notifications where recipient_user_id = 'dee' and kind = 'task_overdue' group by task_id, due_at having count(*) > 1) d");
+    expect(dup.rows[0].n).toBe(0);
   });
 
   it("withdraws on completion and moves to the new assignee on reassignment", async () => {

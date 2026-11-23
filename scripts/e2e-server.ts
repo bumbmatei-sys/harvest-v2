@@ -11,10 +11,13 @@ if (process.env.HARVEST_E2E_MAILBOX) await writeFile(`${process.env.HARVEST_E2E_
 if (process.env.HARVEST_E2E_MAILBOX) await writeFile(`${process.env.HARVEST_E2E_MAILBOX}.admin`, database.admin.options.connectionString ?? "", { mode: 0o600 });
 const connectKey=randomBytes(32).toString("hex");
 if(process.env.HARVEST_E2E_MAILBOX)await writeFile(`${process.env.HARVEST_E2E_MAILBOX}.connect-worker`,JSON.stringify({DATABASE_URL:database.appURL,HARVEST_CONNECT_TEST_KEY:connectKey}),{mode:0o600});
+const formsKey=randomBytes(32).toString("hex");
 const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--turbopack", "--hostname", "127.0.0.1", "--port", "3100"], {
   stdio: ["ignore", "inherit", "inherit"], env: { ...process.env,
     // Override any real credentials and avoid reading live .env.local during browser tests.
     HARVEST_CONNECT_INTAKE: "synthetic", HARVEST_CONNECT_TEST_KEY: connectKey,
+    // Hosted CRM forms run in synthetic mode only against this disposable harvest_test database; production stays hard-off in code.
+    HARVEST_CRM_FORMS: "synthetic", HARVEST_CRM_FORMS_TEST_KEY: formsKey,
     DATABASE_URL: database.appURL, DATABASE_URL_UNPOOLED: "", BETTER_AUTH_SECRET: randomBytes(48).toString("base64url"),
     BETTER_AUTH_URL: "http://127.0.0.1:3100", RESEND_API_KEY: "re_e2e_mock_only", EMAIL_FROM: "Harvest <test@example.test>",
     HARVEST_NEWSLETTER_SUPPRESSION_KEYS: JSON.stringify([randomBytes(32).toString("hex")]),

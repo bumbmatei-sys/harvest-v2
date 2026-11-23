@@ -122,9 +122,7 @@ test("build a form: add, reorder (buttons and keyboard), undo, settings, preview
   await page.getByRole("radio", { name: "Light" }).click();
   await shoot(page, "settings", () => page.getByRole("tab", { name: "Settings", exact: true }).click());
 
-  // Publishing and the hosted link are not available yet: the controls say so and change nothing.
-  await page.getByRole("button", { name: "Publish", exact: true }).click({ force: true });
-  await expect(page.getByText("Hosted forms are not available yet.")).toBeVisible();
+  // Publishing is covered by crm-forms-publication.spec.ts.
 
   // Preview: one question per page, with a welcome screen, progress, Next, Back and Enter.
   await page.getByRole("tab", { name: "Preview", exact: true }).click();
