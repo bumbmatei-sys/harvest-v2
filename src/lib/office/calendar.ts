@@ -1,6 +1,6 @@
 // Browser side of the Office routes for the personal calendar (docs/acceptance/office-server.md: `calendars`, `events`, `availability`, `eventLink`). Events are live
 // pass-through: titles, attendees and details are held in component state only, never stored by Harvest and never written to browser storage. Create, edit and delete
-// have no call here: the server answers `disabled` for them while OFFICE_CALENDAR_WRITE_ENABLED is false.
+// go through the same route; the server answers `disabled` unless it says writes are available (synthetic provider outside production), and sends no event content to storage.
 import { addDays, addMinutes, endOfMonth, endOfWeek, startOfDay, startOfMonth, startOfWeek } from "date-fns";
 import { call, type Connected, type Failure, type OfficeOverview, type OfficePlatform, type Page, type Pending, type Result } from "@/lib/office/mail";
 import type { CalendarEvent } from "@/lib/event-view";
@@ -12,7 +12,9 @@ export const calendarViews: readonly CalendarView[] = ["month", "week", "day", "
 export const agendaDays = 30;
 export type NamedCalendar = { ref: string; name: string; primary?: boolean; readOnly?: boolean; timezone?: string | null };
 /** One provider event as the `events` and `event` actions return it (`EventDetail` on the server); optional fields are absent when the provider does not report them. */
-export type CalendarItem = { ref: string; calendarRef: string; title: string; description?: string; start: string; end: string; allDay?: boolean; attendees: string[]; meetingLink: string | null; meetingKind?: "meet" | "teams" };
+export type CalendarItem = { ref: string; calendarRef: string; version?: string; timezone?: string; createdHere?: boolean; title: string; description?: string; start: string; end: string; allDay?: boolean; attendees: string[]; meetingLink: string | null; meetingKind?: "meet" | "teams" };
+/** One single event as the write actions take it. All-day uses plain dates with an exclusive end; timed uses instants. No attendees in version 1. */
+export type EventInput = { title: string; description?: string; start: string; end: string; allDay?: boolean; timezone?: string; attendees: []; meeting?: boolean };
 export type Slot = { start: string; end: string };
 export type Reference = { ref: string; kind: string; name: string | null; startsAt: string | null; endsAt: string | null };
 
@@ -21,12 +23,16 @@ export const calendarApi = (tenantId: string) => {
     call<Result<T>>(tenantId, { method: "POST", signal, body: { action, ...(connectionId ? { connectionId } : {}), input } });
   return {
     overview: (signal?: AbortSignal) => call<OfficeOverview>(tenantId, { method: "GET", signal }),
-    startConnect: (platform: OfficePlatform, noticeVersion: number, connectionId?: string) =>
-      call<Pending | { state: Failure }>(tenantId, { method: "POST", body: { action: "startConnect", ...(connectionId ? { connectionId } : {}), input: { kind: "calendar", platform, noticeVersion } } }),
+    startConnect: (platform: OfficePlatform, noticeVersion: number, connectionId?: string, access?: "write") =>
+      call<Pending | { state: Failure }>(tenantId, { method: "POST", body: { action: "startConnect", ...(connectionId ? { connectionId } : {}), input: { kind: "calendar", platform, noticeVersion, ...(access ? { access } : {}) } } }),
     finishConnect: (attemptId: string) => call<Connected | { state: "pending" | "failed" }>(tenantId, { method: "POST", body: { action: "finishConnect", input: { attemptId } } }),
     health: (connectionId: string) => call<{ state: string }>(tenantId, { method: "POST", body: { action: "health", connectionId, input: {} } }),
     disconnect: (connectionId: string) => call<{ state: string }>(tenantId, { method: "POST", body: { action: "disconnect", connectionId, input: {} } }),
     calendars: (id: string, signal?: AbortSignal) => run<{ items: NamedCalendar[] }>("calendars", id, {}, signal),
+    writableCalendars: (id: string, signal?: AbortSignal) => run<{ items: NamedCalendar[]; defaultRef: string | null }>("calendars", id, { writableOnly: true }, signal),
+    createEvent: (id: string, input: { calendarRef: string; requestId: string; event: EventInput }) => run<CalendarItem>("createEvent", id, input),
+    updateEvent: (id: string, input: { calendarRef: string; eventRef: string; version: string; event: EventInput }) => run<CalendarItem>("updateEvent", id, input),
+    deleteEvent: (id: string, input: { calendarRef: string; eventRef: string; version: string }) => run<{ deleted: true }>("deleteEvent", id, input),
     events: (id: string, input: { start: string; end: string; calendarRef?: string; cursor?: string; limit?: number }, signal?: AbortSignal) => run<Page<CalendarItem>>("events", id, input, signal),
     event: (id: string, input: { eventRef: string; calendarRef?: string }, signal?: AbortSignal) => run<CalendarItem>("event", id, input, signal),
     availability: (id: string, input: { start: string; end: string; durationMinutes: number }, signal?: AbortSignal) => run<{ items: Slot[]; partial?: boolean }>("availability", id, input, signal),
@@ -83,3 +89,24 @@ export function plannerHref(tenantId: string, item: Pick<PlannerItem, "at">) {
 
 /** The first link in a provider's join field only when it is a web address. */
 export const safeLink = (value: string | null | undefined) => { try { const url = new URL(value ?? ""); return url.protocol === "https:" ? url.toString() : null; } catch { return null; } };
+
+/** Calendar write grant bit on a connection (the read grant is 2). */
+export const calendarWriteGrant = 8;
+export const writesAvailable = (connection: { capabilities: Record<string, string> }) => connection.capabilities.createEvent === "available";
+
+const parts = (zone: string, at: Date) => {
+  const read = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit" })
+    .formatToParts(at).map((part) => [part.type, part.value]));
+  return { date: `${read.year}-${read.month}-${read.day}`, time: `${read.hour === "24" ? "00" : read.hour}:${read.minute}`, utc: Date.UTC(Number(read.year), Number(read.month) - 1, Number(read.day), Number(read.hour === "24" ? 0 : read.hour), Number(read.minute), Number(read.second)) };
+};
+/** The calendar day and time (yyyy-MM-dd, HH:mm) an instant has in a time zone. */
+export const zonedParts = (iso: string, zone: string) => { const { date, time } = parts(zone, new Date(iso)); return { date, time }; };
+/** The instant of a wall-clock day and time in a time zone (the later one when the clock repeats; a skipped time moves forward). */
+export function zonedInstant(date: string, time: string, zone: string): string {
+  const [y, mo, d] = date.split("-").map(Number), [h, mi] = time.split(":").map(Number), wanted = Date.UTC(y, mo - 1, d, h, mi);
+  let guess = wanted;
+  for (let index = 0; index < 3; index++) guess = wanted - (parts(zone, new Date(guess)).utc - guess);
+  return new Date(guess).toISOString();
+}
+/** Adds whole days to a plain yyyy-MM-dd date. */
+export const addPlainDays = (date: string, days: number) => { const [y, m, d] = date.split("-").map(Number); return new Date(Date.UTC(y, m - 1, d + days)).toISOString().slice(0, 10); };

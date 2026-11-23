@@ -1728,7 +1728,13 @@
     "pageTitle": "Import status · Harvest",
     "title": "Import and sync status",
     "viewOnly": "Import status is available to owners and admins.",
-    "columns": { "type": "Records", "status": "Status", "started": "Started", "updated": "Updated", "finished": "Finished" },
+    "columns": {
+      "type": "Records",
+      "status": "Status",
+      "started": "Started",
+      "updated": "Updated",
+      "finished": "Finished"
+    },
     "note": "{count, plural, one {Latest import. Email and calendar sync is not available yet.} other {Latest # imports. Email and calendar sync is not available yet.}}",
     "emptyTitle": "No imports yet",
     "error": "Import status could not be loaded. Try again in a moment.",
@@ -5176,9 +5182,18 @@
       },
       "visibility": "Who can see your profile",
       "visibilityOptions": {
-        "members": { "title": "Members", "detail": "Shown in the members list." },
-        "unlisted": { "title": "Unlisted", "detail": "Not in the list; members with your link can open it." },
-        "private": { "title": "Private", "detail": "Only you and this community's owners and admins." }
+        "members": {
+          "title": "Members",
+          "detail": "Shown in the members list."
+        },
+        "unlisted": {
+          "title": "Unlisted",
+          "detail": "Not in the list; members with your link can open it."
+        },
+        "private": {
+          "title": "Private",
+          "detail": "Only you and this community's owners and admins."
+        }
       },
       "save": "Save profile",
       "saving": "Saving…",
@@ -6037,7 +6052,15 @@
       "delete": "Delete",
       "socialUntitled": "Social post",
       "socialReadOnly": "Scheduled post, read only",
-      "openPlanner": "Open in planner"
+      "openPlanner": "Open in planner",
+      "cancel": "Cancel",
+      "deleteTitle": "Delete this event?",
+      "deleteBody": "It is removed from your calendar.",
+      "deleting": "Deleting",
+      "deleted": "Event deleted",
+      "deleteFailed": "Could not delete this event. Try again.",
+      "changedElsewhere": "This event changed elsewhere. It has been reloaded; try again.",
+      "readOnlyEvent": "Harvest can change only events it created."
     },
     "form": {
       "newTitle": "New event",
@@ -6051,14 +6074,30 @@
       "endDate": "End date",
       "endTime": "End time",
       "delete": "Delete event",
-      "timeZone": "Time zone",
-      "location": "Location",
       "notes": "Notes",
       "calendar": "Calendar",
       "attendees": "Attendees",
-      "meetingLink": "Add a meeting link",
+      "meetingLink": "Add a video link",
       "save": "Save",
-      "close": "Close"
+      "close": "Close",
+      "created": "Event created",
+      "updated": "Event updated",
+      "grantTitle": "Allow Harvest to add events to your calendar",
+      "grantAllow": "Allow",
+      "grantFailed": "Access was not granted. Try again.",
+      "loadingCalendars": "Loading calendars",
+      "pickCalendar": "Choose a calendar",
+      "noCalendars": "No calendar here can be changed.",
+      "timeZoneIs": "Time zone: {zone}",
+      "invitesOff": "Invites aren't available yet",
+      "meetingOff": "A video link can't be added for this account",
+      "reload": "Reload",
+      "problem": {
+        "failed": "Could not save the event. Try again.",
+        "changed": "This event changed elsewhere. Reload and try again.",
+        "grant": "Allow Harvest to add events to your calendar first.",
+        "invalid": "Check the event details and try again."
+      }
     },
     "agenda": {
       "emptyTitle": "No events",

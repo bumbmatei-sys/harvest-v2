@@ -28,9 +28,9 @@ export type OfficeDeps = {
 };
 
 const calendarWriteActions = ["createEvent", "updateEvent", "deleteEvent"];
-/** The literal flag, or the synthetic provider outside production. Real provider writes stay behind OFFICE_CALENDAR_WRITE_ENABLED. */
-export const calendarWritesOn = (deps: Pick<OfficeDeps, "provider" | "calendarWrites">, env: Record<string, string | undefined> = process.env) =>
-  OFFICE_CALENDAR_WRITE_ENABLED || (deps.calendarWrites === true && deps.provider.id === "fake" && env.NODE_ENV !== "production" && env.VERCEL_ENV !== "production");
+/** The literal flag, or the synthetic provider behind the non-production route gate (`officeGateOpen`, which never opens in production). Real provider writes stay behind OFFICE_CALENDAR_WRITE_ENABLED. */
+export const calendarWritesOn = (deps: Pick<OfficeDeps, "provider" | "calendarWrites">) =>
+  OFFICE_CALENDAR_WRITE_ENABLED || (deps.calendarWrites === true && deps.provider.id === "fake");
 
 export const unavailable = () => new AccessError(404, message("Errors.workspaceUnavailable"));
 export async function withOffice<T>(db: Database, actor: string, workspace: string, permission: Permission, deps: OfficeDeps | null,

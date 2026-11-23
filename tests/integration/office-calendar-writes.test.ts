@@ -2,6 +2,7 @@ import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { randomUUID } from "node:crypto";
 import { testDatabase } from "../database";
 import { noNetwork, seedPeople } from "./social-layer-fixture";
+import { officeGateOpen } from "../../src/server/office-gate";
 import { calendarWritesOn, type OfficeDeps } from "../../src/server/office-provider/connections";
 import { FakeOfficeProvider } from "../../src/server/office-provider/fake-provider";
 import { calendarWriteGrant, grant, type OfficeAccount } from "../../src/server/office-provider/port";
@@ -9,6 +10,7 @@ import { OfficeMailReview } from "../../src/server/office-provider/review";
 import { runOffice } from "../../src/server/office-provider/service";
 
 vi.mock("server-only", () => ({}));
+vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("not found"); } }));
 let f: Awaited<ReturnType<typeof testDatabase>>, people: Awaited<ReturnType<typeof seedPeople>>, spy: ReturnType<typeof noNetwork>;
 const now = () => new Date("2026-11-23T12:00:00Z");
 const credential = { secret: "office-writes-secret" };
@@ -53,11 +55,12 @@ beforeAll(async () => {
 afterAll(async () => { try { expect(spy).not.toHaveBeenCalled(); } finally { spy?.mockRestore(); await f?.close(); } });
 
 it("is hard-off without the route gate flag, outside the synthetic provider and in production", async () => {
-  expect(calendarWritesOn(deps, {})).toBe(true);
-  expect(calendarWritesOn(offDeps, {})).toBe(false);
-  expect(calendarWritesOn(deps, { NODE_ENV: "production" })).toBe(false);
-  expect(calendarWritesOn(deps, { VERCEL_ENV: "production" })).toBe(false);
-  expect(calendarWritesOn({ ...deps, provider: { ...provider, id: "zernio" } as never }, {})).toBe(false);
+  expect(calendarWritesOn(deps)).toBe(true);
+  expect(calendarWritesOn(offDeps)).toBe(false);
+  expect(calendarWritesOn({ ...deps, provider: { ...provider, id: "zernio" } as never })).toBe(false);
+  // No route deps exist in production, so the gate never supplies the flag there.
+  expect(officeGateOpen({ NODE_ENV: "production" })).toBe(false);
+  expect(officeGateOpen({ VERCEL_ENV: "production" })).toBe(false);
   expect(await run("createEvent", { calendarRef: "primary", requestId: randomUUID(), event: body() }, id, people.admin, offDeps)).toEqual({ state: "disabled" });
 });
 
