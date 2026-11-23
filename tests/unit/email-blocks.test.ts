@@ -57,9 +57,10 @@ describe("email renderer", () => {
     expect(out.html).not.toContain("http://example.com");
     expect(out.html).not.toContain("javascript:");
     expect(emailDocumentSchema.safeParse({ version: 2, brand, blocks: [bad] }).success).toBe(false);
-    const ok = emailDocumentSchema.safeParse({ version: 2, brand, blocks: [{ ...bad, imageUrl: "https://example.com/a.png", buttonUrl: "https://example.com/go" }] });
+    const fixed = { ...bad, imageUrl: "https://example.com/a.png", buttonUrl: "https://example.com/go" } as EmailDocument["blocks"][number];
+    const ok = emailDocumentSchema.safeParse({ version: 2, brand, blocks: [fixed] });
     expect(ok.success).toBe(true);
-    expect(render([{ ...bad, imageUrl: "https://example.com/a.png", buttonUrl: "https://example.com/go" }]).html).toContain('alt="x"');
+    expect(render([fixed]).html).toContain('alt="x"');
   });
 
   it("always appends the footer, even when the document has none and no address is set", () => {

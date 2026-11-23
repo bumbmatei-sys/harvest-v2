@@ -8,7 +8,7 @@ import { message } from "../../i18n/messages";
 import { newsletterContent, newsletterStarters } from "../../lib/newsletter-content";
 import { audit, campaignPreview, conflict, digest, id, pageInput, unavailable, version, withNewsletter } from "./access";
 import { assertVerified, identity } from "./identities";
-import { resolveRecipients, selectionInput, selectionPins } from "./recipients";
+import { draftSelectionInput, resolveRecipients, selectionPins } from "./recipients";
 import { newsletterReviewLifetimeMs, newsletterScheduleHorizonMs, scheduleInput, type NewsletterSchedule } from "./schedule";
 import { readTemplate } from "./templates";
 import { AccessError } from "../permissions";
@@ -18,7 +18,7 @@ const header = z.string().trim().min(1).regex(/^[^\u0000-\u001f\u007f]+$/);
 const draftInput = z.object({
   name: z.string().trim().min(1).max(100), subject: header.max(150),
   preheader: header.max(200).nullable().default(null), senderId: z.uuid().nullable().default(null),
-  replyToId: z.uuid().nullable().default(null), selection: selectionInput,
+  replyToId: z.uuid().nullable().default(null), selection: draftSelectionInput,
   content: newsletterContent.optional(), templateId: z.uuid().optional(),
   starterId: z.enum(["ministry-update", "event-invitation", "weekly-digest"]).optional(),
 }).strict();
@@ -93,7 +93,8 @@ async function saveDraft(tx: Transaction, tenant: string, actor: string, input: 
   const key = { tenantId: tenant, campaignId: campaign.id, revision: campaign.revision };
   const [revision] = await tx.insert(revisions).values({ ...key, content, subject: input.subject, preheader: input.preheader,
     senderId: input.senderId, replyToId: input.replyToId, plainText: preview.text }).returning();
-  const listPins = await tx.insert(lists).values(pins.lists.map(list => ({ ...key, listId: list.id, listVersion: list.version }))).returning();
+  // A draft may start without a list; review requires one.
+  const listPins = pins.lists.length ? await tx.insert(lists).values(pins.lists.map(list => ({ ...key, listId: list.id, listVersion: list.version }))).returning() : [];
   const segmentPins = pins.segments.length ? await tx.insert(segments).values(pins.segments.map(segment => ({
     ...key, segmentId: segment.id, segmentVersion: segment.version,
   }))).returning() : [];
@@ -129,6 +130,7 @@ async function reviewData(tx: Transaction, tenant: string, row: Awaited<ReturnTy
   assertVerified(from, true);
   assertVerified(reply, false);
   if (segmentPins.some(pin => !pin.segmentId)) throw conflict("SELECTION_CHANGED");
+  if (!listPins.length) throw conflict("SELECTION_REQUIRED");
   const selection = { listIds: listPins.map(pin => pin.listId), segmentIds: segmentPins.map(pin => pin.segmentId!) };
   const pins = await selectionPins(tx, tenant, selection);
   if (pins.lists.some((list, index) => list.version !== listPins[index].listVersion) ||
@@ -229,6 +231,20 @@ export function testCampaign(db: Database, actor: string, workspace: string, cam
     return { to: adminAddress!, from: sender.identity.address, replyTo: reply.identity.address,
       subject: message("NewsletterEmail.testSubject", { subject: revision.subject }),
       preheader: revision.preheader, ...(await campaignPreview(tx, tenant, revision.content, revision.preheader)) };
+  }).then(async preview => {
+    const result = await new FakeNewsletterProvider().submit({ ...preview, deliveryId: randomUUID() });
+    return { test: true, mailbox: "synthetic", state: result.state };
+  });
+}
+
+/** Test send for the editor: the synthetic sink only, so it needs no verified sender. The message is rendered exactly as a real one would be. */
+export function testCampaignToSink(db: Database, actor: string, workspace: string, campaignId: string, adminAddress: string | undefined) {
+  return withNewsletter(db, actor, workspace, "newsletter:campaigns", async (tx, tenant) => {
+    if (!z.email().safeParse(adminAddress).success) throw unavailable();
+    const { revision } = await readCampaign(tx, tenant, campaignId);
+    return { to: adminAddress!, from: "test@newsletter.example.test", replyTo: "test@newsletter.example.test",
+      subject: message("NewsletterEmail.testSubject", { subject: revision.subject }), preheader: revision.preheader,
+      ...(await campaignPreview(tx, tenant, revision.content, revision.preheader)) };
   }).then(async preview => {
     const result = await new FakeNewsletterProvider().submit({ ...preview, deliveryId: randomUUID() });
     return { test: true, mailbox: "synthetic", state: result.state };
