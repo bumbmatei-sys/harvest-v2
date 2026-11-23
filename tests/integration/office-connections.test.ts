@@ -241,9 +241,9 @@ it("serves calendar availability and file references without keeping content or 
   expect(await run("freeBusy", { start, end }, cal.id)).toMatchObject({ data: { items: [{ start: "2026-11-22T10:00:00.000Z" }] } });
   expect(await run("availability", { start, end, durationMinutes: 30 }, cal.id)).toMatchObject({ data: { items: [] } });
   expect(await run("eventLink", { eventRef: calendarEvent.ref, contactId }, cal.id)).toMatchObject({ data: { kind: "event", name: null } });
-  for (const q of [request("createEvent", { requestId: randomUUID(), event: { start, end, title: eventTitle, attendees: [address] } }, cal.id),
-    request("updateEvent", { eventRef: calendarEvent.ref, event: { start, end, title: eventTitle, attendees: [address] } }, cal.id),
-    request("deleteEvent", { eventRef: calendarEvent.ref }, cal.id)]) {
+  for (const q of [request("createEvent", { calendarRef: "primary", requestId: randomUUID(), event: { start, end, title: eventTitle, attendees: [address] } }, cal.id),
+    request("updateEvent", { eventRef: calendarEvent.ref, calendarRef: "primary", version: "seed", event: { start, end, title: eventTitle, attendees: [address] } }, cal.id),
+    request("deleteEvent", { eventRef: calendarEvent.ref, calendarRef: "primary", version: "seed" }, cal.id)]) {
     expect(await runOffice(f.db, people.admin, people.tenant, q, deps)).toEqual({ state: "disabled" });
   }
   expect(await run("drives", {}, files.id)).toMatchObject({ data: { items: [{ ref: "root" }] } });
