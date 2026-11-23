@@ -29,6 +29,6 @@ export default async function FormEditorPage({ params }: { params: Promise<{ ten
   const form = await getCrmForm(db, session.user.id, tenantId, formId).catch((error: unknown) => { if (error instanceof AccessError && error.status === 404) return null; throw error; });
   if (!form) notFound();
   const [destinations, members] = await Promise.all([destinationOptions(db, session.user.id, tenantId), assignableMembers(db, session.user.id, tenantId)]);
-  return <FormEditor tenantId={tenantId} formId={formId} initial={form.definition} revision={form.definition.revision} destinations={destinations.options} members={members}
+  return <FormEditor ministryName={workspace.name} tenantId={tenantId} formId={formId} initial={form.definition} revision={form.definition.revision} destinations={destinations.options} members={members}
     responseCount={form.responseCount} publication={form.publication} unpublishedChanges={form.unpublishedChanges} hostedAvailable={syntheticCrmFormsKey() !== null} />;
 }

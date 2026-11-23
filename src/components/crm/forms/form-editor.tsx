@@ -42,8 +42,8 @@ function destinationOf(value: string): FormDestination | null {
  * Drafts autosave. Publish, Unpublish, Copy link and Open call the server's publication endpoint; where the server does not serve hosted
  * forms (production) the controls say so. Editing a published form saves a new draft; the live version stays until the next Publish.
  */
-export function FormEditor({ tenantId, formId, initial, revision, destinations, members, responseCount, publication: initialPublication, unpublishedChanges, hostedAvailable }: {
-  tenantId: string; formId: string; initial: FormDefinition; revision: number; destinations: Destination[]; members: Member[];
+export function FormEditor({ tenantId, formId, initial, revision, destinations, members, responseCount, publication: initialPublication, unpublishedChanges, hostedAvailable, ministryName }: {
+  ministryName?: string; tenantId: string; formId: string; initial: FormDefinition; revision: number; destinations: Destination[]; members: Member[];
   responseCount: number; publication: Publication | null; unpublishedChanges: boolean;
   /** False when this environment does not serve hosted forms (production); the controls then say so instead of acting. */
   hostedAvailable: boolean;
@@ -173,11 +173,11 @@ export function FormEditor({ tenantId, formId, initial, revision, destinations, 
     </TabsContent>
 
     <TabsContent value="settings" className="min-w-0"><div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
-      <div inert className="min-w-0 max-lg:hidden" aria-hidden="true"><PublicForm form={form} idPrefix="settings-preview" /></div>
+      <div inert className="min-w-0 max-lg:hidden" aria-hidden="true"><PublicForm form={form} ministryName={ministryName} idPrefix="settings-preview" /></div>
       <FormSettingsPanel form={form} destinations={destinations} members={members} onSettings={changeSettings} onDestination={destinationChange} />
     </div></TabsContent>
 
-    <TabsContent value="preview"><div className="mx-auto w-full max-w-3xl" data-preview-tab><PublicForm form={form} idPrefix="preview" /></div></TabsContent>
+    <TabsContent value="preview"><div className="mx-auto w-full max-w-3xl" data-preview-tab><PublicForm form={form} ministryName={ministryName} idPrefix="preview" /></div></TabsContent>
     </Tabs>
     <p className="sr-only" role="status" aria-live="polite">{live}</p>
 

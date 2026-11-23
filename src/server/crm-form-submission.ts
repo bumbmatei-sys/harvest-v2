@@ -11,13 +11,16 @@ const MINIMUM_FILL_TIME_MS = 1_000;
 
 type PublishedForm = {
   versionId: string;
+  ministryName: string | null;
   definition: FormDefinition;
   notice: { version: number; body: string; hash: string };
 };
 
-export async function resolveCrmForm(db: Database, slug: string, charge: boolean) {
+export type CrmFormCharge = { mode: "peek" } | { mode: "proof" | "submit"; visitor: string };
+
+export async function resolveCrmForm(db: Database, slug: string, charge: CrmFormCharge) {
   const { rows: [row] } = await db.execute<{ result: PublishedForm | { limited: true } | null }>(
-    sql`select public.crm_form_public_form(${slug}, ${charge}) as result`);
+    sql`select public.crm_form_public_form(${slug}, ${charge.mode}, ${charge.mode === "peek" ? null : charge.visitor}) as result`);
   if (!row.result || "limited" in row.result) return row.result;
   const definition = formDefinitionSchema.safeParse(row.result.definition);
   return definition.success ? { ...row.result, definition: definition.data } : null;
@@ -32,7 +35,7 @@ export function crmFormManifest(form: PublishedForm, slug: string, key: Buffer, 
   const { title, description, cover, logoUrl, endTitle, endBody, blocks, settings } = form.definition;
   const { buttonLabel, startLabel, showResubmit, spamCheck, layout, theme, background, buttonColor, hiddenCampaign, hiddenSource, redirectUrl } = settings;
   return {
-    title, description, cover, logoUrl, endTitle, endBody, notice: { ...form.notice, purpose: "form_response_processing" },
+    title, description, cover, logoUrl, endTitle, endBody, ministryName: form.ministryName, notice: { ...form.notice, purpose: "form_response_processing" },
     blocks: blocks.filter(block => block.type !== "upload").map(({ id, type, label, required, options, text }) => ({ id, type, label, required, options, text })),
     settings: { buttonLabel, startLabel, showResubmit, spamCheck, layout, theme, background, buttonColor, hiddenCampaign, hiddenSource, redirectUrl },
     proof: `${payload}.${sign(key, slug, payload).toString("base64url")}`,

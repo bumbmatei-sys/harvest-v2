@@ -58,16 +58,19 @@ afterAll(async () => {
 });
 
 const ctx = (slug: string) => ({ params: Promise.resolve({ slug }) });
-const get = (slug: string) => GET(new Request(`${origin}/f/${slug}`), ctx(slug));
-const post = (slug: string, raw: string, requestOrigin = origin, mime = "application/json") => POST(new Request(`${origin}/f/${slug}/submit`, {
-  method: "POST", headers: { origin: requestOrigin, "content-type": mime }, body: raw,
+// Every request is a new visitor unless a test names one, so ordinary tests never share a rate-limit bucket.
+let visitors = 0;
+const fresh = () => `198.51.${(visitors >> 8) & 255}.${visitors++ & 255}`;
+const get = (slug: string, visitor = fresh()) => GET(new Request(`${origin}/f/${slug}`, { headers: { "x-forwarded-for": visitor } }), ctx(slug));
+const post = (slug: string, raw: string, requestOrigin = origin, mime = "application/json", visitor = fresh()) => POST(new Request(`${origin}/f/${slug}/submit`, {
+  method: "POST", headers: { origin: requestOrigin, "content-type": mime, "x-forwarded-for": visitor }, body: raw,
 }), ctx(slug));
-async function publish(id: string, slug: string, revision: number) {
-  return transitionCrmForm(fixture.db, people.admin, people.tenant, id, { action: "publish", slug, revision });
+async function publish(id: string, slug: string, revision: number, actor = people.admin, tenant = people.tenant) {
+  return transitionCrmForm(fixture.db, actor, tenant, id, { action: "publish", slug, revision });
 }
-async function draft(change?: (definition: FormDefinition) => void) {
-  const created = await createCrmForm(fixture.db, people.admin, people.tenant, { destination: { type: "people" } });
-  const { definition } = await getCrmForm(fixture.db, people.admin, people.tenant, created.id);
+async function draft(change?: (definition: FormDefinition) => void, actor = people.admin, tenant = people.tenant) {
+  const created = await createCrmForm(fixture.db, actor, tenant, { destination: { type: "people" } });
+  const { definition } = await getCrmForm(fixture.db, actor, tenant, created.id);
   definition.blocks.unshift(
     { id: "fullname", type: "short", label: "Name", required: true, mapTo: "name" },
     { id: "email000", type: "email", label: "Email", required: false, mapTo: "email" },
@@ -76,10 +79,10 @@ async function draft(change?: (definition: FormDefinition) => void) {
     { id: "choice00", type: "choice", label: "Choice", required: false, options: ["A", "B"] },
   );
   definition.settings.spamCheck = false;
-  definition.settings.ownerId = people.member;
+  definition.settings.ownerId = tenant === people.tenant ? people.member : null;
   definition.settings.labels = ["Visitor", "Registration"];
   change?.(definition);
-  const saved = await saveCrmForm(fixture.db, people.admin, people.tenant, created.id, { definition, revision: 1 });
+  const saved = await saveCrmForm(fixture.db, actor, tenant, created.id, { definition, revision: 1 });
   return { id: created.id, definition, revision: saved.revision };
 }
 const answers = (email = "visitor@example.test") => ({ fullname: "Synthetic Person", email000: email, choice00: "A", consent0: "yes" });
@@ -284,7 +287,7 @@ it("accepts an account-less response once, scopes provenance, and exposes a pagi
   await withTenant(fixture.db, people.outsider, people.other, "crm:forms_manage", async tx => {
     expect((await tx.execute(sql`select id from crm_form_responses where tenant_id = ${people.tenant}`)).rows).toEqual([]);
     expect((await tx.execute(sql`select current_setting('app.crm_forms_tenant', true) as scope
-      from (select public.crm_form_public_form('organization-form',false)) as resolved`)).rows).toEqual([{ scope: "" }]);
+      from (select public.crm_form_public_form('organization-form','peek',null)) as resolved`)).rows).toEqual([{ scope: "" }]);
   });
   expect((await fixture.pool.query("select * from crm_form_responses")).rows).toEqual([]);
 });
@@ -309,15 +312,24 @@ it("rejects malformed, oversized, cross-origin and spam requests, then applies a
   }
   expect((await post("spam-form", raw)).status).toBe(200);
 
-  // Use a separate form and prime adjacent buckets so timing at a minute
-  // boundary cannot turn a true quota failure into a flaky test.
-  const quota = await draft();
-  await publish(quota.id, "quota-form", quota.revision);
-  await fixture.admin.query(`insert into crm_form_quotas(scope,minute,attempts)
-    select 'quota-form',date_trunc('minute',clock_timestamp()) + step * interval '1 minute',30 from generate_series(0,1) step`);
-  const limited = await post("quota-form", "{");
-  expect(limited.status).toBe(429);
-  expect(limited.headers.get("retry-after")).toBe("60");
+  // Visitor and ministry buckets are keyed by salted hashes, never by address or slug alone.
+  const { rows: scopes } = await fixture.admin.query("select scope from crm_form_quotas");
+  expect(scopes.length).toBeGreaterThan(0);
+  expect(scopes.every(row => /^(proof|visitor-form|visitor|ministry):/.test(row.scope) && !/198\.51\./.test(row.scope))).toBe(true);
+});
+
+it("keeps new responses for 90 days and freezes the ministry name into the publication", async () => {
+  const form = await draft();
+  await publish(form.id, "ninety-days", form.revision);
+  expect((await post("ninety-days", JSON.stringify(await body("ninety-days", answers("ninety@example.test"))))).status).toBe(200);
+  const { rows: [row] } = await fixture.admin.query(`select extract(epoch from (expires_at - submitted_at)) / 86400 as days from crm_form_responses where form_id=$1`, [form.id]);
+  expect(Math.round(Number(row.days))).toBe(90);
+  const manifest = await (await get("ninety-days")).json() as { ministryName: string };
+  const { rows: [workspace] } = await fixture.admin.query("select name from workspaces where tenant_id=$1", [people.tenant]);
+  expect(manifest.ministryName).toBe(workspace.name);
+  await fixture.admin.query("update workspaces set name='Renamed ministry' where tenant_id=$1", [people.tenant]);
+  expect((await (await get("ninety-days")).json() as { ministryName: string }).ministryName).toBe(workspace.name);
+  await fixture.admin.query("update workspaces set name=$2 where tenant_id=$1", [people.tenant, workspace.name]);
 });
 
 it("avoids split-identity merges and creates the published pipeline destination for a Phone response", async () => {
@@ -429,4 +441,47 @@ it("uses the same hosted source rules for list, count, saved views and export", 
   expect(await listContacts(fixture.db, people.member, tenant, kindOnly)).toMatchObject({ locked: "source_access", total: 0 });
   expect(await listContacts(fixture.db, people.outsider, people.other, { s: serializeSourceRule(include) }))
     .toMatchObject({ locked: "invalid_source", total: 0 });
+});
+
+// Last: this test publishes a form in the second ministry.
+it("limits each visitor per form and across forms, charges proofs, and isolates visitors and ministries", async () => {
+  // Stay clear of a minute boundary, which would reset the counters mid-test.
+  const wait = 61_000 - (Date.now() % 60_000);
+  if (wait < 15_000) await new Promise(resolve => setTimeout(resolve, wait));
+  const slugs = ["limit-one", "limit-two", "limit-three", "limit-four", "limit-five"];
+  for (const slug of slugs) { const form = await draft(); await publish(form.id, slug, form.revision); }
+  const status = async (slug: string, visitor: string) => (await post(slug, "{", origin, "application/json", visitor)).status;
+  // Five per minute per form: the sixth is limited with a neutral error; another visitor is unaffected.
+  const noisy = "203.0.113.10";
+  for (let n = 0; n < 5; n++) expect(await status("limit-one", noisy)).toBe(400);
+  const limited = await post("limit-one", "{", origin, "application/json", noisy);
+  expect(limited.status).toBe(429);
+  expect(limited.headers.get("retry-after")).toBe("60");
+  expect(await limited.json()).toEqual({ error: "rate_limited" });
+  expect(await status("limit-one", "203.0.113.11")).toBe(400);
+  expect(await status("limit-two", noisy)).toBe(400); // The form bucket is per form.
+  // Twenty per minute across forms: noisy spent 6, so 14 more across forms are accepted and the next is limited.
+  for (const slug of ["limit-two", "limit-three", "limit-four"]) {
+    for (let n = 0; n < 5; n++) if (!(slug === "limit-two" && n === 4)) expect(await status(slug, noisy)).toBe(400);
+  }
+  expect(await status("limit-five", noisy)).toBe(429);
+  expect(await status("limit-five", "203.0.113.12")).toBe(400);
+  // Proofs: 30 per minute per visitor, and one visitor's cap does not affect another.
+  const minter = "203.0.113.14";
+  for (let n = 0; n < 30; n++) expect((await get("limit-one", minter)).status).toBe(200);
+  expect((await get("limit-one", minter)).status).toBe(429);
+  expect((await get("limit-one", "203.0.113.15")).status).toBe(200);
+  // Unknown forms stay neutral, and a request with no usable address is refused before any lookup.
+  expect((await get("no-such-form", minter)).status).toBe(404);
+  expect((await GET(new Request(`${origin}/f/limit-one`), ctx("limit-one"))).status).toBe(503);
+  // Ministry bucket: 300 per minute per ministry, independent of other ministries.
+  const otherForm = await draft(undefined, people.outsider, people.other);
+  await publish(otherForm.id, "other-ministry", otherForm.revision, people.outsider, people.other);
+  await fixture.admin.query(`insert into crm_form_quotas(scope,minute,attempts)
+    select 'ministry:' || $1::text, date_trunc('minute',clock_timestamp()) + step * interval '1 minute', 300 from generate_series(0,1) step
+    on conflict (scope,minute) do update set attempts=300`, [people.tenant]);
+  expect(await status("limit-two", "203.0.113.16")).toBe(429);
+  expect(await status("other-ministry", "203.0.113.16")).toBe(400);
+  const { rows: scopes } = await fixture.admin.query("select scope from crm_form_quotas");
+  expect(scopes.every(row => /^(proof|visitor-form|visitor|ministry):/.test(row.scope) && !row.scope.includes("203.0.113."))).toBe(true);
 });
