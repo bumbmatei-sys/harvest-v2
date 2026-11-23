@@ -179,7 +179,7 @@ describe("source performance and contact growth", () => {
 });
 
 describe("source evidence expiry", () => {
-  it("credits a contact whose form evidence has expired to Unknown, because the report reads source events under RLS", async () => {
+  it("credits an expired form response with no source tag to Unknown, because the report reads source events under RLS", async () => {
     const ministry = (await createWorkspace(fixture.db, "owner-b", "Reports expiry")).tenantId;
     for (let n = 0; n < 10; n++) {
       const person = await createContact(fixture.db, "owner-b", ministry, { name: `Synthetic form person ${n}` });
@@ -194,6 +194,14 @@ describe("source evidence expiry", () => {
     expect(contacts?.added).toBe(10);
     expect(contacts?.sources.find((s) => s.source === "form")).toEqual({ source: "form", added: 5, withDeal: 0 });
     expect(contacts?.sources.find((s) => s.source === "unknown")).toEqual({ source: "unknown", added: 5, withDeal: 0 });
+    // With the source tag that submissions now leave, the expired five still count as form-sourced.
+    for (const { id } of (await fixture.admin.query("select id from contacts where tenant_id = $1 and name like 'Synthetic form person %'", [ministry])).rows) {
+      const { rows: [row] } = await fixture.admin.query("select form_id, version_id from crm_form_responses where tenant_id = $1 and contact_id = $2", [ministry, id]);
+      await backdate("insert into contact_form_sources(tenant_id, contact_id, form_id, version_id, form_title, occurred_at) values ($1, $2, $3, $4, 'Synthetic form', $5)", [ministry, id, row.form_id, row.version_id, at.R4]);
+    }
+    const tagged = (await getCrmReport(fixture.db, "owner-b", ministry, "last7", now)).contacts;
+    expect(tagged?.sources.find((s) => s.source === "form")).toEqual({ source: "form", added: 10, withDeal: 0 });
+    expect(tagged?.sources.find((s) => s.source === "unknown")?.added ?? 0).toBe(0);
   });
 });
 

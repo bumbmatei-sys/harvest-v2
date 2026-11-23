@@ -250,16 +250,24 @@ export async function resolveSourceReferences(tx: Transaction, tenantId: string,
  * what the Source column shows.
  */
 function sourceEvents(tenantId: string, order: "first" | "latest" | "any") {
-  const base = sql`select s.id, s.kind, s.occurred_at, s.entry_route,
+  // The form tag stands in for a hosted-form event only once no retained event of that version remains,
+  // so campaign and link rules keep matching the response while it exists.
+  const base = sql`select * from (select s.id, s.kind, s.occurred_at, s.entry_route,
       coalesce(r.campaign_id, f.campaign_id) as campaign_id,
       coalesce(r.link_id, f.qr_link_id) as link_id,
       coalesce(r.form_version_id, f.version_id) as form_version_id
     from contact_source_events s left join campaign_responses r on r.tenant_id = s.tenant_id and r.id = s.response_id
     left join crm_form_responses f on f.tenant_id = s.tenant_id and f.id = s.crm_form_response_id
-    where s.tenant_id = ${tenantId} and s.contact_id = contacts.id and s.reverted_at is null`;
+    where s.tenant_id = ${tenantId} and s.contact_id = contacts.id and s.reverted_at is null
+    union all
+    select t.version_id, 'form', t.occurred_at, null::text, null::uuid, null::uuid, t.version_id
+    from contact_form_sources t
+    where t.tenant_id = ${tenantId} and t.contact_id = contacts.id
+      and not exists (select 1 from contact_source_events s2 join crm_form_responses f2 on f2.tenant_id = s2.tenant_id and f2.id = s2.crm_form_response_id
+        where s2.tenant_id = t.tenant_id and s2.contact_id = t.contact_id and s2.reverted_at is null and f2.version_id = t.version_id)) events`;
   if (order === "any") return base;
   const direction = sql.raw(order === "first" ? "asc" : "desc");
-  return sql`${base} order by s.occurred_at ${direction}, s.id ${direction} limit 1`;
+  return sql`${base} order by occurred_at ${direction}, id ${direction} limit 1`;
 }
 function ruleMatches(tenantId: string, rule: SourceRule): SQL {
   if (rule.kinds.includes("unknown")) return sql`not exists (${sourceEvents(tenantId, "any")})`;

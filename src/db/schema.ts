@@ -1020,6 +1020,16 @@ export const crmFormReceipts = pgTable("crm_form_receipts", {
   id: uuid("id").primaryKey(), expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
 }, t => [index("crm_form_receipt_expiry_idx").on(t.expiresAt)]);
 
+// A minimal source tag that outlives the hosted-form response: the immutable publication title and the first
+// submission time, never answers. Written only by the submit definer; removed on erasure, moved on merge.
+export const contactFormSources = pgTable("contact_form_sources", {
+  tenantId: uuid("tenant_id").notNull(), contactId: uuid("contact_id").notNull(), formId: uuid("form_id").notNull(), versionId: uuid("version_id").notNull(),
+  formTitle: text("form_title").notNull(), occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+}, t => [primaryKey({ columns: [t.tenantId, t.contactId, t.versionId] }),
+  foreignKey({ name: "contact_form_sources_contact_fk", columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }).onDelete("cascade"),
+  foreignKey({ name: "contact_form_sources_publication_fk", columns: [t.tenantId, t.formId, t.versionId], foreignColumns: [crmFormPublications.tenantId, crmFormPublications.formId, crmFormPublications.versionId] }),
+  check("contact_form_sources_title", sql`length(${t.formTitle}) <= 300`)]);
+
 // HC-06A: minimal provenance; trusted database writers own all mutations.
 export const contactSourceEvents = pgTable("contact_source_events", {
   id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id").notNull(), contactId: uuid("contact_id").notNull(),
