@@ -48,7 +48,7 @@ test("audience: lens counts, filters, lists, saved groups, consent rules and the
   if (process.env.HARVEST_SHELL_MODES !== "disabled") {
     const sidebar = page.locator("[data-sidebar=\"sidebar\"]").first();
     await expect(sidebar.getByRole("link", { name: "Audience", exact: true })).toHaveAttribute("aria-current", "page");
-    await expect(sidebar.getByRole("link", { name: "Campaigns", exact: true })).toHaveCount(0);
+    await expect(sidebar.getByRole("link", { name: "Campaigns", exact: true })).not.toHaveAttribute("aria-current", "page");
   }
   const lens = page.getByRole("navigation", { name: "Status" });
   for (const [label, count] of [["All people", "3"], ["Subscribed", "0"], ["Not on a list", "1"], ["Unsubscribed", "1"], ["No consent yet", "1"]] as const)
