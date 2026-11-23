@@ -54,13 +54,14 @@ export function SourceRuleEditor({ initial, options, error: loadError, onRetry, 
 }) {
   const t = useTranslations("Crm"), id = useId();
   const [rule, setRule] = useState<SourceRule>(initial ?? empty()), [error, setError] = useState("");
-  const connectOnly = rule.kinds.length === 1 && rule.kinds[0] === "connect", unknown = rule.kinds.includes("unknown");
+  const connectOnly = rule.kinds.length === 1 && rule.kinds[0] === "connect", hostedOnly = rule.kinds.length === 1 && rule.kinds[0] === "form", unknown = rule.kinds.includes("unknown");
   const update = (patch: Partial<SourceRule>) => { setRule((current) => ({ ...current, ...patch })); setError(""); };
   function toggleKind(kind: SourceKind, checked: boolean) {
     if (kind === "unknown") { update(checked ? { kinds: ["unknown"], match: "any", campaigns: [], links: [], forms: [], route: null, from: null, to: null } : { kinds: [] }); return; }
     const kinds = checked ? [...rule.kinds.filter((item) => item !== "unknown"), kind] : rule.kinds.filter((item) => item !== kind);
-    const keepConnect = kinds.length === 1 && kinds[0] === "connect";
-    update({ kinds, ...(keepConnect ? {} : { campaigns: [], links: [], forms: [], route: null }) });
+    const keepConnect = kinds.length === 1 && kinds[0] === "connect", keepHosted = kinds.length === 1 && kinds[0] === "form";
+    // Hosted forms keep only their own named-form choice; Connect keeps its campaign, link, form and route choices.
+    update({ kinds, ...(keepConnect ? {} : keepHosted ? { campaigns: [], links: [], route: null, forms: rule.kinds.includes("form") ? rule.forms : [] } : { campaigns: [], links: [], forms: [], route: null }) });
   }
   const links = (options?.links ?? []).filter((link) => !rule.campaigns.length || rule.campaigns.includes(link.campaignId));
   function stage() {
@@ -69,7 +70,7 @@ export function SourceRuleEditor({ initial, options, error: loadError, onRetry, 
     const conditions = rule.kinds.length || rule.from || rule.to;
     if (!parsed.success || !conditions) { setError(t("sourceFilters.complete")); return; }
     const picked: Record<string, string> = {};
-    for (const item of [...(options?.campaigns ?? []), ...(options?.links ?? []), ...(options?.forms ?? [])]) if ([...parsed.data.campaigns, ...parsed.data.links, ...parsed.data.forms].includes(item.id)) picked[item.id] = item.name;
+    for (const item of [...(options?.campaigns ?? []), ...(options?.links ?? []), ...(options?.forms ?? []), ...(options?.hostedForms ?? [])]) if ([...parsed.data.campaigns, ...parsed.data.links, ...parsed.data.forms].includes(item.id)) picked[item.id] = item.name;
     const failure = onStage(parsed.data, picked);
     if (failure) setError(failure);
   }
@@ -101,6 +102,9 @@ export function SourceRuleEditor({ initial, options, error: loadError, onRetry, 
               {sourceRoutes.map((route) => <NativeSelectOption key={route} value={route}>{t(`sourceHistory.${route}`)}</NativeSelectOption>)}
             </NativeSelect></Field>
         </>)}
+    {hostedOnly && (loadError ? <div className="space-y-2"><p role="alert" className="text-xs text-destructive">{t("sourceFilters.loadFailed")}</p><Button type="button" variant="outline" size="responsive" onClick={onRetry}>{t("sourceFilters.retry")}</Button></div>
+      : !options ? <p className="text-xs text-muted-foreground" aria-live="polite">{t("sourceFilters.loading")}</p>
+        : <Checklist legend={t("sourceFilters.forms")} items={named(options.hostedForms)} selected={rule.forms} onChange={(forms) => update({ forms })} />)}
     {!unknown && <fieldset className="space-y-1.5"><legend className="mb-1.5 text-xs font-medium">{t("sourceFilters.dates")}</legend>
       <div className="grid grid-cols-2 gap-2">
         <Field className="gap-1"><FieldLabel htmlFor={`${id}-from`} className="text-xs font-normal text-muted-foreground">{t("sourceFilters.from")}</FieldLabel>

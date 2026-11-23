@@ -70,6 +70,8 @@ export async function createCrmForm(db: Database, userId: string, workspace: str
 export type LoadedForm = {
   id: string; definition: FormDefinition; createdAt: string; createdBy: string; responseCount: number;
   publication: { slug: string; state: "published" | "retired"; versionId: string | null } | null;
+  /** True when the form is published and the draft has been edited since (the next publish replaces the live version). */
+  unpublishedChanges: boolean;
 };
 export async function loadCrmForm(tx: Parameters<Parameters<typeof withTenant>[4]>[0], tenantId: string, formId: string) {
   const [row] = (await tx.execute(sql`select f.id, f.created_at as "createdAt", coalesce(nullif(u.name, ''), u.email) as "createdBy",
@@ -92,6 +94,7 @@ export async function loadCrmForm(tx: Parameters<Parameters<typeof withTenant>[4
     id: row.id, definition: parsed.data, createdAt: new Date(row.createdAt).toISOString(), createdBy: row.createdBy,
     responseCount: row.responseCount,
     publication: row.slug ? { slug: row.slug, state: row.publishedId ? "published" : "retired", versionId: row.publishedId } : null,
+    unpublishedChanges: Boolean(row.publishedId) && !row.frozen,
   };
   return { form, draftId: row.draftId, draftVersion: row.draftVersion, frozen: row.frozen };
 }

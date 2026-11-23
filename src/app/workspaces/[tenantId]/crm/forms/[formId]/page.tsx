@@ -6,6 +6,7 @@ import { pageSession } from "@/server/page-session";
 import { getWorkspace } from "@/server/workspaces";
 import { getCrmForm } from "@/server/crm-forms";
 import { assignableMembers, destinationOptions } from "@/server/crm-form-options";
+import { syntheticCrmFormsKey } from "@/server/crm-form-mode";
 import { AccessError, can } from "@/server/permissions";
 import { uuidInput } from "@/lib/contact-input";
 import { AccessState } from "@/components/access-state";
@@ -28,5 +29,6 @@ export default async function FormEditorPage({ params }: { params: Promise<{ ten
   const form = await getCrmForm(db, session.user.id, tenantId, formId).catch((error: unknown) => { if (error instanceof AccessError && error.status === 404) return null; throw error; });
   if (!form) notFound();
   const [destinations, members] = await Promise.all([destinationOptions(db, session.user.id, tenantId), assignableMembers(db, session.user.id, tenantId)]);
-  return <FormEditor ministryName={workspace.name} tenantId={tenantId} formId={formId} initial={form.definition} revision={form.definition.revision} destinations={destinations.options} members={members} />;
+  return <FormEditor ministryName={workspace.name} tenantId={tenantId} formId={formId} initial={form.definition} revision={form.definition.revision} destinations={destinations.options} members={members}
+    responseCount={form.responseCount} publication={form.publication} unpublishedChanges={form.unpublishedChanges} hostedAvailable={syntheticCrmFormsKey() !== null} />;
 }

@@ -17,12 +17,16 @@ Main's last was 0079; no open PR claims 0080 at the time of writing. Adds `due_a
 
 ## Tests
 
-- `tests/integration/crm-task-notifications.test.ts` (8): once-only, concurrent loads, reschedule reset, completion and reassignment, preferences, left ministry, other-tenant isolation, raw insert refusal, erase and merge of a linked contact.
+- `tests/integration/crm-task-notifications.test.ts` (9, includes the backlog test below): once-only, concurrent loads, reschedule reset, completion and reassignment, preferences, left ministry, other-tenant isolation, raw insert refusal, erase and merge of a linked contact.
 - `tests/integration/crm-task-notifications-owner.test.ts`: restricted-owner migration, forced RLS, guard ACL.
 - `tests/unit/crm-notification-channels.test.ts`: hard-off guard.
 - `tests/e2e/crm-notifications.spec.ts`: bell list, once-only, preference toggle, 44px toggle rows, axe and overflow at 360, 768 and 1280 in light and dark, with and without `HARVEST_SHELL_MODES=disabled`. Screenshots in `docs/screenshots/crm-notifications/`.
 
 No navigation entry changed, so nav link counts are unchanged.
+
+## Backlog drain (follow-up)
+
+The lazy generator selects at most 200 candidates per kind per load. It now skips tasks that already have a notice for that kind and due time (`NOT EXISTS`) and orders by due time then id, so a person with more than 200 due or overdue tasks gets the rest on the following loads instead of the same first 200 every time. No migration. The test seeds 450 overdue tasks and shows 200 notices after the first load, 450 after repeated loads, and no duplicates.
 
 ## Deferred
 

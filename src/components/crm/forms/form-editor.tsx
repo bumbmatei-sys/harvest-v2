@@ -20,9 +20,16 @@ import { BuildCanvas } from "@/components/crm/forms/build-canvas";
 import { FormSettingsPanel, type Destination, type Member } from "@/components/crm/forms/form-settings";
 import { commit, formIssues, formLimits, redo, startHistory, undo, type FormDefinition, type FormDestination, type FormSettings } from "@/lib/crm-forms";
 
+export type Publication = { slug: string; state: "published" | "retired"; versionId: string | null };
 type Tab = "build" | "settings" | "preview";
 type Save = "saved" | "saving" | "error" | "conflict" | "rejected";
 const AUTOSAVE_MS = 900;
+
+/** A starting address from the title; the server enforces the final rules (lowercase letters, digits and single hyphens, 3 to 64 characters). */
+function suggestSlug(title: string) {
+  return title.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 60).replace(/-+$/g, "");
+}
+const slugPattern = /^[a-z0-9]([a-z0-9-]{1,62}[a-z0-9])$/;
 
 function destinationOf(value: string): FormDestination | null {
   if (!value) return null;
@@ -32,10 +39,14 @@ function destinationOf(value: string): FormDestination | null {
 /**
  * The CRM forms builder. Top bar: responses, Build / Settings / Preview, open, copy link and Publish. Build edits the form on a canvas with a
  * Start page and End page rail; Settings is a collapsible sidebar beside the live form; Preview is the form as a respondent sees it.
- * Drafts autosave. Publishing and the hosted link are not available yet, so those controls say so instead of pretending.
+ * Drafts autosave. Publish, Unpublish, Copy link and Open call the server's publication endpoint; where the server does not serve hosted
+ * forms (production) the controls say so. Editing a published form saves a new draft; the live version stays until the next Publish.
  */
-export function FormEditor({ tenantId, formId, initial, revision, destinations, members, ministryName }: {
+export function FormEditor({ tenantId, formId, initial, revision, destinations, members, responseCount, publication: initialPublication, unpublishedChanges, hostedAvailable, ministryName }: {
   ministryName?: string; tenantId: string; formId: string; initial: FormDefinition; revision: number; destinations: Destination[]; members: Member[];
+  responseCount: number; publication: Publication | null; unpublishedChanges: boolean;
+  /** False when this environment does not serve hosted forms (production); the controls then say so instead of acting. */
+  hostedAvailable: boolean;
 }) {
   const t = useTranslations("CrmForms"), tb = useTranslations("CrmForms.bar");
   const request = useCrmRequest();
@@ -49,9 +60,16 @@ export function FormEditor({ tenantId, formId, initial, revision, destinations, 
   const shown: Save = save === "saved" && dirty ? "saving" : save;
   const { destination, setDestination, leave } = useUnsavedChangesGuard(shown !== "saved");
   const issues = useMemo(() => formIssues(form), [form]);
+  const [publication, setPublication] = useState<Publication | null>(initialPublication), [pending, setPending] = useState(unpublishedChanges);
+  const [available, setAvailable] = useState(hostedAvailable), [dialog, setDialog] = useState<"publish" | "unpublish" | null>(null);
+  const [slug, setSlug] = useState(""), [acting, setActing] = useState(false), [actionError, setActionError] = useState("");
+  const published = publication?.state === "published";
 
   const change = useCallback((fn: (f: FormDefinition) => FormDefinition, key?: string) => { setSave((current) => current === "rejected" ? "saved" : current); setHistory((h) => commit(h, fn(h.present), Date.now(), key ?? null)); }, []);
   const changeSettings = useCallback((fn: (s: FormSettings) => FormSettings, key?: string) => change((f) => ({ ...f, settings: fn(f.settings) }), key), [change]);
+
+  const publicationRef = useRef(publication);
+  useEffect(() => { publicationRef.current = publication; }, [publication]);
 
   const flush = useCallback(async (definition: FormDefinition) => {
     if (busy.current) return;
@@ -59,7 +77,7 @@ export function FormEditor({ tenantId, formId, initial, revision, destinations, 
     const body = JSON.stringify(strip(definition));
     const result = await request<{ revision: number }>(`/api/workspaces/${tenantId}/crm/forms/${formId}`, { method: "PUT", body: { definition, revision: rev.current } });
     busy.current = false;
-    if (result.ok) { rev.current = result.data.revision; setSavedJson(body); setSave("saved"); }
+    if (result.ok) { rev.current = result.data.revision; setSavedJson(body); setSave("saved"); if (publicationRef.current?.state === "published") setPending(true); }
     else if (result.status === 400 && result.details?.reason === "too_large") setSave("rejected"); else setSave(result.status === 409 ? "conflict" : "error");
   }, [request, tenantId, formId]);
 
@@ -80,6 +98,29 @@ export function FormEditor({ tenantId, formId, initial, revision, destinations, 
   }, []);
 
   const unavailable = () => notify.info(t("bar.unavailable"));
+  const address = publication ? `${typeof location === "undefined" ? "" : location.origin}/f/${publication.slug}` : "";
+  const readyToPublish = shown === "saved" && issues.length === 0 && !acting;
+  function openDialog(kind: "publish" | "unpublish") {
+    if (!available) { unavailable(); return; }
+    setActionError(""); setSlug(publication?.slug ?? suggestSlug(form.title)); setDialog(kind);
+  }
+  async function transition(action: "publish" | "retire") {
+    setActing(true); setActionError("");
+    const result = await request<Publication>(`/api/workspaces/${tenantId}/crm/forms/${formId}/publication`, { method: "POST", body: action === "publish" ? { action, slug, revision: rev.current } : { action } });
+    setActing(false);
+    if (result.ok) {
+      setPublication(result.data); setPending(false); setDialog(null);
+      notify.success(action === "publish" ? tb("publishedToast") : tb("unpublishedToast"));
+      return;
+    }
+    if (result.status === 404) { setAvailable(false); setDialog(null); unavailable(); return; }
+    const reason = result.details?.reason;
+    setActionError(reason === "slug_taken" ? t("publish.slugTaken") : reason === "stale" ? t("errors.conflict") : reason === "invalid_slug" ? t("publish.slugInvalid") : reason === "invalid_definition" || reason === "invalid_notice" || reason === "invalid_owner" ? t("publish.invalid") : t("publish.failed"));
+  }
+  async function copyLink() {
+    try { await navigator.clipboard.writeText(address); notify.success(tb("copied")); } catch { notify.error(t("publish.copyFailed")); }
+  }
+  const stateLabel = published ? (pending ? tb("publishedChanges") : tb("published")) : publication ? tb("retired") : tb("draft");
   const destinationChange = (value: string) => change((f) => ({ ...f, destination: destinationOf(value) }));
   const status = shown === "saving" ? tb("saving") : shown === "saved" ? tb("saved") : shown === "conflict" ? tb("conflictShort") : tb("saveFailed");
 
@@ -100,13 +141,18 @@ export function FormEditor({ tenantId, formId, initial, revision, destinations, 
 
     <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)} className="gap-4">
     <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
-      <Badge variant="outline" className="h-8 rounded-md px-3 text-sm font-normal" data-responses>{tb("responses", { count: 0 })}</Badge>
+      <Badge variant="outline" className="h-8 rounded-md px-3 text-sm font-normal" data-responses>{tb("responses", { count: responseCount })}</Badge>
+      <Badge variant={published ? "default" : "secondary"} className="h-8 rounded-md px-3 text-sm font-normal" data-publication-state={publication?.state ?? "draft"}>{stateLabel}</Badge>
       <TabsList className="order-last w-full sm:order-none sm:w-auto" aria-label={tb("views")}>{(["build", "settings", "preview"] as const).map((value) => <TabsTrigger key={value} value={value} className="min-h-11 flex-1 sm:flex-none sm:px-5">{tb(value)}</TabsTrigger>)}</TabsList>
       <div className="flex items-center gap-2">
-        <Button type="button" variant="ghost" size="icon" className="size-11" aria-disabled="true" aria-label={tb("open")} onClick={unavailable}><ExternalLink aria-hidden="true" /></Button>
+        {published && available
+          ? <Button asChild variant="ghost" size="icon" className="size-11"><a href={`/f/${publication?.slug}`} target="_blank" rel="noopener noreferrer" aria-label={tb("open")} data-open-form><ExternalLink aria-hidden="true" /></a></Button>
+          : <Button type="button" variant="ghost" size="icon" className="size-11" aria-disabled="true" aria-label={tb("open")} onClick={unavailable}><ExternalLink aria-hidden="true" /></Button>}
         <DropdownMenu><DropdownMenuTrigger asChild><Button type="button" variant="outline" className="min-h-11">{tb("copy")}<ChevronDown aria-hidden="true" /></Button></DropdownMenuTrigger>
-          <DropdownMenuContent align="end"><DropdownMenuItem className="min-h-11" onSelect={unavailable}>{tb("copyLink")}</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
-        <Button type="button" variant="outline" className="min-h-11" aria-disabled="true" onClick={unavailable} data-publish>{tb("publish")}</Button>
+          <DropdownMenuContent align="end"><DropdownMenuItem className="min-h-11" disabled={!published || !available} onSelect={() => void copyLink()}>{tb("copyLink")}</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
+        {published && <Button type="button" variant="outline" className="min-h-11" disabled={acting} onClick={() => openDialog("unpublish")} data-unpublish>{tb("unpublish")}</Button>}
+        {!available ? <Button type="button" variant="outline" className="min-h-11" aria-disabled="true" onClick={unavailable} data-publish>{tb("publish")}</Button>
+          : (!published || pending) && <Button type="button" className="min-h-11" disabled={!readyToPublish} onClick={() => openDialog("publish")} data-publish>{published ? tb("republish") : tb("publish")}</Button>}
       </div>
     </div>
 
@@ -134,6 +180,25 @@ export function FormEditor({ tenantId, formId, initial, revision, destinations, 
     <TabsContent value="preview"><div className="mx-auto w-full max-w-3xl" data-preview-tab><PublicForm form={form} ministryName={ministryName} idPrefix="preview" /></div></TabsContent>
     </Tabs>
     <p className="sr-only" role="status" aria-live="polite">{live}</p>
+
+    <AlertDialog open={dialog !== null} onOpenChange={(open) => { if (!open && !acting) setDialog(null); }}>
+      <AlertDialogContent data-publication-dialog={dialog ?? undefined}>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{dialog === "unpublish" ? t("publish.unpublishTitle") : t("publish.title")}</AlertDialogTitle>
+          <AlertDialogDescription>{dialog === "unpublish" ? t("publish.unpublishBody") : t("publish.body")}</AlertDialogDescription>
+        </AlertDialogHeader>
+        {dialog === "publish" && <div className="space-y-1.5">
+          <label htmlFor="form-slug" className="text-sm font-medium">{t("publish.address")}</label>
+          <div className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground"><span className="shrink-0">{t("publish.prefix")}</span>
+            <Input id="form-slug" value={slug} readOnly={publication !== null} maxLength={64} autoComplete="off" spellCheck={false} className="h-11 min-w-0" aria-invalid={slug !== "" && !slugPattern.test(slug)} onChange={(event) => { setSlug(event.target.value.toLowerCase()); setActionError(""); }} /></div>
+          {publication !== null && <p className="text-xs text-muted-foreground">{t("publish.addressLocked")}</p>}
+        </div>}
+        {actionError && <Alert variant="destructive" role="alert"><AlertDescription>{actionError}</AlertDescription></Alert>}
+        <AlertDialogFooter>
+          <AlertDialogCancel className="min-h-11" disabled={acting}>{t("publish.cancel")}</AlertDialogCancel>
+          <AlertDialogAction className="min-h-11" disabled={acting || (dialog === "publish" && !slugPattern.test(slug))} onClick={(event) => { event.preventDefault(); void transition(dialog === "unpublish" ? "retire" : "publish"); }} data-confirm-publication>
+            {acting ? <Loader2 className="animate-spin" aria-hidden="true" /> : null}{dialog === "unpublish" ? t("publish.unpublishConfirm") : t("publish.confirm")}</AlertDialogAction>
+        </AlertDialogFooter></AlertDialogContent></AlertDialog>
 
     <AlertDialog open={destination !== null} onOpenChange={(open) => { if (!open) setDestination(null); }}>
       <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{t("leave.title")}</AlertDialogTitle><AlertDialogDescription>{t("leave.body")}</AlertDialogDescription></AlertDialogHeader>
