@@ -51,6 +51,6 @@ export function AddToListButton({ tenantId, listId }: { tenantId: string; listId
       if (!result.ok) return result.error;
       const outcome = result.data.outcomes[item.id];
       if (outcome === "added" || outcome === "already") { router.refresh(); return null; }
-      return outcome === "needs_consent" ? t("needsConsent") : outcome === "suppressed" ? t("suppressedPerson") : t("personUnavailable");
+      return outcome === "needs_consent" ? t("needsConsent") : outcome === "opted_out" ? t("optedOut") : outcome === "suppressed" ? t("suppressedPerson") : t("personUnavailable");
     }} />;
 }

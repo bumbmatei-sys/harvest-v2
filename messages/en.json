@@ -6461,6 +6461,7 @@
     "emptyTitle": "No people here yet",
     "emptyDescription": "People appear once they exist in your ministry.",
     "privacy": "Subscribed means a recorded newsletter consent and a list. Nobody is subscribed by default.",
-    "statusNav": "Status"
+    "statusNav": "Status",
+    "optedOut": "This person unsubscribed from this list themselves, so they cannot be added back."
   }
 }

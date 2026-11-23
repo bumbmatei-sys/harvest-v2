@@ -73,11 +73,11 @@ export function listAudiencePeople(db: Database, user: string, workspace: string
 /** Lists, saved groups and ministry-wide status counts. Counts are exact; nothing is sampled. */
 export function audienceOverview(db: Database, user: string, workspace: string) {
   return withNewsletter(db, user, workspace, "newsletter:read", async (tx, tenantId) => {
-    const status = audienceStatusSql(tenantId);
-    const [counts] = await tx.select({
-      all: sql<number>`count(*)::int`,
-      ...Object.fromEntries(audienceStatuses.map((value) => [value, sql<number>`(count(*) filter (where ${status} = ${value}))::int`])),
-    }).from(contacts).where(and(eq(contacts.tenantId, tenantId), isNull(contacts.erasedAt)));
+    // The status expression is evaluated once per person (a lateral subquery), then grouped.
+    const grouped = await tx.execute<{ status: AudienceStatus; n: number }>(sql`select s.status, count(*)::int as n from contacts
+      cross join lateral (select ${audienceStatusSql(tenantId)} as status) s where contacts.tenant_id = ${tenantId}::uuid and contacts.erased_at is null group by s.status`);
+    const counts = { all: 0, subscribed: 0, not_on_list: 0, unsubscribed: 0, never: 0, suppressed: 0 };
+    for (const row of grouped.rows) { counts[row.status] = row.n; counts.all += row.n; }
     const lists = await tx.select({ id: newsletterLists.id, name: newsletterLists.name, audienceId: newsletterLists.audienceId, version: newsletterLists.version,
       subscribed: sql<number>`(select count(*) from newsletter_subscriptions ns join contacts c on c.tenant_id = ns.tenant_id
         join newsletter_subscribers s on s.tenant_id = ns.tenant_id and s.id = ns.subscriber_id and s.contact_id = c.id
@@ -85,7 +85,7 @@ export function audienceOverview(db: Database, user: string, workspace: string) 
     }).from(newsletterLists).where(and(eq(newsletterLists.tenantId, tenantId), isNull(newsletterLists.archivedAt))).orderBy(asc(newsletterLists.name), asc(newsletterLists.id)).limit(200);
     const groups = await tx.select({ id: newsletterSegments.id, name: newsletterSegments.name, audienceId: newsletterSegments.audienceId })
       .from(newsletterSegments).where(eq(newsletterSegments.tenantId, tenantId)).orderBy(asc(newsletterSegments.name), asc(newsletterSegments.id)).limit(200);
-    return { counts: counts as Record<"all" | AudienceStatus, number>, lists, groups };
+    return { counts, lists, groups };
   });
 }
 
@@ -147,7 +147,7 @@ export function deleteAudienceList(db: Database, user: string, workspace: string
   });
 }
 
-export type AddOutcome = "added" | "already" | "needs_consent" | "suppressed" | "unavailable";
+export type AddOutcome = "added" | "already" | "needs_consent" | "suppressed" | "opted_out" | "unavailable";
 const peopleInput = z.object({ contactIds: z.array(z.uuid()).min(1).max(50).transform((ids) => [...new Set(ids)]) }).strict();
 /**
  * Adds people to a list. A person is subscribed only when the consent ledger already holds an explicit newsletter grant
@@ -166,6 +166,16 @@ export function addPeopleToList(db: Database, user: string, workspace: string, l
       if (subscriber?.suppressed) { outcomes[contactId] = "suppressed"; continue; }
       const [current] = subscriber ? await tx.select().from(newsletterSubscriptions).where(and(eq(newsletterSubscriptions.tenantId, tenantId), eq(newsletterSubscriptions.listId, target.id), eq(newsletterSubscriptions.subscriberId, subscriber.id))).for("update") : [];
       if (current?.state === "bounced" || current?.state === "suppressed") { outcomes[contactId] = "suppressed"; continue; }
+      // A person's own list unsubscribe (the link in an email) is never reversed by an admin adding them. It leaves no consent
+      // withdrawal, so it is read from the audit trail: an opt-out newer than the last time they were subscribed. An admin's own
+      // removal writes a different audit action, so re-adding after that stays allowed.
+      if (current?.state === "unsubscribed") {
+        const optedOut = await tx.execute<{ opted_out: boolean }>(sql`select exists (select 1 from audit_logs o where o.tenant_id = ${tenantId}::uuid
+          and o.action = 'newsletter.unsubscribe.list' and o.target_id = ${subscriber.id} and o.metadata->>'listId' = ${target.id}
+          and not exists (select 1 from audit_logs a where a.tenant_id = o.tenant_id and a.action = 'newsletter.subscription.set' and a.target_id = o.target_id
+            and a.metadata->>'listId' = ${target.id} and a.metadata->>'to' = 'subscribed' and a.created_at >= o.created_at)) as opted_out`);
+        if (optedOut.rows[0]?.opted_out) { outcomes[contactId] = "opted_out"; continue; }
+      }
       if (!decision.allowed) { outcomes[contactId] = "needs_consent"; continue; }
       if (current?.state === "subscribed") { outcomes[contactId] = "already"; continue; }
       if (!subscriber) {

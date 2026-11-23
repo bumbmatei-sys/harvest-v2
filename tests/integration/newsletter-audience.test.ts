@@ -94,6 +94,23 @@ it("removes a person from one list only, keeps consent, and is stale-safe", asyn
   expect((await addPeopleToList(fixture.db, owner, tenant, list.id, { contactIds: [eve.id] })).outcomes[eve.id]).toBe("added");
 });
 
+it("never reverses a person's own list unsubscribe, but allows re-adding after an admin removal", async () => {
+  const list = await createAudienceList(fixture.db, owner, tenant, { name: "Optout" }), jo = await person("Jo Optout", "jo@example.test"), kim = await person("Kim Removed", "kim@example.test");
+  for (const c of [jo, kim]) { await consent(c.id, "granted"); await addPeopleToList(fixture.db, owner, tenant, list.id, { contactIds: [c.id] }); }
+  const row = async (id: string) => (await fixture.admin.query("select s.id as subscriber, ns.state, ns.version, ns.consent_id from newsletter_subscriptions ns join newsletter_subscribers s on s.id=ns.subscriber_id where s.contact_id=$1 and ns.list_id=$2", [id, list.id])).rows[0];
+  // The person's own link (what nl02_apply_unsubscribe does for scope 'list'): unsubscribed, no consent change, audit by the system.
+  const before = await row(jo.id);
+  await fixture.admin.query("update newsletter_subscriptions set state='unsubscribed',consent_id=null,version=version+1,updated_at=clock_timestamp() where subscriber_id=$1 and list_id=$2", [before.subscriber, list.id]);
+  await fixture.admin.query("insert into audit_logs(tenant_id,actor_id,action,target_id,metadata) values($1,null,'newsletter.unsubscribe.list',$2,jsonb_build_object('listId',$3::text))", [tenant, before.subscriber, list.id]);
+  const opted = await row(jo.id);
+  expect((await addPeopleToList(fixture.db, owner, tenant, list.id, { contactIds: [jo.id] })).outcomes[jo.id]).toBe("opted_out");
+  expect(await row(jo.id)).toEqual(opted);
+  // An admin's own removal can be undone while consent stands.
+  const kimRow = await row(kim.id);
+  await removePersonFromList(fixture.db, owner, tenant, list.id, { subscriberId: kimRow.subscriber, version: kimRow.version });
+  expect((await addPeopleToList(fixture.db, owner, tenant, list.id, { contactIds: [kim.id] })).outcomes[kim.id]).toBe("added");
+});
+
 it("treats suppressed and bounced people as suppressed and refuses to re-add them", async () => {
   const list = await createAudienceList(fixture.db, owner, tenant, { name: "Giving" }), fay = await person("Fay Bounce", "fay@example.test"); await consent(fay.id, "granted");
   await addPeopleToList(fixture.db, owner, tenant, list.id, { contactIds: [fay.id] });
