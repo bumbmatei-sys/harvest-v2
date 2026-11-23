@@ -69,7 +69,7 @@ test("campaigns: templates, block editor, brand kit, preview, test send and the 
   expect((await order(page)).slice(3, 5)).toEqual(["columns", "quote"]);
   const handle = page.getByRole("button", { name: "Drag Quote or scripture" });
   await handle.focus();
-  await page.keyboard.press("Space"); await page.waitForTimeout(250);
+  await page.keyboard.press("Space"); await page.waitForTimeout(250); await page.keyboard.press("ArrowUp"); await page.waitForTimeout(250); await page.keyboard.press("Space");
   await page.keyboard.press("ArrowUp"); await page.waitForTimeout(250); await page.keyboard.press("Space");
   await expect.poll(async () => (await order(page)).slice(3, 5)).toEqual(["quote", "columns"]);
 
@@ -83,15 +83,13 @@ test("campaigns: templates, block editor, brand kit, preview, test send and the 
   await expect(page.locator('[data-save-status="invalid"]')).toBeVisible();
   await page.getByLabel("Button link").fill("https://example.com/events");
   await page.getByRole("button", { name: "Edit Text", exact: true }).click();
-  await page.getByRole("textbox", { name: "Email text" }).click();
-  await page.keyboard.press("ControlOrMeta+A");
-  await page.keyboard.type("A short welcome from {{firstName}}.");
+  await page.getByRole("textbox", { name: "Email text" }).fill("A short welcome from {{firstName}}.");
   await expect(preview(page).getByText("A short welcome from Ana.")).toBeVisible();
   await expect(page.locator('[data-save-status="saved"]')).toBeVisible();
 
   // Brand kit: a colour and a font change the preview.
   await page.getByRole("button", { name: "Design", exact: true }).click();
-  await page.getByRole("textbox", { name: "Main colour" }).fill("#7a1f3d");
+  await page.getByRole("textbox", { name: "Main colour" }).last().fill("#7a1f3d");
   await page.getByLabel("Font").selectOption("verdana");
   await page.getByLabel("Mailing address").fill("12 Mill Road, Springfield");
   await expect(preview(page).locator("body")).toContainText("12 Mill Road, Springfield");
@@ -104,7 +102,11 @@ test("campaigns: templates, block editor, brand kit, preview, test send and the 
   await page.getByRole("button", { name: "Mobile" }).click();
   await expect(page.locator('iframe[data-device="mobile"]')).toBeVisible();
   await page.getByRole("button", { name: "Desktop" }).click();
+  const sent = page.waitForResponse((r) => r.url().includes("/test-sink"));
   await page.getByRole("button", { name: "Send me a test" }).click();
+  const response = await sent;
+  expect(response.status(), await response.text()).toBe(200);
+  expect(await response.json()).toEqual({ test: true, mailbox: "synthetic", state: "accepted" });
   await expect(page.getByText("Test sent to the test inbox.")).toBeVisible();
 
   // Templates picker replaces the body after a confirmation.
@@ -116,7 +118,7 @@ test("campaigns: templates, block editor, brand kit, preview, test send and the 
   await expect(preview(page).getByText("Welcome, Ana")).toBeVisible();
 
   // Send step: live count, when, inbox check, and a disabled Send.
-  await page.getByRole("button", { name: /^Send$/ }).first().click();
+  await page.getByRole("navigation", { name: "Campaign steps" }).getByRole("button", { name: /^Send/ }).click();
   await expect(page.getByText("Choose at least one list.")).toBeVisible();
   await page.getByRole("checkbox", { name: "Weekly list" }).check();
   await expect(page.locator("[data-recipient-count]")).toContainText("people will receive it.");

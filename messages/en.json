@@ -6270,7 +6270,7 @@
       "none": "No settings for this block."
     },
     "defaults": {
-      "title": "{{ministryName}}",
+      "title": "'{{ministryName}}'",
       "heading": "Heading",
       "text": "Write something here.",
       "button": "Learn more",
@@ -6285,7 +6285,7 @@
       "rightText": "Text",
       "linkOne": "Website",
       "linkTwo": "Watch",
-      "note": "With gratitude,\\n{{ministryName}}",
+      "note": "With gratitude,\n'{{ministryName}}'",
       "name": "Untitled campaign",
       "subject": "Subject"
     },

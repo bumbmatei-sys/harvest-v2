@@ -87,7 +87,7 @@ export function CampaignEditor({ tenantId, ministryName, campaign, brandKit, lis
 
   async function sendTest() {
     if (dirty && valid) await flush(draft);
-    const result = await request(`/api/workspaces/${tenantId}/newsletter/campaigns/${campaign.id}/test-sink`, { method: "POST" });
+    const result = await request(`/api/workspaces/${tenantId}/newsletter/campaigns/${campaign.id}/test-sink`, { method: "POST", body: {} });
     if (result.ok) notify.success(e("testSent")); else notify.error(e("testFailed"));
   }
   async function saveKit() {
