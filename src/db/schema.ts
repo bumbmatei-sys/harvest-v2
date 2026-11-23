@@ -390,19 +390,31 @@ export const crmNotes = pgTable("crm_notes", {
   check("crm_note_target", sql`num_nonnulls(${t.contactId}, ${t.companyId}, ${t.opportunityId}) = 1`),
   check("crm_note_body", sql`length(btrim(${t.body})) between 1 and 10000`),
   check("crm_note_version", sql`${t.version} >= 1`)]);
-export const crmNotificationKinds = ["task_assigned"] as const;
+export const crmNotificationKinds = ["task_assigned", "task_due", "task_overdue"] as const;
 export const crmNotifications = pgTable("crm_notifications", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
   recipientUserId: text("recipient_user_id").notNull().references(() => users.id),
   actorUserId: text("actor_user_id").references(() => users.id),
   kind: text("kind").$type<typeof crmNotificationKinds[number]>().notNull(),
   taskId: uuid("task_id").notNull(),
+  // The due time a due/overdue notice was generated for; with the task, recipient and kind it is the dedupe key.
+  dueAt: timestamp("due_at", { withTimezone: true }),
   readAt: timestamp("read_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
   foreignKey({ columns: [t.tenantId, t.taskId], foreignColumns: [crmTasks.tenantId, crmTasks.id] }),
   index("crm_notifications_recipient_idx").on(t.tenantId, t.recipientUserId, t.readAt, t.createdAt),
-  check("crm_notification_kind", sql`${t.kind} in ('task_assigned')`)]);
+  uniqueIndex("crm_notifications_due_unique").on(t.tenantId, t.taskId, t.recipientUserId, t.kind, t.dueAt).where(sql`${t.kind} in ('task_due', 'task_overdue')`),
+  check("crm_notification_kind", sql`${t.kind} in ('task_assigned', 'task_due', 'task_overdue')`),
+  check("crm_notification_due_at", sql`(${t.kind} = 'task_assigned') = (${t.dueAt} is null)`)]);
+// Per-person on/off for each due/overdue kind in one ministry (default on; in-app only).
+export const crmNotificationPreferences = pgTable("crm_notification_preferences", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  userId: text("user_id").notNull().references(() => users.id),
+  due: boolean("due").notNull().default(true),
+  overdue: boolean("overdue").notNull().default(true),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.userId] })]);
 // CRM-06: tenant-scoped CSV imports. One row per CSV data line keeps the preview,
 // the error report and batch rollback on the server (ADR 0012).
 export const crmImportEntities = ["person", "company"] as const;

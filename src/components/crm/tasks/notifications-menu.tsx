@@ -9,11 +9,12 @@ import { CRM_TIME_ZONE } from "@/lib/crm-deals";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Switch } from "@/components/ui/switch";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useCrmRequest } from "../request";
 
-type Item = { id: string; taskId: string; taskTitle: string; taskStatus: string; readAt: string | null; createdAt: string; actorName: string | null };
-type Data = { items: Item[]; unread: number; overdue: number };
+type Item = { id: string; kind: "task_assigned" | "task_due" | "task_overdue"; taskId: string; taskTitle: string; taskStatus: string; readAt: string | null; createdAt: string; actorName: string | null };
+type Data = { items: Item[]; unread: number; overdue: number; preferences: { due: boolean; overdue: boolean } };
 
 /**
  * Bounded in-app notifications (CRM-05): tasks assigned to me, plus a count of my
@@ -43,6 +44,10 @@ export function NotificationsMenu({ tenantId }: { tenantId: string }) {
     const result = await crmRequest(endpoint, { method: "POST", body: { ids: "all" } });
     if (result.ok) void load(); else setError(result.error);
   }
+  async function setPreference(key: "due" | "overdue", value: boolean) {
+    const result = await crmRequest(`${endpoint}/preferences`, { method: "PUT", body: { [key]: value } });
+    if (result.ok) void load(); else setError(result.error);
+  }
   const unread = data?.unread ?? 0, overdue = data?.overdue ?? 0;
   const label = unread ? t("notificationsUnread", { count: unread }) : t("notifications");
   return <Popover open={open} onOpenChange={(value) => { setOpen(value); if (value) void load(); }}>
@@ -60,10 +65,14 @@ export function NotificationsMenu({ tenantId }: { tenantId: string }) {
       {data && data.items.length === 0 && overdue === 0 && <p className="px-3 py-6 text-center text-xs text-muted-foreground">{t("noNotifications")}</p>}
       {data && data.items.length > 0 && <ScrollArea viewportClassName="max-h-80 [&>div]:!block"><ul aria-label={t("notifications")}>{data.items.map((item) => <li key={item.id}>
         <Link href={`/workspaces/${tenantId}/crm/tasks?assignee=me&status=all`} onClick={() => setOpen(false)} className={cn("block px-3 py-2 text-sm hover:bg-muted", !item.readAt && "bg-selected/50")}>
-          <span className="block">{t.rich("assignedYou", { actor: item.actorName ?? t("aWorkspaceMember"), task: () => <span className="font-medium">{item.taskTitle}</span> })}</span>
+          <span className="block">{t.rich(item.kind === "task_due" ? "taskDue" : item.kind === "task_overdue" ? "taskOverdue" : "assignedYou", { actor: item.actorName ?? t("aWorkspaceMember"), task: () => <span className="font-medium">{item.taskTitle}</span> })}</span>
           <span className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground"><time dateTime={item.createdAt}>{format.dateTime(new Date(item.createdAt), { dateStyle: "medium", timeStyle: "short", timeZone: CRM_TIME_ZONE })}</time>
             {!item.readAt && <span>{t("unread")}</span>}{item.taskStatus === "done" && <span>{t("statuses.done")}</span>}</span>
         </Link></li>)}</ul></ScrollArea>}
+      {data && <div className="space-y-1 border-t px-3 py-2">{(["due", "overdue"] as const).map((key) => <label key={key} className="flex min-h-11 items-center justify-between gap-2 text-sm">
+        <span>{t(key === "due" ? "notifyDue" : "notifyOverdue")}</span>
+        <Switch checked={data.preferences[key]} onCheckedChange={(value) => void setPreference(key, value)} />
+      </label>)}</div>}
       <div className="border-t px-3 py-2"><Link href={`/workspaces/${tenantId}/crm/tasks`} onClick={() => setOpen(false)} className="text-xs text-muted-foreground hover:text-foreground hover:underline">{t("openMyTasks")}</Link></div>
     </PopoverContent>
   </Popover>;

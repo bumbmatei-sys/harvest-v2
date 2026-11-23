@@ -1,7 +1,7 @@
 import { message } from "../i18n/messages";
-import { and, asc, count, desc, eq, gte, ilike, inArray, isNotNull, isNull, lt, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, count, desc, eq, gt, gte, ilike, inArray, isNotNull, isNull, lt, lte, or, sql, type SQL } from "drizzle-orm";
 import type { Database, Transaction } from "../db/client";
-import { auditLogs, companies, contacts, crmNotes, crmNotifications, crmTasks, opportunities, users, workspaceMembers } from "../db/schema";
+import { auditLogs, companies, contacts, crmNotes, crmNotificationPreferences, crmNotifications, crmTasks, opportunities, users, workspaceMembers } from "../db/schema";
 import { uuidInput } from "../lib/contact-input";
 import { RELATED_TASKS_LIMIT, TASK_PAGE_SIZE, noteInput, notePatch, taskInput, taskPatch, zonedDay, zonedToInstant, type NoteInput, type NotePatch, type TaskInput, type TaskPatch, type TaskQuery } from "../lib/crm-tasks";
 import { likePattern } from "./crm-filters";
@@ -297,24 +297,64 @@ export function updateNote(db: Database, userId: string, workspace: string, note
 }
 
 // ---------------------------------------------------------------------------
-// Notifications (bounded: assignment only; overdue is computed on read).
+// Notifications. In-app only (email and push are hard-off). Due and overdue notices are
+// generated lazily, once per task, kind and due time, when the recipient loads them; no
+// job runs (real-time delivery needs the later job slice).
+/** An open task becomes "overdue" this long after its due time; before that it is "due". */
+export const OVERDUE_GRACE_MS = 3_600_000;
+export type NotificationPreferences = { due: boolean; overdue: boolean };
+async function loadPreferences(tx: Transaction, tenantId: string, userId: string): Promise<NotificationPreferences> {
+  const [row] = await tx.select({ due: crmNotificationPreferences.due, overdue: crmNotificationPreferences.overdue }).from(crmNotificationPreferences)
+    .where(and(eq(crmNotificationPreferences.tenantId, tenantId), eq(crmNotificationPreferences.userId, userId)));
+  return row ?? { due: true, overdue: true };
+}
+/** Inserts the missing due/overdue rows for my open tasks; the unique key makes concurrent loads safe. */
+async function generateDueNotifications(tx: Transaction, tenantId: string, userId: string, preferences: NotificationPreferences, now: Date) {
+  const grace = new Date(now.getTime() - OVERDUE_GRACE_MS);
+  for (const [kind, enabled, window] of [
+    ["task_due", preferences.due, and(lte(crmTasks.dueAt, now), gt(crmTasks.dueAt, grace))],
+    ["task_overdue", preferences.overdue, lte(crmTasks.dueAt, grace)],
+  ] as const) {
+    if (!enabled) continue;
+    const candidates = tx.select({ tenantId: crmTasks.tenantId, recipientUserId: crmTasks.assigneeUserId, taskId: crmTasks.id, dueAt: crmTasks.dueAt, kind: sql<string>`${kind}` })
+      .from(crmTasks).where(and(eq(crmTasks.tenantId, tenantId), eq(crmTasks.assigneeUserId, userId), eq(crmTasks.status, "open"), isNull(crmTasks.archivedAt), window)).limit(200);
+    await tx.execute(sql`insert into crm_notifications (tenant_id, recipient_user_id, actor_user_id, task_id, due_at, kind) select c."tenant_id", c."recipient_user_id", c."recipient_user_id", c."task_id", c."due_at", c."kind" from (${candidates}) as c(tenant_id, recipient_user_id, task_id, due_at, kind) on conflict do nothing`);
+  }
+}
+/** Due/overdue notices follow the task: completing, archiving, rescheduling or reassigning it hides them. */
+function visibleNotice(userId: string, preferences: NotificationPreferences) {
+  const kinds = (["due", "overdue"] as const).filter((key) => preferences[key]).map((key) => `task_${key}` as const);
+  return or(eq(crmNotifications.kind, "task_assigned"), kinds.length ? and(inArray(crmNotifications.kind, kinds), eq(crmTasks.status, "open"), isNull(crmTasks.archivedAt), eq(crmTasks.assigneeUserId, userId), eq(crmTasks.dueAt, crmNotifications.dueAt)) : undefined);
+}
 export function listNotifications(db: Database, userId: string, workspace: string) {
   return withTenant(db, userId, uuidInput.parse(workspace), "tasks:read", async (tx, tenantId) => {
+    const preferences = await loadPreferences(tx, tenantId, userId);
+    await generateDueNotifications(tx, tenantId, userId, preferences, new Date());
     // RLS limits these rows to the caller; the explicit filter keeps the intent obvious.
-    const rows = await tx.select({ id: crmNotifications.id, kind: crmNotifications.kind, taskId: crmNotifications.taskId, readAt: crmNotifications.readAt, createdAt: crmNotifications.createdAt,
+    const mine = and(eq(crmNotifications.tenantId, tenantId), eq(crmNotifications.recipientUserId, userId), visibleNotice(userId, preferences));
+    const join = and(eq(crmTasks.tenantId, crmNotifications.tenantId), eq(crmTasks.id, crmNotifications.taskId));
+    const rows = await tx.select({ id: crmNotifications.id, kind: crmNotifications.kind, taskId: crmNotifications.taskId, readAt: crmNotifications.readAt, createdAt: crmNotifications.createdAt, dueAt: crmNotifications.dueAt,
       actorUserId: crmNotifications.actorUserId, taskTitle: crmTasks.title, taskStatus: crmTasks.status, taskArchived: crmTasks.archivedAt })
-      .from(crmNotifications).innerJoin(crmTasks, and(eq(crmTasks.tenantId, crmNotifications.tenantId), eq(crmTasks.id, crmNotifications.taskId)))
-      .where(and(eq(crmNotifications.tenantId, tenantId), eq(crmNotifications.recipientUserId, userId)))
+      .from(crmNotifications).innerJoin(crmTasks, join).where(mine)
       .orderBy(desc(crmNotifications.createdAt), desc(crmNotifications.id)).limit(20);
     const actorIds = [...new Set(rows.map((row) => row.actorUserId).filter((value): value is string => !!value))];
     const actors = actorIds.length ? await tx.select({ id: users.id, name: users.name, email: users.email }).from(workspaceMembers).innerJoin(users, eq(users.id, workspaceMembers.userId))
       .where(and(eq(workspaceMembers.tenantId, tenantId), inArray(workspaceMembers.userId, actorIds))) : [];
-    const [{ unread }] = await tx.select({ unread: count() }).from(crmNotifications).where(and(eq(crmNotifications.tenantId, tenantId), eq(crmNotifications.recipientUserId, userId), isNull(crmNotifications.readAt)));
+    const [{ unread }] = await tx.select({ unread: count() }).from(crmNotifications).innerJoin(crmTasks, join).where(and(mine, isNull(crmNotifications.readAt)));
     const [{ overdue }] = await tx.select({ overdue: count() }).from(crmTasks).where(and(eq(crmTasks.tenantId, tenantId), eq(crmTasks.assigneeUserId, userId), eq(crmTasks.status, "open"), isNull(crmTasks.archivedAt), lt(crmTasks.dueAt, new Date())));
     return {
       items: rows.map((row) => { const actor = actors.find((item) => item.id === row.actorUserId); return { ...row, actorName: actor ? actor.name || actor.email : null }; }),
-      unread, overdue,
+      unread, overdue, preferences,
     };
+  });
+}
+/** Turn due or overdue notices on or off for the caller in this ministry (default on). */
+export function setNotificationPreferences(db: Database, userId: string, workspace: string, patch: Partial<NotificationPreferences>) {
+  return withTenant(db, userId, uuidInput.parse(workspace), "tasks:read", async (tx, tenantId) => {
+    const next = { ...(await loadPreferences(tx, tenantId, userId)), ...patch };
+    await tx.insert(crmNotificationPreferences).values({ tenantId, userId, ...next })
+      .onConflictDoUpdate({ target: [crmNotificationPreferences.tenantId, crmNotificationPreferences.userId], set: { ...next, updatedAt: new Date() } });
+    return next;
   });
 }
 export function markNotificationsRead(db: Database, userId: string, workspace: string, ids: string[] | "all") {

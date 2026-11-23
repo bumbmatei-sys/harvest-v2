@@ -1554,6 +1554,10 @@
     "aWorkspaceMember": "A ministry member",
     "unread": "Unread",
     "openMyTasks": "Open my tasks",
+    "taskDue": "<task></task> is due",
+    "taskOverdue": "<task></task> is overdue",
+    "notifyDue": "Task due",
+    "notifyOverdue": "Task overdue",
     "loadingTasks": "Loading tasks"
   },
   "CrmReports": {
