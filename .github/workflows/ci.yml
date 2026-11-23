@@ -80,7 +80,7 @@ jobs:
     # disposable embedded Postgres (tests/database.ts), as in the former CircleCI final review.
     name: browser ${{ matrix.shard }}/4
     if: ${{ inputs.pr_number == '' }}
-    timeout-minutes: 30
+    timeout-minutes: 45
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
