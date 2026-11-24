@@ -1,4 +1,4 @@
-import { httpsUrl, type EmailDocument } from "./blocks";
+import { blockPicture, httpsUrl, type EmailDocument } from "./blocks";
 
 export type CheckLevel = "pass" | "warn" | "fail";
 export type InboxCheck = { id: "subject" | "preview" | "address" | "unsubscribe" | "imageAlt" | "links" | "content"; level: CheckLevel; count?: number };
@@ -12,8 +12,8 @@ export function inboxCheck(input: { subject: string; preheader: string | null | 
   checks.push({ id: "address", level: doc.brand.address.trim() ? "pass" : "fail" });
   // The unsubscribe link is appended by the renderer to every message; the check records that it cannot be missing.
   checks.push({ id: "unsubscribe", level: "pass" });
-  const missingAlt = doc.blocks.filter(block => (block.type === "hero" || block.type === "imageText" ? block.imageUrl && !block.alt.trim()
-    : block.type === "video" ? block.thumbnailUrl && !block.alt.trim() : false)).length;
+  const missingAlt = doc.blocks.filter(block => { const p = blockPicture(block); return p && (p.imageUrl || p.fileId) && !p.decorative && !p.alt.trim(); }).length
+    + (doc.cover && (doc.cover.imageUrl || doc.cover.fileId) && !doc.cover.decorative && !doc.cover.alt.trim() ? 1 : 0);
   checks.push({ id: "imageAlt", level: missingAlt ? "warn" : "pass", count: missingAlt });
   let broken = 0;
   for (const block of doc.blocks) {
