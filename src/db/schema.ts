@@ -2809,3 +2809,51 @@ export const newsletterFormSignups = pgTable("newsletter_form_signups", {
   check("newsletter_form_signup_names", sql`length(coalesce(${t.firstName}, '')) <= 100 and length(coalesce(${t.lastName}, '')) <= 100 and (${t.state} = 'pending' or (${t.firstName} is null and ${t.lastName} is null))`),
   check("newsletter_form_signup_confirmed", sql`(${t.state} in ('confirmed', 'blocked')) = (${t.confirmedAt} is not null)`),
 ]);
+// Docs (slice 1). A ministry's documents: folders (nested), docs, and the ordered page tree of each doc. Rich content is Tiptap JSON, sanitised again on the server.
+export const docFolders = pgTable("doc_folders", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  parentId: uuid("parent_id"),
+  name: text("name").notNull(), position: integer("position").notNull().default(0),
+  ownerId: text("owner_id").notNull().references(() => users.id),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [unique("doc_folders_tenant_id_uq").on(t.tenantId, t.id), index("doc_folders_parent_idx").on(t.tenantId, t.parentId),
+  foreignKey({ name: "doc_folders_parent_fk", columns: [t.tenantId, t.parentId], foreignColumns: [t.tenantId, t.id] }).onDelete("restrict"),
+  uniqueIndex("doc_folders_name_uq").on(t.tenantId, sql`coalesce(${t.parentId}, '00000000-0000-0000-0000-000000000000'::uuid)`, sql`lower(${t.name})`).where(sql`${t.archivedAt} is null`),
+  check("doc_folders_name_len", sql`char_length(btrim(${t.name})) between 1 and 80 and ${t.name}=btrim(${t.name})`), check("doc_folders_not_own_parent", sql`${t.parentId} is distinct from ${t.id}`)]);
+export const docs = pgTable("docs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  folderId: uuid("folder_id"),
+  // `kind`: slice 1 creates documents only; spreadsheets will live in Docs too, so one folder tree holds both. `docs.id` stays stable for later hooks (live-stream sermon notes, imported copies).
+  kind: text("kind").$type<"document" | "spreadsheet">().notNull().default("document"),
+  title: text("title").notNull(), ownerId: text("owner_id").notNull().references(() => users.id),
+  version: integer("version").notNull().default(1),
+  archivedAt: timestamp("archived_at", { withTimezone: true }), deletedAt: timestamp("deleted_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [unique("docs_tenant_id_uq").on(t.tenantId, t.id), index("docs_folder_idx").on(t.tenantId, t.folderId, t.updatedAt),
+  foreignKey({ name: "docs_folder_fk", columns: [t.tenantId, t.folderId], foreignColumns: [docFolders.tenantId, docFolders.id] }).onDelete("restrict"),
+  check("docs_title_len", sql`char_length(${t.title}) <= 200`), check("docs_kind_known", sql`${t.kind} in ('document','spreadsheet')`)]);
+export const docPages = pgTable("doc_pages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(), docId: uuid("doc_id").notNull(), parentId: uuid("parent_id"),
+  position: integer("position").notNull().default(0),
+  title: text("title").notNull().default(""), icon: text("icon"),
+  // The body is the editor engine's own JSON; `engine` names the engine and `schemaVersion` its content schema, so the engine can be replaced without guessing.
+  engine: text("engine").notNull().default("tiptap"), schemaVersion: integer("schema_version").notNull().default(1),
+  content: jsonb("content").$type<import("../lib/docs").DocContent>().notNull(),
+  style: jsonb("style").$type<import("../lib/docs").PageStyle>().notNull().default({}),
+  protected: boolean("protected").notNull().default(false), version: integer("version").notNull().default(1),
+  createdBy: text("created_by").notNull().references(() => users.id), updatedBy: text("updated_by").references(() => users.id),
+  archivedAt: timestamp("archived_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [unique("doc_pages_doc_id_uq").on(t.docId, t.id), index("doc_pages_tree_idx").on(t.docId, t.parentId, t.position),
+  foreignKey({ name: "doc_pages_doc_fk", columns: [t.tenantId, t.docId], foreignColumns: [docs.tenantId, docs.id] }).onDelete("restrict"),
+  foreignKey({ name: "doc_pages_parent_fk", columns: [t.docId, t.parentId], foreignColumns: [t.docId, t.id] }).onDelete("restrict"),
+  check("doc_pages_title_len", sql`char_length(${t.title}) <= 200`), check("doc_pages_engine_known", sql`${t.engine} in ('tiptap')`), check("doc_pages_content_object", sql`jsonb_typeof(${t.content})='object' AND pg_column_size(${t.content})<=524288`),
+  check("doc_pages_style_object", sql`jsonb_typeof(${t.style})='object' AND pg_column_size(${t.style})<=2048`), check("doc_pages_not_own_parent", sql`${t.parentId} is distinct from ${t.id}`)]);
+export const docFavorites = pgTable("doc_favorites", {
+  tenantId: uuid("tenant_id").notNull(), docId: uuid("doc_id").notNull(), userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.docId, t.userId] }), foreignKey({ name: "doc_favorites_doc_fk", columns: [t.tenantId, t.docId], foreignColumns: [docs.tenantId, docs.id] }).onDelete("cascade")]);

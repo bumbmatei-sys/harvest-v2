@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { expect, type Page } from "@playwright/test";
-export const origin = process.env.E2E_ORIGIN ?? "http://127.0.0.1:3100";
+export const origin = process.env.E2E_ORIGIN ?? `http://127.0.0.1:${process.env.E2E_PORT ?? "3100"}`;
 export async function signIn(page: Page) {
   const email = `pr03-${randomUUID()}@example.test`;
   const [a, b, c] = createHash("sha256").update(email).digest();

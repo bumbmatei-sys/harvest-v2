@@ -48,7 +48,7 @@ export type NavEntry = {
    */
   exitTo?: string;
 };
-export type NavFeature = "communities" | "events" | "social" | "office" | "newsletter";
+export type NavFeature = "communities" | "events" | "social" | "office" | "newsletter" | "docs";
 export type NavItem = { id: string; label: NavLabelKey; icon: LucideIcon; href: string; active: boolean };
 /** A `pinned` group is rendered without a header, above the other groups (Discover). */
 export type NavGroup = { id: NavGroupId; label: NavLabelKey; icon?: LucideIcon; pinned?: boolean; items: NavItem[] };
@@ -90,7 +90,8 @@ export const navEntries: readonly NavEntry[] = [
   { id: "mail", group: "office", mode: "operations", label: "mail", icon: MailOpen, path: "/mail", match: under("/mail"), permission: "office:mail", feature: "office", exitTo: "files" },
   // Office Calendar: each owner or admin's own calendar. Hidden unless the server reports the Office screens open (never in production).
   { id: "calendar", group: "office", mode: "operations", label: "calendar", icon: Calendar, path: "/calendar", match: under("/calendar"), permission: "office:calendar", feature: "office" },
-  { id: "documents", group: "office", mode: "operations", status: "planned", label: "documents", icon: FileText, path: "/docs", match: under("/docs") },
+  // Office Docs: every ministry role opens the list (viewers read); hidden unless the server reports Docs enabled (never in production).
+  { id: "documents", group: "office", mode: "operations", label: "documents", icon: FileText, path: "/docs", match: under("/docs"), permission: "docs:read", feature: "docs" },
   { id: "spreadsheets", group: "office", mode: "operations", status: "planned", label: "spreadsheets", icon: Sheet, path: "/sheets", match: under("/sheets") },
   // Operations > Ministry.
   { id: "churchProfile", group: "workspace", mode: "operations", status: "planned", label: "ministryPage", icon: Landmark, path: "/church-profile", match: under("/church-profile") },

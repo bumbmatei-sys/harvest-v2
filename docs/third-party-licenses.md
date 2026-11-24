@@ -1,6 +1,6 @@
 # Third-party licenses
 
-Generated from package-lock.json on 2026-11-04; `cmdk` added 2026-11-05 for the shadcn Command component (CRM-02); `@dnd-kit/core` and its dependencies added 2026-11-06 for the CRM-04 deals board; `@dnd-kit/sortable` and `@dnd-kit/modifiers` added 2026-11-21 for the CRM forms builder (founder-approved). Shadcn UI Kit premium items `form-layout20` and `form-layout15` (founder-owned licence) are the sources of three derived files in `src/components/forms/kit-*.tsx` (CRM forms builder, 21 Nov 2026); see `docs/ui-sources.md`. No AGPL dependencies are present. The lockfile pins the exact dependency graph; this inventory includes development and optional platform packages. UI code is adapted only from the MIT-licensed official shadcn registry. Visual reference screenshots are not redistributed in the product.
+Generated from package-lock.json on 2026-11-04; `cmdk` added 2026-11-05 for the shadcn Command component (CRM-02); `@dnd-kit/core` and its dependencies added 2026-11-06 for the CRM-04 deals board; `@dnd-kit/sortable` and `@dnd-kit/modifiers` added 2026-11-21 for the CRM forms builder (founder-approved). Shadcn UI Kit premium items `form-layout20` and `form-layout15` (founder-owned licence) are the sources of three derived files in `src/components/forms/kit-*.tsx` (CRM forms builder, 21 Nov 2026); see `docs/ui-sources.md`. Tiptap extensions for the Docs editor (table, text style, highlight, text align, details, drag handle, suggestion) and their dependencies added 24 Nov 2026 (founder-approved, MIT). No AGPL dependencies are present. The lockfile pins the exact dependency graph; this inventory includes development and optional platform packages. UI code is adapted only from the MIT-licensed official shadcn registry. Visual reference screenshots are not redistributed in the product.
 
 The shadcn MIT notice is preserved in [licenses/shadcn-ui-MIT.txt](licenses/shadcn-ui-MIT.txt). Geist fonts use the SIL Open Font License (OFL-1.1); its notice is preserved in [licenses/Geist-OFL.txt](licenses/Geist-OFL.txt). Packages retain their upstream notices in npm distributions. PostgreSQL binaries used by embedded-postgres retain the PostgreSQL license in their distribution.
 
@@ -810,3 +810,18 @@ Official package. No runtime dependencies. Only consumer: `src/components/ui/mes
 Added 2026-11-19 for the adopted kit file `src/components/ui/bubble.tsx` (`use-render` and `merge-props`); sole consumer. Founder-approved 19 November 2026. `zustand`, `motion` and `embla-carousel-react` from the kit app were not needed and are not installed.
 
 Transitive packages added to the lockfile by `@base-ui/react` 1.7.0 (all MIT): `@babel/runtime` 7.29.14, `@base-ui/utils` 0.3.2, `reselect` 5.3.0; `@floating-ui/react-dom`, `@floating-ui/utils` and `use-sync-external-store` were already present.
+| `@tiptap/extension-collaboration` | 3.33.1 | MIT |
+| `@tiptap/extension-details` | 3.33.1 | MIT |
+| `@tiptap/extension-drag-handle` | 3.33.1 | MIT |
+| `@tiptap/extension-drag-handle-react` | 3.33.1 | MIT |
+| `@tiptap/extension-highlight` | 3.33.1 | MIT |
+| `@tiptap/extension-node-range` | 3.33.1 | MIT |
+| `@tiptap/extension-table` | 3.33.1 | MIT |
+| `@tiptap/extension-text-align` | 3.33.1 | MIT |
+| `@tiptap/extension-text-style` | 3.33.1 | MIT |
+| `@tiptap/suggestion` | 3.33.1 | MIT |
+| `@tiptap/y-tiptap` | 3.3.1 | MIT |
+| `isomorphic.js` | 0.2.5 | MIT |
+| `lib0` | 0.2.120 | MIT |
+| `y-protocols` | 1.0.7 | MIT |
+| `yjs` | 13.6.33 | MIT |

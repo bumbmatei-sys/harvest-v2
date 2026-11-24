@@ -30,11 +30,13 @@ export type Permission = "workspace:read" | "members:write" | "roles:write" | "c
   | "crm:forms_manage"
   // CRM reports: read-only aggregates. Owners and admins see ministry totals, members only their own work; viewers see nothing.
   | "crm:reports"
+  // Docs: every role reads; owners, admins and members create docs and edit the ones they own (database policy); owners and admins manage all.
+  | "docs:read" | "docs:write" | "docs:manage"
   | "newsletter:read" | "newsletter:manage" | "newsletter:campaigns" | "newsletter:delivery" | "newsletter:analytics";
 export function can(role: string, permission: Permission): boolean {
-  if (permission === "communities:read" || permission === "workspace:read" || permission === "contacts:read" || permission === "companies:read" || permission === "opportunities:read" || permission === "tasks:read" || permission === "notes:read" || permission === "campaigns:read") return roleIds.includes(role as Role);
+  if (permission === "communities:read" || permission === "workspace:read" || permission === "contacts:read" || permission === "companies:read" || permission === "opportunities:read" || permission === "tasks:read" || permission === "notes:read" || permission === "campaigns:read" || permission === "docs:read") return roleIds.includes(role as Role);
   if (permission === "newsletter:read") return role === "owner" || role === "admin" || role === "member";
-  if (permission === "followup:work" || permission === "contacts:record_withdrawal" || permission === "crm:reports") return role === "owner" || role === "admin" || role === "member";
+  if (permission === "followup:work" || permission === "contacts:record_withdrawal" || permission === "crm:reports" || permission === "docs:write") return role === "owner" || role === "admin" || role === "member";
   if (permission === "contacts:write" || permission === "companies:write" || permission === "opportunities:write" || permission === "tasks:write" || permission === "notes:write"
     || permission === "campaigns:write" || permission === "crm:import" || permission === "crm:export") return role === "owner" || role === "admin" || role === "member";
   return role === "owner" || role === "admin";

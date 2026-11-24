@@ -1,0 +1,43 @@
+# Docs slice 1 acceptance
+
+Operations > Office > Docs: a list with folders and a page-based editor. Slice plan and later slices: `docs/plans/docs-module.md`. Nothing is activated: the module answers 404 in production (`docsEnabled`), nothing leaves the ministry, no real message or webhook is involved, and no HC-02 gate changes.
+
+## Done
+
+- **Navigation.** `documents` (label "Docs") is live in the Office group between Calendar and Files, behind its own feature flag `docs` (`docsEnabled()`: off in production, on in development and tests). Permission `docs:read` (every role). Labels are unchanged otherwise (Files keeps its name). Sidebar counts: 15 with shell modes on (14 before), 13 with `HARVEST_SHELL_MODES=disabled` (Docs is in the shell-modes sidebar only, like Mail and Calendar).
+- **List** (`/workspaces/[id]/docs`, view in the URL): folder cards on top, documents under them in the shared `DataTable`, breadcrumb, search across folders (doc and page titles) with the folder path shown, Active / Archived / Trash filter, sort, Starred filter, kind icon (document now, spreadsheet later), New doc (inside the open folder), New folder, row menu (open, rename, duplicate, move to, archive or unarchive, move to trash with confirmation, restore), favourite star, empty and no-match states.
+- **Folders** (like the Files screen): nested up to 8 levels; create, rename, move (dialog; its own subtree is not offered) and delete; a non-empty folder is never deleted silently (the interface asks to move its docs and folders up one level; the API refuses with counts); names 1 to 80 characters, unique per parent without regard to case; docs move by the row menu and by dragging the grip onto a folder card or a breadcrumb (pointer, touch and keyboard sensors); cycle-proof (service check plus a database trigger).
+- **Editor** (`/workspaces/[id]/docs/[docId]?page=`): breadcrumb, favourite, save status and the "..." menu sit in the shell header bar (portal into the shared AppShell header, `ShellHeaderSlot`); the Pages sidebar (add page, nest, reorder from the menu, rename, duplicate, archive and restore, delete with a subpage count, collapse to the header toggle, remembered per browser with guarded localStorage; a sheet below 1024px); the title, owner and last-updated line (display name, never a long id); a fixed formatting toolbar (undo, redo, text style normal and headings 1 to 4, bold, italic, underline, strikethrough, inline code, text colour, highlight, alignment, bulleted, numbered, checklist and toggle lists, link, block quote, code block, divider, table with row and column actions, columns, clear formatting; Radix Toolbar for one tab stop and arrow keys, pressed states, tooltips, 44px targets and sideways scrolling on phones); the slash menu grouped Suggestions, Text, Formatting, Advanced blocks, Text colors and Highlights; block handles (the "+" adds a block and opens the menu, the grip drags the block); banners, columns, toggles, checklists, tables, table of contents; autosave with a Saved state and a version check (a stale save is refused, nothing is overwritten, the editor offers a reload); protect page (read-only for everyone until the doc owner or an owner or admin turns it off).
+- **"..." menu**: Entire doc (rename, copy link, favourite, duplicate, move, archive, move to trash) and This page (add subpage, rename, copy link, duplicate, protect, archive, delete). Only what exists is shown.
+- **Right rail**: Page styles (font, size, width, header toggles for owner and last updated, sections for subpages and outline, focus mode, live word, character and reading-time statistics, stored per page) and Outline. A narrow 48px column from 1024px with the panel beside it from 1280px; a sheet below that, with the rail in the header.
+- **Server**: `docs`, `doc_pages`, `doc_folders`, `doc_favorites` (migration `0089_docs`), FORCE RLS with the restricted `harvest_app` role and no SECURITY DEFINER function, one capability function with fixed `search_path` and `REVOKE FROM PUBLIC`, composite foreign keys that keep every row in its ministry, cycle triggers with advisory locks, audit rows without content, size caps (512 KB content, 200 pages per doc, 8 folder and 6 page levels, 5,000 docs and 1,000 folders per ministry), server-side sanitising (known node and mark types only, https-only links, hex colours, no external fetches). No foreign key points to `contacts`, so `erase_contact` and `merge_contacts` are unaffected.
+- **Kind and engine**: `docs.kind` (document or spreadsheet), `doc_pages.engine` and `schema_version`; the editor engine sits behind `DocEditorSurface`.
+
+## Access rule (decision recorded)
+
+Every ministry role reads every doc; viewers never write; members create and edit the docs and folders they own; owners and admins manage all. Per-doc privacy and sharing are slice 2.
+
+## Deferred
+
+Comments, sharing and public links, relationships, templates, import and export, page history, embeds, AI writing and spreadsheets (slices 2 to 6, plan file); selection bubble menu (the fixed toolbar covers it); keyboard reordering of blocks; content search; theme-aware text colours (stored hex values are lightened on the dark theme by a CSS filter; a palette key per colour is the later fix); Trash purge.
+
+## Server gaps and notes
+
+1. Reads are ministry-wide (see the access rule): the module is development-only until slice 2 adds private docs.
+2. Migration numbering: `0089_docs` follows 0088 (Sign-up forms, merged). Its snapshot is chained to 0088.
+3. `docs.id` is stable for the planned hooks (sermon notes tied to a live stream, imported copies). Nothing else was added for them.
+4. The editor engine is Tiptap (MIT). The kit's own Tiptap block was used as the layout reference for the toolbar; no kit file is copied (`docs/ui-sources.md`, `src/lib/ui-provenance.ts`).
+
+## Reuse and exceptions
+
+Reused: AppShell and its header (new `ShellHeaderSlot` portal target, two lines in the shell), `DataTable`, `EmptyState`, `ConfirmDialog`, Breadcrumb, `EntryIcon` (Files), Sheet, Tabs, Popover, DropdownMenu, Tooltip, Switch, ToggleGroup, `UserAvatar`, the shared request hook and toast helper. New shared piece: `Toggle` (`ui/toggle.tsx`, shadcn). Exceptions: `EditorShell` was not used (it models a stepped form with a live preview; a doc is a tree of pages around one editor), and the Files `FolderCards` were not reused because they are typed to drive-file entries with source marks (the Docs cards add drop targets and a menu); `EntryIcon` and the same card styling are shared.
+
+## Evidence
+
+Run on this branch with embedded PostgreSQL as a non-root user (`LANG=C.UTF-8`), Chromium, `reducedMotion: reduce`, on port 3190.
+
+- `npm run lint` (zero warnings and the source guards) and `npm run typecheck`: clean.
+- Unit: 124 files, 1,521 tests (new `tests/unit/docs.test.ts`: sanitiser, statistics, tree, rules, helpers, and a check that every message key the Docs components use exists).
+- Integration `tests/integration/docs.test.ts` (20 tests, restricted role): folder nesting, case-insensitive uniqueness, name and depth caps, cycle refusal in the service and in the database, delete refusal and move-up, role rules for folders and docs, ministry isolation (including the composite foreign key), search across folders, archive, trash and restore, private favourites, owner rule enforced by row-level security, no foreign key to contacts, page tree (add, reorder, nest, cycles, depth), archive and delete of subtrees, last-page rule, duplicate, version check, doc title follows the first page, protect page, sanitising and caps, isolation of pages, audit rows without content.
+- E2E `tests/e2e/docs.spec.ts` (4 tests), in both shell modes: the list flows (folders, duplicate name refused, nested folders, new doc in a folder and its breadcrumb, move by menu and by drag, subtree not offered, rename, delete with move-up, search with paths, star, duplicate, archive, trash with confirmation, restore); the editor (autosave and reload, every toolbar action and its pressed state, the link rules, undo and redo, the slash menu sections and filtering, blocks, block handles, page styles and statistics, pages tree actions, the menu, protection, stale save conflict, trash from the menu); a phone (44px toolbar targets scrolling sideways, pages and panels in sheets); roles and strangers. Axe (WCAG 2.0 to 2.2 A and AA) and no horizontal overflow at 1280, 768 and 360, light and dark, on the list and on the editor (12 scenes), 13 screenshots in `docs/screenshots/docs-slice1/`.
+- `tests/e2e/campaigns.spec.ts`, `settings-popup.spec.ts` and `shell-slice2.spec.ts` pass (campaigns also with `HARVEST_SHELL_MODES=disabled`).

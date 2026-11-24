@@ -423,3 +423,12 @@ Public > Newsletter > Sign-up forms. Kit rule, founder 21 Nov 2026 ("Use anythin
 - `DataTable` (premium `tables14`), `EmptyState` (premium `empty-state15`), `FormSection` (premium `form-layout1`), `CopyButton` (premium `tables21`), `StatusBadge`, `Dialog`, `AlertDialog`, `DropdownMenu`, `Tabs`.
 
 The QR code is the existing Connect renderer (`qrSvg`, `qrPng`) served by a new owner/admin route; the public sign-up page and confirm page are Harvest-written (no kit block fits a public sign-up). Nothing from the reference screenshots is used.
+
+### Docs (Operations > Office > Docs, slice 1)
+
+List and editor. Founder rule (24 Nov): "design of the reference, style of Studio Admin"; pro first, otherwise free (the founder's approval: "Use anything that is pro in the kit. If nothing is suitable then use free").
+
+- **Kit blocks used (premium, bumbmatei-sys/admin-dashboard at `1631106`)**: `components/ui/custom/tiptap/` (`rich-text-editor.tsx`, `toolbars/editor-toolbar.tsx`, `toolbars/color-and-highlight.tsx`, `toolbars/headings.tsx`): the toolbar groups and the editor wiring, and `file-manager` (`summary-cards.tsx`, `apps/file-manager/file-manager.tsx`) for the list. **No kit file is copied**; every Harvest file is written for Harvest on the shared Toggle, DropdownMenu, Popover, Tooltip, DataTable, EmptyState, ConfirmDialog, Breadcrumb, Sheet and Tabs. Measured with `scripts/ui-identical.sh` on 24 Nov 2026: toolbar.tsx 0% and 5%, doc-editor-surface.tsx 8% (imports and boilerplate). Recorded in `src/lib/ui-provenance.ts`.
+- **Not in the kit, free or Harvest-written**: the slash menu, block handles (Tiptap drag handle, MIT), banners, columns, table of contents, page tree, page styles panel and the Docs menu. `Toggle` (`src/components/ui/toggle.tsx`) is the shadcn toggle, free.
+- **Engine**: Tiptap free core, MIT, approved for Docs: `@tiptap/extension-table`, `-text-style`, `-highlight`, `-text-align`, `-details`, `-drag-handle`, `-drag-handle-react`, `suggestion` (all 3.33.1). The kit's own Tiptap extensions (image placeholder, search and replace) are not used.
+- **Reference screenshots** (the founder's 22 images of a document editor) are the layout and flow reference only: no branding, copy, imagery or vendor names are reproduced.
