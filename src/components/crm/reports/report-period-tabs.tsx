@@ -5,20 +5,26 @@ import { useTranslations } from "next-intl";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { reportPeriods, type ReportPeriod } from "@/lib/crm-reports";
 
-/** The five fixed reporting periods; arrow keys move between them. */
-export function ReportPeriodTabs({ value, onValueChange }: { value: ReportPeriod; onValueChange: (value: ReportPeriod) => void }) {
+/**
+ * A row of fixed reporting periods; arrow keys move between them. Without props it is the CRM reports control (five periods); other
+ * reports pass their own `periods`, `labelOf` and `ariaLabel` (the newsletter analytics screen uses 7, 30 and 90 days).
+ */
+export function ReportPeriodTabs<Period extends string = ReportPeriod>({ value, onValueChange, periods = reportPeriods as unknown as readonly Period[], labelOf, ariaLabel }: {
+  value: Period; onValueChange: (value: Period) => void; periods?: readonly Period[]; labelOf?: (period: Period) => string; ariaLabel?: string;
+}) {
   const t = useTranslations("CrmReports");
+  const label = labelOf ?? ((period: Period) => t(`periods.${period as ReportPeriod}`));
   return (
-    <Tabs value={value} onValueChange={(next) => onValueChange(next as ReportPeriod)} className="max-w-full">
-      <TabsList aria-label={t("period")} className="max-w-full flex-wrap justify-start group-data-[orientation=horizontal]/tabs:h-auto max-sm:w-full">
-        {reportPeriods.map((period) => (
+    <Tabs value={value} onValueChange={(next) => onValueChange(next as Period)} className="max-w-full">
+      <TabsList aria-label={ariaLabel ?? t("period")} className="max-w-full flex-wrap justify-start group-data-[orientation=horizontal]/tabs:h-auto max-sm:w-full">
+        {periods.map((period) => (
           <TabsTrigger key={period} value={period} className="min-h-11 px-3 max-sm:flex-1 lg:min-h-8" data-testid={`period-${period}`}>
-            {t(`periods.${period}`)}
+            {label(period)}
           </TabsTrigger>
         ))}
       </TabsList>
       {/* The tab's panel is the report below; this hidden stand-in gives aria-controls a target and names the period for screen readers. */}
-      <TabsContent value={value} className="sr-only">{t(`periods.${value}`)}</TabsContent>
+      <TabsContent value={value} className="sr-only">{label(value)}</TabsContent>
     </Tabs>
   );
 }

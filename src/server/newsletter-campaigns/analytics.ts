@@ -1,6 +1,6 @@
 import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
-import type { Database } from "../../db/client";
+import type { Database, Transaction } from "../../db/client";
 import { newsletterCampaigns } from "../../db/schema";
 import { id, unavailable, withNewsletter } from "./access";
 import { installNewsletterSuppressionKeys } from "./suppression-keys";
@@ -46,27 +46,34 @@ function aggregate(rows: Group[]) {
   return { totals, reasons: rows.some(row => row.reasons === null) ? null : reasons };
 }
 
+type Range = { from: string; until: string };
+
+/** The aggregate report inside an open newsletter transaction (the caller already checked `newsletter:analytics`). */
+export async function analyticsIn(tx: Transaction, tenant: string, range: Range, campaign: string | null) {
+  const { from, until } = range;
+  const [record] = campaign ? await tx.select({ id: newsletterCampaigns.id, state: newsletterCampaigns.state,
+    version: newsletterCampaigns.version }).from(newsletterCampaigns).where(and(eq(newsletterCampaigns.id, campaign),
+    eq(newsletterCampaigns.tenantId, tenant))) : [];
+  if (campaign && !record) throw unavailable();
+  const { rows } = await tx.execute<Group>(sql`
+    select * from public.newsletter_analytics_groups(${tenant}::uuid,${campaign}::uuid,${from}::date,${until}::date)`);
+  await installNewsletterSuppressionKeys(tx);
+  const eligibilityRows = await tx.execute<{ day: string; eligible: number }>(sql`
+    select cohort::text as "day", eligible from public.newsletter_current_eligibility(${tenant}::uuid,${campaign}::uuid,${from}::date,${until}::date)`);
+  const eligibility = new Map(eligibilityRows.rows.map(row => [row.day, row.eligible]));
+  const { totals, reasons } = aggregate(rows);
+  const days = rows.map(({ day, counts, reasons }) => ({
+    day, ...(counts ? shape(counts, eligibility.get(day) ?? null, reasons) : { visibility: "suppressed" as const }),
+  }));
+  const suppressedDays = days.some(day => day.visibility === "suppressed");
+  return { campaign: record ?? null, range: { from, until, timezone: "UTC", cohort: "selected" }, days,
+    totals: suppressedDays ? { visibility: "suppressed" as const } :
+      shape(totals, eligibility.size === days.length ? [...eligibility.values()].reduce((a, b) => a + b, 0) : null, reasons) };
+}
+
 export function newsletterAnalytics(db: Database, actor: string, workspace: string, raw: unknown, campaignId?: string) {
   return withNewsletter(db, actor, workspace, "newsletter:analytics", async (tx, tenant) => {
-    const { from, until } = queryInput.parse(raw);
-    const campaign = campaignId ? id(campaignId) : null;
-    const [record] = campaign ? await tx.select({ id: newsletterCampaigns.id, state: newsletterCampaigns.state,
-      version: newsletterCampaigns.version }).from(newsletterCampaigns).where(and(eq(newsletterCampaigns.id, campaign),
-      eq(newsletterCampaigns.tenantId, tenant))) : [];
-    if (campaign && !record) throw unavailable();
-    const { rows } = await tx.execute<Group>(sql`
-      select * from public.newsletter_analytics_groups(${tenant}::uuid,${campaign}::uuid,${from}::date,${until}::date)`);
-    await installNewsletterSuppressionKeys(tx);
-    const eligibilityRows = await tx.execute<{ day: string; eligible: number }>(sql`
-      select cohort::text as "day", eligible from public.newsletter_current_eligibility(${tenant}::uuid,${campaign}::uuid,${from}::date,${until}::date)`);
-    const eligibility = new Map(eligibilityRows.rows.map(row => [row.day, row.eligible]));
-    const { totals, reasons } = aggregate(rows);
-    const days = rows.map(({ day, counts, reasons }) => ({
-      day, ...(counts ? shape(counts, eligibility.get(day) ?? null, reasons) : { visibility: "suppressed" as const }),
-    }));
-    const suppressedDays = days.some(day => day.visibility === "suppressed");
-    return { campaign: record ?? null, range: { from, until, timezone: "UTC", cohort: "selected" }, days,
-      totals: suppressedDays ? { visibility: "suppressed" as const } :
-        shape(totals, eligibility.size === days.length ? [...eligibility.values()].reduce((a, b) => a + b, 0) : null, reasons) };
+    const range = queryInput.parse(raw);
+    return analyticsIn(tx, tenant, range, campaignId ? id(campaignId) : null);
   });
 }

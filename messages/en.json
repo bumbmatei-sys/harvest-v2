@@ -6410,7 +6410,8 @@
     "preview": {
       "firstName": "Ana"
     },
-    "viewOnly": "Only owners and admins can write campaigns."
+    "viewOnly": "Only owners and admins can write campaigns.",
+    "analytics": "Analytics"
   },
   "NewsletterAudience": {
     "pageTitle": "Audience",
@@ -6467,5 +6468,71 @@
     "groupInUse": "This group is used by an email that is ready or sending.",
     "deleteGroupBody": "The group disappears from emails. The saved filter stays in People.",
     "groupStale": "This group's filter changed in People, so it can't be changed here. Create it again."
+  },
+  "NewsletterAnalytics": {
+    "pageTitle": "Analytics",
+    "eyebrow": "Newsletter",
+    "heading": "Analytics",
+    "period": "Period",
+    "periods": "{days} days",
+    "noAccess": "Only ministry owners and admins can see newsletter analytics.",
+    "rateOfSent": "{rate}% of sent",
+    "tiles": {
+      "campaigns": "Campaigns",
+      "sent": "Sent",
+      "delivered": "Delivered",
+      "bounced": "Bounced",
+      "complained": "Complaints",
+      "unsubscribed": "Unsubscribed",
+      "selected": "Recipients"
+    },
+    "empty": {
+      "title": "No sends yet",
+      "description": "Sending is off, so there is nothing to report. Figures appear here after the first campaign goes out."
+    },
+    "daily": {
+      "title": "Daily activity",
+      "caption": "Newsletter activity by day (UTC)",
+      "day": "Day"
+    },
+    "table": {
+      "title": "Campaigns",
+      "campaign": "Campaign",
+      "status": "Status",
+      "truncated": "Showing the {count} most recent campaigns."
+    },
+    "audience": {
+      "title": "Audience now",
+      "open": "Open Audience",
+      "subscribed": "Subscribed",
+      "unsubscribed": "Unsubscribed",
+      "suppressed": "Bounced or suppressed"
+    },
+    "footer": "Last {days} days, {start} to {end}, UTC. Figures are indicative: they come from mail provider reports and can arrive late. Opens and clicks are not collected. Groups under 5 are not shown.",
+    "back": "Analytics",
+    "openCampaign": "Open campaign",
+    "notSent": {
+      "title": "Not sent yet",
+      "description": "This campaign has not been sent, so there is nothing to report."
+    },
+    "campaign": {
+      "sinceSend": "Since send",
+      "statusTitle": "Delivery status",
+      "statusCaption": "Delivery status counts",
+      "statusKey": "Status",
+      "count": "Count",
+      "status": {
+        "selected": "Recipients",
+        "skipped": "Skipped",
+        "queued": "Queued",
+        "failed": "Failed",
+        "unknown": "Unconfirmed",
+        "operatorReview": "Needs review",
+        "accepted": "Sent",
+        "delivered": "Delivered"
+      },
+      "footer": "{start} to {end}, UTC. Delivery records are kept for 90 days. Figures are indicative and come from mail provider reports. Opens, clicks and link clicks are not collected. Groups under 5 are not shown."
+    },
+    "unavailable": "Analytics unavailable."
   }
 }
