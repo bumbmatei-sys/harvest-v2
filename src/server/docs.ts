@@ -1,45 +1,26 @@
 import { and, asc, eq, ilike, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
-import { auditLogs, docFavorites, docFolders, docPages, docs, users } from "../db/schema";
-import { docLimits, docRights, DocContentError, docTitleSchema, emptyContent, folderNameKey, folderNameSchema, pageStyleSchema, pageTitleSchema, reorder, sanitizeDocContent, subtreeIds, type DocContent, type DocRights, type PageStyle } from "../lib/docs";
+import { auditLogs, docFavorites, docShares, docFolders, docPages, docs, users } from "../db/schema";
+import { docLimits, docRights, rightsOf, DocContentError, docTitleSchema, emptyContent, folderNameKey, folderNameSchema, pageStyleSchema, pageTitleSchema, reorder, sanitizeDocContent, subtreeIds, type DocContent, type DocRights, type PageStyle } from "../lib/docs";
 import { message } from "../i18n/messages";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
 
-/** Docs are a development-only module until activated: never in production (same gate as the newsletter and the Office screens). */
-export function docsEnabled(env: Record<string, string | undefined> = process.env) { return env.NODE_ENV !== "production" && env.VERCEL_ENV !== "production"; }
-export function requireDocsEnabled() { if (!docsEnabled()) throw new AccessError(404, message("Errors.thisViewIsNotAvailable")); }
-
-const gone = () => new AccessError(404, message("Errors.docNotFound"));
-const stale = () => new AccessError(409, message("Errors.thisRecordChangedReloadAndTryAgain"), { reason: "stale" });
-const denied = () => new AccessError(403, message("Errors.youDoNotHavePermissionToDoThat"));
-const bad = (key: Parameters<typeof message>[0]) => new AccessError(400, message(key));
-const id = (value: string) => z.uuid().parse(value);
-const audit = (tx: Transaction, tenantId: string, actorId: string, action: string, targetId: string, metadata: Record<string, string | number> = {}) =>
-  tx.insert(auditLogs).values({ tenantId, actorId, action, targetId, metadata: Object.fromEntries(Object.entries(metadata).map(([k, v]) => [k, String(v)])) });
+import { audit, bad, denied, gone, id, loadDoc, needManage, needWrite, requireDocsEnabled, stale } from "./docs-access";
+import { snapshotPage } from "./docs-history";
+export { docsEnabled, requireDocsEnabled } from "./docs-access";
 /** People who signed in with a code may have no name yet: the start of the email before the @ stands in (never a long id). */
 const ownerName = sql<string>`coalesce(nullif(btrim(${users.name}),''), left(split_part(${users.email},'@',1), 24))`;
 const likeEscape = (value: string) => value.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 export type DocKind = "document" | "spreadsheet";
-export type DocRow = { id: string; kind: DocKind; title: string; ownerId: string; ownerName: string; folderId: string | null; updatedAt: string; archivedAt: string | null; deletedAt: string | null; favorite: boolean; rights: DocRights };
+export type DocRow = { id: string; kind: DocKind; visibility: "private" | "ministry"; title: string; ownerId: string; ownerName: string; folderId: string | null; updatedAt: string; archivedAt: string | null; deletedAt: string | null; favorite: boolean; rights: DocRights };
 /** `docCount` is what the card shows (active docs); `docTotal` also counts archived and trashed docs, which still block deleting the folder. */
 export type FolderRow = { id: string; parentId: string | null; name: string; ownerId: string; docCount: number; docTotal: number };
 export type PageRow = { id: string; parentId: string | null; position: number; title: string; icon: string | null; archivedAt: string | null; protected: boolean };
 
 const iso = (value: Date | null) => value ? value.toISOString() : null;
-
-/** The role-and-owner rule for changing a doc (the database policy enforces the same rule). */
-async function loadDoc(tx: Transaction, tenantId: string, docId: string, user: string, role: string, lock = false, trashed = false) {
-  const [row] = await tx.select().from(docs).where(and(eq(docs.tenantId, tenantId), eq(docs.id, docId), trashed ? isNotNull(docs.deletedAt) : isNull(docs.deletedAt)));
-  if (!row) throw gone();
-  const rights = docRights(role, row.ownerId, user);
-  // Serialise changes to one doc. The lock is taken only by someone who may change it: a row the update policy hides cannot be locked, and reading it needs no lock.
-  if (lock && rights.write) await tx.select({ id: docs.id }).from(docs).where(and(eq(docs.tenantId, tenantId), eq(docs.id, docId))).for("update");
-  return { row, rights };
-}
-const needWrite = (rights: DocRights) => { if (!rights.write) throw denied(); };
 
 // ---- Folders -------------------------------------------------------------------------------------------------------------------------------------------------
 async function folderDepth(tx: Transaction, tenantId: string, folderId: string | null) {
@@ -164,12 +145,14 @@ export async function listDocs(db: Database, user: string, workspace: string, ra
     const rows = await tx.select({ doc: docs, ownerName: ownerName, favorite: sql<boolean>`exists(select 1 from ${docFavorites} f where f.doc_id=${docs.id} and f.user_id=${user})` })
       .from(docs).innerJoin(users, eq(users.id, docs.ownerId)).where(and(...where))
       .orderBy(query.sort === "title" ? sql`lower(${docs.title})` : sql`${docs.updatedAt} desc`, asc(docs.id)).limit(500);
+    const mine = rows.length ? await tx.select({ docId: docShares.docId, role: docShares.role }).from(docShares).where(and(eq(docShares.userId, user), inArray(docShares.docId, rows.map((r) => r.doc.id)))) : [];
+    const shareOf = new Map(mine.map((m) => [m.docId, m.role]));
     const folders = await tx.select({ id: docFolders.id, parentId: docFolders.parentId, name: docFolders.name, ownerId: docFolders.ownerId,
       docCount: sql<number>`(select count(*) from ${docs} d where d.folder_id=doc_folders.id and d.tenant_id=doc_folders.tenant_id and d.deleted_at is null and d.archived_at is null)`,
       docTotal: sql<number>`(select count(*) from ${docs} d where d.folder_id=doc_folders.id and d.tenant_id=doc_folders.tenant_id)` })
       .from(docFolders).where(and(eq(docFolders.tenantId, tenantId), isNull(docFolders.archivedAt))).orderBy(sql`lower(${docFolders.name})`).limit(docLimits.foldersPerMinistry);
     return { role, userId: user, folders: folders.map((f) => ({ ...f, docCount: Number(f.docCount), docTotal: Number(f.docTotal) })),
-      docs: rows.map((r) => ({ id: r.doc.id, kind: r.doc.kind, title: r.doc.title, ownerId: r.doc.ownerId, ownerName: r.ownerName, folderId: r.doc.folderId, updatedAt: r.doc.updatedAt.toISOString(), archivedAt: iso(r.doc.archivedAt), deletedAt: iso(r.doc.deletedAt), favorite: r.favorite, rights: docRights(role, r.doc.ownerId, user) })) };
+      docs: rows.map((r) => ({ id: r.doc.id, kind: r.doc.kind, visibility: r.doc.visibility, title: r.doc.title, ownerId: r.doc.ownerId, ownerName: r.ownerName, folderId: r.doc.folderId, updatedAt: r.doc.updatedAt.toISOString(), archivedAt: iso(r.doc.archivedAt), deletedAt: iso(r.doc.deletedAt), favorite: r.favorite, rights: docRights(role, r.doc.ownerId, user, { visibility: r.doc.visibility, ministryAccess: r.doc.ministryAccess, share: shareOf.get(r.doc.id) ?? null }) })) };
   });
 }
 
@@ -203,7 +186,7 @@ export async function createDoc(db: Database, user: string, workspace: string, r
   });
 }
 
-export type DocDetail = { doc: { id: string; title: string; ownerId: string; ownerName: string; folderId: string | null; updatedAt: string; archivedAt: string | null; favorite: boolean }; rights: DocRights; pages: PageRow[]; folders: { id: string; parentId: string | null; name: string }[]; role: string; userId: string };
+export type DocDetail = { doc: { id: string; title: string; ownerId: string; ownerName: string; folderId: string | null; updatedAt: string; archivedAt: string | null; favorite: boolean; visibility: "private" | "ministry"; ministryAccess: "view" | "comment" | "edit"; publicEnabled: boolean }; rights: DocRights; pages: PageRow[]; folders: { id: string; parentId: string | null; name: string }[]; role: string; userId: string };
 export async function getDoc(db: Database, user: string, workspace: string, docId: string): Promise<DocDetail> {
   requireDocsEnabled();
   return withTenant(db, user, id(workspace), "docs:read", async (tx, tenantId, role) => {
@@ -212,7 +195,7 @@ export async function getDoc(db: Database, user: string, workspace: string, docI
     const [fav] = await tx.select({ n: sql<number>`count(*)` }).from(docFavorites).where(and(eq(docFavorites.docId, row.id), eq(docFavorites.userId, user)));
     const folders = await tx.select({ id: docFolders.id, parentId: docFolders.parentId, name: docFolders.name }).from(docFolders).where(and(eq(docFolders.tenantId, tenantId), isNull(docFolders.archivedAt))).limit(docLimits.foldersPerMinistry);
     return { role, userId: user, rights, folders, pages: await pageRows(tx, tenantId, row.id),
-      doc: { id: row.id, title: row.title, ownerId: row.ownerId, ownerName: owner?.name ?? "", folderId: row.folderId, updatedAt: row.updatedAt.toISOString(), archivedAt: iso(row.archivedAt), favorite: Number(fav.n) > 0 } };
+      doc: { id: row.id, title: row.title, ownerId: row.ownerId, ownerName: owner?.name ?? "", folderId: row.folderId, updatedAt: row.updatedAt.toISOString(), archivedAt: iso(row.archivedAt), favorite: Number(fav.n) > 0, visibility: row.visibility, ministryAccess: row.ministryAccess, publicEnabled: row.publicEnabled } };
   });
 }
 
@@ -223,6 +206,8 @@ export async function updateDoc(db: Database, user: string, workspace: string, d
     // Restoring from Trash addresses a trashed doc; every other change addresses a live one.
     const { row, rights } = await loadDoc(tx, tenantId, id(docId), user, role, true, input.trashed === false);
     needWrite(rights);
+    // Renaming is for editors; moving, archiving and trashing belong to the doc's owner and to owners and admins.
+    if (input.trashed !== undefined || input.archived !== undefined || input.folderId !== undefined) needManage(rights);
     if (input.folderId !== undefined && input.folderId !== row.folderId) await ensureFolder(tx, tenantId, input.folderId);
     const now = new Date();
     const [updated] = await tx.update(docs).set({
@@ -312,6 +297,7 @@ export async function updatePage(db: Database, user: string, workspace: string, 
     const onlyUnprotect = input.protected === false && input.title === undefined && content === undefined && input.style === undefined && input.icon === undefined;
     if (page.protected && !onlyUnprotect) throw new AccessError(409, message("Errors.pageProtected"), { reason: "protected" });
     const now = new Date();
+    if (content && JSON.stringify(content) !== JSON.stringify(page.content)) await snapshotPage(tx, tenantId, row.id, page, user, "autosave");
     const [saved] = await tx.update(docPages).set({
       ...(input.title !== undefined ? { title: input.title } : {}), ...(content ? { content } : {}), ...(input.style ? { style: input.style } : {}),
       ...(input.icon !== undefined ? { icon: input.icon } : {}), ...(input.protected !== undefined ? { protected: input.protected } : {}),
