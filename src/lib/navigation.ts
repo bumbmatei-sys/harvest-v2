@@ -118,10 +118,10 @@ export const navEntries: readonly NavEntry[] = [
   { id: "ads", group: "publishing", mode: "public", status: "planned", label: "ads", icon: Target, path: "/social/ads", match: under("/social/ads") },
   { id: "socialAnalytics", group: "publishing", mode: "public", label: "socialAnalytics", icon: ChartNoAxesCombined, path: "/social/analytics", match: under("/social/analytics"), permission: "social:analytics", feature: "social" },
   // Public > Newsletter, Website.
+  { id: "newsletterAnalytics", group: "newsletter", mode: "public", label: "newsletterAnalytics", icon: ChartLine, path: "/newsletter/analytics", match: under("/newsletter/analytics"), permission: "newsletter:analytics", feature: "newsletter" },
   { id: "newsletterCampaigns", group: "newsletter", mode: "public", label: "newsletterCampaigns", icon: MailPlus, path: "/newsletter/campaigns", match: under("/newsletter/campaigns"), permission: "newsletter:campaigns", feature: "newsletter" },
   { id: "newsletterAudience", group: "newsletter", mode: "public", label: "audience", icon: ContactRound, path: "/newsletter/audience", match: under("/newsletter/audience"), permission: "newsletter:read", feature: "newsletter" },
   { id: "signupForms", group: "newsletter", mode: "public", status: "planned", label: "signupForms", icon: ClipboardPen, path: "/newsletter/forms", match: under("/newsletter/forms") },
-  { id: "newsletterAnalytics", group: "newsletter", mode: "public", status: "planned", label: "newsletterAnalytics", icon: ChartLine, path: "/newsletter/analytics", match: under("/newsletter/analytics") },
   { id: "newsletterSender", group: "newsletter", mode: "public", label: "newsletterSender", icon: ShieldCheck, path: "/newsletter/sender", match: under("/newsletter/sender"), permission: "newsletter:delivery", feature: "newsletter" },
   { id: "linkInBio", group: "website", mode: "public", status: "planned", label: "linkInBio", icon: Link2, path: "/link-in-bio", match: under("/link-in-bio") },
   { id: "articles", group: "website", mode: "public", status: "planned", label: "articles", icon: Newspaper, path: "/articles", match: under("/articles") },

@@ -7,7 +7,8 @@ import { cn } from "@/lib/utils";
 
 export type ReportStat = {
   name: string;
-  description: string;
+  /** Optional one-line caption; most tiles need none. */
+  description?: string;
   /** Formatted figure, or null when the server withheld it (fewer than 5). */
   value: string | null;
   target?: string;
@@ -47,7 +48,7 @@ export function ReportStatCards({ stats, columns = 4 }: { stats: readonly Report
         <Card key={item.id} data-testid="report-stat" data-metric={item.id}>
           <CardHeader>
             <CardTitle>{item.name}</CardTitle>
-            <CardDescription>{item.description}</CardDescription>
+            {item.description && <CardDescription>{item.description}</CardDescription>}
           </CardHeader>
           <CardContent className="flex flex-col justify-end gap-3">
             <div className="flex flex-wrap items-baseline gap-1.5">
