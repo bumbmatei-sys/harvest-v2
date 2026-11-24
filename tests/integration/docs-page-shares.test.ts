@@ -88,3 +88,15 @@ describe("favorites and wiki", () => {
     expect(await status(getDoc(db(), member, tenant, d.id))).toBe(404);
   });
 });
+
+describe("notifications for page-share commenters", () => {
+  it("lets a page commenter reply to a thread, notifying its author", async () => {
+    const d = await createDoc(db(), member, tenant, { title: "Notify" });
+    const first = (await getDoc(db(), member, tenant, d.id)).pages[0].id;
+    const thread = await createComment(db(), member, tenant, d.id, first, { body: "Owner thread" });
+    await setPageShare(db(), member, tenant, d.id, first, { userId: member2, role: "comment" });
+    await createComment(db(), member2, tenant, d.id, first, { body: "A reply", parentId: (thread as { id: string }).id });
+    const rows = (await fixture.admin.query("select kind from doc_notifications where user_id=$1 and doc_id=$2 and kind='reply'", [member, d.id])).rows;
+    expect(rows).toHaveLength(1);
+  });
+});

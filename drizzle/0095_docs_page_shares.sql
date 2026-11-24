@@ -80,3 +80,10 @@ CREATE POLICY docs_page_share_update ON public.doc_page_shares FOR UPDATE TO har
 --> statement-breakpoint
 CREATE POLICY docs_page_share_delete ON public.doc_page_shares FOR DELETE TO harvest_app USING (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND (EXISTS (SELECT FROM public.workspace_members m WHERE m.tenant_id=doc_page_shares.tenant_id AND m.user_id=nullif(current_setting('app.user_id',true),'') AND (m.role_id IN ('owner','admin') OR (m.user_id=doc_page_shares.owner_id AND m.role_id<>'viewer'))) OR user_id=nullif(current_setting('app.user_id',true),'')))
 --> statement-breakpoint
+-- A person with only a page share may still comment, so the notification insert accepts a page share as read access to the doc.
+DROP POLICY docs_notification_insert ON public.doc_notifications
+--> statement-breakpoint
+CREATE POLICY docs_notification_insert ON public.doc_notifications FOR INSERT TO harvest_app WITH CHECK (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND actor_id=nullif(current_setting('app.user_id',true),'') AND EXISTS (SELECT FROM public.workspace_members m WHERE m.tenant_id=doc_notifications.tenant_id AND m.user_id=nullif(current_setting('app.user_id',true),''))
+  AND EXISTS(SELECT FROM public.workspace_members r WHERE r.tenant_id=doc_notifications.tenant_id AND r.user_id=doc_notifications.user_id)
+  AND EXISTS (SELECT FROM public.docs d JOIN public.workspace_members m2 ON m2.tenant_id=d.tenant_id AND m2.user_id=nullif(current_setting('app.user_id',true),'') WHERE d.tenant_id=doc_notifications.tenant_id AND d.id=doc_notifications.doc_id AND (public.docs_rank(m2.role_id,d.owner_id=m2.user_id,d.visibility,d.ministry_access,(SELECT s.role FROM public.doc_shares s WHERE s.doc_id=d.id AND s.user_id=m2.user_id))>=1 OR public.docs_has_page_share(d.id))))
+--> statement-breakpoint

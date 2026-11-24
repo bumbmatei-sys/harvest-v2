@@ -31,7 +31,7 @@ const SlashList = forwardRef<ListHandle, ListProps>(function SlashList({ items, 
     return false;
   } }), [items, index, command]);
   if (!items.length) return <div id={listId} role="listbox" aria-label={t("slashMenu")} className="w-72 rounded-lg border bg-popover p-3 text-sm text-muted-foreground shadow-md">{t("slashNone")}</div>;
-  return <div ref={box} id={listId} role="listbox" aria-label={t("slashMenu")} data-slash-menu className="max-h-80 w-[min(34rem,calc(100vw-2rem))] overflow-y-auto rounded-lg border bg-popover p-2 text-popover-foreground shadow-md">
+  return <div ref={box} id={listId} role="listbox" tabIndex={0} aria-label={t("slashMenu")} data-slash-menu className="max-h-80 w-[min(34rem,calc(100vw-2rem))] overflow-y-auto rounded-lg border bg-popover p-2 text-popover-foreground shadow-md">
     {slashSections.map((section) => {
       const rows = items.map((item, i) => ({ item, i })).filter((row) => row.item.section === section);
       if (!rows.length) return null;
@@ -73,8 +73,8 @@ export const SlashCommand = Extension.create<SlashOptions>({
         };
         const aria = (props: SuggestionProps<SlashItem, SlashItem> | null) => {
           const dom = editor.view.dom;
-          if (!props) { dom.removeAttribute("aria-controls"); dom.removeAttribute("aria-expanded"); return; }
-          dom.setAttribute("aria-controls", listId); dom.setAttribute("aria-expanded", "true"); dom.setAttribute("aria-haspopup", "listbox");
+          if (!props) { dom.removeAttribute("aria-controls"); return; }
+          dom.setAttribute("aria-controls", listId);
         };
         return {
           onStart: (props) => {
