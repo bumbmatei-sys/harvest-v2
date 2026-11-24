@@ -245,3 +245,7 @@ export const driveMarkColors = {
   drive: { green: "#34A853", yellow: "#FBBC04", blue: "#4285F4" },
   onedrive: { deep: "#0364B8", base: "#0078D4", mid: "#1490DF", light: "#28A8EA" },
 } as const;
+
+/** Docs editor: the text colours and highlights offered in the toolbar and the slash menu (nine each, in this order: red, orange, yellow, green, cyan, blue, purple, pink, gray). The server accepts any six-digit hex value. */
+export const docTextColors = ["#dc2626", "#ea580c", "#ca8a04", "#16a34a", "#0891b2", "#2563eb", "#7c3aed", "#db2777", "#6b7280"] as const;
+export const docHighlightColors = ["#fecaca", "#fed7aa", "#fef08a", "#bbf7d0", "#a5f3fc", "#bfdbfe", "#ddd6fe", "#fbcfe8", "#e5e7eb"] as const;
