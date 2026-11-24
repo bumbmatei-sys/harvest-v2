@@ -305,4 +305,12 @@ describe("tabs, details and the cover", () => {
     const { rows } = await fixture.admin.query("select public.bio_public_photo('grace-church', 'cover') c, public.bio_public_photo('grace-church', 'photo') p");
     expect(rows[0].c.key).toContain(file); expect(rows[0].p.key).not.toContain(file);
   });
+  it("will not publish when every visible block sits in a tab that is hidden or missing from the list", async () => {
+    version = (await getBioPage(db(), people.owner, people.tenant)).version;
+    await save(people.owner, undefined, { ...def([message]), tabs: [{ id: "home", hidden: false }] });
+    expect(await status(transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version }))).toBe(400);
+    await save(people.owner, undefined, { ...def([link("aaaaaaaa")]), tabs: [{ id: "home", hidden: true }, { id: "partnership", hidden: false }] });
+    expect(await status(transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version }))).toBe(400);
+    expect((await fixture.admin.query("select public.bio_block_shown($1::jsonb, $2::jsonb) a, public.bio_block_shown($3::jsonb, $2::jsonb) b", [JSON.stringify({ tabs: [{ id: "home", hidden: false }] }), JSON.stringify({ hidden: false, tab: "partnership" }), JSON.stringify({ tabs: [{ id: "partnership", hidden: false }] })])).rows[0]).toEqual({ a: false, b: true });
+  });
 });

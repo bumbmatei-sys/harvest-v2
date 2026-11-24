@@ -262,7 +262,7 @@ BEGIN
   SELECT * INTO page FROM public.bio_pages WHERE handle = p_handle AND status = 'published' AND CASE WHEN p_kind = 'cover' THEN published_cover_file_id ELSE published_photo_file_id END IS NOT NULL;
   IF NOT FOUND THEN RETURN NULL; END IF;
   PERFORM set_config('app.bio_tenant', page.tenant_id::text, true);
-  SELECT * INTO file FROM public.bio_files WHERE tenant_id = page.tenant_id AND page_id = page.id AND id = CASE WHEN p_kind = 'cover' THEN page.published_cover_file_id ELSE page.published_photo_file_id END AND status = 'ready';
+  SELECT * INTO file FROM public.bio_files WHERE tenant_id = page.tenant_id AND page_id = page.id AND id = CASE WHEN p_kind = 'cover' THEN page.published_cover_file_id ELSE page.published_photo_file_id END AND kind = CASE WHEN p_kind = 'cover' THEN 'cover' ELSE 'photo' END AND status = 'ready';
   IF NOT FOUND THEN RETURN NULL; END IF;
   RETURN jsonb_build_object('key', file.key, 'name', file.name, 'mime', file.mime);
 END $$;
@@ -278,12 +278,12 @@ END $$;
 REVOKE ALL ON FUNCTION public.bio_public_photo(text, text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.bio_public_photo(text, text) TO harvest_app;
 --> statement-breakpoint
--- A block is shown to visitors when it is not hidden and its tab is not hidden.
+-- A block is shown to visitors when it is not hidden and its tab exists and is not hidden (the schema only allows known tab ids; a tab left out of the list hides its blocks).
 CREATE FUNCTION public.bio_block_shown(p_published jsonb, p_block jsonb) RETURNS boolean
 LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, pg_temp AS $$
-  SELECT (p_block->>'hidden') = 'false' AND NOT EXISTS (
+  SELECT (p_block->>'hidden') = 'false' AND EXISTS (
     SELECT FROM jsonb_array_elements(coalesce(p_published->'tabs', '[]'::jsonb)) t
-    WHERE t->>'id' = coalesce(p_block->>'tab', 'home') AND (t->>'hidden') = 'true')
+    WHERE t->>'id' = coalesce(p_block->>'tab', 'home') AND (t->>'hidden') = 'false')
 $$;
 REVOKE ALL ON FUNCTION public.bio_block_shown(jsonb, jsonb) FROM PUBLIC, harvest_app;
 --> statement-breakpoint
@@ -390,7 +390,7 @@ BEGIN
   IF NOT FOUND THEN RETURN 'not_found'; END IF;
   IF p_action = 'publish' THEN
     IF page.version IS DISTINCT FROM p_version THEN RETURN 'stale'; END IF;
-    IF btrim(coalesce(page.draft->>'name', '')) = '' OR NOT EXISTS (SELECT FROM jsonb_array_elements(page.draft->'blocks') b WHERE (b->>'hidden') = 'false') THEN RETURN 'invalid'; END IF;
+    IF btrim(coalesce(page.draft->>'name', '')) = '' OR NOT EXISTS (SELECT FROM jsonb_array_elements(page.draft->'blocks') b WHERE public.bio_block_shown(page.draft, b)) THEN RETURN 'invalid'; END IF;
     UPDATE public.bio_pages SET status = 'published', published = draft, published_photo_file_id = photo_file_id, published_cover_file_id = cover_file_id, published_at = clock_timestamp(), updated_at = clock_timestamp() WHERE tenant_id = p_tenant;
   ELSE
     IF page.status <> 'published' THEN RETURN 'unchanged'; END IF;
