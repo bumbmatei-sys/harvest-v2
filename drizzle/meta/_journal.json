@@ -610,6 +610,13 @@
       "when": 1795494089816,
       "tag": "0087_newsletter_sender",
       "breakpoints": true
+    },
+    {
+      "idx": 88,
+      "version": "7",
+      "when": 1795512442361,
+      "tag": "0088_newsletter_signup_forms",
+      "breakpoints": true
     }
   ]
 }

@@ -5,6 +5,7 @@ import { message } from "../i18n/messages";
 import { uuidInput } from "../lib/contact-input";
 import { buildForm, FORM_KIND, formDefinitionSchema, isTemplateId, type FormDefinition, type FormDestination, type FormText } from "../lib/crm-forms";
 import { z } from "zod";
+import { stampNewsletterForm } from "../lib/newsletter-signup";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
 
@@ -18,6 +19,19 @@ async function checkOwner(tx: Parameters<Parameters<typeof withTenant>[4]>[0], t
   if (ownerId === null) return;
   const { rows } = await tx.execute(sql`select 1 from workspace_members where tenant_id = ${tenantId} and user_id = ${ownerId} for share`);
   if (!rows.length) throw new AccessError(400, message("Errors.checkTheSuppliedDetails"));
+}
+
+/** A sign-up form may only point at this ministry's own live lists, and its texts are always the ones its wording version and the ministry's name give. */
+export async function checkNewsletterDefinition(tx: Parameters<Parameters<typeof withTenant>[4]>[0], tenantId: string, definition: FormDefinition): Promise<FormDefinition> {
+  if (!definition.newsletter) return definition;
+  const ids = definition.newsletter.listIds;
+  if (ids.length) {
+    const { rows } = await tx.execute<{ id: string }>(sql`select id::text as id from newsletter_lists where tenant_id = ${tenantId}
+      and id in (${sql.join(ids.map((id) => sql`${id}::uuid`), sql`, `)}) and archived_at is null`);
+    if (rows.length !== ids.length) throw new AccessError(400, message("CrmForms.errors.lists"), { reason: "invalid_lists" });
+  }
+  const { rows: [ministry] } = await tx.execute<{ name: string }>(sql`select name from workspaces where tenant_id = ${tenantId}`);
+  return stampNewsletterForm(definition, ministry?.name ?? "");
 }
 
 export type FormSummary = { id: string; title: string; destination: FormDestination | null; blocks: number; createdAt: string; updatedAt: string; createdBy: string };
@@ -46,7 +60,7 @@ export function listCrmForms(db: Database, userId: string, workspace: string): P
       from forms f join lateral (select definition from form_versions where tenant_id = f.tenant_id and form_id = f.id
         and status = 'draft' and definition->>'kind' = ${FORM_KIND} order by version desc limit 1) v on true
       left join users u on u.id = f.created_by
-      where f.tenant_id = ${tenantId} and f.archived_at is null and v.definition->>'kind' = ${FORM_KIND}
+      where f.tenant_id = ${tenantId} and f.archived_at is null and v.definition->>'kind' = ${FORM_KIND} and v.definition->'newsletter' is null
       order by f.created_at desc, f.id limit ${LIMIT}`)).rows as { id: string; name: string; createdAt: Date | string; createdBy: string; title: string | null; destination: FormDestination | null; blocks: number; updatedAt: string | null }[];
     return rows.map((row) => ({ id: row.id, title: row.title || row.name, destination: row.destination, blocks: Number(row.blocks), createdAt: new Date(row.createdAt).toISOString(), updatedAt: row.updatedAt ?? new Date(row.createdAt).toISOString(), createdBy: row.createdBy }));
   });
@@ -117,7 +131,10 @@ export async function saveCrmForm(db: Database, userId: string, workspace: strin
     if (draft.form.definition.revision !== input.revision) throw stale();
     await checkDestination(tx, tenantId, input.definition.destination);
     await checkOwner(tx, tenantId, input.definition.settings.ownerId);
-    const next: FormDefinition = { ...input.definition, revision: input.revision + 1, updatedAt: new Date().toISOString() };
+    // A form never turns into a sign-up form or back: the two are saved and published through different screens.
+    if (Boolean(draft.form.definition.newsletter) !== Boolean(input.definition.newsletter)) throw new AccessError(400, message("Errors.checkTheSuppliedDetails"));
+    const stamped = await checkNewsletterDefinition(tx, tenantId, input.definition);
+    const next: FormDefinition = { ...stamped, revision: input.revision + 1, updatedAt: new Date().toISOString() };
     await checkSize(tx, next);
     if (draft.frozen) {
       await tx.insert(formVersions).values({ tenantId, formId: id, version: draft.draftVersion + 1, definition: next, createdBy: userId });

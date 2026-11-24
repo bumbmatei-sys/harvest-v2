@@ -2719,3 +2719,37 @@ export const newsletterBrandKits = pgTable("newsletter_brand_kits", {
   version: integer("version").notNull().default(1),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, t => [primaryKey({ columns: [t.tenantId] }), check("newsletter_brand_kit_object", sql`jsonb_typeof(${t.kit})='object' AND pg_column_size(${t.kit})<=4096`)]);
+
+// Hosted newsletter sign-up forms: one pending row per sign-up. Holds digests and the two optional name parts only until the address is confirmed or the
+// sign-up expires (then the names are cleared); the address itself is never stored. No foreign key to contacts, so erase and merge need no extra handling
+// beyond the before-erase trigger that drops a person's pending rows.
+export const newsletterFormSignups = pgTable("newsletter_form_signups", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  formId: uuid("form_id").notNull(),
+  versionId: uuid("version_id").notNull(),
+  receipt: uuid("receipt").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  emailProof: text("email_proof").notNull(),
+  contactId: uuid("contact_id"),
+  listIds: uuid("list_ids").array().notNull(),
+  wordingVersion: text("wording_version").notNull(),
+  firstName: text("first_name"),
+  lastName: text("last_name"),
+  state: text("state", { enum: ["pending", "confirmed", "blocked", "expired"] }).notNull().default("pending"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  unique("newsletter_form_signup_token").on(t.tokenHash),
+  unique("newsletter_form_signup_receipt").on(t.tenantId, t.formId, t.receipt),
+  foreignKey({ name: "newsletter_form_signup_publication_fk", columns: [t.tenantId, t.formId, t.versionId], foreignColumns: [crmFormPublications.tenantId, crmFormPublications.formId, crmFormPublications.versionId] }),
+  index("newsletter_form_signups_form_idx").on(t.tenantId, t.formId, t.state),
+  index("newsletter_form_signups_expiry_idx").on(t.expiresAt).where(sql`${t.state} = 'pending'`),
+  index("newsletter_form_signups_contact_idx").on(t.tenantId, t.contactId).where(sql`${t.contactId} is not null`),
+  check("newsletter_form_signup_hashes", sql`${t.tokenHash} ~ '^[0-9a-f]{64}$' and ${t.emailProof} ~ '^[0-9a-f]{64}$'`),
+  check("newsletter_form_signup_lists", sql`cardinality(${t.listIds}) between 1 and 10`),
+  check("newsletter_form_signup_names", sql`length(coalesce(${t.firstName}, '')) <= 100 and length(coalesce(${t.lastName}, '')) <= 100 and (${t.state} = 'pending' or (${t.firstName} is null and ${t.lastName} is null))`),
+  check("newsletter_form_signup_confirmed", sql`(${t.state} in ('confirmed', 'blocked')) = (${t.confirmedAt} is not null)`),
+]);

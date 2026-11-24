@@ -121,7 +121,7 @@ export const navEntries: readonly NavEntry[] = [
   { id: "newsletterAnalytics", group: "newsletter", mode: "public", label: "newsletterAnalytics", icon: ChartLine, path: "/newsletter/analytics", match: under("/newsletter/analytics"), permission: "newsletter:analytics", feature: "newsletter" },
   { id: "newsletterCampaigns", group: "newsletter", mode: "public", label: "newsletterCampaigns", icon: MailPlus, path: "/newsletter/campaigns", match: under("/newsletter/campaigns"), permission: "newsletter:campaigns", feature: "newsletter" },
   { id: "newsletterAudience", group: "newsletter", mode: "public", label: "audience", icon: ContactRound, path: "/newsletter/audience", match: under("/newsletter/audience"), permission: "newsletter:read", feature: "newsletter" },
-  { id: "signupForms", group: "newsletter", mode: "public", status: "planned", label: "signupForms", icon: ClipboardPen, path: "/newsletter/forms", match: under("/newsletter/forms") },
+  { id: "signupForms", group: "newsletter", mode: "public", label: "signupForms", icon: ClipboardPen, path: "/newsletter/forms", match: under("/newsletter/forms"), permission: "newsletter:manage", feature: "newsletter" },
   { id: "newsletterSender", group: "newsletter", mode: "public", label: "newsletterSender", icon: ShieldCheck, path: "/newsletter/sender", match: under("/newsletter/sender"), permission: "newsletter:delivery", feature: "newsletter" },
   { id: "linkInBio", group: "website", mode: "public", status: "planned", label: "linkInBio", icon: Link2, path: "/link-in-bio", match: under("/link-in-bio") },
   { id: "articles", group: "website", mode: "public", status: "planned", label: "articles", icon: Newspaper, path: "/articles", match: under("/articles") },
