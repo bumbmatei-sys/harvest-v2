@@ -59,12 +59,12 @@ export async function checkAccountHealth(db: Database, user: string, workspace: 
   const { tenant, ctx, access } = await prepare(db, user, workspace, adAccountId, deps);
   let health: RemoteHealth | null = null, code: string | null = null;
   try { health = await access.provider.getAdAccountHealth(access.credential, access.query); } catch (error) { code = failureCode(error); }
-  return withAds(db, user, workspace, deps, async (tx) => {
+  const view = await withAds(db, user, workspace, deps, async (tx) => {
     const id = ctx.account.id;
     if (!health) {
       await raiseAlert(tx, tenant, id, code === "AUTH" ? "connection_lost" : "sync_failed", code === "AUTH" ? "critical" : "warning", code === "AUTH" ? "connection" : "health");
       await tx.update(adsAccounts).set({ syncState: "failing", healthCheckedAt: sql`now()`, updatedAt: sql`now()` }).where(and(eq(adsAccounts.tenantId, tenant), eq(adsAccounts.id, id)));
-      throw invalid(`PROVIDER_${code}`);
+      return null;
     }
     const checks: Record<string, { state: string; fixUrl?: string | null }> = {};
     for (const name of healthChecks) { const c = health.checks[name]; checks[name] = c ? { state: c.state, fixUrl: c.fixUrl ?? null } : { state: "unknown" }; }
@@ -77,6 +77,9 @@ export async function checkAccountHealth(db: Database, user: string, workspace: 
     if (health.status !== "active" && health.status !== "unknown") await raiseAlert(tx, tenant, id, "account_restricted", "critical", `account:${health.status}`);
     return { account: accountView(row), newestPixelEventAt: health.newestPixelEventAt?.toISOString() ?? null };
   });
+  // The failure alert is committed before the caller sees the refusal.
+  if (!view) throw invalid(`PROVIDER_${code}`);
+  return view;
 }
 
 export async function raiseAlert(tx: Transaction, tenant: string, adAccountId: string, kind: typeof adsAlerts.$inferInsert["kind"], severity: "info" | "warning" | "critical", dedupeKey: string, subject?: { level: AdLevel; id: string }) {

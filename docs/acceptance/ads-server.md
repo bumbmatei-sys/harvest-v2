@@ -2,44 +2,49 @@
 
 Migration `0098_ads_server`. Server only: no screens. Everything is hard-off (`ADS_INTEGRATION_ENABLED = false`, `ZERNIO_ADS_LIVE_NETWORK = false`), the only working provider is the in-memory fake, no real outbound call, no webhook registration, no spend, no real ad account. The five HC-02 gates stay UNAPPROVED. Sources: `docs/prd/professional-v1-launch-scope.md` (scope exception 20 Nov), `docs/prd/public-mode-social-discover-navigation.md` section 5.5, `docs/decisions/founder-decisions-2026-11.md` (Ads bullets), provider documentation read through the documentation search tool (field names; live behaviour unverified). Founder 25 Nov: cover the whole provider Ads surface behind the neutral adapter. Status key: BUILT / DEFERRED (reason) / N/A.
 
-Checklist (ticked at the end with evidence in the "Evidence" column).
+Checklist, ticked with evidence.
 
 | # | Requirement (source) | Status | Evidence |
 | --- | --- | --- | --- |
-| 1 | Hard-off: literal-false constants, production never enabled, fake provider only, no network (PRD 5.5) | | |
-| 2 | Owner/admin only, `ads:manage` in code and SQL, neutral 404 elsewhere (PRD 5.5) | | |
-| 3 | Ad accounts linked through the existing social connection; ministry's own accounts; no ad payments handled (PRD 5.5) | | |
-| 4 | Ad account health check with per-check `unknown`, last refusal and fix link (PRD item 10) | | |
-| 5 | Needs-attention alerts: rejected ads, delivery issues, payment, spend without results, capped budget, lost connection (PRD item 10) | | |
-| 6 | Campaign > ad set / ad group > ad read model, metadata only (ids, names, status, budget, schedule), no creative copy (PRD server paragraph) | | |
-| 7 | Create campaign/ad set/ad: goals, budget amount/type/level, dates in ad-account timezone, default PAUSED, bidding, special ad categories (25 Nov) | | |
-| 8 | Add an ad to an existing ad set (25 Nov) | | |
-| 9 | Formats: image, video, carousel 2-10, document, event, text, messaging, call (25 Nov) | | |
-| 10 | Boost a published post incl. list posts to boost, existing ad set, TikTok identities/Spark codes (PRD item 1) | | |
-| 11 | Targeting incl. locations, radius pins, exclusions, languages, age, gender, interests, audiences, saved targeting, raw passthrough as opaque owner-only JSON, targeting search (PRD item 3) | | |
-| 12 | Review-and-launch gate, validate-only (dry run), idempotent launch, never a second campaign on retry/ambiguous outcome (PRD server paragraph) | | |
-| 13 | Political / social-issue ads refused until a policy exists (PRD open decisions) | | |
-| 14 | Pause/resume at ad, ad set, campaign; bulk status; rename; delete/archive with irreversible warning (PRD item 9) | | |
-| 15 | Budget/bid change with confirmation, stale-version protection, idempotency key; shared budgets (PRD item 9) | | |
-| 16 | Audit of every spend-affecting action, ids/versions/outcomes only (PRD server paragraph) | | |
-| 17 | Results per campaign/ad set/ad over a date range, metrics list, attribution model stored, newest value per day, "unavailable is not zero" (PRD item 8) | | |
-| 18 | Results retention pruning | | |
-| 19 | Review status per ad (in review/approved/rejected with reason) and delivery issues (25 Nov) | | |
-| 20 | Lead forms: create/list, attach to lead_generation ads (25 Nov, PRD item 6) | | |
-| 21 | Lead ingestion with statuses new/contacted/unreachable/qualified/converted/disqualified; stored as ad-lead records, NO CRM contact and NO implied consent until a person reviews (PRD item 6) | | |
-| 22 | CRM contact creation from a lead | | |
-| 23 | Audiences read model (custom, lookalike, saved, website, engagement) | | |
-| 24 | Audiences built from CRM people / audience upload (PRD item 4, open decision: off until wording approved) | | |
-| 25 | Conversions API / pixel: data model + adapter call shape only, nothing sent (PRD item 11) | | |
-| 26 | Automatic ad rules, disabled by default, owner-configured, run log (PRD item 9) | | |
-| 27 | Ads webhooks: verified signature, idempotent, fixtures only, no registration (25 Nov) | | |
-| 28 | Scheduled background sync worker | | |
-| 29 | Ad comments (inbox) | | |
-| 30 | Creator-campaign ads (run creator posts as ads) | | |
-| 31 | Breakdowns (age, gender, country, placement), async reports, Google keywords/search terms/keyword planner, labels (PRD item 8) | | |
-| 32 | Erase/merge of contacts: nothing here references contacts | | |
-| 33 | Neon / hosted verification, real provider scopes | | |
+| 1 | Hard-off: literal-false constants, production never enabled, fake provider only, no network (PRD 5.5) | BUILT | `ADS_INTEGRATION_ENABLED` and `ZERNIO_ADS_LIVE_NETWORK` are literal `false`; the vendor adapter has no transport and refuses with DISABLED; no webhook is registered. Tests: unit `ads-rules` (hard-off), `ads-source-guards` (no fetch/http/env), integration `ads-server` (hard-off route/webhook 404, `fetch` spy never called). |
+| 2 | Owner/admin only, `ads:manage` in code and SQL, neutral 404 elsewhere (PRD 5.5) | BUILT | `ads:manage` (owner/admin) in `src/lib/permissions.ts`; SQL `ads_can()` on every table policy; all routes answer a neutral 404 for members, viewers, outsiders. Integration: first test. |
+| 3 | Ad accounts linked through the existing social connection; ministry's own accounts; no ad payments handled (PRD 5.5) | BUILT | `linkAdAccounts` reads the ministry's own ad accounts through one active social connection (`ads_accounts` FK to `social_connections`); no payment data is read or stored. Integration: beforeAll + health test. |
+| 4 | Ad account health check with per-check `unknown`, last refusal and fix link (PRD item 10) | BUILT | `checkAccountHealth` stores the 8 named checks, `unknown` when the provider does not answer, last refusal with fix link. Integration: health test. |
+| 5 | Needs-attention alerts: rejected ads, delivery issues, payment, spend without results, capped budget, lost connection (PRD item 10) | BUILT | `ads_alerts` kinds: ad_rejected, delivery_issue, payment_problem, spend_without_results, budget_capped (delivery code), connection_lost, sync_failed, account_restricted; open/resolved/dismissed. Integration: health, alerts and webhook tests. |
+| 6 | Campaign > ad set / ad group > ad read model, metadata only (ids, names, status, budget, schedule), no creative copy (PRD server paragraph) | BUILT | `ads_campaigns`, `ads_ad_sets`, `ads_ads`: ids, names, status, budget, schedule, targeting, format, creative reference, source post reference only. `readTree`, `syncAdAccount`. |
+| 7 | Create campaign/ad set/ad: goals, budget amount/type/level, dates in ad-account timezone, default PAUSED, bidding, special ad categories (25 Nov) | BUILT | `createCampaignInput`: goals, budget amount/type/level, start/end dates (lifetime needs end date), status default paused, bidding, special categories, attribution model. Dates are stored as given for the ad-account timezone. Per-network minimum budgets are DEFERRED (live values unknown, TODO in the adapter). Unit + integration launch tests. |
+| 8 | Add an ad to an existing ad set (25 Nov) | BUILT | `add_ad` launch kind. Integration: boost/add_ad test. |
+| 9 | Formats: image, video, carousel 2-10, document, event, text, messaging, call (25 Nov) | BUILT | `creativeSchema` covers image, video, carousel (2-10 cards), document, event, text, messaging (WhatsApp, Messenger, Instagram Direct) and call. Unit test. |
+| 10 | Boost a published post incl. list posts to boost, existing ad set, TikTok identities/Spark codes (PRD item 1) | BUILT | `boost` launch kind, `existingAdSetId`, `listBoostablePosts`, `listIdentities` (TikTok identities, Spark code supported flag), `sparkCode`. Integration. |
+| 11 | Targeting incl. locations, radius pins, exclusions, languages, age, gender, interests, audiences, saved targeting, raw passthrough as opaque owner-only JSON, targeting search (PRD item 3) | BUILT | `targetingSchema` (countries, regions/cities/zips/metros, radius pins, excluded locations, languages, age, gender, interests, behaviours, include/exclude audiences, saved targeting id, advantage audience), owner-only `rawTargeting` stored as opaque capped JSON, `searchTargeting`. Unit + integration. |
+| 12 | Review-and-launch gate, validate-only (dry run), idempotent launch, never a second campaign on retry/ambiguous outcome (PRD server paragraph) | BUILT | Draft -> validate (provider dry run, nothing created) -> review (hash of the exact payload) -> launch with idempotency key bound to the request; ambiguous outcome retries only with the same key; replay returns the original. Integration: launch gate test. |
+| 13 | Political / social-issue ads refused until a policy exists (PRD open decisions) | BUILT | `social_issues_elections_politics` is refused at validation, review and launch. Integration: policy test. |
+| 14 | Pause/resume at ad, ad set, campaign; bulk status; rename; delete/archive with irreversible warning (PRD item 9) | BUILT | `setStatus`, `bulkSetStatus` (50 max), `rename`, `remove` (archive or delete per network; needs `confirmIrreversible`). Integration: status test. |
+| 15 | Budget/bid change with confirmation, stale-version protection, idempotency key; shared budgets (PRD item 9) | BUILT | `setBudget` needs `confirm: true`, current version, idempotency key; level ownership checked; lifetime keeps an end date. Google shared budgets are read-only (`listSharedBudgets`); creating or assigning shared budgets is DEFERRED. Integration: budget test. |
+| 16 | Audit of every spend-affecting action, ids/versions/outcomes only (PRD server paragraph) | BUILT | `audit_logs` rows `ads.*` for launch request/review/outcome, status, bulk status, rename, budget, delete, rule changes and runs, lead changes; metadata is ids, versions and outcomes only (tested: no copy in the audit). |
+| 17 | Results per campaign/ad set/ad over a date range, metrics list, attribution model stored, newest value per day, "unavailable is not zero" (PRD item 8) | BUILT | `ads_results` (level, entity, day, attribution model) with newest-value-per-day upsert, counts only with recomputed ratios, `readResults` totals with `available/partial/unavailable`, reach never totalled. Integration: results test. |
+| 18 | Results retention pruning | BUILT | `ads_results_prune` (400 days, worker role only, no schedule installed). Integration: results test. |
+| 19 | Review status per ad (in review/approved/rejected with reason) and delivery issues (25 Nov) | BUILT | `ads_ads.review_status/review_reason/delivery_issue` from sync and webhook events. Integration. |
+| 20 | Lead forms: create/list, attach to lead_generation ads (25 Nov, PRD item 6) | BUILT | `createLeadForm` (idempotent, consent text and privacy link recorded), `listLeadForms`, launch payload `creative.leadFormId` mapped to the provider reference and required for lead_generation. Integration: leads test. |
+| 21 | Lead ingestion with statuses new/contacted/unreachable/qualified/converted/disqualified; stored as ad-lead records, NO CRM contact and NO implied consent until a person reviews (PRD item 6) | BUILT | `ads_leads` via `syncLeads` and the `lead.received` webhook; statuses new, contacted, unreachable, qualified, converted, disqualified; consent text of the form kept as evidence; `crmContactCreated` is always false; `contacts` row count asserted unchanged. Integration: leads test. |
+| 22 | CRM contact creation from a lead | DEFERRED | PRD 5.5 item 6: no CRM contact until a person reviews it. No review-to-CRM path was built; it needs the founder-approved consent wording and the existing CRM association rules. Recorded as a founder decision. |
+| 23 | Audiences read model (custom, lookalike, saved, website, engagement) | BUILT | `ads_audiences` read model (custom, lookalike, saved_targeting, website, engagement, customer_list) via `syncAdAccount`, `listAudiences`. |
+| 24 | Audiences built from CRM people / audience upload (PRD item 4, open decision: off until wording approved) | DEFERRED | Off until the purpose, notice and consent wording is approved (PRD open decision). No upload path, no table, no adapter method exists; source guard asserts the services never reference an upload. |
+| 25 | Conversions API / pixel: data model + adapter call shape only, nothing sent (PRD item 11) | BUILT | `ads_conversion_destinations` (pixel, conversion API, offline) read model and the `sendConversionEvents` call shape on the port, which every implementation refuses (DISABLED). No events table. Privacy and consent design DEFERRED (founder decision). Unit + integration. |
+| 26 | Automatic ad rules, disabled by default, owner-configured, run log (PRD item 9) | BUILT | `ads_rules` (created disabled, enable is a separate audited step with version), `previewRule`, `runRules` (pause goes through the audited idempotent status path with a repeatable key; notify), `ads_rule_runs` log. Provider-native rule execution is not mirrored (the `ad_rule.run` event is recorded only). Integration: rules test. |
+| 27 | Ads webhooks: verified signature, idempotent, fixtures only, no registration (25 Nov) | BUILT | `receiveAdsWebhook` + `ads_webhook_apply`: signature verified first, one refusal shape, bounded body, age window, tenant from our own ad-account record, duplicate event ids change nothing, ambiguous provider account never guessed. Events: ad account status, sync failed/recovered/initial sync, campaign/ad set/ad updates, review, delivery issue, lead received, ad rule run (recorded). Fixtures only. Integration: webhook test. The signing secret reuses the social webhook key purpose (a separate purpose is a follow-up). |
+| 28 | Scheduled background sync worker | DEFERRED | No scheduled worker or cron is installed. Sync (`syncAdAccount`, `syncResults`, `syncLeads`, `runRules`) is owner/admin triggered; the daily schedule needs the hard-off activation review. |
+| 29 | Ad comments (inbox) | DEFERRED | PRD: ad comments belong in the unified Inbox later. |
+| 30 | Creator-campaign ads (run creator posts as ads) | N/A | Creator-campaign ads (running creator posts as ads) are not Harvest scope. |
+| 31 | Breakdowns (age, gender, country, placement), async reports, Google keywords/search terms/keyword planner, labels (PRD item 8) | DEFERRED | Breakdowns (age, gender, country, placement), async reports, Google search-terms and keyword tooling, labels: PRD lists them for the screens PRs; the data model (results keyed by day) leaves room. Not needed by the server slice. |
+| 32 | Erase/merge of contacts: nothing here references contacts | N/A | No Ads table references a contact; asserted by a source guard (`ads-source-guards`). erase_contact/merge_contacts need no change. |
+| 33 | Neon / hosted verification, real provider scopes | DEFERRED | Hosted Neon run, real provider scopes and responses, network minimum budgets, the live webhook envelope: all unverified. See the TODO block in the adapter. |
 
 ## Notes
 - Provider-neutral wording: the vendor is not named in any user-facing string; ad networks are named only by their own names.
 - Fields still to confirm against live provider behaviour are listed in `src/server/ads/zernio-ads-adapter.ts` (TODO block).
+
+## Verification
+- Unit: `tests/unit/ads-rules.test.ts`, `tests/unit/ads-source-guards.test.ts`. Integration (local PostgreSQL): `tests/integration/ads-server.test.ts` (15 tests: RLS/permissions/isolation, hard-off, health, launch gate and idempotency, policy refusal, boost and add-ad, status/rename/bulk/delete, budgets, results semantics and prune, alerts, leads and consent evidence, rules, webhook fixtures, conversion refusal, read paths).
+- Drizzle generated the snapshot and a second `drizzle-kit generate` reports "No schema changes". Journal entry `0098_ads_server` follows the numbers reserved by open PRs (0091 to 0097); 0090 is unused.
+- Deferred founder decisions: CRM contact creation from leads, audiences from CRM people, conversion events (privacy and consent design), political/issue ads policy, the provider Ads add-on and pricing, which networks beyond Meta and Google.

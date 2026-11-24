@@ -9,7 +9,7 @@ import { AccessError } from "../permissions";
 import { withTenant } from "../tenancy";
 import { credentialBinding, openCredential } from "../social/credential-envelope";
 import { assertAdsEnabled, type AdsDeps } from "./registry";
-import { AdsProviderError, type AdsProvider } from "./port";
+import { AdsProviderError } from "./port";
 
 export const unavailable = () => new AccessError(404, message("Errors.workspaceUnavailable"));
 export const stale = (code = "STALE_VERSION") => new AccessError(409, message("Errors.thisRecordChangedReloadAndTryAgain"), { code });

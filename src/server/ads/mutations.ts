@@ -15,8 +15,11 @@ type Plan<T> = { op: Op["op"]; key: string; adAccountId: string; targetLevel: Ad
  * phase two applies the result locally and audits ids, versions and the outcome only. A timeout after the provider may have acted leaves the operation `ambiguous`:
  * the same key can be retried and the provider answers with the original result.
  */
-async function run<T>(db: Database, user: string, workspace: string, deps: AdsDeps, prepare: (tx: Transaction, tenant: string) => Promise<Plan<T>>) {
+async function run<T>(db: Database, user: string, workspace: string, deps: AdsDeps, id: { key: string; op: Op["op"]; target: string | null }, prepare: (tx: Transaction, tenant: string) => Promise<Plan<T>>) {
   const claim = await withAds(db, user, workspace, deps, async (tx, tenant) => {
+    // An already applied key is answered before any version check: the replay of a finished change is not a conflict.
+    const [done] = await tx.select().from(adsOperations).where(and(eq(adsOperations.tenantId, tenant), eq(adsOperations.idempotencyKey, id.key), eq(adsOperations.status, "applied")));
+    if (done) { if (done.op !== id.op || done.targetId !== id.target) throw stale("KEY_MISMATCH"); return { replay: true as const, status: done.status }; }
     const plan = await prepare(tx, tenant);
     const ctx = await loadAccount(tx, tenant, plan.adAccountId);
     if (ctx.account.status === "closed" || ctx.account.status === "disabled") throw invalid("ACCOUNT_NOT_ACTIVE");
@@ -35,18 +38,21 @@ async function run<T>(db: Database, user: string, workspace: string, deps: AdsDe
   if (claim.replay) return { applied: true, replayed: true };
   let result: T | null = null, code: string | null = null, ambiguous = false, ok = false;
   try { result = await claim.plan.call(claim.access); ok = true; } catch (error) { code = failureCode(error); ambiguous = isAmbiguous(error); }
-  return withAds(db, user, workspace, deps, async (tx, tenant) => {
+  const finished = await withAds(db, user, workspace, deps, async (tx, tenant) => {
     const { plan } = claim;
     if (!ok) {
       await tx.update(adsOperations).set({ status: ambiguous ? "ambiguous" : "failed", errorCode: code, updatedAt: sql`now()` }).where(and(eq(adsOperations.tenantId, tenant), eq(adsOperations.idempotencyKey, plan.key)));
       await audit(tx, tenant, user, `${plan.op}_outcome`, plan.targetId ?? plan.adAccountId, { outcome: ambiguous ? "ambiguous" : "failed", code: code ?? "ERROR" });
-      throw invalid(ambiguous ? "OUTCOME_UNKNOWN_RETRY_SAME_KEY" : `PROVIDER_${code}`);
+      return { failure: ambiguous ? "OUTCOME_UNKNOWN_RETRY_SAME_KEY" : `PROVIDER_${code}` };
     }
     await plan.apply(tx, tenant, result as T);
     await tx.update(adsOperations).set({ status: "applied", updatedAt: sql`now()` }).where(and(eq(adsOperations.tenantId, tenant), eq(adsOperations.idempotencyKey, plan.key)));
     await audit(tx, tenant, user, `${plan.op}_outcome`, plan.targetId ?? plan.adAccountId, { outcome: "applied", ...Object.fromEntries(Object.entries(plan.summary).map(([k, v]) => [k, String(v)])) });
-    return { applied: true, replayed: false };
+    return { failure: null };
   });
+  // The failed or ambiguous outcome is committed (and audited) before the caller sees the refusal.
+  if (finished.failure) throw invalid(finished.failure);
+  return { applied: true, replayed: false };
 }
 const remoteRef = (e: Entity) => { if (!e.externalRef) throw invalid("NOT_SYNCED"); return e.externalRef; };
 const bump = { version: sql`version + 1`, updatedAt: sql`now()` };
@@ -60,9 +66,9 @@ async function target(tx: Transaction, tenant: string, level: AdLevel, id: strin
   return e;
 }
 
-export function setStatus(db: Database, user: string, workspace: string, data: unknown, deps: AdsDeps) {
+export async function setStatus(db: Database, user: string, workspace: string, data: unknown, deps: AdsDeps) {
   const input = parse(statusInput, data);
-  return run(db, user, workspace, deps, async (tx, tenant): Promise<Plan<void>> => {
+  return run(db, user, workspace, deps, { key: input.idempotencyKey, op: "status", target: input.id }, async (tx, tenant): Promise<Plan<void>> => {
     const e = await target(tx, tenant, input.level, input.id, input.version);
     if (!canMove(e.status as AdStatus, input.status)) throw invalid("STATUS_NOT_ALLOWED");
     const ref = remoteRef(e);
@@ -72,9 +78,9 @@ export function setStatus(db: Database, user: string, workspace: string, data: u
   });
 }
 
-export function bulkSetStatus(db: Database, user: string, workspace: string, data: unknown, deps: AdsDeps) {
+export async function bulkSetStatus(db: Database, user: string, workspace: string, data: unknown, deps: AdsDeps) {
   const input = parse(bulkStatusInput, data);
-  return run(db, user, workspace, deps, async (tx, tenant): Promise<Plan<void>> => {
+  return run(db, user, workspace, deps, { key: input.idempotencyKey, op: "bulk_status", target: null }, async (tx, tenant): Promise<Plan<void>> => {
     const loaded: { level: AdLevel; e: Entity }[] = [];
     if (new Set(input.items.map(i => `${i.level}:${i.id}`)).size !== input.items.length) throw invalid("DUPLICATE_ITEMS");
     for (const item of input.items) {
@@ -90,9 +96,9 @@ export function bulkSetStatus(db: Database, user: string, workspace: string, dat
   });
 }
 
-export function rename(db: Database, user: string, workspace: string, data: unknown, deps: AdsDeps, key: string) {
+export async function rename(db: Database, user: string, workspace: string, data: unknown, deps: AdsDeps, key: string) {
   const input = parse(renameInput, data), idem = parse(z.uuid(), key);
-  return run(db, user, workspace, deps, async (tx, tenant): Promise<Plan<void>> => {
+  return run(db, user, workspace, deps, { key: idem, op: "rename", target: input.id }, async (tx, tenant): Promise<Plan<void>> => {
     const e = await target(tx, tenant, input.level, input.id, input.version);
     const ref = remoteRef(e);
     return { op: "rename", key: idem, adAccountId: e.adAccountId, targetLevel: input.level, targetId: e.id, summary: { level: input.level },
@@ -101,9 +107,9 @@ export function rename(db: Database, user: string, workspace: string, data: unkn
 }
 
 /** Budget or bid change. Needs explicit confirmation, the current version and an idempotency key. */
-export function setBudget(db: Database, user: string, workspace: string, data: unknown, deps: AdsDeps) {
+export async function setBudget(db: Database, user: string, workspace: string, data: unknown, deps: AdsDeps) {
   const input = parse(budgetInput, data);
-  return run(db, user, workspace, deps, async (tx, tenant): Promise<Plan<void>> => {
+  return run(db, user, workspace, deps, { key: input.idempotencyKey, op: "budget", target: input.id }, async (tx, tenant): Promise<Plan<void>> => {
     const e = await target(tx, tenant, input.level, input.id, input.version) as Entity & { budgetLevel?: string | null; budgetType?: string | null; endDate?: string | null; budgetAmount?: number | null };
     const ref = remoteRef(e);
     if (e.status === "deleted" || e.status === "archived") throw invalid("STATUS_NOT_ALLOWED");
@@ -122,9 +128,9 @@ export function setBudget(db: Database, user: string, workspace: string, data: u
 }
 
 /** Cancel an ad. History is kept: some networks archive instead of deleting, and the local record keeps the outcome. Irreversible, so it needs confirmation. */
-export function remove(db: Database, user: string, workspace: string, data: unknown, deps: AdsDeps) {
+export async function remove(db: Database, user: string, workspace: string, data: unknown, deps: AdsDeps) {
   const input = parse(deleteInput, data);
-  return run(db, user, workspace, deps, async (tx, tenant): Promise<Plan<{ result: "deleted" | "archived" }>> => {
+  return run(db, user, workspace, deps, { key: input.idempotencyKey, op: "delete", target: input.id }, async (tx, tenant): Promise<Plan<{ result: "deleted" | "archived" }>> => {
     const e = await target(tx, tenant, input.level, input.id, input.version);
     if (e.status === "deleted" || e.status === "archived") throw invalid("STATUS_NOT_ALLOWED");
     const ref = remoteRef(e);
@@ -144,7 +150,7 @@ export const listIdentities = (db: Database, user: string, ws: string, adAccount
   reader(db, user, ws, deps, parse(lookup, { adAccountId }).adAccountId, async a => ({ identities: await a.provider.listIdentities(a.credential, a.query) }));
 export const listSharedBudgets = (db: Database, user: string, ws: string, adAccountId: string, deps: AdsDeps) =>
   reader(db, user, ws, deps, parse(lookup, { adAccountId }).adAccountId, async a => ({ sharedBudgets: await a.provider.listSharedBudgets(a.credential, a.query) }));
-export const searchTargeting = (db: Database, user: string, ws: string, adAccountId: string, data: unknown, deps: AdsDeps) => {
+export const searchTargeting = async (db: Database, user: string, ws: string, adAccountId: string, data: unknown, deps: AdsDeps) => {
   const q = parse(z.object({ kind: z.enum(["interest", "behaviour", "location", "language", "audience"]), query: z.string().trim().min(1).max(80) }).strict(), data);
   return reader(db, user, ws, deps, parse(lookup, { adAccountId }).adAccountId, async a => ({ hits: (await a.provider.searchTargeting(a.credential, { ...a.query, ...q })).slice(0, 50) }));
 };

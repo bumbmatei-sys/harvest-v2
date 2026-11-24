@@ -4,7 +4,7 @@ import type { Database, Transaction } from "../../db/client";
 import { adsAds, adsAdSets, adsCampaigns, adsLaunchRequests, adsLeadForms } from "../../db/schema";
 import { isRefusedCategory, launchKinds, launchPayload, versionInput, uuidKey, type LaunchKind } from "../../lib/ads/ads";
 import { audit, digest, failureCode, invalid, isAmbiguous, loadAccount, parse, providerAccess, recordId, stale, unavailable, withAds } from "./access";
-import type { LaunchOutcome, LaunchSpec } from "./contract";
+import type { LaunchOutcome, LaunchSpec, LoosePayload } from "./contract";
 import { AdsProviderError } from "./port";
 import type { AdsDeps } from "./registry";
 import { AccessError } from "../permissions";
@@ -75,7 +75,7 @@ export async function cancelLaunchRequest(db: Database, user: string, workspace:
 
 /** Maps Harvest ids in a payload to provider references. Everything must belong to the same ad account. */
 async function toSpec(tx: Transaction, tenant: string, row: Request, query: { accountRef: string; adAccountRef: string }, key: string, validateOnly: boolean): Promise<LaunchSpec> {
-  const payload = JSON.parse(JSON.stringify(row.payload)) as Record<string, any>;
+  const payload = JSON.parse(JSON.stringify(row.payload)) as LoosePayload;
   const spec: LaunchSpec = { ...query, idempotencyKey: key, kind: row.kind as LaunchKind, payload, validateOnly };
   const adSetId: string | undefined = row.kind === "add_ad" ? payload.adSetId : payload.existingAdSetId;
   if (adSetId) {
@@ -137,11 +137,11 @@ const launchInput = z.object({ idempotencyKey: uuidKey, version: versionInput.op
  * Launch. The idempotency key is bound to the request on the first attempt. A timeout after the provider may have acted leaves the request `ambiguous`; the retry must use the SAME key,
  * which the provider answers with the original result, so a second campaign is never created. The provider is called with no transaction open.
  */
-export async function launchRequest(db: Database, user: string, workspace: string, id: string, data: unknown, deps: AdsDeps) {
+export async function launchRequest(db: Database, user: string, workspace: string, id: string, data: unknown, deps: AdsDeps): Promise<{ request: ReturnType<typeof launchView>; replayed: boolean }> {
   const input = parse(launchInput, data);
-  const claim = await withAds(db, user, workspace, deps, async (tx, tenant) => {
+  const claim = await withAds(db, user, workspace, deps, async (tx, tenant): Promise<{ done: ReturnType<typeof launchView> } | { tenant: string; row: Request; access: ReturnType<typeof providerAccess>; spec: LaunchSpec }> => {
     const row = await loadRequest(tx, tenant, id, true);
-    if (row.status === "launched" && row.idempotencyKey === input.idempotencyKey) return { done: launchView(row) } as const;
+    if (row.status === "launched" && row.idempotencyKey === input.idempotencyKey) return { done: launchView(row) };
     if (!["reviewed", "launching", "ambiguous"].includes(row.status)) throw invalid("NOT_REVIEWED");
     if (row.status === "reviewed" && input.version !== undefined && row.version !== input.version) throw stale();
     if (row.idempotencyKey && row.idempotencyKey !== input.idempotencyKey) throw stale("KEY_MISMATCH");
@@ -178,7 +178,7 @@ export async function launchRequest(db: Database, user: string, workspace: strin
 }
 
 async function recordLaunched(tx: Transaction, tenant: string, row: Request, o: LaunchOutcome) {
-  const p = row.payload as Record<string, any>, account = row.adAccountId;
+  const p = row.payload as LoosePayload, account = row.adAccountId;
   const status = p.status === "active" ? "active" : "paused";
   let campaignId: string | null = null, adSetId: string | null = null, adId: string | null = null;
   if (row.kind === "campaign" || (row.kind === "boost" && !p.existingAdSetId)) {

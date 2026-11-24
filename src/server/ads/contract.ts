@@ -37,3 +37,7 @@ export type AdsEvent = {
     | "campaign.updated" | "ad_set.updated" | "ad.updated" | "ad.review_updated" | "ad.delivery_issue" | "lead.received" | "ad_rule.run";
   accountRef: string; subjectRef: string | null; data: Record<string, unknown>; occurredAt: Date;
 };
+
+/** A validated launch payload read field by field by the fake and the recorder; the strict shape is enforced upstream by the zod schemas. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type LoosePayload = Record<string, any>;

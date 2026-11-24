@@ -1,7 +1,7 @@
 import type { AdLevel, AdStatus } from "../../lib/ads/ads";
 import { launchPayload, type LaunchKind } from "../../lib/ads/ads";
 import type {
-  AdsCredential, AdsEvent, AdsPage, AdsQuery, ConversionEventBatch, LaunchOutcome, LaunchSpec, MutationSpec, RemoteAd, RemoteAdAccount, RemoteAdSet, RemoteAudience, RemoteBoostablePost,
+  LoosePayload, AdsCredential, AdsEvent, AdsPage, AdsQuery, ConversionEventBatch, LaunchOutcome, LaunchSpec, MutationSpec, RemoteAd, RemoteAdAccount, RemoteAdSet, RemoteAudience, RemoteBoostablePost,
   RemoteCampaign, RemoteConversionDestination, RemoteHealth, RemoteIdentity, RemoteLead, RemoteLeadForm, ResultRow, TargetingHit, ValidationOutcome,
 } from "./contract";
 import { AdsProviderError, type AdsProvider, type AdsProviderErrorCode } from "./port";
@@ -88,7 +88,7 @@ export class FakeAdsProvider implements AdsProvider {
     const r = this.remote(spec);
     if (spec.validateOnly) return { campaignRef: null, adSetRef: null, adRef: null };
     return this.once(spec.idempotencyKey, "launch", () => {
-      const p = spec.payload as Record<string, any>;
+      const p = spec.payload as LoosePayload;
       const status: AdStatus = p.status === "active" ? "active" : "paused";
       const ad = (name: string): RemoteAd => ({ ref: this.nextRef("ad"), name, status, format: p.creative?.format ?? "image", creativeRef: null, sourcePostRef: spec.kind === "boost" ? String(p.postRef) : null,
         leadFormRef: null, review: "in_review", reviewReason: null, deliveryIssue: null });
