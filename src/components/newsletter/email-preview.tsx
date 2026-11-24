@@ -4,16 +4,18 @@ import { useTranslations } from "next-intl";
 import { Monitor, Smartphone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { renderEmail } from "@/lib/email/render";
-import type { EmailDocument } from "@/lib/email/blocks";
+import { documentFileIds, type EmailDocument } from "@/lib/email/blocks";
+import { publicFilePath } from "@/lib/files";
 import { cn } from "@/lib/utils";
 
 const sample = { unsubscribe: "https://newsletter.example.test/unsubscribe" };
 
 /** The rendered email in a sandboxed frame (no scripts, no network access to the app). Desktop and mobile widths. */
-export function EmailPreview({ doc, preheader, ministryName, firstName }: { doc: EmailDocument; preheader?: string | null; ministryName: string; firstName: string }) {
+export function EmailPreview({ tenantId, doc, preheader, ministryName, firstName }: { tenantId: string; doc: EmailDocument; preheader?: string | null; ministryName: string; firstName: string }) {
   const t = useTranslations("NewsletterCampaigns.editor");
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
-  const html = useMemo(() => renderEmail(doc, { ...sample, preheader, ministryName, firstName }).html, [doc, preheader, ministryName, firstName]);
+  const html = useMemo(() => renderEmail(doc, { ...sample, preheader, ministryName, firstName, preview: true,
+    images: new Map(documentFileIds(doc).map((id) => [id, publicFilePath(tenantId, id)])) }).html, [doc, preheader, ministryName, firstName, tenantId]);
   return <div className="space-y-3" data-email-preview>
     <div role="group" aria-label={t("previewTitle")} className="flex gap-1">
       {(["desktop", "mobile"] as const).map((id) => <Button key={id} type="button" variant={device === id ? "secondary" : "ghost"} className="min-h-11" aria-pressed={device === id} onClick={() => setDevice(id)}>

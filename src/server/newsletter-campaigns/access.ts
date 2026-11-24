@@ -5,6 +5,8 @@ import type { Database, Transaction } from "../../db/client";
 import { auditLogs, files, workspaces } from "../../db/schema";
 import { message } from "../../i18n/messages";
 import { publicFilePath } from "../../lib/files";
+import { newsletterImageMimes } from "../../lib/email/image-limits";
+import { documentFileIds, isEmailDocument, type EmailDocument } from "../../lib/email/blocks";
 import { renderNewsletter, newsletterHttps, type NewsletterContent } from "../../lib/newsletter-content";
 import type { Permission } from "../../lib/permissions";
 import { requireNewsletterEnabled } from "../newsletter";
@@ -48,10 +50,22 @@ export function newsletterOrigin() {
   return new URL(origin).origin;
 }
 
+/** Public addresses for the uploaded images a document uses. Throws unless every one is a ready, public image of this ministry (so nothing unscanned is ever rendered). */
+export async function documentImages(tx: Transaction, tenant: string, doc: Pick<EmailDocument, "cover" | "blocks">) {
+  const ids = documentFileIds(doc), map = new Map<string, string>();
+  if (!ids.length) return map;
+  const rows = await tx.select({ id: files.id }).from(files).where(and(eq(files.tenantId, tenant), inArray(files.id, ids), eq(files.status, "ready"),
+    eq(files.visibility, "public"), eq(files.socialUpload, false), inArray(files.mime, [...newsletterImageMimes]))).for("share");
+  if (rows.length !== ids.length) throw new AccessError(409, message("Errors.newsletterImageUnavailable"), { code: "IMAGE_UNAVAILABLE" });
+  for (const { id } of rows) map.set(id, new URL(publicFilePath(tenant, id), newsletterOrigin()).href);
+  return map;
+}
+
 export async function campaignPreview(tx: Transaction, tenant: string, content: NewsletterContent, preheader?: string | null) {
   const [ministry] = await tx.select({ name: workspaces.name }).from(workspaces).where(eq(workspaces.tenantId, tenant));
-  const images = new Map<string, string>();
-  for (const block of Array.isArray(content) ? content : []) {
+  let images = new Map<string, string>();
+  if (isEmailDocument(content)) images = await documentImages(tx, tenant, content);
+  else for (const block of Array.isArray(content) ? content : []) {
     if (block.type !== "image" || images.has(block.fileId)) continue;
     const [file] = await tx.select({ id: files.id }).from(files).where(and(eq(files.tenantId, tenant),
       eq(files.id, block.fileId), eq(files.status, "ready"), eq(files.visibility, "public"), inArray(files.mime, ["image/jpeg", "image/png", "image/webp"]))).for("share");
