@@ -3,7 +3,11 @@ import type { RichBlock, RichInline } from "../rich-text";
 import { emailColors as K } from "./email-theme-registry";
 import { fontStacks, httpsUrl, radiusPx, type EmailBlock, type EmailDocument } from "./blocks";
 
-export type RenderContext = { preheader?: string | null; firstName?: string; ministryName?: string; unsubscribe: string };
+export type RenderContext = { preheader?: string | null; firstName?: string; ministryName?: string; unsubscribe: string;
+  /** Public address of each uploaded image (file id to URL), supplied by the server only for ready, public images. */
+  images?: ReadonlyMap<string, string>;
+  /** Editor preview only: lets uploaded images use this app's own (possibly http) origin. Never set on a send path. */
+  preview?: boolean };
 type Part = { html: string; text: string };
 
 const escapeHtml = (value: string) => value.replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
@@ -58,9 +62,23 @@ export function renderEmail(doc: EmailDocument, context: RenderContext) {
       + `</td></tr></table>`;
     return { html, text: `${labelText}: ${url}` };
   }
-  const image = (src: string, altText: string) => {
-    const url = httpsUrl(src);
-    return url ? `<img src="${escapeHtml(url)}" alt="${esc(altText)}" width="520" style="display:block;width:100%;max-width:100%;height:auto;border:0">` : "";
+  /** An uploaded image is used only through the server-supplied map (so only after the scan passed); otherwise the linked https address. */
+  function source(fileId: string | undefined, link: string | undefined) {
+    if (fileId) {
+      const mapped = context.images?.get(fileId);
+      if (!mapped) return null;
+      if (httpsUrl(mapped)) return httpsUrl(mapped);
+      if (context.preview && /^\/api\/files\/public\/[0-9a-f-]{36}\/[0-9a-f-]{36}$/.test(mapped)) return mapped;
+      if (context.preview) try { const u = new URL(mapped); return (u.protocol === "https:" || u.protocol === "http:") && !u.username && !u.password ? u.href : null; } catch { return null; }
+      return null;
+    }
+    return link ? httpsUrl(link) : null;
+  }
+  const altOf = (altText: string, decorative?: boolean) => decorative ? "" : esc(altText);
+  const imageTag = (url: string, altHtml: string, width: number) => `<img src="${escapeHtml(url)}" alt="${altHtml}" width="${width}" style="display:block;width:100%;max-width:100%;height:auto;border:0">`;
+  const image = (src: string, altText: string, fileId?: string, decorative?: boolean) => {
+    const url = source(fileId, src);
+    return url ? imageTag(url, altOf(altText, decorative), 520) : "";
   };
 
   function inline(nodes: RichInline[] | undefined): Part {
@@ -112,7 +130,7 @@ export function renderEmail(doc: EmailDocument, context: RenderContext) {
         return { html: fullRow(`<div class="em-pad" style="padding:28px 40px 20px;text-align:${block.align}">${inner}</div>`), text: title.toUpperCase() };
       }
       case "hero": {
-        const img = image(block.imageUrl, block.alt), btn = button(block.buttonLabel, block.buttonUrl, !img);
+        const img = image(block.imageUrl, block.alt, block.fileId, block.decorative), btn = button(block.buttonLabel, block.buttonUrl, !img);
         const light = `color:${onColor(primary)};`;
         const body = `${block.heading ? h(1, block.heading, img ? "" : light) : ""}${block.text ? para(block.text, img ? "" : light) : ""}${btn.html}`;
         const html = img ? fullRow(`${img}<div class="em-pad" style="padding:28px 40px 4px">${body}</div>`)
@@ -124,12 +142,12 @@ export function renderEmail(doc: EmailDocument, context: RenderContext) {
         return { html: pad(`<div style="padding-top:16px">${parts.map(p => p.html).join("")}</div>`), text: parts.map(p => p.text).filter(Boolean).join("\n\n") };
       }
       case "imageText": {
-        const img = image(block.imageUrl, block.alt);
+        const img = image(block.imageUrl, block.alt, block.fileId, block.decorative);
         const copy = `${block.heading ? h(3, block.heading) : ""}${para(block.text)}`;
         const media = `<td class="em-stack" width="45%" valign="top" style="padding:${block.side === "left" ? "0 20px 0 0" : "0 0 0 20px"}">${img}</td>`;
         const words = `<td class="em-stack" width="${img ? 55 : 100}%" valign="top">${copy}</td>`;
         return { html: pad(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:16px 0"><tr>${img ? (block.side === "left" ? media + words : words + media) : words}</tr></table>`),
-          text: [merge(block.heading), merge(block.text), block.alt && img ? `[${merge(block.alt)}]` : ""].filter(Boolean).join("\n") };
+          text: [merge(block.heading), merge(block.text), block.alt && img && !block.decorative ? `[${merge(block.alt)}]` : ""].filter(Boolean).join("\n") };
       }
       case "columns": {
         const col = (heading: string, copy: string, gap: string) => `<td class="em-stack" width="50%" valign="top" style="padding:${gap}">${heading ? h(3, heading) : ""}${para(copy, "font-size:15px;line-height:24px;")}</td>`;
@@ -151,9 +169,26 @@ export function renderEmail(doc: EmailDocument, context: RenderContext) {
         return { html: pad(`<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin:20px 0"><tr><td class="em-card" align="center" style="padding:32px 28px;background:${tint(primary, 0.9)};text-align:center">${block.heading ? h(2, block.heading, "text-align:center;") : ""}${block.text ? para(block.text, "text-align:center;") : ""}${btn.html}</td></tr></table>`),
           text: [merge(block.heading), merge(block.text), btn.text].filter(Boolean).join("\n") };
       }
+      case "image": {
+        const url = source(block.fileId, block.imageUrl), link = httpsUrl(block.linkUrl);
+        if (!url) return { html: "", text: "" };
+        const tag = imageTag(url, altOf(block.alt, block.decorative), 520);
+        return { html: pad(`<div style="margin:20px 0">${link ? `<a href="${escapeHtml(link)}" target="_blank">${tag}</a>` : tag}</div>`),
+          text: [block.alt.trim() && !block.decorative ? `[${merge(block.alt)}]` : "", link ?? ""].filter(Boolean).join(" ") };
+      }
       case "video": {
-        const img = image(block.thumbnailUrl, block.alt), link = httpsUrl(block.videoUrl);
-        const picture = img ? (link ? `<a href="${escapeHtml(link)}" target="_blank">${img}</a>` : img) : "";
+        // Email cannot play video: a thumbnail with a play button that links to the video. The button is drawn with table cells (no image), over the thumbnail as a cell background (VML for Outlook).
+        const thumb = source(block.fileId, block.thumbnailUrl), link = httpsUrl(block.videoUrl);
+        const label = merge(block.alt).trim() || message("NewsletterEmail.watchVideo");
+        const play = `<table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" width="64" height="64" style="width:64px;height:64px;border-radius:32px;background:${K.playBackdrop};color:${K.white};font-family:Arial,sans-serif;font-size:28px;line-height:64px;text-align:center">&#x25B6;</td></tr></table>`;
+        let picture = "";
+        if (thumb) {
+          // The address ends up inside CSS url('...'): percent-encode everything that could close it or start another declaration.
+          const u = escapeHtml(thumb.replace(/['"()\\;\s<>{}]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0"))), fallback = K.playFallback;
+          const inner = link ? `<a href="${escapeHtml(link)}" target="_blank" aria-label="${escapeHtml(label)}" style="display:block;text-decoration:none">${play}</a>` : play;
+          picture = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td class="em-video" background="${u}" bgcolor="${fallback}" align="center" valign="middle" height="293" title="${escapeHtml(label)}" style="height:293px;background-color:${fallback};background-image:url('${u}');background-size:cover;background-position:center">`
+            + `<!--[if gte mso 9]><v:rect xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" style="width:520px;height:293px"><v:fill type="frame" src="${u}" color="${fallback}"/><v:textbox inset="0,0,0,0"><![endif]-->${inner}<!--[if gte mso 9]></v:textbox></v:rect><![endif]--></td></tr></table>`;
+        }
         const watch = link ? `<p style="margin:12px 0 0;font-family:${font};font-size:15px"><a href="${escapeHtml(link)}" style="color:${primary};font-weight:600">${escapeHtml(message("NewsletterEmail.watchVideo"))}</a></p>` : "";
         return { html: pad(`<div style="margin:20px 0">${picture}${block.caption ? para(block.caption, `margin-top:10px;font-size:14px;color:${muted};`) : ""}${watch}</div>`),
           text: [merge(block.caption), link ? `${message("NewsletterEmail.watchVideo")}: ${link}` : ""].filter(Boolean).join("\n") };
@@ -170,7 +205,10 @@ export function renderEmail(doc: EmailDocument, context: RenderContext) {
     }
   }
 
-  const rendered = doc.blocks.map(renderBlock);
+  const coverUrl = doc.cover ? source(doc.cover.fileId, doc.cover.imageUrl) : null;
+  const cover: Part = coverUrl && doc.cover ? { html: fullRow(imageTag(coverUrl, altOf(doc.cover.alt, doc.cover.decorative), 600).replace("max-width:100%", "max-width:600px")),
+    text: doc.cover.alt.trim() && !doc.cover.decorative ? `[${merge(doc.cover.alt)}]` : "" } : { html: "", text: "" };
+  const rendered = [cover, ...doc.blocks.map(renderBlock)];
   const ministry = merge("{{ministryName}}");
   const address = brand.address.trim() || message("NewsletterEmail.addressMissing");
   const unsubscribeLabel = message("NewsletterEmail.unsubscribe");

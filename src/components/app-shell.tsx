@@ -28,6 +28,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { MinistrySearchDialog, MinistrySwitcher } from "@/components/ministry-switcher";
 import { SettingsProvider } from "@/components/settings/settings-host";
 import { useSettings } from "@/components/settings/settings-context";
+import { ShellHeaderSlot } from "@/components/shell-header-slot";
 import type { ShellSettings } from "@/lib/settings-sections";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 
@@ -234,6 +235,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
           {workspace && <><BreadcrumbItem className="min-w-0"><BreadcrumbLink asChild className="truncate"><Link href={`/workspaces/${selected}/crm/people`}>{workspace.name}</Link></BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator /></>}
           <BreadcrumbItem><BreadcrumbPage className="font-medium">{section}</BreadcrumbPage></BreadcrumbItem>
         </BreadcrumbList></Breadcrumb>
+        <ShellHeaderSlot />
         {(header?.search || header?.actions || workspace) && <div className="ml-auto flex min-w-0 items-center gap-2">
           {header?.search && <div role="search" aria-label={t("pageSearch")} data-shell-header-search className="min-w-0 max-w-64 flex-1">{header.search}</div>}
           {header?.actions && <div role="group" aria-label={t("pageActions")} data-shell-header-actions className="flex shrink-0 items-center gap-2">{header.actions}</div>}

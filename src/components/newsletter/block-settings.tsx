@@ -9,32 +9,37 @@ import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select"
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { RichTextEditor } from "@/components/rich-text/rich-text-editor";
+import { ImagePicker } from "@/components/newsletter/image-picker";
 import { httpsUrl, type EmailBlock } from "@/lib/email/blocks";
 
-type Kind = "text" | "area" | "url" | "side" | "align" | "size" | "switch";
+type Kind = "text" | "area" | "url" | "side" | "align" | "size" | "switch" | "picture";
 type Field = [key: string, kind: Kind];
 const fieldsByType: Record<EmailBlock["type"], Field[]> = {
   header: [["title", "text"], ["showLogo", "switch"], ["align", "align"]],
-  hero: [["heading", "text"], ["text", "area"], ["buttonLabel", "text"], ["buttonUrl", "url"], ["imageUrl", "url"], ["alt", "text"]],
+  hero: [["heading", "text"], ["text", "area"], ["buttonLabel", "text"], ["buttonUrl", "url"], ["imageUrl", "picture"]],
   text: [],
-  imageText: [["heading", "text"], ["text", "area"], ["imageUrl", "url"], ["alt", "text"], ["side", "side"]],
+  imageText: [["heading", "text"], ["text", "area"], ["imageUrl", "picture"], ["side", "side"]],
   columns: [["leftHeading", "text"], ["leftText", "area"], ["rightHeading", "text"], ["rightText", "area"]],
   quote: [["text", "area"], ["cite", "text"]],
   event: [["title", "text"], ["date", "text"], ["time", "text"], ["location", "text"], ["buttonLabel", "text"], ["buttonUrl", "url"]],
   giving: [["heading", "text"], ["text", "area"], ["buttonLabel", "text"], ["buttonUrl", "url"]],
-  video: [["thumbnailUrl", "url"], ["alt", "text"], ["videoUrl", "url"], ["caption", "text"]],
+  video: [["videoUrl", "url"], ["thumbnailUrl", "picture"], ["caption", "text"]],
+  image: [["imageUrl", "picture"], ["linkUrl", "url"]],
   social: [], divider: [], spacer: [["size", "size"]], footer: [["note", "area"]],
 };
 const merge = ["{{firstName}}", "{{ministryName}}"];
 
 /** Settings for the selected block: a small descriptor table drives every block type, so there is one form, not thirteen. */
-export function BlockSettings({ block, onChange }: { block: EmailBlock; onChange: (patch: Record<string, unknown>, key?: string) => void }) {
+export function BlockSettings({ block, onChange, tenantId, suggestions }: { block: EmailBlock; onChange: (patch: Record<string, unknown>, key?: string) => void; tenantId: string; suggestions: boolean }) {
   const t = useTranslations("NewsletterCampaigns.fields"), e = useTranslations("NewsletterCampaigns.editor"), uid = useId();
   const record = block as unknown as Record<string, unknown>;
   const fields = fieldsByType[block.type];
   const insert = (key: string, token: string) => onChange({ [key]: String(record[key] ?? "") + token }, `${block.id}-${key}`);
   const field = ([key, kind]: Field) => {
     const id = `${uid}-${key}`, value = record[key];
+    if (kind === "picture") return <ImagePicker key={key} tenantId={tenantId} id={id} label={t(block.type === "video" ? "thumbnail" : "imageUrl")} urlKey={key} url={String(value ?? "")}
+      fileId={record.fileId as string | undefined} alt={String(record.alt ?? "")} decorative={record.decorative === true} onChange={(patch, k) => onChange(patch, k ? `${block.id}-${k}` : undefined)}
+      videoUrl={block.type === "video" ? block.videoUrl : undefined} suggestions={suggestions} requireAlt={block.type === "image"} />;
     if (kind === "switch") return <Label key={key} htmlFor={id} className="flex min-h-11 items-center gap-3 font-normal"><Switch id={id} checked={value === true} onCheckedChange={(v) => onChange({ [key]: v })} />{t(key)}</Label>;
     if (kind === "side" || kind === "align" || kind === "size") {
       const options = kind === "side" ? ["left", "right"] : kind === "align" ? ["left", "center"] : ["small", "medium", "large"];
