@@ -220,6 +220,7 @@ test("editor: title, autosave, formatting toolbar, slash menu, handles, pages tr
   // Title and body autosave; a reload shows both.
   await page.getByLabel("Page title").fill("Weekly plan");
   await page.keyboard.press("Enter");
+  await expect(editor).toBeFocused();
   await page.keyboard.type("Hello brave world");
   await expect(page.locator('[data-save-state="unsaved"]:visible, [data-save-state="saving"]:visible').first()).toBeVisible();
   await saved(page);

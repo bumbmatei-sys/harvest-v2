@@ -84,6 +84,14 @@ describe("folders", () => {
     expect(await status(deleteFolder(db(), member, tenant, mine.id, {}))).toBe(200);
   });
 
+  it("refuses to move up another member's subfolder when deleting (403, never a 500)", async () => {
+    const mine = await createFolder(db(), member, tenant, { name: "Mine with a guest" });
+    const theirs = await createFolder(db(), member2, tenant, { name: "Guest folder", parentId: mine.id });
+    expect(await status(deleteFolder(db(), member, tenant, mine.id, { mode: "move_to_parent" }))).toBe(403);
+    expect((await listDocs(db(), member, tenant, {})).folders.some((f) => f.id === theirs.id && f.parentId === mine.id)).toBe(true);
+    expect(await status(deleteFolder(db(), admin, tenant, mine.id, { mode: "move_to_parent" }))).toBe(200);
+  });
+
   it("isolates ministries", async () => {
     const f = await createFolder(db(), owner, tenant, { name: "Private to ministry" });
     expect(await status(updateFolder(db(), other, elsewhere, f.id, { name: "x" }))).toBe(404);
@@ -184,6 +192,14 @@ describe("docs", () => {
     expect((await duplicateDoc(db(), owner, tenant, d.id).then(() => listDocs(db(), owner, tenant, { q: "Kind check (copy)" }))).docs[0].kind).toBe("spreadsheet");
   });
 
+  it("keeps the per-ministry doc cap when duplicating", async () => {
+    const full = (await createWorkspace(db(), owner, "Full ministry", "church")).tenantId;
+    const source = await createDoc(db(), owner, full, { title: "Source" });
+    await fixture.admin.query("insert into docs(tenant_id,title,owner_id) select $1,'bulk '||g,$2 from generate_series(1,4999) g", [full, owner]);
+    expect(await status(duplicateDoc(db(), owner, full, source.id))).toBe(400);
+    expect(await status(createDoc(db(), owner, full, { title: "One more" }))).toBe(400);
+  });
+
   it("has no foreign key to contacts, so erasing or merging a person cannot touch Docs", async () => {
     const { rows } = await fixture.admin.query(`select conrelid::regclass::text as t, confrelid::regclass::text as f from pg_constraint where contype='f' and conrelid::regclass::text in ('docs','doc_pages','doc_folders','doc_favorites')`);
     expect(rows.map((r) => r.f)).not.toContain("contacts");
@@ -237,6 +253,19 @@ describe("pages", () => {
     expect(await deletePage(db(), owner, tenant, d.id, parent)).toEqual({ pages: 2 });
     expect((await tree(d.id)).map((p) => p.id)).toEqual([root]);
     expect(await status(deletePage(db(), owner, tenant, d.id, root))).toBe(400);
+  });
+
+  it("refuses to archive or delete a page whose subtree holds a protected page", async () => {
+    const d = await createDoc(db(), owner, tenant, { title: "Protected subtree" });
+    const parent = (await createPage(db(), owner, tenant, d.id, { title: "Parent" })).id;
+    const kid = (await createPage(db(), owner, tenant, d.id, { parentId: parent, title: "Kid" })).id;
+    await updatePage(db(), owner, tenant, d.id, kid, { version: 1, protected: true });
+    for (const run of [() => archivePage(db(), owner, tenant, d.id, parent, true), () => deletePage(db(), owner, tenant, d.id, parent)]) {
+      expect(await run().catch((e: { status: number; details?: { reason: string } }) => e)).toMatchObject({ status: 409, details: { reason: "protected" } });
+    }
+    expect((await tree(d.id)).some((p) => p.id === kid)).toBe(true);
+    await updatePage(db(), owner, tenant, d.id, kid, { version: 2, protected: false });
+    expect(await deletePage(db(), owner, tenant, d.id, parent)).toEqual({ pages: 2 });
   });
 
   it("duplicates a page with its subpages and a doc with all its pages", async () => {

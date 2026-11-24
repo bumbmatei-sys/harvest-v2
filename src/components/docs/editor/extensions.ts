@@ -8,7 +8,7 @@ import Highlight from "@tiptap/extension-highlight";
 import TextAlign from "@tiptap/extension-text-align";
 import { Details, DetailsContent, DetailsSummary } from "@tiptap/extension-details";
 import { Placeholder } from "@tiptap/extensions";
-import { calloutTones } from "@/lib/docs";
+import { calloutTones, safeDocHref } from "@/lib/docs";
 import { TocView } from "@/components/docs/editor/toc-view";
 
 /** A banner: a tinted block with other blocks inside. The tone is one of four fixed values. */
@@ -43,7 +43,7 @@ export function docExtensions(labels: EditorLabels): AnyExtension[] {
   return [
     StarterKit.configure({
       heading: { levels: [1, 2, 3, 4] },
-      link: { openOnClick: false, autolink: true, defaultProtocol: "https", protocols: ["https"], HTMLAttributes: { rel: "nofollow noopener noreferrer ugc", target: "_blank" } },
+      link: { openOnClick: false, autolink: true, defaultProtocol: "https", protocols: ["https"], isAllowedUri: (url) => safeDocHref(url) !== null, HTMLAttributes: { rel: "nofollow noopener noreferrer ugc", target: "_blank" } },
     }),
     TextStyle, Color, Highlight.configure({ multicolor: true }),
     TextAlign.configure({ types: ["heading", "paragraph"] }),
