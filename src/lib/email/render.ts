@@ -183,7 +183,8 @@ export function renderEmail(doc: EmailDocument, context: RenderContext) {
         const play = `<table role="presentation" align="center" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" valign="middle" width="64" height="64" style="width:64px;height:64px;border-radius:32px;background:${K.playBackdrop};color:${K.white};font-family:Arial,sans-serif;font-size:28px;line-height:64px;text-align:center">&#x25B6;</td></tr></table>`;
         let picture = "";
         if (thumb) {
-          const u = escapeHtml(thumb), fallback = K.playFallback;
+          // The address ends up inside CSS url('...'): percent-encode everything that could close it or start another declaration.
+          const u = escapeHtml(thumb.replace(/['"()\\;\s<>{}]/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0"))), fallback = K.playFallback;
           const inner = link ? `<a href="${escapeHtml(link)}" target="_blank" aria-label="${escapeHtml(label)}" style="display:block;text-decoration:none">${play}</a>` : play;
           picture = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td class="em-video" background="${u}" bgcolor="${fallback}" align="center" valign="middle" height="293" title="${escapeHtml(label)}" style="height:293px;background-color:${fallback};background-image:url('${u}');background-size:cover;background-position:center">`
             + `<!--[if gte mso 9]><v:rect xmlns:v="urn:schemas-microsoft-com:vml" fill="true" stroke="false" style="width:520px;height:293px"><v:fill type="frame" src="${u}" color="${fallback}"/><v:textbox inset="0,0,0,0"><![endif]-->${inner}<!--[if gte mso 9]></v:textbox></v:rect><![endif]--></td></tr></table>`;

@@ -68,6 +68,8 @@ export async function suggestVideoThumbnail(db: Database, storage: StorageAdapte
   options: { fetcher?: typeof fetch; scanner?: FileScanner; env?: Record<string, string | undefined> } = {}) {
   const env = options.env ?? process.env, fetcher = options.fetcher ?? fetch;
   if (!thumbnailSuggestionsEnabled(env)) throw new AccessError(404, message("Errors.newsletterImageSuggestionUnavailable"));
+  // Authorise (feature flag, role) before any outbound request.
+  await withNewsletter(db, actor, workspace, "newsletter:campaigns", async () => undefined);
   const input = z.object({ videoUrl: z.string().max(2000) }).strict().parse(raw);
   const link = parseVideoLink(input.videoUrl);
   if (link?.kind !== "youtube") throw new AccessError(400, message("Errors.checkTheSuppliedDetails"));

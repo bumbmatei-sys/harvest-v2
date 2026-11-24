@@ -113,6 +113,16 @@ describe("cover, image and video rendering", () => {
     expect(out.html).not.toContain("<video");
     expect(out.text).toContain("Watch the video: https://www.youtube.com/watch?v=dQw4w9WgXcQ&x=1");
   });
+  it("cannot be used to inject CSS through a thumbnail address", () => {
+    const evil = "https://evil.example/x');background-image:url('https://tracker.example/p";
+    const block = { ...newBlock("video", {}, "b-vid"), thumbnailUrl: evil, alt: "v", videoUrl: "https://vk.com/video-1_2" } as EmailDocument["blocks"][number];
+    const out = renderEmail(doc([block]), context);
+    expect(out.html).not.toMatch(/url\('[^']*'\)\s*;\s*background-image/);
+    expect(out.html).not.toContain("');background-image");
+    expect(out.html).toContain("x%27%29%3Bbackground-image:url%28%27https://tracker.example/p");
+    const spaced = renderEmail(doc([{ ...block, thumbnailUrl: "https://e.example/a%20b.png?q=1&r=2" } as typeof block]), context);
+    expect(spaced.html).toContain("a%20b.png?q=1&amp;r=2");
+  });
   it("shows no play overlay without a thumbnail, and no link without a valid video link", () => {
     const base = { ...newBlock("video", {}, "b-vid"), videoUrl: "http://not-secure.test/v" } as EmailDocument["blocks"][number];
     const out = renderEmail(doc([base]), { ...context, images });

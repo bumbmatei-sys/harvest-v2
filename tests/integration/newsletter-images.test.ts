@@ -124,6 +124,8 @@ it("suggests a YouTube thumbnail server side, only from the fixed host, through 
   for (const bad of ["https://vk.com/video-1_2", "https://evil.test/?v=dQw4w9WgXcQ", "http://youtu.be/dQw4w9WgXcQ", "nope"])
     await expect(suggestVideoThumbnail(f.db, s, owner, tenant, { videoUrl: bad }, { fetcher, scanner: clean, env: { NODE_ENV: "test" } })).rejects.toMatchObject({ status: 400 });
   await expect(suggestVideoThumbnail(f.db, s, owner, tenant, { videoUrl: "https://youtu.be/dQw4w9WgXcQ" }, { fetcher, scanner: clean, env: { NODE_ENV: "production" } })).rejects.toMatchObject({ status: 404 });
-  await expect(suggestVideoThumbnail(f.db, s, member, tenant, { videoUrl: "https://youtu.be/dQw4w9WgXcQ" }, { fetcher, scanner: clean, env: { NODE_ENV: "test" } })).rejects.toMatchObject({ status: 404 });
-  expect(calls.length).toBe(before + 1);
+  for (const who of [member, stranger])
+    await expect(suggestVideoThumbnail(f.db, s, who, tenant, { videoUrl: "https://youtu.be/dQw4w9WgXcQ" }, { fetcher, scanner: clean, env: { NODE_ENV: "test" } })).rejects.toMatchObject({ status: 404 });
+  // Members and strangers never trigger an outbound request.
+  expect(calls.length).toBe(before);
 });
