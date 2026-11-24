@@ -6,6 +6,7 @@ import { newsletterCampaigns as campaigns, newsletterCampaignRevisions as revisi
   newsletterCampaignSegments as segments } from "../../db/schema";
 import { message } from "../../i18n/messages";
 import { newsletterContent, newsletterStarters } from "../../lib/newsletter-content";
+import { assertMailingAddress } from "./sender-setup";
 import { audit, campaignPreview, conflict, digest, id, pageInput, unavailable, version, withNewsletter } from "./access";
 import { assertVerified, identity } from "./identities";
 import { draftSelectionInput, resolveRecipients, selectionPins } from "./recipients";
@@ -129,6 +130,7 @@ async function reviewData(tx: Transaction, tenant: string, row: Awaited<ReturnTy
   const reply = await identity(tx, tenant, revision.replyToId);
   assertVerified(from, true);
   assertVerified(reply, false);
+  await assertMailingAddress(tx, tenant, revision.content);
   if (segmentPins.some(pin => !pin.segmentId)) throw conflict("SELECTION_CHANGED");
   if (!listPins.length) throw conflict("SELECTION_REQUIRED");
   const selection = { listIds: listPins.map(pin => pin.listId), segmentIds: segmentPins.map(pin => pin.segmentId!) };

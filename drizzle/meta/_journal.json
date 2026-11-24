@@ -607,6 +607,13 @@
     {
       "idx": 87,
       "version": "7",
+      "when": 1795494089816,
+      "tag": "0087_newsletter_sender",
+      "breakpoints": true
+    },
+    {
+      "idx": 89,
+      "version": "7",
       "when": 1795512500000,
       "tag": "0089_docs",
       "breakpoints": true

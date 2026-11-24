@@ -15,6 +15,7 @@ import { purgeNewsletterDeliveries, recheckNewsletterDomains } from "../../src/s
 import { issueNewsletterPreference, unsubscribeNewsletter } from "../../src/server/newsletter-public";
 import { newsletterCallback } from "../../src/server/newsletter-campaigns/callback";
 import { newsletterAnalytics } from "../../src/server/newsletter-campaigns/analytics";
+import { saveMailingAddress } from "../../src/server/newsletter-campaigns/sender-setup";
 import { writeTemplate } from "../../src/server/newsletter-campaigns/templates";
 import { withTenant } from "../../src/server/tenancy";
 import { createWorkspace } from "../../src/server/workspaces";
@@ -38,6 +39,7 @@ beforeAll(async () => {
   tenant = (await createWorkspace(fixture.db, owner, "Sending ministry", "church")).tenantId;
   other = (await createWorkspace(fixture.db, otherOwner, "Other ministry", "church")).tenantId;
   await fixture.admin.query("insert into workspace_members(tenant_id,user_id,role_id) values($1,$2,'member')", [tenant, member]);
+  await saveMailingAddress(fixture.db, owner, tenant, { address: "1 Main Street, Example City" });
   audience = (await createNewsletterAudience(fixture.db, owner, tenant, { name: "Audience" })).id;
   const foreignAudience = await createNewsletterAudience(fixture.db, otherOwner, other, { name: "Other audience" });
   foreignList = (await createNewsletterList(fixture.db, otherOwner, other, foreignAudience.id, { name: "Other list" })).id;
