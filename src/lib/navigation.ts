@@ -1,4 +1,4 @@
-import { BadgeDollarSign, ChartColumn, BookOpen, Bot, Briefcase, Building, Calendar, CalendarCheck, CalendarClock, CalendarDays, ClipboardCheck, ClipboardList, ClipboardPen, Compass, Contact, ContactRound, FileText, FileUp, Files, Flag, Gift, Globe, GraduationCap, Handshake, HandCoins, HeartHandshake, Kanban, LayoutDashboard, LayoutTemplate, Link2, ListChecks, Mail, MailOpen, MailPlus, MessageCircleReply, MessageSquareText, MessagesSquare, Newspaper, Package, Palette, PiggyBank, Podcast, QrCode, Radio, ScanQrCode, Settings, Share2, Sheet, SlidersHorizontal, Sparkles, Target, TicketPercent, UserCheck, UserCog, UserRoundCheck, Users, UsersRound, Wallet, Church, Landmark, ChartLine, ChartNoAxesCombined, Workflow, TextCursorInput, type LucideIcon } from "lucide-react";
+import { BadgeDollarSign, ChartColumn, BookOpen, Bot, Briefcase, Building, Calendar, CalendarCheck, CalendarClock, CalendarDays, ClipboardCheck, ClipboardList, ClipboardPen, Compass, Contact, ContactRound, FileText, FileUp, Files, Flag, Gift, Globe, GraduationCap, Handshake, HandCoins, HeartHandshake, Kanban, LayoutDashboard, LayoutTemplate, Link2, ListChecks, Mail, MailOpen, MailPlus, MessageCircleReply, MessageSquareText, MessagesSquare, Newspaper, Package, Palette, PiggyBank, Podcast, QrCode, Radio, ScanQrCode, Settings, Share2, Sheet, SlidersHorizontal, Sparkles, Target, TicketPercent, UserCheck, UserCog, UserRoundCheck, Users, UsersRound, Wallet, Church, Landmark, ChartLine, ChartNoAxesCombined, Workflow, TextCursorInput, ShieldCheck, type LucideIcon } from "lucide-react";
 import type { Audience } from "./audience";
 import { can, type Permission } from "./permissions";
 
@@ -7,7 +7,7 @@ export type NavLabelKey = "communities" | "crm" | "workspace" | "settings" | "pe
   | "office" | "forms" | "mail" | "calendar" | "documents" | "spreadsheets" | "giving" | "volunteers" | "livestream" | "churchProfile"
   | "connect" | "qrAndLinks" | "responses" | "events"
   | "publishing" | "community" | "commerce" | "chat" | "composer" | "planner" | "socialAccounts" | "socialAnalytics" | "inbox" | "autoDm" | "articles" | "website" | "linkInBio" | "newsletter" | "discover" | "products" | "assistant"
-  | "overview" | "donations" | "fundraising" | "pledges" | "donors" | "funds" | "givingPage" | "ads" | "live" | "courses" | "coaching" | "coupons" | "newsletterCampaigns" | "audience" | "signupForms" | "newsletterAnalytics" | "websiteBuilder" | "ministryPage"
+  | "overview" | "donations" | "fundraising" | "pledges" | "donors" | "funds" | "givingPage" | "ads" | "live" | "courses" | "coaching" | "coupons" | "newsletterCampaigns" | "audience" | "signupForms" | "newsletterAnalytics" | "newsletterSender" | "websiteBuilder" | "ministryPage"
   | "modeOperations" | "modePublic" | "modeAssistant";
 /** Shell modes (three-mode shell spec, 16 Nov 2026). The names are final. */
 export type NavMode = "operations" | "public" | "assistant";
@@ -122,6 +122,7 @@ export const navEntries: readonly NavEntry[] = [
   { id: "newsletterCampaigns", group: "newsletter", mode: "public", label: "newsletterCampaigns", icon: MailPlus, path: "/newsletter/campaigns", match: under("/newsletter/campaigns"), permission: "newsletter:campaigns", feature: "newsletter" },
   { id: "newsletterAudience", group: "newsletter", mode: "public", label: "audience", icon: ContactRound, path: "/newsletter/audience", match: under("/newsletter/audience"), permission: "newsletter:read", feature: "newsletter" },
   { id: "signupForms", group: "newsletter", mode: "public", status: "planned", label: "signupForms", icon: ClipboardPen, path: "/newsletter/forms", match: under("/newsletter/forms") },
+  { id: "newsletterSender", group: "newsletter", mode: "public", label: "newsletterSender", icon: ShieldCheck, path: "/newsletter/sender", match: under("/newsletter/sender"), permission: "newsletter:delivery", feature: "newsletter" },
   { id: "linkInBio", group: "website", mode: "public", status: "planned", label: "linkInBio", icon: Link2, path: "/link-in-bio", match: under("/link-in-bio") },
   { id: "articles", group: "website", mode: "public", status: "planned", label: "articles", icon: Newspaper, path: "/articles", match: under("/articles") },
   { id: "website", group: "website", mode: "public", status: "planned", label: "websiteBuilder", icon: LayoutTemplate, path: "/website", match: under("/website") },
