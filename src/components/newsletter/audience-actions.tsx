@@ -31,7 +31,7 @@ export function SaveGroupButton({ tenantId }: { tenantId: string }) {
     <Dialog open={open} onOpenChange={(value) => { if (!busy) setOpen(value); }}>
       <DialogContent><form onSubmit={save} className="space-y-4">
         <DialogHeader><DialogTitle>{t("saveGroup")}</DialogTitle></DialogHeader>
-        <Field><FieldLabel htmlFor="audience-group-name">{t("groupName")}</FieldLabel><Input id="audience-group-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={100} required className="h-11 lg:h-9" /></Field>
+        <Field><FieldLabel htmlFor="audience-group-name">{t("groupName")}</FieldLabel><Input id="audience-group-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={60} required className="h-11 lg:h-9" /></Field>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <DialogFooter><Button type="button" variant="outline" disabled={busy} onClick={() => setOpen(false)} className="min-h-11 lg:min-h-9">{t("cancel")}</Button><Button type="submit" disabled={busy || !name.trim()} className="min-h-11 lg:min-h-9">{t("save")}</Button></DialogFooter>
       </form></DialogContent>

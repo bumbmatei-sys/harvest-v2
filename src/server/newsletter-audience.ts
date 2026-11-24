@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, isNull, sql, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
-import { auditLogs, contacts, crmSavedViews, newsletterAudiences, newsletterCampaignLists, newsletterCampaigns, newsletterImportProvenance, newsletterLists, newsletterSegments, newsletterSubscribers, newsletterSubscriptions } from "../db/schema";
+import { auditLogs, contacts, crmSavedViews, newsletterAudiences, newsletterCampaignLists, newsletterCampaignSegments, newsletterCampaigns, newsletterImportProvenance, newsletterLists, newsletterSegments, newsletterSubscribers, newsletterSubscriptions } from "../db/schema";
 import { message } from "../i18n/messages";
 import { fullState, viewState, type ViewState } from "../lib/crm-fields";
 import { mayContact } from "./consent-gate";
@@ -21,6 +21,8 @@ export type AudienceStatus = typeof audienceStatuses[number];
 export type AudienceLens = { kind: "all" } | { kind: "status"; status: AudienceStatus } | { kind: "list"; id: string } | { kind: "group"; id: string };
 
 const nameInput = z.object({ name: z.string().trim().min(1).max(100) }).strict();
+/** Group names also name a shared CRM view, whose check allows 1 to 60 trimmed characters; reject longer names here, not in the database. */
+const groupNameInput = z.object({ name: z.string().trim().min(1).max(60) }).strict();
 const versionInput = z.object({ version: z.number().int().positive() }).strict();
 
 /** One person's newsletter status. Suppressed and bounced first, then withdrawal, then an explicit grant plus a live list. */
@@ -83,8 +85,8 @@ export function audienceOverview(db: Database, user: string, workspace: string) 
         join newsletter_subscribers s on s.tenant_id = ns.tenant_id and s.id = ns.subscriber_id and s.contact_id = c.id
         where ns.tenant_id = ${tenantId}::uuid and ns.list_id = newsletter_lists.id and ns.state = 'subscribed' and c.erased_at is null)::int`,
     }).from(newsletterLists).where(and(eq(newsletterLists.tenantId, tenantId), isNull(newsletterLists.archivedAt))).orderBy(asc(newsletterLists.name), asc(newsletterLists.id)).limit(200);
-    const groups = await tx.select({ id: newsletterSegments.id, name: newsletterSegments.name, audienceId: newsletterSegments.audienceId })
-      .from(newsletterSegments).where(eq(newsletterSegments.tenantId, tenantId)).orderBy(asc(newsletterSegments.name), asc(newsletterSegments.id)).limit(200);
+    const groups = await tx.select({ id: newsletterSegments.id, name: newsletterSegments.name, audienceId: newsletterSegments.audienceId, version: newsletterSegments.savedViewVersion })
+      .from(newsletterSegments).where(and(eq(newsletterSegments.tenantId, tenantId), isNull(newsletterSegments.archivedAt))).orderBy(asc(newsletterSegments.name), asc(newsletterSegments.id)).limit(200);
     return { counts, lists, groups };
   });
 }
@@ -101,6 +103,22 @@ async function uniqueName(tx: Transaction, tenantId: string, name: string, excep
   const [clash] = await tx.select({ id: newsletterLists.id }).from(newsletterLists).where(and(eq(newsletterLists.tenantId, tenantId), isNull(newsletterLists.archivedAt),
     sql`lower(${newsletterLists.name}) = lower(${name})`, except ? sql`${newsletterLists.id} <> ${except}::uuid` : undefined)).limit(1);
   if (clash) throw conflict("NAME_TAKEN");
+}
+async function uniqueGroupName(tx: Transaction, tenantId: string, name: string, except?: string) {
+  const [clash] = await tx.select({ id: newsletterSegments.id }).from(newsletterSegments).where(and(eq(newsletterSegments.tenantId, tenantId), isNull(newsletterSegments.archivedAt),
+    sql`lower(${newsletterSegments.name}) = lower(${name})`, except ? sql`${newsletterSegments.id} <> ${except}::uuid` : undefined)).limit(1);
+  if (clash) throw conflict("NAME_TAKEN");
+}
+/** A group whose shared view was edited (or whose filter no longer qualifies) is stuck: its pin cannot match. It stays inert; recreate it. */
+async function assertGroupCurrent(tx: Transaction, tenantId: string, group: { savedViewId: string; savedViewVersion: number }) {
+  const [view] = await tx.select({ id: crmSavedViews.id }).from(crmSavedViews).where(and(eq(crmSavedViews.tenantId, tenantId), eq(crmSavedViews.id, group.savedViewId),
+    eq(crmSavedViews.objectType, "person"), eq(crmSavedViews.version, group.savedViewVersion), isNull(crmSavedViews.ownerUserId), sql`coalesce(${crmSavedViews.state}->'sources','[]'::jsonb)='[]'::jsonb`));
+  if (!view) throw conflict("GROUP_STALE");
+}
+async function activeGroup(tx: Transaction, tenantId: string, id: string) {
+  const [group] = await tx.select().from(newsletterSegments).where(and(eq(newsletterSegments.tenantId, tenantId), eq(newsletterSegments.id, z.uuid().parse(id)), isNull(newsletterSegments.archivedAt))).for("update");
+  if (!group) throw unavailable();
+  return group;
 }
 async function activeList(tx: Transaction, tenantId: string, id: string, lock = false) {
   const query = tx.select().from(newsletterLists).where(and(eq(newsletterLists.tenantId, tenantId), eq(newsletterLists.id, z.uuid().parse(id)), isNull(newsletterLists.archivedAt)));
@@ -208,7 +226,7 @@ export function removePersonFromList(db: Database, user: string, workspace: stri
   });
 }
 
-const groupInput = nameInput.extend({ state: viewState }).strict();
+const groupInput = groupNameInput.extend({ state: viewState }).strict();
 /**
  * A saved group is the current People filter kept as a shared CRM view, then pinned the way NL-01 segments already are.
  * Source rules are refused (segments never carry them), exactly as `createNewsletterSegment` does.
@@ -216,6 +234,7 @@ const groupInput = nameInput.extend({ state: viewState }).strict();
 export function createGroupFromFilter(db: Database, user: string, workspace: string, raw: unknown) {
   const input = groupInput.parse(raw);
   return withNewsletter(db, user, workspace, "newsletter:manage", async (tx, tenantId) => {
+    await uniqueGroupName(tx, tenantId, input.name);
     const state: ViewState = fullState(input.state);
     if (state.sources.length) throw new AccessError(403, message("Errors.youDoNotHavePermissionToDoThat"));
     resolveState("person", state, await loadDefinitions(tx, tenantId, "person"));
@@ -223,5 +242,42 @@ export function createGroupFromFilter(db: Database, user: string, workspace: str
     const [group] = await tx.insert(newsletterSegments).values({ tenantId, audienceId: await defaultAudience(tx, tenantId, user), savedViewId: view.id, savedViewVersion: view.version, name: input.name, createdBy: user }).returning();
     await log(tx, tenantId, user, "newsletter.segment.create", group.id, { savedViewId: view.id });
     return { id: group.id, name: group.name };
+  });
+}
+
+/**
+ * Renames a saved group and the shared CRM view it points to. The view version moves with the name, so a pending review that pinned
+ * the old version no longer matches and must be reviewed again (SELECTION_CHANGED), never sent on a stale pin.
+ */
+export function renameAudienceGroup(db: Database, user: string, workspace: string, group: string, raw: unknown) {
+  const input = groupNameInput.extend(versionInput.shape).parse(raw);
+  return withNewsletter(db, user, workspace, "newsletter:manage", async (tx, tenantId) => {
+    const current = await activeGroup(tx, tenantId, group);
+    if (current.savedViewVersion !== input.version) throw conflict("STALE");
+    await assertGroupCurrent(tx, tenantId, current);
+    await uniqueGroupName(tx, tenantId, input.name, current.id);
+    const [view] = await tx.update(crmSavedViews).set({ name: input.name, version: sql`${crmSavedViews.version} + 1`, updatedAt: new Date() })
+      .where(and(eq(crmSavedViews.tenantId, tenantId), eq(crmSavedViews.id, current.savedViewId), eq(crmSavedViews.version, current.savedViewVersion), isNull(crmSavedViews.ownerUserId))).returning();
+    if (!view) throw conflict("STALE");
+    const [row] = await tx.update(newsletterSegments).set({ name: input.name, savedViewVersion: view.version }).where(and(eq(newsletterSegments.tenantId, tenantId), eq(newsletterSegments.id, current.id))).returning();
+    await auditVersion(tx, tenantId, user, "newsletter.segment.rename", row.id, row.savedViewVersion);
+    return { id: row.id, name: row.name, version: row.savedViewVersion };
+  });
+}
+
+/** Deleting archives: hidden from the Audience, the Send step and recipient resolution. The shared CRM view and consent history stay. */
+export function deleteAudienceGroup(db: Database, user: string, workspace: string, group: string, raw: unknown) {
+  const input = versionInput.parse(raw);
+  return withNewsletter(db, user, workspace, "newsletter:manage", async (tx, tenantId) => {
+    const current = await activeGroup(tx, tenantId, group);
+    if (current.savedViewVersion !== input.version) throw conflict("STALE");
+    await assertGroupCurrent(tx, tenantId, current);
+    const [inUse] = await tx.select({ id: newsletterCampaigns.id }).from(newsletterCampaignSegments)
+      .innerJoin(newsletterCampaigns, and(eq(newsletterCampaigns.tenantId, newsletterCampaignSegments.tenantId), eq(newsletterCampaigns.id, newsletterCampaignSegments.campaignId), eq(newsletterCampaigns.revision, newsletterCampaignSegments.revision)))
+      .where(and(eq(newsletterCampaignSegments.tenantId, tenantId), eq(newsletterCampaignSegments.segmentId, current.id), inArray(newsletterCampaigns.state, ["reviewed", "scheduled", "sending"]))).limit(1);
+    if (inUse) throw conflict("GROUP_IN_USE");
+    const [row] = await tx.update(newsletterSegments).set({ archivedAt: new Date() }).where(and(eq(newsletterSegments.tenantId, tenantId), eq(newsletterSegments.id, current.id))).returning();
+    await auditVersion(tx, tenantId, user, "newsletter.segment.delete", row.id, row.savedViewVersion);
+    return { id: row.id };
   });
 }
