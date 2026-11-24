@@ -317,7 +317,7 @@ test("social publish: accounts, composer with rings and media, review, queue, ca
   // clock, which rejects past times (so the page clock cannot be pinned to a fixed past or future date: the queue would then filter the real posts).
   const pinned = new Date(); pinned.setUTCHours(12, 0, 0, 0);
   await page.clock.setFixedTime(pinned);
-  const future = new Date(Number(process.env.SOCIAL_DATE_BASE_MS ?? pinned.getTime()) + 3 * 86_400_000); future.setUTCHours(10, 0, 0, 0);
+  const future = new Date(pinned.getTime() + 3 * 86_400_000); future.setUTCHours(10, 0, 0, 0);
   if (future.getUTCDate() > 24) { future.setUTCMonth(future.getUTCMonth() + 1, 10); } else if (future.getUTCDate() < 3) future.setUTCDate(10);
   const local = (date: Date) => date.toISOString().slice(0, 16);
   await ring("twitter").click(); await ring("bluesky").click();
