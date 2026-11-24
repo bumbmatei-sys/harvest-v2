@@ -27,6 +27,8 @@ const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev",
     HARVEST_NEWSLETTER_SUPPRESSION_KEYS: JSON.stringify([randomBytes(32).toString("hex")]),
     HARVEST_E2E_MOCK_EMAIL: "1", NEXT_TELEMETRY_DISABLED: "1",
     FILES_REQUIRE_SCAN_PRIVATE: "false",
+    // Newsletter automations are hard-off by default; the browser tests turn them on (entering and stopping only; nothing is sent).
+    HARVEST_NEWSLETTER_AUTOMATIONS: "1",
     S3_ENDPOINT: storage.config.endpoint, S3_BUCKET: storage.config.bucket, S3_REGION: storage.config.region,
     S3_ACCESS_KEY_ID: storage.config.accessKeyId, S3_SECRET_ACCESS_KEY: storage.config.secretAccessKey,
   },

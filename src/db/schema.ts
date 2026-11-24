@@ -2753,6 +2753,76 @@ export const newsletterFormSignups = pgTable("newsletter_form_signups", {
   check("newsletter_form_signup_names", sql`length(coalesce(${t.firstName}, '')) <= 100 and length(coalesce(${t.lastName}, '')) <= 100 and (${t.state} = 'pending' or (${t.firstName} is null and ${t.lastName} is null))`),
   check("newsletter_form_signup_confirmed", sql`(${t.state} in ('confirmed', 'blocked')) = (${t.confirmedAt} is not null)`),
 ]);
+// Newsletter automations: a trigger (joins a sign-up form, or is added to a list) and ordered steps (send an email, wait, end) kept as one jsonb list validated
+// by the app (email steps hold a version 2 email document). Runs and the per-contact log are written only by definer functions; consent is re-checked at every send.
+export const newsletterAutomations = pgTable("newsletter_automations", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  id: uuid("id").notNull().defaultRandom(),
+  name: text("name").notNull(),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  version: integer("version").notNull().default(1),
+  state: text("state", { enum: ["draft", "active", "paused"] }).notNull().default("draft"),
+  triggerType: text("trigger_type", { enum: ["form", "list"] }).notNull(),
+  triggerFormId: uuid("trigger_form_id"),
+  triggerListId: uuid("trigger_list_id"),
+  steps: jsonb("steps").$type<unknown[]>().notNull().default(sql`'[]'::jsonb`),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "newsletter_automation_form_fk", columns: [t.tenantId, t.triggerFormId], foreignColumns: [forms.tenantId, forms.id] }),
+  foreignKey({ name: "newsletter_automation_list_fk", columns: [t.tenantId, t.triggerListId], foreignColumns: [newsletterLists.tenantId, newsletterLists.id] }),
+  check("newsletter_automation_name", sql`length(trim(${t.name})) between 1 and 100`),
+  check("newsletter_automation_version", sql`${t.version} >= 1`),
+  check("newsletter_automation_trigger", sql`(${t.triggerType} = 'form' and ${t.triggerFormId} is not null and ${t.triggerListId} is null) or (${t.triggerType} = 'list' and ${t.triggerListId} is not null and ${t.triggerFormId} is null)`),
+  check("newsletter_automation_steps", sql`jsonb_typeof(${t.steps}) = 'array' and jsonb_array_length(${t.steps}) <= 20 and length(${t.steps}::text) <= 600000 and (${t.state} <> 'active' or jsonb_array_length(${t.steps}) > 0)`),
+  index("newsletter_automation_state_idx").on(t.tenantId, t.state),
+]);
+
+export const newsletterAutomationRuns = pgTable("newsletter_automation_runs", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  automationId: uuid("automation_id").notNull(),
+  contactId: uuid("contact_id").notNull(),
+  listId: uuid("list_id").notNull(),
+  state: text("state", { enum: ["active", "completed", "stopped"] }).notNull().default("active"),
+  stopReason: text("stop_reason", { enum: ["consent_withdrawn", "unsubscribed", "suppressed", "no_address", "image_unavailable", "automation_changed"] }),
+  stepIndex: integer("step_index").notNull().default(0),
+  nextRunAt: timestamp("next_run_at", { withTimezone: true }).notNull().defaultNow(),
+  lease: uuid("lease"),
+  leaseUntil: timestamp("lease_until", { withTimezone: true }),
+  attemptId: uuid("attempt_id"),
+  startedAt: timestamp("started_at", { withTimezone: true }).notNull().defaultNow(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  unique("newsletter_automation_run_contact").on(t.tenantId, t.automationId, t.contactId),
+  foreignKey({ name: "newsletter_automation_run_automation_fk", columns: [t.tenantId, t.automationId], foreignColumns: [newsletterAutomations.tenantId, newsletterAutomations.id] }),
+  foreignKey({ name: "newsletter_automation_run_contact_fk", columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }),
+  foreignKey({ name: "newsletter_automation_run_list_fk", columns: [t.tenantId, t.listId], foreignColumns: [newsletterLists.tenantId, newsletterLists.id] }),
+  index("newsletter_automation_run_due_idx").on(t.nextRunAt).where(sql`${t.state} = 'active'`),
+  index("newsletter_automation_run_contact_idx").on(t.tenantId, t.contactId),
+  check("newsletter_automation_run_state", sql`(${t.state} = 'active') = (${t.finishedAt} is null) and (${t.state} = 'stopped') = (${t.stopReason} is not null) and ${t.stepIndex} >= 0`),
+]);
+
+export const newsletterAutomationLog = pgTable("newsletter_automation_log", {
+  tenantId: uuid("tenant_id").notNull(),
+  id: uuid("id").notNull().defaultRandom(),
+  runId: uuid("run_id").notNull(),
+  stepIndex: integer("step_index").notNull(),
+  stepType: text("step_type", { enum: ["enter", "email", "wait", "end", "stopped"] }).notNull(),
+  outcome: text("outcome", { enum: ["entered", "sent", "unknown", "failed", "waiting", "completed", "stopped"] }).notNull(),
+  reason: text("reason"),
+  providerRef: text("provider_ref"),
+  attemptId: uuid("attempt_id"),
+  at: timestamp("at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "newsletter_automation_log_run_fk", columns: [t.tenantId, t.runId], foreignColumns: [newsletterAutomationRuns.tenantId, newsletterAutomationRuns.id] }).onDelete("cascade"),
+  index("newsletter_automation_log_run_idx").on(t.tenantId, t.runId, t.at),
+  check("newsletter_automation_log_shape", sql`${t.stepIndex} >= 0 and length(coalesce(${t.reason}, '')) <= 80`),
+]);
+
 // Docs (slice 1). A ministry's documents: folders (nested), docs, and the ordered page tree of each doc. Rich content is Tiptap JSON, sanitised again on the server.
 export const docFolders = pgTable("doc_folders", {
   id: uuid("id").primaryKey().defaultRandom(),
