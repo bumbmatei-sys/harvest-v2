@@ -8,6 +8,7 @@ import { message } from "../../i18n/messages";
 import { AccessError } from "../permissions";
 import { audit, conflict, id, unavailable, version, withNewsletter } from "./access";
 import { FakeNewsletterProvider } from "./fake-provider";
+import { requireSyntheticProvider } from "./provider-mode";
 import { dnsInstructions, domainVerified, emailDomain } from "./identities";
 
 type Connection = typeof newsletterConnections.$inferSelect;
@@ -103,6 +104,7 @@ export function addDomain(db: Database, actor: string, workspace: string, raw: u
 /** Asks the provider port (the synthetic one) outside any transaction, then records its answer. Never marks a domain verified on its own. */
 export async function verifyDomain(db: Database, actor: string, workspace: string, domainId: string,
   provider: Pick<FakeNewsletterProvider, "domain"> = new FakeNewsletterProvider()) {
+  requireSyntheticProvider();
   const current = await withNewsletter(db, actor, workspace, "newsletter:delivery", async (tx, tenant) => {
     const [row] = await tx.select().from(newsletterConnections).where(and(eq(newsletterConnections.tenantId, tenant), eq(newsletterConnections.id, id(domainId))));
     if (!row) throw unavailable();

@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import { sql } from "drizzle-orm";
+import { Client } from "pg";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { users } from "../../src/db/schema";
 import { createNewsletterAudience, createNewsletterList } from "../../src/server/newsletter";
@@ -135,4 +136,24 @@ it("exposes the verification function only to the application role, and only for
   expect(meta.prosecdef).toBe(true); expect(meta.proconfig).toContain("search_path=pg_catalog, pg_temp");
   // The application role has no direct write on the flags.
   await expect(fixture.pool.query("update newsletter_connections set ownership=true")).rejects.toThrow();
+});
+
+it("reports a stale version when the domain changes after the caller's read, instead of recording a check", async () => {
+  const added = await addDomain(fixture.db, owner, tenant, { domain: "race.example.test" });
+  const rival = new Client({ connectionString: fixture.admin.options.connectionString });
+  await rival.connect();
+  try {
+    await rival.query("begin");
+    await rival.query("select pg_advisory_xact_lock(hashtextextended('race.example.test',0))");
+    // The provider answer is already in hand (version read earlier); the call now waits behind the rival's lock.
+    const call = verifyDomain(fixture.db, owner, tenant, added.id, { domain: async () => ({ ownership: true, spf: true, dkim: true, bounce: true, dmarc: true }) });
+    const settled = call.then(() => "done", (error: unknown) => error);
+    await new Promise(resolve => setTimeout(resolve, 500));
+    await rival.query("update newsletter_connections set version=version+1 where id=$1", [added.id]);
+    await rival.query("commit");
+    expect(await settled).toMatchObject({ status: 409 });
+  } finally { await rival.end(); }
+  const [row] = (await fixture.admin.query("select checked_at, ownership from newsletter_connections where id=$1", [added.id])).rows;
+  expect(row).toEqual({ checked_at: null, ownership: false });
+  expect((await senderSetup(fixture.db, owner, tenant)).domains.find(domain => domain.id === added.id)?.status).toBe("pending");
 });

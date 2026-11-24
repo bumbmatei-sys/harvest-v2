@@ -18,6 +18,10 @@ Public > Newsletter > Sender (`/workspaces/[tenantId]/newsletter/sender`, nav id
 - `src/server/newsletter-campaigns/sender-setup.ts`: `senderSetup`, `addDomain`, `verifyDomain` (provider call outside the transaction), `saveMailingAddress`, `readiness`, `assertMailingAddress`. `synthetic-mailbox.ts`: in-memory test mailbox for the synthetic provider (confirmation codes only; unavailable in production like every newsletter route).
 - Routes under `/api/workspaces/[tenantId]/newsletter/`: `sender-setup` (GET), `sender-domains` (POST), `sender-domains/[domainId]/verify` (POST), `mailing-address` (PUT), `sender-identities/[identityId]/test-code` (GET); the existing sender-identities routes now use the synthetic mailbox.
 
+## Activation boundary (SYNTHETIC-ONLY)
+
+`newsletter_verify_domain` is web-callable, whereas 0073 made domain verification outcomes worker-only. It is acceptable only because it hard-codes `current_domain ~ '[.]example[.]test$'`, so no real domain can verify through it. It is SYNTHETIC-ONLY: before the live adapter it must be removed or moved to the worker path. A unit test fails if that clause is removed or relaxed. The route, `verifyDomain`, the `test-code` route and the in-memory test mailbox are also gated on the synthetic provider being active (`provider-mode.ts`) and must be removed before activation. See `docs/runbooks/newsletter-activation.md`.
+
 ## Deferred, server gaps and decisions
 
 - From name: identities store an address only, so there is no per-sender display name. Needs a column and a migration decision.
