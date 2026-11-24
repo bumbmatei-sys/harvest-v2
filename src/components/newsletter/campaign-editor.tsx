@@ -37,7 +37,9 @@ export function CampaignEditor({ tenantId, ministryName, campaign, brandKit, lis
   const t = useTranslations("NewsletterCampaigns"), e = useTranslations("NewsletterCampaigns.editor"), d = useTranslations("NewsletterCampaigns.defaults"), request = useCrmRequest();
   const initial = useMemo<Draft>(() => ({
     name: campaign.name, subject: campaign.subject, preheader: campaign.preheader ?? "",
-    doc: isEmailDocument(campaign.content) ? (campaign.content as EmailDocument) : blankDocument(brandKit.kit),
+    // An email saved before the ministry set its mailing address starts with the one from Sender; autosave stores it.
+    doc: isEmailDocument(campaign.content) ? (campaign.content.brand.address.trim() || !brandKit.kit.address.trim() ? campaign.content as EmailDocument
+      : { ...(campaign.content as EmailDocument), brand: { ...(campaign.content as EmailDocument).brand, address: brandKit.kit.address } }) : blankDocument(brandKit.kit),
     listIds: campaign.selection.listIds, segmentIds: campaign.selection.segmentIds, senderId: campaign.senderId, replyToId: campaign.replyToId,
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), []);
@@ -47,7 +49,7 @@ export function CampaignEditor({ tenantId, ministryName, campaign, brandKit, lis
   const [save, setSave] = useState<Save>("saved"), [announcement, setAnnouncement] = useState(""), [kitVersion, setKitVersion] = useState(brandKit.version), [kitSaving, setKitSaving] = useState(false);
   const [pendingTemplate, setPendingTemplate] = useState<TemplateId | "blank" | null>(null);
   const version = useRef(campaign.version), busy = useRef(false);
-  const [savedJson, setSavedJson] = useState(() => JSON.stringify(initial));
+  const [savedJson, setSavedJson] = useState(() => JSON.stringify(isEmailDocument(campaign.content) ? { ...initial, doc: campaign.content } : initial));
   const dirty = JSON.stringify(draft) !== savedJson;
   const parsed = useMemo(() => emailDocumentSchema.safeParse(draft.doc), [draft.doc]);
   const valid = parsed.success && draft.subject.trim().length > 0 && draft.name.trim().length > 0;

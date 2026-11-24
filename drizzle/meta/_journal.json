@@ -596,6 +596,13 @@
       "when": 1795457425921,
       "tag": "0085_newsletter_audience",
       "breakpoints": true
+    },
+    {
+      "idx": 86,
+      "version": "7",
+      "when": 1795494089816,
+      "tag": "0086_newsletter_sender",
+      "breakpoints": true
     }
   ]
 }

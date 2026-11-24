@@ -17,9 +17,9 @@ const editInput = z.union([
 ]);
 const confirmationMs = 30 * 60_000;
 const domainMaxAgeMs = 48 * 60 * 60_000;
-const emailDomain = (address: string) => address.slice(address.lastIndexOf("@") + 1);
+export const emailDomain = (address: string) => address.slice(address.lastIndexOf("@") + 1);
 
-function domainVerified(domain: typeof newsletterConnections.$inferSelect) {
+export function domainVerified(domain: typeof newsletterConnections.$inferSelect) {
   return Boolean(domain.checkedAt && domain.checkedAt.getTime() > Date.now() - domainMaxAgeMs &&
     domain.ownership && domain.spf && domain.dkim && domain.bounce && domain.dmarc);
 }
@@ -30,7 +30,7 @@ function identityResponse(row: typeof newsletterIdentities.$inferSelect, domain:
     domain: domain && { ...domain, status: domainVerified(domain) ? "verified" : domain.checkedAt ? "unverified" : "pending" } };
 }
 
-function dnsInstructions(domain: string, code: string): DomainRecord[] {
+export function dnsInstructions(domain: string, code: string): DomainRecord[] {
   const bounce = "bounce." + domain;
   const selector = code.slice(0, 16).toLowerCase().replaceAll("_", "x").replaceAll("-", "x");
   // Synthetic targets. The live registrar would supply the provider-assigned DKIM and MAIL FROM values.
