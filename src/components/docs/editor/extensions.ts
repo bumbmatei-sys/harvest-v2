@@ -1,4 +1,5 @@
-import { Extension, mergeAttributes, Node, type AnyExtension, type Editor } from "@tiptap/core";
+import { Extension, mergeAttributes, Mark, Node, type AnyExtension, type Editor } from "@tiptap/core";
+import { Blockquote } from "@tiptap/extension-blockquote";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { ReactNodeViewRenderer } from "@tiptap/react";
@@ -34,9 +35,41 @@ export const Column = Node.create({
 /** An outline of the page's headings that follows the text as it changes. */
 export const TableOfContents = Node.create({
   name: "tableOfContents", group: "block", atom: true, selectable: true, draggable: true,
+  addAttributes() { return { sticky: { default: false, parseHTML: (el: HTMLElement) => el.hasAttribute("data-sticky"), renderHTML: (a: { sticky: boolean }) => (a.sticky ? { "data-sticky": "" } : {}) } }; },
   parseHTML() { return [{ tag: "div[data-toc]" }]; },
   renderHTML({ HTMLAttributes }) { return ["div", mergeAttributes(HTMLAttributes, { "data-toc": "" })]; },
   addNodeView() { return ReactNodeViewRenderer(TocView); },
+});
+
+/** A quote set apart in larger type (the "pull quote"): a blockquote with one extra flag, so it stays a quote in every export. */
+export const PullQuote = Blockquote.extend({
+  addAttributes() { return { pull: { default: false, parseHTML: (el: HTMLElement) => el.hasAttribute("data-pull"), renderHTML: (a: { pull: boolean }) => (a.pull ? { "data-pull": "" } : {}) } }; },
+});
+/** A coloured badge on selected text: light (tinted, outlined) or strong (solid). The colour is one of the editor's palette values. */
+export const Badge = Mark.create({
+  name: "badge", inclusive: false,
+  addAttributes() { return { color: { default: null, parseHTML: (el: HTMLElement) => el.getAttribute("data-color"), renderHTML: () => ({}) }, strong: { default: false, parseHTML: (el: HTMLElement) => el.hasAttribute("data-strong"), renderHTML: () => ({}) } }; },
+  parseHTML() { return [{ tag: "span[data-badge]" }]; },
+  renderHTML({ mark }) {
+    const color = String(mark.attrs.color ?? ""), strong = mark.attrs.strong === true;
+    return ["span", { "data-badge": "", "data-color": color, ...(strong ? { "data-strong": "" } : {}), style: strong ? `background-color:${color}` : `background-color:color-mix(in srgb, ${color} 22%, transparent);border-color:${color}` }, 0];
+  },
+});
+/** A button-style link to an https address, on its own line. Edited by replacing it. */
+export const ButtonBlock = Node.create({
+  name: "button", group: "block", atom: true, selectable: true, draggable: true,
+  addAttributes() { return { label: { default: "" }, href: { default: "" } }; },
+  parseHTML() { return [{ tag: "a[data-button]", getAttrs: (el) => ({ label: (el as HTMLElement).textContent ?? "", href: (el as HTMLElement).getAttribute("href") ?? "" }) }]; },
+  renderHTML({ node }) { return ["a", { "data-button": "", href: safeDocHref(node.attrs.href) ?? "", rel: "nofollow noopener noreferrer ugc", target: "_blank" }, String(node.attrs.label)]; },
+  renderText({ node }) { return String(node.attrs.label); },
+});
+/** An @mention of a person, a page of this doc or a task. Text only: it never notifies anyone. */
+export const Mention = Node.create({
+  name: "mention", group: "inline", inline: true, atom: true, selectable: true,
+  addAttributes() { return { kind: { default: "person" }, id: { default: "" }, label: { default: "" } }; },
+  parseHTML() { return [{ tag: "span[data-mention]", getAttrs: (el) => ({ kind: (el as HTMLElement).getAttribute("data-kind") ?? "person", id: (el as HTMLElement).getAttribute("data-id") ?? "", label: ((el as HTMLElement).textContent ?? "").replace(/^@/, "") }) }]; },
+  renderHTML({ node }) { return ["span", { "data-mention": "", "data-kind": String(node.attrs.kind), "data-id": String(node.attrs.id) }, `@${String(node.attrs.label)}`]; },
+  renderText({ node }) { return `@${String(node.attrs.label)}`; },
 });
 
 /** Marks the top-level block the cursor is in, so block focus mode can dim the rest. */
@@ -56,7 +89,7 @@ export type EditorLabels = { placeholder: string; summary: string };
 export function docExtensions(labels: EditorLabels): AnyExtension[] {
   return [
     StarterKit.configure({
-      heading: { levels: [1, 2, 3, 4] },
+      heading: { levels: [1, 2, 3, 4] }, blockquote: false,
       link: { openOnClick: false, autolink: true, defaultProtocol: "https", protocols: ["https"], isAllowedUri: (url) => safeDocHref(url) !== null, HTMLAttributes: { rel: "nofollow noopener noreferrer ugc", target: "_blank" } },
     }),
     TextStyle, Color, Highlight.configure({ multicolor: true }),
@@ -64,7 +97,7 @@ export function docExtensions(labels: EditorLabels): AnyExtension[] {
     TaskList, TaskItem.configure({ nested: true }),
     Table.configure({ resizable: false }), TableRow, TableHeader, TableCell,
     Details.configure({ persist: true }), DetailsSummary, DetailsContent,
-    Callout, Columns, Column, TableOfContents, BlockFocus,
+    Callout, Columns, Column, TableOfContents, BlockFocus, PullQuote, Badge, ButtonBlock, Mention,
     Placeholder.configure({ placeholder: ({ node }) => node.type.name === "detailsSummary" ? labels.summary : labels.placeholder, showOnlyCurrent: true, includeChildren: true }),
   ];
 }

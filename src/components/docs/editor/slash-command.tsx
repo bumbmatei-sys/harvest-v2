@@ -41,7 +41,7 @@ const SlashList = forwardRef<ListHandle, ListProps>(function SlashList({ items, 
           className={cn("flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-2 text-sm", i === index ? "bg-accent text-accent-foreground" : "hover:bg-accent/60")}
           onMouseEnter={() => setIndex(i)} onMouseDown={(e) => { e.preventDefault(); command(item); }}>
           <span className="flex size-7 shrink-0 items-center justify-center rounded-md border bg-background"><item.icon className="size-4" aria-hidden="true" /></span>
-          {item.swatch && (item.section === "colors" || item.section === "highlights") && <span className="size-3 shrink-0 rounded-full border" style={{ background: item.swatch }} aria-hidden="true" />}
+          {item.swatch && (item.section === "colors" || item.section === "highlights" || item.section === "badges") && <span className="size-3 shrink-0 rounded-full border" style={{ background: item.swatch }} aria-hidden="true" />}
           {item.swatch && item.section === "text" && <span className={cn("size-3 shrink-0 rounded-full border", swatchClass[item.swatch])} aria-hidden="true" />}
           <span className="min-w-0 truncate">{slashLabel(t, item)}</span></div>)}</div>
       </div>;
@@ -54,7 +54,7 @@ export type SlashOptions = { actions: PageActions; labelOf: (item: SlashItem) =>
 /** "/" opens the block menu. Not offered inside a code block. */
 export const SlashCommand = Extension.create<SlashOptions>({
   name: "docsSlash",
-  addOptions() { return { actions: { newPage: () => {} }, labelOf: (item) => item.id }; },
+  addOptions() { return { actions: { newPage: () => {}, insert: () => {} }, labelOf: (item) => item.id }; },
   addProseMirrorPlugins() {
     const options = this.options, editor = this.editor;
     return [Suggestion<SlashItem, SlashItem>({
