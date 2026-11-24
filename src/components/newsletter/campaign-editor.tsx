@@ -12,6 +12,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sh
 import { FormSection } from "@/components/form-section";
 import { EditorShell } from "@/components/editor/editor-shell";
 import { BlockCanvas } from "@/components/newsletter/block-canvas";
+import { ImagePicker } from "@/components/newsletter/image-picker";
 import { DesignPanel } from "@/components/newsletter/design-panel";
 import { EmailPreview } from "@/components/newsletter/email-preview";
 import { SendStep, type ListOption, type SenderOption } from "@/components/newsletter/send-step";
@@ -31,8 +32,8 @@ const AUTOSAVE_MS = 1200;
 const copyKeys = ["title", "heading", "text", "button", "cite", "date", "time", "location", "caption", "leftHeading", "leftText", "rightHeading", "rightText", "linkOne", "linkTwo", "note"] as const;
 
 /** The campaign editor (shared EditorShell): Write (subject, block canvas, design, templates, preview) and Send (audience with a live count, when, inbox check). */
-export function CampaignEditor({ tenantId, ministryName, campaign, brandKit, lists, groups, senders }: {
-  tenantId: string; ministryName: string; campaign: CampaignData; brandKit: { kit: BrandKit; version: number }; lists: ListOption[]; groups: ListOption[]; senders: SenderOption[];
+export function CampaignEditor({ tenantId, ministryName, campaign, brandKit, lists, groups, senders, suggestions }: {
+  suggestions: boolean; tenantId: string; ministryName: string; campaign: CampaignData; brandKit: { kit: BrandKit; version: number }; lists: ListOption[]; groups: ListOption[]; senders: SenderOption[];
 }) {
   const t = useTranslations("NewsletterCampaigns"), e = useTranslations("NewsletterCampaigns.editor"), d = useTranslations("NewsletterCampaigns.defaults"), request = useCrmRequest();
   const initial = useMemo<Draft>(() => ({
@@ -108,7 +109,7 @@ export function CampaignEditor({ tenantId, ministryName, campaign, brandKit, lis
   const status = shown === "saving" ? e("saving") : shown === "saved" ? e("saved") : shown === "conflict" ? e("conflict") : shown === "invalid" ? e("fixFields") : e("saveFailed");
   const sidebar = { typeLabel: t("heading"), status: { kind: "draft" as const, label: t(`status.${campaign.state}` as "status.draft") },
     back: { href: `/workspaces/${tenantId}/newsletter/campaigns`, label: e("back") }, dirty: shown !== "saved" };
-  const preview = <EmailPreview doc={draft.doc} preheader={draft.preheader} ministryName={ministryName} firstName={t("preview.firstName")} />;
+  const preview = <EmailPreview tenantId={tenantId} doc={draft.doc} preheader={draft.preheader} ministryName={ministryName} firstName={t("preview.firstName")} />;
 
   return <div data-newsletter-editor>
     <EditorShell
@@ -137,7 +138,12 @@ export function CampaignEditor({ tenantId, ministryName, campaign, brandKit, lis
           <Button type="button" variant="outline" className="min-h-11" onClick={() => setPanel("design")}><Palette aria-hidden="true" />{e("design")}</Button>
           <Button type="button" variant="outline" className="min-h-11" onClick={() => setPanel("templates")}><LayoutTemplate aria-hidden="true" />{e("templates")}</Button>
         </div>
-        <BlockCanvas blocks={draft.doc.blocks} change={changeBlocks} selected={selected} setSelected={setSelected} notify={setAnnouncement} copy={copy} />
+        <FormSection title={e("coverTitle")}>
+          <ImagePicker tenantId={tenantId} id="nl-cover" label={e("coverTitle")} fileId={draft.doc.cover?.fileId} url={draft.doc.cover?.imageUrl ?? ""} alt={draft.doc.cover?.alt ?? ""} decorative={draft.doc.cover?.decorative}
+            requireAlt={false} onChange={(patch, key) => change((x) => { const cover = { imageUrl: "", alt: "", ...x.doc.cover, ...patch };
+              return { ...x, doc: { ...x.doc, cover: cover.fileId || cover.imageUrl ? cover : undefined } }; }, key)} />
+        </FormSection>
+        <BlockCanvas tenantId={tenantId} suggestions={suggestions} blocks={draft.doc.blocks} change={changeBlocks} selected={selected} setSelected={setSelected} notify={setAnnouncement} copy={copy} />
       </> : <SendStep tenantId={tenantId} lists={lists} groups={groups} senders={senders} listIds={draft.listIds} segmentIds={draft.segmentIds} senderId={draft.senderId} replyToId={draft.replyToId} subject={draft.subject} checks={checks}
         onSelection={(listIds, segmentIds) => change((x) => ({ ...x, listIds, segmentIds }), "selection")} onIdentity={(key, id) => change((x) => ({ ...x, [key]: id }))} />}
     </EditorShell>

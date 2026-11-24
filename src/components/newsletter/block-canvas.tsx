@@ -15,7 +15,7 @@ import { blockTypes, moveBlock, newBlock, newId, type BlockType, type EmailBlock
 import { plainText } from "@/lib/rich-text";
 import { cn } from "@/lib/utils";
 
-export const blockIcons: Record<BlockType, LucideIcon> = { header: PanelTop, hero: Sparkles, text: Type, imageText: ImageIcon, columns: Columns2, quote: Quote, event: CalendarDays, giving: HandHeart, video: Play, social: Share2, divider: Minus, spacer: MoveVertical, footer: PenLine };
+export const blockIcons: Record<BlockType, LucideIcon> = { header: PanelTop, hero: Sparkles, text: Type, imageText: ImageIcon, columns: Columns2, quote: Quote, event: CalendarDays, giving: HandHeart, video: Play, image: ImageIcon, social: Share2, divider: Minus, spacer: MoveVertical, footer: PenLine };
 
 function summary(block: EmailBlock): string {
   switch (block.type) {
@@ -26,6 +26,7 @@ function summary(block: EmailBlock): string {
     case "quote": return block.text;
     case "event": return block.title;
     case "video": return block.caption;
+    case "image": return block.alt;
     case "social": return block.links.map((l) => l.label).join(", ");
     case "footer": return block.note;
     default: return "";
@@ -34,8 +35,8 @@ function summary(block: EmailBlock): string {
 
 type Change = (fn: (blocks: EmailBlock[]) => EmailBlock[], key?: string) => void;
 
-function SortableBlock({ block, index, count, selected, label, onSelect, onPatch, onMove, onRemove, onDuplicate }: {
-  block: EmailBlock; index: number; count: number; selected: boolean; label: string; onSelect: () => void;
+function SortableBlock({ tenantId, suggestions, block, index, count, selected, label, onSelect, onPatch, onMove, onRemove, onDuplicate }: {
+  tenantId: string; suggestions: boolean; block: EmailBlock; index: number; count: number; selected: boolean; label: string; onSelect: () => void;
   onPatch: (patch: Record<string, unknown>, key?: string) => void; onMove: (by: number) => void; onRemove: () => void; onDuplicate: () => void;
 }) {
   const t = useTranslations("NewsletterCampaigns.editor"), types = useTranslations("NewsletterCampaigns.blocks");
@@ -55,13 +56,13 @@ function SortableBlock({ block, index, count, selected, label, onSelect, onPatch
       <Button type="button" variant="ghost" size="icon" className="size-11" aria-label={t("duplicateBlock", { label })} onClick={onDuplicate}><Copy aria-hidden="true" /></Button>
       <Button type="button" variant="ghost" size="icon" className="size-11" aria-label={t("remove", { label })} onClick={onRemove}><Trash2 aria-hidden="true" /></Button>
     </div>
-    {selected && <BlockSettings block={block} onChange={onPatch} />}
+    {selected && <BlockSettings block={block} onChange={onPatch} tenantId={tenantId} suggestions={suggestions} />}
   </li>;
 }
 
 /** The block canvas: drag (or Move up and Move down) to reorder, select a block to edit its settings, add from the searchable menu. */
-export function BlockCanvas({ blocks, change, selected, setSelected, notify, copy }: {
-  blocks: EmailBlock[]; change: Change; selected: string | null; setSelected: (id: string | null) => void; notify: (message: string) => void; copy: () => Record<string, string>;
+export function BlockCanvas({ tenantId, suggestions, blocks, change, selected, setSelected, notify, copy }: {
+  tenantId: string; suggestions: boolean; blocks: EmailBlock[]; change: Change; selected: string | null; setSelected: (id: string | null) => void; notify: (message: string) => void; copy: () => Record<string, string>;
 }) {
   const t = useTranslations("NewsletterCampaigns.editor"), types = useTranslations("NewsletterCampaigns.blocks");
   const [open, setOpen] = useState(false);
@@ -90,7 +91,7 @@ export function BlockCanvas({ blocks, change, selected, setSelected, notify, cop
     <DndContext sensors={sensors} collisionDetection={closestCenter} modifiers={[restrictToVerticalAxis, restrictToParentElement]} onDragEnd={end} accessibility={{ announcements }}>
       <SortableContext items={ids} strategy={verticalListSortingStrategy}>
         <ol className="space-y-3" aria-label={t("blockCount", { count: blocks.length })}>
-          {blocks.map((block, index) => <SortableBlock key={block.id} block={block} index={index} count={blocks.length} label={types(block.type)} selected={selected === block.id}
+          {blocks.map((block, index) => <SortableBlock key={block.id} tenantId={tenantId} suggestions={suggestions} block={block} index={index} count={blocks.length} label={types(block.type)} selected={selected === block.id}
             onSelect={() => setSelected(selected === block.id ? null : block.id)} onPatch={patch(block.id)} onMove={(by) => move(index, by)}
             onDuplicate={() => { const clone = { ...block, id: newId() } as EmailBlock; change((list) => [...list.slice(0, index + 1), clone, ...list.slice(index + 1)]); setSelected(clone.id); }}
             onRemove={() => { change((list) => list.filter((x) => x.id !== block.id)); if (selected === block.id) setSelected(null); notify(t("removed", { label: types(block.type) })); }} />)}
