@@ -18,8 +18,8 @@ let fetchSpy: ReturnType<typeof noNetwork>;
 const origin = "http://localhost:3000";
 const db = () => fixture.db;
 const status = (promise: Promise<unknown>) => promise.then(() => 200, (e: { status?: number; name?: string }) => e.status ?? (e.name === "ZodError" ? 400 : 500));
-const link = (id: string, over: Record<string, unknown> = {}) => ({ type: "link" as const, id, hidden: false, label: "Give", url: "https://example.org/give", icon: null, ...over });
-const message = { type: "message" as const, id: "msg00001", hidden: false, title: "Message me" };
+const link = (id: string, over: Record<string, unknown> = {}) => ({ type: "link" as const, id, hidden: false, tab: "home" as const, label: "Give", url: "https://example.org/give", icon: null, ...over });
+const message = { type: "message" as const, id: "msg00001", hidden: false, tab: "partnership" as const, title: "Message me" };
 const def = (blocks: BioDefinition["blocks"], name = "Grace Church"): BioDefinition => ({ ...emptyBioDefinition(name), blocks });
 let version = 0;
 async function save(user: string, handle: string | undefined, definition: BioDefinition) {
@@ -96,8 +96,8 @@ describe("saving and publishing", () => {
     expect(saved.handle).toBe("grace-church"); expect(saved.draft.blocks[0]).toMatchObject({ url: "https://example.org/give" });
     expect(await status(saveBioDraft(db(), people.owner, people.tenant, { version: stale, definition: def([link("aaaaaaaa")]) }))).toBe(409);
     expect(await status(saveBioDraft(db(), people.owner, people.tenant, { version, definition: { ...def([link("aaaaaaaa")]), blocks: [link("aaaaaaaa", { url: "http://example.org" })] } }))).toBe(400);
-    expect(await status(saveBioDraft(db(), people.owner, people.tenant, { version, definition: def([{ type: "community", id: "cccccccc", hidden: false, communityId: randomUUID() }]) }))).toBe(400);
-    expect(await status(saveBioDraft(db(), people.owner, people.tenant, { version, definition: def([{ type: "newsletter", id: "nnnnnnnn", hidden: false, slug: "no-such-form" }]) }))).toBe(400);
+    expect(await status(saveBioDraft(db(), people.owner, people.tenant, { version, definition: def([{ type: "community", id: "cccccccc", hidden: false, tab: "home", communityId: randomUUID() }]) }))).toBe(400);
+    expect(await status(saveBioDraft(db(), people.owner, people.tenant, { version, definition: def([{ type: "newsletter", id: "nnnnnnnn", hidden: false, tab: "home", slug: "no-such-form" }]) }))).toBe(400);
   });
   it("answers an unpublished page like a missing one, then serves only the published copy", async () => {
     expect(await getPublicBio(db(), "grace-church")).toBeNull(); expect(await getPublicBio(db(), "no-such-page")).toBeNull();
@@ -106,7 +106,7 @@ describe("saving and publishing", () => {
     expect(published.status).toBe("published");
     const view = (await getPublicBio(db(), "grace-church"))!;
     expect(view).toMatchObject({ name: "Grace Church", ministryName: "bio ministry", hasPhoto: false });
-    expect(view.blocks.map((b) => b.type)).toEqual(["link", "message"]);
+    expect(view.tabs.flatMap((t) => t.blocks).map((b) => b.type)).toEqual(["link", "message"]);
     // Later edits stay in the draft until they are published; hidden blocks never reach the visitor.
     await save(people.owner, undefined, def([link("aaaaaaaa", { label: "Changed" }), link("hhhhhhhh", { hidden: true, label: "Secret" }), message], "Grace Church"));
     const still = (await getPublicBio(db(), "grace-church"))!;
@@ -122,7 +122,7 @@ describe("saving and publishing", () => {
   });
   it("drops the message block when messages are not enabled, and the whole page in production", async () => {
     vi.stubEnv("HARVEST_LINK_IN_BIO_MESSAGES", "");
-    expect((await getPublicBio(db(), "grace-church"))!.blocks.map((b) => b.type)).toEqual(["link"]);
+    expect((await getPublicBio(db(), "grace-church"))!.tabs.map((t) => t.id)).toEqual(["home"]);
     vi.stubEnv("HARVEST_LINK_IN_BIO_MESSAGES", "synthetic");
     expect((await getPublicBio(db(), "grace-church", { NODE_ENV: "production" }))).toBeNull();
   });
@@ -200,8 +200,9 @@ describe("Message me", () => {
     expect((await again()).status).toBe(200); expect((await again()).status).toBe(200);
     expect((await messageRows()).filter((r) => r.email === "replay@example.test")).toHaveLength(1);
     expect((await send("grace-church", { proof: p, email: "replay@example.test", message: "different text" }, "203.0.113.20", false)).status).toBe(409);
-    const statuses: number[] = [];
-    for (let i = 0; i < 6; i++) statuses.push((await send("grace-church", { email: `flood${i}@example.test` }, "203.0.113.30")).status);
+    const statuses: number[] = [], proofs = await Promise.all(Array.from({ length: 6 }, () => proof("grace-church")));
+    await new Promise((r) => setTimeout(r, 1100));
+    for (let i = 0; i < 6; i++) statuses.push((await send("grace-church", { proof: proofs[i], email: `flood${i}@example.test` }, "203.0.113.30", false)).status);
     expect(statuses.filter((s) => s === 200).length).toBeLessThanOrEqual(5); expect(statuses.at(-1)).toBe(429);
   });
   it("is closed when messages are not enabled or the database is not a test database", async () => {
@@ -268,5 +269,40 @@ describe("photo, choices and cross-ministry safety", () => {
       const { rows: [t] } = await fixture.admin.query("select relrowsecurity, relforcerowsecurity from pg_class where relname=$1", [table]);
       expect(t).toEqual({ relrowsecurity: true, relforcerowsecurity: true });
     }
+  });
+});
+
+describe("tabs, details and the cover", () => {
+  it("shows only the details the owner entered and left visible, and no hidden tab or its blocks", async () => {
+    version = (await getBioPage(db(), people.owner, people.tenant)).version;
+    const detail = (id: string, kind: "location" | "role", value: string, hidden: boolean) => ({ id, kind, value, hidden });
+    const definition: BioDefinition = { ...def([link("aaaaaaaa"), message]), details: [detail("dddddd01", "location", "Lisbon", false), detail("dddddd02", "role", "Pastor", true)],
+      tabs: [{ id: "home", hidden: false }, { id: "partnership", hidden: false }] };
+    await save(people.owner, undefined, definition);
+    await transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version });
+    const open = (await getPublicBio(db(), "grace-church"))!;
+    expect(open.details).toEqual([{ id: "dddddd01", kind: "location", value: "Lisbon" }]);
+    expect(JSON.stringify(open)).not.toContain("Pastor");
+    expect((await respondToBioProof(request("/l/grace-church/message"), ctx("grace-church"))).status).toBe(200);
+    await save(people.owner, undefined, { ...definition, tabs: [{ id: "partnership", hidden: true }, { id: "home", hidden: false }] });
+    await transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version });
+    const closed = (await getPublicBio(db(), "grace-church"))!;
+    expect(closed.tabs.map((t) => t.id)).toEqual(["home"]);
+    expect((await respondToBioProof(request("/l/grace-church/message"), ctx("grace-church"))).status).toBe(404);
+    expect((await fixture.admin.query("select public.bio_submit_message('grace-church', gen_random_uuid(), now() + interval '5 minutes', 'A', 'a@example.test', 'b', $1, $2) r", ["a".repeat(64), "b".repeat(64)])).rows[0].r).toBe("not_found");
+  });
+  it("keeps the cover and the photo as separate files of one page", async () => {
+    const page = await getBioPage(db(), people.owner, people.tenant);
+    const file = randomUUID();
+    await fixture.admin.query("insert into bio_files(id,tenant_id,page_id,key,kind,name,mime,size,checksum,status) values($1,$2,$3,$4,'cover','c.png','image/png',10,$5,'ready')", [file, people.tenant, page.id, `workspaces/${people.tenant}/bio/${page.id}/files/${file}`, "b".repeat(64)]);
+    const { withUser } = await import("../../src/server/tenancy");
+    const set = (kind: string) => withUser(db(), people.owner, async (tx) => (await tx.execute(sql`select public.bio_photo_operate(${people.tenant}::uuid, 'set', ${file}::uuid, ${JSON.stringify({ version: page.version, kind })}::jsonb) r`)).rows[0].r as { outcome: string });
+    expect((await set("photo")).outcome).toBe("not_found");
+    expect((await set("cover")).outcome).toBe("ok");
+    expect((await getBioPage(db(), people.owner, people.tenant)).coverFileId).toBe(file);
+    await transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version: page.version + 1 });
+    expect((await getPublicBio(db(), "grace-church"))).toMatchObject({ hasCover: true, hasPhoto: true });
+    const { rows } = await fixture.admin.query("select public.bio_public_photo('grace-church', 'cover') c, public.bio_public_photo('grace-church', 'photo') p");
+    expect(rows[0].c.key).toContain(file); expect(rows[0].p.key).not.toContain(file);
   });
 });

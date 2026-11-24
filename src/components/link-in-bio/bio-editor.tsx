@@ -29,8 +29,8 @@ import { StatusBadge } from "@/components/status-badge";
 import { StickySaveBar } from "@/components/sticky-save-bar";
 import { WizardLayout } from "@/components/wizard-layout";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
-import { bioIcons, bioLimits, bioNetworks, bioSchemes, bioButtonStyles, fieldIssues, handleProblem, newBlockId, moveItem, publishIssues,
-  type BioBlock, type BioDefinition, type BioView, type BioViewBlock, type HandleProblem } from "@/lib/link-in-bio";
+import { bioDetailKinds, bioIcons, bioLimits, bioNetworks, bioSchemes, bioTabIds, bioButtonStyles, fieldIssues, handleProblem, newBlockId, moveItem, publishIssues,
+  type BioBlock, type BioDefinition, type BioDetailKind, type BioTabId, type BioView, type BioViewBlock, type HandleProblem } from "@/lib/link-in-bio";
 import { cn } from "@/lib/utils";
 import type { BioChoices, BioOwnerView } from "@/server/link-in-bio";
 
@@ -39,9 +39,9 @@ const steps: Step[] = ["profile", "content", "design", "publish"];
 type Fields = { handle: string; definition: BioDefinition };
 const same = (a: Fields, b: Fields) => JSON.stringify(a) === JSON.stringify(b);
 
-/** The preview's data: the draft as a visitor would see it (hidden blocks left out), with the owner's own community names. */
-export function draftView(definition: BioDefinition, choices: BioChoices, ministryName: string, brandTheme: string | null, hasPhoto: boolean): BioView {
-  const blocks = definition.blocks.flatMap((block): BioViewBlock[] => {
+/** The preview's data: the draft as a visitor would see it (hidden blocks, details and tabs left out), with the owner's own community names. */
+export function draftView(definition: BioDefinition, choices: BioChoices, ministryName: string, brandTheme: string | null, hasPhoto: boolean, hasCover: boolean): BioView {
+  const project = (block: BioBlock): BioViewBlock[] => {
     if (block.hidden) return [];
     switch (block.type) {
       case "link": return [{ type: "link", id: block.id, label: block.label || "…", url: block.url, icon: block.icon }];
@@ -50,13 +50,16 @@ export function draftView(definition: BioDefinition, choices: BioChoices, minist
       case "newsletter": return [{ type: "newsletter", id: block.id, slug: block.slug }];
       case "message": return [{ type: "message", id: block.id, title: block.title || "…" }];
     }
-  });
-  return { ministryName, name: definition.name || "…", bio: definition.bio, hasPhoto, scheme: definition.scheme, buttons: definition.buttons, brandTheme: brandTheme as BioView["brandTheme"],
-    socials: definition.socials.filter((s) => /^https:\/\//.test(s.url)), blocks };
+  };
+  const details = definition.details.filter((d) => !d.hidden && d.value.trim()).map(({ id, kind, value }) => ({ id, kind, value }));
+  const tabs = definition.tabs.filter((t) => !t.hidden).map((t) => ({ id: t.id, blocks: definition.blocks.filter((b) => b.tab === t.id).flatMap(project) }))
+    .filter((t) => t.blocks.length > 0 || (t.id === "home" && details.length > 0));
+  return { ministryName, name: definition.name || "…", subtitle: definition.subtitle, bio: definition.bio, details, tabs, hasPhoto, hasCover, scheme: definition.scheme, buttons: definition.buttons,
+    brandTheme: brandTheme as BioView["brandTheme"], socials: definition.socials.filter((s) => /^https:\/\//.test(s.url)) };
 }
 
-function Row({ block, index, count, label, issue, clicks, children, onMove, onToggle, onRemove }: {
-  block: BioBlock; index: number; count: number; label: string; issue?: "url" | "required"; clicks?: number; children: React.ReactNode;
+function Row({ block, index, count, label, issue, clicks, children, onMove, onToggle, onRemove, onTab }: {
+  onTab: (tab: BioTabId) => void; block: BioBlock; index: number; count: number; label: string; issue?: "url" | "required"; clicks?: number; children: React.ReactNode;
   onMove: (by: number) => void; onToggle: () => void; onRemove: () => void;
 }) {
   const t = useTranslations("LinkInBio");
@@ -76,7 +79,9 @@ function Row({ block, index, count, label, issue, clicks, children, onMove, onTo
         <Button type="button" variant="ghost" size="icon" className="size-11" aria-label={t("links.removeLabel", { label })} onClick={onRemove}><Trash2 aria-hidden="true" /></Button>
       </span>
     </div>
-    <div className="grid gap-4 p-4 sm:grid-cols-2" data-invalid={issue ? true : undefined}>{children}</div>
+    <div className="grid gap-4 p-4 sm:grid-cols-2" data-invalid={issue ? true : undefined}>{children}
+      <Field><FieldLabel htmlFor={`t-${block.id}`}>{t("links.tab")}</FieldLabel>
+        <NativeSelect id={`t-${block.id}`} className="min-h-11 w-full" value={block.tab} onChange={(e) => onTab(e.target.value as BioTabId)}>{bioTabIds.map((id) => <option key={id} value={id}>{t(`tabs.${id}`)}</option>)}</NativeSelect></Field></div>
   </li>;
 }
 
@@ -92,10 +97,11 @@ export function BioEditor({ tenantId, initial, choices, ministryName, brandTheme
   const [handleState, setHandleState] = useState<{ value: string; problem: HandleProblem | "taken" | null; checking: boolean }>({ value: initial.handle, problem: null, checking: false });
   const dirty = !same(fields, saved), published = data.status === "published";
   const { destination, setDestination, leave } = useUnsavedChangesGuard(dirty || busy || coverBusy);
-  const photo = useEventCoverUrl(endpoint, data.photoFileId);
+  const photo = useEventCoverUrl(`${endpoint}/photo`, data.photoFileId), banner = useEventCoverUrl(`${endpoint}/banner`, data.coverFileId);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 6 } }), useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 8 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   const { definition } = fields, issues = fieldIssues(definition), checklist = publishIssues(definition);
   const setDefinition = (patch: Partial<BioDefinition>) => { setNotice(""); setFields((previous) => ({ ...previous, definition: { ...previous.definition, ...patch } })); };
+  const setDetails = (change: (list: BioDefinition["details"]) => BioDefinition["details"]) => setDefinition({ details: change(definition.details) });
   const setBlocks = (change: (blocks: BioBlock[]) => BioBlock[]) => setDefinition({ blocks: change(definition.blocks) });
   const patchBlock = (id: string, patch: Record<string, unknown>) => setBlocks((blocks) => blocks.map((b) => b.id === id ? { ...b, ...patch } as BioBlock : b));
   const path = `${base}/l/${fields.handle}`;
@@ -141,7 +147,8 @@ export function BioEditor({ tenantId, initial, choices, ministryName, brandTheme
     } else if (view) setNotice(t("savedNotice"));
     setBusy(false);
   }
-  const coverChanged = ({ coverFileId, version }: CoverChange) => { setNotice(""); setData((previous) => ({ ...previous, photoFileId: coverFileId, version })); };
+  const photoChanged = ({ coverFileId, version }: CoverChange) => { setNotice(""); setData((previous) => ({ ...previous, photoFileId: coverFileId, version })); };
+  const bannerChanged = ({ coverFileId, version }: CoverChange) => { setNotice(""); setData((previous) => ({ ...previous, coverFileId, version })); };
 
   function onDragEnd(event: DragEndEvent) {
     const { active, over } = event;
@@ -168,13 +175,13 @@ export function BioEditor({ tenantId, initial, choices, ministryName, brandTheme
   const sidebar = { typeLabel: t("typeLabel"), status: { kind: published ? "live" as const : "draft" as const, label: t(`status.${phase}`) }, back: { href: `/workspaces/${tenantId}`, label: t("back") }, dirty,
     openPage: published ? { href: path, label: t("openPage") } : undefined };
 
-  const view = useMemo(() => draftView(definition, choices, ministryName, brandTheme, Boolean(photo.url && data.photoFileId)), [definition, choices, ministryName, brandTheme, photo.url, data.photoFileId]);
+  const view = useMemo(() => draftView(definition, choices, ministryName, brandTheme, Boolean(photo.url && data.photoFileId), Boolean(banner.url && data.coverFileId)), [definition, choices, ministryName, brandTheme, photo.url, data.photoFileId, banner.url, data.coverFileId]);
   const forced = definition.scheme === "auto" ? undefined : definition.scheme;
   const preview = <div className="mx-auto w-full max-w-[22rem]" data-bio-preview>
     <div className="overflow-hidden rounded-[2rem] border-[6px] border-foreground/80 shadow-sm">
       <div data-theme={forced} className={forced === "dark" ? "dark" : undefined}>
         <div className={cn("theme-preview max-h-[40rem] min-h-[28rem] overflow-y-auto bg-background text-foreground")} data-preview-brand={brandTheme ?? "harvest"} aria-label={t("previewHeading")} role="group">
-          <BioPageView view={view} handle={fields.handle} preview photoUrl={photo.url && data.photoFileId ? photo.url : null} />
+          <BioPageView view={view} handle={fields.handle} preview photoUrl={photo.url && data.photoFileId ? photo.url : null} coverUrl={banner.url && data.coverFileId ? banner.url : null} />
         </div>
       </div>
     </div>
@@ -190,25 +197,40 @@ export function BioEditor({ tenantId, initial, choices, ministryName, brandTheme
     {notice && <Alert role="status"><AlertDescription>{notice}</AlertDescription></Alert>}
     <WizardLayout steps={stepList} current={step} onStepChange={(id) => setStep(id as Step)} stepsLabel={t("stepsLabel")} stepper={false} focusOnStepChange={hosted}>
       {step === "profile" && <FormSection title={<span className="sr-only">{t("steps.profile")}</span>}>
-        <EventCoverPicker namespace="LinkInBio.cover" endpoint={endpoint} saved coverFileId={data.photoFileId} version={data.version} url={photo.url} onUrlFailed={photo.failed} onChange={coverChanged} onBusyChange={setCoverBusy} />
+        <EventCoverPicker namespace="LinkInBio.banner" endpoint={`${endpoint}/banner`} saved coverFileId={data.coverFileId} version={data.version} url={banner.url} onUrlFailed={banner.failed} onChange={bannerChanged} onBusyChange={setCoverBusy} />
+        <EventCoverPicker namespace="LinkInBio.cover" endpoint={`${endpoint}/photo`} saved coverFileId={data.photoFileId} version={data.version} url={photo.url} onUrlFailed={photo.failed} onChange={photoChanged} onBusyChange={setCoverBusy} />
         <Field data-invalid={touched && !definition.name.trim() ? true : undefined}><FieldLabel htmlFor="bio-name">{t("profile.name")}</FieldLabel>
           <Input id="bio-name" className="min-h-11" maxLength={bioLimits.name} value={definition.name} aria-invalid={touched && !definition.name.trim() ? true : undefined} onChange={(e) => setDefinition({ name: e.target.value })} />
           {touched && !definition.name.trim() && <FieldError>{t("publishing.checkName")}</FieldError>}</Field>
+        <Field><FieldLabel htmlFor="bio-subtitle">{t("profile.subtitle")}</FieldLabel>
+          <Input id="bio-subtitle" className="min-h-11" maxLength={bioLimits.subtitle} value={definition.subtitle} onChange={(e) => setDefinition({ subtitle: e.target.value })} /></Field>
         <Field><FieldLabel htmlFor="bio-bio">{t("profile.bio")}</FieldLabel>
           <Textarea id="bio-bio" rows={4} maxLength={bioLimits.bio} value={definition.bio} onChange={(e) => setDefinition({ bio: e.target.value })} />
           <p className="text-xs text-muted-foreground" aria-live="polite">{t("profile.bioCount", { count: definition.bio.length, max: bioLimits.bio })}</p></Field>
+      </FormSection>}
+      {step === "profile" && <FormSection title={<span className="text-base font-semibold">{t("details.heading")}</span>}>
+        <ul className="space-y-3" data-bio-details-editor>{definition.details.map((detail, index) => { const kindLabel = t(`details.kinds.${detail.kind}`), bad = touched ? issues[`detail:${detail.id}`] : undefined; return <li key={detail.id} className="grid items-end gap-3 sm:grid-cols-[12rem_minmax(0,1fr)_auto]" data-bio-detail={detail.id}>
+          <Field><FieldLabel htmlFor={`dk-${detail.id}`}>{t("details.kind")}</FieldLabel>
+            <NativeSelect id={`dk-${detail.id}`} className="min-h-11 w-full" value={detail.kind} onChange={(e) => setDetails((list) => list.map((x) => x.id === detail.id ? { ...x, kind: e.target.value as BioDetailKind } : x))}>{bioDetailKinds.map((k) => <option key={k} value={k}>{t(`details.kinds.${k}`)}</option>)}</NativeSelect></Field>
+          <Field data-invalid={bad ? true : undefined}><FieldLabel htmlFor={`dv-${detail.id}`}>{t("details.value")}</FieldLabel>
+            <Input id={`dv-${detail.id}`} className="min-h-11" maxLength={bioLimits.detailValue} value={detail.value} aria-invalid={bad ? true : undefined} onChange={(e) => setDetails((list) => list.map((x) => x.id === detail.id ? { ...x, value: e.target.value } : x))} />
+            {bad && <FieldError>{t(bad === "url" ? "details.urlProblem" : "details.requiredProblem")}</FieldError>}</Field>
+          <span className="flex"><Button type="button" variant="ghost" size="icon" className="size-11" aria-pressed={detail.hidden} aria-label={t(detail.hidden ? "details.show" : "details.hide", { label: kindLabel })} onClick={() => setDetails((list) => list.map((x) => x.id === detail.id ? { ...x, hidden: !x.hidden } : x))}>{detail.hidden ? <EyeOff aria-hidden="true" /> : <Eye aria-hidden="true" />}</Button>
+            <Button type="button" variant="ghost" size="icon" className="size-11" aria-label={t("details.remove", { label: kindLabel })} disabled={index < 0} onClick={() => setDetails((list) => list.filter((x) => x.id !== detail.id))}><Trash2 aria-hidden="true" /></Button></span>
+        </li>; })}</ul>
+        <div><Button type="button" variant="outline" className="min-h-11" disabled={definition.details.length >= bioLimits.details} onClick={() => setDetails((list) => [...list, { id: newBlockId(list.map((x) => x.id)), kind: bioDetailKinds.find((k) => !list.some((x) => x.kind === k)) ?? "location", value: "", hidden: false }])}><Plus aria-hidden="true" />{t("details.add")}</Button></div>
       </FormSection>}
 
       {step === "content" && <div className="space-y-6">
         <FormSection title={<span className="text-base font-semibold">{t("links.heading")}</span>}>
           <div className="flex flex-wrap items-center gap-2">
-            <Button type="button" className="min-h-11" disabled={full} onClick={() => addBlock({ type: "link", id: newBlockId(ids()), hidden: false, label: "", url: "https://", icon: null })}><Plus aria-hidden="true" />{t("links.add")}</Button>
+            <Button type="button" className="min-h-11" disabled={full} onClick={() => addBlock({ type: "link", id: newBlockId(ids()), hidden: false, tab: "home", label: "", url: "https://", icon: null })}><Plus aria-hidden="true" />{t("links.add")}</Button>
             <DropdownMenu><DropdownMenuTrigger asChild><Button type="button" variant="outline" className="min-h-11" disabled={full}><Plus aria-hidden="true" />{t("blocks.addBlock")}</Button></DropdownMenuTrigger>
               <DropdownMenuContent align="start">
-                <DropdownMenuItem className="min-h-11" disabled={hasMessage} onSelect={() => addBlock({ type: "message", id: newBlockId(ids()), hidden: false, title: t("blocks.message") })}>{t("blocks.message")}{hasMessage && <span className="ms-2 text-xs text-muted-foreground">{t("blocks.already")}</span>}</DropdownMenuItem>
-                <DropdownMenuItem className="min-h-11" onSelect={() => addBlock({ type: "event", id: newBlockId(ids()), hidden: false, title: "", when: "", url: "https://" })}>{t("blocks.event")}</DropdownMenuItem>
-                <DropdownMenuItem className="min-h-11" disabled={!choices.communities.length} onSelect={() => addBlock({ type: "community", id: newBlockId(ids()), hidden: false, communityId: choices.communities[0].id })}>{t("blocks.community")}{!choices.communities.length && <span className="ms-2 text-xs text-muted-foreground">{t("blocks.noCommunities")}</span>}</DropdownMenuItem>
-                <DropdownMenuItem className="min-h-11" disabled={!choices.signups.length} onSelect={() => addBlock({ type: "newsletter", id: newBlockId(ids()), hidden: false, slug: choices.signups[0].slug })}>{t("blocks.newsletter")}{!choices.signups.length && <span className="ms-2 text-xs text-muted-foreground">{t("blocks.noSignups")}</span>}</DropdownMenuItem>
+                <DropdownMenuItem className="min-h-11" disabled={hasMessage} onSelect={() => addBlock({ type: "message", id: newBlockId(ids()), hidden: false, tab: "partnership", title: t("blocks.message") })}>{t("blocks.message")}{hasMessage && <span className="ms-2 text-xs text-muted-foreground">{t("blocks.already")}</span>}</DropdownMenuItem>
+                <DropdownMenuItem className="min-h-11" onSelect={() => addBlock({ type: "event", id: newBlockId(ids()), hidden: false, tab: "home", title: "", when: "", url: "https://" })}>{t("blocks.event")}</DropdownMenuItem>
+                <DropdownMenuItem className="min-h-11" disabled={!choices.communities.length} onSelect={() => addBlock({ type: "community", id: newBlockId(ids()), hidden: false, tab: "home", communityId: choices.communities[0].id })}>{t("blocks.community")}{!choices.communities.length && <span className="ms-2 text-xs text-muted-foreground">{t("blocks.noCommunities")}</span>}</DropdownMenuItem>
+                <DropdownMenuItem className="min-h-11" disabled={!choices.signups.length} onSelect={() => addBlock({ type: "newsletter", id: newBlockId(ids()), hidden: false, tab: "partnership", slug: choices.signups[0].slug })}>{t("blocks.newsletter")}{!choices.signups.length && <span className="ms-2 text-xs text-muted-foreground">{t("blocks.noSignups")}</span>}</DropdownMenuItem>
               </DropdownMenuContent></DropdownMenu>
             {full && <span className="text-sm text-muted-foreground">{t("links.maxBlocks", { max: bioLimits.blocks })}</span>}
           </div>
@@ -217,7 +239,7 @@ export function BioEditor({ tenantId, initial, choices, ministryName, brandTheme
               <SortableContext items={ids()} strategy={verticalListSortingStrategy}>
                 <ol className="space-y-3" aria-label={t("links.heading")}>{definition.blocks.map((block, index) => {
                   const common = { block, index, count: definition.blocks.length, label: label(block), issue: issues[block.id], clicks: published ? (data.clicks[block.id] ?? 0) : undefined,
-                    onMove: (by: number) => setBlocks((list) => moveItem(list, index, index + by)), onToggle: () => patchBlock(block.id, { hidden: !block.hidden }), onRemove: () => setBlocks((list) => list.filter((b) => b.id !== block.id)) };
+                    onMove: (by: number) => setBlocks((list) => moveItem(list, index, index + by)), onToggle: () => patchBlock(block.id, { hidden: !block.hidden }), onTab: (tab: BioTabId) => patchBlock(block.id, { tab }), onRemove: () => setBlocks((list) => list.filter((b) => b.id !== block.id)) };
                   const bad = invalid(block.id);
                   switch (block.type) {
                     case "link": return <Row key={block.id} {...common}>
@@ -274,6 +296,12 @@ export function BioEditor({ tenantId, initial, choices, ministryName, brandTheme
         <Field><FieldLabel htmlFor="bio-buttons">{t("design.buttons")}</FieldLabel>
           <NativeSelect id="bio-buttons" className="min-h-11 w-full" value={definition.buttons} onChange={(e) => setDefinition({ buttons: e.target.value as BioDefinition["buttons"] })}>
             {bioButtonStyles.map((s) => <option key={s} value={s}>{t(`design.buttonStyles.${s}`)}</option>)}</NativeSelect></Field>
+        <fieldset className="space-y-2"><legend className="text-sm font-medium">{t("design.tabsHeading")}</legend>
+          <ul className="space-y-2" data-bio-tabs-editor>{definition.tabs.map((tabItem, index) => <li key={tabItem.id} className="flex flex-wrap items-center gap-2 rounded-lg border px-3">
+            <label className="flex min-h-11 flex-1 items-center gap-3 text-sm"><input type="checkbox" className="size-5" checked={!tabItem.hidden} onChange={() => setDefinition({ tabs: definition.tabs.map((x) => x.id === tabItem.id ? { ...x, hidden: !x.hidden } : x) })} /><span>{t("design.tabShow", { tab: t(`tabs.${tabItem.id}`) })}</span></label>
+            <Button type="button" variant="ghost" size="icon" className="size-11" disabled={index === 0} aria-label={t("design.tabMoveUp", { tab: t(`tabs.${tabItem.id}`) })} onClick={() => setDefinition({ tabs: moveItem(definition.tabs, index, index - 1) })}><ArrowUp aria-hidden="true" /></Button>
+            <Button type="button" variant="ghost" size="icon" className="size-11" disabled={index === definition.tabs.length - 1} aria-label={t("design.tabMoveDown", { tab: t(`tabs.${tabItem.id}`) })} onClick={() => setDefinition({ tabs: moveItem(definition.tabs, index, index + 1) })}><ArrowDown aria-hidden="true" /></Button>
+          </li>)}</ul></fieldset>
         <p className="text-sm text-muted-foreground">{t("design.brandNote")}</p>
       </FormSection>}
 

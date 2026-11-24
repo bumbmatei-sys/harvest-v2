@@ -10,7 +10,7 @@ import { issueBioProof } from "../../src/server/link-in-bio";
 import { navEntries } from "../../src/lib/navigation";
 import { can } from "../../src/lib/permissions";
 
-const link = (over: Record<string, unknown> = {}) => ({ type: "link", id: "abcd1234", hidden: false, label: "Give", url: "https://example.org/give", icon: null, ...over });
+const link = (over: Record<string, unknown> = {}) => ({ type: "link", id: "abcd1234", hidden: false, tab: "home", label: "Give", url: "https://example.org/give", icon: null, ...over });
 
 describe("handles", () => {
   it("accepts 3 to 30 lower-case letters, digits and single hyphens", () => {

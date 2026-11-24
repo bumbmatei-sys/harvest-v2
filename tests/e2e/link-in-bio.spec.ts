@@ -12,11 +12,12 @@ const sizes = [["phone", 360, 800], ["tablet", 768, 1024], ["desktop", 1280, 900
 const post = (page: Page, url: string, data: unknown = {}) => page.request.post(url, { headers: { origin }, data });
 
 /** One scene per width and scheme: axe (WCAG 2.0 to 2.2 A and AA), no horizontal overflow, and a screenshot. */
-async function audit(page: Page, name: string, ready: string) {
+async function audit(page: Page, name: string, ready: string, prepare?: () => Promise<void>) {
   for (const scheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
     await page.reload();
     await expect(page.locator(ready).first()).toBeVisible();
+    await prepare?.();
     for (const [label, width, height] of sizes) {
       await page.setViewportSize({ width, height });
       await settleForAxe(page);
@@ -42,6 +43,8 @@ test("editor, public page, click counts, Message me and messages", async ({ page
   await page.setViewportSize({ width: 1280, height: 900 });
   await signIn(page);
   const tenant = (await (await post(page, "/api/workspaces", { name: "Grace Community Church", audience: "church" })).json()).tenantId as string;
+  // The sign-in helper adds a forwarded-for header to every request; a signed storage upload from the browser must not carry it (CORS preflight).
+  await page.context().setExtraHTTPHeaders({});
   const editor = `/workspaces/${tenant}/link-in-bio`;
 
   // Navigation: the entry sits in Public > Website for owners (shell modes on) and the editor opens with a draft.
@@ -52,7 +55,24 @@ test("editor, public page, click counts, Message me and messages", async ({ page
 
   // Profile: name and bio feed the live preview.
   await page.getByLabel("Name", { exact: true }).fill("Grace Church");
+  await page.getByLabel("One-line subtitle").fill("Pastor and church planter");
   await page.getByLabel("Short bio").fill("Sundays at 10:00. Everyone is welcome.");
+  await expect(page.locator("[data-bio-preview]")).toContainText("Pastor and church planter");
+  // Cover image through the scanned picker; the brand gradient shows until then.
+  await expect(page.locator("[data-bio-preview] [data-bio-cover]")).toHaveAttribute("data-bio-cover", "gradient");
+  const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
+  await page.locator('[data-testid="cover-input"]').first().setInputFiles({ name: "cover.png", mimeType: "image/png", buffer: png });
+  await expect(page.getByText("Cover updated.").first()).toBeVisible();
+  await expect(page.locator("[data-bio-preview] [data-bio-cover]")).toHaveAttribute("data-bio-cover", "image");
+  // Details: only what the owner types; each row can be hidden.
+  await page.getByRole("button", { name: "Add detail" }).click();
+  await page.getByLabel("Text", { exact: true }).first().fill("Lisbon, Portugal");
+  await page.getByRole("button", { name: "Add detail" }).click();
+  await page.getByLabel("Text", { exact: true }).nth(1).fill("Secret ministry text");
+  await expect(page.locator("[data-bio-preview] [data-bio-details]")).toContainText("Secret ministry text");
+  await page.getByRole("button", { name: /^Hide Ministry or church/ }).click();
+  await expect(page.locator("[data-bio-preview] [data-bio-details]")).not.toContainText("Secret ministry text");
+  await expect(page.locator("[data-bio-preview] [data-bio-details]")).toContainText("Lisbon, Portugal");
   await expect(page.locator("[data-bio-preview]")).toContainText("Sundays at 10:00");
   await expect(page.locator("[data-bio-preview] [data-bio-initials]")).toHaveText("GC");
 
@@ -104,16 +124,26 @@ test("editor, public page, click counts, Message me and messages", async ({ page
   await expect(pub.getByRole("heading", { name: "Grace Church", level: 1 })).toBeVisible();
   await expect(pub.getByRole("link", { name: /Give online/ })).toHaveAttribute("rel", "nofollow noopener noreferrer ugc");
   await expect(pub.getByRole("link", { name: /Give online/ })).toHaveAttribute("href", "https://example.org/give");
-  await expect(pub.locator("form[data-bio-message-form]")).toBeVisible();
-  await expect(pub.getByText("Your details go to Grace Community Church. You can ask them to delete them.")).toBeVisible();
-  await expect(pub.getByRole("checkbox")).not.toBeChecked();
+  await expect(pub.locator("[data-bio-details]")).toContainText("Lisbon, Portugal");
+  await expect(pub.locator("body")).not.toContainText("Secret ministry text");
+  await expect(pub.locator('[data-bio-cover="image"] img')).toHaveCount(1);
+  await expect(pub.getByRole("tab", { name: "Home" })).toBeVisible();
+  await expect(pub.getByRole("tab", { name: "Partnership" })).toBeVisible();
+  await expect(pub.locator("form[data-bio-message-form]")).toHaveCount(0);
   await audit(pub, "public", "[data-bio-page]");
+  await audit(pub, "public-partnership", "[data-bio-page]", async () => { await pub.getByRole("tab", { name: "Partnership" }).click(); await expect(pub.locator("form[data-bio-message-form]")).toBeVisible(); });
 
   // Clicks are counted without leaving the page.
+  await pub.reload();
   const counted = pub.waitForResponse((r) => r.url().endsWith("/l/grace-church/click") && r.status() === 204);
   await pub.getByRole("link", { name: /Give online/ }).evaluate((a) => { a.addEventListener("click", (e) => e.preventDefault(), { capture: true }); (a as HTMLAnchorElement).click(); }).catch(() => undefined);
   await counted;
 
+  // The main button opens the Partnership tab at the message form.
+  await pub.locator("[data-bio-primary]").click();
+  await expect(pub.locator("form[data-bio-message-form]")).toBeVisible();
+  await expect(pub.getByText("Your details go to Grace Community Church. You can ask them to delete them.")).toBeVisible();
+  await expect(pub.getByRole("checkbox")).not.toBeChecked();
   // Message me: consent required, then stored; nothing else happens.
   const form = pub.locator("form[data-bio-message-form]");
   await form.getByLabel("Your name").fill("Ana Visitor");

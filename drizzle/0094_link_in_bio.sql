@@ -29,7 +29,7 @@ CREATE TABLE "bio_files" (
 	"retired_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "bio_files_key_unique" UNIQUE("key"),
-	CONSTRAINT "bio_file_kind" CHECK ("bio_files"."kind"='photo'),
+	CONSTRAINT "bio_file_kind" CHECK ("bio_files"."kind" in ('photo','cover')),
 	CONSTRAINT "bio_file_mime" CHECK ("bio_files"."mime" in ('image/jpeg','image/png','image/webp')),
 	CONSTRAINT "bio_file_name" CHECK (length(btrim("bio_files"."name")) between 1 and 200),
 	CONSTRAINT "bio_file_size" CHECK ("bio_files"."size" between 1 and 10485760),
@@ -67,8 +67,10 @@ CREATE TABLE "bio_pages" (
 	"draft" jsonb NOT NULL,
 	"version" integer DEFAULT 1 NOT NULL,
 	"photo_file_id" uuid,
+	"cover_file_id" uuid,
 	"published" jsonb,
 	"published_photo_file_id" uuid,
+	"published_cover_file_id" uuid,
 	"published_at" timestamp with time zone,
 	"created_by" text NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
@@ -170,7 +172,7 @@ CREATE TRIGGER bio_guard_page BEFORE UPDATE ON public.bio_pages FOR EACH ROW EXE
 CREATE FUNCTION public.bio_guard_photo() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
 DECLARE wanted uuid;
 BEGIN
-  FOREACH wanted IN ARRAY ARRAY[NEW.photo_file_id, NEW.published_photo_file_id] LOOP
+  FOREACH wanted IN ARRAY ARRAY[NEW.photo_file_id, NEW.published_photo_file_id, NEW.cover_file_id, NEW.published_cover_file_id] LOOP
     IF wanted IS NOT NULL AND NOT EXISTS (SELECT FROM public.bio_files f WHERE f.id = wanted AND f.tenant_id = NEW.tenant_id AND f.page_id = NEW.id AND f.status = 'ready') THEN
       RAISE EXCEPTION 'photo does not belong to this page or is unavailable' USING ERRCODE = '23514';
     END IF;
@@ -178,7 +180,7 @@ BEGIN
   RETURN NEW;
 END $$;
 REVOKE ALL ON FUNCTION public.bio_guard_photo() FROM PUBLIC, harvest_app;
-CREATE TRIGGER bio_guard_photo BEFORE INSERT OR UPDATE OF photo_file_id, published_photo_file_id ON public.bio_pages FOR EACH ROW EXECUTE FUNCTION public.bio_guard_photo();
+CREATE TRIGGER bio_guard_photo BEFORE INSERT OR UPDATE OF photo_file_id, published_photo_file_id, cover_file_id, published_cover_file_id ON public.bio_pages FOR EACH ROW EXECUTE FUNCTION public.bio_guard_photo();
 --> statement-breakpoint
 -- Scope helpers: remember and clear the settings a definer reads, restore them afterwards.
 CREATE FUNCTION public.bio_scope_clear(p_keep_user boolean) RETURNS jsonb
@@ -236,7 +238,7 @@ BEGIN
     END IF;
   END LOOP;
   RETURN jsonb_build_object('handle', page.handle, 'ministryName', ministry.name, 'brandTheme', ministry.brand_theme, 'definition', page.published,
-    'hasPhoto', page.published_photo_file_id IS NOT NULL, 'communities', communities, 'signups', signups);
+    'hasPhoto', page.published_photo_file_id IS NOT NULL, 'hasCover', page.published_cover_file_id IS NOT NULL, 'communities', communities, 'signups', signups);
 END $$;
 REVOKE ALL ON FUNCTION public.bio_public_page_scoped(text) FROM PUBLIC, harvest_app;
 CREATE FUNCTION public.bio_public_page(p_handle text) RETURNS jsonb
@@ -251,30 +253,39 @@ REVOKE ALL ON FUNCTION public.bio_public_page(text) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.bio_public_page(text) TO harvest_app;
 --> statement-breakpoint
 -- The published photo's storage key (the route signs a short-lived address from it).
-CREATE FUNCTION public.bio_public_photo_scoped(p_handle text) RETURNS jsonb
+CREATE FUNCTION public.bio_public_photo_scoped(p_handle text, p_kind text) RETURNS jsonb
 LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
 DECLARE page public.bio_pages; file public.bio_files;
 BEGIN
   IF public.valid_bio_handle(p_handle) IS NOT TRUE THEN RETURN NULL; END IF;
   PERFORM set_config('app.bio_handle', p_handle, true);
-  SELECT * INTO page FROM public.bio_pages WHERE handle = p_handle AND status = 'published' AND published_photo_file_id IS NOT NULL;
+  SELECT * INTO page FROM public.bio_pages WHERE handle = p_handle AND status = 'published' AND CASE WHEN p_kind = 'cover' THEN published_cover_file_id ELSE published_photo_file_id END IS NOT NULL;
   IF NOT FOUND THEN RETURN NULL; END IF;
   PERFORM set_config('app.bio_tenant', page.tenant_id::text, true);
-  SELECT * INTO file FROM public.bio_files WHERE tenant_id = page.tenant_id AND page_id = page.id AND id = page.published_photo_file_id AND status = 'ready';
+  SELECT * INTO file FROM public.bio_files WHERE tenant_id = page.tenant_id AND page_id = page.id AND id = CASE WHEN p_kind = 'cover' THEN page.published_cover_file_id ELSE page.published_photo_file_id END AND status = 'ready';
   IF NOT FOUND THEN RETURN NULL; END IF;
   RETURN jsonb_build_object('key', file.key, 'name', file.name, 'mime', file.mime);
 END $$;
-REVOKE ALL ON FUNCTION public.bio_public_photo_scoped(text) FROM PUBLIC, harvest_app;
-CREATE FUNCTION public.bio_public_photo(p_handle text) RETURNS jsonb
+REVOKE ALL ON FUNCTION public.bio_public_photo_scoped(text, text) FROM PUBLIC, harvest_app;
+CREATE FUNCTION public.bio_public_photo(p_handle text, p_kind text) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE prior jsonb := public.bio_scope_clear(false); result jsonb;
 BEGIN
-  result := public.bio_public_photo_scoped(p_handle);
+  result := public.bio_public_photo_scoped(p_handle, p_kind);
   PERFORM public.bio_scope_restore(prior);
   RETURN result;
 END $$;
-REVOKE ALL ON FUNCTION public.bio_public_photo(text) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.bio_public_photo(text) TO harvest_app;
+REVOKE ALL ON FUNCTION public.bio_public_photo(text, text) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.bio_public_photo(text, text) TO harvest_app;
+--> statement-breakpoint
+-- A block is shown to visitors when it is not hidden and its tab is not hidden.
+CREATE FUNCTION public.bio_block_shown(p_published jsonb, p_block jsonb) RETURNS boolean
+LANGUAGE sql IMMUTABLE SET search_path = pg_catalog, pg_temp AS $$
+  SELECT (p_block->>'hidden') = 'false' AND NOT EXISTS (
+    SELECT FROM jsonb_array_elements(coalesce(p_published->'tabs', '[]'::jsonb)) t
+    WHERE t->>'id' = coalesce(p_block->>'tab', 'home') AND (t->>'hidden') = 'true')
+$$;
+REVOKE ALL ON FUNCTION public.bio_block_shown(jsonb, jsonb) FROM PUBLIC, harvest_app;
 --> statement-breakpoint
 -- A click: a block of a published page, one more for today. Rate limited per visitor and page; nothing about the visitor is kept (the visitor key lives in the minute bucket only).
 CREATE FUNCTION public.bio_record_click_scoped(p_handle text, p_block text, p_visitor text) RETURNS text
@@ -286,7 +297,7 @@ BEGIN
   SELECT * INTO page FROM public.bio_pages WHERE handle = p_handle AND status = 'published';
   IF NOT FOUND THEN RETURN 'not_found'; END IF;
   PERFORM set_config('app.bio_tenant', page.tenant_id::text, true);
-  IF NOT EXISTS (SELECT FROM jsonb_array_elements(page.published->'blocks') b WHERE b->>'id' = p_block AND (b->>'hidden') = 'false' AND b->>'type' IN ('link','event','community')) THEN RETURN 'not_found'; END IF;
+  IF NOT EXISTS (SELECT FROM jsonb_array_elements(page.published->'blocks') b WHERE b->>'id' = p_block AND public.bio_block_shown(page.published, b) AND b->>'type' IN ('link','event','community')) THEN RETURN 'not_found'; END IF;
   DELETE FROM public.bio_quotas WHERE minute < minute_start - interval '2 minutes';
   IF NOT public.bio_charge('click:' || p_visitor || ':' || page.id, 60, minute_start) OR NOT public.bio_charge('click:' || page.id, 600, minute_start) THEN RETURN 'limited'; END IF;
   INSERT INTO public.bio_clicks (tenant_id, page_id, block_id, day, clicks) VALUES (page.tenant_id, page.id, p_block, (clock_timestamp() AT TIME ZONE 'UTC')::date, 1)
@@ -318,7 +329,7 @@ BEGIN
   IF NOT FOUND THEN RETURN 'not_found'; END IF;
   tenant := page.tenant_id;
   PERFORM set_config('app.bio_tenant', tenant::text, true);
-  IF NOT EXISTS (SELECT FROM jsonb_array_elements(page.published->'blocks') b WHERE b->>'type' = 'message' AND (b->>'hidden') = 'false') THEN RETURN 'not_found'; END IF;
+  IF NOT EXISTS (SELECT FROM jsonb_array_elements(page.published->'blocks') b WHERE b->>'type' = 'message' AND public.bio_block_shown(page.published, b)) THEN RETURN 'not_found'; END IF;
   DELETE FROM public.bio_quotas WHERE minute < minute_start - interval '2 minutes';
   IF NOT public.bio_charge('msg:' || p_visitor || ':' || page.id, 5, minute_start) OR NOT public.bio_charge('msg:' || p_visitor, 20, minute_start)
     OR NOT public.bio_charge('msg-page:' || page.id, 60, minute_start) OR NOT public.bio_charge('msg-all', 600, minute_start) THEN RETURN 'limited'; END IF;
@@ -380,10 +391,10 @@ BEGIN
   IF p_action = 'publish' THEN
     IF page.version IS DISTINCT FROM p_version THEN RETURN 'stale'; END IF;
     IF btrim(coalesce(page.draft->>'name', '')) = '' OR NOT EXISTS (SELECT FROM jsonb_array_elements(page.draft->'blocks') b WHERE (b->>'hidden') = 'false') THEN RETURN 'invalid'; END IF;
-    UPDATE public.bio_pages SET status = 'published', published = draft, published_photo_file_id = photo_file_id, published_at = clock_timestamp(), updated_at = clock_timestamp() WHERE tenant_id = p_tenant;
+    UPDATE public.bio_pages SET status = 'published', published = draft, published_photo_file_id = photo_file_id, published_cover_file_id = cover_file_id, published_at = clock_timestamp(), updated_at = clock_timestamp() WHERE tenant_id = p_tenant;
   ELSE
     IF page.status <> 'published' THEN RETURN 'unchanged'; END IF;
-    UPDATE public.bio_pages SET status = 'draft', published = NULL, published_photo_file_id = NULL, published_at = NULL, updated_at = clock_timestamp() WHERE tenant_id = p_tenant;
+    UPDATE public.bio_pages SET status = 'draft', published = NULL, published_photo_file_id = NULL, published_cover_file_id = NULL, published_at = NULL, updated_at = clock_timestamp() WHERE tenant_id = p_tenant;
   END IF;
   INSERT INTO public.audit_logs (tenant_id, actor_id, action, target_id, metadata) VALUES (p_tenant, actor, 'bio.' || p_action, page.id::text, jsonb_build_object('version', page.version));
   RETURN 'ok';
@@ -403,7 +414,7 @@ GRANT EXECUTE ON FUNCTION public.bio_transition(uuid, text, integer) TO harvest_
 -- The profile photo: create, inspect, status, set and serve, modelled on the event cover (the file is private until the scan releases it; setting it bumps the page version).
 CREATE FUNCTION public.bio_photo_perform(p_tenant uuid, p_action text, p_file uuid, p_input jsonb) RETURNS jsonb
 LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
-DECLARE actor text := nullif(current_setting('app.user_id', true), ''); page public.bio_pages; file public.bio_files; requested_status text; expected integer; previous uuid;
+DECLARE actor text := nullif(current_setting('app.user_id', true), ''); page public.bio_pages; file public.bio_files; requested_status text; expected integer; previous uuid; kind_name text := CASE WHEN p_input->>'kind' = 'cover' THEN 'cover' ELSE 'photo' END; current_id uuid; published_id uuid;
   missing jsonb := '{"outcome":"not_found"}';
 BEGIN
   IF actor IS NULL OR p_tenant IS NULL OR p_action NOT IN ('serve','create','inspect','status','set') THEN RETURN missing; END IF;
@@ -413,8 +424,10 @@ BEGIN
   IF NOT FOUND THEN RETURN missing; END IF;
   SELECT * INTO page FROM public.bio_pages WHERE tenant_id = p_tenant FOR UPDATE;
   IF NOT FOUND THEN RETURN missing; END IF;
+  current_id := CASE WHEN kind_name = 'cover' THEN page.cover_file_id ELSE page.photo_file_id END;
+  published_id := CASE WHEN kind_name = 'cover' THEN page.published_cover_file_id ELSE page.published_photo_file_id END;
   IF p_action = 'serve' THEN
-    SELECT * INTO file FROM public.bio_files WHERE tenant_id = p_tenant AND page_id = page.id AND id = page.photo_file_id AND status = 'ready' AND retired_at IS NULL;
+    SELECT * INTO file FROM public.bio_files WHERE tenant_id = p_tenant AND page_id = page.id AND id = current_id AND kind = kind_name AND status = 'ready' AND retired_at IS NULL;
     IF NOT FOUND THEN RETURN missing; END IF;
     RETURN jsonb_build_object('outcome', 'ok', 'data', jsonb_build_object('key', file.key, 'name', file.name, 'mime', file.mime));
   END IF;
@@ -422,19 +435,20 @@ BEGIN
     expected := (p_input->>'version')::integer;
     IF expected IS NULL OR expected < 1 THEN RETURN '{"outcome":"invalid"}'; END IF;
     IF page.version <> expected THEN RETURN '{"outcome":"conflict"}'; END IF;
-    IF page.photo_file_id IS DISTINCT FROM p_file THEN
-      IF p_file IS NOT NULL AND NOT EXISTS (SELECT FROM public.bio_files f WHERE f.tenant_id = p_tenant AND f.page_id = page.id AND f.id = p_file AND f.status = 'ready' AND f.retired_at IS NULL) THEN RETURN missing; END IF;
-      previous := page.photo_file_id;
-      UPDATE public.bio_pages SET photo_file_id = p_file, version = version + 1, updated_at = clock_timestamp() WHERE tenant_id = p_tenant RETURNING * INTO page;
-      IF previous IS NOT NULL THEN UPDATE public.bio_files SET retired_at = clock_timestamp() WHERE tenant_id = p_tenant AND page_id = page.id AND id = previous AND id IS DISTINCT FROM page.published_photo_file_id; END IF;
-      INSERT INTO public.audit_logs (tenant_id, actor_id, action, target_id, metadata) VALUES (p_tenant, actor, 'bio.photo_change', page.id::text, jsonb_build_object('version', page.version));
+    IF current_id IS DISTINCT FROM p_file THEN
+      IF p_file IS NOT NULL AND NOT EXISTS (SELECT FROM public.bio_files f WHERE f.tenant_id = p_tenant AND f.page_id = page.id AND f.id = p_file AND f.kind = kind_name AND f.status = 'ready' AND f.retired_at IS NULL) THEN RETURN missing; END IF;
+      previous := current_id;
+      IF kind_name = 'cover' THEN UPDATE public.bio_pages SET cover_file_id = p_file, version = version + 1, updated_at = clock_timestamp() WHERE tenant_id = p_tenant RETURNING * INTO page;
+      ELSE UPDATE public.bio_pages SET photo_file_id = p_file, version = version + 1, updated_at = clock_timestamp() WHERE tenant_id = p_tenant RETURNING * INTO page; END IF;
+      IF previous IS NOT NULL THEN UPDATE public.bio_files SET retired_at = clock_timestamp() WHERE tenant_id = p_tenant AND page_id = page.id AND id = previous AND id IS DISTINCT FROM published_id; END IF;
+      INSERT INTO public.audit_logs (tenant_id, actor_id, action, target_id, metadata) VALUES (p_tenant, actor, 'bio.' || kind_name || '_change', page.id::text, jsonb_build_object('version', page.version));
     END IF;
-    RETURN jsonb_build_object('outcome', 'ok', 'data', jsonb_build_object('photoFileId', page.photo_file_id, 'version', page.version));
+    RETURN jsonb_build_object('outcome', 'ok', 'data', jsonb_build_object('photoFileId', CASE WHEN kind_name = 'cover' THEN page.cover_file_id ELSE page.photo_file_id END, 'version', page.version));
   END IF;
   IF p_file IS NULL THEN RETURN missing; END IF;
   IF p_action = 'create' THEN
-    INSERT INTO public.bio_files (id, tenant_id, page_id, uploader_id, key, name, mime, size, checksum)
-      VALUES (p_file, p_tenant, page.id, actor, 'workspaces/' || p_tenant::text || '/bio/' || page.id::text || '/files/' || p_file::text, p_input->>'name', p_input->>'mime', (p_input->>'size')::integer, p_input->>'checksum')
+    INSERT INTO public.bio_files (id, tenant_id, page_id, uploader_id, kind, key, name, mime, size, checksum)
+      VALUES (p_file, p_tenant, page.id, actor, kind_name, 'workspaces/' || p_tenant::text || '/bio/' || page.id::text || '/files/' || p_file::text, p_input->>'name', p_input->>'mime', (p_input->>'size')::integer, p_input->>'checksum')
       RETURNING * INTO file;
   ELSE
     SELECT * INTO file FROM public.bio_files WHERE tenant_id = p_tenant AND page_id = page.id AND id = p_file AND uploader_id = actor AND retired_at IS NULL;

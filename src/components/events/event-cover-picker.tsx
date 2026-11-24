@@ -1,7 +1,7 @@
 /** Layout and behaviour modelled on bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): app/dashboard/(auth)/apps/pos-system/components/add-product-dialog.tsx; code written for Harvest, no kit code copied. */
 /* eslint-disable @next/next/no-img-element -- the cover is a short-lived signed address from the server; not optimisable */
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { AlertCircleIcon, ImageIcon, UploadIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -30,9 +30,9 @@ export function EventCoverPicker({ endpoint, saved, coverFileId, version, url, o
   endpoint: string; saved: boolean; coverFileId: string | null; version: number; url: string | null; onUrlFailed: () => void;
   onChange: (change: CoverChange) => void; onBusyChange: (busy: boolean) => void; disabled?: boolean;
   /** Message namespace of the labels (the same keys); Link in bio reuses this control for its profile photo. */
-  namespace?: "Events.cover" | "LinkInBio.cover";
+  namespace?: "Events.cover" | "LinkInBio.cover" | "LinkInBio.banner";
 }) {
-  const t = useTranslations(namespace), request = useCrmRequest();
+  const t = useTranslations(namespace), request = useCrmRequest(), inputId = useId();
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [dragging, setDragging] = useState(false), [confirmRemove, setConfirmRemove] = useState(false);
   const input = useRef<HTMLInputElement>(null), file = useRef<File | null>(null), abort = useRef<AbortController | null>(null);
@@ -72,7 +72,7 @@ export function EventCoverPicker({ endpoint, saved, coverFileId, version, url, o
   const active = status.kind === "busy" ? status : null;
 
   return <Field>
-    <FieldLabel htmlFor="event-cover-input">{t("label")}</FieldLabel>
+    <FieldLabel htmlFor={inputId}>{t("label")}</FieldLabel>
     <div className="flex flex-col gap-3">
       <div data-testid="cover-zone" data-dragging={dragging || undefined} data-has-cover={Boolean(coverFileId && url) || undefined}
         onDragEnter={(event) => { event.preventDefault(); if (!locked) setDragging(true); }}
@@ -81,7 +81,7 @@ export function EventCoverPicker({ endpoint, saved, coverFileId, version, url, o
         onDrop={(event) => { event.preventDefault(); setDragging(false); void start(event.dataTransfer.files?.[0]); }}
         className={cn("relative flex aspect-video w-full flex-col items-center justify-center overflow-hidden rounded-xl border border-dashed border-input p-4 transition-colors",
           "has-[input:focus-visible]:border-ring has-[input:focus-visible]:ring-[3px] has-[input:focus-visible]:ring-ring/50 data-[dragging=true]:bg-accent/50", locked && "opacity-80")}>
-        <input ref={input} id="event-cover-input" type="file" accept={coverAccept} className="sr-only" disabled={locked} data-testid="cover-input"
+        <input ref={input} id={inputId} type="file" accept={coverAccept} className="sr-only" disabled={locked} data-testid="cover-input"
           onChange={(event) => { const picked = event.target.files?.[0]; event.target.value = ""; void start(picked); }} />
         {coverFileId && url
           ? <img src={url} alt={t("alt")} onError={onUrlFailed} className="absolute inset-0 size-full object-cover" data-testid="cover-image" />

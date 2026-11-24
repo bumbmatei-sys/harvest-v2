@@ -67,7 +67,7 @@ export async function respondToBioProof(_request: Request, context: Context) {
     const { handle } = await context.params;
     if (handleProblem(handle)) return unavailable();
     const view = await getPublicBio(getDb(), handle);
-    if (!view?.blocks.some((block) => block.type === "message")) return unavailable();
+    if (!view?.tabs.some((t) => t.blocks.some((block) => block.type === "message"))) return unavailable();
     return json({ proof: issueBioProof(handle, key) });
   } catch (error) { return errorResponse(error); }
 }

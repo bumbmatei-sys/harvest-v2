@@ -7151,7 +7151,9 @@
       "name": "Name",
       "bio": "Short bio",
       "bioCount": "{count} of {max}",
-      "photoNote": "Photo"
+      "photoNote": "Photo",
+      "subtitle": "One-line subtitle",
+      "cover": "Cover image"
     },
     "links": {
       "heading": "Links",
@@ -7183,7 +7185,8 @@
       "socialUrl": "Profile link (https)",
       "removeSocial": "Remove {network} icon",
       "maxLinks": "Up to {max} blocks.",
-      "maxBlocks": "Up to {max} items."
+      "maxBlocks": "Up to {max} items.",
+      "tab": "Section"
     },
     "icons": {
       "globe": "Website",
@@ -7229,7 +7232,8 @@
       "noSignups": "No published sign-up forms.",
       "signupPlaceholder": "The sign-up form appears here.",
       "already": "Already added",
-      "hiddenBadge": "Hidden"
+      "hiddenBadge": "Hidden",
+      "messageTab": "Partnership"
     },
     "design": {
       "heading": "Design",
@@ -7239,12 +7243,16 @@
         "light": "Light",
         "dark": "Dark"
       },
-      "buttons": "Buttons",
+      "buttons": "Main button",
       "buttonStyles": {
         "filled": "Filled",
         "outline": "Outline"
       },
-      "brandNote": "Uses your ministry's brand colours."
+      "brandNote": "Uses your ministry's brand colours.",
+      "tabsHeading": "Sections",
+      "tabShow": "Show {tab}",
+      "tabMoveUp": "Move {tab} up",
+      "tabMoveDown": "Move {tab} down"
     },
     "cover": {
       "label": "Photo",
@@ -7342,7 +7350,9 @@
         "whatsapp": "WhatsApp",
         "podcast": "Podcast",
         "website": "Website"
-      }
+      },
+      "details": "Details",
+      "tabs": "Page sections"
     },
     "mode": {
       "unavailable": "Link in bio is not available in this environment."
@@ -7367,6 +7377,67 @@
         "taken": "That address is already taken."
       },
       "prefix": "/l/"
+    },
+    "tabs": {
+      "home": "Home",
+      "partnership": "Partnership"
+    },
+    "details": {
+      "heading": "Details",
+      "add": "Add detail",
+      "kind": "Detail",
+      "value": "Text",
+      "hide": "Hide {label}",
+      "show": "Show {label}",
+      "remove": "Remove {label}",
+      "kinds": {
+        "location": "Location",
+        "ministry": "Ministry or church",
+        "role": "Role",
+        "website": "Website",
+        "languages": "Languages"
+      },
+      "urlProblem": "Use a full https address.",
+      "requiredProblem": "Add the text."
+    },
+    "banner": {
+      "label": "Cover image",
+      "alt": "Cover image",
+      "drop": "Drop a cover image here",
+      "limits": "JPG, PNG or WebP, up to {mb} MB",
+      "select": "Select cover",
+      "replace": "Replace",
+      "remove": "Remove",
+      "saveFirst": "Save the page to add a photo.",
+      "saved": "Cover updated.",
+      "removed": "Cover removed.",
+      "removeTitle": "Remove the cover image?",
+      "removeBody": "The page will show a colour gradient instead.",
+      "keep": "Keep cover",
+      "progressLabel": "Upload progress",
+      "cancel": "Cancel",
+      "scanning": "Waiting for the safety check.",
+      "checkAgain": "Check again",
+      "dismiss": "Dismiss",
+      "tryAgain": "Try again",
+      "chooseAnother": "Choose another",
+      "reload": "Reload",
+      "phases": {
+        "preparing": "Preparing",
+        "uploading": "Uploading",
+        "uploadingPercent": "Uploading {percent}%",
+        "verifying": "Checking the image"
+      },
+      "problems": {
+        "type": "Use a JPG, PNG or WebP image.",
+        "size": "The image must be larger than 0 and at most {mb} MB.",
+        "rejected": "This image was not accepted. Choose another.",
+        "interrupted": "The upload was interrupted. Try again.",
+        "failed": "The image could not be uploaded. Try again.",
+        "scan": "The image failed the safety check. Choose another.",
+        "stale": "This page changed since you opened it. Reload, then try again."
+      },
+      "bannerLabel": "Cover image"
     }
   }
 }

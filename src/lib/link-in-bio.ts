@@ -4,7 +4,7 @@ import { z } from "zod";
 // projection the public page and the owner's live preview share. Nothing here reads or stores anything.
 
 export const bioLimits = { blocks: 20, socials: 8, name: 100, bio: 500, label: 80, url: 2048, eventTitle: 100, eventWhen: 60, messageTitle: 60,
-  senderName: 100, senderEmail: 254, messageBody: 2000 } as const;
+  subtitle: 80, details: 8, detailValue: 100, senderName: 100, senderEmail: 254, messageBody: 2000 } as const;
 
 /** Link icons (an allow-list, drawn by the screen). */
 export const bioIcons = ["globe", "mail", "phone", "heart", "book", "calendar", "video", "music", "map", "gift"] as const;
@@ -13,6 +13,13 @@ export const bioNetworks = ["instagram", "facebook", "youtube", "x", "tiktok", "
 export type BioNetwork = typeof bioNetworks[number];
 export const bioSchemes = ["auto", "light", "dark"] as const;
 export const bioButtonStyles = ["filled", "outline"] as const;
+
+/** Tabs of the public page. The model is a list so more tabs can be added later (a Blog tab is waiting on the founder; native articles are post-launch). */
+export const bioTabIds = ["home", "partnership"] as const;
+export type BioTabId = typeof bioTabIds[number];
+/** Detail rows the owner may add: nothing is shown unless the owner typed it (no birthday, relationship or gender rows exist). */
+export const bioDetailKinds = ["location", "ministry", "role", "website", "languages"] as const;
+export type BioDetailKind = typeof bioDetailKinds[number];
 
 // ---- Handle -----------------------------------------------------------------------------------------------------------------------------------------------
 /** Words that are routes or product names. The database function `valid_bio_handle` holds the same list; a test keeps the two in step. */
@@ -51,22 +58,29 @@ const httpsUrl = z.string().max(bioLimits.url).transform((value, ctx) => { const
 const plain = (max: number) => z.string().max(max).refine((value) => !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value) && !/[<>]/.test(value));
 const trimmed = (max: number, min = 1) => plain(max).transform((value) => value.trim()).pipe(z.string().min(min));
 const blockId = z.string().regex(/^[a-z0-9]{8}$/);
+const tab = z.enum(bioTabIds).default("home");
 const signupSlug = z.string().regex(/^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/);
 
 export const bioBlockSchema = z.discriminatedUnion("type", [
-  z.object({ type: z.literal("link"), id: blockId, hidden: z.boolean(), label: trimmed(bioLimits.label), url: httpsUrl, icon: z.enum(bioIcons).nullable() }).strict(),
-  z.object({ type: z.literal("message"), id: blockId, hidden: z.boolean(), title: trimmed(bioLimits.messageTitle) }).strict(),
-  z.object({ type: z.literal("event"), id: blockId, hidden: z.boolean(), title: trimmed(bioLimits.eventTitle), when: trimmed(bioLimits.eventWhen), url: httpsUrl }).strict(),
-  z.object({ type: z.literal("community"), id: blockId, hidden: z.boolean(), communityId: z.uuid() }).strict(),
-  z.object({ type: z.literal("newsletter"), id: blockId, hidden: z.boolean(), slug: signupSlug }).strict(),
+  z.object({ type: z.literal("link"), id: blockId, hidden: z.boolean(), tab, label: trimmed(bioLimits.label), url: httpsUrl, icon: z.enum(bioIcons).nullable() }).strict(),
+  z.object({ type: z.literal("message"), id: blockId, hidden: z.boolean(), tab, title: trimmed(bioLimits.messageTitle) }).strict(),
+  z.object({ type: z.literal("event"), id: blockId, hidden: z.boolean(), tab, title: trimmed(bioLimits.eventTitle), when: trimmed(bioLimits.eventWhen), url: httpsUrl }).strict(),
+  z.object({ type: z.literal("community"), id: blockId, hidden: z.boolean(), tab, communityId: z.uuid() }).strict(),
+  z.object({ type: z.literal("newsletter"), id: blockId, hidden: z.boolean(), tab, slug: signupSlug }).strict(),
 ]);
 export type BioBlock = z.infer<typeof bioBlockSchema>;
 export type BioBlockType = BioBlock["type"];
 
+const defaultTabs = bioTabIds.map((id) => ({ id, hidden: false }));
 export const bioDefinitionSchema = z.object({
   kind: z.literal("bio-v1"),
   name: plain(bioLimits.name).transform((value) => value.trim()),
+  subtitle: plain(bioLimits.subtitle).transform((value) => value.trim()).default(""),
   bio: plain(bioLimits.bio).transform((value) => value.trim()),
+  details: z.array(z.object({ id: blockId, kind: z.enum(bioDetailKinds), value: trimmed(bioLimits.detailValue), hidden: z.boolean() }).strict()).max(bioLimits.details).default([])
+    .refine((list) => new Set(list.map((item) => item.id)).size === list.length),
+  tabs: z.array(z.object({ id: z.enum(bioTabIds), hidden: z.boolean() }).strict()).max(bioTabIds.length).default(defaultTabs)
+    .refine((list) => new Set(list.map((item) => item.id)).size === list.length),
   scheme: z.enum(bioSchemes),
   buttons: z.enum(bioButtonStyles),
   socials: z.array(z.object({ network: z.enum(bioNetworks), url: httpsUrl }).strict()).max(bioLimits.socials)
@@ -77,7 +91,7 @@ export const bioDefinitionSchema = z.object({
 }).strict();
 export type BioDefinition = z.infer<typeof bioDefinitionSchema>;
 
-export const emptyBioDefinition = (name = ""): BioDefinition => ({ kind: "bio-v1", name: name.slice(0, bioLimits.name), bio: "", scheme: "auto", buttons: "filled", socials: [], blocks: [] });
+export const emptyBioDefinition = (name = ""): BioDefinition => ({ kind: "bio-v1", name: name.slice(0, bioLimits.name), subtitle: "", bio: "", details: [], tabs: bioTabIds.map((id) => ({ id, hidden: false })), scheme: "auto", buttons: "filled", socials: [], blocks: [] });
 
 const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
 export function newBlockId(taken: readonly string[] = [], random: () => number = Math.random) {
@@ -102,7 +116,8 @@ export type BioIssue = "name" | "empty" | "link";
 export function publishIssues(definition: BioDefinition): BioIssue[] {
   const issues: BioIssue[] = [];
   if (!definition.name.trim()) issues.push("name");
-  if (!definition.blocks.some((block) => !block.hidden)) issues.push("empty");
+  const shown = new Set(definition.tabs.filter((t) => !t.hidden).map((t) => t.id));
+  if (!definition.blocks.some((block) => !block.hidden && shown.has(block.tab))) issues.push("empty");
   return issues;
 }
 /** Parses what the editor holds; a null result means a field is invalid (the editor shows which through `fieldIssues`). */
@@ -117,6 +132,7 @@ export function fieldIssues(definition: BioDefinition): Record<string, "url" | "
     else if (block.type === "event" && (!block.title.trim() || !block.when.trim())) out[block.id] = "required";
     else if (block.type === "message" && !block.title.trim()) out[block.id] = "required";
   }
+  for (const detail of definition.details) if (!detail.value.trim() || (detail.kind === "website" && !safeHttpsUrl(detail.value))) out[`detail:${detail.id}`] = detail.kind === "website" ? "url" : "required";
   for (const social of definition.socials) if (!safeHttpsUrl(social.url)) out[`social:${social.network}`] = "url";
   return out;
 }
@@ -129,8 +145,8 @@ export type BioViewBlock =
   | { type: "newsletter"; id: string; slug: string }
   | { type: "message"; id: string; title: string };
 export type BioView = {
-  ministryName: string; name: string; bio: string; hasPhoto: boolean; scheme: typeof bioSchemes[number]; buttons: typeof bioButtonStyles[number];
-  brandTheme: string | null; socials: { network: BioNetwork; url: string }[]; blocks: BioViewBlock[];
+  ministryName: string; name: string; subtitle: string; bio: string; details: { id: string; kind: BioDetailKind; value: string }[]; tabs: { id: BioTabId; blocks: BioViewBlock[] }[]; hasPhoto: boolean; hasCover: boolean; scheme: typeof bioSchemes[number]; buttons: typeof bioButtonStyles[number];
+  brandTheme: string | null; socials: { network: BioNetwork; url: string }[];
 };
 
 /** The "Message me" statement and the fixed notice (founder decision, 22 Nov): shown with the form, never pre-ticked, frozen text per ministry name. */

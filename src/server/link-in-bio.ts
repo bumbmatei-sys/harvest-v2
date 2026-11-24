@@ -21,7 +21,7 @@ const code = (error: unknown): string | undefined => {
 };
 
 export type BioOwnerView = {
-  id: string; handle: string; status: "draft" | "published"; version: number; draft: BioDefinition; photoFileId: string | null; publishedAt: string | null;
+  id: string; handle: string; status: "draft" | "published"; version: number; draft: BioDefinition; photoFileId: string | null; coverFileId: string | null; publishedAt: string | null;
   /** The draft differs from what visitors see. */
   unpublishedChanges: boolean;
   /** "Message me" can be offered only where the synthetic message mode is on. */
@@ -50,7 +50,7 @@ async function project(tx: Transaction, row: typeof bioPages.$inferSelect): Prom
   const counts = await tx.select({ block: bioClicks.blockId, clicks: sql<number>`sum(${bioClicks.clicks})::int` }).from(bioClicks)
     .where(and(eq(bioClicks.tenantId, row.tenantId), gte(bioClicks.day, since))).groupBy(bioClicks.blockId);
   const [unread] = await tx.select({ n: sql<number>`count(*)::int` }).from(bioMessages).where(and(eq(bioMessages.tenantId, row.tenantId), eq(bioMessages.status, "new"), sql`${bioMessages.expiresAt} > now()`));
-  return { id: row.id, handle: row.handle, status: row.status, version: row.version, draft: row.draft, photoFileId: row.photoFileId, publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
+  return { id: row.id, handle: row.handle, status: row.status, version: row.version, draft: row.draft, photoFileId: row.photoFileId, coverFileId: row.coverFileId, publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
     unpublishedChanges: row.status === "published" && !sameDefinition(row.draft, row.published), messagesAvailable: bioMessagesKey() !== null,
     clicks: Object.fromEntries(counts.map((c) => [c.block, Number(c.clicks)])), newMessages: Number(unread?.n ?? 0) };
 }
@@ -203,7 +203,7 @@ export async function bioChoices(db: Database, user: string, workspace: string):
 }
 
 // ---- Public side ---------------------------------------------------------------------------------------------------------------------------------------------
-type PublicRow = { handle: string; ministryName: string; brandTheme: string | null; definition: unknown; hasPhoto: boolean; communities: Record<string, { name: string; tagline: string | null; slug: string }>; signups: string[] };
+type PublicRow = { handle: string; ministryName: string; brandTheme: string | null; definition: unknown; hasPhoto: boolean; hasCover: boolean; communities: Record<string, { name: string; tagline: string | null; slug: string }>; signups: string[] };
 
 /**
  * The published page as a visitor may see it, or null (missing, unpublished and unavailable are the same answer). Hidden blocks, blocks whose community was
@@ -217,7 +217,7 @@ export async function getPublicBio(db: Database, handle: string, env: Record<str
   if (!parsed.success) return null;
   const { definition } = { definition: parsed.data };
   const messages = bioMessagesKey(env) !== null;
-  const blocks = definition.blocks.flatMap((block): BioViewBlock[] => {
+  const project = (block: BioDefinition["blocks"][number]): BioViewBlock[] => {
     if (block.hidden) return [];
     switch (block.type) {
       case "link": return [{ type: "link", id: block.id, label: block.label, url: block.url, icon: block.icon }];
@@ -226,9 +226,13 @@ export async function getPublicBio(db: Database, handle: string, env: Record<str
       case "newsletter": return row.result!.signups.includes(block.slug) ? [{ type: "newsletter", id: block.id, slug: block.slug }] : [];
       case "message": return messages ? [{ type: "message", id: block.id, title: block.title }] : [];
     }
-  });
-  return { ministryName: row.result.ministryName, name: definition.name, bio: definition.bio, hasPhoto: row.result.hasPhoto, scheme: definition.scheme, buttons: definition.buttons,
-    brandTheme: isBrandTheme(row.result.brandTheme) ? row.result.brandTheme : null, socials: definition.socials, blocks };
+  };
+  const details = definition.details.filter((item) => !item.hidden).map(({ id, kind, value }) => ({ id, kind, value }));
+  // A hidden tab, and a tab with nothing to show, never reach the visitor.
+  const tabs = definition.tabs.filter((t) => !t.hidden).map((t) => ({ id: t.id, blocks: definition.blocks.filter((b) => b.tab === t.id).flatMap(project) }))
+    .filter((t) => t.blocks.length > 0 || (t.id === "home" && details.length > 0));
+  return { ministryName: row.result.ministryName, name: definition.name, subtitle: definition.subtitle, bio: definition.bio, details, tabs, hasPhoto: row.result.hasPhoto, hasCover: row.result.hasCover,
+    scheme: definition.scheme, buttons: definition.buttons, brandTheme: isBrandTheme(row.result.brandTheme) ? row.result.brandTheme : null, socials: definition.socials };
 }
 
 export type ClickOutcome = "ok" | "not_found" | "limited";
@@ -238,9 +242,9 @@ export async function recordBioClick(db: Database, handle: string, block: string
   return row.result;
 }
 
-export async function publicBioPhoto(db: Database, handle: string): Promise<{ key: string; name: string; mime: "image/jpeg" | "image/png" | "image/webp" } | null> {
+export async function publicBioPhoto(db: Database, handle: string, kind: "photo" | "cover" = "photo"): Promise<{ key: string; name: string; mime: "image/jpeg" | "image/png" | "image/webp" } | null> {
   if (!linkInBioEnabled() || handleProblem(handle) !== null) return null;
-  const { rows: [row] } = await db.execute<{ result: { key: string; name: string; mime: "image/jpeg" | "image/png" | "image/webp" } | null }>(sql`select public.bio_public_photo(${handle}) as result`);
+  const { rows: [row] } = await db.execute<{ result: { key: string; name: string; mime: "image/jpeg" | "image/png" | "image/webp" } | null }>(sql`select public.bio_public_photo(${handle}, ${kind}) as result`);
   return row?.result ?? null;
 }
 

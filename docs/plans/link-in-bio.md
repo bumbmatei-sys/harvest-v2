@@ -13,6 +13,10 @@ Status: implementation plan, 24 Nov 2026. Inputs: `docs/superpowers/specs/2026-1
 7. **Theme:** the ministry's brand theme plus light, dark or "match the visitor's device" (owner's choice, default match). Button style filled or outline.
 8. **Click counts** are daily aggregates per block (`bio_clicks`: block, day, count) with no visitor data; rate limited per visitor and page (60/min) and per page (600/min) in a minute bucket that holds only a keyed hash. Shown to owners and admins as "clicks in 30 days"; labelled approximate. No small-cell suppression yet (the 17 Nov draft's threshold of five is not approved); owner/admin only.
 
+## Layout (founder, 25 Nov)
+
+A profile-page layout, not a link stack: full-width cover (scanned picker upload; brand-colour gradient fallback), round photo overlapping it (centred on phone), name and one-line subtitle, a main action button (Message me when on, else the first link), the owner's social icons (44px, labelled), a Details list the owner builds and can hide row by row (location, ministry or church, role, website, languages: nothing appears unless entered; no birthday, relationship or gender fields), then tabs **Home** (links and details) and **Partnership** (support and partner links, Message me). The owner shows, hides and reorders tabs and chooses the tab of each block. The tab list is a model (`bioTabIds`) so more tabs can be added. **Blog tab: waiting on founder** (native articles are post-launch). The renderer sizes by container so the phone-framed preview and a real phone stack the same way.
+
 ## Hard gates (unchanged)
 
 - Editor, owner API and public page are development-only (never when `NODE_ENV`, `VERCEL_ENV` or `HARVEST_ENV` is production), like Docs.

@@ -1,5 +1,5 @@
 {
-  "id": "4027161d-75e3-4599-aebf-becd244ff8b5",
+  "id": "198596ff-e072-4aec-8192-26f5ba5e2e93",
   "prevId": "84aff272-edee-405b-a4ac-031fa52f3767",
   "version": "7",
   "dialect": "postgresql",
@@ -674,7 +674,7 @@
       "checkConstraints": {
         "bio_file_kind": {
           "name": "bio_file_kind",
-          "value": "\"bio_files\".\"kind\"='photo'"
+          "value": "\"bio_files\".\"kind\" in ('photo','cover')"
         },
         "bio_file_mime": {
           "name": "bio_file_mime",
@@ -950,6 +950,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "cover_file_id": {
+          "name": "cover_file_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "published": {
           "name": "published",
           "type": "jsonb",
@@ -958,6 +964,12 @@
         },
         "published_photo_file_id": {
           "name": "published_photo_file_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "published_cover_file_id": {
+          "name": "published_cover_file_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
