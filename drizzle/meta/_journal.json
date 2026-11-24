@@ -624,6 +624,13 @@
       "when": 1795512500000,
       "tag": "0089_docs",
       "breakpoints": true
+    },
+    {
+      "idx": 99,
+      "version": "7",
+      "when": 1795564699569,
+      "tag": "0099_social_approvals",
+      "breakpoints": true
     }
   ]
 }
