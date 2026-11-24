@@ -8,18 +8,15 @@ import { listContacts } from "@/server/contacts";
 import { resolveListView } from "@/server/crm-list-view";
 import { AccessError, can } from "@/server/permissions";
 import { uuidInput } from "@/lib/contact-input";
-import { customFieldKey } from "@/lib/crm-fields";
-import { consentTone } from "@/lib/crm-consent-tone";
-import { mailtoHref, telHref } from "@/lib/copy-text";
 import { AccessState } from "@/components/access-state";
 import { ContactForm } from "@/components/contact-form";
-import { customCell, listParts } from "@/components/crm/list-parts";
+import { listParts } from "@/components/crm/list-parts";
+import { personRows } from "@/components/crm/person-rows";
 import { ListPage } from "@/components/crm/list-page";
 import { ExportDialog } from "@/components/crm/export-dialog";
 import { Button } from "@/components/ui/button";
 import Link from "next/link";
 import { Upload } from "lucide-react";
-import type { GridRow } from "@/components/crm/record-grid";
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations("Crm");
@@ -41,24 +38,7 @@ export default async function PeoplePage({ params, searchParams }: { params: Pro
   if (!resolved) return <AccessState />;
   const { list, views, current, viewId, notice, modified, query } = resolved;
   const parts = listParts(t, "person", list.definitions, list.state, views, can(workspace.role, "contacts:sources_read"));
-  const people = `/workspaces/${tenantId}/crm/people`, companies = `/workspaces/${tenantId}/crm/companies`;
-  const rows: GridRow[] = list.rows.map((person) => {
-    const email = person.identifiers.find((item) => item.kind === "email")?.value, phone = person.identifiers.find((item) => item.kind === "phone")?.value;
-    const [primary, ...others] = person.companies;
-    const cells: GridRow["cells"] = {
-      company: primary ? { text: primary.name, href: `${companies}/${primary.companyId}`, more: others.length, title: [primary, ...others].map((item) => item.name).join(", ") } : { text: t("noCompany"), muted: true },
-      email: { text: email ?? t("notProvided"), muted: true, edit: { kind: "email", value: email ?? "", target: "builtin", field: "email", maxLength: 254 } },
-      phone: { text: phone ?? t("notProvided"), muted: true, edit: { kind: "tel", value: phone ?? "", target: "builtin", field: "phone", maxLength: 40 } },
-      marketing: { text: t(`marketing.${person.marketingEmail}`), badge: person.marketingEmail },
-      ...(can(workspace.role, "contacts:sources_read") ? {source: {text: person.sourceKinds?.length ? person.sourceKinds.map(kind => t(`sourceHistory.${kind}`)).join(", ") : t("sourceHistory.unknown"), muted: true}} : {}),
-      created: { text: format.dateTime(person.createdAt, "date"), muted: true },
-      updated: { text: format.dateTime(person.updatedAt, "date"), muted: true },
-    };
-    for (const field of list.definitions) cells[customFieldKey(field.key)] = customCell(t, format, tenantId, field, person.custom[field.key], list.related);
-    return { id: person.id, version: person.version, name: person.name, href: `${people}/${person.id}`, secondary: primary?.name ?? email ?? t("notProvided"), cells,
-      summary: { status: { text: t(`marketing.${person.marketingEmail}`), tone: consentTone(person.marketingEmail) },
-        links: [...(email ? [{ kind: "email" as const, text: email, href: mailtoHref(email) }] : []), ...(phone && telHref(phone) ? [{ kind: "phone" as const, text: phone, href: telHref(phone)! }] : [])] } };
-  });
+  const rows = personRows({ t, format, tenantId, list, sourceAccess: can(workspace.role, "contacts:sources_read") });
   return <ListPage tenantId={tenantId} objectType="person" icon={UsersRound} title={t("people")} description={t("peopleDescription")} total={list.total} page={list.page}
     actions={<>{can(workspace.role, "crm:import") && <Button size="responsive" variant="outline" asChild><Link href={`/workspaces/${tenantId}/crm/imports?entity=person`}><Upload aria-hidden="true" />{imports("importAction")}</Link></Button>}
       {can(workspace.role, "crm:export") && <ExportDialog tenantId={tenantId} entity="person" query={query} listName={t("people")} disabled={Boolean(list.locked)} />}</>}

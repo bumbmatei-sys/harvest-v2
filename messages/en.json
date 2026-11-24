@@ -6411,5 +6411,57 @@
       "firstName": "Ana"
     },
     "viewOnly": "Only owners and admins can write campaigns."
+  },
+  "NewsletterAudience": {
+    "pageTitle": "Audience",
+    "heading": "Audience",
+    "lens": "Audience views",
+    "status": {
+      "all": "All people",
+      "subscribed": "Subscribed",
+      "not_on_list": "Not on a list",
+      "unsubscribed": "Unsubscribed",
+      "never": "No consent yet",
+      "suppressed": "Bounced or suppressed"
+    },
+    "membership": {
+      "subscribed": "On this list",
+      "unsubscribed": "Removed",
+      "bounced": "Bounced",
+      "suppressed": "Suppressed"
+    },
+    "newsletterColumn": "Newsletter",
+    "membershipColumn": "This list",
+    "lists": "Lists",
+    "groups": "Saved groups",
+    "newList": "New list",
+    "renameList": "Rename list",
+    "listName": "List name",
+    "rename": "Rename",
+    "delete": "Delete",
+    "deleteTitle": "Delete {name}?",
+    "deleteBody": "The list disappears from emails. People and their consent records are kept.",
+    "listInUse": "This list is used by an email that is ready or sending.",
+    "nameTakenOrChanged": "That name is in use, or the list changed. Reload and try again.",
+    "listActions": "Actions for {name}",
+    "noLists": "No lists yet.",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saveGroup": "Save as group",
+    "groupName": "Group name",
+    "addPeople": "Add people",
+    "searchPeople": "Search people",
+    "noPeopleFound": "No people found",
+    "needsConsent": "No recorded newsletter consent. Record it on the person first.",
+    "suppressedPerson": "This address is suppressed.",
+    "personUnavailable": "This person is not available.",
+    "removeFromList": "Remove {name} from this list",
+    "noAccess": "Only ministry owners, admins and members can see the audience.",
+    "viewOnly": "You can view the audience. Owners and admins manage lists and groups.",
+    "emptyTitle": "No people here yet",
+    "emptyDescription": "People appear once they exist in your ministry.",
+    "privacy": "Subscribed means a recorded newsletter consent and a list. Nobody is subscribed by default.",
+    "statusNav": "Status",
+    "optedOut": "This person unsubscribed from this list themselves, so they cannot be added back."
   }
 }

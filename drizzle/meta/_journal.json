@@ -589,6 +589,13 @@
       "when": 1795441395004,
       "tag": "0084_office_calendar_writes",
       "breakpoints": true
+    },
+    {
+      "idx": 85,
+      "version": "7",
+      "when": 1795457425921,
+      "tag": "0085_newsletter_audience",
+      "breakpoints": true
     }
   ]
 }

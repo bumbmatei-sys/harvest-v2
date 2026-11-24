@@ -19,7 +19,7 @@ export type Skip = typeof newsletterSkipReasons[number];
 
 export async function selectionPins(tx: Transaction, tenant: string, selection: Selection) {
   const lists = await tx.select().from(newsletterLists).where(and(eq(newsletterLists.tenantId, tenant),
-    inArray(newsletterLists.id, selection.listIds))).orderBy(asc(newsletterLists.id)).for("share");
+    isNull(newsletterLists.archivedAt), inArray(newsletterLists.id, selection.listIds))).orderBy(asc(newsletterLists.id)).for("share");
   const segments = selection.segmentIds.length ? await tx.select({
     id: newsletterSegments.id, audienceId: newsletterSegments.audienceId, version: newsletterSegments.savedViewVersion,
   }).from(newsletterSegments).innerJoin(crmSavedViews, and(eq(crmSavedViews.tenantId, tenant),

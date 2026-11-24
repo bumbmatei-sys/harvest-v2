@@ -119,7 +119,7 @@ export const navEntries: readonly NavEntry[] = [
   { id: "socialAnalytics", group: "publishing", mode: "public", label: "socialAnalytics", icon: ChartNoAxesCombined, path: "/social/analytics", match: under("/social/analytics"), permission: "social:analytics", feature: "social" },
   // Public > Newsletter, Website.
   { id: "newsletterCampaigns", group: "newsletter", mode: "public", label: "newsletterCampaigns", icon: MailPlus, path: "/newsletter/campaigns", match: under("/newsletter/campaigns"), permission: "newsletter:campaigns", feature: "newsletter" },
-  { id: "newsletterAudience", group: "newsletter", mode: "public", status: "planned", label: "audience", icon: ContactRound, path: "/newsletter/audience", match: under("/newsletter/audience") },
+  { id: "newsletterAudience", group: "newsletter", mode: "public", label: "audience", icon: ContactRound, path: "/newsletter/audience", match: under("/newsletter/audience"), permission: "newsletter:read", feature: "newsletter" },
   { id: "signupForms", group: "newsletter", mode: "public", status: "planned", label: "signupForms", icon: ClipboardPen, path: "/newsletter/forms", match: under("/newsletter/forms") },
   { id: "newsletterAnalytics", group: "newsletter", mode: "public", status: "planned", label: "newsletterAnalytics", icon: ChartLine, path: "/newsletter/analytics", match: under("/newsletter/analytics") },
   { id: "linkInBio", group: "website", mode: "public", status: "planned", label: "linkInBio", icon: Link2, path: "/link-in-bio", match: under("/link-in-bio") },

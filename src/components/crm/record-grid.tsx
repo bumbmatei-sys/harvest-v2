@@ -6,7 +6,9 @@ import { useEffect, useId, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { NAME_MIN_WIDTH, type Density, type ObjectType } from "@/lib/crm-fields";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { UserMinus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
@@ -18,7 +20,9 @@ import { RowSummary, type RowSummaryData } from "./list-row-summary";
 import { useCrmRequest } from "./request";
 
 export type EditSpec = { kind: "text" | "email" | "tel" | "number" | "date" | "boolean" | "select"; value: string; options?: { value: string; label: string }[]; target: "builtin" | "custom"; field: string; maxLength?: number };
-export type GridCell = { text: string; muted?: boolean; href?: string; external?: boolean; badge?: "granted" | "withdrawn" | "none"; more?: number; title?: string; label?: string; edit?: EditSpec };
+export type GridCell = { text: string; muted?: boolean; href?: string; external?: boolean; badge?: "granted" | "withdrawn" | "none"; more?: number; title?: string; label?: string; edit?: EditSpec;
+  /** A row action rendered as an icon button: one request, then the page refreshes (the newsletter Audience uses it to remove a person from a list). */
+  action?: { label: string; url: string; method: "POST" | "PATCH" | "DELETE"; body: unknown } };
 export type GridRow = { id: string; version: number; name: string; href: string; secondary: string; cells: Record<string, GridCell>;
   /** Phone card details (status and contact links) shown under the name while the grid is narrow. */ summary?: RowSummaryData };
 export type GridColumn = { key: string; label: string; width: number; numeric?: boolean };
@@ -81,6 +85,13 @@ export function RecordGrid({ tenantId, objectType, columns, rows, density, label
     const spec = editSpec(row, col);
     if (!spec || !writable) return;
     setError(""); setEditing({ row, col, draft: spec.value });
+  }
+  async function runAction(action: NonNullable<GridCell["action"]>) {
+    setBusy(true); setError("");
+    const result = await crmRequest(action.url, { method: action.method, body: action.body });
+    setBusy(false);
+    if (!result.ok) { setError(result.error); return; }
+    router.refresh();
   }
   async function commit(then?: () => void) {
     if (!editing || committing.current) return;
@@ -154,7 +165,8 @@ export function RecordGrid({ tenantId, objectType, columns, rows, density, label
               : <span className="flex min-w-0 items-center gap-1.5">{cell.href
                 ? <a href={cell.href} tabIndex={-1} aria-label={cell.label} target={cell.external ? "_blank" : undefined} rel={cell.external ? "noreferrer" : undefined} className={cn("block min-w-0 truncate hover:underline", cell.muted && "text-muted-foreground")}>{cell.text}</a>
                 : <span className={cn("block min-w-0 truncate", cell.muted && "text-muted-foreground")}>{cell.text}</span>}
-                {cell.more ? <Badge variant="outline" className="h-5 shrink-0 rounded-md px-1.5 text-[11px] font-normal">{t("moreCount", { count: cell.more })}</Badge> : null}</span>}
+                {cell.more ? <Badge variant="outline" className="h-5 shrink-0 rounded-md px-1.5 text-[11px] font-normal">{t("moreCount", { count: cell.more })}</Badge> : null}
+                {cell.action && writable && <Button type="button" variant="ghost" size="icon" tabIndex={-1} disabled={busy} aria-label={cell.action.label} title={cell.action.label} onClick={() => void runAction(cell.action!)} className="-my-2 size-11 shrink-0 lg:size-7"><UserMinus aria-hidden="true" /></Button>}</span>}
           </TableCell>;
         })}
       </TableRow>)}</TableBody>

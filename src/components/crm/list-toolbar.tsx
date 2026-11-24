@@ -12,8 +12,8 @@ import { FilterBuilder, type FieldMeta, type FilterTarget } from "./filter-build
 import { useListState } from "./list-state";
 import { ViewMenu, type ViewSummary } from "./view-menu";
 
-export function ListToolbar({ tenantId, objectType, fields, sorts, columns, visibleColumns, related, views, currentView, modified, writable, searchLabel, searchPlaceholder, sourceAccess = false }: {
-  tenantId: string; objectType: ObjectType; fields: FieldMeta[]; sorts: { value: string; label: string }[]; sourceAccess?: boolean;
+export function ListToolbar({ tenantId, objectType, fields, sorts, columns, visibleColumns, related, views, currentView, modified, writable, searchLabel, searchPlaceholder, sourceAccess = false, leading }: {
+  tenantId: string; objectType: ObjectType; fields: FieldMeta[]; sorts: { value: string; label: string }[]; sourceAccess?: boolean; /** A lens (newsletter Audience) puts its actions on the view bar line, right aligned; its filter then sits beside the search and Sort and Columns stay right. */ leading?: React.ReactNode;
   columns: { key: string; label: string }[]; visibleColumns: string[]; related: Record<string, string>;
   views: ViewSummary[]; currentView: ViewSummary; modified: boolean; writable: boolean; searchLabel: string; searchPlaceholder: string;
 }) {
@@ -45,22 +45,28 @@ export function ListToolbar({ tenantId, objectType, fields, sorts, columns, visi
   // One chip row for conditions and source rules; the first three show, the rest open the panel.
   const chips = [...state.filters.map((filter, index) => ({ kind: "filter" as const, index, text: chipText(filter) })),
     ...state.sources.map((rule, index) => ({ kind: "source" as const, index, text: sourceChipText(rule) }))];
+  const filterBuilder = (
+    <FilterBuilder fields={fields} tenantId={tenantId} filters={state.filters} sources={state.sources} sourceAccess={sourceAccess && objectType === "person"} open={filterOpen} editing={editing}
+          relatedNames={{ ...names, ...related }} chipText={chipText} sourceChipText={sourceChipText}
+          onOpenChange={(open) => { setFilterOpen(open); if (!open) setEditing(null); }}
+          onApply={(filters, sources, addedNames) => { setNames((current) => ({ ...current, ...addedNames })); navigate({ filters, sources }); }} />
+  );
   const sortKey = state.sort.replace(/^-/, ""), descending = state.sort.startsWith("-");
   return <div className="space-y-3">
-    <ViewMenu tenantId={tenantId} objectType={objectType} views={views} current={currentView} modified={modified} writable={writable} />
+    {leading ? <div className="flex flex-wrap items-center gap-2"><ViewMenu tenantId={tenantId} objectType={objectType} views={views} current={currentView} modified={modified} writable={writable} /><div className="ml-auto flex flex-wrap items-center gap-2">{leading}</div></div> : <ViewMenu tenantId={tenantId} objectType={objectType} views={views} current={currentView} modified={modified} writable={writable} />}
     <div className="flex flex-wrap items-center gap-2">
-      <form role="search" className="min-w-0 flex-1 basis-60" onSubmit={(event) => { event.preventDefault(); navigate({ q: query.trim() }); }}>
+      <div className={leading ? "flex min-w-0 flex-1 basis-60 items-center gap-2" : "contents"}>
+      <form role="search" className={leading ? "min-w-0 flex-1" : "min-w-0 flex-1 basis-60"} onSubmit={(event) => { event.preventDefault(); navigate({ q: query.trim() }); }}>
         <InputGroup className="h-11 border-transparent bg-muted lg:h-9">
           <InputGroupAddon><Search aria-hidden="true" /></InputGroupAddon>
           <InputGroupInput type="search" name="q" aria-label={searchLabel} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={searchPlaceholder} maxLength={100} />
           {query && <InputGroupAddon align="inline-end"><InputGroupButton size="icon-xs" aria-label={t("clearSearch")} onClick={() => { setQuery(""); navigate({ q: "" }); }}><X aria-hidden="true" /></InputGroupButton></InputGroupAddon>}
         </InputGroup>
       </form>
+      {leading && filterBuilder}
+      </div>
       <div className="flex flex-wrap items-center gap-2">
-        <FilterBuilder fields={fields} tenantId={tenantId} filters={state.filters} sources={state.sources} sourceAccess={sourceAccess && objectType === "person"} open={filterOpen} editing={editing}
-          relatedNames={{ ...names, ...related }} chipText={chipText} sourceChipText={sourceChipText}
-          onOpenChange={(open) => { setFilterOpen(open); if (!open) setEditing(null); }}
-          onApply={(filters, sources, addedNames) => { setNames((current) => ({ ...current, ...addedNames })); navigate({ filters, sources }); }} />
+        {!leading && filterBuilder}
         <DropdownMenu modal={false}>
           <DropdownMenuTrigger asChild><Button variant="outline" size="responsive"><ArrowDownUp aria-hidden="true" /><span className="sr-only sm:not-sr-only">{t("sortLabel", { sort: `${sorts.find((item) => item.value === sortKey)?.label ?? sortKey} ${descending ? "↓" : "↑"}` })}</span></Button></DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
