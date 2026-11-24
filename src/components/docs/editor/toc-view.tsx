@@ -10,7 +10,7 @@ export function TocView({ editor }: NodeViewProps) {
   return <NodeViewWrapper contentEditable={false} data-toc-block className="my-3 rounded-lg border bg-muted/40 p-3">
     <p className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("outline")}</p>
     {items.length === 0 ? <p className="text-sm text-muted-foreground">{t("outlineEmpty")}</p>
-      : <ul className="space-y-0.5">{items.map((h) => <li key={h.pos} style={{ paddingInlineStart: `${(h.level - 1) * 0.75}rem` }}>
+      : <ul className="list-none space-y-0.5 ps-0">{items.map((h) => <li key={h.pos} style={{ paddingInlineStart: `${(h.level - 1) * 0.75}rem` }}>
         <button type="button" className="min-h-11 text-start text-sm underline-offset-2 hover:underline lg:min-h-7" onClick={() => jumpToHeading(editor, h.pos)}>{h.text}</button></li>)}</ul>}
   </NodeViewWrapper>;
 }

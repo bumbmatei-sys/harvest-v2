@@ -18,8 +18,8 @@ const bad = (key: Parameters<typeof message>[0]) => new AccessError(400, message
 const id = (value: string) => z.uuid().parse(value);
 const audit = (tx: Transaction, tenantId: string, actorId: string, action: string, targetId: string, metadata: Record<string, string | number> = {}) =>
   tx.insert(auditLogs).values({ tenantId, actorId, action, targetId, metadata: Object.fromEntries(Object.entries(metadata).map(([k, v]) => [k, String(v)])) });
-/** People who signed in with a code may have no name yet: the part of the email before the @ stands in. */
-const ownerName = sql<string>`coalesce(nullif(btrim(${users.name}),''), split_part(${users.email},'@',1))`;
+/** People who signed in with a code may have no name yet: the start of the email before the @ stands in (never a long id). */
+const ownerName = sql<string>`coalesce(nullif(btrim(${users.name}),''), left(split_part(${users.email},'@',1), 24))`;
 const likeEscape = (value: string) => value.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 export type DocKind = "document" | "spreadsheet";

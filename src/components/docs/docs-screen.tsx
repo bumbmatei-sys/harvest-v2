@@ -1,6 +1,6 @@
-/** Layout modelled on the Files screen (folder cards on top, a table below, breadcrumbs) and on bumbmatei-sys/admin-dashboard file-manager (premium kit, founder-supplied); code written for Harvest, no kit code copied. Harvest notes: docs/ui-sources.md. */
+/** Layout and behaviour modelled on bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): app/dashboard/(auth)/file-manager/components/summary-cards.tsx and app/dashboard/(auth)/apps/file-manager/components/file-manager.tsx; code written for Harvest, no kit code copied. Harvest notes: docs/ui-sources.md. */
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
@@ -101,7 +101,7 @@ export function DocsScreen({ tenantId, list, folderId, q, status, sort, favorite
   };
 
   const columns: DataTableColumn[] = [
-    { id: "name", header: t("columns.name"), card: "title", className: "min-w-0 whitespace-normal break-words" }, { id: "owner", header: t("columns.owner"), showFrom: "@lg" },
+    { id: "name", header: t("columns.name"), card: "title", className: "min-w-0 whitespace-normal break-words" }, { id: "owner", header: t("columns.owner"), showFrom: "@3xl" },
     { id: "updated", header: t("columns.updated"), showFrom: "@md" }, { id: "actions", header: t("columns.actions"), srOnlyHeader: true, align: "end", card: "actions", className: "w-32" },
   ];
   const rows: DataTableRow[] = list.docs.map((doc) => {
@@ -139,7 +139,7 @@ export function DocsScreen({ tenantId, list, folderId, q, status, sort, favorite
   const deleteFolder = dialog?.kind === "deleteFolder" ? dialog.folder : null;
   const hasItems = deleteFolder ? deleteFolder.docTotal > 0 || subfoldersOf(deleteFolder.id) > 0 : false;
 
-  return <DndContext sensors={sensors} onDragStart={(e) => setDragging(list.docs.find((d) => `doc:${d.id}` === e.active.id) ?? null)} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
+  return <DndContext id="docs-dnd" sensors={sensors} onDragStart={(e) => setDragging(list.docs.find((d) => `doc:${d.id}` === e.active.id) ?? null)} onDragEnd={onDragEnd} onDragCancel={() => setDragging(null)}>
     <div className="min-w-0 space-y-6" data-docs-list>
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-[28px] font-semibold tracking-tight">{t("title")}</h1>
@@ -161,8 +161,8 @@ export function DocsScreen({ tenantId, list, folderId, q, status, sort, favorite
       <Breadcrumb aria-label={t("location")}><BreadcrumbList>
         {path.length === 0 && !searching ? <BreadcrumbItem><BreadcrumbPage>{t("title")}</BreadcrumbPage></BreadcrumbItem>
           : <BreadcrumbItem><CrumbDrop id="crumb:root"><BreadcrumbLink asChild><Link href={docsHref(tenantId)} className="inline-flex min-h-11 items-center px-1 lg:min-h-8">{t("title")}</Link></BreadcrumbLink></CrumbDrop></BreadcrumbItem>}
-        {!searching && path.map((f, i) => <span key={f.id} className="contents"><BreadcrumbSeparator />
-          <BreadcrumbItem>{i === path.length - 1 ? <BreadcrumbPage>{f.name}</BreadcrumbPage> : <CrumbDrop id={`folder:${f.id}`}><BreadcrumbLink asChild><Link href={docsHref(tenantId, { folder: f.id })} className="inline-flex min-h-11 items-center px-1 lg:min-h-8">{f.name}</Link></BreadcrumbLink></CrumbDrop>}</BreadcrumbItem></span>)}
+        {!searching && path.map((f, i) => <Fragment key={f.id}><BreadcrumbSeparator />
+          <BreadcrumbItem>{i === path.length - 1 ? <BreadcrumbPage>{f.name}</BreadcrumbPage> : <CrumbDrop id={`folder:${f.id}`}><BreadcrumbLink asChild><Link href={docsHref(tenantId, { folder: f.id })} className="inline-flex min-h-11 items-center px-1 lg:min-h-8">{f.name}</Link></BreadcrumbLink></CrumbDrop>}</BreadcrumbItem></Fragment>)}
         {searching && <><BreadcrumbSeparator /><BreadcrumbItem><BreadcrumbPage>{q ? t("searchResults") : favorites ? t("starred") : status === "archived" ? t("statusArchived") : t("statusTrash")}</BreadcrumbPage></BreadcrumbItem></>}
       </BreadcrumbList></Breadcrumb>
       {!searching && children.length > 0 && <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-label={t("folders")} data-testid="doc-folder-cards">

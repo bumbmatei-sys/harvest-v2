@@ -181,7 +181,7 @@ describe("docs", () => {
     await expect(fixture.admin.query("update docs set kind='slides' where id=$1", [d.id])).rejects.toMatchObject({ code: "23514" });
     await expect(fixture.admin.query("update doc_pages set engine='other' where doc_id=$1", [d.id])).rejects.toMatchObject({ code: "23514" });
     await fixture.admin.query("update docs set kind='spreadsheet' where id=$1", [d.id]);
-    expect((await duplicateDoc(db(), owner, tenant, d.id).then((c) => listDocs(db(), owner, tenant, { q: "Kind check (copy)" }))).docs[0].kind).toBe("spreadsheet");
+    expect((await duplicateDoc(db(), owner, tenant, d.id).then(() => listDocs(db(), owner, tenant, { q: "Kind check (copy)" }))).docs[0].kind).toBe("spreadsheet");
   });
 
   it("has no foreign key to contacts, so erasing or merging a person cannot touch Docs", async () => {
@@ -193,7 +193,6 @@ describe("docs", () => {
 
 describe("pages", () => {
   const tree = async (docId: string) => (await getDoc(db(), owner, tenant, docId)).pages;
-  const title = (pages: Awaited<ReturnType<typeof tree>>, id: string) => pages.find((p) => p.id === id)?.title;
 
   it("keeps an ordered tree: add, reorder densely, nest, un-nest, and refuse cycles and excess depth", async () => {
     const d = await createDoc(db(), owner, tenant, { title: "Tree" });

@@ -1,3 +1,4 @@
+/** Layout and behaviour modelled on bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): components/ui/custom/tiptap/rich-text-editor.tsx; code written for Harvest, no kit code copied. Harvest notes: docs/ui-sources.md. */
 "use client";
 import "@/components/docs/docs-prose.css";
 import { useEffect, useImperativeHandle, useRef, type RefObject } from "react";
@@ -50,12 +51,14 @@ export function DocEditorSurface({ content, readOnly, theme, showToolbar, bodyCl
     jumpTo: (position) => { if (editor) jumpToHeading(editor, position); },
   }), [editor, content]);
   return <>
-    {editor && showToolbar && <div className="sticky top-0 z-20 rounded-t-xl border-b bg-card/95 backdrop-blur" data-docs-toolbar-bar><EditorToolbar editor={editor} /></div>}
-    <div className={bodyClassName}>
-      {header}
-      <div className="relative mt-6 ps-0 sm:ps-10">
-        {editor && !readOnly && <BlockHandles editor={editor} />}
-        <EditorContent editor={editor} />
+    {editor && showToolbar && <div className="shrink-0 border-b bg-card" data-docs-toolbar-bar><EditorToolbar editor={editor} /></div>}
+    <div className="min-h-0 flex-1 overflow-y-auto" data-docs-scroll>
+      <div className={bodyClassName}>
+        {header}
+        <div className="relative mt-6 ps-0 sm:ps-10">
+          {editor && !readOnly && <BlockHandles editor={editor} />}
+          <EditorContent editor={editor} />
+        </div>
       </div>
     </div>
   </>;

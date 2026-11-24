@@ -1,15 +1,17 @@
 /** Layout and flows follow the founder's reference for a document editor (pages tree, title and owner line, formatting toolbar, slash menu, page-styles rail), built from Harvest shared components in the Studio Admin style; no vendor markup, copy or imagery. Notes: docs/plans/docs-module.md. */
 "use client";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
-import { ListTree, Maximize2, Menu, PanelsTopLeft, Star, X } from "lucide-react";
+import { ListTree, Maximize2, Menu, PanelLeftClose, PanelLeftOpen, PanelsTopLeft, Star, X } from "lucide-react";
+import { ShellHeaderPortal } from "@/components/shell-header-slot";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import UserAvatar from "@/components/user-avatar";
 import { DocMenu, type DocMenuAction } from "@/components/docs/doc-menu";
@@ -33,6 +35,10 @@ type Save = "saved" | "unsaved" | "saving" | "error" | "conflict";
 type Panel = "styles" | "outline" | null;
 type Dlg = "renameDoc" | "renamePage" | "moveDoc" | "trashDoc" | "deletePage" | null;
 const AUTOSAVE_MS = 900;
+// The Pages sidebar's collapsed state is remembered per browser; storage can be blocked, so every access is guarded and the choice also lives in memory.
+const collapsedKey = "harvest-docs-pages-collapsed", collapsedEvent = "harvest-docs-pages-collapsed-change";
+const readCollapsed = () => { try { return localStorage.getItem(collapsedKey) === "1"; } catch { return false; } };
+const subscribeCollapsed = (notify: () => void) => { window.addEventListener("storage", notify); window.addEventListener(collapsedEvent, notify); return () => { window.removeEventListener("storage", notify); window.removeEventListener(collapsedEvent, notify); }; };
 const fontClass = { sans: "font-sans", serif: "font-serif", mono: "font-mono" } as const;
 const sizeClass = { small: "text-sm", default: "text-[15px]", large: "text-lg" } as const;
 const widthClass = { default: "max-w-3xl", wide: "max-w-5xl", full: "max-w-none" } as const;
@@ -53,6 +59,8 @@ export function DocEditor({ tenantId, detail, page }: { tenantId: string; detail
   const [save, setSave] = useState<Save>("saved"), [updatedAt, setUpdatedAt] = useState(doc.updatedAt), [error, setError] = useState("");
   const [panel, setPanel] = useState<Panel>(null), [focus, setFocus] = useState(false), [pagesOpen, setPagesOpen] = useState(false), [dialog, setDialog] = useState<Dlg>(null);
   const [favorite, setFavorite] = useState(doc.favorite);
+  const stored = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => false), [chosen, setChosen] = useState<boolean | null>(null), treeCollapsed = chosen ?? stored;
+  const toggleTree = () => { const next = !treeCollapsed; setChosen(next); try { localStorage.setItem(collapsedKey, next ? "1" : "0"); window.dispatchEvent(new Event(collapsedEvent)); } catch { /* storage unavailable: the choice stays in memory */ } };
   const docked = useMediaQuery("(min-width: 1280px)");
   const editable = rights.write && !locked, resolved = resolvePageStyle(style);
   const version = useRef(page.version), savedTitle = useRef(page.title), edits = useRef(0), savedEdits = useRef(0), titleRef = useRef(page.title);
@@ -185,54 +193,60 @@ export function DocEditor({ tenantId, detail, page }: { tenantId: string; detail
     : <Outline items={outline} onJump={jump} />);
   const saveLabel = save === "saved" ? t("saved") : save === "saving" ? t("saving") : save === "unsaved" ? t("unsaved") : save === "conflict" ? t("conflict") : t("saveFailed");
 
-  return <div className="min-w-0 space-y-3" data-docs-editor data-focus={focus || undefined}>
-    {!focus && <header className="flex flex-wrap items-center justify-between gap-2">
-      <div className="flex min-w-0 items-center gap-2">
-        <Button type="button" variant="outline" className="min-h-11 lg:hidden" onClick={() => setPagesOpen(true)}><Menu aria-hidden="true" />{t("pages")}</Button>
-        <Breadcrumb aria-label={t("location")} className="min-w-0"><BreadcrumbList className="flex-nowrap">
-          <BreadcrumbItem><BreadcrumbLink asChild><Link href={docsHref(tenantId)} className="inline-flex min-h-11 items-center px-1">{t("title")}</Link></BreadcrumbLink></BreadcrumbItem>
-          {crumbs.map((f) => <span key={f.id} className="contents"><BreadcrumbSeparator /><BreadcrumbItem><BreadcrumbLink asChild><Link href={docsHref(tenantId, { folder: f.id })} className="inline-flex min-h-11 items-center px-1">{f.name}</Link></BreadcrumbLink></BreadcrumbItem></span>)}
-          <BreadcrumbSeparator /><BreadcrumbItem className="min-w-0"><BreadcrumbPage className="block max-w-[40vw] truncate sm:max-w-xs">{docName}</BreadcrumbPage></BreadcrumbItem>
-        </BreadcrumbList></Breadcrumb>
-        <Button type="button" variant="ghost" size="icon" className="size-11" aria-pressed={favorite} aria-label={favorite ? t("unfavorite", { name: docName }) : t("favorite", { name: docName })} onClick={() => void menuAction("favorite")}><Star className={cn(favorite && "fill-current text-warning")} aria-hidden="true" /></Button>
-        {doc.archivedAt && <Badge variant="secondary">{t("statusArchived")}</Badge>}
-      </div>
-      <div className="flex items-center gap-1">
-        {rights.write && <span role="status" aria-live="polite" data-save-state={save} className={cn("px-2 text-sm", save === "error" || save === "conflict" ? "text-destructive" : "text-muted-foreground")}>{saveLabel}</span>}
-        <DocMenu canEdit={rights.write} favorite={favorite} archived={Boolean(doc.archivedAt)} protectedPage={locked} onAction={(a) => void menuAction(a)} onProtect={(on) => void setProtection(on)} />
-      </div>
-    </header>}
+  const rail = <>
+    <Button type="button" variant="ghost" size="icon" className={cn("size-11 lg:size-9", panel === "styles" && "bg-accent")} aria-pressed={panel === "styles"} aria-label={labels.styles} onClick={() => setPanel(panel === "styles" ? null : "styles")}><PanelsTopLeft aria-hidden="true" /></Button>
+    <Button type="button" variant="ghost" size="icon" className={cn("size-11 lg:size-9", panel === "outline" && "bg-accent")} aria-pressed={panel === "outline"} aria-label={labels.outline} onClick={() => setPanel(panel === "outline" ? null : "outline")}><ListTree aria-hidden="true" /></Button>
+  </>;
+  const alerts = ((save === "conflict" || (save === "error" && error)) || locked) && <div className="shrink-0 space-y-2 border-b p-3">
     {(save === "conflict" || (save === "error" && error)) && <Alert variant="destructive" role="alert"><AlertDescription className="flex flex-wrap items-center justify-between gap-2">{error || t("saveFailed")}
       {save === "conflict" ? <Button type="button" variant="outline" className="min-h-11" onClick={() => location.reload()}>{t("reload")}</Button> : <Button type="button" variant="outline" className="min-h-11" onClick={() => void flush()}>{t("retry")}</Button>}</AlertDescription></Alert>}
     {locked && <Alert><AlertDescription className="flex flex-wrap items-center justify-between gap-2">{t("protectedNotice")}
       {rights.write && <Button type="button" variant="outline" className="min-h-11" onClick={() => void setProtection(false)}>{t("unprotect")}</Button>}</AlertDescription></Alert>}
+  </div>;
 
-    <div className={cn("grid items-start gap-4", focus ? "grid-cols-1" : docked && panel ? "lg:grid-cols-[15rem_minmax(0,1fr)_18rem_3rem]" : "lg:grid-cols-[15rem_minmax(0,1fr)_3rem]")}>
-      {!focus && <aside className="hidden max-h-[calc(100dvh-8rem)] overflow-y-auto lg:sticky lg:top-4 lg:block" aria-label={t("pages")}>{treeEl}</aside>}
-      <section className="min-w-0 rounded-xl border bg-card" aria-label={t("pageContent")}>
-        <DocEditorSurface content={page.content} readOnly={!editable} showToolbar={editable} handleRef={surface} onChange={onChange} onNewPage={(child) => newPage.current(child)} onOutline={setOutline} onStats={setStats}
-          bodyClassName={cn("mx-auto px-4 py-6 sm:px-8", widthClass[resolved.width], fontClass[resolved.font], sizeClass[resolved.size])}
-          header={<>
-            <input ref={titleInput} aria-label={t("pageTitleField")} placeholder={t("untitled")} value={title} maxLength={200} readOnly={!editable} data-docs-title
-              className="w-full bg-transparent text-4xl font-bold leading-tight tracking-tight outline-none placeholder:text-muted-foreground/50 focus-visible:ring-0"
-              onChange={(e) => { setTitle(e.target.value); titleRef.current = e.target.value; schedule(); }} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); surface.current?.focusStart(); } }} />
-            {(resolved.header.owner || resolved.header.updated) && <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground" data-docs-meta>
-              {resolved.header.owner && <><UserAvatar name={doc.ownerName} className="size-6 text-xs" /><span>{doc.ownerName}</span></>}
-              {resolved.header.owner && resolved.header.updated && <span className="size-1 rounded-full bg-muted-foreground" aria-hidden="true" />}
-              {resolved.header.updated && <span>{t("lastUpdated", { when: format.dateTime(new Date(updatedAt), { dateStyle: "medium", timeStyle: "short" }) })}</span>}</p>}
-            {resolved.sections.subpages && children.length > 0 && <nav aria-label={t("subpages")} className="mt-4 rounded-lg border p-3"><h2 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("subpages")}</h2>
-              <ul>{children.map((c) => <li key={c.id}><button type="button" className="min-h-11 text-start underline-offset-2 hover:underline lg:min-h-8" onClick={() => void leaveTo(pageHref(c.id))}>{c.title || t("untitled")}</button></li>)}</ul></nav>}
-            {resolved.sections.outline && <div className="mt-4 rounded-lg border p-3"><h2 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("outline")}</h2><Outline items={outline} onJump={(p) => surface.current?.jumpTo(p)} /></div>}
-          </>} />
-      </section>
-      {focus ? null : docked && panel && <aside className="rounded-xl border bg-card p-4" aria-label={panel === "styles" ? labels.styles : labels.outline}>
-        <div className="mb-3 flex items-center justify-between"><h2 className="font-semibold">{panel === "styles" ? labels.styles : labels.outline}</h2>
-          <Button type="button" variant="ghost" size="icon" className="size-11" aria-label={t("closePanel")} onClick={() => setPanel(null)}><X aria-hidden="true" /></Button></div>{panelBody}</aside>}
-      {!focus && <nav aria-label={t("pageTools")} className="flex gap-1 lg:flex-col" data-docs-rail>
-        <Button type="button" variant="ghost" size="icon" className={cn("size-11", panel === "styles" && "bg-accent")} aria-pressed={panel === "styles"} aria-label={labels.styles} onClick={() => setPanel(panel === "styles" ? null : "styles")}><PanelsTopLeft aria-hidden="true" /></Button>
-        <Button type="button" variant="ghost" size="icon" className={cn("size-11", panel === "outline" && "bg-accent")} aria-pressed={panel === "outline"} aria-label={labels.outline} onClick={() => setPanel(panel === "outline" ? null : "outline")}><ListTree aria-hidden="true" /></Button>
-      </nav>}
-    </div>
+  const controls = <>
+      <Button type="button" variant="ghost" className="min-h-11 shrink-0 px-2 lg:hidden" onClick={() => setPagesOpen(true)}><Menu aria-hidden="true" />{t("pages")}</Button>
+      <TooltipProvider delayDuration={400}><Tooltip><TooltipTrigger asChild><Button type="button" variant="ghost" size="icon" className="hidden size-9 shrink-0 lg:inline-flex" aria-expanded={!treeCollapsed} aria-controls="docs-pages-sidebar" aria-label={treeCollapsed ? t("expandPages") : t("collapsePages")} onClick={toggleTree}>
+        {treeCollapsed ? <PanelLeftOpen aria-hidden="true" /> : <PanelLeftClose aria-hidden="true" />}</Button></TooltipTrigger><TooltipContent>{treeCollapsed ? t("expandPages") : t("collapsePages")}</TooltipContent></Tooltip></TooltipProvider>
+      <Breadcrumb aria-label={t("location")} className="hidden min-w-0 lg:block"><BreadcrumbList className="flex-nowrap text-[13px]">
+        {crumbs.map((f) => <Fragment key={f.id}><BreadcrumbItem><BreadcrumbLink asChild><Link href={docsHref(tenantId, { folder: f.id })} className="max-w-32 truncate">{f.name}</Link></BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator /></Fragment>)}
+        <BreadcrumbItem className="min-w-0"><BreadcrumbPage className="block max-w-48 truncate">{docName}</BreadcrumbPage></BreadcrumbItem>
+      </BreadcrumbList></Breadcrumb>
+      <Button type="button" variant="ghost" size="icon" className="size-9 shrink-0" aria-pressed={favorite} aria-label={favorite ? t("unfavorite", { name: docName }) : t("favorite", { name: docName })} onClick={() => void menuAction("favorite")}><Star className={cn(favorite && "fill-current text-warning")} aria-hidden="true" /></Button>
+      {doc.archivedAt && <Badge variant="secondary">{t("statusArchived")}</Badge>}
+      <div className="ml-auto flex shrink-0 items-center gap-1">
+        {rights.write && <span role="status" aria-live="polite" data-save-state={save} className={cn("px-2 text-sm", save === "error" || save === "conflict" ? "text-destructive" : "text-muted-foreground")}>{saveLabel}</span>}
+        <div className="flex lg:hidden">{rail}</div>
+        <DocMenu canEdit={rights.write} favorite={favorite} archived={Boolean(doc.archivedAt)} protectedPage={locked} onAction={(a) => void menuAction(a)} onProtect={(on) => void setProtection(on)} />
+      </div>
+  </>;
+
+  // The editor fills the shell below its header edge to edge: the pages sidebar, the card (toolbar and page, which scrolls) and the rail each scroll on their own.
+  return <div className="-m-4 flex h-[calc(100dvh-3rem)] min-h-0 lg:-m-6 lg:h-[calc(100dvh-4rem-2px)]" data-docs-editor data-focus={focus || undefined}>
+    {!focus && <ShellHeaderPortal><div className="hidden min-w-0 flex-1 items-center gap-1 md:flex">{controls}</div></ShellHeaderPortal>}
+    {!focus && !treeCollapsed && <aside id="docs-pages-sidebar" className="hidden w-60 shrink-0 overflow-y-auto border-e p-3 lg:block" aria-label={t("pages")}>{treeEl}</aside>}
+    <section className="flex min-w-0 flex-1 flex-col" aria-label={t("pageContent")}>
+      {!focus && <div className="flex shrink-0 items-center gap-1 border-b px-2 py-1 md:hidden">{controls}</div>}
+      {alerts}
+      <DocEditorSurface content={page.content} readOnly={!editable} showToolbar={editable} handleRef={surface} onChange={onChange} onNewPage={(child) => newPage.current(child)} onOutline={setOutline} onStats={setStats}
+        bodyClassName={cn("mx-auto px-4 py-6 sm:px-8", widthClass[resolved.width], fontClass[resolved.font], sizeClass[resolved.size])}
+        header={<>
+          <input ref={titleInput} aria-label={t("pageTitleField")} placeholder={t("untitled")} value={title} maxLength={200} readOnly={!editable} data-docs-title
+            className="w-full bg-transparent text-4xl font-bold leading-tight tracking-tight outline-none placeholder:text-muted-foreground/50 focus-visible:ring-0"
+            onChange={(e) => { setTitle(e.target.value); titleRef.current = e.target.value; schedule(); }} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); surface.current?.focusStart(); } }} />
+          {(resolved.header.owner || resolved.header.updated) && <p className="mt-3 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm text-muted-foreground" data-docs-meta>
+            {resolved.header.owner && <><UserAvatar name={doc.ownerName} className="size-6 text-xs" /><span className="max-w-64 truncate">{doc.ownerName}</span></>}
+            {resolved.header.owner && resolved.header.updated && <span className="size-1 rounded-full bg-muted-foreground" aria-hidden="true" />}
+            {resolved.header.updated && <span>{t("lastUpdated", { when: format.dateTime(new Date(updatedAt), { dateStyle: "medium", timeStyle: "short" }) })}</span>}</p>}
+          {resolved.sections.subpages && children.length > 0 && <nav aria-label={t("subpages")} className="mt-4 rounded-lg border p-3"><h2 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("subpages")}</h2>
+            <ul>{children.map((c) => <li key={c.id}><button type="button" className="min-h-11 text-start underline-offset-2 hover:underline lg:min-h-8" onClick={() => void leaveTo(pageHref(c.id))}>{c.title || t("untitled")}</button></li>)}</ul></nav>}
+          {resolved.sections.outline && <div className="mt-4 rounded-lg border p-3"><h2 className="mb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("outline")}</h2><Outline items={outline} onJump={(p) => surface.current?.jumpTo(p)} /></div>}
+        </>} />
+    </section>
+    {!focus && docked && panel && <aside className="w-72 shrink-0 overflow-y-auto border-s p-4" aria-label={panel === "styles" ? labels.styles : labels.outline}>
+      <div className="mb-3 flex items-center justify-between"><h2 className="font-semibold">{panel === "styles" ? labels.styles : labels.outline}</h2>
+        <Button type="button" variant="ghost" size="icon" className="size-9" aria-label={t("closePanel")} onClick={() => setPanel(null)}><X aria-hidden="true" /></Button></div>{panelBody}</aside>}
+    {!focus && <nav aria-label={t("pageTools")} className="hidden w-12 shrink-0 flex-col items-center gap-1 border-s py-2 lg:flex" data-docs-rail>{rail}</nav>}
     {focus && <Button type="button" variant="outline" className="fixed end-4 bottom-4 z-30 min-h-11 shadow-md" onClick={() => setFocus(false)}><Maximize2 aria-hidden="true" />{t("exitFocus")}</Button>}
 
     <Sheet open={pagesOpen && !docked} onOpenChange={setPagesOpen}><SheetContent side="left" className="w-80 overflow-y-auto p-4" aria-describedby={undefined}><SheetHeader className="p-0"><SheetTitle className="sr-only">{t("pages")}</SheetTitle></SheetHeader>{treeEl}</SheetContent></Sheet>

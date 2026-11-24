@@ -1,5 +1,5 @@
 import { mkdir } from "node:fs/promises";
-import { expect as baseExpect, test, type Locator, type Page } from "@playwright/test";
+import { expect as baseExpect, test, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { origin, signIn } from "./helpers/session";
 import { settleForAxe } from "./helpers/settle";
@@ -19,7 +19,8 @@ async function audit(page: Page, name: string) {
     for (const [label, width, height] of sizes) {
       await page.setViewportSize({ width, height });
       await settleForAxe(page);
-      expect((await new AxeBuilder({ page }).exclude("iframe").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
+      const found = (await new AxeBuilder({ page }).exclude("iframe").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations;
+      expect(found.map((v) => `${label}/${scheme} ${v.id}: ${v.nodes.map((n) => n.target.join(" ")).slice(0, 3).join(" | ")}`)).toEqual([]);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await page.screenshot({ path: `${evidence}/${name}-${label}-${scheme}.png`, fullPage: true });
     }
@@ -33,10 +34,9 @@ async function workspace(page: Page) {
   await signIn(page);
   return (await (await post(page, "/api/workspaces", { name: "Grace Community Church", audience: "church" })).json()).tenantId as string;
 }
-const saved = (page: Page) => expect(page.locator('[data-save-state="saved"]')).toBeVisible();
+const saved = (page: Page) => expect(page.locator('[data-save-state="saved"]:visible')).toBeVisible();
 const body = (page: Page) => page.locator(".docs-prose");
 const tool = (page: Page, name: string) => page.getByRole("toolbar", { name: "Formatting" }).getByRole("button", { name, exact: true });
-const rows = (page: Page) => page.locator("[data-docs-list] tbody tr, [data-docs-list] [data-slot=\"data-table-card\"]");
 
 test("list: folders, create, rename, move (menu and drag), delete rules, search with paths, star, archive, trash", async ({ page }) => {
   test.setTimeout(420000);
@@ -80,7 +80,8 @@ test("list: folders, create, rename, move (menu and drag), delete rules, search 
   await page.getByRole("button", { name: "New doc" }).first().click();
   await expect(page).toHaveURL(/\/docs\/[0-9a-f-]{36}/);
   const crumbs = page.getByRole("navigation", { name: "Location" });
-  await expect(crumbs).toContainText("Docs");
+  // The shell header carries Ministry > Docs, and the editor continues it with the folders and the doc.
+  await expect(page.locator("[data-shell-header]")).toContainText("Docs");
   await expect(crumbs.getByRole("link", { name: "Sermons" })).toBeVisible();
   await expect(crumbs.getByText("Untitled")).toBeVisible();
   await page.getByLabel("Page title").fill("Easter plan");
@@ -113,7 +114,7 @@ test("list: folders, create, rename, move (menu and drag), delete rules, search 
   expect(second.id).toBeTruthy();
 
   // Folder rules: not into its own subtree; rename; delete moves the contents up after a confirmation.
-  await page.getByRole("link", { name: "Docs", exact: true }).first().click();
+  await page.getByRole("navigation", { name: "Location" }).getByRole("link", { name: "Docs", exact: true }).click();
   await page.getByRole("button", { name: "Actions for folder Sermons" }).click();
   await page.getByRole("menuitem", { name: "Move to…" }).click();
   await expect(page.getByRole("radio", { name: "2026" })).toBeDisabled();
@@ -172,11 +173,13 @@ test("list: folders, create, rename, move (menu and drag), delete rules, search 
   await page.getByRole("combobox", { name: "Status" }).selectOption("archived");
   await page.getByRole("button", { name: "Actions for Good Friday (copy)" }).click();
   await page.getByRole("menuitem", { name: "Unarchive" }).click();
-  await page.getByRole("combobox", { name: "Status" }).selectOption("active");
+  await expect(page.getByRole("link", { name: "Good Friday (copy)" })).toHaveCount(0);
+  await page.waitForLoadState("networkidle");
+  await page.goto(page.url().replace(/[?&]status=archived/, ""));
   await expect(page.getByRole("link", { name: "Good Friday (copy)" })).toBeVisible();
   await page.getByRole("combobox", { name: "Sort by" }).selectOption("title");
   await expect(page).toHaveURL(/sort=title/);
-  expect((await rows(page).allInnerTexts()).length).toBeGreaterThan(2);
+  await expect.poll(() => page.getByTestId("doc-link").count()).toBeGreaterThan(2);
 
   await audit(page, "list");
   expect(errors).toEqual([]);
@@ -200,11 +203,25 @@ test("editor: title, autosave, formatting toolbar, slash menu, handles, pages tr
   await expect(editor.locator("p.is-empty, .is-empty").first()).toHaveAttribute("data-placeholder", "Write, or press '/' for commands");
   await saved(page);
 
+  // The Pages sidebar collapses and expands from the keyboard, and the choice is remembered in this browser.
+  const sidebar = page.locator("#docs-pages-sidebar");
+  await expect(sidebar).toBeVisible();
+  await page.getByRole("button", { name: "Collapse pages" }).focus();
+  await page.keyboard.press("Enter");
+  await expect(sidebar).toBeHidden();
+  await expect(page.getByRole("button", { name: "Expand pages" })).toHaveAttribute("aria-expanded", "false");
+  await page.reload();
+  await expect(page.locator("[data-docs-editor]")).toBeVisible();
+  await expect(sidebar).toBeHidden();
+  await page.getByRole("button", { name: "Expand pages" }).click();
+  await expect(sidebar).toBeVisible();
+  await expect(page.getByRole("button", { name: "Collapse pages" })).toHaveAttribute("aria-expanded", "true");
+
   // Title and body autosave; a reload shows both.
   await page.getByLabel("Page title").fill("Weekly plan");
   await page.keyboard.press("Enter");
   await page.keyboard.type("Hello brave world");
-  await expect(page.locator('[data-save-state="unsaved"], [data-save-state="saving"]').first()).toBeVisible();
+  await expect(page.locator('[data-save-state="unsaved"]:visible, [data-save-state="saving"]:visible').first()).toBeVisible();
   await saved(page);
   await page.reload();
   await expect(page.getByLabel("Page title")).toHaveValue("Weekly plan");
@@ -222,7 +239,7 @@ test("editor: title, autosave, formatting toolbar, slash menu, handles, pages tr
   const style = page.getByRole("toolbar", { name: "Formatting" }).getByRole("button", { name: "Text style" });
   for (const [label, tag] of [["Heading 1", "h1"], ["Heading 2", "h2"], ["Heading 3", "h3"], ["Heading 4", "h4"]] as const) {
     await style.click(); await page.getByRole("menuitem", { name: label, exact: true }).click();
-    await expect(editor.locator(tag)).toHaveText("Hello brave world");
+    await expect(editor.locator(tag).first()).toHaveText("Hello brave world");
     await expect(style).toContainText(label);
   }
   await style.click(); await page.getByRole("menuitem", { name: "Normal text" }).click();
@@ -232,9 +249,10 @@ test("editor: title, autosave, formatting toolbar, slash menu, handles, pages tr
   await tool(page, "Highlight").click(); await page.getByRole("menuitem", { name: "Yellow" }).click();
   await expect(editor.locator("mark").first()).toBeVisible();
   await tool(page, "Alignment").click(); await page.getByRole("menuitem", { name: "Align center" }).click();
-  await expect(editor.locator("p[style*='text-align: center']")).toBeVisible();
+  await expect(editor.locator("p[style*='text-align: center']").first()).toBeVisible();
   await tool(page, "Clear formatting").click();
   await expect(editor.locator("mark, span[style*='color'], p[style*='text-align']")).toHaveCount(0);
+  await editor.locator("p").first().click();
   for (const [name, selector] of [["Bulleted list", "ul:not([data-type])"], ["Numbered list", "ol"], ["Checklist", "ul[data-type='taskList']"], ["Toggle list", "div[data-type='details']"], ["Block quote", "blockquote"], ["Code block", "pre"]] as const) {
     await tool(page, name).click();
     await expect(editor.locator(selector).first()).toBeVisible();
@@ -269,10 +287,10 @@ test("editor: title, autosave, formatting toolbar, slash menu, handles, pages tr
   await page.keyboard.type("/");
   const menu = page.locator("[data-slash-menu]");
   await expect(menu).toBeVisible();
-  for (const section of ["Suggestions", "Text", "Formatting", "Advanced blocks", "Text colors", "Highlights"]) await expect(menu.getByRole("group", { name: section })).toBeAttached();
+  for (const section of ["Suggestions", "Text", "Formatting", "Advanced blocks", "Text colors", "Highlights"]) await expect(menu.getByRole("group", { name: section, exact: true })).toBeAttached();
   for (const label of ["Table", "New subpage", "Toggle list", "Banner", "Checklist", "Columns", "New page", "Normal text", "Heading 4", "Block quote", "Code block", "Divider", "Table of contents"]) await expect(menu.getByRole("option", { name: label, exact: true }).first()).toBeAttached();
   await page.screenshot({ path: `${evidence}/slash-menu-desktop-light.png` });
-  await page.keyboard.type("heading 3");
+  await page.keyboard.type("h3");
   await expect(menu.getByRole("option")).toHaveCount(1);
   await page.keyboard.press("Enter");
   await expect(menu).toHaveCount(0);
@@ -282,7 +300,7 @@ test("editor: title, autosave, formatting toolbar, slash menu, handles, pages tr
   await expect(editor.locator("div[data-callout][data-tone='warning']")).toBeVisible();
   await page.keyboard.type("Careful");
   await page.keyboard.press("Enter"); await page.keyboard.press("Enter"); await page.keyboard.press("Enter");
-  await page.keyboard.type("/table of"); await page.keyboard.press("Enter");
+  await page.keyboard.type("/toc"); await page.keyboard.press("Enter");
   await expect(editor.locator("[data-toc-block]")).toContainText("Section");
   await page.keyboard.type("/"); await page.keyboard.press("Escape");
   await expect(menu).toHaveCount(0);
@@ -321,16 +339,20 @@ test("editor: title, autosave, formatting toolbar, slash menu, handles, pages tr
   const tree = page.getByRole("navigation", { name: "Pages" }).first();
   await page.getByRole("button", { name: "Add page" }).first().click();
   await expect(page).toHaveURL(/page=/);
+  await expect(page.getByLabel("Page title")).toHaveValue("");
   await page.getByLabel("Page title").fill("Second page");
   await saved(page);
-  await expect(tree.getByRole("button", { name: "Second page" })).toHaveAttribute("aria-current", "page");
-  await expect(tree.getByRole("button", { name: "Weekly plan" })).not.toHaveAttribute("aria-current", "page");
+  await expect(tree.getByRole("button", { name: "Second page", exact: true })).toHaveAttribute("aria-current", "page");
+  await expect(tree.getByRole("button", { name: "Weekly plan", exact: true })).not.toHaveAttribute("aria-current", "page");
   await tree.getByRole("button", { name: "Actions for page Second page" }).click();
+  const before = page.url();
   await page.getByRole("menuitem", { name: "Add subpage" }).click();
+  await expect.poll(() => page.url()).not.toBe(before);
+  await expect(page.getByLabel("Page title")).toHaveValue("");
   await page.getByLabel("Page title").fill("Sub page");
   await saved(page);
   const names = () => tree.locator("[data-page-id]").allInnerTexts();
-  expect(await names()).toEqual(["Weekly plan", "Second page", "Sub page"]);
+  await expect.poll(names).toEqual(["Weekly plan", "Second page", "Sub page"]);
   await tree.getByRole("button", { name: "Actions for page Second page" }).click();
   await page.getByRole("menuitem", { name: "Move up" }).click();
   await expect.poll(names).toEqual(["Second page", "Sub page", "Weekly plan"]);
@@ -341,7 +363,7 @@ test("editor: title, autosave, formatting toolbar, slash menu, handles, pages tr
   await page.getByRole("menuitem", { name: "Move out one level" }).click();
   await expect.poll(() => tree.locator("li li [data-page-id]").allInnerTexts()).toEqual(["Sub page"]);
   await tree.getByRole("button", { name: "Collapse Second page" }).click();
-  await expect(tree.getByRole("button", { name: "Sub page" })).toHaveCount(0);
+  await expect(tree.getByRole("button", { name: "Sub page", exact: true })).toHaveCount(0);
   await tree.getByRole("button", { name: "Expand Second page" }).click();
   await tree.getByRole("button", { name: "Actions for page Sub page" }).click();
   await page.getByRole("menuitem", { name: "Duplicate" }).click();
@@ -388,8 +410,8 @@ test("editor: title, autosave, formatting toolbar, slash menu, handles, pages tr
   const current = await (await page.request.get(`${api}/${doc.id}/pages/${first}`)).json();
   expect((await patch(page, `${api}/${doc.id}/pages/${first}`, { version: current.version, title: "Changed elsewhere" })).status()).toBe(200);
   await editor.click(); await page.keyboard.type(" more");
-  await expect(page.locator('[data-save-state="conflict"]')).toBeVisible();
-  await expect(page.getByRole("alert")).toContainText("This record changed since you opened it");
+  await expect(page.locator('[data-save-state="conflict"]:visible')).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "This record changed since you opened it" })).toBeVisible();
   await page.getByRole("button", { name: "Reload" }).click();
   await expect(page.getByLabel("Page title")).toHaveValue("Changed elsewhere");
 
@@ -409,7 +431,7 @@ test("editor: title, autosave, formatting toolbar, slash menu, handles, pages tr
     h(1, "Order of service"), p("Welcome, call to worship and the first hymn."), h(2, "Readings"),
     { type: "callout", attrs: { tone: "info" }, content: [p("Bring the large-print booklets for the front rows.")] },
     { type: "taskList", content: [{ type: "taskItem", attrs: { checked: true }, content: [p("Print bulletins")] }, { type: "taskItem", attrs: { checked: false }, content: [p("Tune the piano")] }] },
-    p("Highlighted note", [{ type: "highlight", attrs: { color: "#fef08a" } }, { type: "textStyle", attrs: { color: "#dc2626" } }]),
+    p("Highlighted note", [{ type: "highlight", attrs: { color: "#fef08a" } }]), p("Second paragraph with plain text."),
     { type: "table", content: [{ type: "tableRow", content: [{ type: "tableHeader", content: [p("Time")] }, { type: "tableHeader", content: [p("Item")] }] }, { type: "tableRow", content: [{ type: "tableCell", content: [p("10:00")] }, { type: "tableCell", content: [p("Welcome")] }] }] },
     { type: "columns", content: [{ type: "column", content: [p("Left column")] }, { type: "column", content: [p("Right column")] }] },
     { type: "blockquote", content: [p("Grace and peace to you.")] }, { type: "tableOfContents" }] } })).status()).toBe(200);
@@ -436,8 +458,8 @@ test("editor on a phone: 44px toolbar targets that scroll sideways, pages in a s
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.getByRole("button", { name: "Pages" }).click();
   const sheet = page.getByRole("dialog");
-  await expect(sheet.getByRole("button", { name: "Page two" })).toBeVisible();
-  await sheet.getByRole("button", { name: "Page two" }).click();
+  await expect(sheet.getByRole("button", { name: "Page two", exact: true })).toBeVisible();
+  await sheet.getByRole("button", { name: "Page two", exact: true }).click();
   await expect(page).toHaveURL(/page=/);
   await expect(page.getByLabel("Page title")).toHaveValue("Page two");
   await page.getByRole("button", { name: "Page styles" }).click();

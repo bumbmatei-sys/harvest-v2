@@ -1,3 +1,4 @@
+/** Layout and behaviour modelled on bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): components/ui/custom/tiptap/toolbars/editor-toolbar.tsx and components/ui/custom/tiptap/toolbars/color-and-highlight.tsx; code written for Harvest, no kit code copied. Harvest notes: docs/ui-sources.md. */
 "use client";
 import { useState } from "react";
 import { useEditorState, type Editor } from "@tiptap/react";
@@ -16,6 +17,11 @@ import { cn } from "@/lib/utils";
 
 const aligns = [{ id: "left", icon: AlignLeft }, { id: "center", icon: AlignCenter }, { id: "right", icon: AlignRight }, { id: "justify", icon: AlignJustify }] as const;
 const target = "size-11 lg:size-8";
+function firstBlockLevel(e: Editor) {
+  let level = 0, found = false;
+  e.state.doc.nodesBetween(e.state.selection.from, e.state.selection.to, (node) => { if (!found && node.isTextblock) { found = true; level = node.type.name === "heading" ? Number(node.attrs.level) : 0; } return !found; });
+  return level;
+}
 
 function Tool({ label, shortcut, children }: { label: string; shortcut?: string; children: React.ReactNode }) {
   return <Tooltip><TooltipTrigger asChild><ToolbarPrimitive.Button asChild>{children as React.ReactElement}</ToolbarPrimitive.Button></TooltipTrigger>
@@ -33,7 +39,8 @@ export function EditorToolbar({ editor }: { editor: Editor }) {
     undo: e.can().undo(), redo: e.can().redo(), bold: e.isActive("bold"), italic: e.isActive("italic"), underline: e.isActive("underline"), strike: e.isActive("strike"), code: e.isActive("code"),
     bullet: e.isActive("bulletList"), ordered: e.isActive("orderedList"), task: e.isActive("taskList"), details: e.isActive("details"), quote: e.isActive("blockquote"), codeBlock: e.isActive("codeBlock"),
     link: e.isActive("link"), href: (e.getAttributes("link").href as string | undefined) ?? "", table: e.isActive("table"),
-    level: [1, 2, 3, 4].find((l) => e.isActive("heading", { level: l })) ?? 0,
+    // The block the selection starts in (a selection that spans several blocks shows its first).
+    level: firstBlockLevel(e),
     align: aligns.find((a) => e.isActive({ textAlign: a.id }))?.id ?? "left", color: (e.getAttributes("textStyle").color as string | undefined) ?? "", highlight: (e.getAttributes("highlight").color as string | undefined) ?? "",
   }) });
   const [href, setHref] = useState(""), [linkOpen, setLinkOpen] = useState(false);

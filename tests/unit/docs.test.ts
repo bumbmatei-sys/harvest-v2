@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import messages from "../../messages/en.json";
-import { buildPageTree, contentStats, docOutline, docRights, DocContentError, flattenTree, folderNameKey, reorder, resolvePageStyle, safeDocHref, sanitizeDocContent, subtreeIds } from "../../src/lib/docs";
+import { type DocContent, buildPageTree, contentStats, docOutline, docRights, DocContentError, flattenTree, folderNameKey, reorder, resolvePageStyle, safeDocHref, sanitizeDocContent, subtreeIds } from "../../src/lib/docs";
 import { docHref, docsHref, folderPath, folderSubtree } from "../../src/lib/docs-list";
 import { can } from "../../src/lib/permissions";
 
@@ -18,7 +18,7 @@ describe("docs content", () => {
     expect(() => sanitizeDocContent({ type: "doc", content: [p("a", [{ type: "evil" }])] })).toThrow(DocContentError);
   });
   it("computes statistics and an outline from the content", () => {
-    const doc = { type: "doc" as const, content: [{ type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Title here" }] }, p("one two three")] };
+    const doc = { type: "doc", content: [{ type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Title here" }] }, p("one two three")] } as DocContent;
     expect(contentStats(doc)).toEqual({ words: 5, characters: 20, readingMinutes: 1 });
     expect(docOutline(doc)).toEqual([{ level: 2, text: "Title here" }]);
     expect(contentStats({ type: "doc" }).readingMinutes).toBe(0);

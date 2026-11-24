@@ -6238,6 +6238,8 @@
       "actions": "Actions"
     },
     "pages": "Pages",
+    "collapsePages": "Collapse pages",
+    "expandPages": "Expand pages",
     "addPage": "Add page",
     "addSubpage": "Add subpage",
     "pageMenu": "Actions for page {name}",
