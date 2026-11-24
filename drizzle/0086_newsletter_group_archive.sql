@@ -1,0 +1,1 @@
+ALTER TABLE "newsletter_segments" ADD COLUMN "archived_at" timestamp with time zone;

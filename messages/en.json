@@ -6442,7 +6442,7 @@
     "deleteTitle": "Delete {name}?",
     "deleteBody": "The list disappears from emails. People and their consent records are kept.",
     "listInUse": "This list is used by an email that is ready or sending.",
-    "nameTakenOrChanged": "That name is in use, or the list changed. Reload and try again.",
+    "nameTakenOrChanged": "That name is in use, or it changed. Reload and try again.",
     "listActions": "Actions for {name}",
     "noLists": "No lists yet.",
     "cancel": "Cancel",
@@ -6462,6 +6462,10 @@
     "emptyDescription": "People appear once they exist in your ministry.",
     "privacy": "Subscribed means a recorded newsletter consent and a list. Nobody is subscribed by default.",
     "statusNav": "Status",
-    "optedOut": "This person unsubscribed from this list themselves, so they cannot be added back."
+    "optedOut": "This person unsubscribed from this list themselves, so they cannot be added back.",
+    "renameGroup": "Rename group",
+    "groupInUse": "This group is used by an email that is ready or sending.",
+    "deleteGroupBody": "The group disappears from emails. The saved filter stays in People.",
+    "groupStale": "This group's filter changed in People, so it can't be changed here. Create it again."
   }
 }
