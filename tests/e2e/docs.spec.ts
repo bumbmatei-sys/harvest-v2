@@ -328,6 +328,12 @@ test("editor: title, autosave, formatting toolbar, slash menu, handles, pages tr
   await expect(page.locator(".font-serif.text-lg.max-w-none")).toBeVisible();
   await expect(page.locator("[data-docs-meta]")).not.toContainText("pr03-");
   await expect(page.locator("[data-docs-outline]")).toBeVisible();
+  // The style change and the page text are saved in the background: wait until the server has both before reloading, or the reload races the save.
+  await expect.poll(async () => {
+    const first = (await (await page.request.get(`${api}/${doc.id}`)).json()).pages[0].id as string;
+    const saved = await (await page.request.get(`${api}/${doc.id}/pages/${first}`)).json();
+    return [saved.style?.sections?.outline === true, JSON.stringify(saved.content).includes("Section")];
+  }).toEqual([true, true]);
   await page.reload();
   await page.getByRole("button", { name: "Page styles" }).click();
   await expect(page.getByRole("complementary", { name: "Page styles" }).getByRole("radio", { name: "Serif" })).toBeChecked();
