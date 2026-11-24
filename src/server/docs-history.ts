@@ -3,6 +3,7 @@ import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
 import { docPageVersions, docPages, docs, users } from "../db/schema";
 import { contentStats, type DocContent } from "../lib/docs";
+import { docToHtml } from "../lib/docs-convert";
 import { message } from "../i18n/messages";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
@@ -38,7 +39,7 @@ export async function getVersion(db: Database, user: string, workspace: string, 
     needWrite(rights);
     const [v] = await tx.select().from(docPageVersions).where(and(eq(docPageVersions.docId, row.id), eq(docPageVersions.pageId, id(pageId)), eq(docPageVersions.id, id(versionId))));
     if (!v) throw new AccessError(404, message("Errors.versionNotFound"));
-    return { id: v.id, number: v.number, title: v.title, content: v.content, createdAt: v.createdAt.toISOString() };
+    return { id: v.id, number: v.number, title: v.title, html: docToHtml(v.content), createdAt: v.createdAt.toISOString() };
   });
 }
 /** Puts an older version back as the page's text. The text it replaces is kept as a version first, so a restore can be undone by restoring again. */

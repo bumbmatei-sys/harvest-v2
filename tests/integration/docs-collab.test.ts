@@ -261,7 +261,7 @@ describe("page history", () => {
     expect(versions).toHaveLength(1);
     expect(versions[0]).toMatchObject({ reason: "autosave", number: 1 });
     // The snapshot holds the text before the save (here the empty page the doc started with).
-    expect((await getVersion(db(), owner, tenant, d.id, page, versions[0].id)).content).toEqual({ type: "doc", content: [{ type: "paragraph" }] });
+    expect((await getVersion(db(), owner, tenant, d.id, page, versions[0].id)).html).toBe("<p></p>");
     // Age the snapshot so the next save keeps another one.
     await fixture.admin.query("update doc_page_versions set created_at=now()-interval '11 minutes' where page_id=$1", [page]);
     await save("fourth draft");

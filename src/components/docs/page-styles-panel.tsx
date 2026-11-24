@@ -1,37 +1,68 @@
 "use client";
 import { useTranslations } from "next-intl";
-import { Maximize2 } from "lucide-react";
+import { ChevronRight, CircleUser, Clock, FileText, Image as ImageIcon, ListTree, Rows3, SmilePlus, Text, Type, UsersRound, Focus, Link2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuRadioGroup, DropdownMenuRadioItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { pageFonts, pageSizes, pageWidths, type PageStyle, type ResolvedPageStyle } from "@/lib/docs";
+import { PanelShell } from "@/components/docs/panels/panel-shell";
+import { pageFonts, pageSizes, relationshipModes, subpageModes, type PageStyle, type ResolvedPageStyle } from "@/lib/docs";
+import { cn } from "@/lib/utils";
 
-/** Page styles of the current page (font, size, width, what the header shows, what sits under it) and the live text statistics. Stored per page. */
-export function PageStylesPanel({ style, stats, disabled, onChange, onFocusMode }: {
-  style: ResolvedPageStyle; stats: { words: number; characters: number; readingMinutes: number }; disabled: boolean; onChange: (next: PageStyle) => void; onFocusMode: () => void;
+const custom = (s: ResolvedPageStyle): PageStyle => ({ font: s.font, size: s.size, width: s.width, header: s.header, sections: s.sections, showStats: s.showStats, ...(s.coverFileId ? { coverFileId: s.coverFileId } : {}) });
+const AA = "Aa";
+const fontGlyph = { sans: AA, serif: "Ss", mono: "00" } as const;
+const sizeGlyph = { small: "text-xs", default: "text-base", large: "text-xl" } as const;
+const fontFace = { sans: "font-sans", serif: "font-serif", mono: "font-mono" } as const;
+/** Reading time shown as seconds under a minute and minutes after. */
+export function readingLabel(words: number, t: (key: "seconds" | "minutes", values: { count: number }) => string) { const seconds = Math.round((words / 200) * 60); return seconds < 60 ? t("seconds", { count: seconds }) : t("minutes", { count: Math.round(seconds / 60) }); }
+
+/** Page styles of the open page: typography, header, sections, focus mode and statistics. Stored per page, except the two focus switches (this browser only). */
+export function PageStylesPanel({ style, stats, disabled, onChange, onApplyAll, onPickCover, focusBlock, onFocusBlock, focusPage, onFocusPage, onClose }: {
+  style: ResolvedPageStyle; stats: { words: number; characters: number; readingMinutes: number }; disabled: boolean; onChange: (next: PageStyle) => void; onApplyAll: () => void; onPickCover: () => void;
+  focusBlock: boolean; onFocusBlock: (on: boolean) => void; focusPage: boolean; onFocusPage: (on: boolean) => void; onClose: () => void;
 }) {
-  const t = useTranslations("Docs.styles");
-  const row = (id: string, label: string, checked: boolean, set: (v: boolean) => void) => <div className="flex min-h-11 items-center justify-between gap-3"><Label htmlFor={id}>{label}</Label><Switch id={id} checked={checked} disabled={disabled} onCheckedChange={set} /></div>;
-  const group = <K extends "font" | "size" | "width">(key: K, label: string, list: readonly string[]) => <div className="space-y-2"><Label id={`style-${key}`}>{label}</Label>
-    <ToggleGroup type="single" variant="outline" aria-labelledby={`style-${key}`} value={style[key]} disabled={disabled} className="w-full" onValueChange={(v) => { if (v) onChange({ ...custom(style), [key]: v }); }}>
-      {list.map((v) => <ToggleGroupItem key={v} value={v} className="flex-1" aria-label={t(`${key}.${v}` as "font.sans")}>{t(`${key}.${v}` as "font.sans")}</ToggleGroupItem>)}</ToggleGroup></div>;
-  return <div className="space-y-5" data-docs-styles>
-    {group("font", t("fontStyle"), pageFonts)}
-    {group("size", t("fontSize"), pageSizes)}
-    {group("width", t("pageWidth"), pageWidths)}
-    <fieldset className="space-y-1"><legend className="mb-1 text-sm font-medium">{t("header")}</legend>
-      {row("style-owner", t("owner"), style.header.owner, (v) => onChange({ ...custom(style), header: { ...style.header, owner: v } }))}
-      {row("style-updated", t("lastModified"), style.header.updated, (v) => onChange({ ...custom(style), header: { ...style.header, updated: v } }))}</fieldset>
-    <fieldset className="space-y-1"><legend className="mb-1 text-sm font-medium">{t("sections")}</legend>
-      {row("style-subpages", t("subpages"), style.sections.subpages, (v) => onChange({ ...custom(style), sections: { ...style.sections, subpages: v } }))}
-      {row("style-outline", t("outline"), style.sections.outline, (v) => onChange({ ...custom(style), sections: { ...style.sections, outline: v } }))}</fieldset>
-    <Button type="button" variant="outline" className="min-h-11 w-full justify-start" onClick={onFocusMode}><Maximize2 aria-hidden="true" />{t("focusMode")}</Button>
-    <dl className="grid grid-cols-3 gap-2 rounded-lg border p-3 text-center" aria-label={t("stats")}>
-      <div><dd className="text-lg font-semibold tabular-nums">{stats.words}</dd><dt className="text-xs text-muted-foreground">{t("words")}</dt></div>
-      <div><dd className="text-lg font-semibold tabular-nums">{stats.characters}</dd><dt className="text-xs text-muted-foreground">{t("characters")}</dt></div>
-      <div><dd className="text-lg font-semibold tabular-nums">{stats.readingMinutes}</dd><dt className="text-xs text-muted-foreground">{t("readingMinutes")}</dt></div>
+  const t = useTranslations("Docs.styles"), td = useTranslations("Docs");
+  const set = (patch: Partial<PageStyle>) => onChange({ ...custom(style), ...patch });
+  const row = (id: string, Icon: typeof Text, label: string, checked: boolean, setter: (v: boolean) => void, off = disabled) => <div className="flex min-h-11 items-center justify-between gap-3"><Label htmlFor={id} className="flex items-center gap-3 font-normal"><Icon className="size-4 text-muted-foreground" aria-hidden="true" />{label}</Label><Switch id={id} checked={checked} disabled={off} onCheckedChange={setter} /></div>;
+  const tile = (selected: boolean, label: string, glyph: React.ReactNode, click: () => void) => <button key={label} type="button" role="radio" aria-checked={selected} disabled={disabled} onClick={click}
+    className={cn("flex min-h-16 flex-col items-center justify-center gap-1 rounded-lg border text-sm outline-none transition-colors focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50", selected ? "border-primary bg-selected font-medium text-primary" : "bg-muted/40 hover:bg-accent")}>{glyph}<span className="text-xs">{label}</span></button>;
+  const choice = (Icon: typeof Text, label: string, value: string, options: readonly string[], current: string, pick: (v: string) => void, labelOf: (v: string) => string) => <DropdownMenu><DropdownMenuTrigger asChild>
+    <button type="button" disabled={disabled} className="flex min-h-11 w-full items-center justify-between gap-3 rounded-md text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50" aria-label={td("choiceLabel", { label, value })}>
+      <span className="flex items-center gap-3"><Icon className="size-4 text-muted-foreground" aria-hidden="true" />{label}</span><span className="flex items-center gap-1 text-muted-foreground">{value}<ChevronRight className="size-4" aria-hidden="true" /></span></button></DropdownMenuTrigger>
+    <DropdownMenuContent align="end"><DropdownMenuRadioGroup value={current} onValueChange={pick}>{options.map((o) => <DropdownMenuRadioItem key={o} value={o} className="min-h-11">{labelOf(o)}</DropdownMenuRadioItem>)}</DropdownMenuRadioGroup></DropdownMenuContent></DropdownMenu>;
+  const heading = (text: string) => <h3 className="mb-1 mt-5 text-xs font-medium text-muted-foreground first:mt-0">{text}</h3>;
+  return <PanelShell name="styles" title={td("pageStyles")} onClose={onClose}><div className="p-4" data-docs-styles>
+    {heading(t("fontStyle"))}
+    <div role="radiogroup" aria-label={t("fontStyle")} className="grid grid-cols-3 gap-2">{pageFonts.map((f) => tile(style.font === f, t(`font.${f}`), <span className={cn("text-base", fontFace[f])} aria-hidden="true">{fontGlyph[f]}</span>, () => set({ font: f })))}</div>
+    {heading(t("fontSize"))}
+    <div role="radiogroup" aria-label={t("fontSize")} className="grid grid-cols-3 gap-2">{pageSizes.map((s) => tile(style.size === s, t(`size.${s}`), <span className={cn("font-medium", sizeGlyph[s])} aria-hidden="true">{AA}</span>, () => set({ size: s })))}</div>
+    {heading(t("pageWidth"))}
+    <div role="radiogroup" aria-label={t("pageWidth")} className="grid grid-cols-2 gap-2">{(["default", "full"] as const).map((w) => <button key={w} type="button" role="radio" aria-checked={(style.width === "wide" ? "default" : style.width) === w} disabled={disabled} onClick={() => set({ width: w })}
+      className={cn("min-h-11 rounded-lg border text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:opacity-50", (style.width === "wide" ? "default" : style.width) === w ? "border-primary bg-selected font-medium text-primary" : "bg-muted/40 hover:bg-accent")}>{t(`width.${w}`)}</button>)}</div>
+    <Button type="button" variant="ghost" className="mt-2 min-h-11 w-full text-muted-foreground" disabled={disabled} onClick={onApplyAll}>{t("applyAll")}</Button>
+    <div className="mt-2 border-t" />
+    {heading(t("header"))}
+    {row("style-cover", ImageIcon, t("cover"), style.header.cover, (v) => set({ header: { ...style.header, cover: v } }))}
+    {style.header.cover && !disabled && <Button type="button" variant="outline" size="sm" className="mb-1 ms-7 min-h-11 lg:min-h-8" onClick={onPickCover}>{style.coverFileId ? t("changeCover") : t("chooseCover")}</Button>}
+    {row("style-icon", SmilePlus, t("iconAndTitle"), style.header.icon, (v) => set({ header: { ...style.header, icon: v } }))}
+    {row("style-owner", CircleUser, t("owners"), style.header.owner, (v) => set({ header: { ...style.header, owner: v } }))}
+    {row("style-contributors", UsersRound, t("contributors"), style.header.contributors, (v) => set({ header: { ...style.header, contributors: v } }))}
+    {row("style-subtitle", Type, t("subtitle"), style.header.subtitle, (v) => set({ header: { ...style.header, subtitle: v } }))}
+    {row("style-updated", Clock, t("lastModified"), style.header.updated, (v) => set({ header: { ...style.header, updated: v } }))}
+    {heading(t("sections"))}
+    {choice(Rows3, t("subpages"), t(`subpageMode.${style.sections.subpages}`), subpageModes, style.sections.subpages, (v) => set({ sections: { ...style.sections, subpages: v as (typeof subpageModes)[number] } }), (v) => t(`subpageMode.${v as "off"}`))}
+    {choice(Link2, t("relationships"), t(`relationshipMode.${style.sections.relationships}`), relationshipModes, style.sections.relationships, (v) => set({ sections: { ...style.sections, relationships: v as (typeof relationshipModes)[number] } }), (v) => t(`relationshipMode.${v as "dialog"}`))}
+    {row("style-outline", ListTree, t("outline"), style.sections.outline, (v) => set({ sections: { ...style.sections, outline: v } }))}
+    {heading(t("focusMode"))}
+    {row("focus-block", Focus, t("focusBlock"), focusBlock, onFocusBlock, false)}
+    {row("focus-page", FileText, t("focusPage"), focusPage, onFocusPage, false)}
+    {heading(t("stats"))}
+    <dl className="space-y-1 text-sm" aria-label={t("stats")}>
+      <div className="flex min-h-9 items-center justify-between"><dt>{t("words")}</dt><dd className="tabular-nums">{stats.words}</dd></div>
+      <div className="flex min-h-9 items-center justify-between"><dt>{t("characters")}</dt><dd className="tabular-nums">{stats.characters}</dd></div>
+      <div className="flex min-h-9 items-center justify-between"><dt>{t("readingTime")}</dt><dd className="tabular-nums">{readingLabel(stats.words, (k, v) => t(k, v))}</dd></div>
     </dl>
-  </div>;
+    {row("style-stats", Text, t("showStats"), style.showStats, (v) => set({ showStats: v }))}
+  </div></PanelShell>;
 }
-const custom = (s: ResolvedPageStyle): PageStyle => ({ font: s.font, size: s.size, width: s.width, header: s.header, sections: s.sections });

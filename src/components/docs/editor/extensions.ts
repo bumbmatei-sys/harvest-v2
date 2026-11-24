@@ -1,4 +1,6 @@
-import { mergeAttributes, Node, type AnyExtension, type Editor } from "@tiptap/core";
+import { Extension, mergeAttributes, Node, type AnyExtension, type Editor } from "@tiptap/core";
+import { Plugin, PluginKey } from "@tiptap/pm/state";
+import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { ReactNodeViewRenderer } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import { TaskItem, TaskList } from "@tiptap/extension-list";
@@ -37,6 +39,18 @@ export const TableOfContents = Node.create({
   addNodeView() { return ReactNodeViewRenderer(TocView); },
 });
 
+/** Marks the top-level block the cursor is in, so block focus mode can dim the rest. */
+export const BlockFocus = Extension.create({
+  name: "blockFocus",
+  addProseMirrorPlugins() {
+    return [new Plugin({ key: new PluginKey("blockFocus"), props: { decorations(state) {
+      const { $from } = state.selection; if ($from.depth < 1) return null;
+      const pos = $from.before(1), node = state.doc.nodeAt(pos); if (!node) return null;
+      return DecorationSet.create(state.doc, [Decoration.node(pos, pos + node.nodeSize, { class: "is-current-block" })]);
+    } } })];
+  },
+});
+
 export type EditorLabels = { placeholder: string; summary: string };
 /** The Docs editor's extension set: the shared rich-text base (Tiptap StarterKit) plus tables, checklists, toggles, colours, alignment, banners, columns and an outline block. */
 export function docExtensions(labels: EditorLabels): AnyExtension[] {
@@ -50,7 +64,7 @@ export function docExtensions(labels: EditorLabels): AnyExtension[] {
     TaskList, TaskItem.configure({ nested: true }),
     Table.configure({ resizable: false }), TableRow, TableHeader, TableCell,
     Details.configure({ persist: true }), DetailsSummary, DetailsContent,
-    Callout, Columns, Column, TableOfContents,
+    Callout, Columns, Column, TableOfContents, BlockFocus,
     Placeholder.configure({ placeholder: ({ node }) => node.type.name === "detailsSummary" ? labels.summary : labels.placeholder, showOnlyCurrent: true, includeChildren: true }),
   ];
 }

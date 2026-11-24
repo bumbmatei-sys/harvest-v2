@@ -9,6 +9,7 @@ import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
 import { audit, id, loadDoc, needComment, needManage, requireDocsEnabled, userLabel } from "./docs-access";
 import { notify } from "./docs-notify";
+import { ministryPeople, type Person } from "./docs-sharing";
 
 export type CommentRow = { id: string; parentId: string | null; authorId: string; authorName: string; body: string; quote: string | null; status: "open" | "resolved"; assigneeId: string | null; assigneeName: string | null;
   resolvedByName: string | null; resolvedAt: string | null; createdAt: string; mentions: string[] };
@@ -24,7 +25,7 @@ async function onlyMembers(tx: Parameters<Parameters<typeof withTenant>[4]>[0], 
   return rows.map((r) => r.id);
 }
 
-export async function listThreads(db: Database, user: string, workspace: string, docId: string, pageId: string): Promise<{ threads: Thread[]; canComment: boolean }> {
+export async function listThreads(db: Database, user: string, workspace: string, docId: string, pageId: string): Promise<{ threads: Thread[]; canComment: boolean; people: Person[] }> {
   requireDocsEnabled();
   return withTenant(db, user, id(workspace), "docs:read", async (tx, tenantId, role) => {
     const { row, rights } = await loadDoc(tx, tenantId, id(docId), user, role);
@@ -36,7 +37,8 @@ export async function listThreads(db: Database, user: string, workspace: string,
     const mapped: CommentRow[] = rows.map((r) => ({ id: r.c.id, parentId: r.c.parentId, authorId: r.c.authorId, authorName: r.author, body: r.c.body, quote: r.c.quote, status: r.c.status, assigneeId: r.c.assigneeId, assigneeName: r.assigneeName,
       resolvedByName: r.resolverName, resolvedAt: r.c.resolvedAt ? r.c.resolvedAt.toISOString() : null, createdAt: r.c.createdAt.toISOString(), mentions: r.c.mentions }));
     const threads = mapped.filter((c) => !c.parentId).map((c) => ({ ...c, replies: mapped.filter((r) => r.parentId === c.id) }));
-    return { threads, canComment: rights.comment };
+    const people = rights.comment ? (await ministryPeople(tx, tenantId)).map(({ userId, name }) => ({ userId, name })) : [];
+    return { threads, canComment: rights.comment, people };
   });
 }
 

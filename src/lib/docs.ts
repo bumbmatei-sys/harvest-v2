@@ -86,19 +86,25 @@ export function sanitizeDocContent(input: unknown): DocContent {
   return clean(input, 0) as DocContent;
 }
 
-// Page styles (stored per page). Sparse: only values that differ from the defaults are kept.
+// Page styles (stored per page). Sparse: only values that differ from the defaults are kept. Older pages stored `subpages` as a boolean; it still reads.
 export const pageFonts = ["sans", "serif", "mono"] as const, pageSizes = ["small", "default", "large"] as const, pageWidths = ["default", "wide", "full"] as const;
+export const subpageModes = ["off", "list", "table"] as const, relationshipModes = ["dialog", "inline"] as const;
 export const pageStyleSchema = z.object({
   font: z.enum(pageFonts).optional(), size: z.enum(pageSizes).optional(), width: z.enum(pageWidths).optional(),
-  header: z.object({ icon: z.boolean().optional(), owner: z.boolean().optional(), updated: z.boolean().optional() }).strict().optional(),
-  sections: z.object({ subpages: z.boolean().optional(), outline: z.boolean().optional() }).strict().optional(),
+  header: z.object({ cover: z.boolean().optional(), icon: z.boolean().optional(), owner: z.boolean().optional(), contributors: z.boolean().optional(), subtitle: z.boolean().optional(), updated: z.boolean().optional() }).strict().optional(),
+  sections: z.object({ subpages: z.union([z.boolean(), z.enum(subpageModes)]).optional(), relationships: z.enum(relationshipModes).optional(), outline: z.boolean().optional() }).strict().optional(),
+  showStats: z.boolean().optional(), coverFileId: z.uuid().optional(),
 }).strict();
 export type PageStyle = z.infer<typeof pageStyleSchema>;
-export type ResolvedPageStyle = { font: (typeof pageFonts)[number]; size: (typeof pageSizes)[number]; width: (typeof pageWidths)[number]; header: { icon: boolean; owner: boolean; updated: boolean }; sections: { subpages: boolean; outline: boolean } };
+export type ResolvedPageStyle = { font: (typeof pageFonts)[number]; size: (typeof pageSizes)[number]; width: (typeof pageWidths)[number];
+  header: { cover: boolean; icon: boolean; owner: boolean; contributors: boolean; subtitle: boolean; updated: boolean };
+  sections: { subpages: (typeof subpageModes)[number]; relationships: (typeof relationshipModes)[number]; outline: boolean }; showStats: boolean; coverFileId: string | null };
 export function resolvePageStyle(style: PageStyle | null | undefined): ResolvedPageStyle {
+  const sub = style?.sections?.subpages;
   return { font: style?.font ?? "sans", size: style?.size ?? "default", width: style?.width ?? "default",
-    header: { icon: style?.header?.icon ?? true, owner: style?.header?.owner ?? true, updated: style?.header?.updated ?? true },
-    sections: { subpages: style?.sections?.subpages ?? false, outline: style?.sections?.outline ?? false } };
+    header: { cover: style?.header?.cover ?? false, icon: style?.header?.icon ?? true, owner: style?.header?.owner ?? true, contributors: style?.header?.contributors ?? false, subtitle: style?.header?.subtitle ?? false, updated: style?.header?.updated ?? true },
+    sections: { subpages: sub === true ? "list" : sub === false ? "off" : sub ?? "table", relationships: style?.sections?.relationships ?? "dialog", outline: style?.sections?.outline ?? false },
+    showStats: style?.showStats ?? false, coverFileId: style?.coverFileId ?? null };
 }
 
 // Names.

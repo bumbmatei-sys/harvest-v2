@@ -11,8 +11,9 @@ import { headingsOf, jumpToHeading, type Heading } from "@/components/docs/edito
 import { SlashCommand, slashLabel } from "@/components/docs/editor/slash-command";
 import { EditorToolbar } from "@/components/docs/editor/toolbar";
 import { contentStats, type DocContent } from "@/lib/docs";
+import { cn } from "@/lib/utils";
 
-export type SurfaceHandle = { focusStart: () => void; getContent: () => DocContent; jumpTo: (position: number) => void };
+export type SurfaceHandle = { focusStart: () => void; getContent: () => DocContent; jumpTo: (position: number) => void; selectionText: () => string; jumpToText: (text: string) => void; insertBlock: (kind: "table" | "columns" | "checklist") => void };
 export type SurfaceStats = ReturnType<typeof contentStats>;
 
 /**
@@ -20,8 +21,8 @@ export type SurfaceStats = ReturnType<typeof contentStats>;
  * (outline, statistics), a handle for the few commands the page needs. Replacing the engine means replacing this component, the folder `editor/`, and the content sanitiser
  * (`engine` and `schema_version` are stored with every page for that day). `theme` is passed for engines that need it; Tiptap follows the shell's colour tokens and ignores it.
  */
-export function DocEditorSurface({ content, readOnly, theme, showToolbar, bodyClassName, header, handleRef, onChange, onNewPage, onOutline, onStats }: {
-  content: DocContent; readOnly: boolean; theme?: "light" | "dark"; showToolbar: boolean; bodyClassName: string; header?: React.ReactNode; handleRef: RefObject<SurfaceHandle | null>;
+export function DocEditorSurface({ content, readOnly, theme, showToolbar, focusBlock = false, bodyClassName, header, handleRef, onChange, onNewPage, onOutline, onStats }: {
+  content: DocContent; readOnly: boolean; theme?: "light" | "dark"; showToolbar: boolean; focusBlock?: boolean; bodyClassName: string; header?: React.ReactNode; handleRef: RefObject<SurfaceHandle | null>;
   /** Called after every edit with a reader for the current content (read it only when saving). */
   onChange: (read: () => DocContent) => void;
   onNewPage: (child: boolean) => void; onOutline: (items: Heading[]) => void; onStats: (stats: SurfaceStats) => void;
@@ -51,13 +52,27 @@ export function DocEditorSurface({ content, readOnly, theme, showToolbar, bodyCl
     focusStart: () => { if (!editor) return; editor.view.dispatch(editor.state.tr.setSelection(Selection.atStart(editor.state.doc))); editor.view.focus(); },
     getContent: () => (editor?.getJSON() ?? content) as DocContent,
     jumpTo: (position) => { if (editor) jumpToHeading(editor, position); },
+    selectionText: () => { if (!editor) return ""; const { from, to } = editor.state.selection; return from === to ? "" : editor.state.doc.textBetween(from, to, " ").trim(); },
+    jumpToText: (text) => {
+      if (!editor || !text) return;
+      let found = -1;
+      editor.state.doc.descendants((node, pos) => { if (found < 0 && node.isText && node.text) { const at = node.text.indexOf(text); if (at >= 0) found = pos + at; } return found < 0; });
+      if (found >= 0) editor.chain().focus().setTextSelection({ from: found, to: found + text.length }).scrollIntoView().run();
+    },
+    insertBlock: (kind) => {
+      if (!editor) return;
+      const chain = editor.chain().focus("end");
+      if (kind === "table") chain.insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run();
+      else if (kind === "columns") chain.insertContent({ type: "columns", content: [{ type: "column", content: [{ type: "paragraph" }] }, { type: "column", content: [{ type: "paragraph" }] }] }).run();
+      else chain.toggleTaskList().run();
+    },
   }), [editor, content]);
   return <>
     {editor && showToolbar && <div className="shrink-0 border-b bg-card" data-docs-toolbar-bar><EditorToolbar editor={editor} /></div>}
     <div className="min-h-0 flex-1 overflow-y-auto" data-docs-scroll>
       <div className={bodyClassName}>
         {header}
-        <div className="relative mt-6 ps-0 sm:ps-10">
+        <div className={cn("relative mt-6 ps-0 sm:ps-10", focusBlock && "docs-focus-block")}>
           {editor && !readOnly && <BlockHandles editor={editor} />}
           <EditorContent editor={editor} />
         </div>

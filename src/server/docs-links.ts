@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ilike, inArray, isNull, ne, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNull, ne } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
 import { contacts, crmTasks, docLinks, docPages, docs } from "../db/schema";

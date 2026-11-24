@@ -2,6 +2,7 @@
 import { parseDocument } from "htmlparser2";
 import { marked } from "marked";
 import type { ChildNode, Element } from "domhandler";
+import { docHighlightColors } from "./theme-registry";
 import { docText, safeDocHref, type DocContent, type DocNode } from "./docs";
 
 const esc = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
@@ -20,7 +21,7 @@ function inlineHtml(node: DocNode): string {
     else if (mark.type === "code") out = `<code>${out}</code>`;
     else if (mark.type === "link") { const href = safeDocHref(mark.attrs?.href); if (href) out = `<a href="${esc(href)}" rel="nofollow noopener noreferrer ugc">${out}</a>`; }
     else if (mark.type === "textStyle" && typeof mark.attrs?.color === "string" && hex.test(mark.attrs.color)) out = `<span style="color:${mark.attrs.color}">${out}</span>`;
-    else if (mark.type === "highlight" && typeof mark.attrs?.color === "string" && hex.test(mark.attrs.color)) out = `<mark style="background-color:${mark.attrs.color};color:#000">${out}</mark>`;
+    else if (mark.type === "highlight" && typeof mark.attrs?.color === "string" && hex.test(mark.attrs.color)) out = `<mark style="background-color:${mark.attrs.color};color:black">${out}</mark>`;
   }
   return out;
 }
@@ -35,7 +36,7 @@ export function nodeToHtml(node: DocNode): string {
     case "orderedList": return `<ol>${kids(node, nodeToHtml)}</ol>`;
     case "listItem": return `<li>${kids(node, nodeToHtml)}</li>`;
     case "taskList": return `<ul data-type="taskList">${kids(node, nodeToHtml)}</ul>`;
-    case "taskItem": return `<li data-type="taskItem" data-checked="${node.attrs?.checked === true}">${node.attrs?.checked === true ? "&#9745; " : "&#9744; "}${kids(node, nodeToHtml)}</li>`;
+    case "taskItem": return `<li data-type="taskItem" data-checked="${node.attrs?.checked === true}">${node.attrs?.checked === true ? "☑ " : "☐ "}${kids(node, nodeToHtml)}</li>`;
     case "blockquote": return `<blockquote>${kids(node, nodeToHtml)}</blockquote>`;
     case "codeBlock": return `<pre><code>${esc(docText(node))}</code></pre>`;
     case "horizontalRule": return "<hr>";
@@ -46,7 +47,7 @@ export function nodeToHtml(node: DocNode): string {
     case "details": return `<details${node.attrs?.open === true ? " open" : ""}>${kids(node, nodeToHtml)}</details>`;
     case "detailsSummary": return `<summary>${kids(node, nodeToHtml)}</summary>`;
     case "detailsContent": return `<div>${kids(node, nodeToHtml)}</div>`;
-    case "callout": return `<div data-callout data-tone="${["info", "success", "warning", "danger"].includes(String(node.attrs?.tone)) ? node.attrs?.tone : "info"}" style="border-left:4px solid #999;padding:4px 12px">${kids(node, nodeToHtml)}</div>`;
+    case "callout": return `<div data-callout data-tone="${["info", "success", "warning", "danger"].includes(String(node.attrs?.tone)) ? node.attrs?.tone : "info"}" style="border-left:4px solid gray;padding:4px 12px">${kids(node, nodeToHtml)}</div>`;
     case "columns": return `<div data-columns>${kids(node, nodeToHtml)}</div>`;
     case "column": return `<div data-column>${kids(node, nodeToHtml)}</div>`;
     default: return "";
@@ -126,7 +127,7 @@ function inline(nodes: ChildNode[], marks: Marks, out: DocNode[], pre = false) {
       else if (tag === "u") next.push({ type: "underline" });
       else if (tag === "s" || tag === "strike" || tag === "del") next.push({ type: "strike" });
       else if (tag === "code") next.push({ type: "code" });
-      else if (tag === "mark") next.push({ type: "highlight", attrs: { color: "#fef08a" } });
+      else if (tag === "mark") next.push({ type: "highlight", attrs: { color: docHighlightColors[2] } });
       else if (tag === "a") { const href = safeDocHref(attr(n, "href")); if (href) next.push({ type: "link", attrs: { href } }); }
       else if (tag === "span") { const m = /(?:^|;)\s*color\s*:\s*(#[0-9a-f]{6})\b/i.exec(attr(n, "style") ?? ""); if (m) next.push({ type: "textStyle", attrs: { color: m[1].toLowerCase() } }); }
       inline(n.children, next, out, pre);
