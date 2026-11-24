@@ -3,7 +3,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { Copy, MailPlus, MoreHorizontal, Plus, Search } from "lucide-react";
+import { ChartLine, Copy, MailPlus, MoreHorizontal, Plus, Search } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -60,6 +60,7 @@ export function CampaignsList({ tenantId, ministryName, campaigns, brand }: { te
     when: c.scheduledAt ? new Date(c.scheduledAt).toLocaleString() : t("notScheduled"),
     actions: <DropdownMenu><DropdownMenuTrigger asChild><Button type="button" variant="ghost" size="icon" className="size-11" aria-label={t("menu", { name: c.name })}><MoreHorizontal aria-hidden="true" /></Button></DropdownMenuTrigger>
       <DropdownMenuContent align="end"><DropdownMenuItem className="min-h-11" onSelect={() => router.push(`${base}/${c.id}`)}>{t("open")}</DropdownMenuItem>
+        <DropdownMenuItem className="min-h-11" onSelect={() => router.push(`/workspaces/${tenantId}/newsletter/analytics/${c.id}`)}><ChartLine aria-hidden="true" />{t("analytics")}</DropdownMenuItem>
         <DropdownMenuItem className="min-h-11" onSelect={() => void duplicate(c)}><Copy aria-hidden="true" />{t("duplicate")}</DropdownMenuItem></DropdownMenuContent></DropdownMenu>,
   } }));
 
