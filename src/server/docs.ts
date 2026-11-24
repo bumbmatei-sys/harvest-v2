@@ -112,11 +112,14 @@ export async function deleteFolder(db: Database, user: string, workspace: string
       // Another person's docs may be inside: moving them is a change to the doc, so it needs the right to change each one.
       // The same holds for subfolders: row-level security skips another member's folder, so the move would silently leave it behind and the delete would fail.
       if (!(role === "owner" || role === "admin") && (inside.some((d) => d.ownerId !== user) || kids.some((k) => k.ownerId !== user))) throw denied();
-      if (inside.length) await tx.update(docs).set({ folderId: current.parentId, updatedAt: new Date() }).where(and(eq(docs.tenantId, tenantId), eq(docs.folderId, folderId)));
-      if (kids.length) {
-        const base = await nextFolderPosition(tx, tenantId, current.parentId);
-        let i = 0; for (const k of kids) await tx.update(docFolders).set({ parentId: current.parentId, position: base + i++, updatedAt: new Date() }).where(and(eq(docFolders.tenantId, tenantId), eq(docFolders.id, k.id)));
-      }
+      try {
+        await tx.execute(sql`savepoint folder_move`);
+        if (inside.length) await tx.update(docs).set({ folderId: current.parentId, updatedAt: new Date() }).where(and(eq(docs.tenantId, tenantId), eq(docs.folderId, folderId)));
+        if (kids.length) {
+          const base = await nextFolderPosition(tx, tenantId, current.parentId);
+          let i = 0; for (const k of kids) await tx.update(docFolders).set({ parentId: current.parentId, position: base + i++, updatedAt: new Date() }).where(and(eq(docFolders.tenantId, tenantId), eq(docFolders.id, k.id)));
+        }
+      } catch (error) { await tx.execute(sql`rollback to savepoint folder_move`); if (taken(error)) throw new AccessError(409, message("Errors.folderNameTaken")); throw error; }
     }
     try {
       await tx.execute(sql`savepoint folder_delete`);

@@ -54,6 +54,15 @@ describe("folders", () => {
     await expect(fixture.admin.query("update doc_folders set parent_id=$1 where id=$2", [mid.id, top.id])).rejects.toMatchObject({ code: "23514" });
   });
 
+  it("answers 409, not 500, when moving a subfolder up one level would clash with a sibling name", async () => {
+    const parent = await createFolder(db(), owner, tenant, { name: "Clash parent" });
+    await createFolder(db(), owner, tenant, { name: "Same name", parentId: parent.id });
+    const folder = await createFolder(db(), owner, tenant, { name: "Clash me", parentId: parent.id });
+    await createFolder(db(), owner, tenant, { name: "Same name", parentId: folder.id });
+    expect(await status(deleteFolder(db(), owner, tenant, folder.id, { mode: "move_to_parent" }))).toBe(409);
+    expect((await listDocs(db(), owner, tenant, { folderId: parent.id })).folders.some((f) => f.id === folder.id)).toBe(true);
+  });
+
   it("never deletes a non-empty folder silently: refuse with counts, or move the contents up one level", async () => {
     const parent = await createFolder(db(), owner, tenant, { name: "Del parent" });
     const folder = await createFolder(db(), owner, tenant, { name: "Del me", parentId: parent.id });
