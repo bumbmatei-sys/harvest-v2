@@ -101,6 +101,20 @@ test("audience: lens counts, filters, lists, saved groups, consent rules and the
   await expect(page.getByRole("heading", { name: /^Bens/ })).toBeVisible();
   await expect(page.getByRole("grid").getByText("Ben Ready")).toBeVisible();
 
+  // Rename the saved group, then delete it (archive): the chip follows, then disappears.
+  await page.goto(base);
+  await page.getByRole("button", { name: "Actions for Bens" }).click();
+  await page.getByRole("menuitem", { name: "Rename" }).click();
+  await page.getByLabel("Group name").fill("Bens club");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("link", { name: "Bens club" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Bens", exact: true })).toHaveCount(0);
+  await shoot(page, "groups");
+  await page.getByRole("button", { name: "Actions for Bens club" }).click();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete", exact: true }).click();
+  await expect(page.getByRole("link", { name: "Bens club" })).toHaveCount(0);
+
   // Delete the list: it is gone from the lens.
   await page.goto(base);
   await page.getByRole("button", { name: "Actions for Weekly news" }).click();

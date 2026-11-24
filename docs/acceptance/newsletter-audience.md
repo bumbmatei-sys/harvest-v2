@@ -18,6 +18,7 @@ Audience is a newsletter lens over CRM people, not a contact list. There is no n
 - The list itself is the shared CRM `ListPage`, `RecordGrid`, filter popover, search, sort, columns, saved views and paging. `listContacts` gained a `ListExtension` (extra predicate, extra columns) so the lens runs the same predicate, count and paging as CRM People; `personRows` was extracted from the People page so a person renders the same in both. `ListPage` got `basePath`, `eyebrow`, `lens` and `toolbarExtra` slots. `RecordGrid` cells gained a generic request `action` (icon button, one request, refresh).
 - Lists: create (a default audience is created on first use), rename (version checked, names unique ignoring case among live lists), delete (hides the list from the Send step, the editor and recipient resolution; memberships and consent history are kept; refused while a reviewed, scheduled or sending email uses it), add people (one at a time through the shared record picker), remove from this list (records an unsubscribe on that list only).
 - Adding is subscribe-only-with-consent: the same `mayContact` decision as sending. A person without a recorded grant is reported "No recorded newsletter consent" and not changed. Suppressed or bounced people are refused.
+- Saved groups can be renamed and deleted from their chips (see "Saved group rename and delete" below).
 - Saved group from the current filter: stores the filter as a shared CRM person view and pins it as an NL-01 segment (source rules refused, as the existing segment API does). It then appears in the Send step.
 - Permissions: owners, admins and members read (`newsletter:read`); owners and admins manage (`newsletter:manage`); viewers and other ministries see nothing (404 or the no-access note).
 - Import links to the existing CRM import. No new importer, no new exporter.
@@ -32,7 +33,6 @@ Audience is a newsletter lens over CRM people, not a contact list. There is no n
 ## Deferred, hard-off, not in this PR
 
 - Sign-up forms and sender or domain setup (later slices).
-- Deleting or renaming saved groups (segments have no delete grant; needs its own migration decision).
 - Adding many people at once ("add everyone matching this filter") and a bulk remove.
 - Export of the lens: the CRM People export does not know the lens status (status is derived, not a CRM filter). Use CRM People with the Newsletter filter for an export that matches.
 - Multiple audiences: the screen uses the earliest audience of the ministry; the API still allows several.
@@ -50,3 +50,11 @@ Reuses ListPage, RecordGrid, ListToolbar, ViewMenu, FilterBuilder, RecordPicker,
 ## Evidence
 
 Unit: `tests/unit/navigation.test.ts` (live entry, CRM Campaigns never matches newsletter routes). Integration (restricted migration owner): `tests/integration/newsletter-audience.test.ts` (status derivation, no inferred grants, do-not-contact, shared predicates and saved groups, list create, rename, delete, stale and role rules, remove from one list, suppressed, erase and merge cleanup, new column). E2E: `tests/e2e/newsletter-audience.spec.ts` with axe, no horizontal scroll and screenshots at 360, 768 and 1280, light and dark, in `docs/screenshots/newsletter-audience/`; `settings-popup.spec.ts` lists the Audience link.
+
+## Saved group rename and delete (follow-up PR)
+
+- Rename: owners and admins, from the chip menu. It renames the NL-01 saved group and the shared CRM view it points to in one transaction. The view version moves with the name and the group's pinned version follows, so a campaign that pinned the old version no longer matches at review and must be reviewed again (`SELECTION_CHANGED`); nothing goes out on a stale pin. Names are unique among live groups, ignoring case. A stale form is a 409.
+- Delete = archive, as for lists: new nullable `newsletter_segments.archived_at` (migration `0086_newsletter_group_archive`, no other schema; existing FORCE RLS, grants and guard trigger apply, no new function or foreign key, so erase and merge are untouched). An archived group disappears from the Audience chips, the Send step (`pageNewsletterConfiguration`) and recipient resolution (`selectionPins`). It is refused (409) while a reviewed, scheduled or sending email pins it. The shared CRM view and all consent history stay.
+- Members read, viewers see nothing, other ministries see nothing; only owners and admins write (`newsletter:manage`).
+- Known edge: if someone edits the shared view's filter in CRM People after the group was saved, the group is already unusable (its pin no longer matches) and archive is blocked by the existing segment guard until the group is recreated.
+- Evidence: integration test in `tests/integration/newsletter-audience.test.ts` (rename versions and pins, names, roles, tenants, in-use refusal, hidden everywhere, new column); e2e rename and delete with axe at 360, 768 and 1280, light and dark (new `groups-*` screenshots).
