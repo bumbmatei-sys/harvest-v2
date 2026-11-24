@@ -2801,3 +2801,56 @@ export const docFavorites = pgTable("doc_favorites", {
   tenantId: uuid("tenant_id").notNull(), docId: uuid("doc_id").notNull(), userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.docId, t.userId] }), foreignKey({ name: "doc_favorites_doc_fk", columns: [t.tenantId, t.docId], foreignColumns: [docs.tenantId, docs.id] }).onDelete("cascade")]);
+
+// ---- Link in bio (migration 0094) ------------------------------------------------------------------------------------------------------------------------
+// One public page per ministry. `draft` is what the editor saves; `published` is the immutable copy the public address serves. Anonymous reads and writes go through
+// SECURITY DEFINER functions (public page, photo, click, message), never straight to a table. Policies, grants and the functions are in the migration.
+export const bioPages = pgTable("bio_pages", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  handle: text("handle").notNull(),
+  status: text("status").$type<"draft" | "published">().notNull().default("draft"),
+  draft: jsonb("draft").$type<import("../lib/link-in-bio").BioDefinition>().notNull(),
+  version: integer("version").notNull().default(1),
+  photoFileId: uuid("photo_file_id"),
+  published: jsonb("published").$type<import("../lib/link-in-bio").BioDefinition>(),
+  publishedPhotoFileId: uuid("published_photo_file_id"),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [unique("bio_pages_tenant_id_uq").on(t.tenantId, t.id), unique("bio_pages_tenant_uq").on(t.tenantId), uniqueIndex("bio_pages_handle_uq").on(t.handle),
+  check("bio_pages_handle", sql`public.valid_bio_handle(${t.handle})`), check("bio_pages_status", sql`${t.status} in ('draft','published')`),
+  check("bio_pages_draft", sql`jsonb_typeof(${t.draft})='object' and ${t.draft}->>'kind'='bio-v1' and pg_column_size(${t.draft})<=65536`),
+  check("bio_pages_published", sql`(${t.status}='published') = (${t.published} is not null) and (${t.published} is null or (jsonb_typeof(${t.published})='object' and pg_column_size(${t.published})<=65536))`)]);
+export const bioFiles = pgTable("bio_files", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(), pageId: uuid("page_id").notNull(),
+  uploaderId: text("uploader_id").references(() => users.id, { onDelete: "set null" }),
+  key: text("key").notNull().unique(), kind: text("kind").notNull().default("photo"), name: text("name").notNull(), mime: text("mime").notNull(), size: integer("size").notNull(),
+  checksum: text("checksum").notNull(), status: text("status").$type<"pending" | "uploaded" | "quarantined" | "ready">().notNull().default("pending"),
+  retiredAt: timestamp("retired_at", { withTimezone: true }), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("bio_files_page").on(t.tenantId, t.pageId), foreignKey({ columns: [t.tenantId, t.pageId], foreignColumns: [bioPages.tenantId, bioPages.id] }).onDelete("cascade"),
+  check("bio_file_kind", sql`${t.kind}='photo'`), check("bio_file_mime", sql`${t.mime} in ('image/jpeg','image/png','image/webp')`),
+  check("bio_file_name", sql`length(btrim(${t.name})) between 1 and 200`), check("bio_file_size", sql`${t.size} between 1 and 10485760`),
+  check("bio_file_checksum", sql`${t.checksum} ~ '^[a-f0-9]{64}$'`), check("bio_file_status", sql`${t.status} in ('pending','uploaded','quarantined','ready')`),
+  check("bio_file_key", sql`${t.key} = 'workspaces/' || ${t.tenantId}::text || '/bio/' || ${t.pageId}::text || '/files/' || ${t.id}::text`)]);
+// Aggregate clicks only: a block, a day and a count. No visitor, address, agent or referrer is kept.
+export const bioClicks = pgTable("bio_clicks", {
+  tenantId: uuid("tenant_id").notNull(), pageId: uuid("page_id").notNull(), blockId: text("block_id").notNull(), day: date("day").notNull(), clicks: integer("clicks").notNull(),
+}, (t) => [primaryKey({ columns: [t.pageId, t.blockId, t.day] }), foreignKey({ columns: [t.tenantId, t.pageId], foreignColumns: [bioPages.tenantId, bioPages.id] }).onDelete("cascade"),
+  check("bio_clicks_block", sql`${t.blockId} ~ '^[a-z0-9]{8}$'`), check("bio_clicks_count", sql`${t.clicks} > 0`)]);
+// "Message me" submissions: stored like hosted form responses (90 days), tied to the CRM person they created or matched. Erasing or merging that person removes or moves them.
+export const bioMessages = pgTable("bio_messages", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull(), pageId: uuid("page_id").notNull(), contactId: uuid("contact_id").notNull(),
+  name: text("name").notNull(), email: text("email").notNull(), body: text("body").notNull(), notice: text("notice").notNull(),
+  status: text("status").$type<"new" | "handled">().notNull().default("new"), requestHash: text("request_hash").notNull(), createdContact: boolean("created_contact").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }), index("bio_messages_listing_idx").on(t.tenantId, t.createdAt, t.id), index("bio_messages_contact_idx").on(t.tenantId, t.contactId),
+  foreignKey({ columns: [t.tenantId, t.pageId], foreignColumns: [bioPages.tenantId, bioPages.id] }).onDelete("cascade"),
+  foreignKey({ columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }).onDelete("cascade"),
+  check("bio_messages_status", sql`${t.status} in ('new','handled')`), check("bio_messages_hash", sql`${t.requestHash} ~ '^[a-f0-9]{64}$'`),
+  check("bio_messages_lengths", sql`length(${t.name}) between 1 and 100 and length(${t.email}) between 3 and 254 and length(${t.body}) between 1 and 2000`),
+  check("bio_messages_expiry", sql`${t.expiresAt} > ${t.createdAt}`)]);
+export const bioQuotas = pgTable("bio_quotas", { scope: text("scope").notNull(), minute: timestamp("minute", { withTimezone: true }).notNull(), attempts: integer("attempts").notNull() },
+  (t) => [primaryKey({ columns: [t.scope, t.minute] }), index("bio_quota_expiry_idx").on(t.minute)]);
+export const bioReceipts = pgTable("bio_receipts", { id: uuid("id").primaryKey(), expiresAt: timestamp("expires_at", { withTimezone: true }).notNull() }, (t) => [index("bio_receipt_expiry_idx").on(t.expiresAt)]);

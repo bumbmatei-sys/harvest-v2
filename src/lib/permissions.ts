@@ -32,6 +32,8 @@ export type Permission = "workspace:read" | "members:write" | "roles:write" | "c
   | "crm:reports"
   // Docs: every role reads; owners, admins and members create docs and edit the ones they own (database policy); owners and admins manage all.
   | "docs:read" | "docs:write" | "docs:manage"
+  // Link in bio: owners and admins only (the page, its clicks and its messages).
+  | "bio:manage"
   | "newsletter:read" | "newsletter:manage" | "newsletter:campaigns" | "newsletter:delivery" | "newsletter:analytics";
 export function can(role: string, permission: Permission): boolean {
   if (permission === "communities:read" || permission === "workspace:read" || permission === "contacts:read" || permission === "companies:read" || permission === "opportunities:read" || permission === "tasks:read" || permission === "notes:read" || permission === "campaigns:read" || permission === "docs:read") return roleIds.includes(role as Role);

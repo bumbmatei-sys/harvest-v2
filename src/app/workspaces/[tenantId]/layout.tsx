@@ -8,6 +8,7 @@ import { AppShell } from "@/components/app-shell";
 import { communitiesEnabled } from "@/server/communities-mode";
 import { eventsEnabled } from "@/server/events";
 import { newsletterEnabled } from "@/server/newsletter";
+import { linkInBioEnabled } from "@/server/link-in-bio-mode";
 import { docsEnabled } from "@/server/docs";
 import { officeScreensEnabled } from "@/server/office-gate";
 import { socialScreensEnabled } from "@/server/social-publish-gate";
@@ -22,5 +23,5 @@ export default async function WorkspaceLayout({ children, params }: { children: 
   const workspace = await getWorkspace(getDb(), session.user.id, tenantId).catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; });
   if (!workspace) return <AppShell defaultOpen={defaultOpen} workspaces={workspaces} email={session.user.email} settings={plain}>{children}</AppShell>;
   const settings = can(workspace.role, "social:connect") ? await shellSettings(getDb(), session.user.id, { socialStaff: true }) : plain;
-  return <AppShell defaultOpen={defaultOpen} workspaces={workspaces} selected={tenantId} email={session.user.email} brandTheme={workspace.brandTheme} features={[...(communitiesEnabled() ? ["communities" as const] : []), ...(eventsEnabled() ? ["events" as const] : []), ...(socialScreensEnabled() ? ["social" as const] : []), ...(officeScreensEnabled() ? ["office" as const] : []), ...(newsletterEnabled() ? ["newsletter" as const] : []), ...(docsEnabled() ? ["docs" as const] : [])]} modeSwitcher={shellModesEnabled()} settings={settings}>{children}</AppShell>;
+  return <AppShell defaultOpen={defaultOpen} workspaces={workspaces} selected={tenantId} email={session.user.email} brandTheme={workspace.brandTheme} features={[...(communitiesEnabled() ? ["communities" as const] : []), ...(eventsEnabled() ? ["events" as const] : []), ...(socialScreensEnabled() ? ["social" as const] : []), ...(officeScreensEnabled() ? ["office" as const] : []), ...(newsletterEnabled() ? ["newsletter" as const] : []), ...(docsEnabled() ? ["docs" as const] : []), ...(linkInBioEnabled() ? ["linkInBio" as const] : [])]} modeSwitcher={shellModesEnabled()} settings={settings}>{children}</AppShell>;
 }

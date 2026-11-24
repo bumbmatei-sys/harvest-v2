@@ -26,11 +26,13 @@ type Status =
  * the event's cover; replace and remove. Uploading and choosing a cover take effect at once (they are their own requests, not part of Save).
  * The picture shown comes from `url`, a short-lived signed address the server hands out; no storage address is ever built here.
  */
-export function EventCoverPicker({ endpoint, saved, coverFileId, version, url, onUrlFailed, onChange, onBusyChange, disabled = false }: {
+export function EventCoverPicker({ endpoint, saved, coverFileId, version, url, onUrlFailed, onChange, onBusyChange, disabled = false, namespace = "Events.cover" }: {
   endpoint: string; saved: boolean; coverFileId: string | null; version: number; url: string | null; onUrlFailed: () => void;
   onChange: (change: CoverChange) => void; onBusyChange: (busy: boolean) => void; disabled?: boolean;
+  /** Message namespace of the labels (the same keys); Link in bio reuses this control for its profile photo. */
+  namespace?: "Events.cover" | "LinkInBio.cover";
 }) {
-  const t = useTranslations("Events.cover"), request = useCrmRequest();
+  const t = useTranslations(namespace), request = useCrmRequest();
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [dragging, setDragging] = useState(false), [confirmRemove, setConfirmRemove] = useState(false);
   const input = useRef<HTMLInputElement>(null), file = useRef<File | null>(null), abort = useRef<AbortController | null>(null);
