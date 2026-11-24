@@ -27,7 +27,10 @@ async function capture(page: Page, name: string, ready: () => Promise<void>) {
   await expectFullWidthShell(page);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: `${evidence}/${name}.png`, fullPage: true, animations: "disabled" });
-  const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
+  const run = () => new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
+  let result = await run();
+  // The stat cards (shared, unchanged) fade their figures in once per visit; a contrast reading taken mid-fade is not a finding, so read again once.
+  if (result.violations.length && result.violations.every((violation) => violation.id === "color-contrast")) { await page.waitForTimeout(1500); result = await run(); }
   expect(result.violations.map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(" ")).join(", ")}`), name).toEqual([]);
 }
 async function api(page: Page, method: "get" | "post" | "put" | "patch", path: string, data?: unknown) {
@@ -105,16 +108,20 @@ test("CRM reports follow-ups: time zone, stage movement and export", async ({ pa
 
   // Settings: the zone is a field of Ministry settings for owners and admins.
   await page.goto(`${root}/settings`);
-  const zone = page.getByLabel("Time zone", { exact: true });
-  await expect(zone).toHaveValue("Pacific/Auckland");
-  await zone.selectOption("America/New_York");
+  const zone = page.getByRole("combobox", { name: /Time zone/ });
+  await expect(zone).toContainText("Pacific/Auckland");
+  await expect(zone).toContainText(/UTC\+1[23]/); // local time and offset are shown
+  await zone.click();
+  await page.getByPlaceholder("Search time zones").fill("New York");
+  await page.getByRole("option", { name: /New York/ }).click();
+  await expect(zone).toContainText("America/New_York");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByRole("region", { name: "Notifications" }).getByText("Ministry settings saved.", { exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByLabel("Time zone", { exact: true })).toHaveValue("America/New_York");
+  await expect(page.getByRole("combobox", { name: /Time zone/ })).toContainText("America/New_York");
   for (const [width, height] of [[1280, 900], [768, 1024], [360, 800]] as const) {
     await page.setViewportSize({ width, height });
-    for (const mode of ["light", "dark"] as const) { await setMode(page, mode); await capture(page, `settings-owner-${width}-${mode}`, async () => { await expect(page.getByLabel("Time zone", { exact: true })).toBeVisible(); }); }
+    for (const mode of ["light", "dark"] as const) { await setMode(page, mode); await capture(page, `settings-owner-${width}-${mode}`, async () => { await expect(page.getByRole("combobox", { name: /Time zone/ })).toBeVisible(); }); }
   }
   await setMode(page, "light");
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -133,7 +140,7 @@ test("CRM reports follow-ups: time zone, stage movement and export", async ({ pa
   expect((await api(member, "patch", `${apiRoot}/time-zone`, { timeZone: "UTC" })).status).toBe(403);
   // Viewer: sees the zone, cannot change it, no export.
   await viewer.goto(`${root}/settings`);
-  await expect(viewer.getByLabel("Time zone", { exact: true })).toBeDisabled();
+  await expect(viewer.getByRole("combobox", { name: /Time zone/ })).toBeDisabled();
   expect((await api(viewer, "get", `${apiRoot}/crm/reports/export?table=deals`)).status).toBe(403);
   expect((await api(viewer, "patch", `${apiRoot}/time-zone`, { timeZone: "UTC" })).status).toBe(403);
   expect(pageErrors).toEqual([]);

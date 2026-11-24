@@ -35,13 +35,12 @@ CREATE POLICY first_source_read ON public.contact_first_sources FOR SELECT TO ha
   AND EXISTS (SELECT FROM public.workspace_members m WHERE m.tenant_id = contact_first_sources.tenant_id
     AND m.user_id = nullif(current_setting('app.user_id', true), '') AND m.role_id IN ('owner', 'admin')));
 GRANT SELECT ON public.contact_first_sources TO harvest_app;
-DO $$
-BEGIN
-  EXECUTE format('CREATE POLICY first_source_definer ON public.contact_first_sources TO %I
-    USING (tenant_id IN (nullif(current_setting(''app.tenant_id'', true), '''')::uuid, nullif(current_setting(''app.crm_forms_tenant'', true), '''')::uuid))
-    WITH CHECK (tenant_id IN (nullif(current_setting(''app.tenant_id'', true), '''')::uuid, nullif(current_setting(''app.crm_forms_tenant'', true), '''')::uuid))',
-    current_user);
-END $$;
+-- The writers are the owners of the definer functions, which differ between environments (the migration runner here, another role on Neon),
+-- so the policy is not tied to current_user: it applies to every role except the app role, whose only access is the read policy above
+-- (and which has no INSERT, UPDATE or DELETE privilege on the table).
+CREATE POLICY first_source_definer ON public.contact_first_sources TO PUBLIC
+  USING (current_user <> 'harvest_app' AND tenant_id IN (nullif(current_setting('app.tenant_id', true), '')::uuid, nullif(current_setting('app.crm_forms_tenant', true), '')::uuid))
+  WITH CHECK (current_user <> 'harvest_app' AND tenant_id IN (nullif(current_setting('app.tenant_id', true), '')::uuid, nullif(current_setting('app.crm_forms_tenant', true), '')::uuid));
 --> statement-breakpoint
 -- A new source event credits the person only if it is earlier than the credit they already have.
 CREATE FUNCTION public.contact_first_source_event() RETURNS trigger
@@ -60,8 +59,12 @@ CREATE TRIGGER contact_first_source_event AFTER INSERT ON public.contact_source_
 -- A later source replaces the provisional manual one: the paths that create a person through another source delete the manual event first.
 CREATE FUNCTION public.contact_first_source_manual_removed() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE previous text := coalesce(current_setting('app.tenant_id', true), '');
 BEGIN
+  -- Scope to the row's own tenant (the 0032 pattern) so the delete does not depend on the caller's context, then put the caller's back.
+  PERFORM set_config('app.tenant_id', OLD.tenant_id::text, true);
   DELETE FROM public.contact_first_sources WHERE tenant_id = OLD.tenant_id AND contact_id = OLD.contact_id AND kind = 'manual';
+  PERFORM set_config('app.tenant_id', previous, true);
   RETURN OLD;
 END $$;
 REVOKE ALL ON FUNCTION public.contact_first_source_manual_removed() FROM PUBLIC, harvest_app;
@@ -71,10 +74,13 @@ CREATE TRIGGER contact_first_source_manual_removed AFTER DELETE ON public.contac
 -- A reverted import row no longer credits the person: the credit falls back to the earliest remaining evidence, or to nothing.
 CREATE FUNCTION public.contact_first_source_reverted() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE previous text := coalesce(current_setting('app.tenant_id', true), ''); credited boolean;
 BEGIN
+  PERFORM set_config('app.tenant_id', NEW.tenant_id::text, true);
   DELETE FROM public.contact_first_sources
     WHERE tenant_id = NEW.tenant_id AND contact_id = NEW.contact_id AND kind = NEW.kind AND first_seen_at = NEW.occurred_at;
-  IF FOUND THEN
+  credited := FOUND;
+  IF credited THEN
     INSERT INTO public.contact_first_sources(tenant_id, contact_id, kind, first_seen_at)
       SELECT u.tenant_id, u.contact_id, u.kind, u.occurred_at FROM (
         SELECT e.tenant_id, e.contact_id, e.kind, e.occurred_at, e.id::text AS tie FROM public.contact_source_events e
@@ -84,6 +90,7 @@ BEGIN
           WHERE t.tenant_id = NEW.tenant_id AND t.contact_id = NEW.contact_id) u
       ORDER BY u.occurred_at, u.tie LIMIT 1;
   END IF;
+  PERFORM set_config('app.tenant_id', previous, true);
   RETURN NEW;
 END $$;
 REVOKE ALL ON FUNCTION public.contact_first_source_reverted() FROM PUBLIC, harvest_app;
@@ -93,8 +100,15 @@ CREATE TRIGGER contact_first_source_reverted AFTER UPDATE OF reverted_at ON publ
 -- Erasure removes the durable source with the person.
 CREATE FUNCTION public.contact_first_source_before_erase() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE previous text := coalesce(current_setting('app.tenant_id', true), '');
 BEGIN
+  PERFORM set_config('app.tenant_id', OLD.tenant_id::text, true);
   DELETE FROM public.contact_first_sources WHERE tenant_id = OLD.tenant_id AND contact_id = OLD.id;
+  -- Never leave a durable source behind an erased person: a row that survives (a policy that hid it) stops the erasure.
+  IF EXISTS (SELECT 1 FROM public.contact_first_sources WHERE tenant_id = OLD.tenant_id AND contact_id = OLD.id) THEN
+    RAISE EXCEPTION 'durable source not removed' USING ERRCODE = '23000';
+  END IF;
+  PERFORM set_config('app.tenant_id', previous, true);
   RETURN NEW;
 END $$;
 REVOKE ALL ON FUNCTION public.contact_first_source_before_erase() FROM PUBLIC, harvest_app;
@@ -129,12 +143,10 @@ CREATE POLICY stage_moves_read ON public.crm_deal_stage_moves FOR SELECT TO harv
   AND EXISTS (SELECT FROM public.workspace_members m WHERE m.tenant_id = crm_deal_stage_moves.tenant_id
     AND m.user_id = nullif(current_setting('app.user_id', true), '') AND m.role_id IN ('owner', 'admin')));
 GRANT SELECT ON public.crm_deal_stage_moves TO harvest_app;
-DO $$
-BEGIN
-  EXECUTE format('CREATE POLICY stage_moves_definer ON public.crm_deal_stage_moves TO %I
-    USING (tenant_id = nullif(current_setting(''app.tenant_id'', true), '''')::uuid)
-    WITH CHECK (tenant_id = nullif(current_setting(''app.tenant_id'', true), '''')::uuid)', current_user);
-END $$;
+-- Not tied to current_user, for the same reason as first_source_definer above.
+CREATE POLICY stage_moves_definer ON public.crm_deal_stage_moves TO PUBLIC
+  USING (current_user <> 'harvest_app' AND tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)
+  WITH CHECK (current_user <> 'harvest_app' AND tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid);
 --> statement-breakpoint
 -- Recorded for every path that changes a deal's stage. A person who is not a user (or is gone) leaves moved_by empty rather than blocking the move.
 CREATE FUNCTION public.crm_deal_stage_moved() RETURNS trigger

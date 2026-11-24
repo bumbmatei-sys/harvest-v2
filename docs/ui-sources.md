@@ -432,3 +432,7 @@ List and editor. Founder rule (24 Nov): "design of the reference, style of Studi
 - **Not in the kit, free or Harvest-written**: the slash menu, block handles (Tiptap drag handle, MIT), banners, columns, table of contents, page tree, page styles panel and the Docs menu. `Toggle` (`src/components/ui/toggle.tsx`) is the shadcn toggle, free.
 - **Engine**: Tiptap free core, MIT, approved for Docs: `@tiptap/extension-table`, `-text-style`, `-highlight`, `-text-align`, `-details`, `-drag-handle`, `-drag-handle-react`, `suggestion` (all 3.33.1). The kit's own Tiptap extensions (image placeholder, search and replace) are not used.
 - **Reference screenshots** (the founder's 22 images of a document editor) are the layout and flow reference only: no branding, copy, imagery or vendor names are reproduced.
+
+### Ministry settings redesign (24 Nov)
+
+Premium kit `bumbmatei-sys/admin-dashboard` (commit `1631106`), under the founder's standing instruction "Use anything that is pro in the kit". Modelled on, no kit code copied (identical lines by `scripts/ui-identical.sh`): `src/components/settings/settings-section.tsx` (1 of 15, 6%, from `pages/settings/layout.tsx`), `src/components/ministry-type-cards.tsx` (3 of 19, 15%, from `pages/settings/appearance/page.tsx`), `src/components/time-zone-combobox.tsx` (from the language combobox in `pages/settings/account/page.tsx`). Used by the Ministry settings page and the Settings pop-up ministry section. Listed in `src/lib/ui-provenance.ts` (`adminDashboardReferences`).

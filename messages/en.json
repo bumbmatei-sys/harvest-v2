@@ -2893,10 +2893,16 @@
     "couldNotSaveTryAgain": "Could not save. Try again.",
     "couldNotConnectPleaseTryAgain": "Could not connect. Please try again.",
     "onlyOwnersAndAdmins": "Only owners and admins can change ministry settings.",
-    "timeZone": "Time zone"
+    "timeZone": "Time zone",
+    "typeTitle": "Ministry type",
+    "typeDescription": "Shapes the wording and modules Harvest shows you.",
+    "zoneDescription": "Report periods and dates follow this zone.",
+    "unsaved": "Unsaved changes",
+    "savedState": "Saved"
   },
   "AppWorkspacesSettingsPage": {
-    "ministrySettings": "Ministry settings"
+    "ministrySettings": "Ministry settings",
+    "description": "Your ministry type and time zone."
   },
   "CommunitiesPage": {
     "title": "Communities",
@@ -7072,5 +7078,10 @@
       "body": "Confirm your sign-up to {ministry} ({form}) with this link: {link}",
       "fallbackMinistry": "the ministry"
     }
+  },
+  "ComponentsTimeZoneCombobox": {
+    "search": "Search time zones",
+    "none": "No time zone found.",
+    "utc": "UTC"
   }
 }

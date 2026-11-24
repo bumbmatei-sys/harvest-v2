@@ -5,11 +5,10 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useHydrated } from "@/hooks/use-hydrated";
 import type { Audience } from "@/lib/audience";
-import { AudienceField } from "@/components/audience-field";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Label } from "@/components/ui/label";
-import { NativeSelect } from "@/components/ui/native-select";
-import { timeZoneChoices } from "@/lib/time-zone";
+import { MinistryTypeCards } from "@/components/ministry-type-cards";
+import { SettingsSection } from "@/components/settings/settings-section";
+import { TimeZoneCombobox } from "@/components/time-zone-combobox";
 import { StickySaveBar } from "@/components/sticky-save-bar";
 import { Button } from "@/components/ui/button";
 import { notify } from "@/lib/toast";
@@ -41,14 +40,18 @@ export function MinistrySettingsForm({ tenantId, current, timeZone: currentZone 
     } catch { setError(t("couldNotConnectPleaseTryAgain")); }
     finally { setBusy(false); }
   }
-  return <form id={formId} onSubmit={save} className="space-y-4">
+  const suffix = inline ? "-inline" : "", level = inline ? 3 : 2;
+  return <form id={formId} onSubmit={save} className="space-y-4" data-testid="ministry-settings">
     {error && <Alert variant="destructive"><AlertDescription>{error}</AlertDescription></Alert>}
-    <AudienceField id={`ministry-audience${inline ? "-inline" : ""}`} value={audience} onChange={setAudience} disabled={!hydrated || !writable || busy} />
-    <div className="space-y-2"><Label htmlFor={`ministry-time-zone${inline ? "-inline" : ""}`}>{t("timeZone")}</Label>
-      <NativeSelect id={`ministry-time-zone${inline ? "-inline" : ""}`} className="min-h-11 w-full lg:min-h-9" value={zone} onChange={(event) => setZone(event.target.value)} disabled={!hydrated || !writable || busy}>
-        {timeZoneChoices(savedZone).map((name) => <option key={name} value={name}>{name}</option>)}</NativeSelect></div>
-    {writable && inline ? <Button type="submit" className="min-h-11" disabled={!hydrated || busy || !dirty || !audience}>{t(busy ? "saving" : "save")}</Button>
-      : writable ? <StickySaveBar form={formId} dirty={dirty} busy={busy} saveDisabled={!audience} onDiscard={() => { setAudience(saved); setZone(savedZone); setError(""); }} />
-      : <Alert><AlertDescription>{t("onlyOwnersAndAdmins")}</AlertDescription></Alert>}
+    {!writable && <Alert><AlertDescription>{t("onlyOwnersAndAdmins")}</AlertDescription></Alert>}
+    <SettingsSection id={`ministry-type${suffix}`} title={t("typeTitle")} description={t("typeDescription")} stacked={inline} level={level}>
+      <MinistryTypeCards id={`ministry-audience${suffix}`} labelledBy={`ministry-type${suffix}-title`} value={audience} onChange={setAudience} disabled={!hydrated || !writable || busy} />
+    </SettingsSection>
+    <SettingsSection id={`ministry-zone${suffix}`} title={t("timeZone")} description={t("zoneDescription")} stacked={inline} level={level}>
+      <TimeZoneCombobox id={`ministry-time-zone${suffix}`} labelledBy={`ministry-zone${suffix}-title`} value={zone} onChange={setZone} disabled={!hydrated || !writable || busy} />
+    </SettingsSection>
+    {writable && inline ? <div className="flex items-center gap-3"><Button type="submit" className="min-h-11" disabled={!hydrated || busy || !dirty || !audience}>{t(busy ? "saving" : "save")}</Button>
+      <span role="status" className="text-sm text-muted-foreground">{dirty ? t("unsaved") : t("savedState")}</span></div>
+      : writable ? <StickySaveBar form={formId} dirty={dirty} busy={busy} saveDisabled={!audience} onDiscard={() => { setAudience(saved); setZone(savedZone); setError(""); }} /> : null}
   </form>;
 }

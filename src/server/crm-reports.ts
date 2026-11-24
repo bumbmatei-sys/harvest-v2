@@ -109,17 +109,17 @@ export function getCrmReport(db: Database, userId: string, workspace: string, pe
 }
 
 type Tx = Parameters<Parameters<typeof withTenant>[4]>[0];
-/** Moves between neighbouring stages (forward, same pipeline) of deals that are not archived. Counts use the same region suppression as the rest; the median is withheld with its row. */
+/** Moves between neighbouring stages (forward, same pipeline; a step between two closed stages, such as Won to Lost, is not listed) of deals that are not archived. Counts use the same region suppression as the rest; the median is withheld with its row. */
 async function stageMovement(tx: Tx, tenantId: string, scope: { bounded: ReturnType<typeof bound>; regions: number[]; window: { start: Date; end: Date }; now: Date }): Promise<NonNullable<CrmReport["stages"]>> {
   const { bounded, regions, window, now } = scope, first = sql`(select min(b.at) from unnest(${bounded}) as b(at))`;
   const tracked = (await tx.execute<{ at: Date | null }>(sql`select min(moved_at) as at from public.crm_deal_stage_moves where tenant_id = ${tenantId}::uuid`)).rows[0]?.at ?? null;
   const pairs = (await tx.execute<{ pipeline_id: string; pipeline: string; from_id: string; from_name: string; to_id: string; to_name: string }>(sql`
-    with ordered as (select st.id, st.pipeline_id, st.name, row_number() over (partition by st.pipeline_id order by st.position, st.id) as rn
+    with ordered as (select st.id, st.pipeline_id, st.name, st.kind, row_number() over (partition by st.pipeline_id order by st.position, st.id) as rn
       from public.crm_pipeline_stages st where st.tenant_id = ${tenantId}::uuid and st.archived_at is null)
     select p.id as pipeline_id, p.name as pipeline, f.id as from_id, f.name as from_name, t.id as to_id, t.name as to_name
     from ordered f join ordered t on t.pipeline_id = f.pipeline_id and t.rn = f.rn + 1
     join public.crm_pipelines p on p.tenant_id = ${tenantId}::uuid and p.id = f.pipeline_id
-    where p.archived_at is null order by p.name, p.id, f.rn`)).rows;
+    where p.archived_at is null and not (f.kind <> 'open' and t.kind <> 'open') order by p.name, p.id, f.rn`)).rows;
   // Entered-at = the previous move of the same deal, or the deal's creation. Computed over all moves, then cut to the period.
   const moved = sql`
     select m.from_stage_id, m.to_stage_id, m.moved_at, extract(epoch from (m.moved_at - coalesce(lag(m.moved_at) over (partition by m.deal_id order by m.moved_at, m.id), o.created_at))) as seconds

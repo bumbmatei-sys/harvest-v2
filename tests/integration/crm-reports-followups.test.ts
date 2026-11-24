@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { testDatabase } from "../database";
-import { auditLogs, users } from "../../src/db/schema";
+import { users } from "../../src/db/schema";
 import { createWorkspace, getWorkspace, putMember, updateWorkspaceTimeZone } from "../../src/server/workspaces";
 import { createContact, eraseContact } from "../../src/server/contacts";
 import { createDeal, listPipelines, moveDeal, updateDeal } from "../../src/server/crm-deals";
@@ -166,6 +166,19 @@ describe("durable first source", () => {
     await eraseContact(f.db, "owner", tenant, person.id);
     expect(await durable(person.id)).toEqual([]);
   });
+  it("removes the provisional manual credit whatever tenant context the caller has, and puts the caller's context back", async () => {
+    const person = await born("Synthetic other context");
+    expect(await durable(person.id)).toHaveLength(1);
+    const client = await f.admin.connect();
+    try {
+      await client.query("begin");
+      await client.query("select set_config('app.tenant_id', $1, true)", [other]); // the caller is working in another ministry
+      await client.query("delete from contact_source_events where contact_id = $1", [person.id]);
+      expect((await client.query("select current_setting('app.tenant_id', true) as t")).rows[0].t).toBe(other);
+      await client.query("commit");
+    } finally { client.release(); }
+    expect(await durable(person.id)).toEqual([]);
+  });
   it("keeps the earliest source on the kept person when two people merge", async () => {
     const keep = await born("Synthetic keep"), drop = await born("Synthetic drop");
     await run("update contact_first_sources set kind = 'manual', first_seen_at = '2026-10-20T00:00:00Z' where contact_id = $1", [keep.id]);
@@ -226,7 +239,9 @@ describe("stage movement", () => {
     for (let n = 0; n < 5; n++) { const deal = await dealIn(0, 1); await backdate("update opportunities set created_at = '2026-11-14T12:00:00Z' where id = $1", [deal.id]); await run("update crm_deal_stage_moves set moved_at = '2026-11-18T12:00:00Z' where deal_id = $1", [deal.id]); }
     for (let n = 0; n < 3; n++) { const deal = await dealIn(1, 2); await run("update crm_deal_stage_moves set moved_at = '2026-11-18T12:00:00Z' where deal_id = $1", [deal.id]); }
     const report = await getCrmReport(f.db, "owner", tenant, "last7", now), pairs = report.stages!.pairs;
-    expect(pairs).toHaveLength(stage.length - 1);
+    expect(pairs).toHaveLength(stage.length - 2); // Won to Lost (two closed stages) is not listed
+    expect(pairs.map((pair) => `${pair.from}>${pair.to}`)).not.toContain("Won>Lost");
+    expect(pairs.at(-1)).toMatchObject({ to: "Won" });
     expect(pairs[0]).toMatchObject({ moved: 5, medianDays: 4 });
     expect(pairs[1]).toMatchObject({ moved: null, medianDays: null });
     expect(pairs[2]).toMatchObject({ moved: 0, medianDays: null });

@@ -122,3 +122,20 @@ describe("report CSV", () => {
     expect(["owner", "admin", "member", "viewer"].map((role) => can(role, "crm:reports_export"))).toEqual([true, true, false, false]);
   });
 });
+
+import { groupedTimeZones, localTimeLabel, utcOffsetLabel } from "../../src/lib/time-zone-label";
+describe("time zone picker labels", () => {
+  it("shows the UTC offset and local time of a zone at an instant", () => {
+    const at = new Date("2026-11-24T00:00:00Z");
+    expect(utcOffsetLabel("UTC", at)).toBe("UTC");
+    expect(utcOffsetLabel("Pacific/Auckland", at)).toBe("UTC+13");
+    expect(utcOffsetLabel("America/New_York", at)).toBe("UTC-5");
+    expect(utcOffsetLabel("Asia/Kolkata", at)).toBe("UTC+5:30");
+    expect(localTimeLabel("Pacific/Auckland", at, "en-US")).toBe("1:00 PM");
+  });
+  it("groups zones by region with UTC first and the current zone included", () => {
+    const groups = groupedTimeZones("Europe/Berlin");
+    expect(groups[0]).toEqual({ region: "UTC", zones: ["UTC"] });
+    expect(groups.find((group) => group.region === "Europe")?.zones).toContain("Europe/Berlin");
+  });
+});
