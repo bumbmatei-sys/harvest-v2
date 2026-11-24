@@ -1,5 +1,5 @@
 {
-  "id": "f2bc05ab-7755-4e8b-999a-99d7afbdf8ab",
+  "id": "a83eb973-97e2-4513-9aef-712279b3653b",
   "prevId": "84aff272-edee-405b-a4ac-031fa52f3767",
   "version": "7",
   "dialect": "postgresql",
@@ -15729,6 +15729,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "subtitle": {
+          "name": "subtitle",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
         "engine": {
           "name": "engine",
           "type": "text",
@@ -15907,6 +15914,10 @@
           "name": "doc_pages_title_len",
           "value": "char_length(\"doc_pages\".\"title\") <= 200"
         },
+        "doc_pages_subtitle_len": {
+          "name": "doc_pages_subtitle_len",
+          "value": "char_length(\"doc_pages\".\"subtitle\") <= 200"
+        },
         "doc_pages_engine_known": {
           "name": "doc_pages_engine_known",
           "value": "\"doc_pages\".\"engine\" in ('tiptap')"
@@ -15939,6 +15950,12 @@
         "doc_id": {
           "name": "doc_id",
           "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "owner_id": {
+          "name": "owner_id",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -16007,6 +16024,21 @@
           "columnsTo": [
             "tenant_id",
             "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "doc_shares_owner_fk": {
+          "name": "doc_shares_owner_fk",
+          "tableFrom": "doc_shares",
+          "tableTo": "docs",
+          "columnsFrom": [
+            "doc_id",
+            "owner_id"
+          ],
+          "columnsTo": [
+            "id",
+            "owner_id"
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
@@ -16252,6 +16284,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "wiki": {
+          "name": "wiki",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "title": {
           "name": "title",
           "type": "text",
@@ -16394,6 +16433,14 @@
           "columns": [
             "tenant_id",
             "id"
+          ]
+        },
+        "docs_id_owner_uq": {
+          "name": "docs_id_owner_uq",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id",
+            "owner_id"
           ]
         }
       },

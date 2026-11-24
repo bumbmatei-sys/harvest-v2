@@ -15,3 +15,15 @@ export function docsRoute<P>(run: (args: { db: ReturnType<typeof getDb>; user: s
   };
 }
 export const docsQuery = (request: Request) => Object.fromEntries(new URL(request.url).searchParams.entries());
+
+/** Like `docsRoute` for a download: the handler returns { filename, mime, body }. */
+export function docsFileRoute<P>(run: (args: { db: ReturnType<typeof getDb>; user: string; params: P; request: Request }) => Promise<{ filename: string; mime: string; body: string }>) {
+  return async (request: Request, context: { params: Promise<P> }) => {
+    if (!docsEnabled()) return new Response(null, { status: 404 });
+    try {
+      const sessionUser = await verifiedSessionUser(request), params = await context.params;
+      const file = await run({ db: getDb(), user: sessionUser.id, params, request });
+      return new Response(file.body, { headers: { "Content-Type": file.mime, "Content-Disposition": `attachment; filename="${file.filename.replace(/[^A-Za-z0-9._-]/g, "_")}"`, "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff" } });
+    } catch (e) { return errorResponse(e); }
+  };
+}

@@ -2774,12 +2774,12 @@ export const docs = pgTable("docs", {
   kind: text("kind").$type<"document" | "spreadsheet">().notNull().default("document"),
   // Who can read: `private` (the owner, people it is shared with, owners and admins) or `ministry` (every member, at `ministryAccess`). The public link is hard-off unless the non-production gate allows it.
   visibility: text("visibility").$type<"private" | "ministry">().notNull().default("private"), ministryAccess: text("ministry_access").$type<"view" | "comment" | "edit">().notNull().default("view"),
-  publicEnabled: boolean("public_enabled").notNull().default(false), publicTokenHash: text("public_token_hash"),
+  publicEnabled: boolean("public_enabled").notNull().default(false), publicTokenHash: text("public_token_hash"), wiki: boolean("wiki").notNull().default(false),
   title: text("title").notNull(), ownerId: text("owner_id").notNull().references(() => users.id),
   version: integer("version").notNull().default(1),
   archivedAt: timestamp("archived_at", { withTimezone: true }), deletedAt: timestamp("deleted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [unique("docs_tenant_id_uq").on(t.tenantId, t.id), index("docs_folder_idx").on(t.tenantId, t.folderId, t.updatedAt),
+}, (t) => [unique("docs_tenant_id_uq").on(t.tenantId, t.id), unique("docs_id_owner_uq").on(t.id, t.ownerId), index("docs_folder_idx").on(t.tenantId, t.folderId, t.updatedAt),
   foreignKey({ name: "docs_folder_fk", columns: [t.tenantId, t.folderId], foreignColumns: [docFolders.tenantId, docFolders.id] }).onDelete("restrict"),
   check("docs_title_len", sql`char_length(${t.title}) <= 200`), check("docs_kind_known", sql`${t.kind} in ('document','spreadsheet')`), check("docs_visibility_known", sql`${t.visibility} in ('private','ministry') and ${t.ministryAccess} in ('view','comment','edit')`),
   uniqueIndex("docs_public_token_uq").on(t.publicTokenHash).where(sql`${t.publicTokenHash} is not null`)]);
@@ -2787,7 +2787,7 @@ export const docPages = pgTable("doc_pages", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").notNull(), docId: uuid("doc_id").notNull(), parentId: uuid("parent_id"),
   position: integer("position").notNull().default(0),
-  title: text("title").notNull().default(""), icon: text("icon"),
+  title: text("title").notNull().default(""), icon: text("icon"), subtitle: text("subtitle").notNull().default(""),
   // The body is the editor engine's own JSON; `engine` names the engine and `schemaVersion` its content schema, so the engine can be replaced without guessing.
   engine: text("engine").notNull().default("tiptap"), schemaVersion: integer("schema_version").notNull().default(1),
   content: jsonb("content").$type<import("../lib/docs").DocContent>().notNull(),
@@ -2799,7 +2799,7 @@ export const docPages = pgTable("doc_pages", {
 }, (t) => [unique("doc_pages_doc_id_uq").on(t.docId, t.id), index("doc_pages_tree_idx").on(t.docId, t.parentId, t.position),
   foreignKey({ name: "doc_pages_doc_fk", columns: [t.tenantId, t.docId], foreignColumns: [docs.tenantId, docs.id] }).onDelete("restrict"),
   foreignKey({ name: "doc_pages_parent_fk", columns: [t.docId, t.parentId], foreignColumns: [t.docId, t.id] }).onDelete("restrict"),
-  check("doc_pages_title_len", sql`char_length(${t.title}) <= 200`), check("doc_pages_engine_known", sql`${t.engine} in ('tiptap')`), check("doc_pages_content_object", sql`jsonb_typeof(${t.content})='object' AND pg_column_size(${t.content})<=524288`),
+  check("doc_pages_title_len", sql`char_length(${t.title}) <= 200`), check("doc_pages_subtitle_len", sql`char_length(${t.subtitle}) <= 200`), check("doc_pages_engine_known", sql`${t.engine} in ('tiptap')`), check("doc_pages_content_object", sql`jsonb_typeof(${t.content})='object' AND pg_column_size(${t.content})<=524288`),
   check("doc_pages_style_object", sql`jsonb_typeof(${t.style})='object' AND pg_column_size(${t.style})<=2048`), check("doc_pages_not_own_parent", sql`${t.parentId} is distinct from ${t.id}`)]);
 export const docFavorites = pgTable("doc_favorites", {
   tenantId: uuid("tenant_id").notNull(), docId: uuid("doc_id").notNull(), userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
@@ -2809,10 +2809,12 @@ export const docFavorites = pgTable("doc_favorites", {
 // Docs slice 2: sharing, comments, relationships, templates, history, attachments and in-app notifications. No table here points to `contacts` (erase and merge stay untouched):
 // a link to a person is a plain id that is looked up, with the viewer's own CRM rights, when it is read.
 export const docShares = pgTable("doc_shares", {
-  tenantId: uuid("tenant_id").notNull(), docId: uuid("doc_id").notNull(), userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  tenantId: uuid("tenant_id").notNull(), docId: uuid("doc_id").notNull(),
+  // The doc's owner, copied in and pinned to the real owner by a composite foreign key, so the write policy can name who may share without reading `docs` (whose policy reads this table).
+  ownerId: text("owner_id").notNull(), userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   role: text("role").$type<"view" | "comment" | "edit">().notNull(), createdBy: text("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [primaryKey({ columns: [t.docId, t.userId] }), foreignKey({ name: "doc_shares_doc_fk", columns: [t.tenantId, t.docId], foreignColumns: [docs.tenantId, docs.id] }).onDelete("cascade"), check("doc_shares_role_known", sql`${t.role} in ('view','comment','edit')`)]);
+}, (t) => [primaryKey({ columns: [t.docId, t.userId] }), foreignKey({ name: "doc_shares_doc_fk", columns: [t.tenantId, t.docId], foreignColumns: [docs.tenantId, docs.id] }).onDelete("cascade"), foreignKey({ name: "doc_shares_owner_fk", columns: [t.docId, t.ownerId], foreignColumns: [docs.id, docs.ownerId] }).onDelete("cascade"), check("doc_shares_role_known", sql`${t.role} in ('view','comment','edit')`)]);
 export const docComments = pgTable("doc_comments", {
   id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id").notNull(), docId: uuid("doc_id").notNull(), pageId: uuid("page_id").notNull(), parentId: uuid("parent_id"),
   authorId: text("author_id").notNull().references(() => users.id), body: text("body").notNull(), quote: text("quote"),

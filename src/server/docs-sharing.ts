@@ -40,7 +40,7 @@ export async function setShare(db: Database, user: string, workspace: string, do
     const [member] = await tx.select({ id: workspaceMembers.userId }).from(workspaceMembers).where(and(eq(workspaceMembers.tenantId, tenantId), eq(workspaceMembers.userId, input.userId)));
     if (!member) throw bad("Errors.shareNotMember");
     const [before] = await tx.select({ role: docShares.role }).from(docShares).where(and(eq(docShares.docId, row.id), eq(docShares.userId, input.userId)));
-    await tx.insert(docShares).values({ tenantId, docId: row.id, userId: input.userId, role: input.role as "view", createdBy: user }).onConflictDoUpdate({ target: [docShares.docId, docShares.userId], set: { role: input.role as "view" } });
+    await tx.insert(docShares).values({ tenantId, docId: row.id, ownerId: row.ownerId, userId: input.userId, role: input.role as "view", createdBy: user }).onConflictDoUpdate({ target: [docShares.docId, docShares.userId], set: { role: input.role as "view" } });
     if (!before) await notify(tx, tenantId, user, [input.userId], "shared", row.id, null, null);
     await audit(tx, tenantId, user, "docs.share.set", row.id, { userId: input.userId, role: input.role });
     return { ok: true };

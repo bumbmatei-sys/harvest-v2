@@ -72,6 +72,7 @@ CREATE TABLE "doc_page_versions" (
 CREATE TABLE "doc_shares" (
 	"tenant_id" uuid NOT NULL,
 	"doc_id" uuid NOT NULL,
+	"owner_id" text NOT NULL,
 	"user_id" text NOT NULL,
 	"role" text NOT NULL,
 	"created_by" text NOT NULL,
@@ -98,10 +99,13 @@ CREATE TABLE "doc_templates" (
 	CONSTRAINT "doc_templates_pages" CHECK (jsonb_typeof("doc_templates"."pages")='array' and pg_column_size("doc_templates"."pages")<=524288)
 );
 --> statement-breakpoint
+ALTER TABLE "docs" ADD CONSTRAINT "docs_id_owner_uq" UNIQUE("id","owner_id");--> statement-breakpoint
+ALTER TABLE "doc_pages" ADD COLUMN "subtitle" text DEFAULT '' NOT NULL;--> statement-breakpoint
 ALTER TABLE "docs" ADD COLUMN "visibility" text DEFAULT 'private' NOT NULL;--> statement-breakpoint
 ALTER TABLE "docs" ADD COLUMN "ministry_access" text DEFAULT 'view' NOT NULL;--> statement-breakpoint
 ALTER TABLE "docs" ADD COLUMN "public_enabled" boolean DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE "docs" ADD COLUMN "public_token_hash" text;--> statement-breakpoint
+ALTER TABLE "docs" ADD COLUMN "wiki" boolean DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE "doc_attachments" ADD CONSTRAINT "doc_attachments_file_id_files_id_fk" FOREIGN KEY ("file_id") REFERENCES "public"."files"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "doc_attachments" ADD CONSTRAINT "doc_attachments_attached_by_users_id_fk" FOREIGN KEY ("attached_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "doc_attachments" ADD CONSTRAINT "doc_attachments_doc_fk" FOREIGN KEY ("tenant_id","doc_id") REFERENCES "public"."docs"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -124,6 +128,7 @@ ALTER TABLE "doc_page_versions" ADD CONSTRAINT "doc_page_versions_doc_fk" FOREIG
 ALTER TABLE "doc_shares" ADD CONSTRAINT "doc_shares_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "doc_shares" ADD CONSTRAINT "doc_shares_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "doc_shares" ADD CONSTRAINT "doc_shares_doc_fk" FOREIGN KEY ("tenant_id","doc_id") REFERENCES "public"."docs"("tenant_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "doc_shares" ADD CONSTRAINT "doc_shares_owner_fk" FOREIGN KEY ("doc_id","owner_id") REFERENCES "public"."docs"("id","owner_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "doc_templates" ADD CONSTRAINT "doc_templates_tenant_id_workspaces_tenant_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."workspaces"("tenant_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "doc_templates" ADD CONSTRAINT "doc_templates_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "doc_templates" ADD CONSTRAINT "doc_templates_updated_by_users_id_fk" FOREIGN KEY ("updated_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -134,8 +139,8 @@ CREATE INDEX "doc_notifications_user_idx" ON "doc_notifications" USING btree ("u
 CREATE INDEX "doc_page_versions_page_idx" ON "doc_page_versions" USING btree ("page_id","created_at");--> statement-breakpoint
 CREATE INDEX "doc_templates_tenant_idx" ON "doc_templates" USING btree ("tenant_id","category");--> statement-breakpoint
 CREATE UNIQUE INDEX "docs_public_token_uq" ON "docs" USING btree ("public_token_hash") WHERE "docs"."public_token_hash" is not null;--> statement-breakpoint
-ALTER TABLE "docs" ADD CONSTRAINT "docs_visibility_known" CHECK ("docs"."visibility" in ('private','ministry') and "docs"."ministry_access" in ('view','comment','edit'));
---> statement-breakpoint
+ALTER TABLE "doc_pages" ADD CONSTRAINT "doc_pages_subtitle_len" CHECK (char_length("doc_pages"."subtitle") <= 200);--> statement-breakpoint
+ALTER TABLE "docs" ADD CONSTRAINT "docs_visibility_known" CHECK ("docs"."visibility" in ('private','ministry') and "docs"."ministry_access" in ('view','comment','edit'));--> statement-breakpoint
 -- Docs slice 2: per-doc privacy replaces the slice 1 ministry-wide read. Docs that existed before keep their old reach (the whole ministry reads them).
 UPDATE public.docs SET visibility='ministry', ministry_access='view'
 --> statement-breakpoint
@@ -285,23 +290,15 @@ CREATE POLICY docs_remove ON public.doc_pages FOR DELETE TO harvest_app USING (t
 CREATE POLICY docs_share_read ON public.doc_shares FOR SELECT TO harvest_app USING (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND EXISTS (SELECT FROM public.workspace_members m WHERE m.tenant_id=doc_shares.tenant_id AND m.user_id=nullif(current_setting('app.user_id',true),'')))
 --> statement-breakpoint
 
-CREATE POLICY docs_share_insert ON public.doc_shares FOR INSERT TO harvest_app WITH CHECK (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND EXISTS (SELECT FROM public.docs d JOIN public.workspace_members m ON m.tenant_id=d.tenant_id AND m.user_id=nullif(current_setting('app.user_id',true),'')
-      WHERE d.tenant_id=doc_shares.tenant_id AND d.id=doc_shares.doc_id
-      AND public.docs_rank(m.role_id,d.owner_id=m.user_id,d.visibility,d.ministry_access,(SELECT s.role FROM public.doc_shares s WHERE s.doc_id=d.id AND s.user_id=m.user_id))>=4))
---> statement-breakpoint
 
-CREATE POLICY docs_share_update ON public.doc_shares FOR UPDATE TO harvest_app USING (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND EXISTS (SELECT FROM public.docs d JOIN public.workspace_members m ON m.tenant_id=d.tenant_id AND m.user_id=nullif(current_setting('app.user_id',true),'')
-      WHERE d.tenant_id=doc_shares.tenant_id AND d.id=doc_shares.doc_id
-      AND public.docs_rank(m.role_id,d.owner_id=m.user_id,d.visibility,d.ministry_access,(SELECT s.role FROM public.doc_shares s WHERE s.doc_id=d.id AND s.user_id=m.user_id))>=4)) WITH CHECK (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND EXISTS (SELECT FROM public.docs d JOIN public.workspace_members m ON m.tenant_id=d.tenant_id AND m.user_id=nullif(current_setting('app.user_id',true),'')
-      WHERE d.tenant_id=doc_shares.tenant_id AND d.id=doc_shares.doc_id
-      AND public.docs_rank(m.role_id,d.owner_id=m.user_id,d.visibility,d.ministry_access,(SELECT s.role FROM public.doc_shares s WHERE s.doc_id=d.id AND s.user_id=m.user_id))>=4))
---> statement-breakpoint
 
-CREATE POLICY docs_share_delete ON public.doc_shares FOR DELETE TO harvest_app USING (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND EXISTS (SELECT FROM public.docs d JOIN public.workspace_members m ON m.tenant_id=d.tenant_id AND m.user_id=nullif(current_setting('app.user_id',true),'')
-      WHERE d.tenant_id=doc_shares.tenant_id AND d.id=doc_shares.doc_id
-      AND public.docs_rank(m.role_id,d.owner_id=m.user_id,d.visibility,d.ministry_access,(SELECT s.role FROM public.doc_shares s WHERE s.doc_id=d.id AND s.user_id=m.user_id))>=4))
---> statement-breakpoint
 
+CREATE POLICY docs_share_insert ON public.doc_shares FOR INSERT TO harvest_app WITH CHECK (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND EXISTS (SELECT FROM public.workspace_members m WHERE m.tenant_id=doc_shares.tenant_id AND m.user_id=nullif(current_setting('app.user_id',true),'') AND (m.role_id IN ('owner','admin') OR (m.user_id=doc_shares.owner_id AND m.role_id<>'viewer'))))
+--> statement-breakpoint
+CREATE POLICY docs_share_update ON public.doc_shares FOR UPDATE TO harvest_app USING (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND EXISTS (SELECT FROM public.workspace_members m WHERE m.tenant_id=doc_shares.tenant_id AND m.user_id=nullif(current_setting('app.user_id',true),'') AND (m.role_id IN ('owner','admin') OR (m.user_id=doc_shares.owner_id AND m.role_id<>'viewer')))) WITH CHECK (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND EXISTS (SELECT FROM public.workspace_members m WHERE m.tenant_id=doc_shares.tenant_id AND m.user_id=nullif(current_setting('app.user_id',true),'') AND (m.role_id IN ('owner','admin') OR (m.user_id=doc_shares.owner_id AND m.role_id<>'viewer'))))
+--> statement-breakpoint
+CREATE POLICY docs_share_delete ON public.doc_shares FOR DELETE TO harvest_app USING (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND (EXISTS (SELECT FROM public.workspace_members m WHERE m.tenant_id=doc_shares.tenant_id AND m.user_id=nullif(current_setting('app.user_id',true),'') AND (m.role_id IN ('owner','admin') OR (m.user_id=doc_shares.owner_id AND m.role_id<>'viewer'))) OR user_id=nullif(current_setting('app.user_id',true),'')))
+--> statement-breakpoint
 CREATE POLICY docs_comment_read ON public.doc_comments FOR SELECT TO harvest_app USING (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND EXISTS (SELECT FROM public.docs d JOIN public.workspace_members m ON m.tenant_id=d.tenant_id AND m.user_id=nullif(current_setting('app.user_id',true),'')
       WHERE d.tenant_id=doc_comments.tenant_id AND d.id=doc_comments.doc_id
       AND public.docs_rank(m.role_id,d.owner_id=m.user_id,d.visibility,d.ministry_access,(SELECT s.role FROM public.doc_shares s WHERE s.doc_id=d.id AND s.user_id=m.user_id))>=1))
@@ -418,7 +415,9 @@ GRANT SELECT, INSERT ON public.doc_notifications TO harvest_app
 GRANT UPDATE (read_at) ON public.doc_notifications TO harvest_app
 --> statement-breakpoint
 
-GRANT UPDATE (visibility, ministry_access, public_enabled, public_token_hash) ON public.docs TO harvest_app
+GRANT UPDATE (visibility, ministry_access, public_enabled, public_token_hash, wiki) ON public.docs TO harvest_app
+--> statement-breakpoint
+GRANT UPDATE (subtitle) ON public.doc_pages TO harvest_app
 --> statement-breakpoint
 
 CREATE FUNCTION public.docs_sharing_guard() RETURNS trigger LANGUAGE plpgsql SET search_path=pg_catalog,pg_temp AS $$
