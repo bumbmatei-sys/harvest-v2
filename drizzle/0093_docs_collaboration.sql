@@ -287,7 +287,8 @@ CREATE POLICY docs_remove ON public.doc_pages FOR DELETE TO harvest_app USING (t
       AND public.docs_rank(m.role_id,d.owner_id=m.user_id,d.visibility,d.ministry_access,(SELECT s.role FROM public.doc_shares s WHERE s.doc_id=d.id AND s.user_id=m.user_id))>=3))
 --> statement-breakpoint
 
-CREATE POLICY docs_share_read ON public.doc_shares FOR SELECT TO harvest_app USING (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND EXISTS (SELECT FROM public.workspace_members m WHERE m.tenant_id=doc_shares.tenant_id AND m.user_id=nullif(current_setting('app.user_id',true),'')))
+-- Who shares a private doc is private too: a row is readable by the person it names, by the doc's owner and by owners and admins. (The rank checks in the doc policies only read the caller's own share row.)
+CREATE POLICY docs_share_read ON public.doc_shares FOR SELECT TO harvest_app USING (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND EXISTS (SELECT FROM public.workspace_members m WHERE m.tenant_id=doc_shares.tenant_id AND m.user_id=nullif(current_setting('app.user_id',true),'') AND (m.role_id IN ('owner','admin') OR m.user_id=doc_shares.owner_id OR m.user_id=doc_shares.user_id)))
 --> statement-breakpoint
 
 
@@ -388,7 +389,8 @@ CREATE POLICY docs_notification_read ON public.doc_notifications FOR SELECT TO h
 --> statement-breakpoint
 
 CREATE POLICY docs_notification_insert ON public.doc_notifications FOR INSERT TO harvest_app WITH CHECK (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND actor_id=nullif(current_setting('app.user_id',true),'') AND EXISTS (SELECT FROM public.workspace_members m WHERE m.tenant_id=doc_notifications.tenant_id AND m.user_id=nullif(current_setting('app.user_id',true),''))
-  AND EXISTS(SELECT FROM public.workspace_members r WHERE r.tenant_id=doc_notifications.tenant_id AND r.user_id=doc_notifications.user_id))
+  AND EXISTS(SELECT FROM public.workspace_members r WHERE r.tenant_id=doc_notifications.tenant_id AND r.user_id=doc_notifications.user_id)
+  AND EXISTS (SELECT FROM public.docs d JOIN public.workspace_members m2 ON m2.tenant_id=d.tenant_id AND m2.user_id=nullif(current_setting('app.user_id',true),'') WHERE d.tenant_id=doc_notifications.tenant_id AND d.id=doc_notifications.doc_id AND public.docs_rank(m2.role_id,d.owner_id=m2.user_id,d.visibility,d.ministry_access,(SELECT s.role FROM public.doc_shares s WHERE s.doc_id=d.id AND s.user_id=m2.user_id))>=1))
 --> statement-breakpoint
 
 CREATE POLICY docs_notification_update ON public.doc_notifications FOR UPDATE TO harvest_app USING (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND user_id=nullif(current_setting('app.user_id',true),'')) WITH CHECK (tenant_id=nullif(current_setting('app.tenant_id',true),'')::uuid AND user_id=nullif(current_setting('app.user_id',true),''))
@@ -449,9 +451,47 @@ REVOKE ALL ON FUNCTION public.doc_comments_guard() FROM PUBLIC
 CREATE TRIGGER doc_comments_guard BEFORE UPDATE ON public.doc_comments FOR EACH ROW EXECUTE FUNCTION public.doc_comments_guard()
 
 --> statement-breakpoint
+-- Deliberately tenant-less: a session-less reader has no tenant. Safe because the stored hash is unique (partial unique index) and the token is 32 random bytes, so a guess has negligible chance; the app gate keeps the whole path off in production.
 -- The optional public link (hard-off in code unless the non-production gate allows it): a session-less read of the one doc whose stored token hash the server presents.
 CREATE POLICY docs_public_read ON public.docs FOR SELECT TO harvest_app
   USING (public_enabled AND public_token_hash IS NOT NULL AND public_token_hash=nullif(current_setting('app.docs_public_hash',true),''))
 --> statement-breakpoint
 CREATE POLICY docs_public_read ON public.doc_pages FOR SELECT TO harvest_app
   USING (EXISTS (SELECT FROM public.docs d WHERE d.id=doc_pages.doc_id AND d.public_enabled AND d.public_token_hash IS NOT NULL AND d.public_token_hash=nullif(current_setting('app.docs_public_hash',true),'')))
+--> statement-breakpoint
+-- A contact link follows the person: erasing a contact removes the links to it (they hold no foreign key), and a merge moves them to the kept contact.
+-- Same pattern as contact_form_sources (0082): a SECURITY DEFINER hook, with a policy for the function owner scoped to the current tenant and to contact links only.
+DO $$
+BEGIN
+  EXECUTE format('CREATE POLICY docs_contact_links_definer ON public.doc_links TO %I
+    USING (target_kind = ''contact'' AND tenant_id = nullif(current_setting(''app.tenant_id'', true), '''')::uuid)
+    WITH CHECK (target_kind = ''contact'' AND tenant_id = nullif(current_setting(''app.tenant_id'', true), '''')::uuid)', current_user);
+END $$;
+--> statement-breakpoint
+CREATE FUNCTION public.docs_links_before_erase() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+BEGIN
+  DELETE FROM public.doc_links WHERE tenant_id = OLD.tenant_id AND target_kind = 'contact' AND target_id = OLD.id;
+  RETURN NEW;
+END $$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.docs_links_before_erase() FROM PUBLIC, harvest_app;
+--> statement-breakpoint
+CREATE TRIGGER docs_links_before_erase BEFORE UPDATE ON public.contacts
+  FOR EACH ROW WHEN (OLD.erased_at IS NULL AND NEW.erased_at IS NOT NULL)
+  EXECUTE FUNCTION public.docs_links_before_erase();
+--> statement-breakpoint
+-- NOTE: this patches the text of merge_contacts_scoped (it adds a step before the crm_form_responses repoint line, as 0082 does). If that function is ever redefined, port this step with it.
+DO $$
+DECLARE def text; patched text;
+BEGIN
+  def := pg_get_functiondef('public.merge_contacts_scoped(uuid, uuid, uuid)'::regprocedure);
+  patched := replace(def, '  UPDATE public.crm_form_responses SET contact_id = p_target WHERE tenant_id = p_tenant AND contact_id = p_source;',
+    '  DELETE FROM public.doc_links s WHERE s.tenant_id = p_tenant AND s.target_kind = ''contact'' AND s.target_id = p_source
+    AND EXISTS (SELECT 1 FROM public.doc_links t WHERE t.tenant_id = p_tenant AND t.target_kind = ''contact'' AND t.target_id = p_target AND t.doc_id = s.doc_id
+      AND coalesce(t.page_id, ''00000000-0000-0000-0000-000000000000''::uuid) = coalesce(s.page_id, ''00000000-0000-0000-0000-000000000000''::uuid));
+  UPDATE public.doc_links SET target_id = p_target WHERE tenant_id = p_tenant AND target_kind = ''contact'' AND target_id = p_source;
+  UPDATE public.crm_form_responses SET contact_id = p_target WHERE tenant_id = p_tenant AND contact_id = p_source;');
+  IF patched = def THEN RAISE EXCEPTION 'merge hook not found'; END IF;
+  EXECUTE patched;
+END $$;

@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from "node:crypto";
-import { and, asc, eq, sql } from "drizzle-orm";
+import { and, asc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
 import { docShares, docs, users, workspaceMembers } from "../db/schema";
@@ -91,7 +91,7 @@ export async function readPublicDoc(db: Database, token: string) {
   return db.transaction(async (tx) => {
     await tx.execute(sql`select set_config('app.docs_public_hash', ${hashToken(token)}, true)`);
     const { docPages } = await import("../db/schema");
-    const [doc] = await tx.select({ id: docs.id, title: docs.title }).from(docs).where(eq(docs.publicEnabled, true));
+    const [doc] = await tx.select({ id: docs.id, title: docs.title }).from(docs).where(and(eq(docs.publicEnabled, true), isNull(docs.deletedAt)));
     if (!doc) throw new AccessError(404, message("Errors.docNotFound"));
     const pages = await tx.select({ id: docPages.id, parentId: docPages.parentId, position: docPages.position, title: docPages.title, content: docPages.content, archivedAt: docPages.archivedAt }).from(docPages).where(eq(docPages.docId, doc.id)).orderBy(asc(docPages.position));
     return { title: doc.title, pages: pages.filter((p) => !p.archivedAt) };

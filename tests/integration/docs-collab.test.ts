@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sql } from "drizzle-orm";
 import { crmTasks, users } from "../../src/db/schema";
 import { createContact, eraseContact } from "../../src/server/contacts";
+import { mergeContacts } from "../../src/server/crm-merge";
 import { createDoc, createPage, getDoc, getPage, listDocs, updateDoc, updatePage } from "../../src/server/docs";
 import { createComment, deleteComment, listThreads, updateThread } from "../../src/server/docs-comments";
 import { attachFile, detachFile, exportDoc, importAsNewDoc, importIntoDoc, listAttachments, printableDoc } from "../../src/server/docs-io";
@@ -206,14 +207,15 @@ describe("relationships", () => {
     expect(await status(addLink(db(), owner, tenant, d.id, { kind: "contact", targetId: crypto.randomUUID() }))).toBe(404);
     expect(await status(addLink(db(), member, tenant, d.id, { kind: "doc", targetId: target.id }))).toBe(404);
     expect((await fixture.admin.query("select version, updated_at from contacts where id=$1", [person.id])).rows[0]).toEqual(before);
-    // An erased person leaves no name behind: the link reads as unavailable.
+    // An erased person leaves nothing behind: the link to them is removed with the contact.
     await eraseContact(db(), owner, tenant, person.id);
-    expect((await listLinks(db(), owner, tenant, d.id, { scope: "doc" })).links.find((l) => l.kind === "contact")?.label).toBeNull();
+    expect((await listLinks(db(), owner, tenant, d.id, { scope: "doc" })).links.some((l) => l.kind === "contact")).toBe(false);
+    expect((await fixture.admin.query("select count(*)::int n from doc_links where target_id=$1", [person.id])).rows[0].n).toBe(0);
     // Backlinks respect doc access: a member who cannot open the source doc does not see it.
     await setAccess(db(), owner, tenant, target.id, { visibility: "ministry", ministryAccess: "view" });
     expect((await listLinks(db(), member2, tenant, target.id, { scope: "doc" })).backlinks).toEqual([]);
     await removeLink(db(), owner, tenant, d.id, (await listLinks(db(), owner, tenant, d.id, { scope: "doc" })).links[0].id);
-    expect((await listLinks(db(), owner, tenant, d.id, { scope: "doc" })).links).toHaveLength(2);
+    expect((await listLinks(db(), owner, tenant, d.id, { scope: "doc" })).links).toHaveLength(1);
   });
 });
 
@@ -350,5 +352,50 @@ describe("isolation", () => {
     const d = await createDoc(db(), owner, tenant, { title: "Isolation" });
     for (const fn of [() => listThreads(db(), other, elsewhere, d.id, crypto.randomUUID()), () => listLinks(db(), other, elsewhere, d.id, {}), () => getSharing(db(), other, elsewhere, d.id), () => listVersions(db(), other, elsewhere, d.id, crypto.randomUUID())]) expect(await status(fn())).toBe(404);
     expect(await listNotifications(db(), other, elsewhere)).toEqual({ items: [], unread: 0 });
+  });
+});
+
+describe("review fixes", () => {
+  it("hides who a private doc is shared with from other members, even by direct SQL", async () => {
+    const d = await createDoc(db(), member, tenant, { title: "Quiet doc" });
+    await setShare(db(), member, tenant, d.id, { userId: member2, role: "view" });
+    const rows = (as: string) => withTenant(db(), as, tenant, "docs:read", async (tx) => (await tx.execute(sql`select user_id from doc_shares where doc_id=${d.id}`)).rows.length);
+    expect(await rows(viewer)).toBe(0);
+    expect(await rows(admin)).toBe(1);
+    expect(await rows(member)).toBe(1);
+    expect(await rows(member2)).toBe(1);
+  });
+
+  it("moves contact links to the kept person on merge (without duplicates) and removes them on erase", async () => {
+    const keep = await createContact(db(), owner, tenant, { name: "Keep Person", email: "keep@example.test", notes: "" });
+    const gone = await createContact(db(), owner, tenant, { name: "Merge Person", email: "merge@example.test", notes: "" });
+    const d1 = await createDoc(db(), owner, tenant, { title: "Both linked" }), d2 = await createDoc(db(), owner, tenant, { title: "Only source linked" });
+    await addLink(db(), owner, tenant, d1.id, { kind: "contact", targetId: keep.id });
+    await addLink(db(), owner, tenant, d1.id, { kind: "contact", targetId: gone.id });
+    await addLink(db(), owner, tenant, d2.id, { kind: "contact", targetId: gone.id });
+    const versions = async (id: string) => (await fixture.admin.query("select version from contacts where id=$1", [id])).rows[0].version as number;
+    await mergeContacts(db(), owner, tenant, keep.id, { sourceId: gone.id, targetVersion: await versions(keep.id), sourceVersion: await versions(gone.id) });
+    const links = (await fixture.admin.query("select doc_id, target_id from doc_links where target_kind='contact' and doc_id in ($1,$2) order by doc_id", [d1.id, d2.id])).rows;
+    expect(links).toHaveLength(2);
+    expect(links.every((l) => l.target_id === keep.id)).toBe(true);
+    await eraseContact(db(), owner, tenant, keep.id);
+    expect((await fixture.admin.query("select count(*)::int n from doc_links where target_id=$1", [keep.id])).rows[0].n).toBe(0);
+  });
+
+  it("does not serve a trashed doc through its public link", async () => {
+    const prior = process.env.HARVEST_DOCS_PUBLIC; process.env.HARVEST_DOCS_PUBLIC = "synthetic";
+    try {
+      const d = await createDoc(db(), owner, tenant, { title: "Trashed public" });
+      const link = await setPublicLink(db(), owner, tenant, d.id, { enabled: true, approved: true });
+      expect((await readPublicDoc(db(), link.token!)).title).toBe("Trashed public");
+      await updateDoc(db(), owner, tenant, d.id, { trashed: true });
+      expect(await status(readPublicDoc(db(), link.token!))).toBe(404);
+    } finally { if (prior === undefined) delete process.env.HARVEST_DOCS_PUBLIC; else process.env.HARVEST_DOCS_PUBLIC = prior; }
+  });
+
+  it("refuses a notification for a doc the sender cannot read", async () => {
+    const d = await createDoc(db(), member, tenant, { title: "Not yours" });
+    const insert = () => withTenant(db(), member2, tenant, "docs:read", (tx) => tx.execute(sql`insert into doc_notifications(tenant_id,user_id,kind,doc_id,actor_id) values(${tenant}, ${member}, 'shared', ${d.id}, ${member2})`));
+    await expect(insert()).rejects.toThrow();
   });
 });
