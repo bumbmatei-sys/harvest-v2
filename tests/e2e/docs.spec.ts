@@ -168,6 +168,10 @@ test("list: folders, create, rename, move (menu and drag), delete rules, search 
   await expect(page.getByRole("link", { name: "Good Friday (copy)" })).toHaveCount(0);
   await page.getByRole("button", { name: "Actions for Good Friday (copy)" }).click();
   await page.getByRole("menuitem", { name: "Restore" }).click();
+  // Restored from Trash, it is back among the archived docs; unarchive brings it to the active list.
+  await page.getByRole("combobox", { name: "Status" }).selectOption("archived");
+  await page.getByRole("button", { name: "Actions for Good Friday (copy)" }).click();
+  await page.getByRole("menuitem", { name: "Unarchive" }).click();
   await page.getByRole("combobox", { name: "Status" }).selectOption("active");
   await expect(page.getByRole("link", { name: "Good Friday (copy)" })).toBeVisible();
   await page.getByRole("combobox", { name: "Sort by" }).selectOption("title");

@@ -9,7 +9,7 @@ export function docsRoute<P>(run: (args: { db: ReturnType<typeof getDb>; user: s
     try {
       if (write) verifyOrigin(request);
       const sessionUser = await verifiedSessionUser(request), params = await context.params;
-      const body = write && request.body ? await request.json() : undefined;
+      const text = write ? await request.text() : "", body = text ? JSON.parse(text) : undefined;
       return Response.json(await run({ db: getDb(), user: sessionUser.id, params, body, request }), { headers: { "Cache-Control": "private, no-store" } });
     } catch (e) { return errorResponse(e); }
   };
