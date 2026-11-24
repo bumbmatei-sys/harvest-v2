@@ -33,6 +33,7 @@ Server only. There is no screen in this PR because the CW-02 shell is not on mai
 - No SECURITY DEFINER function is added (asserted by test).
 - `campaigns` gains only `UPDATE (status, updated_at)` for owner/admin through the `campaigns_set_status` policy; names and dates stay immutable. The CW-01 test's policy assertion was updated from two runtime policies to three for this.
 - No CRM contact is referenced (schema asserted), so `erase_contact` and `merge_contacts` have nothing to re-key. Leaders are workspace members only.
+- Policies on one command are OR-ed, so a trigger (`campaign_drafts_guard_discard`, invoker, fixed search_path) limits an owner/admin discarding another person's draft to status, version and updated_at. The creator's update policy lets a draft become finished only for the campaign its own Finish created (owner and key `wizard-<draft id>`). Both are covered by direct-SQL tests.
 - Budget and outreach settings are inert configuration: no provider call, no QR link, form, page, invitation or message is created by any transition (tests count Connect rows for a finished and activated campaign).
 
 ## Verification
@@ -54,7 +55,7 @@ Run locally with disposable embedded PostgreSQL, non-root, synthetic data. No Ne
 - CW-06 materialisation at Finish (department boards, tasks, milestones, post-creation checklist). Finish stores the setup on the draft only.
 - CW-08 and CW-09 acting on steps 6 and 7 (draft Connect sources, budget categories); live donations (CW-10) and AI setup (CW-12).
 - Cover image (files module) and links to events and communities.
-- A role change that demotes a leader to viewer after assignment is not re-checked until the next save of step 4.
+- A member demoted to viewer keeps their assignment until the next step-4 save, and Finish does not re-check it.
 
 ## Decisions needed
 

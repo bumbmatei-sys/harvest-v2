@@ -87,20 +87,37 @@ CREATE POLICY campaign_drafts_create ON public.campaign_drafts FOR INSERT TO har
     AND status = 'draft' AND version = 1 AND campaign_id IS NULL AND finished_at IS NULL
     AND EXISTS (SELECT 1 FROM public.workspace_members m WHERE m.tenant_id = campaign_drafts.tenant_id
       AND m.user_id = created_by AND m.role_id IN ('owner', 'admin', 'member')));
--- The creator edits and finishes an open draft.
+-- The creator edits an open draft. The new row may stay a draft or be discarded; it may be marked finished only for the campaign that this same
+-- draft's Finish created (owned by the creator, key wizard-<draft id>), never against any other campaign of the ministry.
 CREATE POLICY campaign_drafts_edit ON public.campaign_drafts FOR UPDATE TO harvest_app
   USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid AND status = 'draft'
     AND created_by = nullif(current_setting('app.user_id', true), '')
     AND EXISTS (SELECT 1 FROM public.workspace_members m WHERE m.tenant_id = campaign_drafts.tenant_id
       AND m.user_id = created_by AND m.role_id IN ('owner', 'admin', 'member')))
   WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid
-    AND created_by = nullif(current_setting('app.user_id', true), ''));
+    AND created_by = nullif(current_setting('app.user_id', true), '')
+    AND (status IN ('draft', 'discarded')
+      OR (status = 'finished' AND EXISTS (SELECT 1 FROM public.campaigns c WHERE c.tenant_id = campaign_drafts.tenant_id AND c.id = campaign_drafts.campaign_id
+        AND c.owner_user_id = campaign_drafts.created_by AND c.idempotency_key = 'wizard-' || campaign_drafts.id::text))));
 -- An owner or admin can only discard someone else's open draft.
 CREATE POLICY campaign_drafts_discard ON public.campaign_drafts FOR UPDATE TO harvest_app
   USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid AND status = 'draft'
     AND EXISTS (SELECT 1 FROM public.workspace_members m WHERE m.tenant_id = campaign_drafts.tenant_id
       AND m.user_id = nullif(current_setting('app.user_id', true), '') AND m.role_id IN ('owner', 'admin')))
   WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid AND status = 'discarded');
+--> statement-breakpoint
+-- Policies on one command are OR-ed, so the discard policy alone cannot stop an owner or admin changing other columns while discarding. This
+-- trigger does: on a draft someone else started, only status, version and updated_at may change. It runs as the caller and reads no table.
+CREATE FUNCTION public.campaign_drafts_guard_discard() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
+BEGIN
+  IF OLD.created_by IS DISTINCT FROM nullif(current_setting('app.user_id', true), '')
+    AND (to_jsonb(NEW) - 'status' - 'version' - 'updated_at') IS DISTINCT FROM (to_jsonb(OLD) - 'status' - 'version' - 'updated_at') THEN
+    RAISE EXCEPTION 'only the creator can change a draft' USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END $$;
+REVOKE ALL ON FUNCTION public.campaign_drafts_guard_discard() FROM PUBLIC;
+CREATE TRIGGER campaign_drafts_guard_discard BEFORE UPDATE ON public.campaign_drafts FOR EACH ROW EXECUTE FUNCTION public.campaign_drafts_guard_discard();
 --> statement-breakpoint
 CREATE POLICY campaign_draft_assignments_read ON public.campaign_draft_assignments FOR SELECT TO harvest_app
   USING (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid AND EXISTS (SELECT 1 FROM public.campaign_drafts d

@@ -194,9 +194,18 @@ describe("roles and isolation", () => {
     // An admin's update is refused unless it is a discard.
     await expect(attempt("admin-a", (tx) => tx.update(campaignDrafts).set({ name: "Sneaky" }).where(eq(campaignDrafts.id, draft.id)))).rejects.toThrow();
     await expect(attempt("admin-a", (tx) => tx.update(campaignDrafts).set({ status: "finished" }).where(eq(campaignDrafts.id, draft.id)))).rejects.toThrow();
+    // Discarding must not carry other edits along with it.
+    await expect(attempt("admin-a", (tx) => tx.update(campaignDrafts).set({ name: "Sneaky", status: "discarded" }).where(eq(campaignDrafts.id, draft.id)))).rejects.toMatchObject({ cause: { code: "42501" } });
+    // The creator cannot mark a draft finished against some other campaign of the ministry.
+    const other = await withTenant(fixture.db, "member-a", tenantA, "campaigns:write", (tx) => tx.insert(campaigns)
+      .values({ tenantId: tenantA, ownerUserId: "member-a", name: "Other", type: "custom_project", idempotencyKey: key(), fingerprint: "d".repeat(64) }).returning({ id: campaigns.id }));
+    await expect(attempt("member-a", (tx) => tx.update(campaignDrafts).set({ status: "finished", campaignId: other[0].id, finishedAt: new Date() }).where(eq(campaignDrafts.id, draft.id)))).rejects.toThrow();
     await expect(attempt("member-a2", (tx) => tx.insert(campaignDraftAssignments).values({ tenantId: tenantA, draftId: draft.id, userId: "member-a2", department: "volunteers", role: "member" }))).rejects.toThrow();
     expect(await attempt("member-a2", (tx) => tx.select().from(campaignDraftAssignments))).toEqual([]);
     expect((await getDraft(fixture.db, "member-a", tenantA, draft.id)).name).toBeNull();
+    // The admin's plain discard (status, version, timestamp only) still works.
+    await attempt("admin-a", (tx) => tx.update(campaignDrafts).set({ status: "discarded", version: 2, updatedAt: new Date() }).where(eq(campaignDrafts.id, draft.id)));
+    expect((await getDraft(fixture.db, "admin-a", tenantA, draft.id)).status).toBe("discarded");
   });
 });
 
