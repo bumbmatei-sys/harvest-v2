@@ -461,17 +461,21 @@ CREATE POLICY docs_public_read ON public.doc_pages FOR SELECT TO harvest_app
 --> statement-breakpoint
 -- A contact link follows the person: erasing a contact removes the links to it (they hold no foreign key), and a merge moves them to the kept contact.
 -- Same pattern as contact_form_sources (0082): a SECURITY DEFINER hook, with a policy for the function owner scoped to the current tenant and to contact links only.
-DO $$
-BEGIN
-  EXECUTE format('CREATE POLICY docs_contact_links_definer ON public.doc_links TO %I
-    USING (target_kind = ''contact'' AND tenant_id = nullif(current_setting(''app.tenant_id'', true), '''')::uuid)
-    WITH CHECK (target_kind = ''contact'' AND tenant_id = nullif(current_setting(''app.tenant_id'', true), '''')::uuid)', current_user);
-END $$;
+CREATE POLICY docs_contact_links_definer ON public.doc_links TO PUBLIC
+  USING (current_user <> 'harvest_app' AND target_kind = 'contact' AND tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)
+  WITH CHECK (current_user <> 'harvest_app' AND target_kind = 'contact' AND tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid)
 --> statement-breakpoint
 CREATE FUNCTION public.docs_links_before_erase() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE prior text := current_setting('app.tenant_id', true);
 BEGIN
+  -- The erase may run in another tenant's session (a merge, a maintenance job): scope the cleanup to this contact's tenant, then restore the setting.
+  PERFORM set_config('app.tenant_id', OLD.tenant_id::text, true);
   DELETE FROM public.doc_links WHERE tenant_id = OLD.tenant_id AND target_kind = 'contact' AND target_id = OLD.id;
+  IF EXISTS (SELECT 1 FROM public.doc_links WHERE tenant_id = OLD.tenant_id AND target_kind = 'contact' AND target_id = OLD.id) THEN
+    RAISE EXCEPTION 'doc links to an erased contact survived' USING ERRCODE = '42501';
+  END IF;
+  PERFORM set_config('app.tenant_id', coalesce(prior, ''), true);
   RETURN NEW;
 END $$;
 --> statement-breakpoint
