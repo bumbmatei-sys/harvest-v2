@@ -160,7 +160,7 @@ export function reorder(ids: readonly string[], id: string, index: number): stri
   return [...rest.slice(0, at), id, ...rest.slice(at)];
 }
 
-// Access. One rule for the server, the database policies (`docs_rank` in migration 0090) and the interface, so no control is offered that would be refused.
+// Access. One rule for the server, the database policies (`docs_rank` in migration 0093) and the interface, so no control is offered that would be refused.
 // 4 manage (owners, admins, the doc's owner), 3 edit, 2 comment, 1 view, 0 none. A ministry "viewer" never edits (capped at comment); `private` hides a doc from members it is not shared with.
 export type ShareRole = "view" | "comment" | "edit";
 export const shareRoles: readonly ShareRole[] = ["view", "comment", "edit"];

@@ -101,7 +101,9 @@ CREATE TABLE "doc_templates" (
 --> statement-breakpoint
 ALTER TABLE "docs" ADD CONSTRAINT "docs_id_owner_uq" UNIQUE("id","owner_id");--> statement-breakpoint
 ALTER TABLE "doc_pages" ADD COLUMN "subtitle" text DEFAULT '' NOT NULL;--> statement-breakpoint
-ALTER TABLE "docs" ADD COLUMN "visibility" text DEFAULT 'private' NOT NULL;--> statement-breakpoint
+-- Rows that exist now take 'ministry' (they were readable by the whole ministry); the default for new docs is set back to 'private' right after. No UPDATE: the table forces row-level security, which hides every row from a restricted owner that has no tenant set.
+ALTER TABLE "docs" ADD COLUMN "visibility" text DEFAULT 'ministry' NOT NULL;--> statement-breakpoint
+ALTER TABLE "docs" ALTER COLUMN "visibility" SET DEFAULT 'private';--> statement-breakpoint
 ALTER TABLE "docs" ADD COLUMN "ministry_access" text DEFAULT 'view' NOT NULL;--> statement-breakpoint
 ALTER TABLE "docs" ADD COLUMN "public_enabled" boolean DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE "docs" ADD COLUMN "public_token_hash" text;--> statement-breakpoint
@@ -141,9 +143,7 @@ CREATE INDEX "doc_templates_tenant_idx" ON "doc_templates" USING btree ("tenant_
 CREATE UNIQUE INDEX "docs_public_token_uq" ON "docs" USING btree ("public_token_hash") WHERE "docs"."public_token_hash" is not null;--> statement-breakpoint
 ALTER TABLE "doc_pages" ADD CONSTRAINT "doc_pages_subtitle_len" CHECK (char_length("doc_pages"."subtitle") <= 200);--> statement-breakpoint
 ALTER TABLE "docs" ADD CONSTRAINT "docs_visibility_known" CHECK ("docs"."visibility" in ('private','ministry') and "docs"."ministry_access" in ('view','comment','edit'));--> statement-breakpoint
--- Docs slice 2: per-doc privacy replaces the slice 1 ministry-wide read. Docs that existed before keep their old reach (the whole ministry reads them).
-UPDATE public.docs SET visibility='ministry', ministry_access='view'
---> statement-breakpoint
+-- Docs slice 2: per-doc privacy replaces the slice 1 ministry-wide read. Docs that existed before keep their old reach (see the visibility column above).
 
 CREATE FUNCTION public.docs_rank(p_role text, p_owner boolean, p_visibility text, p_ministry text, p_share text) RETURNS int
 LANGUAGE sql IMMUTABLE SET search_path=pg_catalog,pg_temp AS $$
