@@ -605,10 +605,10 @@
       "breakpoints": true
     },
     {
-      "idx": 87,
+      "idx": 88,
       "version": "7",
       "when": 1795512442361,
-      "tag": "0087_newsletter_signup_forms",
+      "tag": "0088_newsletter_signup_forms",
       "breakpoints": true
     }
   ]
