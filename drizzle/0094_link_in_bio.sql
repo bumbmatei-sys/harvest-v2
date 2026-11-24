@@ -139,14 +139,15 @@ BEGIN
   EXECUTE format('CREATE POLICY bio_manage_read ON public.bio_messages FOR SELECT TO harvest_app USING (expires_at > now() AND ' || manager || ')', 'bio_messages');
   EXECUTE format('CREATE POLICY bio_manage_update ON public.bio_messages FOR UPDATE TO harvest_app USING (expires_at > now() AND ' || manager || ') WITH CHECK (' || manager || ')', 'bio_messages', 'bio_messages');
   EXECUTE format('CREATE POLICY bio_manage_delete ON public.bio_messages FOR DELETE TO harvest_app USING (' || manager || ')', 'bio_messages');
-  -- The definer functions (the migration owner), scoped by settings they set themselves.
-  EXECUTE format('CREATE POLICY bio_definer_read ON public.bio_pages FOR SELECT TO %I USING (handle = nullif(current_setting(''app.bio_handle'', true), '''') OR %s)', current_user, scope);
-  EXECUTE format('CREATE POLICY bio_definer_update ON public.bio_pages FOR UPDATE TO %I USING (%s) WITH CHECK (%s)', current_user, scope, scope);
+  -- The definer functions run as the migration owner (never harvest_app, which has no write grant on these tables), scoped by settings they set themselves.
+  -- The policies are not bound to a named owner role: a restricted owner (as on Neon) is covered the same way, and harvest_app is excluded explicitly.
+  EXECUTE format('CREATE POLICY bio_definer_read ON public.bio_pages FOR SELECT TO PUBLIC USING (current_user <> ''harvest_app'' AND (handle = nullif(current_setting(''app.bio_handle'', true), '''') OR %s))', scope);
+  EXECUTE format('CREATE POLICY bio_definer_update ON public.bio_pages FOR UPDATE TO PUBLIC USING (current_user <> ''harvest_app'' AND %s) WITH CHECK (current_user <> ''harvest_app'' AND %s)', scope, scope);
   FOREACH rel IN ARRAY ARRAY['bio_files','bio_clicks','bio_messages'] LOOP
-    EXECUTE format('CREATE POLICY bio_definer_scope ON public.%I TO %I USING (%s) WITH CHECK (%s)', rel, current_user, scope, scope);
+    EXECUTE format('CREATE POLICY bio_definer_scope ON public.%I TO PUBLIC USING (current_user <> ''harvest_app'' AND %s) WITH CHECK (current_user <> ''harvest_app'' AND %s)', rel, scope, scope);
   END LOOP;
-  EXECUTE format('CREATE POLICY bio_quota_access ON public.bio_quotas TO %I USING (%s) WITH CHECK (%s)', current_user, resolved, resolved);
-  EXECUTE format('CREATE POLICY bio_receipt_access ON public.bio_receipts TO %I USING (%s) WITH CHECK (%s)', current_user, resolved, resolved);
+  EXECUTE format('CREATE POLICY bio_quota_access ON public.bio_quotas TO PUBLIC USING (current_user <> ''harvest_app'' AND %s) WITH CHECK (current_user <> ''harvest_app'' AND %s)', resolved, resolved);
+  EXECUTE format('CREATE POLICY bio_receipt_access ON public.bio_receipts TO PUBLIC USING (current_user <> ''harvest_app'' AND %s) WITH CHECK (current_user <> ''harvest_app'' AND %s)', resolved, resolved);
 END $$;
 --> statement-breakpoint
 GRANT SELECT, INSERT ON public.bio_pages TO harvest_app;
@@ -510,8 +511,10 @@ DECLARE def text; patched text;
 BEGIN
   def := pg_get_functiondef('public.merge_contacts_scoped(uuid, uuid, uuid)'::regprocedure);
   patched := replace(def, hook, hook || '
+  PERFORM set_config(''app.bio_merge_prior'', coalesce(current_setting(''app.bio_tenant'', true), ''''), true);
   PERFORM set_config(''app.bio_tenant'', p_tenant::text, true);
-  UPDATE public.bio_messages SET contact_id = p_target WHERE tenant_id = p_tenant AND contact_id = p_source;');
+  UPDATE public.bio_messages SET contact_id = p_target WHERE tenant_id = p_tenant AND contact_id = p_source;
+  PERFORM set_config(''app.bio_tenant'', current_setting(''app.bio_merge_prior'', true), true);');
   IF patched = def THEN RAISE EXCEPTION 'merge hook not found'; END IF;
   EXECUTE patched;
 END $$;
