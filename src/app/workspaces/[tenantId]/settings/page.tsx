@@ -15,6 +15,6 @@ export default async function MinistrySettingsPage({ params }: { params: Promise
   if (!workspace) return <AccessState />;
   return <div className="max-w-xl space-y-6">
     <div><Church className="mb-4 size-5 text-muted-foreground" aria-hidden="true" /><h1 className="text-[28px] font-semibold tracking-tight">{t("ministrySettings")}</h1></div>
-    <MinistrySettingsForm tenantId={tenantId} current={workspace.audience} writable={can(workspace.role, "settings:write")} />
+    <MinistrySettingsForm tenantId={tenantId} current={workspace.audience} timeZone={workspace.timeZone} writable={can(workspace.role, "settings:write")} />
   </div>;
 }

@@ -7,7 +7,7 @@ import { openSection, resolveSettingsSections, settingsParam, settingsViewer, ty
 import { SettingsContext, type SettingsOpener } from "@/components/settings/settings-context";
 import { SettingsDialog } from "@/components/settings/settings-dialog";
 
-export type SettingsShell = { email: string; tenantId?: string; ministryName?: string; role?: string; audience?: Audience | null; features: readonly NavFeature[]; settings: ShellSettings };
+export type SettingsShell = { email: string; tenantId?: string; ministryName?: string; role?: string; audience?: Audience | null; timeZone?: string; features: readonly NavFeature[]; settings: ShellSettings };
 
 /** Writes the section into the URL without a server round trip (Next keeps useSearchParams in step with the History API). */
 function writeSection(section: SettingsSectionId | null) {

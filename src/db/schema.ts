@@ -66,9 +66,11 @@ export const workspaces = pgTable("workspaces", {
   brandTheme: text("brand_theme").$type<BrandTheme>().notNull().default("harvest"),
   // Ministry audience; null means unspecified (ministries created before it existed).
   audience: text("audience").$type<Audience>(),
+  // IANA time zone name (validated by the app): CRM report periods and labels are computed in it. Existing ministries read UTC.
+  timeZone: text("time_zone").notNull().default("UTC"),
   createdBy: text("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [check("workspace_name_length", sql`length(trim(${t.name})) BETWEEN 1 AND 100`), check("workspace_brand_theme", sql`${t.brandTheme} in ('harvest', 'studio')`),
+}, (t) => [check("workspace_time_zone", sql`length(${t.timeZone}) between 1 and 64`), check("workspace_name_length", sql`length(trim(${t.name})) BETWEEN 1 AND 100`), check("workspace_brand_theme", sql`${t.brandTheme} in ('harvest', 'studio')`),
   check("workspace_audience", sql`${t.audience} is null or ${t.audience} in ('church', 'ministry_nonprofit', 'evangelist_missionary', 'creator')`)]);
 export const workspaceMembers = pgTable("workspace_members", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
@@ -337,6 +339,13 @@ export const opportunities = pgTable("opportunities", {
   check("opportunity_currency", sql`${t.currency} ~ '^[A-Z]{3}$'`),
   check("opportunity_closed_reason", sql`${t.closedReason} is null or length(${t.closedReason}) between 1 and 500`),
   check("opportunity_version", sql`${t.version} >= 1`)]);
+// Deal stage movement, recorded by a trigger on every stage change (no content). Read by owners and admins for the CRM reports.
+export const crmDealStageMoves = pgTable("crm_deal_stage_moves", {
+  id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id").notNull(), dealId: uuid("deal_id").notNull(),
+  fromStageId: uuid("from_stage_id").notNull(), toStageId: uuid("to_stage_id").notNull(),
+  movedAt: timestamp("moved_at", { withTimezone: true }).notNull().defaultNow(), movedBy: text("moved_by").references(() => users.id, { onDelete: "set null" }),
+}, (t) => [foreignKey({ name: "crm_deal_stage_moves_deal_fk", columns: [t.tenantId, t.dealId], foreignColumns: [opportunities.tenantId, opportunities.id] }).onDelete("cascade"),
+  index("crm_deal_stage_moves_period_idx").on(t.tenantId, t.movedAt), index("crm_deal_stage_moves_deal_idx").on(t.tenantId, t.dealId, t.movedAt)]);
 // CRM-05: tasks (ownership), notes and per-recipient in-app notifications.
 export const crmTaskStatuses = ["open", "done"] as const;
 export const crmTaskPriorities = ["none", "low", "medium", "high"] as const;
@@ -1029,6 +1038,17 @@ export const contactFormSources = pgTable("contact_form_sources", {
   foreignKey({ name: "contact_form_sources_contact_fk", columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }).onDelete("cascade"),
   foreignKey({ name: "contact_form_sources_publication_fk", columns: [t.tenantId, t.formId, t.versionId], foreignColumns: [crmFormPublications.tenantId, crmFormPublications.formId, crmFormPublications.versionId] }),
   check("contact_form_sources_title", sql`length(${t.formTitle}) <= 300`)]);
+
+// The durable first source of a person: only the source kind and the first-seen date, never content. It outlives the evidence
+// (a Connect response, an import row) that expires or is purged, and goes when the person is erased. Written by definer triggers;
+// a merge keeps the earliest.
+export const contactFirstSources = pgTable("contact_first_sources", {
+  tenantId: uuid("tenant_id").notNull(), contactId: uuid("contact_id").notNull(),
+  kind: text("kind").$type<"manual" | "csv_import" | "connect" | "form">().notNull(),
+  firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
+}, t => [primaryKey({ columns: [t.tenantId, t.contactId] }),
+  foreignKey({ name: "contact_first_sources_contact_fk", columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }).onDelete("cascade"),
+  check("contact_first_sources_kind", sql`${t.kind} in ('manual', 'csv_import', 'connect', 'form')`)]);
 
 // HC-06A: minimal provenance; trusted database writers own all mutations.
 export const contactSourceEvents = pgTable("contact_source_events", {

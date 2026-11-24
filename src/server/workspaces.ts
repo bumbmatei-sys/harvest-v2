@@ -8,6 +8,7 @@ import { AccessError, type Role } from "./permissions";
 import { z } from "zod";
 import { BRAND_THEMES } from "../lib/theme-registry";
 import { audiences, type Audience } from "../lib/audience";
+import { isValidTimeZone, timeZoneOrDefault } from "../lib/time-zone";
 
 export function getWorkspace(db: Database, userId: string, workspace: string) {
   return withTenant(db, userId, z.uuid().parse(workspace), "workspace:read", async (tx, tenantId, role) => {
@@ -36,12 +37,24 @@ export async function updateWorkspaceAudience(db: Database, userId: string, work
   });
 }
 
-export async function createWorkspace(db: Database, userId: string, name: string, audience: Audience | null = null) {
+/** Owners and admins set the ministry's time zone (an IANA name): CRM report periods and labels follow it. */
+export async function updateWorkspaceTimeZone(db: Database, userId: string, workspace: string, data: unknown) {
+  const { timeZone } = z.object({ timeZone: z.string().refine(isValidTimeZone, message("Errors.checkTheSuppliedDetails")) }).strict().parse(data);
+  return withTenant(db, userId, z.uuid().parse(workspace), "settings:write", async (tx, tenantId) => {
+    const [previous] = await tx.select({ timeZone: workspaces.timeZone }).from(workspaces).where(eq(workspaces.tenantId, tenantId)).for("update");
+    const [row] = await tx.update(workspaces).set({ timeZone }).where(eq(workspaces.tenantId, tenantId)).returning();
+    await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "workspace.time_zone_update", targetId: tenantId, metadata: { timeZone, ...(previous ? { previousTimeZone: previous.timeZone } : {}) } });
+    return row;
+  });
+}
+
+/** `timeZone` is the creator's browser zone sent by the client; anything that is not a valid IANA name becomes UTC. */
+export async function createWorkspace(db: Database, userId: string, name: string, audience: Audience | null = null, timeZone?: unknown) {
   const chosen = z.enum(audiences).nullable().parse(audience);
   return withUser(db, userId, async (tx) => {
     const tenantId = randomUUID();
     await tx.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
-    const [workspace] = await tx.insert(workspaces).values({ tenantId, name, audience: chosen, createdBy: userId }).returning();
+    const [workspace] = await tx.insert(workspaces).values({ tenantId, name, audience: chosen, timeZone: timeZoneOrDefault(timeZone), createdBy: userId }).returning();
     await tx.insert(workspaceMembers).values({ tenantId, userId, roleId: "owner" });
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "workspace.create", targetId: tenantId });
     return workspace;
