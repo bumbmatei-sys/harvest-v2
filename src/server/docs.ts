@@ -120,7 +120,7 @@ export async function deleteFolder(db: Database, user: string, workspace: string
     if (!current) throw new AccessError(404, message("Errors.folderNotFound"));
     if (!(role === "owner" || role === "admin" || current.ownerId === user)) throw denied();
     await tx.select({ id: docFolders.id }).from(docFolders).where(and(eq(docFolders.tenantId, tenantId), eq(docFolders.id, folderId))).for("update");
-    const kids = await tx.select({ id: docFolders.id, name: docFolders.name }).from(docFolders).where(and(eq(docFolders.tenantId, tenantId), eq(docFolders.parentId, folderId), isNull(docFolders.archivedAt)));
+    const kids = await tx.select({ id: docFolders.id, name: docFolders.name, ownerId: docFolders.ownerId }).from(docFolders).where(and(eq(docFolders.tenantId, tenantId), eq(docFolders.parentId, folderId), isNull(docFolders.archivedAt)));
     const inside = await tx.select({ id: docs.id, ownerId: docs.ownerId }).from(docs).where(and(eq(docs.tenantId, tenantId), eq(docs.folderId, folderId)));
     if ((kids.length || inside.length) && input.mode === "refuse") throw new AccessError(409, message("Errors.folderNotEmpty"), { folders: kids.length, docs: inside.length });
     if (kids.length || inside.length) {
@@ -129,14 +129,18 @@ export async function deleteFolder(db: Database, user: string, workspace: string
       const names = new Set(siblings.map((s) => folderNameKey(s.name)));
       if (kids.some((k) => names.has(folderNameKey(k.name)))) throw new AccessError(409, message("Errors.folderNameTaken"));
       // Another person's docs may be inside: moving them is a change to the doc, so it needs the right to change each one.
-      if (!(role === "owner" || role === "admin") && inside.some((d) => d.ownerId !== user)) throw denied();
+      // The same holds for subfolders: row-level security skips another member's folder, so the move would silently leave it behind and the delete would fail.
+      if (!(role === "owner" || role === "admin") && (inside.some((d) => d.ownerId !== user) || kids.some((k) => k.ownerId !== user))) throw denied();
       if (inside.length) await tx.update(docs).set({ folderId: current.parentId, updatedAt: new Date() }).where(and(eq(docs.tenantId, tenantId), eq(docs.folderId, folderId)));
       if (kids.length) {
         const base = await nextFolderPosition(tx, tenantId, current.parentId);
         let i = 0; for (const k of kids) await tx.update(docFolders).set({ parentId: current.parentId, position: base + i++, updatedAt: new Date() }).where(and(eq(docFolders.tenantId, tenantId), eq(docFolders.id, k.id)));
       }
     }
-    await tx.delete(docFolders).where(and(eq(docFolders.tenantId, tenantId), eq(docFolders.id, folderId)));
+    try {
+      await tx.execute(sql`savepoint folder_delete`);
+      await tx.delete(docFolders).where(and(eq(docFolders.tenantId, tenantId), eq(docFolders.id, folderId)));
+    } catch (error) { await tx.execute(sql`rollback to savepoint folder_delete`); if (taken(error)) throw new AccessError(409, message("Errors.folderNameTaken")); throw error; }
     await audit(tx, tenantId, user, "docs.folder.delete", folderId, { docs: inside.length, folders: kids.length });
     return { deleted: true, movedDocs: inside.length, movedFolders: kids.length };
   });
@@ -238,6 +242,8 @@ export async function duplicateDoc(db: Database, user: string, workspace: string
   requireDocsEnabled();
   return withTenant(db, user, id(workspace), "docs:write", async (tx, tenantId, role) => {
     const { row } = await loadDoc(tx, tenantId, id(docId), user, role);
+    const [count] = await tx.select({ n: sql<number>`count(*)` }).from(docs).where(eq(docs.tenantId, tenantId));
+    if (Number(count.n) >= docLimits.docsPerMinistry) throw bad("Errors.docsLimitReached");
     const title = `${row.title || message("Docs.untitled")} ${message("Docs.copySuffix")}`.slice(0, docLimits.title);
     const [copy] = await tx.insert(docs).values({ tenantId, kind: row.kind, folderId: row.folderId, title, ownerId: user }).returning();
     const pages = await tx.select().from(docPages).where(and(eq(docPages.docId, row.id), isNull(docPages.archivedAt)));
@@ -394,7 +400,7 @@ export async function archivePage(db: Database, user: string, workspace: string,
     if (!page) throw new AccessError(404, message("Errors.pageNotFound"));
     const ids = subtreeIds(all, page.id);
     if (archived) {
-      if (page.protected) throw new AccessError(409, message("Errors.pageProtected"), { reason: "protected" });
+      if (all.some((p) => ids.includes(p.id) && p.protected)) throw new AccessError(409, message("Errors.pageProtected"), { reason: "protected" });
       if (!all.some((p) => !p.archivedAt && !ids.includes(p.id) && p.parentId === null)) throw bad("Errors.lastPage");
     }
     await tx.update(docPages).set({ archivedAt: archived ? new Date() : null, updatedAt: new Date() }).where(and(eq(docPages.docId, row.id), inArray(docPages.id, ids)));
@@ -411,8 +417,8 @@ export async function deletePage(db: Database, user: string, workspace: string, 
     const all = await tx.select().from(docPages).where(eq(docPages.docId, row.id));
     const page = all.find((p) => p.id === id(pageId));
     if (!page) throw new AccessError(404, message("Errors.pageNotFound"));
-    if (page.protected) throw new AccessError(409, message("Errors.pageProtected"), { reason: "protected" });
     const ids = subtreeIds(all, page.id);
+    if (all.some((p) => ids.includes(p.id) && p.protected)) throw new AccessError(409, message("Errors.pageProtected"), { reason: "protected" });
     if (!all.some((p) => !p.archivedAt && !ids.includes(p.id) && p.parentId === null)) throw bad("Errors.lastPage");
     // Deepest first so the parent link never points at a removed row.
     for (const pid of [...ids].reverse()) await tx.delete(docPages).where(and(eq(docPages.docId, row.id), eq(docPages.id, pid)));

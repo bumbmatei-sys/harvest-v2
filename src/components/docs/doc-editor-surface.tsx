@@ -2,6 +2,7 @@
 "use client";
 import "@/components/docs/docs-prose.css";
 import { useEffect, useImperativeHandle, useRef, type RefObject } from "react";
+import { Selection } from "@tiptap/pm/state";
 import { EditorContent, useEditor } from "@tiptap/react";
 import { useTranslations } from "next-intl";
 import { BlockHandles } from "@/components/docs/editor/block-handles";
@@ -46,7 +47,8 @@ export function DocEditorSurface({ content, readOnly, theme, showToolbar, bodyCl
   }
   useEffect(() => { editor?.setEditable(!readOnly, false); }, [editor, readOnly]);
   useImperativeHandle(handleRef, () => ({
-    focusStart: () => { editor?.commands.focus("start"); },
+    // Synchronous on purpose: Tiptap's own focus command defers to the next frame, so keys typed right after Enter in the title would still land in the title.
+    focusStart: () => { if (!editor) return; editor.view.dispatch(editor.state.tr.setSelection(Selection.atStart(editor.state.doc))); editor.view.focus(); },
     getContent: () => (editor?.getJSON() ?? content) as DocContent,
     jumpTo: (position) => { if (editor) jumpToHeading(editor, position); },
   }), [editor, content]);
