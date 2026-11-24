@@ -8,7 +8,7 @@ import { files } from "../../db/schema";
 import { fileKey, publicFilePath, uploadInput } from "../../lib/files";
 import { AccessError } from "../permissions";
 import { withTenant } from "../tenancy";
-import { InvalidStoredFile, type StorageAdapter } from "../storage/adapter";
+import { InvalidStoredFile, type ImageMime, type StorageAdapter } from "../storage/adapter";
 import { workerSettings } from "../worker-settings";
 import { noOpScanner, type FileScanner } from "./scanner";
 
@@ -96,6 +96,6 @@ export function publicDownload(db: Database, storage: StorageAdapter, workspaceH
     await tx.execute(sql`select set_config('app.public_file_id', ${fileId}, true), set_config('app.public_file_tenant_id', ${workspaceHint}, true)`);
     const [file] = await tx.select().from(files).where(and(eq(files.id, fileId), eq(files.tenantId, workspaceHint), eq(files.visibility, "public"), eq(files.status, "ready")));
     if (!file) throw new AccessError(404, message("Errors.fileNotFound"));
-    return storage.presignDownload(file.key, file.name);
+    return storage.presignDownload(file.key, file.name, ["image/jpeg", "image/png", "image/webp"].includes(file.mime) ? { inlineImage: file.mime as ImageMime } : undefined);
   });
 }

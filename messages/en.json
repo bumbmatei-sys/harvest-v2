@@ -757,7 +757,9 @@
     "reportDuplicate": "You've already reported this.",
     "appealDuplicate": "You've already sent an appeal.",
     "bannedWordsInvalid": "Banned words can be up to 40 characters each, 100 in total.",
-    "communitySlugLocked": "The address of a published community can't be changed. Unpublish it first."
+    "communitySlugLocked": "The address of a published community can't be changed. Unpublish it first.",
+    "newsletterImageUnavailable": "An image in this email is not available. Choose it again.",
+    "newsletterImageSuggestionUnavailable": "A thumbnail suggestion is not available."
   },
   "LibEnv": {
     "missingRequiredEnvironmentVariableValue": "Missing required environment variable: {name}"
@@ -6522,7 +6524,9 @@
       "social": "Social links",
       "divider": "Divider",
       "spacer": "Spacer",
-      "footer": "Sign-off"
+      "footer": "Sign-off",
+      "image": "Image",
+      "cover": "Cover image"
     },
     "editor": {
       "breadcrumb": "Campaigns",
@@ -6570,7 +6574,8 @@
       "dndCancel": "Cancelled. {label} stays where it was.",
       "back": "Back to campaigns",
       "draft": "Draft",
-      "insertField": "Insert {field}"
+      "insertField": "Insert {field}",
+      "coverTitle": "Cover image"
     },
     "fields": {
       "title": "Title",
@@ -6604,12 +6609,21 @@
       "medium": "Medium",
       "large": "Large",
       "linkLabel": "Label {number}",
-      "linkUrl": "Link {number}",
+      "linkUrl": "Image link (optional)",
       "addLink": "Add link",
       "removeLink": "Remove link {number}",
       "richText": "Email text",
       "invalidLink": "Use a secure https link.",
-      "none": "No settings for this block."
+      "none": "No settings for this block.",
+      "decorative": "Decorative image (no description)",
+      "altRequired": "Describe the image, or mark it decorative.",
+      "videoLinkHint": "Use a secure https link.",
+      "video": "Video link",
+      "thumbnail": "Thumbnail",
+      "suggest": "Use the video's thumbnail",
+      "suggesting": "Fetching thumbnail",
+      "suggestFailed": "No thumbnail could be fetched. Upload one instead.",
+      "thumbnailNeeded": "Upload a thumbnail for this video."
     },
     "defaults": {
       "title": "'{{ministryName}}'",
@@ -6730,7 +6744,47 @@
       "firstName": "Ana"
     },
     "viewOnly": "Only owners and admins can write campaigns.",
-    "analytics": "Analytics"
+    "analytics": "Analytics",
+    "images": {
+      "label": "Image",
+      "drop": "Drop an image here",
+      "limits": "JPG, PNG or WebP, up to {mb} MB, at most {px} px",
+      "upload": "Upload",
+      "library": "Library",
+      "link": "Link",
+      "replace": "Replace",
+      "remove": "Remove",
+      "none": "No images uploaded yet.",
+      "libraryTitle": "Choose an image",
+      "use": "Use {name}",
+      "progress": "Upload progress",
+      "cancel": "Cancel",
+      "scanning": "Waiting for the safety check.",
+      "checkAgain": "Check again",
+      "dismiss": "Dismiss",
+      "tryAgain": "Try again",
+      "chooseAnother": "Choose another",
+      "phases": {
+        "preparing": "Preparing",
+        "uploading": "Uploading {percent}%",
+        "verifying": "Checking the image"
+      },
+      "problems": {
+        "type": "Use a JPG, PNG or WebP image.",
+        "size": "The image must be at most {mb} MB.",
+        "dimensions": "The image is larger than {px} px on a side.",
+        "rejected": "This image was not accepted. Choose another.",
+        "interrupted": "The upload was interrupted. Try again.",
+        "failed": "The image could not be uploaded. Try again.",
+        "scan": "The image failed the safety check. Choose another."
+      },
+      "cover": "Cover image",
+      "coverAdd": "Add a cover image",
+      "coverRemove": "Remove cover",
+      "chosen": "Image chosen.",
+      "removed": "Image removed.",
+      "altLabel": "Image description"
+    }
   },
   "NewsletterAudience": {
     "pageTitle": "Audience",

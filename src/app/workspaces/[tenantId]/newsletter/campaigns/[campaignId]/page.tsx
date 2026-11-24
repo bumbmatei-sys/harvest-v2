@@ -11,6 +11,7 @@ import { listIdentities } from "@/server/newsletter-campaigns/identities";
 import { AccessError, can } from "@/server/permissions";
 import { uuidInput } from "@/lib/contact-input";
 import { AccessState } from "@/components/access-state";
+import { thumbnailSuggestionsEnabled } from "@/server/newsletter-campaigns/images";
 import { CampaignEditor } from "@/components/newsletter/campaign-editor";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
@@ -35,6 +36,6 @@ export default async function CampaignEditorPage({ params }: { params: Promise<{
     pageNewsletterConfiguration(db, user, tenantId, "segments", { limit: 100 }), listIdentities(db, user, tenantId, { limit: 100 }).catch(() => ({ items: [] }))]);
   const option = (row: { id: string; name: string; audienceId?: string }) => ({ id: row.id, name: row.name, audienceId: row.audienceId ?? "" });
   const senders = identities.items.filter((row) => row.identity.ownershipVerified).map((row) => ({ id: row.identity.id, address: row.identity.address }));
-  return <CampaignEditor tenantId={tenantId} ministryName={workspace.name} brandKit={{ kit: kit.kit, version: kit.version }} lists={lists.items.map(option)} groups={segments.items.map(option)} senders={senders}
+  return <CampaignEditor suggestions={thumbnailSuggestionsEnabled()} tenantId={tenantId} ministryName={workspace.name} brandKit={{ kit: kit.kit, version: kit.version }} lists={lists.items.map(option)} groups={segments.items.map(option)} senders={senders}
     campaign={{ id: campaign.id, name: campaign.name, state: campaign.state, version: campaign.version, subject: campaign.subject, preheader: campaign.preheader, senderId: campaign.senderId, replyToId: campaign.replyToId, content: campaign.content, selection: campaign.selection }} />;
 }
