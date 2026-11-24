@@ -603,6 +603,13 @@
       "when": 1795492024164,
       "tag": "0086_newsletter_group_archive",
       "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
+      "when": 1795512442361,
+      "tag": "0087_newsletter_signup_forms",
+      "breakpoints": true
     }
   ]
 }

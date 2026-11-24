@@ -158,6 +158,7 @@ test("Settings pop-up: open, sections by role, keyboard, deep link, Planner entr
   await expect(nav.getByRole("link", { name: "Campaigns", exact: true })).toBeVisible();
   for (const hidden of ["Website", "Courses and products"]) await expect(nav.getByRole("button", { name: hidden, exact: true })).toHaveCount(0);
   await expect(nav.getByRole("link", { name: "Audience", exact: true })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Sign-up forms", exact: true })).toBeVisible();
 
   // ---- Roles: a member and a viewer see only You --------------------------------------------------------------------------------------------
   for (const role of ["admin", "member", "viewer"]) {

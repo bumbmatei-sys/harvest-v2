@@ -6,7 +6,7 @@ import { message } from "../i18n/messages";
 import { uuidInput } from "../lib/contact-input";
 import { formIssues } from "../lib/crm-forms";
 import { syntheticCrmFormsKey } from "./crm-form-mode";
-import { checkDestination, loadCrmForm, lockCrmForm } from "./crm-forms";
+import { checkDestination, checkNewsletterDefinition, loadCrmForm, lockCrmForm } from "./crm-forms";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
 
@@ -25,7 +25,7 @@ export function transitionCrmForm(db: Database, userId: string, workspace: strin
     let revision: number | null = null;
     if (input.action === "publish") {
       ({ slug, revision } = input);
-      const { form } = await loadCrmForm(tx, tenantId, id);
+      const { form, draftId } = await loadCrmForm(tx, tenantId, id);
       if (form.definition.revision !== revision) throw new AccessError(409, message("CrmForms.errors.stale"), { reason: "stale" });
       const definition = form.definition;
       if (formIssues(definition).length || definition.blocks.some(block => block.required && block.type === "upload")
@@ -33,6 +33,13 @@ export function transitionCrmForm(db: Database, userId: string, workspace: strin
         throw new AccessError(400, message("Errors.checkTheSuppliedDetails"), { reason: "invalid_definition" });
       }
       await checkDestination(tx, tenantId, definition.destination);
+      if (definition.newsletter) {
+        // The texts are frozen with the publication, so make them current for the ministry's name right now, in place (the revision does not change).
+        const stamped = await checkNewsletterDefinition(tx, tenantId, definition);
+        if (JSON.stringify(stamped) !== JSON.stringify(definition)) {
+          await tx.execute(sql`update form_versions set definition = ${JSON.stringify(stamped)}::jsonb where tenant_id = ${tenantId} and id = ${draftId}::uuid and status = 'draft'`);
+        }
+      }
     }
     const { rows: [result] } = await tx.execute<{ outcome: string }>(
       sql`select public.crm_form_transition(${tenantId}, ${id}, ${input.action}, ${slug}, ${revision}) as outcome`);

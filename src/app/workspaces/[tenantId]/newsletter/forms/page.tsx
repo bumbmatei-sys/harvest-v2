@@ -1,0 +1,32 @@
+import type { Metadata } from "next";
+import { notFound } from "next/navigation";
+import { getTranslations } from "next-intl/server";
+import { getDb } from "@/db/client";
+import { pageSession } from "@/server/page-session";
+import { getWorkspace } from "@/server/workspaces";
+import { newsletterEnabled } from "@/server/newsletter";
+import { listNewsletterSignupForms, newsletterListChoices } from "@/server/newsletter-forms";
+import { syntheticCrmFormsKey } from "@/server/crm-form-mode";
+import { AccessError, can } from "@/server/permissions";
+import { uuidInput } from "@/lib/contact-input";
+import { AccessState } from "@/components/access-state";
+import { SignupFormsList } from "@/components/newsletter/signup-forms-list";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+
+export async function generateMetadata(): Promise<Metadata> {
+  const t = await getTranslations("NewsletterForms");
+  return { title: t("pageTitle") };
+}
+
+export default async function SignupFormsPage({ params }: { params: Promise<{ tenantId: string }> }) {
+  if (!newsletterEnabled()) notFound();
+  const t = await getTranslations("NewsletterForms");
+  const session = await pageSession(), { tenantId } = await params;
+  if (!uuidInput.safeParse(tenantId).success) return <AccessState />;
+  const db = getDb();
+  const workspace = await getWorkspace(db, session.user.id, tenantId).catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; });
+  if (!workspace) return <AccessState />;
+  if (!can(workspace.role, "newsletter:manage")) return <Alert><AlertDescription>{t("viewOnly")}</AlertDescription></Alert>;
+  const [forms, lists] = await Promise.all([listNewsletterSignupForms(db, session.user.id, tenantId), newsletterListChoices(db, session.user.id, tenantId)]);
+  return <SignupFormsList tenantId={tenantId} forms={forms} lists={lists} hostedAvailable={syntheticCrmFormsKey() !== null} />;
+}

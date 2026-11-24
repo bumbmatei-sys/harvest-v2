@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
 import { getDb } from "@/db/client";
 import { pageSession } from "@/server/page-session";
@@ -28,6 +28,8 @@ export default async function FormEditorPage({ params }: { params: Promise<{ ten
   if (!can(workspace.role, "crm:forms_manage")) return <Alert><AlertDescription>{t("viewOnly")}</AlertDescription></Alert>;
   const form = await getCrmForm(db, session.user.id, tenantId, formId).catch((error: unknown) => { if (error instanceof AccessError && error.status === 404) return null; throw error; });
   if (!form) notFound();
+  // A newsletter sign-up form is edited on its own screen, with the same builder.
+  if (form.definition.newsletter) redirect(`/workspaces/${tenantId}/newsletter/forms/${formId}`);
   const [destinations, members] = await Promise.all([destinationOptions(db, session.user.id, tenantId), assignableMembers(db, session.user.id, tenantId)]);
   return <FormEditor ministryName={workspace.name} tenantId={tenantId} formId={formId} initial={form.definition} revision={form.definition.revision} destinations={destinations.options} members={members}
     responseCount={form.responseCount} publication={form.publication} unpublishedChanges={form.unpublishedChanges} hostedAvailable={syntheticCrmFormsKey() !== null} />;

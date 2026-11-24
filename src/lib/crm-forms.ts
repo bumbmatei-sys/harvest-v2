@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { newsletterWordingIds, NEWSLETTER_BLOCK_IDS } from "./newsletter-signup";
 
 // CRM forms builder: the definition a ministry builds, plus the pure rules the builder, the preview and (later) the hosted form share.
 // Stored as the `definition` of a draft `form_versions` row (kind `crm-form-v1`); nothing here is sent anywhere.
@@ -28,9 +29,14 @@ export type FormSettings = {
   layout: FormLayout; theme: "light" | "dark"; background: (typeof backgroundIds)[number]; buttonColor: (typeof buttonColorIds)[number];
   landing: "preview" | "build"; hiddenCampaign: boolean; hiddenSource: boolean;
 };
+/**
+ * Newsletter sign-up preset. The lists to join, the immutable wording version and the two texts it resolves to are part of the definition, so a
+ * publication freezes them: the consent line a visitor saw is the one stored with the version they signed up through.
+ */
+export type NewsletterConfig = { listIds: string[]; wordingVersion: string; consentText: string; fixedNotice: string };
 export type FormDefinition = {
   kind: typeof FORM_KIND; revision: number; updatedAt: string; title: string; description: string; cover: (typeof coverIds)[number]; logoUrl: string;
-  destination: FormDestination | null; endTitle: string; endBody: string; blocks: FormBlock[]; settings: FormSettings;
+  destination: FormDestination | null; endTitle: string; endBody: string; blocks: FormBlock[]; settings: FormSettings; newsletter?: NewsletterConfig;
 };
 
 const httpsUrl = z.union([z.literal(""), z.url({ protocol: /^https$/ }).max(formLimits.url)]);
@@ -46,6 +52,10 @@ export const formDefinitionSchema = z.object({
   destination: z.object({ type: z.enum(["people", "organizations", "pipeline"]), pipelineId: z.uuid().optional() }).strict().nullable(),
   endTitle: z.string().trim().min(1).max(formLimits.title), endBody: z.string().max(formLimits.description),
   blocks: z.array(blockSchema).max(formLimits.blocks),
+  newsletter: z.object({
+    listIds: z.array(z.uuid()).max(10).refine((ids) => new Set(ids).size === ids.length), wordingVersion: z.enum(newsletterWordingIds),
+    consentText: z.string().max(500), fixedNotice: z.string().max(300),
+  }).strict().optional(),
   settings: z.object({
     ownerId: z.string().max(100).nullable(), labels: z.array(z.string().trim().min(1).max(formLimits.labelLength)).max(formLimits.labels),
     redirectUrl: httpsUrl, buttonLabel: z.string().trim().min(1).max(formLimits.button), startLabel: z.string().trim().min(1).max(formLimits.button),
@@ -68,6 +78,18 @@ export const formDefinitionSchema = z.object({
     if (b.type === "info" && b.required) issue(["blocks", i, "required"], "info");
   });
   if (form.destination?.type === "pipeline" && !form.destination.pipelineId) issue(["destination"], "pipeline");
+  if (form.newsletter) {
+    // A sign-up form asks for an address and, optionally, a first and last name, then the consent. Nothing else, and nothing is saved to a CRM destination.
+    const fixed: Record<string, { type: BlockType; required?: boolean }> = {
+      [NEWSLETTER_BLOCK_IDS.email]: { type: "email", required: true }, [NEWSLETTER_BLOCK_IDS.first]: { type: "short" }, [NEWSLETTER_BLOCK_IDS.last]: { type: "short" }, [CONSENT_ID]: { type: "consent", required: true },
+    };
+    if (form.destination) issue(["destination"], "newsletter");
+    if (!form.blocks.some((b) => b.id === NEWSLETTER_BLOCK_IDS.email)) issue(["blocks"], "newsletter email");
+    form.blocks.forEach((b, i) => {
+      const rule = fixed[b.id];
+      if (!rule || b.type !== rule.type || (rule.required && !b.required) || b.options || (b.id === NEWSLETTER_BLOCK_IDS.email ? b.mapTo !== "email" : b.mapTo)) issue(["blocks", i], "newsletter block");
+    });
+  }
 });
 
 export const newBlockId = () => Array.from(globalThis.crypto.getRandomValues(new Uint8Array(8)), (b) => "abcdefghijklmnopqrstuvwxyz0123456789"[b % 36]).join("");
@@ -125,10 +147,12 @@ export function insertBlock(blocks: FormBlock[], block: FormBlock): FormBlock[] 
 /** The consent block is mandatory: it cannot be removed. */
 export const removeBlock = (blocks: FormBlock[], id: string) => blocks.filter((b) => b.id !== id || b.type === "consent");
 
-export type FormIssue = "noName" | "noContact" | "noDestination" | "emptyChoice";
+export type FormIssue = "noName" | "noContact" | "noDestination" | "emptyChoice" | "noLists";
 /** What stops a form from being ready: it needs a person to save (a Name question) and a way to reach them, and a destination. */
 export function formIssues(form: FormDefinition): FormIssue[] {
   const issues: FormIssue[] = [];
+  // A sign-up form needs at least one list; the address field is fixed, and it has no CRM destination or Name question.
+  if (form.newsletter) return form.newsletter.listIds.length ? [] : ["noLists"];
   if (!form.destination) issues.push("noDestination");
   if (!form.blocks.some((b) => b.mapTo === "name")) issues.push("noName");
   if (!form.blocks.some((b) => b.mapTo === "email" || b.mapTo === "phone")) issues.push("noContact");
