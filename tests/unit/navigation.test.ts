@@ -97,8 +97,8 @@ describe("three-mode registry (slice 1)", () => {
   });
   it("reserves not-yet-built modules as planned, including blog articles", () => {
     const planned = navEntries.filter((entry) => entry.status === "planned").map((entry) => entry.id);
-    expect(planned).toEqual(expect.arrayContaining(["articles", "ads", "website", "linkInBio", "signupForms", "products", "courses", "coaching", "coupons", "live", "discover", "assistant", "responses", "connectLinks", "forms", "spreadsheets", "givingOverview", "donations", "fundraising", "pledges", "donors", "funds", "givingPage", "volunteers", "livestream", "churchProfile"]));
-    expect(navEntries.filter((entry) => entry.status !== "planned").map((entry) => entry.id)).toEqual(["people", "companies", "pipelines", "tasks", "crmReports", "crmForms", "imports", "mail", "calendar", "documents", "campaigns", "followUp", "events", "files", "planner", "inbox", "autoDm", "socialAnalytics", "newsletterAnalytics", "newsletterCampaigns", "newsletterAudience", "newsletterSender", "communities", "socialAccounts", "crmFields", "pipelineSettings", "appearance", "ministrySettings"]);
+    expect(planned).toEqual(expect.arrayContaining(["articles", "ads", "website", "linkInBio", "products", "courses", "coaching", "coupons", "live", "discover", "assistant", "responses", "connectLinks", "forms", "spreadsheets", "givingOverview", "donations", "fundraising", "pledges", "donors", "funds", "givingPage", "volunteers", "livestream", "churchProfile"]));
+    expect(navEntries.filter((entry) => entry.status !== "planned").map((entry) => entry.id)).toEqual(["people", "companies", "pipelines", "tasks", "crmReports", "crmForms", "imports", "mail", "calendar", "documents", "campaigns", "followUp", "events", "files", "planner", "inbox", "autoDm", "socialAnalytics", "newsletterAnalytics", "newsletterCampaigns", "newsletterAudience", "signupForms", "newsletterSender", "communities", "socialAccounts", "crmFields", "pipelineSettings", "appearance", "ministrySettings"]);
   });
   it("never renders, links or labels a planned entry", () => {
     const plannedIds = new Set(navEntries.filter((entry) => entry.status === "planned").map((entry) => entry.id));
@@ -236,6 +236,20 @@ describe("approved sidebar structure (20 Nov)", () => {
     expect(visible("owner")).toBe(true); expect(visible("admin")).toBe(true); expect(visible("member")).toBe(false); expect(visible("viewer")).toBe(false);
     const hidden = resolveModeNavigation({ tenantId, role: "owner", features: [], pathname: root, mode: "public" }).groups.flatMap((group) => group.items);
     expect(hidden.some((item) => item.id === "newsletterAnalytics")).toBe(false);
+  });
+  it("makes Sign-up forms live between Audience and the end of Newsletter, owner and admin only", () => {
+    const forms = navEntries.find((entry) => entry.id === "signupForms")!;
+    expect(forms).toMatchObject({ group: "newsletter", mode: "public", permission: "newsletter:manage", feature: "newsletter", path: "/newsletter/forms" });
+    expect(forms.status).not.toBe("planned");
+    const ids = navEntries.filter((entry) => entry.group === "newsletter").map((entry) => entry.id);
+    expect(ids.indexOf("signupForms")).toBe(ids.indexOf("newsletterAudience") + 1);
+    for (const path of ["/workspaces/t/newsletter/forms", "/workspaces/t/newsletter/forms/abc"]) expect(forms.match(path), path).toBe(true);
+    expect(forms.match("/workspaces/t/newsletter/audience")).toBe(false);
+    const campaigns = navEntries.find((entry) => entry.id === "campaigns")!;
+    for (const path of ["/workspaces/t/newsletter/forms", "/workspaces/t/newsletter/forms/abc"]) expect(campaigns.match(path), path).toBe(false);
+    const visible = (role: string, features: ("newsletter")[]) => resolveModeNavigation({ tenantId, role, features, pathname: root, mode: "public" }).groups.flatMap((group) => group.items).some((item) => item.id === "signupForms");
+    expect(visible("owner", ["newsletter"])).toBe(true); expect(visible("admin", ["newsletter"])).toBe(true);
+    expect(visible("member", ["newsletter"])).toBe(false); expect(visible("viewer", ["newsletter"])).toBe(false); expect(visible("owner", [])).toBe(false);
   });
   it("adds Sender as the last Newsletter entry for owners and admins only", () => {
     const sender = navEntries.find((entry) => entry.id === "newsletterSender")!, campaigns = navEntries.find((entry) => entry.id === "campaigns")!;

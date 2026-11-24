@@ -22,6 +22,8 @@ const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev",
     HARVEST_CRM_FORMS: "synthetic", HARVEST_CRM_FORMS_TEST_KEY: formsKey,
     DATABASE_URL: database.appURL, DATABASE_URL_UNPOOLED: "", BETTER_AUTH_SECRET: randomBytes(48).toString("base64url"),
     BETTER_AUTH_URL: `http://127.0.0.1:${port}`, RESEND_API_KEY: "re_e2e_mock_only", EMAIL_FROM: "Harvest <test@example.test>",
+    // Hosted newsletter sign-ups sign their confirmation links with this key; the message goes to the in-memory fake sink only.
+    HARVEST_NEWSLETTER_TOKEN_KEY: randomBytes(32).toString("hex"),
     HARVEST_NEWSLETTER_SUPPRESSION_KEYS: JSON.stringify([randomBytes(32).toString("hex")]),
     HARVEST_E2E_MOCK_EMAIL: "1", NEXT_TELEMETRY_DISABLED: "1",
     FILES_REQUIRE_SCAN_PRIVATE: "false",

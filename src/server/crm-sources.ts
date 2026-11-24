@@ -21,7 +21,7 @@ export async function hostedFormSourceOptions(tx: Transaction, tenantId: string,
     : sql.empty();
   const { rows } = await tx.execute<{ id: string; name: string }>(sql`
     select version_id::text as id, definition->>'title' as name from crm_form_publications
-    where tenant_id = ${tenantId} ${selection}
+    where tenant_id = ${tenantId} and definition->'newsletter' is null ${selection}
     order by lower(definition->>'title'), version_id ${versionIds ? sql.empty() : sql`limit ${LIMIT}`}`);
   return rows;
 }

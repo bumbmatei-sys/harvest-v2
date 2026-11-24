@@ -5564,7 +5564,8 @@
       "noName": "Add a Name question",
       "noContact": "Add an Email or Phone question",
       "noDestination": "Choose where to save",
-      "emptyChoice": "Fill in every option"
+      "emptyChoice": "Fill in every option",
+      "noLists": "Choose at least one list"
     },
     "leave": {
       "title": "Leave this form?",
@@ -5581,7 +5582,8 @@
       "stale": "This form was changed elsewhere. Reload and try again.",
       "destination": "Choose a destination that exists in this ministry.",
       "template": "Choose a valid template.",
-      "tooLarge": "This form is too large to save. Remove some questions or options."
+      "tooLarge": "This form is too large to save. Remove some questions or options.",
+      "lists": "Choose lists that exist in this ministry."
     },
     "bar": {
       "saving": "Saving",
@@ -5608,7 +5610,10 @@
       "retired": "Unpublished",
       "publishedToast": "Form published",
       "unpublishedToast": "Form unpublished",
-      "copied": "Link copied"
+      "copied": "Link copied",
+      "signupCount": "{count, plural, one {# sign-up} other {# sign-ups}}",
+      "signups": "Sign-ups",
+      "share": "Share"
     },
     "publish": {
       "title": "Publish this form?",
@@ -5625,7 +5630,8 @@
       "slugInvalid": "Use 3 to 64 lowercase letters, numbers or single hyphens, not a reserved word.",
       "invalid": "Finish the form before publishing it.",
       "failed": "Could not update the form. Try again.",
-      "copyFailed": "Could not copy the link."
+      "copyFailed": "Could not copy the link.",
+      "signupPrefix": "/subscribe/"
     },
     "menu": {
       "add": "Add question",
@@ -5766,7 +5772,8 @@
       "resubmit": "Submit another response",
       "progress": "Question {current} of {total}",
       "back": "Back",
-      "next": "Next"
+      "next": "Next",
+      "submitFailed": "Could not send your details. Try again."
     },
     "settings": {
       "after": {
@@ -5831,6 +5838,28 @@
         "preview": "Preview",
         "build": "Build"
       }
+    },
+    "newsletter": {
+      "breadcrumb": "Sign-up forms",
+      "lists": "Lists",
+      "noLists": "Create a list in Audience first.",
+      "pickOne": "Choose at least one list.",
+      "names": "Questions",
+      "first": "Ask for first name",
+      "last": "Ask for last name",
+      "firstLabel": "First name",
+      "lastLabel": "Last name",
+      "consent": "Consent wording"
+    },
+    "newsletterForm": {
+      "title": "Join our newsletter",
+      "description": "",
+      "email": "Email address",
+      "first": "First name",
+      "last": "Last name",
+      "endTitle": "Check your email",
+      "endBody": "We sent you a link. Confirm your address to finish signing up.",
+      "button": "Sign up"
     }
   },
   "OfficeMail": {
@@ -6921,5 +6950,101 @@
       "footer": "{start} to {end}, UTC. Delivery records are kept for 90 days. Figures are indicative and come from mail provider reports. Opens, clicks and link clicks are not collected. Groups under 5 are not shown."
     },
     "unavailable": "Analytics unavailable."
+  },
+  "NewsletterForms": {
+    "pageTitle": "Sign-up forms",
+    "editorTitle": "Sign-up form",
+    "heading": "Sign-up forms",
+    "viewOnly": "Only owners and admins manage sign-up forms.",
+    "status": {
+      "draft": "Draft",
+      "published": "Published",
+      "unpublished": "Unpublished"
+    },
+    "columns": {
+      "name": "Name",
+      "lists": "Lists",
+      "status": "Status",
+      "signups": "Sign-ups",
+      "last": "Last sign-up",
+      "actions": "Actions"
+    },
+    "list": {
+      "createFailed": "Could not create the form.",
+      "archiveFailed": "Could not archive the form.",
+      "linkCopied": "Link copied",
+      "copyFailed": "Could not copy the link.",
+      "noLists": "No lists",
+      "never": "None yet",
+      "menu": "Actions for {name}",
+      "edit": "Edit",
+      "preview": "Preview",
+      "copyLink": "Copy link",
+      "duplicate": "Duplicate",
+      "archive": "Archive",
+      "new": "New sign-up form",
+      "unavailable": "Public sign-up pages are not available in this environment.",
+      "emptyTitle": "No sign-up forms yet",
+      "emptyBody": "Create a form to let people join a list. Each person confirms by email before they are added.",
+      "search": "Search sign-up forms",
+      "noMatch": "No sign-up forms match."
+    },
+    "new": {
+      "title": "New sign-up form",
+      "noLists": "There are no lists yet. Create a list in Audience first.",
+      "lists": "Lists to join",
+      "cancel": "Cancel",
+      "goToAudience": "Go to Audience",
+      "create": "Create form"
+    },
+    "archive": {
+      "title": "Archive {name}?",
+      "body": "The form is unpublished and removed from this list. People who already confirmed stay subscribed.",
+      "cancel": "Cancel",
+      "confirm": "Archive"
+    },
+    "share": {
+      "notPublished": "Publish the form to get its link, embed code and QR code.",
+      "pending": "Published version differs from the draft. Publish changes to update the public page.",
+      "link": "Public link",
+      "copyLink": "Copy public link",
+      "embed": "Embed code",
+      "copyEmbed": "Copy embed code",
+      "qr": "QR code",
+      "qrTitle": "QR code for {title}",
+      "downloadSvg": "Download SVG",
+      "downloadPng": "Download PNG"
+    },
+    "signups": {
+      "total": "Sign-ups",
+      "pending": "Waiting for confirmation",
+      "confirmed": "Confirmed",
+      "notConfirmed": "Not confirmed",
+      "last": "Last sign-up {when}",
+      "none": "No sign-ups yet.",
+      "openAudience": "Open Audience",
+      "refresh": "Refresh",
+      "failed": "Could not refresh the counts."
+    },
+    "hosted": {
+      "pageTitle": "Newsletter sign-up",
+      "loading": "Loading",
+      "busyTitle": "Too many requests. Try again in a minute.",
+      "unavailableTitle": "This sign-up form is not available."
+    },
+    "confirm": {
+      "pageTitle": "Confirm sign-up",
+      "title": "Confirm your sign-up",
+      "button": "Confirm",
+      "doneTitle": "Thank you",
+      "doneBody": "If this link is still valid, you are now signed up. Links work once and expire after 30 minutes.",
+      "failed": "Could not confirm. Try again.",
+      "invalidTitle": "This link is not valid."
+    },
+    "confirmationEmail": {
+      "subject": "Confirm your sign-up to {ministry}",
+      "body": "Confirm your sign-up to {ministry} ({form}) with this link: {link}",
+      "fallbackMinistry": "the ministry"
+    }
   }
 }

@@ -19,9 +19,11 @@ import { PublicForm } from "@/components/forms/public-form";
 import { BuildCanvas } from "@/components/crm/forms/build-canvas";
 import { FormSettingsPanel, type Destination, type Member } from "@/components/crm/forms/form-settings";
 import { commit, formIssues, formLimits, redo, startHistory, undo, type FormDefinition, type FormDestination, type FormSettings } from "@/lib/crm-forms";
+import { signupPath } from "@/lib/newsletter-signup";
+import { NewsletterSharePanel, NewsletterSignupsPanel, type NewsletterEditorData } from "@/components/newsletter/signup-form-panels";
 
 export type Publication = { slug: string; state: "published" | "retired"; versionId: string | null };
-type Tab = "build" | "settings" | "preview";
+type Tab = "build" | "settings" | "preview" | "share" | "signups";
 type Save = "saved" | "saving" | "error" | "conflict" | "rejected";
 const AUTOSAVE_MS = 900;
 
@@ -42,7 +44,9 @@ function destinationOf(value: string): FormDestination | null {
  * Drafts autosave. Publish, Unpublish, Copy link and Open call the server's publication endpoint; where the server does not serve hosted
  * forms (production) the controls say so. Editing a published form saves a new draft; the live version stays until the next Publish.
  */
-export function FormEditor({ tenantId, formId, initial, revision, destinations, members, responseCount, publication: initialPublication, unpublishedChanges, hostedAvailable, ministryName }: {
+export function FormEditor({ tenantId, formId, initial, revision, destinations, members, responseCount, publication: initialPublication, unpublishedChanges, hostedAvailable, ministryName, newsletter, initialTab }: {
+  /** Present for a newsletter sign-up form: the same builder with the sign-up settings, a share panel and the counts. */
+  newsletter?: NewsletterEditorData; initialTab?: Tab;
   ministryName?: string; tenantId: string; formId: string; initial: FormDefinition; revision: number; destinations: Destination[]; members: Member[];
   responseCount: number; publication: Publication | null; unpublishedChanges: boolean;
   /** False when this environment does not serve hosted forms (production); the controls then say so instead of acting. */
@@ -51,7 +55,8 @@ export function FormEditor({ tenantId, formId, initial, revision, destinations, 
   const t = useTranslations("CrmForms"), tb = useTranslations("CrmForms.bar");
   const request = useCrmRequest();
   const [history, setHistory] = useState(() => startHistory(initial)), form = history.present;
-  const [tab, setTab] = useState<Tab>(initial.settings.landing === "preview" ? "preview" : "build");
+  const signup = Boolean(newsletter);
+  const [tab, setTab] = useState<Tab>(initialTab ?? (initial.settings.landing === "preview" ? "preview" : "build"));
   const [page, setPage] = useState<"start" | "end">("start"), [selected, setSelected] = useState<string | null>(null);
   const [save, setSave] = useState<Save>("saved"), [live, setLive] = useState("");
   const [savedJson, setSavedJson] = useState(() => JSON.stringify(strip(initial))), rev = useRef(revision), busy = useRef(false);
@@ -98,7 +103,8 @@ export function FormEditor({ tenantId, formId, initial, revision, destinations, 
   }, []);
 
   const unavailable = () => notify.info(t("bar.unavailable"));
-  const address = publication ? `${typeof location === "undefined" ? "" : location.origin}/f/${publication.slug}` : "";
+  const publicPath = (slug: string) => signup ? signupPath(slug) : `/f/${slug}`;
+  const address = publication ? `${typeof location === "undefined" ? "" : location.origin}${publicPath(publication.slug)}` : "";
   const readyToPublish = shown === "saved" && issues.length === 0 && !acting;
   function openDialog(kind: "publish" | "unpublish") {
     if (!available) { unavailable(); return; }
@@ -127,7 +133,7 @@ export function FormEditor({ tenantId, formId, initial, revision, destinations, 
   return <div className="min-w-0 space-y-4" data-crm-form-editor>
     <header className="flex flex-wrap items-center justify-between gap-3">
       <nav aria-label={t("breadcrumb")} className="flex min-w-0 items-center gap-2 text-sm text-muted-foreground">
-        <Link href={`/workspaces/${tenantId}/crm/forms`} className="inline-flex min-h-11 items-center hover:underline">{t("forms")}</Link><ChevronRight className="size-4" aria-hidden="true" /><span className="truncate font-medium text-foreground">{form.title}</span></nav>
+        <Link href={signup ? `/workspaces/${tenantId}/newsletter/forms` : `/workspaces/${tenantId}/crm/forms`} className="inline-flex min-h-11 items-center hover:underline">{signup ? t("newsletter.breadcrumb") : t("forms")}</Link><ChevronRight className="size-4" aria-hidden="true" /><span className="truncate font-medium text-foreground">{form.title}</span></nav>
       <div className="flex items-center gap-1">
         <span role="status" className={cn("me-2 inline-flex items-center gap-1 text-xs", shown === "error" || shown === "conflict" ? "text-destructive" : "text-muted-foreground")} data-save-status={shown}>
           {shown === "saving" ? <Loader2 className="size-3 animate-spin" aria-hidden="true" /> : shown === "saved" ? <Check className="size-3" aria-hidden="true" /> : null}{status}</span>
@@ -141,12 +147,12 @@ export function FormEditor({ tenantId, formId, initial, revision, destinations, 
 
     <Tabs value={tab} onValueChange={(value) => setTab(value as Tab)} className="gap-4">
     <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
-      <Badge variant="outline" className="h-8 rounded-md px-3 text-sm font-normal" data-responses>{tb("responses", { count: responseCount })}</Badge>
+      <Badge variant="outline" className="h-8 rounded-md px-3 text-sm font-normal" data-responses>{signup ? tb("signupCount", { count: newsletter!.counts.total }) : tb("responses", { count: responseCount })}</Badge>
       <Badge variant={published ? "default" : "secondary"} className="h-8 rounded-md px-3 text-sm font-normal" data-publication-state={publication?.state ?? "draft"}>{stateLabel}</Badge>
-      <TabsList className="order-last w-full sm:order-none sm:w-auto" aria-label={tb("views")}>{(["build", "settings", "preview"] as const).map((value) => <TabsTrigger key={value} value={value} className="min-h-11 flex-1 sm:flex-none sm:px-5">{tb(value)}</TabsTrigger>)}</TabsList>
+      <TabsList className="order-last w-full sm:order-none sm:w-auto" aria-label={tb("views")}>{(signup ? ["build", "settings", "preview", "share", "signups"] as const : ["build", "settings", "preview"] as const).map((value) => <TabsTrigger key={value} value={value} className="min-h-11 flex-1 sm:flex-none sm:px-5">{tb(value)}</TabsTrigger>)}</TabsList>
       <div className="flex items-center gap-2">
         {published && available
-          ? <Button asChild variant="ghost" size="icon" className="size-11"><a href={`/f/${publication?.slug}`} target="_blank" rel="noopener noreferrer" aria-label={tb("open")} data-open-form><ExternalLink aria-hidden="true" /></a></Button>
+          ? <Button asChild variant="ghost" size="icon" className="size-11"><a href={publicPath(publication?.slug ?? "")} target="_blank" rel="noopener noreferrer" aria-label={tb("open")} data-open-form><ExternalLink aria-hidden="true" /></a></Button>
           : <Button type="button" variant="ghost" size="icon" className="size-11" aria-disabled="true" aria-label={tb("open")} onClick={unavailable}><ExternalLink aria-hidden="true" /></Button>}
         <DropdownMenu><DropdownMenuTrigger asChild><Button type="button" variant="outline" className="min-h-11">{tb("copy")}<ChevronDown aria-hidden="true" /></Button></DropdownMenuTrigger>
           <DropdownMenuContent align="end"><DropdownMenuItem className="min-h-11" disabled={!published || !available} onSelect={() => void copyLink()}>{tb("copyLink")}</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
@@ -162,7 +168,7 @@ export function FormEditor({ tenantId, formId, initial, revision, destinations, 
           className={cn("flex min-h-11 items-center gap-3 rounded-md px-3 text-sm outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50", page === value ? "font-medium text-foreground" : "text-muted-foreground hover:bg-accent/50")}>
           <span className={cn("hidden h-6 w-1 rounded-full lg:block", page === value ? "bg-foreground" : "bg-muted")} aria-hidden="true" />{value === "start" ? <Play className="size-4" aria-hidden="true" /> : <CircleCheck className="size-4" aria-hidden="true" />}{t(`pages.${value}`)}</button>)}</nav>
       {page === "start"
-        ? <BuildCanvas form={form} change={change} selected={selected} setSelected={setSelected} notify={setLive} />
+        ? <BuildCanvas form={form} change={change} selected={selected} setSelected={setSelected} notify={setLive} fixed={signup} />
         : <div className="mx-auto w-full max-w-3xl space-y-4" data-end-page>
           <Input aria-label={t("end.title")} className="h-auto min-h-12 border-0 border-b rounded-none px-0 text-3xl font-semibold shadow-none focus-visible:ring-0 md:text-3xl" value={form.endTitle} maxLength={formLimits.title} onChange={(e) => change((f) => ({ ...f, endTitle: e.target.value }), "end-title")} />
           <Textarea aria-label={t("end.body")} rows={4} className="min-h-0 resize-none border-0 border-b rounded-none px-0 shadow-none focus-visible:ring-0" value={form.endBody} maxLength={formLimits.description} onChange={(e) => change((f) => ({ ...f, endBody: e.target.value }), "end-body")} />
@@ -174,10 +180,13 @@ export function FormEditor({ tenantId, formId, initial, revision, destinations, 
 
     <TabsContent value="settings" className="min-w-0"><div className="grid min-w-0 gap-6 lg:grid-cols-[minmax(0,1fr)_22rem]">
       <div inert className="min-w-0 max-lg:hidden" aria-hidden="true"><PublicForm form={form} ministryName={ministryName} idPrefix="settings-preview" /></div>
-      <FormSettingsPanel form={form} destinations={destinations} members={members} onSettings={changeSettings} onDestination={destinationChange} />
+      <FormSettingsPanel form={form} destinations={destinations} members={members} onSettings={changeSettings} onDestination={destinationChange} newsletter={newsletter ? { lists: newsletter.lists, onChange: change } : undefined} />
     </div></TabsContent>
 
     <TabsContent value="preview"><div className="mx-auto w-full max-w-3xl" data-preview-tab><PublicForm form={form} ministryName={ministryName} idPrefix="preview" /></div></TabsContent>
+    {newsletter && <>
+      <TabsContent value="share"><NewsletterSharePanel tenantId={tenantId} formId={formId} title={form.title} address={address} published={published && available} pending={pending} /></TabsContent>
+      <TabsContent value="signups"><NewsletterSignupsPanel tenantId={tenantId} formId={formId} initial={newsletter.counts} /></TabsContent></>}
     </Tabs>
     <p className="sr-only" role="status" aria-live="polite">{live}</p>
 
@@ -189,7 +198,7 @@ export function FormEditor({ tenantId, formId, initial, revision, destinations, 
         </AlertDialogHeader>
         {dialog === "publish" && <div className="space-y-1.5">
           <label htmlFor="form-slug" className="text-sm font-medium">{t("publish.address")}</label>
-          <div className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground"><span className="shrink-0">{t("publish.prefix")}</span>
+          <div className="flex min-w-0 items-center gap-1 text-sm text-muted-foreground"><span className="shrink-0">{signup ? t("publish.signupPrefix") : t("publish.prefix")}</span>
             <Input id="form-slug" value={slug} readOnly={publication !== null} maxLength={64} autoComplete="off" spellCheck={false} className="h-11 min-w-0" aria-invalid={slug !== "" && !slugPattern.test(slug)} onChange={(event) => { setSlug(event.target.value.toLowerCase()); setActionError(""); }} /></div>
           {publication !== null && <p className="text-xs text-muted-foreground">{t("publish.addressLocked")}</p>}
         </div>}

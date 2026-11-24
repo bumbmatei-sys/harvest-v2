@@ -3,6 +3,9 @@ import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { ChevronDown, Columns2, Moon, Rows3, Square, Sun, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
+import { asksFor, setNameQuestion } from "@/lib/newsletter-signup";
+import type { ListChoice } from "@/components/newsletter/signup-forms-list";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Input } from "@/components/ui/input";
@@ -38,18 +41,40 @@ function Segmented<T extends string>({ label, value, options, onChange }: { labe
 const layoutIcon = { one: Rows3, two: Columns2, paged: Square } as const;
 
 /** The Settings sidebar: collapsible sections for what happens after submitting, submission options, layout, colours and the default view. */
-export function FormSettingsPanel({ form, destinations, members, onSettings, onDestination }: {
+export function FormSettingsPanel({ form, destinations, members, onSettings, onDestination, newsletter }: {
   form: FormDefinition; destinations: Destination[]; members: Member[]; onSettings: Update; onDestination: (value: string) => void;
+  /** A newsletter sign-up form: its lists, wording and name questions replace the CRM destination, owner, labels and hidden-field settings. */
+  newsletter?: { lists: ListChoice[]; onChange: (fn: (form: FormDefinition) => FormDefinition, key?: string) => void };
 }) {
   const t = useTranslations("CrmForms.settings"), s = form.settings;
-  const [open, setOpen] = useState<Record<string, boolean>>({ after: true, submission: true, layout: true, colors: true, view: true });
+  const [open, setOpen] = useState<Record<string, boolean>>({ after: true, submission: true, layout: true, colors: true, view: true, lists: true, names: true, consent: true });
+  const tn = useTranslations("CrmForms.newsletter");
   const [label, setLabel] = useState("");
   const set = (id: string) => (value: boolean) => setOpen((current) => ({ ...current, [id]: value }));
   const addLabel = () => { const value = label.trim(); if (!value || s.labels.includes(value) || s.labels.length >= formLimits.labels) return; onSettings((x) => ({ ...x, labels: [...x.labels, value] })); setLabel(""); };
   const urlInvalid = s.redirectUrl !== "" && !/^https:\/\/\S+$/.test(s.redirectUrl);
   const destValue = form.destination ? (form.destination.type === "pipeline" ? `pipeline:${form.destination.pipelineId}` : form.destination.type) : "";
+  const config = form.newsletter;
+  const toggleList = (id: string, on: boolean) => newsletter?.onChange((f) => f.newsletter ? { ...f, newsletter: { ...f.newsletter, listIds: on ? [...f.newsletter.listIds, id] : f.newsletter.listIds.filter((x) => x !== id) } } : f);
   return <div className="space-y-3" data-form-settings>
-    <Section id="after" title={t("after.title")} open={open.after} onOpen={set("after")}>
+    {newsletter && config && <>
+      <Section id="lists" title={tn("lists")} open={open.lists} onOpen={set("lists")}>
+        {newsletter.lists.length === 0 ? <p className="text-sm text-muted-foreground">{tn("noLists")}</p>
+          : <fieldset className="space-y-1" data-signup-lists><legend className="sr-only">{tn("lists")}</legend>
+            {newsletter.lists.map((list) => <Label key={list.id} htmlFor={`signup-list-${list.id}`} className="flex min-h-11 items-center gap-3 font-normal">
+              <Checkbox id={`signup-list-${list.id}`} checked={config.listIds.includes(list.id)} onCheckedChange={(value) => toggleList(list.id, value === true)} />
+              <span className="min-w-0 truncate">{list.name}</span><span className="ms-auto truncate text-xs text-muted-foreground">{list.audience}</span></Label>)}</fieldset>}
+        {config.listIds.length === 0 && <p role="alert" className="text-sm text-destructive">{tn("pickOne")}</p>}
+      </Section>
+      <Section id="names" title={tn("names")} open={open.names} onOpen={set("names")}>
+        <Toggle id="set-first" label={tn("first")} checked={asksFor(form, "first")} onChange={(on) => newsletter.onChange((f) => setNameQuestion(f, "first", on, tn("firstLabel")))} />
+        <Toggle id="set-last" label={tn("last")} checked={asksFor(form, "last")} onChange={(on) => newsletter.onChange((f) => setNameQuestion(f, "last", on, tn("lastLabel")))} />
+      </Section>
+      <Section id="consent" title={tn("consent")} open={open.consent} onOpen={set("consent")}>
+        <div className="space-y-2 text-sm" data-signup-wording><Badge variant="outline">{config.wordingVersion}</Badge>
+          <p>{config.consentText}</p><p className="text-muted-foreground">{config.fixedNotice}</p></div>
+      </Section></>}
+    {!newsletter && <Section id="after" title={t("after.title")} open={open.after} onOpen={set("after")}>
       <Row label={t("after.saveTo")} htmlFor="set-destination">
         <NativeSelect id="set-destination" className="w-full" value={destValue} onChange={(e) => onDestination(e.target.value)}>
           <NativeSelectOption value="">{t("after.notSet")}</NativeSelectOption>{destinations.map((d) => <NativeSelectOption key={d.value} value={d.value}>{d.label}</NativeSelectOption>)}</NativeSelect></Row>
@@ -61,16 +86,17 @@ export function FormSettingsPanel({ form, destinations, members, onSettings, onD
           <Button type="button" variant="outline" className="min-h-11" onClick={addLabel}>{t("after.addLabel")}</Button></div>
           {s.labels.length > 0 && <ul className="flex flex-wrap gap-2" aria-label={t("after.labels")}>{s.labels.map((l) => <li key={l}><Badge variant="secondary" className="gap-1 ps-2 pe-0">{l}
             <button type="button" aria-label={t("after.removeLabel", { label: l })} className="flex size-11 items-center justify-center rounded-full outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 -my-3" onClick={() => onSettings((x) => ({ ...x, labels: x.labels.filter((y) => y !== l) }))}><X className="size-3" aria-hidden="true" /></button></Badge></li>)}</ul>}</div></Row>
-    </Section>
+    </Section>}
     <Section id="submission" title={t("submission.title")} open={open.submission} onOpen={set("submission")}>
       <Row label={t("submission.redirect")} htmlFor="set-redirect">
         <Input id="set-redirect" className="min-h-11" inputMode="url" placeholder={t("submission.redirectPlaceholder")} value={s.redirectUrl} maxLength={formLimits.url} aria-invalid={urlInvalid || undefined}
           onChange={(e) => onSettings((x) => ({ ...x, redirectUrl: e.target.value.trim() }), "redirect")} />{urlInvalid && <p role="alert" className="mt-1 text-sm text-destructive">{t("submission.redirectInvalid")}</p>}</Row>
       <Row label={t("submission.button")} htmlFor="set-button"><Input id="set-button" className="min-h-11" value={s.buttonLabel} maxLength={formLimits.button} onChange={(e) => onSettings((x) => ({ ...x, buttonLabel: e.target.value }), "button")} /></Row>
-      <Toggle id="set-resubmit" label={t("submission.resubmit")} checked={s.showResubmit} onChange={(v) => onSettings((x) => ({ ...x, showResubmit: v }))} />
+      {!newsletter && <Toggle id="set-resubmit" label={t("submission.resubmit")} checked={s.showResubmit} onChange={(v) => onSettings((x) => ({ ...x, showResubmit: v }))} />}
       <Toggle id="set-spam" label={t("submission.spam")} checked={s.spamCheck} onChange={(v) => onSettings((x) => ({ ...x, spamCheck: v }))} />
-      <Toggle id="set-hidden-campaign" label={t("submission.hiddenCampaign")} checked={s.hiddenCampaign} onChange={(v) => onSettings((x) => ({ ...x, hiddenCampaign: v }))} />
-      <Toggle id="set-hidden-source" label={t("submission.hiddenSource")} checked={s.hiddenSource} onChange={(v) => onSettings((x) => ({ ...x, hiddenSource: v }))} />
+      {!newsletter && <>
+        <Toggle id="set-hidden-campaign" label={t("submission.hiddenCampaign")} checked={s.hiddenCampaign} onChange={(v) => onSettings((x) => ({ ...x, hiddenCampaign: v }))} />
+        <Toggle id="set-hidden-source" label={t("submission.hiddenSource")} checked={s.hiddenSource} onChange={(v) => onSettings((x) => ({ ...x, hiddenSource: v }))} /></>}
     </Section>
     <Section id="layout" title={t("layout.title")} open={open.layout} onOpen={set("layout")}>
       <div role="radiogroup" aria-label={t("layout.title")} className="grid grid-cols-3 gap-2">

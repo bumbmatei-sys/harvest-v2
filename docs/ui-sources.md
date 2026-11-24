@@ -414,6 +414,15 @@ Route `/workspaces/[tenantId]/crm/reports`. Premium kit repository `bumbmatei-sy
 
 The cover image control on the owner event form. Kit rule, founder 21 Nov 2026: pro first, otherwise free. Searched: the founder's premium repositories `bumbmatei-sys/admin-dashboard` (1631106) and `bumbmatei-sys/chat-app` (66fd523), and the already adopted `form-layout15` drop zone. Used as the model: the premium single-image drop zone of `app/dashboard/(auth)/apps/pos-system/components/add-product-dialog.tsx` (dashed rounded zone, icon circle, title, type and size hint, Select image button, dragging tint, focus ring, inline error line). **No kit code is copied**: measured with `scripts/ui-identical.sh` on 22 Nov 2026, 4 of 123 lines (3%) of `src/components/events/event-cover-picker.tsx` match, import and boilerplate only, so the file is "modelled on". `form-layout15`'s `kit-drop-zone.tsx` was not reused: it is inert (aria-disabled, its own dashed border, no input, no preview). The kit's `useFileUpload` hook (blob preview, no upload) is not used; upload, progress and verification use Harvest's `putFile` and the event cover routes. Everything else is shared Harvest components (Field, Button, Progress, Spinner, ConfirmDialog, toast helper, `useUnsavedChangesGuard` through the form). Record: `src/lib/ui-provenance.ts` (`adminDashboardReferences`). No new dependency.
 
+## Newsletter sign-up forms (24 Nov 2026)
+
+Public > Newsletter > Sign-up forms. Kit rule, founder 21 Nov 2026 ("Use anything that is pro in the kit. If nothing is suitable then use free"). Searched: the founder's premium repositories `bumbmatei-sys/admin-dashboard` (1631106) and `bumbmatei-sys/chat-app` (66fd523), read-only, plus the premium blocks already adopted for forms. **No new kit file was copied; no new provenance entry is needed.** The screen is composed from shared Harvest components that already carry their provenance:
+
+- the forms builder (`FormEditor`, `BuildCanvas`, `FormSettingsPanel`, `PublicForm`, `FormField`: Harvest-written with the `form-layout20` and `form-layout15` derivations recorded above), extended with a newsletter variant rather than copied;
+- the sign-ups counts use the premium `ai-analytics` `stat-cards` block through the existing `ReportStatCards` (derived, 26 of 61 identical lines, recorded above);
+- `DataTable` (premium `tables14`), `EmptyState` (premium `empty-state15`), `FormSection` (premium `form-layout1`), `CopyButton` (premium `tables21`), `StatusBadge`, `Dialog`, `AlertDialog`, `DropdownMenu`, `Tabs`.
+
+The QR code is the existing Connect renderer (`qrSvg`, `qrPng`) served by a new owner/admin route; the public sign-up page and confirm page are Harvest-written (no kit block fits a public sign-up). Nothing from the reference screenshots is used.
 
 ### Docs (Operations > Office > Docs, slice 1)
 

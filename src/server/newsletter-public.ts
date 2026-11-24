@@ -25,7 +25,7 @@ export function newsletterKey(env = process.env) {
   return raw && /^[0-9a-f]{64}$/i.test(raw) ? Buffer.from(raw, "hex") : null;
 }
 
-function signedDigest(key: Buffer, purpose: string, value: string) {
+export function signedDigest(key: Buffer, purpose: string, value: string) {
   return createHmac("sha256", key).update(purpose).update(":").update(value).digest();
 }
 
@@ -80,6 +80,11 @@ export async function confirmNewsletterSignup(db: Database, raw: unknown) {
   await db.transaction(async tx => {
     await installNewsletterSuppressionKeys(tx);
     await tx.execute(sql`select public.newsletter_signup_confirm(${input.data.email},${input.data.token})`);
+  });
+  // A link from a hosted sign-up form is checked by its own function (the same grant rules, several lists); an unknown token does nothing in either.
+  await db.transaction(async tx => {
+    await installNewsletterSuppressionKeys(tx);
+    await tx.execute(sql`select public.newsletter_form_signup_confirm(${input.data.email},${input.data.token})`);
   });
 }
 

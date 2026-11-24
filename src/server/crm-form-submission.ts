@@ -1,10 +1,13 @@
-import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
+import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "../db/client";
 import { contactInput, uuidInput } from "../lib/contact-input";
 import { formDefinitionSchema, validateBlock, type FormAnswers, type FormBlock, type FormDefinition } from "../lib/crm-forms";
+import { NEWSLETTER_BLOCK_IDS } from "../lib/newsletter-signup";
 import { crmFormNoticeAcknowledgement } from "./consent-gate";
+import { deliverNewsletterConfirmation } from "./newsletter-confirmation";
+import { newsletterKey, signedDigest } from "./newsletter-public";
 
 const PROOF_LIFETIME_MS = 600_000;
 const MINIMUM_FILL_TIME_MS = 1_000;
@@ -38,6 +41,8 @@ export function crmFormManifest(form: PublishedForm, slug: string, key: Buffer, 
     title, description, cover, logoUrl, endTitle, endBody, ministryName: form.ministryName, notice: { ...form.notice, purpose: "form_response_processing" },
     blocks: blocks.filter(block => block.type !== "upload").map(({ id, type, label, required, options, text }) => ({ id, type, label, required, options, text })),
     settings: { buttonLabel, startLabel, showResubmit, spamCheck, layout, theme, background, buttonColor, hiddenCampaign, hiddenSource, redirectUrl },
+    // The frozen sign-up texts, so the hosted page shows exactly what this publication was approved with. The lists stay on the server.
+    ...(form.definition.newsletter ? { newsletter: { wordingVersion: form.definition.newsletter.wordingVersion, consentText: form.definition.newsletter.consentText, fixedNotice: form.definition.newsletter.fixedNotice } } : {}),
     proof: `${payload}.${sign(key, slug, payload).toString("base64url")}`,
   };
 }
@@ -108,8 +113,9 @@ export async function submitCrmForm(db: Database, form: PublishedForm, slug: str
   if (input.website || (definition.settings.spamCheck && proof.age < MINIMUM_FILL_TIME_MS)) return "spam";
   const { answers } = input;
   const blocks = new Set(definition.blocks.map(block => block.id));
-  if (Object.keys(answers).some(id => !blocks.has(id)) || definition.blocks.some(block => !validAnswer(block, answers[block.id]))
-      || !mappedAnswers(definition, answers)) return "invalid";
+  if (Object.keys(answers).some(id => !blocks.has(id)) || definition.blocks.some(block => !validAnswer(block, answers[block.id]))) return "invalid";
+  if (definition.newsletter) return submitNewsletterSignup(db, form, slug, answers, proof.receipt);
+  if (!mappedAnswers(definition, answers)) return "invalid";
   const consentBlock = definition.blocks.at(-1);
   const acknowledgement = consentBlock && crmFormNoticeAcknowledgement(consentBlock, answers[consentBlock.id]);
   if (!acknowledgement) return "invalid";
@@ -122,4 +128,26 @@ export async function submitCrmForm(db: Database, form: PublishedForm, slug: str
     select public.crm_form_submit(${slug}, ${form.versionId}, ${proof.receipt}, ${proof.expiresAt}::timestamptz,
       ${JSON.stringify(answers)}::jsonb, ${acknowledgement}, ${input.campaign ?? null}, ${input.qr ?? null}, ${requestHash}) as result`);
   return row.result;
+}
+
+
+/**
+ * A newsletter sign-up never creates a person or a permission by itself: it records a pending sign-up (digests and optional names only) and sends
+ * one confirmation message. Only the confirmation link grants the newsletter permission. A declined, repeated or rate-limited request looks exactly like
+ * a successful one, so the form cannot be used to find out who is on a list.
+ */
+async function submitNewsletterSignup(db: Database, form: PublishedForm, slug: string, answers: FormAnswers, receipt: string) {
+  const tokenKey = newsletterKey();
+  if (!tokenKey) return "not_found";
+  const email = String(answers[NEWSLETTER_BLOCK_IDS.email] ?? "").trim().toLowerCase();
+  // Synthetic data only, like every hosted form while the activation decisions are open.
+  if (!z.email().max(254).safeParse(email).success || !email.endsWith("@example.test")) return "invalid";
+  const name = (id: string) => String(answers[id] ?? "").trim();
+  const [first, last] = [name(NEWSLETTER_BLOCK_IDS.first), name(NEWSLETTER_BLOCK_IDS.last)];
+  const token = randomBytes(32).toString("base64url");
+  const addressKey = signedDigest(tokenKey, "newsletter-address-limit", email).toString("hex");
+  const { rows: [row] } = await db.execute<{ queued: boolean }>(sql`
+    select public.newsletter_form_signup_start(${slug}, ${form.versionId}::uuid, ${receipt}::uuid, ${email}, ${first}, ${last}, ${token}, ${addressKey}) as queued`);
+  if (row.queued) deliverNewsletterConfirmation({ to: email, token, ministryName: form.ministryName, formTitle: form.definition.title });
+  return "ok";
 }
