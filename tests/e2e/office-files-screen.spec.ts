@@ -106,7 +106,7 @@ test("files: Harvest alone, connect a drive, filter and marks, private connectio
   expect((await page.request.put(`${api}/members`, { headers: { origin }, data: { email: member.email, role: "member" } })).status()).toBe(200);
 
   await page.goto(files);
-  await expect(page.getByRole("heading", { name: "Files", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Storage", exact: true })).toBeVisible();
   await expect(page.getByText("No files yet.")).toBeVisible();
   // Harvest alone: no source chips, no marks, no folder cards for an empty library.
   await expect(page.getByTestId("source-filter")).toHaveCount(0);
@@ -189,7 +189,7 @@ test("files: Harvest alone, connect a drive, filter and marks, private connectio
 
   // The second admin has no connection of their own and cannot reach this admin's: an empty overview, no chips, and one neutral 404 for the connection id.
   await admin.page.goto(files);
-  await expect(admin.page.getByRole("heading", { name: "Files", exact: true })).toBeVisible();
+  await expect(admin.page.getByRole("heading", { name: "Storage", exact: true })).toBeVisible();
   await expect(admin.page.getByTestId("sources-open")).toBeVisible();
   await expect(admin.page.getByTestId("source-filter")).toHaveCount(0);
   await expect(admin.page.getByText("Meeting agenda.txt")).toHaveCount(0);
@@ -265,7 +265,7 @@ test("files: three sources, filter combinations, separate same-named folders, na
   await page.getByRole("button", { name: "Folder Photos, Google Drive" }).focus();
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("files-explorer")).toBeVisible();
-  await expect(crumbs).toContainText("Files");
+  await expect(crumbs).toContainText("Storage");
   await expect(crumbs).toContainText("Google Drive");
   await expect(crumbs.getByText("Photos")).toBeVisible();
   const table = page.getByTestId("files-explorer").getByRole("table");

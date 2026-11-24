@@ -50,11 +50,11 @@ test("list: folders, create, rename, move (menu and drag), delete rules, search 
   await expect(page.getByRole("heading", { name: "Docs", exact: true })).toBeVisible();
   await expect(page.getByText("No docs yet")).toBeVisible();
 
-  // Docs sits in Office next to Email, Calendar and Files (shell modes on).
+  // Docs sits in Office next to Email, Calendar, Tasks, Docs and Storage (shell modes on).
   if (process.env.HARVEST_SHELL_MODES !== "disabled") {
     const sidebar = page.locator('[data-sidebar="sidebar"]').first();
     const office = await sidebar.getByRole("link").evaluateAll((links) => links.map((l) => l.textContent?.trim()));
-    expect(office.slice(office.indexOf("Email"), office.indexOf("Email") + 4)).toEqual(["Email", "Calendar", "Docs", "Files"]);
+    expect(office.slice(office.indexOf("Email"), office.indexOf("Email") + 5)).toEqual(["Email", "Calendar", "Tasks", "Docs", "Storage"]);
     await expect(sidebar.getByRole("link", { name: "Docs", exact: true })).toHaveAttribute("data-active", "true");
   }
 

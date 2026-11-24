@@ -12,7 +12,7 @@ Design: [ADR 0010](../decisions/0010-crm-tasks-notes-timeline.md). Reference stu
 
 ## What a user can do
 
-- **Tasks page** (`/workspaces/:tenantId/crm/tasks`; "Tasks" in the CRM sidebar after Pipelines). It opens as "my open tasks".
+- **Tasks page** (`/workspaces/:tenantId/crm/tasks`; "Tasks" in the Office sidebar group between Calendar and Docs since 24 Nov (founder); the single, shell-modes-off sidebar keeps it in CRM after Pipelines. Route, data, permissions, reminders and CRM reports are unchanged). It opens as "my open tasks".
   - Filters live in the URL: search, assignee (me, anyone, nobody, a member), status (open, done, all), due (overdue, today, upcoming, no date), linked to (person, company, deal, nothing).
   - Sort by due, priority, title, created or updated. Pages hold 20 tasks.
   - "No tasks yet" (nothing exists) is distinct from "Nothing assigned to you" and "No matching tasks" (filters hide everything; Reset filters).

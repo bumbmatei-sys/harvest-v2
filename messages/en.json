@@ -108,7 +108,7 @@
     "pleaseTryAgainInAMoment": "Please try again in a moment."
   },
   "AppWorkspacesFilesPage": {
-    "pageTitle": "Files"
+    "pageTitle": "Storage"
   },
   "AppWorkspacesPage": {
     "yOURHARVEST": "YOUR HARVEST",
@@ -116,7 +116,7 @@
     "aHomeForYourPeopleAndTheWork": "A home for your people and the work you do together.",
     "role": "Role:",
     "openWorkspace": "Open ministry",
-    "files": "Files",
+    "files": "Storage",
     "noWorkspacesYet": "No ministries yet",
     "youDonTHaveAWorkspaceYetCreate": "You don’t have a ministry yet. Create your first one below.",
     "createAWorkspace": "Create a ministry",
@@ -165,7 +165,7 @@
       "viewer": "Viewer"
     },
     "contacts": "Contacts",
-    "files": "Files",
+    "files": "Storage",
     "appearance": "Appearance",
     "workspaces": "Ministries",
     "couldNotSignOutTryAgain": "Could not sign out. Try again.",
@@ -373,8 +373,8 @@
     "progressStatus": "{phase} {progress}"
   },
   "FilesScreen": {
-    "title": "Files",
-    "pageTitle": "Files",
+    "title": "Storage",
+    "pageTitle": "Storage",
     "folders": "Folders",
     "sourceFilter": "Show files from",
     "allSources": "All",
@@ -1444,7 +1444,7 @@
     "stageProgress": "Stage progress"
   },
   "Tasks": {
-    "crm": "CRM",
+    "crm": "Office",
     "tasks": "Tasks",
     "pageTitle": "{page} · Harvest",
     "tasksDescription": "Follow-ups for you and your team, linked to people, organizations and deals.",

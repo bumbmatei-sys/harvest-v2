@@ -128,7 +128,7 @@ test("office mail: connect, list, search, thread, markers, person link, drafts, 
   } else {
     const side = page.getByRole("group", { name: "Email folders" });
     await expect(side).toBeVisible();
-    const back = side.getByRole("link", { name: "Back to Files" });
+    const back = side.getByRole("link", { name: "Back to Storage" });
     await expect(back).toBeVisible();
     expect((await back.boundingBox())!.height).toBeGreaterThanOrEqual(35);
     await expect(page.getByTestId("mail").getByTestId("folder-pane")).toHaveCount(0);

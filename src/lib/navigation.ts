@@ -1,4 +1,4 @@
-import { BadgeDollarSign, ChartColumn, BookOpen, Bot, Briefcase, Building, Calendar, CalendarCheck, CalendarClock, CalendarDays, ClipboardCheck, ClipboardList, ClipboardPen, Compass, Contact, ContactRound, FileText, FileUp, Files, Flag, Gift, Globe, GraduationCap, Handshake, HandCoins, HeartHandshake, Kanban, LayoutDashboard, LayoutTemplate, Link2, ListChecks, Mail, MailOpen, MailPlus, MessageCircleReply, MessageSquareText, MessagesSquare, Newspaper, Package, Palette, PiggyBank, Podcast, QrCode, Radio, ScanQrCode, Settings, Share2, Sheet, SlidersHorizontal, Sparkles, Target, TicketPercent, UserCheck, UserCog, UserRoundCheck, Users, UsersRound, Wallet, Church, Landmark, ChartLine, ChartNoAxesCombined, Workflow, TextCursorInput, ShieldCheck, type LucideIcon } from "lucide-react";
+import { BadgeDollarSign, ChartColumn, BookOpen, Bot, Briefcase, Building, Calendar, CalendarCheck, CalendarClock, CalendarDays, ClipboardCheck, ClipboardList, ClipboardPen, Cloud, Compass, Contact, ContactRound, FileText, FileUp, Flag, Gift, Globe, GraduationCap, Handshake, HandCoins, HeartHandshake, Kanban, LayoutDashboard, LayoutTemplate, Link2, ListChecks, Mail, MailPlus, MessageCircleReply, MessageSquareText, MessagesSquare, Newspaper, Package, Palette, PiggyBank, Podcast, QrCode, Radio, ScanQrCode, Send, Settings, Share2, Sheet, SlidersHorizontal, Sparkles, Target, TicketPercent, UserCheck, UserCog, UserRoundCheck, Users, UsersRound, Wallet, Church, Landmark, ChartLine, ChartNoAxesCombined, Workflow, TextCursorInput, ShieldCheck, type LucideIcon } from "lucide-react";
 import type { Audience } from "./audience";
 import { can, type Permission } from "./permissions";
 
@@ -24,6 +24,8 @@ export type NavEntry = {
   group: NavGroupId;
   /** Group in today's single sidebar; defaults to `group` when that is a legacy id. Removed with the old sidebar path. */
   legacyGroup?: LegacyNavGroupId;
+  /** Position in today's single sidebar when it differs from the registry order (Tasks keeps its CRM slot there while it leads the Office group in the per-mode sidebar). */
+  legacyRank?: number;
   /** Which shell mode owns the entry. Required, so a new module cannot forget it. */
   mode: NavMode;
   /** Omitted: live. */
@@ -62,7 +64,7 @@ type GroupDef = { id: NavGroupId; label: NavLabelKey; icon?: LucideIcon; pinned?
  */
 export const groupsByMode: Record<NavMode, readonly GroupDef[]> = {
   operations: [{ id: "office", label: "office", icon: Briefcase }, { id: "crm", label: "people", icon: Contact }, { id: "connect", label: "connect", icon: QrCode }, { id: "workspace", label: "workspace", icon: Church }, { id: "giving", label: "giving", icon: HandCoins }],
-  public: [{ id: "discover", label: "discover", pinned: true }, { id: "publishing", label: "publishing", icon: Share2 }, { id: "newsletter", label: "newsletter", icon: Mail }, { id: "website", label: "website", icon: Globe }, { id: "community", label: "community", icon: Users }, { id: "commerce", label: "commerce", icon: GraduationCap }],
+  public: [{ id: "discover", label: "discover", pinned: true }, { id: "publishing", label: "publishing", icon: Share2 }, { id: "newsletter", label: "newsletter", icon: Send }, { id: "website", label: "website", icon: Globe }, { id: "community", label: "community", icon: Users }, { id: "commerce", label: "commerce", icon: GraduationCap }],
   assistant: [{ id: "chat", label: "chat", icon: Sparkles }],
 };
 const has = (part: string) => (pathname: string) => pathname.includes(part);
@@ -74,7 +76,6 @@ export const navEntries: readonly NavEntry[] = [
   { id: "people", group: "crm", mode: "operations", label: "people", icon: UsersRound, path: "/crm/people", match: has("/crm/people"), sectionMatch: has("/contacts") },
   { id: "companies", group: "crm", mode: "operations", label: "companies", icon: Building, path: "/crm/companies", match: has("/crm/companies") },
   { id: "pipelines", group: "crm", mode: "operations", label: "pipelines", icon: Kanban, path: "/crm/pipelines", match: (p) => p.includes("/crm/pipelines") || p.includes("/crm/deals") },
-  { id: "tasks", group: "crm", mode: "operations", label: "tasks", icon: ListChecks, path: "/crm/tasks", match: has("/crm/tasks") },
   // CRM reports: read-only aggregates; owners and admins see ministry totals, members their own work, viewers never see a dead link.
   { id: "crmReports", group: "crm", mode: "operations", label: "reports", icon: ChartColumn, path: "/crm/reports", match: has("/crm/reports"), permission: "crm:reports" },
   // CRM forms builder: owners and admins build forms that save people to the CRM.
@@ -85,11 +86,13 @@ export const navEntries: readonly NavEntry[] = [
   { id: "connectLinks", group: "connect", mode: "operations", status: "planned", label: "qrAndLinks", icon: ScanQrCode, path: "/connect/links", match: under("/connect/links") },
   { id: "responses", group: "connect", mode: "operations", status: "planned", label: "responses", icon: ClipboardList, path: "/connect/responses", match: under("/connect/responses") },
   { id: "forms", group: "connect", mode: "operations", status: "planned", label: "forms", icon: ClipboardCheck, path: "/connect/forms", match: under("/connect/forms") },
-  // Operations > Office (Files moved here from the Ministry group; its legacy sidebar group stays Ministry).
+  // Operations > Office (Storage, the former Files, moved here from the Ministry group; its legacy sidebar group stays Ministry).
   // Office Mail: each owner or admin's own mailbox. Hidden unless the server reports the Office screens open (never in production); the page takes over the sidebar (exitTo) like the social Inbox.
-  { id: "mail", group: "office", mode: "operations", label: "mail", icon: MailOpen, path: "/mail", match: under("/mail"), permission: "office:mail", feature: "office", exitTo: "files" },
+  { id: "mail", group: "office", mode: "operations", label: "mail", icon: Mail, path: "/mail", match: under("/mail"), permission: "office:mail", feature: "office", exitTo: "files" },
   // Office Calendar: each owner or admin's own calendar. Hidden unless the server reports the Office screens open (never in production).
   { id: "calendar", group: "office", mode: "operations", label: "calendar", icon: Calendar, path: "/calendar", match: under("/calendar"), permission: "office:calendar", feature: "office" },
+  // Office Tasks (moved from CRM, 24 Nov): same route, data and permissions; the CRM person and deal pages keep their own tasks panels.
+  { id: "tasks", group: "office", legacyGroup: "crm", legacyRank: 2.5, mode: "operations", label: "tasks", icon: ListChecks, path: "/crm/tasks", match: has("/crm/tasks") },
   // Office Docs: every ministry role opens the list (viewers read); hidden unless the server reports Docs enabled (never in production).
   { id: "documents", group: "office", mode: "operations", label: "documents", icon: FileText, path: "/docs", match: under("/docs"), permission: "docs:read", feature: "docs" },
   { id: "spreadsheets", group: "office", mode: "operations", status: "planned", label: "spreadsheets", icon: Sheet, path: "/sheets", match: under("/sheets") },
@@ -102,7 +105,7 @@ export const navEntries: readonly NavEntry[] = [
   { id: "followUp", group: "connect", legacyGroup: "workspace", mode: "operations", label: "followUp", icon: HeartHandshake, path: "/connect/follow-up", match: has("/connect/follow-up"), permission: "followup:work" },
   // C14: owners and admins; hidden unless the server reports Events enabled (never in production).
   { id: "events", group: "workspace", mode: "operations", label: "events", icon: CalendarCheck, path: "/events", match: under("/events"), permission: "communities:manage", feature: "events" },
-  { id: "files", group: "office", legacyGroup: "workspace", mode: "operations", label: "files", icon: Files, path: "/files", match: has("/files") },
+  { id: "files", group: "office", legacyGroup: "workspace", mode: "operations", label: "files", icon: Cloud, path: "/files", match: has("/files") },
   // Operations > Giving (its own group; all planned until the giving screens exist).
   { id: "givingOverview", group: "giving", mode: "operations", status: "planned", label: "overview", icon: LayoutDashboard, path: "/giving", match: under("/giving") },
   { id: "donations", group: "giving", mode: "operations", status: "planned", label: "donations", icon: Gift, path: "/giving/donations", match: under("/giving/donations") },
@@ -160,7 +163,8 @@ const toItem = (entry: NavEntry, { tenantId, audience, pathname }: { tenantId: s
 export function resolveNavigation({ tenantId, role, audience, pathname, features = [] }: Viewer & { pathname: string }, entries: readonly NavEntry[] = navEntries): NavGroup[] {
   return legacyGroups.map((group) => ({
     ...group,
-    items: entries.filter((entry) => (entry.legacyGroup ?? entry.group) === group.id && visibleTo(entry, role, audience, features)).map((entry) => toItem(entry, { tenantId, audience, pathname })),
+    items: entries.map((entry, index) => ({ entry, rank: entry.legacyRank ?? index })).filter(({ entry }) => (entry.legacyGroup ?? entry.group) === group.id && visibleTo(entry, role, audience, features))
+      .sort((a, b) => a.rank - b.rank).map(({ entry }) => toItem(entry, { tenantId, audience, pathname })),
   })).filter((group) => group.items.length > 0);
 }
 
