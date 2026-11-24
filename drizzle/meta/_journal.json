@@ -600,8 +600,15 @@
     {
       "idx": 86,
       "version": "7",
+      "when": 1795492024164,
+      "tag": "0086_newsletter_group_archive",
+      "breakpoints": true
+    },
+    {
+      "idx": 87,
+      "version": "7",
       "when": 1795494089816,
-      "tag": "0086_newsletter_sender",
+      "tag": "0087_newsletter_sender",
       "breakpoints": true
     }
   ]

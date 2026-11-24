@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
 
 export type AudienceCounts = Record<"all" | "subscribed" | "not_on_list" | "unsubscribed" | "never" | "suppressed", number>;
 export type AudienceListItem = { id: string; name: string; version: number; subscribed: number };
-export type AudienceGroupItem = { id: string; name: string };
+export type AudienceGroupItem = { id: string; name: string; version: number };
 const statusKeys = ["all", "subscribed", "not_on_list", "unsubscribed", "never", "suppressed"] as const;
 
 const pill = "inline-flex min-h-11 shrink-0 items-center gap-2 rounded-md border px-3 text-sm transition-colors lg:min-h-8";
@@ -29,25 +29,26 @@ export function AudienceLens({ tenantId, counts, lists, groups, current, canMana
   const t = useTranslations("NewsletterAudience");
   const router = useRouter(), request = useRequest();
   const base = `/workspaces/${tenantId}/newsletter/audience`, api = `/api/workspaces/${tenantId}/newsletter/audience`;
-  const [dialog, setDialog] = useState<{ mode: "rename"; list: AudienceListItem } | null>(null);
+  type Target = { kind: "lists" | "groups"; id: string; name: string; version: number };
+  const [dialog, setDialog] = useState<Target | null>(null);
   const [name, setName] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState("");
-  const [removing, setRemoving] = useState<AudienceListItem | null>(null);
-  function open(next: typeof dialog) { setDialog(next); setName(next?.list.name ?? ""); setError(""); }
+  const [removing, setRemoving] = useState<Target | null>(null);
+  function open(next: Target) { setDialog(next); setName(next.name); setError(""); }
   async function save(event: React.SubmitEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!dialog) return;
     setBusy(true); setError("");
-    const result = await request<{ id: string }>(`${api}/lists/${dialog.list.id}`, { method: "PATCH", body: { name, version: dialog.list.version } });
+    const result = await request<{ id: string }>(`${api}/${dialog.kind}/${dialog.id}`, { method: "PATCH", body: { name, version: dialog.version } });
     setBusy(false);
-    if (!result.ok) { setError(result.status === 409 ? t("nameTakenOrChanged") : result.error); return; }
+    if (!result.ok) { setError(result.status === 409 ? t(result.details?.code === "GROUP_STALE" ? "groupStale" : "nameTakenOrChanged") : result.error); return; }
     setDialog(null);
     router.refresh();
   }
-  async function remove(list: AudienceListItem) {
-    const result = await request(`${api}/lists/${list.id}`, { method: "DELETE", body: { version: list.version } });
-    if (!result.ok) throw new Error(result.status === 409 ? t("listInUse") : result.error);
+  async function remove(target: Target) {
+    const result = await request(`${api}/${target.kind}/${target.id}`, { method: "DELETE", body: { version: target.version } });
+    if (!result.ok) throw new Error(result.status === 409 ? t(result.details?.code === "GROUP_STALE" ? "groupStale" : target.kind === "lists" ? "listInUse" : "groupInUse") : result.error);
     setRemoving(null);
-    router.push(current === `list:${list.id}` ? base : `${base}${current === "all" ? "" : "/" + current}`);
+    router.push(current === `${target.kind === "lists" ? "list" : "group"}:${target.id}` ? base : `${base}${current === "all" ? "" : "/" + current}`);
     router.refresh();
   }
   return <section aria-label={t("lens")} className="space-y-3">
@@ -62,24 +63,31 @@ export function AudienceLens({ tenantId, counts, lists, groups, current, canMana
             <span className="max-w-48 truncate">{list.name}</span><Badge variant="secondary" className="rounded-md tabular-nums">{list.subscribed.toLocaleString()}</Badge></Link>
           {canManage && <DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label={t("listActions", { name: list.name })} className="size-11 rounded-l-none lg:size-8"><MoreHorizontal aria-hidden="true" /></Button></DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={() => open({ mode: "rename", list })}><Pencil aria-hidden="true" />{t("rename")}</DropdownMenuItem>
-              <DropdownMenuItem variant="destructive" onSelect={() => setRemoving(list)}><Trash2 aria-hidden="true" />{t("delete")}</DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => open({ kind: "lists", id: list.id, name: list.name, version: list.version })}><Pencil aria-hidden="true" />{t("rename")}</DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onSelect={() => setRemoving({ kind: "lists", id: list.id, name: list.name, version: list.version })}><Trash2 aria-hidden="true" />{t("delete")}</DropdownMenuItem>
             </DropdownMenuContent></DropdownMenu>}
         </li>)}
       </ul>
       <ul aria-label={t("groups")} className="contents">
-        {groups.map((group) => <li key={group.id}><Link href={`${base}/group/${group.id}`} aria-current={current === `group:${group.id}` ? "page" : undefined} className={cn(pill, current === `group:${group.id}` ? active : idle)}><span className="max-w-48 truncate">{group.name}</span></Link></li>)}
+        {groups.map((group) => <li key={group.id} className="flex items-center">
+          <Link href={`${base}/group/${group.id}`} aria-current={current === `group:${group.id}` ? "page" : undefined} className={cn(pill, canManage && "rounded-r-none border-r-0", current === `group:${group.id}` ? active : idle)}><span className="max-w-48 truncate">{group.name}</span></Link>
+          {canManage && <DropdownMenu><DropdownMenuTrigger asChild><Button variant="outline" size="icon" aria-label={t("listActions", { name: group.name })} className="size-11 rounded-l-none lg:size-8"><MoreHorizontal aria-hidden="true" /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onSelect={() => open({ kind: "groups", id: group.id, name: group.name, version: group.version })}><Pencil aria-hidden="true" />{t("rename")}</DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onSelect={() => setRemoving({ kind: "groups", id: group.id, name: group.name, version: group.version })}><Trash2 aria-hidden="true" />{t("delete")}</DropdownMenuItem>
+            </DropdownMenuContent></DropdownMenu>}
+        </li>)}
       </ul>
     </div>}
     <Dialog open={dialog !== null} onOpenChange={(value) => { if (!value && !busy) setDialog(null); }}>
       <DialogContent><form onSubmit={save} className="space-y-4">
-        <DialogHeader><DialogTitle>{t("renameList")}</DialogTitle></DialogHeader>
-        <Field><FieldLabel htmlFor="audience-list-name">{t("listName")}</FieldLabel><Input id="audience-list-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={100} required autoFocus className="h-11 lg:h-9" /></Field>
+        <DialogHeader><DialogTitle>{dialog?.kind === "groups" ? t("renameGroup") : t("renameList")}</DialogTitle></DialogHeader>
+        <Field><FieldLabel htmlFor="audience-list-name">{dialog?.kind === "groups" ? t("groupName") : t("listName")}</FieldLabel><Input id="audience-list-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={dialog?.kind === "groups" ? 60 : 100} required autoFocus className="h-11 lg:h-9" /></Field>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <DialogFooter><Button type="button" variant="outline" disabled={busy} onClick={() => setDialog(null)} className="min-h-11 lg:min-h-9">{t("cancel")}</Button><Button type="submit" disabled={busy || !name.trim()} className="min-h-11 lg:min-h-9">{t("save")}</Button></DialogFooter>
       </form></DialogContent>
     </Dialog>
-    {removing && <ConfirmDialog open onOpenChange={(value) => { if (!value) setRemoving(null); }} title={t("deleteTitle", { name: removing.name })} description={t("deleteBody")}
+    {removing && <ConfirmDialog open onOpenChange={(value) => { if (!value) setRemoving(null); }} title={t("deleteTitle", { name: removing.name })} description={removing.kind === "groups" ? t("deleteGroupBody") : t("deleteBody")}
       confirmLabel={t("delete")} cancelLabel={t("cancel")} onConfirm={async () => { try { await remove(removing); return undefined; } catch (error) { return error instanceof Error ? error.message : undefined; } }} />}
   </section>;
 }

@@ -26,7 +26,7 @@ export async function selectionPins(tx: Transaction, tenant: string, selection: 
     eq(crmSavedViews.id, newsletterSegments.savedViewId), eq(crmSavedViews.version, newsletterSegments.savedViewVersion),
     isNull(crmSavedViews.ownerUserId), eq(crmSavedViews.objectType, "person"),
     sql`coalesce(${crmSavedViews.state}->'sources','[]'::jsonb)='[]'::jsonb`))
-    .where(and(eq(newsletterSegments.tenantId, tenant), inArray(newsletterSegments.id, selection.segmentIds)))
+    .where(and(eq(newsletterSegments.tenantId, tenant), isNull(newsletterSegments.archivedAt), inArray(newsletterSegments.id, selection.segmentIds)))
     .orderBy(asc(newsletterSegments.id)).for("share") : [];
   if (lists.length !== selection.listIds.length || segments.length !== selection.segmentIds.length ||
       segments.some(segment => !lists.some(list => list.audienceId === segment.audienceId))) throw unavailable();

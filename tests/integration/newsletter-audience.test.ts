@@ -2,9 +2,14 @@ import { afterAll, beforeAll, expect, it } from "vitest";
 import { users } from "../../src/db/schema";
 import { createContact, eraseContact, recordConsent } from "../../src/server/contacts";
 import { mergeContacts } from "../../src/server/crm-merge";
-import { addPeopleToList, audienceOverview, createAudienceList, createGroupFromFilter, deleteAudienceList, listAudiencePeople, removePersonFromList, renameAudienceList } from "../../src/server/newsletter-audience";
+import { addPeopleToList, audienceOverview, createAudienceList, createGroupFromFilter, deleteAudienceGroup, deleteAudienceList, renameAudienceGroup, listAudiencePeople, removePersonFromList, renameAudienceList } from "../../src/server/newsletter-audience";
 import { pageNewsletterConfiguration } from "../../src/server/newsletter";
 import { fullState } from "../../src/lib/crm-fields";
+import { writeCampaign } from "../../src/server/newsletter-campaigns/campaigns";
+import { templateDocument } from "../../src/lib/email/templates";
+import { defaultBrand } from "../../src/lib/email/blocks";
+import { selectionPins } from "../../src/server/newsletter-campaigns/recipients";
+import { withTenant } from "../../src/server/tenancy";
 import { createWorkspace } from "../../src/server/workspaces";
 import { testDatabase } from "../database";
 
@@ -111,6 +116,69 @@ it("never reverses a person's own list unsubscribe, but allows re-adding after a
   expect((await addPeopleToList(fixture.db, owner, tenant, list.id, { contactIds: [kim.id] })).outcomes[kim.id]).toBe("added");
 });
 
+it("renames and deletes saved groups: versions, pins, names, roles, hidden everywhere, and refused while an email in use pins it", async () => {
+  const state = fullState({ filters: [{ field: "newsletter", op: "any_of", value: ["granted"] }] });
+  const group = await createGroupFromFilter(fixture.db, owner, tenant, { name: "Granted people", state });
+  await expect(createGroupFromFilter(fixture.db, owner, tenant, { name: "granted PEOPLE", state })).rejects.toMatchObject({ status: 409 });
+  const before = (await audienceOverview(fixture.db, owner, tenant)).groups.find((g) => g.id === group.id)!;
+  // A draft email pins the group; renaming moves the pin version so a review of the old pin cannot go out.
+  const list = await createAudienceList(fixture.db, owner, tenant, { name: "Pin list" });
+  const draft = await writeCampaign(fixture.db, owner, tenant, { name: "Pinned", subject: "Hi", selection: { listIds: [list.id], segmentIds: [group.id] }, content: templateDocument("welcome", { ...defaultBrand, address: "1 Main Street" }) });
+  const renamed = await renameAudienceGroup(fixture.db, owner, tenant, group.id, { name: "Consented people", version: before.version });
+  expect(renamed).toMatchObject({ name: "Consented people", version: before.version + 1 });
+  expect((await fixture.admin.query("select name, version from crm_saved_views where id=(select saved_view_id from newsletter_segments where id=$1)", [group.id])).rows).toEqual([{ name: "Consented people", version: before.version + 1 }]);
+  const pinned = await withTenant(fixture.db, owner, tenant, "newsletter:read", (tx, id) => selectionPins(tx, id, { listIds: [list.id], segmentIds: [group.id] }));
+  expect(pinned.segments[0].version).toBe(before.version + 1);
+  expect(draft.selection.segmentIds).toEqual([group.id]);
+  await expect(renameAudienceGroup(fixture.db, owner, tenant, group.id, { name: "Stale", version: before.version })).rejects.toMatchObject({ status: 409 });
+  const other_group = await createGroupFromFilter(fixture.db, owner, tenant, { name: "Another", state });
+  await expect(renameAudienceGroup(fixture.db, owner, tenant, other_group.id, { name: "consented PEOPLE", version: 1 })).rejects.toMatchObject({ status: 409 });
+  // Roles and tenants.
+  await expect(renameAudienceGroup(fixture.db, member, tenant, group.id, { name: "No", version: renamed.version })).rejects.toMatchObject({ status: 404 });
+  await expect(deleteAudienceGroup(fixture.db, viewer, tenant, group.id, { version: renamed.version })).rejects.toMatchObject({ status: 404 });
+  await expect(deleteAudienceGroup(fixture.db, other, elsewhere, group.id, { version: renamed.version })).rejects.toMatchObject({ status: 404 });
+  expect((await audienceOverview(fixture.db, member, tenant)).groups.map((g) => g.name)).toContain("Consented people");
+  // In use by a ready email: refused. (The state is forced the way the review would leave it.)
+  const client = await fixture.admin.connect();
+  try {
+    await client.query("set session_replication_role = replica");
+    await client.query("update newsletter_campaigns set state='reviewed' where id=$1", [draft.id]);
+    await expect(deleteAudienceGroup(fixture.db, owner, tenant, group.id, { version: renamed.version })).rejects.toMatchObject({ status: 409 });
+    await client.query("update newsletter_campaigns set state='draft' where id=$1", [draft.id]);
+  } finally { await client.query("reset session_replication_role"); client.release(); }
+  await deleteAudienceGroup(fixture.db, owner, tenant, group.id, { version: renamed.version });
+  expect((await audienceOverview(fixture.db, owner, tenant)).groups.map((g) => g.id)).not.toContain(group.id);
+  await expect(withTenant(fixture.db, owner, tenant, "newsletter:read", (tx, id) => selectionPins(tx, id, { listIds: [list.id], segmentIds: [group.id] }))).rejects.toMatchObject({ status: 404 });
+  expect((await pageNewsletterConfiguration(fixture.db, owner, tenant, "segments", {})).items.map((g) => g.id)).not.toContain(group.id);
+  await expect(renameAudienceGroup(fixture.db, owner, tenant, group.id, { name: "Gone", version: renamed.version })).rejects.toMatchObject({ status: 404 });
+  // The shared CRM view and the name stay free.
+  expect((await fixture.admin.query("select 1 from crm_saved_views where name='Consented people'")).rowCount).toBe(1);
+  await expect(createGroupFromFilter(fixture.db, owner, tenant, { name: "Consented people", state })).resolves.toBeTruthy();
+});
+
+it("limits group names to the shared view's 60 characters with a validation error, and answers 409 for a group whose shared view changed", async () => {
+  const state = fullState({ filters: [{ field: "newsletter", op: "any_of", value: ["granted"] }] });
+  const long = "x".repeat(61);
+  await expect((async () => createGroupFromFilter(fixture.db, owner, tenant, { name: long, state }))()).rejects.toMatchObject({ name: "ZodError" });
+  const ok = await createGroupFromFilter(fixture.db, owner, tenant, { name: "y".repeat(60) + "  ", state });
+  expect(ok.name).toBe("y".repeat(60));
+  const version = (await audienceOverview(fixture.db, owner, tenant)).groups.find((g) => g.id === ok.id)!.version;
+  await expect((async () => renameAudienceGroup(fixture.db, owner, tenant, ok.id, { name: long, version }))()).rejects.toMatchObject({ name: "ZodError" });
+  expect(await renameAudienceGroup(fixture.db, owner, tenant, ok.id, { name: "z".repeat(60) + " ", version })).toMatchObject({ name: "z".repeat(60) });
+  // The shared view is edited (as CRM People can): the group is stuck. Rename and archive both answer a clear 409 (GROUP_STALE), never a 500; it stays inert.
+  const stale = await createGroupFromFilter(fixture.db, owner, tenant, { name: "Stale group", state });
+  const staleVersion = (await audienceOverview(fixture.db, owner, tenant)).groups.find((g) => g.id === stale.id)!.version;
+  await fixture.admin.query("update crm_saved_views set version=version+1 where id=(select saved_view_id from newsletter_segments where id=$1)", [stale.id]);
+  await expect(renameAudienceGroup(fixture.db, owner, tenant, stale.id, { name: "Renamed stale", version: staleVersion })).rejects.toMatchObject({ status: 409, details: { code: "GROUP_STALE" } });
+  await expect(deleteAudienceGroup(fixture.db, owner, tenant, stale.id, { version: staleVersion })).rejects.toMatchObject({ status: 409, details: { code: "GROUP_STALE" } });
+  expect((await fixture.admin.query("select archived_at from newsletter_segments where id=$1", [stale.id])).rows[0].archived_at).toBeNull();
+  await expect(withTenant(fixture.db, owner, tenant, "newsletter:read", (tx, id) => selectionPins(tx, id, { listIds: [], segmentIds: [stale.id] }))).rejects.toMatchObject({ status: 404 });
+  // A removed view takes the group with it (cascade); nothing is left to archive.
+  const gone = await createGroupFromFilter(fixture.db, owner, tenant, { name: "Gone view", state });
+  await fixture.admin.query("delete from crm_saved_views where id=(select saved_view_id from newsletter_segments where id=$1)", [gone.id]);
+  expect((await audienceOverview(fixture.db, owner, tenant)).groups.map((g) => g.id)).not.toContain(gone.id);
+});
+
 it("treats suppressed and bounced people as suppressed and refuses to re-add them", async () => {
   const list = await createAudienceList(fixture.db, owner, tenant, { name: "Giving" }), fay = await person("Fay Bounce", "fay@example.test"); await consent(fay.id, "granted");
   await addPeopleToList(fixture.db, owner, tenant, list.id, { contactIds: [fay.id] });
@@ -133,4 +201,6 @@ it("cleans up on erase and merge, and keeps the columns an ordinary restricted o
   expect(members.rows.map((row) => row.name)).not.toContain("Gus Erase");
   const column = await fixture.admin.query("select data_type, is_nullable from information_schema.columns where table_name='newsletter_lists' and column_name='archived_at'");
   expect(column.rows).toEqual([{ data_type: "timestamp with time zone", is_nullable: "YES" }]);
+  const segment = await fixture.admin.query("select is_nullable from information_schema.columns where table_name='newsletter_segments' and column_name='archived_at'");
+  expect(segment.rows).toEqual([{ is_nullable: "YES" }]);
 });
