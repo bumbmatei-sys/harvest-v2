@@ -5,7 +5,7 @@ import { getDb } from "@/db/client";
 import { pageSession } from "@/server/page-session";
 import { getWorkspace } from "@/server/workspaces";
 import { newsletterEnabled } from "@/server/newsletter";
-import { newsletterCampaignAnalytics } from "@/server/newsletter-campaigns/analytics-overview";
+import { analyticsUnavailable, newsletterCampaignAnalytics } from "@/server/newsletter-campaigns/analytics-overview";
 import { AccessError, can } from "@/server/permissions";
 import { uuidInput } from "@/lib/contact-input";
 import { AccessState } from "@/components/access-state";
@@ -28,7 +28,8 @@ export default async function CampaignAnalyticsPage({ params }: { params: Promis
   const workspace = await getWorkspace(db, session.user.id, tenantId).catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; });
   if (!workspace) return <AccessState />;
   if (!can(workspace.role, "newsletter:analytics")) return <Alert><AlertDescription>{t("noAccess")}</AlertDescription></Alert>;
-  const data = await newsletterCampaignAnalytics(db, session.user.id, tenantId, campaignId).catch((error: unknown) => { if (error instanceof AccessError && error.status === 404) return null; throw error; });
+  const data = await newsletterCampaignAnalytics(db, session.user.id, tenantId, campaignId).catch((error: unknown) => { if (error instanceof AccessError && error.status === 404) return undefined; if (analyticsUnavailable(error)) return null; throw error; });
+  if (data === null) return <Alert><AlertDescription>{t("unavailable")}</AlertDescription></Alert>;
   if (!data) notFound();
   return <AnalyticsCampaignView tenantId={tenantId} data={data} />;
 }

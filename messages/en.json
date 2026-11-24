@@ -6528,6 +6528,7 @@
         "delivered": "Delivered"
       },
       "footer": "{start} to {end}, UTC. Delivery records are kept for 90 days. Figures are indicative and come from mail provider reports. Opens, clicks and link clicks are not collected. Groups under 5 are not shown."
-    }
+    },
+    "unavailable": "Analytics unavailable."
   }
 }

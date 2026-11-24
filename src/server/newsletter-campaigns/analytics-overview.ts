@@ -73,3 +73,6 @@ export async function newsletterCampaignAnalytics(db: Database, actor: string, w
     accepted: totals.providerAccepted.count ?? 0, delivered: totals.outcomes.delivered.count ?? 0 } : null;
   return { campaign, sent: true, range, generatedAt: now.toISOString(), totals: counts(data.totals), days, status };
 }
+
+/** The deployment has no suppression keys, so aggregates cannot be computed: the pages show "Analytics unavailable" instead of an error page. */
+export const analyticsUnavailable = (error: unknown) => error instanceof Error && error.message === "NEWSLETTER_SUPPRESSION_KEYS_UNAVAILABLE";

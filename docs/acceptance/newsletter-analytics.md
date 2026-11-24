@@ -26,9 +26,19 @@ No migration. `analyticsIn` was extracted from `newsletterAnalytics` (same behav
 - No history of audience counts, so no growth trend.
 - Per-campaign series uses the day a recipient was selected, not the day an outcome arrived.
 
+## Small-group differencing (known, low risk)
+
+A campaign row is withheld when any of its days is a group under 5, and the server withholds the period total and that day whenever any campaign-day is small. So a withheld row always comes with a withheld total, and an admin cannot subtract visible rows from a total to recover it. Rows beyond the 50 shown are only in the total, never recoverable one by one. The existing CRM Reports complementary-suppression helper is therefore not needed here; if the server rule ever changes so the total can be visible beside a withheld row, revisit.
+
+## Missing keys
+
+If the suppression keys are not configured the pages show a plain "Analytics unavailable" alert instead of an error page.
+
 ## Reuse and provenance
 
 Reuses the CRM Reports tiles (`ReportStatCards`, caption now optional), period tabs (`ReportPeriodTabs`, now generic over its periods), bars card (`ReportBarsCard`), shared `DataTable`, `StatusBadge`, `EmptyState`, `Card`, `ChartContainer`. One new shared component: `ReportTrendCard` (multi-line chart with a screen-reader table), consumed by both analytics pages. Kit (premium admin-dashboard @ `1631106`): the trend card is derived from `hotel/components/campaign-overview.tsx` (11 of 49 lines identical); the tiles, bars and tabs were already derived from `ai-analytics` (unchanged provenance, counts re-measured). Free recharts only (already approved). The kit's range select and download button were not used (period tabs already exist); chat-app has no chart or tile block. Recorded in `src/lib/ui-provenance.ts` and `docs/ui-sources.md`.
+
+**Kit item and approval.** `ReportTrendCard` derives from admin-dashboard @1631106 `hotel/components/campaign-overview.tsx`. Approval: the founder's standing instruction "Use anything that is pro in the kit. If nothing is suitable then use free" (forms-builder discussion, Nov 2026) and his explicit reminder on 24 Nov 2026 "don't forget to use the paid ui kit for charts" for this screen. No preview link was recorded.
 
 ## Evidence
 

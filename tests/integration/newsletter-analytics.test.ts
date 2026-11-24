@@ -3,7 +3,7 @@ import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import type { PoolClient } from "pg";
 import { users } from "../../src/db/schema";
 import { createContact, recordConsent } from "../../src/server/contacts";
-import { newsletterAnalyticsOverview, newsletterCampaignAnalytics } from "../../src/server/newsletter-campaigns/analytics-overview";
+import { analyticsUnavailable, newsletterAnalyticsOverview, newsletterCampaignAnalytics } from "../../src/server/newsletter-campaigns/analytics-overview";
 import { createWorkspace } from "../../src/server/workspaces";
 import { periodRange } from "../../src/lib/newsletter-analytics";
 import { testDatabase } from "../database";
@@ -105,4 +105,20 @@ it("reports one campaign: totals, a series since send, the status breakdown, and
   for (const user of [member, viewer, other]) await expect(newsletterCampaignAnalytics(fixture.db, user, tenant, sent, now)).rejects.toMatchObject({ status: 404 });
   await expect(newsletterCampaignAnalytics(fixture.db, other, elsewhere, sent, now)).rejects.toMatchObject({ status: 404 });
   await expect(newsletterCampaignAnalytics(fixture.db, owner, tenant, "not-a-uuid", now)).rejects.toMatchObject({ status: 404 });
+});
+
+it("reports missing suppression keys as unavailable, not as a crash", async () => {
+  const keys = process.env.HARVEST_NEWSLETTER_SUPPRESSION_KEYS!;
+  vi.stubEnv("HARVEST_NEWSLETTER_SUPPRESSION_KEYS", "");
+  const failure = await overview(owner, tenant).then(() => null, (error: unknown) => error);
+  expect(analyticsUnavailable(failure)).toBe(true);
+  expect(analyticsUnavailable(new Error("other"))).toBe(false);
+  vi.stubEnv("HARVEST_NEWSLETTER_SUPPRESSION_KEYS", keys);
+  expect(analyticsUnavailable(await newsletterCampaignAnalytics(fixture.db, owner, tenant, randomUUID(), now).then(() => null, (error: unknown) => error))).toBe(false);
+});
+
+it("never shows a visible total beside a withheld campaign row", async () => {
+  const report = await overview(owner, tenant, 90);
+  expect(report.campaigns.some((row) => row.counts === null)).toBe(true);
+  expect(report.totals).toBeNull();
 });
