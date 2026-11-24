@@ -3,7 +3,7 @@ export const roleIds = ["owner", "admin", "member", "viewer"] as const;
 export type Role = typeof roleIds[number];
 export type Permission = "workspace:read" | "members:write" | "roles:write" | "contacts:read" | "contacts:write" | "settings:write" | "contacts:erase" | "jobs:read" | "jobs:operate" | "companies:read" | "companies:write" | "crm:fields_write" | "opportunities:read" | "opportunities:write" | "crm:pipelines_write" | "tasks:read" | "tasks:write" | "notes:read" | "notes:write"
   // CRM-06: imports and exports run for writers; merging and the sensitive export columns are owner/admin.
-  | "campaigns:read" | "campaigns:write" | "crm:import" | "crm:export" | "crm:export_sensitive" | "contacts:merge"
+  | "campaigns:read" | "campaigns:write" | "campaigns:activate" | "crm:import" | "crm:export" | "crm:export_sensitive" | "contacts:merge"
   // CRM-08: outbound webhook endpoints are owner/admin configuration.
   | "webhooks:manage" | "crm:read_diagnostics"
   // HC-02: restricted pending Connect responses (metadata, withdrawal, erasure, retention) are owner/admin.

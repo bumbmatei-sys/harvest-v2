@@ -617,6 +617,13 @@
       "when": 1795512442361,
       "tag": "0088_newsletter_signup_forms",
       "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1795555358510,
+      "tag": "0092_campaign_wizard",
+      "breakpoints": true
     }
   ]
 }

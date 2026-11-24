@@ -9,6 +9,7 @@ import type { RichDoc } from "../lib/rich-text";
 import type { BrandTheme } from "../lib/theme-registry";
 import type { Audience } from "../lib/audience";
 import type { campaignStructures, campaignTypes } from "../lib/campaigns";
+import type { BudgetConfig, OutreachConfig } from "../lib/campaign-wizard";
 import type { ConnectPurpose, formVersionStatuses, responseConsentActors, responseConsentStatuses, responseContactKinds, responseLinkStatuses, responseStatuses } from "../lib/connect-data";
 import { associationConsentPurposes } from "../lib/consent-purposes";
 import type { FollowUpCaseState } from "../lib/follow-up-cases";
@@ -119,6 +120,61 @@ export const campaigns = pgTable("campaigns", {
   check("campaign_structure", sql`${t.structure} in ('single', 'multi', 'online_hybrid')`),
   check("campaign_idempotency_key", sql`length(${t.idempotencyKey}) between 1 and 200 and ${t.idempotencyKey} ~ '^[A-Za-z0-9._:-]+$'`),
   check("campaign_fingerprint", sql`${t.fingerprint} ~ '^[a-f0-9]{64}$'`),
+]);
+
+// CW-03 to CW-05: the private wizard draft behind a campaign. Steps 1 to 3 are columns, steps 4 to 7 are stored as intent only. Nothing reads
+// budget or outreach to act outwardly. A finished draft links the campaign it created.
+export const campaignDrafts = pgTable("campaign_drafts", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  id: uuid("id").notNull().defaultRandom(),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  clientKey: text("client_key").notNull(),
+  status: text("status").$type<"draft" | "finished" | "discarded">().notNull().default("draft"),
+  version: integer("version").notNull().default(1),
+  currentStep: integer("current_step").notNull().default(1),
+  type: text("type").$type<typeof campaignTypes[number]>(),
+  name: text("name"), description: text("description"), mission: text("mission"),
+  country: text("country"), cityRegion: text("city_region"),
+  startDate: date("start_date"), endDate: date("end_date"), timeZone: text("time_zone"),
+  structure: text("structure").$type<typeof campaignStructures[number]>(),
+  departments: text("departments").array().notNull().default(sql`'{}'::text[]`),
+  modules: text("modules").array().notNull().default(sql`'{}'::text[]`),
+  budget: jsonb("budget").$type<BudgetConfig>().notNull(),
+  outreach: jsonb("outreach").$type<OutreachConfig>().notNull(),
+  campaignId: uuid("campaign_id"), finishedAt: timestamp("finished_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.campaignId], foreignColumns: [campaigns.tenantId, campaigns.id] }),
+  uniqueIndex("campaign_drafts_client_key_idx").on(t.tenantId, t.createdBy, t.clientKey),
+  uniqueIndex("campaign_drafts_campaign_idx").on(t.tenantId, t.campaignId).where(sql`${t.campaignId} is not null`),
+  index("campaign_drafts_tenant_idx").on(t.tenantId, t.status, t.updatedAt),
+  check("campaign_draft_status", sql`${t.status} in ('draft', 'finished', 'discarded')`),
+  check("campaign_draft_version", sql`${t.version} >= 1`),
+  check("campaign_draft_step", sql`${t.currentStep} between 1 and 8`),
+  check("campaign_draft_type", sql`${t.type} is null or ${t.type} in ('evangelistic_crusade', 'mission_trip', 'conference', 'local_outreach', 'custom_project')`),
+  check("campaign_draft_name", sql`${t.name} is null or (length(btrim(${t.name})) between 1 and 200 and ${t.name} = btrim(${t.name}))`),
+  check("campaign_draft_text", sql`length(${t.description}) <= 5000 and length(${t.mission}) <= 5000 and length(${t.country}) between 1 and 100 and length(${t.cityRegion}) between 1 and 200 and length(${t.timeZone}) between 1 and 100`),
+  check("campaign_draft_dates", sql`${t.endDate} >= ${t.startDate}`),
+  check("campaign_draft_structure", sql`${t.structure} in ('single', 'multi', 'online_hybrid')`),
+  check("campaign_draft_client_key", sql`length(${t.clientKey}) between 1 and 200 and ${t.clientKey} ~ '^[A-Za-z0-9._:-]+$'`),
+  check("campaign_draft_lists", sql`cardinality(${t.departments}) <= 13 and cardinality(${t.modules}) <= 18`),
+  check("campaign_draft_json", sql`jsonb_typeof(${t.budget}) = 'object' and jsonb_typeof(${t.outreach}) = 'object'`),
+  // A finished draft names its campaign; no other state does. A finished draft is complete: it has a type and a name.
+  check("campaign_draft_finished", sql`(${t.status} = 'finished') = (${t.campaignId} is not null and ${t.finishedAt} is not null) and (${t.status} <> 'finished' or (${t.type} is not null and ${t.name} is not null))`),
+]);
+// Department leaders and members of a draft. People are existing ministry members; a CRM contact is never referenced here.
+export const campaignDraftAssignments = pgTable("campaign_draft_assignments", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), draftId: uuid("draft_id").notNull(),
+  userId: text("user_id").notNull(), department: text("department").notNull(), role: text("role").$type<"leader" | "member">().notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.draftId], foreignColumns: [campaignDrafts.tenantId, campaignDrafts.id] }).onDelete("cascade"),
+  foreignKey({ columns: [t.tenantId, t.userId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }).onDelete("cascade"),
+  uniqueIndex("campaign_draft_assignments_unique_idx").on(t.tenantId, t.draftId, t.department, t.userId),
+  index("campaign_draft_assignments_user_idx").on(t.tenantId, t.userId),
+  check("campaign_draft_assignment_role", sql`${t.role} in ('leader', 'member')`),
+  check("campaign_draft_assignment_department", sql`${t.department} in ('campaign_leadership', 'church_mobilization', 'evangelistic_outreach', 'prayer_intercession', 'marketing_media', 'logistics_equipment', 'finance_fundraising', 'volunteers', 'counseling', 'discipleship_follow_up', 'worship_production', 'security_medical', 'transportation_hospitality')`),
 ]);
 
 export const contacts = pgTable("contacts", {

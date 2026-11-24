@@ -50,7 +50,7 @@ describe("CW-01 campaign tenancy and creation", () => {
     const grants = await fixture.admin.query("select has_table_privilege('harvest_app','campaigns','UPDATE') as update, has_table_privilege('harvest_app','campaigns','DELETE') as delete");
     expect(grants.rows).toEqual([{ update: false, delete: false }]);
     expect((await fixture.admin.query("select roles = ARRAY['harvest_app']::name[] as runtime_only from pg_policies where tablename='campaigns' and policyname not in ('connect_definer_campaign_read','intake_campaign_lock')")).rows)
-      .toEqual([{ runtime_only: true }, { runtime_only: true }]);
+      .toEqual([{ runtime_only: true }, { runtime_only: true }, { runtime_only: true }]); // read, create and (owner/admin, status only) campaigns_set_status
     // HC-05 needs an exact-campaign owner UPDATE policy for PostgreSQL shared row locks,
     // not an UPDATE grant/policy for harvest_app.
     expect((await fixture.admin.query("select cmd,roles=ARRAY[current_user]::name[] as owner_only,qual like '%app.connect_campaign%' as exact_campaign from pg_policies where tablename='campaigns' and policyname='intake_campaign_lock'")).rows)
