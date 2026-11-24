@@ -246,6 +246,7 @@
     "audience": "Audience",
     "signupForms": "Sign-up forms",
     "newsletterAnalytics": "Analytics",
+    "newsletterSender": "Sender",
     "websiteBuilder": "Website builder",
     "ministryPage": "Ministry page"
   },
@@ -680,6 +681,7 @@
     "thisFieldIsRequired": "This field is required and cannot be cleared.",
     "anOptionIsStillInUse": "An option you removed is still used by some records. Change those records first.",
     "thisViewIsNotAvailable": "This view is not available. The default view is shown instead.",
+    "mailingAddressRequired": "Add a mailing address under Sender before this email can be reviewed or sent.",
     "systemViewsCannotBeChanged": "Built-in views cannot be changed. Save a copy instead.",
     "theRelatedRecordIsNotAvailable": "The related record is not available in this ministry.",
     "thisDealIsNotAvailable": "This deal is not available in this ministry.",
@@ -6397,7 +6399,9 @@
       "sendNow": "Send",
       "notReady": "Sending is not available yet.",
       "fixFirst": "Fix the failed checks first.",
-      "pending": "Not counted yet"
+      "pending": "Not counted yet",
+      "openSender": "Open Sender",
+      "setUpSender": "Set up a sender"
     },
     "checks": {
       "subject": {
@@ -6497,6 +6501,105 @@
     "groupInUse": "This group is used by an email that is ready or sending.",
     "deleteGroupBody": "The group disappears from emails. The saved filter stays in People.",
     "groupStale": "This group's filter changed in People, so it can't be changed here. Create it again."
+  },
+  "NewsletterSender": {
+    "pageTitle": "Sender",
+    "heading": "Sender",
+    "viewOnly": "Only owners and admins can set up the sender.",
+    "ready": "Ready to send",
+    "notReady": "Not ready to send",
+    "sendingOff": "Sending is not enabled yet.",
+    "readiness": {
+      "domain": {
+        "ok": "Sending domain verified",
+        "missing": "Verify a sending domain"
+      },
+      "sender": {
+        "ok": "From address verified",
+        "missing": "Verify a from address"
+      },
+      "replyTo": {
+        "ok": "Reply-to address verified",
+        "missing": "Verify a reply-to address"
+      },
+      "mailingAddress": {
+        "ok": "Mailing address set",
+        "missing": "Add a mailing address"
+      },
+      "unsubscribe": {
+        "ok": "Unsubscribe link in every email",
+        "missing": "Unsubscribe link missing"
+      }
+    },
+    "addresses": "Sender addresses",
+    "addAddress": "Add address",
+    "addressesEmpty": "No sender addresses yet",
+    "columns": {
+      "address": "Address",
+      "kind": "Type",
+      "status": "Status",
+      "actions": "Actions",
+      "type": "Type",
+      "host": "Host",
+      "value": "Value"
+    },
+    "kindSender": "From",
+    "kindReplyTo": "Reply-to",
+    "status": {
+      "unverified": "Not confirmed",
+      "pending": "Pending",
+      "verified": "Verified",
+      "failed": "Failed",
+      "off": "Off"
+    },
+    "domainNotVerified": "Domain not verified",
+    "menu": "Actions for {address}",
+    "sendCode": "Send code",
+    "enterCode": "Enter code",
+    "newCode": "Send a new code",
+    "turnOff": "Turn off",
+    "turnOn": "Turn on",
+    "add": "Add",
+    "cancel": "Cancel",
+    "exists": "This address is already added.",
+    "invalidAddress": "Enter a valid email address.",
+    "confirmTitle": "Confirm address",
+    "code": "Code",
+    "confirm": "Confirm",
+    "codeInvalid": "The code is wrong or has expired.",
+    "testCode": "Test mode: no email is sent.",
+    "useCode": "Use test code",
+    "domains": "Sending domains",
+    "domain": "Domain",
+    "domainPlaceholder": "mail.example.org",
+    "addDomain": "Add domain",
+    "domainsEmpty": "No sending domains yet",
+    "domainExists": "This domain is already added.",
+    "domainInvalid": "Enter a domain such as mail.example.org.",
+    "domainStatus": {
+      "pending": "Not checked",
+      "verified": "Verified",
+      "failed": "Not verified"
+    },
+    "verify": "Verify",
+    "lastChecked": "Last checked {when}",
+    "neverChecked": "Not checked yet",
+    "purpose": {
+      "ownership": "Ownership",
+      "dkim": "Message signing",
+      "spf": "Sender policy",
+      "bounce": "Bounce handling",
+      "dmarc": "Failed-check policy"
+    },
+    "found": "Found",
+    "notFound": "Not found",
+    "copyHost": "Copy host {host}",
+    "copyValue": "Copy value for {host}",
+    "mailing": "Mailing address",
+    "mailingLabel": "Address printed in every email",
+    "save": "Save",
+    "saved": "Saved",
+    "failed": "Could not save. Try again."
   },
   "NewsletterAnalytics": {
     "pageTitle": "Analytics",

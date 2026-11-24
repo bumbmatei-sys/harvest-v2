@@ -25,3 +25,7 @@ Treat suppression digests as personal data. Contact erasure detaches delivery re
 
 - [ ] Verify both runtimes report the expected suppression key version count. Rehearse a missing ring and check that the sign-in page still loads, enabled public signup confirmation and unsubscribe return HTTP 503, and the standalone worker check exits with status 1.
 - [ ] On a disposable hosted Neon branch, confirm the migration owner can resolve and execute the pgcrypto extension member `hmac(bytea,bytea,text)` in its installed schema. Apply 0073 and exercise suppression via the web and worker database roles. Verify transaction-local cleanup and bind/error logging settings.
+
+## Remove the synthetic sender-setup paths before activation
+
+`public.newsletter_verify_domain` (migration 0087) is SYNTHETIC-ONLY: it is web-callable and safe only because it accepts `*.example.test` domains alone. Before the live adapter is enabled, drop it and its route, and verify domains through the worker path (`newsletter_domain_check`). Also remove the `sender-identities/[identityId]/test-code` route and the in-memory synthetic mailbox (`synthetic-mailbox.ts`); real mailbox codes go only through the provider.

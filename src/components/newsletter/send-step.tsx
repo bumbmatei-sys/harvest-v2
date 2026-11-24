@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { CircleAlert, CircleCheck, TriangleAlert } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -48,6 +49,7 @@ export function SendStep({ tenantId, lists, groups, senders, listIds, segmentIds
   const toggleGroup = (id: string, on: boolean) => onSelection(listIds, on ? [...segmentIds, id] : segmentIds.filter((x) => x !== id));
   const skipped = estimate ? Object.values(estimate.skipped).reduce((n, v) => n + (v ?? 0), 0) : 0;
   const icon = (level: InboxCheck["level"]) => level === "pass" ? <CircleCheck className="size-4 text-primary" aria-hidden="true" /> : level === "warn" ? <TriangleAlert className="size-4 text-foreground" aria-hidden="true" /> : <CircleAlert className="size-4 text-destructive" aria-hidden="true" />;
+  const senderHref = `/workspaces/${tenantId}/newsletter/sender`;
   const ready = inboxReady(checks) && listIds.length > 0;
 
   return <div className="space-y-6" data-send-step>
@@ -74,13 +76,14 @@ export function SendStep({ tenantId, lists, groups, senders, listIds, segmentIds
         {(["senderId", "replyToId"] as const).map((key) => <div key={key} className="space-y-1"><dt><Label htmlFor={`nl-${key}`}>{t(key === "senderId" ? "from" : "replyTo")}</Label></dt>
           <dd><NativeSelect id={`nl-${key}`} className="w-full" value={(key === "senderId" ? senderId : replyToId) ?? ""} onChange={(e) => onIdentity(key, e.target.value || null)}>
             <NativeSelectOption value="">{t("noSender")}</NativeSelectOption>{senders.map((s) => <NativeSelectOption key={s.id} value={s.id}>{s.address}</NativeSelectOption>)}</NativeSelect></dd></div>)}
+        {senders.length === 0 && <div className="sm:col-span-2"><Link href={senderHref} className="text-sm underline underline-offset-4" data-sender-link>{t("setUpSender")}</Link></div>}
         <div><dt className="text-muted-foreground">{t("subject")}</dt><dd className="font-medium">{subject}</dd></div>
         <div><dt className="text-muted-foreground">{t("recipients")}</dt><dd className="font-medium">{estimate && listIds.length > 0 ? t("count", { eligible: estimate.eligible, selected: estimate.selected }) : t("pending")}</dd></div>
       </dl>
     </FormSection>
     <FormSection title={t("inbox")}>
       <ul className="space-y-2" data-inbox-check>{checks.map((check) => { const text = c(`${check.id}.${check.level}` as "subject.pass", { count: check.count ?? 0 });
-        return text ? <li key={check.id} className="flex items-start gap-2 text-sm" data-check={check.id} data-level={check.level}>{icon(check.level)}<span>{text}</span></li> : null; })}</ul>
+        return text ? <li key={check.id} className="flex items-start gap-2 text-sm" data-check={check.id} data-level={check.level}>{icon(check.level)}<span>{text}{check.id === "address" && check.level === "fail" && <> <Link href={senderHref} className="underline underline-offset-4" data-sender-link>{t("openSender")}</Link></>}</span></li> : null; })}</ul>
     </FormSection>
     <div className="space-y-2">
       <Button type="button" className="min-h-11" disabled data-send-button>{when === "later" ? t("schedule") : t("sendNow")}</Button>
