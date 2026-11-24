@@ -40,13 +40,13 @@ export function AudienceLens({ tenantId, counts, lists, groups, current, canMana
     setBusy(true); setError("");
     const result = await request<{ id: string }>(`${api}/${dialog.kind}/${dialog.id}`, { method: "PATCH", body: { name, version: dialog.version } });
     setBusy(false);
-    if (!result.ok) { setError(result.status === 409 ? t("nameTakenOrChanged") : result.error); return; }
+    if (!result.ok) { setError(result.status === 409 ? t(result.details?.code === "GROUP_STALE" ? "groupStale" : "nameTakenOrChanged") : result.error); return; }
     setDialog(null);
     router.refresh();
   }
   async function remove(target: Target) {
     const result = await request(`${api}/${target.kind}/${target.id}`, { method: "DELETE", body: { version: target.version } });
-    if (!result.ok) throw new Error(result.status === 409 ? t(target.kind === "lists" ? "listInUse" : "groupInUse") : result.error);
+    if (!result.ok) throw new Error(result.status === 409 ? t(result.details?.code === "GROUP_STALE" ? "groupStale" : target.kind === "lists" ? "listInUse" : "groupInUse") : result.error);
     setRemoving(null);
     router.push(current === `${target.kind === "lists" ? "list" : "group"}:${target.id}` ? base : `${base}${current === "all" ? "" : "/" + current}`);
     router.refresh();
@@ -82,7 +82,7 @@ export function AudienceLens({ tenantId, counts, lists, groups, current, canMana
     <Dialog open={dialog !== null} onOpenChange={(value) => { if (!value && !busy) setDialog(null); }}>
       <DialogContent><form onSubmit={save} className="space-y-4">
         <DialogHeader><DialogTitle>{dialog?.kind === "groups" ? t("renameGroup") : t("renameList")}</DialogTitle></DialogHeader>
-        <Field><FieldLabel htmlFor="audience-list-name">{dialog?.kind === "groups" ? t("groupName") : t("listName")}</FieldLabel><Input id="audience-list-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={100} required autoFocus className="h-11 lg:h-9" /></Field>
+        <Field><FieldLabel htmlFor="audience-list-name">{dialog?.kind === "groups" ? t("groupName") : t("listName")}</FieldLabel><Input id="audience-list-name" value={name} onChange={(event) => setName(event.target.value)} maxLength={dialog?.kind === "groups" ? 60 : 100} required autoFocus className="h-11 lg:h-9" /></Field>
         {error && <p role="alert" className="text-sm text-destructive">{error}</p>}
         <DialogFooter><Button type="button" variant="outline" disabled={busy} onClick={() => setDialog(null)} className="min-h-11 lg:min-h-9">{t("cancel")}</Button><Button type="submit" disabled={busy || !name.trim()} className="min-h-11 lg:min-h-9">{t("save")}</Button></DialogFooter>
       </form></DialogContent>

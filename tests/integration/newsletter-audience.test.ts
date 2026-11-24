@@ -145,7 +145,7 @@ it("renames and deletes saved groups: versions, pins, names, roles, hidden every
     await client.query("update newsletter_campaigns set state='reviewed' where id=$1", [draft.id]);
     await expect(deleteAudienceGroup(fixture.db, owner, tenant, group.id, { version: renamed.version })).rejects.toMatchObject({ status: 409 });
     await client.query("update newsletter_campaigns set state='draft' where id=$1", [draft.id]);
-  } finally { client.release(); }
+  } finally { await client.query("reset session_replication_role"); client.release(); }
   await deleteAudienceGroup(fixture.db, owner, tenant, group.id, { version: renamed.version });
   expect((await audienceOverview(fixture.db, owner, tenant)).groups.map((g) => g.id)).not.toContain(group.id);
   await expect(withTenant(fixture.db, owner, tenant, "newsletter:read", (tx, id) => selectionPins(tx, id, { listIds: [list.id], segmentIds: [group.id] }))).rejects.toMatchObject({ status: 404 });
@@ -154,6 +154,29 @@ it("renames and deletes saved groups: versions, pins, names, roles, hidden every
   // The shared CRM view and the name stay free.
   expect((await fixture.admin.query("select 1 from crm_saved_views where name='Consented people'")).rowCount).toBe(1);
   await expect(createGroupFromFilter(fixture.db, owner, tenant, { name: "Consented people", state })).resolves.toBeTruthy();
+});
+
+it("limits group names to the shared view's 60 characters with a validation error, and answers 409 for a group whose shared view changed", async () => {
+  const state = fullState({ filters: [{ field: "newsletter", op: "any_of", value: ["granted"] }] });
+  const long = "x".repeat(61);
+  await expect((async () => createGroupFromFilter(fixture.db, owner, tenant, { name: long, state }))()).rejects.toMatchObject({ name: "ZodError" });
+  const ok = await createGroupFromFilter(fixture.db, owner, tenant, { name: "y".repeat(60) + "  ", state });
+  expect(ok.name).toBe("y".repeat(60));
+  const version = (await audienceOverview(fixture.db, owner, tenant)).groups.find((g) => g.id === ok.id)!.version;
+  await expect((async () => renameAudienceGroup(fixture.db, owner, tenant, ok.id, { name: long, version }))()).rejects.toMatchObject({ name: "ZodError" });
+  expect(await renameAudienceGroup(fixture.db, owner, tenant, ok.id, { name: "z".repeat(60) + " ", version })).toMatchObject({ name: "z".repeat(60) });
+  // The shared view is edited (as CRM People can): the group is stuck. Rename and archive both answer a clear 409 (GROUP_STALE), never a 500; it stays inert.
+  const stale = await createGroupFromFilter(fixture.db, owner, tenant, { name: "Stale group", state });
+  const staleVersion = (await audienceOverview(fixture.db, owner, tenant)).groups.find((g) => g.id === stale.id)!.version;
+  await fixture.admin.query("update crm_saved_views set version=version+1 where id=(select saved_view_id from newsletter_segments where id=$1)", [stale.id]);
+  await expect(renameAudienceGroup(fixture.db, owner, tenant, stale.id, { name: "Renamed stale", version: staleVersion })).rejects.toMatchObject({ status: 409, details: { code: "GROUP_STALE" } });
+  await expect(deleteAudienceGroup(fixture.db, owner, tenant, stale.id, { version: staleVersion })).rejects.toMatchObject({ status: 409, details: { code: "GROUP_STALE" } });
+  expect((await fixture.admin.query("select archived_at from newsletter_segments where id=$1", [stale.id])).rows[0].archived_at).toBeNull();
+  await expect(withTenant(fixture.db, owner, tenant, "newsletter:read", (tx, id) => selectionPins(tx, id, { listIds: [], segmentIds: [stale.id] }))).rejects.toMatchObject({ status: 404 });
+  // A removed view takes the group with it (cascade); nothing is left to archive.
+  const gone = await createGroupFromFilter(fixture.db, owner, tenant, { name: "Gone view", state });
+  await fixture.admin.query("delete from crm_saved_views where id=(select saved_view_id from newsletter_segments where id=$1)", [gone.id]);
+  expect((await audienceOverview(fixture.db, owner, tenant)).groups.map((g) => g.id)).not.toContain(gone.id);
 });
 
 it("treats suppressed and bounced people as suppressed and refuses to re-add them", async () => {

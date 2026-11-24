@@ -21,6 +21,8 @@ export type AudienceStatus = typeof audienceStatuses[number];
 export type AudienceLens = { kind: "all" } | { kind: "status"; status: AudienceStatus } | { kind: "list"; id: string } | { kind: "group"; id: string };
 
 const nameInput = z.object({ name: z.string().trim().min(1).max(100) }).strict();
+/** Group names also name a shared CRM view, whose check allows 1 to 60 trimmed characters; reject longer names here, not in the database. */
+const groupNameInput = z.object({ name: z.string().trim().min(1).max(60) }).strict();
 const versionInput = z.object({ version: z.number().int().positive() }).strict();
 
 /** One person's newsletter status. Suppressed and bounced first, then withdrawal, then an explicit grant plus a live list. */
@@ -106,6 +108,12 @@ async function uniqueGroupName(tx: Transaction, tenantId: string, name: string, 
   const [clash] = await tx.select({ id: newsletterSegments.id }).from(newsletterSegments).where(and(eq(newsletterSegments.tenantId, tenantId), isNull(newsletterSegments.archivedAt),
     sql`lower(${newsletterSegments.name}) = lower(${name})`, except ? sql`${newsletterSegments.id} <> ${except}::uuid` : undefined)).limit(1);
   if (clash) throw conflict("NAME_TAKEN");
+}
+/** A group whose shared view was edited (or whose filter no longer qualifies) is stuck: its pin cannot match. It stays inert; recreate it. */
+async function assertGroupCurrent(tx: Transaction, tenantId: string, group: { savedViewId: string; savedViewVersion: number }) {
+  const [view] = await tx.select({ id: crmSavedViews.id }).from(crmSavedViews).where(and(eq(crmSavedViews.tenantId, tenantId), eq(crmSavedViews.id, group.savedViewId),
+    eq(crmSavedViews.objectType, "person"), eq(crmSavedViews.version, group.savedViewVersion), isNull(crmSavedViews.ownerUserId), sql`coalesce(${crmSavedViews.state}->'sources','[]'::jsonb)='[]'::jsonb`));
+  if (!view) throw conflict("GROUP_STALE");
 }
 async function activeGroup(tx: Transaction, tenantId: string, id: string) {
   const [group] = await tx.select().from(newsletterSegments).where(and(eq(newsletterSegments.tenantId, tenantId), eq(newsletterSegments.id, z.uuid().parse(id)), isNull(newsletterSegments.archivedAt))).for("update");
@@ -218,7 +226,7 @@ export function removePersonFromList(db: Database, user: string, workspace: stri
   });
 }
 
-const groupInput = nameInput.extend({ state: viewState }).strict();
+const groupInput = groupNameInput.extend({ state: viewState }).strict();
 /**
  * A saved group is the current People filter kept as a shared CRM view, then pinned the way NL-01 segments already are.
  * Source rules are refused (segments never carry them), exactly as `createNewsletterSegment` does.
@@ -242,10 +250,11 @@ export function createGroupFromFilter(db: Database, user: string, workspace: str
  * the old version no longer matches and must be reviewed again (SELECTION_CHANGED), never sent on a stale pin.
  */
 export function renameAudienceGroup(db: Database, user: string, workspace: string, group: string, raw: unknown) {
-  const input = nameInput.extend(versionInput.shape).parse(raw);
+  const input = groupNameInput.extend(versionInput.shape).parse(raw);
   return withNewsletter(db, user, workspace, "newsletter:manage", async (tx, tenantId) => {
     const current = await activeGroup(tx, tenantId, group);
     if (current.savedViewVersion !== input.version) throw conflict("STALE");
+    await assertGroupCurrent(tx, tenantId, current);
     await uniqueGroupName(tx, tenantId, input.name, current.id);
     const [view] = await tx.update(crmSavedViews).set({ name: input.name, version: sql`${crmSavedViews.version} + 1`, updatedAt: new Date() })
       .where(and(eq(crmSavedViews.tenantId, tenantId), eq(crmSavedViews.id, current.savedViewId), eq(crmSavedViews.version, current.savedViewVersion), isNull(crmSavedViews.ownerUserId))).returning();
@@ -262,6 +271,7 @@ export function deleteAudienceGroup(db: Database, user: string, workspace: strin
   return withNewsletter(db, user, workspace, "newsletter:manage", async (tx, tenantId) => {
     const current = await activeGroup(tx, tenantId, group);
     if (current.savedViewVersion !== input.version) throw conflict("STALE");
+    await assertGroupCurrent(tx, tenantId, current);
     const [inUse] = await tx.select({ id: newsletterCampaigns.id }).from(newsletterCampaignSegments)
       .innerJoin(newsletterCampaigns, and(eq(newsletterCampaigns.tenantId, newsletterCampaignSegments.tenantId), eq(newsletterCampaigns.id, newsletterCampaignSegments.campaignId), eq(newsletterCampaigns.revision, newsletterCampaignSegments.revision)))
       .where(and(eq(newsletterCampaignSegments.tenantId, tenantId), eq(newsletterCampaignSegments.segmentId, current.id), inArray(newsletterCampaigns.state, ["reviewed", "scheduled", "sending"]))).limit(1);
