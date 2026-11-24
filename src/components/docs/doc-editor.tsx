@@ -82,7 +82,7 @@ export function DocEditor({ tenantId, detail, page, userId }: { tenantId: string
 
   const newPage = useRef<(child: boolean) => void>(() => {});
   const surface = useRef<SurfaceHandle | null>(null);
-  const [outline, setOutline] = useState<Heading[]>([]), [stats, setStats] = useState<SurfaceStats>({ words: 0, characters: 0, readingMinutes: 0 });
+  const [templatesTick, setTemplatesTick] = useState(0), [outline, setOutline] = useState<Heading[]>([]), [stats, setStats] = useState<SurfaceStats>({ words: 0, characters: 0, readingMinutes: 0 });
   const onChange = useCallback(() => { edits.current++; schedule(); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -238,7 +238,7 @@ export function DocEditor({ tenantId, detail, page, userId }: { tenantId: string
     : panel === "styles" ? <PageStylesPanel style={resolved} stats={stats} disabled={!rights.write} onChange={(next) => void changeStyle(next)} onApplyAll={async () => { await flush(); const r = await call<{ pages: number }>("POST", "/typography", { font: resolved.font, size: resolved.size, width: resolved.width, exceptPageId: page.id }); if (r.ok) notify.success(t("typographyApplied", { count: r.data.pages + 1 })); }}
       onPickCover={() => setDialog("cover")} focusBlock={focusBlock} onFocusBlock={setFocusBlock} focusPage={focusPage} onFocusPage={(on) => { setFocusPage(on); if (on) setPanel(null); }} onClose={closePanel} />
     : panel === "relationships" ? <RelationshipsPanel tenantId={tenantId} docId={doc.id} pageId={page.id} canEdit={rights.write} onChanged={() => void loadLinks()} onClose={closePanel} />
-    : panel === "templates" ? <TemplatesPanel tenantId={tenantId} docId={doc.id} pageId={page.id} canEdit={editable} pageVersion={pageVersion} onApplied={(id) => { setPanel(null); router.push(pageHref(id)); router.refresh(); }} onSave={() => undefined} onClose={closePanel} openSave={(mode, rows) => { setTemplateRows(rows); setDialog(mode === "save" ? "saveTemplate" : "updateTemplate"); }} />
+    : panel === "templates" ? <TemplatesPanel key={templatesTick} tenantId={tenantId} docId={doc.id} pageId={page.id} canEdit={editable} pageVersion={pageVersion} onApplied={(id) => { setPanel(null); router.push(pageHref(id)); router.refresh(); }} onSave={() => undefined} onClose={closePanel} openSave={(mode, rows) => { setTemplateRows(rows); setDialog(mode === "save" ? "saveTemplate" : "updateTemplate"); }} />
     : panel === "export" ? <ExportPanel tenantId={tenantId} docId={doc.id} pageId={page.id} canEdit={editable} pageVersion={pageVersion} onImported={(id) => { setPanel(null); router.push(pageHref(id)); router.refresh(); }} onClose={closePanel} />
     : panel === "history" ? <HistoryPanel tenantId={tenantId} docId={doc.id} pageId={page.id} canEdit={editable} pageVersion={pageVersion} onRestored={() => location.reload()} onClose={closePanel} />
     : null;
@@ -334,7 +334,7 @@ export function DocEditor({ tenantId, detail, page, userId }: { tenantId: string
     <ShareDialog open={dialog === "share"} onOpenChange={(o) => !o && setDialog(null)} tenantId={tenantId} docId={doc.id} pageId={page.id} docTitle={doc.title} protectedDoc={allProtected} onProtect={() => void menuAction("protectDoc")} onChanged={() => router.refresh()} />
     <FilePicker open={dialog === "attach"} onOpenChange={(o) => !o && setDialog(null)} tenantId={tenantId} title={t("attachFile")} onPick={async (f) => { const r = await call("POST", "/attachments", { fileId: f.id }); if (!r.ok) return r.error; void loadAttachments(); }} />
     <FilePicker open={dialog === "cover"} onOpenChange={(o) => !o && setDialog(null)} tenantId={tenantId} title={t("chooseCover")} imagesOnly onPick={async (f) => { await changeStyle({ ...style, coverFileId: f.id, header: { ...style.header, cover: true } }); }} />
-    <SaveTemplateDialog key={`${dialog}`} open={dialog === "saveTemplate" || dialog === "updateTemplate"} onOpenChange={(o) => !o && setDialog(null)} tenantId={tenantId} docId={doc.id} pageId={page.id} mode={dialog === "updateTemplate" ? "update" : "save"} templates={templateRows} onDone={() => { notify.success(t("templateSaved")); }} />
+    <SaveTemplateDialog key={`${dialog}`} open={dialog === "saveTemplate" || dialog === "updateTemplate"} onOpenChange={(o) => !o && setDialog(null)} tenantId={tenantId} docId={doc.id} pageId={page.id} mode={dialog === "updateTemplate" ? "update" : "save"} templates={templateRows} onDone={() => { notify.success(t("templateSaved")); setTemplatesTick((n) => n + 1); }} />
     <NameDialog open={dialog === "renameDoc"} onOpenChange={(o) => !o && setDialog(null)} title={t("renameDoc")} label={t("docName")} submitLabel={t("save")} maxLength={200} required={false} initial={doc.title}
       onSubmit={async (name) => { const r = await call("PATCH", "", { title: name }); if (r.ok) { router.refresh(); return undefined; } return r.error; }} />
     <NameDialog open={renameTarget !== null} onOpenChange={(o) => !o && setRenameTarget(null)} title={t("renamePage")} label={t("pageTitleField")} submitLabel={t("save")} maxLength={200} required={false} initial={renameTarget?.title ?? ""}

@@ -96,7 +96,7 @@ test("panels, comments, links, templates, export, history, sharing and print vie
   // Export panel and downloads.
   await rail.getByRole("button", { name: "Export" }).click();
   const exp = page.getByRole("complementary", { name: "Export" });
-  await expect(exp.getByRole("link", { name: "Markdown" }).or(exp.getByRole("button", { name: "Markdown" }))).toBeVisible();
+  await expect(exp.getByRole("link", { name: "Markdown" })).toBeVisible();
   await shot(page, "panel-export-desktop-light");
   const md = await page.request.get(`${api}/${doc.id}/export?format=markdown&scope=doc`);
   expect(md.status()).toBe(200);
