@@ -694,6 +694,13 @@
       "when": 1795565920831,
       "tag": "0100_discover_server",
       "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1795598318138,
+      "tag": "0107_newsletter_automation_bad_wait",
+      "breakpoints": true
     }
   ]
 }
