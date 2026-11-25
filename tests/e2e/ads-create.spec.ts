@@ -4,29 +4,62 @@ import { adsSynced, adsWorkspace, audit, expect, releaseAfterEach } from "./help
 // Guided create and Boost a post against the real Ads routes and the in-memory test provider. Nothing leaves the process: no network, no spend.
 test.use({ actionTimeout: 30_000, timezoneId: "UTC", reducedMotion: "reduce" });
 const release = releaseAfterEach();
-const next = (page: Page) => page.getByRole("button", { name: "Next", exact: true }).click();
+const next = (page: Page) => page.getByRole("button", { name: "Continue", exact: true }).click();
+const skip = async (page: Page, count: number) => { for (let i = 0; i < count; i++) await next(page); };
 const editor = (page: Page) => page.locator("[data-editor-hosted], main").first();
 
-test("create an ad: validation, steps, live preview, draft kept, check, launch paused, and it shows in the table", async ({ page }) => {
-  test.setTimeout(420_000);
+test("create an ad: nine steps in three groups, validation, live preview, draft kept, check, launch paused, and it shows in the table", async ({ page }) => {
+  test.setTimeout(480_000);
   await page.setViewportSize({ width: 1280, height: 900 });
   const tenant = await adsWorkspace(page, release);
   await adsSynced(page, tenant);
   await page.getByRole("link", { name: "Create ad" }).click();
   await expect(page.getByRole("heading", { name: "Create ad", level: 1 })).toBeVisible();
 
-  // The step will not move on with a field missing; the reasons are shown.
+  // The step list: nine steps under the group labels Campaign, Ad set and Ad.
+  if (process.env.HARVEST_SHELL_MODES !== "disabled") {
+    const list = page.locator("[data-editor-steps]");
+    await expect(list.locator('[data-slot="step-group"]')).toHaveText(["Campaign", "Ad set", "Ad"]);
+    await expect(list.getByRole("button")).toHaveCount(9);
+  }
+  // Step 01: the step will not move on with a field missing; the reasons are shown.
   await page.getByLabel("Ad account").selectOption({ index: 1 });
   await next(page);
   await expect(page.getByText("Enter a name.")).toBeVisible();
-  await expect(page.getByText("Choose a goal.")).toBeVisible();
-  await audit(page, "create-goal");
-
+  await audit(page, "create-create");
   await page.getByLabel("Name", { exact: true }).fill("Spring concert");
-  await page.getByRole("radio", { name: "Traffic" }).check();
   await next(page);
 
-  // Ad set: audience, placements, budget, categories (a refused category is flagged).
+  // Step 02: the objective picker with the detail panel.
+  await expect(page.getByLabel("Buying type")).toHaveValue("auction");
+  await expect(page.locator("[data-ads-objective-detail]")).toContainText("Choose an objective");
+  await next(page);
+  await expect(page.getByText("Choose a goal.")).toBeVisible();
+  await page.getByRole("radio", { name: "Traffic" }).check();
+  await expect(page.locator("[data-ads-objective-detail]")).toContainText("Send people to your website or event page.");
+  await expect(page.locator("[data-ads-objective-detail]")).toContainText("Good for");
+  await expect(page.locator('[data-slot="objective-art"]')).toHaveAttribute("data-objective", "traffic");
+  await audit(page, "create-objective");
+  await next(page);
+
+  // Step 03: budget and categories (a refused category is flagged and blocks the step).
+  await page.getByLabel("Budget", { exact: true }).fill("20");
+  await page.getByRole("checkbox", { name: "Social issues, elections or politics" }).check();
+  await expect(page.getByRole("alert").filter({ hasText: "cannot be launched" })).toBeVisible();
+  await next(page);
+  await expect(page.getByLabel("Budget", { exact: true })).toBeVisible();
+  await page.getByRole("checkbox", { name: "Social issues, elections or politics" }).uncheck();
+  await audit(page, "create-budget");
+  await next(page);
+
+  // Step 04: ad set name and bid.
+  await page.getByLabel("Ad set name").fill("Local families");
+  await page.getByLabel("Bid strategy").selectOption("cost_cap");
+  await expect(page.getByLabel("Bid limit")).toBeVisible();
+  await page.getByLabel("Bid limit").fill("4");
+  await next(page);
+
+  // Step 05: audience.
   await page.getByLabel("Countries", { exact: true }).selectOption({ label: "Canada" });
   await expect(page.getByRole("button", { name: "Remove Canada" })).toBeVisible();
   await page.getByLabel("Interests").fill("music");
@@ -34,19 +67,19 @@ test("create an ad: validation, steps, live preview, draft kept, check, launch p
   await page.getByRole("button", { name: "music one" }).click();
   await expect(page.getByRole("button", { name: "Remove music one" })).toBeVisible();
   await page.getByRole("checkbox", { name: "Website visitors" }).check();
+  await audit(page, "create-audience");
+  await next(page);
+
+  // Step 06: placements.
   await page.getByRole("radio", { name: "Choose placements" }).click();
   await expect(page.getByText("Choose at least one placement, or use automatic.")).toBeVisible();
   await page.getByRole("checkbox", { name: "Feed" }).check();
-  await page.getByLabel("Budget", { exact: true }).fill("20");
-  await page.getByRole("checkbox", { name: "Social issues, elections or politics" }).check();
-  await expect(page.getByRole("alert").filter({ hasText: "cannot be launched" })).toBeVisible();
   await next(page);
-  await expect(page.getByRole("heading", { name: "Ad set" })).toBeVisible(); // a refused category blocks the step
-  await page.getByRole("checkbox", { name: "Social issues, elections or politics" }).uncheck();
-  await audit(page, "create-adset");
+  // Step 07: schedule.
+  await page.getByLabel("End date").fill("2030-01-01");
   await next(page);
 
-  // Ad: the preview follows the form.
+  // Step 08: ad, the preview follows the form.
   await page.getByRole("radio", { name: "Text" }).check();
   await page.getByRole("textbox", { name: "Text", exact: true }).fill("Join us for an evening of worship");
   await page.getByRole("textbox", { name: "Headline", exact: true }).fill("Spring concert");
@@ -62,14 +95,15 @@ test("create an ad: validation, steps, live preview, draft kept, check, launch p
   await page.reload();
   await expect(page.getByText("Your unfinished draft was restored.")).toBeVisible();
   await expect(page.getByLabel("Name", { exact: true })).toHaveValue("Spring concert");
+  await expect(page.getByText("Draft saved").first()).toBeVisible();
 
-  // Review: check with the network, then launch (created paused).
-  await page.getByRole("button", { name: "Review and launch" }).first().click();
+  // Step 09: check with the network, then launch (created paused). Finished steps carry the green check.
+  await page.getByRole("button", { name: /^Publish/ }).first().click();
   await expect(page.locator("[data-ads-review]")).toContainText("Spring concert");
   await expect(page.locator("[data-ads-launch]")).toBeDisabled();
   await page.locator("[data-ads-check]").click();
   await expect(page.getByText("The ad network accepts this ad.")).toBeVisible();
-  await audit(page, "create-review");
+  await audit(page, "create-publish");
   await page.locator("[data-ads-launch]").click();
   await expect(page.getByRole("alertdialog")).toContainText("It is created paused");
   await page.getByRole("alertdialog").getByRole("button", { name: "Launch" }).click();
@@ -79,35 +113,54 @@ test("create an ad: validation, steps, live preview, draft kept, check, launch p
   await expect(page.getByRole("switch", { name: "Deliver Spring concert" })).not.toBeChecked();
 });
 
-test("boost a post and a lead-goal ad with a lead form", async ({ page }) => {
-  test.setTimeout(300_000);
+test("boost a post, add an ad to an existing ad set, and a lead-goal ad with a lead form", async ({ page }) => {
+  test.setTimeout(420_000);
   await page.setViewportSize({ width: 1280, height: 900 });
   const tenant = await adsWorkspace(page, release);
   await adsSynced(page, tenant);
   await page.getByRole("link", { name: "Boost a post" }).click();
   await expect(page.getByRole("heading", { name: "Boost a post", level: 1 })).toBeVisible();
   await page.getByLabel("Name", { exact: true }).fill("Boost Sunday");
-  await page.getByRole("radio", { name: "Engagement" }).check();
   await page.getByRole("radio", { name: /^facebook/ }).check();
   await expect(page.getByTestId("ad-preview")).toContainText("Boosted post");
   await next(page);
-  await page.getByLabel("Budget", { exact: true }).fill("10");
+  await expect(page.locator("[data-ads-objectives]").getByRole("radio", { name: "Messages" })).toHaveCount(0);
+  await page.getByRole("radio", { name: "Engagement" }).check();
   await next(page);
-  await expect(page.getByRole("heading", { name: "Review and launch" }).first()).toBeVisible();
+  await page.getByLabel("Budget", { exact: true }).fill("10");
+  await skip(page, 4); // budget, audience, placements, schedule
+  await expect(page.locator("[data-ads-review]")).toContainText("Boost Sunday");
   await page.locator("[data-ads-check]").click();
   await expect(page.getByText("The ad network accepts this ad.")).toBeVisible();
   await page.locator("[data-ads-launch]").click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Launch" }).click();
   await expect(page.locator("[data-ads-launched]")).toContainText("Boost a post");
 
+  // A new ad in an ad set that exists: only Create, Ad and Publish apply.
+  await page.goto(`/workspaces/${tenant}/social/ads/new`);
+  await page.getByLabel("Ad account").selectOption({ index: 1 });
+  await page.getByRole("radio", { name: "New ad in an ad set" }).click();
+  await page.getByLabel("Ad set to add the ad to").selectOption({ label: "Easter service invitation / Local families" });
+  await next(page);
+  await page.getByLabel("Ad name").fill("Easter reminder");
+  await page.getByRole("radio", { name: "Text" }).check();
+  await page.getByRole("textbox", { name: "Text", exact: true }).fill("See you Sunday");
+  await next(page);
+  await page.locator("[data-ads-check]").click();
+  await expect(page.getByText("The ad network accepts this ad.")).toBeVisible();
+  await page.locator("[data-ads-launch]").click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Launch" }).click();
+  await expect(page.locator("[data-ads-launched]")).toBeVisible();
+
   // A lead goal asks for a lead form.
   await page.goto(`/workspaces/${tenant}/social/ads/new`);
   await page.getByLabel("Ad account").selectOption({ index: 1 });
   await page.getByLabel("Name", { exact: true }).fill("Camp sign-up");
+  await next(page);
   await page.getByRole("radio", { name: "Leads" }).check();
   await next(page);
   await page.getByLabel("Budget", { exact: true }).fill("15");
-  await next(page);
+  await skip(page, 5); // budget, ad set, audience, placements, schedule
   await page.getByRole("radio", { name: "Text" }).check();
   await page.getByRole("textbox", { name: "Text", exact: true }).fill("Sign up for camp");
   await next(page);
@@ -128,6 +181,14 @@ test("create an ad on a phone: one column, preview in a sheet, 44px targets", as
   await page.goto(`/workspaces/${tenant}/social/ads/new`);
   await expect(editor(page)).toBeVisible();
   await expect(page.getByRole("button", { name: /preview/i }).first()).toBeVisible();
+  await page.getByLabel("Ad account").selectOption({ index: 1 });
+  await page.getByLabel("Name", { exact: true }).fill("Phone ad");
+  await next(page);
+  await expect(page.locator("[data-ads-objectives]")).toBeVisible();
+  await page.getByRole("radio", { name: "Awareness" }).check();
+  const detail = await page.locator("[data-ads-objective-detail]").boundingBox();
+  const list = await page.locator("[data-ads-objectives]").boundingBox();
+  expect(detail!.y).toBeGreaterThan(list!.y + list!.height - 1); // the detail sits under the list on a phone
   const small = await page.locator("main button:visible, main select:visible, main input:visible").evaluateAll((els) => els.filter((el) => { const r = (el.closest("label") ?? el).getBoundingClientRect(); return r.height > 0 && r.height < 43.5 && !(el as HTMLInputElement).type?.match(/checkbox|radio|file/); }).map((el) => el.getAttribute("aria-label") ?? el.textContent?.trim().slice(0, 20)));
   expect(small).toEqual([]);
 });
@@ -146,10 +207,11 @@ test("an image ad: upload through the private media flow, shown in the preview, 
   await page.goto(`/workspaces/${tenant}/social/ads/new`);
   await page.getByLabel("Ad account").selectOption({ index: 1 });
   await page.getByLabel("Name", { exact: true }).fill("Photo ad");
+  await next(page);
   await page.getByRole("radio", { name: "Awareness" }).check();
   await next(page);
   await page.getByLabel("Budget", { exact: true }).fill("12");
-  await next(page);
+  await skip(page, 5); // budget, ad set, audience, placements, schedule
   // A type that is not allowed never uploads.
   await page.getByTestId("ads-media-input").setInputFiles([{ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("hello") }]);
   await expect(page.getByText("This file type cannot be used.")).toBeVisible();

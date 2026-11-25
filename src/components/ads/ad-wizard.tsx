@@ -14,11 +14,12 @@ import { FormSection } from "@/components/form-section";
 import { StatusBadge } from "@/components/status-badge";
 import { WizardLayout } from "@/components/wizard-layout";
 import { AdPreview } from "@/components/ads/ad-preview";
-import { AdSetStep, AdStep, GoalStep } from "@/components/ads/ad-steps";
+import { AdSetStep, AdStep, AudienceStep, BudgetStep, CreateStep as CreateStepBody, PlacementsStep, ScheduleStep } from "@/components/ads/ad-steps";
+import { ObjectiveStep } from "@/components/ads/ad-objective";
 import { useAdsError } from "@/components/ads/ads-error";
 import { useAdLookups } from "@/components/ads/use-ad-lookups";
-import { adsApi, newKey, type LaunchRequestView } from "@/lib/ads/api";
-import { emptyDraft, fromPayload, problems, stepsFor, toPayload, type CreateStep, type Draft, type Mode } from "@/lib/ads/create";
+import { adsApi, AdsApiError, newKey, type LaunchRequestView } from "@/lib/ads/api";
+import { createSteps, emptyDraft, fromPayload, problems, stepGroup, stepsFor, toPayload, type CreateStep, type Draft, type Mode } from "@/lib/ads/create";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
 
 type Save = "idle" | "saving" | "saved" | "local" | "error";
@@ -36,7 +37,7 @@ export function AdWizard({ tenantId, initialAccount, initialMode, initialRequest
   const t = useTranslations("Ads.wizard"), l = useTranslations("Ads"), explain = useAdsError(), hosted = useEditorHosted();
   const api = useMemo(() => adsApi(tenantId), [tenantId]);
   const [raw, setDraft] = useState<Draft>(() => emptyDraft(initialMode, initialAccount ?? ""));
-  const [step, setStep] = useState<CreateStep>("goal"), [touched, setTouched] = useState(false), [previews, setPreviews] = useState<Record<string, string>>({});
+  const [step, setStep] = useState<CreateStep>("create"), [visited, setVisited] = useState<ReadonlySet<CreateStep>>(() => new Set<CreateStep>()), [touched, setTouched] = useState(false), [previews, setPreviews] = useState<Record<string, string>>({});
   const [save, setSave] = useState<Save>("idle"), [phase, setStage] = useState<Phase>("editing"), [error, setError] = useState(""), [notice, setNotice] = useState("");
   const [problemsFromServer, setServerProblems] = useState<string[]>([]), [confirming, setConfirming] = useState(false), [ready, setReady] = useState(false);
   const lookups = useAdLookups(tenantId, raw.adAccountId), key = useRef<string | null>(null), savedSig = useRef(""), chain = useRef<Promise<unknown>>(Promise.resolve()), requestRef = useRef<LaunchRequestView | null>(null);
@@ -57,10 +58,10 @@ export function AdWizard({ tenantId, initialAccount, initialMode, initialRequest
   }, [api, initialRequest, tenantId, t]);
 
   const set = useCallback(<K extends keyof Draft>(field: K, value: Draft[K]) => { setNotice(""); setStage((p) => p === "checked" || p === "failed" ? "editing" : p); setServerProblems([]); setDraft((d) => ({ ...d, [field]: value })); }, []);
-  const changeMode = (mode: Mode) => { setNotice(""); setStep("goal"); setDraft((d) => ({ ...emptyDraft(mode, d.adAccountId), name: d.name, goal: d.goal === "messages" && mode === "boost" ? "" : d.goal })); };
+  const changeMode = (mode: Mode) => { setNotice(""); setStep("create"); setDraft((d) => ({ ...emptyDraft(mode, d.adAccountId), name: mode === "add_ad" ? "" : d.name, goal: d.goal === "messages" && mode === "boost" ? "" : d.goal })); };
   const issues = useMemo(() => problems(draft), [draft]);
   const bad = (field: string) => touched && issues.some((p) => p.field === field || p.field.startsWith(`${field}.`));
-  const stepList = stepsFor(draft.mode);
+  const applicable = stepsFor(draft.mode), go = (id: string) => { setTouched(true); setVisited((current) => new Set(current).add(step)); setStep(id as CreateStep); };
 
   // Autosave: local always, the server once the form is valid. Writes go one after another so each carries the version the last one returned.
   const persist = useCallback((current: Draft): Promise<void> => {
@@ -79,7 +80,7 @@ export function AdWizard({ tenantId, initialAccount, initialMode, initialRequest
     return chain.current.then(() => undefined);
   }, [api]);
   useEffect(() => {
-    if (!ready || phase === "launched" || phase === "launching") return;
+    if (!ready || phase === "launched" || phase === "launching" || phase === "checking") return;
     if (JSON.stringify(draft) === savedSig.current) return;
     const timer = setTimeout(() => {
       writeLocal(tenantId, draft);
@@ -93,7 +94,7 @@ export function AdWizard({ tenantId, initialAccount, initialMode, initialRequest
   const account = lookups.accounts.find((a) => a.id === draft.adAccountId);
   const post = lookups.posts.find((p) => p.ref === draft.postRef);
   const attention = new Set(issues.filter(() => touched).map((p) => p.step));
-  const steps = stepList.map((id) => ({ id, label: t(`steps.${id}`), done: id === "review" ? phase === "launched" : !issues.some((p) => p.step === id) && touched, attention: attention.has(id) }));
+  const steps = createSteps.map((id) => ({ id, label: t(`steps.${id}`), group: t(`groups.${stepGroup[id]}`), disabled: !applicable.includes(id), done: id === "publish" ? phase === "launched" : visited.has(id) && !issues.some((p) => p.step === id), attention: attention.has(id) }));
   const props = { tenantId, draft, set, bad, lookups, previews, addPreview };
 
   async function savedRequest() {
@@ -110,7 +111,9 @@ export function AdWizard({ tenantId, initialAccount, initialMode, initialRequest
     setStage("checking");
     try {
       let current = await savedRequest();
-      current = (await api.validate(current.id)).request; requestRef.current = current;
+      // A save that landed between our read and the check changes the version: read it again and check once more.
+      const attempt = () => api.validate(current.id);
+      current = (await attempt().catch(async (cause: unknown) => { if (!(cause instanceof AdsApiError && cause.stale)) throw cause; current = (await api.getRequest(current.id)).request; return attempt(); })).request; requestRef.current = current;
       if (current.validation?.ok) setStage("checked"); else { setServerProblems(current.validation?.problems ?? []); setStage("failed"); }
     } catch (cause) { setError(explain(cause)); setStage("editing"); }
   }
@@ -128,7 +131,7 @@ export function AdWizard({ tenantId, initialAccount, initialMode, initialRequest
       else { setError(t("errors.launchFailed")); setStage("failed"); }
     } catch (cause) { setError(explain(cause)); setStage("failed"); }
   }
-  const startOver = () => { writeLocal(tenantId, null); if (requestRef.current) void api.cancelRequest(requestRef.current.id).catch(() => undefined); requestRef.current = null; setDraft(emptyDraft(draft.mode, draft.adAccountId)); setStep("goal"); setTouched(false); setSave("idle"); setNotice(""); };
+  const startOver = () => { writeLocal(tenantId, null); if (requestRef.current) void api.cancelRequest(requestRef.current.id).catch(() => undefined); requestRef.current = null; setDraft(emptyDraft(draft.mode, draft.adAccountId)); setStep("create"); setVisited(new Set()); setTouched(false); setSave("idle"); setNotice(""); };
 
   const base = `/workspaces/${tenantId}/social/ads`;
   const title = draft.name.trim() || t(draft.mode === "boost" ? "titleBoost" : "title");
@@ -139,17 +142,22 @@ export function AdWizard({ tenantId, initialAccount, initialMode, initialRequest
   const actions = <Button type="button" variant="outline" className="min-h-11" onClick={startOver} disabled={phase === "launching" || phase === "launched"}>{t("startOver")}</Button>;
 
   if (lookups.status === "unavailable") return <Alert role="status"><AlertDescription>{l("states.unavailable")}</AlertDescription></Alert>;
-  return <EditorShell breadcrumb={breadcrumb} title={title} status={status} actions={actions} steps={steps} current={step} onStep={(id) => { setTouched(true); setStep(id as CreateStep); }} stepsLabel={t("stepsLabel")} previewLabel={t("preview.label")} sidebar={sidebar}
+  return <EditorShell breadcrumb={breadcrumb} title={title} status={status} actions={actions} steps={steps} current={step} onStep={go} stepsLabel={t("stepsLabel")} previewLabel={t("preview.label")} sidebar={sidebar}
     preview={preview}>
     {notice && <Alert role="status"><AlertDescription>{notice}</AlertDescription></Alert>}
     {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
     {phase === "launched" ? <Launched base={base} mode={draft.mode} status={draft.status} onAnother={startOver} /> :
-    <WizardLayout steps={steps} current={step} onStepChange={(id) => { setTouched(true); setStep(id as CreateStep); }} stepsLabel={t("stepsLabel")} stepper={false} focusOnStepChange={hosted}
-      validate={(id) => { setTouched(true); return !issues.some((p) => p.step === id); }} backLabel={t("back")} nextLabel={t("next")}>
-      {step === "goal" && <GoalStep {...props} changeMode={changeMode} />}
+    <WizardLayout steps={steps} current={step} onStepChange={go} stepsLabel={t("stepsLabel")} stepper={false} focusOnStepChange={hosted}
+      validate={(id) => { setTouched(true); return !issues.some((p) => p.step === id); }} backLabel={t("back")} nextLabel={t("next")} footerStart={<Button asChild variant="ghost" size="responsive"><Link href={base}>{t("cancel")}</Link></Button>}>
+      {step === "create" && <CreateStepBody {...props} changeMode={changeMode} />}
+      {step === "objective" && <ObjectiveStep draft={draft} set={set} bad={bad} />}
+      {step === "budget" && <BudgetStep {...props} />}
       {step === "adset" && <AdSetStep {...props} />}
+      {step === "audience" && <AudienceStep {...props} />}
+      {step === "placements" && <PlacementsStep {...props} />}
+      {step === "schedule" && <ScheduleStep {...props} />}
       {step === "ad" && <AdStep {...props} tenantHref={base} />}
-      {step === "review" && <FormSection title={<span className="sr-only">{t("steps.review")}</span>}>
+      {step === "publish" && <FormSection title={<span className="sr-only">{t("steps.publish")}</span>}>
         <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-6 gap-y-2 rounded-lg border p-4 text-sm" data-ads-review>
           <dt className="text-muted-foreground">{t("review.account")}</dt><dd>{account?.name ?? ""}</dd>
           <dt className="text-muted-foreground">{t("review.kind")}</dt><dd>{t(`mode.${draft.mode}`)}</dd>
@@ -184,7 +192,7 @@ export function AdWizard({ tenantId, initialAccount, initialMode, initialRequest
 
 function Launched({ base, mode, status, onAnother }: { base: string; mode: Mode; status: Draft["status"]; onAnother: () => void }) {
   const t = useTranslations("Ads.wizard");
-  return <FormSection title={<span className="sr-only">{t("steps.review")}</span>}>
+  return <FormSection title={<span className="sr-only">{t("steps.publish")}</span>}>
     <Alert role="status" data-ads-launched><CheckCircle2 aria-hidden="true" /><AlertDescription>{t(status === "active" ? "launched.active" : "launched.paused", { kind: t(`mode.${mode}`) })}</AlertDescription></Alert>
     <div className="flex flex-wrap gap-2"><Button asChild size="responsive"><Link href={base}>{t("launched.view")}</Link></Button><Button type="button" variant="outline" size="responsive" onClick={onAnother}>{t("launched.another")}</Button></div>
   </FormSection>;

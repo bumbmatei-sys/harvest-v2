@@ -187,7 +187,7 @@ async function recordLaunched(tx: Transaction, tenant: string, row: Request, o: 
       budgetLevel: p.budgetLevel ?? "campaign", startDate: p.startDate ?? null, endDate: p.endDate ?? null, bidding: p.bidding ?? null, specialAdCategories: p.specialAdCategories ?? [], attributionModel: p.attributionModel ?? "default", syncedAt: sql`now()` })
       .onConflictDoNothing().returning({ id: adsCampaigns.id });
     campaignId = c?.id ?? (await tx.select({ id: adsCampaigns.id }).from(adsCampaigns).where(and(eq(adsCampaigns.tenantId, tenant), eq(adsCampaigns.adAccountId, account), eq(adsCampaigns.externalRef, o.campaignRef!))))[0].id;
-    const [s] = await tx.insert(adsAdSets).values({ tenantId: tenant, adAccountId: account, campaignId, externalRef: o.adSetRef, name: p.name, status, budgetAmount: budgetOnSet ? p.budgetAmount : null, budgetType: budgetOnSet ? p.budgetType : null,
+    const [s] = await tx.insert(adsAdSets).values({ tenantId: tenant, adAccountId: account, campaignId, externalRef: o.adSetRef, name: p.adSetName ?? p.name, status, budgetAmount: budgetOnSet ? p.budgetAmount : null, budgetType: budgetOnSet ? p.budgetType : null,
       startDate: p.startDate ?? null, endDate: p.endDate ?? null, bidding: p.bidding ?? null, targeting: p.targeting ?? {}, rawTargeting: p.rawTargeting ?? null, syncedAt: sql`now()` }).onConflictDoNothing().returning({ id: adsAdSets.id });
     adSetId = s?.id ?? (await tx.select({ id: adsAdSets.id }).from(adsAdSets).where(and(eq(adsAdSets.tenantId, tenant), eq(adsAdSets.adAccountId, account), eq(adsAdSets.externalRef, o.adSetRef!))))[0].id;
   } else {

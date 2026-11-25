@@ -113,7 +113,7 @@ export class FakeAdsProvider implements AdsProvider {
         return { campaignRef: camp.ref, adSetRef: set.ref, adRef: created.ref };
       }
       const created = ad(String(p.name));
-      const set: RemoteAdSet = { ref: this.nextRef("adset"), name: String(p.name), status, budgetAmount: null, budgetType: null, startDate: p.startDate ?? null, endDate: p.endDate ?? null, bidding: p.bidding ?? null,
+      const set: RemoteAdSet = { ref: this.nextRef("adset"), name: String(p.adSetName ?? p.name), status, budgetAmount: null, budgetType: null, startDate: p.startDate ?? null, endDate: p.endDate ?? null, bidding: p.bidding ?? null,
         targeting: p.targeting ?? {}, ads: [created] };
       const camp: RemoteCampaign = { ref: this.nextRef("camp"), name: String(p.name), goal: p.goal, status, budgetAmount: p.budgetAmount ?? null, budgetType: p.budgetType ?? "daily",
         budgetLevel: p.budgetLevel ?? "campaign", sharedBudgetRef: null, startDate: p.startDate ?? null, endDate: p.endDate ?? null, bidding: p.bidding ?? null,

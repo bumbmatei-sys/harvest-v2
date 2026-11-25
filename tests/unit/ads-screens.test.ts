@@ -98,18 +98,18 @@ describe("ads kit approvals", () => {
   });
 });
 
-import { emptyDraft, fromPayload, problems, stepsFor, toPayload, type Draft } from "../../src/lib/ads/create";
+import { createSteps, emptyDraft, fromPayload, goalsFor, problems, stepGroup, stepsFor, toPayload, type Draft } from "../../src/lib/ads/create";
 import { launchPayload } from "../../src/lib/ads/ads";
 describe("ads create model", () => {
   const good = (patch: Partial<Draft> = {}): Draft => ({ ...emptyDraft("campaign", "11111111-1111-4111-8111-111111111111"), name: "Easter", goal: "traffic", budgetAmount: "20", format: "text", body: "Join us", linkUrl: "https://example.test/easter", ...patch });
   it("turns a complete draft into a payload the server's own schema accepts, and refuses an incomplete one with the field and step", () => {
     expect(problems(good())).toEqual([]);
     expect(() => launchPayload("campaign", toPayload(good()))).not.toThrow();
-    expect(problems(good({ name: "" })).map((p) => [p.field, p.step])).toEqual([["name", "goal"]]);
-    expect(problems(good({ goal: "" })).some((p) => p.field === "goal")).toBe(true);
-    expect(problems(good({ budgetAmount: "" })).map((p) => [p.field, p.step])).toEqual([["budgetAmount", "adset"]]);
+    expect(problems(good({ name: "" })).map((p) => [p.field, p.step])).toEqual([["name", "create"]]);
+    expect(problems(good({ goal: "" })).some((p) => p.field === "goal" && p.step === "objective")).toBe(true);
+    expect(problems(good({ budgetAmount: "" })).map((p) => [p.field, p.step])).toEqual([["budgetAmount", "budget"]]);
     expect(problems(good({ format: "image" })).map((p) => [p.field, p.step])).toEqual([["creative.mediaRefs", "ad"]]);
-    expect(problems(good({ budgetType: "lifetime" })).map((p) => [p.field, p.step])).toEqual([["endDate", "adset"]]);
+    expect(problems(good({ budgetType: "lifetime" })).map((p) => [p.field, p.step])).toEqual([["endDate", "schedule"]]);
     expect(problems(good({ goal: "lead_generation" })).map((p) => p.field)).toEqual(["creative.leadFormId"]);
   });
   it("sends no placements for automatic and the chosen ones for manual", () => {
@@ -117,18 +117,44 @@ describe("ads create model", () => {
     expect(toPayload(good({ placementsMode: "manual", placements: ["feed", "reels"] }))).toMatchObject({ placements: ["feed", "reels"] });
     expect(() => launchPayload("campaign", toPayload(good({ placementsMode: "manual", placements: ["feed"] })))).not.toThrow();
   });
-  it("keeps a campaign that starts paused unless asked, and flags the refused category on the ad set step", () => {
+  it("keeps a campaign that starts paused unless asked, and flags the refused category on the budget step", () => {
     expect(toPayload(good()).status).toBe("paused");
-    expect(problems(good({ categories: ["social_issues_elections_politics"] })).map((p) => [p.field, p.step])).toEqual([["specialAdCategories", "adset"]]);
+    expect(problems(good({ categories: ["social_issues_elections_politics"] })).map((p) => [p.field, p.step])).toEqual([["specialAdCategories", "budget"]]);
   });
   it("boosting needs a post and has no ad step", () => {
     const boost = emptyDraft("boost", "11111111-1111-4111-8111-111111111111");
-    expect(stepsFor("boost")).toEqual(["goal", "adset", "review"]);
+    expect(stepsFor("boost")).toEqual(["create", "objective", "budget", "audience", "placements", "schedule", "publish"]);
     expect(problems({ ...boost, name: "Boost", goal: "engagement", budgetAmount: "10" }).map((p) => p.field)).toEqual(["postRef"]);
     expect(() => launchPayload("boost", toPayload({ ...boost, name: "Boost", goal: "engagement", budgetAmount: "10", postRef: "p1" }))).not.toThrow();
   });
   it("round-trips a saved payload back into the form", () => {
     const original = good({ countries: ["US", "CA"], ageMin: "21", gender: "female", placementsMode: "manual", placements: ["feed"], interests: [{ id: "i1", name: "Music" }], status: "active", cta: "sign_up" });
     expect(fromPayload("campaign", toPayload(original))).toMatchObject({ name: "Easter", goal: "traffic", budgetAmount: "20", countries: ["US", "CA"], ageMin: "21", gender: "female", placements: ["feed"], interests: [{ id: "i1", name: "Music" }], status: "active", cta: "sign_up", format: "text" });
+  });
+  it("has nine steps in three groups, and a flow uses only the steps that apply", () => {
+    expect(createSteps).toEqual(["create", "objective", "budget", "adset", "audience", "placements", "schedule", "ad", "publish"]);
+    expect(createSteps.map((id) => stepGroup[id])).toEqual(["campaign", "campaign", "campaign", "adset", "adset", "adset", "adset", "ad", "ad"]);
+    expect(stepsFor("campaign")).toEqual(createSteps);
+    expect(stepsFor("add_ad")).toEqual(["create", "ad", "publish"]);
+  });
+  it("offers the objectives the server supports, and a boost has no messages goal", () => {
+    expect(goalsFor("campaign")).toEqual(["awareness", "traffic", "engagement", "video_views", "lead_generation", "messages", "conversions", "app_promotion"]);
+    expect(goalsFor("boost")).not.toContain("messages");
+  });
+  it("adds an ad to an existing ad set with the server's add-ad payload", () => {
+    const d = good({ mode: "add_ad", existingAdSetId: "22222222-2222-4222-8222-222222222222", goal: "" });
+    expect(toPayload(d)).toMatchObject({ adSetId: "22222222-2222-4222-8222-222222222222", name: "Easter", status: "paused" });
+    expect(problems(d)).toEqual([]);
+    expect(() => launchPayload("add_ad", toPayload(d))).not.toThrow();
+    expect(problems({ ...d, existingAdSetId: "" }).map((p) => [p.field, p.step])).toEqual([["existingAdSetId", "create"]]);
+    expect(problems({ ...d, name: "" }).map((p) => [p.field, p.step])).toEqual([["name", "ad"]]);
+  });
+  it("sends the ad set name and a bid limit", () => {
+    expect(toPayload(good({ adSetName: "Families" }))).toMatchObject({ adSetName: "Families" });
+    expect(toPayload(good())).not.toHaveProperty("bidding");
+    const capped = good({ bidStrategy: "cost_cap", bidAmount: "4" });
+    expect(toPayload(capped)).toMatchObject({ bidding: { costType: "cost_cap", unitCost: 4 } });
+    expect(() => launchPayload("campaign", toPayload(capped))).not.toThrow();
+    expect(fromPayload("campaign", toPayload(capped))).toMatchObject({ bidStrategy: "cost_cap", bidAmount: "4" });
   });
 });

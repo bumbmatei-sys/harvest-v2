@@ -19,40 +19,11 @@ import { AdMediaPicker, type MediaChange } from "@/components/ads/ad-media";
 import type { AdLookups } from "@/components/ads/use-ad-lookups";
 import { adsApi } from "@/lib/ads/api";
 import { messagingDestinations } from "@/lib/ads/ads";
-import { categoryOptions, commonCountries, ctas, formatsOffered, goalsFor, placementOptions, type Draft, type Mode } from "@/lib/ads/create";
+import { bidStrategies, categoryOptions, commonCountries, ctas, formatsOffered, placementOptions, type Draft, type Mode } from "@/lib/ads/create";
 
 export type StepProps = { tenantId: string; draft: Draft; set: <K extends keyof Draft>(key: K, value: Draft[K]) => void; bad: (field: string) => boolean; lookups: AdLookups; previews: Record<string, string>; addPreview: (ref: string, url: string) => void };
 const countryName = (code: string) => { try { return new Intl.DisplayNames(["en"], { type: "region" }).of(code) ?? code; } catch { return code; } };
 const toggle = <T,>(list: readonly T[], item: T) => list.includes(item) ? list.filter((x) => x !== item) : [...list, item];
-
-export function GoalStep({ draft, set, bad, lookups, changeMode }: StepProps & { changeMode: (mode: Mode) => void }) {
-  const t = useTranslations("Ads.wizard"), l = useTranslations("Ads"), format = useFormatter();
-  const goals = goalsFor(draft.mode), goalLabel = (goal: string) => l(`goals.${goal}`);
-  const posts = lookups.posts, postLabel = (post: { platform: string; publishedAt: string | null }) => `${post.platform}${post.publishedAt ? ` · ${format.dateTime(new Date(post.publishedAt), { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}` : ""}`;
-  return <FormSection title={<span className="sr-only">{t("steps.goal")}</span>}>
-    <Field><FieldLabel id="ads-mode-label">{t("mode.label")}</FieldLabel>
-      <ToggleGroup type="single" variant="outline" value={draft.mode} aria-labelledby="ads-mode-label" onValueChange={(value) => { if (value) changeMode(value as Mode); }} className="w-full sm:w-auto">
-        <ToggleGroupItem value="campaign" className="min-h-11 flex-1 px-4 sm:flex-none">{t("mode.campaign")}</ToggleGroupItem>
-        <ToggleGroupItem value="boost" className="min-h-11 flex-1 px-4 sm:flex-none">{t("mode.boost")}</ToggleGroupItem>
-      </ToggleGroup></Field>
-    <Field data-invalid={bad("adAccountId") || undefined}><FieldLabel htmlFor="ads-account">{t("account")}</FieldLabel>
-      <NativeSelect id="ads-account" className="min-h-11 w-full" value={draft.adAccountId} aria-invalid={bad("adAccountId") || undefined} onChange={(event) => set("adAccountId", event.target.value)}>
-        <option value="">{t("chooseAccount")}</option>
-        {lookups.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</NativeSelect>
-      {bad("adAccountId") && <FieldError>{t("errors.account")}</FieldError>}</Field>
-    <Field data-invalid={bad("name") || undefined}><FieldLabel htmlFor="ads-name">{t("name")}</FieldLabel>
-      <Input id="ads-name" className="min-h-11" value={draft.name} maxLength={200} aria-invalid={bad("name") || undefined} onChange={(event) => set("name", event.target.value)} />
-      {bad("name") && <FieldError>{t("errors.name")}</FieldError>}</Field>
-    <Field data-invalid={bad("goal") || undefined}><FieldLabel id="ads-goal-label">{t("goal")}</FieldLabel>
-      <RadioCards name="ads-goal" labelledBy="ads-goal-label" invalid={bad("goal")} options={goals.map(goalLabel)} value={draft.goal ? goalLabel(draft.goal) : ""} onChange={(label) => set("goal", goals.find((goal) => goalLabel(goal) === label) ?? "")} />
-      {bad("goal") && <FieldError>{t("errors.goal")}</FieldError>}</Field>
-    {draft.mode === "boost" && <Field data-invalid={bad("postRef") || undefined}><FieldLabel id="ads-post-label">{t("post")}</FieldLabel>
-      {posts.length === 0 ? <Alert role="status"><AlertDescription>{draft.adAccountId ? t("noPosts") : t("chooseAccountFirst")}</AlertDescription></Alert>
-        : <RadioCards name="ads-post" labelledBy="ads-post-label" invalid={bad("postRef")} options={posts.map(postLabel)} value={(() => { const picked = posts.find((post) => post.ref === draft.postRef); return picked ? postLabel(picked) : ""; })()}
-          onChange={(label) => set("postRef", posts.find((post) => postLabel(post) === label)?.ref ?? "")} />}
-      {bad("postRef") && <FieldError>{t("errors.post")}</FieldError>}</Field>}
-  </FormSection>;
-}
 
 function InterestSearch({ tenantId, draft, set }: { tenantId: string; draft: Draft; set: StepProps["set"] }) {
   const t = useTranslations("Ads.wizard");
@@ -73,12 +44,82 @@ function InterestSearch({ tenantId, draft, set }: { tenantId: string; draft: Dra
   </Field>;
 }
 
-export function AdSetStep({ tenantId, draft, set, bad, lookups }: StepProps) {
-  const t = useTranslations("Ads.wizard"), l = useTranslations("Ads");
+
+/** Step 01, Create: a new campaign, an ad added to an ad set that exists, or a boosted post; then the ad account and what the flow needs to start. */
+export function CreateStep({ draft, set, bad, lookups, changeMode }: StepProps & { changeMode: (mode: Mode) => void }) {
+  const t = useTranslations("Ads.wizard"), format = useFormatter();
   const adSets = lookups.tree.flatMap((campaign) => campaign.adSets.filter((s) => s.status === "active" || s.status === "paused").map((s) => ({ id: s.id, label: `${campaign.name} / ${s.name}` })));
+  const posts = lookups.posts, postLabel = (post: { platform: string; publishedAt: string | null }) => `${post.platform}${post.publishedAt ? ` \u00b7 ${format.dateTime(new Date(post.publishedAt), { month: "short", day: "numeric", year: "numeric", timeZone: "UTC" })}` : ""}`;
+  return <FormSection title={<span className="sr-only">{t("steps.create")}</span>}>
+    <Field><FieldLabel id="ads-mode-label">{t("mode.label")}</FieldLabel>
+      <ToggleGroup type="single" variant="outline" value={draft.mode} aria-labelledby="ads-mode-label" onValueChange={(value) => { if (value) changeMode(value as Mode); }} className="w-full flex-wrap sm:w-auto">
+        <ToggleGroupItem value="campaign" className="min-h-11 flex-1 px-4 sm:flex-none">{t("mode.campaign")}</ToggleGroupItem>
+        <ToggleGroupItem value="add_ad" className="min-h-11 flex-1 px-4 sm:flex-none">{t("mode.add_ad")}</ToggleGroupItem>
+        <ToggleGroupItem value="boost" className="min-h-11 flex-1 px-4 sm:flex-none">{t("mode.boost")}</ToggleGroupItem>
+      </ToggleGroup></Field>
+    <Field data-invalid={bad("adAccountId") || undefined}><FieldLabel htmlFor="ads-account">{t("account")}</FieldLabel>
+      <NativeSelect id="ads-account" className="min-h-11 w-full" value={draft.adAccountId} aria-invalid={bad("adAccountId") || undefined} onChange={(event) => set("adAccountId", event.target.value)}>
+        <option value="">{t("chooseAccount")}</option>
+        {lookups.accounts.map((account) => <option key={account.id} value={account.id}>{account.name}</option>)}</NativeSelect>
+      {bad("adAccountId") && <FieldError>{t("errors.account")}</FieldError>}</Field>
+    {draft.mode !== "add_ad" && <Field data-invalid={bad("name") || undefined}><FieldLabel htmlFor="ads-name">{t("name")}</FieldLabel>
+      <Input id="ads-name" className="min-h-11" value={draft.name} maxLength={200} aria-invalid={bad("name") || undefined} onChange={(event) => set("name", event.target.value)} />
+      {bad("name") && <FieldError>{t("errors.name")}</FieldError>}</Field>}
+    {draft.mode === "add_ad" && <Field data-invalid={bad("existingAdSetId") || undefined}><FieldLabel htmlFor="ads-existing">{t("existingAdSet")}</FieldLabel>
+      {adSets.length === 0 ? <Alert role="status"><AlertDescription>{draft.adAccountId ? t("noAdSets") : t("chooseAccountFirst")}</AlertDescription></Alert>
+        : <NativeSelect id="ads-existing" className="min-h-11 w-full" value={draft.existingAdSetId} aria-invalid={bad("existingAdSetId") || undefined} onChange={(e) => set("existingAdSetId", e.target.value)}>
+          <option value="">{t("chooseAdSet")}</option>{adSets.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</NativeSelect>}
+      {bad("existingAdSetId") && <FieldError>{t("errors.adSet")}</FieldError>}</Field>}
+    {draft.mode === "boost" && <Field data-invalid={bad("postRef") || undefined}><FieldLabel id="ads-post-label">{t("post")}</FieldLabel>
+      {posts.length === 0 ? <Alert role="status"><AlertDescription>{draft.adAccountId ? t("noPosts") : t("chooseAccountFirst")}</AlertDescription></Alert>
+        : <RadioCards name="ads-post" labelledBy="ads-post-label" invalid={bad("postRef")} options={posts.map(postLabel)} value={(() => { const picked = posts.find((post) => post.ref === draft.postRef); return picked ? postLabel(picked) : ""; })()}
+          onChange={(label) => set("postRef", posts.find((post) => postLabel(post) === label)?.ref ?? "")} />}
+      {bad("postRef") && <FieldError>{t("errors.post")}</FieldError>}</Field>}
+    {draft.mode === "boost" && adSets.length > 0 && <Field><FieldLabel htmlFor="ads-boost-existing">{t("existingAdSetBoost")}</FieldLabel><NativeSelect id="ads-boost-existing" className="min-h-11 w-full" value={draft.existingAdSetId} onChange={(e) => set("existingAdSetId", e.target.value)}>
+      <option value="">{t("newAdSet")}</option>{adSets.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</NativeSelect></Field>}
+  </FormSection>;
+}
+
+/** Step 03, Budget: daily or lifetime and the amount, plus the special ad categories (the campaign-level choices). */
+export function BudgetStep({ draft, set, bad }: StepProps) {
+  const t = useTranslations("Ads.wizard"), l = useTranslations("Ads");
   const political = draft.categories.includes("social_issues_elections_politics");
   return <>
-    <FormSection title={t("sections.audience")} as="fieldset">
+    <FormSection title={t("sections.budget")} as="fieldset">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field><FieldLabel htmlFor="ads-budget-type">{t("budgetType")}</FieldLabel><NativeSelect id="ads-budget-type" className="min-h-11 w-full" value={draft.budgetType} onChange={(e) => set("budgetType", e.target.value as Draft["budgetType"])}>
+          <option value="daily">{t("budgetDaily")}</option><option value="lifetime">{t("budgetLifetime")}</option></NativeSelect></Field>
+        <Field data-invalid={bad("budgetAmount") || undefined}><FieldLabel htmlFor="ads-budget">{t("budget")}</FieldLabel><Input id="ads-budget" inputMode="decimal" className="min-h-11" value={draft.budgetAmount} aria-invalid={bad("budgetAmount") || undefined}
+          onChange={(e) => set("budgetAmount", e.target.value.replace(/[^0-9.]/g, "").slice(0, 10))} />{bad("budgetAmount") && <FieldError>{t("errors.budget")}</FieldError>}</Field>
+      </div>
+    </FormSection>
+    <FormSection title={t("sections.categories")} as="fieldset">
+      <ul className="m-0 flex list-none flex-wrap gap-x-6 gap-y-1 p-0">{categoryOptions.map((c) => <li key={c}><label className="flex min-h-11 items-center gap-3 text-sm">
+        <Checkbox checked={draft.categories.includes(c)} onCheckedChange={() => set("categories", toggle(draft.categories, c))} />{t(`categories.${c}`)}</label></li>)}</ul>
+      {political && <Alert variant="destructive" role="alert"><AlertDescription>{l("errors.policy")}</AlertDescription></Alert>}
+    </FormSection>
+  </>;
+}
+
+/** Step 04, Ad set: its name and how it bids. */
+export function AdSetStep({ draft, set, bad }: StepProps) {
+  const t = useTranslations("Ads.wizard");
+  return <FormSection title={<span className="sr-only">{t("steps.adset")}</span>}>
+    <Field><FieldLabel htmlFor="ads-adset-name">{t("adSetName")}</FieldLabel><Input id="ads-adset-name" className="min-h-11" value={draft.adSetName} maxLength={200} placeholder={draft.name} onChange={(e) => set("adSetName", e.target.value)} /></Field>
+    <div className="grid gap-4 sm:grid-cols-2">
+      <Field><FieldLabel htmlFor="ads-bid">{t("bidStrategy")}</FieldLabel><NativeSelect id="ads-bid" className="min-h-11 w-full" value={draft.bidStrategy} onChange={(e) => set("bidStrategy", e.target.value as Draft["bidStrategy"])}>
+        {bidStrategies.map((b) => <option key={b} value={b}>{t(`bid.${b}`)}</option>)}</NativeSelect></Field>
+      {draft.bidStrategy !== "lowest_cost" && <Field data-invalid={bad("bidding") || undefined}><FieldLabel htmlFor="ads-bid-amount">{t("bidAmount")}</FieldLabel>
+        <Input id="ads-bid-amount" inputMode="decimal" className="min-h-11" value={draft.bidAmount} aria-invalid={bad("bidding") || undefined} onChange={(e) => set("bidAmount", e.target.value.replace(/[^0-9.]/g, "").slice(0, 10))} />
+        {bad("bidding") && <FieldError>{t("errors.bid")}</FieldError>}</Field>}
+    </div>
+  </FormSection>;
+}
+
+/** Step 05, Audience. */
+export function AudienceStep({ tenantId, draft, set, bad, lookups }: StepProps) {
+  const t = useTranslations("Ads.wizard");
+  return <FormSection title={t("sections.audience")} as="fieldset">
       <Field data-invalid={bad("targeting.countries") || undefined}><FieldLabel htmlFor="ads-country">{t("countries")}</FieldLabel>
         <NativeSelect id="ads-country" className="min-h-11 w-full sm:w-72" value="" onChange={(event) => { if (event.target.value) set("countries", [...new Set([...draft.countries, event.target.value])]); }}>
           <option value="">{t("addCountry")}</option>{commonCountries.filter((c) => !draft.countries.includes(c)).map((c) => <option key={c} value={c}>{countryName(c)}</option>)}</NativeSelect>
@@ -96,36 +137,32 @@ export function AdSetStep({ tenantId, draft, set, bad, lookups }: StepProps) {
         <ul className="m-0 flex list-none flex-col gap-1 p-0" aria-labelledby="ads-audiences-label">{lookups.audiences.map((a) => <li key={a.id}><label className="flex min-h-11 items-center gap-3 text-sm">
           <Checkbox checked={draft.includeAudiences.includes(a.id)} onCheckedChange={() => set("includeAudiences", toggle(draft.includeAudiences, a.id))} />{a.name}</label></li>)}</ul></Field>}
       <label className="flex min-h-11 items-center justify-between gap-3 rounded-lg border p-3 text-sm"><span>{t("advantage")}</span><Switch checked={draft.advantage} onCheckedChange={(on) => set("advantage", on)} /></label>
-    </FormSection>
-    <FormSection title={t("sections.placements")} as="fieldset">
+    </FormSection>;
+}
+
+/** Step 06, Placements. */
+export function PlacementsStep({ draft, set }: StepProps) {
+  const t = useTranslations("Ads.wizard");
+  return <FormSection title={t("sections.placements")} as="fieldset">
       <ToggleGroup type="single" variant="outline" value={draft.placementsMode} aria-label={t("sections.placements")} onValueChange={(v) => { if (v) set("placementsMode", v as Draft["placementsMode"]); }} className="w-full sm:w-auto">
         <ToggleGroupItem value="automatic" className="min-h-11 flex-1 px-4 sm:flex-none">{t("placements.automatic")}</ToggleGroupItem>
         <ToggleGroupItem value="manual" className="min-h-11 flex-1 px-4 sm:flex-none">{t("placements.manual")}</ToggleGroupItem></ToggleGroup>
       {draft.placementsMode === "manual" && <ul className="m-0 flex list-none flex-wrap gap-x-6 gap-y-1 p-0">{placementOptions.map((p) => <li key={p}><label className="flex min-h-11 items-center gap-3 text-sm">
         <Checkbox checked={draft.placements.includes(p)} onCheckedChange={() => set("placements", toggle(draft.placements, p))} />{t(`placements.${p}`)}</label></li>)}</ul>}
       {draft.placementsMode === "manual" && draft.placements.length === 0 && <FieldError>{t("errors.placements")}</FieldError>}
-    </FormSection>
-    <FormSection title={t("sections.budget")} as="fieldset">
+    </FormSection>;
+}
+
+/** Step 07, Schedule. */
+export function ScheduleStep({ draft, set, bad }: StepProps) {
+  const t = useTranslations("Ads.wizard");
+  return <FormSection title={t("sections.schedule")} as="fieldset">
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field><FieldLabel htmlFor="ads-budget-type">{t("budgetType")}</FieldLabel><NativeSelect id="ads-budget-type" className="min-h-11 w-full" value={draft.budgetType} onChange={(e) => set("budgetType", e.target.value as Draft["budgetType"])}>
-          <option value="daily">{t("budgetDaily")}</option><option value="lifetime">{t("budgetLifetime")}</option></NativeSelect></Field>
-        <Field data-invalid={bad("budgetAmount") || undefined}><FieldLabel htmlFor="ads-budget">{t("budget")}</FieldLabel><Input id="ads-budget" inputMode="decimal" className="min-h-11" value={draft.budgetAmount} aria-invalid={bad("budgetAmount") || undefined}
-          onChange={(e) => set("budgetAmount", e.target.value.replace(/[^0-9.]/g, "").slice(0, 10))} />{bad("budgetAmount") && <FieldError>{t("errors.budget")}</FieldError>}</Field>
         <Field><FieldLabel htmlFor="ads-start">{t("startDate")}</FieldLabel><Input id="ads-start" type="date" className="min-h-11" value={draft.startDate} onChange={(e) => set("startDate", e.target.value)} /></Field>
         <Field data-invalid={bad("endDate") || undefined}><FieldLabel htmlFor="ads-end">{t("endDate")}</FieldLabel><Input id="ads-end" type="date" className="min-h-11" value={draft.endDate} min={draft.startDate || undefined} aria-invalid={bad("endDate") || undefined} onChange={(e) => set("endDate", e.target.value)} />
           {bad("endDate") && <FieldError>{t(draft.budgetType === "lifetime" && !draft.endDate ? "errors.endRequired" : "errors.endBefore")}</FieldError>}</Field>
       </div>
-    </FormSection>
-    <FormSection title={t("sections.categories")} as="fieldset">
-      <ul className="m-0 flex list-none flex-wrap gap-x-6 gap-y-1 p-0">{categoryOptions.map((c) => <li key={c}><label className="flex min-h-11 items-center gap-3 text-sm">
-        <Checkbox checked={draft.categories.includes(c)} onCheckedChange={() => set("categories", toggle(draft.categories, c))} />{t(`categories.${c}`)}</label></li>)}</ul>
-      {political && <Alert variant="destructive" role="alert"><AlertDescription>{l("errors.policy")}</AlertDescription></Alert>}
-    </FormSection>
-    {draft.mode === "boost" && adSets.length > 0 && <FormSection title={t("sections.existing")} as="fieldset">
-      <Field><FieldLabel htmlFor="ads-existing">{t("existingAdSet")}</FieldLabel><NativeSelect id="ads-existing" className="min-h-11 w-full" value={draft.existingAdSetId} onChange={(e) => set("existingAdSetId", e.target.value)}>
-        <option value="">{t("newAdSet")}</option>{adSets.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}</NativeSelect></Field>
-    </FormSection>}
-  </>;
+    </FormSection>;
 }
 
 export function AdStep({ tenantId, draft, set, bad, lookups, previews, addPreview, tenantHref }: StepProps & { tenantHref: string }) {
@@ -133,6 +170,9 @@ export function AdStep({ tenantId, draft, set, bad, lookups, previews, addPrevie
   const onAdd = (m: MediaChange) => { addPreview(m.ref, m.previewUrl); set("mediaRefs", [...draft.mediaRefs, { ref: m.ref, name: m.name }]); };
   const setCard = (index: number, patch: Partial<Draft["cards"][number]>) => set("cards", draft.cards.map((c, i) => i === index ? { ...c, ...patch } : c));
   return <FormSection title={<span className="sr-only">{t("steps.ad")}</span>}>
+    {draft.mode === "add_ad" && <Field data-invalid={bad("name") || undefined}><FieldLabel htmlFor="ads-ad-name">{t("adName")}</FieldLabel>
+      <Input id="ads-ad-name" className="min-h-11" value={draft.name} maxLength={200} aria-invalid={bad("name") || undefined} onChange={(event) => set("name", event.target.value)} />
+      {bad("name") && <FieldError>{t("errors.name")}</FieldError>}</Field>}
     <Field data-invalid={bad("creative.format") || undefined}><FieldLabel id="ads-format-label">{t("format")}</FieldLabel>
       <RadioCards name="ads-format" labelledBy="ads-format-label" invalid={bad("creative.format")} options={formatsOffered.map((f) => l(`formats.${f}`))} value={l(`formats.${draft.format}`)}
         onChange={(label) => set("format", formatsOffered.find((f) => l(`formats.${f}`) === label) ?? "image")} />
