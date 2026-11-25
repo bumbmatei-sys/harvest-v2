@@ -2171,7 +2171,14 @@
     "dashboardDescription": "This dashboard is ready for campaign planning. Setup and tools will arrive in later releases.",
     "draftNote": "This campaign is a private, unpublished draft.",
     "you": "You",
-    "workspaceMember": "A ministry member"
+    "workspaceMember": "A ministry member",
+    "draftNotFound": "Campaign draft not found",
+    "draftChanged": "This draft was changed somewhere else. Reload it and try again.",
+    "draftClosed": "This draft is already finished or discarded.",
+    "draftIncomplete": "Finish the missing steps before creating the campaign.",
+    "draftNotYours": "Only the person who started this draft can change it.",
+    "assigneeInvalid": "Choose people who are members of this ministry and can edit.",
+    "notReady": "Add the place, dates and time zone before activating this campaign."
   },
   "Associations": {
     "permissionsTitle": "Contact permissions",

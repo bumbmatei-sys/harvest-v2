@@ -631,6 +631,13 @@
       "when": 1795552973000,
       "tag": "0091_crm_reports_followups",
       "breakpoints": true
+    },
+    {
+      "idx": 92,
+      "version": "7",
+      "when": 1795556622593,
+      "tag": "0092_campaign_wizard",
+      "breakpoints": true
     }
   ]
 }
