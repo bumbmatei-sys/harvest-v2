@@ -16,9 +16,9 @@ export function ReportPeriodTabs<Period extends string = ReportPeriod>({ value, 
   const label = labelOf ?? ((period: Period) => t(`periods.${period as ReportPeriod}`));
   return (
     <Tabs value={value} onValueChange={(next) => onValueChange(next as Period)} className="max-w-full">
-      <TabsList aria-label={ariaLabel ?? t("period")} className="max-w-full flex-wrap justify-start group-data-[orientation=horizontal]/tabs:h-auto max-sm:w-full">
+      <TabsList aria-label={ariaLabel ?? t("period")} className="max-w-full justify-start max-sm:w-full">
         {periods.map((period) => (
-          <TabsTrigger key={period} value={period} className="min-h-11 px-3 max-sm:flex-1 lg:min-h-8" data-testid={`period-${period}`}>
+          <TabsTrigger key={period} value={period} className="px-3 max-sm:flex-1" data-testid={`period-${period}`}>
             {label(period)}
           </TabsTrigger>
         ))}

@@ -80,3 +80,10 @@ Status values: BUILT, STACKED (built in the second PR, which stacks on this one)
 4. Staff sign-in (S2): the re-auth prompt links to the normal sign-in page; a dedicated step-up flow is not built (`platform-staff-discover.md` #10, deferred).
 5. Queue paging (S3): `GET /api/platform/discover/queue` returns the oldest 25 per state (the database function takes up to 100 but the route does not pass a limit or an offset). Approved listings beyond the first 25 cannot be reached to suspend them. Ask for a `limit` and cursor on the queue and report routes before launch volume.
 6. Product browser coverage: a product needs an uploaded file to publish, which the browser tests do not seed; the product path shares the course components and server code and is covered by the server integration tests and the type tab's empty state, not by a product card in the browser.
+
+## Founder feedback, 25 Nov
+
+| # | Requirement | Status | Evidence |
+| --- | --- | --- | --- |
+| F1 | Tabs too tall across the app: compact one-row tabs | BUILT | Shared `src/components/ui/tabs.tsx`: 28px pill inside a 32px bar, one row that scrolls sideways; below 1024px each trigger stays 44px tall (negative margin, inner pill), so touch-target checks still hold. Per-screen `min-h-11`/`h-auto flex-wrap` overrides removed from 10 consumers. Discover type links use the same structure. |
+| F2 | Category tiles take too much space: dropdown | BUILT | Founder chose kit `select14` (searchable, icons). Shared `src/components/searchable-select.tsx`; Discover shows Category and Sort side by side (two columns at 360). Tiles and `product-category3` removed. `discover-screens.spec.ts` drives the dropdown (search "pray", pick, then All categories). |

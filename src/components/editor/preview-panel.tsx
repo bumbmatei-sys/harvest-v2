@@ -86,8 +86,8 @@ export function EditorPreviewPanel({ surface, frameLabel, tabs, tab, onTab, view
         {openPage && <Button asChild variant="ghost" size="sm" className="ml-auto min-h-11 lg:min-h-8"><a href={openPage.href} target="_blank" rel="noopener"><ExternalLink aria-hidden="true" />{openPage.label}</a></Button>}
       </div>}
     <Tabs value={tab} onValueChange={onTab} className={cn(fill && "min-h-0 flex-1")}>
-      <TabsList aria-label={t("previewTabs")} className="h-auto w-full p-[3px] group-data-[orientation=horizontal]/tabs:h-auto">
-        {tabs.map((item) => <TabsTrigger key={item.id} value={item.id} className="min-h-11 lg:min-h-9">{item.label}</TabsTrigger>)}
+      <TabsList aria-label={t("previewTabs")} className="w-full p-[3px]">
+        {tabs.map((item) => <TabsTrigger key={item.id} value={item.id}>{item.label}</TabsTrigger>)}
       </TabsList>
       <div className="flex flex-wrap items-center gap-2" data-editor-preview-controls>
         <ToggleGroup type="single" variant="outline" size="sm" value={viewer} aria-label={t("viewAs")} onValueChange={(value) => { if (value) onViewer(value as PreviewViewer); }}>

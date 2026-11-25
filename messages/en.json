@@ -8087,8 +8087,6 @@
     },
     "activeFilters": "Active filters",
     "removeFilter": "Remove filter {name}",
-    "categoriesTitle": "Browse by category",
-    "categoriesLabel": "Categories",
     "categories": {
       "discipleship": "Discipleship",
       "prayer": "Prayer",
@@ -8225,6 +8223,9 @@
       "readOnly": "Only owners and admins can change this."
     },
     "paid": "Paid",
-    "freeOnly": "Free only"
+    "freeOnly": "Free only",
+    "allCategories": "All categories",
+    "searchCategories": "Search categories",
+    "noCategoryMatch": "No category found."
   }
 }

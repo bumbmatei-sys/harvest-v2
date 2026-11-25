@@ -137,7 +137,7 @@ export function CommunityEditor({ initial, members, invites, applications, categ
     stepsLabel={t("stepsLabel")} previewLabel={t("preview")} sidebar={sidebar}
     livePreview={hosted ? (surface, { close }) => <CommunityLivePreview surface={surface} draft={fields} host={host} tab={previewTab} onTab={setPreviewTab} viewer={viewer} onViewer={setViewer}
       highlight={highlight} openPage={sidebar.openPage} onEdit={(field) => { if (surface === "sheet") close(() => goToField(field as CommunityField)); else goToField(field as CommunityField); }} /> : undefined}
-    preview={<Tabs defaultValue="page"><TabsList className="mb-3"><TabsTrigger value="page" className="min-h-9">{t("previewPage")}</TabsTrigger><TabsTrigger value="join" className="min-h-9">{t("previewJoin")}</TabsTrigger></TabsList>
+    preview={<Tabs defaultValue="page"><TabsList className="mb-3"><TabsTrigger value="page">{t("previewPage")}</TabsTrigger><TabsTrigger value="join">{t("previewJoin")}</TabsTrigger></TabsList>
       <TabsContent value="page"><CommunityJoinCard name={fields.name} tagline={fields.tagline} host={host} preview /></TabsContent>
       <TabsContent value="join"><Card><CardContent className="space-y-5 pt-6">
         {fields.joinQuestions.length > 0 && <QuestionFields questions={cleanQuestions(fields.joinQuestions).filter((q) => q.label)} values={{}} disabled idPrefix="preview-question" />}

@@ -7,14 +7,15 @@ import { useTranslations } from "next-intl";
 import { Compass, Search, SearchX, TriangleAlert, X } from "lucide-react";
 import type { DiscoverCard } from "@/server/discover/public";
 import { discoverTypes, type DiscoverType } from "@/lib/discover-taxonomy";
-import { filtersToParams, hasAnyFilter, languageName, type DiscoverFilters, type DiscoverSort } from "@/lib/discover-ui";
-import { discoverSorts } from "@/lib/discover-taxonomy";
+import { categoryIcons, filtersToParams, hasAnyFilter, languageName, type DiscoverFilters, type DiscoverSort } from "@/lib/discover-ui";
+import { discoverCategories, discoverSorts } from "@/lib/discover-taxonomy";
 import { EmptyState } from "@/components/empty-state";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { Spinner } from "@/components/ui/spinner";
+import { SearchableSelect } from "@/components/searchable-select";
 import { FilterPopover } from "./filter-popover";
 import { ListingCard, type ListingCardItem } from "./listing-card";
 import { QuickLook } from "./quick-look";
@@ -32,7 +33,6 @@ export function DiscoverBrowser({ filters, initial, signedIn, failed, between }:
   const hrefFor = (to: DiscoverFilters) => `/discover?${filtersToParams(to)}`.replace(/\?$/, "");
   const all = discoverTypes.reduce((sum, type) => sum + initial.facets[type], 0);
   const chips: { key: string; label: string; clear: () => void }[] = [
-    ...(filters.category ? [{ key: "category", label: t(`categories.${filters.category}`), clear: () => go({ ...filters, category: undefined }) }] : []),
     ...(filters.language ? [{ key: "language", label: languageName(filters.language), clear: () => go({ ...filters, language: undefined }) }] : []),
     ...(filters.free !== undefined ? [{ key: "free", label: t("freeOnly"), clear: () => go({ ...filters, free: undefined }) }] : []),
   ];
@@ -50,17 +50,23 @@ export function DiscoverBrowser({ filters, initial, signedIn, failed, between }:
         <FilterPopover filters={filters} onChange={go} onReset={() => go({ ...filters, category: undefined, language: undefined, free: undefined })} />
       </form>
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <nav aria-label={t("typesLabel")} className="inline-flex flex-wrap gap-1 rounded-lg bg-muted p-1">
+        <nav aria-label={t("typesLabel")} className="inline-flex h-8 max-w-full flex-nowrap items-center gap-0.5 overflow-x-auto rounded-lg bg-muted p-0.5 [scrollbar-width:none] max-lg:-my-1.5 max-lg:h-11 max-lg:rounded-[0.875rem] max-lg:bg-clip-content max-lg:py-1.5 [&::-webkit-scrollbar]:hidden">
           {[undefined, ...discoverTypes].map((type) => {
             const current = filters.type === type, count = type ? initial.facets[type] : all;
             return <Link key={type ?? "all"} href={hrefFor({ ...filters, type })} prefetch={false} aria-current={current ? "page" : undefined}
-              className="inline-flex min-h-11 items-center gap-2 rounded-md px-3 text-sm outline-none hover:bg-background/60 focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-[current=page]:bg-background aria-[current=page]:font-medium aria-[current=page]:shadow-xs">
-              {t(`types.${type ?? "all"}`)}<span className="text-xs text-muted-foreground" aria-hidden="true">{failed ? "" : count}</span></Link>;
+              className="group/tab inline-flex h-7 flex-none items-stretch text-sm whitespace-nowrap outline-none max-lg:-my-2 max-lg:h-11 max-lg:py-2">
+              <span className="inline-flex items-center gap-1.5 rounded-md px-2.5 group-hover/tab:bg-background/60 group-focus-visible/tab:ring-[3px] group-focus-visible/tab:ring-ring/50 group-aria-[current=page]/tab:bg-background group-aria-[current=page]/tab:font-medium group-aria-[current=page]/tab:shadow-xs">
+                {t(`types.${type ?? "all"}`)}<span className="text-xs text-muted-foreground" aria-hidden="true">{failed ? "" : count}</span></span></Link>;
           })}
         </nav>
-        <label className="flex items-center gap-2 text-sm"><span className="text-muted-foreground">{t("sortLabel")}</span>
-          <NativeSelect value={filters.sort} onChange={(e) => go({ ...filters, sort: e.target.value as DiscoverSort })} className="min-h-11 w-40">
-            {discoverSorts.map((key) => <NativeSelectOption key={key} value={key}>{t(`sorts.${key}`)}</NativeSelectOption>)}</NativeSelect></label>
+        <div className="grid w-full grid-cols-2 gap-2 sm:flex sm:w-auto sm:items-center">
+          <SearchableSelect value={filters.category} onChange={(category) => go({ ...filters, category: category as DiscoverFilters["category"] })} ariaLabel={t("category")}
+            options={discoverCategories.map((key) => ({ value: key, label: t(`categories.${key}`), icon: categoryIcons[key] }))}
+            allLabel={t("allCategories")} placeholder={t("category")} searchLabel={t("searchCategories")} emptyLabel={t("noCategoryMatch")} className="w-full min-w-0 sm:w-44" />
+          <div className="min-w-0 *:data-[slot=native-select-wrapper]:w-full">
+            <NativeSelect aria-label={t("sortLabel")} value={filters.sort} onChange={(e) => go({ ...filters, sort: e.target.value as DiscoverSort })} className="min-h-11 w-full sm:w-40 lg:min-h-9">
+            {discoverSorts.map((key) => <NativeSelectOption key={key} value={key}>{t(`sorts.${key}`)}</NativeSelectOption>)}</NativeSelect></div>
+        </div>
       </div>
       {chips.length > 0 && <ul aria-label={t("activeFilters")} className="flex flex-wrap gap-2">
         {chips.map((chip) => <li key={chip.key}><Button type="button" variant="secondary" size="responsive" className="gap-1.5" aria-label={t("removeFilter", { name: chip.label })} onClick={chip.clear}>{chip.label}<X className="size-3.5" aria-hidden="true" /></Button></li>)}
