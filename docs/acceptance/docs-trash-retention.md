@@ -25,3 +25,8 @@ Every table that points at `docs` or `doc_pages` with a restrictive or no-action
 - Unit `tests/unit/docs.test.ts`: `pendingPageFields`.
 - E2E `tests/e2e/docs.spec.ts`: a style toggled twice and the page reloaded at once keeps both, and the status shows the save.
 - `docs.test.ts`, `erasure.test.ts`, `rls.test.ts`, `worker-role.test.ts`, `crm-imports.test.ts`, `cf04-lease.test.ts` integration, `tsc`, lint and source guards pass; a second `drizzle-kit generate` reports no schema changes.
+
+## Decisions recorded after review
+- **Attachments:** the purge deletes the `doc_attachments` link rows only. The underlying `files` rows and stored objects are Storage library files that a doc merely references (`attachFile` accepts any ready, non-social upload of the ministry), so they stay in Storage on purpose and keep their own lifecycle (deleted from Storage by a person). No stored object is deleted by the purge.
+- **Links from other docs:** `doc_links` rows on other docs that point at a purged doc (target kind `doc`) are not rewritten; they stay as dangling ids and are resolved at read time as unavailable.
+- **audit_system_actor:** the 0102 list is rebuilt from the latest SQL definition (0094) plus `docs.trash.purge`, so `bio.message.submit` is kept; `tests/unit/audit-system-actor-guard.test.ts` fails if `src/db/schema.ts` and the latest migration list differ.
