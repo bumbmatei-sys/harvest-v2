@@ -33,6 +33,8 @@ async function shoot(page: Page, name: string) {
 }
 
 test("sign-up forms: preset builder, publish, share, public page, double opt-in, counts, roles and nav", async ({ page, browser }) => {
+  // A unique address per attempt: a retry must not collide with the first attempt's published form.
+  const slug = `grace-newsletter-${Date.now().toString(36)}`;
   test.setTimeout(600000);
   await mkdir(evidence, { recursive: true });
   const errors: string[] = [];
@@ -108,24 +110,24 @@ test("sign-up forms: preset builder, publish, share, public page, double opt-in,
   await page.getByRole("button", { name: "Publish", exact: true }).click();
   const publish = page.getByRole("alertdialog", { name: "Publish this form?" });
   await expect(publish).toContainText("/subscribe/");
-  await publish.getByLabel("Public address").fill("grace-newsletter");
+  await publish.getByLabel("Public address").fill(`${slug}`);
   await publish.getByRole("button", { name: "Publish", exact: true }).click();
   await expect(page.locator("[data-publication-state]")).toHaveText("Published");
 
   // Share panel: link, embed snippet, QR image.
-  await expect(page.locator("[data-share-link]")).toHaveValue(`${origin}/subscribe/grace-newsletter`);
-  await expect(page.locator("[data-share-embed]")).toHaveValue(new RegExp(`<iframe src="${origin}/subscribe/grace-newsletter\\?embed=1"`));
+  await expect(page.locator("[data-share-link]")).toHaveValue(`${origin}/subscribe/${slug}`);
+  await expect(page.locator("[data-share-embed]")).toHaveValue(new RegExp(`<iframe src="${origin}/subscribe/${slug}\\?embed=1"`));
   await expect(page.locator("[data-share-qr]")).toBeVisible();
   const qr = await page.request.get(`${api}/forms/${formId}/qr?format=svg`);
   expect(qr.status()).toBe(200); expect(qr.headers()["content-type"]).toContain("image/svg+xml");
   expect((await page.request.get(`${api}/forms/${formId}/qr?format=png`)).headers()["content-type"]).toBe("image/png");
   await page.getByRole("button", { name: "Copy public link" }).click();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`${origin}/subscribe/grace-newsletter`);
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`${origin}/subscribe/${slug}`);
   await shoot(page, "builder-share");
 
   // The public page (a visitor with no session): fill, consent, submit, then the message and the fake sink.
   const visitor = await (await browser.newContext({ baseURL: origin, viewport: { width: 390, height: 800 }, reducedMotion: "reduce" })).newPage();
-  await visitor.goto("/subscribe/grace-newsletter");
+  await visitor.goto(`/subscribe/${slug}`);
   await expect(visitor.getByRole("heading", { name: "Join our newsletter" })).toBeVisible();
   const email = `visitor-${Date.now()}@example.test`;
   await visitor.getByLabel(/^Email address/).fill(email);
@@ -168,7 +170,7 @@ test("sign-up forms: preset builder, publish, share, public page, double opt-in,
   await shoot(page, "builder-signups-confirmed");
 
   // The embed: the public page without chrome.
-  await visitor.goto("/subscribe/grace-newsletter?embed=1");
+  await visitor.goto(`/subscribe/${slug}?embed=1`);
   await expect(visitor.getByRole("heading", { name: "Join our newsletter" })).toBeVisible();
 
   // Audience shows the confirmed person on both lists.
@@ -183,7 +185,7 @@ test("sign-up forms: preset builder, publish, share, public page, double opt-in,
   await audit(page, "list");
   await page.getByRole("button", { name: "Actions for Join our newsletter", exact: true }).first().click();
   await page.getByRole("menuitem", { name: "Copy link" }).click();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`${origin}/subscribe/grace-newsletter`);
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`${origin}/subscribe/${slug}`);
   await page.getByRole("button", { name: "Actions for Join our newsletter", exact: true }).first().click();
   await page.getByRole("menuitem", { name: "Duplicate" }).click();
   await expect(page).toHaveURL(/\/newsletter\/forms\/[0-9a-f-]{36}$/);
@@ -203,7 +205,7 @@ test("sign-up forms: preset builder, publish, share, public page, double opt-in,
   await page.getByRole("menuitem", { name: "Archive" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Archive" }).click();
   await expect(page.getByRole("row").filter({ hasText: "Join our newsletter" })).toHaveCount(1);
-  await visitor.goto("/subscribe/grace-newsletter");
+  await visitor.goto(`/subscribe/${slug}`);
   await expect(visitor.locator("[data-signup-unavailable]")).toBeVisible();
 
   // Roles: a member and a viewer see no screen and no navigation entry; the API refuses them.
