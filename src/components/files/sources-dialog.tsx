@@ -49,7 +49,7 @@ export function SourcesDialog({ api, connections, notice, noticeVersion, onChang
           return <li key={connection.id} className="flex flex-wrap items-center gap-3 rounded-lg border p-3" data-testid="source-connection">
             {platform ? <SourceLogo source={platform} className="size-5" /> : <Cable className="size-5" aria-hidden="true" />}
             <span className="flex-1 font-medium">{name}</span>
-            <StatusBadge tone={healthy ? "success" : "warning"} label={healthy ? t("connected") : connection.health === "reconnect_needed" || !platform ? t("reconnect") : t("attention")} />
+            <StatusBadge tone={healthy ? "success" : "danger"} label={healthy ? t("connected") : connection.health === "reconnect_needed" || !platform ? t("reconnect") : t("attention")} />
             {!healthy && platform && connection.health !== "reconnect_needed" && <Button type="button" variant="outline" size="responsive" disabled={checking} onClick={() => void check(connection)}>{checking ? <Spinner /> : <RotateCw aria-hidden="true" />}{t("checkAgain")}</Button>}
             {platform && connection.health === "reconnect_needed" && <Button type="button" variant="outline" size="responsive" disabled={busy} data-testid="source-reconnect" onClick={() => { void begin(platform, connection.id); }}>{phase.name === "starting" ? <Spinner /> : <RotateCw aria-hidden="true" />}{t("reconnectWith", { provider: name })}</Button>}
             <ConfirmDialog tone="destructive" title={t("disconnectTitle", { name })} description={t("disconnectBody")} confirmLabel={t("disconnect")} cancelLabel={t("cancel")} busyLabel={t("disconnecting")}
