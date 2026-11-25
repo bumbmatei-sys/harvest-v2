@@ -142,7 +142,7 @@ export const ruleInput = z.object({
 export const leadStatusInput = z.object({ status: z.enum(leadStatuses), version: versionInput }).strict();
 export const leadFormInput = z.object({
   adAccountId: uuidKey, name: text(120), consentText: text(1000), privacyUrl: z.url().max(2048),
-  questions: z.array(z.enum(["full_name", "first_name", "last_name", "email", "phone", "city", "zip", "country", "custom", "consent_newsletter", "consent_follow_up"])).min(1).max(15),
+  questions: z.array(z.enum(["full_name", "first_name", "last_name", "email", "phone", "city", "zip", "country", "custom", "consent_newsletter", "consent_follow_up", "consent_marketing"])).min(1).max(15),
 }).strict();
 
 /** Counts only: ratios are recomputed from the counts so a stored ratio is never trusted. */

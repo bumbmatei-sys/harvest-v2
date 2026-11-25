@@ -5,6 +5,7 @@ import { AdsValidationError, invalid, unavailable } from "./access";
 import * as accounts from "./accounts";
 import * as launch from "./launch";
 import * as leads from "./leads";
+import * as leadForms from "./lead-forms";
 import * as audiences from "./crm-audiences";
 import * as conversions from "./conversions";
 import * as mutations from "./mutations";
@@ -18,7 +19,6 @@ type Ctx = { db: Database; user: string; ws: string; deps: AdsDeps; url: URL; bo
 type Handler = (c: Ctx, p: string[]) => Promise<object>;
 const q = (c: Ctx, name: string) => c.url.searchParams.get(name) ?? undefined;
 const need = (v: string | undefined) => { if (!v) throw invalid("ADS_INVALID_INPUT"); return v; };
-const key = (c: Ctx, b: Record<string, unknown>) => String(b.idempotencyKey ?? "");
 
 // Method + path pattern ("*" is one segment).
 const routes: Record<string, Handler> = {
@@ -36,7 +36,12 @@ const routes: Record<string, Handler> = {
   "GET audiences": c => accounts.listAudiences(c.db, c.user, c.ws, need(q(c, "adAccountId")), c.deps),
   "GET conversions": c => accounts.listConversionDestinations(c.db, c.user, c.ws, need(q(c, "adAccountId")), c.deps),
   "GET lead-forms": c => leads.listLeadForms(c.db, c.user, c.ws, need(q(c, "adAccountId")), c.deps),
-  "POST lead-forms": async c => { const b = await c.body(); return leads.createLeadForm(c.db, c.user, c.ws, { ...b, idempotencyKey: undefined }, key(c, b), c.deps); },
+  "POST lead-forms": async c => { const { idempotencyKey, ...rest } = await c.body(); return leads.createLeadForm(c.db, c.user, c.ws, rest, String(idempotencyKey ?? ""), c.deps); },
+  "GET lead-form-drafts": c => leadForms.listAdLeadFormDrafts(c.db, c.user, c.ws, c.deps),
+  "POST lead-form-drafts": async c => leadForms.createAdLeadForm(c.db, c.user, c.ws, await c.body(), c.deps),
+  "GET lead-form-drafts/*": (c, p) => leadForms.getAdLeadForm(c.db, c.user, c.ws, p[1], c.deps),
+  "PATCH lead-form-drafts/*": async (c, p) => leadForms.saveAdLeadForm(c.db, c.user, c.ws, p[1], await c.body(), c.deps),
+  "POST lead-form-drafts/*/publish": async (c, p) => { const { idempotencyKey, ...rest } = await c.body(); return leadForms.publishAdLeadForm(c.db, c.user, c.ws, p[1], rest, String(idempotencyKey ?? ""), c.deps); },
   "GET leads": c => leads.listLeads(c.db, c.user, c.ws, { adAccountId: q(c, "adAccountId"), status: q(c, "status") }, c.deps),
   "PATCH leads/*": async (c, p) => leads.updateLeadStatus(c.db, c.user, c.ws, p[1], await c.body(), c.deps),
   "DELETE leads/*": (c, p) => leads.deleteLead(c.db, c.user, c.ws, p[1], c.deps),
@@ -95,7 +100,7 @@ export async function adsResponse(request: Request, context: { params: Promise<{
       return value as Record<string, unknown>;
     };
     const result = await handler({ db: getDb(), user, ws: tenantId, deps, url: new URL(request.url), body }, path);
-    return Response.json(result, { status: method === "POST" && path.length === 1 && ["launch-requests", "rules", "lead-forms"].includes(path[0]) ? 201 : 200, headers });
+    return Response.json(result, { status: method === "POST" && path.length === 1 && ["launch-requests", "rules", "lead-forms", "lead-form-drafts"].includes(path[0]) ? 201 : 200, headers });
   } catch (error) {
     const response = error instanceof AdsValidationError ? Response.json({ error: error.message, details: error.details }, { status: error.status }) : errorResponse(error);
     Object.entries(headers).forEach(([name, value]) => response.headers.set(name, value));
