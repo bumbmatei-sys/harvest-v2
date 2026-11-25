@@ -30,7 +30,6 @@ export const campaignTemplates: Record<typeof campaignTypes[number], Template> =
     modules: ["tasks_boards", "volunteer_management", "outreach_planning", "qr_response_forms", "discipleship_follow_up", "campaign_calendar"] },
   custom_project: { departments: ["campaign_leadership"], modules: ["tasks_boards", "campaign_calendar"] },
 };
-export const MAX_ASSIGNMENTS = 200;
 
 const optionalText = (max: number) => z.string().trim().max(max).nullish().transform((value) => value || null);
 const optionalDate = z.iso.date().nullish().transform((value) => value ?? null);
@@ -46,12 +45,18 @@ export const placeStep = z.object({
   country: optionalText(100), cityRegion: optionalText(200), startDate: optionalDate, endDate: optionalDate,
   timeZone: optionalText(100).refine(validZone), structure: z.enum(campaignStructures).nullish().transform((value) => value ?? null),
 }).strict().refine((v) => !v.startDate || !v.endDate || v.endDate >= v.startDate, { path: ["endDate"], message: "INVALID_DATE_RANGE" });
-export const assignmentInput = z.object({ userId: z.string().min(1).max(200), department: z.enum(departmentKeys), role: z.enum(["leader", "member"]) }).strict();
+// Step 4 saves the departments only. People join a department by an invitation they accept (founder decision Q2); see `invitationInput`.
 export const leadersStep = z.object({
   departments: z.array(z.enum(departmentKeys)).max(departmentKeys.length).refine(unique),
-  assignments: z.array(assignmentInput).max(MAX_ASSIGNMENTS),
-}).strict().refine((v) => v.assignments.every((a) => v.departments.includes(a.department)), { path: ["assignments"], message: "UNKNOWN_DEPARTMENT" })
-  .refine((v) => new Set(v.assignments.map((a) => `${a.department}:${a.userId}`)).size === v.assignments.length, { path: ["assignments"], message: "DUPLICATE_ASSIGNMENT" });
+}).strict();
+export const INVITATION_DAYS = 14;
+/** One invitation: an existing ministry member (`userId`) or an email address (`email`; a member's email invites that member). */
+export const invitationInput = z.object({
+  department: z.enum(departmentKeys), role: z.enum(["leader", "member"]),
+  userId: z.string().min(1).max(200).optional(), email: z.string().trim().toLowerCase().pipe(z.email().max(254)).optional(),
+}).strict().refine((value) => (value.userId === undefined) !== (value.email === undefined), { message: "ONE_TARGET" });
+export const invitationTokenInput = z.object({ token: z.string().regex(/^[A-Za-z0-9_-]{43}$/) }).strict();
+export type InvitationState = "pending" | "accepted" | "expired" | "revoked";
 export const toolsStep = z.object({ modules: z.array(z.enum(moduleKeys)).max(moduleKeys.length).refine(unique) }).strict();
 
 // Steps 6 and 7 are configuration only: nothing reads them to take an outward action.

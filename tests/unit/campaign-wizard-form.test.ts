@@ -6,7 +6,7 @@ const draft: DraftView = {
   startDate: null, endDate: null, timeZone: null, structure: null, departments: ["campaign_leadership"], modules: ["tasks_boards"],
   budget: { currency: "USD", estimatedBudgetMinor: null, fundraisingEnabled: false, fundraisingGoalMinor: null, onlineDonations: false },
   outreach: { registration: false, qrResponse: false, accountInvites: false, communityDiscovery: false, followUp: false, churchReferrals: false },
-  assignments: [], issues: [], ready: false, campaignId: null, coverFileId: null,
+  assignments: [], invitations: [], issues: [], ready: false, campaignId: null, coverFileId: null,
 };
 
 describe("form and payloads", () => {
@@ -19,6 +19,13 @@ describe("form and payloads", () => {
     const range = stepPayload("place", { ...form, place: { ...form.place, startDate: "2027-03-05", endDate: "2027-03-01" } });
     expect(range).toMatchObject({ ok: false, problems: { endDate: "INVALID_DATE_RANGE" } });
     expect(stepPayload("place", { ...form, place: { ...form.place, timeZone: "Not/AZone" } })).toMatchObject({ ok: false });
+  });
+  it("sends departments and tools in the PRD order and compares them as sets", () => {
+    const saved = formFromDraft({ ...draft, departments: ["volunteers", "campaign_leadership"], modules: ["campaign_calendar", "tasks_boards"] });
+    expect(stepPayload("leaders", saved)).toEqual({ ok: true, data: { departments: ["campaign_leadership", "volunteers"] } });
+    expect(stepPayload("tools", saved)).toEqual({ ok: true, data: { modules: ["tasks_boards", "campaign_calendar"] } });
+    expect(dirtySteps({ ...saved, leaders: { departments: ["campaign_leadership", "volunteers"] } }, saved)).toEqual([]);
+    expect(dirtySteps({ ...saved, tools: { modules: [...saved.tools.modules, "communications"] } }, saved)).toEqual(["tools"]);
   });
   it("compares steps by what would be sent, so formatting alone is never a change", () => {
     const saved = formFromDraft(draft);
@@ -46,7 +53,7 @@ describe("issues and statuses", () => {
   });
   it("marks passed editable steps done or needing attention; later steps are never marked", () => {
     const states = stepStatuses([{ step: "place", code: "DATES_REQUIRED" }], 5);
-    expect(states).toMatchObject({ type: "done", basics: "done", place: "attention", leaders: "todo", review: "todo" });
+    expect(states).toMatchObject({ type: "done", basics: "done", place: "attention", leaders: "done", tools: "todo", review: "todo" });
     expect(stepStatuses([{ step: "place", code: "DATES_REQUIRED" }], 2).place).toBe("todo");
   });
 });

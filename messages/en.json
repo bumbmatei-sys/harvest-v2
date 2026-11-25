@@ -2196,6 +2196,11 @@
     "draftClosed": "This draft is already finished or discarded.",
     "draftIncomplete": "Finish the missing steps before creating the campaign.",
     "draftNotYours": "Only the person who started this draft can change it.",
+    "inviteDepartment": "Add the department to the campaign before inviting someone to it.",
+    "invitationExists": "This person is already invited to or placed in that department.",
+    "invitationNotFound": "This invitation was not found.",
+    "invitationExpired": "This invitation has expired. Ask for a new one.",
+    "invitationClosed": "This invitation is no longer open.",
     "assigneeInvalid": "Choose people who are members of this ministry and can edit.",
     "notReady": "Add the place, dates and time zone before activating this campaign."
   },
@@ -7545,7 +7550,9 @@
     "questions": {
       "type": "What type of campaign are you organizing?",
       "basics": "Tell us about your campaign.",
-      "place": "Where and when will your campaign take place?"
+      "place": "Where and when will your campaign take place?",
+      "leaders": "Who will organize this campaign?",
+      "tools": "Which tools would you like to enable?"
     },
     "types": {
       "evangelistic_crusade": {
@@ -7613,6 +7620,83 @@
       "ok": "Campaign is now active.",
       "backOk": "Campaign is back in draft.",
       "nothingPublished": "Nothing is published yet."
+    },
+    "departments": {
+      "campaign_leadership": "Campaign Leadership",
+      "church_mobilization": "Church Mobilization",
+      "evangelistic_outreach": "Evangelistic Outreach",
+      "prayer_intercession": "Prayer & Intercession",
+      "marketing_media": "Marketing & Media",
+      "logistics_equipment": "Logistics & Equipment",
+      "finance_fundraising": "Finance & Fundraising",
+      "volunteers": "Volunteers",
+      "counseling": "Counseling",
+      "discipleship_follow_up": "Discipleship & Follow-Up",
+      "worship_production": "Worship & Production",
+      "security_medical": "Security & Medical",
+      "transportation_hospitality": "Transportation & Hospitality"
+    },
+    "modules": {
+      "tasks_boards": "Tasks & Kanban Boards",
+      "departments_teams": "Departments & Teams",
+      "events_checkin": "Events & Check-In",
+      "volunteer_management": "Volunteer Management",
+      "church_partnerships": "Church Partnerships",
+      "church_maps": "Church Location Maps",
+      "outreach_planning": "Outreach Planning",
+      "social_marketing": "Social Media & Marketing",
+      "budget_expenses": "Budget & Expenses",
+      "fundraising_donations": "Fundraising & Donations",
+      "registration_forms": "Registration Forms",
+      "qr_response_forms": "QR Code Response Forms",
+      "discipleship_follow_up": "Discipleship & Follow-Up",
+      "campaign_calendar": "Campaign Calendar",
+      "documents_files": "Documents & File Management",
+      "communications": "Communications",
+      "campaign_analytics": "Campaign Analytics",
+      "ai_copilot": "AI Campaign Copilot"
+    },
+    "teams": {
+      "owner": "Campaign Owner",
+      "you": "You",
+      "departments": "Departments",
+      "include": "Include {name}",
+      "leader": "Department leader",
+      "members": "Team members",
+      "roleLeader": "Leader",
+      "roleMember": "Team member",
+      "none": "No one yet",
+      "invite": "Invite",
+      "inviteTo": "Invite to {name}",
+      "inviteDescription": "Choose a ministry member or enter an email address.",
+      "role": "Role",
+      "member": "Ministry member",
+      "pickMember": "Choose a member",
+      "email": "Email address",
+      "send": "Invite",
+      "cancel": "Cancel",
+      "recorded": "Invitations are recorded; nothing is sent yet.",
+      "state": {
+        "pending": "Pending",
+        "accepted": "Accepted",
+        "expired": "Expired",
+        "revoked": "Withdrawn"
+      },
+      "expires": "Expires {date}",
+      "withdraw": "Withdraw",
+      "withdrawLabel": "Withdraw the invitation for {name}",
+      "invited": "Invitation recorded.",
+      "withdrawn": "Invitation withdrawn.",
+      "oneTarget": "Choose a member or enter an email address, not both.",
+      "needTarget": "Choose a member or enter an email address.",
+      "invalidEmail": "Enter a valid email address.",
+      "exists": "This person is already invited to or placed in that department.",
+      "invalidTarget": "This person cannot be invited here. Choose a member who can edit campaigns, or use an email address."
+    },
+    "tools": {
+      "recommended": "Recommended",
+      "comingLater": "Coming later",
+      "toggle": "Enable {name}"
     }
   },
   "LinkInBio": {
@@ -8074,5 +8158,23 @@
       },
       "withReason": "{outcome} ({reason})"
     }
+  },
+  "CampaignInvitation": {
+    "pageTitle": "Campaign invitation",
+    "title": "You are invited to help organize a campaign",
+    "body": "Accept to join the campaign team.",
+    "accept": "Accept invitation",
+    "accepting": "Accepting",
+    "accepted": "Invitation accepted.",
+    "joined": "You now have access to this campaign only.",
+    "expired": "This invitation has expired. Ask for a new one.",
+    "closed": "This invitation is no longer open.",
+    "notFound": "This invitation is not for this account or was not found.",
+    "roleLeader": "leader",
+    "roleMember": "team member",
+    "retry": "Try again",
+    "signedInAs": "Signed in as {email}",
+    "placed": "You are the {role} of {department}.",
+    "open": "Open the campaign draft"
   }
 }

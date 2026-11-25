@@ -701,6 +701,13 @@
       "when": 1795597165354,
       "tag": "0106_campaign_wizard_shared_drafts",
       "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1795598151780,
+      "tag": "0107_campaign_wizard_teams",
+      "breakpoints": true
     }
   ]
 }

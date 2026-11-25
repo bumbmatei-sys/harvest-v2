@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { can } from "../../src/lib/permissions";
-import { campaignTemplates, departmentKeys, moduleKeys, placeIssues, saveInput, validateDraft, wizardSteps, type DraftSnapshot } from "../../src/lib/campaign-wizard";
+import { campaignTemplates, invitationInput, departmentKeys, moduleKeys, placeIssues, saveInput, validateDraft, wizardSteps, type DraftSnapshot } from "../../src/lib/campaign-wizard";
 
 const empty: DraftSnapshot = { type: null, name: null, country: null, cityRegion: null, startDate: null, endDate: null, timeZone: null, structure: null,
   departments: [], modules: [], budget: { currency: "USD", estimatedBudgetMinor: null, fundraisingEnabled: false, fundraisingGoalMinor: null, onlineDonations: false },
@@ -40,11 +40,17 @@ describe("campaign wizard rules", () => {
     expect(save("type", { type: "party" }).success).toBe(false);
     expect(save("tools", { modules: ["tasks_boards", "tasks_boards"] }).success).toBe(false);
   });
-  it("keeps leaders inside the chosen departments and unique", () => {
-    const a = { userId: "u1", department: "volunteers", role: "leader" };
-    expect(save("leaders", { departments: ["volunteers"], assignments: [a] }).success).toBe(true);
-    expect(save("leaders", { departments: ["prayer_intercession"], assignments: [a] }).success).toBe(false);
-    expect(save("leaders", { departments: ["volunteers"], assignments: [a, { ...a, role: "member" }] }).success).toBe(false);
+  it("saves the departments only, unique, and takes invitations by member or by email", () => {
+    expect(save("leaders", { departments: ["volunteers", "counseling"] }).success).toBe(true);
+    expect(save("leaders", { departments: ["volunteers", "volunteers"] }).success).toBe(false);
+    expect(save("leaders", { departments: ["volunteers"], assignments: [] }).success).toBe(false);
+    const member = invitationInput.safeParse({ department: "volunteers", role: "leader", userId: "u1" });
+    expect(member.success).toBe(true);
+    expect(invitationInput.parse({ department: "volunteers", role: "member", email: "  New.Person@Example.TEST " }).email).toBe("new.person@example.test");
+    expect(invitationInput.safeParse({ department: "volunteers", role: "member" }).success).toBe(false);
+    expect(invitationInput.safeParse({ department: "volunteers", role: "member", userId: "u1", email: "a@b.co" }).success).toBe(false);
+    expect(invitationInput.safeParse({ department: "volunteers", role: "member", email: "not an email" }).success).toBe(false);
+    expect(invitationInput.safeParse({ department: "nope", role: "member", userId: "u1" }).success).toBe(false);
   });
   it("keeps donations and goals behind the fundraising switch and responses behind a way to respond", () => {
     const budget = { currency: "USD", estimatedBudgetMinor: 1000, fundraisingEnabled: false, fundraisingGoalMinor: null, onlineDonations: false };

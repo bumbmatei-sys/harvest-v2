@@ -14,7 +14,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ThemeControls } from "@/components/theme-controls";
 import { Wheat } from "lucide-react";
 import { useHydrated } from "@/hooks/use-hydrated";
-const communityReturn=/^\/communities\/[a-z0-9](?:[a-z0-9-]{1,46}[a-z0-9])(?:\?invite=[a-f0-9]{64})?$/;
+const communityReturn=/^(?:\/communities\/[a-z0-9](?:[a-z0-9-]{1,46}[a-z0-9])(?:\?invite=[a-f0-9]{64})?|\/campaign-invitations\/[A-Za-z0-9_-]{43})$/;
 export default function SignIn() {
   const t = useTranslations("AppSignInPage");
   const hydrated = useHydrated();

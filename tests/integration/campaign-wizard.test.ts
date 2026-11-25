@@ -6,6 +6,7 @@ import { createWorkspace, putMember } from "../../src/server/workspaces";
 import { withTenant, withUser } from "../../src/server/tenancy";
 import { createDraft, discardDraft, finishDraft, getDraft, listDrafts, saveDraftStep, setCampaignStatus } from "../../src/server/campaign-wizard";
 import { listCampaigns } from "../../src/server/campaigns";
+import { acceptInvitation, inviteToDraft, revokeInvitation, type InvitationMail } from "../../src/server/campaign-wizard-invitations";
 import { confirmDraftCoverUpload, createDraftCoverUpload, getCampaignCoverUrl, getDraftCoverUrl, setDraftCover } from "../../src/server/campaign-wizard-cover";
 import { defaultBudget, defaultOutreach } from "../../src/lib/campaign-wizard";
 
@@ -21,6 +22,12 @@ async function complete(user: string, id: string, version: number) {
   version = (await save(user, id, version, "basics", { name: "Synthetic conference", description: "Private notes" })).version;
   return (await save(user, id, version, "place", place)).version;
 }
+/** Invites and keeps the link the sink saw, which is the only place the token exists. */
+async function invite(user: string, draftId: string, input: unknown, tenant = tenantA) {
+  let mail: InvitationMail | undefined;
+  const sent = await inviteToDraft(fixture.db, user, tenant, draftId, input, async (m) => { mail = m; });
+  return { id: sent.id, mail: mail as InvitationMail, token: (mail as InvitationMail).url.split("/").pop() as string };
+}
 const status = async (promise: Promise<unknown>) => promise.then(() => 200, (error: { status?: number; name?: string }) => error.status ?? (error.name === "ZodError" ? 400 : 500));
 
 beforeAll(async () => {
@@ -33,9 +40,9 @@ beforeAll(async () => {
 afterAll(async () => { await fixture?.close(); });
 
 describe("campaign wizard database shape", () => {
-  it("forces RLS, grants no delete or whole-table update, and adds no SECURITY DEFINER function", async () => {
-    const rls = await fixture.admin.query("select relname, relrowsecurity, relforcerowsecurity from pg_class where relname in ('campaign_drafts','campaign_draft_assignments','campaign_files') order by relname");
-    expect(rls.rows).toEqual([{ relname: "campaign_draft_assignments", relrowsecurity: true, relforcerowsecurity: true }, { relname: "campaign_drafts", relrowsecurity: true, relforcerowsecurity: true },
+  it("forces RLS, grants no delete or whole-table update, and has one SECURITY DEFINER function (accepting an invitation)", async () => {
+    const rls = await fixture.admin.query("select relname, relrowsecurity, relforcerowsecurity from pg_class where relname in ('campaign_drafts','campaign_draft_assignments','campaign_files','campaign_draft_invitations') order by relname");
+    expect(rls.rows).toEqual([{ relname: "campaign_draft_assignments", relrowsecurity: true, relforcerowsecurity: true }, { relname: "campaign_draft_invitations", relrowsecurity: true, relforcerowsecurity: true }, { relname: "campaign_drafts", relrowsecurity: true, relforcerowsecurity: true },
       { relname: "campaign_files", relrowsecurity: true, relforcerowsecurity: true }]);
     const grants = await fixture.admin.query(`select has_table_privilege('harvest_app','campaign_drafts','DELETE') as draft_delete, has_table_privilege('harvest_app','campaign_drafts','UPDATE') as draft_update,
       has_table_privilege('harvest_app','campaign_draft_assignments','UPDATE') as assignment_update, has_table_privilege('harvest_app','campaigns','UPDATE') as campaign_update,
@@ -46,8 +53,9 @@ describe("campaign wizard database shape", () => {
     expect((await fixture.admin.query("select has_table_privilege('harvest_app','campaign_files','DELETE') as d, has_table_privilege('harvest_app','campaign_files','UPDATE') as u, has_table_privilege('public','campaign_files','SELECT') as p")).rows)
       .toEqual([{ d: false, u: false, p: false }]);
     expect((await fixture.admin.query("select column_name from information_schema.column_privileges where grantee='harvest_app' and table_name='campaign_files' and privilege_type='UPDATE' order by 1")).rows.map((r) => r.column_name)).toEqual(["retired_at", "status"]);
-    expect((await fixture.admin.query("select count(*)::int as n from pg_proc where prosecdef and (prosrc ilike '%campaign_draft%' or prosrc ilike '%campaign_files%')")).rows[0].n).toBe(0);
-    expect((await fixture.admin.query("select distinct roles from pg_policies where tablename in ('campaign_drafts','campaign_draft_assignments','campaign_files')")).rows).toEqual([{ roles: "{harvest_app}" }]);
+    expect((await fixture.admin.query("select proname, proconfig, has_function_privilege('harvest_app', oid, 'EXECUTE') as app, has_function_privilege('public', oid, 'EXECUTE') as pub from pg_proc where prosecdef and (prosrc ilike '%campaign_draft%' or prosrc ilike '%campaign_files%')")).rows)
+      .toEqual([{ proname: "campaign_invitation_accept", proconfig: ["search_path=pg_catalog, pg_temp"], app: true, pub: false }]);
+    expect((await fixture.admin.query("select distinct roles from pg_policies where tablename in ('campaign_drafts','campaign_draft_assignments','campaign_files','campaign_draft_invitations') order by 1")).rows).toEqual([{ roles: "{harvest_app}" }, { roles: "{public}" }]);
   });
   it("references no CRM contact, so erasing or merging a contact has nothing to re-key", async () => {
     const refs = await fixture.admin.query(`select conrelid::regclass::text as t, confrelid::regclass::text as target from pg_constraint
@@ -111,42 +119,102 @@ describe("create and autosave", () => {
     // The database refuses what the service would not send.
     await expect(fixture.admin.query("update campaign_drafts set name = ' padded ' where id = $1", [draft.id])).rejects.toThrow();
   });
-  it("changing the type reloads the template and removes people from dropped departments", async () => {
+  it("changing the type reloads the template and keeps the customised one when the type is saved again", async () => {
     const draft = await draftFor("member-a", tenantA, "evangelistic_crusade");
-    let v = (await save("member-a", draft.id, 1, "leaders", { departments: ["campaign_leadership", "counseling"], assignments: [
-      { userId: "member-a2", department: "counseling", role: "leader" }, { userId: "admin-a", department: "campaign_leadership", role: "leader" }] })).version;
+    let v = (await save("member-a", draft.id, 1, "leaders", { departments: ["campaign_leadership", "counseling"] })).version;
     const changed = await save("member-a", draft.id, v, "type", { type: "local_outreach" });
     expect(changed.departments).toEqual(["campaign_leadership", "evangelistic_outreach", "prayer_intercession", "volunteers", "discipleship_follow_up"]);
-    expect(changed.assignments.map((a) => a.department)).toEqual(["campaign_leadership"]);
     // Saving the same type again keeps the customised template.
     v = (await save("member-a", draft.id, changed.version, "tools", { modules: ["tasks_boards"] })).version;
     expect((await save("member-a", draft.id, v, "type", { type: "local_outreach" })).modules).toEqual(["tasks_boards"]);
   });
 });
 
-describe("leaders and teams", () => {
-  it("only places ministry members who can edit, and replaces the whole set on each save", async () => {
+describe("teams: departments and invitations", () => {
+  it("places a person in a department only after they accept, for a member picked or an email that is a member's", async () => {
     const draft = await draftFor("member-a");
     const departments = ["campaign_leadership", "volunteers"];
-    for (const person of ["viewer-a", "outsider", "owner-b"]) {
-      expect(await status(save("member-a", draft.id, 1, "leaders", { departments, assignments: [{ userId: person, department: "volunteers", role: "leader" }] }))).toBe(400);
-    }
-    const one = await save("member-a", draft.id, 1, "leaders", { departments, assignments: [{ userId: "admin-a", department: "volunteers", role: "leader" }, { userId: "member-a2", department: "volunteers", role: "member" }] });
-    expect(one.assignments).toHaveLength(2);
-    const two = await save("member-a", draft.id, one.version, "leaders", { departments, assignments: [{ userId: "owner-a", department: "campaign_leadership", role: "leader" }] });
-    expect(two.assignments).toEqual([expect.objectContaining({ userId: "owner-a", department: "campaign_leadership", role: "leader" })]);
-    expect(await status(save("member-a", draft.id, two.version, "leaders", { departments, assignments: [{ userId: "owner-a", department: "counseling", role: "leader" }] }))).toBe(400);
+    await save("member-a", draft.id, 1, "leaders", { departments });
+    expect((await getDraft(fixture.db, "member-a", tenantA, draft.id)).assignments).toEqual([]);
+    const byPick = await invite("member-a", draft.id, { department: "volunteers", role: "leader", userId: "admin-a" });
+    const byEmail = await invite("member-a", draft.id, { department: "volunteers", role: "member", email: " Member-A2@Example.test " });
+    expect(byPick.mail).toMatchObject({ to: "admin-a@example.test", kind: "member" });
+    expect(byEmail.mail).toMatchObject({ to: "member-a2@example.test", kind: "member" }); // a member's email invites that member
+    const pending = (await getDraft(fixture.db, "member-a", tenantA, draft.id)).invitations;
+    expect(pending.map((i) => [i.label, i.state, i.kind]).sort()).toEqual([["admin-a", "pending", "member"], ["member-a2", "pending", "member"]]);
+    expect(JSON.stringify(pending)).not.toContain(byPick.token);
+    expect(await status(invite("member-a", draft.id, { department: "volunteers", role: "leader", userId: "admin-a" }))).toBe(409); // already invited
+    // Someone else's link does nothing; the invited member accepts and is placed.
+    expect(await status(acceptInvitation(fixture.db, "member-a2", { token: byPick.token }))).toBe(404);
+    expect(await acceptInvitation(fixture.db, "admin-a", { token: byPick.token })).toMatchObject({ tenantId: tenantA, draftId: draft.id, department: "volunteers", role: "leader", joined: false });
+    expect((await acceptInvitation(fixture.db, "admin-a", { token: byPick.token })).joined).toBe(false); // repeating is harmless
+    const after = await getDraft(fixture.db, "owner-a", tenantA, draft.id);
+    expect(after.assignments).toEqual([expect.objectContaining({ userId: "admin-a", department: "volunteers", role: "leader" })]);
+    expect(after.invitations.find((i) => i.label === "admin-a")).toMatchObject({ state: "accepted", acceptedBy: "admin-a" });
+    expect(await status(invite("member-a", draft.id, { department: "volunteers", role: "member", userId: "admin-a" }))).toBe(409); // already placed
+    // Viewers and unknown ids cannot be picked; a department not on the draft cannot be used.
+    expect(await status(invite("member-a", draft.id, { department: "volunteers", role: "member", userId: "viewer-a" }))).toBe(400);
+    expect(await status(invite("member-a", draft.id, { department: "volunteers", role: "member", userId: "owner-b" }))).toBe(400);
+    expect(await status(invite("member-a", draft.id, { department: "counseling", role: "member", email: "x@example.test" }))).toBe(400);
+    expect(await status(invite("viewer-a", draft.id, { department: "volunteers", role: "member", email: "x@example.test" }))).toBe(403);
+    // Revoking withdraws a pending one; a revoked link no longer works.
+    await revokeInvitation(fixture.db, "member-a2", tenantA, draft.id, byEmail.id);
+    expect(await status(acceptInvitation(fixture.db, "member-a2", { token: byEmail.token }))).toBe(409);
+    expect(await status(revokeInvitation(fixture.db, "member-a2", tenantA, draft.id, byEmail.id))).toBe(404);
   });
-  it("drops a person from every draft when they leave the ministry", async () => {
+  it("invites an email that is not a member: accepting adds the person to the ministry with no permission anywhere, and places them", async () => {
     const draft = await draftFor("member-a");
-    await save("member-a", draft.id, 1, "leaders", { departments: ["volunteers"], assignments: [{ userId: "member-a2", department: "volunteers", role: "member" }] });
-    await fixture.admin.query("insert into users (id,name,email) values ('leaver','l','leaver@example.test') on conflict do nothing");
-    await fixture.admin.query("insert into workspace_members (tenant_id,user_id,role_id) values ($1,'leaver','member') on conflict do nothing", [tenantA]);
-    const withLeaver = await draftFor("member-a");
-    await save("member-a", withLeaver.id, 1, "leaders", { departments: ["volunteers"], assignments: [{ userId: "leaver", department: "volunteers", role: "member" }] });
-    await fixture.admin.query("delete from workspace_members where tenant_id=$1 and user_id='leaver'", [tenantA]);
-    expect((await getDraft(fixture.db, "member-a", tenantA, withLeaver.id)).assignments).toEqual([]);
-    expect((await getDraft(fixture.db, "member-a", tenantA, draft.id)).assignments).toHaveLength(1);
+    await save("member-a", draft.id, 1, "leaders", { departments: ["volunteers"] });
+    const fresh = "guest-a@example.test";
+    await fixture.db.insert(users).values({ id: "guest-a", name: "Guest A", email: fresh }).onConflictDoNothing();
+    const sent = await invite("member-a", draft.id, { department: "volunteers", role: "member", email: fresh });
+    expect(sent.mail).toMatchObject({ to: fresh, kind: "email" });
+    expect(await status(acceptInvitation(fixture.db, "member-a2", { token: sent.token }))).toBe(404); // another account
+    expect((await fixture.admin.query("select 1 from workspace_members where tenant_id=$1 and user_id='guest-a'", [tenantA])).rowCount).toBe(0);
+    expect(await acceptInvitation(fixture.db, "guest-a", { token: sent.token })).toMatchObject({ department: "volunteers", role: "member", joined: true });
+    expect((await fixture.admin.query("select role_id from workspace_members where tenant_id=$1 and user_id='guest-a'", [tenantA])).rows).toEqual([{ role_id: "campaign_guest" }]);
+    expect((await getDraft(fixture.db, "member-a", tenantA, draft.id)).assignments).toEqual([expect.objectContaining({ userId: "guest-a", department: "volunteers" })]);
+    // The guest holds no permission: no draft, no campaigns, no ministry data.
+    expect(await status(getDraft(fixture.db, "guest-a", tenantA, draft.id))).toBe(403);
+    expect(await status(listDrafts(fixture.db, "guest-a", tenantA))).toBe(403);
+    expect(await status(createDraft(fixture.db, "guest-a", tenantA, {}, key()))).toBe(403);
+    expect((await fixture.admin.query("select action from audit_logs where action='campaign.invitation.accept' and actor_id='guest-a'")).rowCount).toBe(1);
+  });
+  it("lets a link expire after 14 days, and refuses one for a discarded draft", async () => {
+    const draft = await draftFor("member-a");
+    await save("member-a", draft.id, 1, "leaders", { departments: ["volunteers", "counseling"] });
+    const old = await invite("member-a", draft.id, { department: "volunteers", role: "member", userId: "member-a2" });
+    const row = (await fixture.admin.query("select created_at, expires_at from campaign_draft_invitations where id=$1", [old.id])).rows[0];
+    expect(new Date(row.expires_at).getTime() - new Date(row.created_at).getTime()).toBe(14 * 86_400_000);
+    await fixture.admin.query("update campaign_draft_invitations set created_at = created_at - interval '15 days', expires_at = expires_at - interval '15 days' where id=$1", [old.id]);
+    expect((await getDraft(fixture.db, "member-a", tenantA, draft.id)).invitations[0].state).toBe("expired");
+    expect(await status(acceptInvitation(fixture.db, "member-a2", { token: old.token }))).toBe(409);
+    expect((await fixture.admin.query("select count(*)::int as n from campaign_draft_assignments where draft_id=$1", [draft.id])).rows[0].n).toBe(0);
+    // An expired invitation is still pending in the table until it is withdrawn, so a second one to the same person is refused until then.
+    expect(await status(invite("member-a", draft.id, { department: "volunteers", role: "member", userId: "member-a2" }))).toBe(409);
+    await revokeInvitation(fixture.db, "member-a", tenantA, draft.id, old.id).catch(() => undefined);
+    const other = await invite("member-a", draft.id, { department: "counseling", role: "member", userId: "member-a2" });
+    const version = (await getDraft(fixture.db, "member-a", tenantA, draft.id)).version;
+    await discardDraft(fixture.db, "member-a", tenantA, draft.id, { version });
+    expect(await status(acceptInvitation(fixture.db, "member-a2", { token: other.token }))).toBe(409);
+    expect(await status(invite("member-a", draft.id, { department: "counseling", role: "member", userId: "admin-a" }))).toBe(409);
+  });
+  it("removes pending invitations and people with a department that leaves the draft", async () => {
+    const draft = await draftFor("member-a", tenantA, "evangelistic_crusade");
+    const placed = await invite("member-a", draft.id, { department: "counseling", role: "leader", userId: "member-a2" });
+    const waiting = await invite("member-a", draft.id, { department: "counseling", role: "member", email: "waiting@example.test" });
+    await acceptInvitation(fixture.db, "member-a2", { token: placed.token });
+    const kept = await invite("member-a", draft.id, { department: "campaign_leadership", role: "leader", userId: "admin-a" });
+    const v = (await save("member-a", draft.id, 1, "leaders", { departments: ["campaign_leadership"] })).version;
+    const view = await getDraft(fixture.db, "member-a", tenantA, draft.id);
+    expect(view.assignments).toEqual([]);
+    expect(Object.fromEntries(view.invitations.map((i) => [i.id, i.state]))).toEqual({ [placed.id]: "accepted", [waiting.id]: "revoked", [kept.id]: "pending" });
+    expect(await status(acceptInvitation(fixture.db, "admin-a", { token: waiting.token }))).toBe(404);
+    // A different type reloads the template: departments it drops lose their pending invitations too.
+    const changed = await save("member-a", draft.id, v, "type", { type: "custom_project" });
+    expect(changed.departments).toEqual(["campaign_leadership"]);
+    expect(changed.invitations.find((i) => i.id === kept.id)?.state).toBe("pending");
+    expect(await status(acceptInvitation(fixture.db, "admin-a", { token: kept.token }))).toBe(200);
   });
 });
 
