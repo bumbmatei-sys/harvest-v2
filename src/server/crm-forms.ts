@@ -60,7 +60,7 @@ export function listCrmForms(db: Database, userId: string, workspace: string): P
       from forms f join lateral (select definition from form_versions where tenant_id = f.tenant_id and form_id = f.id
         and status = 'draft' and definition->>'kind' = ${FORM_KIND} order by version desc limit 1) v on true
       left join users u on u.id = f.created_by
-      where f.tenant_id = ${tenantId} and f.archived_at is null and v.definition->>'kind' = ${FORM_KIND} and v.definition->'newsletter' is null
+      where f.tenant_id = ${tenantId} and f.archived_at is null and v.definition->>'kind' = ${FORM_KIND} and v.definition->'newsletter' is null and v.definition->'ads' is null
       order by f.created_at desc, f.id limit ${LIMIT}`)).rows as { id: string; name: string; createdAt: Date | string; createdBy: string; title: string | null; destination: FormDestination | null; blocks: number; updatedAt: string | null }[];
     return rows.map((row) => ({ id: row.id, title: row.title || row.name, destination: row.destination, blocks: Number(row.blocks), createdAt: new Date(row.createdAt).toISOString(), updatedAt: row.updatedAt ?? new Date(row.createdAt).toISOString(), createdBy: row.createdBy }));
   });
@@ -100,10 +100,12 @@ export type LoadedForm = {
   /** True when the form is published and the draft has been edited since (the next publish replaces the live version). */
   unpublishedChanges: boolean;
 };
-export async function loadCrmForm(tx: Parameters<Parameters<typeof withTenant>[4]>[0], tenantId: string, formId: string) {
+/** Loads the form's current draft. Ad lead forms are their own preset: hosted paths never see them (`gone`), the ad lead form paths ask for them with `ads: true` and see nothing else. */
+export async function loadCrmForm(tx: Parameters<Parameters<typeof withTenant>[4]>[0], tenantId: string, formId: string, options: { ads?: boolean } = {}) {
   const [row] = (await tx.execute(sql`select f.id, f.created_at as "createdAt", coalesce(nullif(u.name, ''), u.email) as "createdBy",
       v.definition, v.id as "draftId", v.version as "draftVersion", a.slug, a.version_id as "publishedId",
-      exists (select 1 from crm_form_publications p where p.tenant_id = f.tenant_id and p.form_id = f.id and p.version_id = v.id) as "frozen",
+      (exists (select 1 from crm_form_publications p where p.tenant_id = f.tenant_id and p.form_id = f.id and p.version_id = v.id)
+        or exists (select 1 from ads_form_publications p where p.tenant_id = f.tenant_id and p.form_id = f.id and p.version_id = v.id)) as "frozen",
       (select count(*)::int from crm_form_responses r where r.tenant_id = f.tenant_id and r.form_id = f.id and r.expires_at > now()) as "responseCount"
     from forms f
     join lateral (select id, version, definition from form_versions where tenant_id = f.tenant_id and form_id = f.id
@@ -117,6 +119,7 @@ export async function loadCrmForm(tx: Parameters<Parameters<typeof withTenant>[4
   if (!row) throw gone();
   const parsed = formDefinitionSchema.safeParse(row.definition);
   if (!parsed.success) throw gone();
+  if (Boolean(parsed.data.ads) !== Boolean(options.ads)) throw gone();
   const form: LoadedForm = {
     id: row.id, definition: parsed.data, createdAt: new Date(row.createdAt).toISOString(), createdBy: row.createdBy,
     responseCount: row.responseCount,
