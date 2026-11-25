@@ -2202,7 +2202,8 @@
     "invitationExpired": "This invitation has expired. Ask for a new one.",
     "invitationClosed": "This invitation is no longer open.",
     "assigneeInvalid": "Choose people who are members of this ministry and can edit.",
-    "notReady": "Add the place, dates and time zone before activating this campaign."
+    "notReady": "Add the place, dates and time zone before activating this campaign.",
+    "coverAlt": "Cover of {name}"
   },
   "Associations": {
     "permissionsTitle": "Contact permissions",
@@ -8226,5 +8227,37 @@
     "signedInAs": "Signed in as {email}",
     "placed": "You are the {role} of {department}.",
     "open": "Open the campaign draft"
+  },
+  "CampaignDashboard": {
+    "title": "Campaign overview",
+    "departments": "Departments",
+    "leadersAssigned": "Departments with a leader",
+    "peoplePlaced": "People placed",
+    "toolsOn": "Tools enabled",
+    "setup": "Setup done",
+    "ofTotal": "{done} of {total}",
+    "teams": "Teams",
+    "teamsDescription": "Leaders and team members who accepted, by department.",
+    "people": "{count, plural, =0 {No one yet} one {# person} other {# people}}",
+    "barLabel": "{count, plural, one {# person placed} other {# people placed}}",
+    "leaders": "Leader: {names}",
+    "noLeader": "No leader yet",
+    "pending": "{count} invitation pending",
+    "aMember": "A ministry member",
+    "noDepartments": "No departments were included.",
+    "tools": "Tools",
+    "toolsDescription": "What was turned on when the campaign was created.",
+    "noTools": "No tools were enabled.",
+    "noConfiguration": "This campaign was not created with the setup wizard, so there is no configuration to show.",
+    "notYet": "Not tracked yet",
+    "notYetDescription": "These are not recorded anywhere yet, so no number is shown.",
+    "notAvailable": "Not available yet",
+    "unavailable": {
+      "progress": "Progress",
+      "events": "Events",
+      "funding": "Funding",
+      "tasks": "Tasks"
+    },
+    "cover": "Campaign cover"
   }
 }

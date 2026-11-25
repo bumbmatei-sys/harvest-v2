@@ -398,6 +398,11 @@ test("cover: the optional image or logo in step 2 uploads, shows, is replaced an
   const campaignId = (await done.json()).campaignId as string;
   expect((await page.request.get(`/api${root}/${campaignId}/cover`)).status()).toBe(200);
   expect((await (await page.request.get(`/api${root}/${campaignId}`)).json()).coverFileId).toBe(current.coverFileId);
+  // The campaign page shows the cover above the title.
+  await page.goto(`${root}/${campaignId}`);
+  await expect(page.locator('[data-slot="campaign-cover"] img')).toBeVisible();
+  expect(await page.locator('[data-slot="campaign-cover"] img').evaluate((img: HTMLImageElement) => img.naturalWidth)).toBeGreaterThan(0);
+  await shoot(page, "campaign-cover");
   expect(errors).toEqual([]);
 });
 
@@ -602,6 +607,18 @@ test("review and finish: a summary, blocked reasons with links, one campaign how
     expect((await (await page.request.post(`${api}/${draft.id}/finish`, { headers: { origin }, data: { version } })).json()).campaignId).toBe(campaignId);
 
     // The setup checklist: nine PRD items, the leader item ticked by itself, others ticked by hand and kept across a reload.
+    // The dashboard: the finished draft's configuration with real numbers, and what is not tracked yet as unavailable, never zero.
+    await expect(page.getByRole("heading", { name: "Campaign overview", level: 2 })).toBeVisible();
+    const stats = page.getByRole("list", { name: "Campaign overview" });
+    await expect(stats.getByText("Departments", { exact: true })).toBeVisible();
+    await expect(stats.getByText("1 of 1")).toBeVisible(); // departments with a leader
+    await expect(stats.getByText("People placed")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Teams", level: 3 })).toBeVisible();
+    await expect(page.getByText("Leader: ").first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Tools", level: 3 })).toBeVisible();
+    await expect(page.getByText("Not available yet")).toHaveCount(4);
+    for (const label of ["Progress", "Events", "Funding", "Tasks"]) await expect(page.locator("#main-content").getByText(label, { exact: true })).toBeVisible();
+    expect((await (await page.request.get(`/api${root}/${campaignId}/overview`)).json()).unavailable).toEqual(["progress", "events", "funding", "tasks"]);
     await expect(page.getByRole("heading", { name: "Setup checklist", level: 2 })).toBeVisible();
     await expect(page.getByRole("checkbox")).toHaveCount(9);
     await expect(page.getByRole("checkbox", { name: "Mark Assign department leaders as not done" })).toBeDisabled();
@@ -625,6 +642,8 @@ test("review and finish: a summary, blocked reasons with links, one campaign how
     await viewer.page.goto(`${root}/${campaignId}`);
     await expect(viewer.page.getByRole("heading", { level: 1, name: "Review campaign" })).toBeVisible();
     await expect(viewer.page.getByRole("heading", { name: "Setup checklist" })).toHaveCount(0);
+    await expect(viewer.page.getByRole("heading", { name: "Campaign overview" })).toHaveCount(0);
+    expect((await viewer.page.request.get(`/api${root}/${campaignId}/overview`)).status()).toBe(403);
     await viewer.context.close();
     // Every width and scheme for the review and the checklist.
     for (const scheme of ["light", "dark"] as const) for (const [label, width, height] of [["phone", 360, 800], ["tablet", 768, 1024], ["desktop", 1280, 900]] as const) {
@@ -633,7 +652,9 @@ test("review and finish: a summary, blocked reasons with links, one campaign how
       await page.goto(`${root}/${campaignId}`);
       await expect(page.getByRole("heading", { name: "Setup checklist", level: 2 })).toBeVisible();
       await expectAccessible(page);
-      await shoot(page, `campaign-checklist-${label}-${scheme}`);
+      // No white edges in a dark theme: no visible surface is painted pure white.
+      if (scheme === "dark") expect(await page.evaluate(() => [...document.querySelectorAll("body *")].filter((el) => { const box = el.getBoundingClientRect(); return box.width > 8 && box.height > 8 && getComputedStyle(el).backgroundColor === "rgb(255, 255, 255)"; }).length)).toBe(0);
+      await shoot(page, `campaign-dashboard-${label}-${scheme}`);
       if (width < 768) expect((await page.getByRole("checkbox").first().locator("xpath=ancestor::label").boundingBox())!.height).toBeGreaterThanOrEqual(44);
     }
     expect(errors).toEqual([]);
