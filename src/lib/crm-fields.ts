@@ -183,7 +183,7 @@ export const defaultSort = "name";
 // HC-06C source rules. Each rule's conditions must hold on the SAME recorded source
 // event; included rules form a union and any matching excluded rule removes a contact.
 // Pure syntax here: the server checks capability and tenant references before any SQL.
-export const sourceKinds = ["connect", "manual", "csv_import", "form", "unknown"] as const;
+export const sourceKinds = ["connect", "manual", "csv_import", "form", "ad_lead", "unknown"] as const;
 export type SourceKind = typeof sourceKinds[number];
 export const sourceMatches = ["any", "first", "latest"] as const;
 export type SourceMatch = typeof sourceMatches[number];
