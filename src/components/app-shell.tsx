@@ -136,7 +136,7 @@ function ModeNavigation({ selected, workspace, pathname, features, announce }: {
     if (wasSwapped.current === swapped) return;
     wasSwapped.current = swapped;
     const root = document.querySelector<HTMLElement>(`#${modeNavId}`);
-    const target = swapped ? root?.querySelector<HTMLElement>("[data-contextual-back] a") : root?.querySelector<HTMLElement>('a[aria-current="page"], a[href]');
+    const target = swapped ? root?.querySelector<HTMLElement>("[data-contextual-back] a") : (root?.querySelector<HTMLElement>('a[aria-current="page"]') ?? root?.querySelector<HTMLElement>("a[href]"));
     target?.focus();
   }, [swapped]);
   const entries = <nav ref={navRef} id={modeNavId} aria-label={t("workspaceNavigationMode", { mode: modeLabel })} data-shell-mode={mode}>

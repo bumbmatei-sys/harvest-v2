@@ -25,10 +25,10 @@ export default async function CampaignDraftsPage({ params }: { params: Promise<{
   const result = await listDrafts(db, session.user.id, tenantId).catch(denied);
   if (!result) notFound();
   const members = (await listWizardMembers(db, session.user.id, tenantId).catch(denied)) ?? [];
-  const manager = workspace.role === "owner" || workspace.role === "admin", canStart = can(workspace.role, "campaigns:write");
+  const canStart = can(workspace.role, "campaigns:write");
   return <div className="min-w-0 space-y-6">
     <div className="flex flex-wrap items-start justify-between gap-3">
-      <div><h1 className="text-[28px] font-semibold tracking-tight">{t("draftsTitle")}</h1><p className="mt-1 text-sm text-muted-foreground">{t(manager ? "draftsAll" : "draftsMine")}</p></div>
+      <div><h1 className="text-[28px] font-semibold tracking-tight">{t("draftsTitle")}</h1><p className="mt-1 text-sm text-muted-foreground">{t("draftsAll")}</p></div>
       {canStart && <Button asChild className="min-h-11"><Link href={`/workspaces/${tenantId}/campaigns/new`}>{t("newCampaign")}</Link></Button>}
     </div>
     <DraftsList tenantId={tenantId} viewerId={session.user.id} role={workspace.role} canStart={canStart} creators={Object.fromEntries(members.map((member) => [member.id, member.name]))}
