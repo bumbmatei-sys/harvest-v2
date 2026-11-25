@@ -77,15 +77,17 @@ export async function activeMembership(db: Database, userId: string, slug: strin
 const discoverInput = z.object({ q: z.string().trim().max(80).optional(), open: z.boolean().optional(), after: z.string().max(200).optional() }).strict();
 export const discoverPageSize = 24;
 
-export async function listDiscover(db: Database, raw: unknown) {
+/** `requireApproval` applies the platform approval rule (the same as the unified Discover search); it is on only when the Discover gate is open, so the launch switch moves both lists together. */
+export async function listDiscover(db: Database, raw: unknown, opts: { requireApproval?: boolean } = {}) {
   const input = discoverInput.parse(raw);
   let after: string | null = null, afterId: string | null = null;
   if (input.after) {
     const [at, id] = Buffer.from(input.after, "base64url").toString().split("|");
     if (at && !Number.isNaN(new Date(at).getTime()) && z.uuid().safeParse(id).success) { after = at; afterId = id; }
   }
-  const rows = await db.transaction(async (tx) => (await tx.execute<{ v: DiscoverItem }>(sql`select public.discover_communities(${input.q ?? ""},
-    ${input.open ?? false}, ${after}::timestamptz, ${afterId}::uuid, ${discoverPageSize + 1}) as v`)).rows.map((r) => r.v));
+  const rows = await db.transaction(async (tx) => (await tx.execute<{ v: DiscoverItem }>(opts.requireApproval
+    ? sql`select public.discover_communities_approved(${input.q ?? ""}, ${input.open ?? false}, ${after}::timestamptz, ${afterId}::uuid, ${discoverPageSize + 1}) as v`
+    : sql`select public.discover_communities(${input.q ?? ""}, ${input.open ?? false}, ${after}::timestamptz, ${afterId}::uuid, ${discoverPageSize + 1}) as v`)).rows.map((r) => r.v));
   const items = rows.slice(0, discoverPageSize), last = items.at(-1);
   return { items, next: rows.length > discoverPageSize && last ? Buffer.from(`${last.updatedAt}|${last.id}`).toString("base64url") : null };
 }
