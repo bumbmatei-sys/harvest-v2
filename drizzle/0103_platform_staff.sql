@@ -18,7 +18,7 @@ CREATE TABLE "platform_staff_audit" (
 	CONSTRAINT "platform_staff_audit_shape" CHECK (length("platform_staff_audit"."action") between 1 and 80)
 );
 --> statement-breakpoint
-ALTER TABLE "platform_staff" ADD CONSTRAINT "platform_staff_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "platform_staff" ADD CONSTRAINT "platform_staff_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "platform_staff_audit_actor_idx" ON "platform_staff_audit" USING btree ("actor_id","created_at");--> statement-breakpoint
 DO $$ DECLARE t text; BEGIN
   FOREACH t IN ARRAY ARRAY['platform_staff','platform_staff_audit'] LOOP
