@@ -61,6 +61,12 @@ test("campaign type art: every card has header art, accessible at three widths i
       await settleForAxe(page);
       expect((await new AxeBuilder({ page }).withTags(axeTags).analyze()).violations).toEqual([]);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      // Only the selected card is highlighted: no hover or focus left over from earlier steps, and an unselected card never wears the selected border.
+      await page.mouse.move(0, 0); await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+      const selectedBorder = await page.getByRole("radio", { name: /Mission Trip/ }).evaluate((node) => getComputedStyle(node).borderTopColor);
+      await page.getByRole("radio", { name: /Local Outreach/ }).hover();
+      expect(await page.getByRole("radio", { name: /Local Outreach/ }).evaluate((node) => getComputedStyle(node).borderTopColor)).not.toBe(selectedBorder);
+      await page.mouse.move(0, 0);
       await page.screenshot({ path: `${evidence}/type-art-${width}-${scheme}.png`, fullPage: true });
     }
   }
