@@ -120,7 +120,7 @@ export const navEntries: readonly NavEntry[] = [
   { id: "planner", group: "publishing", mode: "public", label: "planner", icon: CalendarDays, path: "/social/planner", match: (pathname) => under("/social/planner")(pathname) || under("/social/compose")(pathname), permission: "social:schedule", feature: "social" },
   { id: "inbox", group: "publishing", mode: "public", label: "inbox", icon: MessageSquareText, path: "/social/inbox", match: under("/social/inbox"), permission: "social:inbox", feature: "social", exitTo: "planner" },
   { id: "autoDm", group: "publishing", mode: "public", label: "autoDm", icon: MessageCircleReply, path: "/social/auto-dm", match: under("/social/auto-dm"), permission: "social:auto_dm", feature: "social" },
-  { id: "ads", group: "publishing", mode: "public", status: "planned", label: "ads", icon: Target, path: "/social/ads", match: under("/social/ads") },
+  { id: "ads", group: "publishing", mode: "public", label: "ads", icon: Target, path: "/social/ads", match: under("/social/ads"), permission: "ads:manage", feature: "social" },
   { id: "socialAnalytics", group: "publishing", mode: "public", label: "socialAnalytics", icon: ChartNoAxesCombined, path: "/social/analytics", match: under("/social/analytics"), permission: "social:analytics", feature: "social" },
   // Public > Newsletter, Website.
   { id: "newsletterAnalytics", group: "newsletter", mode: "public", label: "newsletterAnalytics", icon: ChartLine, path: "/newsletter/analytics", match: under("/newsletter/analytics"), permission: "newsletter:analytics", feature: "newsletter" },
