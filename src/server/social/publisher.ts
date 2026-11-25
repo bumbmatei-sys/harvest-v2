@@ -36,8 +36,11 @@ export async function runSocialPublisher(pool: Queryable, providerFor: ProviderF
   const result: PublisherResult = { claimed: 0, published: 0, accepted: 0, retried: 0, failed: 0, stale: 0, errored: 0 };
   const { rows: [{ claimed }] } = await pool.query<{ claimed: Claimed[] }>("select public.social_publish_claim($1, $2) as claimed", [options.batch ?? 20, options.leaseSeconds ?? 300]);
   result.claimed = claimed.length;
-  const complete = async (c: Claimed, outcome: "published" | "accepted" | "retry" | "failed" | "unknown", ref: string | null, error: string | null, delay: number) => {
-    const { rows: [{ status }] } = await pool.query<{ status: string }>("select public.social_publish_complete($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7) as status", [c.tenantId, c.postId, c.lockToken, outcome, ref, error, delay]);
+  const complete = async (c: Claimed, outcome: "published" | "accepted" | "retry" | "failed" | "unknown", ref: string | null, error: string | null, delay: number, url: string | null = null) => {
+    const { rows: [{ status }] } = outcome === "published" && url
+      // The platform URL travels with the completion that publishes the post.
+      ? await pool.query<{ status: string }>("select public.social_publish_complete_url($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7, $8) as status", [c.tenantId, c.postId, c.lockToken, outcome, ref, error, delay, url])
+      : await pool.query<{ status: string }>("select public.social_publish_complete($1::uuid, $2::uuid, $3::uuid, $4, $5, $6, $7) as status", [c.tenantId, c.postId, c.lockToken, outcome, ref, error, delay]);
     if (status === "stale") result.stale++;
     else if (status === "published") result.published++;
     else if (status === "failed") result.failed++;
@@ -55,7 +58,7 @@ export async function runSocialPublisher(pool: Queryable, providerFor: ProviderF
       try {
         if (c.action === "reconcile") {
           const status = await provider.getPostStatus(credential, c.providerPostRef!);
-          if (status.status === "published") await complete(c, "published", null, null, 0);
+          if (status.status === "published") await complete(c, "published", null, null, 0, status.postUrl ?? null);
           else if (status.status === "failed" || status.status === "partial") await complete(c, "failed", null,
             status.status === "partial" ? "PARTIAL_PUBLISH" : c.delivery && isMediaFetchFailure(status.errorCategory) ? "MEDIA_FETCH_FAILED" : "PROVIDER_REJECTED", 0);
           else if (status.status === "cancelled") await complete(c, "failed", null, "PROVIDER_REJECTED", 0);
@@ -119,7 +122,7 @@ export async function runSocialPublisher(pool: Queryable, providerFor: ProviderF
             idempotencyKey: c.idempotencyKey, accountRef: c.accountRef, platform: c.platform, content: c.content, media,
             ...(delivery ? { draftType: delivery.type, options: publishOptions, coverUrl } : {}),
           });
-          if (sent.status === "published") await complete(c, "published", sent.postRef, null, 0);
+          if (sent.status === "published") await complete(c, "published", sent.postRef, null, 0, sent.postUrl ?? null);
           else if (sent.status === "failed" || sent.status === "partial" || sent.status === "cancelled") await complete(c, "failed", sent.postRef, sent.status === "partial" ? "PARTIAL_PUBLISH" :
             c.delivery && isMediaFetchFailure(sent.errorCategory) ? "MEDIA_FETCH_FAILED" : "PROVIDER_REJECTED", 0);
           else await complete(c, "accepted", sent.postRef, null, RECONCILE_DELAY_SECONDS);
