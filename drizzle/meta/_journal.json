@@ -666,6 +666,13 @@
       "when": 1795560880671,
       "tag": "0096_newsletter_automations",
       "breakpoints": true
+    },
+    {
+      "idx": 97,
+      "version": "7",
+      "when": 1795560880672,
+      "tag": "0097_newsletter_sender_followups",
+      "breakpoints": true
     }
   ]
 }

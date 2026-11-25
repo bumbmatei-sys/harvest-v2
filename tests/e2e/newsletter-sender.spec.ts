@@ -153,3 +153,107 @@ test("sender: addresses, domain verification, mailing address, readiness and the
   expect((await page.request.get(`/api/workspaces/${tenant}/newsletter/sender-setup`)).status()).toBe(200);
   expect(errors).toEqual([]);
 });
+
+const followups = "docs/screenshots/sender-followups";
+async function shoot(page: Page, name: string) {
+  for (const [scheme, label, width, height] of [["light", "desktop", 1280, 900], ["dark", "desktop", 1280, 900], ["light", "phone", 360, 800]] as const) {
+    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+    await page.setViewportSize({ width, height });
+    await settleForAxe(page);
+    await page.screenshot({ path: `${followups}/${name}-${label}-${scheme}.png` });
+  }
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1280, height: 900 });
+}
+async function axeClean(page: Page) {
+  await settleForAxe(page);
+  expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
+}
+
+test("sender follow-ups: display name, real delete, domain removal and new DNS records", async ({ page }) => {
+  test.setTimeout(600000);
+  await mkdir(followups, { recursive: true });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await signIn(page);
+  const tenant = (await (await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Grace Community Church", audience: "church" } })).json()).tenantId as string;
+  await page.goto(`/workspaces/${tenant}/newsletter/sender`);
+  const card = (domain: string) => page.locator("section[data-slot=form-section]").filter({ hasText: domain });
+  for (const domain of ["follow.example.test", "church.example.org"]) {
+    await page.getByLabel("Domain", { exact: true }).fill(domain);
+    await page.getByRole("button", { name: "Add domain" }).click();
+    await expect(card(domain)).toBeVisible();
+  }
+  await card("follow.example.test").getByRole("button", { name: "Verify" }).click();
+  await expect(card("follow.example.test").getByText("Verified", { exact: true })).toBeVisible();
+  for (const address of ["hello@follow.example.test", "hi@church.example.org"]) {
+    await page.getByRole("button", { name: "Add address" }).click();
+    await page.getByRole("dialog").getByLabel("Address").fill(address);
+    await page.getByRole("dialog").getByRole("button", { name: "Add", exact: true }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await page.getByRole("button", { name: `Actions for ${address}` }).click();
+    await page.getByRole("menuitem", { name: "Enter code" }).click();
+    await page.getByRole("button", { name: "Use test code" }).click();
+    await page.getByRole("dialog").getByRole("button", { name: "Confirm", exact: true }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+  }
+  const row = (address: string) => page.getByRole("row").filter({ hasText: address }).or(page.locator("[data-slot=card]").filter({ hasText: address })).first();
+
+  // Display name: shown above the address, editable, and cleared again with an empty field.
+  await page.getByRole("button", { name: "Actions for hello@follow.example.test" }).click();
+  await page.getByRole("menuitem", { name: "Edit display name" }).click();
+  await page.getByRole("textbox", { name: "Display name" }).fill('Bad <name>');
+  await page.getByRole("dialog").getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("dialog").getByRole("alert")).toContainText("without < > \" or @");
+  await shoot(page, "display-name-dialog");
+  await page.getByRole("textbox", { name: "Display name" }).fill("Grace Church");
+  await page.getByRole("dialog").getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(row("hello@follow.example.test")).toContainText("Grace Church");
+  await axeClean(page);
+
+  // Real delete: a confirmation first, then the address is gone and can be added again.
+  await page.getByRole("button", { name: "Actions for hi@church.example.org" }).click();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+  await expect(page.getByRole("alertdialog")).toContainText("Delete hi@church.example.org?");
+  await shoot(page, "delete-confirm");
+  await page.getByRole("alertdialog").getByRole("button", { name: "Cancel" }).click();
+  await expect(row("hi@church.example.org")).toBeVisible();
+  await page.getByRole("button", { name: "Actions for hi@church.example.org" }).click();
+  await page.getByRole("menuitem", { name: "Delete" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Delete" }).click();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await expect(page.getByText("hi@church.example.org")).toHaveCount(0);
+
+  // A domain that still has a sender address is not removed; the message says what to do.
+  await page.getByRole("button", { name: "Actions for follow.example.test" }).click();
+  await page.getByRole("menuitem", { name: "Remove domain" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Remove domain" }).click();
+  await expect(page.getByRole("alertdialog").getByRole("alert")).toContainText("Delete this domain's sender addresses first.");
+  await shoot(page, "remove-domain-blocked");
+  await page.getByRole("alertdialog").getByRole("button", { name: "Cancel" }).click();
+  await expect(card("follow.example.test")).toBeVisible();
+
+  // New DNS records: every check resets, the domain and its sender are no longer verified.
+  const ownership = () => card("follow.example.test").locator('[data-record-group="ownership"] code').last().innerText();
+  const before = await ownership();
+  await page.getByRole("button", { name: "Actions for follow.example.test" }).click();
+  await page.getByRole("menuitem", { name: "New DNS records" }).click();
+  await expect(page.getByRole("alertdialog")).toContainText("not verified until you add the new records");
+  await shoot(page, "new-records-confirm");
+  await page.getByRole("alertdialog").getByRole("button", { name: "New DNS records" }).click();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await expect(card("follow.example.test").getByText("Not checked", { exact: true }).first()).toBeVisible();
+  await expect.poll(ownership).not.toBe(before);
+  await expect(row("hello@follow.example.test").getByText("Pending", { exact: true })).toBeVisible();
+  await card("follow.example.test").getByRole("button", { name: "Verify" }).click();
+  await expect(card("follow.example.test").getByText("Verified", { exact: true })).toBeVisible();
+
+  // An unused domain is removed after the confirmation.
+  await page.getByRole("button", { name: "Actions for church.example.org" }).click();
+  await page.getByRole("menuitem", { name: "Remove domain" }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Remove domain" }).click();
+  await expect(page.getByRole("alertdialog")).toHaveCount(0);
+  await expect(card("church.example.org")).toHaveCount(0);
+  await shoot(page, "after");
+  await axeClean(page);
+});
