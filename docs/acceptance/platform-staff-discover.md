@@ -1,6 +1,6 @@
 # Harvest staff and Discover review: acceptance
 
-Stacked on `feat/discover-server` (#234). Migration `0102_platform_staff`. Server only, no screens. Hard-off by the Discover literal switch (`DISCOVER_SERVER_ENABLED = false`) plus the non-production gate. The five HC-02 gates stay UNAPPROVED.
+Stacked on `feat/discover-server` (#234). Migration `0103_platform_staff`. Server only, no screens. Hard-off by the Discover literal switch (`DISCOVER_SERVER_ENABLED = false`) plus the non-production gate. The five HC-02 gates stay UNAPPROVED.
 
 ## Founder decisions applied (25 Nov)
 1. **Approval before listing stays at launch** (PRD `harvest-communities.md` 8A.3). This **supersedes ADR 0013 section 7** ("no pre-approval") for launch. The unified search already required `approved`; the legacy communities-only endpoint now follows the same rule through `discover_communities_approved`, switched on together with the Discover gate (when the gate is closed the legacy list is unchanged, so nothing moves in production until launch).

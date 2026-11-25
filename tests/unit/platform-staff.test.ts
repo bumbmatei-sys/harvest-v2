@@ -2,7 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const migration = readFileSync(join(__dirname, "../../drizzle/0102_platform_staff.sql"), "utf8");
+const migration = readFileSync(join(__dirname, "../../drizzle/0103_platform_staff.sql"), "utf8");
 const script = readFileSync(join(__dirname, "../../scripts/platform-staff.ts"), "utf8");
 describe("platform staff migration", () => {
   it("forces row security, has no application policy or grant on the staff tables, and no current_user policy", () => {
