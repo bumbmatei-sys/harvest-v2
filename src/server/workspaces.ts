@@ -11,7 +11,8 @@ import { audiences, type Audience } from "../lib/audience";
 import { isValidTimeZone, timeZoneOrDefault } from "../lib/time-zone";
 
 export function getWorkspace(db: Database, userId: string, workspace: string) {
-  return withTenant(db, userId, z.uuid().parse(workspace), "workspace:read", async (tx, tenantId, role) => {
+  return withTenant(db, userId, z.uuid().parse(workspace), "workspace:read", async (tx, tenantId, _role, access) => {
+    const role = access;
     const [row] = await tx.select().from(workspaces).where(eq(workspaces.tenantId, tenantId));
     if (!row) throw new AccessError(404, message("Errors.workspaceUnavailable"));
     return { ...row, role };
@@ -69,14 +70,15 @@ export async function listWorkspaces(db: Database, userId: string) {
     return { ...workspace, role: m.roleId, memberCount: members?.count ?? 0 };
   })));
 }
-export function putMember(db: Database, actorId: string, workspaceHint: string, email: string, roleId: Role) {
+/** Seed/test helper that adds or re-roles a signed-up person directly. No route uses it to add people (invitations are accepted by the invitee, see access.ts). */
+export function putMember(db: Database, actorId: string, workspaceHint: string, email: string, roleId: Exclude<Role, "collaborator" | "guest">) {
   return withTenant(db, actorId, workspaceHint, "members:write", async (tx, tenantId, actorRole) => {
     // Serialize role changes to preserve at least one owner, including concurrent requests.
     await tx.execute(sql`select tenant_id from workspaces where tenant_id = ${tenantId} for update`);
     const [target] = await tx.select({ id: users.id }).from(users).where(eq(users.email, email));
     if (!target) throw new AccessError(404, message("Errors.askThisPersonToSignInBeforeAdding"));
     const [previous] = await tx.select().from(workspaceMembers).where(and(eq(workspaceMembers.tenantId, tenantId), eq(workspaceMembers.userId, target.id)));
-    if (actorRole !== "owner" && (roleId === "owner" || previous?.roleId === "owner")) throw new AccessError(403, message("Errors.onlyOwnersCanChangeOwnership"));
+    if (actorRole !== "owner" && (roleId === "owner" || roleId === "admin" || previous?.roleId === "owner" || previous?.roleId === "admin")) throw new AccessError(403, message("Errors.onlyOwnersCanChangeOwnership"));
     if (previous?.roleId === "owner" && roleId !== "owner") {
       const owners = await tx.select().from(workspaceMembers).where(and(eq(workspaceMembers.tenantId, tenantId), eq(workspaceMembers.roleId, "owner")));
       if (owners.length <= 1) throw new AccessError(409, message("Errors.workspaceMustKeepOwner"));

@@ -66,7 +66,9 @@ it("upgrades populated 0050 with a restricted owner, reconciles withdrawn cases 
     expect((await f.admin.query("select count(*)::int as n from drizzle.__drizzle_migrations")).rows[0].n).toBe(migrationCount);
     expect((await f.admin.query("select state,assignee_id,version from followup_cases where id=$1", [old!.caseId])).rows).toEqual([{ state: "withdrawn", assignee_id: null, version: 4 }]);
     expect((await f.admin.query("select actor_id,metadata from audit_logs where action='followup.case.withdraw' and target_id=$1", [old!.caseId])).rows).toEqual([{ actor_id: null, metadata: { from: "assigned", to: "withdrawn", previousAssignee: old!.owner } }]);
-    expect((await f.admin.query("select qual,roles,cmd from pg_policies where tablename='followup_cases' and policyname='followup_cases_read'")).rows).toEqual(readPolicy);
+    // Migration 0111 wraps the role in public.access_role (per-feature access); the policy is otherwise unchanged.
+    const unwrap = (rows: { qual: string }[]) => rows.map((row) => ({ ...row, qual: row.qual.replace(/(?:public\.)?access_role\((\w+)\.tenant_id, \1\.user_id, 'connect'::text, (\w+\.role_id)\)/g, "$2") }));
+    expect(unwrap((await f.admin.query("select qual,roles,cmd from pg_policies where tablename='followup_cases' and policyname='followup_cases_read'")).rows)).toEqual(unwrap(readPolicy));
     expect((await f.admin.query("select policyname from pg_policies where policyname='hc14_backfill_scan'")).rows).toEqual([]);
   } finally { await f.close(); vi.unstubAllEnvs(); }
 });

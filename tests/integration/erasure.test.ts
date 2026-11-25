@@ -209,6 +209,7 @@ describe("controlled contact erasure", () => {
     // HC-02: erase_contact also scrubs the person's associated Connect responses.
     await fixture.admin.query("grant select,update on campaign_responses,campaign_response_consents to harvest_test_eraser");
     await fixture.admin.query("grant select,delete on campaign_response_contact_methods to harvest_test_eraser");
+    await fixture.admin.query("grant execute on function public.access_role(uuid,text,text,text) to harvest_test_eraser");
     await fixture.admin.query("grant execute on function public.connect_scrub_response(uuid,uuid) to harvest_test_eraser");
     for (const table of ["contacts", "contact_consents", "contact_identifiers", "contact_company_links", "crm_field_values", "crm_saved_views", "opportunities", "crm_pipeline_stages", "crm_tasks", "crm_notes", "outbox_events", "jobs", "crm_import_rows", "crm_associations", "workspace_members", "audit_logs", "campaign_responses", "campaign_response_consents", "campaign_response_contact_methods"]) {
       await fixture.admin.query(`create policy test_restricted_erasure on ${table} to harvest_test_eraser using (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid) with check (tenant_id = nullif(current_setting('app.tenant_id',true),'')::uuid)`);
