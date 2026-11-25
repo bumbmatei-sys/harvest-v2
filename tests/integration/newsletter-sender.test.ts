@@ -5,8 +5,8 @@ import { afterAll, beforeAll, expect, it, vi } from "vitest";
 import { users } from "../../src/db/schema";
 import { createNewsletterAudience, createNewsletterList } from "../../src/server/newsletter";
 import { dispatchCampaign, reviewCampaign, writeCampaign } from "../../src/server/newsletter-campaigns/campaigns";
-import { createIdentity, updateIdentity } from "../../src/server/newsletter-campaigns/identities";
-import { addDomain, saveMailingAddress, senderSetup, verifyDomain } from "../../src/server/newsletter-campaigns/sender-setup";
+import { createIdentity, deleteIdentity, updateIdentity } from "../../src/server/newsletter-campaigns/identities";
+import { addDomain, reissueDomain, removeDomain, saveMailingAddress, senderSetup, verifyDomain } from "../../src/server/newsletter-campaigns/sender-setup";
 import { syntheticMailboxCode, syntheticMailboxSink } from "../../src/server/newsletter-campaigns/synthetic-mailbox";
 import { createWorkspace } from "../../src/server/workspaces";
 import { withTenant } from "../../src/server/tenancy";
@@ -156,4 +156,91 @@ it("reports a stale version when the domain changes after the caller's read, ins
   const [row] = (await fixture.admin.query("select checked_at, ownership from newsletter_connections where id=$1", [added.id])).rows;
   expect(row).toEqual({ checked_at: null, ownership: false });
   expect((await senderSetup(fixture.db, owner, tenant)).domains.find(domain => domain.id === added.id)?.status).toBe("pending");
+});
+
+const identityNamed = async (address: string) => (await setup()).identities.find(row => row.address === address)!;
+const domainNamed = async (name: string) => (await setup()).domains.find(row => row.domain === name)!;
+
+it("sets a display name on a sender only, validates it, bumps the version and refuses a stale one", async () => {
+  const sender = await identityNamed("hello@news.example.test"), reply = await identityNamed("replies@outlook.com");
+  expect(sender.displayName).toBeNull();
+  const named = await updateIdentity(fixture.db, owner, tenant, sender.id, { version: sender.version, displayName: "  Grace Church  " });
+  expect(named.identity).toMatchObject({ displayName: "Grace Church", version: sender.version + 1 });
+  await expect(updateIdentity(fixture.db, owner, tenant, sender.id, { version: sender.version, displayName: "Late" })).rejects.toMatchObject({ status: 409 });
+  for (const bad of ["Grace <x@y.test>", 'Say "hi"', "a@b", "line\nbreak", "x".repeat(81)]) {
+    await expect(updateIdentity(fixture.db, owner, tenant, sender.id, { version: sender.version + 1, displayName: bad })).rejects.toThrow();
+  }
+  await expect(updateIdentity(fixture.db, owner, tenant, reply.id, { version: reply.version, displayName: "Nope" })).rejects.toMatchObject({ status: 409 });
+  for (const user of [member, viewer]) await expect(updateIdentity(fixture.db, user, tenant, sender.id, { version: sender.version + 1, displayName: "X" })).rejects.toMatchObject({ status: 404 });
+  await expect(updateIdentity(fixture.db, otherOwner, other, sender.id, { version: sender.version + 1, displayName: "X" })).rejects.toMatchObject({ status: 404 });
+  const cleared = await updateIdentity(fixture.db, owner, tenant, sender.id, { version: sender.version + 1, displayName: "" });
+  expect(cleared.identity.displayName).toBeNull();
+  // The database refuses the same bad values even when written directly.
+  await expect(fixture.admin.query("update newsletter_identities set display_name='a@b' where id=$1", [sender.id])).rejects.toThrow();
+});
+
+it("deletes an unused address for real and refuses one that any campaign revision names", async () => {
+  const unused = await identityNamed("hi@church.example.org"), used = await identityNamed("hello@news.example.test"), reply = await identityNamed("replies@outlook.com");
+  expect(unused.inUse).toBe(false);
+  expect([used.inUse, reply.inUse]).toEqual([true, true]);
+  for (const row of [used, reply]) {
+    await expect(deleteIdentity(fixture.db, owner, tenant, row.id, { version: row.version })).rejects.toMatchObject({ status: 409, details: { code: "IDENTITY_IN_USE" } });
+  }
+  expect((await fixture.admin.query("select count(*)::int as n from newsletter_identities where id=any($1)", [[used.id, reply.id]])).rows[0].n).toBe(2);
+  await expect(deleteIdentity(fixture.db, owner, tenant, unused.id, { version: unused.version + 5 })).rejects.toMatchObject({ status: 409 });
+  for (const user of [member, viewer]) await expect(deleteIdentity(fixture.db, user, tenant, unused.id, { version: unused.version })).rejects.toMatchObject({ status: 404 });
+  await expect(deleteIdentity(fixture.db, otherOwner, other, unused.id, { version: unused.version })).rejects.toMatchObject({ status: 404 });
+  await expect(deleteIdentity(fixture.db, owner, tenant, unused.id, { version: unused.version, extra: 1 })).rejects.toThrow();
+  expect(await deleteIdentity(fixture.db, admin, tenant, unused.id, { version: unused.version })).toEqual({ deleted: true });
+  expect((await setup()).identities.some(row => row.id === unused.id)).toBe(false);
+  await expect(deleteIdentity(fixture.db, owner, tenant, unused.id, { version: unused.version })).rejects.toMatchObject({ status: 404 });
+  expect((await fixture.admin.query("select count(*)::int as n from audit_logs where tenant_id=$1 and action='newsletter.identity.delete'", [tenant])).rows[0].n).toBe(1);
+});
+
+it("removes a domain only when no sender uses it, and re-issues records with every check reset", async () => {
+  const withSender = await domainNamed("news.example.test"), empty = await domainNamed("church.example.org");
+  expect([withSender.senderCount, empty.senderCount]).toEqual([1, 0]);
+  await expect(removeDomain(fixture.db, owner, tenant, withSender.id, { version: withSender.version })).rejects.toMatchObject({ status: 409, details: { code: "DOMAIN_HAS_SENDERS" } });
+  await expect(removeDomain(fixture.db, owner, tenant, empty.id, { version: empty.version + 3 })).rejects.toMatchObject({ status: 409 });
+  for (const user of [member, viewer]) await expect(removeDomain(fixture.db, user, tenant, empty.id, { version: empty.version })).rejects.toMatchObject({ status: 404 });
+  await expect(removeDomain(fixture.db, otherOwner, other, empty.id, { version: empty.version })).rejects.toMatchObject({ status: 404 });
+  expect(await removeDomain(fixture.db, owner, tenant, empty.id, { version: empty.version })).toEqual({ removed: true });
+  expect((await setup()).domains.some(row => row.id === empty.id)).toBe(false);
+  // The same domain can be added again with fresh records.
+  expect(await addDomain(fixture.db, owner, tenant, { domain: "church.example.org" })).toMatchObject({ status: "pending" });
+
+  // Re-issue: new ownership value, every check false, never checked, version up, and the sender on it is no longer verified.
+  expect(withSender.status).toBe("verified");
+  const fresh = await reissueDomain(fixture.db, owner, tenant, withSender.id, { version: withSender.version });
+  expect(fresh).toMatchObject({ status: "pending", checkedAt: null, version: withSender.version + 1, checks: { ownership: false, spf: false, dkim: false, bounce: false, dmarc: false } });
+  expect(fresh.records.map(record => record.purpose)).toEqual(["ownership", "dkim", "spf", "bounce", "dmarc"]);
+  expect(fresh.records.find(record => record.purpose === "ownership")?.value).not.toBe(withSender.records.find(record => record.purpose === "ownership")?.value);
+  const after = await setup();
+  expect(after.identities.find(row => row.address === "hello@news.example.test")?.status).toBe("pending");
+  expect(after.readiness).toMatchObject({ domain: false, sender: false });
+  await expect(reissueDomain(fixture.db, owner, tenant, withSender.id, { version: withSender.version })).rejects.toMatchObject({ status: 409 });
+  for (const user of [member, viewer]) await expect(reissueDomain(fixture.db, user, tenant, withSender.id, { version: fresh.version })).rejects.toMatchObject({ status: 404 });
+  await expect(reissueDomain(fixture.db, otherOwner, other, withSender.id, { version: fresh.version })).rejects.toMatchObject({ status: 404 });
+  // Verification still comes only from the provider answer.
+  expect(await verifyDomain(fixture.db, owner, tenant, withSender.id)).toMatchObject({ status: "verified" });
+});
+
+it("exposes delete, remove and re-issue only to the application role, for the caller's own ministry and delivery role", async () => {
+  const target = await domainNamed("news.example.test"), sender = await identityNamed("hello@news.example.test");
+  const calls = (ministry: string) => [
+    sql`select public.newsletter_delete_identity(${ministry}::uuid,${sender.id}::uuid,${sender.version}::integer)`,
+    sql`select public.newsletter_remove_domain(${ministry}::uuid,${target.id}::uuid,${target.version}::integer)`,
+    sql`select public.newsletter_reissue_domain(${ministry}::uuid,${target.id}::uuid,${target.version}::integer,'[{"purpose":"ownership"}]'::jsonb)`];
+  for (const index of [0, 1, 2]) {
+    await expect(withTenant(fixture.db, member, tenant, "workspace:read", tx => tx.execute(calls(tenant)[index]))).rejects.toThrow();
+    await expect(withTenant(fixture.db, otherOwner, other, "workspace:read", tx => tx.execute(calls(tenant)[index]))).rejects.toThrow();
+  }
+  const privileges = (await fixture.admin.query(`select p.proname, has_function_privilege('public', p.oid, 'EXECUTE') as public_exec, has_function_privilege('harvest_app', p.oid, 'EXECUTE') as app_exec
+    from pg_proc p where p.proname in ('newsletter_delete_identity','newsletter_remove_domain','newsletter_reissue_domain') order by 1`)).rows;
+  expect(privileges).toEqual([
+    { proname: "newsletter_delete_identity", public_exec: false, app_exec: true },
+    { proname: "newsletter_reissue_domain", public_exec: false, app_exec: true },
+    { proname: "newsletter_remove_domain", public_exec: false, app_exec: true }]);
+  // The sender and the domain survived every refused call.
+  expect((await identityNamed("hello@news.example.test")).id).toBe(sender.id);
 });

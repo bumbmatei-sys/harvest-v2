@@ -27,8 +27,8 @@ export type PublishRequest = {
   scheduledFor?: Date;
 };
 export type ProviderPostStatus = "scheduled" | "publishing" | "published" | "partial" | "failed" | "cancelled";
-export type PublishResult = { postRef: string; status: ProviderPostStatus; errorCategory?: string | null };
-export type PostStatusResult = { postRef: string; status: ProviderPostStatus; errorCategory: string | null };
+export type PublishResult = { postRef: string; status: ProviderPostStatus; errorCategory?: string | null; /** Public platform URL of a published post, when the provider reports one. */ postUrl?: string | null };
+export type PostStatusResult = { postRef: string; status: ProviderPostStatus; errorCategory: string | null; postUrl?: string | null };
 
 export type Page<T> = { items: T[]; nextCursor: string | null };
 export type PageQuery = { accountRef: string; cursor?: string; limit?: number };

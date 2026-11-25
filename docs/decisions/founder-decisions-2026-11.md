@@ -133,6 +133,13 @@ Approved for the CRM reports slice (`docs/acceptance/crm-reports.md`); they sett
 - **Before real calendar writes are enabled:** Zernio must confirm incremental write consent, the event version / If-Match field and its 409/412 mapping, the all-day, timeZone and conferencing field names, meeting links on non-primary calendars, and HTML notes handling. Attendees and invites remain version 2.
 - **Reviewer follow-ups before activation:** freeze the fixed form consent line (or a wording-version id) into each publication, and list form title retention among the HC-02 retention items. Neither approves any HC-02 gate.
 
+## Office navigation: Storage, Mail icon and Tasks (founder, 24 Nov)
+
+- **Docs vs Storage rule:** Docs = things you create and edit in Harvest. Storage = raw uploaded files plus connected Google Drive and OneDrive files.
+- **Files is now Storage:** the user-facing "Files" section is called "Storage" with the lucide `Cloud` icon. Only labels, titles, headings, breadcrumbs, aria-labels and messages change; the route `/files`, ids, database names and component file names keep `files`.
+- **Mail icon:** the Email entry uses the closed envelope (lucide `Mail`), not `MailOpen` or `Inbox`. The Newsletter group header moved to `Send` so each sidebar icon stays unique.
+- **Tasks moved to Office:** Tasks leaves Operations > CRM and sits in Office. Office order: Email, Calendar, Tasks, Docs, Storage. Same route, data and permissions (owners and admins see all, members their own, viewers none per today's rules), same reminders and CRM reports; person and deal pages keep their tasks panels. No new linking work now. The single (shell-modes-off) sidebar keeps Tasks in its CRM slot.
+
 ## CRM reports follow-ups (founder-approved defaults, 24 Nov)
 
 - **Attribution outlives expired evidence.** Per person Harvest keeps only the source kind and the first-seen date (table `contact_first_sources`, no content, no form answers, no titles) until the person is erased. Reports credit the first source from this durable record after the 90-day evidence expires. Erasing a person removes it; a merge keeps the earliest. It extends, and does not replace, the hosted-form tag from PR #208 (`contact_form_sources`), which still serves the source filters.

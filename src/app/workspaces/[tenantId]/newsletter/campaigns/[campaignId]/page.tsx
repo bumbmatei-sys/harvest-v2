@@ -35,7 +35,7 @@ export default async function CampaignEditorPage({ params }: { params: Promise<{
   const [kit, lists, segments, identities] = await Promise.all([getBrandKit(db, user, tenantId), pageNewsletterConfiguration(db, user, tenantId, "lists", { limit: 100 }),
     pageNewsletterConfiguration(db, user, tenantId, "segments", { limit: 100 }), listIdentities(db, user, tenantId, { limit: 100 }).catch(() => ({ items: [] }))]);
   const option = (row: { id: string; name: string; audienceId?: string }) => ({ id: row.id, name: row.name, audienceId: row.audienceId ?? "" });
-  const senders = identities.items.filter((row) => row.identity.ownershipVerified).map((row) => ({ id: row.identity.id, address: row.identity.address }));
+  const senders = identities.items.filter((row) => row.identity.ownershipVerified).map((row) => ({ id: row.identity.id, address: row.identity.address, displayName: row.identity.displayName }));
   return <CampaignEditor suggestions={thumbnailSuggestionsEnabled()} tenantId={tenantId} ministryName={workspace.name} brandKit={{ kit: kit.kit, version: kit.version }} lists={lists.items.map(option)} groups={segments.items.map(option)} senders={senders}
     campaign={{ id: campaign.id, name: campaign.name, state: campaign.state, version: campaign.version, subject: campaign.subject, preheader: campaign.preheader, senderId: campaign.senderId, replyToId: campaign.replyToId, content: campaign.content, selection: campaign.selection }} />;
 }

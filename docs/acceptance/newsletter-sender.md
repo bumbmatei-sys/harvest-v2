@@ -22,11 +22,18 @@ Public > Newsletter > Sender (`/workspaces/[tenantId]/newsletter/sender`, nav id
 
 `newsletter_verify_domain` is web-callable, whereas 0073 made domain verification outcomes worker-only. It is acceptable only because it hard-codes `current_domain ~ '[.]example[.]test$'`, so no real domain can verify through it. It is SYNTHETIC-ONLY: before the live adapter it must be removed or moved to the worker path. A unit test fails if that clause is removed or relaxed. The route, `verifyDomain`, the `test-code` route and the in-memory test mailbox are also gated on the synthetic provider being active (`provider-mode.ts`) and must be removed before activation. See `docs/runbooks/newsletter-activation.md`.
 
+## Follow-ups (migration 0097, 24 Nov)
+
+- **Display name per sender.** `newsletter_identities.display_name` (nullable, 1 to 80 characters, no `<`, `>`, `"`, `@` or control characters; checked in the database and in the route). Sender addresses only; the Reply-to rows refuse it. Setting it uses the existing identity PATCH and bumps the identity version, so a review that froze the old version is invalidated like any other sender change. Shown above the address in the list and in the Send step From picker as "Name (address)". Empty clears it.
+- **Real delete.** `newsletter_delete_identity` (SECURITY DEFINER, fixed `search_path`, owners and admins of the caller's ministry, version-checked) refuses any address that any revision of any campaign names as From or Reply-to (409 `IDENTITY_IN_USE`); the setup response carries `inUse` per address. DELETE on `sender-identities/[identityId]` with `{ version }`, behind a confirmation.
+- **Domain removal.** `newsletter_remove_domain`: refused while the domain has sender addresses (409 `DOMAIN_HAS_SENDERS`; delete them first), otherwise removed. DELETE on `sender-domains/[domainId]` with `{ version }`, behind a confirmation. The same domain can be added again.
+- **DNS re-issue.** `newsletter_reissue_domain` writes fresh synthetic records, resets all five checks and the checked time, and bumps the version, so the domain and its senders are unverified and reviews that froze the old domain version are invalidated until the next provider check. It can never mark anything verified. POST on `sender-domains/[domainId]/reissue` with `{ version }`, behind a confirmation; synthetic provider only like Verify.
+- All three functions are `REVOKE ALL FROM PUBLIC`, `GRANT EXECUTE TO harvest_app`, re-check the caller's ministry and `newsletter:delivery` capability, and set `app.nl_send_tenant` only for their own statements (restored after). Each action writes an audit row (`newsletter.identity.delete`, `newsletter.domain.remove`, `newsletter.domain.reissue`) with the target id and version only.
+- Evidence: `tests/integration/newsletter-sender.test.ts` (display name rules and roles, delete used and unused, refusal by revision, stale versions, other ministry and member 404, domain removal and re-issue effects, function privileges), `tests/e2e/newsletter-sender.spec.ts` "sender follow-ups" (confirmations, error message, axe), screenshots in `docs/screenshots/sender-followups/`.
+
 ## Deferred, server gaps and decisions
 
-- From name: identities store an address only, so there is no per-sender display name. Needs a column and a migration decision.
-- Remove: identities have no delete grant, so "Turn off" is the removal. A real delete needs a function that refuses addresses used by any campaign revision.
-- Domain removal and re-issuing DNS records are not built.
+- From name on the wire: the display name is stored and shown, but the message builder and the worker's authorization still select the address only. The live adapter (or the dispatch path) must put the name in the From header before activation.
 - The synthetic provider confirms any `*.example.test` domain with all records present, without a DNS lookup. A live adapter must replace it before activation; nothing here claims live verification.
 - Unsubscribe is always appended by the renderer, so that readiness line is always satisfied; it is shown for completeness.
 - Sign-up forms and Analytics are separate slices; Analytics order in the sidebar is left to its own PR.

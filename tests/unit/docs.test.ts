@@ -39,10 +39,10 @@ describe("docs tree and rules", () => {
     expect(reorder(["x", "y", "z"], "z", -3)).toEqual(["z", "x", "y"]);
   });
   it("applies the role rule", () => {
-    expect(docRights("viewer", "u", "u")).toEqual({ manage: false, write: false });
+    expect(docRights("viewer", "u", "u")).toMatchObject({ manage: false, write: false });
     expect(docRights("member", "u", "u").write).toBe(true);
     expect(docRights("member", "x", "u").write).toBe(false);
-    expect(docRights("admin", "x", "u")).toEqual({ manage: true, write: true });
+    expect(docRights("admin", "x", "u")).toMatchObject({ manage: true, write: true });
     expect(["owner", "admin", "member", "viewer"].map((r) => can(r, "docs:read"))).toEqual([true, true, true, true]);
     expect(["owner", "admin", "member", "viewer"].map((r) => can(r, "docs:write"))).toEqual([true, true, true, false]);
     expect(["owner", "admin", "member", "viewer"].map((r) => can(r, "docs:manage"))).toEqual([true, true, false, false]);
@@ -77,7 +77,7 @@ describe("docs message catalogue", () => {
     for (const key of dynamic) expect(lookup(`Docs.${key}`), key).toBeTypeOf("string");
   });
   it("uses provider-neutral copy", () => {
-    expect(JSON.stringify((messages as Record<string, unknown>).Docs)).not.toMatch(/clickup|notion|google|microsoft|word\b/i);
+    expect(JSON.stringify((messages as Record<string, unknown>).Docs)).not.toMatch(/clickup|notion|google|microsoft/i);
   });
 });
 

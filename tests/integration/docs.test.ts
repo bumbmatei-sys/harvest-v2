@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { sql } from "drizzle-orm";
 import { users } from "../../src/db/schema";
 import { archivePage, createDoc, createFolder, createPage, deleteFolder, deletePage, duplicateDoc, duplicatePage, getDoc, getPage, listDocs, movePage, setDocFavorite, updateDoc, updateFolder, updatePage } from "../../src/server/docs";
+import { setAccess } from "../../src/server/docs-sharing";
 import { withTenant } from "../../src/server/tenancy";
 import { createWorkspace } from "../../src/server/workspaces";
 import { testDatabase } from "../database";
@@ -51,6 +52,15 @@ describe("folders", () => {
     await expect(fixture.admin.query("update doc_folders set parent_id=$1 where id=$2", [leaf.id, top.id])).resolves.toBeDefined();
     await fixture.admin.query("update doc_folders set parent_id=null where id=$1", [top.id]);
     await expect(fixture.admin.query("update doc_folders set parent_id=$1 where id=$2", [mid.id, top.id])).rejects.toMatchObject({ code: "23514" });
+  });
+
+  it("answers 409, not 500, when moving a subfolder up one level would clash with a sibling name", async () => {
+    const parent = await createFolder(db(), owner, tenant, { name: "Clash parent" });
+    await createFolder(db(), owner, tenant, { name: "Same name", parentId: parent.id });
+    const folder = await createFolder(db(), owner, tenant, { name: "Clash me", parentId: parent.id });
+    await createFolder(db(), owner, tenant, { name: "Same name", parentId: folder.id });
+    expect(await status(deleteFolder(db(), owner, tenant, folder.id, { mode: "move_to_parent" }))).toBe(409);
+    expect((await listDocs(db(), owner, tenant, { folderId: parent.id })).folders.some((f) => f.id === folder.id)).toBe(true);
   });
 
   it("never deletes a non-empty folder silently: refuse with counts, or move the contents up one level", async () => {
@@ -126,6 +136,7 @@ describe("docs", () => {
 
   it("archives, trashes and restores; favourites are private to each person", async () => {
     const d = await createDoc(db(), member, tenant, { title: "Lifecycle" });
+    await setAccess(db(), member, tenant, d.id, { visibility: "ministry", ministryAccess: "view" });
     await updateDoc(db(), member, tenant, d.id, { archived: true });
     expect((await listDocs(db(), member, tenant, { status: "archived" })).docs.map((x) => x.id)).toContain(d.id);
     expect((await listDocs(db(), member, tenant, {})).docs.map((x) => x.id)).not.toContain(d.id);
@@ -147,6 +158,9 @@ describe("docs", () => {
   it("members edit docs they own, owners and admins manage all, viewers read", async () => {
     const mine = await createDoc(db(), member, tenant, { title: "Member doc" });
     const theirs = await createDoc(db(), owner, tenant, { title: "Owner doc" });
+    // Docs are private until shared: these two are readable by the whole ministry (view only) so the edit rules are what is tested.
+    await setAccess(db(), member, tenant, mine.id, { visibility: "ministry", ministryAccess: "view" });
+    await setAccess(db(), owner, tenant, theirs.id, { visibility: "ministry", ministryAccess: "view" });
     expect(await status(createDoc(db(), viewer, tenant, { title: "No" }))).toBe(403);
     expect(await status(updateDoc(db(), member, tenant, mine.id, { title: "Mine renamed" }))).toBe(200);
     expect(await status(updateDoc(db(), member, tenant, theirs.id, { title: "Not mine" }))).toBe(403);
@@ -155,7 +169,7 @@ describe("docs", () => {
     expect(await status(updateDoc(db(), admin, tenant, mine.id, { title: "Admin renamed" }))).toBe(200);
     expect(await status(updateDoc(db(), owner, tenant, mine.id, { archived: true }))).toBe(200);
     const read = await getDoc(db(), viewer, tenant, theirs.id);
-    expect(read.rights).toEqual({ manage: false, write: false });
+    expect(read.rights).toEqual({ manage: false, write: false, comment: false, read: true });
     expect((await getDoc(db(), member, tenant, mine.id)).rights.write).toBe(true);
     // Anyone who can read may duplicate: the copy is theirs.
     const copy = await duplicateDoc(db(), member2, tenant, theirs.id);
@@ -314,6 +328,7 @@ describe("pages", () => {
 
   it("protects a page: read-only for everyone until it is unprotected; viewers and strangers cannot change it", async () => {
     const d = await createDoc(db(), member, tenant, { title: "Protect" });
+    await setAccess(db(), member, tenant, d.id, { visibility: "ministry", ministryAccess: "view" });
     const id = (await tree(d.id))[0].id;
     await updatePage(db(), member, tenant, d.id, id, { version: 1, protected: true });
     const refused = await updatePage(db(), member, tenant, d.id, id, { version: 2, content: paragraph("nope") }).catch((e: { status: number; details?: { reason: string } }) => e);

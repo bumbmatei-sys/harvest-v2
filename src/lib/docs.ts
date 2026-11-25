@@ -12,6 +12,7 @@ export const emptyContent = (): DocContent => ({ type: "doc", content: [{ type: 
 export const docColors = docTextColors, docHighlights = docHighlightColors;
 export const calloutTones = ["info", "success", "warning", "danger"] as const;
 export const textAligns = ["left", "center", "right", "justify"] as const;
+export const mentionKinds = ["person", "page", "task"] as const;
 const hex = /^#[0-9a-fA-F]{6}$/;
 
 export class DocContentError extends Error { constructor(public reason: "TYPE" | "SIZE" | "DEPTH" | "SHAPE") { super("DOC_CONTENT_REFUSED"); } }
@@ -34,12 +35,15 @@ const align = { textAlign: oneOf(textAligns) };
 const cell = { colspan: (v: unknown) => int(v, 1, 20), rowspan: (v: unknown) => int(v, 1, 200), colwidth: (v: unknown) => Array.isArray(v) && v.length <= 20 && v.every((n) => int(n, 20, 2000) !== undefined) ? v : undefined };
 const nodeAttrs: Record<string, Record<string, (value: unknown) => unknown>> = {
   doc: {}, paragraph: align, heading: { level: (v) => int(v, 1, 4), ...align }, bulletList: {}, orderedList: { start: (v) => int(v, 1, 100_000) }, listItem: {},
-  taskList: {}, taskItem: { checked: bool }, blockquote: {}, codeBlock: { language: (v) => typeof v === "string" && /^[a-z0-9+#-]{1,20}$/i.test(v) ? v : undefined }, horizontalRule: {}, hardBreak: {},
+  taskList: {}, taskItem: { checked: bool }, blockquote: { pull: bool }, codeBlock: { language: (v) => typeof v === "string" && /^[a-z0-9+#-]{1,20}$/i.test(v) ? v : undefined }, horizontalRule: {}, hardBreak: {},
   text: {}, table: {}, tableRow: {}, tableCell: cell, tableHeader: cell, details: { open: bool }, detailsSummary: {}, detailsContent: {},
-  callout: { tone: oneOf(calloutTones) }, columns: {}, column: {}, tableOfContents: {},
+  callout: { tone: oneOf(calloutTones) }, columns: {}, column: {}, tableOfContents: { sticky: bool },
+  button: { label: (v) => typeof v === "string" && v.trim() && v.length <= 80 ? v : undefined, href: (v) => safeDocHref(v) ?? undefined },
+  mention: { kind: oneOf(mentionKinds), id: (v) => typeof v === "string" && /^[0-9a-zA-Z_-]{1,64}$/.test(v) ? v : undefined, label: (v) => typeof v === "string" && v.length <= 120 ? v : undefined },
 };
 const markAttrs: Record<string, Record<string, (value: unknown) => unknown>> = {
   bold: {}, italic: {}, underline: {}, strike: {}, code: {}, link: {}, textStyle: { color: (v) => typeof v === "string" && hex.test(v) ? v.toLowerCase() : undefined }, highlight: { color: (v) => typeof v === "string" && hex.test(v) ? v.toLowerCase() : undefined },
+  badge: { color: (v) => typeof v === "string" && (docHighlightColors as readonly string[]).includes(v.toLowerCase()) ? v.toLowerCase() : undefined, strong: bool },
 };
 
 /**
@@ -70,7 +74,7 @@ export function sanitizeDocContent(input: unknown): DocContent {
           if (!mark || typeof mark.type !== "string" || !Object.hasOwn(markAttrs, mark.type)) throw new DocContentError("TYPE");
           if (mark.type === "link") { const href = safeDocHref(mark.attrs?.href); if (href) marks.push({ type: "link", attrs: { href } }); continue; }
           const a = pick(mark.attrs, markAttrs[mark.type]);
-          if ((mark.type === "textStyle" || mark.type === "highlight") && !a) continue;
+          if ((mark.type === "textStyle" || mark.type === "highlight" || mark.type === "badge") && !a) continue;
           marks.push(a ? { type: mark.type, attrs: a } : { type: mark.type });
         }
         if (marks.length) out.marks = marks;
@@ -86,19 +90,25 @@ export function sanitizeDocContent(input: unknown): DocContent {
   return clean(input, 0) as DocContent;
 }
 
-// Page styles (stored per page). Sparse: only values that differ from the defaults are kept.
+// Page styles (stored per page). Sparse: only values that differ from the defaults are kept. Older pages stored `subpages` as a boolean; it still reads.
 export const pageFonts = ["sans", "serif", "mono"] as const, pageSizes = ["small", "default", "large"] as const, pageWidths = ["default", "wide", "full"] as const;
+export const subpageModes = ["off", "list", "table"] as const, relationshipModes = ["dialog", "inline"] as const;
 export const pageStyleSchema = z.object({
   font: z.enum(pageFonts).optional(), size: z.enum(pageSizes).optional(), width: z.enum(pageWidths).optional(),
-  header: z.object({ icon: z.boolean().optional(), owner: z.boolean().optional(), updated: z.boolean().optional() }).strict().optional(),
-  sections: z.object({ subpages: z.boolean().optional(), outline: z.boolean().optional() }).strict().optional(),
+  header: z.object({ cover: z.boolean().optional(), icon: z.boolean().optional(), owner: z.boolean().optional(), contributors: z.boolean().optional(), subtitle: z.boolean().optional(), updated: z.boolean().optional() }).strict().optional(),
+  sections: z.object({ subpages: z.union([z.boolean(), z.enum(subpageModes)]).optional(), relationships: z.enum(relationshipModes).optional(), outline: z.boolean().optional() }).strict().optional(),
+  showStats: z.boolean().optional(), coverFileId: z.uuid().optional(),
 }).strict();
 export type PageStyle = z.infer<typeof pageStyleSchema>;
-export type ResolvedPageStyle = { font: (typeof pageFonts)[number]; size: (typeof pageSizes)[number]; width: (typeof pageWidths)[number]; header: { icon: boolean; owner: boolean; updated: boolean }; sections: { subpages: boolean; outline: boolean } };
+export type ResolvedPageStyle = { font: (typeof pageFonts)[number]; size: (typeof pageSizes)[number]; width: (typeof pageWidths)[number];
+  header: { cover: boolean; icon: boolean; owner: boolean; contributors: boolean; subtitle: boolean; updated: boolean };
+  sections: { subpages: (typeof subpageModes)[number]; relationships: (typeof relationshipModes)[number]; outline: boolean }; showStats: boolean; coverFileId: string | null };
 export function resolvePageStyle(style: PageStyle | null | undefined): ResolvedPageStyle {
+  const sub = style?.sections?.subpages;
   return { font: style?.font ?? "sans", size: style?.size ?? "default", width: style?.width ?? "default",
-    header: { icon: style?.header?.icon ?? true, owner: style?.header?.owner ?? true, updated: style?.header?.updated ?? true },
-    sections: { subpages: style?.sections?.subpages ?? false, outline: style?.sections?.outline ?? false } };
+    header: { cover: style?.header?.cover ?? false, icon: style?.header?.icon ?? true, owner: style?.header?.owner ?? true, contributors: style?.header?.contributors ?? false, subtitle: style?.header?.subtitle ?? false, updated: style?.header?.updated ?? true },
+    sections: { subpages: sub === true ? "list" : sub === false ? "off" : sub ?? "table", relationships: style?.sections?.relationships ?? "dialog", outline: style?.sections?.outline ?? false },
+    showStats: style?.showStats ?? false, coverFileId: style?.coverFileId ?? null };
 }
 
 // Names.
@@ -112,6 +122,8 @@ export const folderNameKey = (name: string) => name.trim().toLocaleLowerCase("en
 export function docText(node: DocNode | DocContent | null | undefined): string {
   if (!node) return "";
   if ((node as DocNode).text) return (node as DocNode).text!;
+  if (node.type === "mention") return `@${String((node as DocNode).attrs?.label ?? "")}`;
+  if (node.type === "button") return String((node as DocNode).attrs?.label ?? "");
   const children = (node.content ?? []) as DocNode[];
   const block = (type: string) => ["paragraph", "heading", "listItem", "taskItem", "tableCell", "tableHeader", "detailsSummary", "codeBlock", "blockquote", "callout", "tableRow"].includes(type);
   return children.map((child) => docText(child) + (block(child.type) ? "\n" : "")).join("");
@@ -154,18 +166,39 @@ export function reorder(ids: readonly string[], id: string, index: number): stri
   return [...rest.slice(0, at), id, ...rest.slice(at)];
 }
 
-// Roles (the server rules, shared with the interface so a control is not offered that the server would refuse).
-export type DocRights = { manage: boolean; write: boolean };
-/** Owners and admins manage every doc; members create docs and edit the docs they own; viewers read. */
-export const docRights = (role: string, ownerId: string, userId: string): DocRights => ({ manage: role === "owner" || role === "admin", write: role === "owner" || role === "admin" || (role === "member" && ownerId === userId) });
+// Access. One rule for the server, the database policies (`docs_rank` in migration 0093) and the interface, so no control is offered that would be refused.
+// 4 manage (owners, admins, the doc's owner), 3 edit, 2 comment, 1 view, 0 none. A ministry "viewer" never edits (capped at comment); `private` hides a doc from members it is not shared with.
+export type ShareRole = "view" | "comment" | "edit";
+export const shareRoles: readonly ShareRole[] = ["view", "comment", "edit"];
+const shareRank = (role: string | null | undefined) => role === "edit" ? 3 : role === "comment" ? 2 : role === "view" ? 1 : 0;
+export type DocAccessInput = { role: string; isOwner: boolean; visibility: string; ministryAccess: string; share: string | null };
+export function docRank(i: DocAccessInput): 0 | 1 | 2 | 3 | 4 {
+  if (!["owner", "admin", "member", "viewer"].includes(i.role)) return 0;
+  if (i.role === "owner" || i.role === "admin") return 4;
+  if (i.isOwner && i.role !== "viewer") return 4;
+  const granted = Math.max(shareRank(i.share), i.visibility === "ministry" ? shareRank(i.ministryAccess) : 0);
+  return Math.min(granted, i.role === "viewer" ? 2 : 3) as 0 | 1 | 2 | 3;
+}
+export type DocRights = { manage: boolean; write: boolean; comment: boolean; read: boolean; /** Set when the person has only a page share: no access to the rest of the doc. */ pageOnly?: boolean };
+export const rightsOf = (rank: number): DocRights => ({ manage: rank >= 4, write: rank >= 3, comment: rank >= 2, read: rank >= 1 });
+export const docRights = (role: string, ownerId: string, userId: string, access: { visibility?: string; ministryAccess?: string; share?: string | null } = {}): DocRights =>
+  rightsOf(docRank({ role, isOwner: ownerId === userId, visibility: access.visibility ?? "private", ministryAccess: access.ministryAccess ?? "view", share: access.share ?? null }));
+
+// Templates: a template is a small tree of pages (parent is the index of the parent page in the list, or null).
+export type TemplatePage = { title: string; content: DocContent; parent: number | null };
+export const templateCategories = ["meetings", "worship", "events", "people", "planning", "other"] as const;
+export type TemplateCategory = (typeof templateCategories)[number];
+export const templateNameSchema = z.string().trim().min(1).max(80);
+export const commentBodySchema = z.string().trim().min(1).max(2000);
+/** Ids of the people @mentioned in comment text are carried separately; the text keeps the display name. */
 
 /**
  * The fields of a page that are changed but not yet confirmed saved, or null when nothing is pending. Text edits and title changes are
  * counted, a style change is held until a save confirms it; `getContent` runs only when the text changed. Used by the editor's
  * autosave and by the page-leave flush, so a style toggle is sent with, or without, pending text.
  */
-export function pendingPageFields(state: { edits: number; savedEdits: number; title: string; savedTitle: string; style: PageStyle | null; getContent: () => unknown }) {
-  const textChanged = state.edits !== state.savedEdits, titleChanged = state.title !== state.savedTitle;
-  if (!textChanged && !titleChanged && state.style === null) return null;
-  return { ...(textChanged ? { content: state.getContent() } : {}), ...(titleChanged ? { title: state.title } : {}), ...(state.style !== null ? { style: state.style } : {}) };
+export function pendingPageFields(state: { edits: number; savedEdits: number; title: string; savedTitle: string; subtitle?: string; savedSubtitle?: string; style: PageStyle | null; getContent: () => unknown }) {
+  const textChanged = state.edits !== state.savedEdits, titleChanged = state.title !== state.savedTitle, subtitleChanged = state.subtitle !== undefined && state.subtitle !== state.savedSubtitle;
+  if (!textChanged && !titleChanged && !subtitleChanged && state.style === null) return null;
+  return { ...(textChanged ? { content: state.getContent() } : {}), ...(titleChanged ? { title: state.title } : {}), ...(subtitleChanged ? { subtitle: state.subtitle } : {}), ...(state.style !== null ? { style: state.style } : {}) };
 }
