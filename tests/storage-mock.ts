@@ -36,7 +36,7 @@ function authorized(request: IncomingMessage, url: URL) {
 export async function storageMock() {
   const objects = new Map<string, { body: Buffer; mime: string; etag: string }>();
   const server = createServer(async (request, response) => {
-    response.setHeader("Access-Control-Allow-Origin", "http://127.0.0.1:3100");
+    response.setHeader("Access-Control-Allow-Origin", `http://127.0.0.1:${process.env.E2E_PORT ?? "3100"}`);
     response.setHeader("Access-Control-Allow-Methods", "GET, HEAD, PUT, OPTIONS");
     response.setHeader("Access-Control-Allow-Headers", "content-type, if-none-match");
     response.setHeader("Access-Control-Expose-Headers", "etag, content-type, content-length");
