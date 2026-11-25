@@ -3,6 +3,7 @@ import { FakeNewsletterProvider } from "../src/server/newsletter-campaigns/fake-
 import { purgeNewsletterDeliveries, recheckNewsletterDomains } from "../src/server/newsletter-campaigns/maintenance";
 import { newsletterWorkerEnabled, runNewsletterWorker } from "../src/server/newsletter-campaigns/worker";
 import { checkNewsletterSuppressionStartup } from "../src/server/newsletter-campaigns/suppression-keys";
+import { automationsWorkerFlag, runNewsletterAutomations } from "../src/server/newsletter-automations-worker";
 import { workerDatabaseUrl } from "../src/server/worker-role";
 
 const action = process.argv[2] ?? "deliver";
@@ -10,6 +11,7 @@ const flags = new Map([
   ["deliver", "HARVEST_NEWSLETTER_WORKER_ENABLED"],
   ["recheck-domains", "HARVEST_NEWSLETTER_DOMAIN_RECHECK_ENABLED"],
   ["purge", "HARVEST_NEWSLETTER_RETENTION_ENABLED"],
+  ["automations", automationsWorkerFlag],
 ]);
 const flag = flags.get(action);
 if (action === "check-suppression") {
@@ -26,6 +28,7 @@ if (action === "check-suppression") {
     const provider = new FakeNewsletterProvider();
     if (action === "purge") console.log(JSON.stringify(await purgeNewsletterDeliveries(pool, process.env)));
     else if (action === "recheck-domains") console.log(JSON.stringify(await recheckNewsletterDomains(pool, process.env, provider)));
+    else if (action === "automations") console.log(JSON.stringify(await runNewsletterAutomations(pool, process.env, provider)));
     else {
       const result = await runNewsletterWorker(pool, process.env, provider, { log: line => console.error(line) });
       console.log(JSON.stringify(result));
