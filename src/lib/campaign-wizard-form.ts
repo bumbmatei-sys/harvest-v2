@@ -25,6 +25,8 @@ export type DraftView = {
 /** The steps this screen edits so far (the others are listed in the shell but not yet available). */
 export const editableSteps = ["type", "basics", "place", "leaders", "tools"] as const satisfies readonly DataStep[];
 export type EditableStep = typeof editableSteps[number];
+/** The steps a person can open: the five that take answers, and the review. Budget and registration are listed and not available yet. */
+export const isAvailable = (step: WizardStep) => isEditable(step) || step === "review";
 export const isEditable = (step: WizardStep): step is EditableStep => (editableSteps as readonly string[]).includes(step);
 
 /** The local, editable copy of the draft: text fields are strings so a half-typed value stays as typed. */

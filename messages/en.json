@@ -7563,7 +7563,8 @@
       "basics": "Tell us about your campaign.",
       "place": "Where and when will your campaign take place?",
       "leaders": "Who will organize this campaign?",
-      "tools": "Which tools would you like to enable?"
+      "tools": "Which tools would you like to enable?",
+      "review": "Check everything, then create the campaign."
     },
     "types": {
       "evangelistic_crusade": {
@@ -7614,7 +7615,15 @@
       "INVALID_DATE_RANGE": "End date is before the start date"
     },
     "issues": {
-      "TYPE_REQUIRED": "Choose a campaign type."
+      "TYPE_REQUIRED": "Choose a campaign type.",
+      "NAME_REQUIRED": "Enter a campaign name.",
+      "STRUCTURE_REQUIRED": "Choose single location, multiple locations or online / hybrid.",
+      "DATES_REQUIRED": "Set the start and end dates.",
+      "TIME_ZONE_REQUIRED": "Choose a time zone.",
+      "COUNTRY_REQUIRED": "Enter a country.",
+      "FUNDRAISING_MODULE_OFF": "Turn on Fundraising & Donations in Campaign Features to use fundraising.",
+      "QR_MODULE_OFF": "Turn on QR Code Response Forms in Campaign Features to use the response QR.",
+      "REGISTRATION_MODULE_OFF": "Turn on Registration Forms in Campaign Features to use registration."
     },
     "activate": {
       "button": "Activate",
@@ -7708,6 +7717,47 @@
       "recommended": "Recommended",
       "comingLater": "Coming later",
       "toggle": "Enable {name}"
+    },
+    "review": {
+      "edit": "Edit",
+      "editLabel": "Edit {step}",
+      "goTo": "Go to {step}",
+      "blockedTitle": "Finish is blocked until these are fixed",
+      "notSet": "Not set",
+      "dates": "Dates",
+      "owner": "Campaign Owner",
+      "leaders": "Leader: {names}",
+      "noLeader": "No leader yet",
+      "teamCount": "{count, plural, one {# team member} other {# team members}}",
+      "pending": "{count} pending",
+      "noDepartments": "No departments included.",
+      "noTools": "No tools enabled.",
+      "notAvailable": "Not available yet.",
+      "nothingPublished": "Creating the campaign publishes nothing and sends nothing.",
+      "finish": "Finish — Create Campaign",
+      "finishing": "Creating…",
+      "created": "Campaign created.",
+      "failed": "The campaign could not be created. Nothing was published."
+    },
+    "checklist": {
+      "title": "Setup checklist",
+      "description": "Important tasks still to do for this campaign.",
+      "progress": "{done} of {total} done",
+      "automatic": "Done automatically",
+      "markDone": "Mark {item} as done",
+      "markNotDone": "Mark {item} as not done",
+      "saveFailed": "The change could not be saved.",
+      "items": {
+        "assign_leaders": "Assign department leaders",
+        "confirm_venues": "Confirm venues",
+        "define_budget": "Define budget",
+        "connect_payments": "Connect payment processing",
+        "publish_registration": "Publish registration forms",
+        "configure_qr": "Configure the QR response page",
+        "assign_counseling": "Assign counseling leaders",
+        "invite_churches": "Invite partner churches",
+        "create_events": "Create initial outreach events"
+      }
     }
   },
   "LinkInBio": {

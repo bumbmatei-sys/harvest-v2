@@ -93,7 +93,7 @@ test("create a draft, fill steps 1 to 3 with autosave, resume it, and activate a
   if (shellModes) await expect(page.getByRole("group", { name: /^Editing/ })).toBeVisible(); else await expect(page.getByRole("navigation", { name: "Campaign setup" })).toBeVisible();
   // Steps 6 to 8 are listed and not available yet.
   const stepList = shellModes ? page.getByRole("group", { name: /^Editing/ }) : page.getByRole("navigation", { name: "Campaign setup" });
-  for (const label of ["Budget & Fundraising", "Registration & Follow-Up", "Review & Create"]) await expect(stepList.getByRole("button", { name: new RegExp(label) })).toHaveAttribute("aria-disabled", "true");
+  for (const label of ["Budget & Fundraising", "Registration & Follow-Up"]) await expect(stepList.getByRole("button", { name: new RegExp(label) })).toHaveAttribute("aria-disabled", "true");
 
   // Step 1 can still be changed; it says the template loads again.
   await stepList.getByRole("button", { name: /Campaign Type/ }).click();
@@ -514,8 +514,8 @@ test("teams and tools: invitations by member and by email are pending until acce
     await expectAccessible(page);
     await autosaved(page, async () => { await page.getByRole("switch", { name: "Enable Communications" }).click(); });
     expect((await (await page.request.get(`${api}/${draft.id}`)).json()).modules).not.toContain("communications");
-    // Steps 6 to 8 are not available yet: no Next.
-    await expect(page.getByRole("button", { name: "Next", exact: true })).toHaveCount(0);
+    // Steps 6 and 7 are not available yet, so Next goes straight to the review.
+    await expect(page.getByRole("button", { name: "Next", exact: true })).toBeVisible();
 
     // Every width and scheme, for both steps.
     for (const scheme of ["light", "dark"] as const) for (const [label, width, height] of [["phone", 360, 800], ["tablet", 768, 1024], ["desktop", 1280, 900]] as const) {
@@ -536,5 +536,108 @@ test("teams and tools: invitations by member and by email are pending until acce
     expect(errors).toEqual([]);
   } finally {
     await member.context.close(); await guestContext.close();
+  }
+});
+
+test("review and finish: a summary, blocked reasons with links, one campaign however many times Finish is pressed, and the setup checklist", async ({ page, browser }) => {
+  test.setTimeout(420_000);
+  await mkdir(evidence, { recursive: true });
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => { if (message.type() === "error" && !/Failed to load resource/.test(message.text())) errors.push(message.text()); });
+  await signIn(page);
+  const tenant = (await (await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Review Church", audience: "church" } })).json()).tenantId as string;
+  const root = `/workspaces/${tenant}/campaigns`, api = `/api${root}/drafts`;
+  const leader = await user(browser, page, tenant, "member");
+  const patch = async (id: string, version: number, step: string, data: unknown) => (await (await page.request.patch(`${api}/${id}`, { headers: { origin }, data: { version, step, data } })).json()).version as number;
+  try {
+    // A draft with only a type: the review lists what blocks Finish, each with a link to its step, and Finish creates nothing.
+    const bare = await (await page.request.post(api, { headers: { origin, "Idempotency-Key": "review-bare" }, data: { type: "conference" } })).json();
+    await page.goto(`${root}/drafts/${bare.id}`);
+    await hydrated(page);
+    await page.getByRole("group", { name: /^Editing/ }).getByRole("button", { name: /Review & Create/ }).click();
+    await expect(heading(page, "Review & Create")).toBeVisible();
+    await expect(page.getByRole("alert").filter({ hasText: "Finish is blocked" })).toContainText("Enter a campaign name.");
+    await shoot(page, "step-8-review-blocked");
+    await expectAccessible(page);
+    await page.getByRole("button", { name: "Finish — Create Campaign" }).click();
+    expect((await (await page.request.get(`${api}/${bare.id}`)).json()).status).toBe("draft");
+    await page.getByRole("alert").filter({ hasText: "Finish is blocked" }).getByRole("button", { name: "Go to Basic Information" }).click();
+    await expect(heading(page, "Basic Information")).toBeVisible();
+
+    // A complete draft with one department led by an accepted member.
+    const draft = await (await page.request.post(api, { headers: { origin, "Idempotency-Key": "review-full" }, data: { type: "evangelistic_crusade" } })).json();
+    let version = await patch(draft.id, draft.version, "basics", { name: "Review campaign", description: "A summary", mission: null });
+    version = await patch(draft.id, version, "place", { country: "Chile", cityRegion: "Santiago", startDate: "2027-05-01", endDate: "2027-05-02", timeZone: "America/Santiago", structure: "single" });
+    version = await patch(draft.id, version, "leaders", { departments: ["volunteers"] });
+    const invited = await page.request.post(`${api}/${draft.id}/invitations`, { headers: { origin }, data: { department: "volunteers", role: "leader", email: leader.email } });
+    expect(invited.status()).toBe(201);
+    const mail = (await readFile(`${process.env.HARVEST_E2E_MAILBOX}.campaign-invitations`, "utf8")).split("\n").filter(Boolean).map((line) => JSON.parse(line) as { to: string; url: string }).find((entry) => entry.to === leader.email)!;
+    expect((await leader.page.request.post("/api/campaign-invitations/accept", { headers: { origin }, data: { token: new URL(mail.url).pathname.split("/").pop() } })).status()).toBe(200);
+
+    await page.goto(`${root}/drafts/${draft.id}`);
+    await hydrated(page);
+    await expect(heading(page, "Campaign Features")).toBeVisible(); // resumes at the furthest step; Next skips the two steps not available yet
+    await page.getByRole("button", { name: "Next", exact: true }).click();
+    await expect(heading(page, "Review & Create")).toBeVisible();
+    await expect(page.getByRole("definition").filter({ hasText: "Review campaign" })).toBeVisible();
+    await expect(page.getByText("Santiago", { exact: true })).toBeVisible();
+    await expect(page.getByText(/Leader: /)).toBeVisible();
+    await expect(page.getByRole("alert").filter({ hasText: "Finish is blocked" })).toHaveCount(0);
+    await shoot(page, "step-8-review");
+    await expectAccessible(page);
+    // Edit goes back to that step; pressing Finish twice quickly still ends at one campaign.
+    await page.getByRole("button", { name: "Edit Location & Dates" }).click();
+    await expect(heading(page, "Location & Dates")).toBeVisible();
+    await hydrated(page);
+    await page.getByRole("group", { name: /^Editing/ }).getByRole("button", { name: /Review & Create/ }).click();
+    await expect(heading(page, "Review & Create")).toBeVisible();
+    const finishButton = page.getByRole("button", { name: "Finish — Create Campaign" });
+    await finishButton.dblclick();
+    await page.waitForURL(new RegExp(`${root}/[0-9a-f-]{36}$`));
+    const campaignId = page.url().split("/").pop() as string;
+    expect((await (await page.request.get(`${api}/${draft.id}`)).json())).toMatchObject({ status: "finished", campaignId });
+    expect((await (await page.request.get(`/api${root}`)).json()).campaigns?.filter((c: { name: string }) => c.name === "Review campaign") ?? [{}]).toHaveLength(1);
+    // Finishing again from anywhere returns the same campaign.
+    expect((await (await page.request.post(`${api}/${draft.id}/finish`, { headers: { origin }, data: { version } })).json()).campaignId).toBe(campaignId);
+
+    // The setup checklist: nine PRD items, the leader item ticked by itself, others ticked by hand and kept across a reload.
+    await expect(page.getByRole("heading", { name: "Setup checklist", level: 2 })).toBeVisible();
+    await expect(page.getByRole("checkbox")).toHaveCount(9);
+    await expect(page.getByRole("checkbox", { name: "Mark Assign department leaders as not done" })).toBeDisabled();
+    await expect(page.getByText("Done automatically")).toHaveCount(1);
+    await expect(page.getByText("1 of 9 done").first()).toBeVisible();
+    await shoot(page, "campaign-checklist");
+    await expectAccessible(page);
+    const save = page.waitForResponse((response) => response.request().method() === "PUT" && /\/checklist$/.test(response.url()));
+    await page.getByRole("checkbox", { name: "Mark Define budget as done" }).click();
+    expect((await save).status()).toBe(200);
+    await expect(page.getByText("2 of 9 done").first()).toBeVisible();
+    await page.reload();
+    await expect(page.getByRole("checkbox", { name: "Mark Define budget as not done" })).toBeChecked();
+    // Another person who can write campaigns sees the same state and can undo it.
+    await leader.page.goto(`${root}/${campaignId}`);
+    await expect(leader.page.getByRole("checkbox", { name: "Mark Define budget as not done" })).toBeChecked();
+    await leader.page.getByRole("checkbox", { name: "Mark Define budget as not done" }).click();
+    await expect(leader.page.getByText("1 of 9 done").first()).toBeVisible();
+    // A viewer does not get the checklist.
+    const viewer = await user(browser, page, tenant, "viewer");
+    await viewer.page.goto(`${root}/${campaignId}`);
+    await expect(viewer.page.getByRole("heading", { level: 1, name: "Review campaign" })).toBeVisible();
+    await expect(viewer.page.getByRole("heading", { name: "Setup checklist" })).toHaveCount(0);
+    await viewer.context.close();
+    // Every width and scheme for the review and the checklist.
+    for (const scheme of ["light", "dark"] as const) for (const [label, width, height] of [["phone", 360, 800], ["tablet", 768, 1024], ["desktop", 1280, 900]] as const) {
+      await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+      await page.setViewportSize({ width, height });
+      await page.goto(`${root}/${campaignId}`);
+      await expect(page.getByRole("heading", { name: "Setup checklist", level: 2 })).toBeVisible();
+      await expectAccessible(page);
+      await shoot(page, `campaign-checklist-${label}-${scheme}`);
+      if (width < 768) expect((await page.getByRole("checkbox").first().locator("xpath=ancestor::label").boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    }
+    expect(errors).toEqual([]);
+  } finally {
+    await leader.context.close();
   }
 });

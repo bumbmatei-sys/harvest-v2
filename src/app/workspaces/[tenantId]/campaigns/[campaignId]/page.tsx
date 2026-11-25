@@ -8,6 +8,8 @@ import { getCampaign } from "@/server/campaigns";
 import { pageSession } from "@/server/page-session";
 import { getWorkspace } from "@/server/workspaces";
 import { AccessError, can } from "@/server/permissions";
+import { getChecklist } from "@/server/campaign-checklist";
+import { CampaignChecklist } from "@/components/campaigns/campaign-checklist";
 import { CampaignStatusAction } from "@/components/campaigns/campaign-status-action";
 import { uuidInput } from "@/lib/contact-input";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +29,8 @@ export default async function CampaignPage({ params }: { params: Promise<{ tenan
   if (!campaign) notFound();
   const workspace = await getWorkspace(getDb(), session.user.id, tenantId).catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; });
   const canActivate = workspace ? can(workspace.role, "campaigns:activate") : false;
+  // The setup checklist is for the people who set the campaign up (they can write campaigns), not for read-only members.
+  const checklist = workspace && can(workspace.role, "campaigns:write") ? await getChecklist(getDb(), session.user.id, tenantId, campaignId).catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; }) : null;
   const format = await getFormatter();
   const details = [
     [t("location"), [campaign.cityRegion, campaign.country].filter(Boolean).join(", ") || t("notSet")],
@@ -46,6 +50,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ tenan
       <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{details.map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 break-words text-sm">{value}</dd></div>)}</dl>
       {campaign.mission && <div className="mt-4"><h2 className="text-xs text-muted-foreground">{t("mission")}</h2><p className="mt-1 whitespace-pre-wrap break-words text-sm">{campaign.mission}</p></div>}
     </CardContent></Card>
+    {checklist && <CampaignChecklist tenantId={tenantId} campaignId={campaignId} initial={checklist} />}
     <Card><CardContent className="flex flex-wrap items-center justify-between gap-4">
       <div className="flex min-w-0 items-start gap-3"><QrCode className="mt-0.5 size-5 shrink-0" aria-hidden="true" />
         <div className="min-w-0"><h2 className="text-base font-semibold">{links("openLinks")}</h2><p className="text-sm text-muted-foreground">{links("openLinksDescription")}</p></div></div>

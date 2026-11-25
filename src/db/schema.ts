@@ -210,6 +210,18 @@ export const campaignDraftAssignments = pgTable("campaign_draft_assignments", {
   check("campaign_draft_assignment_department", sql`${t.department} in ('campaign_leadership', 'church_mobilization', 'evangelistic_outreach', 'prayer_intercession', 'marketing_media', 'logistics_equipment', 'finance_fundraising', 'volunteers', 'counseling', 'discipleship_follow_up', 'worship_production', 'security_medical', 'transportation_hospitality')`),
 ]);
 
+// CW-06 (founder decision Q8, 25 Nov): the campaign's post-creation setup checklist stores completion per item. A row is the last choice a person made;
+// items that tick themselves from the draft are worked out when the checklist is read and are not stored.
+export const campaignChecklistItems = pgTable("campaign_checklist_items", {
+  tenantId: uuid("tenant_id").notNull(), campaignId: uuid("campaign_id").notNull(), item: text("item").notNull(),
+  done: boolean("done").notNull(), doneBy: text("done_by").references(() => users.id), doneAt: timestamp("done_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.campaignId, t.item] }),
+  foreignKey({ columns: [t.tenantId, t.campaignId], foreignColumns: [campaigns.tenantId, campaigns.id] }).onDelete("cascade"),
+  check("campaign_checklist_item", sql`${t.item} in ('assign_leaders', 'confirm_venues', 'define_budget', 'connect_payments', 'publish_registration', 'configure_qr', 'assign_counseling', 'invite_churches', 'create_events')`),
+  check("campaign_checklist_done", sql`(${t.done} and ${t.doneBy} is not null and ${t.doneAt} is not null) or (not ${t.done} and ${t.doneBy} is null and ${t.doneAt} is null)`),
+]);
+
 // CW-05 (founder decision Q2, 25 Nov): a person is placed in a department by an invitation they must accept. Pending, accepted, declined and revoked
 // are stored; expired is derived from `expiresAt` (14 days). An invitation is for an existing ministry member (kind member) or for an email address
 // (kind email); accepting an email invitation adds the person to the ministry in the inert campaign_guest role. Only the hash of the link token is kept.

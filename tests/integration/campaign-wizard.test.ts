@@ -1,13 +1,14 @@
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { testDatabase } from "../database";
-import { auditLogs, campaignDraftAssignments, campaignDrafts, campaignFiles, campaigns, users } from "../../src/db/schema";
+import { auditLogs, campaignChecklistItems, campaignDraftAssignments, campaignDrafts, campaignFiles, campaigns, users } from "../../src/db/schema";
 import { createWorkspace, putMember } from "../../src/server/workspaces";
 import { withTenant, withUser } from "../../src/server/tenancy";
 import { createDraft, discardDraft, finishDraft, getDraft, listDrafts, saveDraftStep, setCampaignStatus } from "../../src/server/campaign-wizard";
 import { listCampaigns } from "../../src/server/campaigns";
 import { acceptInvitation, inviteToDraft, revokeInvitation, type InvitationMail } from "../../src/server/campaign-wizard-invitations";
 import { confirmDraftCoverUpload, createDraftCoverUpload, getCampaignCoverUrl, getDraftCoverUrl, setDraftCover } from "../../src/server/campaign-wizard-cover";
+import { getChecklist, setChecklistItem } from "../../src/server/campaign-checklist";
 import { defaultBudget, defaultOutreach } from "../../src/lib/campaign-wizard";
 
 vi.mock("server-only", () => ({}));
@@ -470,5 +471,62 @@ describe("campaign cover", () => {
     const plainVersion = await complete("member-a", plain.id, 1);
     const plainDone = await finishDraft(fixture.db, "member-a", tenantA, plain.id, { version: plainVersion });
     expect(await status(getCampaignCoverUrl(fixture.db, "member-a", { tenantId: tenantA, campaignId: plainDone.campaignId }, storage))).toBe(404);
+  });
+});
+
+describe("setup checklist", () => {
+  /** A finished campaign whose draft included volunteers and counseling, so leaders can make items tick themselves. */
+  async function campaignWithDepartments() {
+    const draft = await draftFor("member-a");
+    let version = (await save("member-a", draft.id, 1, "leaders", { departments: ["volunteers", "counseling"] })).version;
+    version = await complete("member-a", draft.id, version);
+    const { campaignId } = await finishDraft(fixture.db, "member-a", tenantA, draft.id, { version });
+    return { draftId: draft.id, campaignId };
+  }
+  it("lists the nine PRD items, stores completion per item and lets it be undone", async () => {
+    const { campaignId } = await campaignWithDepartments();
+    const first = await getChecklist(fixture.db, "member-a", tenantA, campaignId);
+    expect(first.map((row) => row.item)).toEqual(["assign_leaders", "confirm_venues", "define_budget", "connect_payments", "publish_registration", "configure_qr", "assign_counseling", "invite_churches", "create_events"]);
+    expect(first.every((row) => !row.done && !row.automatic)).toBe(true);
+    const after = await setChecklistItem(fixture.db, "member-a", tenantA, campaignId, { item: "define_budget", done: true });
+    expect(after.find((row) => row.item === "define_budget")).toMatchObject({ done: true, automatic: false });
+    // Another person sees it, and can undo it: the row keeps who and when, and clears both when undone.
+    expect((await getChecklist(fixture.db, "admin-a", tenantA, campaignId)).find((row) => row.item === "define_budget")?.done).toBe(true);
+    expect((await fixture.admin.query("select done, done_by from campaign_checklist_items where campaign_id=$1", [campaignId])).rows).toEqual([{ done: true, done_by: "member-a" }]);
+    await setChecklistItem(fixture.db, "admin-a", tenantA, campaignId, { item: "define_budget", done: false });
+    expect((await fixture.admin.query("select done, done_by, done_at from campaign_checklist_items where campaign_id=$1", [campaignId])).rows).toEqual([{ done: false, done_by: null, done_at: null }]);
+    await setChecklistItem(fixture.db, "member-a", tenantA, campaignId, { item: "define_budget", done: true });
+    expect((await fixture.admin.query("select count(*)::int as n from campaign_checklist_items where campaign_id=$1", [campaignId])).rows[0].n).toBe(1);
+    expect((await fixture.admin.query("select count(*)::int as n from audit_logs where action='campaign.checklist.set' and target_id=$1", [campaignId])).rows[0].n).toBe(3);
+  });
+  it("ticks leader items by itself from accepted leaders and ignores a stored untick", async () => {
+    const { draftId, campaignId } = await campaignWithDepartments();
+    expect((await getChecklist(fixture.db, "member-a", tenantA, campaignId)).filter((row) => row.automatic)).toEqual([]);
+    // The draft is finished, so leaders are placed straight in the assignments table for this check.
+    await fixture.admin.query("insert into campaign_draft_assignments (tenant_id, draft_id, user_id, department, role) values ($1,$2,'admin-a','counseling','leader')", [tenantA, draftId]);
+    let rows = await getChecklist(fixture.db, "member-a", tenantA, campaignId);
+    expect(rows.find((row) => row.item === "assign_counseling")).toMatchObject({ done: true, automatic: true });
+    expect(rows.find((row) => row.item === "assign_leaders")).toMatchObject({ done: false, automatic: false }); // volunteers still has none
+    await fixture.admin.query("insert into campaign_draft_assignments (tenant_id, draft_id, user_id, department, role) values ($1,$2,'member-a2','volunteers','leader')", [tenantA, draftId]);
+    await setChecklistItem(fixture.db, "member-a", tenantA, campaignId, { item: "assign_leaders", done: false });
+    rows = await getChecklist(fixture.db, "member-a", tenantA, campaignId);
+    expect(rows.find((row) => row.item === "assign_leaders")).toMatchObject({ done: true, automatic: true });
+  });
+  it("is for people who can write campaigns, and stays inside the ministry", async () => {
+    const { campaignId } = await campaignWithDepartments();
+    expect(await status(getChecklist(fixture.db, "viewer-a", tenantA, campaignId))).toBe(403);
+    expect(await status(setChecklistItem(fixture.db, "viewer-a", tenantA, campaignId, { item: "define_budget", done: true }))).toBe(403);
+    expect(await status(getChecklist(fixture.db, "owner-b", tenantA, campaignId))).toBe(403);
+    expect(await status(getChecklist(fixture.db, "owner-b", tenantB, campaignId))).toBe(404);
+    expect(await status(setChecklistItem(fixture.db, "member-a", tenantA, campaignId, { item: "launch_rocket", done: true }))).toBe(400);
+    expect(await status(setChecklistItem(fixture.db, "member-a", tenantA, campaignId, { item: "define_budget", done: true, extra: 1 }))).toBe(400);
+    expect(await status(setChecklistItem(fixture.db, "member-a", tenantA, "00000000-0000-4000-8000-000000000000", { item: "define_budget", done: true }))).toBe(404);
+  });
+  it("forces RLS, grants no delete, no whole-table update, and a write cannot name another person", async () => {
+    const { campaignId } = await campaignWithDepartments();
+    expect((await fixture.admin.query("select relrowsecurity, relforcerowsecurity from pg_class where relname='campaign_checklist_items'")).rows).toEqual([{ relrowsecurity: true, relforcerowsecurity: true }]);
+    expect((await fixture.admin.query("select has_table_privilege('harvest_app','campaign_checklist_items','DELETE') as d, has_table_privilege('harvest_app','campaign_checklist_items','UPDATE') as u, has_table_privilege('public','campaign_checklist_items','SELECT') as p")).rows)
+      .toEqual([{ d: false, u: false, p: false }]);
+    await expect(withTenant(fixture.db, "member-a", tenantA, "campaigns:write", (tx) => tx.insert(campaignChecklistItems).values({ tenantId: tenantA, campaignId, item: "create_events", done: true, doneBy: "admin-a", doneAt: new Date() }))).rejects.toThrow();
   });
 });
