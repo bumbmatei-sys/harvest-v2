@@ -38,7 +38,8 @@ export async function storageMock() {
   const server = createServer(async (request, response) => {
     response.setHeader("Access-Control-Allow-Origin", `http://127.0.0.1:${process.env.E2E_PORT ?? "3100"}`);
     response.setHeader("Access-Control-Allow-Methods", "GET, HEAD, PUT, OPTIONS");
-    response.setHeader("Access-Control-Allow-Headers", "content-type, if-none-match");
+    // x-forwarded-for: the e2e sign-in helper sets it on every request of a browser context (a distinct address per test), including the direct upload to storage.
+    response.setHeader("Access-Control-Allow-Headers", "content-type, if-none-match, x-forwarded-for");
     response.setHeader("Access-Control-Expose-Headers", "etag, content-type, content-length");
     if (request.method === "OPTIONS") { response.writeHead(204).end(); return; }
     const url = new URL(request.url!, `http://${request.headers.host}`);

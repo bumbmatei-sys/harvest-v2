@@ -17,7 +17,7 @@ const draftColumns = {
   mission: campaignDrafts.mission, country: campaignDrafts.country, cityRegion: campaignDrafts.cityRegion, startDate: campaignDrafts.startDate,
   endDate: campaignDrafts.endDate, timeZone: campaignDrafts.timeZone, structure: campaignDrafts.structure, departments: campaignDrafts.departments,
   modules: campaignDrafts.modules, budget: campaignDrafts.budget, outreach: campaignDrafts.outreach, campaignId: campaignDrafts.campaignId,
-  finishedAt: campaignDrafts.finishedAt, createdAt: campaignDrafts.createdAt, updatedAt: campaignDrafts.updatedAt,
+  finishedAt: campaignDrafts.finishedAt, coverFileId: campaignDrafts.coverFileId, createdAt: campaignDrafts.createdAt, updatedAt: campaignDrafts.updatedAt,
 };
 type DraftRow = Omit<typeof campaignDrafts.$inferSelect, "clientKey">;
 export const DRAFT_LIST_LIMIT = 50;
@@ -43,9 +43,9 @@ async function visibleDraft(tx: Transaction, tenantId: string, id: string) {
   if (!row) throw new AccessError(404, message("Campaigns.draftNotFound"));
   return row as DraftRow;
 }
-// An open draft is edited and finished by the person who started it. Anyone else who can see it (an owner or admin) can only read or discard it.
-function ownOpenDraft(row: DraftRow, userId: string) {
-  if (row.createdBy !== userId) throw new AccessError(403, message("Campaigns.draftNotYours"));
+// An open draft is edited and finished by anyone in the ministry who can write campaigns (founder decision, 25 Nov); the version check keeps two
+// people from overwriting each other. A closed draft (finished or discarded) changes no more.
+function openDraft(row: DraftRow) {
   if (row.status !== "draft") throw new AccessError(409, message("Campaigns.draftClosed"));
 }
 const stale = () => new AccessError(409, message("Campaigns.draftChanged"), { reason: "stale" });
@@ -86,7 +86,7 @@ export async function saveDraftStep(db: Database, userId: string, workspace: str
   const id = uuidInput.parse(draft), { version, step, data } = saveInput.parse(raw);
   return withTenant(db, userId, uuidInput.parse(workspace), "campaigns:write", async (tx, tenantId) => {
     const current = await visibleDraft(tx, tenantId, id);
-    ownOpenDraft(current, userId);
+    openDraft(current);
     if (current.version !== version) throw stale();
     const changes = await stepChanges(tx, tenantId, current, step, data);
     const reached = Math.max(current.currentStep, Math.min(wizardSteps.length, wizardSteps.indexOf(step) + 2));
@@ -161,18 +161,21 @@ export async function discardDraft(db: Database, userId: string, workspace: stri
  */
 export async function finishDraft(db: Database, userId: string, workspace: string, draft: string, raw: unknown) {
   const id = uuidInput.parse(draft), { version } = versionInput.parse(raw);
-  return withTenant(db, userId, uuidInput.parse(workspace), "campaigns:write", async (tx, tenantId) => {
+  return withTenant(db, userId, uuidInput.parse(workspace), "campaigns:write", async (tx, tenantId, role) => {
     const current = await visibleDraft(tx, tenantId, id);
-    if (current.createdBy !== userId) throw new AccessError(403, message("Campaigns.draftNotYours"));
     if (current.status === "finished") return { draft: await view(tx, current), campaignId: current.campaignId as string };
-    ownOpenDraft(current, userId);
+    openDraft(current);
     if (current.version !== version) throw stale();
     const issues = validateDraft(snapshot(current));
     if (issues.length) throw new AccessError(400, message("Campaigns.draftIncomplete"), { issues: issues.map((issue) => `${issue.step}:${issue.code}`).join(",") });
+    // The creator stays the campaign's owner when someone else finishes the draft, as long as the creator can still write campaigns here.
+    const [creator] = current.createdBy === userId ? [{ roleId: role }] : await tx.select({ roleId: workspaceMembers.roleId }).from(workspaceMembers)
+      .where(and(eq(workspaceMembers.tenantId, tenantId), eq(workspaceMembers.userId, current.createdBy)));
+    const owner = creator && creator.roleId !== "viewer" ? current.createdBy : userId;
     const campaign = await insertCampaign(tx, userId, tenantId, {
       name: current.name, type: current.type, description: current.description, mission: current.mission, country: current.country,
       cityRegion: current.cityRegion, startDate: current.startDate, endDate: current.endDate, timeZone: current.timeZone, structure: current.structure,
-    }, `wizard-${id}`);
+    }, `wizard-${id}`, { owner, coverFileId: current.coverFileId });
     const [row] = await tx.update(campaignDrafts).set({ status: "finished", campaignId: campaign.id, finishedAt: new Date(), version: version + 1, updatedAt: new Date() })
       .where(and(eq(campaignDrafts.tenantId, tenantId), eq(campaignDrafts.id, id), eq(campaignDrafts.version, version), eq(campaignDrafts.status, "draft")))
       .returning(draftColumns);
