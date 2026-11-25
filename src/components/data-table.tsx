@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCaption, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { StatusBadge } from "@/components/status-badge";
 
@@ -64,13 +64,15 @@ function SelectBox({ checked, label, onChange }: { checked: boolean | "indetermi
  * `layout="cards"`) rows become a stacked card list with the same data. It never fetches data and knows no domain:
  * sorting, filtering, paging and permissions stay with the caller.
  */
-export function DataTable({ label, note, columns, rows, state = "ready", layout = "auto", fixed = false, bordered = true, toolbar, tabs, selection, bulk, empty, error, loadingLabel, pagination, className }: {
+export function DataTable({ label, note, columns, rows, totals, state = "ready", layout = "auto", fixed = false, bordered = true, toolbar, tabs, selection, bulk, empty, error, loadingLabel, pagination, className }: {
   /** Accessible name of the table or list. */
   label: string;
   /** Visible note under the table (for example how many rows are shown). */
   note?: string;
   columns: readonly DataTableColumn[];
   rows: readonly DataTableRow[];
+  /** An optional totals row under the rows (table layout) or a summary block under the cards; cells by column id, the first column carries the label. */
+  totals?: { label: string; cells: Record<string, React.ReactNode> };
   state?: "ready" | "loading" | "error";
   layout?: TableLayout;
   /** Table layout: fixed column widths, so long cell text truncates instead of widening the table (give columns widths in `className`). */
@@ -110,6 +112,10 @@ export function DataTable({ label, note, columns, rows, state = "ready", layout 
         {selection && <TableCell className="w-16"><SelectBox checked={picked.includes(row.id)} label={t("selectRow", { name: row.label })} onChange={() => selection.onChange(toggleRow(picked, row.id))} /></TableCell>}
         {columns.map((column) => <TableCell key={column.id} className={cn(column.align && alignClass[column.align], column.showFrom && showFromClass[column.showFrom], column.card === "actions" && actionCellClass, column.className)}>{row.cells[column.id]}</TableCell>)}
       </TableRow>)}</TableBody>
+      {totals && <TableFooter><TableRow data-slot="data-table-totals">
+        {selection && <TableCell className="w-16" />}
+        {columns.map((column, index) => <TableCell key={column.id} className={cn("font-medium", column.align && alignClass[column.align], column.showFrom && showFromClass[column.showFrom], column.className)}>{index === 0 ? totals.label : totals.cells[column.id]}</TableCell>)}
+      </TableRow></TableFooter>}
       {note && <TableCaption>{note}</TableCaption>}
     </Table>
     : <>
@@ -125,6 +131,10 @@ export function DataTable({ label, note, columns, rows, state = "ready", layout 
           {actions && <div data-slot="data-table-card-actions" className="flex flex-wrap items-center gap-2 pt-1 [&_:is(button,[data-slot=button])]:min-h-11 [&_:is(button,[data-slot=button])]:min-w-11">{row.cells[actions.id]}</div>}
         </li>;
       })}</ul>
+      {totals && <div data-slot="data-table-totals" className="space-y-2 border-t bg-muted/40 p-4">
+        <p className="font-medium">{totals.label}</p>
+        <dl className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 text-sm">{columns.filter((column) => column.card !== "title" && column.card !== "actions" && column.card !== "hidden" && totals.cells[column.id] !== undefined).map((column) => <div key={column.id} className="contents"><dt className="text-muted-foreground">{column.header}</dt><dd className="min-w-0 break-words">{totals.cells[column.id]}</dd></div>)}</dl>
+      </div>}
       {note && <p className="p-3 text-sm text-muted-foreground">{note}</p>}
     </>;
 
@@ -146,7 +156,7 @@ export function DataTable({ label, note, columns, rows, state = "ready", layout 
     </div>}
     {tabs
       ? <Tabs value={tabs.value} onValueChange={tabs.onValueChange} className="gap-3">
-        <div className="overflow-x-auto [scrollbar-width:none]"><TabsList variant="line" aria-label={tabs.label} className="h-auto gap-1">{tabs.items.map((item) => <TabsTrigger key={item.value} value={item.value} className="min-h-11 flex-none gap-1.5 lg:min-h-9">{item.label}{item.count !== undefined && <StatusBadge tone={item.value === tabs.value ? "info" : "neutral"} label={String(item.count)} className="tabular-nums" />}</TabsTrigger>)}</TabsList></div>
+        <div className="overflow-x-auto [scrollbar-width:none]"><TabsList variant="line" aria-label={tabs.label} className="gap-1">{tabs.items.map((item) => <TabsTrigger key={item.value} value={item.value} className="flex-none gap-1.5">{item.label}{item.count !== undefined && <StatusBadge tone={item.value === tabs.value ? "info" : "neutral"} label={String(item.count)} className="tabular-nums" />}</TabsTrigger>)}</TabsList></div>
         {bulk && selectedCount > 0 && <BulkBar bulk={bulk} count={selectedCount} onClear={() => selection?.onChange(picked.filter((id) => !ids.includes(id)))} />}
         <TabsContent value={tabs.value} className="space-y-3">{results}{pagination}</TabsContent>
       </Tabs>

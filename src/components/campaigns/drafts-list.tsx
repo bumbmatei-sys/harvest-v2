@@ -9,7 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Empty, EmptyContent, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
+import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
+import { AccentIcon } from "@/components/accent-icon";
+import { CampaignCoverPlaceholder } from "@/components/campaigns/campaign-type-art";
 import { useRequest } from "@/hooks/use-request";
 import { draftActions } from "@/lib/campaign-wizard-form";
 import { wizardSteps } from "@/lib/campaign-wizard";
@@ -41,6 +43,8 @@ export function DraftsList({ tenantId, rows, viewerId, role, creators, canStart 
         return <div key={row.id} role="listitem" className="flex flex-wrap items-center gap-2">
           <Item variant="outline" asChild className="min-w-0 flex-1 basis-72">
             <Link href={`${root}/drafts/${row.id}`} className="bg-card">
+              {/* Drafts have no cover yet: the type's artwork stands in; a draft without a type shows a neutral mark. */}
+              <ItemMedia className="max-sm:hidden">{row.type ? <CampaignCoverPlaceholder type={row.type} className="aspect-[4/3] w-20 rounded-md" /> : <AccentIcon icon={Flag} size="lg" className="h-15 w-20 rounded-md" />}</ItemMedia>
               <ItemContent className="min-w-0"><ItemTitle className="max-w-full break-words">{row.name?.trim() || t("untitled")}</ItemTitle>
                 <ItemDescription>{[row.type ? types(`${row.type}.label`) : null, t("startedBy", { name: by }), t("updated", { when: format.dateTime(new Date(row.updatedAt), { dateStyle: "medium", timeZone: "UTC" }) })].filter(Boolean).join(" · ")}</ItemDescription></ItemContent>
               <Badge variant="secondary">{t("stepProgress", { step: Math.min(row.currentStep, wizardSteps.length), total: wizardSteps.length })}</Badge>
@@ -51,7 +55,7 @@ export function DraftsList({ tenantId, rows, viewerId, role, creators, canStart 
         </div>;
       })}
     </ItemGroup> : <Empty className="border border-solid bg-card py-16">
-      <EmptyHeader><EmptyMedia variant="icon"><Flag aria-hidden="true" /></EmptyMedia><EmptyTitle><h2>{t("draftsEmpty")}</h2></EmptyTitle><EmptyDescription>{t("draftsEmptyDescription")}</EmptyDescription></EmptyHeader>
+      <EmptyHeader><EmptyMedia><AccentIcon icon={Flag} accent="primary" size="lg" /></EmptyMedia><EmptyTitle><h2>{t("draftsEmpty")}</h2></EmptyTitle><EmptyDescription>{t("draftsEmptyDescription")}</EmptyDescription></EmptyHeader>
       {canStart && <EmptyContent><Button asChild className="min-h-11"><Link href={`${root}/new`}>{t("newCampaign")}</Link></Button></EmptyContent>}
     </Empty>}
     <ConfirmDialog tone="destructive" open={pending !== null} onOpenChange={(open) => { if (!open) setPending(null); }} title={t("discardTitle")} description={t("discardBody")}

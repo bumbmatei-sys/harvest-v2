@@ -15,7 +15,7 @@ const formsKey=randomBytes(32).toString("hex");
 const bioKey=randomBytes(32).toString("hex");
 // Another port can be used when 3100 is busy: E2E_PORT here and in playwright.config.ts (the default stays 3100).
 const port = process.env.E2E_PORT ?? "3100";
-const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", "--turbopack", "--hostname", "127.0.0.1", "--port", port], {
+const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev", process.env.E2E_WEBPACK ? "--webpack" : "--turbopack", "--hostname", "127.0.0.1", "--port", port], {
   stdio: ["ignore", "inherit", "inherit"], env: { ...process.env,
     // Override any real credentials and avoid reading live .env.local during browser tests.
     HARVEST_CONNECT_INTAKE: "synthetic", HARVEST_CONNECT_TEST_KEY: connectKey,
@@ -29,6 +29,8 @@ const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev",
     HARVEST_NEWSLETTER_TOKEN_KEY: randomBytes(32).toString("hex"),
     HARVEST_NEWSLETTER_SUPPRESSION_KEYS: JSON.stringify([randomBytes(32).toString("hex")]),
     HARVEST_E2E_MOCK_EMAIL: "1", NEXT_TELEMETRY_DISABLED: "1",
+    // The dev server compiles routes on demand and holds them in memory for the whole run; give it room so a long shard is not killed or starved (ECONNRESET, "destination stream errored").
+    NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""} --max-old-space-size=3072`.trim(),
     FILES_REQUIRE_SCAN_PRIVATE: "false",
     // Newsletter automations are hard-off by default; the browser tests turn them on (entering and stopping only; nothing is sent).
     HARVEST_NEWSLETTER_AUTOMATIONS: "1",
@@ -37,6 +39,14 @@ const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev",
   },
 });
 let stopping = false;
+// Best-effort warm-up: the first request to a route compiles it, which on a busy runner can exceed a test's patience. Compile the common public and API routes once, before the first spec.
+void (async () => {
+  const base = `http://127.0.0.1:${port}`;
+  for (let i = 0; i < 120; i++) { try { if ((await fetch(`${base}/sign-in`)).ok) break; } catch { /* not up yet */ } await new Promise((r) => setTimeout(r, 1000)); }
+  for (const path of ["/sign-in", "/workspaces", "/api/workspaces", "/l/warm-up", "/f/warm-up", "/subscribe/warm-up", "/communities/warm-up", "/discover"]) {
+    try { await fetch(`${base}${path}`, { redirect: "manual" }); } catch { /* warm-up only */ }
+  }
+})();
 async function stop() {
   if (stopping) return; stopping = true;
   child.kill("SIGTERM");

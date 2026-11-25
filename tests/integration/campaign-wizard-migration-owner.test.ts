@@ -49,7 +49,7 @@ it.each(["fresh", "populated 0088"])("installs the wizard tables as the restrict
       { relname: "campaign_draft_assignments", relrowsecurity: true, relforcerowsecurity: true, owner: "cw_migration_owner" },
       { relname: "campaign_drafts", relrowsecurity: true, relforcerowsecurity: true, owner: "cw_migration_owner" },
     ]);
-    expect((await admin.query("select count(*)::int as n from pg_proc where prosecdef and pronamespace='public'::regnamespace and prosrc ilike '%campaign_draft%' and proname <> 'campaign_invitation_accept'")).rows[0].n).toBe(0); // the one definer accepts an invitation (0109)
+    expect((await admin.query("select count(*)::int as n from pg_proc where prosecdef and pronamespace='public'::regnamespace and prosrc ilike '%campaign_draft%' and proname <> 'campaign_invitation_accept'")).rows[0].n).toBe(0); // the one definer accepts an invitation (0110)
     for (const table of ["campaign_drafts", "campaign_draft_assignments"]) {
       const { rows } = await admin.query("select privilege_type from information_schema.role_table_grants where grantee='harvest_app' and table_name=$1 order by privilege_type", [table]);
       expect(rows.map(({ privilege_type }) => privilege_type)).toEqual(table === "campaign_drafts" ? ["INSERT", "SELECT"] : ["DELETE", "INSERT", "SELECT"]);
