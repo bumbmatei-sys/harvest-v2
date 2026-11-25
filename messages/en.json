@@ -248,7 +248,8 @@
     "newsletterAnalytics": "Analytics",
     "newsletterSender": "Sender",
     "websiteBuilder": "Website builder",
-    "ministryPage": "Ministry page"
+    "ministryPage": "Ministry page",
+    "newsletterAutomations": "Automations"
   },
   "ComponentsAppearanceForm": {
     "couldNotSaveAppearanceTryAgain": "Could not save appearance. Try again.",
@@ -7754,6 +7755,133 @@
         "stale": "This page changed since you opened it. Reload, then try again."
       },
       "bannerLabel": "Cover image"
+    }
+  },
+  "NewsletterAutomations": {
+    "pageTitle": "Automations",
+    "heading": "Automations",
+    "newAutomation": "New automation",
+    "emptyTitle": "No automations yet",
+    "emptyBody": "Send a series of emails when someone joins a sign-up form or a list.",
+    "search": "Search automations",
+    "noMatch": "No automation matches.",
+    "menu": "Actions for {name}",
+    "open": "Open",
+    "activate": "Activate",
+    "pause": "Pause",
+    "createFailed": "Could not create the automation.",
+    "actionFailed": "Could not change the automation.",
+    "columns": {
+      "name": "Name",
+      "trigger": "Starts when",
+      "status": "Status",
+      "people": "People",
+      "actions": "Actions"
+    },
+    "status": {
+      "draft": "Draft",
+      "active": "Active",
+      "paused": "Paused"
+    },
+    "triggerForm": "Joins {name}",
+    "triggerList": "Added to {name}",
+    "triggerGone": "Removed item",
+    "people": "{running} running, {completed} done, {stopped} stopped",
+    "create": {
+      "title": "New automation",
+      "name": "Name",
+      "nameDefault": "Welcome series",
+      "startsWhen": "Starts when",
+      "form": "Someone joins a sign-up form",
+      "list": "Someone is added to a list",
+      "pickForm": "Sign-up form",
+      "pickList": "List",
+      "noForms": "No sign-up forms yet.",
+      "noLists": "No lists yet.",
+      "submit": "Create",
+      "cancel": "Cancel",
+      "choose": "Choose"
+    },
+    "editor": {
+      "breadcrumb": "Automations",
+      "back": "Back to automations",
+      "flow": "Flow",
+      "activity": "Activity",
+      "steps": "Automation steps",
+      "preview": "Preview",
+      "name": "Automation name",
+      "saving": "Saving",
+      "saved": "Saved",
+      "saveFailed": "Not saved",
+      "conflict": "Changed elsewhere. Reload to continue.",
+      "fixFields": "Fix the highlighted fields to save.",
+      "activate": "Activate",
+      "pause": "Pause",
+      "activeNotice": "Active. Pause to edit.",
+      "needsEmail": "Add an email step to activate.",
+      "consentNote": "Each email goes only to people who still have newsletter permission.",
+      "trigger": "Starts when",
+      "addStep": "Add step",
+      "stepTypes": {
+        "email": "Send email",
+        "wait": "Wait",
+        "end": "End"
+      },
+      "subject": "Subject",
+      "previewText": "Preview text",
+      "waitFor": "Wait for",
+      "unit": "Unit",
+      "hours": "hours",
+      "days": "days",
+      "moveUp": "Move {label} up",
+      "moveDown": "Move {label} down",
+      "remove": "Remove {label}",
+      "editStep": "Edit {label}",
+      "stepNumber": "Step {number}",
+      "defaultSubject": "Welcome",
+      "waitSummary": "{amount} {unit}",
+      "stepCount": "{count, plural, one {# step} other {# steps}}",
+      "noSteps": "No steps yet.",
+      "undo": "Undo",
+      "redo": "Redo",
+      "stepList": "Steps",
+      "details": "Details"
+    },
+    "activity": {
+      "title": "People in this automation",
+      "empty": "Nobody has entered yet.",
+      "person": "Person",
+      "status": "Status",
+      "step": "Step",
+      "started": "Started",
+      "log": "Activity for {name}",
+      "close": "Close",
+      "loadFailed": "Could not load.",
+      "view": "View activity for {name}",
+      "state": {
+        "active": "Running",
+        "completed": "Done",
+        "stopped": "Stopped"
+      },
+      "reasons": {
+        "consent_withdrawn": "Consent withdrawn",
+        "unsubscribed": "Unsubscribed",
+        "suppressed": "Suppressed",
+        "no_address": "No usable address",
+        "image_unavailable": "Image unavailable",
+        "automation_changed": "Automation changed",
+        "worker_lost": "Result lost"
+      },
+      "outcome": {
+        "entered": "Entered",
+        "sent": "Email sent",
+        "unknown": "Email result unknown",
+        "failed": "Email not sent",
+        "waiting": "Waiting",
+        "completed": "Completed",
+        "stopped": "Stopped"
+      },
+      "withReason": "{outcome} ({reason})"
     }
   }
 }

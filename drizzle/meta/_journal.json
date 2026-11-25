@@ -659,6 +659,13 @@
       "when": 1795560356369,
       "tag": "0095_docs_page_shares",
       "breakpoints": true
+    },
+    {
+      "idx": 96,
+      "version": "7",
+      "when": 1795560880671,
+      "tag": "0096_newsletter_automations",
+      "breakpoints": true
     }
   ]
 }

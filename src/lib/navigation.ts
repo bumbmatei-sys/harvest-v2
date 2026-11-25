@@ -1,4 +1,4 @@
-import { BadgeDollarSign, ChartColumn, BookOpen, Bot, Briefcase, Building, Calendar, CalendarCheck, CalendarClock, CalendarDays, ClipboardCheck, ClipboardList, ClipboardPen, Cloud, Compass, Contact, ContactRound, FileText, FileUp, Flag, Gift, Globe, GraduationCap, Handshake, HandCoins, HeartHandshake, Kanban, LayoutDashboard, LayoutTemplate, Link2, ListChecks, Mail, MailPlus, MessageCircleReply, MessageSquareText, MessagesSquare, Newspaper, Package, Palette, PiggyBank, Podcast, QrCode, Radio, ScanQrCode, Send, Settings, Share2, Sheet, SlidersHorizontal, Sparkles, Target, TicketPercent, UserCheck, UserCog, UserRoundCheck, Users, UsersRound, Wallet, Church, Landmark, ChartLine, ChartNoAxesCombined, Workflow, TextCursorInput, ShieldCheck, type LucideIcon } from "lucide-react";
+import { Zap, BadgeDollarSign, ChartColumn, BookOpen, Bot, Briefcase, Building, Calendar, CalendarCheck, CalendarClock, CalendarDays, ClipboardCheck, ClipboardList, ClipboardPen, Cloud, Compass, Contact, ContactRound, FileText, FileUp, Flag, Gift, Globe, GraduationCap, Handshake, HandCoins, HeartHandshake, Kanban, LayoutDashboard, LayoutTemplate, Link2, ListChecks, Mail, MailPlus, MessageCircleReply, MessageSquareText, MessagesSquare, Newspaper, Package, Palette, PiggyBank, Podcast, QrCode, Radio, ScanQrCode, Send, Settings, Share2, Sheet, SlidersHorizontal, Sparkles, Target, TicketPercent, UserCheck, UserCog, UserRoundCheck, Users, UsersRound, Wallet, Church, Landmark, ChartLine, ChartNoAxesCombined, Workflow, TextCursorInput, ShieldCheck, type LucideIcon } from "lucide-react";
 import type { Audience } from "./audience";
 import { can, type Permission } from "./permissions";
 
@@ -7,7 +7,7 @@ export type NavLabelKey = "communities" | "crm" | "workspace" | "settings" | "pe
   | "office" | "forms" | "mail" | "calendar" | "documents" | "spreadsheets" | "giving" | "volunteers" | "livestream" | "churchProfile"
   | "connect" | "qrAndLinks" | "responses" | "events"
   | "publishing" | "community" | "commerce" | "chat" | "composer" | "planner" | "socialAccounts" | "socialAnalytics" | "inbox" | "autoDm" | "articles" | "website" | "linkInBio" | "newsletter" | "discover" | "products" | "assistant"
-  | "overview" | "donations" | "fundraising" | "pledges" | "donors" | "funds" | "givingPage" | "ads" | "live" | "courses" | "coaching" | "coupons" | "newsletterCampaigns" | "audience" | "signupForms" | "newsletterAnalytics" | "newsletterSender" | "websiteBuilder" | "ministryPage"
+  | "overview" | "donations" | "fundraising" | "pledges" | "donors" | "funds" | "givingPage" | "ads" | "live" | "courses" | "coaching" | "coupons" | "newsletterCampaigns" | "newsletterAutomations" | "audience" | "signupForms" | "newsletterAnalytics" | "newsletterSender" | "websiteBuilder" | "ministryPage"
   | "modeOperations" | "modePublic" | "modeAssistant";
 /** Shell modes (three-mode shell spec, 16 Nov 2026). The names are final. */
 export type NavMode = "operations" | "public" | "assistant";
@@ -50,7 +50,7 @@ export type NavEntry = {
    */
   exitTo?: string;
 };
-export type NavFeature = "communities" | "events" | "social" | "office" | "newsletter" | "docs" | "linkInBio";
+export type NavFeature = "communities" | "events" | "social" | "office" | "newsletter" | "newsletterAutomations" | "docs" | "linkInBio";
 export type NavItem = { id: string; label: NavLabelKey; icon: LucideIcon; href: string; active: boolean };
 /** A `pinned` group is rendered without a header, above the other groups (Discover). */
 export type NavGroup = { id: NavGroupId; label: NavLabelKey; icon?: LucideIcon; pinned?: boolean; items: NavItem[] };
@@ -124,6 +124,7 @@ export const navEntries: readonly NavEntry[] = [
   // Public > Newsletter, Website.
   { id: "newsletterAnalytics", group: "newsletter", mode: "public", label: "newsletterAnalytics", icon: ChartLine, path: "/newsletter/analytics", match: under("/newsletter/analytics"), permission: "newsletter:analytics", feature: "newsletter" },
   { id: "newsletterCampaigns", group: "newsletter", mode: "public", label: "newsletterCampaigns", icon: MailPlus, path: "/newsletter/campaigns", match: under("/newsletter/campaigns"), permission: "newsletter:campaigns", feature: "newsletter" },
+  { id: "newsletterAutomations", group: "newsletter", mode: "public", label: "newsletterAutomations", icon: Zap, path: "/newsletter/automations", match: under("/newsletter/automations"), permission: "newsletter:campaigns", feature: "newsletterAutomations" },
   { id: "newsletterAudience", group: "newsletter", mode: "public", label: "audience", icon: ContactRound, path: "/newsletter/audience", match: under("/newsletter/audience"), permission: "newsletter:read", feature: "newsletter" },
   { id: "signupForms", group: "newsletter", mode: "public", label: "signupForms", icon: ClipboardPen, path: "/newsletter/forms", match: under("/newsletter/forms"), permission: "newsletter:manage", feature: "newsletter" },
   { id: "newsletterSender", group: "newsletter", mode: "public", label: "newsletterSender", icon: ShieldCheck, path: "/newsletter/sender", match: under("/newsletter/sender"), permission: "newsletter:delivery", feature: "newsletter" },
