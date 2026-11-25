@@ -460,16 +460,26 @@ Founder approved these kit items on 25 Nov 2026 (founder, in the task that start
 | `src/components/catalog/lesson-list-editor.tsx` | `apps/courses/components/course-modules.tsx` | 6 of 73 (8%) |
 | `src/components/catalog/catalog-file-picker.tsx` | `pages/products/create/add-product-form.tsx` | 5 of 101 (4%) |
 | `src/components/catalog/catalog-preview.tsx` | `pages/products/[id]/page.tsx` | 3 of 27 (11%) |
-| `src/components/catalog/course-learner.tsx` | `apps/courses/course-detail/page.tsx`, `components/study-progress.tsx`, `components/course-modules.tsx` | 5 of 70 (7%), 7 of 70 (10%), 6 of 70 (8%) |
-| `src/components/catalog/catalog-public-page.tsx` | `pages/products/[id]/page.tsx`, `apps/courses/components/instructor-section.tsx` | 4 of 59 (6%), 7 of 59 (11%) |
 
 What the screens take from the kit: the product list's name cell with a thumbnail, status badge and row actions (on `DataTable`, with the type tab and search); the course modules card's numbered rows with a current marker (the lesson editor's ordered rows, and the learner's lesson list); the study progress card's titled progress bar (shown as "Your place", lesson n of m, because the server stores no completion yet); the course detail page's main column and side column with a sheet below 1024px; the product detail's cover, badges and side card. Not used: prices, stock, ratings and reviews, sales cards, instructor and avatar images, remote images and fixture data, `motion`, TanStack Table, drawer. **Type art.** `src/components/catalog/catalog-type-art.tsx` is original code-drawn artwork in the same family and tokens as `CampaignTypeArt` (`--art-1..5-*` from the palette registry; Desert Sun for downloads, Misty Blue for courses), with the structure of the Eden "new product" type picker (one illustrated card per type) as the only design input; no Eden asset, colour or copy is used.
+| `src/components/catalog/course-learner.tsx` | `apps/courses/course-detail/page.tsx`, `components/study-progress.tsx`, `components/course-modules.tsx` | 5 of 70 (7%), 7 of 70 (10%), 6 of 70 (8%) |
+| `src/components/catalog/catalog-public-page.tsx` | `pages/products/[id]/page.tsx`, `apps/courses/components/instructor-section.tsx` | 4 of 59 (6%), 7 of 59 (11%) |
 
 ## Link in bio (24 Nov 2026)
 
 Layout reference for the public page and editor preview: the founder named the OpenShadcnBlocks user-profile blocks (restriction lifted 22 Nov). The host was not reachable from the build environment (egress refused), so its licence could not be verified and **nothing from it was used**. Instead the premium kit's `user-profile` template page (`/home/user/admin-dashboard` @1631106, `app/dashboard/(auth)/pages/user-profile`: profile header with avatar, bio and social row) served as a **visual reference only**; no kit code, images or copy were copied, so no file carries a kit header and `kitProvenance` is unchanged. Controls are the existing free shadcn primitives. Social network marks reuse `PlatformLogo` (Simple Icons, CC0, already recorded above). Layout of the profile photo control reuses `EventCoverPicker` (already derived from the kit's `add-product-dialog`, recorded in its header).
 
 Layout reference (25 Nov 2026): the public page and live preview follow the OpenShadcnBlocks `user-profile3` layout the founder pasted (cover banner, round photo overlapping it, name and subtitle, main action button, tabs, bordered divided list card), refined by the founder as a profile-page idea (social icon row, details list, Home and Partnership tabs; no third-party branding, visuals or copy). **No code copied; licence unverified** (the host is blocked from the build environment). Built from Harvest shared components (Tabs, Button, Card-style borders, `EventCoverPicker`, `PlatformLogo`) and Tailwind container queries.
+
+### Ads screens (25 Nov 2026)
+
+Founder approval 25 Nov 2026, under the kit item approval gate. Approved kit items: shared `DataTable` (`tables14`; `tables15` and `tables9` as alternates), `switch-card1` style for the per-row switch, `dashboard-dropdown7` for the columns picker, the stat cards used in Social Analytics and the CRM reports, `drawer1` for the right-side edit panel, `stepper1` and `form-layout1` inside the shared `EditorShell` for guided create, `social-media-post1` for the live ad preview, `badge1` (the shared `StatusBadge`) and the existing alerts. **No kit source was retrieved or copied.** Every Ads file is Harvest-written on the shared components and carries a header that says it is modelled on the named items; the record is `adsKitApprovals` in `src/lib/ui-provenance.ts`. The structure (a three-level Campaign, Ad set, Ad table with a totals row, a columns picker, per-row switches, an edit drawer, a guided create flow with a live preview) is taken from an ads manager; **no network branding, colour, icon or copy is used.**
+
+| File | Relation | Reference | Notes |
+| --- | --- | --- | --- |
+| `src/components/ads/ads-table.tsx` | modelled on | `tables14`, `switch-card1`, `dashboard-dropdown7` | Builds on the shared `DataTable`, which gained an optional `totals` row (table) and summary block (cards). |
+| `src/components/ads/ads-edit-panel.tsx` | modelled on | `drawer1` | Shared `Sheet`; every spend-affecting change asks first. |
+| `src/components/ads/ads-summary.tsx` | reuse | Social Analytics `StatCard` | No new card. |
 
 ## Discover screens (25 Nov 2026)
 

@@ -7458,7 +7458,6 @@
     "draftsTitle": "Campaign drafts",
     "draftsPageTitle": "Campaign drafts · Harvest",
     "draftsAll": "Every draft in this ministry",
-    "draftsMine": "Your drafts",
     "draftsEmpty": "No drafts",
     "draftsEmptyDescription": "Start a campaign and it is saved here as you go.",
     "newCampaign": "New campaign",
@@ -7466,6 +7465,44 @@
     "continue": "Continue",
     "view": "View",
     "discard": "Discard",
+    "cover": {
+      "label": "Campaign Cover Image or Logo (optional)",
+      "alt": "Campaign cover",
+      "drop": "Drop an image here",
+      "limits": "JPG, PNG or WebP, up to {mb} MB",
+      "select": "Select image",
+      "replace": "Replace",
+      "remove": "Remove",
+      "saveFirst": "Save the draft to add a cover.",
+      "saved": "Cover updated.",
+      "removed": "Cover removed.",
+      "removeTitle": "Remove the cover?",
+      "removeBody": "The campaign will have no cover image or logo.",
+      "keep": "Keep cover",
+      "progressLabel": "Upload progress",
+      "cancel": "Cancel",
+      "scanning": "Waiting for the safety check.",
+      "checkAgain": "Check again",
+      "dismiss": "Dismiss",
+      "tryAgain": "Try again",
+      "chooseAnother": "Choose another",
+      "reload": "Reload",
+      "phases": {
+        "preparing": "Preparing",
+        "uploading": "Uploading",
+        "uploadingPercent": "Uploading {percent}%",
+        "verifying": "Checking the image"
+      },
+      "problems": {
+        "type": "Use a JPG, PNG or WebP image.",
+        "size": "The image must be larger than 0 and at most {mb} MB.",
+        "rejected": "This image was not accepted. Choose another.",
+        "interrupted": "The upload was interrupted. Try again.",
+        "failed": "The image could not be uploaded. Try again.",
+        "scan": "The image failed the safety check. Choose another.",
+        "stale": "This draft changed somewhere else. Reload, then try again."
+      }
+    },
     "discardNamed": "Discard: {name}",
     "discardTitle": "Discard this draft?",
     "discardBody": "The draft is closed and no campaign is created. This cannot be undone.",
@@ -7496,8 +7533,6 @@
     "conflictTitle": "This draft changed somewhere else",
     "conflictBody": "Reload to see the latest version. Your last unsaved edits on this screen are not applied.",
     "reload": "Reload",
-    "readOnly": "Only {name} can edit this draft. You can read it and discard it.",
-    "readOnlyUnknown": "Only the person who started this draft can edit it. You can read it and discard it.",
     "closed": {
       "finished": "This draft is already a campaign.",
       "discarded": "This draft was discarded."
@@ -7589,44 +7624,6 @@
       "ok": "Campaign is now active.",
       "backOk": "Campaign is back in draft.",
       "nothingPublished": "Nothing is published yet."
-    },
-    "cover": {
-      "label": "Campaign Cover Image or Logo (optional)",
-      "alt": "Campaign cover",
-      "drop": "Drop an image here",
-      "limits": "JPG, PNG or WebP, up to {mb} MB",
-      "select": "Select image",
-      "replace": "Replace",
-      "remove": "Remove",
-      "saveFirst": "Save the draft to add a cover.",
-      "saved": "Cover updated.",
-      "removed": "Cover removed.",
-      "removeTitle": "Remove the cover?",
-      "removeBody": "The campaign will have no cover image or logo.",
-      "keep": "Keep cover",
-      "progressLabel": "Upload progress",
-      "cancel": "Cancel",
-      "scanning": "Waiting for the safety check.",
-      "checkAgain": "Check again",
-      "dismiss": "Dismiss",
-      "tryAgain": "Try again",
-      "chooseAnother": "Choose another",
-      "reload": "Reload",
-      "phases": {
-        "preparing": "Preparing",
-        "uploading": "Uploading",
-        "uploadingPercent": "Uploading {percent}%",
-        "verifying": "Checking the image"
-      },
-      "problems": {
-        "type": "Use a JPG, PNG or WebP image.",
-        "size": "The image must be larger than 0 and at most {mb} MB.",
-        "rejected": "This image was not accepted. Choose another.",
-        "interrupted": "The upload was interrupted. Try again.",
-        "failed": "The image could not be uploaded. Try again.",
-        "scan": "The image failed the safety check. Choose another.",
-        "stale": "This draft changed somewhere else. Reload, then try again."
-      }
     }
   },
   "LinkInBio": {
@@ -8266,30 +8263,273 @@
       }
     }
   },
-  "CatalogPublic": {
-    "free": "Free",
-    "kinds": {
-      "course": "Course",
-      "download": "Download"
+  "Ads": {
+    "title": "Ads",
+    "subtitle": "Paid ads on your own ad accounts, in {zone}.",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing",
+    "refreshed": "Ads data updated",
+    "leadsLink": "Lead forms and leads",
+    "create": "Create ad",
+    "account": {
+      "label": "Ad account",
+      "option": "{name} ({network})"
     },
-    "signInEnrol": "Sign in to enrol",
-    "signInGet": "Sign in to get it",
-    "enrol": "Enrol for free",
-    "get": "Get for free",
-    "enrolled": "You are enrolled.",
-    "owned": "You have this download.",
-    "start": "Open lessons",
-    "files": "Files",
-    "noFiles": "No files yet",
-    "download": "Download",
-    "downloadNamed": "Download {name}",
-    "lessons": "Lessons",
-    "noLessons": "No lessons yet",
-    "yourPlace": "Your place",
-    "lessonOf": "Lesson {current} of {total}",
-    "previous": "Previous lesson",
-    "next": "Next lesson",
-    "backToCourse": "Back to course"
+    "networks": {
+      "meta": "Meta",
+      "google": "Google",
+      "linkedin": "LinkedIn",
+      "tiktok": "TikTok",
+      "pinterest": "Pinterest",
+      "x": "X",
+      "reddit": "Reddit",
+      "snapchat": "Snapchat",
+      "amazon": "Amazon",
+      "other": "Other network"
+    },
+    "tabs": {
+      "label": "Ads levels",
+      "campaigns": "Campaigns",
+      "adsets": "Ad sets",
+      "ads": "Ads"
+    },
+    "levels": {
+      "campaign": "Campaign",
+      "adset": "Ad set",
+      "ad": "Ad"
+    },
+    "delivery": {
+      "off": "Off",
+      "active": "Active",
+      "completed": "Completed",
+      "inReview": "In review",
+      "rejected": "Rejected",
+      "issue": "Delivery issue",
+      "notDelivering": "Not delivering",
+      "archived": "Archived"
+    },
+    "review": {
+      "unknown": "Not reviewed",
+      "in_review": "In review",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    },
+    "goals": {
+      "engagement": "Engagement",
+      "traffic": "Traffic",
+      "awareness": "Awareness",
+      "video_views": "Video views",
+      "lead_generation": "Leads",
+      "conversions": "Conversions",
+      "messages": "Messages",
+      "app_promotion": "App promotion"
+    },
+    "formats": {
+      "image": "Image",
+      "video": "Video",
+      "carousel": "Carousel",
+      "document": "Document",
+      "event": "Event",
+      "text": "Text",
+      "messaging": "Messaging",
+      "call": "Call"
+    },
+    "bidding": {
+      "lowest_cost": "Lowest cost",
+      "cost_cap": "Cost cap",
+      "bid_cap": "Bid cap",
+      "target_cost": "Target cost",
+      "manual_cpc": "Manual CPC",
+      "manual_cpm": "Manual CPM"
+    },
+    "states": {
+      "unavailableTitle": "Ads are not available",
+      "unavailable": "Ads are not turned on for this ministry.",
+      "error": "Ads could not be loaded.",
+      "retry": "Try again",
+      "truncated": "Some results are not shown because the range is too large. Choose a shorter range."
+    },
+    "empty": {
+      "noAccountsTitle": "No ad accounts yet",
+      "noAccounts": "Find the ad accounts reachable through your connected social accounts.",
+      "find": "Find ad accounts",
+      "finding": "Looking",
+      "connect": "Connect social accounts",
+      "noneFound": "No ad accounts were found for your connected accounts.",
+      "noConnection": "Connect a social account first.",
+      "noCampaignsTitle": "No campaigns yet",
+      "noCampaigns": "Create your first ad, or refresh to read the campaigns already on this account.",
+      "noRowsTitle": "Nothing to show",
+      "noRows": "Select a different campaign or ad set."
+    },
+    "confirmOn": {
+      "title": "Turn on {name}?",
+      "titleMany": "Turn on {count} items?",
+      "body": "Turning this on can start spending your ad budget.",
+      "confirm": "Turn on",
+      "cancel": "Cancel"
+    },
+    "errors": {
+      "generic": "Something went wrong. Try again.",
+      "network": "Could not connect. Try again.",
+      "stale": "This changed elsewhere. Refresh and try again.",
+      "unavailable": "This is not available.",
+      "policy": "Ads about elections, politics or social issues cannot be launched.",
+      "formNotReady": "The lead form is not ready to publish.",
+      "provider": "The ad network did not accept this. Try again later.",
+      "accountInactive": "This ad account is not active.",
+      "connectionInactive": "The social connection for this ad account is not active.",
+      "invalid": "Check the details and try again."
+    },
+    "summary": {
+      "group": "Ads summary",
+      "spend": "Spend",
+      "results": "Results",
+      "costPerResult": "Cost per result",
+      "reach": "Reach per day",
+      "period": "the previous period"
+    },
+    "table": {
+      "onOff": "On or off",
+      "name": "Name",
+      "switchLabel": "Deliver {name}",
+      "notSwitchable": "Cannot be switched",
+      "dash": "—",
+      "unavailable": "Unavailable",
+      "adSetBudget": "Ad set budget",
+      "daily": "{amount} daily",
+      "lifetime": "{amount} lifetime",
+      "ongoing": "Ongoing",
+      "totals": "Total of {count, plural, one {# row} other {# rows}}",
+      "bulk": "Bulk actions",
+      "bulkOn": "Turn on",
+      "bulkOff": "Turn off",
+      "turnedOn": "{count, plural, one {Turned on} other {Turned on {count} items}}",
+      "turnedOff": "{count, plural, one {Turned off} other {Turned off {count} items}}",
+      "label": {
+        "campaigns": "Campaigns",
+        "adsets": "Ad sets",
+        "ads": "Ads"
+      }
+    },
+    "columns": {
+      "label": "Columns",
+      "sets": "Column sets",
+      "choose": "Choose columns",
+      "group": {
+        "performance": "Performance",
+        "delivery": "Delivery",
+        "engagement": "Engagement",
+        "custom": "Custom"
+      },
+      "column": {
+        "delivery": "Delivery",
+        "budget": "Budget",
+        "results": "Results",
+        "costPerResult": "Cost per result",
+        "reach": "Reach",
+        "reachDay": "Reach per day",
+        "impressions": "Impressions",
+        "spend": "Spend",
+        "ends": "Ends",
+        "goal": "Goal",
+        "bidding": "Bid strategy",
+        "starts": "Starts",
+        "clicks": "Clicks",
+        "ctr": "Click rate",
+        "cpc": "Cost per click",
+        "cpm": "Cost per 1,000",
+        "format": "Format",
+        "review": "Review"
+      }
+    },
+    "panel": {
+      "description": "Change the name, delivery and budget.",
+      "name": "Name",
+      "saveName": "Save name",
+      "renamed": "Name saved",
+      "delivering": "Delivering",
+      "turnedOn": "Turned on",
+      "turnedOff": "Turned off",
+      "budget": "Budget",
+      "dailyBudget": "Daily budget",
+      "lifetimeBudget": "Lifetime budget",
+      "endDate": "End date",
+      "confirmSpend": "I understand this changes what is spent (now {current}).",
+      "saveBudget": "Save budget",
+      "budgetSaved": "Budget saved",
+      "format": "Format",
+      "review": "Review",
+      "boosted": "Source",
+      "boostedPost": "A boosted post",
+      "rejected": "This ad was rejected.",
+      "issue": "Delivery issue: {issue}",
+      "remove": "Remove",
+      "removeTitle": "Remove {name}?",
+      "removeBody": "This cannot be undone. The history is kept where the network allows it.",
+      "removeConfirm": "Remove",
+      "cancel": "Cancel",
+      "removed": "Removed"
+    },
+    "health": {
+      "accountStatus": "This ad account is {status}",
+      "needsAttention": "Needs attention",
+      "syncFailing": "The last refresh failed.",
+      "fix": "How to fix",
+      "lastRefusal": "The ad network refused the last change.",
+      "dismiss": "Dismiss {alert}",
+      "status": {
+        "active": "active",
+        "restricted": "restricted",
+        "disabled": "disabled",
+        "closed": "closed",
+        "unknown": "not confirmed"
+      },
+      "check": {
+        "account_status": {
+          "warning": "The ad account status needs a look.",
+          "failing": "The ad account is not in good standing."
+        },
+        "payment_method": {
+          "warning": "The payment method needs a look.",
+          "failing": "There is a problem with the payment method."
+        },
+        "spend_limit": {
+          "warning": "The spending limit is close.",
+          "failing": "The spending limit is reached."
+        },
+        "page_link": {
+          "warning": "The Page link needs a look.",
+          "failing": "The Page is not linked to this ad account."
+        },
+        "instagram_link": {
+          "warning": "The Instagram account is not linked.",
+          "failing": "The Instagram account link is broken."
+        },
+        "lead_ads_terms": {
+          "warning": "The lead ads terms need a look.",
+          "failing": "The lead ads terms are not accepted."
+        },
+        "pixel": {
+          "warning": "The tracking pixel needs a look.",
+          "failing": "The tracking pixel is not working."
+        },
+        "whatsapp_link": {
+          "warning": "The WhatsApp number needs a look.",
+          "failing": "The WhatsApp number is not linked."
+        }
+      },
+      "alert": {
+        "ad_rejected": "An ad was rejected.",
+        "delivery_issue": "An ad has a delivery issue.",
+        "payment_problem": "There is a payment problem.",
+        "spend_without_results": "A campaign spent money without results.",
+        "budget_capped": "A budget is capped.",
+        "connection_lost": "The connection to the ad network was lost.",
+        "sync_failed": "The last refresh failed.",
+        "account_restricted": "The ad account is restricted."
+      }
+    }
   },
   "DiscoverScreens": {
     "title": "Discover",
@@ -8467,5 +8707,30 @@
     "allCategories": "All categories",
     "searchCategories": "Search categories",
     "noCategoryMatch": "No category found."
+  },
+  "CatalogPublic": {
+    "free": "Free",
+    "kinds": {
+      "course": "Course",
+      "download": "Download"
+    },
+    "signInEnrol": "Sign in to enrol",
+    "signInGet": "Sign in to get it",
+    "enrol": "Enrol for free",
+    "get": "Get for free",
+    "enrolled": "You are enrolled.",
+    "owned": "You have this download.",
+    "start": "Open lessons",
+    "files": "Files",
+    "noFiles": "No files yet",
+    "download": "Download",
+    "downloadNamed": "Download {name}",
+    "lessons": "Lessons",
+    "noLessons": "No lessons yet",
+    "yourPlace": "Your place",
+    "lessonOf": "Lesson {current} of {total}",
+    "previous": "Previous lesson",
+    "next": "Next lesson",
+    "backToCourse": "Back to course"
   }
 }

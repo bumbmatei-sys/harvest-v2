@@ -266,6 +266,29 @@ export const harvestAgentPorts = {
 } as const;
 
 /**
+ * Kit items the founder approved for the Ads screens (25 Nov 2026), under the kit item approval gate (docs/plans/shadcnuikit-adoption.md section 2). The items are layout references: none of
+ * their source was retrieved or copied, every Ads file is written for Harvest on the shared components, and the files carry a "modelled on" header naming the items (not a kit header, so the
+ * kit and admin-dashboard tests do not apply to them). Structure only is taken from an ads manager (a three-level Campaign, Ad set, Ad table and a guided create flow); no network branding,
+ * colour, icon or copy is used.
+ */
+export const adsKitApprovals = {
+  approvedBy: "founder", approvedOn: "2026-11-25", copied: false,
+  items: [
+    { item: "tables14", use: "Shared DataTable (already adopted); tables15 and tables9 are the approved alternates." },
+    { item: "switch-card1", use: "Per-row on/off switch style." },
+    { item: "dashboard-dropdown7", use: "Columns picker menu." },
+    { item: "drawer1", use: "Right-side edit panel." },
+    { item: "stepper1", use: "Guided create steps (in the shared EditorShell)." },
+    { item: "form-layout1", use: "Guided create form layout (in the shared EditorShell)." },
+    { item: "social-media-post1", use: "Live ad preview." },
+    { item: "badge1", use: "Status badges (the shared StatusBadge)." },
+  ],
+  files: [
+    "src/components/ads/ads-table.tsx", "src/components/ads/ads-edit-panel.tsx",
+  ],
+} as const;
+
+/**
  * Founder approvals of kit items for a feature that are recorded before any file is copied from them. A file only enters `kitProvenance` (with the
  * header the tests check) in the PR that actually copies it.
  */
