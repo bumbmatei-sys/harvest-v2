@@ -1,6 +1,6 @@
 {
-  "id": "8a824a68-947d-4797-a78f-48042eeca386",
-  "prevId": "45b68f66-e94c-4bec-99aa-72b3c8634964",
+  "id": "45b68f66-e94c-4bec-99aa-72b3c8634964",
+  "prevId": "45d8e6fe-dc6c-48c8-8c6e-6f816b47de81",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -4284,109 +4284,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.campaign_checklist_items": {
-      "name": "campaign_checklist_items",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "campaign_id": {
-          "name": "campaign_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "item": {
-          "name": "item",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "done": {
-          "name": "done",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "done_by": {
-          "name": "done_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "done_at": {
-          "name": "done_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "campaign_checklist_items_done_by_users_id_fk": {
-          "name": "campaign_checklist_items_done_by_users_id_fk",
-          "tableFrom": "campaign_checklist_items",
-          "tableTo": "users",
-          "columnsFrom": [
-            "done_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "campaign_checklist_items_tenant_id_campaign_id_campaigns_tenant_id_id_fk": {
-          "name": "campaign_checklist_items_tenant_id_campaign_id_campaigns_tenant_id_id_fk",
-          "tableFrom": "campaign_checklist_items",
-          "tableTo": "campaigns",
-          "columnsFrom": [
-            "tenant_id",
-            "campaign_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "campaign_checklist_items_tenant_id_campaign_id_item_pk": {
-          "name": "campaign_checklist_items_tenant_id_campaign_id_item_pk",
-          "columns": [
-            "tenant_id",
-            "campaign_id",
-            "item"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "campaign_checklist_item": {
-          "name": "campaign_checklist_item",
-          "value": "\"campaign_checklist_items\".\"item\" in ('assign_leaders', 'confirm_venues', 'define_budget', 'connect_payments', 'publish_registration', 'configure_qr', 'assign_counseling', 'invite_churches', 'create_events')"
-        },
-        "campaign_checklist_done": {
-          "name": "campaign_checklist_done",
-          "value": "(\"campaign_checklist_items\".\"done\" and \"campaign_checklist_items\".\"done_by\" is not null and \"campaign_checklist_items\".\"done_at\" is not null) or (not \"campaign_checklist_items\".\"done\" and \"campaign_checklist_items\".\"done_by\" is null and \"campaign_checklist_items\".\"done_at\" is null)"
-        }
-      },
       "isRLSEnabled": false
     },
     "public.campaign_draft_assignments": {
@@ -11591,7 +11488,7 @@
       "checkConstraints": {
         "community_reaction_emoji": {
           "name": "community_reaction_emoji",
-          "value": "\"community_message_reactions\".\"emoji\" in ('👍','❤️','🙏','😊','🎉','👏','💡','🔥','😮','😢','✅','🙌')"
+          "value": "\"community_message_reactions\".\"emoji\" in ('\ud83d\udc4d','\u2764\ufe0f','\ud83d\ude4f','\ud83d\ude0a','\ud83c\udf89','\ud83d\udc4f','\ud83d\udca1','\ud83d\udd25','\ud83d\ude2e','\ud83d\ude22','\u2705','\ud83d\ude4c')"
         }
       },
       "isRLSEnabled": false

@@ -9,6 +9,7 @@ import { cn } from "@/lib/utils";
 import { editorStepViews, stepPosition, type EditorContextData } from "@/lib/editor-context";
 import { stepProgress } from "@/lib/stepper";
 import { StepIndicator, StepStatusText } from "@/components/editor/editor-step-parts";
+import { scrollToTop } from "@/components/wizard-layout";
 
 /**
  * Phone and tablet step bar (below 1024px, where there is no editing sidebar column): "Step n of m" with the current step, a progress bar,
@@ -38,10 +39,10 @@ export function EditorStepBar({ context, onStep, onPreview, className }: { conte
         {onPreview && <Button type="button" variant="outline" className="min-h-11 shrink-0" onClick={onPreview}><Eye aria-hidden="true" />{t("preview")}</Button>}
       </div>
       <div aria-hidden="true" className="mx-4 mb-2 h-1.5 overflow-hidden rounded-full bg-muted">
-        <div className="h-full rounded-full bg-primary transition-[width] duration-200 motion-reduce:transition-none" style={{ width: `${stepProgress(position.current - 1, position.total)}%` }} />
+        <div className="h-full rounded-full bg-[color:var(--accent-current,var(--primary))] transition-[width] duration-200 motion-reduce:transition-none" style={{ width: `${stepProgress(position.current - 1, position.total)}%` }} />
       </div>
       <SheetContent side="bottom" className="overflow-y-auto"
-        onCloseAutoFocus={(event) => { if (!picked.current) return; picked.current = false; event.preventDefault(); document.querySelector<HTMLElement>('[data-slot="wizard-heading"]')?.focus(); }}>
+        onCloseAutoFocus={(event) => { if (!picked.current) return; picked.current = false; event.preventDefault(); const heading = document.querySelector<HTMLElement>('[data-slot="wizard-heading"]'); scrollToTop(heading); heading?.focus({ preventScroll: true }); }}>
         <SheetHeader><SheetTitle>{t("allSteps")}</SheetTitle></SheetHeader>
         <div className="space-y-2 px-4 pb-4">
           <Button asChild variant="ghost" className="min-h-11 w-full justify-start"><Link href={context.back.href} aria-label={t("backTo", { label: context.back.label })}><ArrowLeft aria-hidden="true" />{context.back.label}</Link></Button>

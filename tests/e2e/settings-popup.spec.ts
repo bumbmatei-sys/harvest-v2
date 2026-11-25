@@ -150,14 +150,17 @@ test("Settings pop-up: open, sections by role, keyboard, deep link, Planner entr
   await page.keyboard.press("Escape");
   await expect(dialog(page)).toHaveCount(0);
 
-  // ---- Public sidebar: Social media group only (the Newsletter and Website groups are live; unbuilt groups stay hidden) -------------------------------------------------------------------
+  // ---- Public sidebar: Social media, Newsletter, Website and Courses and products groups are live -------------------------------------------------------------------
   await page.getByRole("tab", { name: "Public", exact: true }).click();
   await expect(nav.getByRole("button", { name: "Social media", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Planner", exact: true })).toBeVisible();
   await expect(nav.getByRole("button", { name: "Newsletter", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Campaigns", exact: true })).toBeVisible();
   await expect(nav.getByRole("button", { name: "Website", exact: true })).toBeVisible(); // Link in bio (owners and admins)
-  for (const hidden of ["Courses and products"]) await expect(nav.getByRole("button", { name: hidden, exact: true })).toHaveCount(0);
+  // Courses and products: live with the free catalogue (feature "catalog", on in tests, off in production).
+  await expect(nav.getByRole("button", { name: "Courses and products", exact: true })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Courses", exact: true })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Products", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Audience", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Sign-up forms", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Sender", exact: true })).toBeVisible();

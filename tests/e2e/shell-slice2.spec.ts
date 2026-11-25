@@ -157,7 +157,8 @@ test("mode switcher keyboard: arrows, Home/End and Ctrl/Cmd+Alt shortcuts", asyn
   await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
   await page.keyboard.press("Control+Alt+Digit2");
   await expect(tab(page, "Public")).toHaveAttribute("aria-selected", "true");
-  await expect(nav(page).getByRole("link", { name: "Planner", exact: true })).toBeFocused();
+  // Discover (owners and admins, open in tests) is the first Public entry.
+  await expect(nav(page).getByRole("link", { name: "Discover", exact: true })).toBeFocused();
   await page.keyboard.press("Control+Alt+Digit3");
   await expect(tab(page, "Public")).toHaveAttribute("aria-selected", "true");
   await page.keyboard.press("Meta+Alt+Digit1");
