@@ -16,8 +16,13 @@
 | Honey Glow | https://21st.dev/@serafimcloud/themes/honey-glow |
 | Honey Glow Gold | https://21st.dev/@serafimcloud/themes/honey-glow-gold |
 | Taranom Emerald Gold | https://21st.dev/@rashidhamedas/themes/taranom-emerald-gold-1784716637053 |
+| Petrol & Ember | Founder-chosen 25 Nov 2026 from a reference poster (no URL); see below |
 
 URLs are preserved as supplied; display names normalize the founder's shorthand. Validate source metadata before importing. Public text retrieval confirmed Sage Garden exposes light/dark shadcn tokens; Honey Glow Gold and Taranom returned retrieval errors in the browsing tool, so their token contents and availability are not certified here. No source license or contrast approval is inferred from a gallery listing.
+
+### Petrol & Ember (founder-chosen, 25 November 2026)
+
+A future selectable theme. It is **not implemented**. Approximate colours from the reference: petrol blue `#4F8FA6`, warm stone `#D8D2C6`, orange `#F59433`, coral `#F07152` and near-black `#1E1E1E`. Planned roles, to be confirmed when it is implemented: stone surfaces, near-black text, and petrol blue and orange as accents (`--accent-primary`, `--accent-support-*`, the `--art-*` families and the primary action, each tuned for AA). Coral sits close to the attention red, so in this theme the attention and destructive tone must stay a distinct, truer red, and coral is used only as a sparing accent. Like every palette, it must define every registry token, including `--action-fill` and the accent and artwork tokens (`PALETTE_EXTENSION_TEMPLATE`, introduced with the campaign artwork in #248), and pass the theme contract tests.
 
 ## Implementation checklist
 

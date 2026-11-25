@@ -78,8 +78,8 @@ export const kitProvenance: readonly KitItemRecord[] = [
     localChanges: "Visual reference only (Discover screens); no kit code copied (6 of 52 lines identical, 11%, scripts/ui-identical.sh against product-card1/index.tsx; product-card2 and product-card3 were read for the badge and button row). ListingCard is one card for a community, course or product: a token-coloured category mark instead of a photo (the public data has no cover image), a type badge, name, summary, host, free badge, the first joining route of a community and Quick look, View and Report buttons. The kit's wishlist, rating, discount badge and remote images are not used. Not chosen: product-card4 to product-card7." },
   { item: "product-quickview2", tier: "premium", registryRetrieved: "2026-11-25", installed: "2026-11-25", approvedBy: "founder", approvedOn: "2026-11-25", files: ["src/components/discover/quick-look.tsx"],
     localChanges: "Visual reference only (Discover screens); no kit code copied (5 of 40 lines identical, 12%, against product-quickview2/product-quickview-modal.tsx). QuickLook is the compact dialog: type and category badges, title, summary, a definition list of the public fields, the Report action and Open page. Colour and size pickers, rating, wishlist and add to cart are not used. Not chosen: product-quickview1." },
-  { item: "product-category3", tier: "premium", registryRetrieved: "2026-11-25", installed: "2026-11-25", approvedBy: "founder", approvedOn: "2026-11-25", files: ["src/components/discover/category-tiles.tsx"],
-    localChanges: "Visual reference only (Discover screens); no kit code copied (2 of 24 lines identical, 8%). CategoryTiles is a grid of linked tiles, one per category of the fixed 12-key taxonomy, each a link that applies the category filter, with a lucide icon on a token surface instead of the kit's portrait photos and gradient. Not chosen: product-category1, product-category2, product-category9." },
+  { item: "select14", tier: "premium", registryRetrieved: "2026-11-25", installed: "2026-11-25", approvedBy: "founder", approvedOn: "2026-11-25", files: ["src/components/searchable-select.tsx"],
+    localChanges: "Founder chose it on 25 Nov to replace the Discover category tiles (product-category3, removed). Written for Harvest on the shared Command and Popover (14 of 52 lines identical, 26%, mostly imports and the trigger, scripts/ui-identical.sh against select14/index.tsx). SearchableSelect is shared: optional icon per option, an optional all row that clears the value, 44px rows below lg. Discover uses it for the category filter next to Sort. Read, not used: combobox12." },
 ];
 
 /**
@@ -197,6 +197,10 @@ export const adminDashboardReferences = {
   { file: "src/components/files/sources-dialog.tsx", source: "app/dashboard/(auth)/apps/mail/components/account-switcher.tsx (account choice with provider marks)", localChanges: "Files screen (22 Nov): measured with scripts/ui-identical.sh: 3 of 74 lines (4%), import and boilerplate only, so still modelled on. The person's own drive connections: privacy notice, one connect button per provider, status and Disconnect. The kit's account dropdown and mock accounts are not used." },
   { file: "src/components/social/auto-dm/editor-parts.tsx", source: "app/dashboard/(auth)/pages/settings/notifications/page.tsx", localChanges: "The Auto-DM editor's bordered switch row (SwitchRow), the same row pattern as the composer option rows, plus numbered step cards and card-style radios that are Harvest-written. Measured with scripts/ui-identical.sh against the kit page: 5 of 49 lines (10%, imports and closing lines only); no kit code copied. The rest of the Auto-DM screens use existing Harvest components (Stepper, EmptyState, StatusBadge, Sheet, Dialog, Tabs, StickySaveBar) and are not kit-derived." },
   { file: "src/components/events/event-cover-picker.tsx", source: "app/dashboard/(auth)/apps/pos-system/components/add-product-dialog.tsx", localChanges: "Event cover picker (22 Nov): measured with scripts/ui-identical.sh: 4 of 123 lines (3%), import and boilerplate only, so still modelled on. The kit's single-image drop zone is the model: a dashed rounded zone with an icon circle, a title, a size and type hint and a Select image button; the dragging tint, a focus ring when the hidden input has focus and the inline destructive error line. Harvest adds the real upload (SHA-256, signed slot, direct PUT with progress, the server's verification and scan states), replace and remove, and the signed picture from the cover route. The kit's useFileUpload hook (blob preview in the browser, not an upload), its product form and the corner remove button are not used (Remove is a 44px button with a confirmation). Also looked at: the kit's pages/products/create form (the same zone, for several images) and form-layout15's drop zone already in Harvest (src/components/forms/kit-drop-zone.tsx): that one is inert (aria-disabled, its own dashed border, no input, no preview), so it was not reused for a live 16:9 picker." },
+  { file: "src/components/catalog/catalog-list.tsx", source: "app/dashboard/(auth)/pages/products/product-list.tsx", localChanges: "Courses and products screens (25 Nov): measured with scripts/ui-identical.sh: 5 of 82 lines (6%) match product-list.tsx, import and boilerplate only, so modelled on. The product cell (thumbnail, name, address), status badge and row actions on Harvest's DataTable with a type tab and a search over the loaded rows. The kit's price, stock, rating, row selection, columns menu, filter builder and sample data are not used (no such data and no bulk server action)." },
+  { file: "src/components/catalog/lesson-list-editor.tsx", source: "app/dashboard/(auth)/apps/courses/components/course-modules.tsx", localChanges: "Courses and products screens (25 Nov): measured with scripts/ui-identical.sh: 6 of 73 lines (8%) match course-modules.tsx, import and boilerplate only, so modelled on. The kit's numbered module rows become the course editor's ordered lesson cards (title field, published switch, move up and down, remove, one open rich-text body). The kit's completed and current markers, durations and sample modules are not used." },
+  { file: "src/components/catalog/catalog-file-picker.tsx", source: "app/dashboard/(auth)/pages/products/create/add-product-form.tsx", localChanges: "Courses and products screens (25 Nov): measured with scripts/ui-identical.sh: 5 of 101 lines (4%) match add-product-form.tsx, import and boilerplate only, so modelled on. The kit's media section (drop and upload, file rows with remove) becomes the download's file picker over the private file service: chosen files in order with a status badge, the ministry's files to add, and an upload through the signed-slot flow. The kit's form, category, price, SKU and URL media are not used." },
+  { file: "src/components/catalog/catalog-preview.tsx", source: "app/dashboard/(auth)/pages/products/[id]/page.tsx", localChanges: "Courses and products screens (25 Nov): measured with scripts/ui-identical.sh: 3 of 27 lines (11%) match the product page, import and boilerplate only, so modelled on. A cover, type and free badges, title, summary and an inert action in one card; the kit's price, stock, colour and size options, reviews and cart actions are not used." },
   { file: "src/components/events/events-board.tsx", source: "app/dashboard/(auth)/apps/calendar/components/agenda-view.tsx", localChanges: "Upcoming list grouped under day headings, beside the month calendar and a list and calendar switch kept in the URL. The kit's agenda view is a client-side range of days; Harvest's list is server data." },
   ],
 } as const;
@@ -260,12 +264,39 @@ export const harvestAgentPorts = {
 } as const;
 
 /**
+ * Kit items the founder approved for the Ads screens (25 Nov 2026), under the kit item approval gate (docs/plans/shadcnuikit-adoption.md section 2). The items are layout references: none of
+ * their source was retrieved or copied, every Ads file is written for Harvest on the shared components, and the files carry a "modelled on" header naming the items (not a kit header, so the
+ * kit and admin-dashboard tests do not apply to them). Structure only is taken from an ads manager (a three-level Campaign, Ad set, Ad table and a guided create flow); no network branding,
+ * colour, icon or copy is used.
+ */
+export const adsKitApprovals = {
+  approvedBy: "founder", approvedOn: "2026-11-25", copied: false,
+  items: [
+    { item: "tables14", use: "Shared DataTable (already adopted); tables15 and tables9 are the approved alternates." },
+    { item: "switch-card1", use: "Per-row on/off switch style." },
+    { item: "dashboard-dropdown7", use: "Columns picker menu." },
+    { item: "drawer1", use: "Right-side edit panel." },
+    { item: "stepper1", use: "Guided create steps (in the shared EditorShell)." },
+    { item: "form-layout1", use: "Guided create form layout (in the shared EditorShell)." },
+    { item: "social-media-post1", use: "Live ad preview." },
+    { item: "badge1", use: "Status badges (the shared StatusBadge)." },
+  ],
+  files: [
+    "src/components/ads/ads-table.tsx", "src/components/ads/ads-edit-panel.tsx",
+  ],
+} as const;
+
+/**
  * Founder approvals of kit items for a feature that are recorded before any file is copied from them. A file only enters `kitProvenance` (with the
  * header the tests check) in the PR that actually copies it.
  */
 export const kitApprovals = [
   { feature: "Campaign wizard screens", approvedOn: "2026-11-25", approvedBy: "founder",
     items: ["stepper1", "form-layout1", "form-layout11", "tables9", "switch-card1", "todo-app6"], note: "Plus stat cards and charts as in CRM reports for the campaign dashboard. PR 1 copies no kit code; see docs/ui-sources.md." },
+  { feature: "Courses and products screens", approvedOn: "2026-11-25", approvedBy: "founder",
+    items: ["admin-dashboard apps/courses (list, course-detail, course-modules, course-content, study-progress, instructor-section)", "admin-dashboard academy (progress cards, courses-list, learning path)",
+      "admin-dashboard pages/products (list, [id] detail, create)", "product-list7", "product-details1", "product-card set", "stepper1", "form-layout1"],
+    note: "Only the admin-dashboard checkout (1631106) was read; product-details1 and the product-card set could not be read here (no registry token) and product-list7 was already adopted (Kit PR 7). No kit code is copied; see docs/ui-sources.md." },
   { feature: "Discover screens", approvedOn: "2026-11-25", approvedBy: "founder",
     items: ["product-category", "product-card", "product-list7", "product-quickview", "switch-card1", "tables14", "drawer1"], note: "Plus the shared filter popover pattern from CRM, the shared EmptyState and ConfirmDialog. Pro kit first, free shadcn only if nothing fits. Variants used: product-category3, product-card1 (product-card2 and product-card3 read), product-quickview2. See docs/ui-sources.md." },
 ] as const;

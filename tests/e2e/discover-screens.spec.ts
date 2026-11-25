@@ -137,7 +137,7 @@ test("public Discover, quick look, report, filters, load more and the owner's Li
   const html = await anon.content();
   expect(html).not.toContain(tenant);
 
-  // Type, category tile, language and free filters; search; sort; reset; the URL carries the state.
+  // Type, category dropdown, language and free filters; search; sort; reset; the URL carries the state.
   await anon.getByRole("navigation", { name: "Type" }).getByRole("link", { name: /^Courses/ }).click();
   await expect(anon).toHaveURL(/type=course/);
   await expect(anon.getByRole("heading", { name: "Grace Bible Study", level: 2 })).toHaveCount(0);
@@ -147,11 +147,12 @@ test("public Discover, quick look, report, filters, load more and the owner's Li
   await anon.getByRole("navigation", { name: "Type" }).getByRole("link", { name: /^Courses/ }).click();
   await expect(anon).toHaveURL(/type=course/);
   await expect(anon.getByRole("heading", { name: "Foundations of Prayer", level: 2 })).toBeVisible();
-  await anon.getByRole("navigation", { name: "Categories" }).getByRole("link", { name: "Prayer" }).click();
-  await expect(anon).toHaveURL(/category=prayer/);
-  await expect(anon.getByRole("navigation", { name: "Categories" }).getByRole("link", { name: "Prayer" })).toHaveAttribute("aria-current", "true");
-  await expect(anon.getByRole("button", { name: "Remove filter Prayer" })).toBeVisible();
   await hydrated(anon);
+  await anon.getByRole("combobox", { name: "Category" }).click();
+  await anon.getByPlaceholder("Search categories").fill("pray");
+  await anon.getByRole("option", { name: "Prayer" }).click();
+  await expect(anon).toHaveURL(/category=prayer/);
+  await expect(anon.getByRole("combobox", { name: "Category" })).toContainText("Prayer");
   await anon.getByRole("button", { name: /^Filters/ }).click();
   await anon.getByLabel("Language").selectOption("en");
   await expect(anon).toHaveURL(/language=en/);
@@ -163,7 +164,9 @@ test("public Discover, quick look, report, filters, load more and the owner's Li
   await anon.keyboard.press("Escape");
   await anon.getByRole("button", { name: "Remove filter English" }).click();
   await expect(anon).not.toHaveURL(/language=en/);
-  await anon.getByRole("button", { name: "Remove filter Prayer" }).click();
+  await anon.getByRole("combobox", { name: "Category" }).click();
+  await anon.getByRole("option", { name: "All categories" }).click();
+  await expect(anon).not.toHaveURL(/category=/);
   await anon.getByRole("button", { name: "Remove filter Free only" }).click();
   await anon.getByRole("navigation", { name: "Type" }).getByRole("link", { name: /^All/ }).click();
   await anon.getByRole("searchbox", { name: "Search Discover" }).fill("zzzz nothing");

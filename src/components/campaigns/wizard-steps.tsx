@@ -1,4 +1,5 @@
 "use client";
+import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -35,17 +36,19 @@ export function TypeStep({ form, set, disabled, problems }: StepProps) {
   </div>;
 }
 
-export function BasicsStep({ form, set, disabled, problems }: StepProps) {
+/** Step 2, in the PRD's order: name, description, goal or mission, then the optional cover (its own control, passed in, because it saves on its own). */
+export function BasicsStep({ form, set, disabled, problems, cover }: StepProps & { cover?: ReactNode }) {
   const t = useTranslations("CampaignWizard.basics");
   const update = (key: keyof WizardForm["basics"], value: string) => set("basics", (current) => ({ ...current, basics: { ...current.basics, [key]: value } }), TYPING);
   return <div className="max-w-3xl space-y-4">
     <Field><FieldLabel htmlFor="campaign-name">{t("name")}</FieldLabel>
       <Input id="campaign-name" className="min-h-11" value={form.basics.name} maxLength={200} required disabled={disabled} onChange={(event) => update("name", event.target.value)} {...described("campaign-name-problem", problems.name)} />
       <Problem id="campaign-name-problem" code={problems.name} /></Field>
-    <Field><FieldLabel htmlFor="campaign-mission">{t("mission")}</FieldLabel>
-      <Textarea id="campaign-mission" rows={3} value={form.basics.mission} maxLength={5000} disabled={disabled} onChange={(event) => update("mission", event.target.value)} /></Field>
     <Field><FieldLabel htmlFor="campaign-description">{t("description")}</FieldLabel>
       <Textarea id="campaign-description" rows={4} value={form.basics.description} maxLength={5000} disabled={disabled} onChange={(event) => update("description", event.target.value)} /></Field>
+    <Field><FieldLabel htmlFor="campaign-mission">{t("mission")}</FieldLabel>
+      <Textarea id="campaign-mission" rows={3} value={form.basics.mission} maxLength={5000} disabled={disabled} onChange={(event) => update("mission", event.target.value)} /></Field>
+    {cover}
   </div>;
 }
 

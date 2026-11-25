@@ -7,7 +7,6 @@ import { searchDiscover } from "@/server/discover/public";
 import { optionalSession } from "@/server/page-session";
 import { filtersToParams, parseFilters } from "@/lib/discover-ui";
 import { PublicFrame } from "@/components/connect/public-frame";
-import { CategoryTiles } from "@/components/discover/category-tiles";
 import { DiscoverBrowser, type DiscoverPage as Page } from "@/components/discover/discover-browser";
 import { LegacyDiscover, type Props } from "./legacy";
 
@@ -29,7 +28,7 @@ export default async function DiscoverPage(props: Props) {
   return <PublicFrame personal notice={false}>
     <div className="space-y-8">
       <h1 className="text-[28px] font-semibold tracking-tight">{t("title")}</h1>
-      <DiscoverBrowser filters={filters} initial={initial} signedIn={session !== null} failed={failed} between={<CategoryTiles filters={filters} />} />
+      <DiscoverBrowser filters={filters} initial={initial} signedIn={session !== null} failed={failed} />
     </div>
   </PublicFrame>;
 }

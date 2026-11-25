@@ -6,7 +6,7 @@ const draft: DraftView = {
   startDate: null, endDate: null, timeZone: null, structure: null, departments: ["campaign_leadership"], modules: ["tasks_boards"],
   budget: { currency: "USD", estimatedBudgetMinor: null, fundraisingEnabled: false, fundraisingGoalMinor: null, onlineDonations: false },
   outreach: { registration: false, qrResponse: false, accountInvites: false, communityDiscovery: false, followUp: false, churchReferrals: false },
-  assignments: [], issues: [], ready: false, campaignId: null,
+  assignments: [], issues: [], ready: false, campaignId: null, coverFileId: null,
 };
 
 describe("form and payloads", () => {
@@ -52,9 +52,10 @@ describe("issues and statuses", () => {
 });
 
 describe("draft actions", () => {
-  it("lets the creator continue and discard, and owners and admins discard any draft", () => {
+  it("lets anyone who can write continue any draft, and only the creator, owners and admins discard it", () => {
     expect(draftActions({ createdBy: "u1" }, "u1", "member")).toEqual({ edit: true, discard: true });
-    expect(draftActions({ createdBy: "u1" }, "u2", "member")).toEqual({ edit: false, discard: false });
-    expect(draftActions({ createdBy: "u1" }, "u2", "admin")).toEqual({ edit: false, discard: true });
+    expect(draftActions({ createdBy: "u1" }, "u2", "member")).toEqual({ edit: true, discard: false });
+    expect(draftActions({ createdBy: "u1" }, "u2", "admin")).toEqual({ edit: true, discard: true });
+    expect(draftActions({ createdBy: "u1" }, "u2", "viewer")).toEqual({ edit: false, discard: false });
   });
 });
