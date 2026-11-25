@@ -1,5 +1,6 @@
 // The From header with a display name: RFC 5322 quoting for names with special characters and RFC 2047 encoding for non-ASCII names. Pure; nothing here sends anything.
-const atom = /^[A-Za-z0-9!#$%&'*+\-/=?^_`{|}~ ]+$/;
+// `=` and `?` are left out on purpose: an unquoted `=?UTF-8?B?...?=` would be decoded by mail clients (display-name spoofing), so such a name is quoted.
+const atom = /^[A-Za-z0-9!#$%&'*+\-/^_`{|}~ ]+$/;
 /** Longest encoded-word the standard allows is 75 characters, "=?UTF-8?B?" and "?=" included, so at most 63 base64 characters (45 bytes) of name per word. */
 const maxBytesPerWord = 45;
 

@@ -50,6 +50,13 @@ describe("From header with a display name", () => {
     for (const word of words) expect(word.length).toBeLessThanOrEqual(75);
     expect(read(header).name).toBe(name);
   });
+  it("quotes an ASCII name that looks like an encoded word, so no client decodes it", () => {
+    for (const name of ["=?UTF-8?B?QWRtaW4=?=", "a=b", "why?"]) {
+      const header = formatFromHeader(name, address);
+      expect(header).toBe(`"${name}" <${address}>`);
+      expect(read(header).name).toBe(name);
+    }
+  });
   it("cannot be made to add a header line: control characters and line breaks are dropped", () => {
     const header = formatFromHeader("Grace\r\nBcc: evil@example.test", address);
     expect(header).not.toMatch(/[\r\n]/);
