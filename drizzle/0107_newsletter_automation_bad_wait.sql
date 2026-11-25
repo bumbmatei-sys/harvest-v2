@@ -25,11 +25,11 @@ BEGIN
       BEGIN
         IF step ->> 'unit' NOT IN ('hours', 'days') THEN RAISE invalid_parameter_value; END IF;
         seconds := (step ->> 'amount')::bigint * CASE step ->> 'unit' WHEN 'hours' THEN 3600 ELSE 86400 END;
-        IF seconds <= 0 OR seconds > 315360000 THEN RAISE invalid_parameter_value; END IF;
+        IF seconds IS NULL OR seconds <= 0 OR seconds > 315360000 THEN RAISE invalid_parameter_value; END IF;
         UPDATE public.newsletter_automation_runs SET step_index = idx + 1, attempt_id = NULL, lease = NULL, lease_until = NULL, next_run_at = clock_timestamp() + make_interval(secs => seconds)
           WHERE tenant_id = r.tenant_id AND id = r.id;
         INSERT INTO public.newsletter_automation_log(tenant_id, run_id, step_index, step_type, outcome, reason) VALUES (r.tenant_id, r.id, idx, 'wait', 'waiting', step ->> 'amount' || ' ' || (step ->> 'unit'));
-      EXCEPTION WHEN OTHERS THEN
+      EXCEPTION WHEN invalid_parameter_value OR invalid_text_representation OR numeric_value_out_of_range THEN
         UPDATE public.newsletter_automation_runs SET state = 'stopped', stop_reason = 'invalid_step', step_index = idx, attempt_id = NULL, lease = NULL, lease_until = NULL, finished_at = clock_timestamp()
           WHERE tenant_id = r.tenant_id AND id = r.id;
         INSERT INTO public.newsletter_automation_log(tenant_id, run_id, step_index, step_type, outcome, reason) VALUES (r.tenant_id, r.id, idx, 'stopped', 'stopped', 'invalid_step');
