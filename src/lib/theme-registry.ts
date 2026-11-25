@@ -214,14 +214,14 @@ export const campaignArtTokens = {
     "--art-mission-from": "#38bdf8", "--art-mission-to": "#2563eb", "--art-mission-glow": "#a5f3fc", "--art-mission-ink": "#ffffff",
     "--art-conference-from": "#c4b5fd", "--art-conference-to": "#7c3aed", "--art-conference-glow": "#f9a8d4", "--art-conference-ink": "#ffffff",
     "--art-outreach-from": "#34d399", "--art-outreach-to": "#0d9488", "--art-outreach-glow": "#d9f99d", "--art-outreach-ink": "#ffffff",
-    "--art-custom-from": "#fde047", "--art-custom-to": "#f59e0b", "--art-custom-glow": "#fef9c3", "--art-custom-ink": "#78350f",
+    "--art-custom-from": "#fbbf24", "--art-custom-to": "#f97316", "--art-custom-glow": "#fef3c7", "--art-custom-ink": "#ffffff",
   },
   dark: {
     "--art-crusade-from": "#be123c", "--art-crusade-to": "#831843", "--art-crusade-glow": "#fed7aa", "--art-crusade-ink": "#ffffff",
     "--art-mission-from": "#0369a1", "--art-mission-to": "#1e3a8a", "--art-mission-glow": "#a5f3fc", "--art-mission-ink": "#ffffff",
     "--art-conference-from": "#7c3aed", "--art-conference-to": "#3b0764", "--art-conference-glow": "#f9a8d4", "--art-conference-ink": "#ffffff",
     "--art-outreach-from": "#047857", "--art-outreach-to": "#134e4a", "--art-outreach-glow": "#d9f99d", "--art-outreach-ink": "#ffffff",
-    "--art-custom-from": "#a16207", "--art-custom-to": "#7c2d12", "--art-custom-glow": "#fef9c3", "--art-custom-ink": "#fffbeb",
+    "--art-custom-from": "#ea580c", "--art-custom-to": "#9a3412", "--art-custom-glow": "#fde68a", "--art-custom-ink": "#ffffff",
   },
 } as const satisfies Record<ColorMode, Record<string, string>>;
 
