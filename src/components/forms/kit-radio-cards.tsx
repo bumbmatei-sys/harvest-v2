@@ -19,7 +19,7 @@ export function RadioCards({ name, options, value, onChange, disabled, invalid, 
           className="min-h-11 has-data-[state=checked]:border-primary has-data-[state=checked]:bg-muted/50 dark:has-data-[state=checked]:bg-muted/50"
         >
           <Field orientation="horizontal">
-            <RadioGroupItem value={option} id={`${id}-${index}`} />
+            <RadioGroupItem value={option} id={`${id}-${index}`} aria-label={option} />
             <FieldContent>
               <FieldTitle>{option}</FieldTitle>
             </FieldContent>

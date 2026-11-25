@@ -85,7 +85,10 @@ export class FakeAdsProvider implements AdsProvider {
   async validateLaunch(cred: AdsCredential, spec: LaunchSpec): Promise<ValidationOutcome> {
     this.enter("validateLaunch", cred);
     this.remote(spec);
-    try { launchPayload(spec.kind as LaunchKind, spec.payload); return { ok: true, problems: [] }; } catch { return { ok: false, problems: ["payload_invalid"] }; }
+    // The launch service swaps a lead form id for the provider's reference before this call; put a well-formed id back so the strict schema can read the payload.
+    const payload = JSON.parse(JSON.stringify(spec.payload)) as LoosePayload;
+    if (payload.creative?.leadFormRef) { delete payload.creative.leadFormRef; payload.creative.leadFormId = "00000000-0000-4000-8000-000000000000"; }
+    try { launchPayload(spec.kind as LaunchKind, payload); return { ok: true, problems: [] }; } catch { return { ok: false, problems: ["payload_invalid"] }; }
   }
   async launch(cred: AdsCredential, spec: LaunchSpec): Promise<LaunchOutcome> {
     this.enter("launch", cred, spec.idempotencyKey);
@@ -110,7 +113,7 @@ export class FakeAdsProvider implements AdsProvider {
         return { campaignRef: camp.ref, adSetRef: set.ref, adRef: created.ref };
       }
       const created = ad(String(p.name));
-      const set: RemoteAdSet = { ref: this.nextRef("adset"), name: String(p.name), status, budgetAmount: null, budgetType: null, startDate: p.startDate ?? null, endDate: p.endDate ?? null, bidding: p.bidding ?? null,
+      const set: RemoteAdSet = { ref: this.nextRef("adset"), name: String(p.adSetName ?? p.name), status, budgetAmount: null, budgetType: null, startDate: p.startDate ?? null, endDate: p.endDate ?? null, bidding: p.bidding ?? null,
         targeting: p.targeting ?? {}, ads: [created] };
       const camp: RemoteCampaign = { ref: this.nextRef("camp"), name: String(p.name), goal: p.goal, status, budgetAmount: p.budgetAmount ?? null, budgetType: p.budgetType ?? "daily",
         budgetLevel: p.budgetLevel ?? "campaign", sharedBudgetRef: null, startDate: p.startDate ?? null, endDate: p.endDate ?? null, bidding: p.bidding ?? null,
