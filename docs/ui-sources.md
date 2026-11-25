@@ -454,6 +454,16 @@ Layout reference for the public page and editor preview: the founder named the O
 
 Layout reference (25 Nov 2026): the public page and live preview follow the OpenShadcnBlocks `user-profile3` layout the founder pasted (cover banner, round photo overlapping it, name and subtitle, main action button, tabs, bordered divided list card), refined by the founder as a profile-page idea (social icon row, details list, Home and Partnership tabs; no third-party branding, visuals or copy). **No code copied; licence unverified** (the host is blocked from the build environment). Built from Harvest shared components (Tabs, Button, Card-style borders, `EventCoverPicker`, `PlatformLogo`) and Tailwind container queries.
 
+### Ads screens (25 Nov 2026)
+
+Founder approval 25 Nov 2026, under the kit item approval gate. Approved kit items: shared `DataTable` (`tables14`; `tables15` and `tables9` as alternates), `switch-card1` style for the per-row switch, `dashboard-dropdown7` for the columns picker, the stat cards used in Social Analytics and the CRM reports, `drawer1` for the right-side edit panel, `stepper1` and `form-layout1` inside the shared `EditorShell` for guided create, `social-media-post1` for the live ad preview, `badge1` (the shared `StatusBadge`) and the existing alerts. **No kit source was retrieved or copied.** Every Ads file is Harvest-written on the shared components and carries a header that says it is modelled on the named items; the record is `adsKitApprovals` in `src/lib/ui-provenance.ts`. The structure (a three-level Campaign, Ad set, Ad table with a totals row, a columns picker, per-row switches, an edit drawer, a guided create flow with a live preview) is taken from an ads manager; **no network branding, colour, icon or copy is used.**
+
+| File | Relation | Reference | Notes |
+| --- | --- | --- | --- |
+| `src/components/ads/ads-table.tsx` | modelled on | `tables14`, `switch-card1`, `dashboard-dropdown7` | Builds on the shared `DataTable`, which gained an optional `totals` row (table) and summary block (cards). |
+| `src/components/ads/ads-edit-panel.tsx` | modelled on | `drawer1` | Shared `Sheet`; every spend-affecting change asks first. |
+| `src/components/ads/ads-summary.tsx` | reuse | Social Analytics `StatCard` | No new card. |
+
 ## Discover screens (25 Nov 2026)
 
 Founder approved the kit list on 25 Nov 2026: `product-category` (category tiles), the `product-card` set (result cards for communities, courses and products), `product-list7` (results grid, already referenced by the community Discover card), `product-quickview` (quick look), `switch-card1` (owner List in Discover card), `tables14` (shared DataTable, already adopted) with `drawer1` (staff review side panel), plus the shared filter popover pattern from CRM, the shared EmptyState and ConfirmDialog. Pro kit first, free shadcn only if nothing fits. The registry entries were read on 25 Nov from `https://shadcnuikit.com/r/{name}.json` (the paid kit checkout `/home/user/admin-dashboard` @ `1631106` holds no ecommerce blocks); nothing was committed from them.
