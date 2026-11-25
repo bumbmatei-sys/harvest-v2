@@ -17,22 +17,22 @@ export type ChecklistView = { item: ChecklistItem; done: boolean; automatic: boo
  */
 export async function getChecklist(db: Database, userId: string, workspace: string, campaign: string): Promise<ChecklistView> {
   const id = uuidInput.parse(campaign);
-  return withTenant(db, userId, uuidInput.parse(workspace), "campaigns:write", async (tx, tenantId) => view(tx, tenantId, id));
+  return withTenant(db, userId, uuidInput.parse(workspace), "campaigns:write", async (tx, tenantId) => checklistOf(tx, tenantId, id));
 }
 
 export async function setChecklistItem(db: Database, userId: string, workspace: string, campaign: string, raw: unknown): Promise<ChecklistView> {
   const id = uuidInput.parse(campaign), { item, done } = checklistInput.parse(raw);
   return withTenant(db, userId, uuidInput.parse(workspace), "campaigns:write", async (tx, tenantId) => {
-    await view(tx, tenantId, id);
+    await checklistOf(tx, tenantId, id);
     const now = new Date(), values = { done, doneBy: done ? userId : null, doneAt: done ? now : null, updatedAt: now };
     await tx.insert(campaignChecklistItems).values({ tenantId, campaignId: id, item, ...values })
       .onConflictDoUpdate({ target: [campaignChecklistItems.tenantId, campaignChecklistItems.campaignId, campaignChecklistItems.item], set: values });
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "campaign.checklist.set", targetId: id, metadata: { item, done: String(done) } });
-    return view(tx, tenantId, id);
+    return checklistOf(tx, tenantId, id);
   });
 }
 
-async function view(tx: Transaction, tenantId: string, campaignId: string): Promise<ChecklistView> {
+export async function checklistOf(tx: Transaction, tenantId: string, campaignId: string): Promise<ChecklistView> {
   const [campaign] = await tx.select({ id: campaigns.id }).from(campaigns).where(and(eq(campaigns.tenantId, tenantId), eq(campaigns.id, campaignId)));
   if (!campaign) throw new AccessError(404, message("Campaigns.notFound"));
   const stored = new Map((await tx.select().from(campaignChecklistItems).where(and(eq(campaignChecklistItems.tenantId, tenantId), eq(campaignChecklistItems.campaignId, campaignId))))
