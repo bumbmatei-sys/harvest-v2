@@ -45,13 +45,13 @@ export function AccountPanel() {
 }
 
 /** Ministry details: the ministry type (owners and admins) and a link to the appearance page. */
-export function MinistryPanel({ tenantId, name, role, audience }: { tenantId: string; name: string; role: string; audience: Audience | null }) {
+export function MinistryPanel({ tenantId, name, role, audience, timeZone }: { tenantId: string; name: string; role: string; audience: Audience | null; timeZone?: string }) {
   const t = useTranslations("SettingsDialog.ministry"), shell = useTranslations("ComponentsAppShell");
   const appearance = entryFor("appearance");
   return <div className="max-w-xl space-y-6">
     <dl className="grid grid-cols-[auto_1fr] gap-x-6 gap-y-1 text-sm"><dt className="text-muted-foreground">{t("name")}</dt><dd className="min-w-0 truncate font-medium">{name}</dd>
       <dt className="text-muted-foreground">{t("role")}</dt><dd className="font-medium">{shell(`roles.${role as "owner"}`)}</dd></dl>
-    <MinistrySettingsForm tenantId={tenantId} current={audience} writable inline />
+    <MinistrySettingsForm tenantId={tenantId} current={audience} timeZone={timeZone} writable inline />
     {appearance && <LinkRow href={`/workspaces/${tenantId}${appearance.path}`} label={shell(appearance.label)} icon={appearance.icon} />}
   </div>;
 }

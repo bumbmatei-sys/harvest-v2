@@ -1,9 +1,10 @@
 /** Derived from bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): app/dashboard/(auth)/ai-analytics/components/usage-by-model-card.tsx. Harvest changes: docs/ui-sources.md. */
 "use client";
 
+import type { ReactNode } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { Bar, BarChart, XAxis, YAxis } from "recharts";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
@@ -14,8 +15,8 @@ export type ReportSeries = { key: string; label: string; color: string };
  * A titled card with a horizontal bar chart and the same figures as a table. Withheld figures are never drawn (no zero-length bar): the table
  * reads "Fewer than 5" for them. The chart is hidden from assistive technology because the table carries every number.
  */
-export function ReportBarsCard({ id, title, description, caption, keyHeader, rows, series }: {
-  id: string; title: string; description: string; caption: string; keyHeader: string; rows: readonly ReportBar[]; series: readonly ReportSeries[];
+export function ReportBarsCard({ id, title, description, caption, keyHeader, rows, series, action }: {
+  action?: ReactNode; id: string; title: string; description: string; caption: string; keyHeader: string; rows: readonly ReportBar[]; series: readonly ReportSeries[];
 }) {
   const t = useTranslations("CrmReports"), format = useFormatter();
   const config = Object.fromEntries(series.map((item) => [item.key, { label: item.label, color: item.color }])) satisfies ChartConfig;
@@ -26,6 +27,7 @@ export function ReportBarsCard({ id, title, description, caption, keyHeader, row
       <CardHeader>
         <CardTitle>{title}</CardTitle>
         <CardDescription>{description}</CardDescription>
+        {action && <CardAction>{action}</CardAction>}
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {drawn && (

@@ -30,6 +30,8 @@ export type Permission = "workspace:read" | "members:write" | "roles:write" | "c
   | "crm:forms_manage"
   // CRM reports: read-only aggregates. Owners and admins see ministry totals, members only their own work; viewers see nothing.
   | "crm:reports"
+  // Downloading a report table as CSV (aggregates only): owners and admins, a deliberate step above reading the screen.
+  | "crm:reports_export"
   // Docs: every role reads; owners, admins and members create docs and edit the ones they own (database policy); owners and admins manage all.
   | "docs:read" | "docs:write" | "docs:manage"
   | "newsletter:read" | "newsletter:manage" | "newsletter:campaigns" | "newsletter:delivery" | "newsletter:analytics";

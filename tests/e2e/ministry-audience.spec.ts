@@ -63,8 +63,8 @@ test("ministry type at creation, in settings, and read-only for viewers", async 
   await page.getByRole("radio", { name: "Church", exact: true }).check();
   await page.getByRole("button", { name: "Save", exact: true }).click();
   // The confirmation is a toast in the polite live region, not an inline alert.
-  await expect(page.getByRole("region", { name: "Notifications" }).getByText("Ministry type saved.", { exact: true })).toBeVisible();
-  await expect(page.getByRole("main").getByText("Ministry type saved.", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Notifications" }).getByText("Ministry settings saved.", { exact: true })).toBeVisible();
+  await expect(page.getByRole("main").getByText("Ministry settings saved.", { exact: true })).toHaveCount(0);
   await page.reload();
   await expect(page.getByRole("radio", { name: "Church", exact: true })).toBeChecked();
   await shoot(page, "settings-owner");
@@ -77,7 +77,7 @@ test("ministry type at creation, in settings, and read-only for viewers", async 
     await viewer.goto(`/workspaces/${tenant}/settings`);
     await expect(viewer.getByRole("radio", { name: "Church", exact: true })).toBeChecked();
     await expect(viewer.getByRole("radio", { name: "Church", exact: true })).toBeDisabled();
-    await expect(viewer.getByText("Only owners and admins can change the ministry type.", { exact: true })).toBeVisible();
+    await expect(viewer.getByText("Only owners and admins can change ministry settings.", { exact: true })).toBeVisible();
     await expect(viewer.getByRole("button", { name: "Save", exact: true })).toHaveCount(0);
     expect((await viewer.request.patch(`/api/workspaces/${tenant}/audience`, { headers: { origin }, data: { audience: "ministry_nonprofit" } })).status()).toBe(403);
     await shoot(viewer, "settings-viewer");
