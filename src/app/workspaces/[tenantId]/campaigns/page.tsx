@@ -12,8 +12,10 @@ import { uuidInput } from "@/lib/contact-input";
 import { campaignPage } from "@/lib/campaigns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AccentIcon } from "@/components/accent-icon";
+import { CampaignCoverPlaceholder } from "@/components/campaigns/campaign-type-art";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
+import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -44,13 +46,14 @@ export default async function CampaignsPage({ params, searchParams }: {
     {result.campaigns.length ? <ItemGroup aria-label={t("title")} className="gap-2">
       {result.campaigns.map((campaign) => <div key={campaign.id} role="listitem"><Item variant="outline" asChild>
         <Link href={`${root}/${campaign.id}`} className="bg-card">
+          <ItemMedia className="max-sm:hidden"><CampaignCoverPlaceholder type={campaign.type} className="aspect-[4/3] w-20 rounded-md" /></ItemMedia>
           <ItemContent className="min-w-0"><ItemTitle className="max-w-full break-words">{campaign.name}</ItemTitle>
             <ItemDescription>{t(`types.${campaign.type}`)}</ItemDescription></ItemContent>
           <Badge variant="secondary">{t(`statuses.${campaign.status}`)}</Badge><ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         </Link>
       </Item></div>)}
     </ItemGroup> : <Empty className="border border-solid bg-card py-16">
-      <EmptyHeader><EmptyMedia variant="icon"><Flag aria-hidden="true" /></EmptyMedia>
+      <EmptyHeader><EmptyMedia><AccentIcon icon={Flag} accent="violet" size="lg" /></EmptyMedia>
         <EmptyTitle><h2>{t(result.total ? "emptyPage" : "emptyTitle")}</h2></EmptyTitle><EmptyDescription>{t("emptyDescription")}</EmptyDescription>
       </EmptyHeader>
     </Empty>}

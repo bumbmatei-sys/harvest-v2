@@ -225,10 +225,32 @@ export const campaignArtTokens = {
   },
 } as const satisfies Record<ColorMode, Record<string, string>>;
 
+/**
+ * Named accent colours: the colour layer on top of the monochrome themes, for icon chips, art, progress and highlights (never large text or page
+ * backgrounds). `--accent-<name>` is the icon / line colour and `--accent-<name>-soft` the chip fill; the solid colour meets 3:1 against the card
+ * surface and its own soft fill in every brand theme and mode (checked in tests). Status colours (success, attention) are separate tokens.
+ */
+export const ACCENTS = ["pink", "sky", "violet", "emerald", "amber", "teal", "indigo"] as const;
+export type Accent = typeof ACCENTS[number];
+export const accentTokens = {
+  light: {
+    "--accent-pink": "#db2777", "--accent-pink-soft": "#fbe5ef", "--accent-sky": "#0284c7", "--accent-sky-soft": "#e1f0f8",
+    "--accent-violet": "#7c3aed", "--accent-violet-soft": "#efe7fd", "--accent-emerald": "#059669", "--accent-emerald-soft": "#e1f2ed",
+    "--accent-amber": "#b45309", "--accent-amber-soft": "#fef3c7", "--accent-teal": "#0f766e", "--accent-teal-soft": "#e2efee",
+    "--accent-indigo": "#4f46e5", "--accent-indigo-soft": "#eae9fc",
+  },
+  dark: {
+    "--accent-pink": "#f472b6", "--accent-pink-soft": "#3f2734", "--accent-sky": "#38bdf8", "--accent-sky-soft": "#1d3540",
+    "--accent-violet": "#a78bfa", "--accent-violet-soft": "#312c40", "--accent-emerald": "#34d399", "--accent-emerald-soft": "#1c392e",
+    "--accent-amber": "#fbbf24", "--accent-amber-soft": "#403519", "--accent-teal": "#2dd4bf", "--accent-teal-soft": "#1b3935",
+    "--accent-indigo": "#818cf8", "--accent-indigo-soft": "#2a2c40",
+  },
+} as const satisfies Record<ColorMode, Record<`--accent-${Accent}` | `--accent-${Accent}-soft`, string>>;
+
 export const themeStyles = BRAND_THEMES.flatMap((brand) => COLOR_MODES.map((mode) => {
   const fallback = brand === "harvest" && mode === "light" ? ":root," : "";
   const selectors = fallback + ` :root[data-brand-theme="${brand}"][data-theme="${mode}"], [data-theme="${mode}"] .theme-preview[data-preview-brand="${brand}"]`;
-  const tokens = Object.entries({ ...themeRegistry[brand][mode], ...campaignArtTokens[mode] }).map(([name, value]) => `${name}:${value}`).join(";");
+  const tokens = Object.entries({ ...themeRegistry[brand][mode], ...campaignArtTokens[mode], ...accentTokens[mode] }).map(([name, value]) => `${name}:${value}`).join(";");
   return `${selectors}{color-scheme:${mode};${tokens}}`;
 })).join("\n");
 

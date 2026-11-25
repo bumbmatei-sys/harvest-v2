@@ -1,5 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { campaignTypes } from "@/lib/campaigns";
+import type { Accent } from "@/lib/theme-registry";
 import { cn } from "@/lib/utils";
 
 // Original, code-drawn header art for the campaign types: layered gradients, a fine dot grain, soft shapes and one line motif per type.
@@ -135,5 +136,10 @@ export function CampaignTypeArt({ type, variant = "card", className }: { type: C
 
 /** Cover placeholder for a campaign without a cover image: the type's art at cover size, with rounded corners from the caller. */
 export function CampaignCoverPlaceholder({ type, className }: { type: CampaignType; className?: string }) {
-  return <CampaignTypeArt type={type} variant="cover" className={cn("aspect-[16/7] h-auto", className)} />;
+  return <CampaignTypeArt type={type} variant="cover" className={cn("aspect-[16/7] h-auto min-h-0", className)} />;
 }
+
+/** Each campaign type's accent, matching its artwork's colour family. Tints the wizard (chips, progress, the selected card) once a type is chosen. */
+export const campaignTypeAccent: Record<CampaignType, Accent> = {
+  evangelistic_crusade: "pink", mission_trip: "sky", conference: "violet", local_outreach: "emerald", custom_project: "amber",
+};
