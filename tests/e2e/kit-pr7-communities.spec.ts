@@ -39,7 +39,7 @@ async function person(browser: Browser, errors: string[], name: string) {
 async function join(page: Page, slug: string) {
   await page.goto(`/communities/${slug}`);
   await page.getByRole("button", { name: "Join", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Join Youth Group" });
+  const dialog = page.getByRole("dialog", { name: "Join Kit Youth Group" });
   await dialog.getByLabel("I confirm I am 18 or older").click();
   await dialog.getByRole("button", { name: "Join", exact: true }).click();
   await expect(page).toHaveURL(new RegExp(`/communities/${slug}/forum$`));
@@ -58,7 +58,7 @@ test("community screens: member list, moderation queue, Discover and feed cards,
   expect((await page.request.put("/api/account/profile", { headers: { origin }, data: { name: "Grace Owner", locale: null, cityRegion: null } })).ok()).toBe(true);
   const tenant = (await (await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Grace Community Church", audience: "church" } })).json()).tenantId as string;
   const slug = `youth-${Date.now().toString(36)}`, api = `/api/workspaces/${tenant}/communities`;
-  const community = (await (await page.request.post(api, { headers: { origin }, data: { name: "Youth Group", slug } })).json()) as { id: string };
+  const community = (await (await page.request.post(api, { headers: { origin }, data: { name: "Kit Youth Group", slug } })).json()) as { id: string };
   const editUrl = `/workspaces/${tenant}/communities/${community.id}/edit`;
   let current = (await (await page.request.get(`${api}/${community.id}`)).json()) as { version: number };
   current = await (await page.request.patch(`${api}/${community.id}`, { headers: { origin }, data: { version: current.version, visibility: "listed", discoverOptIn: true, allowOpen: true, tagline: "Weekly meetings for teenagers" } })).json();
@@ -165,9 +165,9 @@ test("community screens: member list, moderation queue, Discover and feed cards,
     await test.step("Discover: cards with the initials band and the open filter", async () => {
       const p = outsider.page;
       await p.goto("/discover");
-      await expect(p.getByRole("heading", { name: "Youth Group", level: 2 })).toBeVisible();
-      await expect(p.getByRole("link", { name: "View Youth Group" })).toBeVisible();
-      await tall(p.getByRole("link", { name: "View Youth Group" }));
+      await expect(p.getByRole("heading", { name: "Kit Youth Group", level: 2 })).toBeVisible();
+      await expect(p.getByRole("link", { name: "View Kit Youth Group" })).toBeVisible();
+      await tall(p.getByRole("link", { name: "View Kit Youth Group" }));
       await audit(p, "discover");
       await p.goto("/discover?q=zzzz-none");
       await expect(p.getByText("No communities found")).toBeVisible();
