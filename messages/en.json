@@ -1180,6 +1180,7 @@
       "manual": "Manual",
       "csv_import": "CSV import",
       "form": "Form",
+      "ad_lead": "Ad lead",
       "unknown": "Unknown",
       "created": "Created",
       "updated": "Updated",
@@ -1659,6 +1660,7 @@
       "csv_import": "CSV import",
       "connect": "Connect",
       "form": "Forms",
+      "ad_lead": "Ad leads",
       "unknown": "Unknown"
     },
     "empty": {
@@ -2152,7 +2154,7 @@
     "pageTitle": "Campaigns · Harvest",
     "description": "Campaigns organized within this ministry.",
     "emptyTitle": "No campaigns yet",
-    "emptyDescription": "Campaigns will appear here once created. Guided setup is coming in a later release.",
+    "emptyDescription": "Start a campaign and it is saved as a draft while you set it up.",
     "emptyPage": "No campaigns on this page",
     "backToCampaigns": "Back to campaigns",
     "private": "Private to this ministry",
@@ -5909,6 +5911,15 @@
       "lastLabel": "Last name",
       "consent": "Consent wording"
     },
+    "adForm": {
+      "title": "Ad lead form",
+      "name": "Full name",
+      "email": "Email address",
+      "phone": "Phone number",
+      "endTitle": "Thank you",
+      "endBody": "We received your details.",
+      "button": "Submit"
+    },
     "newsletterForm": {
       "title": "Join our newsletter",
       "description": "",
@@ -7440,6 +7451,181 @@
     "none": "No time zone found.",
     "utc": "UTC"
   },
+  "CampaignWizard": {
+    "pageTitle": "Campaign setup · Harvest",
+    "newTitle": "New campaign",
+    "newPageTitle": "New campaign · Harvest",
+    "draftsTitle": "Campaign drafts",
+    "draftsPageTitle": "Campaign drafts · Harvest",
+    "draftsAll": "Every draft in this ministry",
+    "draftsEmpty": "No drafts",
+    "draftsEmptyDescription": "Start a campaign and it is saved here as you go.",
+    "newCampaign": "New campaign",
+    "drafts": "Drafts",
+    "continue": "Continue",
+    "view": "View",
+    "discard": "Discard",
+    "cover": {
+      "label": "Campaign Cover Image or Logo (optional)",
+      "alt": "Campaign cover",
+      "drop": "Drop an image here",
+      "limits": "JPG, PNG or WebP, up to {mb} MB",
+      "select": "Select image",
+      "replace": "Replace",
+      "remove": "Remove",
+      "saveFirst": "Save the draft to add a cover.",
+      "saved": "Cover updated.",
+      "removed": "Cover removed.",
+      "removeTitle": "Remove the cover?",
+      "removeBody": "The campaign will have no cover image or logo.",
+      "keep": "Keep cover",
+      "progressLabel": "Upload progress",
+      "cancel": "Cancel",
+      "scanning": "Waiting for the safety check.",
+      "checkAgain": "Check again",
+      "dismiss": "Dismiss",
+      "tryAgain": "Try again",
+      "chooseAnother": "Choose another",
+      "reload": "Reload",
+      "phases": {
+        "preparing": "Preparing",
+        "uploading": "Uploading",
+        "uploadingPercent": "Uploading {percent}%",
+        "verifying": "Checking the image"
+      },
+      "problems": {
+        "type": "Use a JPG, PNG or WebP image.",
+        "size": "The image must be larger than 0 and at most {mb} MB.",
+        "rejected": "This image was not accepted. Choose another.",
+        "interrupted": "The upload was interrupted. Try again.",
+        "failed": "The image could not be uploaded. Try again.",
+        "scan": "The image failed the safety check. Choose another.",
+        "stale": "This draft changed somewhere else. Reload, then try again."
+      }
+    },
+    "discardNamed": "Discard: {name}",
+    "discardTitle": "Discard this draft?",
+    "discardBody": "The draft is closed and no campaign is created. This cannot be undone.",
+    "discardConfirm": "Discard draft",
+    "discardCancel": "Keep draft",
+    "discarded": "Draft discarded.",
+    "untitled": "Untitled campaign",
+    "startedBy": "Started by {name}",
+    "you": "You",
+    "aMember": "A ministry member",
+    "updated": "Updated {when}",
+    "stepProgress": "Step {step} of {total}",
+    "draftBack": "All drafts",
+    "stepsLabel": "Campaign setup",
+    "typeLabel": "Campaign setup",
+    "status": {
+      "draft": "Draft"
+    },
+    "save": {
+      "saved": "Saved",
+      "saving": "Saving…",
+      "unsaved": "Unsaved changes",
+      "error": "Not saved",
+      "invalid": "Fix the highlighted fields to save",
+      "conflict": "Changed elsewhere"
+    },
+    "retry": "Try again",
+    "conflictTitle": "This draft changed somewhere else",
+    "conflictBody": "Reload to see the latest version. Your last unsaved edits on this screen are not applied.",
+    "reload": "Reload",
+    "closed": {
+      "finished": "This draft is already a campaign.",
+      "discarded": "This draft was discarded."
+    },
+    "openCampaign": "Open campaign",
+    "leaveTitle": "This draft could not be saved",
+    "leaveBody": "Some changes on this screen are not saved yet. Leave anyway?",
+    "leaveStay": "Stay",
+    "leaveGo": "Leave",
+    "comingSoon": "Soon",
+    "steps": {
+      "type": "Campaign Type",
+      "basics": "Basic Information",
+      "place": "Location & Dates",
+      "leaders": "Teams & Leadership",
+      "tools": "Campaign Features",
+      "budget": "Budget & Fundraising",
+      "connect": "Registration & Follow-Up",
+      "review": "Review & Create"
+    },
+    "questions": {
+      "type": "What type of campaign are you organizing?",
+      "basics": "Tell us about your campaign.",
+      "place": "Where and when will your campaign take place?"
+    },
+    "types": {
+      "evangelistic_crusade": {
+        "label": "Evangelistic Crusade",
+        "description": "Large-scale evangelism, church partnerships, volunteers, fundraising, counseling, and follow-up."
+      },
+      "mission_trip": {
+        "label": "Mission Trip",
+        "description": "Mission teams, travel, accommodation, fundraising, field activities, and logistics."
+      },
+      "conference": {
+        "label": "Conference",
+        "description": "Speakers, sessions, registration, venues, and event management."
+      },
+      "local_outreach": {
+        "label": "Local Outreach",
+        "description": "Street evangelism, smaller outreach events, volunteer coordination, and follow-up."
+      },
+      "custom_project": {
+        "label": "Custom Project",
+        "description": "A blank project with customizable features."
+      }
+    },
+    "changeType": "Changing the type loads that type’s template again.",
+    "basics": {
+      "name": "Campaign Name",
+      "description": "Campaign Description (optional)",
+      "mission": "Campaign Goal or Mission (optional)"
+    },
+    "place": {
+      "structure": "Campaign Structure",
+      "structures": {
+        "single": "Single location",
+        "multi": "Multiple locations",
+        "online_hybrid": "Online / Hybrid"
+      },
+      "country": "Country",
+      "cityRegion": "City / Region",
+      "startDate": "Campaign Start Date",
+      "endDate": "Campaign End Date",
+      "timeZone": "Time Zone",
+      "timeZonePlaceholder": "Choose a time zone",
+      "useMine": "Use my time zone"
+    },
+    "problems": {
+      "REQUIRED": "Required",
+      "INVALID": "Check this value",
+      "INVALID_DATE_RANGE": "End date is before the start date"
+    },
+    "issues": {
+      "TYPE_REQUIRED": "Choose a campaign type."
+    },
+    "activate": {
+      "button": "Activate",
+      "title": "Activate this campaign?",
+      "body": "This marks the campaign active. Nothing is published or sent.",
+      "confirm": "Activate",
+      "working": "Activating…",
+      "back": "Return to draft",
+      "backTitle": "Return to draft?",
+      "backBody": "The campaign goes back to draft. Nothing is published or sent.",
+      "backConfirm": "Return to draft",
+      "cancel": "Cancel",
+      "notReady": "Add the place, dates and time zone before activating.",
+      "ok": "Campaign is now active.",
+      "backOk": "Campaign is back in draft.",
+      "nothingPublished": "Nothing is published yet."
+    }
+  },
   "LinkInBio": {
     "title": "Link in bio",
     "pageTitle": "Link in bio",
@@ -7899,5 +8085,182 @@
       },
       "withReason": "{outcome} ({reason})"
     }
+  },
+  "DiscoverScreens": {
+    "title": "Discover",
+    "searchLabel": "Search Discover",
+    "searchPlaceholder": "Search communities, courses and products",
+    "search": "Search",
+    "clearSearch": "Clear search",
+    "typesLabel": "Type",
+    "types": {
+      "all": "All",
+      "community": "Communities",
+      "course": "Courses",
+      "product": "Products"
+    },
+    "typeNames": {
+      "community": "Community",
+      "course": "Course",
+      "product": "Product"
+    },
+    "filters": "Filters",
+    "filtersTitle": "Filters",
+    "filtersActive": "{count, plural, one {# filter active} other {# filters active}}",
+    "category": "Category",
+    "language": "Language",
+    "price": "Price",
+    "anyCategory": "Any category",
+    "anyLanguage": "Any language",
+    "reset": "Reset",
+    "resetFilters": "Reset filters",
+    "sortLabel": "Sort by",
+    "sorts": {
+      "relevance": "Relevance",
+      "newest": "Newest",
+      "name": "Name"
+    },
+    "activeFilters": "Active filters",
+    "removeFilter": "Remove filter {name}",
+    "categories": {
+      "discipleship": "Discipleship",
+      "prayer": "Prayer",
+      "worship": "Worship",
+      "bible_study": "Bible study",
+      "outreach": "Outreach",
+      "missions": "Missions",
+      "youth": "Youth",
+      "family": "Family",
+      "leadership": "Leadership",
+      "service": "Service",
+      "recovery": "Recovery",
+      "other": "Other"
+    },
+    "resultsLabel": "Results",
+    "resultCount": "{count, plural, one {# result} other {# results}}",
+    "loadMore": "Load more",
+    "loadingMore": "Loading",
+    "loadFailed": "Could not load more results.",
+    "retry": "Try again",
+    "emptyTitle": "Nothing listed yet",
+    "emptyBody": "Approved communities, courses and products appear here.",
+    "noResultsTitle": "No results",
+    "noResultsBody": "Try other words or reset the filters.",
+    "failedTitle": "Search is unavailable",
+    "failedBody": "Try again in a moment.",
+    "by": "By {host}",
+    "free": "Free",
+    "view": "View",
+    "viewNamed": "View {name}",
+    "quickLook": "Quick look",
+    "quickLookNamed": "Quick look at {name}",
+    "admission": {
+      "open": "Open to join",
+      "apply": "By application",
+      "invite": "By invitation",
+      "entitlement": "With a purchase"
+    },
+    "updated": "Updated {date}",
+    "quick": {
+      "host": "Host",
+      "category": "Category",
+      "language": "Language",
+      "price": "Price",
+      "admission": "Joining",
+      "updatedLabel": "Updated",
+      "openPage": "Open page",
+      "noPage": "A public page is not available yet.",
+      "close": "Close"
+    },
+    "report": {
+      "button": "Report",
+      "buttonNamed": "Report {name}",
+      "title": "Report this listing",
+      "reason": "Reason",
+      "note": "Note (optional)",
+      "send": "Send report",
+      "cancel": "Cancel",
+      "sending": "Sending",
+      "reasons": {
+        "spam": "Spam",
+        "inappropriate": "Inappropriate",
+        "misleading": "Misleading",
+        "impersonation": "Impersonation",
+        "other": "Other"
+      },
+      "sent": "Thank you. We will review it.",
+      "duplicate": "You already reported this and it is still open.",
+      "rateLimited": "You have sent too many reports today. Try again tomorrow.",
+      "gone": "This listing is no longer available.",
+      "failed": "Could not send the report. Try again.",
+      "signIn": "Sign in to report",
+      "done": "Done"
+    },
+    "owner": {
+      "title": "Discover",
+      "tabsLabel": "Listings",
+      "tabs": {
+        "all": "All",
+        "community": "Communities",
+        "course": "Courses",
+        "product": "Products"
+      },
+      "tableLabel": "Your listings",
+      "name": "Name",
+      "type": "Type",
+      "status": "Status",
+      "category": "Category",
+      "language": "Language",
+      "actions": "Actions",
+      "manage": "Manage",
+      "manageNamed": "Manage {name}",
+      "none": "Not set",
+      "browse": "Browse Discover",
+      "emptyTitle": "Nothing to list yet",
+      "emptyBody": "Communities, courses and products you create appear here.",
+      "emptyTab": "No listings in this tab.",
+      "listed": "In Discover",
+      "notListed": "Not listed",
+      "loadFailed": "Could not load your listings.",
+      "panelTitle": "Discover listing",
+      "close": "Close",
+      "reload": "Reload"
+    },
+    "card": {
+      "title": "List in Discover",
+      "switch": "List in Discover",
+      "material": "Changing the name, summary, category, language, price, host or audience sends an approved listing back to review.",
+      "optOut": "Turning it off removes it from Discover at once.",
+      "category": "Category",
+      "language": "Language",
+      "unset": "Not set",
+      "saving": "Saving",
+      "saved": "Saved",
+      "status": {
+        "not_requested": "Not listed",
+        "pending": "In review",
+        "approved": "Approved",
+        "rejected": "Not approved",
+        "suspended": "Suspended"
+      },
+      "pending": "Waiting for review. It is not public until approved.",
+      "approved": "Public in Discover.",
+      "rejected": "Not approved: {reason}",
+      "suspended": "Suspended: {reason}",
+      "resubmit": "Send for review again",
+      "communityManaged": "Turn this on or off in the community settings.",
+      "openSettings": "Open community settings",
+      "needsPublished": "Publish it as Listed to list it in Discover.",
+      "conflict": "This changed elsewhere. Reload and try again.",
+      "reload": "Reload",
+      "failed": "Could not save. Try again.",
+      "loadFailed": "Could not load the Discover status.",
+      "readOnly": "Only owners and admins can change this."
+    },
+    "paid": "Paid",
+    "freeOnly": "Free only",
+    "allCategories": "All categories",
+    "searchCategories": "Search categories",
+    "noCategoryMatch": "No category found."
   }
 }

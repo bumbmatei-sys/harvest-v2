@@ -148,9 +148,24 @@ Approved for the CRM reports slice (`docs/acceptance/crm-reports.md`); they sett
 - **Export.** CSV download of each report table (deals, tasks, sources, stage to stage), owners and admins only, aggregates only, the same small-cohort suppression and ministry time zone, file names with the ministry-local date, one audit row per export (table and period, never content).
 - **Not decided here.** Whether a median should be withheld for a group that is not small but whose region split is (the current rule withholds only with its count); retention of `crm_deal_stage_moves` rows beyond the life of the deal (they go with the deal and hold no personal data).
 
+## Campaign wizard screens (founder, 25 Nov)
+
+- **Who can edit and finish.** Anyone with `campaigns:write` can edit and finish any open draft. The campaign owner stays the person who started the draft. The version check stays, so two editors cannot overwrite each other (the later save gets "changed elsewhere, reload"). Needs a server and RLS change (migration), so it ships in the server PR before the Finish screen.
+- **Invitations (steps 4 and 5).** Invite an existing ministry member by picking from the member list, or by email address. An email that matches a member invites that member. An email that is not a member gets an invitation that, once accepted, adds the person to the ministry with access to that campaign only. The invitee must accept. The owner sees pending and accepted. Invitations expire after 14 days. Delivery stays synthetic and hard-off.
+- **Cover image or logo (step 2, optional).** Added, reusing the event cover picker (scanned files).
+- **AI Campaign Copilot card.** Shown as "coming later", not a working toggle.
+- **Conditional questions.** Only what the PRD says: departments and tools adapt to the type.
+- **Dashboard data.** Add a read route so the campaign dashboard shows the finished draft's configuration (tools, teams and so on).
+- **Draft Connect sources.** Draft QR links and sources are part of CW-08 (step 7).
+- **Checklist.** Completion is stored per item so manual items can be ticked; derived items still tick themselves.
+
 ## 6. Process rules
 
 - Use Claude or Codex for coding and a separate fresh session for independent review. No force pushes. No merge or deploy without the founder's approval. No real outbound messages or webhooks outside tests.
 - Kit approval gate: before building any visual item from the paid kit, send the founder an item list. Under the 17 Nov standing rule the list names the block per area and the founder's approval in principle is recorded; screens PRs name the exact block.
 - Founder works from a phone and prefers short plain-language replies. Always say which model a subagent uses.
 - The Craft roadmap is for the founder's status view only: tasks and checkboxes per phase, no decisions, no paragraphs (hard rule, 17 Nov). Decisions go in this file.
+
+## Harvest staff and Discover approval (founder, 25 Nov)
+- **Approval before listing stays at launch** (PRD 8A.3). This supersedes ADR 0013 section 7 ("no pre-approval") for launch.
+- **Harvest staff role** created: reviewers and admins in `platform_staff`, granted only by an ops script (no self-serve, no UI), every staff action audited, staff routes need a sign-in within 15 minutes, staff see only Discover review data. Details: `docs/acceptance/platform-staff-discover.md`.

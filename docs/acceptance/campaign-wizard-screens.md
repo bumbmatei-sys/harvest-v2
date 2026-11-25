@@ -1,0 +1,124 @@
+# Campaign wizard screens: PRD checklist (CW-02 to CW-09)
+
+Status: **PR 1 (rows 1 to 20) built; PR 2 (rows 8 and 14, migration 0106) built; later rows are still plan.** Written 25 Nov 2026 before any UI code is merged. Every row quotes `docs/prd/harvest-campaign-wizard.md` ("PRD"), names the screen or component that will satisfy it, and has an Evidence cell that is filled with a test or screenshot when the row is done. A row with no evidence at the end is listed under "Not built".
+
+Server already merged (#224, `a1408ee`, migration 0092): drafts, autosave with version check (409), idempotent create, finish, discard, activate. Read `docs/acceptance/campaign-wizard-server.md`. There is no separate CW-02 acceptance doc: CW-01 (`docs/acceptance/cw-01.md`) is the only earlier campaign acceptance record, and CW-02 is the shell this work delivers.
+
+Rules for this work: no step, field or copy that the PRD does not contain; where the PRD is silent or conflicts with a founder decision the row says **OPEN** and links to a question below. Style is Studio Admin through the shared shell, `EditorShell`, `WizardLayout`, `Stepper`, `Field`, `FormSection`, `ConfirmDialog`. Kit items approved 25 Nov 2026 (to be recorded in `docs/ui-sources.md` and `src/lib/ui-provenance.ts` with the first PR that copies from them): `stepper1`, `form-layout1`, `form-layout11`, `tables9`, `switch-card1`, `todo-app6`, plus stat cards and charts as in CRM reports.
+
+## Proposed PRs, in CW order
+
+| PR | Roadmap slice | Delivers | Needs server change |
+| --- | --- | --- | --- |
+| 1 | CW-02, CW-03, CW-04 | Wizard shell on `EditorShell` (steps 4 to 8 listed but not available yet), start page, drafts list, autosave with Saved state, resume, conflict message, steps 1 to 3, activate on the campaign page | No (the Activate row needs none) |
+| 2 | server | Shared drafts (Q1) and cover reference (Q3), then the cover in step 2 | **Yes**: migration |
+| 3 | CW-05 | Steps 4 and 5: departments, leaders and team members with invitations they must accept, tool cards | **Yes**: invitation model (new migration) |
+| 4 | CW-06 | Step 8 review and Finish, finish-once, post-creation checklist | **Yes**: finish permission, see Q1 |
+| 5 | CW-07 | Campaign dashboard | Maybe: read of finished-draft configuration, see Q6 |
+| 6 | CW-08 | Step 7 | No (configuration only), founder: part of CW-08 |
+| 7 | CW-09 | Step 6 | No |
+
+Migration numbering follows the journal on `main` at the time each PR is opened.
+
+## CW-02 and CW-03: shell, autosave, resume
+
+| # | PRD requirement | Screen / component | Evidence |
+| --- | --- | --- | --- |
+| 1 | Overview: "Harvest should open a guided, multi-step onboarding wizard" when an administrator clicks "+ Create New Campaign" | **New campaign** button on `/workspaces/:id/campaigns` leading to `/campaigns/new` | `tests/e2e/campaign-wizard.spec.ts` test 1 (New campaign link opens the start page); `docs/screenshots/campaign-wizard/start-type.png` |
+| 2 | "The wizard should have **8 steps**, with **Back**, **Next**, and **Finish** buttons, a progress indicator" | `EditorShell` + `WizardLayout` (Back/Next/Finish) + kit `stepper1` look via shared `Stepper`: steps in the shell editing sidebar from 1024px, "Step n of 8" bar below | `tests/e2e/campaign-wizard.spec.ts` test 1 (steps listed, 4 to 8 `aria-disabled`); test 4 (axe 360/768/1280, light and dark); `docs/screenshots/campaign-wizard/wizard-place-desktop-light.png`, `wizard-place-phone-light.png`, `-dark` variants |
+| 3 | "automatic draft saving" and "Users should be able to close the wizard and resume later without losing their answers" | Autosave per step, **Saved** state next to the title, resume at the furthest step reached, Drafts list (`/campaigns/drafts`, the way back in) | `tests/e2e/campaign-wizard.spec.ts` test 1 (resume restores every answer at the furthest step; Drafts list shows "Step 4 of 8"); `docs/screenshots/campaign-wizard/drafts-desktop-light.png`, `drafts-phone-dark.png` |
+| 4 | Technical: "Secure, idempotent campaign creation" | Draft create sends an `Idempotency-Key`; double click makes one draft | `tests/unit/campaign-wizard-form.test.ts`; test 1 (picking a type makes one draft and lands on it). Server idempotency: `docs/acceptance/campaign-wizard-server.md` |
+| 5 | Technical: "Backend validation and audit logging" | Screens use the server `issues`; no client-only rule is the authority | `tests/e2e/campaign-wizard.spec.ts` test 1 (end date before start sends nothing); server `issues` in `src/lib/campaign-wizard-form.ts` (`issuesOf`) |
+| 6 | Decision 6 Nov: draft saving is "persisted"; changed elsewhere must not overwrite | 409 shows "changed elsewhere, reload"; fields lock until reload | `tests/e2e/campaign-wizard.spec.ts` test 2 (409 shows the reload message, fields lock, server copy untouched, Reload resumes); `docs/screenshots/campaign-wizard/conflict.png` |
+| 7 | Technical: "Workspace-based permissions" | Viewer sees no New campaign, no drafts; member sees own drafts; owner/admin see all and may discard | `tests/e2e/campaign-wizard.spec.ts` test 3 (viewer: no New campaign, no drafts, 403 on create; member own drafts, 404 on another's; admin all); `docs/screenshots/campaign-wizard/drafts-admin.png` |
+| 8 | Founder 25 Nov: anyone with `campaigns:write` edits and finishes any open draft | Server and RLS change in PR 2, screens follow. PR 1 stays creator-only: others read the draft | PR 2: migration 0106 (draft read and edit policies, assignments, guard trigger, campaign owner stays the creator); `tests/e2e/campaign-wizard.spec.ts` test 3 (a colleague opens, edits and autosaves another member's draft; stale save is a 409; viewer sees none; only the creator, owners and admins discard); `tests/integration/campaign-wizard.test.ts` "shared drafts"; `docs/screenshots/campaign-wizard/shared-draft-colleague.png`, `drafts-admin.png` |
+| 9 | Activation: "Public forms, donation pages, invitations, and external communications must remain **unpublished until reviewed and explicitly activated**" | Activate / Return to draft on the campaign page for owners and admins, with the line "Nothing is published yet." | `tests/e2e/campaign-wizard.spec.ts` test 1 (Activate and Return to draft with the confirm text); test 3 (member sees no Activate, 403; missing place/dates message); `docs/screenshots/campaign-wizard/campaign-activate.png`, `activate-confirm.png` |
+| 10 | Discard a draft (PRD silent; server supports it) | Discard with confirm in the Drafts list and the wizard | `tests/e2e/campaign-wizard.spec.ts` test 3 (confirm, Keep draft, Discard draft, list shrinks; plain member refused); `docs/screenshots/campaign-wizard/drafts-admin.png` |
+
+## CW-04: steps 1 to 3
+
+| # | PRD requirement | Screen / component | Evidence |
+| --- | --- | --- | --- |
+| 11 | Step 1: "What type of campaign are you organizing?" five types with the PRD descriptions (Evangelistic Crusade, Mission Trip, Conference, Local Outreach, Custom Project) | Type cards (radio group) using the PRD wording for each description. The earlier prototype's descriptions are replaced by the PRD's | `tests/e2e/campaign-wizard.spec.ts` test 1 (five cards, PRD descriptions); `docs/screenshots/campaign-wizard/start-type.png`, `step-1-type.png` |
+| 12 | Step 1: "Each selection automatically loads an appropriate campaign template with suggested departments, tasks, and features." | Server template on pick; screen says that a type change reloads departments and tools | `tests/e2e/campaign-wizard.spec.ts` test 1 (step 1 shows "Changing the type loads that type’s template again."); `docs/screenshots/campaign-wizard/step-1-type.png` |
+| 13 | Step 2 fields: Campaign Name (Required), Description (Optional), Goal or Mission (Optional) | `form-layout1`/`form-layout11` shaped form: name, description, goal or mission | `tests/e2e/campaign-wizard.spec.ts` test 1 (name required, autosave of name and goal); `docs/screenshots/campaign-wizard/step-2-basics.png` |
+| 14 | Step 2: "Campaign Cover Image or Logo — Optional" | Founder: yes, reuse the event cover picker. Needs a server field, so it ships in PR 2, not PR 1 | PR 2: `EventCoverPicker` reused with campaign wording (`copy` prop); `tests/e2e/campaign-wizard.spec.ts` test 5 (upload, scan state, signed picture, replace, remove, carried to the campaign on Finish, axe and 44px at 360 dark); `tests/integration/campaign-wizard.test.ts` "campaign cover"; `docs/screenshots/campaign-wizard/step-2-cover.png`, `step-2-cover-phone-dark.png` |
+| 15 | Step 2: "Harvest automatically generates the campaign's internal URL and dashboard." | Campaign id URL and dashboard already exist; no field shown | No field shown by design |
+| 16 | Step 3 fields: Country, City / Region, Start Date, End Date, Time Zone | Place form; time zone select (no combobox exists on main) | `tests/e2e/campaign-wizard.spec.ts` test 1 (country, city, dates, time zone autosave and resume); `docs/screenshots/campaign-wizard/step-3-place.png` |
+| 17 | Step 3: Campaign Structure "Single location / Multiple locations / Online / Hybrid" | Three radio cards with those names | `tests/e2e/campaign-wizard.spec.ts` test 1 (radio cards). The server enum has three values, so the PRD list "Online / Hybrid" is one card named "Online / Hybrid" |
+| 18 | Step 3: "The user can add specific venues and individual crusade nights later." and multi-location venues/schedules | **Not built** (post-wizard; no venue field exists). The earlier prototype's country/city/venue idea is dropped | **Not built**, as written |
+| 19 | End date not before start date; time zone valid | Client check with the server schema; message "End date is before the start date" | `tests/e2e/campaign-wizard.spec.ts` test 1 ("End date is before the start date", save state invalid, nothing sent) |
+| 20 | "Conditional Questions: The wizard should adapt to the chosen campaign type." | Founder: only departments and tools adapt (already the case) | Only departments and tools adapt (server template); no screen question changes by type |
+
+## CW-05: steps 4 and 5
+
+| # | PRD requirement | Screen / component | Evidence |
+| --- | --- | --- | --- |
+| 21 | Step 4: "The administrator creating the campaign automatically becomes the **Campaign Owner**." | Owner row shown (the creator) | |
+| 22 | Step 4: "The user can optionally invite additional leaders." with the 13 suggested departments for a crusade | Department cards from the template; add or remove departments; leader and member per department | |
+| 23 | Founder 25 Nov: leaders and team members receive invitations they must accept | Founder answer Q2 above; PR 3. Delivery stays synthetic and hard-off. Member list from kit `tables9` plus an invite dialog | |
+| 24 | Step 4: each department "can receive its own": leader, team members, Kanban board, task assignments, deadlines and milestones, files, budget allocation, progress reporting | Leader and team members only. Kanban, tasks, milestones, files, budget allocation, reporting are **not built** (CW-06 materialisation does not exist on the server) | |
+| 25 | Step 4: "Campaign leadership should have access to an overall dashboard covering all departments." | CW-07 | |
+| 26 | Step 5: grid of selectable feature cards, the 18 modules by name | Tool cards with `switch-card1` shape, PRD names only, no invented descriptions | |
+| 27 | Step 5: "Recommended modules should be automatically selected based on the chosen campaign type." | Template preselection; Recommended badge | |
+| 28 | Step 5: "All modules can be enabled or disabled later in Campaign Settings." | **Not built** (no Campaign Settings screen in PRD scope); noted | |
+| 29 | AI Campaign Copilot is a module (AI setup deferred, CW-12) | Card visible, off by default, no setup behaviour; founder: shown as "coming later", not a working toggle | |
+
+## CW-06: step 8, Finish, checklist
+
+| # | PRD requirement | Screen / component | Evidence |
+| --- | --- | --- | --- |
+| 30 | Step 8: "Display a summary of the configuration" (name and type, description, location and dates, owner, departments, enabled modules, budget and currency, fundraising, registration options, QR response form, discipleship and follow-up) | Summary card with every listed item | |
+| 31 | "The user can return to any step and make changes." | Edit link on each section; issues list with a link to the step | |
+| 32 | "**Final Button:** Finish — Create Campaign" | Finish button, label as in the PRD | |
+| 33 | Finish is idempotent ("One campaign per idempotency key") | Double click or retry opens the same campaign | |
+| 34 | Missing required fields are blocked with reasons | Server `issues` listed, each with a link back | |
+| 35 | After Finish, items 1 to 12 ("Campaign Dashboard", "Project Management", ... "AI Assistant") are initialised | **Not built**: the server creates the campaign row only; materialisation of boards, budget, events, forms and the rest does not exist (CW-06 server part is later) | |
+| 36 | "Post-Creation Checklist ... setup checklist showing important unfinished tasks" with the nine example items | `todo-app6`-shaped checklist on the campaign page, derived from known state. Founder: completion stored per item | |
+
+## CW-07: dashboard
+
+| # | PRD requirement | Screen / component | Evidence |
+| --- | --- | --- | --- |
+| 37 | "Campaign Dashboard: Overview of progress, events, funding, teams, tasks, and readiness" | Stat cards in the style of CRM reports on the campaign page. Only what exists is real; progress, events, funding, tasks are shown as not available, not invented. Founder: add a read route for the finished draft's configuration | |
+| 38 | Slice plan: "Manager sees operational overview without Connect metrics or donor PII" | No donor or response data on the page | |
+
+## CW-08: step 7
+
+| # | PRD requirement | Screen / component | Evidence |
+| --- | --- | --- | --- |
+| 39 | Step 7 options 1 to 6: Public Campaign Registration, Evangelistic Response Form (QR), Free Harvest Account Invitations, Community Discovery, Discipleship Follow-Up, Church Referrals | Six `switch-card1` cards with the PRD names | |
+| 40 | Server rules: follow-up, invitations and referrals need registration or the response QR; discovery needs invitations | Dependent cards disabled with the reason | |
+| 41 | "Wizard writes configuration + draft unpublished sources" | Configuration only. Draft sources are **not built**, founder: part of CW-08 | |
+| 42 | "Participation is voluntary ... require appropriate privacy protections and consent mechanisms"; opt-ins start unchecked | All six start off; line "Nothing is published or sent yet" | |
+| 43 | Tool/step consistency (QR on needs the QR tool, registration needs its tool, fundraising needs its tool) | Review issues with links to the Tools step | |
+
+## CW-09: step 6
+
+| # | PRD requirement | Screen / component | Evidence |
+| --- | --- | --- | --- |
+| 44 | Step 6 fields: Preferred Currency, Estimated Total Budget, Enable Campaign Fundraising (Yes/No), Fundraising Goal (Optional), Allow Online Donations (Yes/No) | Exactly those five fields. **The earlier prototype's budget category rows and the server `categories` change are removed**: the PRD lists categories only as something the fundraising workspace includes after Finish | |
+| 45 | "Allow Online Donations" requires fundraising on; goal only with fundraising | Controls disabled with the reason | |
+| 46 | Decision 6 Nov: "Config-only in v1" ; "Payment integration and public donation pages must be reviewed before activation." | Copy says nothing is collected; no provider call | |
+| 47 | "General platform fundraising and crusade-specific fundraising must remain separate." | No shared screen or data | |
+
+## Founder answers (25 Nov), recorded in `docs/decisions/founder-decisions-2026-11.md`
+
+1. Anyone with `campaigns:write` edits and finishes any open draft; the owner stays the creator; the version check stays. Server and RLS change (migration).
+2. Invitations: pick an existing member, or enter an email (a matching email invites that member; otherwise an invitation that adds the person to the ministry with access to that campaign only once accepted). Must be accepted, pending and accepted shown to the owner, 14-day expiry, delivery synthetic and hard-off.
+3. Optional cover image or logo in step 2, reusing the event cover picker (scanned files). Needs a server field.
+4. AI Campaign Copilot card shown as "coming later", not a working toggle.
+5. Conditional questions: only departments and tools adapt to the type.
+6. A read route so the dashboard shows the finished draft's configuration.
+7. Draft Connect sources are part of CW-08.
+8. Checklist completion stored per item; derived items still tick themselves.
+
+Built in PR 2 (migration 0106, `when` 1795594888689): shared open drafts (Q1) and the optional cover (Q3). Storage objects of replaced or abandoned covers are not deleted yet (the event cover cleanup worker covers events only); the files stay private and unreachable, and a cleanup job is a follow-up. The campaign carries `cover_file_id` and has a signed read route, but the campaign page does not show it until the CW-07 dashboard.
+
+Effect on the plan: Q1 and Q3 both need a migration (draft read and edit policies, the discard guard trigger, a cover reference on the draft and the campaign), too large to fold into the screens PR. They ship as **PR 2, "wizard server: shared drafts and cover"**; PR 1 stays screens only for steps 1 to 3 and the cover field joins step 2 in PR 2. Q2 is **PR 3 (CW-05 server and steps 4 and 5)**. Q6 and Q8 belong to the CW-06 and CW-07 PRs. The rows above follow these answers.
+
+## Not built (so far)
+
+Storage cleanup for campaign covers: the files of replaced covers and of discarded drafts stay private and unreachable but are not deleted (the event cover cleanup worker covers events only). **Follow-up:** a retention job for `campaign_files` rows that no draft or campaign points to.
+
+Venues and multiple locations (PRD says later), per-department boards, tasks, files and budget allocation, Finish materialisation (items 1 to 12), Campaign Settings module toggles, draft Connect sources, persistent checklist. Reasons are in the rows above.

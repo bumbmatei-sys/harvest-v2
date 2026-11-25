@@ -84,7 +84,7 @@ describe("report periods in a time zone", () => {
 const labels: ReportCsvLabels = {
   hidden: "Fewer than 5", periodStart: "Period start", periodEnd: "Period end", timeZone: "Time zone",
   deals: { outcome: "Outcome", count: "Deals", won: "Won", open: "Open", lost: "Lost" }, tasks: { status: "Status", count: "Tasks", overdue: "Overdue", onTime: "On time" },
-  sources: { source: "Source", added: "Added", withDeal: "With a deal", manual: "Manual", csv_import: "CSV", connect: "Connect", form: "Forms", unknown: "Unknown" },
+  sources: { source: "Source", added: "Added", withDeal: "With a deal", manual: "Manual", csv_import: "CSV", connect: "Connect", form: "Forms", ad_lead: "Ad leads", unknown: "Unknown" },
   stages: { pipeline: "Pipeline", from: "From", to: "To", moved: "Moved", medianDays: "Median days" },
 };
 const report: CrmReport = {

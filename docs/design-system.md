@@ -56,6 +56,33 @@ Do not introduce competing design systems without explicit justification.
 
 
 
+### Harvest palette (founder decision, 25 November 2026)
+
+The Harvest theme (`harvest` in `src/lib/theme-registry.ts`) uses an earthy palette: Desert Sun gold `#D3A265`, Sage `#C1C2AD`, Misty Blue `#C7CED7`, Cream `#F2ECBC` and a dark olive anchor `#2B2A0C`. Studio and the 12 future themes keep their own values. Roles:
+
+| Role | Token | Light | Dark |
+| --- | --- | --- | --- |
+| Primary button fill / text / hover | `--action-fill` / `--action-fill-foreground` / `--action-hover` | Desert Sun `#d3a265` / olive `#2b2a0c` (6.3:1) / `#c4975e` (5.5:1) | `#d3a265` / `#2b2a0c` / `#dab07c` (7.3:1) |
+| Links, selection, active indicators (`--primary`) | `--brand-color` / `--action-foreground` | olive `#2b2a0c` (14.6:1 on white) / `#ffffff` | Desert Sun `#d3a265` (7.8:1 on `#171717`) / olive |
+| Focus ring | `--ring` | olive `#2b2a0c` | Desert Sun `#d3a265` |
+| Destructive, success | `--destructive`, `--category-green-*` | unchanged brick red and green, kept distinct from the palette | unchanged |
+
+Primary buttons read `--action-fill`, which every palette defines; for Studio it equals its `--brand-color`, so other themes are unchanged. Everything else bound to `--primary` follows `--brand-color`: links, the `link` button and badge variants, step indicators, switches, checkboxes, radios, selected borders, the `--selected` tint, `--sidebar-primary` and the public form's primary button. In Harvest these are dark olive in light and Desert Sun in dark. `tests/unit/theme.test.ts` checks that button text is at least 4.5:1 in every palette and that `--brand-color` reads as link text on cards.
+
+### Accent and artwork tokens (25 November 2026)
+
+Harvest's palettes are mostly neutral, so a small colour layer lives in the **same registry** (`src/lib/theme-registry.ts`), defined by every palette in light and dark. Components reference only these semantic names, never a fixed colour:
+
+| Token | Use | Harvest palette |
+| --- | --- | --- |
+| `--accent-primary`, `--accent-primary-soft` | The palette's highlight: wizard step chips, the accent line on the step card, the phone progress bar, the selected card's ring and check | Desert Sun, deepened to `#94692b` in light for 3:1 on white, on a Cream `#f2ecbc` fill; `#d3a265` in dark |
+| `--accent-support-1..3`, `-soft` | At most three quieter supporting tones, used sparingly | Sage (`#666850` deepened / `#c1c2ad` in dark), Misty Blue (`#56657a` / `#c7ced7`), dark olive `#2b2a0c` (Cream `#f2ecbc` in dark); soft fills are tints of Sage, Misty Blue and Cream |
+| `--art-1..5-from`, `-to`, `-glow`, `-ink` | The five artwork families (gradient ends, highlight, line colour) of code-drawn illustrations such as `CampaignTypeArt` | Desert Sun, Misty Blue, Sage, dark olive field and Cream sand, with Cream and Desert Sun highlights |
+
+Rules: colour goes on chips, artwork, progress and highlights, never on large text or page backgrounds. Each accent meets 3:1 against `--surface-card`, `--surface-sunken` and its own soft fill. Each art `-ink` meets 3:1 against its `-to`. `AccentIcon` (`src/components/accent-icon.tsx`) renders the chip; `accentVars()` sets `--accent-current` for a subtree. Status colours (success, attention) are separate tokens.
+
+**Adding one of the 12 future themes:** copy `PALETTE_EXTENSION_TEMPLATE` into the new palette's light and dark objects and choose values from that theme. Map its brand or primary hue to `--accent-primary`, pick up to three harmonious supporting tones, and derive five art families from the same hues. `tests/unit/theme-contract.test.ts` then checks every palette for completeness and contrast.
+
 Establish a centralized design system covering:
 
 - Color palette, semantic colors, and light/dark themes

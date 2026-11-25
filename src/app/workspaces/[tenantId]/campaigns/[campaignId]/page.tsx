@@ -6,7 +6,9 @@ import { ArrowLeft, Flag, QrCode } from "lucide-react";
 import { getDb } from "@/db/client";
 import { getCampaign } from "@/server/campaigns";
 import { pageSession } from "@/server/page-session";
-import { AccessError } from "@/server/permissions";
+import { getWorkspace } from "@/server/workspaces";
+import { AccessError, can } from "@/server/permissions";
+import { CampaignStatusAction } from "@/components/campaigns/campaign-status-action";
 import { uuidInput } from "@/lib/contact-input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,6 +25,8 @@ export default async function CampaignPage({ params }: { params: Promise<{ tenan
   const campaign = await getCampaign(getDb(), session.user.id, tenantId, campaignId)
     .catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; });
   if (!campaign) notFound();
+  const workspace = await getWorkspace(getDb(), session.user.id, tenantId).catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; });
+  const canActivate = workspace ? can(workspace.role, "campaigns:activate") : false;
   const format = await getFormatter();
   const details = [
     [t("location"), [campaign.cityRegion, campaign.country].filter(Boolean).join(", ") || t("notSet")],
@@ -37,6 +41,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ tenan
       <div className="mt-2 flex flex-wrap items-center gap-2"><Badge variant="outline">{t(`types.${campaign.type}`)}</Badge><Badge variant="secondary">{t(`statuses.${campaign.status}`)}</Badge></div>
       {campaign.description && <p className="mt-3 whitespace-pre-wrap break-words text-sm text-muted-foreground">{campaign.description}</p>}
     </div>
+    {canActivate && <CampaignStatusAction tenantId={tenantId} campaignId={campaignId} status={campaign.status} />}
     <Card><CardHeader><CardTitle>{t("details")}</CardTitle></CardHeader><CardContent>
       <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{details.map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 break-words text-sm">{value}</dd></div>)}</dl>
       {campaign.mission && <div className="mt-4"><h2 className="text-xs text-muted-foreground">{t("mission")}</h2><p className="mt-1 whitespace-pre-wrap break-words text-sm">{campaign.mission}</p></div>}

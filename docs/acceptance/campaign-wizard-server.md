@@ -60,3 +60,6 @@ Run locally with disposable embedded PostgreSQL, non-root, synthetic data. No Ne
 ## Decisions needed
 
 See "Decisions needed" in the plan: creator-only finish, members-only leaders (no CRM-person invitations yet), the minimum fields to finish, activation readiness, and the copilot card.
+
+
+Update (migration 0106, shared drafts): the creator-only rules above are replaced by founder decision Q1 (25 Nov 2026). Anyone with `campaigns:write` reads, edits and finishes any open draft; the creator stays the draft's and the campaign's owner; the version check is unchanged; discard stays with the creator, owners and admins. See `docs/acceptance/campaign-wizard-screens.md`.
