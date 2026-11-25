@@ -58,7 +58,8 @@ test("publish, copy, count, unpublish and republish a hosted form; named form in
   await page.getByRole("button", { name: "Publish", exact: true }).click();
   const dialog = page.getByRole("alertdialog", { name: "Publish this form?" });
   await expect(dialog).toContainText("consent text becomes its privacy notice");
-  await expect(dialog.getByLabel("Public address")).toHaveValue(`${slug}`);
+  // The default is derived from the title, so it is the same on every attempt; the published address below is unique per attempt.
+  await expect(dialog.getByLabel("Public address")).toHaveValue("synthetic-visitor-card");
   await dialog.getByLabel("Public address").fill("Bad Address");
   await expect(dialog.getByRole("button", { name: "Publish", exact: true })).toBeDisabled();
   await dialog.getByLabel("Public address").fill("forms");
