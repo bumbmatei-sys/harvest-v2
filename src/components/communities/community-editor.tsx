@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { CircleCheck, Circle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ListInDiscover } from "@/components/discover/list-in-discover";
 import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
@@ -57,8 +58,10 @@ const fieldsOf = (c: EditableCommunity): Fields => ({ name: c.name, slug: c.slug
   holdFirstPosts: c.holdFirstPosts, bannedWords: c.bannedWords, welcomeMessage: c.welcomeMessage, introCategoryId: c.introCategoryId });
 const same = (a: Fields, b: Fields) => (Object.keys(a) as (keyof Fields)[]).every((key) => equal(a[key], b[key]));
 
-export function CommunityEditor({ initial, members, invites, applications, categories, chat, endpoint, listHref, host, writable }: { initial: EditableCommunity; members: CommunityMember[]; invites: CommunityInvite[];
-  applications: ApplicationQueue | null; categories: ForumCategory[]; chat?: ChatSettings | null; endpoint: string; listHref: string; host: string; writable: boolean }) {
+export function CommunityEditor({ initial, members, invites, applications, categories, chat, endpoint, listHref, host, writable, discoverTenant }: { initial: EditableCommunity; members: CommunityMember[]; invites: CommunityInvite[];
+  applications: ApplicationQueue | null; categories: ForumCategory[]; chat?: ChatSettings | null; endpoint: string; listHref: string; host: string; writable: boolean;
+  /** The ministry id when unified Discover is open (non-production gate): the opt-in becomes the shared List in Discover card. Absent, the original checkbox stays. */
+  discoverTenant?: string }) {
   const t = useTranslations("CommunityEditor"), screens = useTranslations("CommunityScreens"), request = useCrmRequest();
   const [data, setData] = useState(initial), [fields, setFields] = useState(() => fieldsOf(initial));
   const [step, setStep] = useState<CommunityEditorStep>("basics");
@@ -167,9 +170,11 @@ export function CommunityEditor({ initial, members, invites, applications, categ
           {admissionKeys.map((key) => <Label key={key} htmlFor={`community-${key}`} className="flex min-h-11 items-center gap-3 rounded-md border px-3 font-normal">
             <Checkbox id={`community-${key}`} checked={fields[key]} disabled={!writable} onCheckedChange={(checked) => set(key, checked === true)} />{t(`admissions.${key}`)}</Label>)}
         </FormSection>
-        <Label htmlFor="community-discover" className="flex min-h-11 items-center gap-3 rounded-md border px-3 font-normal">
-          <Checkbox id="community-discover" checked={fields.discoverOptIn && fields.visibility === "listed"} disabled={!writable || fields.visibility !== "listed"}
-            onCheckedChange={(checked) => set("discoverOptIn", checked === true)} />{t("showInDiscover")}</Label>
+        {discoverTenant
+          ? <ListInDiscover tenantId={discoverTenant} type="community" id={data.id} canEdit={writable} community={{ optIn: fields.discoverOptIn, eligible: fields.visibility === "listed", onOptInChange: (value) => set("discoverOptIn", value) }} />
+          : <Label htmlFor="community-discover" className="flex min-h-11 items-center gap-3 rounded-md border px-3 font-normal">
+            <Checkbox id="community-discover" checked={fields.discoverOptIn && fields.visibility === "listed"} disabled={!writable || fields.visibility !== "listed"}
+              onCheckedChange={(checked) => set("discoverOptIn", checked === true)} />{t("showInDiscover")}</Label>}
         <Card><CardHeader className="flex flex-row flex-wrap items-center justify-between gap-3"><CardTitle><h3 className="text-base font-semibold">{t("rulesTitle")}</h3></CardTitle>
           <Label htmlFor="community-rules-on" className="flex min-h-11 items-center gap-3 font-normal"><Switch id="community-rules-on" checked={rulesOn} disabled={!writable}
             onCheckedChange={(on) => { setRulesOn(on); set("rulesList", on ? (fields.rulesList.length ? fields.rulesList : [""]) : []); }} />{t("rulesSwitch")}</Label></CardHeader>

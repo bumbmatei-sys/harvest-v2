@@ -9,6 +9,7 @@ import { listApplications } from "@/server/community-applications";
 import { AccessError, can } from "@/server/permissions";
 import { AccessState } from "@/components/access-state";
 import { chatChannelSettings, communityChatEnabled } from "@/server/community-chat";
+import { discoverGateOpen } from "@/server/discover/gate";
 import { CommunityEditor } from "@/components/communities/community-editor";
 
 export default async function CommunityEditPage({ params }: { params: Promise<{ tenantId: string; communityId: string }> }) {
@@ -28,5 +29,5 @@ export default async function CommunityEditPage({ params }: { params: Promise<{ 
   const categories = (await listCategories(db, session.user.id, tenantId, communityId).catch(denied)) ?? [];
   const chat = writable && communityChatEnabled() ? await chatChannelSettings(db, session.user.id, tenantId, communityId).catch(denied) : null;
   return <CommunityEditor chat={chat} initial={community} members={members} invites={invites} applications={applications} categories={categories} host={workspace.name}
-    endpoint={`/api/workspaces/${tenantId}/communities/${communityId}`} listHref={`/workspaces/${tenantId}/communities`} writable={writable} />;
+    endpoint={`/api/workspaces/${tenantId}/communities/${communityId}`} listHref={`/workspaces/${tenantId}/communities`} writable={writable} discoverTenant={discoverGateOpen() ? tenantId : undefined} />;
 }

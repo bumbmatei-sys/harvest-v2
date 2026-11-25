@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { discoverAdmin } from "./helpers/discover";
 import { origin, signIn } from "./helpers/session";
 
 // Kit PR 7: Communities screens polish (member list, moderation queue, Discover cards, feed cards, creation form).
@@ -63,6 +64,8 @@ test("community screens: member list, moderation queue, Discover and feed cards,
   let current = (await (await page.request.get(`${api}/${community.id}`)).json()) as { version: number };
   current = await (await page.request.patch(`${api}/${community.id}`, { headers: { origin }, data: { version: current.version, visibility: "listed", discoverOptIn: true, allowOpen: true, tagline: "Weekly meetings for teenagers" } })).json();
   expect((await page.request.post(`${api}/${community.id}/publish`, { headers: { origin }, data: { version: current.version, published: true } })).ok()).toBe(true);
+  // Unified Discover lists only approved items (founder decision, 25 Nov): a reviewer approves it through the privileged connection, as the ops path does.
+  { const admin = await discoverAdmin(); await admin.decide("community", community.id, "approve"); await admin.end(); }
   const general = ((await (await page.request.get(`${api}/${community.id}/categories`)).json()) as { id: string }[])[0]!.id;
   const newPost = (p: Page, title: string) => p.request.post(`/api/communities/${slug}/posts`, { headers: { origin },
     data: { categoryId: general, title, body: doc("Hello everyone"), videoUrl: null, coverFileId: null, attachmentIds: [], commentsOff: false, likesOff: false } });
@@ -170,7 +173,7 @@ test("community screens: member list, moderation queue, Discover and feed cards,
       await tall(p.getByRole("link", { name: "View Youth Group" }));
       await audit(p, "discover");
       await p.goto("/discover?q=zzzz-none");
-      await expect(p.getByText("No communities found")).toBeVisible();
+      await expect(p.getByText("No results")).toBeVisible();
     });
 
     await test.step("role matrix: each role sees only what the server allows", async () => {
