@@ -78,3 +78,17 @@ export async function deleteLead(db: Database, user: string, workspace: string, 
     return { deleted: true };
   });
 }
+
+/**
+ * Rights path: erases every lead of this ministry whose email or phone answer matches the identifier (subject-rights or erase flow, owner/admin). The audit keeps the count only,
+ * never the identifier.
+ */
+export async function eraseAdLeadsByIdentifier(db: Database, user: string, workspace: string, identifier: string, deps: AdsDeps) {
+  const value = parse(z.string().trim().min(3).max(320), identifier);
+  return withAds(db, user, workspace, deps, async (tx, tenant) => {
+    const { rows } = await tx.execute<{ n: number }>(sql`select public.ads_leads_erase_by_identifier(${value}) as n`);
+    const erased = Number(rows[0]?.n ?? 0);
+    await audit(tx, tenant, user, "leads_erase", tenant, { erased: String(erased) });
+    return { erased };
+  });
+}

@@ -364,7 +364,7 @@ BEGIN
   IF n = 0 THEN RETURN 'unknown_account'; END IF;
   -- The same provider account under two ministries is never guessed at.
   IF n > 1 THEN RETURN 'ambiguous_account'; END IF;
-  SELECT x.tenant_id, x.id INTO a FROM public.ads_accounts x JOIN public.social_connections c ON (c.tenant_id,c.id)=(x.tenant_id,x.connection_id)
+  SELECT x.tenant_id, x.id, x.network INTO a FROM public.ads_accounts x JOIN public.social_connections c ON (c.tenant_id,c.id)=(x.tenant_id,x.connection_id)
     WHERE c.provider=p_provider AND x.external_ref=p_account_ref AND c.status <> 'revoked';
   PERFORM set_config('app.social_definer','',true);
   INSERT INTO public.ads_webhook_events(tenant_id,provider,provider_event_id,event_type,external_account_ref,subject_ref,body_hash,occurred_at)
@@ -420,7 +420,7 @@ BEGIN
     form_ref := p_data->>'formId';
     SELECT f.consent_text INTO consent FROM public.ads_lead_forms f WHERE (f.tenant_id,f.ad_account_id,f.external_ref)=(a.tenant_id,a.id,form_ref);
     INSERT INTO public.ads_leads(tenant_id,ad_account_id,network,lead_ref,form_ref,campaign_ref,ad_ref,fields,consent_text,submitted_at)
-      VALUES (a.tenant_id,a.id,'meta',p_subject_ref,left(form_ref,200),left(p_data->>'campaignId',200),left(p_data->>'adId',200),lead_fields,consent,p_occurred) ON CONFLICT DO NOTHING;
+      VALUES (a.tenant_id,a.id,a.network,p_subject_ref,left(form_ref,200),left(p_data->>'campaignId',200),left(p_data->>'adId',200),lead_fields,consent,p_occurred) ON CONFLICT DO NOTHING;
   END IF;
   RETURN 'applied';
 END $$;
@@ -438,12 +438,47 @@ BEGIN
   RETURN removed;
 END $$;
 --> statement-breakpoint
-REVOKE ALL ON FUNCTION public.ads_webhook_apply(text,text,text,text,text,text,timestamptz,jsonb), public.ads_results_prune(integer) FROM PUBLIC, harvest_app;
+-- Ad leads are personal data. Fixed 90-day retention, removed in bounded batches by the worker role only.
+CREATE FUNCTION public.ads_leads_prune(p_limit integer) RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE removed integer;
+BEGIN
+  IF p_limit IS NULL OR p_limit NOT BETWEEN 1 AND 1000 THEN RAISE EXCEPTION 'invalid ads lead prune batch'; END IF;
+  PERFORM set_config('app.ads_definer','on',true);
+  WITH old AS (SELECT tenant_id,id FROM public.ads_leads WHERE created_at < now() - interval '90 days' ORDER BY created_at LIMIT p_limit FOR UPDATE SKIP LOCKED)
+  DELETE FROM public.ads_leads l USING old WHERE (l.tenant_id,l.id)=(old.tenant_id,old.id);
+  GET DIAGNOSTICS removed = ROW_COUNT;
+  RETURN removed;
+END $$;
+--> statement-breakpoint
+-- Rights path: removes every lead of the acting ministry whose email or phone answer matches the identifier. Owner or admin of the session's ministry only; returns a count, never the data.
+CREATE FUNCTION public.ads_leads_erase_by_identifier(p_identifier text) RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE t uuid := nullif(current_setting('app.tenant_id', true), '')::uuid; ident text; digits text; removed integer;
+BEGIN
+  IF t IS NULL OR NOT public.ads_can(t) THEN RAISE EXCEPTION 'not allowed' USING ERRCODE = 'insufficient_privilege'; END IF;
+  ident := lower(btrim(coalesce(p_identifier,'')));
+  IF length(ident) NOT BETWEEN 3 AND 320 THEN RAISE EXCEPTION 'invalid identifier'; END IF;
+  digits := regexp_replace(ident, '[^0-9]', '', 'g');
+  PERFORM set_config('app.ads_definer','on',true);
+  DELETE FROM public.ads_leads l WHERE l.tenant_id = t AND EXISTS (
+    SELECT 1 FROM jsonb_each_text(l.fields) f WHERE f.key IN ('email','phone','phone_number','email_address')
+      AND (lower(btrim(f.value)) = ident OR (length(digits) >= 7 AND regexp_replace(f.value, '[^0-9]', '', 'g') = digits)));
+  GET DIAGNOSTICS removed = ROW_COUNT;
+  PERFORM set_config('app.ads_definer','',true);
+  RETURN removed;
+END $$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.ads_can(uuid) FROM PUBLIC;
+--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.ads_can(uuid) TO harvest_app;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.ads_webhook_apply(text,text,text,text,text,text,timestamptz,jsonb), public.ads_results_prune(integer), public.ads_leads_prune(integer), public.ads_leads_erase_by_identifier(text) FROM PUBLIC, harvest_app;
 --> statement-breakpoint
 DO $$ BEGIN
   IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname='harvest_worker') THEN
-    GRANT EXECUTE ON FUNCTION public.ads_results_prune(integer) TO harvest_worker;
+    GRANT EXECUTE ON FUNCTION public.ads_results_prune(integer), public.ads_leads_prune(integer) TO harvest_worker;
   END IF;
   -- The public webhook route runs as the application role: it may call only the idempotent event function.
-  GRANT EXECUTE ON FUNCTION public.ads_webhook_apply(text,text,text,text,text,text,timestamptz,jsonb) TO harvest_app;
+  GRANT EXECUTE ON FUNCTION public.ads_webhook_apply(text,text,text,text,text,text,timestamptz,jsonb), public.ads_leads_erase_by_identifier(text) TO harvest_app;
 END $$;

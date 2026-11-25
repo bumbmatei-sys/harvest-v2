@@ -4,3 +4,8 @@ export async function pruneAdsResults(pool: Pool, limit = 500) {
   const { rows: [row] } = await pool.query<{ removed: number }>("select public.ads_results_prune($1) as removed", [limit]);
   return row.removed;
 }
+/** Ad leads are personal data: a fixed 90-day window, bounded batches, worker role only. No schedule is installed. */
+export async function pruneAdsLeads(pool: Pool, limit = 500) {
+  const { rows: [row] } = await pool.query<{ removed: number }>("select public.ads_leads_prune($1) as removed", [limit]);
+  return row.removed;
+}

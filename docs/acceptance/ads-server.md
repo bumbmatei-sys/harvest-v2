@@ -37,12 +37,17 @@ Checklist, ticked with evidence.
 | 29 | Ad comments (inbox) | DEFERRED | PRD: ad comments belong in the unified Inbox later. |
 | 30 | Creator-campaign ads (run creator posts as ads) | N/A | Creator-campaign ads (running creator posts as ads) are not Harvest scope. |
 | 31 | Breakdowns (age, gender, country, placement), async reports, Google keywords/search terms/keyword planner, labels (PRD item 8) | DEFERRED | Breakdowns (age, gender, country, placement), async reports, Google search-terms and keyword tooling, labels: PRD lists them for the screens PRs; the data model (results keyed by day) leaves room. Not needed by the server slice. |
-| 32 | Erase/merge of contacts: nothing here references contacts | N/A | No Ads table references a contact; asserted by a source guard (`ads-source-guards`). erase_contact/merge_contacts need no change. |
+| 32 | Contacts and personal data: no Ads table references a contact; ad leads ARE personal data | DEFERRED (activation gate) | Ad leads are personal data: retention and rights path must be approved before activation. Built so far: fixed 90-day retention (`ads_leads_prune`, worker role only, bounded batches, no schedule installed), erase-by-identifier (`ads_leads_erase_by_identifier`, owner/admin of the session's ministry, email or phone match, count-only audit) and per-lead delete; no contact references, asserted by a source guard (`erase_contact` and `merge_contacts` need no change). The 90-day window, the rights flow wiring and the wording are founder/privacy decisions, still UNAPPROVED. |
 | 33 | Neon / hosted verification, real provider scopes | DEFERRED | Hosted Neon run, real provider scopes and responses, network minimum budgets, the live webhook envelope: all unverified. See the TODO block in the adapter. |
 
 ## Notes
 - Provider-neutral wording: the vendor is not named in any user-facing string; ad networks are named only by their own names.
 - Fields still to confirm against live provider behaviour are listed in `src/server/ads/zernio-ads-adapter.ts` (TODO block).
+
+## Activation-review items (not built, recorded)
+- The public Ads webhook route runs as the application role and calls `ads_webhook_apply`. Before activation: a dedicated low-privilege role for that route, or signature verification inside the function, so the grant to the application role does not widen what request code can do.
+- The webhook signing secret reuses the social webhook key purpose; a separate Ads webhook key purpose is needed before activation.
+- Lead retention (90 days), the erase flow and what leads may be used for are privacy decisions that stay UNAPPROVED.
 
 ## Verification
 - Unit: `tests/unit/ads-rules.test.ts`, `tests/unit/ads-source-guards.test.ts`. Integration (local PostgreSQL): `tests/integration/ads-server.test.ts` (15 tests: RLS/permissions/isolation, hard-off, health, launch gate and idempotency, policy refusal, boost and add-ad, status/rename/bulk/delete, budgets, results semantics and prune, alerts, leads and consent evidence, rules, webhook fixtures, conversion refusal, read paths).

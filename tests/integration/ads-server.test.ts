@@ -13,10 +13,10 @@ import { checkAccountHealth, dismissAlert, linkAdAccounts, listAlerts, syncAdAcc
 import { cancelLaunchRequest, createLaunchRequest, launchRequest, reviewLaunchRequest, updateLaunchRequest, validateLaunchRequest } from "../../src/server/ads/launch";
 import { bulkSetStatus, remove, rename, setBudget, setStatus } from "../../src/server/ads/mutations";
 import { readResults, readTree } from "../../src/server/ads/read";
-import { createLeadForm, deleteLead, listLeads, syncLeads, updateLeadStatus } from "../../src/server/ads/leads";
+import { createLeadForm, deleteLead, eraseAdLeadsByIdentifier, listLeads, syncLeads, updateLeadStatus } from "../../src/server/ads/leads";
 import { createRule, listRuleRuns, previewRule, runRules, setRuleEnabled } from "../../src/server/ads/rules";
 import { receiveAdsWebhook } from "../../src/server/ads/webhook";
-import { pruneAdsResults } from "../../src/server/ads/prune";
+import { pruneAdsLeads, pruneAdsResults } from "../../src/server/ads/prune";
 import { testDatabase } from "../database";
 import { CANARY, depsFor, newFake, noNetwork, seedPeople, useTestKeys } from "./social-layer-fixture";
 
@@ -384,4 +384,34 @@ it("covers audiences, shared budgets, targeting search, boostable posts and iden
   expect((await listSharedBudgets(f.db, p.owner, p.tenant, acct, deps)).sharedBudgets).toHaveLength(1);
   expect((await searchTargeting(f.db, p.owner, p.tenant, acct, { kind: "interest", query: "choir" }, deps)).hits).toHaveLength(2);
   await expect(searchTargeting(f.db, p.owner, p.tenant, acct, { kind: "nope", query: "x" }, deps)).rejects.toMatchObject({ status: 422 });
+});
+
+it("keeps ad leads for 90 days only and erases them by email or phone for an owner or admin", async () => {
+  const insert = (ref: string, fields: Record<string, string>, age = "0 days", tenant = p.tenant, account = acct) => q(`insert into ads_leads(tenant_id,ad_account_id,network,lead_ref,fields,created_at) values($1,$2,'meta',$3,$4, now() - $5::interval)`, [tenant, account, ref, fields, age]);
+  await insert("l-old", { email: "old@example.test" }, "91 days");
+  await insert("l-new", { email: "new@example.test" }, "89 days");
+  expect(await pruneAdsLeads(f.workerPool, 10)).toBe(1);
+  expect((await q("select lead_ref from ads_leads order by lead_ref")).rows.map(r => r.lead_ref)).toEqual(["l-new"]);
+  await expect(withTenant(f.db, p.owner, p.tenant, "ads:manage", async tx => { await tx.execute(sql`select public.ads_leads_prune(10)`); })).rejects.toThrow();
+  await insert("l-mail", { email: "Person@Example.test", full_name: "P" });
+  await insert("l-phone", { phone: "+1 (555) 123-4567" });
+  const otherAccount = (await q("select id from ads_accounts where tenant_id=$1", [p.other])).rows[0].id;
+  await insert("l-other", { email: "person@example.test" }, "0 days", p.other, otherAccount);
+  await expect(eraseAdLeadsByIdentifier(f.db, p.member, p.tenant, "person@example.test", deps)).rejects.toMatchObject({ status: 404 });
+  expect(await eraseAdLeadsByIdentifier(f.db, p.admin, p.tenant, " person@example.test ", deps)).toEqual({ erased: 1 });
+  expect(await eraseAdLeadsByIdentifier(f.db, p.owner, p.tenant, "15551234567", deps)).toEqual({ erased: 1 });
+  expect(await eraseAdLeadsByIdentifier(f.db, p.owner, p.tenant, "nobody@example.test", deps)).toEqual({ erased: 0 });
+  await expect(eraseAdLeadsByIdentifier(f.db, p.owner, p.tenant, "ab", deps)).rejects.toMatchObject({ status: 422 });
+  // Another ministry's lead with the same email is untouched, and the audit holds a count only.
+  expect((await q("select count(*)::int n from ads_leads where lead_ref='l-other'")).rows[0].n).toBe(1);
+  const audits = await q("select metadata from audit_logs where action='ads.leads_erase' and tenant_id=$1", [p.tenant]);
+  expect(JSON.stringify(audits.rows)).not.toMatch(/example\.test|1555/);
+  expect((await q("select count(*)::int n from ads_leads where lead_ref in ('l-mail','l-phone')")).rows[0].n).toBe(0);
+});
+
+it("takes a lead's network from the ad account, not from the event", async () => {
+  await q("update ads_accounts set network='google' where id=$1", [acct]);
+  await webhook({ id: "net-1", type: "lead.received", subjectRef: "lead-net", data: { fields: { email: "n@example.test" } } });
+  expect((await q("select network from ads_leads where lead_ref='lead-net'")).rows[0].network).toBe("google");
+  await q("update ads_accounts set network='meta' where id=$1", [acct]);
 });
