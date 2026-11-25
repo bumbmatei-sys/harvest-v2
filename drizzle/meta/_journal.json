@@ -673,6 +673,13 @@
       "when": 1795560880672,
       "tag": "0097_newsletter_sender_followups",
       "breakpoints": true
+    },
+    {
+      "idx": 98,
+      "version": "7",
+      "when": 1795563466671,
+      "tag": "0098_ads_server",
+      "breakpoints": true
     }
   ]
 }
