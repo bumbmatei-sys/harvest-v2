@@ -462,6 +462,8 @@ Founder approved these kit items on 25 Nov 2026 (founder, in the task that start
 | `src/components/catalog/catalog-preview.tsx` | `pages/products/[id]/page.tsx` | 3 of 27 (11%) |
 
 What the screens take from the kit: the product list's name cell with a thumbnail, status badge and row actions (on `DataTable`, with the type tab and search); the course modules card's numbered rows with a current marker (the lesson editor's ordered rows, and the learner's lesson list); the study progress card's titled progress bar (shown as "Your place", lesson n of m, because the server stores no completion yet); the course detail page's main column and side column with a sheet below 1024px; the product detail's cover, badges and side card. Not used: prices, stock, ratings and reviews, sales cards, instructor and avatar images, remote images and fixture data, `motion`, TanStack Table, drawer. **Type art.** `src/components/catalog/catalog-type-art.tsx` is original code-drawn artwork in the same family and tokens as `CampaignTypeArt` (`--art-1..5-*` from the palette registry; Desert Sun for downloads, Misty Blue for courses), with the structure of the Eden "new product" type picker (one illustrated card per type) as the only design input; no Eden asset, colour or copy is used.
+| `src/components/catalog/course-learner.tsx` | `apps/courses/course-detail/page.tsx`, `components/study-progress.tsx`, `components/course-modules.tsx` | 5 of 70 (7%), 7 of 70 (10%), 6 of 70 (8%) |
+| `src/components/catalog/catalog-public-page.tsx` | `pages/products/[id]/page.tsx`, `apps/courses/components/instructor-section.tsx` | 4 of 59 (6%), 7 of 59 (11%) |
 
 ## Link in bio (24 Nov 2026)
 

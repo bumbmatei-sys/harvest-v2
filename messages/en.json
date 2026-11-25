@@ -9259,5 +9259,30 @@
     "allCategories": "All categories",
     "searchCategories": "Search categories",
     "noCategoryMatch": "No category found."
+  },
+  "CatalogPublic": {
+    "free": "Free",
+    "kinds": {
+      "course": "Course",
+      "download": "Download"
+    },
+    "signInEnrol": "Sign in to enrol",
+    "signInGet": "Sign in to get it",
+    "enrol": "Enrol for free",
+    "get": "Get for free",
+    "enrolled": "You are enrolled.",
+    "owned": "You have this download.",
+    "start": "Open lessons",
+    "files": "Files",
+    "noFiles": "No files yet",
+    "download": "Download",
+    "downloadNamed": "Download {name}",
+    "lessons": "Lessons",
+    "noLessons": "No lessons yet",
+    "yourPlace": "Your place",
+    "lessonOf": "Lesson {current} of {total}",
+    "previous": "Previous lesson",
+    "next": "Next lesson",
+    "backToCourse": "Back to course"
   }
 }

@@ -17,6 +17,8 @@ import { useHydrated } from "@/hooks/use-hydrated";
 // Discover (and the staff review page, which asks for a fresh sign-in) are also safe return paths: fixed paths with a plain query string.
 const discoverReturn=/^\/(?:discover|platform\/discover)(?:\?[a-z0-9=&%_.+-]{0,200})?$/i;
 const communityReturn=/^\/communities\/[a-z0-9](?:[a-z0-9-]{1,46}[a-z0-9])(?:\?invite=[a-f0-9]{64})?$/;
+// A free course or download page (and a course's lessons) may also be a return path: the learner signs in and lands where they started.
+const catalogReturn=/^\/(?:courses|products)\/[a-z0-9][a-z0-9-]{1,58}[a-z0-9](?:\/learn)?$/;
 export default function SignIn() {
   const t = useTranslations("AppSignInPage");
   const hydrated = useHydrated();
@@ -49,8 +51,8 @@ export default function SignIn() {
           window.location.replace(continuation?.next==="/connect/claim"?"/connect/claim":"/account/welcome");
         }else{
           const query=new URLSearchParams(window.location.search),next=query.get("next");
-          // Only a community page (optionally with its invitation) may be a return path, never an arbitrary URL.
-          window.location.replace(next&&(communityReturn.test(next)||discoverReturn.test(next))?next:query.get("personal")==="1"?"/account/welcome":"/workspaces");
+          // Only a community page (optionally with its invitation), a Discover page or a catalogue page may be a return path, never an arbitrary URL.
+          window.location.replace(next&&(communityReturn.test(next)||discoverReturn.test(next)||catalogReturn.test(next))?next:query.get("personal")==="1"?"/account/welcome":"/workspaces");
         }
       }
     } catch { setError(t("couldNotConnectPleaseTryAgain")); }
