@@ -34,7 +34,7 @@ import { RelationshipsPanel, linkHref } from "@/components/docs/panels/relations
 import { SaveTemplateDialog, TemplatesPanel } from "@/components/docs/panels/templates-panel";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useRequest } from "@/hooks/use-request";
-import { resolvePageStyle, subtreeIds, type DocContent, type PageStyle } from "@/lib/docs";
+import { pendingPageFields, resolvePageStyle, subtreeIds, type DocContent, type PageStyle } from "@/lib/docs";
 import { docHref, docsHref, folderPath } from "@/lib/docs-list";
 import { copyText } from "@/lib/copy-text";
 import { notify } from "@/lib/toast";
@@ -82,6 +82,7 @@ export function DocEditor({ tenantId, detail, page, userId }: { tenantId: string
   const toggleTree = () => { const next = !treeCollapsed; setChosen(next); try { localStorage.setItem(collapsedKey, next ? "1" : "0"); window.dispatchEvent(new Event(collapsedEvent)); } catch { /* storage unavailable: the choice stays in memory */ } };
   const docked = useMediaQuery("(min-width: 1280px)");
   const editable = rights.write && !locked, resolved = resolvePageStyle(style);
+  const pendingStyle = useRef<PageStyle | null>(null);
   const version = useRef(page.version), savedTitle = useRef(page.title), savedSubtitle = useRef(page.subtitle), edits = useRef(0), savedEdits = useRef(0), titleRef = useRef(page.title), subtitleRef = useRef(page.subtitle);
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined), queue = useRef<Promise<unknown>>(Promise.resolve()), titleInput = useRef<HTMLInputElement>(null), filePicker = useRef<HTMLInputElement>(null);
 
@@ -106,12 +107,13 @@ export function DocEditor({ tenantId, detail, page, userId }: { tenantId: string
   const flush = useCallback(async () => {
     clearTimeout(timer.current);
     if (!rights.write) return true;
-    let sentEdits = 0, sentTitle: string | null = null, sentSubtitle: string | null = null;
+    let sentEdits = 0, sentTitle: string | null = null, sentSubtitle: string | null = null, sentStyle: PageStyle | null = null;
     const result = await patch(() => {
-      sentEdits = edits.current; sentTitle = titleRef.current !== savedTitle.current ? titleRef.current : null; sentSubtitle = subtitleRef.current !== savedSubtitle.current ? subtitleRef.current : null;
-      if (sentEdits === savedEdits.current && sentTitle === null && sentSubtitle === null) return null;
+      sentEdits = edits.current; sentTitle = titleRef.current !== savedTitle.current ? titleRef.current : null; sentSubtitle = subtitleRef.current !== savedSubtitle.current ? subtitleRef.current : null; sentStyle = pendingStyle.current;
+      const fields = pendingPageFields({ edits: sentEdits, savedEdits: savedEdits.current, title: titleRef.current, savedTitle: savedTitle.current, subtitle: subtitleRef.current, savedSubtitle: savedSubtitle.current, style: sentStyle, getContent: () => surface.current?.getContent() });
+      if (!fields) return null;
       setSave("saving");
-      return { ...(sentEdits !== savedEdits.current ? { content: surface.current?.getContent() } : {}), ...(sentTitle !== null ? { title: sentTitle } : {}), ...(sentSubtitle !== null ? { subtitle: sentSubtitle } : {}) };
+      return fields;
     });
     if (!result.ok) {
       setSave(result.status === 409 && result.details?.reason !== "protected" ? "conflict" : "error"); setError(result.error);
@@ -120,29 +122,35 @@ export function DocEditor({ tenantId, detail, page, userId }: { tenantId: string
     }
     if ("skipped" in result) { setSave((s) => s === "saving" ? "saved" : s); return true; }
     savedEdits.current = sentEdits;
+    if (sentStyle !== null && pendingStyle.current === sentStyle) pendingStyle.current = null;
     if (sentSubtitle !== null) savedSubtitle.current = sentSubtitle;
     if (sentTitle !== null) { savedTitle.current = sentTitle; router.refresh(); }
-    if (edits.current !== sentEdits || titleRef.current !== savedTitle.current || subtitleRef.current !== savedSubtitle.current) schedule(); else { setSave("saved"); setError(""); }
+    if (edits.current !== sentEdits || titleRef.current !== savedTitle.current || subtitleRef.current !== savedSubtitle.current || pendingStyle.current !== null) schedule(); else { setSave("saved"); setError(""); }
     return true;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [patch, rights.write, router]);
   function schedule() { setSave((s) => s === "conflict" ? s : "unsaved"); clearTimeout(timer.current); timer.current = setTimeout(() => void flush(), AUTOSAVE_MS); }
 
-  // Leaving the page (a link, the sidebar, closing the tab) sends what is still unsaved.
+  // Leaving the page (a link, the sidebar, closing the tab) sends what is still unsaved: text, title, subtitle and a style change.
+  // When the tab is only hidden (a phone switching apps) the normal save runs, which keeps the version in step.
+  const latest = useRef({ flush: async () => true as boolean }); latest.current.flush = flush;
   useEffect(() => {
     const send = () => {
-      if (!rights.write || locked || (edits.current === savedEdits.current && titleRef.current === savedTitle.current && subtitleRef.current === savedSubtitle.current)) return;
-      const body = JSON.stringify({ version: version.current, ...(edits.current !== savedEdits.current ? { content: surface.current?.getContent() } : {}), ...(titleRef.current !== savedTitle.current ? { title: titleRef.current } : {}), ...(subtitleRef.current !== savedSubtitle.current ? { subtitle: subtitleRef.current } : {}) });
-      void fetch(`${api}/pages/${page.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body, keepalive: true });
+      if (!rights.write || locked) return;
+      const fields = pendingPageFields({ edits: edits.current, savedEdits: savedEdits.current, title: titleRef.current, savedTitle: savedTitle.current, subtitle: subtitleRef.current, savedSubtitle: savedSubtitle.current, style: pendingStyle.current, getContent: () => surface.current?.getContent() });
+      if (!fields) return;
+      void fetch(`${api}/pages/${page.id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ version: version.current, ...fields }), keepalive: true });
     };
+    const hide = () => { if (document.visibilityState === "hidden") void latest.current.flush(); };
     window.addEventListener("pagehide", send);
-    return () => { window.removeEventListener("pagehide", send); clearTimeout(timer.current); send(); };
+    document.addEventListener("visibilitychange", hide);
+    return () => { window.removeEventListener("pagehide", send); document.removeEventListener("visibilitychange", hide); clearTimeout(timer.current); send(); };
   }, [api, locked, page.id, rights.write]);
 
+  /** A style change is saved at once through the shared save (so the status shows Saving, then Saved) and is also sent if the page is left first. */
   async function changeStyle(next: PageStyle) {
-    setStyle(next);
-    const result = await patch(() => ({ style: next }));
-    if (!result.ok) { setError(result.error); setSave(result.status === 409 ? "conflict" : "error"); }
+    setStyle(next); pendingStyle.current = next;
+    await flush();
   }
   async function setProtection(on: boolean) {
     await flush();
