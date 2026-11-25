@@ -199,7 +199,7 @@ test("roles: anyone who can write edits any open draft, owners and admins and th
     await expect(member.page.getByText("Every draft in this ministry")).toBeVisible();
     await expect(member.page.getByRole("link", { name: /Member mission trip/ })).toContainText("Started by You");
     await member2.page.goto(`${root}/drafts`);
-    await expect(member2.page.getByRole("link", { name: /Member mission trip/ })).toContainText(`Started by ${member.email}`);
+    await expect(member2.page.getByRole("link", { name: /Member mission trip/ })).toContainText("Started by A ministry member");
     expect((await member2.page.request.get(`${api}/${draftId}`)).status()).toBe(200);
     await viewer.page.goto(`${root}/drafts`);
     await expect(viewer.page.getByRole("heading", { name: "No drafts", level: 2 })).toBeVisible();
