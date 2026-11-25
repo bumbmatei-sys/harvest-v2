@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Database } from "../db/client";
 import { communities, communityMemberships, workspaceMembers } from "../db/schema";
 import { hashSecret } from "../lib/community-listing";
+import { leaveReasons } from "../lib/community-stats";
 import type { Answers, Question } from "../lib/questions";
 import { can } from "../lib/permissions";
 import { message } from "../i18n/messages";
@@ -60,6 +61,17 @@ export async function enterCommunity(db: Database, userId: string, slug: string,
     ${input.questionsVersion}, ${answers}::jsonb, ${input.adult}, ${input.invite ? hashSecret(input.invite) : null}, ${input.inviteId ?? null}::uuid) as o`)).rows[0].o);
   if (outcome === "joined" || outcome === "already_member" || outcome === "applied") return { outcome } as const;
   throw (refusals[outcome as keyof typeof refusals] ?? refusals.not_allowed)();
+}
+
+const leaveInput = z.object({ reason: z.enum(leaveReasons).optional(), other: z.string().trim().min(1).max(200).refine(v => v.isWellFormed() && !v.includes("\u0000")).optional() }).strict()
+  .refine(v => v.other === undefined || v.reason === "other");
+/** A member leaves, optionally saying why (fixed list; short free text only with "other"). The reason is readable by owners and admins and is deleted with the person. */
+export async function leaveCommunity(db: Database, userId: string, slug: string, raw: unknown) {
+  const input = leaveInput.parse(raw), parsed = communitySlug.parse(slug);
+  const outcome = await withUser(db, userId, async (tx) => (await tx.execute<{ o: string }>(sql`select public.community_leave(${parsed}, ${input.reason ?? null}, ${input.other ?? null}) as o`)).rows[0].o);
+  if (outcome === "left") return { outcome } as const;
+  if (outcome === "owner") throw new AccessError(409, message("Errors.somethingWentWrongPleaseTryAgain"), { code: "OWNER_CANNOT_LEAVE" });
+  throw new AccessError(404, message("Errors.workspaceUnavailable"));
 }
 
 /** The community, if the caller is an active member (member RLS path); otherwise null. */

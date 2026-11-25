@@ -89,7 +89,7 @@ export const auditLogs = pgTable("audit_logs", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("audit_logs_tenant_created_idx").on(t.tenantId, t.createdAt), foreignKey({ columns: [t.tenantId], foreignColumns: [workspaces.tenantId] }),
   index("community_chat_mutations_idx").on(t.actorId,t.action,t.createdAt),
-  check("audit_system_actor", sql`${t.actorId} is not null or ${t.action} in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated', 'community.profile_save', 'community.profile_withdraw', 'community.profile_erase', 'crm.form.submit')`)]);
+  check("audit_system_actor", sql`${t.actorId} is not null or ${t.action} in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated', 'community.profile_save', 'community.profile_withdraw', 'community.profile_erase', 'crm.form.submit', 'docs.trash.purge')`)]);
 export const authSchema = { user: users, session: sessions, account: accounts, verification: verifications, rateLimit: rateLimits };
 
 // A campaign belongs to its parent workspace; it never creates another tenant.
@@ -3304,6 +3304,24 @@ export const discoverReviewEvents = pgTable("discover_review_events", {
   decision: text("decision").notNull(), reason: text("reason"), reviewer: text("reviewer").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("discover_review_events_resource_idx").on(t.tenantId, t.resourceType, t.resourceId, t.createdAt),
   check("discover_review_events_shape", sql`${t.decision} in ('approve','reject','suspend','reinstate','standing_suspend','standing_restore') and (${t.reason} is null or length(${t.reason}) <= 500)`)]);
+// C21 follow-up (0101). A departure record: when an active member left, was removed or banned, and (for a voluntary leave) why. The reason is a fixed list plus short
+// optional text. Written only by the membership trigger; read by owners and admins; deleted with the person (cascade).
+export const communityLeaveReasons = ["moved_away", "too_busy", "not_relevant", "too_many_notifications", "content_quality", "privacy", "other"] as const;
+export const communityExits = pgTable("community_exits", {
+  id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }), kind: text("kind").$type<"left" | "removed" | "banned">().notNull(),
+  joinedAt: timestamp("joined_at", { withTimezone: true }), leftAt: timestamp("left_at", { withTimezone: true }).notNull().defaultNow(),
+  reason: text("reason").$type<typeof communityLeaveReasons[number]>(), otherText: text("other_text"),
+}, (t) => [foreignKey({ name: "community_exits_community_fk", columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  index("community_exits_period_idx").on(t.tenantId, t.communityId, t.leftAt), index("community_exits_user_idx").on(t.userId),
+  check("community_exits_shape", sql`${t.kind} in ('left','removed','banned') and (${t.reason} is null or (${t.kind} = 'left' and ${t.reason} in ('moved_away','too_busy','not_relevant','too_many_notifications','content_quality','privacy','other')))
+    and (${t.otherText} is null or (${t.reason} = 'other' and length(btrim(${t.otherText})) between 1 and 200))`)]);
+// Anonymous page-visit and join-click counters, one row per community, day and kind. No cookie, address, user or session is stored.
+export const communityDailyCounts = pgTable("community_daily_counts", {
+  tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(), day: date("day").notNull(), kind: text("kind").$type<"visit" | "join_click">().notNull(), n: integer("n").notNull().default(0),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.communityId, t.day, t.kind] }),
+  foreignKey({ name: "community_daily_counts_community_fk", columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  check("community_daily_counts_shape", sql`${t.kind} in ('visit','join_click') and ${t.n} between 0 and 2147483000`)]);
 
 // Harvest staff (0103). A person who works for Harvest, not for a ministry. Rows are written only by the grant and revoke functions, which run from an ops script as the migration owner:
 // there is no self-serve path and no application role can read or write these tables. Staff reach only Discover review data, through definer functions that check this table.

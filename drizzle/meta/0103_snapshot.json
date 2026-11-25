@@ -1,6 +1,6 @@
 {
-  "id": "e2ab222a-cc27-4d49-9210-b51c567476d7",
-  "prevId": "1d016af9-fb0f-43fc-b9cf-2212326312af",
+  "id": "df994ebb-a87c-4fa5-980a-693ea611bc8b",
+  "prevId": "4fa89518-9f1b-41d5-afce-a5cd24d69179",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2955,7 +2955,7 @@
       "checkConstraints": {
         "audit_system_actor": {
           "name": "audit_system_actor",
-          "value": "\"audit_logs\".\"actor_id\" is not null or \"audit_logs\".\"action\" in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated', 'community.profile_save', 'community.profile_withdraw', 'community.profile_erase', 'crm.form.submit')"
+          "value": "\"audit_logs\".\"actor_id\" is not null or \"audit_logs\".\"action\" in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated', 'community.profile_save', 'community.profile_withdraw', 'community.profile_erase', 'crm.form.submit', 'docs.trash.purge')"
         }
       },
       "isRLSEnabled": false
@@ -7803,6 +7803,81 @@
       },
       "isRLSEnabled": false
     },
+    "public.community_daily_counts": {
+      "name": "community_daily_counts",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "community_id": {
+          "name": "community_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "day": {
+          "name": "day",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "n": {
+          "name": "n",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "community_daily_counts_community_fk": {
+          "name": "community_daily_counts_community_fk",
+          "tableFrom": "community_daily_counts",
+          "tableTo": "communities",
+          "columnsFrom": [
+            "tenant_id",
+            "community_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "community_daily_counts_tenant_id_community_id_day_kind_pk": {
+          "name": "community_daily_counts_tenant_id_community_id_day_kind_pk",
+          "columns": [
+            "tenant_id",
+            "community_id",
+            "day",
+            "kind"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "community_daily_counts_shape": {
+          "name": "community_daily_counts_shape",
+          "value": "\"community_daily_counts\".\"kind\" in ('visit','join_click') and \"community_daily_counts\".\"n\" between 0 and 2147483000"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.community_dm_blocks": {
       "name": "community_dm_blocks",
       "schema": "",
@@ -8976,6 +9051,152 @@
       },
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.community_exits": {
+      "name": "community_exits",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "community_id": {
+          "name": "community_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "joined_at": {
+          "name": "joined_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "left_at": {
+          "name": "left_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "other_text": {
+          "name": "other_text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "community_exits_period_idx": {
+          "name": "community_exits_period_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "community_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "left_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "community_exits_user_idx": {
+          "name": "community_exits_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "community_exits_user_id_users_id_fk": {
+          "name": "community_exits_user_id_users_id_fk",
+          "tableFrom": "community_exits",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "community_exits_community_fk": {
+          "name": "community_exits_community_fk",
+          "tableFrom": "community_exits",
+          "tableTo": "communities",
+          "columnsFrom": [
+            "tenant_id",
+            "community_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "community_exits_shape": {
+          "name": "community_exits_shape",
+          "value": "\"community_exits\".\"kind\" in ('left','removed','banned') and (\"community_exits\".\"reason\" is null or (\"community_exits\".\"kind\" = 'left' and \"community_exits\".\"reason\" in ('moved_away','too_busy','not_relevant','too_many_notifications','content_quality','privacy','other')))\n    and (\"community_exits\".\"other_text\" is null or (\"community_exits\".\"reason\" = 'other' and length(btrim(\"community_exits\".\"other_text\")) between 1 and 200))"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.community_files": {
