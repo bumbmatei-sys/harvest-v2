@@ -10,6 +10,9 @@ const alertVariants = cva(
         default: "bg-card text-card-foreground",
         destructive:
           "bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90 [&>svg]:text-current",
+        // Needs attention: red text and icon on a faintly red card (a tint of the destructive token, so it follows every theme and both colour schemes).
+        attention:
+          "border-destructive/30 bg-destructive/5 text-destructive dark:bg-destructive/10 *:data-[slot=alert-description]:text-destructive/90 [&>svg]:text-current",
       },
     },
     defaultVariants: {
