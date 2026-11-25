@@ -10,6 +10,8 @@ export type AdGoal = typeof adGoals[number];
 export const adFormats = ["image", "video", "carousel", "document", "event", "text", "messaging", "call"] as const;
 export type AdFormat = typeof adFormats[number];
 export const messagingDestinations = ["whatsapp", "messenger", "instagram_direct"] as const;
+/** Where an ad may run. No list (or an empty one) means automatic placements. */
+export const adPlacements = ["feed", "stories", "reels", "search", "messages"] as const;
 export const budgetTypes = ["daily", "lifetime"] as const;
 export const budgetLevels = ["campaign", "adset"] as const;
 export const adLevels = ["campaign", "adset", "ad"] as const;
@@ -94,12 +96,12 @@ export type Creative = z.infer<typeof creativeSchema>;
 
 const schedule = { startDate: isoDay.optional(), endDate: isoDay.optional() };
 const campaignShape = {
-  adAccountId: uuidKey, name: text(200), goal: z.enum(adGoals),
+  adAccountId: uuidKey, name: text(200), adSetName: text(200).optional(), goal: z.enum(adGoals),
   budgetAmount: money, budgetType: z.enum(budgetTypes).default("daily"), budgetLevel: z.enum(budgetLevels).default("campaign"),
   ...schedule, status: z.enum(["paused", "active"]).default("paused"),
   bidding: biddingSchema.optional(), specialAdCategories: z.array(z.enum(specialAdCategories)).max(5).default([]),
   attributionModel: z.enum(attributionModels).default("default"),
-  targeting: targetingSchema.optional(), rawTargeting: rawTargetingSchema.optional(),
+  targeting: targetingSchema.optional(), rawTargeting: rawTargetingSchema.optional(), placements: z.array(z.enum(adPlacements)).max(10).optional(),
   creative: creativeSchema.optional(), trackingTags: z.string().max(500).optional(),
 };
 function scheduleRules(v: { budgetType: string; startDate?: string; endDate?: string; goal?: string; creative?: Creative }, ctx: z.RefinementCtx) {
@@ -113,7 +115,7 @@ export const createCampaignInput = z.object(campaignShape).strict().superRefine(
 export type CreateCampaignInput = z.infer<typeof createCampaignInput>;
 export const boostInput = z.object({
   adAccountId: uuidKey, name: text(200), postRef: refInput, goal: z.enum(adGoals), budgetAmount: money, budgetType: z.enum(budgetTypes).default("daily"),
-  ...schedule, existingAdSetId: uuidKey.optional(), targeting: targetingSchema.optional(), rawTargeting: rawTargetingSchema.optional(),
+  ...schedule, existingAdSetId: uuidKey.optional(), targeting: targetingSchema.optional(), rawTargeting: rawTargetingSchema.optional(), placements: z.array(z.enum(adPlacements)).max(10).optional(),
   specialAdCategories: z.array(z.enum(specialAdCategories)).max(5).default([]), identityRef: refInput.optional(), sparkCode: z.string().min(1).max(200).optional(),
   attributionModel: z.enum(attributionModels).default("default"), status: z.enum(["paused", "active"]).default("paused"),
 }).strict().superRefine(scheduleRules);
