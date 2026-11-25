@@ -56,6 +56,20 @@ Do not introduce competing design systems without explicit justification.
 
 
 
+### Accent and artwork tokens (25 November 2026)
+
+Harvest's palettes are mostly neutral, so a small colour layer lives in the **same registry** (`src/lib/theme-registry.ts`), defined by every palette in light and dark. Components reference only these semantic names, never a fixed colour:
+
+| Token | Use | Harvest palette |
+| --- | --- | --- |
+| `--accent-primary`, `--accent-primary-soft` | The palette's highlight: wizard step chips, the accent line on the step card, the phone progress bar, the selected card's ring and check | Desert Sun, deepened to `#94692b` in light for 3:1 on white, on a Cream `#f2ecbc` fill; `#d3a265` in dark |
+| `--accent-support-1..3`, `-soft` | At most three quieter supporting tones, used sparingly | Sage (`#666850` deepened / `#c1c2ad` in dark), Misty Blue (`#56657a` / `#c7ced7`), dark olive `#2b2a0c` (Cream `#f2ecbc` in dark); soft fills are tints of Sage, Misty Blue and Cream |
+| `--art-1..5-from`, `-to`, `-glow`, `-ink` | The five artwork families (gradient ends, highlight, line colour) of code-drawn illustrations such as `CampaignTypeArt` | Desert Sun, Misty Blue, Sage, dark olive field and Cream sand, with Cream and Desert Sun highlights |
+
+Rules: colour goes on chips, artwork, progress and highlights, never on large text or page backgrounds. Each accent meets 3:1 against `--surface-card`, `--surface-sunken` and its own soft fill. Each art `-ink` meets 3:1 against its `-to`. `AccentIcon` (`src/components/accent-icon.tsx`) renders the chip; `accentVars()` sets `--accent-current` for a subtree. Status colours (success, attention) are separate tokens.
+
+**Adding one of the 12 future themes:** copy `PALETTE_EXTENSION_TEMPLATE` into the new palette's light and dark objects and choose values from that theme. Map its brand or primary hue to `--accent-primary`, pick up to three harmonious supporting tones, and derive five art families from the same hues. `tests/unit/theme-contract.test.ts` then checks every palette for completeness and contrast.
+
 Establish a centralized design system covering:
 
 - Color palette, semantic colors, and light/dark themes
