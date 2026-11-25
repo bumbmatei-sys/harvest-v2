@@ -708,6 +708,13 @@
       "when": 1795600420096,
       "tag": "0109_campaign_wizard_teams",
       "breakpoints": true
+    },
+    {
+      "idx": 110,
+      "version": "7",
+      "when": 1795601919590,
+      "tag": "0110_campaign_checklist",
+      "breakpoints": true
     }
   ]
 }

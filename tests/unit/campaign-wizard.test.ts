@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { can } from "../../src/lib/permissions";
-import { campaignTemplates, invitationInput, departmentKeys, moduleKeys, placeIssues, saveInput, validateDraft, wizardSteps, type DraftSnapshot } from "../../src/lib/campaign-wizard";
+import { campaignTemplates, checklistInput, checklistItemKeys, derivedChecklist, invitationInput, departmentKeys, moduleKeys, placeIssues, saveInput, validateDraft, wizardSteps, type DraftSnapshot } from "../../src/lib/campaign-wizard";
 
 const empty: DraftSnapshot = { type: null, name: null, country: null, cityRegion: null, startDate: null, endDate: null, timeZone: null, structure: null,
   departments: [], modules: [], budget: { currency: "USD", estimatedBudgetMinor: null, fundraisingEnabled: false, fundraisingGoalMinor: null, onlineDonations: false },
@@ -70,3 +70,20 @@ describe("campaign wizard rules", () => {
   });
 });
 
+
+describe("setup checklist", () => {
+  it("lists the nine PRD items and accepts only them", () => {
+    expect(checklistItemKeys).toHaveLength(9);
+    expect(checklistInput.safeParse({ item: "define_budget", done: true }).success).toBe(true);
+    expect(checklistInput.safeParse({ item: "anything", done: true }).success).toBe(false);
+    expect(checklistInput.safeParse({ item: "define_budget", done: "yes" }).success).toBe(false);
+    expect(checklistInput.safeParse({ item: "define_budget", done: true, extra: 1 }).success).toBe(false);
+  });
+  it("ticks leader items only from real leaders", () => {
+    expect(derivedChecklist([], [])).toMatchObject({ assign_leaders: false, assign_counseling: false });
+    expect(derivedChecklist(["volunteers", "counseling"], ["volunteers"])).toMatchObject({ assign_leaders: false, assign_counseling: false });
+    expect(derivedChecklist(["volunteers", "counseling"], ["volunteers", "counseling"])).toMatchObject({ assign_leaders: true, assign_counseling: true });
+    expect(derivedChecklist(["volunteers"], ["counseling"])).toMatchObject({ assign_leaders: false, assign_counseling: false }); // a leader of a department that is not included counts for nothing
+    expect(Object.entries(derivedChecklist(["volunteers"], ["volunteers"])).filter(([, on]) => on).map(([key]) => key)).toEqual(["assign_leaders"]);
+  });
+});
