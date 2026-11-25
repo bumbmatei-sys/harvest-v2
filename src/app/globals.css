@@ -24,7 +24,7 @@
   --color-background: var(--background); --color-foreground: var(--foreground);
   --color-card: var(--card); --color-card-foreground: var(--card-foreground);
   --color-popover: var(--popover); --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary); --color-primary-foreground: var(--primary-foreground); --color-action-hover: var(--action-hover);
+  --color-primary: var(--primary); --color-primary-foreground: var(--primary-foreground); --color-action-hover: var(--action-hover); --color-action: var(--action-fill); --color-action-foreground: var(--action-fill-foreground);
   --color-secondary: var(--secondary); --color-secondary-foreground: var(--secondary-foreground);
   --color-muted: var(--muted); --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent); --color-accent-foreground: var(--accent-foreground);
