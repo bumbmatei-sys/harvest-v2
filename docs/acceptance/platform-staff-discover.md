@@ -26,3 +26,7 @@ Stacked on `feat/discover-server` (#234). Migration `0103_platform_staff`. Serve
 - Reasons given by staff (reject, suspend) are stored in the review event and shown to the ministry's admins in their listing view, as in #234.
 - A staff user is also a normal Harvest user; the staff role gives access only to the endpoints above.
 - Granting needs the migration owner connection (`DATABASE_URL_UNPOOLED`), the same trust level as running migrations.
+
+## Trust boundary and account deletion (reviewer should-fixes)
+- **Where freshness is enforced:** recent sign-in is checked at the web layer only, from `session.createdAt` (it matches Better Auth's `freshAge` notion of a fresh session). The database functions do not know about sessions: like every other SECURITY DEFINER function here they trust `app.user_id` as set by the verified request, and they check the `platform_staff` row and role. A caller that can set `app.user_id` directly would bypass the freshness check, which is why the application role has no access to these tables or to the grant and revoke functions.
+- **Deleting a user:** `platform_staff.user_id` is `ON DELETE CASCADE`, so deleting an account removes its staff row. `platform_staff_audit` deliberately has no foreign key: `actor_id` and `target_id` are plain text and the audit keeps the user id after the account is gone.

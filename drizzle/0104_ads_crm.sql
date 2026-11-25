@@ -99,16 +99,17 @@ BEGIN
       SELECT t, person, kind, value, value FROM (VALUES ('email', em), ('phone', ph)) i(kind, value) WHERE value IS NOT NULL;
     created := true;
   END IF;
-  -- Explicit asks only: the form mapped a question to the purpose and this person answered yes.
+  -- Explicit asks only: the form mapped a question to the purpose and this person answered yes. The text cited as evidence is the one stored on the LEAD when it was received, never read from the form at
+  -- conversion time, and a grant is made only while the form still carries exactly that text; a form whose wording changed after the lead was received grants nothing.
   IF f.id IS NOT NULL THEN
     FOREACH purpose IN ARRAY ARRAY['newsletter', 'form_follow_up'] LOOP
       qkey := f.consent_questions ->> purpose;
       ans := lower(btrim(coalesce(fields ->> qkey, '')));
-      IF qkey IS NOT NULL AND ans IN ('yes', 'true', '1', 'on', 'checked') THEN
+      IF qkey IS NOT NULL AND ans IN ('yes', 'true', '1', 'on', 'checked') AND l.consent_text IS NOT NULL AND btrim(l.consent_text) = btrim(f.consent_text) THEN
         chan := CASE WHEN purpose = 'newsletter' THEN CASE WHEN em IS NOT NULL THEN 'email' END ELSE CASE WHEN em IS NOT NULL THEN 'email' ELSE 'sms' END END;
         IF chan IS NOT NULL THEN
           INSERT INTO public.contact_consents(tenant_id, contact_id, recorded_by, purpose, notice_version, channel, status, source, evidence, occurred_at)
-            VALUES (t, person, actor, purpose, 'ad-lead-form-v1', chan, 'granted', 'ad_lead_form', left(btrim(f.consent_text), 1500) || ' [lead answered yes: ' || qkey || ']', least(coalesce(l.submitted_at, now()), now()));
+            VALUES (t, person, actor, purpose, 'ad-lead-form-v1', chan, 'granted', 'ad_lead_form', left(btrim(l.consent_text), 1500) || ' [lead answered yes: ' || qkey || ']', least(coalesce(l.submitted_at, now()), now()));
           granted := granted || purpose;
         END IF;
       END IF;
@@ -127,6 +128,9 @@ DECLARE previous text := current_setting('app.ads_definer', true);
 BEGIN
   PERFORM set_config('app.ads_definer', 'on', true);
   DELETE FROM public.ads_leads WHERE tenant_id = OLD.tenant_id AND contact_id = OLD.id;
+  IF EXISTS (SELECT FROM public.ads_leads WHERE tenant_id = OLD.tenant_id AND contact_id = OLD.id) THEN
+    RAISE EXCEPTION 'ad leads of an erased contact must not survive';
+  END IF;
   PERFORM set_config('app.ads_definer', coalesce(previous, ''), true);
   RETURN NEW;
 END $$;
