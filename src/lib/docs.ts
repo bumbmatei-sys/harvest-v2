@@ -191,3 +191,14 @@ export type TemplateCategory = (typeof templateCategories)[number];
 export const templateNameSchema = z.string().trim().min(1).max(80);
 export const commentBodySchema = z.string().trim().min(1).max(2000);
 /** Ids of the people @mentioned in comment text are carried separately; the text keeps the display name. */
+
+/**
+ * The fields of a page that are changed but not yet confirmed saved, or null when nothing is pending. Text edits and title changes are
+ * counted, a style change is held until a save confirms it; `getContent` runs only when the text changed. Used by the editor's
+ * autosave and by the page-leave flush, so a style toggle is sent with, or without, pending text.
+ */
+export function pendingPageFields(state: { edits: number; savedEdits: number; title: string; savedTitle: string; subtitle?: string; savedSubtitle?: string; style: PageStyle | null; getContent: () => unknown }) {
+  const textChanged = state.edits !== state.savedEdits, titleChanged = state.title !== state.savedTitle, subtitleChanged = state.subtitle !== undefined && state.subtitle !== state.savedSubtitle;
+  if (!textChanged && !titleChanged && !subtitleChanged && state.style === null) return null;
+  return { ...(textChanged ? { content: state.getContent() } : {}), ...(titleChanged ? { title: state.title } : {}), ...(subtitleChanged ? { subtitle: state.subtitle } : {}), ...(state.style !== null ? { style: state.style } : {}) };
+}

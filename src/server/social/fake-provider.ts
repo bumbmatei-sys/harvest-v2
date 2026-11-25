@@ -78,14 +78,16 @@ export class FakeProvider implements SocialProvider, SocialSender {
   async publishPost(cred: SocialCredential, request: PublishRequest): Promise<PublishResult> {
     this.enter("publishPost", cred, request.idempotencyKey);
     const existing = this.byKey.get(request.idempotencyKey);
-    if (existing) { const post = this.posts.get(existing)!; return { postRef: post.postRef, status: post.status }; }
+    if (existing) { const post = this.posts.get(existing)!; return { postRef: post.postRef, status: post.status, postUrl: this.url(post) }; }
     if (!this.options.permissive && !this.accounts.some((a) => a.accountRef === request.accountRef && a.platform === request.platform)) throw new SocialProviderError("INVALID_REQUEST");
     if (!request.content.trim() && request.media.length === 0) throw new SocialProviderError("INVALID_REQUEST");
     const postRef = `fake-post-${++this.counter}`, status: ProviderPostStatus = request.scheduledFor ? "scheduled" : "published";
     this.posts.set(postRef, { postRef, status, request });
     this.byKey.set(request.idempotencyKey, postRef);
-    return { postRef, status };
+    return { postRef, status, postUrl: this.url({ postRef, status }) };
   }
+  /** Synthetic public URL for a published post; the fake never serves it. */
+  private url(post: { postRef: string; status: ProviderPostStatus }) { return post.status === "published" ? `https://example.test/p/${post.postRef}` : null; }
   async cancelPost(cred: SocialCredential, postRef: string) {
     this.enter("cancelPost", cred);
     const post = this.posts.get(postRef);
@@ -97,7 +99,7 @@ export class FakeProvider implements SocialProvider, SocialSender {
     this.enter("getPostStatus", cred);
     const post = this.posts.get(postRef);
     if (!post) throw new SocialProviderError("NOT_FOUND");
-    return { postRef, status: post.status, errorCategory: null };
+    return { postRef, status: post.status, errorCategory: null, postUrl: this.url(post) };
   }
   async listConversations(cred: SocialCredential, query: PageQuery) { this.enter("listConversations", cred); return this.page(this.conversations.filter((c) => c.accountRef === query.accountRef), query); }
   async listMessages(cred: SocialCredential, query: PageQuery & { conversationRef: string }) {
