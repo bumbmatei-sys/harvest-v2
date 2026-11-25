@@ -133,3 +133,11 @@ it("requires a recent sign-in and is hard-off", async () => {
   // The members of a ministry can never see staff tables through their own tenant context.
   await expect(withTenant(f.db, "ps-owner", tenant, "catalog:manage", async tx => { await tx.execute(sql`select * from platform_staff`); })).rejects.toThrow();
 });
+
+it("removes the staff row with the account, and the audit keeps the user id as plain text", async () => {
+  await f.db.insert(users).values({ id: "ps-leaver", name: "ps-leaver", email: "ps-leaver@example.test", emailVerified: true });
+  await grant("ps-leaver", "reviewer");
+  await q("delete from users where id=$1", ["ps-leaver"]);
+  expect((await q("select count(*)::int n from platform_staff where user_id='ps-leaver'")).rows[0].n).toBe(0);
+  expect((await q("select count(*)::int n from platform_staff_audit where target_id='ps-leaver' and action='staff.grant'")).rows[0].n).toBe(1);
+});

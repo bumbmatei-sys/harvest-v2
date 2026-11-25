@@ -3354,7 +3354,7 @@ export const communityDailyCounts = pgTable("community_daily_counts", {
 // there is no self-serve path and no application role can read or write these tables. Staff reach only Discover review data, through definer functions that check this table.
 export const platformStaffRoles = ["reviewer", "admin"] as const;
 export const platformStaff = pgTable("platform_staff", {
-  userId: text("user_id").primaryKey().references(() => users.id), role: text("role").$type<typeof platformStaffRoles[number]>().notNull(), grantedBy: text("granted_by").notNull(),
+  userId: text("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }), role: text("role").$type<typeof platformStaffRoles[number]>().notNull(), grantedBy: text("granted_by").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), revokedAt: timestamp("revoked_at", { withTimezone: true }),
 }, (t) => [check("platform_staff_shape", sql`${t.role} in ('reviewer','admin') and length(${t.grantedBy}) between 1 and 200`)]);
 export const platformStaffAudit = pgTable("platform_staff_audit", {
