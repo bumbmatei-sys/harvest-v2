@@ -1,45 +1,26 @@
 import { and, asc, eq, ilike, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
-import { auditLogs, docFavorites, docFolders, docPages, docs, users } from "../db/schema";
+import { docFavorites, docPageVersions, docShares, docFolders, docPages, docs, users } from "../db/schema";
 import { docLimits, docRights, DocContentError, docTitleSchema, emptyContent, folderNameKey, folderNameSchema, pageStyleSchema, pageTitleSchema, reorder, sanitizeDocContent, subtreeIds, type DocContent, type DocRights, type PageStyle } from "../lib/docs";
 import { message } from "../i18n/messages";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
 
-/** Docs are a development-only module until activated: never in production (same gate as the newsletter and the Office screens). */
-export function docsEnabled(env: Record<string, string | undefined> = process.env) { return env.NODE_ENV !== "production" && env.VERCEL_ENV !== "production"; }
-export function requireDocsEnabled() { if (!docsEnabled()) throw new AccessError(404, message("Errors.thisViewIsNotAvailable")); }
-
-const gone = () => new AccessError(404, message("Errors.docNotFound"));
-const stale = () => new AccessError(409, message("Errors.thisRecordChangedReloadAndTryAgain"), { reason: "stale" });
-const denied = () => new AccessError(403, message("Errors.youDoNotHavePermissionToDoThat"));
-const bad = (key: Parameters<typeof message>[0]) => new AccessError(400, message(key));
-const id = (value: string) => z.uuid().parse(value);
-const audit = (tx: Transaction, tenantId: string, actorId: string, action: string, targetId: string, metadata: Record<string, string | number> = {}) =>
-  tx.insert(auditLogs).values({ tenantId, actorId, action, targetId, metadata: Object.fromEntries(Object.entries(metadata).map(([k, v]) => [k, String(v)])) });
+import { audit, bad, denied, id, loadDoc, needManage, needWrite, requireDocsEnabled, stale } from "./docs-access";
+import { snapshotPage } from "./docs-history";
+export { docsEnabled, requireDocsEnabled } from "./docs-access";
 /** People who signed in with a code may have no name yet: the start of the email before the @ stands in (never a long id). */
 const ownerName = sql<string>`coalesce(nullif(btrim(${users.name}),''), left(split_part(${users.email},'@',1), 24))`;
 const likeEscape = (value: string) => value.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 export type DocKind = "document" | "spreadsheet";
-export type DocRow = { id: string; kind: DocKind; title: string; ownerId: string; ownerName: string; folderId: string | null; updatedAt: string; archivedAt: string | null; deletedAt: string | null; favorite: boolean; rights: DocRights };
+export type DocRow = { id: string; kind: DocKind; visibility: "private" | "ministry"; title: string; ownerId: string; ownerName: string; folderId: string | null; updatedAt: string; archivedAt: string | null; deletedAt: string | null; favorite: boolean; rights: DocRights };
 /** `docCount` is what the card shows (active docs); `docTotal` also counts archived and trashed docs, which still block deleting the folder. */
 export type FolderRow = { id: string; parentId: string | null; name: string; ownerId: string; docCount: number; docTotal: number };
 export type PageRow = { id: string; parentId: string | null; position: number; title: string; icon: string | null; archivedAt: string | null; protected: boolean };
 
 const iso = (value: Date | null) => value ? value.toISOString() : null;
-
-/** The role-and-owner rule for changing a doc (the database policy enforces the same rule). */
-async function loadDoc(tx: Transaction, tenantId: string, docId: string, user: string, role: string, lock = false, trashed = false) {
-  const [row] = await tx.select().from(docs).where(and(eq(docs.tenantId, tenantId), eq(docs.id, docId), trashed ? isNotNull(docs.deletedAt) : isNull(docs.deletedAt)));
-  if (!row) throw gone();
-  const rights = docRights(role, row.ownerId, user);
-  // Serialise changes to one doc. The lock is taken only by someone who may change it: a row the update policy hides cannot be locked, and reading it needs no lock.
-  if (lock && rights.write) await tx.select({ id: docs.id }).from(docs).where(and(eq(docs.tenantId, tenantId), eq(docs.id, docId))).for("update");
-  return { row, rights };
-}
-const needWrite = (rights: DocRights) => { if (!rights.write) throw denied(); };
 
 // ---- Folders -------------------------------------------------------------------------------------------------------------------------------------------------
 async function folderDepth(tx: Transaction, tenantId: string, folderId: string | null) {
@@ -131,11 +112,14 @@ export async function deleteFolder(db: Database, user: string, workspace: string
       // Another person's docs may be inside: moving them is a change to the doc, so it needs the right to change each one.
       // The same holds for subfolders: row-level security skips another member's folder, so the move would silently leave it behind and the delete would fail.
       if (!(role === "owner" || role === "admin") && (inside.some((d) => d.ownerId !== user) || kids.some((k) => k.ownerId !== user))) throw denied();
-      if (inside.length) await tx.update(docs).set({ folderId: current.parentId, updatedAt: new Date() }).where(and(eq(docs.tenantId, tenantId), eq(docs.folderId, folderId)));
-      if (kids.length) {
-        const base = await nextFolderPosition(tx, tenantId, current.parentId);
-        let i = 0; for (const k of kids) await tx.update(docFolders).set({ parentId: current.parentId, position: base + i++, updatedAt: new Date() }).where(and(eq(docFolders.tenantId, tenantId), eq(docFolders.id, k.id)));
-      }
+      try {
+        await tx.execute(sql`savepoint folder_move`);
+        if (inside.length) await tx.update(docs).set({ folderId: current.parentId, updatedAt: new Date() }).where(and(eq(docs.tenantId, tenantId), eq(docs.folderId, folderId)));
+        if (kids.length) {
+          const base = await nextFolderPosition(tx, tenantId, current.parentId);
+          let i = 0; for (const k of kids) await tx.update(docFolders).set({ parentId: current.parentId, position: base + i++, updatedAt: new Date() }).where(and(eq(docFolders.tenantId, tenantId), eq(docFolders.id, k.id)));
+        }
+      } catch (error) { await tx.execute(sql`rollback to savepoint folder_move`); if (taken(error)) throw new AccessError(409, message("Errors.folderNameTaken")); throw error; }
     }
     try {
       await tx.execute(sql`savepoint folder_delete`);
@@ -168,12 +152,14 @@ export async function listDocs(db: Database, user: string, workspace: string, ra
     const rows = await tx.select({ doc: docs, ownerName: ownerName, favorite: sql<boolean>`exists(select 1 from ${docFavorites} f where f.doc_id=${docs.id} and f.user_id=${user})` })
       .from(docs).innerJoin(users, eq(users.id, docs.ownerId)).where(and(...where))
       .orderBy(query.sort === "title" ? sql`lower(${docs.title})` : sql`${docs.updatedAt} desc`, asc(docs.id)).limit(500);
+    const mine = rows.length ? await tx.select({ docId: docShares.docId, role: docShares.role }).from(docShares).where(and(eq(docShares.userId, user), inArray(docShares.docId, rows.map((r) => r.doc.id)))) : [];
+    const shareOf = new Map(mine.map((m) => [m.docId, m.role]));
     const folders = await tx.select({ id: docFolders.id, parentId: docFolders.parentId, name: docFolders.name, ownerId: docFolders.ownerId,
       docCount: sql<number>`(select count(*) from ${docs} d where d.folder_id=doc_folders.id and d.tenant_id=doc_folders.tenant_id and d.deleted_at is null and d.archived_at is null)`,
       docTotal: sql<number>`(select count(*) from ${docs} d where d.folder_id=doc_folders.id and d.tenant_id=doc_folders.tenant_id)` })
       .from(docFolders).where(and(eq(docFolders.tenantId, tenantId), isNull(docFolders.archivedAt))).orderBy(sql`lower(${docFolders.name})`).limit(docLimits.foldersPerMinistry);
     return { role, userId: user, folders: folders.map((f) => ({ ...f, docCount: Number(f.docCount), docTotal: Number(f.docTotal) })),
-      docs: rows.map((r) => ({ id: r.doc.id, kind: r.doc.kind, title: r.doc.title, ownerId: r.doc.ownerId, ownerName: r.ownerName, folderId: r.doc.folderId, updatedAt: r.doc.updatedAt.toISOString(), archivedAt: iso(r.doc.archivedAt), deletedAt: iso(r.doc.deletedAt), favorite: r.favorite, rights: docRights(role, r.doc.ownerId, user) })) };
+      docs: rows.map((r) => ({ id: r.doc.id, kind: r.doc.kind, visibility: r.doc.visibility, title: r.doc.title, ownerId: r.doc.ownerId, ownerName: r.ownerName, folderId: r.doc.folderId, updatedAt: r.doc.updatedAt.toISOString(), archivedAt: iso(r.doc.archivedAt), deletedAt: iso(r.doc.deletedAt), favorite: r.favorite, rights: docRights(role, r.doc.ownerId, user, { visibility: r.doc.visibility, ministryAccess: r.doc.ministryAccess, share: shareOf.get(r.doc.id) ?? null }) })) };
   });
 }
 
@@ -207,7 +193,7 @@ export async function createDoc(db: Database, user: string, workspace: string, r
   });
 }
 
-export type DocDetail = { doc: { id: string; title: string; ownerId: string; ownerName: string; folderId: string | null; updatedAt: string; archivedAt: string | null; favorite: boolean }; rights: DocRights; pages: PageRow[]; folders: { id: string; parentId: string | null; name: string }[]; role: string; userId: string };
+export type DocDetail = { doc: { id: string; title: string; ownerId: string; ownerName: string; folderId: string | null; updatedAt: string; archivedAt: string | null; favorite: boolean; visibility: "private" | "ministry"; ministryAccess: "view" | "comment" | "edit"; publicEnabled: boolean; wiki: boolean }; rights: DocRights; pages: PageRow[]; folders: { id: string; parentId: string | null; name: string }[]; role: string; userId: string };
 export async function getDoc(db: Database, user: string, workspace: string, docId: string): Promise<DocDetail> {
   requireDocsEnabled();
   return withTenant(db, user, id(workspace), "docs:read", async (tx, tenantId, role) => {
@@ -216,22 +202,24 @@ export async function getDoc(db: Database, user: string, workspace: string, docI
     const [fav] = await tx.select({ n: sql<number>`count(*)` }).from(docFavorites).where(and(eq(docFavorites.docId, row.id), eq(docFavorites.userId, user)));
     const folders = await tx.select({ id: docFolders.id, parentId: docFolders.parentId, name: docFolders.name }).from(docFolders).where(and(eq(docFolders.tenantId, tenantId), isNull(docFolders.archivedAt))).limit(docLimits.foldersPerMinistry);
     return { role, userId: user, rights, folders, pages: await pageRows(tx, tenantId, row.id),
-      doc: { id: row.id, title: row.title, ownerId: row.ownerId, ownerName: owner?.name ?? "", folderId: row.folderId, updatedAt: row.updatedAt.toISOString(), archivedAt: iso(row.archivedAt), favorite: Number(fav.n) > 0 } };
+      doc: { id: row.id, title: row.title, ownerId: row.ownerId, ownerName: owner?.name ?? "", folderId: row.folderId, updatedAt: row.updatedAt.toISOString(), archivedAt: iso(row.archivedAt), favorite: Number(fav.n) > 0, visibility: row.visibility, ministryAccess: row.ministryAccess, publicEnabled: row.publicEnabled, wiki: row.wiki } };
   });
 }
 
 export async function updateDoc(db: Database, user: string, workspace: string, docId: string, raw: unknown) {
   requireDocsEnabled();
-  const input = z.object({ title: docTitleSchema.optional(), folderId: z.uuid().nullable().optional(), archived: z.boolean().optional(), trashed: z.boolean().optional() }).strict().parse(raw);
+  const input = z.object({ title: docTitleSchema.optional(), folderId: z.uuid().nullable().optional(), archived: z.boolean().optional(), trashed: z.boolean().optional(), wiki: z.boolean().optional() }).strict().parse(raw);
   return withTenant(db, user, id(workspace), "docs:read", async (tx, tenantId, role) => {
     // Restoring from Trash addresses a trashed doc; every other change addresses a live one.
     const { row, rights } = await loadDoc(tx, tenantId, id(docId), user, role, true, input.trashed === false);
     needWrite(rights);
+    // Renaming is for editors; moving, archiving and trashing belong to the doc's owner and to owners and admins.
+    if (input.trashed !== undefined || input.archived !== undefined || input.folderId !== undefined || input.wiki !== undefined) needManage(rights);
     if (input.folderId !== undefined && input.folderId !== row.folderId) await ensureFolder(tx, tenantId, input.folderId);
     const now = new Date();
     const [updated] = await tx.update(docs).set({
       ...(input.title !== undefined ? { title: input.title } : {}), ...(input.folderId !== undefined ? { folderId: input.folderId } : {}),
-      ...(input.archived !== undefined ? { archivedAt: input.archived ? now : null } : {}), ...(input.trashed !== undefined ? { deletedAt: input.trashed ? now : null } : {}),
+      ...(input.archived !== undefined ? { archivedAt: input.archived ? now : null } : {}), ...(input.wiki !== undefined ? { wiki: input.wiki } : {}), ...(input.trashed !== undefined ? { deletedAt: input.trashed ? now : null } : {}),
       updatedAt: now, version: sql`${docs.version}+1` }).where(and(eq(docs.tenantId, tenantId), eq(docs.id, row.id))).returning();
     await audit(tx, tenantId, user, input.trashed !== undefined ? (input.trashed ? "docs.doc.trash" : "docs.doc.restore") : input.archived !== undefined ? (input.archived ? "docs.doc.archive" : "docs.doc.unarchive") : input.folderId !== undefined ? "docs.doc.move" : "docs.doc.rename", row.id);
     return { id: updated.id, title: updated.title, folderId: updated.folderId, archivedAt: iso(updated.archivedAt), deletedAt: iso(updated.deletedAt) };
@@ -295,11 +283,40 @@ export async function getPage(db: Database, user: string, workspace: string, doc
     const { row } = await loadDoc(tx, tenantId, id(docId), user, role);
     const [page] = await tx.select().from(docPages).where(and(eq(docPages.tenantId, tenantId), eq(docPages.docId, row.id), eq(docPages.id, id(pageId))));
     if (!page) throw new AccessError(404, message("Errors.pageNotFound"));
-    return { id: page.id, parentId: page.parentId, engine: page.engine, schemaVersion: page.schemaVersion, title: page.title, icon: page.icon, content: page.content, style: page.style, protected: page.protected, version: page.version, updatedAt: page.updatedAt.toISOString(), archivedAt: iso(page.archivedAt) };
+    // Contributors: everyone who changed this page (the snapshots name them), apart from the doc's owner. People who may not read history see only the last editor.
+    const editors = await tx.selectDistinct({ id: docPageVersions.createdBy }).from(docPageVersions).where(eq(docPageVersions.pageId, page.id));
+    const ids = [...new Set([...editors.map((e) => e.id), ...(page.updatedBy ? [page.updatedBy] : []), page.createdBy])].filter((u) => u !== row.ownerId);
+    const contributors = ids.length ? await tx.select({ userId: users.id, name: ownerName }).from(users).where(inArray(users.id, ids)).limit(10) : [];
+    return { id: page.id, parentId: page.parentId, engine: page.engine, schemaVersion: page.schemaVersion, title: page.title, subtitle: page.subtitle, icon: page.icon, content: page.content, style: page.style, protected: page.protected, version: page.version, updatedAt: page.updatedAt.toISOString(), archivedAt: iso(page.archivedAt), contributors };
+  });
+}
+/** Applies one page's typography (font, size, width) to every other page of the doc that is not protected. Versions are not bumped: this is a display setting. */
+export async function applyTypography(db: Database, user: string, workspace: string, docId: string, raw: unknown) {
+  requireDocsEnabled();
+  const input = z.object({ font: z.enum(["sans", "serif", "mono"]), size: z.enum(["small", "default", "large"]), width: z.enum(["default", "wide", "full"]), exceptPageId: z.uuid().optional() }).strict().parse(raw);
+  return withTenant(db, user, id(workspace), "docs:read", async (tx, tenantId, role) => {
+    const { row, rights } = await loadDoc(tx, tenantId, id(docId), user, role, true);
+    needWrite(rights);
+    const patch = JSON.stringify({ font: input.font, size: input.size, width: input.width });
+    const done = await tx.update(docPages).set({ style: sql`${docPages.style} || ${patch}::jsonb` }).where(and(eq(docPages.tenantId, tenantId), eq(docPages.docId, row.id), eq(docPages.protected, false), input.exceptPageId ? ne(docPages.id, input.exceptPageId) : undefined)).returning({ id: docPages.id });
+    await audit(tx, tenantId, user, "docs.typography.apply", row.id, { pages: done.length });
+    return { pages: done.length };
+  });
+}
+/** Protect or unprotect every page of a doc at once (the doc's owner and owners and admins). Protected pages are read-only for everyone until unprotected. */
+export async function setDocProtection(db: Database, user: string, workspace: string, docId: string, raw: unknown) {
+  requireDocsEnabled();
+  const input = z.object({ protected: z.boolean() }).strict().parse(raw);
+  return withTenant(db, user, id(workspace), "docs:read", async (tx, tenantId, role) => {
+    const { row, rights } = await loadDoc(tx, tenantId, id(docId), user, role, true);
+    needManage(rights);
+    const done = await tx.update(docPages).set({ protected: input.protected }).where(and(eq(docPages.tenantId, tenantId), eq(docPages.docId, row.id))).returning({ id: docPages.id });
+    await audit(tx, tenantId, user, input.protected ? "docs.doc.protect" : "docs.doc.unprotect", row.id, { pages: done.length });
+    return { pages: done.length };
   });
 }
 
-const pagePatch = z.object({ version: z.number().int().positive(), title: pageTitleSchema.optional(), content: z.unknown().optional(), style: pageStyleSchema.optional(), icon: z.string().max(16).nullable().optional(), protected: z.boolean().optional() }).strict();
+const pagePatch = z.object({ version: z.number().int().positive(), title: pageTitleSchema.optional(), content: z.unknown().optional(), style: pageStyleSchema.optional(), icon: z.string().max(16).nullable().optional(), subtitle: z.string().trim().max(200).optional(), protected: z.boolean().optional() }).strict();
 /**
  * Autosave and settings. `version` is the page version the editor loaded: a stale one is refused with 409 and nothing changes. A protected page is read-only for everyone
  * until the doc's owner or an owner/admin unprotects it (that is the only change accepted while protected).
@@ -315,12 +332,13 @@ export async function updatePage(db: Database, user: string, workspace: string, 
     const [page] = await tx.select().from(docPages).where(and(eq(docPages.tenantId, tenantId), eq(docPages.docId, row.id), eq(docPages.id, id(pageId)))).for("update");
     if (!page) throw new AccessError(404, message("Errors.pageNotFound"));
     if (page.version !== input.version) throw stale();
-    const onlyUnprotect = input.protected === false && input.title === undefined && content === undefined && input.style === undefined && input.icon === undefined;
+    const onlyUnprotect = input.protected === false && input.title === undefined && content === undefined && input.style === undefined && input.icon === undefined && input.subtitle === undefined;
     if (page.protected && !onlyUnprotect) throw new AccessError(409, message("Errors.pageProtected"), { reason: "protected" });
     const now = new Date();
+    if (content && JSON.stringify(content) !== JSON.stringify(page.content)) await snapshotPage(tx, tenantId, row.id, page, user, "autosave");
     const [saved] = await tx.update(docPages).set({
       ...(input.title !== undefined ? { title: input.title } : {}), ...(content ? { content } : {}), ...(input.style ? { style: input.style } : {}),
-      ...(input.icon !== undefined ? { icon: input.icon } : {}), ...(input.protected !== undefined ? { protected: input.protected } : {}),
+      ...(input.icon !== undefined ? { icon: input.icon } : {}), ...(input.subtitle !== undefined ? { subtitle: input.subtitle } : {}), ...(input.protected !== undefined ? { protected: input.protected } : {}),
       version: page.version + 1, updatedBy: user, updatedAt: now }).where(and(eq(docPages.docId, row.id), eq(docPages.id, page.id))).returning({ version: docPages.version, updatedAt: docPages.updatedAt });
     // The first top-level page names the doc.
     if (input.title !== undefined && page.parentId === null) {

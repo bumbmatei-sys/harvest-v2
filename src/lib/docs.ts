@@ -86,19 +86,25 @@ export function sanitizeDocContent(input: unknown): DocContent {
   return clean(input, 0) as DocContent;
 }
 
-// Page styles (stored per page). Sparse: only values that differ from the defaults are kept.
+// Page styles (stored per page). Sparse: only values that differ from the defaults are kept. Older pages stored `subpages` as a boolean; it still reads.
 export const pageFonts = ["sans", "serif", "mono"] as const, pageSizes = ["small", "default", "large"] as const, pageWidths = ["default", "wide", "full"] as const;
+export const subpageModes = ["off", "list", "table"] as const, relationshipModes = ["dialog", "inline"] as const;
 export const pageStyleSchema = z.object({
   font: z.enum(pageFonts).optional(), size: z.enum(pageSizes).optional(), width: z.enum(pageWidths).optional(),
-  header: z.object({ icon: z.boolean().optional(), owner: z.boolean().optional(), updated: z.boolean().optional() }).strict().optional(),
-  sections: z.object({ subpages: z.boolean().optional(), outline: z.boolean().optional() }).strict().optional(),
+  header: z.object({ cover: z.boolean().optional(), icon: z.boolean().optional(), owner: z.boolean().optional(), contributors: z.boolean().optional(), subtitle: z.boolean().optional(), updated: z.boolean().optional() }).strict().optional(),
+  sections: z.object({ subpages: z.union([z.boolean(), z.enum(subpageModes)]).optional(), relationships: z.enum(relationshipModes).optional(), outline: z.boolean().optional() }).strict().optional(),
+  showStats: z.boolean().optional(), coverFileId: z.uuid().optional(),
 }).strict();
 export type PageStyle = z.infer<typeof pageStyleSchema>;
-export type ResolvedPageStyle = { font: (typeof pageFonts)[number]; size: (typeof pageSizes)[number]; width: (typeof pageWidths)[number]; header: { icon: boolean; owner: boolean; updated: boolean }; sections: { subpages: boolean; outline: boolean } };
+export type ResolvedPageStyle = { font: (typeof pageFonts)[number]; size: (typeof pageSizes)[number]; width: (typeof pageWidths)[number];
+  header: { cover: boolean; icon: boolean; owner: boolean; contributors: boolean; subtitle: boolean; updated: boolean };
+  sections: { subpages: (typeof subpageModes)[number]; relationships: (typeof relationshipModes)[number]; outline: boolean }; showStats: boolean; coverFileId: string | null };
 export function resolvePageStyle(style: PageStyle | null | undefined): ResolvedPageStyle {
+  const sub = style?.sections?.subpages;
   return { font: style?.font ?? "sans", size: style?.size ?? "default", width: style?.width ?? "default",
-    header: { icon: style?.header?.icon ?? true, owner: style?.header?.owner ?? true, updated: style?.header?.updated ?? true },
-    sections: { subpages: style?.sections?.subpages ?? false, outline: style?.sections?.outline ?? false } };
+    header: { cover: style?.header?.cover ?? false, icon: style?.header?.icon ?? true, owner: style?.header?.owner ?? true, contributors: style?.header?.contributors ?? false, subtitle: style?.header?.subtitle ?? false, updated: style?.header?.updated ?? true },
+    sections: { subpages: sub === true ? "list" : sub === false ? "off" : sub ?? "table", relationships: style?.sections?.relationships ?? "dialog", outline: style?.sections?.outline ?? false },
+    showStats: style?.showStats ?? false, coverFileId: style?.coverFileId ?? null };
 }
 
 // Names.
@@ -154,7 +160,28 @@ export function reorder(ids: readonly string[], id: string, index: number): stri
   return [...rest.slice(0, at), id, ...rest.slice(at)];
 }
 
-// Roles (the server rules, shared with the interface so a control is not offered that the server would refuse).
-export type DocRights = { manage: boolean; write: boolean };
-/** Owners and admins manage every doc; members create docs and edit the docs they own; viewers read. */
-export const docRights = (role: string, ownerId: string, userId: string): DocRights => ({ manage: role === "owner" || role === "admin", write: role === "owner" || role === "admin" || (role === "member" && ownerId === userId) });
+// Access. One rule for the server, the database policies (`docs_rank` in migration 0093) and the interface, so no control is offered that would be refused.
+// 4 manage (owners, admins, the doc's owner), 3 edit, 2 comment, 1 view, 0 none. A ministry "viewer" never edits (capped at comment); `private` hides a doc from members it is not shared with.
+export type ShareRole = "view" | "comment" | "edit";
+export const shareRoles: readonly ShareRole[] = ["view", "comment", "edit"];
+const shareRank = (role: string | null | undefined) => role === "edit" ? 3 : role === "comment" ? 2 : role === "view" ? 1 : 0;
+export type DocAccessInput = { role: string; isOwner: boolean; visibility: string; ministryAccess: string; share: string | null };
+export function docRank(i: DocAccessInput): 0 | 1 | 2 | 3 | 4 {
+  if (!["owner", "admin", "member", "viewer"].includes(i.role)) return 0;
+  if (i.role === "owner" || i.role === "admin") return 4;
+  if (i.isOwner && i.role !== "viewer") return 4;
+  const granted = Math.max(shareRank(i.share), i.visibility === "ministry" ? shareRank(i.ministryAccess) : 0);
+  return Math.min(granted, i.role === "viewer" ? 2 : 3) as 0 | 1 | 2 | 3;
+}
+export type DocRights = { manage: boolean; write: boolean; comment: boolean; read: boolean };
+export const rightsOf = (rank: number): DocRights => ({ manage: rank >= 4, write: rank >= 3, comment: rank >= 2, read: rank >= 1 });
+export const docRights = (role: string, ownerId: string, userId: string, access: { visibility?: string; ministryAccess?: string; share?: string | null } = {}): DocRights =>
+  rightsOf(docRank({ role, isOwner: ownerId === userId, visibility: access.visibility ?? "private", ministryAccess: access.ministryAccess ?? "view", share: access.share ?? null }));
+
+// Templates: a template is a small tree of pages (parent is the index of the parent page in the list, or null).
+export type TemplatePage = { title: string; content: DocContent; parent: number | null };
+export const templateCategories = ["meetings", "worship", "events", "people", "planning", "other"] as const;
+export type TemplateCategory = (typeof templateCategories)[number];
+export const templateNameSchema = z.string().trim().min(1).max(80);
+export const commentBodySchema = z.string().trim().min(1).max(2000);
+/** Ids of the people @mentioned in comment text are carried separately; the text keeps the display name. */

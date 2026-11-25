@@ -434,7 +434,7 @@ describe("merge", () => {
 describe("definers without superuser or BYPASSRLS", () => {
   it("merge and rollback work when owned by a restricted role under FORCE RLS (as on Neon)", async () => {
     const role = "harvest_test_crm06", tables = ["contacts", "contact_identifiers", "contact_company_links", "contact_consents", "crm_tasks", "crm_notes", "opportunities",
-      "crm_field_values", "crm_field_definitions", "crm_import_rows", "crm_imports", "crm_associations", "companies", "audit_logs", "workspace_members", "contact_source_events", "campaign_responses", "crm_form_responses", "contact_form_sources", "contact_first_sources"];
+      "crm_field_values", "crm_field_definitions", "crm_import_rows", "crm_imports", "crm_associations", "companies", "audit_logs", "workspace_members", "contact_source_events", "campaign_responses", "crm_form_responses", "contact_form_sources", "contact_first_sources", "doc_links"];
     const mergeFunctions = ["merge_contacts", "merge_contacts_scoped", "merge_contacts_before_crm_forms",
       "merge_contacts_before_newsletter_sending", "merge_contacts_before_nl02"];
     await fixture.admin.query(`create role ${role} nologin nosuperuser nobypassrls noinherit`);
@@ -464,9 +464,14 @@ describe("definers without superuser or BYPASSRLS", () => {
       await recordConsent(fixture.db, "owner-a", tenant, dup.id, consent);
       await createNote(fixture.db, "owner-a", tenant, { target: "person", targetId: dup.id, body: "Moves" });
       await patchRecordFields(fixture.db, "owner-a", tenant, "person", dup.id, { version: (await getContact(fixture.db, "owner-a", tenant, dup.id)).version, values: { [field.key]: "Youth" } });
+      // A Docs link to the merged person moves to the kept person (the Docs hook inside the merge definer).
+      const linkedDoc = crypto.randomUUID();
+      await fixture.admin.query("insert into docs (tenant_id,id,owner_id,title) values ($1,$2,'owner-a','Linked')", [tenant, linkedDoc]);
+      await fixture.admin.query("insert into doc_links (tenant_id,doc_id,target_kind,target_id,created_by) values ($1,$2,'contact',$3,'owner-a')", [tenant, linkedDoc, dup.id]);
       const versions = { targetVersion: (await getContact(fixture.db, "owner-a", tenant, kept.id)).version, sourceVersion: (await getContact(fixture.db, "owner-a", tenant, dup.id)).version };
       const merged = await mergeContacts(fixture.db, "owner-a", tenant, kept.id, { sourceId: dup.id, ...versions });
       expect(merged.moved).toMatchObject({ identifiers: 1, consents: 1, notes: 1, values: 1 });
+      expect((await fixture.admin.query("select target_id from doc_links where doc_id=$1", [linkedDoc])).rows).toEqual([{ target_id: kept.id }]);
       expect((await getContact(fixture.db, "owner-a", tenant, kept.id)).effectiveConsents).toMatchObject([{ status: "withdrawn" }]);
       const run = await runImport("owner-a", tenant, csv([["Name", "Email"], ["Synthetic Restricted", "restricted-import@example.test"]]));
       await expect(rollbackImport(fixture.db, "owner-a", tenant, run.id)).resolves.toMatchObject({ result: { removed: 1 } });

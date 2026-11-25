@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { Archive, ArchiveRestore, ArrowRight, Copy, FilePlus2, FileText, FolderInput, FolderPlus, GripVertical, MoreHorizontal, Pencil, Search, Sheet, Star, Trash2, Undo2 } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowRight, Copy, FilePlus2, FileText, FolderInput, FolderPlus, GripVertical, Upload, MoreHorizontal, Pencil, Search, Sheet, Star, Trash2, Undo2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -18,6 +18,7 @@ import { EmptyState } from "@/components/empty-state";
 import { EntryIcon } from "@/components/files/entry-icon";
 import { NameDialog } from "@/components/docs/name-dialog";
 import { MoveDialog } from "@/components/docs/move-dialog";
+import { NotificationsBell } from "@/components/docs/panels/notifications-bell";
 import { useRequest } from "@/hooks/use-request";
 import { docHref, docsHref, folderPath, folderSubtree, type ListView } from "@/lib/docs-list";
 import { notify } from "@/lib/toast";
@@ -88,6 +89,12 @@ export function DocsScreen({ tenantId, list, folderId, q, status, sort, favorite
     setError(""); router.refresh(); return result;
   }
   const fail = (result: { ok: boolean; error?: string }) => (result.ok ? undefined : result.error);
+  const picker = useRef<HTMLInputElement>(null);
+  async function importFile(file: File) {
+    if (file.size > 1_000_000) { setError(t("importTooLarge")); return; }
+    const r = await call<{ id: string }>("POST", "/import", { format: /\.(md|markdown|txt)$/i.test(file.name) ? "markdown" : "html", text: await file.text(), split: false, title: file.name.replace(/\.[^.]+$/, "").slice(0, 200), folderId });
+    if (r.ok) router.push(docHref(tenantId, r.data.id));
+  }
   async function createDoc() { const r = await call<{ id: string; pageId: string }>("POST", "", { title: "", folderId }); if (r.ok) router.push(docHref(tenantId, r.data.id)); }
   async function moveDoc(doc: DocRow, to: string | null) {
     if (doc.folderId === to) return undefined;
@@ -143,10 +150,13 @@ export function DocsScreen({ tenantId, list, folderId, q, status, sort, favorite
     <div className="min-w-0 space-y-6" data-docs-list>
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-[28px] font-semibold tracking-tight">{t("title")}</h1>
-        {canWrite && <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2"><NotificationsBell tenantId={tenantId} />
+        {canWrite && <>
+          <Button type="button" variant="outline" className="min-h-11" onClick={() => picker.current?.click()}><Upload aria-hidden="true" />{t("import")}</Button>
+          <input ref={picker} type="file" className="sr-only" tabIndex={-1} aria-label={t("chooseFile")} accept=".html,.htm,.md,.markdown,.txt,text/html,text/markdown,text/plain" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void importFile(f); }} />
           <Button type="button" variant="outline" className="min-h-11" onClick={() => setDialog({ kind: "newFolder" })}><FolderPlus aria-hidden="true" />{t("newFolder")}</Button>
           <Button type="button" className="min-h-11" onClick={() => void createDoc()}><FilePlus2 aria-hidden="true" />{t("newDoc")}</Button>
-        </div>}
+        </>}</div>
       </header>
       {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
       <div className="flex flex-wrap items-center gap-2">
