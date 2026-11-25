@@ -37,6 +37,15 @@ function clippedBusy(events: EventDetail[], window: Window, calendarRef?: string
   return merged.map(([start, end]) => ({ start: new Date(start).toISOString(), end: new Date(end).toISOString() }));
 }
 
+/**
+ * Where the demo calendar's sample event sits: the next whole hour that is at least an hour away, for 30 minutes. A whole hour keeps the event inside one day in every
+ * zone whose offset is a multiple of 30 minutes, so it never spans midnight (in UTC or the calendar's zone) whatever time of day the demo is connected, and it is always upcoming.
+ */
+export function sampleEventWindow(now: Date) {
+  const hour = 3_600_000, start = Math.ceil((now.getTime() + hour) / hour) * hour;
+  return { start: new Date(start), end: new Date(start + 30 * 60_000) };
+}
+
 /** Synthetic Office accounts, isolated by account and profile, with no transport. */
 export class FakeOfficeProvider implements OfficeProvider {
   readonly id = "fake" as const;
@@ -248,10 +257,10 @@ export class FakeOfficeProvider implements OfficeProvider {
       body: "Could we review the agenda before the meeting?", from: "sender@example.test", to: ["recipient@example.test"], labelRefs: ["inbox"],
     }] });
     if (account.kind === "calendar") {
-      const start = this.now().getTime() + 60 * 60_000;
+      const window = sampleEventWindow(this.now());
       this.seed(credential, account, { events: [{
-        ref: "sample-event", calendarRef: "primary", title: "Planning meeting", start: new Date(start).toISOString(),
-        end: new Date(start + 30 * 60_000).toISOString(), attendees: ["participant@example.test"], meetingLink: null,
+        ref: "sample-event", calendarRef: "primary", title: "Planning meeting", start: window.start.toISOString(),
+        end: window.end.toISOString(), attendees: ["participant@example.test"], meetingLink: null,
       }] });
     }
     if (account.kind === "files") this.seed(credential, account, { files: [{
