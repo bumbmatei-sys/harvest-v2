@@ -58,7 +58,7 @@ beforeAll(async () => {
   await linkAdAccounts(f.db, p.outsider, p.other, { connectionId: otherConn }, deps);
 });
 beforeEach(async () => {
-  await q("truncate ads_results, ads_operations, ads_launch_requests, ads_leads, ads_lead_forms, ads_alerts, ads_rule_runs, ads_rules, ads_webhook_events, ads_audiences, ads_conversion_destinations, ads_ads, ads_ad_sets, ads_campaigns");
+  await q("truncate ads_form_publications, ads_audience_uploads, ads_conversion_sends, ads_results, ads_operations, ads_launch_requests, ads_leads, ads_lead_forms, ads_alerts, ads_rule_runs, ads_rules, ads_webhook_events, ads_audiences, ads_conversion_destinations, ads_ads, ads_ad_sets, ads_campaigns");
   ads.remotes.get("acc-fb-2\u0000act_1")!.campaigns.length = 0;
   ads.remotes.get("acc-fb-2\u0000act_1")!.results.length = 0;
   ads.remotes.get("acc-fb-2\u0000act_1")!.leads.length = 0;
@@ -74,7 +74,7 @@ afterAll(async () => {
 
 it("enforces FORCE RLS, owner/admin only, neutral 404s and two-ministry isolation", async () => {
   const rls = await q("select relrowsecurity, relforcerowsecurity from pg_class where relkind='r' and relname like 'ads\\_%'");
-  expect(rls.rows).toHaveLength(15);
+  expect(rls.rows).toHaveLength(18);
   expect(rls.rows.every(r => r.relrowsecurity && r.relforcerowsecurity)).toBe(true);
   for (const user of [p.admin, p.owner]) await expect(readTree(f.db, user, p.tenant, null, deps)).resolves.toBeTruthy();
   for (const user of [p.member, p.viewer, p.outsider]) await expect(readTree(f.db, user, p.tenant, null, deps)).rejects.toMatchObject({ status: 404 });
@@ -362,7 +362,7 @@ it("verifies signatures, applies events idempotently from fixtures and ignores u
 });
 
 it("never sends conversion events and never touches the network", async () => {
-  await expect(ads.sendConversionEvents({ secret: CANARY }, { accountRef: "acc-fb-2", adAccountRef: "act_1", destinationRef: "px", events: [{ name: "Lead", at: new Date(), eventId: "e" }] })).rejects.toMatchObject({ code: "DISABLED" });
+  await expect(ads.sendConversionEvents({ secret: CANARY }, { accountRef: "acc-fb-2", adAccountRef: "act_1", destinationRef: "px", idempotencyKey: randomUUID(), events: [{ name: "Lead", at: new Date(), eventId: "e", userData: {} }] })).rejects.toMatchObject({ code: "DISABLED" });
   expect(ads.refusedConversionSends.length).toBeGreaterThan(0);
   expect(network).not.toHaveBeenCalled();
 });

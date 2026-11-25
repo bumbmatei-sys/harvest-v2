@@ -101,7 +101,7 @@ describe("ads hard-off and webhook parsing", () => {
   });
   it("refuses conversion sends in the fake too and records the attempt", async () => {
     const fake = new FakeAdsProvider("k"); fake.addAccount("a", { ref: "x" });
-    await expect(fake.sendConversionEvents({ secret: "k" }, { accountRef: "a", adAccountRef: "x", destinationRef: "d", events: [] })).rejects.toMatchObject({ code: "DISABLED" });
+    await expect(fake.sendConversionEvents({ secret: "k" }, { accountRef: "a", adAccountRef: "x", destinationRef: "d", idempotencyKey: id, events: [] })).rejects.toMatchObject({ code: "DISABLED" });
     expect(fake.refusedConversionSends).toHaveLength(1);
   });
   it("parses only known, well-formed events", () => {
@@ -109,5 +109,29 @@ describe("ads hard-off and webhook parsing", () => {
     expect(parseAdsEvent(JSON.stringify(base))).toMatchObject({ eventId: "e1", type: "lead.received", subjectRef: "l1" });
     for (const bad of [{ ...base, type: "other" }, { ...base, id: "" }, { ...base, timestamp: "nope" }, { ...base, accountRef: 3 }, { ...base, subjectRef: 3 }]) expect(parseAdsEvent(JSON.stringify(bad))).toBeNull();
     expect(parseAdsEvent("not json")).toBeNull(); expect(parseAdsEvent("[]")).toBeNull();
+  });
+});
+
+import { adConsentQuestions, audienceUploadInput, conversionEventNames, conversionSendInput, isEeaUkChPhone, normaliseEmail, normalisePhone } from "../../src/lib/ads/ads";
+import { adsFeature } from "../../src/server/ads/registry";
+describe("ads CRM rules", () => {
+  it("normalises identifiers before hashing and spots EEA, UK and Swiss phone numbers", () => {
+    expect(normaliseEmail("  Anna@Example.TEST ")).toBe("anna@example.test");
+    expect(normalisePhone("+1 (202) 555-0142")).toBe("12025550142");
+    for (const phone of ["+49 151 555", "+44 20 7946 0000", "+41 44 668 18 00", "+353 1 234", "+33 1 23"]) expect(isEeaUkChPhone(phone), phone).toBe(true);
+    for (const phone of ["+1 202 555 0142", "+61 2 9999 0000", "+234 1 234", "2025550142", "", null, undefined]) expect(isEeaUkChPhone(phone as string), String(phone)).toBe(false);
+  });
+  it("needs explicit confirmation and ids for uploads and sends, and only the two consent questions exist", () => {
+    const id = "11111111-1111-4111-8111-111111111111";
+    expect(audienceUploadInput.safeParse({ adAccountId: id, audienceId: id, idempotencyKey: id }).success).toBe(false);
+    expect(audienceUploadInput.safeParse({ adAccountId: id, audienceId: id, idempotencyKey: id, confirm: true }).success).toBe(true);
+    expect(conversionSendInput.safeParse({ adAccountId: id, destinationId: id, eventName: "Purchase", leadIds: [id], idempotencyKey: id, confirm: true }).success).toBe(false);
+    expect(conversionSendInput.safeParse({ adAccountId: id, destinationId: id, eventName: "Lead", leadIds: [], idempotencyKey: id, confirm: true }).success).toBe(false);
+    expect(conversionSendInput.safeParse({ adAccountId: id, destinationId: id, eventName: conversionEventNames[0], leadIds: [id], idempotencyKey: id, confirm: true }).success).toBe(true);
+    expect(adConsentQuestions).toEqual(["consent_newsletter", "consent_follow_up"]);
+  });
+  it("keeps every send path off unless a test turns it on", () => {
+    const d = defaultAdsDeps();
+    for (const name of ["audienceUpload", "conversionsSend", "resultsSync"] as const) { expect(adsFeature(d, name)).toBe(false); expect(adsFeature({ features: { [name]: true } }, name)).toBe(true); }
   });
 });

@@ -31,7 +31,7 @@ export class ZernioAdsAdapter implements AdsProvider {
   validateLaunch = async () => off(); launch = async () => off(); listBoostablePosts = async () => off(); listIdentities = async () => off();
   setStatus = async () => off(); bulkSetStatus = async () => off(); rename = async () => off(); setBudget = async () => off(); remove = async () => off();
   listSharedBudgets = async () => off(); searchTargeting = async () => off(); listAudiences = async () => off(); createLeadForm = async () => off();
-  listLeadForms = async () => off(); listLeads = async () => off(); listConversionDestinations = async () => off(); sendConversionEvents = async () => off();
+  listLeadForms = async () => off(); listLeads = async () => off(); listConversionDestinations = async () => off(); sendConversionEvents = async () => off(); createCustomerListAudience = async () => off(); uploadAudienceMembers = async () => off();
   verifyWebhook(rawBody: string, signature: string | null, secrets: readonly string[]) { return verifyBodySignature(rawBody, signature, secrets); }
   parseWebhookEvent(rawBody: string): AdsEvent | null { return parseAdsEvent(rawBody); }
 }

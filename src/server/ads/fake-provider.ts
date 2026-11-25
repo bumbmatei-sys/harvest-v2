@@ -1,7 +1,7 @@
 import type { AdLevel, AdStatus } from "../../lib/ads/ads";
 import { launchPayload, type LaunchKind } from "../../lib/ads/ads";
 import type {
-  LoosePayload, AdsCredential, AdsEvent, AdsPage, AdsQuery, ConversionEventBatch, LaunchOutcome, LaunchSpec, MutationSpec, RemoteAd, RemoteAdAccount, RemoteAdSet, RemoteAudience, RemoteBoostablePost,
+  LoosePayload, AdsCredential, AudienceUploadSpec, AdsEvent, AdsPage, AdsQuery, ConversionEventBatch, LaunchOutcome, LaunchSpec, MutationSpec, RemoteAd, RemoteAdAccount, RemoteAdSet, RemoteAudience, RemoteBoostablePost,
   RemoteCampaign, RemoteConversionDestination, RemoteHealth, RemoteIdentity, RemoteLead, RemoteLeadForm, ResultRow, TargetingHit, ValidationOutcome,
 } from "./contract";
 import { AdsProviderError, type AdsProvider, type AdsProviderErrorCode } from "./port";
@@ -22,6 +22,10 @@ export class FakeAdsProvider implements AdsProvider {
   readonly calls: FakeCall[] = [];
   /** Real network calls never exist here; this counts conversion sends that were refused. */
   readonly refusedConversionSends: ConversionEventBatch[] = [];
+  /** Conversion batches and audience members the fake accepted (hashes only), for tests. Off unless a test allows sends. */
+  readonly conversionSends: ConversionEventBatch[] = [];
+  readonly audienceMembers = new Map<string, import("./contract").HashedIdentity[]>();
+  allowSends = false;
   readonly remotes = new Map<string, Remote>();
   private readonly byKey = new Map<string, unknown>();
   private readonly failures = new Map<string, { code: AdsProviderErrorCode; times: number }>();
@@ -167,9 +171,20 @@ export class FakeAdsProvider implements AdsProvider {
     return { items: this.remote(q).leads.filter(l => !q.formRef || l.formRef === q.formRef), nextCursor: null };
   }
   async listConversionDestinations(cred: AdsCredential, q: AdsQuery) { this.enter("listConversionDestinations", cred); return this.remote(q).destinations; }
-  async sendConversionEvents(cred: AdsCredential, batch: ConversionEventBatch): Promise<never> {
-    this.enter("sendConversionEvents", cred); this.refusedConversionSends.push(batch);
-    throw new AdsProviderError("DISABLED");
+  async sendConversionEvents(cred: AdsCredential, batch: ConversionEventBatch): Promise<{ accepted: number }> {
+    this.enter("sendConversionEvents", cred, batch.idempotencyKey);
+    if (!this.allowSends) { this.refusedConversionSends.push(batch); throw new AdsProviderError("DISABLED"); }
+    return this.once(batch.idempotencyKey, "sendConversionEvents", () => { this.conversionSends.push(batch); return { accepted: batch.events.length }; });
+  }
+  async createCustomerListAudience(cred: AdsCredential, q: AdsQuery & { idempotencyKey: string; name: string }): Promise<RemoteAudience> {
+    this.enter("createCustomerListAudience", cred, q.idempotencyKey);
+    const r = this.remote(q);
+    return this.once(q.idempotencyKey, "createCustomerListAudience", () => { const a: RemoteAudience = { ref: this.nextRef("aud"), kind: "customer_list", name: q.name, sizeEstimate: 0, spec: null }; r.audiences.push(a); return a; });
+  }
+  async uploadAudienceMembers(cred: AdsCredential, spec: AudienceUploadSpec): Promise<{ received: number }> {
+    this.enter("uploadAudienceMembers", cred, spec.idempotencyKey);
+    if (!this.allowSends) throw new AdsProviderError("DISABLED");
+    return this.once(spec.idempotencyKey, "uploadAudienceMembers", () => { this.audienceMembers.set(spec.audienceRef, [...(this.audienceMembers.get(spec.audienceRef) ?? []), ...spec.members]); return { received: spec.members.length }; });
   }
   verifyWebhook(rawBody: string, signature: string | null, secrets: readonly string[]) { return verifyBodySignature(rawBody, signature, secrets); }
   parseWebhookEvent(rawBody: string): AdsEvent | null { return parseAdsEvent(rawBody); }
