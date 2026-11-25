@@ -1704,7 +1704,7 @@ export const socialPosts = pgTable("social_posts", {
   nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
   firstAttemptAt: timestamp("first_attempt_at", { withTimezone: true }),
   lockedAt: timestamp("locked_at", { withTimezone: true }), lockToken: uuid("lock_token"),
-  providerPostRef: text("provider_post_ref"), publishedAt: timestamp("published_at", { withTimezone: true }),
+  providerPostRef: text("provider_post_ref"), providerPostUrl: text("provider_post_url"), publishedAt: timestamp("published_at", { withTimezone: true }),
   lastErrorCode: text("last_error_code"),
   version: integer("version").notNull().default(1),
   createdBy: text("created_by").notNull().references(() => users.id),
@@ -1725,6 +1725,7 @@ export const socialPosts = pgTable("social_posts", {
   index("social_posts_tenant_idx").on(t.tenantId, t.status, t.scheduledFor),
   index("social_posts_provider_ref_idx").on(t.tenantId, t.connectionId, t.providerPostRef).where(sql`${t.providerPostRef} is not null`),
   check("social_post_status", sql`${t.status} in ('draft', 'scheduled', 'publishing', 'published', 'failed', 'cancelled', 'unknown')`),
+  check("social_post_url", sql`${t.providerPostUrl} is null or (${t.providerPostUrl} ~ '^https://' and length(${t.providerPostUrl}) <= 2048)`),
   check("social_post_content", sql`((${t.draftId} is null and length(${t.content}) between 1 and 10000) or (${t.draftId} is not null and length(${t.content}) <= 100000)) and jsonb_typeof(${t.media}) = 'array' and jsonb_array_length(${t.media}) <= 10 and octet_length(${t.media}::text) <= 8192`),
   check("social_post_counters", sql`${t.attempts} >= 0 and ${t.maxAttempts} between 1 and 10 and ${t.attempts} <= ${t.maxAttempts} and ${t.version} >= 1`),
   check("social_post_key", sql`length(${t.idempotencyKey}) between 8 and 100`),
@@ -3240,4 +3241,36 @@ export const adsWebhookEvents = pgTable("ads_webhook_events", {
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(), receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }), uniqueIndex("ads_webhook_events_event_idx").on(t.tenantId, t.provider, t.providerEventId),
   check("ads_webhook_events_shape", sql`length(${t.providerEventId}) between 1 and 200 and length(${t.eventType}) between 1 and 80`),
+]);
+// Social approvals (migration 0099). Metadata only: ids, statuses, a fingerprint of the draft and a short rejection reason. Never post text.
+export const socialApprovalStatuses = ["pending", "approved", "rejected", "withdrawn", "superseded"] as const;
+export const socialSelfApprovalModes = ["never", "owner_only", "always"] as const;
+export const socialApprovalSettings = pgTable("social_approval_settings", {
+  tenantId: uuid("tenant_id").primaryKey().references(() => workspaces.tenantId), mode: text("mode").$type<"off" | "required">().notNull().default("off"),
+  selfApproval: text("self_approval").$type<typeof socialSelfApprovalModes[number]>().notNull().default("owner_only"), version: integer("version").notNull().default(1),
+  updatedBy: text("updated_by").references(() => users.id), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [check("social_approval_settings_shape", sql`${t.mode} in ('off','required') and ${t.selfApproval} in ('never','owner_only','always') and ${t.version} >= 1`)]);
+export const socialApprovals = pgTable("social_approvals", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(), draftId: uuid("draft_id"), postId: uuid("post_id"),
+  status: text("status").$type<typeof socialApprovalStatuses[number]>().notNull().default("pending"), fingerprint: text("fingerprint").notNull(),
+  requestedBy: text("requested_by").notNull().references(() => users.id), requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+  decidedBy: text("decided_by").references(() => users.id), decidedAt: timestamp("decided_at", { withTimezone: true }), note: text("note"), version: integer("version").notNull().default(1),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "social_approvals_draft_fk", columns: [t.tenantId, t.draftId], foreignColumns: [socialDrafts.tenantId, socialDrafts.id] }),
+  foreignKey({ name: "social_approvals_post_fk", columns: [t.tenantId, t.postId], foreignColumns: [socialPosts.tenantId, socialPosts.id] }),
+  uniqueIndex("social_approvals_pending_draft_idx").on(t.tenantId, t.draftId).where(sql`${t.status} = 'pending' and ${t.draftId} is not null`),
+  uniqueIndex("social_approvals_pending_post_idx").on(t.tenantId, t.postId).where(sql`${t.status} = 'pending' and ${t.postId} is not null`),
+  index("social_approvals_queue_idx").on(t.tenantId, t.status, t.requestedAt),
+  check("social_approvals_shape", sql`num_nonnulls(${t.draftId}, ${t.postId}) = 1 and ${t.status} in ('pending','approved','rejected','withdrawn','superseded') and ${t.fingerprint} ~ '^[0-9a-f]{64}$'
+    and (${t.note} is null or length(${t.note}) <= 500) and ${t.version} >= 1 and (${t.status} not in ('approved','rejected') or (${t.decidedBy} is not null and ${t.decidedAt} is not null))
+    and (${t.status} <> 'rejected' or ${t.note} is not null)`),
+]);
+export const socialApprovalNotices = pgTable("social_approval_notices", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), recipientUserId: text("recipient_user_id").notNull().references(() => users.id),
+  approvalId: uuid("approval_id").notNull(), kind: text("kind").$type<"requested" | "approved" | "rejected">().notNull(), readAt: timestamp("read_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "social_approval_notices_approval_fk", columns: [t.tenantId, t.approvalId], foreignColumns: [socialApprovals.tenantId, socialApprovals.id] }),
+  index("social_approval_notices_inbox_idx").on(t.tenantId, t.recipientUserId, t.readAt, t.createdAt),
+  check("social_approval_notices_kind", sql`${t.kind} in ('requested','approved','rejected')`),
 ]);
