@@ -18,6 +18,7 @@ import { useEditorHosted } from "@/components/editor/editor-context";
 import { BasicsStep, PlaceStep, TypeStep, type SetStep } from "@/components/campaigns/wizard-steps";
 import { TeamsStep, type WizardPerson } from "@/components/campaigns/teams-step";
 import { ToolsStep } from "@/components/campaigns/tools-step";
+import { ConnectStep } from "@/components/campaigns/connect-step";
 import { ReviewStep } from "@/components/campaigns/review-step";
 import { useRequest } from "@/hooks/use-request";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
@@ -163,6 +164,7 @@ export function CampaignWizard({ tenantId, initial, canDiscard, listHref, people
     place: <PlaceStep form={form} set={set} disabled={disabled} problems={problems} />,
     leaders: <TeamsStep form={form} set={set} disabled={disabled} draft={draft} people={people} endpoint={endpoint} saveNow={flush} onInvitations={setInvitations} />,
     tools: <ToolsStep form={form} set={set} disabled={disabled} type={form.type} />,
+    connect: <ConnectStep form={form} set={set} disabled={disabled} onEdit={(id) => setStep(id)} />,
   }[step] : null;
   const breadcrumb = <Breadcrumb><BreadcrumbList><BreadcrumbItem><BreadcrumbLink asChild><Link href={listHref}>{t("draftBack")}</Link></BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator />
     <BreadcrumbItem><BreadcrumbPage>{title}</BreadcrumbPage></BreadcrumbItem></BreadcrumbList></Breadcrumb>;

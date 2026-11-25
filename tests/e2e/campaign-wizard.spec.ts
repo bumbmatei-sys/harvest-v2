@@ -93,7 +93,7 @@ test("create a draft, fill steps 1 to 3 with autosave, resume it, and activate a
   if (shellModes) await expect(page.getByRole("group", { name: /^Editing/ })).toBeVisible(); else await expect(page.getByRole("navigation", { name: "Campaign setup" })).toBeVisible();
   // Steps 6 to 8 are listed and not available yet.
   const stepList = shellModes ? page.getByRole("group", { name: /^Editing/ }) : page.getByRole("navigation", { name: "Campaign setup" });
-  for (const label of ["Budget & Fundraising", "Registration & Follow-Up"]) await expect(stepList.getByRole("button", { name: new RegExp(label) })).toHaveAttribute("aria-disabled", "true");
+  for (const label of ["Budget & Fundraising"]) await expect(stepList.getByRole("button", { name: new RegExp(label) })).toHaveAttribute("aria-disabled", "true");
 
   // Step 1 can still be changed; it says the template loads again.
   await stepList.getByRole("button", { name: /Campaign Type/ }).click();
@@ -582,8 +582,10 @@ test("review and finish: a summary, blocked reasons with links, one campaign how
 
     await page.goto(`${root}/drafts/${draft.id}`);
     await hydrated(page);
-    await expect(heading(page, "Campaign Features")).toBeVisible(); // resumes at the furthest step; Next skips the two steps not available yet
+    await expect(heading(page, "Campaign Features")).toBeVisible(); // resumes at the furthest step
     await page.getByRole("button", { name: "Next", exact: true }).click();
+    await expect(heading(page, "Registration & Follow-Up")).toBeVisible();
+    await page.getByRole("button", { name: "Next", exact: true }).click(); // budget is not available yet, so the review is next
     await expect(heading(page, "Review & Create")).toBeVisible();
     await expect(page.getByRole("definition").filter({ hasText: "Review campaign" })).toBeVisible();
     await expect(page.getByText("Santiago", { exact: true })).toBeVisible();
@@ -661,4 +663,85 @@ test("review and finish: a summary, blocked reasons with links, one campaign how
   } finally {
     await leader.context.close();
   }
+});
+
+test("step 7: six options, all off, dependent ones blocked with a reason, tool hints, autosave, and one unpublished source on Finish", async ({ page }) => {
+  test.setTimeout(420_000);
+  await mkdir(evidence, { recursive: true });
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => { if (message.type() === "error" && !/Failed to load resource/.test(message.text())) errors.push(message.text()); });
+  await signIn(page);
+  const tenant = (await (await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Connect Church", audience: "church" } })).json()).tenantId as string;
+  const root = `/workspaces/${tenant}/campaigns`, api = `/api${root}/drafts`;
+  const patch = async (id: string, version: number, step: string, data: unknown) => (await (await page.request.patch(`${api}/${id}`, { headers: { origin }, data: { version, step, data } })).json()).version as number;
+  const draft = await (await page.request.post(api, { headers: { origin, "Idempotency-Key": "connect-1" }, data: { type: "evangelistic_crusade" } })).json();
+  let version = await patch(draft.id, draft.version, "basics", { name: "Connect campaign", description: null, mission: null });
+  version = await patch(draft.id, version, "place", { country: "Chile", cityRegion: "Santiago", startDate: "2027-05-01", endDate: "2027-05-02", timeZone: "America/Santiago", structure: "single" });
+  await patch(draft.id, version, "tools", { modules: ["tasks_boards", "qr_response_forms"] }); // registration forms are off
+  await page.goto(`${root}/drafts/${draft.id}`);
+  await hydrated(page);
+  await page.getByRole("group", { name: /^Editing/ }).getByRole("button", { name: /Registration & Follow-Up/ }).click();
+  await expect(heading(page, "Registration & Follow-Up")).toBeVisible();
+  await expect(page.getByText("How would you like participants to connect with your campaign?")).toBeVisible();
+  const names = ["Public Campaign Registration", "Evangelistic Response Form", "Free Harvest Account Invitations", "Community Discovery", "Discipleship Follow-Up", "Church Referrals"];
+  for (const name of names) { const toggle = page.getByRole("switch", { name: `Enable ${name}` }); await expect(toggle).toBeVisible(); await expect(toggle).not.toBeChecked(); }
+  await expect(page.getByText("Nothing is published or sent yet.")).toBeVisible();
+  for (const name of names.slice(2)) await expect(page.getByRole("switch", { name: `Enable ${name}` })).toBeDisabled();
+  await expect(page.getByText("Turn on registration or the response form first.")).toHaveCount(3);
+  await expect(page.getByText("Turn on account invitations first.")).toBeVisible();
+  await shoot(page, "step-7-connect");
+  await expectAccessible(page);
+  // The response form alone unlocks follow-up and invitations; discovery needs invitations.
+  await autosaved(page, async () => { await page.getByRole("switch", { name: "Enable Evangelistic Response Form" }).click(); });
+  await expect(page.getByRole("switch", { name: "Enable Discipleship Follow-Up" })).toBeEnabled();
+  await expect(page.getByRole("switch", { name: "Enable Community Discovery" })).toBeDisabled();
+  await autosaved(page, async () => { await page.getByRole("switch", { name: "Enable Free Harvest Account Invitations" }).click(); });
+  await autosaved(page, async () => { await page.getByRole("switch", { name: "Enable Community Discovery" }).click(); });
+  // Turning the invitations off takes discovery with it.
+  await autosaved(page, async () => { await page.getByRole("switch", { name: "Enable Free Harvest Account Invitations" }).click(); });
+  await expect(page.getByRole("switch", { name: "Enable Community Discovery" })).not.toBeChecked();
+  await autosaved(page, async () => { await page.getByRole("switch", { name: "Enable Public Campaign Registration" }).click(); });
+  // Registration is on but its tool is off: a hint and a link to the tools step.
+  await expect(page.getByText("Needs Registration Forms in Campaign Features.")).toBeVisible();
+  await shoot(page, "step-7-connect-tool-hint");
+  await page.getByRole("button", { name: "Go to Campaign Features" }).click();
+  await expect(heading(page, "Campaign Features")).toBeVisible();
+  await hydrated(page);
+  await autosaved(page, async () => { await page.getByRole("switch", { name: "Enable Registration Forms" }).click(); });
+  await page.reload();
+  await hydrated(page);
+  await page.getByRole("group", { name: /^Editing/ }).getByRole("button", { name: /Registration & Follow-Up/ }).click();
+  await expect(page.getByRole("switch", { name: "Enable Evangelistic Response Form" })).toBeChecked();
+  await expect(page.getByRole("switch", { name: "Enable Public Campaign Registration" })).toBeChecked();
+  await expect(page.getByText("Needs Registration Forms in Campaign Features.")).toHaveCount(0);
+  // Review lists the choices; Finish adds one unpublished source, and the dashboard and the links screen show it.
+  await page.getByRole("group", { name: /^Editing/ }).getByRole("button", { name: /Review & Create/ }).click();
+  await expect(page.getByRole("heading", { name: "Registration & Follow-Up", level: 3 })).toBeVisible();
+  await expect(page.getByRole("listitem").filter({ hasText: "Evangelistic Response Form" })).toBeVisible();
+  await page.getByRole("button", { name: "Finish — Create Campaign" }).click();
+  await page.waitForURL(new RegExp(`${root}/[0-9a-f-]{36}$`));
+  const campaignId = page.url().split("/").pop() as string;
+  await expect(page.getByRole("heading", { name: "Registration & follow-up", level: 3 })).toBeVisible();
+  const linkList = await (await page.request.get(`/api${root}/${campaignId}/connect/links`)).json();
+  expect(linkList.links).toHaveLength(1);
+  expect(linkList.links[0]).toMatchObject({ status: "draft", formVersionId: null, publicTitle: null });
+  await page.getByRole("link", { name: "Open the response QR links" }).click();
+  await expect(page).toHaveURL(new RegExp(`${campaignId}/connect$`));
+  await shoot(page, "step-7-connect-draft-source");
+  // Every width and scheme for the step.
+  await page.goto(`${root}/drafts/${(await (await page.request.post(api, { headers: { origin, "Idempotency-Key": "connect-2" }, data: { type: "evangelistic_crusade" } })).json()).id}`);
+  for (const scheme of ["light", "dark"] as const) for (const [label, width, height] of [["phone", 360, 800], ["tablet", 768, 1024], ["desktop", 1280, 900]] as const) {
+    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+    await page.setViewportSize({ width, height });
+    await page.reload();
+    await hydrated(page);
+    if (width >= 1024) await page.getByRole("group", { name: /^Editing/ }).getByRole("button", { name: /Registration & Follow-Up/ }).click();
+    else { await page.getByRole("button", { name: /^Step \d of 8/ }).click(); await page.getByRole("dialog").getByRole("button", { name: /Registration & Follow-Up/ }).click(); }
+    await expect(heading(page, "Registration & Follow-Up")).toBeVisible();
+    await expectAccessible(page);
+    if (width < 768) await expectCleanWhenScrolled(page);
+    await shoot(page, `step-7-connect-${label}-${scheme}`);
+  }
+  expect(errors).toEqual([]);
 });

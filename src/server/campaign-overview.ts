@@ -3,6 +3,7 @@ import type { Database } from "../db/client";
 import { campaignDraftAssignments, campaignDrafts, campaigns, users } from "../db/schema";
 import { uuidInput } from "../lib/contact-input";
 import { departmentKeys, moduleKeys } from "../lib/campaign-wizard";
+import { outreachKeys } from "../lib/campaign-wizard-form";
 import { message } from "../i18n/messages";
 import { checklistOf } from "./campaign-checklist";
 import { invitationsOf } from "./campaign-wizard-invitations";
@@ -15,6 +16,8 @@ export type CampaignOverview = {
   configuration: null | {
     departments: { key: string; leaders: string[]; members: string[]; pending: number }[];
     modules: string[];
+    /** The Registration, Response & Follow-Up options that were turned on in step 7 (choices only: nothing is published or sent). */
+    connect: string[];
   };
   /** Setup checklist progress. */
   checklist: { done: number; total: number };
@@ -34,7 +37,7 @@ export async function getCampaignOverview(db: Database, userId: string, workspac
     const [row] = await tx.select({ id: campaigns.id }).from(campaigns).where(and(eq(campaigns.tenantId, tenantId), eq(campaigns.id, id)));
     if (!row) throw new AccessError(404, message("Campaigns.notFound"));
     const checklist = await checklistOf(tx, tenantId, id), manager = role === "owner" || role === "admin";
-    const [draft] = await tx.select({ id: campaignDrafts.id, departments: campaignDrafts.departments, modules: campaignDrafts.modules }).from(campaignDrafts)
+    const [draft] = await tx.select({ id: campaignDrafts.id, departments: campaignDrafts.departments, modules: campaignDrafts.modules, outreach: campaignDrafts.outreach }).from(campaignDrafts)
       .where(and(eq(campaignDrafts.tenantId, tenantId), eq(campaignDrafts.campaignId, id)));
     let configuration: CampaignOverview["configuration"] = null;
     if (draft) {
@@ -51,6 +54,7 @@ export async function getCampaignOverview(db: Database, userId: string, workspac
           pending: pending.filter((invitation) => invitation.department === key).length,
         })),
         modules: moduleKeys.filter((key) => draft.modules.includes(key)),
+        connect: outreachKeys.filter((key) => draft.outreach[key]),
       };
     }
     return { campaignId: id, configuration, checklist: { done: checklist.filter((item) => item.done).length, total: checklist.length }, unavailable: ["progress", "events", "funding", "tasks"] };

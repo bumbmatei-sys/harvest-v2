@@ -2145,7 +2145,8 @@
     "outcomeExpiryInPast": "Choose an expiry time in the future.",
     "outcomeInvalidTransition": "That change isn't available for this link right now.",
     "qrImageTitle": "QR code for {url}",
-    "qrPdfCaption": "Scan with your phone camera, or type this address:"
+    "qrPdfCaption": "Scan with your phone camera, or type this address:",
+    "wizardLinkLabel": "Evangelistic response QR"
   },
   "Campaigns": {
     "title": "Campaigns",
@@ -7554,7 +7555,8 @@
       "place": "Where and when will your campaign take place?",
       "leaders": "Who will organize this campaign?",
       "tools": "Which tools would you like to enable?",
-      "review": "Check everything, then create the campaign."
+      "review": "Check everything, then create the campaign.",
+      "connect": "How would you like participants to connect with your campaign?"
     },
     "types": {
       "evangelistic_crusade": {
@@ -7727,7 +7729,8 @@
       "finish": "Finish — Create Campaign",
       "finishing": "Creating…",
       "created": "Campaign created.",
-      "failed": "The campaign could not be created. Nothing was published."
+      "failed": "The campaign could not be created. Nothing was published.",
+      "noConnect": "Nothing turned on: no registration, response form or follow-up."
     },
     "checklist": {
       "title": "Setup checklist",
@@ -7748,6 +7751,27 @@
         "invite_churches": "Invite partner churches",
         "create_events": "Create initial outreach events"
       }
+    },
+    "connect": {
+      "groupLabel": "How participants connect",
+      "toggle": "Enable {name}",
+      "options": {
+        "registration": "Public Campaign Registration",
+        "qrResponse": "Evangelistic Response Form",
+        "accountInvites": "Free Harvest Account Invitations",
+        "communityDiscovery": "Community Discovery",
+        "followUp": "Discipleship Follow-Up",
+        "churchReferrals": "Church Referrals"
+      },
+      "reasons": {
+        "NEEDS_REGISTRATION_OR_RESPONSE": "Turn on registration or the response form first.",
+        "NEEDS_ACCOUNT_INVITES": "Turn on account invitations first."
+      },
+      "needsRegistrationTool": "Needs Registration Forms in Campaign Features.",
+      "needsQrTool": "Needs QR Code Response Forms in Campaign Features.",
+      "toolsMissing": "Some of these need a tool that is off in Campaign Features.",
+      "goToTools": "Go to Campaign Features",
+      "nothingPublished": "Nothing is published or sent yet."
     }
   },
   "LinkInBio": {
@@ -8258,6 +8282,10 @@
       "funding": "Funding",
       "tasks": "Tasks"
     },
-    "cover": "Campaign cover"
+    "cover": "Campaign cover",
+    "connect": "Registration & follow-up",
+    "connectDescription": "What was chosen when the campaign was created. Nothing is published or sent until you do it.",
+    "noConnect": "Nothing was turned on.",
+    "openLinks": "Open the response QR links"
   }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adoptServer, dirtySteps, draftActions, formFromDraft, issuesOf, stepPayload, stepStatuses, type DraftView } from "../../src/lib/campaign-wizard-form";
+import { adoptServer, dirtySteps, draftActions, formFromDraft, issuesOf, outreachBlocked, setOutreach, stepPayload, stepStatuses, type DraftView } from "../../src/lib/campaign-wizard-form";
 
 const draft: DraftView = {
   id: "d1", createdBy: "u1", status: "draft", version: 3, currentStep: 3, type: "conference", name: "Synthetic conference", description: null, mission: null, country: null, cityRegion: null,
@@ -64,5 +64,34 @@ describe("draft actions", () => {
     expect(draftActions({ createdBy: "u1" }, "u2", "member")).toEqual({ edit: true, discard: false });
     expect(draftActions({ createdBy: "u1" }, "u2", "admin")).toEqual({ edit: true, discard: true });
     expect(draftActions({ createdBy: "u1" }, "u2", "viewer")).toEqual({ edit: false, discard: false });
+  });
+});
+
+describe("step 7: registration, response and follow-up", () => {
+  const off = draft.outreach;
+  it("starts with everything off and the dependent cards blocked with a reason", () => {
+    expect(Object.values(off).every((on) => !on)).toBe(true);
+    expect(outreachBlocked(off)).toEqual({ accountInvites: "NEEDS_REGISTRATION_OR_RESPONSE", followUp: "NEEDS_REGISTRATION_OR_RESPONSE", churchReferrals: "NEEDS_REGISTRATION_OR_RESPONSE", communityDiscovery: "NEEDS_ACCOUNT_INVITES" });
+    const registered = setOutreach(off, "registration", true);
+    expect(outreachBlocked(registered)).toEqual({ communityDiscovery: "NEEDS_ACCOUNT_INVITES" });
+    expect(outreachBlocked(setOutreach(registered, "accountInvites", true))).toEqual({});
+    expect(outreachBlocked(setOutreach(off, "qrResponse", true)).followUp).toBeUndefined(); // the response form alone is enough
+  });
+  it("turns off whatever lost its ground, so what is saved always satisfies the server's rules", () => {
+    let on = setOutreach(setOutreach(setOutreach(setOutreach(off, "registration", true), "accountInvites", true), "communityDiscovery", true), "followUp", true);
+    expect(stepPayload("connect", { ...formFromDraft(draft), connect: on }).ok).toBe(true);
+    on = setOutreach(on, "accountInvites", false);
+    expect(on).toMatchObject({ communityDiscovery: false, followUp: true });
+    on = setOutreach(on, "registration", false);
+    expect(on).toEqual(off);
+    expect(stepPayload("connect", { ...formFromDraft(draft), connect: on }).ok).toBe(true);
+    // A hand-made invalid combination is refused by the shared schema, not sent.
+    expect(stepPayload("connect", { ...formFromDraft(draft), connect: { ...off, followUp: true } }).ok).toBe(false);
+  });
+  it("reports a missing tool as an issue and counts the step as changed only when an option changes", () => {
+    const form = { ...formFromDraft(draft), connect: setOutreach(off, "qrResponse", true) };
+    expect(issuesOf(form, draft)).toContainEqual({ step: "tools", code: "QR_MODULE_OFF" });
+    expect(dirtySteps(form, formFromDraft(draft))).toEqual(["connect"]);
+    expect(dirtySteps(formFromDraft(draft), formFromDraft(draft))).toEqual([]);
   });
 });

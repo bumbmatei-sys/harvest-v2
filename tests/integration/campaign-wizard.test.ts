@@ -545,7 +545,7 @@ describe("campaign overview", () => {
     const overview = await getCampaignOverview(fixture.db, "member-a", tenantA, campaignId);
     expect(overview.configuration).toEqual({
       departments: [{ key: "volunteers", leaders: ["admin-a"], members: [], pending: 1 }, { key: "counseling", leaders: [], members: [], pending: 0 }], // the PRD's order
-      modules: ["tasks_boards", "campaign_calendar"],
+      modules: ["tasks_boards", "campaign_calendar"], connect: [],
     });
     expect(overview.checklist).toEqual({ done: 0, total: 9 });
     expect(overview.unavailable).toEqual(["progress", "events", "funding", "tasks"]);
@@ -559,5 +559,34 @@ describe("campaign overview", () => {
     expect(await status(getCampaignOverview(fixture.db, "owner-b", tenantB, campaignId))).toBe(404);
     const made = await fixture.admin.query("insert into campaigns (tenant_id, owner_user_id, type, name, idempotency_key, fingerprint) values ($1,'owner-a','conference','No wizard','plain-overview',repeat('a',64)) returning id", [tenantA]);
     expect((await getCampaignOverview(fixture.db, "owner-a", tenantA, made.rows[0].id)).configuration).toBeNull();
+  });
+});
+
+describe("step 7: the draft response source", () => {
+  async function finished(outreach: Record<string, boolean>, modules: string[]) {
+    const draft = await draftFor("member-a");
+    let version = (await save("member-a", draft.id, 1, "tools", { modules })).version;
+    version = await complete("member-a", draft.id, version);
+    version = (await save("member-a", draft.id, version, "connect", { ...defaultOutreach, ...outreach })).version;
+    const { campaignId } = await finishDraft(fixture.db, "member-a", tenantA, draft.id, { version });
+    return { draft, campaignId, version };
+  }
+  const links = async (campaignId: string) => (await fixture.admin.query("select status, form_version_id, public_title, label, published_at from campaign_response_links where campaign_id=$1", [campaignId])).rows;
+  it("adds one unpublished, resource-only link when the response form is on, and none otherwise", async () => {
+    const on = await finished({ qrResponse: true }, ["qr_response_forms"]);
+    expect(await links(on.campaignId)).toEqual([{ status: "draft", form_version_id: null, public_title: null, label: "Evangelistic response QR", published_at: null }]);
+    // Finishing again, from this tab or another, returns the same campaign and adds nothing.
+    expect((await finishDraft(fixture.db, "member-a", tenantA, on.draft.id, { version: on.version })).campaignId).toBe(on.campaignId);
+    await Promise.all([1, 2].map(() => finishDraft(fixture.db, "admin-a", tenantA, on.draft.id, { version: on.version })));
+    expect(await links(on.campaignId)).toHaveLength(1);
+    const off = await finished({ registration: true, followUp: true }, ["registration_forms"]);
+    expect(await links(off.campaignId)).toEqual([]);
+    expect((await fixture.admin.query("select count(*)::int as n from audit_logs where action='connect.link.create' and target_id in (select id::text from campaign_response_links where campaign_id=$1)", [on.campaignId])).rows[0].n).toBe(1);
+  });
+  it("refuses combinations the page would never send", async () => {
+    const draft = await draftFor("member-a");
+    expect(await status(save("member-a", draft.id, 1, "connect", { ...defaultOutreach, followUp: true }))).toBe(400);
+    expect(await status(save("member-a", draft.id, 1, "connect", { ...defaultOutreach, registration: true, communityDiscovery: true }))).toBe(400);
+    expect(await status(save("member-a", draft.id, 1, "connect", { ...defaultOutreach, registration: true, accountInvites: true, communityDiscovery: true }))).toBe(200);
   });
 });

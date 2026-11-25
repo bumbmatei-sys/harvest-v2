@@ -1,4 +1,6 @@
 import { getTranslations } from "next-intl/server";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import type { CampaignOverview } from "@/server/campaign-overview";
 
@@ -8,7 +10,7 @@ import type { CampaignOverview } from "@/server/campaign-overview";
  * funding and tasks are not recorded anywhere yet, so they are listed as not available, never as zero. No donor, response or Connect data appears.
  * Colours are the theme's own: surface and border tokens, with the brand token for the bars.
  */
-export async function CampaignDashboard({ overview }: { overview: CampaignOverview }) {
+export async function CampaignDashboard({ overview, connectHref }: { overview: CampaignOverview; connectHref: string }) {
   const t = await getTranslations("CampaignDashboard"), tw = await getTranslations("CampaignWizard");
   const config = overview.configuration;
   const staffed = config ? config.departments.filter((department) => department.leaders.length > 0).length : 0;
@@ -39,6 +41,9 @@ export async function CampaignDashboard({ overview }: { overview: CampaignOvervi
       <Card><CardHeader><CardTitle><h3 className="text-sm font-semibold">{t("tools")}</h3></CardTitle><CardDescription>{t("toolsDescription")}</CardDescription></CardHeader>
         <CardContent>{config.modules.length ? <ul className="flex flex-wrap gap-2">{config.modules.map((key) => <li key={key} className="rounded-md border bg-muted/40 px-2 py-1 text-sm">{tw(`modules.${key}` as "modules.tasks_boards")}</li>)}</ul> : <p className="text-sm text-muted-foreground">{t("noTools")}</p>}</CardContent></Card>
     </div> : <p className="text-sm text-muted-foreground">{t("noConfiguration")}</p>}
+    {config && <Card><CardHeader><CardTitle><h3 className="text-sm font-semibold">{t("connect")}</h3></CardTitle><CardDescription>{t("connectDescription")}</CardDescription></CardHeader>
+      <CardContent className="space-y-3">{config.connect.length ? <ul className="flex flex-wrap gap-2">{config.connect.map((key) => <li key={key} className="rounded-md border bg-muted/40 px-2 py-1 text-sm">{tw(`connect.options.${key}` as "connect.options.registration")}</li>)}</ul> : <p className="text-sm text-muted-foreground">{t("noConnect")}</p>}
+        {config.connect.includes("qrResponse") && <Button asChild variant="outline" className="min-h-11"><Link href={connectHref}>{t("openLinks")}</Link></Button>}</CardContent></Card>}
     <Card><CardHeader><CardTitle><h3 className="text-sm font-semibold">{t("notYet")}</h3></CardTitle><CardDescription>{t("notYetDescription")}</CardDescription></CardHeader>
       <CardContent><ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">{overview.unavailable.map((key) => <li key={key} className="rounded-lg border border-dashed p-3"><p className="text-xs text-muted-foreground">{t(`unavailable.${key}`)}</p><p className="mt-1 text-sm">{t("notAvailable")}</p></li>)}</ul></CardContent></Card>
   </section>;
