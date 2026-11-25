@@ -1101,21 +1101,23 @@ export const contactFormSources = pgTable("contact_form_sources", {
 // a merge keeps the earliest.
 export const contactFirstSources = pgTable("contact_first_sources", {
   tenantId: uuid("tenant_id").notNull(), contactId: uuid("contact_id").notNull(),
-  kind: text("kind").$type<"manual" | "csv_import" | "connect" | "form">().notNull(),
+  kind: text("kind").$type<"manual" | "csv_import" | "connect" | "form" | "ad_lead">().notNull(),
   firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
 }, t => [primaryKey({ columns: [t.tenantId, t.contactId] }),
   foreignKey({ name: "contact_first_sources_contact_fk", columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }).onDelete("cascade"),
-  check("contact_first_sources_kind", sql`${t.kind} in ('manual', 'csv_import', 'connect', 'form')`)]);
+  check("contact_first_sources_kind", sql`${t.kind} in ('manual', 'csv_import', 'connect', 'form', 'ad_lead')`)]);
 
 // HC-06A: minimal provenance; trusted database writers own all mutations.
 export const contactSourceEvents = pgTable("contact_source_events", {
   id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id").notNull(), contactId: uuid("contact_id").notNull(),
-  kind: text("kind").$type<"manual" | "csv_import" | "connect" | "form">().notNull(),
+  kind: text("kind").$type<"manual" | "csv_import" | "connect" | "form" | "ad_lead">().notNull(),
   outcome: text("outcome").$type<"created" | "updated">().notNull(),
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
   importId: uuid("import_id"), rowNumber: integer("row_number"),
   responseId: uuid("response_id"), entryRoute: text("entry_route").$type<"qr" | "short">(),
   crmFormResponseId: uuid("crm_form_response_id"),
+  // 0105: what an ad-lead source says about itself (network, the Harvest ad lead form, the campaign reference the network reported). Never answers or consent text.
+  adNetwork: text("ad_network"), adFormId: uuid("ad_form_id"), adCampaignRef: text("ad_campaign_ref"),
   revertedAt: timestamp("reverted_at", { withTimezone: true }),
 }, t => [foreignKey({ columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }).onDelete("cascade"),
   foreignKey({ columns: [t.tenantId, t.importId], foreignColumns: [crmImports.tenantId, crmImports.id] }),
@@ -1125,7 +1127,8 @@ export const contactSourceEvents = pgTable("contact_source_events", {
   uniqueIndex("contact_sources_response_unique").on(t.tenantId, t.responseId).where(sql`${t.kind} = 'connect'`),
   uniqueIndex("contact_sources_import_unique").on(t.tenantId, t.importId, t.rowNumber).where(sql`${t.kind} = 'csv_import'`),
   index("contact_sources_history").on(t.tenantId, t.contactId, t.occurredAt, t.id),
-  check("contact_sources_contract", sql`((${t.kind} = 'manual' and ${t.outcome} = 'created' and ${t.importId} is null and ${t.rowNumber} is null and ${t.revertedAt} is null and ${t.responseId} is null and ${t.entryRoute} is null) or (${t.kind} = 'csv_import' and ${t.outcome} in ('created','updated') and ${t.importId} is not null and ${t.rowNumber} is not null and ${t.rowNumber} > 0 and ${t.responseId} is null and ${t.entryRoute} is null) or (${t.kind} = 'connect' and ${t.outcome} in ('created','updated') and ${t.importId} is null and ${t.rowNumber} is null and ${t.revertedAt} is null and ${t.responseId} is not null and ${t.entryRoute} is not null and ${t.entryRoute} in ('qr','short'))) and ${t.crmFormResponseId} is null or (${t.kind} = 'form' and ${t.outcome} in ('created','updated') and ${t.importId} is null and ${t.rowNumber} is null and ${t.revertedAt} is null and ${t.responseId} is null and ${t.entryRoute} is null and ${t.crmFormResponseId} is not null)`)]);
+  check("contact_sources_contract", sql`(${t.kind} <> 'ad_lead' and (((${t.kind} = 'manual' and ${t.outcome} = 'created' and ${t.importId} is null and ${t.rowNumber} is null and ${t.revertedAt} is null and ${t.responseId} is null and ${t.entryRoute} is null) or (${t.kind} = 'csv_import' and ${t.outcome} in ('created','updated') and ${t.importId} is not null and ${t.rowNumber} is not null and ${t.rowNumber} > 0 and ${t.responseId} is null and ${t.entryRoute} is null) or (${t.kind} = 'connect' and ${t.outcome} in ('created','updated') and ${t.importId} is null and ${t.rowNumber} is null and ${t.revertedAt} is null and ${t.responseId} is not null and ${t.entryRoute} is not null and ${t.entryRoute} in ('qr','short'))) and ${t.crmFormResponseId} is null or (${t.kind} = 'form' and ${t.outcome} in ('created','updated') and ${t.importId} is null and ${t.rowNumber} is null and ${t.revertedAt} is null and ${t.responseId} is null and ${t.entryRoute} is null and ${t.crmFormResponseId} is not null))) or (${t.kind} = 'ad_lead' and ${t.outcome} in ('created','updated') and ${t.importId} is null and ${t.rowNumber} is null and ${t.revertedAt} is null and ${t.responseId} is null and ${t.entryRoute} is null and ${t.crmFormResponseId} is null)`),
+  check("contact_sources_ad_detail", sql`(${t.kind} = 'ad_lead') = (${t.adNetwork} is not null) and (${t.kind} = 'ad_lead' or (${t.adFormId} is null and ${t.adCampaignRef} is null)) and (${t.adCampaignRef} is null or length(${t.adCampaignRef}) <= 200)`)]);
 
 // HC-06B restricted persistence; app access goes through scoped capability services.
 export const connectResponseSubjects = pgTable("connect_response_subjects", {
@@ -3179,10 +3182,14 @@ export const adsLeadForms = pgTable("ads_lead_forms", {
   // 0104: which consent each explicit lead-form question grants once a lead becomes a contact (purpose -> question key). Nothing is granted unless the form asked and the person answered yes.
   consentQuestions: jsonb("consent_questions").$type<Record<string, string>>().notNull().default({}), createdBy: text("created_by").references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // 0105: forms built in Harvest keep the exact immutable version they were published from and, per consent question, the wording id and exact text shown (purpose -> {key, wording, text}).
+  formId: uuid("form_id"), formVersionId: uuid("form_version_id"),
+  consentTexts: jsonb("consent_texts").$type<Record<string, { key: string; wording: string; text: string }>>().notNull().default({}),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "ads_lead_forms_version_fk", columns: [t.tenantId, t.formVersionId], foreignColumns: [formVersions.tenantId, formVersions.id] }),
   foreignKey({ name: "ads_lead_forms_account_fk", columns: [t.tenantId, t.adAccountId], foreignColumns: [adsAccounts.tenantId, adsAccounts.id] }),
   uniqueIndex("ads_lead_forms_ref_idx").on(t.tenantId, t.adAccountId, t.externalRef),
-  check("ads_lead_forms_shape", sql`length(${t.name}) between 1 and 120 and length(${t.consentText}) between 1 and 1000 and ${t.status} in ('active','archived') and jsonb_typeof(${t.questions}) = 'array'`),
+  check("ads_lead_forms_shape", sql`length(${t.name}) between 1 and 120 and length(${t.consentText}) between 1 and 1000 and ${t.status} in ('active','archived') and jsonb_typeof(${t.questions}) = 'array' and jsonb_typeof(${t.consentTexts}) = 'object' and pg_column_size(${t.consentTexts}) <= 4096`),
 ]);
 export const adsLeads = pgTable("ads_leads", {
   tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), adAccountId: uuid("ad_account_id").notNull(), network: text("network").notNull(),
@@ -3192,13 +3199,27 @@ export const adsLeads = pgTable("ads_leads", {
   fields: jsonb("fields").$type<Record<string, string>>().notNull().default({}), consentText: text("consent_text"), submittedAt: timestamp("submitted_at", { withTimezone: true }),
   // 0104: set when an owner or admin converts the lead into a CRM contact (explicit action, existing consent and provenance rules).
   contactId: uuid("contact_id"), convertedAt: timestamp("converted_at", { withTimezone: true }),
+  // 0105: the exact immutable form version the lead answered (set when the lead's form was published from Harvest).
+  formVersionId: uuid("form_version_id"),
   version: integer("version").notNull().default(1), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
   foreignKey({ name: "ads_leads_contact_fk", columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }),
+  foreignKey({ name: "ads_leads_form_version_fk", columns: [t.tenantId, t.formVersionId], foreignColumns: [formVersions.tenantId, formVersions.id] }),
   foreignKey({ name: "ads_leads_account_fk", columns: [t.tenantId, t.adAccountId], foreignColumns: [adsAccounts.tenantId, adsAccounts.id] }),
   uniqueIndex("ads_leads_ref_idx").on(t.tenantId, t.adAccountId, t.leadRef), index("ads_leads_status_idx").on(t.tenantId, t.status, t.createdAt),
   check("ads_leads_shape", sql`${t.status} in (${inList(adLeadStatuses)}) and ${t.network} in (${inList(adNetworks)}) and length(${t.leadRef}) between 1 and 200
     and jsonb_typeof(${t.fields}) = 'object' and pg_column_size(${t.fields}) <= 8192 and (${t.consentText} is null or length(${t.consentText}) <= 1000)`),
+]);
+// 0105: an ad lead form version published to a network's instant form. A version with a row here is frozen (the form_versions trigger refuses edits), so leads keep an exact reference.
+export const adsFormPublications = pgTable("ads_form_publications", {
+  tenantId: uuid("tenant_id").notNull(), formId: uuid("form_id").notNull(), versionId: uuid("version_id").notNull(), leadFormId: uuid("lead_form_id").notNull(),
+  publishedBy: text("published_by").notNull().references(() => users.id), definition: jsonb("definition").notNull(), publishedAt: timestamp("published_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.versionId] }),
+  foreignKey({ name: "ads_form_publications_form_fk", columns: [t.tenantId, t.formId], foreignColumns: [forms.tenantId, forms.id] }),
+  foreignKey({ name: "ads_form_publications_version_fk", columns: [t.tenantId, t.versionId], foreignColumns: [formVersions.tenantId, formVersions.id] }),
+  foreignKey({ name: "ads_form_publications_lead_form_fk", columns: [t.tenantId, t.leadFormId], foreignColumns: [adsLeadForms.tenantId, adsLeadForms.id] }),
+  uniqueIndex("ads_form_publications_lead_form_idx").on(t.tenantId, t.leadFormId),
+  check("ads_form_publications_definition", sql`jsonb_typeof(${t.definition}) = 'object' and ${t.definition}->>'kind' = 'crm-form-v1' and ${t.definition} ? 'ads' and octet_length(${t.definition}::text) <= 65536`),
 ]);
 export const adsAudiences = pgTable("ads_audiences", {
   tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), adAccountId: uuid("ad_account_id").notNull(), externalRef: text("external_ref").notNull(),

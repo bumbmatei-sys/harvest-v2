@@ -146,7 +146,8 @@ export function getContact(db: Database, userId: string, workspace: string, cont
       select p.definition->>'title' from crm_form_responses r join crm_form_publications p
         on (p.tenant_id, p.form_id, p.version_id) = (r.tenant_id, r.form_id, r.version_id)
       where r.tenant_id = ${tenantId} and r.id = contact_source_events.crm_form_response_id
-    ) else public.contact_connect_source_label(${tenantId}::uuid,${contactSourceEvents.id}) end`, entryRoute: contactSourceEvents.entryRoute, occurredAt: contactSourceEvents.occurredAt, revertedAt: contactSourceEvents.revertedAt }).from(contactSourceEvents)
+    ) when ${contactSourceEvents.kind} = 'ad_lead' then nullif(concat_ws(' · ', (select name from ads_lead_forms l where l.tenant_id = ${tenantId} and l.id = contact_source_events.ad_form_id), contact_source_events.ad_campaign_ref), '')
+    else public.contact_connect_source_label(${tenantId}::uuid,${contactSourceEvents.id}) end`, entryRoute: contactSourceEvents.entryRoute, adNetwork: contactSourceEvents.adNetwork, occurredAt: contactSourceEvents.occurredAt, revertedAt: contactSourceEvents.revertedAt }).from(contactSourceEvents)
       .where(and(eq(contactSourceEvents.tenantId, tenantId), eq(contactSourceEvents.contactId, id))).orderBy(desc(contactSourceEvents.occurredAt), desc(contactSourceEvents.id)).limit(51) : undefined;
     return { ...row, identifiers, consents, effectiveConsents, companies: companyLinks, possibleDuplicates, ...(sourceHistory ? {sourceHistory: sourceHistory.slice(0,50), sourceHistoryHasMore: sourceHistory.length > 50} : {}) };
   });
