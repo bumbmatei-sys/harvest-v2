@@ -123,6 +123,8 @@ export function CampaignTypeArt({ type, variant = "card", className }: { type: C
       <circle cx="292" cy="112" r="64" style={inkFill(0.06)} />
       <circle cx="22" cy="6" r="44" style={inkFill(0.05)} />
       <path d="M0 96 C 80 78, 160 118, 320 88 L320 120 L0 120 Z" style={inkFill(0.08)} />
+      {/* Gentle field rows along the bottom: a calm, harvest-field ground line shared by every type. */}
+      <path d="M0 104 C 90 92, 200 116, 320 100 M0 112 C 100 102, 210 122, 320 110" style={{ fill: "none", stroke: "var(--ink)", strokeOpacity: 0.12, strokeWidth: 1 }} />
     </svg>
     {/* The motif keeps its proportions and sits in the middle of the band. */}
     <svg viewBox="0 0 200 104" preserveAspectRatio="xMidYMid meet" focusable="false"
