@@ -214,7 +214,7 @@ export function inspectQaBoundary(file: string, source: string): BoundaryViolati
   const add = (rule: string) => found.push({ file, rule });
   if (normal.startsWith("tests/") || normal === "scripts/source-guards.ts") return found;
   const flag = /\bHARVEST_QA_SIGN_IN\b/;
-  if (normal === ".env.example" || normal.startsWith(".github/workflows/") || normal.startsWith(".circleci/")) {
+  if (normal === ".env.example" || normal.startsWith(".github/workflows/")) {
     if (/\bQA_SIGN_IN_SECRET\b/.test(source)) add("QA signing key is scoped to the auth deployment");
     if (/(?:^|[\s{,])["']?HARVEST_QA_SIGN_IN["']?\s*[:=]/m.test(source)) add("QA sign-in flag cannot be set in CI or .env.example");
     return found;

@@ -160,6 +160,7 @@ jobs:
             git fetch --no-tags origin "refs/pull/$PR/head"
             [ "$(git rev-parse FETCH_HEAD)" = "$EXPECTED" ] || { echo "::error::fetched head differs"; exit 1; }
             rm -rf drizzle && git checkout FETCH_HEAD -- drizzle
+            if [ -L drizzle ] || find drizzle -type l | grep -q .; then echo "::error::drizzle/ contains a symlink; refusing"; exit 1; fi
             echo "Applying drizzle/ from PR #$PR at $EXPECTED on top of trusted main."
             echo 'run=true' >> "$GITHUB_OUTPUT"
           elif [ -n "$BEFORE" ] && ! git diff --quiet "$BEFORE" HEAD -- drizzle/ 2>/dev/null; then
