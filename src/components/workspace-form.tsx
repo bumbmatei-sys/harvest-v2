@@ -14,6 +14,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Spinner } from "@/components/ui/spinner";
 import { AudienceField } from "@/components/audience-field";
 import { audiences } from "@/lib/audience";
+import { browserTimeZone } from "@/lib/time-zone";
 export function WorkspaceForm() {
   const t = useTranslations("ComponentsWorkspaceForm");
   const router = useRouter();
@@ -27,7 +28,7 @@ export function WorkspaceForm() {
   const { register, reset, formState: { errors } } = form;
   const busy = submitting;
   const onSubmit = submit(async ({ name, audience }) => {
-    const response = await fetch("/api/workspaces", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, audience }) });
+    const response = await fetch("/api/workspaces", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name, audience, timeZone: browserTimeZone() }) });
     if (response.status === 401) { router.replace("/sign-in"); return; }
     if (!response.ok) return { message: errorMessage((await response.json()).error) };
     reset(); router.refresh();

@@ -169,6 +169,9 @@ test("office calendar writes: grant, create once, edit, delete with a confirm, v
 test("office calendar writes: calendar picker, zone, all-day, video link reason, conflict messages and the disabled state (stubbed)", async ({ page }) => {
   test.setTimeout(900_000);
   await mkdir(shots, { recursive: true });
+  // The all-day form defaults its dates from the browser clock; pin it to midday UTC today so the span is one day whatever time the run happens (as in the fake-provider test above).
+  const pinned = new Date(); pinned.setUTCHours(12, 0, 0, 0);
+  await page.clock.setFixedTime(pinned);
   await signIn(page);
   const tenant = await ministry(page, "Hope Outreach"), calendar = `/workspaces/${tenant}/calendar?view=agenda`;
   const actions = recordActions(page);

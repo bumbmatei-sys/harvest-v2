@@ -32,7 +32,7 @@ import { ShellHeaderSlot } from "@/components/shell-header-slot";
 import type { ShellSettings } from "@/lib/settings-sections";
 import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarInset, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarRail, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 
-type Workspace = { tenantId: string; name: string; role: string; audience?: Audience | null; memberCount?: number };
+type Workspace = { tenantId: string; name: string; role: string; audience?: Audience | null; timeZone?: string; memberCount?: number };
 /** Optional header composition: page actions and a page-level search field. Both are empty unless a page supplies them. */
 export type AppShellHeaderSlots = { actions?: React.ReactNode; search?: React.ReactNode };
 function NavigationLink({ href, label, icon, active }: { href: string; label: string; icon: React.ReactNode; active: boolean }) {
@@ -255,5 +255,5 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
   </SidebarProvider>;
   // Editors register their sidebar through this provider only when the shell-modes flag is on; otherwise they render their own step list.
   const withEditor = modeSwitcher && selected ? <EditorProvider>{shell}</EditorProvider> : shell;
-  return <SettingsProvider shell={{ email, tenantId: workspace ? selected : undefined, ministryName: workspace?.name, role: workspace?.role, audience: workspace?.audience, features, settings }}>{withEditor}</SettingsProvider>;
+  return <SettingsProvider shell={{ email, tenantId: workspace ? selected : undefined, ministryName: workspace?.name, role: workspace?.role, audience: workspace?.audience, timeZone: workspace?.timeZone, features, settings }}>{withEditor}</SettingsProvider>;
 }

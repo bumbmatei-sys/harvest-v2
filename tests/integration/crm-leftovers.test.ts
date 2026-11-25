@@ -8,7 +8,8 @@ import { getCrmImportDiagnostics } from "../../src/server/crm-diagnostics";
 import { createImport } from "../../src/server/crm-imports";
 import { pgCode } from "../../src/server/contacts";
 import { AccessError } from "../../src/server/permissions";
-import { createWorkspace, putMember } from "../../src/server/workspaces";
+import { createLegacyWorkspace } from "../helpers/legacy-workspace";
+import { putMember } from "../../src/server/workspaces";
 import { testDatabase } from "../database";
 
 const owner = "leftovers-owner", admin = "leftovers-admin", member = "leftovers-member",
@@ -32,8 +33,8 @@ beforeAll(async () => {
   fixture = await testDatabase({ migrationOwner: true, async beforeCrmLeftoversMigration(pool) {
     const db = drizzle(pool, { schema });
     await db.insert(schema.users).values([owner, admin, member, viewer, outside].map((id) => ({ id, name: id, email: `${id}@example.test` })));
-    tenant = (await createWorkspace(db, owner, "CRM leftovers test")).tenantId;
-    emptyTenant = (await createWorkspace(db, outside, "CRM diagnostics other ministry")).tenantId;
+    tenant = (await createLegacyWorkspace(db, owner, "CRM leftovers test")).tenantId;
+    emptyTenant = (await createLegacyWorkspace(db, outside, "CRM diagnostics other ministry")).tenantId;
     await putMember(db, owner, tenant, `${admin}@example.test`, "admin");
     await putMember(db, owner, tenant, `${member}@example.test`, "member");
     await putMember(db, owner, tenant, `${viewer}@example.test`, "viewer");

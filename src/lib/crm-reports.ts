@@ -1,7 +1,7 @@
 /**
- * CRM reports: periods, atomic regions and small-group suppression. Pure (no imports), shared by the server and the screen.
+ * CRM reports: periods, atomic regions and small-group suppression. Pure (imports only the time zone helpers), shared by the server and the screen.
  *
- * Periods (UTC, the ministry has no time zone setting): last 7, 30 and 90 days (today included) and this and last month. They overlap, so
+ * Periods (in the ministry's time zone, UTC by default): last 7, 30 and 90 days (today included) and this and last month. They overlap, so
  * every period is a union of ATOMIC REGIONS: the intervals between all period boundaries. A published figure is a sum of region counts.
  * Suppression strategy (docs/acceptance/crm-reports.md):
  *  1. A row (one cell or one breakdown line) is withheld for a period if any region inside the period has a count of 1 to 4 in any of its leaves.
@@ -12,6 +12,7 @@
  *     Smallest non-zero visible rows are therefore hidden too until that derivable sum is itself 0 or at least 5 in every region.
  * Withheld figures are all shown the same way ("fewer than 5"), so a reader cannot tell which were protective.
  */
+import { DEFAULT_TIME_ZONE, zonedDate, zonedStartOfDay } from "./time-zone";
 export const SMALL_GROUP = 5;
 export const reportPeriods = ["last7", "last30", "last90", "thisMonth", "lastMonth"] as const;
 export type ReportPeriod = typeof reportPeriods[number];
@@ -21,21 +22,21 @@ export type ReportSource = typeof reportSources[number];
 export const reportsMinistryScope = (role: string) => role === "owner" || role === "admin";
 
 export type PeriodWindow = { start: Date; end: Date };
-const DAY = 86_400_000;
-const utcDay = (date: Date) => Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
-export function periodWindows(now: Date): Record<ReportPeriod, PeriodWindow> {
-  const today = utcDay(now), thisMonth = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1), lastMonth = Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - 1, 1);
-  const last = (days: number) => ({ start: new Date(today - (days - 1) * DAY), end: now });
-  return { last7: last(7), last30: last(30), last90: last(90), thisMonth: { start: new Date(thisMonth), end: now }, lastMonth: { start: new Date(lastMonth), end: new Date(thisMonth) } };
+/** Periods are calendar days in the ministry's time zone (UTC by default); a day that is 23 or 25 hours long still counts as one day. */
+export function periodWindows(now: Date, timeZone: string = DEFAULT_TIME_ZONE): Record<ReportPeriod, PeriodWindow> {
+  const { year, month, day } = zonedDate(now, timeZone), startOfDay = (offset: number) => zonedStartOfDay(year, month, day - offset, timeZone);
+  const thisMonth = zonedStartOfDay(year, month, 1, timeZone), lastMonth = zonedStartOfDay(year, month - 1, 1, timeZone);
+  const last = (days: number) => ({ start: startOfDay(days - 1), end: now });
+  return { last7: last(7), last30: last(30), last90: last(90), thisMonth: { start: thisMonth, end: now }, lastMonth: { start: lastMonth, end: thisMonth } };
 }
 /** Sorted unique boundaries of every period, ending at `now`. Region i (1-based) is [bounds[i-1], bounds[i]). */
-export function regionBounds(now: Date): Date[] {
-  const all = Object.values(periodWindows(now)).flatMap((window) => [window.start.getTime(), window.end.getTime()]);
+export function regionBounds(now: Date, timeZone: string = DEFAULT_TIME_ZONE): Date[] {
+  const all = Object.values(periodWindows(now, timeZone)).flatMap((window) => [window.start.getTime(), window.end.getTime()]);
   return [...new Set(all)].sort((a, b) => a - b).map((time) => new Date(time));
 }
 /** The 1-based region numbers inside a period (the database numbers a timestamp by how many boundaries are at or before it). */
-export function periodRegions(period: ReportPeriod, now: Date): number[] {
-  const bounds = regionBounds(now), { start, end } = periodWindows(now)[period], regions: number[] = [];
+export function periodRegions(period: ReportPeriod, now: Date, timeZone: string = DEFAULT_TIME_ZONE): number[] {
+  const bounds = regionBounds(now, timeZone), { start, end } = periodWindows(now, timeZone)[period], regions: number[] = [];
   for (let index = 1; index < bounds.length; index++) if (bounds[index - 1]! >= start && bounds[index]! <= end) regions.push(index);
   return regions;
 }

@@ -39,7 +39,7 @@ export function SettingsDialog({ open, section, sections, shell, onSection, onCl
           <h2 id={headingId} className="mb-5 text-xl font-semibold tracking-tight">{t(`sectionNames.${section}`)}</h2>
           {section === "profile" && <ProfilePanel communities={shell.settings.communities ?? []} userId={shell.settings.userId} guard={guard} onDirtyChange={setDirty} />}
           {section === "account" && <AccountPanel />}
-          {section === "ministry" && shell.tenantId && <MinistryPanel tenantId={shell.tenantId} name={shell.ministryName ?? ""} role={shell.role ?? ""} audience={shell.audience ?? null} />}
+          {section === "ministry" && shell.tenantId && <MinistryPanel tenantId={shell.tenantId} name={shell.ministryName ?? ""} role={shell.role ?? ""} audience={shell.audience ?? null} timeZone={shell.timeZone} />}
           {section === "connections" && shell.tenantId && <ConnectionsPanel tenantId={shell.tenantId} testCredential={shell.settings.socialTestCredential} />}
           {section === "crm" && shell.tenantId && <CrmPanel tenantId={shell.tenantId} />}
         </>}

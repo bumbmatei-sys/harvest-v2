@@ -1653,13 +1653,36 @@
     "footer": {
       "small": "Counts below 5 are hidden to protect people; some other figures may be hidden with them.",
       "cases": "Task figures cover CRM tasks, not Connect follow-up cases.",
-      "sources": "Source evidence for Connect responses expires with the response, so older contacts from Connect may read Unknown.",
-      "line": "{start} to {end} · Times are in UTC · Updated {time}"
+      "sources": "Contacts whose source evidence expired before sources were kept may read Unknown.",
+      "line": "{start} to {end} · Times are in {zone} · Updated {time}"
     },
     "chart": {
       "deals": "Bar chart of deals by outcome",
       "tasks": "Bar chart of open tasks",
-      "sources": "Bar chart of contacts by first source"
+      "sources": "Bar chart of contacts by first source",
+      "stages": "Table of deal moves between neighbouring stages"
+    },
+    "stages": {
+      "title": "Stage to stage",
+      "trackedFrom": "Movement is tracked from {date}.",
+      "noneYet": "No stage moves are recorded yet.",
+      "noPipelines": "No pipelines with two or more stages.",
+      "step": "Step",
+      "pair": "{from} → {to}",
+      "moved": "Moved",
+      "medianDays": "Median days",
+      "pipeline": "Pipeline",
+      "from": "From stage",
+      "to": "To stage",
+      "none": "–"
+    },
+    "export": {
+      "button": "CSV",
+      "label": "Download {table} as CSV",
+      "periodStart": "Period start",
+      "periodEnd": "Period end",
+      "timeZone": "Time zone",
+      "medianDays": "Median days in stage"
     }
   },
   "Timeline": {
@@ -2868,13 +2891,20 @@
   "ComponentsMinistrySettingsForm": {
     "save": "Save",
     "saving": "Saving…",
-    "saved": "Ministry type saved.",
+    "saved": "Ministry settings saved.",
     "couldNotSaveTryAgain": "Could not save. Try again.",
     "couldNotConnectPleaseTryAgain": "Could not connect. Please try again.",
-    "onlyOwnersAndAdmins": "Only owners and admins can change the ministry type."
+    "onlyOwnersAndAdmins": "Only owners and admins can change ministry settings.",
+    "timeZone": "Time zone",
+    "typeTitle": "Ministry type",
+    "typeDescription": "Shapes the wording and modules Harvest shows you.",
+    "zoneDescription": "Report periods and dates follow this zone.",
+    "unsaved": "Unsaved changes",
+    "savedState": "Saved"
   },
   "AppWorkspacesSettingsPage": {
-    "ministrySettings": "Ministry settings"
+    "ministrySettings": "Ministry settings",
+    "description": "Your ministry type and time zone."
   },
   "CommunitiesPage": {
     "title": "Communities",
@@ -7102,5 +7132,10 @@
       "body": "Confirm your sign-up to {ministry} ({form}) with this link: {link}",
       "fallbackMinistry": "the ministry"
     }
+  },
+  "ComponentsTimeZoneCombobox": {
+    "search": "Search time zones",
+    "none": "No time zone found.",
+    "utc": "UTC"
   }
 }
