@@ -40,7 +40,7 @@ export function TypeStep({ form, set, disabled, problems }: StepProps) {
 export function BasicsStep({ form, set, disabled, problems, cover }: StepProps & { cover?: ReactNode }) {
   const t = useTranslations("CampaignWizard.basics");
   const update = (key: keyof WizardForm["basics"], value: string) => set("basics", (current) => ({ ...current, basics: { ...current.basics, [key]: value } }), TYPING);
-  return <div className="space-y-4">
+  return <div className="max-w-3xl space-y-4">
     <Field><FieldLabel htmlFor="campaign-name">{t("name")}</FieldLabel>
       <Input id="campaign-name" className="min-h-11" value={form.basics.name} maxLength={200} required disabled={disabled} onChange={(event) => update("name", event.target.value)} {...described("campaign-name-problem", problems.name)} />
       <Problem id="campaign-name-problem" code={problems.name} /></Field>
@@ -57,7 +57,7 @@ export function PlaceStep({ form, set, disabled, problems }: StepProps) {
   const update = (key: keyof WizardForm["place"], value: string, delay = TYPING) => set("place", (current) => ({ ...current, place: { ...current.place, [key]: value } }), delay);
   const zones = timeZoneOptions(form.place.timeZone);
   function pickMine() { try { update("timeZone", Intl.DateTimeFormat().resolvedOptions().timeZone, DISCRETE); } catch { /* no time zone available */ } }
-  return <div className="space-y-6">
+  return <div className="max-w-3xl space-y-6">
     <FormSection as="fieldset" title={t("structure")}>
       <RadioGroup value={form.place.structure} onValueChange={(value) => update("structure", value, DISCRETE)} disabled={disabled} aria-label={t("structure")} className="grid gap-3 sm:grid-cols-3">
         {campaignStructures.map((value) => <Label key={value} htmlFor={`campaign-structure-${value}`}
