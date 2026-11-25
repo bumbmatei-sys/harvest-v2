@@ -276,6 +276,19 @@ test("axe: the wizard and the drafts list at 360, 768 and 1280 in light and dark
       }
       await expectAccessible(page);
       await shoot(page, `wizard-place-${label}-${scheme}`);
+      // Steps 2 and 1 at the same width and scheme: the content fills the main area (the type cards in a grid), no empty column beside it.
+      for (const [name, step] of [["basics", "Basic Information"], ["type", "Campaign Type"]] as const) {
+        await page.getByRole("button", { name: "Back", exact: true }).click();
+        await expect(heading(page, step)).toBeVisible();
+        await expectAccessible(page);
+        await shoot(page, `wizard-${name}-${label}-${scheme}`);
+      }
+      if (width >= 1280) {
+        const card = await page.locator('[data-slot="wizard-layout"]').boundingBox(), main = await page.locator("main").boundingBox();
+        expect(card!.width).toBeGreaterThan(main!.width * 0.9);
+        const cards = await page.getByRole("radio").evaluateAll((nodes) => new Set(nodes.map((node) => Math.round(node.getBoundingClientRect().top))).size);
+        expect(cards).toBe(2); // 3 per row: two rows for five types
+      }
       await page.goto(`${root}/drafts`);
       await expect(page.getByRole("heading", { name: "Campaign drafts", level: 1 })).toBeVisible();
       await expectAccessible(page);
