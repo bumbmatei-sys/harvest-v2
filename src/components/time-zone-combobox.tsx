@@ -19,7 +19,7 @@ export function TimeZoneCombobox({ id, value, onChange, disabled, labelledBy }: 
   return <Popover open={open} onOpenChange={setOpen}>
     <PopoverTrigger asChild>
       <Button id={id} type="button" variant="outline" role="combobox" aria-expanded={open} aria-labelledby={`${labelledBy} ${id}`} disabled={disabled} className="min-h-11 w-full justify-between gap-3 font-normal lg:min-h-9">
-        <span className="min-w-0 truncate text-left">{value}<span className="ml-2 text-muted-foreground">{summary(value)}</span></span>
+        <span className="min-w-0 truncate text-left">{value}{/* The current time differs between the server render and hydration (often by a minute), which is expected here. */}<span className="ml-2 text-muted-foreground" suppressHydrationWarning>{summary(value)}</span></span>
         <ChevronsUpDown className="size-4 shrink-0 opacity-50" aria-hidden="true" />
       </Button>
     </PopoverTrigger>

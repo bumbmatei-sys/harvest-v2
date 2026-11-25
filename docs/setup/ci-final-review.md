@@ -6,7 +6,7 @@
 | --- | --- | --- |
 | **quality** | lint, typecheck, unit tests and build, one runner each | every PR and `main` |
 | **migrations and RLS** | migrations applied twice on Postgres 17, then `test:rls` | every PR and `main` |
-| **browser 1/4 to 4/4** | Playwright split across four runners | each runner starts its own dev server and disposable embedded Postgres |
+| **browser 1/6 to 6/6** | Playwright split across six runners | each runner starts its own dev server and disposable embedded Postgres |
 | **build and PWA** | build, then `test:pwa` | every PR and `main` |
 | **Neon migrations** | applies migrations to a disposable Neon branch | `main` only, see below |
 
@@ -22,4 +22,4 @@ The applications and forum specs run on the first browser shard, which shares a 
 
 On main at `5337ec0`, a full-sequence trace showed the join POST succeed while the forum navigation was still pending. The forum cover upload received a ticket and a successful local PUT, then timed out at the filename assertion while confirmation was pending. On retry the cover and attachment completed, while the navigation to the new post hit the same assertion deadline. Running either onboarding or campaigns as the only applications predecessor also exposed the five-second assertion racing a pending draft save.
 
-Wait on the relevant request and then assert the UI outcome. For the editor’s sidebar link, wait for the Communities destination before checking its heading. Check the join response before waiting for the member forum navigation and heading. Wait for the application update and queue refresh before checking the review sheet. Use the visible file chooser and wait for confirmation of that file's `ready` status before checking the chip. After editing or moderating a post, wait for the mutation and the post refresh. To replay the complete affected shard, run `CI=1 npx playwright test --trace off --shard=1/4` from a fresh checkout with Chromium installed.
+Wait on the relevant request and then assert the UI outcome. For the editor’s sidebar link, wait for the Communities destination before checking its heading. Check the join response before waiting for the member forum navigation and heading. Wait for the application update and queue refresh before checking the review sheet. Use the visible file chooser and wait for confirmation of that file's `ready` status before checking the chip. After editing or moderating a post, wait for the mutation and the post refresh. To replay the complete affected shard, run `CI=1 npx playwright test --trace off --shard=1/6` from a fresh checkout with Chromium installed.
