@@ -140,7 +140,7 @@ export function CampaignWizard({ tenantId, initial, viewerId, canDiscard, ownerN
   const actions = canDiscard && <ConfirmDialog tone="destructive" open={discarding} onOpenChange={setDiscarding} title={t("discardTitle")} description={t("discardBody")} cancelLabel={t("discardCancel")} confirmLabel={t("discardConfirm")}
     trigger={<Button variant="outline" className="min-h-11">{t("discard")}</Button>} onConfirm={discard} />;
 
-  // The palette's primary accent (Harvest: wheat gold) carries the wizard's highlights: the step chips, the accent line on the step card and the phone progress bar.
+  // The palette's primary accent (Harvest: Desert Sun gold) carries the wizard's highlights: the step chips, the accent line on the step card and the phone progress bar.
   return <div className="contents" data-campaign-accent="primary" style={accentVars("primary")}><EditorShell breadcrumb={breadcrumb} title={title} status={<><Badge variant="secondary">{t("status.draft")}</Badge>{editable && <SaveStatus state={saveState} />}</>} actions={actions}
     steps={shellSteps} current={step} onStep={(id) => setStep(id as WizardStep)} stepsLabel={t("stepsLabel")} previewLabel={t("stepsLabel")} sidebar={sidebar}>
     {!editable && <Alert><AlertDescription>{ownerName ? t("readOnly", { name: ownerName }) : t("readOnlyUnknown")}</AlertDescription></Alert>}
