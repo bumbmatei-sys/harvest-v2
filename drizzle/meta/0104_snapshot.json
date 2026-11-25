@@ -1,6 +1,6 @@
 {
-  "id": "791d6d9e-c9de-4694-8a49-4ff43591625a",
-  "prevId": "df994ebb-a87c-4fa5-980a-693ea611bc8b",
+  "id": "7753d4c6-8d17-4a95-a62d-fafbe3ff150d",
+  "prevId": "3549b785-30c1-4b57-a767-f61f6749b13b",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3338,7 +3338,7 @@
       "checkConstraints": {
         "audit_system_actor": {
           "name": "audit_system_actor",
-          "value": "\"audit_logs\".\"actor_id\" is not null or \"audit_logs\".\"action\" in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated', 'community.profile_save', 'community.profile_withdraw', 'community.profile_erase', 'crm.form.submit', 'docs.trash.purge')"
+          "value": "\"audit_logs\".\"actor_id\" is not null or \"audit_logs\".\"action\" in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated', 'community.profile_save', 'community.profile_withdraw', 'community.profile_erase', 'crm.form.submit', 'bio.message.submit', 'docs.trash.purge')"
         }
       },
       "isRLSEnabled": false
