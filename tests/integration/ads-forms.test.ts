@@ -221,3 +221,13 @@ it("removes the source detail, leads and consent with the person on erasure, and
   await expect(q("insert into contact_source_events(tenant_id, contact_id, kind, outcome) values ($1,$2,'ad_lead','created')", [p.tenant, keep])).rejects.toThrow(/contact_sources/);
   await expect(q("insert into contact_source_events(tenant_id, contact_id, kind, outcome, ad_network, ad_campaign_ref) values ($1,$2,'manual','created','meta','x')", [p.tenant, keep])).rejects.toThrow(/contact_sources/);
 });
+
+it("grants nothing when the lead's frozen form version or notice text is not the one the form carries now", async () => {
+  await lead("al-mismatch", { full_name: "Mismatch Person", email: "mismatch@example.test", consent_marketing: "yes" });
+  await lead("al-notext", { full_name: "No Text Person", email: "notext@example.test", consent_marketing: "yes" });
+  await syncLeads(f.db, p.owner, p.tenant, acct, off);
+  const other = (await q("select form_version_id v from ads_lead_forms where id <> $1 and form_id=$2", [leadFormOne, formId])).rows[0].v as string;
+  await q("update ads_leads set form_version_id=$1 where lead_ref='al-mismatch'", [other]);
+  await q("update ads_leads set consent_text=null where lead_ref='al-notext'");
+  for (const ref of ["al-mismatch", "al-notext"]) expect((await convertLeadToContact(f.db, p.admin, p.tenant, (await idOf(ref)).id, off)).granted).toEqual([]);
+});
