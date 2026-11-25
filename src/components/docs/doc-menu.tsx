@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { Archive, ArchiveRestore, BadgeCheck, ChevronRight, Copy, FileInput, FileOutput, FilePlus2, FolderInput, Globe, History, Link2, Lock, MoreHorizontal, Paperclip, Pencil, Save, Share2, Star, Trash2, Wand2 } from "lucide-react";
+import { Archive, Check, ArchiveRestore, BadgeCheck, ChevronRight, Copy, FileInput, FileOutput, FilePlus2, FolderInput, Globe, History, Link2, Lock, MoreHorizontal, Paperclip, Pencil, Save, Share2, Star, Trash2, Wand2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Switch } from "@/components/ui/switch";
@@ -10,7 +10,7 @@ import { exportHref, printHref } from "@/components/docs/panels/export-panel";
 import { cn } from "@/lib/utils";
 
 export type MenuAction =
-  | "renameDoc" | "copyDocLink" | "favorite" | "duplicateDoc" | "moveDoc" | "archiveDoc" | "trashDoc" | "toggleWiki" | "protectDoc"
+  | "renameDoc" | "copyDocLink" | "favorite" | "favoriteTop" | "favoriteSidebar" | "sharePage" | "duplicateDoc" | "moveDoc" | "archiveDoc" | "trashDoc" | "toggleWiki" | "protectDoc"
   | "renamePage" | "copyPageLink" | "duplicatePage" | "archivePage" | "deletePage" | "addSubpage" | "protectPage"
   | "moveUp" | "moveDown" | "makeSubpage" | "moveOut" | "attachStorage" | "attachUpload" | "importHtml" | "importHtmlSplit" | "importMarkdown"
   | "applyTemplate" | "saveTemplate" | "history" | "share";
@@ -22,8 +22,8 @@ function Sub({ icon: Icon, label, children }: { icon: typeof Copy; label: string
 }
 
 /** The "..." settings menu: Entire doc and This page, with fly-outs for favourite, attach, move, import and export, and the Sharing and Permissions button. Only what the person may do is shown. */
-export function DocMenu({ tenantId, docId, pageId, canEdit, canManage, favorite, archived, wiki, docProtected, pageProtected, onAction, publicOffered }: {
-  tenantId: string; docId: string; pageId: string; canEdit: boolean; canManage: boolean; favorite: boolean; archived: boolean; wiki: boolean; docProtected: boolean; pageProtected: boolean; publicOffered: boolean; onAction: (action: MenuAction) => void;
+export function DocMenu({ tenantId, docId, pageId, canEdit, canManage, favorite, favoritePlacement, archived, wiki, docProtected, pageProtected, onAction, publicOffered }: {
+  tenantId: string; docId: string; pageId: string; canEdit: boolean; canManage: boolean; favorite: boolean; favoritePlacement: "top" | "sidebar" | null; archived: boolean; wiki: boolean; docProtected: boolean; pageProtected: boolean; publicOffered: boolean; onAction: (action: MenuAction) => void;
 }) {
   const t = useTranslations("Docs"), [open, setOpen] = useState(false), [scope, setScope] = useState("doc");
   const run = (a: MenuAction) => { setOpen(false); onAction(a); };
@@ -36,7 +36,10 @@ export function DocMenu({ tenantId, docId, pageId, canEdit, canManage, favorite,
     <a className={itemClass} href={exportHref(tenantId, docId, s(sc), pageId, "markdown")} download onClick={() => setOpen(false)}>{t("exportMarkdown")}</a>
     <a className={itemClass} href={printHref(tenantId, docId, s(sc), pageId)} target="_blank" rel="noopener" onClick={() => setOpen(false)}>{t("print")}</a></Sub>;
   const importSub = canEdit && <Sub icon={FileInput} label={t("import")}>{item("importHtml", FileInput, t("importHtml"))}{item("importHtmlSplit", FileInput, t("importHtmlSplit"))}{item("importMarkdown", FileInput, t("importMarkdown"))}</Sub>;
-  const favoriteSub = <button type="button" className={itemClass} aria-pressed={favorite} onClick={() => run("favorite")}><Star className={cn("size-4", favorite ? "fill-current text-warning" : "text-muted-foreground")} aria-hidden="true" />{favorite ? t("removeFavorite") : t("addFavorite")}</button>;
+  const place = (a: MenuAction, label: string, on: boolean) => <button type="button" role="menuitemradio" aria-checked={on} className={cn(itemClass, on && "font-medium")} onClick={() => run(a)}><Check className={cn("size-4", on ? "" : "invisible")} aria-hidden="true" />{label}</button>;
+  const favoriteSub = <Sub icon={Star} label={favorite ? t("favoriteIn", { place: t(favoritePlacement === "sidebar" ? "placeSidebar" : "placeTop") }) : t("addFavorite")}>
+    {place("favoriteSidebar", t("placeSidebar"), favoritePlacement === "sidebar")}{place("favoriteTop", t("placeTop"), favoritePlacement === "top")}
+    {favorite && <button type="button" className={cn(itemClass, "border-t")} onClick={() => run("favorite")}><Star className="size-4 text-muted-foreground" aria-hidden="true" />{t("removeFavorite")}</button>}</Sub>;
   const attachSub = canEdit && <Sub icon={Paperclip} label={t("attachFile")}>{item("attachUpload", Paperclip, t("uploadFile"))}{item("attachStorage", Paperclip, t("fromStorage"))}</Sub>;
   const templates = canEdit && <div className="my-1 space-y-0 border-t pt-1">{item("applyTemplate", Wand2, t("applyTemplate"))}{item("saveTemplate", Save, t("saveAsTemplate"))}</div>;
   return <Popover open={open} onOpenChange={setOpen}>
@@ -67,7 +70,7 @@ export function DocMenu({ tenantId, docId, pageId, canEdit, canManage, favorite,
           {importSub}
           {exportSub("page")}
           {templates}
-          <div className="my-1 border-t pt-1">{canEdit && item("history", History, t("showHistory"))}{canEdit && toggle(Lock, t("protectPage"), pageProtected, () => run("protectPage"))}</div>
+          <div className="my-1 border-t pt-1">{canManage && item("sharePage", Share2, t("sharePage"))}{canEdit && item("history", History, t("showHistory"))}{canEdit && toggle(Lock, t("protectPage"), pageProtected, () => run("protectPage"))}</div>
           {canEdit && <div className="my-1 border-t pt-1">{item("addSubpage", FilePlus2, t("addSubpage"))}{item("archivePage", Archive, t("archivePage"))}{item("deletePage", Trash2, t("deletePage"), true)}</div>}
         </TabsContent>
       </Tabs>

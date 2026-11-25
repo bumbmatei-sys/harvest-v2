@@ -28,7 +28,7 @@ async function onlyMembers(tx: Parameters<Parameters<typeof withTenant>[4]>[0], 
 export async function listThreads(db: Database, user: string, workspace: string, docId: string, pageId: string): Promise<{ threads: Thread[]; canComment: boolean; people: Person[] }> {
   requireDocsEnabled();
   return withTenant(db, user, id(workspace), "docs:read", async (tx, tenantId, role) => {
-    const { row, rights } = await loadDoc(tx, tenantId, id(docId), user, role);
+    const { row, rights } = await loadDoc(tx, tenantId, id(docId), user, role, false, false, id(pageId));
     const assignee = alias(users, "assignee"), resolver = alias(users, "resolver");
     const rows = await tx.select({ c: docComments, author: userLabel, assigneeName: sql<string | null>`coalesce(nullif(btrim(${assignee.name}),''), left(split_part(${assignee.email},'@',1), 24))`,
       resolverName: sql<string | null>`coalesce(nullif(btrim(${resolver.name}),''), left(split_part(${resolver.email},'@',1), 24))` })
@@ -48,7 +48,7 @@ export async function createComment(db: Database, user: string, workspace: strin
   requireDocsEnabled();
   const input = createInput.parse(raw);
   return withTenant(db, user, id(workspace), "docs:read", async (tx, tenantId, role) => {
-    const { row, rights } = await loadDoc(tx, tenantId, id(docId), user, role);
+    const { row, rights } = await loadDoc(tx, tenantId, id(docId), user, role, false, false, id(pageId));
     needComment(rights);
     await ensurePage(tx, row.id, id(pageId));
     let root: { id: string; authorId: string; assigneeId: string | null } | null = null;

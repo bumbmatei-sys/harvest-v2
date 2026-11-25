@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { docToHtml, docToMarkdown, htmlToBlocks, markdownToBlocks, splitBlocks } from "../../src/lib/docs-convert";
 import { docText, sanitizeDocContent, type DocContent, type DocNode } from "../../src/lib/docs";
+import { docHighlightColors } from "../../src/lib/theme-registry";
 
 const t = (text: string, marks?: DocNode["marks"]): DocNode => ({ type: "text", text, ...(marks ? { marks } : {}) });
 const doc = (...content: DocNode[]): DocContent => ({ type: "doc", content });
@@ -72,5 +73,31 @@ describe("import", () => {
   it("refuses an oversized import", () => {
     expect(() => htmlToBlocks("x".repeat(1_000_001))).toThrow();
     expect(() => markdownToBlocks("x".repeat(1_000_001))).toThrow();
+  });
+});
+
+describe("slice 2b nodes", () => {
+  const doc = { type: "doc", content: [
+    { type: "blockquote", attrs: { pull: true }, content: [{ type: "paragraph", content: [{ type: "text", text: "Grace" }] }] },
+    { type: "paragraph", content: [{ type: "text", text: "Tag", marks: [{ type: "badge", attrs: { color: docHighlightColors[0], strong: true } }] }, { type: "text", text: " " }, { type: "mention", attrs: { kind: "person", id: "u1", label: "Ana" } }] },
+    { type: "button", attrs: { label: "Give", href: "https://example.org/give" } },
+    { type: "tableOfContents", attrs: { sticky: true } },
+  ] };
+  it("keeps the new nodes and marks through the sanitiser and drops unsafe values", () => {
+    const clean = sanitizeDocContent(doc);
+    expect(clean.content?.[0].attrs).toEqual({ pull: true });
+    expect(clean.content?.[1].content?.[0].marks).toEqual([{ type: "badge", attrs: { color: docHighlightColors[0], strong: true } }]);
+    expect(clean.content?.[3].attrs).toEqual({ sticky: true });
+    const unsafe = sanitizeDocContent({ type: "doc", content: [{ type: "button", attrs: { label: "x", href: "javascript:alert(1)" } }, { type: "paragraph", content: [{ type: "text", text: "t", marks: [{ type: "badge", attrs: { color: "#123456" } }] }] }] });
+    expect(unsafe.content?.[0].attrs).toEqual({ label: "x" });
+    expect(unsafe.content?.[1].content?.[0].marks).toBeUndefined();
+  });
+  it("exports them as plain, escaped HTML and Markdown", () => {
+    const html = docToHtml(doc as never);
+    expect(html).toContain("<blockquote data-pull>");
+    expect(html).toContain("@Ana");
+    expect(html).toContain('<a data-button href="https://example.org/give"');
+    expect(docToMarkdown(doc as never)).toContain("[Give](https://example.org/give)");
+    expect(docToMarkdown(doc as never)).toContain("@Ana");
   });
 });

@@ -12,6 +12,7 @@ export const emptyContent = (): DocContent => ({ type: "doc", content: [{ type: 
 export const docColors = docTextColors, docHighlights = docHighlightColors;
 export const calloutTones = ["info", "success", "warning", "danger"] as const;
 export const textAligns = ["left", "center", "right", "justify"] as const;
+export const mentionKinds = ["person", "page", "task"] as const;
 const hex = /^#[0-9a-fA-F]{6}$/;
 
 export class DocContentError extends Error { constructor(public reason: "TYPE" | "SIZE" | "DEPTH" | "SHAPE") { super("DOC_CONTENT_REFUSED"); } }
@@ -34,12 +35,15 @@ const align = { textAlign: oneOf(textAligns) };
 const cell = { colspan: (v: unknown) => int(v, 1, 20), rowspan: (v: unknown) => int(v, 1, 200), colwidth: (v: unknown) => Array.isArray(v) && v.length <= 20 && v.every((n) => int(n, 20, 2000) !== undefined) ? v : undefined };
 const nodeAttrs: Record<string, Record<string, (value: unknown) => unknown>> = {
   doc: {}, paragraph: align, heading: { level: (v) => int(v, 1, 4), ...align }, bulletList: {}, orderedList: { start: (v) => int(v, 1, 100_000) }, listItem: {},
-  taskList: {}, taskItem: { checked: bool }, blockquote: {}, codeBlock: { language: (v) => typeof v === "string" && /^[a-z0-9+#-]{1,20}$/i.test(v) ? v : undefined }, horizontalRule: {}, hardBreak: {},
+  taskList: {}, taskItem: { checked: bool }, blockquote: { pull: bool }, codeBlock: { language: (v) => typeof v === "string" && /^[a-z0-9+#-]{1,20}$/i.test(v) ? v : undefined }, horizontalRule: {}, hardBreak: {},
   text: {}, table: {}, tableRow: {}, tableCell: cell, tableHeader: cell, details: { open: bool }, detailsSummary: {}, detailsContent: {},
-  callout: { tone: oneOf(calloutTones) }, columns: {}, column: {}, tableOfContents: {},
+  callout: { tone: oneOf(calloutTones) }, columns: {}, column: {}, tableOfContents: { sticky: bool },
+  button: { label: (v) => typeof v === "string" && v.trim() && v.length <= 80 ? v : undefined, href: (v) => safeDocHref(v) ?? undefined },
+  mention: { kind: oneOf(mentionKinds), id: (v) => typeof v === "string" && /^[0-9a-zA-Z_-]{1,64}$/.test(v) ? v : undefined, label: (v) => typeof v === "string" && v.length <= 120 ? v : undefined },
 };
 const markAttrs: Record<string, Record<string, (value: unknown) => unknown>> = {
   bold: {}, italic: {}, underline: {}, strike: {}, code: {}, link: {}, textStyle: { color: (v) => typeof v === "string" && hex.test(v) ? v.toLowerCase() : undefined }, highlight: { color: (v) => typeof v === "string" && hex.test(v) ? v.toLowerCase() : undefined },
+  badge: { color: (v) => typeof v === "string" && (docHighlightColors as readonly string[]).includes(v.toLowerCase()) ? v.toLowerCase() : undefined, strong: bool },
 };
 
 /**
@@ -70,7 +74,7 @@ export function sanitizeDocContent(input: unknown): DocContent {
           if (!mark || typeof mark.type !== "string" || !Object.hasOwn(markAttrs, mark.type)) throw new DocContentError("TYPE");
           if (mark.type === "link") { const href = safeDocHref(mark.attrs?.href); if (href) marks.push({ type: "link", attrs: { href } }); continue; }
           const a = pick(mark.attrs, markAttrs[mark.type]);
-          if ((mark.type === "textStyle" || mark.type === "highlight") && !a) continue;
+          if ((mark.type === "textStyle" || mark.type === "highlight" || mark.type === "badge") && !a) continue;
           marks.push(a ? { type: mark.type, attrs: a } : { type: mark.type });
         }
         if (marks.length) out.marks = marks;
@@ -118,6 +122,8 @@ export const folderNameKey = (name: string) => name.trim().toLocaleLowerCase("en
 export function docText(node: DocNode | DocContent | null | undefined): string {
   if (!node) return "";
   if ((node as DocNode).text) return (node as DocNode).text!;
+  if (node.type === "mention") return `@${String((node as DocNode).attrs?.label ?? "")}`;
+  if (node.type === "button") return String((node as DocNode).attrs?.label ?? "");
   const children = (node.content ?? []) as DocNode[];
   const block = (type: string) => ["paragraph", "heading", "listItem", "taskItem", "tableCell", "tableHeader", "detailsSummary", "codeBlock", "blockquote", "callout", "tableRow"].includes(type);
   return children.map((child) => docText(child) + (block(child.type) ? "\n" : "")).join("");
@@ -173,7 +179,7 @@ export function docRank(i: DocAccessInput): 0 | 1 | 2 | 3 | 4 {
   const granted = Math.max(shareRank(i.share), i.visibility === "ministry" ? shareRank(i.ministryAccess) : 0);
   return Math.min(granted, i.role === "viewer" ? 2 : 3) as 0 | 1 | 2 | 3;
 }
-export type DocRights = { manage: boolean; write: boolean; comment: boolean; read: boolean };
+export type DocRights = { manage: boolean; write: boolean; comment: boolean; read: boolean; /** Set when the person has only a page share: no access to the rest of the doc. */ pageOnly?: boolean };
 export const rightsOf = (rank: number): DocRights => ({ manage: rank >= 4, write: rank >= 3, comment: rank >= 2, read: rank >= 1 });
 export const docRights = (role: string, ownerId: string, userId: string, access: { visibility?: string; ministryAccess?: string; share?: string | null } = {}): DocRights =>
   rightsOf(docRank({ role, isOwner: ownerId === userId, visibility: access.visibility ?? "private", ministryAccess: access.ministryAccess ?? "view", share: access.share ?? null }));
