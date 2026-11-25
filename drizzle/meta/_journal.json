@@ -687,6 +687,13 @@
       "when": 1795565387514,
       "tag": "0099_social_approvals",
       "breakpoints": true
+    },
+    {
+      "idx": 100,
+      "version": "7",
+      "when": 1795565920831,
+      "tag": "0100_discover_server",
+      "breakpoints": true
     }
   ]
 }
