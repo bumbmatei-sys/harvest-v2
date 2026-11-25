@@ -310,7 +310,15 @@ test("social publish: accounts, composer with rings and media, review, queue, ca
   // The review is one-shot: nothing was published before the confirmation (no delivery existed while it was open).
 
   // ---- Schedule: set time, then next free slot ----------------------------------------------------------------------------------
-  const future = new Date(Date.now() + 3 * 86_400_000); future.setUTCHours(10, 0, 0, 0);
+  // The calendar steps below build dates from "now" and drag a draft onto a month-view cell, so the scheduled day, the day after and the drag target (two days
+  // later again) must all sit in the one month the page shows. Near a month end they used to straddle two months, and the cell or the post was not in the
+  // visible grid. The page clock is pinned to midday UTC today (same as the calendar-writes spec), the test's own date math starts from that same instant,
+  // and the schedule dates are moved to the 10th when they would fall in the first two or last seven days of a month. They stay ahead of the real server
+  // clock, which rejects past times (so the page clock cannot be pinned to a fixed past or future date: the queue would then filter the real posts).
+  const pinned = new Date(); pinned.setUTCHours(12, 0, 0, 0);
+  await page.clock.setFixedTime(pinned);
+  const future = new Date(pinned.getTime() + 3 * 86_400_000); future.setUTCHours(10, 0, 0, 0);
+  if (future.getUTCDate() > 24) { future.setUTCMonth(future.getUTCMonth() + 1, 10); } else if (future.getUTCDate() < 3) future.setUTCDate(10);
   const local = (date: Date) => date.toISOString().slice(0, 16);
   await ring("twitter").click(); await ring("bluesky").click();
   await page.getByLabel("Post text").fill("Midweek prayer meeting, Wednesday 7pm.");
