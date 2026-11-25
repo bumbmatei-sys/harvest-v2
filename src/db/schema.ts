@@ -89,7 +89,7 @@ export const auditLogs = pgTable("audit_logs", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("audit_logs_tenant_created_idx").on(t.tenantId, t.createdAt), foreignKey({ columns: [t.tenantId], foreignColumns: [workspaces.tenantId] }),
   index("community_chat_mutations_idx").on(t.actorId,t.action,t.createdAt),
-  check("audit_system_actor", sql`${t.actorId} is not null or ${t.action} in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated', 'community.profile_save', 'community.profile_withdraw', 'community.profile_erase', 'crm.form.submit')`)]);
+  check("audit_system_actor", sql`${t.actorId} is not null or ${t.action} in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated', 'community.profile_save', 'community.profile_withdraw', 'community.profile_erase', 'crm.form.submit', 'docs.trash.purge')`)]);
 export const authSchema = { user: users, session: sessions, account: accounts, verification: verifications, rateLimit: rateLimits };
 
 // A campaign belongs to its parent workspace; it never creates another tenant.
@@ -1566,9 +1566,12 @@ export const discoverListings = pgTable("discover_listings", {
   admission: text("admission").array().notNull(),
   searchText: text("search_text").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  // 0100: unified Discover. Sanitized public fields only; the approval state lives in discover_controls and is applied again at read time.
+  summary: text("summary"), category: text("category"), language: text("language"), audience: text("audience"), isFree: boolean("is_free").notNull().default(true), contentHash: text("content_hash"),
 }, (t) => [primaryKey({ columns: [t.resourceType, t.resourceId] }),
   index("discover_listings_order_idx").on(t.resourceType, t.updatedAt, t.resourceId),
-  check("discover_resource_type", sql`${t.resourceType} in ('community')`)]);
+  check("discover_resource_type", sql`${t.resourceType} in ('community','course','product')`),
+  check("discover_listing_public_fields", sql`(${t.summary} is null or length(${t.summary}) <= 280) and (${t.language} is null or ${t.language} ~ '^[a-z]{2,3}$')`)]);
 
 // C15a (migration 0041): in-app notifications. Members read only their own rows; every write is a definer
 // (plus one staff INSERT for application decisions). Likes and the host queue are grouped into one unread row.
@@ -1704,7 +1707,7 @@ export const socialPosts = pgTable("social_posts", {
   nextAttemptAt: timestamp("next_attempt_at", { withTimezone: true }),
   firstAttemptAt: timestamp("first_attempt_at", { withTimezone: true }),
   lockedAt: timestamp("locked_at", { withTimezone: true }), lockToken: uuid("lock_token"),
-  providerPostRef: text("provider_post_ref"), publishedAt: timestamp("published_at", { withTimezone: true }),
+  providerPostRef: text("provider_post_ref"), providerPostUrl: text("provider_post_url"), publishedAt: timestamp("published_at", { withTimezone: true }),
   lastErrorCode: text("last_error_code"),
   version: integer("version").notNull().default(1),
   createdBy: text("created_by").notNull().references(() => users.id),
@@ -1725,6 +1728,7 @@ export const socialPosts = pgTable("social_posts", {
   index("social_posts_tenant_idx").on(t.tenantId, t.status, t.scheduledFor),
   index("social_posts_provider_ref_idx").on(t.tenantId, t.connectionId, t.providerPostRef).where(sql`${t.providerPostRef} is not null`),
   check("social_post_status", sql`${t.status} in ('draft', 'scheduled', 'publishing', 'published', 'failed', 'cancelled', 'unknown')`),
+  check("social_post_url", sql`${t.providerPostUrl} is null or (${t.providerPostUrl} ~ '^https://' and length(${t.providerPostUrl}) <= 2048)`),
   check("social_post_content", sql`((${t.draftId} is null and length(${t.content}) between 1 and 10000) or (${t.draftId} is not null and length(${t.content}) <= 100000)) and jsonb_typeof(${t.media}) = 'array' and jsonb_array_length(${t.media}) <= 10 and octet_length(${t.media}::text) <= 8192`),
   check("social_post_counters", sql`${t.attempts} >= 0 and ${t.maxAttempts} between 1 and 10 and ${t.attempts} <= ${t.maxAttempts} and ${t.version} >= 1`),
   check("social_post_key", sql`length(${t.idempotencyKey}) between 8 and 100`),
@@ -3248,6 +3252,65 @@ export const adsWebhookEvents = pgTable("ads_webhook_events", {
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }), uniqueIndex("ads_webhook_events_event_idx").on(t.tenantId, t.provider, t.providerEventId),
   check("ads_webhook_events_shape", sql`length(${t.providerEventId}) between 1 and 200 and length(${t.eventType}) between 1 and 80`),
 ]);
+// Social approvals (migration 0099). Metadata only: ids, statuses, a fingerprint of the draft and a short rejection reason. Never post text.
+export const socialApprovalStatuses = ["pending", "approved", "rejected", "withdrawn", "superseded"] as const;
+export const socialSelfApprovalModes = ["never", "owner_only", "always"] as const;
+export const socialApprovalSettings = pgTable("social_approval_settings", {
+  tenantId: uuid("tenant_id").primaryKey().references(() => workspaces.tenantId), mode: text("mode").$type<"off" | "required">().notNull().default("off"),
+  selfApproval: text("self_approval").$type<typeof socialSelfApprovalModes[number]>().notNull().default("owner_only"), version: integer("version").notNull().default(1),
+  updatedBy: text("updated_by").references(() => users.id), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [check("social_approval_settings_shape", sql`${t.mode} in ('off','required') and ${t.selfApproval} in ('never','owner_only','always') and ${t.version} >= 1`)]);
+export const socialApprovals = pgTable("social_approvals", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(), draftId: uuid("draft_id"), postId: uuid("post_id"),
+  status: text("status").$type<typeof socialApprovalStatuses[number]>().notNull().default("pending"), fingerprint: text("fingerprint").notNull(),
+  requestedBy: text("requested_by").notNull().references(() => users.id), requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+  decidedBy: text("decided_by").references(() => users.id), decidedAt: timestamp("decided_at", { withTimezone: true }), note: text("note"), version: integer("version").notNull().default(1),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "social_approvals_draft_fk", columns: [t.tenantId, t.draftId], foreignColumns: [socialDrafts.tenantId, socialDrafts.id] }),
+  foreignKey({ name: "social_approvals_post_fk", columns: [t.tenantId, t.postId], foreignColumns: [socialPosts.tenantId, socialPosts.id] }),
+  uniqueIndex("social_approvals_pending_draft_idx").on(t.tenantId, t.draftId).where(sql`${t.status} = 'pending' and ${t.draftId} is not null`),
+  uniqueIndex("social_approvals_pending_post_idx").on(t.tenantId, t.postId).where(sql`${t.status} = 'pending' and ${t.postId} is not null`),
+  index("social_approvals_queue_idx").on(t.tenantId, t.status, t.requestedAt),
+  check("social_approvals_shape", sql`num_nonnulls(${t.draftId}, ${t.postId}) = 1 and ${t.status} in ('pending','approved','rejected','withdrawn','superseded') and ${t.fingerprint} ~ '^[0-9a-f]{64}$'
+    and (${t.note} is null or length(${t.note}) <= 500) and ${t.version} >= 1 and (${t.status} not in ('approved','rejected') or (${t.decidedBy} is not null and ${t.decidedAt} is not null))
+    and (${t.status} <> 'rejected' or ${t.note} is not null)`),
+]);
+export const socialApprovalNotices = pgTable("social_approval_notices", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), recipientUserId: text("recipient_user_id").notNull().references(() => users.id),
+  approvalId: uuid("approval_id").notNull(), kind: text("kind").$type<"requested" | "approved" | "rejected">().notNull(), readAt: timestamp("read_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "social_approval_notices_approval_fk", columns: [t.tenantId, t.approvalId], foreignColumns: [socialApprovals.tenantId, socialApprovals.id] }),
+  index("social_approval_notices_inbox_idx").on(t.tenantId, t.recipientUserId, t.readAt, t.createdAt),
+  check("social_approval_notices_kind", sql`${t.kind} in ('requested','approved','rejected')`),
+]);
+// Discover controls (0100): owner metadata and the platform review state, one row per listed-or-requested resource. A community's opt-in stays its canonical column;
+// a course or product has no such column, so its opt-in lives here. Owners can request and withdraw; only the platform functions approve, reject, suspend or reinstate.
+export const discoverControls = pgTable("discover_controls", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId, { onDelete: "cascade" }), resourceType: text("resource_type").$type<"community" | "course" | "product">().notNull(),
+  resourceId: uuid("resource_id").notNull(), ownerOptIn: boolean("owner_opt_in").notNull().default(false), category: text("category"), language: text("language"),
+  reviewState: text("review_state").$type<"not_requested" | "pending" | "approved" | "rejected" | "suspended">().notNull().default("not_requested"), reviewReason: text("review_reason"),
+  reviewedBy: text("reviewed_by"), reviewedAt: timestamp("reviewed_at", { withTimezone: true }), reviewedHash: text("reviewed_hash"), currentHash: text("current_hash"),
+  version: integer("version").notNull().default(1), updatedBy: text("updated_by").references(() => users.id), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.resourceType, t.resourceId] }), index("discover_controls_review_idx").on(t.reviewState, t.updatedAt),
+  check("discover_controls_shape", sql`${t.resourceType} in ('community','course','product') and ${t.reviewState} in ('not_requested','pending','approved','rejected','suspended')
+    and (${t.language} is null or ${t.language} ~ '^[a-z]{2,3}$') and (${t.category} is null or ${t.category} in ('discipleship','prayer','worship','bible_study','outreach','missions','youth','family','leadership','service','recovery','other'))
+    and (${t.reviewReason} is null or length(${t.reviewReason}) <= 500) and ${t.version} >= 1 and (${t.reviewState} not in ('approved','rejected','suspended') or ${t.reviewedBy} is not null)`)]);
+export const discoverMinistryStanding = pgTable("discover_ministry_standing", {
+  tenantId: uuid("tenant_id").primaryKey().references(() => workspaces.tenantId, { onDelete: "cascade" }), suspended: boolean("suspended").notNull().default(false), reason: text("reason"),
+  setBy: text("set_by"), setAt: timestamp("set_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [check("discover_standing_reason", sql`${t.reason} is null or length(${t.reason}) <= 500`)]);
+export const discoverReports = pgTable("discover_reports", {
+  id: uuid("id").primaryKey().defaultRandom(), resourceType: text("resource_type").notNull(), resourceId: uuid("resource_id").notNull(), tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId, { onDelete: "cascade" }),
+  reporterId: text("reporter_id").notNull().references(() => users.id, { onDelete: "cascade" }), reason: text("reason").notNull(), note: text("note"), status: text("status").notNull().default("open"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), resolvedBy: text("resolved_by"), resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+}, (t) => [uniqueIndex("discover_reports_open_idx").on(t.reporterId, t.resourceType, t.resourceId).where(sql`${t.status} = 'open'`), index("discover_reports_queue_idx").on(t.status, t.createdAt),
+  check("discover_reports_shape", sql`${t.resourceType} in ('community','course','product') and ${t.reason} in ('spam','inappropriate','misleading','impersonation','other') and ${t.status} in ('open','reviewed','dismissed') and (${t.note} is null or length(${t.note}) <= 500)`)]);
+export const discoverReviewEvents = pgTable("discover_review_events", {
+  id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId, { onDelete: "cascade" }), resourceType: text("resource_type").notNull(), resourceId: uuid("resource_id").notNull(),
+  decision: text("decision").notNull(), reason: text("reason"), reviewer: text("reviewer").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("discover_review_events_resource_idx").on(t.tenantId, t.resourceType, t.resourceId, t.createdAt),
+  check("discover_review_events_shape", sql`${t.decision} in ('approve','reject','suspend','reinstate','standing_suspend','standing_restore') and (${t.reason} is null or length(${t.reason}) <= 500)`)]);
 
 // 0104. Customer-list audience uploads: counts only. The hashed identifiers are sent to the provider and never stored here, and nothing in this table references a person.
 export const adsAudienceUploads = pgTable("ads_audience_uploads", {
@@ -3268,3 +3331,33 @@ export const adsConversionSends = pgTable("ads_conversion_sends", {
   foreignKey({ name: "ads_conversion_sends_destination_fk", columns: [t.tenantId, t.destinationId], foreignColumns: [adsConversionDestinations.tenantId, adsConversionDestinations.id] }),
   uniqueIndex("ads_conversion_sends_event_idx").on(t.tenantId, t.destinationId, t.eventDigest),
   check("ads_conversion_sends_shape", sql`${t.status} in ('pending','sent','failed','ambiguous') and length(${t.eventName}) between 1 and 60 and ${t.eventDigest} ~ '^[0-9a-f]{64}$'`)]);
+// C21 follow-up (0101). A departure record: when an active member left, was removed or banned, and (for a voluntary leave) why. The reason is a fixed list plus short
+// optional text. Written only by the membership trigger; read by owners and admins; deleted with the person (cascade).
+export const communityLeaveReasons = ["moved_away", "too_busy", "not_relevant", "too_many_notifications", "content_quality", "privacy", "other"] as const;
+export const communityExits = pgTable("community_exits", {
+  id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }), kind: text("kind").$type<"left" | "removed" | "banned">().notNull(),
+  joinedAt: timestamp("joined_at", { withTimezone: true }), leftAt: timestamp("left_at", { withTimezone: true }).notNull().defaultNow(),
+  reason: text("reason").$type<typeof communityLeaveReasons[number]>(), otherText: text("other_text"),
+}, (t) => [foreignKey({ name: "community_exits_community_fk", columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  index("community_exits_period_idx").on(t.tenantId, t.communityId, t.leftAt), index("community_exits_user_idx").on(t.userId),
+  check("community_exits_shape", sql`${t.kind} in ('left','removed','banned') and (${t.reason} is null or (${t.kind} = 'left' and ${t.reason} in ('moved_away','too_busy','not_relevant','too_many_notifications','content_quality','privacy','other')))
+    and (${t.otherText} is null or (${t.reason} = 'other' and length(btrim(${t.otherText})) between 1 and 200))`)]);
+// Anonymous page-visit and join-click counters, one row per community, day and kind. No cookie, address, user or session is stored.
+export const communityDailyCounts = pgTable("community_daily_counts", {
+  tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(), day: date("day").notNull(), kind: text("kind").$type<"visit" | "join_click">().notNull(), n: integer("n").notNull().default(0),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.communityId, t.day, t.kind] }),
+  foreignKey({ name: "community_daily_counts_community_fk", columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  check("community_daily_counts_shape", sql`${t.kind} in ('visit','join_click') and ${t.n} between 0 and 2147483000`)]);
+
+// Harvest staff (0103). A person who works for Harvest, not for a ministry. Rows are written only by the grant and revoke functions, which run from an ops script as the migration owner:
+// there is no self-serve path and no application role can read or write these tables. Staff reach only Discover review data, through definer functions that check this table.
+export const platformStaffRoles = ["reviewer", "admin"] as const;
+export const platformStaff = pgTable("platform_staff", {
+  userId: text("user_id").primaryKey().references(() => users.id), role: text("role").$type<typeof platformStaffRoles[number]>().notNull(), grantedBy: text("granted_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), revokedAt: timestamp("revoked_at", { withTimezone: true }),
+}, (t) => [check("platform_staff_shape", sql`${t.role} in ('reviewer','admin') and length(${t.grantedBy}) between 1 and 200`)]);
+export const platformStaffAudit = pgTable("platform_staff_audit", {
+  id: uuid("id").primaryKey().defaultRandom(), actorId: text("actor_id").notNull(), action: text("action").notNull(), targetType: text("target_type"), targetId: text("target_id"),
+  tenantId: uuid("tenant_id"), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("platform_staff_audit_actor_idx").on(t.actorId, t.createdAt), check("platform_staff_audit_shape", sql`length(${t.action}) between 1 and 80`)]);
