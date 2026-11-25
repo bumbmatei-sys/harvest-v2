@@ -56,6 +56,19 @@ Do not introduce competing design systems without explicit justification.
 
 
 
+### Harvest palette (founder decision, 25 November 2026)
+
+The Harvest theme (`harvest` in `src/lib/theme-registry.ts`) uses an earthy palette: Desert Sun gold `#D3A265`, Sage `#C1C2AD`, Misty Blue `#C7CED7`, Cream `#F2ECBC` and a dark olive anchor `#2B2A0C`. Studio and the 12 future themes keep their own values. Roles:
+
+| Role | Token | Light | Dark |
+| --- | --- | --- | --- |
+| Primary button fill / text / hover | `--action-fill` / `--action-fill-foreground` / `--action-hover` | Desert Sun `#d3a265` / olive `#2b2a0c` (6.3:1) / `#c4975e` (5.5:1) | `#d3a265` / `#2b2a0c` / `#dab07c` (7.3:1) |
+| Links, selection, active indicators (`--primary`) | `--brand-color` / `--action-foreground` | olive `#2b2a0c` (14.6:1 on white) / `#ffffff` | Desert Sun `#d3a265` (7.8:1 on `#171717`) / olive |
+| Focus ring | `--ring` | olive `#2b2a0c` | Desert Sun `#d3a265` |
+| Destructive, success | `--destructive`, `--category-green-*` | unchanged brick red and green, kept distinct from the palette | unchanged |
+
+Primary buttons read `--action-fill`, which every palette defines; for Studio it equals its `--brand-color`, so other themes are unchanged. Everything else bound to `--primary` follows `--brand-color`: links, the `link` button and badge variants, step indicators, switches, checkboxes, radios, selected borders, the `--selected` tint, `--sidebar-primary` and the public form's primary button. In Harvest these are dark olive in light and Desert Sun in dark. `tests/unit/theme.test.ts` checks that button text is at least 4.5:1 in every palette and that `--brand-color` reads as link text on cards.
+
 Establish a centralized design system covering:
 
 - Color palette, semantic colors, and light/dark themes

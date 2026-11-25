@@ -6,7 +6,7 @@ export const themeRegistry = {
       "--shell-canvas": "#ffffff",
       "--shell-panel": "#ffffff",
       "--shell-shadow": "0 1px 2px rgb(0 0 0 / 5%)",
-      "--brand-color": "#171717",
+      "--brand-color": "#2b2a0c",
       "--earth": "#2d2519",
       "--surface": "#ffffff",
       "--surface-raised": "#ffffff",
@@ -39,21 +39,23 @@ export const themeRegistry = {
       "--category-amber-tint": "#f7eddf",
       "--category-amber-ink": "#54412a",
       "--overlay": "#00000033",
-      "--action-hover": "#262626",
-      "--ring": "#a3a3a3",
+      "--action-hover": "#c4975e",
+      "--ring": "#2b2a0c",
       "--shadow-color": "#000000",
-      "--action-foreground": "#fafafa",
+      "--action-foreground": "#ffffff",
       "--chart-1": "#9a6a12",
       "--chart-2": "#2b7a57",
       "--chart-3": "#356aa3",
       "--chart-4": "#b04a36",
-      "--chart-5": "#6a58a6"
+      "--chart-5": "#6a58a6",
+      "--action-fill": "#d3a265",
+      "--action-fill-foreground": "#2b2a0c"
     },
     "dark": {
       "--shell-canvas": "#0a0a0a",
       "--shell-panel": "#0a0a0a",
       "--shell-shadow": "0 1px 2px rgb(0 0 0 / 5%)",
-      "--brand-color": "#e5e5e5",
+      "--brand-color": "#d3a265",
       "--earth": "#2d2519",
       "--surface": "#0a0a0a",
       "--surface-raised": "#171717",
@@ -86,15 +88,17 @@ export const themeRegistry = {
       "--category-amber-tint": "#3e3324",
       "--category-amber-ink": "#e9c28a",
       "--overlay": "#00000080",
-      "--action-hover": "#cccccc",
-      "--ring": "#737373",
+      "--action-hover": "#dab07c",
+      "--ring": "#d3a265",
       "--shadow-color": "#000000",
-      "--action-foreground": "#171717",
+      "--action-foreground": "#2b2a0c",
       "--chart-1": "#d9ab52",
       "--chart-2": "#5fbf92",
       "--chart-3": "#6fa4dc",
       "--chart-4": "#e08a72",
-      "--chart-5": "#a99be0"
+      "--chart-5": "#a99be0",
+      "--action-fill": "#d3a265",
+      "--action-fill-foreground": "#2b2a0c"
     }
   },
   "studio": {
@@ -144,7 +148,9 @@ export const themeRegistry = {
       "--chart-2": "#0e7c86",
       "--chart-3": "#7c3aed",
       "--chart-4": "#c2410c",
-      "--chart-5": "#4d7c0f"
+      "--chart-5": "#4d7c0f",
+      "--action-fill": "#171717",
+      "--action-fill-foreground": "#fafafa"
     },
     "dark": {
       "--shell-canvas": "#0a0a0a",
@@ -191,7 +197,9 @@ export const themeRegistry = {
       "--chart-2": "#4cc3cd",
       "--chart-3": "#a78bfa",
       "--chart-4": "#f08a5d",
-      "--chart-5": "#9ccc58"
+      "--chart-5": "#9ccc58",
+      "--action-fill": "#e5e5e5",
+      "--action-fill-foreground": "#171717"
     }
   }
 } as const;
