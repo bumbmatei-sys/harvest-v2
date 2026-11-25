@@ -7,6 +7,7 @@ export const CHAT_RETENTION_ENABLED = false;
 export const COMMUNITY_APPLICATION_PURGE_ENABLED = false;
 export const COMMUNITY_NOTIFICATION_PURGE_ENABLED = false;
 export const NEWSLETTER_RETENTION_ENABLED = false;
+export const DOCS_TRASH_PURGE_ENABLED = false;
 export const SOCIAL_PUBLISH_JOB_ENABLED = false;
 export const SOCIAL_INBOX_JOB_ENABLED = false;
 export const SOCIAL_ANALYTICS_JOB_ENABLED = false;
@@ -18,6 +19,7 @@ export const jobRegistry = {
   community_application_purge: { cron: "37 2 * * *", role: "harvest_worker", enabled: COMMUNITY_APPLICATION_PURGE_ENABLED },
   community_notification_purge: { cron: "47 2 * * *", role: "harvest_worker", enabled: COMMUNITY_NOTIFICATION_PURGE_ENABLED },
   newsletter_retention: { cron: "57 2 * * *", role: "harvest_worker", enabled: NEWSLETTER_RETENTION_ENABLED },
+  docs_trash_purge: { cron: "7 3 * * *", role: "harvest_worker", enabled: DOCS_TRASH_PURGE_ENABLED },
   social_publish: { cron: "*/5 * * * *", role: "harvest_worker", enabled: SOCIAL_PUBLISH_JOB_ENABLED },
   social_inbox: { cron: "*/5 * * * *", role: "harvest_worker", enabled: SOCIAL_INBOX_JOB_ENABLED },
   social_analytics: { cron: "12 * * * *", role: "harvest_worker", enabled: SOCIAL_ANALYTICS_JOB_ENABLED },
