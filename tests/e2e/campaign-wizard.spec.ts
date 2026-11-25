@@ -26,6 +26,18 @@ async function expectAccessible(page: Page) {
   expect((await new AxeBuilder({ page }).withTags(axeTags).analyze()).violations).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 }
+/** On a phone, scroll a little (the sticky step bar is now stuck) and check nothing sits over the header actions and every target passes axe. */
+async function expectCleanWhenScrolled(page: Page) {
+  await page.evaluate(() => window.scrollTo(0, 120));
+  const discard = page.getByRole("button", { name: "Discard", exact: true });
+  if (await discard.count()) {
+    await discard.scrollIntoViewIfNeeded();
+    await page.evaluate(() => window.scrollBy(0, -40));
+    const box = (await discard.boundingBox())!;
+    expect(await discard.evaluate((el, at) => { const hit = document.elementFromPoint(at.x, at.y); return !!hit && el.contains(hit); }, { x: box.x + box.width / 2, y: box.y + box.height / 2 })).toBe(true);
+  }
+  await expectAccessible(page);
+}
 /** Runs an edit and waits for the autosave it triggers to be accepted. */
 async function autosaved(page: Page, edit: () => Promise<void>) {
   const patch = page.waitForResponse((response) => response.request().method() === "PATCH" && /\/campaigns\/drafts\//.test(response.url()));
@@ -512,6 +524,7 @@ test("teams and tools: invitations by member and by email are pending until acce
       await page.reload();
       await expect(heading(page, "Campaign Features")).toBeVisible();
       await expectAccessible(page);
+      if (width < 768) await expectCleanWhenScrolled(page);
       await shoot(page, `step-5-tools-${label}-${scheme}`);
       await hydrated(page);
       await page.getByRole("button", { name: "Back", exact: true }).click();
