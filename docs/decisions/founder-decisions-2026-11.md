@@ -165,3 +165,7 @@ Approved for the CRM reports slice (`docs/acceptance/crm-reports.md`); they sett
 - Kit approval gate: before building any visual item from the paid kit, send the founder an item list. Under the 17 Nov standing rule the list names the block per area and the founder's approval in principle is recorded; screens PRs name the exact block.
 - Founder works from a phone and prefers short plain-language replies. Always say which model a subagent uses.
 - The Craft roadmap is for the founder's status view only: tasks and checkboxes per phase, no decisions, no paragraphs (hard rule, 17 Nov). Decisions go in this file.
+
+## Harvest staff and Discover approval (founder, 25 Nov)
+- **Approval before listing stays at launch** (PRD 8A.3). This supersedes ADR 0013 section 7 ("no pre-approval") for launch.
+- **Harvest staff role** created: reviewers and admins in `platform_staff`, granted only by an ops script (no self-serve, no UI), every staff action audited, staff routes need a sign-in within 15 minutes, staff see only Discover review data. Details: `docs/acceptance/platform-staff-discover.md`.
