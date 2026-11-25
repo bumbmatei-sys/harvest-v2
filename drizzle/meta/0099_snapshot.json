@@ -1,5 +1,5 @@
 {
-  "id": "6a0e5b8d-10a5-4107-9a11-30a260156682",
+  "id": "c0a42cb1-37cd-4b18-a9e7-9924fd8dadb3",
   "prevId": "84aff272-edee-405b-a4ac-031fa52f3767",
   "version": "7",
   "dialect": "postgresql",
@@ -23115,7 +23115,7 @@
       "checkConstraints": {
         "social_approvals_shape": {
           "name": "social_approvals_shape",
-          "value": "num_nonnulls(\"social_approvals\".\"draft_id\", \"social_approvals\".\"post_id\") = 1 and \"social_approvals\".\"status\" in ('pending','approved','rejected','withdrawn','superseded') and \"social_approvals\".\"fingerprint\" ~ '^[0-9a-f]{64}$'\n    and (\"social_approvals\".\"note\" is null or length(\"social_approvals\".\"note\") <= 500) and \"social_approvals\".\"version\" >= 1 and ((\"social_approvals\".\"status\" in ('approved','rejected')) = (\"social_approvals\".\"decided_by\" is not null and \"social_approvals\".\"decided_at\" is not null))\n    and (\"social_approvals\".\"status\" <> 'rejected' or \"social_approvals\".\"note\" is not null)"
+          "value": "num_nonnulls(\"social_approvals\".\"draft_id\", \"social_approvals\".\"post_id\") = 1 and \"social_approvals\".\"status\" in ('pending','approved','rejected','withdrawn','superseded') and \"social_approvals\".\"fingerprint\" ~ '^[0-9a-f]{64}$'\n    and (\"social_approvals\".\"note\" is null or length(\"social_approvals\".\"note\") <= 500) and \"social_approvals\".\"version\" >= 1 and (\"social_approvals\".\"status\" not in ('approved','rejected') or (\"social_approvals\".\"decided_by\" is not null and \"social_approvals\".\"decided_at\" is not null))\n    and (\"social_approvals\".\"status\" <> 'rejected' or \"social_approvals\".\"note\" is not null)"
         }
       },
       "isRLSEnabled": false
@@ -25554,7 +25554,7 @@
         },
         "social_post_url": {
           "name": "social_post_url",
-          "value": "\"social_posts\".\"provider_post_url\" is null or (\"social_posts\".\"provider_post_url\" ~ '^https://' and length(\"social_posts\".\"provider_post_url\") <= 2048 and \"social_posts\".\"status\" = 'published')"
+          "value": "\"social_posts\".\"provider_post_url\" is null or (\"social_posts\".\"provider_post_url\" ~ '^https://' and length(\"social_posts\".\"provider_post_url\") <= 2048)"
         },
         "social_post_content": {
           "name": "social_post_content",

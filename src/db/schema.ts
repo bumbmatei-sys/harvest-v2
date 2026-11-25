@@ -1648,7 +1648,7 @@ export const socialPosts = pgTable("social_posts", {
   index("social_posts_tenant_idx").on(t.tenantId, t.status, t.scheduledFor),
   index("social_posts_provider_ref_idx").on(t.tenantId, t.connectionId, t.providerPostRef).where(sql`${t.providerPostRef} is not null`),
   check("social_post_status", sql`${t.status} in ('draft', 'scheduled', 'publishing', 'published', 'failed', 'cancelled', 'unknown')`),
-  check("social_post_url", sql`${t.providerPostUrl} is null or (${t.providerPostUrl} ~ '^https://' and length(${t.providerPostUrl}) <= 2048 and ${t.status} = 'published')`),
+  check("social_post_url", sql`${t.providerPostUrl} is null or (${t.providerPostUrl} ~ '^https://' and length(${t.providerPostUrl}) <= 2048)`),
   check("social_post_content", sql`((${t.draftId} is null and length(${t.content}) between 1 and 10000) or (${t.draftId} is not null and length(${t.content}) <= 100000)) and jsonb_typeof(${t.media}) = 'array' and jsonb_array_length(${t.media}) <= 10 and octet_length(${t.media}::text) <= 8192`),
   check("social_post_counters", sql`${t.attempts} >= 0 and ${t.maxAttempts} between 1 and 10 and ${t.attempts} <= ${t.maxAttempts} and ${t.version} >= 1`),
   check("social_post_key", sql`length(${t.idempotencyKey}) between 8 and 100`),
@@ -2823,7 +2823,7 @@ export const socialApprovals = pgTable("social_approvals", {
   uniqueIndex("social_approvals_pending_post_idx").on(t.tenantId, t.postId).where(sql`${t.status} = 'pending' and ${t.postId} is not null`),
   index("social_approvals_queue_idx").on(t.tenantId, t.status, t.requestedAt),
   check("social_approvals_shape", sql`num_nonnulls(${t.draftId}, ${t.postId}) = 1 and ${t.status} in ('pending','approved','rejected','withdrawn','superseded') and ${t.fingerprint} ~ '^[0-9a-f]{64}$'
-    and (${t.note} is null or length(${t.note}) <= 500) and ${t.version} >= 1 and ((${t.status} in ('approved','rejected')) = (${t.decidedBy} is not null and ${t.decidedAt} is not null))
+    and (${t.note} is null or length(${t.note}) <= 500) and ${t.version} >= 1 and (${t.status} not in ('approved','rejected') or (${t.decidedBy} is not null and ${t.decidedAt} is not null))
     and (${t.status} <> 'rejected' or ${t.note} is not null)`),
 ]);
 export const socialApprovalNotices = pgTable("social_approval_notices", {

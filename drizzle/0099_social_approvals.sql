@@ -35,7 +35,7 @@ CREATE TABLE "social_approvals" (
 	"version" integer DEFAULT 1 NOT NULL,
 	CONSTRAINT "social_approvals_tenant_id_id_pk" PRIMARY KEY("tenant_id","id"),
 	CONSTRAINT "social_approvals_shape" CHECK (num_nonnulls("social_approvals"."draft_id", "social_approvals"."post_id") = 1 and "social_approvals"."status" in ('pending','approved','rejected','withdrawn','superseded') and "social_approvals"."fingerprint" ~ '^[0-9a-f]{64}$'
-    and ("social_approvals"."note" is null or length("social_approvals"."note") <= 500) and "social_approvals"."version" >= 1 and (("social_approvals"."status" in ('approved','rejected')) = ("social_approvals"."decided_by" is not null and "social_approvals"."decided_at" is not null))
+    and ("social_approvals"."note" is null or length("social_approvals"."note") <= 500) and "social_approvals"."version" >= 1 and ("social_approvals"."status" not in ('approved','rejected') or ("social_approvals"."decided_by" is not null and "social_approvals"."decided_at" is not null))
     and ("social_approvals"."status" <> 'rejected' or "social_approvals"."note" is not null))
 );
 --> statement-breakpoint
@@ -53,8 +53,7 @@ CREATE INDEX "social_approval_notices_inbox_idx" ON "social_approval_notices" US
 CREATE UNIQUE INDEX "social_approvals_pending_draft_idx" ON "social_approvals" USING btree ("tenant_id","draft_id") WHERE "social_approvals"."status" = 'pending' and "social_approvals"."draft_id" is not null;--> statement-breakpoint
 CREATE UNIQUE INDEX "social_approvals_pending_post_idx" ON "social_approvals" USING btree ("tenant_id","post_id") WHERE "social_approvals"."status" = 'pending' and "social_approvals"."post_id" is not null;--> statement-breakpoint
 CREATE INDEX "social_approvals_queue_idx" ON "social_approvals" USING btree ("tenant_id","status","requested_at");--> statement-breakpoint
-ALTER TABLE "social_posts" ADD CONSTRAINT "social_post_url" CHECK ("social_posts"."provider_post_url" is null or ("social_posts"."provider_post_url" ~ '^https://' and length("social_posts"."provider_post_url") <= 2048 and "social_posts"."status" = 'published'));
---> statement-breakpoint
+ALTER TABLE "social_posts" ADD CONSTRAINT "social_post_url" CHECK ("social_posts"."provider_post_url" is null or ("social_posts"."provider_post_url" ~ '^https://' and length("social_posts"."provider_post_url") <= 2048));--> statement-breakpoint
 CREATE FUNCTION public.social_approval_can(p_tenant uuid) RETURNS boolean
 LANGUAGE sql STABLE SET search_path = pg_catalog, pg_temp AS $$
   SELECT p_tenant = nullif(current_setting('app.tenant_id', true), '')::uuid
@@ -253,20 +252,30 @@ BEGIN
   RETURN out;
 END $$;
 --> statement-breakpoint
--- The platform URL of a confirmed publish, recorded once by the worker. Never bumps the version: it changes no schedule or content.
-CREATE FUNCTION public.social_publish_set_url(p_tenant uuid, p_post uuid, p_url text) RETURNS boolean
-LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-DECLARE n integer;
+-- The platform URL of a confirmed publish. The worker completes through this wrapper; a trigger copies the URL onto the row in the same statement that publishes it
+-- (a published post can no longer change, and an update while publishing is not a legal move).
+CREATE FUNCTION public.social_post_url_apply() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
+DECLARE u text := nullif(current_setting('app.social_post_url', true), '');
 BEGIN
-  IF p_tenant IS NULL OR p_post IS NULL OR p_url IS NULL OR p_url !~ '^https://' OR length(p_url) > 2048 THEN RETURN false; END IF;
-  PERFORM set_config('app.social_definer', 'on', true);
-  UPDATE public.social_posts SET provider_post_url = p_url, updated_at = now() WHERE tenant_id = p_tenant AND id = p_post AND status = 'published' AND provider_post_url IS NULL;
-  GET DIAGNOSTICS n = ROW_COUNT;
-  PERFORM set_config('app.social_definer', '', true);
-  RETURN n = 1;
+  IF u IS NOT NULL AND OLD.status = 'publishing' AND NEW.status = 'published' AND NEW.provider_post_url IS NULL AND u ~ '^https://' AND length(u) <= 2048 THEN NEW.provider_post_url := u; END IF;
+  RETURN NEW;
 END $$;
 --> statement-breakpoint
-REVOKE ALL ON FUNCTION public.social_subject_fingerprint(uuid,uuid,uuid), public.social_approval_blocks(uuid,uuid,uuid), public.social_post_approval_gate(), public.social_publish_set_url(uuid,uuid,text) FROM PUBLIC, harvest_app;
+CREATE TRIGGER social_post_url_apply BEFORE UPDATE OF status ON public.social_posts FOR EACH ROW EXECUTE FUNCTION public.social_post_url_apply();
+--> statement-breakpoint
+CREATE FUNCTION public.social_publish_complete_url(p_tenant uuid, p_post uuid, p_lock uuid, p_outcome text, p_ref text, p_error text, p_delay_seconds integer, p_url text) RETURNS text
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE result text;
+BEGIN
+  IF p_url IS NULL OR p_url !~ '^https://' OR length(p_url) > 2048 OR p_outcome <> 'published' THEN RETURN public.social_publish_complete(p_tenant, p_post, p_lock, p_outcome, p_ref, p_error, p_delay_seconds); END IF;
+  PERFORM set_config('app.social_post_url', p_url, true);
+  result := public.social_publish_complete(p_tenant, p_post, p_lock, p_outcome, p_ref, p_error, p_delay_seconds);
+  PERFORM set_config('app.social_post_url', '', true);
+  RETURN result;
+END $$;
+--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.social_subject_fingerprint(uuid,uuid,uuid), public.social_approval_blocks(uuid,uuid,uuid), public.social_post_approval_gate(), public.social_publish_complete_url(uuid,uuid,uuid,text,text,text,integer,text) FROM PUBLIC, harvest_app;
 --> statement-breakpoint
 REVOKE ALL ON FUNCTION public.social_approval_fingerprint(uuid,uuid) FROM PUBLIC;
 --> statement-breakpoint
@@ -274,6 +283,6 @@ GRANT EXECUTE ON FUNCTION public.social_approval_fingerprint(uuid,uuid) TO harve
 --> statement-breakpoint
 DO $$ BEGIN
   IF EXISTS(SELECT 1 FROM pg_roles WHERE rolname='harvest_worker') THEN
-    GRANT EXECUTE ON FUNCTION public.social_publish_set_url(uuid,uuid,text) TO harvest_worker;
+    GRANT EXECUTE ON FUNCTION public.social_publish_complete_url(uuid,uuid,uuid,text,text,text,integer,text) TO harvest_worker;
   END IF;
 END $$;
