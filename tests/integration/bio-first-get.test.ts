@@ -36,3 +36,21 @@ it("parallel first reads of different ministries with the same name get differen
   const results = await Promise.allSettled(made.map(({ user, tenant }) => getBioPage(f.db, user, tenant)));
   expect(results.map((r) => r.status === "fulfilled" ? "ok" : String((r as PromiseRejectedResult).reason?.message ?? r))).toEqual(Array(4).fill("ok"));
 });
+
+// The route as the browser calls it: session, tenant in the path, JSON out.
+vi.mock("@/db/client", () => ({ getDb: () => f.db }));
+vi.mock("@/server/http", async (original) => ({
+  ...await original<typeof import("../../src/server/http")>(),
+  verifiedSessionUser: async (request: Request) => { const id = request.headers.get("x-test-user"); if (!id) throw new (await import("../../src/server/permissions")).AccessError(401, "Sign in to continue."); return { id }; },
+}));
+it("the owner's GET right after creating a ministry answers 200 through the route, with other bio pages present", async () => {
+  const { GET } = await import("../../src/app/api/workspaces/[tenantId]/link-in-bio/route");
+  const get = (user: string, tenantId: string) => GET(new Request("http://localhost/x", { headers: { "x-test-user": user } }), { params: Promise.resolve({ tenantId }) });
+  for (let i = 0; i < 4; i++) {
+    const tenant = (await createWorkspace(f.db, people[i], "Closed Ministry", "church")).tenantId;
+    const response = await get(people[i], tenant);
+    expect(response.status, await response.clone().text()).toBe(200);
+    // Somebody else is refused.
+    expect((await get(people[(i + 1) % 8], tenant)).status).toBe(403);
+  }
+});
