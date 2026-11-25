@@ -478,6 +478,8 @@ Founder approval 25 Nov 2026, under the kit item approval gate. Approved kit ite
 | `src/components/ads/ads-table.tsx` | modelled on | `tables14`, `switch-card1`, `dashboard-dropdown7` | Builds on the shared `DataTable`, which gained an optional `totals` row (table) and summary block (cards). |
 | `src/components/ads/ads-edit-panel.tsx` | modelled on | `drawer1` | Shared `Sheet`; every spend-affecting change asks first. |
 | `src/components/ads/ads-summary.tsx` | reuse | Social Analytics `StatCard` | No new card. |
+| `src/components/ads/ad-steps.tsx` | modelled on | `stepper1`, `form-layout1` | The step bodies sit in the shared `EditorShell` and `WizardLayout`; the goal, format and post pickers reuse `RadioCards` (which gained an `aria-label` on each radio so axe names them). |
+| `src/components/ads/ad-preview.tsx` | modelled on | `social-media-post1` | A plain stand-in for a feed post: account, text, media, headline, button. |
 
 ## Discover screens (25 Nov 2026)
 

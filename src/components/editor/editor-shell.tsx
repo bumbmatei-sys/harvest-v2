@@ -34,7 +34,7 @@ export function EditorShell({ breadcrumb, title, status, actions, steps, current
 }) {
   const data: EditorContextData | null = sidebar ? {
     title, typeLabel: sidebar.typeLabel, status: sidebar.status, back: sidebar.back, openPage: sidebar.openPage, dirty: sidebar.dirty, stepsLabel, current,
-    steps: steps.map((step) => ({ id: step.id, label: step.label, state: editorStepState(step), badge: step.badge })),
+    steps: steps.map((step) => ({ id: step.id, label: step.label, state: editorStepState(step), badge: step.badge, ...(step.group ? { group: step.group } : {}) })),
   } : null;
   const hosted = useEditorContext(data, onStep);
   const t = useTranslations("EditorMode");

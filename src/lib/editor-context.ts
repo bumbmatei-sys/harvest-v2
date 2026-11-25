@@ -3,7 +3,7 @@
 
 export type EditorStepState = "done" | "attention" | "todo" | "disabled";
 export type EditorStatusKind = "draft" | "live" | "other";
-export type EditorStepData = { id: string; label: string; state: EditorStepState; badge?: string };
+export type EditorStepData = { id: string; label: string; state: EditorStepState; badge?: string; /** Heading above the first step of each group. */ group?: string };
 /** Everything a page registers except its step handler. Plain data only (no functions, nodes or secrets), so it can be compared by value. */
 export type EditorContextData = {
   title: string; typeLabel?: string; status: { kind: EditorStatusKind; label: string };

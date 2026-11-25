@@ -282,7 +282,7 @@ export const adsKitApprovals = {
     { item: "badge1", use: "Status badges (the shared StatusBadge)." },
   ],
   files: [
-    "src/components/ads/ads-table.tsx", "src/components/ads/ads-edit-panel.tsx",
+    "src/components/ads/ads-table.tsx", "src/components/ads/ads-edit-panel.tsx", "src/components/ads/ad-steps.tsx", "src/components/ads/ad-preview.tsx",
   ],
 } as const;
 
