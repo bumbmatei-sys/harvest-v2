@@ -9,7 +9,8 @@ import { Spinner } from "@/components/ui/spinner";
 import { Stepper, type StepperStep } from "@/components/stepper";
 import { adjacentStep, stepIndex } from "@/lib/stepper";
 
-export type WizardStep = StepperStep & { description?: string };
+/** `icon` is an optional decorative mark beside the step heading (for example an AccentIcon chip). */
+export type WizardStep = StepperStep & { description?: string; icon?: React.ReactNode };
 
 /**
  * A guided step frame: the step indicator, the current step's heading and content, and Back / Next / Finish. It holds no data: the caller owns the
@@ -17,6 +18,7 @@ export type WizardStep = StepperStep & { description?: string };
  * Disabled steps are skipped. Moving with Back, Next or Finish puts focus on the step heading; picking a step from a separate step list does not.
  * Pass `stepper={false}` when a surrounding shell already shows the steps, and `focusOnStepChange` when that shell's own step list should also move focus
  * to the heading (the editing sidebar and the phone step sheet do). Without `onFinish` the last step has no primary button.
+ * A surrounding `--accent-current` (see AccentIcon's `accentVars`) draws a thin accent line along the top of the card; without it nothing is drawn.
  */
 export function WizardLayout({ steps, current, onStepChange, stepsLabel, stepper = true, focusOnStepChange = false, validate, onFinish, busy = false, error, backLabel, nextLabel, finishLabel, footerStart, children }: {
   steps: readonly WizardStep[]; current: string; onStepChange: (id: string) => void; stepsLabel: string; stepper?: boolean; focusOnStepChange?: boolean;
@@ -65,9 +67,11 @@ export function WizardLayout({ steps, current, onStepChange, stepsLabel, stepper
   const busyLabel = <><Spinner decorative size="sm" />{t("working")}</>;
   return <div className="min-w-0 space-y-6" data-slot="wizard-layout">
     {stepper && <Stepper steps={steps} current={current} label={stepsLabel} />}
-    <Card>
-      <CardHeader><h2 ref={heading} tabIndex={-1} data-slot="wizard-heading" className="text-lg font-semibold leading-none tracking-tight outline-none">{step?.label}</h2>
-        {step?.description && <p className="text-sm text-muted-foreground">{step.description}</p>}</CardHeader>
+    <Card className="relative overflow-hidden before:absolute before:inset-x-0 before:top-0 before:h-1 before:bg-[color:var(--accent-current,transparent)] before:content-['']">
+      <CardHeader className={step?.icon ? "flex flex-row items-start gap-3" : undefined}>
+        {step?.icon}
+        <div className={step?.icon ? "grid min-w-0 flex-1 gap-2" : "contents"}><h2 ref={heading} tabIndex={-1} data-slot="wizard-heading" className="text-lg font-semibold leading-none tracking-tight outline-none">{step?.label}</h2>
+          {step?.description && <p className="text-sm text-muted-foreground">{step.description}</p>}</div></CardHeader>
       <CardContent className="space-y-6">
         {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
         {children}

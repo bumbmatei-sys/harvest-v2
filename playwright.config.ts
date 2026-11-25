@@ -6,6 +6,8 @@ process.env.HARVEST_E2E_MAILBOX = mailbox;
 const port = process.env.E2E_PORT ?? "3100";
 export default defineConfig({
   testDir: "./tests/e2e", fullyParallel: false, workers: 1, retries: process.env.CI ? 1 : 0,
+  // The dev server compiles each route on its first request; a slower runner needs more than the 5 s default before an assertion is judged.
+  expect: { timeout: process.env.CI ? 15_000 : 5_000 },
   reporter: [["list"], ["html", { open: "never" }]],
   use: { launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH }, baseURL: `http://127.0.0.1:${port}`, trace: "retain-on-failure" },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],

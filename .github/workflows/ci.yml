@@ -76,16 +76,16 @@ jobs:
       - run: npm run test:rls
 
   browser:
-    # Playwright splits the spec files across four runners; each starts its own dev server and
+    # Playwright splits the spec files across six runners (four left shards 3 and 4 starved the dev server on long specs); each starts its own dev server and
     # disposable embedded Postgres (tests/database.ts), as in the former CircleCI final review.
-    name: browser ${{ matrix.shard }}/4
+    name: browser ${{ matrix.shard }}/6
     if: ${{ inputs.pr_number == '' }}
     timeout-minutes: 45
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -94,7 +94,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npx playwright install --with-deps chromium
-      - run: npx playwright test --trace off --shard=${{ matrix.shard }}/4
+      - run: npx playwright test --trace off --shard=${{ matrix.shard }}/6
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
