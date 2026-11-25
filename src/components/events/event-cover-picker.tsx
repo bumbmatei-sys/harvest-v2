@@ -26,9 +26,11 @@ type Status =
  * the event's cover; replace and remove. Uploading and choosing a cover take effect at once (they are their own requests, not part of Save).
  * The picture shown comes from `url`, a short-lived signed address the server hands out; no storage address is ever built here.
  */
-export function EventCoverPicker({ endpoint, saved, coverFileId, version, url, onUrlFailed, onChange, onBusyChange, disabled = false }: {
+export function EventCoverPicker({ endpoint, saved, coverFileId, version, url, onUrlFailed, onChange, onBusyChange, disabled = false, copy }: {
   endpoint: string; saved: boolean; coverFileId: string | null; version: number; url: string | null; onUrlFailed: () => void;
   onChange: (change: CoverChange) => void; onBusyChange: (busy: boolean) => void; disabled?: boolean;
+  /** Wording for another owner of a cover (the campaign wizard); the event's own text is the default. */
+  copy?: Partial<Record<"label" | "alt" | "saveFirst" | "removeBody" | "stale", string>>;
 }) {
   const t = useTranslations("Events.cover"), request = useCrmRequest();
   const [status, setStatus] = useState<Status>({ kind: "idle" });
@@ -70,7 +72,7 @@ export function EventCoverPicker({ endpoint, saved, coverFileId, version, url, o
   const active = status.kind === "busy" ? status : null;
 
   return <Field>
-    <FieldLabel htmlFor="event-cover-input">{t("label")}</FieldLabel>
+    <FieldLabel htmlFor="event-cover-input">{copy?.label ?? t("label")}</FieldLabel>
     <div className="flex flex-col gap-3">
       <div data-testid="cover-zone" data-dragging={dragging || undefined} data-has-cover={Boolean(coverFileId && url) || undefined}
         onDragEnter={(event) => { event.preventDefault(); if (!locked) setDragging(true); }}
@@ -82,14 +84,14 @@ export function EventCoverPicker({ endpoint, saved, coverFileId, version, url, o
         <input ref={input} id="event-cover-input" type="file" accept={coverAccept} className="sr-only" disabled={locked} data-testid="cover-input"
           onChange={(event) => { const picked = event.target.files?.[0]; event.target.value = ""; void start(picked); }} />
         {coverFileId && url
-          ? <img src={url} alt={t("alt")} onError={onUrlFailed} className="absolute inset-0 size-full object-cover" data-testid="cover-image" />
+          ? <img src={url} alt={copy?.alt ?? t("alt")} onError={onUrlFailed} className="absolute inset-0 size-full object-cover" data-testid="cover-image" />
           : <div className="flex flex-col items-center justify-center gap-1 px-4 text-center">
             <span className="mb-2 flex size-11 shrink-0 items-center justify-center rounded-full border bg-background" aria-hidden="true"><ImageIcon className="size-4 opacity-60" /></span>
             {saved ? <>
               <p className="text-sm font-medium">{t("drop")}</p>
               <p className="text-xs text-muted-foreground">{t("limits", { mb: coverMaxMb })}</p>
               <Button type="button" variant="outline" className="mt-3 min-h-11" disabled={locked} onClick={pick}><UploadIcon className="-ms-1 size-4 opacity-60" aria-hidden="true" />{t("select")}</Button>
-            </> : <p className="text-sm text-muted-foreground">{t("saveFirst")}</p>}
+            </> : <p className="text-sm text-muted-foreground">{copy?.saveFirst ?? t("saveFirst")}</p>}
           </div>}
       </div>
 
@@ -117,7 +119,7 @@ export function EventCoverPicker({ endpoint, saved, coverFileId, version, url, o
       </div>}
 
       {status.kind === "error" && <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-destructive" role="alert" data-testid="cover-error">
-        <span className="flex items-center gap-1.5"><AlertCircleIcon className="size-4 shrink-0" aria-hidden="true" />{t(`problems.${status.problem}`, { mb: coverMaxMb })}</span>
+        <span className="flex items-center gap-1.5"><AlertCircleIcon className="size-4 shrink-0" aria-hidden="true" />{status.problem === "stale" && copy?.stale ? copy.stale : t(`problems.${status.problem}`, { mb: coverMaxMb })}</span>
         <span className="flex flex-wrap gap-2">
           {status.problem === "stale" && <Button type="button" variant="outline" className="min-h-11" onClick={() => location.reload()}>{t("reload")}</Button>}
           {status.retry !== "none" && <Button type="button" variant="outline" className="min-h-11"
@@ -126,6 +128,6 @@ export function EventCoverPicker({ endpoint, saved, coverFileId, version, url, o
         </span>
       </div>}
     </div>
-    <ConfirmDialog tone="destructive" open={confirmRemove} onOpenChange={setConfirmRemove} title={t("removeTitle")} description={t("removeBody")} cancelLabel={t("keep")} confirmLabel={t("remove")} onConfirm={remove} />
+    <ConfirmDialog tone="destructive" open={confirmRemove} onOpenChange={setConfirmRemove} title={t("removeTitle")} description={copy?.removeBody ?? t("removeBody")} cancelLabel={t("keep")} confirmLabel={t("remove")} onConfirm={remove} />
   </Field>;
 }

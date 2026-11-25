@@ -7367,7 +7367,6 @@
     "draftsTitle": "Campaign drafts",
     "draftsPageTitle": "Campaign drafts · Harvest",
     "draftsAll": "Every draft in this ministry",
-    "draftsMine": "Your drafts",
     "draftsEmpty": "No drafts",
     "draftsEmptyDescription": "Start a campaign and it is saved here as you go.",
     "newCampaign": "New campaign",
@@ -7375,6 +7374,13 @@
     "continue": "Continue",
     "view": "View",
     "discard": "Discard",
+    "cover": {
+      "label": "Campaign Cover Image or Logo (optional)",
+      "alt": "Campaign cover",
+      "saveFirst": "Save the draft to add a cover.",
+      "removeBody": "The campaign will have no cover image or logo.",
+      "stale": "This draft changed somewhere else. Reload, then try again."
+    },
     "discardNamed": "Discard: {name}",
     "discardTitle": "Discard this draft?",
     "discardBody": "The draft is closed and no campaign is created. This cannot be undone.",
@@ -7405,8 +7411,6 @@
     "conflictTitle": "This draft changed somewhere else",
     "conflictBody": "Reload to see the latest version. Your last unsaved edits on this screen are not applied.",
     "reload": "Reload",
-    "readOnly": "Only {name} can edit this draft. You can read it and discard it.",
-    "readOnlyUnknown": "Only the person who started this draft can edit it. You can read it and discard it.",
     "closed": {
       "finished": "This draft is already a campaign.",
       "discarded": "This draft was discarded."

@@ -104,6 +104,8 @@ export const campaigns = pgTable("campaigns", {
   structure: text("structure").$type<typeof campaignStructures[number]>(),
   idempotencyKey: text("idempotency_key").notNull(), fingerprint: text("fingerprint").notNull(),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
+  // Optional cover image or logo, carried over from the wizard draft's cover when the draft is finished.
+  coverFileId: uuid("cover_file_id").references((): AnyPgColumn => campaignFiles.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
@@ -144,6 +146,7 @@ export const campaignDrafts = pgTable("campaign_drafts", {
   budget: jsonb("budget").$type<BudgetConfig>().notNull(),
   outreach: jsonb("outreach").$type<OutreachConfig>().notNull(),
   campaignId: uuid("campaign_id"), finishedAt: timestamp("finished_at", { withTimezone: true }),
+  coverFileId: uuid("cover_file_id").references((): AnyPgColumn => campaignFiles.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
@@ -164,6 +167,33 @@ export const campaignDrafts = pgTable("campaign_drafts", {
   check("campaign_draft_json", sql`jsonb_typeof(${t.budget}) = 'object' and jsonb_typeof(${t.outreach}) = 'object'`),
   // A finished draft names its campaign; no other state does. A finished draft is complete: it has a type and a name.
   check("campaign_draft_finished", sql`(${t.status} = 'finished') = (${t.campaignId} is not null and ${t.finishedAt} is not null) and (${t.status} <> 'finished' or (${t.type} is not null and ${t.name} is not null))`),
+]);
+// The optional cover image or logo of a draft (and of the campaign it becomes). Same scanned-upload states as event covers: pending, uploaded,
+// quarantined, ready. Only a ready, unretired file can be a cover. Storage objects of replaced covers are not cleaned up yet (see the acceptance record).
+export const campaignFiles = pgTable("campaign_files", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(),
+  draftId: uuid("draft_id").notNull(),
+  uploaderId: text("uploader_id").references(() => users.id, { onDelete: "set null" }),
+  key: text("key").notNull().unique(),
+  kind: text("kind", { enum: ["cover"] }).notNull().default("cover"),
+  name: text("name").notNull(),
+  mime: text("mime", { enum: ["image/jpeg", "image/png", "image/webp"] }).notNull(),
+  size: integer("size").notNull(),
+  checksum: text("checksum").notNull(),
+  status: text("status", { enum: ["pending", "uploaded", "quarantined", "ready"] }).notNull().default("pending"),
+  retiredAt: timestamp("retired_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  foreignKey({ columns: [t.tenantId, t.draftId], foreignColumns: [campaignDrafts.tenantId, campaignDrafts.id] }),
+  index("campaign_files_draft_idx").on(t.tenantId, t.draftId),
+  check("campaign_file_kind", sql`${t.kind} = 'cover'`),
+  check("campaign_file_mime", sql`${t.mime} in ('image/jpeg','image/png','image/webp')`),
+  check("campaign_file_name", sql`length(btrim(${t.name})) between 1 and 200`),
+  check("campaign_file_size", sql`${t.size} between 1 and 10485760`),
+  check("campaign_file_checksum", sql`${t.checksum} ~ '^[a-f0-9]{64}$'`),
+  check("campaign_file_status", sql`${t.status} in ('pending','uploaded','quarantined','ready')`),
+  check("campaign_file_key", sql`${t.key} = 'workspaces/' || ${t.tenantId}::text || '/campaign-drafts/' || ${t.draftId}::text || '/files/' || ${t.id}::text`),
 ]);
 // Department leaders and members of a draft. People are existing ministry members; a CRM contact is never referenced here.
 export const campaignDraftAssignments = pgTable("campaign_draft_assignments", {

@@ -645,6 +645,13 @@
       "when": 1795556700000,
       "tag": "0093_docs_collaboration",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1795594888689,
+      "tag": "0106_campaign_wizard_shared_drafts",
+      "breakpoints": true
     }
   ]
 }
