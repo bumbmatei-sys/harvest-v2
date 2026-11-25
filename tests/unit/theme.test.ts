@@ -72,3 +72,14 @@ describe("theme registry", () => {
   });
   it.each(["__proto__", "constructor", "<script>", null])("rejects unregistered theme %s", (value) => expect(isBrandTheme(value)).toBe(false));
 });
+
+describe("success token (done step check)", () => {
+  it("is defined in every palette and meets AA against the sidebar, the card background and its tint", () => {
+    const palettes = JSON.stringify(themeRegistry).match(/"--success":"#[0-9a-f]{6}"/gi) ?? [];
+    expect(palettes.length).toBeGreaterThanOrEqual(4);
+    const walk = (node: unknown): Record<string, string>[] => node && typeof node === "object" ? [...("--success" in (node as object) ? [node as Record<string, string>] : []), ...Object.values(node as object).flatMap(walk)] : [];
+    for (const palette of walk(themeRegistry)) {
+      for (const against of ["--sidebar", "--card", "--category-green-tint"]) if (palette[against]) expect(contrastRatio(palette["--success"], palette[against]), `${palette["--success"]} on ${against}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
+});

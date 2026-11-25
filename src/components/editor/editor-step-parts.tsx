@@ -2,18 +2,14 @@
 import { Check, CircleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
-import type { EditorStepView } from "@/lib/editor-context";
+import { stepMarkClass, stepMarkKind, type EditorStepView } from "@/lib/editor-context";
 
 const stateKey = { done: "stepDone", attention: "stepAttention", todo: "stepTodo", disabled: "stepDisabled" } as const;
 
 /** Numbered circle; a check when done, an alert mark when it needs attention. Decorative: the state is also read out as text. */
 export function StepIndicator({ step, className }: { step: EditorStepView; className?: string }) {
   return <span aria-hidden="true" data-slot="editor-step-indicator" data-state={step.state}
-    className={cn("flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-medium tabular-nums",
-      step.state === "done" && "border-primary bg-primary/10 text-primary",
-      step.state === "attention" && "border-warning bg-warning-tint text-warning",
-      (step.state === "todo" || step.state === "disabled") && "border-border bg-background text-muted-foreground",
-      step.current && step.state !== "done" && step.state !== "attention" && "border-primary bg-primary text-primary-foreground", className)}>
+    className={cn("flex size-6 shrink-0 items-center justify-center rounded-full border text-xs font-medium tabular-nums", stepMarkClass[stepMarkKind(step)], className)}>
     {step.state === "done" ? <Check className="size-3.5" /> : step.state === "attention" ? <CircleAlert className="size-3.5" /> : step.number}</span>;
 }
 
