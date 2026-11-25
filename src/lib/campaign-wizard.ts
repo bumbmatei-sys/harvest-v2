@@ -56,9 +56,12 @@ export const toolsStep = z.object({ modules: z.array(z.enum(moduleKeys)).max(mod
 
 // Steps 6 and 7 are configuration only: nothing reads them to take an outward action.
 const minor = z.number().int().min(0).max(10_000_000_000_000).nullable();
+// Planned budget lines (screens): a label and an amount. Stored as intent with the rest of the budget; nothing reads them to act.
+export const MAX_BUDGET_CATEGORIES = 20;
+export const budgetCategory = z.object({ label: z.string().trim().min(1).max(80), amountMinor: z.number().int().min(0).max(10_000_000_000_000) }).strict();
 export const budgetConfig = z.object({
   currency: z.string().regex(/^[A-Z]{3}$/), estimatedBudgetMinor: minor, fundraisingEnabled: z.boolean(),
-  fundraisingGoalMinor: minor, onlineDonations: z.boolean(),
+  fundraisingGoalMinor: minor, onlineDonations: z.boolean(), categories: z.array(budgetCategory).max(MAX_BUDGET_CATEGORIES).optional(),
 }).strict().refine((v) => v.fundraisingEnabled || (!v.onlineDonations && v.fundraisingGoalMinor === null), { path: ["fundraisingEnabled"], message: "FUNDRAISING_OFF" });
 export const outreachConfig = z.object({
   registration: z.boolean(), qrResponse: z.boolean(), accountInvites: z.boolean(), communityDiscovery: z.boolean(), followUp: z.boolean(), churchReferrals: z.boolean(),
