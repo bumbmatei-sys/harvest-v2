@@ -27,6 +27,8 @@ async function audit(page: Page, name: string) {
 
 test("publish, copy, count, unpublish and republish a hosted form; named form in the People source filter", async ({ page }) => {
   test.setTimeout(300000);
+  // A unique address per attempt: a retry must not collide with the first attempt's published page.
+  const slug = `synthetic-visitor-card-${Date.now().toString(36)}`;
   await mkdir(evidence, { recursive: true });
   await signIn(page);
   const tenant = (await (await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Grace Community Church", audience: "church" } })).json()).tenantId as string;
@@ -56,29 +58,34 @@ test("publish, copy, count, unpublish and republish a hosted form; named form in
   await page.getByRole("button", { name: "Publish", exact: true }).click();
   const dialog = page.getByRole("alertdialog", { name: "Publish this form?" });
   await expect(dialog).toContainText("consent text becomes its privacy notice");
+  // The default is derived from the title, so it is the same on every attempt; the published address below is unique per attempt.
   await expect(dialog.getByLabel("Public address")).toHaveValue("synthetic-visitor-card");
   await dialog.getByLabel("Public address").fill("Bad Address");
   await expect(dialog.getByRole("button", { name: "Publish", exact: true })).toBeDisabled();
   await dialog.getByLabel("Public address").fill("forms");
   await dialog.getByRole("button", { name: "Publish", exact: true }).click();
   await expect(dialog.getByRole("alert")).toContainText("Use 3 to 64");
-  await dialog.getByLabel("Public address").fill("synthetic-visitor-card");
+  await dialog.getByLabel("Public address").fill(`${slug}`);
   await audit(page, "publish-dialog");
   await dialog.getByRole("button", { name: "Publish", exact: true }).click();
   await expect(state).toHaveText("Published");
-  await expect(page.locator("[data-open-form]")).toHaveAttribute("href", "/f/synthetic-visitor-card");
+  await expect(page.locator("[data-open-form]")).toHaveAttribute("href", `/f/${slug}`);
   await expect(page.getByRole("button", { name: "Publish", exact: true })).toHaveCount(0);
 
   // Copy link writes the absolute address.
   await page.getByRole("button", { name: "Copy", exact: true }).click();
   await page.getByRole("menuitem", { name: "Copy link" }).click();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`${new URL(page.url()).origin}/f/synthetic-visitor-card`);
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(`${new URL(page.url()).origin}/f/${slug}`);
 
   // A real response raises the count after reload.
-  const form = await page.request.get("/f/synthetic-visitor-card");
-  expect(form.status()).toBe(200);
-  const { proof } = await form.json() as { proof: string };
-  const submitted = await page.request.post("/f/synthetic-visitor-card/submit", { headers: { origin }, data: { proof, answers: { fullname: "Synthetic Person", email000: "visitor@example.test", [consent.id]: "yes" } } });
+  // The first request to a route compiles it in the dev server; retry a dropped connection and report status and body if it never answers 200.
+  let proof = "";
+  await expect(async () => {
+    const form = await page.request.get(`/f/${slug}`);
+    expect(form.status(), `${form.status()} ${(await form.text()).slice(0, 300)}`).toBe(200);
+    proof = (await form.json() as { proof: string }).proof;
+  }).toPass({ timeout: 30_000 });
+  const submitted = await page.request.post(`/f/${slug}/submit`, { headers: { origin }, data: { proof, answers: { fullname: "Synthetic Person", email000: "visitor@example.test", [consent.id]: "yes" } } });
   expect(submitted.status(), await submitted.text()).toBeLessThan(300);
   await page.reload();
   await expect(page.locator("[data-responses]")).toHaveText("1 response");
@@ -89,11 +96,11 @@ test("publish, copy, count, unpublish and republish a hosted form; named form in
   await expect(page.locator('[data-save-status="saved"]')).toBeVisible();
   await expect(state).toHaveText("Published, unpublished changes");
   await page.getByRole("button", { name: "Publish changes", exact: true }).click();
-  await expect(dialog.getByLabel("Public address")).toHaveValue("synthetic-visitor-card");
+  await expect(dialog.getByLabel("Public address")).toHaveValue(`${slug}`);
   await expect(dialog.getByLabel("Public address")).toHaveJSProperty("readOnly", true);
   await dialog.getByRole("button", { name: "Publish", exact: true }).click();
   await expect(state).toHaveText("Published");
-  await expect((await page.request.get("/f/synthetic-visitor-card")).status()).toBe(200);
+  await expect((await page.request.get(`/f/${slug}`)).status()).toBe(200);
 
   // Named hosted form in the People source filter, labelled by its immutable publication title.
   await page.goto(`/workspaces/${tenant}/crm/people`);
@@ -116,7 +123,7 @@ test("publish, copy, count, unpublish and republish a hosted form; named form in
   await expect(retire).toContainText("Responses already collected are kept");
   await retire.getByRole("button", { name: "Unpublish", exact: true }).click();
   await expect(state).toHaveText("Unpublished");
-  expect((await page.request.get("/f/synthetic-visitor-card")).status()).toBe(404);
+  expect((await page.request.get(`/f/${slug}`)).status()).toBe(404);
   await expect(page.locator("[data-open-form]")).toHaveCount(0);
   await expect(page.locator("[data-responses]")).toHaveText("1 response");
 });

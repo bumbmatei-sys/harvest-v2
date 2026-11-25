@@ -251,3 +251,12 @@ export const harvestAgentPorts = {
     { file: "src/components/social/planner.tsx, social-nav.tsx", source: "SocialScheduler.tsx (Queue, calendar), PageHeader.tsx, shell-nav.ts", note: "Layout and flow only: the Planner header with Compose, Calendar and Queue tabs, a three-column queue (Drafts, Scheduled by day, Sent), the week grid with a drafts aside, and the Social media sidebar group with Accounts under Settings." },
   ],
 } as const;
+
+/**
+ * Founder approvals of kit items for a feature that are recorded before any file is copied from them. A file only enters `kitProvenance` (with the
+ * header the tests check) in the PR that actually copies it.
+ */
+export const kitApprovals = [
+  { feature: "Campaign wizard screens", approvedOn: "2026-11-25", approvedBy: "founder",
+    items: ["stepper1", "form-layout1", "form-layout11", "tables9", "switch-card1", "todo-app6"], note: "Plus stat cards and charts as in CRM reports for the campaign dashboard. PR 1 copies no kit code; see docs/ui-sources.md." },
+] as const;
