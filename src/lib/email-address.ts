@@ -23,7 +23,6 @@ function encodedWords(name: string): string {
 export function formatFromHeader(name: string | null | undefined, address: string): string {
   const clean = (name ?? "").replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
   if (!clean) return address;
-  // eslint-disable-next-line no-control-regex
   if (/[^\u0000-\u007f]/.test(clean)) return `${encodedWords(clean)} <${address}>`;
   if (atom.test(clean)) return `${clean} <${address}>`;
   return `"${clean.replace(/[\\"]/g, "\\$&")}" <${address}>`;
