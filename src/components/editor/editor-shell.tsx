@@ -74,7 +74,7 @@ export function EditorShell({ breadcrumb, title, status, actions, steps, current
     </Sheet>
   </div>;
   if (hosted && data) return <div className="min-w-0 space-y-6" data-editor-hosted>
-    <EditorStepBar context={data} onStep={onStep} />
+    <EditorStepBar context={data} onStep={onStep} className="mb-4" />
     <header className="space-y-3">
       {breadcrumb}
       <div className="flex flex-wrap items-center justify-between gap-3">
