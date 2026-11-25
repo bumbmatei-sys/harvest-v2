@@ -210,6 +210,32 @@ export const campaignDraftAssignments = pgTable("campaign_draft_assignments", {
   check("campaign_draft_assignment_department", sql`${t.department} in ('campaign_leadership', 'church_mobilization', 'evangelistic_outreach', 'prayer_intercession', 'marketing_media', 'logistics_equipment', 'finance_fundraising', 'volunteers', 'counseling', 'discipleship_follow_up', 'worship_production', 'security_medical', 'transportation_hospitality')`),
 ]);
 
+// CW-05 (founder decision Q2, 25 Nov): a person is placed in a department by an invitation they must accept. Pending, accepted, declined and revoked
+// are stored; expired is derived from `expiresAt` (14 days). An invitation is for an existing ministry member (kind member) or for an email address
+// (kind email); accepting an email invitation adds the person to the ministry in the inert campaign_guest role. Only the hash of the link token is kept.
+export const campaignDraftInvitations = pgTable("campaign_draft_invitations", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), draftId: uuid("draft_id").notNull(),
+  department: text("department").notNull(), role: text("role").$type<"leader" | "member">().notNull(),
+  kind: text("kind").$type<"member" | "email">().notNull(), userId: text("user_id"), email: text("email"),
+  tokenHash: text("token_hash").notNull().unique(),
+  status: text("status").$type<"pending" | "accepted" | "revoked">().notNull().default("pending"),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull().default(sql`now() + interval '14 days'`),
+  respondedAt: timestamp("responded_at", { withTimezone: true }), acceptedBy: text("accepted_by").references(() => users.id),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.draftId], foreignColumns: [campaignDrafts.tenantId, campaignDrafts.id] }),
+  foreignKey({ columns: [t.tenantId, t.userId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }).onDelete("cascade"),
+  uniqueIndex("campaign_draft_invitations_open_idx").on(t.tenantId, t.draftId, t.department, sql`coalesce(${t.userId}, ${t.email})`).where(sql`${t.status} = 'pending'`),
+  index("campaign_draft_invitations_draft_idx").on(t.tenantId, t.draftId, t.status),
+  check("campaign_invitation_role", sql`${t.role} in ('leader', 'member')`),
+  check("campaign_invitation_department", sql`${t.department} in ('campaign_leadership', 'church_mobilization', 'evangelistic_outreach', 'prayer_intercession', 'marketing_media', 'logistics_equipment', 'finance_fundraising', 'volunteers', 'counseling', 'discipleship_follow_up', 'worship_production', 'security_medical', 'transportation_hospitality')`),
+  check("campaign_invitation_target", sql`(${t.kind} = 'member' and ${t.userId} is not null and ${t.email} is null) or (${t.kind} = 'email' and ${t.userId} is null and ${t.email} is not null and ${t.email} = lower(btrim(${t.email})) and length(${t.email}) between 3 and 254 and ${t.email} ~ '^[^@[:space:]]+@[^@[:space:]]+$')`),
+  check("campaign_invitation_status", sql`${t.status} in ('pending', 'accepted', 'revoked') and ((${t.status} = 'pending') = (${t.respondedAt} is null)) and ((${t.status} = 'accepted') = (${t.acceptedBy} is not null))`),
+  check("campaign_invitation_token", sql`${t.tokenHash} ~ '^[a-f0-9]{64}$'`),
+  check("campaign_invitation_expiry", sql`${t.expiresAt} = ${t.createdAt} + interval '14 days'`),
+]);
+
 export const contacts = pgTable("contacts", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
   erasedAt: timestamp("erased_at", { withTimezone: true }),

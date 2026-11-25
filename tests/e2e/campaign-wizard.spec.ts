@@ -1,4 +1,4 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
 import { deflateSync, crc32 } from "node:zlib";
 import { expect as baseExpect, test, type Browser, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
@@ -16,6 +16,8 @@ const shellModes = process.env.HARVEST_SHELL_MODES !== "disabled";
 const axeTags = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
 
 async function shoot(page: Page, name: string) {
+  // Playwright marks the page while it takes a picture; do it only once React has taken over a server-rendered wizard, so the marks cannot cause a hydration mismatch.
+  await page.waitForFunction(() => { const heading = document.querySelector('[data-slot="wizard-heading"]'); return !heading || Object.keys(heading).some((key) => key.startsWith("__reactProps")); });
   await settleForAxe(page);
   await page.screenshot({ path: `${evidence}/${name}.png`, fullPage: true });
 }
@@ -23,6 +25,18 @@ async function expectAccessible(page: Page) {
   await settleForAxe(page);
   expect((await new AxeBuilder({ page }).withTags(axeTags).analyze()).violations).toEqual([]);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+}
+/** On a phone, scroll a little (the sticky step bar is now stuck) and check nothing sits over the header actions and every target passes axe. */
+async function expectCleanWhenScrolled(page: Page) {
+  await page.evaluate(() => window.scrollTo(0, 120));
+  const discard = page.getByRole("button", { name: "Discard", exact: true });
+  if (await discard.count()) {
+    await discard.scrollIntoViewIfNeeded();
+    await page.evaluate(() => window.scrollBy(0, -40));
+    const box = (await discard.boundingBox())!;
+    expect(await discard.evaluate((el, at) => { const hit = document.elementFromPoint(at.x, at.y); return !!hit && el.contains(hit); }, { x: box.x + box.width / 2, y: box.y + box.height / 2 })).toBe(true);
+  }
+  await expectAccessible(page);
 }
 /** Runs an edit and waits for the autosave it triggers to be accepted. */
 async function autosaved(page: Page, edit: () => Promise<void>) {
@@ -39,7 +53,7 @@ async function user(browser: Browser, owner: Page, tenant: string, role: "admin"
 }
 /** The dev server renders first and hydrates after: typing before React attaches would be lost, which a person cannot do. */
 async function hydrated(page: Page) {
-  await page.waitForFunction(() => { const field = document.querySelector("input,textarea,select"); return !!field && Object.keys(field).some((key) => key.startsWith("__reactProps")); });
+  await page.waitForFunction(() => { const field = document.querySelector('[data-slot="wizard-heading"]'); return !!field && Object.keys(field).some((key) => key.startsWith("__reactProps")); });
 }
 /** A small real PNG (gradient), so the picture decodes in the browser. */
 function png(width = 320, height = 180) {
@@ -77,9 +91,9 @@ test("create a draft, fill steps 1 to 3 with autosave, resume it, and activate a
   await expect(heading(page, "Basic Information")).toBeVisible();
   await expect(page.locator('[data-save-state="saved"]')).toBeVisible();
   if (shellModes) await expect(page.getByRole("group", { name: /^Editing/ })).toBeVisible(); else await expect(page.getByRole("navigation", { name: "Campaign setup" })).toBeVisible();
-  // Steps 4 to 8 are listed and not available yet.
+  // Steps 6 to 8 are listed and not available yet.
   const stepList = shellModes ? page.getByRole("group", { name: /^Editing/ }) : page.getByRole("navigation", { name: "Campaign setup" });
-  for (const label of ["Teams & Leadership", "Campaign Features", "Budget & Fundraising", "Registration & Follow-Up", "Review & Create"]) await expect(stepList.getByRole("button", { name: new RegExp(label) })).toHaveAttribute("aria-disabled", "true");
+  for (const label of ["Budget & Fundraising", "Registration & Follow-Up", "Review & Create"]) await expect(stepList.getByRole("button", { name: new RegExp(label) })).toHaveAttribute("aria-disabled", "true");
 
   // Step 1 can still be changed; it says the template loads again.
   await stepList.getByRole("button", { name: /Campaign Type/ }).click();
@@ -115,10 +129,13 @@ test("create a draft, fill steps 1 to 3 with autosave, resume it, and activate a
   await autosaved(page, async () => { await page.getByLabel("Campaign End Date").fill("2027-03-05"); });
   await autosaved(page, async () => { await page.getByLabel("Time Zone").selectOption("Asia/Bangkok"); });
   await shoot(page, "step-3-place");
-  await expect(page.getByRole("button", { name: "Next", exact: true })).toHaveCount(0); // steps 4 to 8 are not available yet
+  await expect(page.getByRole("button", { name: "Next", exact: true })).toBeVisible(); // step 4 is next
 
   // Resume: closing and reopening restores every answer, at the furthest step reached.
   await page.goto(draftUrl);
+  await expect(heading(page, "Teams & Leadership")).toBeVisible();
+  await hydrated(page);
+  await page.getByRole("button", { name: "Back", exact: true }).click();
   await expect(heading(page, "Location & Dates")).toBeVisible();
   await expect(page.getByLabel("Country")).toHaveValue("Thailand");
   await expect(page.getByLabel("Time Zone")).toHaveValue("Asia/Bangkok");
@@ -382,4 +399,142 @@ test("cover: the optional image or logo in step 2 uploads, shows, is replaced an
   expect((await page.request.get(`/api${root}/${campaignId}/cover`)).status()).toBe(200);
   expect((await (await page.request.get(`/api${root}/${campaignId}`)).json()).coverFileId).toBe(current.coverFileId);
   expect(errors).toEqual([]);
+});
+
+test("teams and tools: invitations by member and by email are pending until accepted, then tools are chosen", async ({ page, browser }) => {
+  test.setTimeout(420_000);
+  await mkdir(evidence, { recursive: true });
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => { if (message.type() === "error" && !/Failed to load resource/.test(message.text())) errors.push(message.text()); });
+  await signIn(page);
+  const tenant = (await (await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Teams Church", audience: "church" } })).json()).tenantId as string;
+  const root = `/workspaces/${tenant}/campaigns`, api = `/api${root}/drafts`;
+  const member = await user(browser, page, tenant, "member");
+  const guestContext = await browser.newContext({ viewport: { width: 1280, height: 900 }, reducedMotion: "reduce" }), guest = await guestContext.newPage();
+  const guestEmail = await signIn(guest);
+  const links = async () => (await readFile(`${process.env.HARVEST_E2E_MAILBOX}.campaign-invitations`, "utf8").catch(() => "")).split("\n").filter(Boolean).map((line) => JSON.parse(line) as { to: string; url: string; kind: string });
+  try {
+    const draft = await (await page.request.post(api, { headers: { origin, "Idempotency-Key": "teams-1" }, data: { type: "evangelistic_crusade" } })).json();
+    let current = draft;
+    for (const [step, data] of [["basics", { name: "Teams campaign", description: null, mission: null }], ["place", { country: "Chile", cityRegion: "Santiago", startDate: "2027-05-01", endDate: "2027-05-02", timeZone: "America/Santiago", structure: "single" }]] as const) {
+      current = await (await page.request.patch(`${api}/${draft.id}`, { headers: { origin }, data: { version: current.version, step, data } })).json();
+    }
+    await page.goto(`${root}/drafts/${draft.id}`);
+    await expect(heading(page, "Teams & Leadership")).toBeVisible(); // resumes at the furthest step reached
+    await hydrated(page);
+    await expect(page.getByText("Who will organize this campaign?")).toBeVisible();
+    await expect(page.getByText("Campaign Owner", { exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 3 })).toHaveCount(13); // the 13 departments of an Evangelistic Crusade
+    await shoot(page, "step-4-teams");
+    await expectAccessible(page);
+
+    // Invite a ministry member as the Volunteers leader, and an email address as a team member.
+    const volunteers = page.getByRole("region", { name: "Volunteers" });
+    await volunteers.getByRole("button", { name: "Invite" }).click();
+    const dialog = page.getByRole("dialog");
+    await expect(dialog.getByText("Invitations are recorded; nothing is sent yet.")).toBeVisible();
+    await dialog.getByLabel("Role").selectOption("leader");
+    await dialog.getByLabel("Ministry member").selectOption({ label: member.email });
+    await dialog.getByRole("button", { name: "Invite", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(volunteers.getByText(member.email)).toBeVisible();
+    await expect(volunteers.getByText("Pending")).toHaveCount(1);
+    await volunteers.getByRole("button", { name: "Invite" }).click();
+    await dialog.getByLabel("Email address").fill(guestEmail.toUpperCase());
+    await dialog.getByRole("button", { name: "Invite", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
+    await expect(volunteers.getByText("Pending")).toHaveCount(2);
+    await expect(volunteers.getByText(/^Expires /).first()).toBeVisible();
+    await settleForAxe(page);
+    await volunteers.screenshot({ path: `${evidence}/step-4-teams-pending.png` });
+    // Both choices at once, or none, are refused in the dialog.
+    await volunteers.getByRole("button", { name: "Invite" }).click();
+    await dialog.getByRole("button", { name: "Invite", exact: true }).click();
+    await expect(dialog.getByRole("alert")).toContainText("Choose a member or enter an email address.");
+    await dialog.getByRole("button", { name: "Cancel" }).click();
+    // An invitation can be withdrawn while pending.
+    await volunteers.getByRole("button", { name: "Invite" }).click();
+    await dialog.getByLabel("Email address").fill("withdrawn@example.test");
+    await dialog.getByRole("button", { name: "Invite", exact: true }).click();
+    await expect(volunteers.getByText("withdrawn@example.test")).toBeVisible();
+    await volunteers.getByRole("button", { name: "Withdraw the invitation for withdrawn@example.test" }).click();
+    await expect(volunteers.getByText("withdrawn@example.test")).toHaveCount(0);
+
+    // Nothing is placed before anyone accepts.
+    expect((await (await page.request.get(`${api}/${draft.id}`)).json()).assignments).toEqual([]);
+    const sent = await links();
+    const memberLink = sent.find((mail) => mail.to === member.email)!, guestLink = sent.find((mail) => mail.to === guestEmail)!;
+    expect(memberLink.kind).toBe("member"); expect(guestLink.kind).toBe("email");
+    expect(sent.some((mail) => mail.to === "withdrawn@example.test")).toBe(true); // recorded when created; withdrawing it closes the link
+    const path = (url: string) => new URL(url).pathname;
+    // Someone else's link says so and changes nothing.
+    await guest.goto(path(memberLink.url));
+    await guest.getByRole("button", { name: "Accept invitation" }).click();
+    await expect(guest.getByRole("alert").filter({ hasText: "not for this account" })).toBeVisible();
+    // The invited member accepts; the guest (not a member) accepts theirs and joins with no other access.
+    await member.page.goto(path(memberLink.url));
+    await expect(member.page.getByRole("heading", { name: "You are invited to help organize a campaign" })).toBeVisible();
+    await member.page.getByRole("button", { name: "Accept invitation" }).click();
+    await expect(member.page.getByText("You are the leader of Volunteers.")).toBeVisible();
+    await expect(member.page.getByRole("link", { name: "Open the campaign draft" })).toBeVisible();
+    await guest.goto(path(guestLink.url));
+    await expectAccessible(guest);
+    await shoot(guest, "invitation-accept");
+    await guest.getByRole("button", { name: "Accept invitation" }).click();
+    await expect(guest.getByText("You are the team member of Volunteers.")).toBeVisible();
+    await expect(guest.getByText("You now have access to this campaign only.")).toBeVisible();
+    await expect(guest.getByRole("link", { name: "Open the campaign draft" })).toHaveCount(0);
+    expect((await guest.request.get(`${api}/${draft.id}`)).status()).toBe(403);
+    await shoot(guest, "invitation-accepted");
+
+    // The owner sees who accepted: the page refreshes the invitations when it is visible again.
+    await page.reload();
+    await expect(heading(page, "Teams & Leadership")).toBeVisible();
+    const after = page.getByRole("region", { name: "Volunteers" });
+    await expect(after.getByText("Accepted")).toHaveCount(2);
+    await expect(after.getByText("Pending")).toHaveCount(0);
+    await hydrated(page);
+    await settleForAxe(page);
+    await after.screenshot({ path: `${evidence}/step-4-teams-accepted.png` });
+    await expectAccessible(page);
+
+    // Step 5: the tools. Recommended ones are selected for the type, and the AI Campaign Copilot is not available yet.
+    await hydrated(page);
+    await page.getByRole("button", { name: "Next", exact: true }).click();
+    await expect(heading(page, "Campaign Features")).toBeVisible();
+    await expect(page.getByText("Which tools would you like to enable?")).toBeVisible();
+    await expect(page.getByRole("switch")).toHaveCount(18);
+    await expect(page.getByRole("switch", { name: "Enable Tasks & Kanban Boards" })).toBeChecked();
+    await expect(page.getByRole("switch", { name: "Enable AI Campaign Copilot" })).toBeDisabled();
+    await expect(page.getByRole("switch", { name: "Enable AI Campaign Copilot" })).not.toBeChecked();
+    await expect(page.getByText("Coming later")).toBeVisible();
+    await expect(page.getByText("Recommended")).toHaveCount(17);
+    await shoot(page, "step-5-tools");
+    await expectAccessible(page);
+    await autosaved(page, async () => { await page.getByRole("switch", { name: "Enable Communications" }).click(); });
+    expect((await (await page.request.get(`${api}/${draft.id}`)).json()).modules).not.toContain("communications");
+    // Steps 6 to 8 are not available yet: no Next.
+    await expect(page.getByRole("button", { name: "Next", exact: true })).toHaveCount(0);
+
+    // Every width and scheme, for both steps.
+    for (const scheme of ["light", "dark"] as const) for (const [label, width, height] of [["phone", 360, 800], ["tablet", 768, 1024], ["desktop", 1280, 900]] as const) {
+      await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+      await page.setViewportSize({ width, height });
+      await page.reload();
+      await expect(heading(page, "Campaign Features")).toBeVisible();
+      await expectAccessible(page);
+      if (width < 768) await expectCleanWhenScrolled(page);
+      await shoot(page, `step-5-tools-${label}-${scheme}`);
+      await hydrated(page);
+      await page.getByRole("button", { name: "Back", exact: true }).click();
+      await expect(heading(page, "Teams & Leadership")).toBeVisible();
+      await expectAccessible(page);
+      await shoot(page, `step-4-teams-${label}-${scheme}`);
+      if (width < 768) expect((await page.getByRole("button", { name: "Invite" }).first().boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    }
+    expect(errors).toEqual([]);
+  } finally {
+    await member.context.close(); await guestContext.close();
+  }
 });

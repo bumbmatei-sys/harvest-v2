@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray, isNull, ne, notInArray } from "drizzle-orm";
+import { and, desc, eq, isNull, notInArray } from "drizzle-orm";
 import type { Database, Transaction } from "../db/client";
 import { auditLogs, campaignDraftAssignments, campaignDrafts, campaigns, workspaceMembers } from "../db/schema";
 import { uuidInput } from "../lib/contact-input";
@@ -8,6 +8,7 @@ import {
 } from "../lib/campaign-wizard";
 import { message } from "../i18n/messages";
 import { insertCampaign } from "./campaigns";
+import { invitationsOf, revokeOutside } from "./campaign-wizard-invitations";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
 
@@ -34,7 +35,7 @@ async function assignmentsOf(tx: Transaction, tenantId: string, draftId: string)
 }
 async function view(tx: Transaction, row: DraftRow) {
   const issues: Issue[] = validateDraft(snapshot(row));
-  return { ...row, assignments: await assignmentsOf(tx, row.tenantId, row.id), issues, ready: issues.length === 0 };
+  return { ...row, assignments: await assignmentsOf(tx, row.tenantId, row.id), invitations: await invitationsOf(tx, row.tenantId, row.id), issues, ready: issues.length === 0 };
 }
 // No row lock: the update policies hide a closed draft from a locking read, which would turn "already finished" into "not found". Every write below
 // is a conditional update on the version and status instead, so concurrent writers still serialise.
@@ -95,15 +96,19 @@ export async function saveDraftStep(db: Database, userId: string, workspace: str
       .returning(draftColumns);
     // A concurrent save won the race: the conditional update touched nothing, so no assignment below runs.
     if (!row) throw stale();
-    if (changes.assignments) await replaceAssignments(tx, tenantId, id, changes.assignments);
-    if (changes.dropDepartmentsOutside) await tx.delete(campaignDraftAssignments).where(and(eq(campaignDraftAssignments.tenantId, tenantId),
-      eq(campaignDraftAssignments.draftId, id), notInArray(campaignDraftAssignments.department, changes.dropDepartmentsOutside)));
+    if (changes.dropDepartmentsOutside) {
+      // People and pending invitations in a department that is no longer on the draft go with it.
+      if (changes.dropDepartmentsOutside.length) await tx.delete(campaignDraftAssignments).where(and(eq(campaignDraftAssignments.tenantId, tenantId),
+        eq(campaignDraftAssignments.draftId, id), notInArray(campaignDraftAssignments.department, changes.dropDepartmentsOutside)));
+      else await tx.delete(campaignDraftAssignments).where(and(eq(campaignDraftAssignments.tenantId, tenantId), eq(campaignDraftAssignments.draftId, id)));
+      await revokeOutside(tx, tenantId, id, changes.dropDepartmentsOutside);
+    }
     await audit(tx, tenantId, userId, "campaign.draft.save", id, { step, version: String(row.version) });
     return view(tx, row as DraftRow);
   });
 }
 
-type StepChange = { columns: Partial<typeof campaignDrafts.$inferInsert>; assignments?: { userId: string; department: string; role: "leader" | "member" }[]; dropDepartmentsOutside?: string[] };
+type StepChange = { columns: Partial<typeof campaignDrafts.$inferInsert>; dropDepartmentsOutside?: string[] };
 async function stepChanges(tx: Transaction, tenantId: string, current: DraftRow, step: DataStep, data: Record<string, unknown>): Promise<StepChange> {
   switch (step) {
     case "type": {
@@ -118,24 +123,9 @@ async function stepChanges(tx: Transaction, tenantId: string, current: DraftRow,
     case "tools": return { columns: { modules: data.modules as string[] } };
     case "budget": return { columns: { budget: data as DraftRow["budget"] } };
     case "connect": return { columns: { outreach: data as DraftRow["outreach"] } };
-    case "leaders": {
-      const assignments = data.assignments as NonNullable<StepChange["assignments"]>;
-      const people = [...new Set(assignments.map((a) => a.userId))];
-      if (people.length) {
-        // Leaders and team members are existing ministry members who can edit. A viewer or an outsider cannot be placed.
-        const found = await tx.select({ userId: workspaceMembers.userId }).from(workspaceMembers)
-          .where(and(eq(workspaceMembers.tenantId, tenantId), inArray(workspaceMembers.userId, people), ne(workspaceMembers.roleId, "viewer")));
-        if (found.length !== people.length) throw new AccessError(400, message("Campaigns.assigneeInvalid"));
-      }
-      return { columns: { departments: data.departments as string[] }, assignments };
-    }
+    case "leaders": return { columns: { departments: data.departments as string[] }, dropDepartmentsOutside: data.departments as string[] };
   }
 }
-async function replaceAssignments(tx: Transaction, tenantId: string, draftId: string, list: NonNullable<StepChange["assignments"]>) {
-  await tx.delete(campaignDraftAssignments).where(and(eq(campaignDraftAssignments.tenantId, tenantId), eq(campaignDraftAssignments.draftId, draftId)));
-  if (list.length) await tx.insert(campaignDraftAssignments).values(list.map((a) => ({ tenantId, draftId, ...a })));
-}
-
 export async function discardDraft(db: Database, userId: string, workspace: string, draft: string, raw: unknown) {
   const id = uuidInput.parse(draft), { version } = versionInput.parse(raw);
   return withTenant(db, userId, uuidInput.parse(workspace), "campaigns:read", async (tx, tenantId, role) => {

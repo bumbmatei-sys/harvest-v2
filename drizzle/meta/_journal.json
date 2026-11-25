@@ -757,6 +757,13 @@
       "when": 1795635186241,
       "tag": "0109_newsletter_from_name",
       "breakpoints": true
+    },
+    {
+      "idx": 110,
+      "version": "7",
+      "when": 1795640323837,
+      "tag": "0110_campaign_wizard_teams",
+      "breakpoints": true
     }
   ]
 }

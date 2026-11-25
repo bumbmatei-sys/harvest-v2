@@ -499,3 +499,7 @@ Variants used: `select14` (searchable category dropdown with icons, chosen by th
 | `switch-card1` (second file) | premium | 2026-11-25 | 2026-11-25 | `src/components/discover/list-in-discover.tsx` | Label, one line of text and a switch, with review status, category and language beneath; used in the community editor and My listings. |
 
 The shared filter popover is Harvest's CRM pattern (an icon-only filter button with a popover), reimplemented in `src/components/discover/filter-popover.tsx` for three fields because the CRM filter builder is bound to CRM fields (`src/components/crm/filter-builder.tsx`); exception recorded here, not a kit item.
+
+### Campaign wizard steps 4 and 5 (25 Nov)
+
+Steps 4 and 5 and the invitation page copy no kit code. They compose shared shadcn components (`Switch`, `Dialog`, `Badge`, `NativeSelect`, `Field`, `Card`) in the shape of the approved `switch-card1` and a plain department card; the kit items stay approved for later screens.

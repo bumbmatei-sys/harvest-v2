@@ -7,6 +7,7 @@ import { getDb } from "@/db/client";
 import { pageSession } from "@/server/page-session";
 import { getWorkspace } from "@/server/workspaces";
 import { getDraft } from "@/server/campaign-wizard";
+import { listWizardMembers } from "@/server/campaign-wizard-members";
 import { AccessError } from "@/server/permissions";
 import { uuidInput } from "@/lib/contact-input";
 import { Button } from "@/components/ui/button";
@@ -33,7 +34,8 @@ export default async function CampaignDraftPage({ params }: { params: Promise<{ 
       <EmptyTitle><h1>{t(draft.status === "finished" ? "closed.finished" : "closed.discarded")}</h1></EmptyTitle></EmptyHeader>
       <EmptyContent><Button asChild className="min-h-11"><Link href={draft.status === "finished" && draft.campaignId ? `${root}/${draft.campaignId}` : `${root}/drafts`}>{draft.status === "finished" ? t("openCampaign") : t("draftBack")}</Link></Button></EmptyContent></Empty>;
   }
+  const people = (await listWizardMembers(db, session.user.id, tenantId).catch(denied)) ?? [];
   const manager = workspace.role === "owner" || workspace.role === "admin";
-  return <CampaignWizard tenantId={tenantId} canDiscard={draft.createdBy === session.user.id || manager} listHref={`${root}/drafts`}
+  return <CampaignWizard tenantId={tenantId} canDiscard={draft.createdBy === session.user.id || manager} listHref={`${root}/drafts`} people={people}
     initial={JSON.parse(JSON.stringify(draft)) as DraftView} />;
 }

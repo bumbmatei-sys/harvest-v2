@@ -16,10 +16,12 @@ import { useEventCoverUrl } from "@/components/events/use-event-cover-url";
 import { useEditorHosted } from "@/components/editor/editor-context";
 import { AccentIcon, accentVars } from "@/components/accent-icon";
 import { BasicsStep, PlaceStep, TypeStep, type SetStep } from "@/components/campaigns/wizard-steps";
+import { TeamsStep, type WizardPerson } from "@/components/campaigns/teams-step";
+import { ToolsStep } from "@/components/campaigns/tools-step";
 import { useRequest } from "@/hooks/use-request";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
 import { wizardSteps, type WizardStep } from "@/lib/campaign-wizard";
-import { adoptServer, dirtySteps, formFromDraft, isEditable, issuesOf, stepPayload, stepStatuses, type DraftView, type EditableStep } from "@/lib/campaign-wizard-form";
+import { adoptServer, dirtySteps, formFromDraft, isEditable, issuesOf, stepPayload, stepStatuses, type DraftView, type EditableStep, type InvitationView } from "@/lib/campaign-wizard-form";
 
 // Each step's mark beside its heading, in the palette's primary accent.
 const stepIcons: Record<WizardStep, LucideIcon> = {
@@ -42,12 +44,12 @@ function SaveStatus({ state }: { state: SaveState }) {
  * Anyone in the ministry who can write campaigns edits and finishes an open draft (founder decision, 25 Nov); the creator stays its owner. Nothing here
  * publishes or sends anything.
  */
-export function CampaignWizard({ tenantId, initial, canDiscard, listHref }: { tenantId: string; initial: DraftView; canDiscard: boolean; listHref: string }) {
+export function CampaignWizard({ tenantId, initial, canDiscard, listHref, people }: { tenantId: string; initial: DraftView; canDiscard: boolean; listHref: string; people: WizardPerson[] }) {
   const t = useTranslations("CampaignWizard"), request = useRequest(), hosted = useEditorHosted();
   const endpoint = `/api/workspaces/${tenantId}/campaigns/drafts/${initial.id}`;
   const [draft, setDraft] = useState(initial), [form, setForm] = useState(() => formFromDraft(initial));
   // Resume where the person left off, but never on a step that is not available yet.
-  const [step, setStep] = useState<WizardStep>(() => { const at = wizardSteps[Math.min(Math.max(initial.currentStep, 1), wizardSteps.length) - 1]; return isEditable(at) ? at : "place"; });
+  const [step, setStep] = useState<WizardStep>(() => { const at = wizardSteps[Math.min(Math.max(initial.currentStep, 1), wizardSteps.length) - 1]; return isEditable(at) ? at : "tools"; });
   const [saveState, setSaveState] = useState<SaveState>("saved"), [error, setError] = useState(""), [attempted, setAttempted] = useState<Partial<Record<EditableStep, boolean>>>({});
   const [discarding, setDiscarding] = useState(false), [coverBusy, setCoverBusy] = useState(false), [confirmLeave, setConfirmLeave] = useState(false);
   const formRef = useRef(form), draftRef = useRef(draft), locked = useRef(false), chain = useRef<Promise<boolean>>(Promise.resolve(true)), timer = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -108,6 +110,17 @@ export function CampaignWizard({ tenantId, initial, canDiscard, listHref }: { te
   // The cover saves on its own requests and moves the draft's version, so the next autosave must carry the new one.
   const cover = useEventCoverUrl(endpoint, draft.coverFileId);
   const coverChanged = ({ coverFileId, version }: CoverChange) => { const next = { ...draftRef.current, coverFileId, version }; draftRef.current = next; setDraft(next); };
+  // Invitations are their own requests and do not move the draft's version; a person accepting elsewhere shows up when the page is visible again.
+  const setInvitations = useCallback((invitations: InvitationView[]) => { const next = { ...draftRef.current, invitations }; draftRef.current = next; setDraft(next); }, []);
+  useEffect(() => {
+    const refresh = async () => {
+      if (document.visibilityState !== "visible") return;
+      const result = await request<DraftView>(endpoint, { method: "GET" });
+      if (result.ok) { const next = { ...draftRef.current, invitations: result.data.invitations, assignments: result.data.assignments }; draftRef.current = next; setDraft(next); }
+    };
+    document.addEventListener("visibilitychange", refresh);
+    return () => document.removeEventListener("visibilitychange", refresh);
+  }, [endpoint, request]);
   const issues = useMemo(() => issuesOf(form, draft), [form, draft]);
   const reached = Math.max(draft.currentStep, wizardSteps.indexOf(step) + 1);
   const statuses = stepStatuses(issues, reached);
@@ -137,6 +150,8 @@ export function CampaignWizard({ tenantId, initial, canDiscard, listHref }: { te
       <EventCoverPicker endpoint={endpoint} saved coverFileId={draft.coverFileId} version={draft.version} url={cover.url} onUrlFailed={cover.failed} onChange={coverChanged}
         onBusyChange={setCoverBusy} disabled={disabled || saveState === "saving" || saveState === "dirty"} namespace="CampaignWizard.cover" />} />,
     place: <PlaceStep form={form} set={set} disabled={disabled} problems={problems} />,
+    leaders: <TeamsStep form={form} set={set} disabled={disabled} draft={draft} people={people} endpoint={endpoint} saveNow={flush} onInvitations={setInvitations} />,
+    tools: <ToolsStep form={form} set={set} disabled={disabled} type={form.type} />,
   }[step] : null;
   const breadcrumb = <Breadcrumb><BreadcrumbList><BreadcrumbItem><BreadcrumbLink asChild><Link href={listHref}>{t("draftBack")}</Link></BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator />
     <BreadcrumbItem><BreadcrumbPage>{title}</BreadcrumbPage></BreadcrumbItem></BreadcrumbList></Breadcrumb>;
