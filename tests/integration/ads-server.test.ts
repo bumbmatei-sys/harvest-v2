@@ -362,7 +362,7 @@ it("verifies signatures, applies events idempotently from fixtures and ignores u
 });
 
 it("never sends conversion events and never touches the network", async () => {
-  await expect(ads.sendConversionEvents({ secret: CANARY }, { accountRef: "acc-fb-2", adAccountRef: "act_1", destinationRef: "px", events: [{ name: "Lead", at: new Date(), eventId: "e" }] })).rejects.toMatchObject({ code: "DISABLED" });
+  await expect(ads.sendConversionEvents({ secret: CANARY }, { accountRef: "acc-fb-2", adAccountRef: "act_1", destinationRef: "px", idempotencyKey: randomUUID(), events: [{ name: "Lead", at: new Date(), eventId: "e", userData: {} }] })).rejects.toMatchObject({ code: "DISABLED" });
   expect(ads.refusedConversionSends.length).toBeGreaterThan(0);
   expect(network).not.toHaveBeenCalled();
 });

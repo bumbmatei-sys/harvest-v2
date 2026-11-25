@@ -223,7 +223,7 @@ export const contactConsents = pgTable("contact_consents", {
   // CRM-07 adds messaging, form follow-up and newsletter: separate opt-ins, never one bundled box.
   check("consent_purpose", sql`${t.purpose} in ('marketing', 'outreach_follow_up', 'event_administration', 'account_communications', 'legacy_unspecified', 'messaging', 'form_follow_up', 'newsletter')`),
   check("consent_occurrence_bound", sql`${t.occurredAt} <= ${t.recordedAt} + interval '5 minutes'`),
-  check("consent_notice_version", sql`${t.noticeVersion} in ('notice-v1', 'legacy-unversioned', 'connect-immutable', 'subject-withdrawal', 'newsletter-subject-v1')`),
+  check("consent_notice_version", sql`${t.noticeVersion} in ('notice-v1', 'legacy-unversioned', 'connect-immutable', 'subject-withdrawal', 'newsletter-subject-v1', 'ad-lead-form-v1')`),
   check("consent_redaction", sql`(${t.redactedAt} is null and ${t.contactId} is not null and ${t.channel} is not null and ${t.source} is not null and ${t.evidence} is not null) or (${t.redactedAt} is not null and ${t.channel} is null and ${t.source} is null and ${t.evidence} is null and ${t.recordedBy} is null)`)]);
 // CRM-01: organizations and explicit, tenant-scoped person-organization links.
 export const companies = pgTable("companies", {
@@ -3080,6 +3080,8 @@ export const adsAccounts = pgTable("ads_accounts", {
   status: text("status").notNull().default("active"), health: jsonb("health").$type<Record<string, { state: string; fixUrl?: string | null }>>().notNull().default({}),
   lastRefusal: jsonb("last_refusal").$type<{ code: string; fixUrl: string | null } | null>(), healthCheckedAt: timestamp("health_checked_at", { withTimezone: true }),
   syncedAt: timestamp("synced_at", { withTimezone: true }), syncState: text("sync_state").notNull().default("pending"),
+  // 0104: scheduled results sync (worker role). A lease keeps two workers off the same account; failures back the next attempt off.
+  syncDueAt: timestamp("sync_due_at", { withTimezone: true }).notNull().defaultNow(), syncLease: uuid("sync_lease"), syncLeasedUntil: timestamp("sync_leased_until", { withTimezone: true }), syncFailures: integer("sync_failures").notNull().default(0),
   version: integer("version").notNull().default(1), createdBy: text("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
@@ -3169,7 +3171,9 @@ export const adsOperations = pgTable("ads_operations", {
 export const adsLeadForms = pgTable("ads_lead_forms", {
   tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), adAccountId: uuid("ad_account_id").notNull(), externalRef: text("external_ref"),
   name: text("name").notNull(), status: text("status").notNull().default("active"), consentText: text("consent_text").notNull(), privacyUrl: text("privacy_url").notNull(),
-  questions: jsonb("questions").$type<string[]>().notNull(), createdBy: text("created_by").references(() => users.id),
+  questions: jsonb("questions").$type<string[]>().notNull(),
+  // 0104: which consent each explicit lead-form question grants once a lead becomes a contact (purpose -> question key). Nothing is granted unless the form asked and the person answered yes.
+  consentQuestions: jsonb("consent_questions").$type<Record<string, string>>().notNull().default({}), createdBy: text("created_by").references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
   foreignKey({ name: "ads_lead_forms_account_fk", columns: [t.tenantId, t.adAccountId], foreignColumns: [adsAccounts.tenantId, adsAccounts.id] }),
@@ -3182,8 +3186,11 @@ export const adsLeads = pgTable("ads_leads", {
   status: text("status").$type<typeof adLeadStatuses[number]>().notNull().default("new"),
   // Answers the person gave and the exact consent text shown on the form, kept as evidence. No CRM contact exists and no consent is implied until a person reviews it.
   fields: jsonb("fields").$type<Record<string, string>>().notNull().default({}), consentText: text("consent_text"), submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  // 0104: set when an owner or admin converts the lead into a CRM contact (explicit action, existing consent and provenance rules).
+  contactId: uuid("contact_id"), convertedAt: timestamp("converted_at", { withTimezone: true }),
   version: integer("version").notNull().default(1), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "ads_leads_contact_fk", columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }),
   foreignKey({ name: "ads_leads_account_fk", columns: [t.tenantId, t.adAccountId], foreignColumns: [adsAccounts.tenantId, adsAccounts.id] }),
   uniqueIndex("ads_leads_ref_idx").on(t.tenantId, t.adAccountId, t.leadRef), index("ads_leads_status_idx").on(t.tenantId, t.status, t.createdAt),
   check("ads_leads_shape", sql`${t.status} in (${inList(adLeadStatuses)}) and ${t.network} in (${inList(adNetworks)}) and length(${t.leadRef}) between 1 and 200
@@ -3241,3 +3248,23 @@ export const adsWebhookEvents = pgTable("ads_webhook_events", {
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }), uniqueIndex("ads_webhook_events_event_idx").on(t.tenantId, t.provider, t.providerEventId),
   check("ads_webhook_events_shape", sql`length(${t.providerEventId}) between 1 and 200 and length(${t.eventType}) between 1 and 80`),
 ]);
+
+// 0104. Customer-list audience uploads: counts only. The hashed identifiers are sent to the provider and never stored here, and nothing in this table references a person.
+export const adsAudienceUploads = pgTable("ads_audience_uploads", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), adAccountId: uuid("ad_account_id").notNull(), audienceId: uuid("audience_id").notNull(), idempotencyKey: uuid("idempotency_key").notNull(),
+  status: text("status").notNull().default("pending"), eligible: integer("eligible").notNull().default(0), excluded: jsonb("excluded").$type<Record<string, number>>().notNull().default({}), sent: integer("sent").notNull().default(0),
+  errorCode: text("error_code"), requestedBy: text("requested_by").notNull().references(() => users.id), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "ads_audience_uploads_account_fk", columns: [t.tenantId, t.adAccountId], foreignColumns: [adsAccounts.tenantId, adsAccounts.id] }),
+  foreignKey({ name: "ads_audience_uploads_audience_fk", columns: [t.tenantId, t.audienceId], foreignColumns: [adsAudiences.tenantId, adsAudiences.id] }),
+  uniqueIndex("ads_audience_uploads_key_idx").on(t.tenantId, t.idempotencyKey),
+  check("ads_audience_uploads_shape", sql`${t.status} in ('pending','sent','failed','ambiguous') and ${t.eligible} >= 0 and ${t.sent} >= 0 and pg_column_size(${t.excluded}) <= 2048`)]);
+// 0104. Conversion events sent to a pixel destination. One row per event digest; the digest is a one-way hash, so the row cannot be traced back to a person.
+export const adsConversionSends = pgTable("ads_conversion_sends", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), adAccountId: uuid("ad_account_id").notNull(), destinationId: uuid("destination_id").notNull(), eventName: text("event_name").notNull(),
+  eventDigest: text("event_digest").notNull(), status: text("status").notNull().default("pending"), idempotencyKey: uuid("idempotency_key").notNull(), requestedBy: text("requested_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "ads_conversion_sends_destination_fk", columns: [t.tenantId, t.destinationId], foreignColumns: [adsConversionDestinations.tenantId, adsConversionDestinations.id] }),
+  uniqueIndex("ads_conversion_sends_event_idx").on(t.tenantId, t.destinationId, t.eventDigest),
+  check("ads_conversion_sends_shape", sql`${t.status} in ('pending','sent','failed','ambiguous') and length(${t.eventName}) between 1 and 60 and ${t.eventDigest} ~ '^[0-9a-f]{64}$'`)]);

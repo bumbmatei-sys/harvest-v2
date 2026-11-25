@@ -5,6 +5,8 @@ import { AdsValidationError, invalid, unavailable } from "./access";
 import * as accounts from "./accounts";
 import * as launch from "./launch";
 import * as leads from "./leads";
+import * as audiences from "./crm-audiences";
+import * as conversions from "./conversions";
 import * as mutations from "./mutations";
 import * as read from "./read";
 import * as rules from "./rules";
@@ -38,6 +40,12 @@ const routes: Record<string, Handler> = {
   "GET leads": c => leads.listLeads(c.db, c.user, c.ws, { adAccountId: q(c, "adAccountId"), status: q(c, "status") }, c.deps),
   "PATCH leads/*": async (c, p) => leads.updateLeadStatus(c.db, c.user, c.ws, p[1], await c.body(), c.deps),
   "DELETE leads/*": (c, p) => leads.deleteLead(c.db, c.user, c.ws, p[1], c.deps),
+  "POST leads/*/convert": (c, p) => leads.convertLeadToContact(c.db, c.user, c.ws, p[1], c.deps),
+  "POST accounts/*/leads-convert": (c, p) => leads.convertNewLeads(c.db, c.user, c.ws, p[1], c.deps),
+  "GET crm-audience/preview": c => audiences.previewAudienceUpload(c.db, c.user, c.ws, c.deps),
+  "POST crm-audience": async c => audiences.createCustomerAudience(c.db, c.user, c.ws, await c.body(), c.deps),
+  "POST crm-audience/upload": async c => audiences.uploadCrmAudience(c.db, c.user, c.ws, await c.body(), c.deps),
+  "POST conversions/send": async c => conversions.sendConversionEvents(c.db, c.user, c.ws, await c.body(), c.deps),
   "GET launch-requests": c => launch.listLaunchRequests(c.db, c.user, c.ws, c.deps),
   "POST launch-requests": async c => launch.createLaunchRequest(c.db, c.user, c.ws, await c.body(), c.deps),
   "GET launch-requests/*": (c, p) => launch.getLaunchRequest(c.db, c.user, c.ws, p[1], c.deps),
