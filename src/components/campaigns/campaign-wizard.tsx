@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Check, CircleAlert } from "lucide-react";
+import { Blocks, Check, CircleAlert, ClipboardCheck, FileText, MapPin, QrCode, Shapes, Users, Wallet, type LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -14,11 +14,17 @@ import { EditorShell } from "@/components/editor/editor-shell";
 import { EventCoverPicker, type CoverChange } from "@/components/events/event-cover-picker";
 import { useEventCoverUrl } from "@/components/events/use-event-cover-url";
 import { useEditorHosted } from "@/components/editor/editor-context";
+import { AccentIcon, accentVars } from "@/components/accent-icon";
 import { BasicsStep, PlaceStep, TypeStep, type SetStep } from "@/components/campaigns/wizard-steps";
 import { useRequest } from "@/hooks/use-request";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
 import { wizardSteps, type WizardStep } from "@/lib/campaign-wizard";
 import { adoptServer, dirtySteps, formFromDraft, isEditable, issuesOf, stepPayload, stepStatuses, type DraftView, type EditableStep } from "@/lib/campaign-wizard-form";
+
+// Each step's mark beside its heading, in the palette's primary accent.
+const stepIcons: Record<WizardStep, LucideIcon> = {
+  type: Shapes, basics: FileText, place: MapPin, leaders: Users, tools: Blocks, budget: Wallet, connect: QrCode, review: ClipboardCheck,
+};
 
 type SaveState = "saved" | "saving" | "dirty" | "error" | "invalid" | "conflict";
 
@@ -108,7 +114,7 @@ export function CampaignWizard({ tenantId, initial, canDiscard, listHref }: { te
   const payload = isEditable(step) ? stepPayload(step, form) : null;
   const problems = payload && !payload.ok && attempted[step as EditableStep] ? payload.problems : {};
   const shellSteps = wizardSteps.map((id) => ({ id, label: t(`steps.${id}`), done: statuses[id] === "done", attention: statuses[id] === "attention", disabled: !isEditable(id), badge: isEditable(id) ? undefined : t("comingSoon") }));
-  const layoutSteps = shellSteps.map((entry) => ({ ...entry, description: isEditable(entry.id) ? t(`questions.${entry.id}`) : undefined }));
+  const layoutSteps = shellSteps.map((entry) => ({ ...entry, description: isEditable(entry.id) ? t(`questions.${entry.id}`) : undefined, icon: <AccentIcon icon={stepIcons[entry.id]} /> }));
   const title = form.basics.name.trim() || t("untitled");
 
   async function validate(id: string) {
@@ -138,7 +144,8 @@ export function CampaignWizard({ tenantId, initial, canDiscard, listHref }: { te
   const actions = canDiscard && <ConfirmDialog tone="destructive" open={discarding} onOpenChange={setDiscarding} title={t("discardTitle")} description={t("discardBody")} cancelLabel={t("discardCancel")} confirmLabel={t("discardConfirm")}
     trigger={<Button variant="outline" className="min-h-11">{t("discard")}</Button>} onConfirm={discard} />;
 
-  return <EditorShell breadcrumb={breadcrumb} title={title} status={<><Badge variant="secondary">{t("status.draft")}</Badge><SaveStatus state={saveState} /></>} actions={actions}
+  // The palette's primary accent (Harvest: Desert Sun gold) carries the wizard's highlights: the step chips, the accent line on the step card and the phone progress bar.
+  return <div className="contents" data-campaign-accent="primary" style={accentVars("primary")}><EditorShell breadcrumb={breadcrumb} title={title} status={<><Badge variant="secondary">{t("status.draft")}</Badge><SaveStatus state={saveState} /></>} actions={actions}
     steps={shellSteps} current={step} onStep={(id) => setStep(id as WizardStep)} stepsLabel={t("stepsLabel")} previewLabel={t("stepsLabel")} sidebar={sidebar}>
     {conflict && <Alert variant="destructive" role="alert"><AlertTitle>{t("conflictTitle")}</AlertTitle>
       <AlertDescription className="flex flex-wrap items-center gap-3">{t("conflictBody")}<Button variant="outline" className="min-h-11" onClick={() => location.reload()}>{t("reload")}</Button></AlertDescription></Alert>}
@@ -151,5 +158,5 @@ export function CampaignWizard({ tenantId, initial, canDiscard, listHref }: { te
     </div>
     <ConfirmDialog tone="neutral" open={confirmLeave && destination !== null} onOpenChange={(open) => { if (!open) { setConfirmLeave(false); setDestination(null); } }}
       title={t("leaveTitle")} description={t("leaveBody")} cancelLabel={t("leaveStay")} confirmLabel={t("leaveGo")} onConfirm={leave} />
-  </EditorShell>;
+  </EditorShell></div>;
 }
