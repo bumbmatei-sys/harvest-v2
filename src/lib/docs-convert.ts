@@ -21,6 +21,7 @@ function inlineHtml(node: DocNode): string {
     else if (mark.type === "code") out = `<code>${out}</code>`;
     else if (mark.type === "link") { const href = safeDocHref(mark.attrs?.href); if (href) out = `<a href="${esc(href)}" rel="nofollow noopener noreferrer ugc">${out}</a>`; }
     else if (mark.type === "textStyle" && typeof mark.attrs?.color === "string" && hex.test(mark.attrs.color)) out = `<span style="color:${mark.attrs.color}">${out}</span>`;
+    else if (mark.type === "badge" && typeof mark.attrs?.color === "string" && hex.test(mark.attrs.color)) out = mark.attrs.strong === true ? `<span data-badge style="background-color:${mark.attrs.color};color:black;border-radius:4px;padding:0 4px">${out}</span>` : `<span data-badge style="border:1px solid ${mark.attrs.color};border-radius:4px;padding:0 4px">${out}</span>`;
     else if (mark.type === "highlight" && typeof mark.attrs?.color === "string" && hex.test(mark.attrs.color)) out = `<mark style="background-color:${mark.attrs.color};color:black">${out}</mark>`;
   }
   return out;
@@ -30,6 +31,8 @@ const kids = (node: DocNode, fn: (child: DocNode) => string) => (node.content ??
 export function nodeToHtml(node: DocNode): string {
   switch (node.type) {
     case "text": case "hardBreak": return inlineHtml(node);
+    case "mention": return `<span data-mention>@${esc(String(node.attrs?.label ?? ""))}</span>`;
+    case "button": { const href = safeDocHref(node.attrs?.href); return href ? `<p><a data-button href="${esc(href)}" rel="nofollow noopener noreferrer ugc">${esc(String(node.attrs?.label ?? ""))}</a></p>` : ""; }
     case "paragraph": return `<p${alignStyle(node)}>${kids(node, nodeToHtml)}</p>`;
     case "heading": { const l = Math.min(4, Math.max(1, Number(node.attrs?.level) || 1)); return `<h${l}${alignStyle(node)}>${kids(node, nodeToHtml)}</h${l}>`; }
     case "bulletList": return `<ul>${kids(node, nodeToHtml)}</ul>`;
@@ -37,7 +40,7 @@ export function nodeToHtml(node: DocNode): string {
     case "listItem": return `<li>${kids(node, nodeToHtml)}</li>`;
     case "taskList": return `<ul data-type="taskList">${kids(node, nodeToHtml)}</ul>`;
     case "taskItem": return `<li data-type="taskItem" data-checked="${node.attrs?.checked === true}">${node.attrs?.checked === true ? "☑ " : "☐ "}${kids(node, nodeToHtml)}</li>`;
-    case "blockquote": return `<blockquote>${kids(node, nodeToHtml)}</blockquote>`;
+    case "blockquote": return `<blockquote${node.attrs?.pull === true ? " data-pull" : ""}>${kids(node, nodeToHtml)}</blockquote>`;
     case "codeBlock": return `<pre><code>${esc(docText(node))}</code></pre>`;
     case "horizontalRule": return "<hr>";
     case "table": return `<table>${kids(node, nodeToHtml)}</table>`;
@@ -58,6 +61,7 @@ export const docToHtml = (doc: DocContent) => (doc.content ?? []).map(nodeToHtml
 // ---- Markdown -----------------------------------------------------------------------------------------------------------------------------------------------
 function inlineMd(node: DocNode): string {
   if (node.type === "hardBreak") return "  \n";
+  if (node.type === "mention") return `@${String(node.attrs?.label ?? "")}`;
   let out = (node.text ?? "").replace(/([\\`*_{}[\]()#+!|~<>])/g, "\\$1");
   for (const mark of node.marks ?? []) {
     if (mark.type === "code") out = `\`${(node.text ?? "").replace(/`/g, "'")}\``;
@@ -75,6 +79,7 @@ function blockMd(node: DocNode, depth = 0): string {
   const children = () => (node.content ?? []).map((c) => blockMd(c, depth)).filter(Boolean).join("\n\n");
   switch (node.type) {
     case "paragraph": return inlineOf(node);
+    case "button": { const href = safeDocHref(node.attrs?.href); return href ? `[${String(node.attrs?.label ?? "").replace(/[\[\]]/g, "")}](${href.replace(/[()]/g, encodeURIComponent)})` : ""; }
     case "heading": return `${"#".repeat(Math.min(4, Math.max(1, Number(node.attrs?.level) || 1)))} ${inlineOf(node)}`;
     case "bulletList": case "taskList": case "orderedList": return (node.content ?? []).map((item, i) => {
       const [first, ...rest] = item.content ?? [];

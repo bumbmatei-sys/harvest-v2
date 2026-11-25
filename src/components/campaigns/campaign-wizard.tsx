@@ -129,8 +129,7 @@ export function CampaignWizard({ tenantId, initial, canDiscard, listHref }: { te
     type: <TypeStep form={form} set={set} disabled={disabled} problems={problems} />,
     basics: <BasicsStep form={form} set={set} disabled={disabled} problems={problems} cover={
       <EventCoverPicker endpoint={endpoint} saved coverFileId={draft.coverFileId} version={draft.version} url={cover.url} onUrlFailed={cover.failed} onChange={coverChanged}
-        onBusyChange={setCoverBusy} disabled={disabled || saveState === "saving" || saveState === "dirty"}
-        copy={{ label: t("cover.label"), alt: t("cover.alt"), saveFirst: t("cover.saveFirst"), removeBody: t("cover.removeBody"), stale: t("cover.stale") }} />} />,
+        onBusyChange={setCoverBusy} disabled={disabled || saveState === "saving" || saveState === "dirty"} namespace="CampaignWizard.cover" />} />,
     place: <PlaceStep form={form} set={set} disabled={disabled} problems={problems} />,
   }[step] : null;
   const breadcrumb = <Breadcrumb><BreadcrumbList><BreadcrumbItem><BreadcrumbLink asChild><Link href={listHref}>{t("draftBack")}</Link></BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator />
