@@ -193,36 +193,104 @@ test("create an ad on a phone: one column, preview in a sheet, 44px targets", as
   expect(small).toEqual([]);
 });
 
-test("an image ad: upload through the private media flow, shown in the preview, and checked", async ({ page }) => {
-  test.setTimeout(240_000);
+// The upload steps are answered here (the storage service is not part of this browser run). Each upload gets its own file id, which the confirm step echoes, so the ad carries real ids.
+async function mockMedia(page: Page, tenant: string) {
+  const api = `/api/workspaces/${tenant}/social`, files = new Map<string, { name: string; mime: string }>();
+  await page.route(`**${api}/media`, async (route) => {
+    const sent = route.request().postDataJSON() as { name?: string; mime?: string; mimeType?: string };
+    const id = crypto.randomUUID(), file = { name: sent.name ?? "file", mime: sent.mime ?? sent.mimeType ?? "application/octet-stream" };
+    files.set(id, file);
+    await route.fulfill({ status: 201, json: { file: { id, ...file, size: 1, status: "pending", mediaMetadata: null }, upload: { kind: "single" } } });
+  });
+  await page.route(`**${api}/media/*/parts`, (route) => route.fulfill({ json: { upload: { url: "/__put", method: "PUT", headers: {} } } }));
+  await page.route("**/__put", (route) => route.fulfill({ status: 200, headers: { etag: '"abc"' }, body: "" }));
+  await page.route(`**${api}/media/*/confirm`, (route) => {
+    const id = route.request().url().split("/media/")[1].split("/")[0], file = files.get(id) ?? { name: "file", mime: "image/jpeg" };
+    return route.fulfill({ json: { file: { id, ...file, size: 1, status: "ready", mediaMetadata: file.mime.startsWith("video") ? { width: 640, height: 360, durationMs: 1000 } : { width: 100, height: 100 } } } });
+  });
+}
+const jpeg = (fill: number) => Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01]), Buffer.alloc(1800, fill), Buffer.from([0xff, 0xd9])]);
+const mp4 = Buffer.concat([Buffer.from([0x00, 0x00, 0x00, 0x18, 0x66, 0x74, 0x79, 0x70, 0x69, 0x73, 0x6f, 0x6d]), Buffer.alloc(2000, 2)]);
+
+async function toAdStep(page: Page, name: string) {
+  test.setTimeout(300_000);
   await page.setViewportSize({ width: 1280, height: 900 });
   const tenant = await adsWorkspace(page, release);
   await adsSynced(page, tenant);
-  // The upload steps are answered here (the storage service is not part of this browser run); the ad then carries the file id the confirm step returns.
-  const api = `/api/workspaces/${tenant}/social`, fileId = "6f1c1f0e-2b3a-4c55-9d0e-0a1b2c3d4e5f";
-  await page.route(`**${api}/media`, (route) => route.fulfill({ status: 201, json: { file: { id: fileId, name: "banner.jpg", mime: "image/jpeg", size: 1, status: "pending", mediaMetadata: null }, upload: { kind: "single" } } }));
-  await page.route(`**${api}/media/*/parts`, (route) => route.fulfill({ json: { upload: { url: "/__put", method: "PUT", headers: {} } } }));
-  await page.route("**/__put", (route) => route.fulfill({ status: 200, headers: { etag: '"abc"' }, body: "" }));
-  await page.route(`**${api}/media/*/confirm`, (route) => route.fulfill({ json: { file: { id: fileId, name: "banner.jpg", mime: "image/jpeg", size: 1, status: "ready", mediaMetadata: { width: 100, height: 100 } } } }));
+  await mockMedia(page, tenant);
   await page.goto(`/workspaces/${tenant}/social/ads/new`);
   await page.getByLabel("Ad account").selectOption({ index: 1 });
-  await page.getByLabel("Name", { exact: true }).fill("Photo ad");
+  await page.getByLabel("Name", { exact: true }).fill(name);
   await next(page);
   await page.getByRole("radio", { name: "Awareness" }).check();
   await next(page);
   await page.getByLabel("Budget", { exact: true }).fill("12");
   await skip(page, 5); // budget, ad set, audience, placements, schedule
+}
+const check = async (page: Page) => { await next(page); await page.locator("[data-ads-check]").click(); await expect(page.getByText("The ad network accepts this ad.")).toBeVisible(); };
+
+test("an image ad: one image through the private media flow, type refused, shown in the preview, and checked", async ({ page }) => {
+  await toAdStep(page, "Photo ad");
   // A type that is not allowed never uploads.
   await page.getByTestId("ads-media-input").setInputFiles([{ name: "notes.txt", mimeType: "text/plain", buffer: Buffer.from("hello") }]);
   await expect(page.getByText("This file type cannot be used.")).toBeVisible();
   await page.getByRole("button", { name: "Dismiss" }).click();
-  const jpeg = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01]), Buffer.alloc(1800, 1), Buffer.from([0xff, 0xd9])]);
-  await page.getByTestId("ads-media-input").setInputFiles([{ name: "banner.jpg", mimeType: "image/jpeg", buffer: jpeg }]);
+  await page.getByTestId("ads-media-input").setInputFiles([{ name: "banner.jpg", mimeType: "image/jpeg", buffer: jpeg(1) }]);
   await expect(page.getByTestId("ads-media-item")).toContainText("banner.jpg");
+  await expect(page.getByTestId("ads-media-item")).toHaveCount(1);
+  await expect(page.locator("button", { hasText: "Add image" })).toHaveCount(0); // a single image: the picker is full
   await expect(page.getByTestId("ad-preview").locator("img")).toBeVisible();
   await page.getByRole("textbox", { name: "Text", exact: true }).fill("Come and see");
   await page.getByRole("textbox", { name: "Link", exact: true }).fill("https://example.test/visit");
-  await next(page);
-  await page.locator("[data-ads-check]").click();
-  await expect(page.getByText("The ad network accepts this ad.")).toBeVisible();
+  await audit(page, "create-ad-image");
+  await check(page);
+});
+
+test("a video ad: upload with a preview, wrong type refused, replace by removing, and checked", async ({ page }) => {
+  await toAdStep(page, "Video ad");
+  await page.getByRole("radio", { name: "Video" }).check();
+  await page.getByTestId("ads-media-input").setInputFiles([{ name: "photo.jpg", mimeType: "image/jpeg", buffer: jpeg(3) }]);
+  await expect(page.getByText("This file type cannot be used.")).toBeVisible(); // an image is not a video
+  await page.getByRole("button", { name: "Dismiss" }).click();
+  await page.getByTestId("ads-media-input").setInputFiles([{ name: "sermon.mp4", mimeType: "video/mp4", buffer: mp4 }]);
+  await expect(page.getByTestId("ads-media-item")).toContainText("sermon.mp4");
+  await expect(page.getByTestId("ads-media-item").locator("video")).toHaveCount(1);
+  await expect(page.getByTestId("ad-preview").locator("video")).toHaveCount(1);
+  await page.getByRole("textbox", { name: "Text", exact: true }).fill("Watch the message");
+  await page.getByRole("textbox", { name: "Link", exact: true }).fill("https://example.test/watch");
+  await audit(page, "create-ad-video");
+  await check(page);
+});
+
+test("a carousel ad: cards with their own image, headline and link, reorder and remove, a preview that pages, and checked", async ({ page }) => {
+  await toAdStep(page, "Carousel ad");
+  await page.getByRole("radio", { name: "Carousel" }).check();
+  for (const [index, name] of ["one.jpg", "two.jpg", "three.jpg"].entries()) {
+    await page.getByTestId("ads-media-input").setInputFiles([{ name, mimeType: "image/jpeg", buffer: jpeg(index + 4) }]);
+    await expect(page.getByTestId("ads-card")).toHaveCount(index + 1);
+    await page.getByLabel("Headline").nth(index).fill(`Card ${name}`);
+    await page.getByLabel("Link", { exact: true }).nth(index).fill(`https://example.test/${index + 1}`);
+  }
+  const names = () => page.getByTestId("ads-card").evaluateAll((els) => els.map((el) => el.querySelector("p.truncate")?.textContent));
+  expect(await names()).toEqual(["one.jpg", "two.jpg", "three.jpg"]);
+  await page.getByRole("button", { name: "Move card 3 up" }).click();
+  expect(await names()).toEqual(["one.jpg", "three.jpg", "two.jpg"]);
+  await page.getByRole("button", { name: "Move card 1 down" }).click();
+  expect(await names()).toEqual(["three.jpg", "one.jpg", "two.jpg"]);
+  // The preview pages through the cards in order, each with its own headline.
+  const preview = page.getByTestId("ad-preview");
+  await expect(page.getByTestId("ad-preview-card")).toHaveText("Card 1 of 3");
+  await expect(preview).toContainText("Card three.jpg");
+  await preview.getByRole("button", { name: "Next card" }).click();
+  await expect(page.getByTestId("ad-preview-card")).toHaveText("Card 2 of 3");
+  await expect(preview).toContainText("Card one.jpg");
+  await preview.getByRole("button", { name: "Next card" }).click();
+  await expect(preview.getByRole("button", { name: "Next card" })).toBeDisabled();
+  await preview.getByRole("button", { name: "Previous card" }).click();
+  await page.getByRole("textbox", { name: "Text", exact: true }).fill("Three things to try");
+  await audit(page, "create-ad-carousel");
+  // A card can be removed; two remain, which is the least a carousel needs.
+  await page.getByRole("button", { name: "Remove card 3" }).click();
+  await expect(page.getByTestId("ads-card")).toHaveCount(2);
+  await check(page);
 });
