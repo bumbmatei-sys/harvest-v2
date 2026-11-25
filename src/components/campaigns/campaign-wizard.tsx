@@ -11,6 +11,8 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { WizardLayout } from "@/components/wizard-layout";
 import { EditorShell } from "@/components/editor/editor-shell";
+import { EventCoverPicker, type CoverChange } from "@/components/events/event-cover-picker";
+import { useEventCoverUrl } from "@/components/events/use-event-cover-url";
 import { useEditorHosted } from "@/components/editor/editor-context";
 import { AccentIcon, accentVars } from "@/components/accent-icon";
 import { BasicsStep, PlaceStep, TypeStep, type SetStep } from "@/components/campaigns/wizard-steps";
@@ -37,22 +39,19 @@ function SaveStatus({ state }: { state: SaveState }) {
 /**
  * The campaign wizard on the shared EditorShell and WizardLayout (steps 1 to 3 here; the rest are listed and not yet available). Each step autosaves on
  * its own after a short pause. The server checks the version: a change made elsewhere is a 409, shown as "changed elsewhere, reload". Next saves first.
- * Only the person who started the draft edits it; an owner or admin who opens someone else's draft reads it and may discard it. Nothing here publishes
- * or sends anything.
+ * Anyone in the ministry who can write campaigns edits and finishes an open draft (founder decision, 25 Nov); the creator stays its owner. Nothing here
+ * publishes or sends anything.
  */
-export function CampaignWizard({ tenantId, initial, viewerId, canDiscard, ownerName, listHref }: {
-  tenantId: string; initial: DraftView; viewerId: string; canDiscard: boolean; ownerName: string; listHref: string;
-}) {
+export function CampaignWizard({ tenantId, initial, canDiscard, listHref }: { tenantId: string; initial: DraftView; canDiscard: boolean; listHref: string }) {
   const t = useTranslations("CampaignWizard"), request = useRequest(), hosted = useEditorHosted();
   const endpoint = `/api/workspaces/${tenantId}/campaigns/drafts/${initial.id}`;
-  const editable = initial.createdBy === viewerId;
   const [draft, setDraft] = useState(initial), [form, setForm] = useState(() => formFromDraft(initial));
   // Resume where the person left off, but never on a step that is not available yet.
   const [step, setStep] = useState<WizardStep>(() => { const at = wizardSteps[Math.min(Math.max(initial.currentStep, 1), wizardSteps.length) - 1]; return isEditable(at) ? at : "place"; });
   const [saveState, setSaveState] = useState<SaveState>("saved"), [error, setError] = useState(""), [attempted, setAttempted] = useState<Partial<Record<EditableStep, boolean>>>({});
-  const [discarding, setDiscarding] = useState(false), [confirmLeave, setConfirmLeave] = useState(false);
+  const [discarding, setDiscarding] = useState(false), [coverBusy, setCoverBusy] = useState(false), [confirmLeave, setConfirmLeave] = useState(false);
   const formRef = useRef(form), draftRef = useRef(draft), locked = useRef(false), chain = useRef<Promise<boolean>>(Promise.resolve(true)), timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const conflict = saveState === "conflict", disabled = !editable || conflict;
+  const conflict = saveState === "conflict", disabled = conflict;
 
   const stale = useCallback(() => { locked.current = true; setSaveState("conflict"); }, []);
   /** Save every step whose answers differ from the server's copy, one at a time so each PATCH carries the version the last one returned. */
@@ -97,7 +96,7 @@ export function CampaignWizard({ tenantId, initial, viewerId, canDiscard, ownerN
   }, [flush]);
 
   // Leaving the page saves first; only a save that cannot complete asks.
-  const { destination, setDestination, leave } = useUnsavedChangesGuard(saveState !== "saved" && saveState !== "conflict");
+  const { destination, setDestination, leave } = useUnsavedChangesGuard((saveState !== "saved" && saveState !== "conflict") || coverBusy);
   useEffect(() => {
     if (!destination) return;
     let live = true;
@@ -106,6 +105,9 @@ export function CampaignWizard({ tenantId, initial, viewerId, canDiscard, ownerN
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [destination]);
 
+  // The cover saves on its own requests and moves the draft's version, so the next autosave must carry the new one.
+  const cover = useEventCoverUrl(endpoint, draft.coverFileId);
+  const coverChanged = ({ coverFileId, version }: CoverChange) => { const next = { ...draftRef.current, coverFileId, version }; draftRef.current = next; setDraft(next); };
   const issues = useMemo(() => issuesOf(form, draft), [form, draft]);
   const reached = Math.max(draft.currentStep, wizardSteps.indexOf(step) + 1);
   const statuses = stepStatuses(issues, reached);
@@ -131,7 +133,9 @@ export function CampaignWizard({ tenantId, initial, viewerId, canDiscard, ownerN
 
   const body = isEditable(step) ? {
     type: <TypeStep form={form} set={set} disabled={disabled} problems={problems} />,
-    basics: <BasicsStep form={form} set={set} disabled={disabled} problems={problems} />,
+    basics: <BasicsStep form={form} set={set} disabled={disabled} problems={problems} cover={
+      <EventCoverPicker endpoint={endpoint} saved coverFileId={draft.coverFileId} version={draft.version} url={cover.url} onUrlFailed={cover.failed} onChange={coverChanged}
+        onBusyChange={setCoverBusy} disabled={disabled || saveState === "saving" || saveState === "dirty"} namespace="CampaignWizard.cover" />} />,
     place: <PlaceStep form={form} set={set} disabled={disabled} problems={problems} />,
   }[step] : null;
   const breadcrumb = <Breadcrumb><BreadcrumbList><BreadcrumbItem><BreadcrumbLink asChild><Link href={listHref}>{t("draftBack")}</Link></BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator />
@@ -141,9 +145,8 @@ export function CampaignWizard({ tenantId, initial, viewerId, canDiscard, ownerN
     trigger={<Button variant="outline" className="min-h-11">{t("discard")}</Button>} onConfirm={discard} />;
 
   // The palette's primary accent (Harvest: Desert Sun gold) carries the wizard's highlights: the step chips, the accent line on the step card and the phone progress bar.
-  return <div className="contents" data-campaign-accent="primary" style={accentVars("primary")}><EditorShell breadcrumb={breadcrumb} title={title} status={<><Badge variant="secondary">{t("status.draft")}</Badge>{editable && <SaveStatus state={saveState} />}</>} actions={actions}
+  return <div className="contents" data-campaign-accent="primary" style={accentVars("primary")}><EditorShell breadcrumb={breadcrumb} title={title} status={<><Badge variant="secondary">{t("status.draft")}</Badge><SaveStatus state={saveState} /></>} actions={actions}
     steps={shellSteps} current={step} onStep={(id) => setStep(id as WizardStep)} stepsLabel={t("stepsLabel")} previewLabel={t("stepsLabel")} sidebar={sidebar}>
-    {!editable && <Alert><AlertDescription>{ownerName ? t("readOnly", { name: ownerName }) : t("readOnlyUnknown")}</AlertDescription></Alert>}
     {conflict && <Alert variant="destructive" role="alert"><AlertTitle>{t("conflictTitle")}</AlertTitle>
       <AlertDescription className="flex flex-wrap items-center gap-3">{t("conflictBody")}<Button variant="outline" className="min-h-11" onClick={() => location.reload()}>{t("reload")}</Button></AlertDescription></Alert>}
     {error && !conflict && <Alert variant="destructive" role="alert"><AlertDescription className="flex flex-wrap items-center gap-3">{error}

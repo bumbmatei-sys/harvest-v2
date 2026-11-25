@@ -9,6 +9,8 @@ import { listApplications } from "@/server/community-applications";
 import { AccessError, can } from "@/server/permissions";
 import { AccessState } from "@/components/access-state";
 import { chatChannelSettings, communityChatEnabled } from "@/server/community-chat";
+import { discoverGateOpen, discoverRouteDeps } from "@/server/discover/gate";
+import { listMyListings } from "@/server/discover/owner";
 import { CommunityEditor } from "@/components/communities/community-editor";
 
 export default async function CommunityEditPage({ params }: { params: Promise<{ tenantId: string; communityId: string }> }) {
@@ -27,6 +29,9 @@ export default async function CommunityEditPage({ params }: { params: Promise<{ 
   const applications = writable ? (await listApplications(db, session.user.id, tenantId, communityId).catch(denied)) : null;
   const categories = (await listCategories(db, session.user.id, tenantId, communityId).catch(denied)) ?? [];
   const chat = writable && communityChatEnabled() ? await chatChannelSettings(db, session.user.id, tenantId, communityId).catch(denied) : null;
+  // The Discover card's listing is read here, so the editor (and its live preview) makes no request of its own on load.
+  const discoverOpen = discoverGateOpen();
+  const listing = discoverOpen ? (await listMyListings(db, session.user.id, tenantId, discoverRouteDeps()).catch(denied))?.items.find((item) => item.type === "community" && item.id === communityId) : undefined;
   return <CommunityEditor chat={chat} initial={community} members={members} invites={invites} applications={applications} categories={categories} host={workspace.name}
-    endpoint={`/api/workspaces/${tenantId}/communities/${communityId}`} listHref={`/workspaces/${tenantId}/communities`} writable={writable} />;
+    endpoint={`/api/workspaces/${tenantId}/communities/${communityId}`} listHref={`/workspaces/${tenantId}/communities`} writable={writable} discoverTenant={discoverOpen ? tenantId : undefined} discoverListing={listing} />;
 }
