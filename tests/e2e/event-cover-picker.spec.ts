@@ -201,7 +201,16 @@ test("event cover picker: upload, progress, scan state, replace, remove, errors,
       const replace = page.getByRole("button", { name: "Replace" }), remove = page.getByRole("button", { name: "Remove" });
       await expect(replace).toBeEnabled();
       await expect(async () => { await replace.focus(); await expect(replace).toBeFocused({ timeout: 1000 }); }).toPass({ timeout: 10_000 });
-      const chooser = page.waitForEvent("filechooser", { timeout: 15_000 }); await page.keyboard.press("Enter"); expect((await chooser).isMultiple()).toBe(false);
+      // Keyboard activation is proved on the input's click (a headless browser does not always deliver a file chooser event for a keypress); the chooser itself is proved with a real click.
+      await page.evaluate(() => {
+        const w = window as unknown as { __coverInputClicks: number }; w.__coverInputClicks = 0;
+        const original = HTMLInputElement.prototype.click;
+        HTMLInputElement.prototype.click = function (this: HTMLInputElement) { if (this.dataset.testid === "cover-input") w.__coverInputClicks++; return original.call(this); };
+      });
+      await page.keyboard.press("Enter");
+      await expect.poll(() => page.evaluate(() => (window as unknown as { __coverInputClicks: number }).__coverInputClicks)).toBe(1);
+      const [chooser] = await Promise.all([page.waitForEvent("filechooser", { timeout: 15_000 }), replace.click()]);
+      expect(chooser.isMultiple()).toBe(false);
       await expect(remove).toBeEnabled();
       await expect(async () => { await remove.focus(); await expect(remove).toBeFocused({ timeout: 1000 }); }).toPass({ timeout: 10_000 });
       await page.keyboard.press("Enter");
