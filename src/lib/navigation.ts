@@ -50,7 +50,7 @@ export type NavEntry = {
    */
   exitTo?: string;
 };
-export type NavFeature = "communities" | "catalog" | "events" | "social" | "office" | "newsletter" | "newsletterAutomations" | "docs" | "linkInBio";
+export type NavFeature = "communities" | "catalog" | "events" | "social" | "office" | "newsletter" | "newsletterAutomations" | "docs" | "linkInBio" | "discover";
 export type NavItem = { id: string; label: NavLabelKey; icon: LucideIcon; href: string; active: boolean };
 /** A `pinned` group is rendered without a header, above the other groups (Discover). */
 export type NavGroup = { id: NavGroupId; label: NavLabelKey; icon?: LucideIcon; pinned?: boolean; items: NavItem[] };
@@ -115,7 +115,8 @@ export const navEntries: readonly NavEntry[] = [
   { id: "funds", group: "giving", mode: "operations", status: "planned", label: "funds", icon: Wallet, path: "/giving/funds", match: under("/giving/funds") },
   { id: "givingPage", group: "giving", mode: "operations", status: "planned", label: "givingPage", icon: BadgeDollarSign, path: "/giving/page", match: under("/giving/page") },
   // Public > Discover (pinned above the groups) and Social media. Planner opens the page whose own tabs are Compose, Calendar and Queue.
-  { id: "discover", group: "discover", mode: "public", status: "planned", label: "discover", icon: Compass, path: "/discover/manage", match: under("/discover/manage") },
+  // Owners and admins; hidden unless the server reports unified Discover open (non-production gate, never in production).
+  { id: "discover", group: "discover", mode: "public", label: "discover", icon: Compass, path: "/discover/manage", match: under("/discover/manage"), permission: "catalog:manage", feature: "discover" },
   { id: "planner", group: "publishing", mode: "public", label: "planner", icon: CalendarDays, path: "/social/planner", match: (pathname) => under("/social/planner")(pathname) || under("/social/compose")(pathname), permission: "social:schedule", feature: "social" },
   { id: "inbox", group: "publishing", mode: "public", label: "inbox", icon: MessageSquareText, path: "/social/inbox", match: under("/social/inbox"), permission: "social:inbox", feature: "social", exitTo: "planner" },
   { id: "autoDm", group: "publishing", mode: "public", label: "autoDm", icon: MessageCircleReply, path: "/social/auto-dm", match: under("/social/auto-dm"), permission: "social:auto_dm", feature: "social" },

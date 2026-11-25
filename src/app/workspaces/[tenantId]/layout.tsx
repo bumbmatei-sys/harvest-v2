@@ -1,3 +1,4 @@
+import { discoverGateOpen } from "@/server/discover/gate";
 import { cookies } from "next/headers";
 import { getDb } from "@/db/client";
 import { pageSession } from "@/server/page-session";
@@ -25,5 +26,5 @@ export default async function WorkspaceLayout({ children, params }: { children: 
   const workspace = await getWorkspace(getDb(), session.user.id, tenantId).catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; });
   if (!workspace) return <AppShell defaultOpen={defaultOpen} workspaces={workspaces} email={session.user.email} settings={plain}>{children}</AppShell>;
   const settings = can(workspace.role, "social:connect") ? await shellSettings(getDb(), session.user.id, { socialStaff: true }) : plain;
-  return <AppShell defaultOpen={defaultOpen} workspaces={workspaces} selected={tenantId} email={session.user.email} brandTheme={workspace.brandTheme} features={[...(communitiesEnabled() ? ["communities" as const] : []), ...(freeCatalogEnabled() ? ["catalog" as const] : []), ...(eventsEnabled() ? ["events" as const] : []), ...(socialScreensEnabled() ? ["social" as const] : []), ...(officeScreensEnabled() ? ["office" as const] : []), ...(newsletterEnabled() ? ["newsletter" as const] : []), ...(newsletterAutomationsEnabled() ? ["newsletterAutomations" as const] : []), ...(docsEnabled() ? ["docs" as const] : []), ...(linkInBioEnabled() ? ["linkInBio" as const] : [])]} modeSwitcher={shellModesEnabled()} settings={settings}>{children}</AppShell>;
+  return <AppShell defaultOpen={defaultOpen} workspaces={workspaces} selected={tenantId} email={session.user.email} brandTheme={workspace.brandTheme} features={[...(communitiesEnabled() ? ["communities" as const] : []), ...(freeCatalogEnabled() ? ["catalog" as const] : []), ...(eventsEnabled() ? ["events" as const] : []), ...(socialScreensEnabled() ? ["social" as const] : []), ...(officeScreensEnabled() ? ["office" as const] : []), ...(newsletterEnabled() ? ["newsletter" as const] : []), ...(newsletterAutomationsEnabled() ? ["newsletterAutomations" as const] : []), ...(docsEnabled() ? ["docs" as const] : []), ...(linkInBioEnabled() ? ["linkInBio" as const] : []), ...(discoverGateOpen() ? ["discover" as const] : [])]} modeSwitcher={shellModesEnabled()} settings={settings}>{children}</AppShell>;
 }
