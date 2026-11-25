@@ -72,16 +72,23 @@ BEGIN
   IF p_reason IS NOT NULL AND p_reason NOT IN ('moved_away','too_busy','not_relevant','too_many_notifications','content_quality','privacy','other') THEN RAISE EXCEPTION 'invalid leave reason'; END IF;
   IF (other IS NOT NULL AND p_reason IS DISTINCT FROM 'other') OR length(coalesce(other, '')) > 200 THEN RAISE EXCEPTION 'invalid leave reason'; END IF;
   PERFORM set_config('app.community_resolve_slug', coalesce(p_slug, ''), true);
-  SELECT * INTO c FROM public.communities WHERE communities.slug = p_slug AND communities.status = 'published';
+  SELECT * INTO c FROM public.communities WHERE communities.slug = p_slug;
   IF NOT FOUND THEN PERFORM public.community_definer_reset(); RETURN 'not_found'; END IF;
   PERFORM set_config('app.community_definer_tenant', c.tenant_id::text, true);
   SELECT * INTO m FROM public.community_memberships WHERE tenant_id = c.tenant_id AND community_id = c.id AND user_id = actor FOR UPDATE;
   IF NOT FOUND OR m.status <> 'active' THEN PERFORM public.community_definer_reset(); RETURN 'not_member'; END IF;
   IF m.role = 'owner' THEN PERFORM public.community_definer_reset(); RETURN 'owner'; END IF;
+  -- harvest_app can set these two settings itself, but only the 'left' transition of an active membership reads them (community_exit_record), and anything it sets is validated nowhere else:
+  -- the worst a caller can do is attach a wrong reason to its own departure, which only owners and admins see in aggregate.
   PERFORM set_config('app.community_leave_reason', coalesce(p_reason, ''), true);
   PERFORM set_config('app.community_leave_other', coalesce(other, ''), true);
   UPDATE public.community_memberships SET status = 'left', role = 'member', muted_until = NULL, updated_at = now() WHERE tenant_id = c.tenant_id AND community_id = c.id AND user_id = actor;
   PERFORM set_config('app.community_leave_reason', '', true); PERFORM set_config('app.community_leave_other', '', true);
+  -- Parity with the ban path (0039): leaving ends the access grant, so rejoining an invite-only or approval community needs a fresh grant; open applications are withdrawn.
+  UPDATE public.entitlements SET revoked_at = now(), revoked_by = actor
+    WHERE tenant_id = c.tenant_id AND user_id = actor AND resource_type = 'community' AND resource_id = c.id AND revoked_at IS NULL;
+  UPDATE public.community_applications SET status = 'withdrawn', updated_at = now()
+    WHERE tenant_id = c.tenant_id AND community_id = c.id AND user_id = actor AND status IN ('pending', 'info_requested');
   INSERT INTO public.audit_logs (tenant_id, actor_id, action, target_id) VALUES (c.tenant_id, actor, 'community.leave', c.id::text);
   PERFORM public.community_definer_reset();
   RETURN 'left';

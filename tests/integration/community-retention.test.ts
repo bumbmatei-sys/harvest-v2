@@ -150,3 +150,20 @@ it("reports retention cohorts, cancellations by reason and acquisition with the 
   expect(JSON.stringify(small)).not.toMatch(/rt-[mc]\d|@example/);
   await expect(stats(ret, "last90", "rt-member")).rejects.toMatchObject({ status: 403 });
 });
+
+it("ends the access grant and withdraws open applications when a member leaves, and lets a member leave an archived community", async () => {
+  const grant = (community: string, user: string) => q("insert into entitlements(tenant_id,user_id,resource_type,resource_id,source) values ($1,$2,'community',$3,'admin_grant')", [a, user, community]);
+  await member(cid, "rt-m16"); await grant(cid, "rt-m16");
+  await q("insert into community_applications(tenant_id,community_id,user_id,status,questions_version,rules_version,adult_confirmed_at) values ($1,$2,'rt-m16','pending',1,1,now())", [a, cid]);
+  await expect(leaveCommunity(f.db, "rt-m16", slug, { reason: "privacy" })).resolves.toEqual({ outcome: "left" });
+  expect((await q("select revoked_at is not null as revoked, revoked_by from entitlements where user_id='rt-m16' and resource_id=$1", [cid])).rows).toEqual([{ revoked: true, revoked_by: "rt-m16" }]);
+  expect((await q("select status from community_applications where user_id='rt-m16'")).rows).toEqual([{ status: "withdrawn" }]);
+  // Rejoining needs a fresh grant: the old one no longer counts.
+  expect((await q("select count(*)::int n from entitlements where user_id='rt-m16' and resource_id=$1 and revoked_at is null", [cid])).rows[0].n).toBe(0);
+  // Any non-deleted community: an archived one can be left too.
+  await q("update communities set status='archived' where id=$1", [ret]);
+  const archivedSlug = (await q("select slug from communities where id=$1", [ret])).rows[0].slug as string;
+  await member(ret, "rt-m17");
+  await expect(leaveCommunity(f.db, "rt-m17", archivedSlug, { reason: "too_busy" })).resolves.toEqual({ outcome: "left" });
+  expect((await q("select kind, reason from community_exits where user_id='rt-m17' and community_id=$1", [ret])).rows).toEqual([{ kind: "left", reason: "too_busy" }]);
+});
