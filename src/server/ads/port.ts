@@ -1,5 +1,5 @@
 import type {
-  AdsCredential, AdsEvent, AdsPage, AdsQuery, ConversionEventBatch, LaunchOutcome, LaunchSpec, MutationSpec, RemoteAdAccount, RemoteAudience, RemoteBoostablePost, RemoteCampaign,
+  AdsCredential, AdsEvent, AdsPage, AdsQuery, AudienceUploadSpec, ConversionEventBatch, LaunchOutcome, LaunchSpec, MutationSpec, RemoteAdAccount, RemoteAudience, RemoteBoostablePost, RemoteCampaign,
   RemoteConversionDestination, RemoteHealth, RemoteIdentity, RemoteLead, RemoteLeadForm, ResultRow, TargetingHit, ValidationOutcome,
 } from "./contract";
 import type { AdLevel, AdStatus } from "../../lib/ads/ads";
@@ -36,8 +36,11 @@ export interface AdsProvider {
   listLeadForms(cred: AdsCredential, q: AdsQuery): Promise<RemoteLeadForm[]>;
   listLeads(cred: AdsCredential, q: AdsQuery & { formRef?: string; cursor?: string }): Promise<AdsPage<RemoteLead>>;
   listConversionDestinations(cred: AdsCredential, q: AdsQuery): Promise<RemoteConversionDestination[]>;
-  /** Declared for the data model only. Every implementation must refuse; nothing is ever sent. */
-  sendConversionEvents(cred: AdsCredential, batch: ConversionEventBatch): Promise<never>;
+  /** Hashed identifiers only, idempotent per batch key. Hard-off: only the fake accepts it, and only when a test allows it. */
+  sendConversionEvents(cred: AdsCredential, batch: ConversionEventBatch): Promise<{ accepted: number }>;
+  createCustomerListAudience(cred: AdsCredential, q: AdsQuery & { idempotencyKey: string; name: string }): Promise<RemoteAudience>;
+  /** Uploads hashed customer-list members. Hard-off like every other send. */
+  uploadAudienceMembers(cred: AdsCredential, spec: AudienceUploadSpec): Promise<{ received: number }>;
   /** Constant-time check of the delivery signature against every accepted secret. */
   verifyWebhook(rawBody: string, signature: string | null, secrets: readonly string[]): boolean;
   /** Returns null for a body that is not a recognised event. */
