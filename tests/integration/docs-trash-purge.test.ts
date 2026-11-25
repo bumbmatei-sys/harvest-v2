@@ -102,3 +102,23 @@ it("leaves a doc in the trash, and carries on, when a table it cannot clear stil
     expect(await ids(tenant)).not.toContain(blockedDoc);
   } finally { await fixture.admin.query("drop table doc_comments"); }
 });
+
+it("clears the Docs slice 2 rows (comments, history, shares, page shares, notifications, links) that point at a purged doc", async () => {
+  const other2 = "trash-sharer";
+  await fixture.db.insert(users).values({ id: other2, name: other2, email: `${other2}@example.test` });
+  const q = (sql: string, values: unknown[] = []) => fixture.admin.query(sql, values);
+  const doc = await trashed(tenant, owner, "slice2-old", 50, async (id) => {
+    const page = (await q("select id from doc_pages where doc_id=$1 order by created_at limit 1", [id])).rows[0].id;
+    const comment = (await q("insert into doc_comments(tenant_id, doc_id, page_id, author_id, body) values ($1,$2,$3,$4,'Hello') returning id", [tenant, id, page, owner])).rows[0].id;
+    await q("insert into doc_comments(tenant_id, doc_id, page_id, parent_id, author_id, body) values ($1,$2,$3,$4,$5,'Reply')", [tenant, id, page, comment, owner]);
+    await q("insert into doc_page_versions(tenant_id, doc_id, page_id, number, content, created_by) values ($1,$2,$3,1,'{}'::jsonb,$4)", [tenant, id, page, owner]);
+    await q("insert into doc_shares(tenant_id, doc_id, owner_id, user_id, role, created_by) values ($1,$2,$3,$4,'view',$3)", [tenant, id, owner, other2]);
+    await q("insert into doc_notifications(tenant_id, user_id, kind, doc_id, actor_id) values ($1,$2,'comment',$3,$4)", [tenant, other2, id, owner]);
+  });
+  const count = async (table: string) => Number((await q(`select count(*)::int n from ${table} where doc_id=$1`, [doc])).rows[0].n);
+  expect(await count("doc_comments")).toBe(2);
+  expect(await purge()).toBeGreaterThanOrEqual(1);
+  for (const table of ["docs", "doc_pages", "doc_comments", "doc_page_versions", "doc_shares", "doc_page_shares", "doc_notifications", "doc_links", "doc_attachments"]) {
+    expect(Number((await q(`select count(*)::int n from ${table} where ${table === "docs" ? "id" : "doc_id"}=$1`, [doc])).rows[0].n)).toBe(0);
+  }
+});

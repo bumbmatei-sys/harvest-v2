@@ -1,12 +1,13 @@
 ALTER TABLE "audit_logs" DROP CONSTRAINT "audit_system_actor";--> statement-breakpoint
 ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_system_actor" CHECK ("audit_logs"."actor_id" is not null or "audit_logs"."action" in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated', 'community.profile_save', 'community.profile_withdraw', 'community.profile_erase', 'crm.form.submit', 'docs.trash.purge'));--> statement-breakpoint
 -- Docs trash retention: a doc that has been in the trash for 30 days is purged for good by the worker role, in bounded batches.
+-- Every table with a restrictive or no-action foreign key to docs or doc_pages (slice 2: shares, page shares, comments, links, history, attachments, notifications) gets the same SELECT and DELETE purge policies, so the purge can read and clear it under FORCE RLS.
 -- The worker is not a tenant member, so the purge works through policies that apply only to a non-application owner, only for the worker's
 -- session and only while the purge function has switched app.docs_purge on inside its own transaction.
 DO $$
 DECLARE rel text;
 BEGIN
-  FOREACH rel IN ARRAY ARRAY['docs','doc_pages','doc_favorites'] LOOP
+  FOREACH rel IN ARRAY ARRAY['docs','doc_pages','doc_favorites','doc_page_shares','doc_shares','doc_comments','doc_links','doc_page_versions','doc_attachments','doc_notifications'] LOOP
     EXECUTE format($p$CREATE POLICY docs_purge_read ON public.%I FOR SELECT TO PUBLIC
       USING (current_user <> 'harvest_app' AND session_user = 'harvest_worker' AND current_setting('app.docs_purge', true) = 'on')$p$, rel);
     EXECUTE format($p$CREATE POLICY docs_purge_remove ON public.%I FOR DELETE TO PUBLIC
