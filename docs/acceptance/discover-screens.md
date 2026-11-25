@@ -6,7 +6,7 @@ Sources read: `CLAUDE.md`; `docs/prd/harvest-communities.md` section 8A (routes,
 
 Founder decisions applied (25 Nov): approval before listing at launch (a listing is public only when published, listed, opted in and approved for exactly its current public fields); Harvest staff are granted only by the ops script (no grant UI); staff routes need a sign-in within 15 minutes and answer a neutral 404 to everyone else. Founder-approved kit items (25 Nov): see "Kit items" below.
 
-Status values: BUILT, DEFERRED (with the reason), GAP (needs a decision or a server change, recorded not guessed). Evidence names the code and the browser test; screenshots are in `docs/screenshots/discover/` (file names below). Delivery is split into two stacked draft PRs: public screens and owner screens first, the staff queue second (S1 to S12).
+Status values: BUILT, STACKED (built in the second PR, which stacks on this one), DEFERRED (with the reason), GAP (needs a decision or a server change, recorded not guessed). Evidence names the code and the browser test; screenshots are in `docs/screenshots/discover/` (file names below). Delivery is split into two stacked draft PRs: public screens and owner screens first, the staff queue second (S1 to S12).
 
 ## 1. Public `/discover`
 
@@ -44,18 +44,18 @@ Status values: BUILT, DEFERRED (with the reason), GAP (needs a decision or a ser
 
 | # | Requirement | Status | Evidence |
 | --- | --- | --- | --- |
-| S1 | `/platform/discover`: neutral 404 for everyone who is not active staff (signed out, member, revoked), checked before anything else; no link to it anywhere in the app | BUILT | `/platform/discover`: `notFound()` for a signed-out visitor, a non-staff user and a closed gate; `robots: noindex`; nothing links to it. E2E: both get 404 and the queue API answers 404. |
-| S2 | Re-auth: a 401 `REAUTH_REQUIRED` from any staff route replaces the table with a sign-in prompt (shared Alert with a sign-in action that returns to the page) | BUILT | A 401 from any staff request shows the alert with a button that signs out and returns to `/sign-in?next=%2Fplatform%2Fdiscover` (allowed return path). E2E with sessions aged 30 minutes. |
-| S3 | Shared DataTable (kit `tables14`) with tabs Pending, Approved, Rejected, Reports and counts; rows from `GET /api/platform/discover/queue?state=` and `/reports`; phone card layout | BUILT | `StaffReview` on the shared DataTable: tabs Pending, Approved, Rejected, Suspended, Reports with counts (25+ at the page limit), phone cards. **Limit:** the routes return the oldest 25 per state and have no paging, so a full tab shows a note; a reviewer clears older ones to reach newer ones (open question 5). E2E and axe. **Deviation:** a fifth tab, Suspended, because a suspended listing is otherwise unreachable and could never be reinstated. |
-| S4 | Side drawer (kit `drawer1`, on the shared Sheet) with the listing's public fields, review state, reason, open report count and the ministry id | BUILT | Right-hand Sheet with the public fields, state, reason, open reports and the ministry id (staff-only data the queue already returns). |
-| S5 | Approve; reject with a required reason (1 to 500); both reviewers and admins | BUILT | Approve; Reject needs a reason (client check) and a confirmation; the server's 409 and 422 are shown. E2E. |
-| S6 | Suspend (reason required) and reinstate: admin only, hidden from reviewers (the server answers 404 to a reviewer as well) | BUILT | Suspend and Reinstate render only for an admin (E2E: a reviewer sees neither; the server also answers 404 to a reviewer). E2E admin path. |
-| S7 | Report resolution: reviewed or dismissed (`POST /reports/:id/resolve`) | BUILT | Mark reviewed and Dismiss on the report panel. E2E. |
-| S8 | Ministry standing (suspend with reason, restore): admin only | BUILT | Suspend ministry (reason, confirmation) and Restore ministry (admin only); E2E confirms the public page hides and restores the listings. |
-| S9 | Stale version (409) and not-reviewable (422) shown in the drawer with a refresh; every action confirmed through the shared ConfirmDialog where it hides content | BUILT | Stale version (409) and not-reviewable (422) answers in the panel; reject, suspend and ministry suspension go through `ConfirmDialog`. |
+| S1 | `/platform/discover`: neutral 404 for everyone who is not active staff (signed out, member, revoked), checked before anything else; no link to it anywhere in the app | STACKED | Second stacked PR (staff screens). |
+| S2 | Re-auth: a 401 `REAUTH_REQUIRED` from any staff route replaces the table with a sign-in prompt (shared Alert with a sign-in action that returns to the page) | STACKED | Second stacked PR (staff screens). |
+| S3 | Shared DataTable (kit `tables14`) with tabs Pending, Approved, Rejected, Reports and counts; rows from `GET /api/platform/discover/queue?state=` and `/reports`; phone card layout | STACKED | Second stacked PR (staff screens). |
+| S4 | Side drawer (kit `drawer1`, on the shared Sheet) with the listing's public fields, review state, reason, open report count and the ministry id | STACKED | Second stacked PR (staff screens). |
+| S5 | Approve; reject with a required reason (1 to 500); both reviewers and admins | STACKED | Second stacked PR (staff screens). |
+| S6 | Suspend (reason required) and reinstate: admin only, hidden from reviewers (the server answers 404 to a reviewer as well) | STACKED | Second stacked PR (staff screens). |
+| S7 | Report resolution: reviewed or dismissed (`POST /reports/:id/resolve`) | STACKED | Second stacked PR (staff screens). |
+| S8 | Ministry standing (suspend with reason, restore): admin only | STACKED | Second stacked PR (staff screens). |
+| S9 | Stale version (409) and not-reviewable (422) shown in the drawer with a refresh; every action confirmed through the shared ConfirmDialog where it hides content | STACKED | Second stacked PR (staff screens). |
 | S10 | Report rows show the listing's name and host | GAP | Report rows carry no name, so the screens match them to the pending, approved, rejected and suspended lists (first 25 of each). Otherwise the row shows the type and the first 8 characters of the id, with a note. A name in the report row is a one-line change to `platform_discover_reports` (a migration), not made here. |
-| S11 | No member, application, payment or private ministry data on screen; staff audit stays server-side | BUILT | Only queue and report fields are shown; the staff page has no member, application or payment data. |
-| S12 | Staff UI never grants or revokes staff (ops script only) | BUILT | No grant or revoke control anywhere; the page shows the signed-in role as text. |
+| S11 | No member, application, payment or private ministry data on screen; staff audit stays server-side | STACKED | Second stacked PR (staff screens). |
+| S12 | Staff UI never grants or revokes staff (ops script only) | STACKED | Second stacked PR (staff screens). |
 
 ## 4. Cross-cutting
 
