@@ -20,11 +20,11 @@ export function PartialBanners({ accounts, truncated, accountsHref }: { accounts
   const t = useTranslations("SocialAnalytics.banners"), issues = accountIssues(accounts);
   if (!issues.expired.length && !issues.delayed.length && !issues.pending.length && !truncated) return null;
   return <div className="flex flex-col gap-3" data-testid="partial-banners">
-    {issues.expired.length > 0 && <Alert variant="destructive" data-testid="banner-expired"><CircleAlert aria-hidden="true" />
+    {issues.expired.length > 0 && <Alert variant="attention" data-testid="banner-expired"><CircleAlert aria-hidden="true" />
       <AlertTitle>{t("expiredTitle", { count: issues.expired.length })}</AlertTitle>
       <AlertDescription><p>{t("expired", { names: names(issues.expired) })}</p>
         <Button asChild variant="outline" size="responsive" className="mt-2"><Link href={accountsHref}>{t("reconnect")}</Link></Button></AlertDescription></Alert>}
-    {issues.delayed.length > 0 && <Alert data-testid="banner-delayed"><Clock aria-hidden="true" />
+    {issues.delayed.length > 0 && <Alert variant="attention" data-testid="banner-delayed"><Clock aria-hidden="true" />
       <AlertTitle>{t("delayedTitle", { count: issues.delayed.length })}</AlertTitle>
       <AlertDescription>{t("delayed", { names: names(issues.delayed) })}</AlertDescription></Alert>}
     {issues.pending.length > 0 && <Alert data-testid="banner-pending"><Clock aria-hidden="true" />

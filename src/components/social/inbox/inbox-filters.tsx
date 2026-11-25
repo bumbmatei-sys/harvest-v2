@@ -55,7 +55,7 @@ export function InboxFilters({ tenantId, view, filters, onFilters, onRetry }: { 
               return <li key={account.id}><button type="button" className={cn(item, "min-h-11 lg:min-h-8", filters.account === account.id && "bg-accent font-medium")} aria-current={filters.account === account.id ? "true" : undefined}
                 onClick={() => onFilters({ ...filters, platform: undefined, account: filters.account === account.id ? undefined : account.id })} data-testid={`account-${account.id}`}>
                 <span className="min-w-0 flex-1 truncate">{account.displayName ?? platformLabels[account.platform]}</span>
-                {problem ? <StatusBadge tone="warning" label={t(`accounts.problem.${problem}`)} /> : <span className="text-xs tabular-nums text-muted-foreground">{account.counts.all}</span>}</button></li>;
+                {problem ? <StatusBadge tone="danger" label={t(`accounts.problem.${problem}`)} /> : <span className="text-xs tabular-nums text-muted-foreground">{account.counts.all}</span>}</button></li>;
             })}</ul>}</li>; })}</ul>}
     </section>}
     {data && data.labels.length > 0 && <section aria-labelledby="labels-heading">

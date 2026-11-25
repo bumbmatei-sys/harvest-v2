@@ -126,7 +126,7 @@ export function InboxThread({ tenantId, api, itemId, hint, me, assignees, sendEn
         </NativeSelect></label>
     </div>
 
-    {problem && <div className="p-4"><Alert variant="destructive" role="alert" data-testid="thread-problem"><TriangleAlert aria-hidden="true" /><AlertDescription className="flex flex-wrap items-center gap-x-2 gap-y-1">{t(`thread.problem.${problem}`)}
+    {problem && <div className="p-4"><Alert variant="attention" role="alert" data-testid="thread-problem"><TriangleAlert aria-hidden="true" /><AlertDescription className="flex flex-wrap items-center gap-x-2 gap-y-1">{t(`thread.problem.${problem}`)}
       {(problem === "expired" || problem === "unhealthy" || problem === "disabled") && <Link href={`/workspaces/${tenantId}/social/accounts`} prefetch={false} className="font-medium underline underline-offset-2">{t("manageAccounts")}</Link>}</AlertDescription></Alert></div>}
     {delayed && <div className="p-4"><Alert role="status" data-testid="thread-delayed"><RotateCw aria-hidden="true" /><AlertDescription className="flex flex-wrap items-center gap-2">{t("thread.delayed", { seconds: data.retryAfter ?? 2 })}
       <Button type="button" variant="outline" size="responsive" onClick={retry}>{t("retry")}</Button></AlertDescription></Alert></div>}

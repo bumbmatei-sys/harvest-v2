@@ -4,7 +4,7 @@ Screens for the free catalogue server ([free-courses-products](free-courses-prod
 
 ## Requirement to screen
 
-Status: **Done** (built in this PR), **PR 2** (public and learner screens, stacked on this PR), **Next** (needs a server slice, recorded below).
+Status: **Done** (part 1: owner screens and editors), **Done, PR 2** (part 2: public and learner screens, stacked on part 1), **Next** (needs a server slice, recorded below).
 
 | # | Requirement (source) | Screen or component | Status |
 | --- | --- | --- | --- |
@@ -22,10 +22,10 @@ Status: **Done** (built in this PR), **PR 2** (public and learner screens, stack
 | 12 | Owner and admin author; member and viewer read editorial metadata only (spec 8, `catalog:manage`) | List for every role; "New" and the editor controls only for owner and admin; member and viewer see a read-only summary | Done |
 | 13 | Give a community's members the item: same-ministry shelf link (server `PUT/DELETE .../communities/{id}/catalog/{item}`) | Access step "Community shelf": one switch per ministry community. Linking confers no access (server doc, spec 2); the copy says so. Adds a read of an item's linked community ids to the author draft read | Done |
 | 14 | Community classroom and products tab entry points (task, PRD C13 and C16) | No community-side reader of linked items and no `community_included` grant exist. Needs a C13/C16 server slice | Next |
-| 15 | Public catalogue and detail pages, sign-in to enrol (spec 6) | `/courses/{slug}` and `/products/{slug}` (kind-checked), Discover Courses and Products tabs | PR 2 |
-| 16 | Free enrolment, then learner view with lessons (server enrolment and content routes) | `/courses/{slug}/learn` | PR 2 |
-| 17 | Protected downloads, 60 second URLs (server file route) | Download rows on `/products/{slug}` after enrolment | PR 2 |
-| 18 | Study progress in the learner view (task, kit study-progress card) | The card shows the learner's place (lesson n of m), which is real. Completion marks need a server slice | PR 2 and Next |
+| 15 | Public catalogue and detail pages, sign-in to enrol (spec 6) | `/courses/{slug}` and `/products/{slug}` (kind-checked; the other kind redirects to its own page), `EnrolButton` (sign-in link with a safe return path when signed out), Discover Courses and Products tabs (`/discover?type=course|product`; only what the owner opted in and the platform approved, so empty until then) | Done, PR 2 |
+| 16 | Free enrolment, then learner view with lessons (server enrolment and content routes) | `/courses/{slug}/learn` (`CourseLearner`: lesson, ordered lesson list, previous and next, sheet below 1024px; only published lessons arrive) | Done, PR 2 |
+| 17 | Protected downloads, 60 second URLs (server file route) | `DownloadList` on `/products/{slug}` after enrolment; each click asks the server for a fresh address | Done, PR 2 |
+| 18 | Study progress in the learner view (task, kit study-progress card) | The card shows the learner's place (lesson n of m), which is real. Completion marks need a server slice | Done (place), Next (completion) |
 | 19 | Copy: concise, provider-neutral, "ministry", no payments, no routine helper text under fields | Message namespace `Catalog`; source guard passes | Done |
 | 20 | Learner progress, questions, workshops, community-link products, Discover for these types beyond the listing, payments | Server slices C4 and later; not in the catalogue server today | Next |
 

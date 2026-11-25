@@ -53,7 +53,7 @@ export function seedSyntheticAds(fake: FakeAdsProvider) {
   rows(google, level, ["g1", "gs1", "ga1"], 11);
   meta.forms.push({ ref: "f1", name: "Youth camp sign-up", status: "active", questions: ["full_name", "email", "phone", "consent_follow_up"], consentText: "We use your answers to reply about Grace Church. Your details are not shared with anyone else." });
   meta.leads.push(
-    { ref: "l1", network: "meta", formRef: "f1", campaignRef: "c2", adRef: "a5", fields: { full_name: "Ada Example", email: "ada@example.test", phone: "+15550100101", consent_follow_up: "yes" }, submittedAt: new Date(Date.now() - 86_400_000) },
+    { ref: "l1", network: "meta", formRef: "f1", campaignRef: "c2", adRef: "a5", fields: { full_name: "Ada Example", email: "ada@example.test", phone: "+12025550101", consent_follow_up: "yes" }, submittedAt: new Date(Date.now() - 86_400_000) },
     { ref: "l2", network: "meta", formRef: "f1", campaignRef: "c2", adRef: "a5", fields: { full_name: "Ben Example", email: "ben@example.test", consent_follow_up: "no" }, submittedAt: new Date(Date.now() - 2 * 86_400_000) },
   );
   meta.audiences.push({ ref: "au1", kind: "custom", name: "Website visitors", sizeEstimate: 1800, spec: null }, { ref: "au2", kind: "lookalike", name: "Lookalike of attenders", sizeEstimate: 90_000, spec: null });

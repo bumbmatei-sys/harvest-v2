@@ -31,10 +31,10 @@ describe("discover screen helpers", () => {
     expect(hasAnyFilter({ sort: "name" })).toBe(false);
     expect(hasAnyFilter({ sort: "relevance", q: "a" })).toBe(true);
   });
-  it("links only communities to a public page", () => {
+  it("links each type to its public page", () => {
     expect(publicHref({ type: "community", slug: "grace-study" })).toBe("/communities/grace-study");
-    expect(publicHref({ type: "course", slug: "grace-study" })).toBeNull();
-    expect(publicHref({ type: "product", slug: "x" })).toBeNull();
+    expect(publicHref({ type: "course", slug: "grace-study" })).toBe("/courses/grace-study");
+    expect(publicHref({ type: "product", slug: "grace-study" })).toBe("/products/grace-study");
   });
   it("has an icon for every category, a tone for every review state and names languages", () => {
     for (const key of discoverCategories) expect(categoryIcons[key], key).toBeDefined();
