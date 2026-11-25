@@ -694,6 +694,13 @@
       "when": 1795565920831,
       "tag": "0100_discover_server",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1795598740700,
+      "tag": "0108_newsletter_from_name",
+      "breakpoints": true
     }
   ]
 }
