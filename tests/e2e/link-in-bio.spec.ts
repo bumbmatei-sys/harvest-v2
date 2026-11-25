@@ -37,6 +37,8 @@ const saved = (page: Page) => expect(page.locator('[data-save-state="saved"]:vis
 
 test("editor, public page, click counts, Message me and messages", async ({ page, browser }) => {
   test.setTimeout(420000);
+  // A unique address per attempt: a retry must not collide with the first attempt's published page.
+  const handle = `grace-church-${Date.now().toString(36)}`;
   await mkdir(evidence, { recursive: true });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -109,7 +111,7 @@ test("editor, public page, click counts, Message me and messages", async ({ page
   await step(page, "Publish").click();
   await page.getByLabel("Address name").fill("admin");
   await expect(page.getByText("That address is reserved.")).toBeVisible();
-  await page.getByLabel("Address name").fill("grace-church");
+  await page.getByLabel("Address name").fill(`${handle}`);
   await expect(page.getByText("Available.")).toBeVisible();
   await page.getByRole("button", { name: "Save draft" }).click();
   await saved(page);
@@ -120,7 +122,7 @@ test("editor, public page, click counts, Message me and messages", async ({ page
   // Public page: anonymous visitor, noindex-free published page, light and dark, three widths.
   const visitor = await browser.newContext({ baseURL: origin, reducedMotion: "reduce" });
   const pub = await visitor.newPage();
-  await expect(async () => { expect((await pub.goto("/l/grace-church"))?.status()).toBe(200); }).toPass();
+  await expect(async () => { expect((await pub.goto(`/l/${handle}`))?.status()).toBe(200); }).toPass();
   await expect(pub.getByRole("heading", { name: "Grace Church", level: 1 })).toBeVisible();
   await expect(pub.getByRole("link", { name: /Give online/ })).toHaveAttribute("rel", "nofollow noopener noreferrer ugc");
   await expect(pub.getByRole("link", { name: /Give online/ })).toHaveAttribute("href", "https://example.org/give");
@@ -135,7 +137,7 @@ test("editor, public page, click counts, Message me and messages", async ({ page
 
   // Clicks are counted without leaving the page.
   await pub.reload();
-  const counted = pub.waitForResponse((r) => r.url().endsWith("/l/grace-church/click") && r.status() === 204);
+  const counted = pub.waitForResponse((r) => r.url().endsWith(`/l/${handle}/click`) && r.status() === 204);
   await pub.getByRole("link", { name: /Give online/ }).evaluate((a) => { a.addEventListener("click", (e) => e.preventDefault(), { capture: true }); (a as HTMLAnchorElement).click(); }).catch(() => undefined);
   await counted;
 
@@ -174,7 +176,7 @@ test("editor, public page, click counts, Message me and messages", async ({ page
   await page.getByRole("button", { name: "Unpublish", exact: true }).first().click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Unpublish", exact: true }).click();
   await expect(page.getByText(/Unpublished\./)).toBeVisible();
-  expect((await page.request.get("/l/grace-church")).status()).toBe(404);
+  expect((await page.request.get(`/l/${handle}`)).status()).toBe(404);
   expect((await page.request.get("/l/no-such-page")).status()).toBe(404);
   expect(errors).toEqual([]);
 });
@@ -184,7 +186,8 @@ test("members cannot reach the editor", async ({ page, browser }) => {
   const created = await post(page, "/api/workspaces", { name: "Closed Ministry", audience: "church" });
   expect(created.status(), await created.text()).toBeLessThan(300);
   const tenant = (await created.json()).tenantId as string;
-  expect((await page.request.get(`/api/workspaces/${tenant}/link-in-bio`)).status()).toBe(200);
+  const mine = await page.request.get(`/api/workspaces/${tenant}/link-in-bio`);
+  expect(mine.status(), `${mine.status()} ${await mine.text()}`).toBe(200);
   const stranger = await browser.newContext({ baseURL: origin });
   const other = await stranger.newPage();
   await signIn(other);

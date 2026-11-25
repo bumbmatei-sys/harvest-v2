@@ -18,6 +18,7 @@ export type ExecutionBindings = JobBindings & {
   HARVEST_CONNECT_INTAKE?: string;
   HARVEST_CONNECT_TEST_KEY?: string;
   HARVEST_NEWSLETTER_RETENTION_ENABLED?: string;
+  HARVEST_DOCS_TRASH_PURGE_ENABLED?: string;
   HARVEST_COMMUNITIES?: string;
 };
 
@@ -78,6 +79,9 @@ export function createWorkerJobPort(env: ExecutionBindings, options: {
       case "newsletter_retention":
         await lease.transaction(connection => connection.query("select public.newsletter_purge_deliveries($1)", [250]), true);
         return;
+      case "docs_trash_purge":
+        await lease.transaction(connection => connection.query("select public.docs_purge_trash($1)", [100]), true);
+        return;
       case "community_application_purge":
         await lease.transaction(connection => connection.query("select public.community_purge_applications($1)", [250]), true);
         return;
@@ -134,6 +138,7 @@ export function createWorkerJobPort(env: ExecutionBindings, options: {
       throw new Error("WORKER_SYNTHETIC_INTAKE_REQUIRED");
     }
     if (job === "chat_retention" && env.HARVEST_CHAT_PURGE_WORKER_ENABLED !== "1") throw new Error("WORKER_JOB_DISABLED");
+    if (job === "docs_trash_purge" && env.HARVEST_DOCS_TRASH_PURGE_ENABLED !== "1") throw new Error("WORKER_JOB_DISABLED");
     if (job === "newsletter_retention" && !newsletterWorkerEnabled(mode, "HARVEST_NEWSLETTER_RETENTION_ENABLED")) {
       throw new Error("WORKER_JOB_DISABLED");
     }

@@ -89,7 +89,7 @@ export const auditLogs = pgTable("audit_logs", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("audit_logs_tenant_created_idx").on(t.tenantId, t.createdAt), foreignKey({ columns: [t.tenantId], foreignColumns: [workspaces.tenantId] }),
   index("community_chat_mutations_idx").on(t.actorId,t.action,t.createdAt),
-  check("audit_system_actor", sql`${t.actorId} is not null or ${t.action} in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated', 'community.profile_save', 'community.profile_withdraw', 'community.profile_erase', 'crm.form.submit')`)]);
+  check("audit_system_actor", sql`${t.actorId} is not null or ${t.action} in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated', 'community.profile_save', 'community.profile_withdraw', 'community.profile_erase', 'crm.form.submit', 'bio.message.submit', 'docs.trash.purge')`)]);
 export const authSchema = { user: users, session: sessions, account: accounts, verification: verifications, rateLimit: rateLimits };
 
 // A campaign belongs to its parent workspace; it never creates another tenant.
@@ -105,6 +105,8 @@ export const campaigns = pgTable("campaigns", {
   structure: text("structure").$type<typeof campaignStructures[number]>(),
   idempotencyKey: text("idempotency_key").notNull(), fingerprint: text("fingerprint").notNull(),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
+  // Optional cover image or logo, carried over from the wizard draft's cover when the draft is finished.
+  coverFileId: uuid("cover_file_id").references((): AnyPgColumn => campaignFiles.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
@@ -145,6 +147,7 @@ export const campaignDrafts = pgTable("campaign_drafts", {
   budget: jsonb("budget").$type<BudgetConfig>().notNull(),
   outreach: jsonb("outreach").$type<OutreachConfig>().notNull(),
   campaignId: uuid("campaign_id"), finishedAt: timestamp("finished_at", { withTimezone: true }),
+  coverFileId: uuid("cover_file_id").references((): AnyPgColumn => campaignFiles.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
@@ -165,6 +168,33 @@ export const campaignDrafts = pgTable("campaign_drafts", {
   check("campaign_draft_json", sql`jsonb_typeof(${t.budget}) = 'object' and jsonb_typeof(${t.outreach}) = 'object'`),
   // A finished draft names its campaign; no other state does. A finished draft is complete: it has a type and a name.
   check("campaign_draft_finished", sql`(${t.status} = 'finished') = (${t.campaignId} is not null and ${t.finishedAt} is not null) and (${t.status} <> 'finished' or (${t.type} is not null and ${t.name} is not null))`),
+]);
+// The optional cover image or logo of a draft (and of the campaign it becomes). Same scanned-upload states as event covers: pending, uploaded,
+// quarantined, ready. Only a ready, unretired file can be a cover. Storage objects of replaced covers are not cleaned up yet (see the acceptance record).
+export const campaignFiles = pgTable("campaign_files", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(),
+  draftId: uuid("draft_id").notNull(),
+  uploaderId: text("uploader_id").references(() => users.id, { onDelete: "set null" }),
+  key: text("key").notNull().unique(),
+  kind: text("kind", { enum: ["cover"] }).notNull().default("cover"),
+  name: text("name").notNull(),
+  mime: text("mime", { enum: ["image/jpeg", "image/png", "image/webp"] }).notNull(),
+  size: integer("size").notNull(),
+  checksum: text("checksum").notNull(),
+  status: text("status", { enum: ["pending", "uploaded", "quarantined", "ready"] }).notNull().default("pending"),
+  retiredAt: timestamp("retired_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  foreignKey({ columns: [t.tenantId, t.draftId], foreignColumns: [campaignDrafts.tenantId, campaignDrafts.id] }),
+  index("campaign_files_draft_idx").on(t.tenantId, t.draftId),
+  check("campaign_file_kind", sql`${t.kind} = 'cover'`),
+  check("campaign_file_mime", sql`${t.mime} in ('image/jpeg','image/png','image/webp')`),
+  check("campaign_file_name", sql`length(btrim(${t.name})) between 1 and 200`),
+  check("campaign_file_size", sql`${t.size} between 1 and 10485760`),
+  check("campaign_file_checksum", sql`${t.checksum} ~ '^[a-f0-9]{64}$'`),
+  check("campaign_file_status", sql`${t.status} in ('pending','uploaded','quarantined','ready')`),
+  check("campaign_file_key", sql`${t.key} = 'workspaces/' || ${t.tenantId}::text || '/campaign-drafts/' || ${t.draftId}::text || '/files/' || ${t.id}::text`),
 ]);
 // Department leaders and members of a draft. People are existing ministry members; a CRM contact is never referenced here.
 export const campaignDraftAssignments = pgTable("campaign_draft_assignments", {
@@ -223,7 +253,7 @@ export const contactConsents = pgTable("contact_consents", {
   // CRM-07 adds messaging, form follow-up and newsletter: separate opt-ins, never one bundled box.
   check("consent_purpose", sql`${t.purpose} in ('marketing', 'outreach_follow_up', 'event_administration', 'account_communications', 'legacy_unspecified', 'messaging', 'form_follow_up', 'newsletter')`),
   check("consent_occurrence_bound", sql`${t.occurredAt} <= ${t.recordedAt} + interval '5 minutes'`),
-  check("consent_notice_version", sql`${t.noticeVersion} in ('notice-v1', 'legacy-unversioned', 'connect-immutable', 'subject-withdrawal', 'newsletter-subject-v1')`),
+  check("consent_notice_version", sql`${t.noticeVersion} in ('notice-v1', 'legacy-unversioned', 'connect-immutable', 'subject-withdrawal', 'newsletter-subject-v1', 'ad-lead-form-v1')`),
   check("consent_redaction", sql`(${t.redactedAt} is null and ${t.contactId} is not null and ${t.channel} is not null and ${t.source} is not null and ${t.evidence} is not null) or (${t.redactedAt} is not null and ${t.channel} is null and ${t.source} is null and ${t.evidence} is null and ${t.recordedBy} is null)`)]);
 // CRM-01: organizations and explicit, tenant-scoped person-organization links.
 export const companies = pgTable("companies", {
@@ -1101,21 +1131,23 @@ export const contactFormSources = pgTable("contact_form_sources", {
 // a merge keeps the earliest.
 export const contactFirstSources = pgTable("contact_first_sources", {
   tenantId: uuid("tenant_id").notNull(), contactId: uuid("contact_id").notNull(),
-  kind: text("kind").$type<"manual" | "csv_import" | "connect" | "form">().notNull(),
+  kind: text("kind").$type<"manual" | "csv_import" | "connect" | "form" | "ad_lead">().notNull(),
   firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull(),
 }, t => [primaryKey({ columns: [t.tenantId, t.contactId] }),
   foreignKey({ name: "contact_first_sources_contact_fk", columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }).onDelete("cascade"),
-  check("contact_first_sources_kind", sql`${t.kind} in ('manual', 'csv_import', 'connect', 'form')`)]);
+  check("contact_first_sources_kind", sql`${t.kind} in ('manual', 'csv_import', 'connect', 'form', 'ad_lead')`)]);
 
 // HC-06A: minimal provenance; trusted database writers own all mutations.
 export const contactSourceEvents = pgTable("contact_source_events", {
   id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id").notNull(), contactId: uuid("contact_id").notNull(),
-  kind: text("kind").$type<"manual" | "csv_import" | "connect" | "form">().notNull(),
+  kind: text("kind").$type<"manual" | "csv_import" | "connect" | "form" | "ad_lead">().notNull(),
   outcome: text("outcome").$type<"created" | "updated">().notNull(),
   occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull().defaultNow(),
   importId: uuid("import_id"), rowNumber: integer("row_number"),
   responseId: uuid("response_id"), entryRoute: text("entry_route").$type<"qr" | "short">(),
   crmFormResponseId: uuid("crm_form_response_id"),
+  // 0105: what an ad-lead source says about itself (network, the Harvest ad lead form, the campaign reference the network reported). Never answers or consent text.
+  adNetwork: text("ad_network"), adFormId: uuid("ad_form_id"), adCampaignRef: text("ad_campaign_ref"),
   revertedAt: timestamp("reverted_at", { withTimezone: true }),
 }, t => [foreignKey({ columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }).onDelete("cascade"),
   foreignKey({ columns: [t.tenantId, t.importId], foreignColumns: [crmImports.tenantId, crmImports.id] }),
@@ -1125,7 +1157,8 @@ export const contactSourceEvents = pgTable("contact_source_events", {
   uniqueIndex("contact_sources_response_unique").on(t.tenantId, t.responseId).where(sql`${t.kind} = 'connect'`),
   uniqueIndex("contact_sources_import_unique").on(t.tenantId, t.importId, t.rowNumber).where(sql`${t.kind} = 'csv_import'`),
   index("contact_sources_history").on(t.tenantId, t.contactId, t.occurredAt, t.id),
-  check("contact_sources_contract", sql`((${t.kind} = 'manual' and ${t.outcome} = 'created' and ${t.importId} is null and ${t.rowNumber} is null and ${t.revertedAt} is null and ${t.responseId} is null and ${t.entryRoute} is null) or (${t.kind} = 'csv_import' and ${t.outcome} in ('created','updated') and ${t.importId} is not null and ${t.rowNumber} is not null and ${t.rowNumber} > 0 and ${t.responseId} is null and ${t.entryRoute} is null) or (${t.kind} = 'connect' and ${t.outcome} in ('created','updated') and ${t.importId} is null and ${t.rowNumber} is null and ${t.revertedAt} is null and ${t.responseId} is not null and ${t.entryRoute} is not null and ${t.entryRoute} in ('qr','short'))) and ${t.crmFormResponseId} is null or (${t.kind} = 'form' and ${t.outcome} in ('created','updated') and ${t.importId} is null and ${t.rowNumber} is null and ${t.revertedAt} is null and ${t.responseId} is null and ${t.entryRoute} is null and ${t.crmFormResponseId} is not null)`)]);
+  check("contact_sources_contract", sql`(${t.kind} <> 'ad_lead' and (((${t.kind} = 'manual' and ${t.outcome} = 'created' and ${t.importId} is null and ${t.rowNumber} is null and ${t.revertedAt} is null and ${t.responseId} is null and ${t.entryRoute} is null) or (${t.kind} = 'csv_import' and ${t.outcome} in ('created','updated') and ${t.importId} is not null and ${t.rowNumber} is not null and ${t.rowNumber} > 0 and ${t.responseId} is null and ${t.entryRoute} is null) or (${t.kind} = 'connect' and ${t.outcome} in ('created','updated') and ${t.importId} is null and ${t.rowNumber} is null and ${t.revertedAt} is null and ${t.responseId} is not null and ${t.entryRoute} is not null and ${t.entryRoute} in ('qr','short'))) and ${t.crmFormResponseId} is null or (${t.kind} = 'form' and ${t.outcome} in ('created','updated') and ${t.importId} is null and ${t.rowNumber} is null and ${t.revertedAt} is null and ${t.responseId} is null and ${t.entryRoute} is null and ${t.crmFormResponseId} is not null))) or (${t.kind} = 'ad_lead' and ${t.outcome} in ('created','updated') and ${t.importId} is null and ${t.rowNumber} is null and ${t.revertedAt} is null and ${t.responseId} is null and ${t.entryRoute} is null and ${t.crmFormResponseId} is null)`),
+  check("contact_sources_ad_detail", sql`(${t.kind} = 'ad_lead') = (${t.adNetwork} is not null) and (${t.kind} = 'ad_lead' or (${t.adFormId} is null and ${t.adCampaignRef} is null)) and (${t.adCampaignRef} is null or length(${t.adCampaignRef}) <= 200)`)]);
 
 // HC-06B restricted persistence; app access goes through scoped capability services.
 export const connectResponseSubjects = pgTable("connect_response_subjects", {
@@ -3084,6 +3117,8 @@ export const adsAccounts = pgTable("ads_accounts", {
   status: text("status").notNull().default("active"), health: jsonb("health").$type<Record<string, { state: string; fixUrl?: string | null }>>().notNull().default({}),
   lastRefusal: jsonb("last_refusal").$type<{ code: string; fixUrl: string | null } | null>(), healthCheckedAt: timestamp("health_checked_at", { withTimezone: true }),
   syncedAt: timestamp("synced_at", { withTimezone: true }), syncState: text("sync_state").notNull().default("pending"),
+  // 0104: scheduled results sync (worker role). A lease keeps two workers off the same account; failures back the next attempt off.
+  syncDueAt: timestamp("sync_due_at", { withTimezone: true }).notNull().defaultNow(), syncLease: uuid("sync_lease"), syncLeasedUntil: timestamp("sync_leased_until", { withTimezone: true }), syncFailures: integer("sync_failures").notNull().default(0),
   version: integer("version").notNull().default(1), createdBy: text("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
@@ -3173,12 +3208,18 @@ export const adsOperations = pgTable("ads_operations", {
 export const adsLeadForms = pgTable("ads_lead_forms", {
   tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), adAccountId: uuid("ad_account_id").notNull(), externalRef: text("external_ref"),
   name: text("name").notNull(), status: text("status").notNull().default("active"), consentText: text("consent_text").notNull(), privacyUrl: text("privacy_url").notNull(),
-  questions: jsonb("questions").$type<string[]>().notNull(), createdBy: text("created_by").references(() => users.id),
+  questions: jsonb("questions").$type<string[]>().notNull(),
+  // 0104: which consent each explicit lead-form question grants once a lead becomes a contact (purpose -> question key). Nothing is granted unless the form asked and the person answered yes.
+  consentQuestions: jsonb("consent_questions").$type<Record<string, string>>().notNull().default({}), createdBy: text("created_by").references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  // 0105: forms built in Harvest keep the exact immutable version they were published from and, per consent question, the wording id and exact text shown (purpose -> {key, wording, text}).
+  formId: uuid("form_id"), formVersionId: uuid("form_version_id"),
+  consentTexts: jsonb("consent_texts").$type<Record<string, { key: string; wording: string; text: string }>>().notNull().default({}),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "ads_lead_forms_version_fk", columns: [t.tenantId, t.formVersionId], foreignColumns: [formVersions.tenantId, formVersions.id] }),
   foreignKey({ name: "ads_lead_forms_account_fk", columns: [t.tenantId, t.adAccountId], foreignColumns: [adsAccounts.tenantId, adsAccounts.id] }),
   uniqueIndex("ads_lead_forms_ref_idx").on(t.tenantId, t.adAccountId, t.externalRef),
-  check("ads_lead_forms_shape", sql`length(${t.name}) between 1 and 120 and length(${t.consentText}) between 1 and 1000 and ${t.status} in ('active','archived') and jsonb_typeof(${t.questions}) = 'array'`),
+  check("ads_lead_forms_shape", sql`length(${t.name}) between 1 and 120 and length(${t.consentText}) between 1 and 1000 and ${t.status} in ('active','archived') and jsonb_typeof(${t.questions}) = 'array' and jsonb_typeof(${t.consentTexts}) = 'object' and pg_column_size(${t.consentTexts}) <= 4096`),
 ]);
 export const adsLeads = pgTable("ads_leads", {
   tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), adAccountId: uuid("ad_account_id").notNull(), network: text("network").notNull(),
@@ -3186,12 +3227,29 @@ export const adsLeads = pgTable("ads_leads", {
   status: text("status").$type<typeof adLeadStatuses[number]>().notNull().default("new"),
   // Answers the person gave and the exact consent text shown on the form, kept as evidence. No CRM contact exists and no consent is implied until a person reviews it.
   fields: jsonb("fields").$type<Record<string, string>>().notNull().default({}), consentText: text("consent_text"), submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  // 0104: set when an owner or admin converts the lead into a CRM contact (explicit action, existing consent and provenance rules).
+  contactId: uuid("contact_id"), convertedAt: timestamp("converted_at", { withTimezone: true }),
+  // 0105: the exact immutable form version the lead answered (set when the lead's form was published from Harvest).
+  formVersionId: uuid("form_version_id"),
   version: integer("version").notNull().default(1), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "ads_leads_contact_fk", columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }),
+  foreignKey({ name: "ads_leads_form_version_fk", columns: [t.tenantId, t.formVersionId], foreignColumns: [formVersions.tenantId, formVersions.id] }),
   foreignKey({ name: "ads_leads_account_fk", columns: [t.tenantId, t.adAccountId], foreignColumns: [adsAccounts.tenantId, adsAccounts.id] }),
   uniqueIndex("ads_leads_ref_idx").on(t.tenantId, t.adAccountId, t.leadRef), index("ads_leads_status_idx").on(t.tenantId, t.status, t.createdAt),
   check("ads_leads_shape", sql`${t.status} in (${inList(adLeadStatuses)}) and ${t.network} in (${inList(adNetworks)}) and length(${t.leadRef}) between 1 and 200
     and jsonb_typeof(${t.fields}) = 'object' and pg_column_size(${t.fields}) <= 8192 and (${t.consentText} is null or length(${t.consentText}) <= 1000)`),
+]);
+// 0105: an ad lead form version published to a network's instant form. A version with a row here is frozen (the form_versions trigger refuses edits), so leads keep an exact reference.
+export const adsFormPublications = pgTable("ads_form_publications", {
+  tenantId: uuid("tenant_id").notNull(), formId: uuid("form_id").notNull(), versionId: uuid("version_id").notNull(), leadFormId: uuid("lead_form_id").notNull(),
+  publishedBy: text("published_by").notNull().references(() => users.id), definition: jsonb("definition").notNull(), publishedAt: timestamp("published_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.versionId] }),
+  foreignKey({ name: "ads_form_publications_form_fk", columns: [t.tenantId, t.formId], foreignColumns: [forms.tenantId, forms.id] }),
+  foreignKey({ name: "ads_form_publications_version_fk", columns: [t.tenantId, t.versionId], foreignColumns: [formVersions.tenantId, formVersions.id] }),
+  foreignKey({ name: "ads_form_publications_lead_form_fk", columns: [t.tenantId, t.leadFormId], foreignColumns: [adsLeadForms.tenantId, adsLeadForms.id] }),
+  uniqueIndex("ads_form_publications_lead_form_idx").on(t.tenantId, t.leadFormId),
+  check("ads_form_publications_definition", sql`jsonb_typeof(${t.definition}) = 'object' and ${t.definition}->>'kind' = 'crm-form-v1' and ${t.definition} ? 'ads' and octet_length(${t.definition}::text) <= 65536`),
 ]);
 export const adsAudiences = pgTable("ads_audiences", {
   tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), adAccountId: uuid("ad_account_id").notNull(), externalRef: text("external_ref").notNull(),
@@ -3304,3 +3362,53 @@ export const discoverReviewEvents = pgTable("discover_review_events", {
   decision: text("decision").notNull(), reason: text("reason"), reviewer: text("reviewer").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("discover_review_events_resource_idx").on(t.tenantId, t.resourceType, t.resourceId, t.createdAt),
   check("discover_review_events_shape", sql`${t.decision} in ('approve','reject','suspend','reinstate','standing_suspend','standing_restore') and (${t.reason} is null or length(${t.reason}) <= 500)`)]);
+
+// 0104. Customer-list audience uploads: counts only. The hashed identifiers are sent to the provider and never stored here, and nothing in this table references a person.
+export const adsAudienceUploads = pgTable("ads_audience_uploads", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), adAccountId: uuid("ad_account_id").notNull(), audienceId: uuid("audience_id").notNull(), idempotencyKey: uuid("idempotency_key").notNull(),
+  status: text("status").notNull().default("pending"), eligible: integer("eligible").notNull().default(0), excluded: jsonb("excluded").$type<Record<string, number>>().notNull().default({}), sent: integer("sent").notNull().default(0),
+  errorCode: text("error_code"), requestedBy: text("requested_by").notNull().references(() => users.id), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "ads_audience_uploads_account_fk", columns: [t.tenantId, t.adAccountId], foreignColumns: [adsAccounts.tenantId, adsAccounts.id] }),
+  foreignKey({ name: "ads_audience_uploads_audience_fk", columns: [t.tenantId, t.audienceId], foreignColumns: [adsAudiences.tenantId, adsAudiences.id] }),
+  uniqueIndex("ads_audience_uploads_key_idx").on(t.tenantId, t.idempotencyKey),
+  check("ads_audience_uploads_shape", sql`${t.status} in ('pending','sent','failed','ambiguous') and ${t.eligible} >= 0 and ${t.sent} >= 0 and pg_column_size(${t.excluded}) <= 2048`)]);
+// 0104. Conversion events sent to a pixel destination. One row per event digest; the digest is a one-way hash, so the row cannot be traced back to a person.
+export const adsConversionSends = pgTable("ads_conversion_sends", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), adAccountId: uuid("ad_account_id").notNull(), destinationId: uuid("destination_id").notNull(), eventName: text("event_name").notNull(),
+  eventDigest: text("event_digest").notNull(), status: text("status").notNull().default("pending"), idempotencyKey: uuid("idempotency_key").notNull(), requestedBy: text("requested_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "ads_conversion_sends_destination_fk", columns: [t.tenantId, t.destinationId], foreignColumns: [adsConversionDestinations.tenantId, adsConversionDestinations.id] }),
+  uniqueIndex("ads_conversion_sends_event_idx").on(t.tenantId, t.destinationId, t.eventDigest),
+  check("ads_conversion_sends_shape", sql`${t.status} in ('pending','sent','failed','ambiguous') and length(${t.eventName}) between 1 and 60 and ${t.eventDigest} ~ '^[0-9a-f]{64}$'`)]);
+// C21 follow-up (0101). A departure record: when an active member left, was removed or banned, and (for a voluntary leave) why. The reason is a fixed list plus short
+// optional text. Written only by the membership trigger; read by owners and admins; deleted with the person (cascade).
+export const communityLeaveReasons = ["moved_away", "too_busy", "not_relevant", "too_many_notifications", "content_quality", "privacy", "other"] as const;
+export const communityExits = pgTable("community_exits", {
+  id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }), kind: text("kind").$type<"left" | "removed" | "banned">().notNull(),
+  joinedAt: timestamp("joined_at", { withTimezone: true }), leftAt: timestamp("left_at", { withTimezone: true }).notNull().defaultNow(),
+  reason: text("reason").$type<typeof communityLeaveReasons[number]>(), otherText: text("other_text"),
+}, (t) => [foreignKey({ name: "community_exits_community_fk", columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  index("community_exits_period_idx").on(t.tenantId, t.communityId, t.leftAt), index("community_exits_user_idx").on(t.userId),
+  check("community_exits_shape", sql`${t.kind} in ('left','removed','banned') and (${t.reason} is null or (${t.kind} = 'left' and ${t.reason} in ('moved_away','too_busy','not_relevant','too_many_notifications','content_quality','privacy','other')))
+    and (${t.otherText} is null or (${t.reason} = 'other' and length(btrim(${t.otherText})) between 1 and 200))`)]);
+// Anonymous page-visit and join-click counters, one row per community, day and kind. No cookie, address, user or session is stored.
+export const communityDailyCounts = pgTable("community_daily_counts", {
+  tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(), day: date("day").notNull(), kind: text("kind").$type<"visit" | "join_click">().notNull(), n: integer("n").notNull().default(0),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.communityId, t.day, t.kind] }),
+  foreignKey({ name: "community_daily_counts_community_fk", columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  check("community_daily_counts_shape", sql`${t.kind} in ('visit','join_click') and ${t.n} between 0 and 2147483000`)]);
+
+// Harvest staff (0103). A person who works for Harvest, not for a ministry. Rows are written only by the grant and revoke functions, which run from an ops script as the migration owner:
+// there is no self-serve path and no application role can read or write these tables. Staff reach only Discover review data, through definer functions that check this table.
+export const platformStaffRoles = ["reviewer", "admin"] as const;
+export const platformStaff = pgTable("platform_staff", {
+  userId: text("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }), role: text("role").$type<typeof platformStaffRoles[number]>().notNull(), grantedBy: text("granted_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), revokedAt: timestamp("revoked_at", { withTimezone: true }),
+}, (t) => [check("platform_staff_shape", sql`${t.role} in ('reviewer','admin') and length(${t.grantedBy}) between 1 and 200`)]);
+export const platformStaffAudit = pgTable("platform_staff_audit", {
+  id: uuid("id").primaryKey().defaultRandom(), actorId: text("actor_id").notNull(), action: text("action").notNull(), targetType: text("target_type"), targetId: text("target_id"),
+  tenantId: uuid("tenant_id"), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("platform_staff_audit_actor_idx").on(t.actorId, t.createdAt), check("platform_staff_audit_shape", sql`length(${t.action}) between 1 and 80`)]);
