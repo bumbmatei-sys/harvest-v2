@@ -120,7 +120,8 @@ test("editor, public page, click counts, Message me and messages", async ({ page
   await expect(page.getByText("Published.", { exact: true }).first()).toBeVisible();
 
   // Public page: anonymous visitor, noindex-free published page, light and dark, three widths.
-  const visitor = await browser.newContext({ baseURL: origin, reducedMotion: "reduce" });
+  // A unique visitor address: the per-visitor message limits must not be shared with other specs on the same server.
+  const visitor = await browser.newContext({ baseURL: origin, reducedMotion: "reduce", extraHTTPHeaders: { "x-forwarded-for": `10.${Math.floor(Math.random() * 254) + 1}.${Math.floor(Math.random() * 254) + 1}.${Math.floor(Math.random() * 254) + 1}` } });
   const pub = await visitor.newPage();
   await expect(async () => { expect((await pub.goto(`/l/${handle}`))?.status()).toBe(200); }).toPass();
   await expect(pub.getByRole("heading", { name: "Grace Church", level: 1 })).toBeVisible();
@@ -155,7 +156,10 @@ test("editor, public page, click counts, Message me and messages", async ({ page
   await expect(form.getByRole("alert")).toContainText("Check your details");
   await form.getByRole("checkbox").check();
   await pub.waitForTimeout(1200);
+  const submitted = pub.waitForResponse((r) => r.url().endsWith(`/l/${handle}/message`) && r.request().method() === "POST");
   await form.getByRole("button", { name: "Send message" }).click();
+  const answer = await submitted;
+  expect(answer.status(), `${answer.status()} ${await answer.text().catch(() => "")}`).toBe(200);
   await expect(pub.locator("[data-bio-message-sent]")).toContainText("Your message was sent.");
   await visitor.close();
 
