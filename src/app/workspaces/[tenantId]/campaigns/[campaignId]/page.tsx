@@ -8,6 +8,11 @@ import { getCampaign } from "@/server/campaigns";
 import { pageSession } from "@/server/page-session";
 import { getWorkspace } from "@/server/workspaces";
 import { AccessError, can } from "@/server/permissions";
+import { getChecklist } from "@/server/campaign-checklist";
+import { getCampaignOverview } from "@/server/campaign-overview";
+import { CampaignDashboard } from "@/components/campaigns/campaign-dashboard";
+import { CampaignCover } from "@/components/campaigns/campaign-cover";
+import { CampaignChecklist } from "@/components/campaigns/campaign-checklist";
 import { CampaignStatusAction } from "@/components/campaigns/campaign-status-action";
 import { uuidInput } from "@/lib/contact-input";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +32,9 @@ export default async function CampaignPage({ params }: { params: Promise<{ tenan
   if (!campaign) notFound();
   const workspace = await getWorkspace(getDb(), session.user.id, tenantId).catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; });
   const canActivate = workspace ? can(workspace.role, "campaigns:activate") : false;
+  // The setup checklist is for the people who set the campaign up (they can write campaigns), not for read-only members.
+  const checklist = workspace && can(workspace.role, "campaigns:write") ? await getChecklist(getDb(), session.user.id, tenantId, campaignId).catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; }) : null;
+  const overview = workspace && can(workspace.role, "campaigns:write") ? await getCampaignOverview(getDb(), session.user.id, tenantId, campaignId).catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; }) : null;
   const format = await getFormatter();
   const details = [
     [t("location"), [campaign.cityRegion, campaign.country].filter(Boolean).join(", ") || t("notSet")],
@@ -37,11 +45,14 @@ export default async function CampaignPage({ params }: { params: Promise<{ tenan
   ];
   return <div className="space-y-4">
     <Button variant="link" asChild className="h-auto min-h-11 px-0 text-muted-foreground lg:min-h-0"><Link href={`/workspaces/${tenantId}/campaigns`}><ArrowLeft className="size-4" aria-hidden="true" />{t("backToCampaigns")}</Link></Button>
+    <CampaignCover tenantId={tenantId} campaignId={campaignId} coverFileId={campaign.coverFileId} alt={t("coverAlt", { name: campaign.name })} />
     <div><h1 className="break-words text-2xl font-semibold tracking-tight">{campaign.name}</h1>
       <div className="mt-2 flex flex-wrap items-center gap-2"><Badge variant="outline">{t(`types.${campaign.type}`)}</Badge><Badge variant="secondary">{t(`statuses.${campaign.status}`)}</Badge></div>
       {campaign.description && <p className="mt-3 whitespace-pre-wrap break-words text-sm text-muted-foreground">{campaign.description}</p>}
     </div>
     {canActivate && <CampaignStatusAction tenantId={tenantId} campaignId={campaignId} status={campaign.status} />}
+    {overview && <CampaignDashboard overview={overview} connectHref={`/workspaces/${tenantId}/campaigns/${campaignId}/connect`} formHref={workspace && can(workspace.role, "crm:forms_manage") ? `/workspaces/${tenantId}/crm/forms` : null} />}
+    {checklist && <CampaignChecklist tenantId={tenantId} campaignId={campaignId} initial={checklist} />}
     <Card><CardHeader><CardTitle>{t("details")}</CardTitle></CardHeader><CardContent>
       <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{details.map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 break-words text-sm">{value}</dd></div>)}</dl>
       {campaign.mission && <div className="mt-4"><h2 className="text-xs text-muted-foreground">{t("mission")}</h2><p className="mt-1 whitespace-pre-wrap break-words text-sm">{campaign.mission}</p></div>}
@@ -51,9 +62,9 @@ export default async function CampaignPage({ params }: { params: Promise<{ tenan
         <div className="min-w-0"><h2 className="text-base font-semibold">{links("openLinks")}</h2><p className="text-sm text-muted-foreground">{links("openLinksDescription")}</p></div></div>
       <Button asChild variant="outline" className="min-h-11"><Link href={`/workspaces/${tenantId}/campaigns/${campaignId}/connect`}>{links("openLinks")}</Link></Button>
     </CardContent></Card>
-    <Empty className="border border-solid bg-card py-16"><EmptyHeader><EmptyMedia variant="icon"><Flag aria-hidden="true" /></EmptyMedia>
+    {!overview && <Empty className="border border-solid bg-card py-16"><EmptyHeader><EmptyMedia variant="icon"><Flag aria-hidden="true" /></EmptyMedia>
       <EmptyTitle><h2>{t("dashboardTitle")}</h2></EmptyTitle><EmptyDescription>{t("dashboardDescription")}</EmptyDescription>
-    </EmptyHeader></Empty>
+    </EmptyHeader></Empty>}
     {campaign.status === "draft" && <p className="text-xs text-muted-foreground">{t("draftNote")}</p>}
   </div>;
 }

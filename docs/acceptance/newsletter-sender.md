@@ -33,7 +33,7 @@ Public > Newsletter > Sender (`/workspaces/[tenantId]/newsletter/sender`, nav id
 
 ## Deferred, server gaps and decisions
 
-- From name on the wire: the display name is stored and shown, but the message builder and the worker's authorization still select the address only. The live adapter (or the dispatch path) must put the name in the From header before activation.
+- From name on the wire (migration 0108): the delivery authorization now returns the sender's display name and the worker, and the test send, build the From header with `formatFromHeader` (`src/lib/email-address.ts`): a plain name stays plain, a name with a comma, semicolon, dot, parenthesis, colon, at sign, bracket or quote is an RFC 5322 quoted string (quote and backslash escaped), a non-ASCII name is RFC 2047 encoded words (base64, at most 75 characters each, never split inside a character), control characters and line breaks are dropped so a name cannot add a header line. No name gives the bare address. Unit `tests/unit/email-address.test.ts`; integration `newsletter-sending.test.ts`. Nothing is sent; the provider is the synthetic one.
 - The synthetic provider confirms any `*.example.test` domain with all records present, without a DNS lookup. A live adapter must replace it before activation; nothing here claims live verification.
 - Unsubscribe is always appended by the renderer, so that readiness line is always satisfied; it is shown for completeness.
 - Sign-up forms and Analytics are separate slices; Analytics order in the sidebar is left to its own PR.

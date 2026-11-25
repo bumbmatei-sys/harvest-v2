@@ -30,7 +30,6 @@ export const campaignTemplates: Record<typeof campaignTypes[number], Template> =
     modules: ["tasks_boards", "volunteer_management", "outreach_planning", "qr_response_forms", "discipleship_follow_up", "campaign_calendar"] },
   custom_project: { departments: ["campaign_leadership"], modules: ["tasks_boards", "campaign_calendar"] },
 };
-export const MAX_ASSIGNMENTS = 200;
 
 const optionalText = (max: number) => z.string().trim().max(max).nullish().transform((value) => value || null);
 const optionalDate = z.iso.date().nullish().transform((value) => value ?? null);
@@ -46,12 +45,18 @@ export const placeStep = z.object({
   country: optionalText(100), cityRegion: optionalText(200), startDate: optionalDate, endDate: optionalDate,
   timeZone: optionalText(100).refine(validZone), structure: z.enum(campaignStructures).nullish().transform((value) => value ?? null),
 }).strict().refine((v) => !v.startDate || !v.endDate || v.endDate >= v.startDate, { path: ["endDate"], message: "INVALID_DATE_RANGE" });
-export const assignmentInput = z.object({ userId: z.string().min(1).max(200), department: z.enum(departmentKeys), role: z.enum(["leader", "member"]) }).strict();
+// Step 4 saves the departments only. People join a department by an invitation they accept (founder decision Q2); see `invitationInput`.
 export const leadersStep = z.object({
   departments: z.array(z.enum(departmentKeys)).max(departmentKeys.length).refine(unique),
-  assignments: z.array(assignmentInput).max(MAX_ASSIGNMENTS),
-}).strict().refine((v) => v.assignments.every((a) => v.departments.includes(a.department)), { path: ["assignments"], message: "UNKNOWN_DEPARTMENT" })
-  .refine((v) => new Set(v.assignments.map((a) => `${a.department}:${a.userId}`)).size === v.assignments.length, { path: ["assignments"], message: "DUPLICATE_ASSIGNMENT" });
+}).strict();
+export const INVITATION_DAYS = 14;
+/** One invitation: an existing ministry member (`userId`) or an email address (`email`; a member's email invites that member). */
+export const invitationInput = z.object({
+  department: z.enum(departmentKeys), role: z.enum(["leader", "member"]),
+  userId: z.string().min(1).max(200).optional(), email: z.string().trim().toLowerCase().pipe(z.email().max(254)).optional(),
+}).strict().refine((value) => (value.userId === undefined) !== (value.email === undefined), { message: "ONE_TARGET" });
+export const invitationTokenInput = z.object({ token: z.string().regex(/^[A-Za-z0-9_-]{43}$/) }).strict();
+export type InvitationState = "pending" | "accepted" | "expired" | "revoked";
 export const toolsStep = z.object({ modules: z.array(z.enum(moduleKeys)).max(moduleKeys.length).refine(unique) }).strict();
 
 // Steps 6 and 7 are configuration only: nothing reads them to take an outward action.
@@ -116,3 +121,21 @@ export function validateDraft(draft: DraftSnapshot): Issue[] {
 
 /** Which steps hold at least one blocking issue, for the progress indicator. */
 export const stepsWithIssues = (issues: Issue[]) => [...new Set(issues.map((issue) => issue.step))];
+
+/** The nine setup items the PRD's Post-Creation Checklist lists, in its order. Completion is stored per item; two of them also tick themselves from what the draft already holds. */
+export const checklistItemKeys = ["assign_leaders", "confirm_venues", "define_budget", "connect_payments", "publish_registration", "configure_qr", "assign_counseling", "invite_churches", "create_events"] as const;
+export type ChecklistItem = typeof checklistItemKeys[number];
+export const checklistInput = z.object({ item: z.enum(checklistItemKeys), done: z.boolean() }).strict();
+
+/**
+ * Items that are done because of what is already set up, whatever was stored: every department the campaign includes has an accepted leader, and the
+ * counseling department (when included) has one. Anything else can only be ticked by a person.
+ */
+export function derivedChecklist(departments: readonly string[], leaders: readonly string[]): Record<ChecklistItem, boolean> {
+  const led = new Set(leaders);
+  return {
+    assign_leaders: departments.length > 0 && departments.every((department) => led.has(department)),
+    assign_counseling: departments.includes("counseling") && led.has("counseling"),
+    confirm_venues: false, define_budget: false, connect_payments: false, publish_registration: false, configure_qr: false, invite_churches: false, create_events: false,
+  };
+}

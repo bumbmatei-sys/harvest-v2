@@ -1,4 +1,5 @@
-import { and, desc, eq, inArray, isNull, notInArray } from "drizzle-orm";
+import { randomUUID } from "node:crypto";
+import { and, desc, eq, isNull, notInArray } from "drizzle-orm";
 import type { Database, Transaction } from "../db/client";
 import { auditLogs, campaignDraftAssignments, campaignDrafts, campaigns, workspaceMembers } from "../db/schema";
 import { uuidInput } from "../lib/contact-input";
@@ -8,7 +9,10 @@ import {
 } from "../lib/campaign-wizard";
 import { message } from "../i18n/messages";
 import { insertCampaign } from "./campaigns";
-import { AccessError } from "./permissions";
+import { createDraftForm } from "./crm-forms";
+import { insertWizardDraftLink } from "./connect-links";
+import { invitationsOf, revokeOutside } from "./campaign-wizard-invitations";
+import { AccessError, can } from "./permissions";
 import { withTenant } from "./tenancy";
 
 const draftColumns = {
@@ -17,7 +21,7 @@ const draftColumns = {
   mission: campaignDrafts.mission, country: campaignDrafts.country, cityRegion: campaignDrafts.cityRegion, startDate: campaignDrafts.startDate,
   endDate: campaignDrafts.endDate, timeZone: campaignDrafts.timeZone, structure: campaignDrafts.structure, departments: campaignDrafts.departments,
   modules: campaignDrafts.modules, budget: campaignDrafts.budget, outreach: campaignDrafts.outreach, campaignId: campaignDrafts.campaignId,
-  finishedAt: campaignDrafts.finishedAt, createdAt: campaignDrafts.createdAt, updatedAt: campaignDrafts.updatedAt,
+  finishedAt: campaignDrafts.finishedAt, coverFileId: campaignDrafts.coverFileId, createdAt: campaignDrafts.createdAt, updatedAt: campaignDrafts.updatedAt,
 };
 type DraftRow = Omit<typeof campaignDrafts.$inferSelect, "clientKey">;
 export const DRAFT_LIST_LIMIT = 50;
@@ -34,7 +38,7 @@ async function assignmentsOf(tx: Transaction, tenantId: string, draftId: string)
 }
 async function view(tx: Transaction, row: DraftRow) {
   const issues: Issue[] = validateDraft(snapshot(row));
-  return { ...row, assignments: await assignmentsOf(tx, row.tenantId, row.id), issues, ready: issues.length === 0 };
+  return { ...row, assignments: await assignmentsOf(tx, row.tenantId, row.id), invitations: await invitationsOf(tx, row.tenantId, row.id), issues, ready: issues.length === 0 };
 }
 // No row lock: the update policies hide a closed draft from a locking read, which would turn "already finished" into "not found". Every write below
 // is a conditional update on the version and status instead, so concurrent writers still serialise.
@@ -43,9 +47,9 @@ async function visibleDraft(tx: Transaction, tenantId: string, id: string) {
   if (!row) throw new AccessError(404, message("Campaigns.draftNotFound"));
   return row as DraftRow;
 }
-// An open draft is edited and finished by the person who started it. Anyone else who can see it (an owner or admin) can only read or discard it.
-function ownOpenDraft(row: DraftRow, userId: string) {
-  if (row.createdBy !== userId) throw new AccessError(403, message("Campaigns.draftNotYours"));
+// An open draft is edited and finished by anyone in the ministry who can write campaigns (founder decision, 25 Nov); the version check keeps two
+// people from overwriting each other. A closed draft (finished or discarded) changes no more.
+function openDraft(row: DraftRow) {
   if (row.status !== "draft") throw new AccessError(409, message("Campaigns.draftClosed"));
 }
 const stale = () => new AccessError(409, message("Campaigns.draftChanged"), { reason: "stale" });
@@ -86,7 +90,7 @@ export async function saveDraftStep(db: Database, userId: string, workspace: str
   const id = uuidInput.parse(draft), { version, step, data } = saveInput.parse(raw);
   return withTenant(db, userId, uuidInput.parse(workspace), "campaigns:write", async (tx, tenantId) => {
     const current = await visibleDraft(tx, tenantId, id);
-    ownOpenDraft(current, userId);
+    openDraft(current);
     if (current.version !== version) throw stale();
     const changes = await stepChanges(tx, tenantId, current, step, data);
     const reached = Math.max(current.currentStep, Math.min(wizardSteps.length, wizardSteps.indexOf(step) + 2));
@@ -95,15 +99,19 @@ export async function saveDraftStep(db: Database, userId: string, workspace: str
       .returning(draftColumns);
     // A concurrent save won the race: the conditional update touched nothing, so no assignment below runs.
     if (!row) throw stale();
-    if (changes.assignments) await replaceAssignments(tx, tenantId, id, changes.assignments);
-    if (changes.dropDepartmentsOutside) await tx.delete(campaignDraftAssignments).where(and(eq(campaignDraftAssignments.tenantId, tenantId),
-      eq(campaignDraftAssignments.draftId, id), notInArray(campaignDraftAssignments.department, changes.dropDepartmentsOutside)));
+    if (changes.dropDepartmentsOutside) {
+      // People and pending invitations in a department that is no longer on the draft go with it.
+      if (changes.dropDepartmentsOutside.length) await tx.delete(campaignDraftAssignments).where(and(eq(campaignDraftAssignments.tenantId, tenantId),
+        eq(campaignDraftAssignments.draftId, id), notInArray(campaignDraftAssignments.department, changes.dropDepartmentsOutside)));
+      else await tx.delete(campaignDraftAssignments).where(and(eq(campaignDraftAssignments.tenantId, tenantId), eq(campaignDraftAssignments.draftId, id)));
+      await revokeOutside(tx, tenantId, id, changes.dropDepartmentsOutside);
+    }
     await audit(tx, tenantId, userId, "campaign.draft.save", id, { step, version: String(row.version) });
     return view(tx, row as DraftRow);
   });
 }
 
-type StepChange = { columns: Partial<typeof campaignDrafts.$inferInsert>; assignments?: { userId: string; department: string; role: "leader" | "member" }[]; dropDepartmentsOutside?: string[] };
+type StepChange = { columns: Partial<typeof campaignDrafts.$inferInsert>; dropDepartmentsOutside?: string[] };
 async function stepChanges(tx: Transaction, tenantId: string, current: DraftRow, step: DataStep, data: Record<string, unknown>): Promise<StepChange> {
   switch (step) {
     case "type": {
@@ -118,24 +126,9 @@ async function stepChanges(tx: Transaction, tenantId: string, current: DraftRow,
     case "tools": return { columns: { modules: data.modules as string[] } };
     case "budget": return { columns: { budget: data as DraftRow["budget"] } };
     case "connect": return { columns: { outreach: data as DraftRow["outreach"] } };
-    case "leaders": {
-      const assignments = data.assignments as NonNullable<StepChange["assignments"]>;
-      const people = [...new Set(assignments.map((a) => a.userId))];
-      if (people.length) {
-        // Leaders and team members are existing ministry members who can edit. A viewer or an outsider cannot be placed.
-        const found = await tx.select({ userId: workspaceMembers.userId }).from(workspaceMembers)
-          .where(and(eq(workspaceMembers.tenantId, tenantId), inArray(workspaceMembers.userId, people), inArray(workspaceMembers.roleId, ["owner", "admin", "member"])));
-        if (found.length !== people.length) throw new AccessError(400, message("Campaigns.assigneeInvalid"));
-      }
-      return { columns: { departments: data.departments as string[] }, assignments };
-    }
+    case "leaders": return { columns: { departments: data.departments as string[] }, dropDepartmentsOutside: data.departments as string[] };
   }
 }
-async function replaceAssignments(tx: Transaction, tenantId: string, draftId: string, list: NonNullable<StepChange["assignments"]>) {
-  await tx.delete(campaignDraftAssignments).where(and(eq(campaignDraftAssignments.tenantId, tenantId), eq(campaignDraftAssignments.draftId, draftId)));
-  if (list.length) await tx.insert(campaignDraftAssignments).values(list.map((a) => ({ tenantId, draftId, ...a })));
-}
-
 export async function discardDraft(db: Database, userId: string, workspace: string, draft: string, raw: unknown) {
   const id = uuidInput.parse(draft), { version } = versionInput.parse(raw);
   return withTenant(db, userId, uuidInput.parse(workspace), "campaigns:read", async (tx, tenantId, role) => {
@@ -161,19 +154,25 @@ export async function discardDraft(db: Database, userId: string, workspace: stri
  */
 export async function finishDraft(db: Database, userId: string, workspace: string, draft: string, raw: unknown) {
   const id = uuidInput.parse(draft), { version } = versionInput.parse(raw);
-  return withTenant(db, userId, uuidInput.parse(workspace), "campaigns:write", async (tx, tenantId) => {
+  return withTenant(db, userId, uuidInput.parse(workspace), "campaigns:write", async (tx, tenantId, role) => {
     const current = await visibleDraft(tx, tenantId, id);
-    if (current.createdBy !== userId) throw new AccessError(403, message("Campaigns.draftNotYours"));
     if (current.status === "finished") return { draft: await view(tx, current), campaignId: current.campaignId as string };
-    ownOpenDraft(current, userId);
+    openDraft(current);
     if (current.version !== version) throw stale();
     const issues = validateDraft(snapshot(current));
     if (issues.length) throw new AccessError(400, message("Campaigns.draftIncomplete"), { issues: issues.map((issue) => `${issue.step}:${issue.code}`).join(",") });
+    // The creator stays the campaign's owner when someone else finishes the draft, as long as the creator can still write campaigns here.
+    const [creator] = current.createdBy === userId ? [{ roleId: role }] : await tx.select({ roleId: workspaceMembers.roleId }).from(workspaceMembers)
+      .where(and(eq(workspaceMembers.tenantId, tenantId), eq(workspaceMembers.userId, current.createdBy)));
+    const owner = creator && creator.roleId !== "viewer" ? current.createdBy : userId;
     const campaign = await insertCampaign(tx, userId, tenantId, {
       name: current.name, type: current.type, description: current.description, mission: current.mission, country: current.country,
       cityRegion: current.cityRegion, startDate: current.startDate, endDate: current.endDate, timeZone: current.timeZone, structure: current.structure,
-    }, `wizard-${id}`);
-    const [row] = await tx.update(campaignDrafts).set({ status: "finished", campaignId: campaign.id, finishedAt: new Date(), version: version + 1, updatedAt: new Date() })
+    }, `wizard-${id}`, { owner, coverFileId: current.coverFileId });
+    // Public Campaign Registration gets one unpublished registration form, but only when the person finishing may create forms (owners and admins); the id
+    // is chosen here and recorded by the same update that wins the finish, so a losing or repeated finish creates none.
+    const registrationFormId = current.outreach.registration && can(role, "crm:forms_manage") ? randomUUID() : null;
+    const [row] = await tx.update(campaignDrafts).set({ status: "finished", campaignId: campaign.id, finishedAt: new Date(), version: version + 1, updatedAt: new Date(), ...(registrationFormId ? { registrationFormId } : {}) })
       .where(and(eq(campaignDrafts.tenantId, tenantId), eq(campaignDrafts.id, id), eq(campaignDrafts.version, version), eq(campaignDrafts.status, "draft")))
       .returning(draftColumns);
     if (!row) {
@@ -182,6 +181,9 @@ export async function finishDraft(db: Database, userId: string, workspace: strin
       if (settled.status === "finished" && settled.campaignId === campaign.id) return { draft: await view(tx, settled), campaignId: campaign.id };
       throw stale();
     }
+    // Only the finish that won the update gets here, so a retry or a second tab never adds a second link.
+    if (current.outreach.qrResponse) await insertWizardDraftLink(tx, userId, tenantId, campaign.id);
+    if (registrationFormId) await createDraftForm(tx, tenantId, userId, { id: registrationFormId, title: message("Campaigns.registrationFormTitle", { name: campaign.name }).slice(0, 200) });
     await audit(tx, tenantId, userId, "campaign.draft.finish", id, { campaign: campaign.id });
     return { draft: await view(tx, row as DraftRow), campaignId: campaign.id };
   });

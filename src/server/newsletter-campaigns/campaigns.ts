@@ -8,6 +8,7 @@ import { message } from "../../i18n/messages";
 import { newsletterContent, newsletterStarters } from "../../lib/newsletter-content";
 import { assertMailingAddress } from "./sender-setup";
 import { audit, campaignPreview, conflict, digest, id, pageInput, unavailable, version, withNewsletter } from "./access";
+import { formatFromHeader } from "../../lib/email-address";
 import { assertVerified, identity } from "./identities";
 import { draftSelectionInput, resolveRecipients, selectionPins } from "./recipients";
 import { newsletterReviewLifetimeMs, newsletterScheduleHorizonMs, scheduleInput, type NewsletterSchedule } from "./schedule";
@@ -230,7 +231,7 @@ export function testCampaign(db: Database, actor: string, workspace: string, cam
     const reply = await identity(tx, tenant, revision.replyToId);
     assertVerified(sender, true);
     assertVerified(reply, false);
-    return { to: adminAddress!, from: sender.identity.address, replyTo: reply.identity.address,
+    return { to: adminAddress!, from: formatFromHeader(sender.identity.displayName, sender.identity.address), replyTo: reply.identity.address,
       subject: message("NewsletterEmail.testSubject", { subject: revision.subject }),
       preheader: revision.preheader, ...(await campaignPreview(tx, tenant, revision.content, revision.preheader)) };
   }).then(async preview => {

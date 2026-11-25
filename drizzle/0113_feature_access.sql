@@ -47,7 +47,7 @@ ALTER TABLE "workspace_members" ADD CONSTRAINT "workspace_member_admins_flag" CH
 -- Per-feature access (founder decision, 25 Nov). Full account: docs/acceptance/feature-access-server.md.
 --
 -- 1. Roles. `collaborator` holds an explicit set of areas (workspace_member_access). `guest` holds none and reaches only items shared with them by name.
---    `campaign_guest` is the inert role of the campaign invitations (open PR #251); it is inserted here with ON CONFLICT DO NOTHING so either migration can land
+--    `campaign_guest` is the inert role of the campaign invitations (0110, #251); it is inserted here with ON CONFLICT DO NOTHING so either migration can land
 --    first, and every rule below treats it like `guest`.
 -- 2. ONE central function, public.access_role(tenant, user, area, role): it turns a stored role plus the person's grants into the role that every module check
 --    already understands (`admin` for manage, `viewer` for view, `guest` for none). owner/admin/member/viewer pass through unchanged, so nothing existing changes.
@@ -108,7 +108,7 @@ GRANT EXECUTE ON FUNCTION public.access_role(uuid, text, text, text) TO harvest_
 DO $$
 DECLARE r record; area text; q text; c text; stmt text; n integer := 0;
   areas jsonb := '{"bio_clicks":"website","bio_messages":"website","bio_pages":"website",
-    "campaign_drafts":"campaigns","campaign_response_links":"campaigns","campaigns":"campaigns","campaign_responses":"owner_admin",
+    "campaign_drafts":"campaigns","campaign_draft_assignments":"campaigns","campaign_draft_invitations":"campaigns","campaign_files":"campaigns","campaign_checklist_items":"campaigns","campaign_response_links":"campaigns","campaigns":"campaigns","campaign_responses":"owner_admin",
     "community_channel_members":"communities","community_channel_reads":"communities","community_channels":"communities","community_chat_state":"communities",
     "community_message_reactions":"communities","community_messages":"communities",
     "connect_landing_states":"connect","connect_landing_versions":"connect","followup_cases":"connect",

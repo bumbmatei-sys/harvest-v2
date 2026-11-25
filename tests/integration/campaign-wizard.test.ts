@@ -1,13 +1,18 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { eq, sql } from "drizzle-orm";
 import { testDatabase } from "../database";
-import { auditLogs, campaignDraftAssignments, campaignDrafts, campaigns, users } from "../../src/db/schema";
+import { auditLogs, campaignChecklistItems, campaignDraftAssignments, campaignDrafts, campaignFiles, campaigns, users } from "../../src/db/schema";
 import { createWorkspace, putMember } from "../../src/server/workspaces";
 import { withTenant, withUser } from "../../src/server/tenancy";
 import { createDraft, discardDraft, finishDraft, getDraft, listDrafts, saveDraftStep, setCampaignStatus } from "../../src/server/campaign-wizard";
 import { listCampaigns } from "../../src/server/campaigns";
+import { acceptInvitation, inviteToDraft, revokeInvitation, type InvitationMail } from "../../src/server/campaign-wizard-invitations";
+import { confirmDraftCoverUpload, createDraftCoverUpload, getCampaignCoverUrl, getDraftCoverUrl, setDraftCover } from "../../src/server/campaign-wizard-cover";
+import { getCampaignOverview } from "../../src/server/campaign-overview";
+import { getChecklist, setChecklistItem } from "../../src/server/campaign-checklist";
 import { defaultBudget, defaultOutreach } from "../../src/lib/campaign-wizard";
 
+vi.mock("server-only", () => ({}));
 let fixture: Awaited<ReturnType<typeof testDatabase>>;
 let tenantA: string, tenantB: string;
 const place = { country: "Thailand", cityRegion: "Bangkok", startDate: "2027-03-01", endDate: "2027-03-05", timeZone: "Asia/Bangkok", structure: "single" };
@@ -19,34 +24,45 @@ async function complete(user: string, id: string, version: number) {
   version = (await save(user, id, version, "basics", { name: "Synthetic conference", description: "Private notes" })).version;
   return (await save(user, id, version, "place", place)).version;
 }
+/** Invites and keeps the link the sink saw, which is the only place the token exists. */
+async function invite(user: string, draftId: string, input: unknown, tenant = tenantA) {
+  let mail: InvitationMail | undefined;
+  const sent = await inviteToDraft(fixture.db, user, tenant, draftId, input, async (m) => { mail = m; });
+  return { id: sent.id, mail: mail as InvitationMail, token: (mail as InvitationMail).url.split("/").pop() as string };
+}
 const status = async (promise: Promise<unknown>) => promise.then(() => 200, (error: { status?: number; name?: string }) => error.status ?? (error.name === "ZodError" ? 400 : 500));
 
 beforeAll(async () => {
   fixture = await testDatabase();
-  await fixture.db.insert(users).values(["owner-a", "owner-b", "member-a", "member-a2", "admin-a", "viewer-a", "outsider"].map((id) => ({ id, name: id, email: `${id}@example.test` })));
+  await fixture.db.insert(users).values(["owner-a", "owner-b", "member-a", "member-a2", "admin-a", "viewer-a", "outsider", "temp-a"].map((id) => ({ id, name: id, email: `${id}@example.test` })));
   tenantA = (await createWorkspace(fixture.db, "owner-a", "Wizard A")).tenantId;
   tenantB = (await createWorkspace(fixture.db, "owner-b", "Wizard B")).tenantId;
-  for (const [user, role] of [["member-a", "member"], ["member-a2", "member"], ["admin-a", "admin"], ["viewer-a", "viewer"]] as const) await putMember(fixture.db, "owner-a", tenantA, `${user}@example.test`, role);
+  for (const [user, role] of [["member-a", "member"], ["member-a2", "member"], ["admin-a", "admin"], ["viewer-a", "viewer"], ["temp-a", "member"]] as const) await putMember(fixture.db, "owner-a", tenantA, `${user}@example.test`, role);
 });
 afterAll(async () => { await fixture?.close(); });
 
 describe("campaign wizard database shape", () => {
-  it("forces RLS, grants no delete or whole-table update, and adds no SECURITY DEFINER function", async () => {
-    const rls = await fixture.admin.query("select relname, relrowsecurity, relforcerowsecurity from pg_class where relname in ('campaign_drafts','campaign_draft_assignments') order by relname");
-    expect(rls.rows).toEqual([{ relname: "campaign_draft_assignments", relrowsecurity: true, relforcerowsecurity: true }, { relname: "campaign_drafts", relrowsecurity: true, relforcerowsecurity: true }]);
+  it("forces RLS, grants no delete or whole-table update, and has one SECURITY DEFINER function (accepting an invitation)", async () => {
+    const rls = await fixture.admin.query("select relname, relrowsecurity, relforcerowsecurity from pg_class where relname in ('campaign_drafts','campaign_draft_assignments','campaign_files','campaign_draft_invitations') order by relname");
+    expect(rls.rows).toEqual([{ relname: "campaign_draft_assignments", relrowsecurity: true, relforcerowsecurity: true }, { relname: "campaign_draft_invitations", relrowsecurity: true, relforcerowsecurity: true }, { relname: "campaign_drafts", relrowsecurity: true, relforcerowsecurity: true },
+      { relname: "campaign_files", relrowsecurity: true, relforcerowsecurity: true }]);
     const grants = await fixture.admin.query(`select has_table_privilege('harvest_app','campaign_drafts','DELETE') as draft_delete, has_table_privilege('harvest_app','campaign_drafts','UPDATE') as draft_update,
       has_table_privilege('harvest_app','campaign_draft_assignments','UPDATE') as assignment_update, has_table_privilege('harvest_app','campaigns','UPDATE') as campaign_update,
       has_table_privilege('public','campaign_drafts','SELECT') as public_read`);
     expect(grants.rows).toEqual([{ draft_delete: false, draft_update: false, assignment_update: false, campaign_update: false, public_read: false }]);
     const columns = await fixture.admin.query("select column_name from information_schema.column_privileges where grantee='harvest_app' and table_name='campaigns' and privilege_type='UPDATE' order by 1");
     expect(columns.rows.map((r) => r.column_name)).toEqual(["status", "updated_at"]);
-    expect((await fixture.admin.query("select count(*)::int as n from pg_proc where prosecdef and prosrc ilike '%campaign_draft%'")).rows[0].n).toBe(0);
-    expect((await fixture.admin.query("select distinct roles from pg_policies where tablename in ('campaign_drafts','campaign_draft_assignments')")).rows).toEqual([{ roles: "{harvest_app}" }]);
+    expect((await fixture.admin.query("select has_table_privilege('harvest_app','campaign_files','DELETE') as d, has_table_privilege('harvest_app','campaign_files','UPDATE') as u, has_table_privilege('public','campaign_files','SELECT') as p")).rows)
+      .toEqual([{ d: false, u: false, p: false }]);
+    expect((await fixture.admin.query("select column_name from information_schema.column_privileges where grantee='harvest_app' and table_name='campaign_files' and privilege_type='UPDATE' order by 1")).rows.map((r) => r.column_name)).toEqual(["retired_at", "status"]);
+    expect((await fixture.admin.query("select proname, proconfig, has_function_privilege('harvest_app', oid, 'EXECUTE') as app, has_function_privilege('public', oid, 'EXECUTE') as pub from pg_proc where prosecdef and (prosrc ilike '%campaign_draft%' or prosrc ilike '%campaign_files%')")).rows)
+      .toEqual([{ proname: "campaign_invitation_accept", proconfig: ["search_path=pg_catalog, pg_temp"], app: true, pub: false }]);
+    expect((await fixture.admin.query("select distinct roles from pg_policies where tablename in ('campaign_drafts','campaign_draft_assignments','campaign_files','campaign_draft_invitations') order by 1")).rows).toEqual([{ roles: "{harvest_app}" }, { roles: "{public}" }]);
   });
   it("references no CRM contact, so erasing or merging a contact has nothing to re-key", async () => {
     const refs = await fixture.admin.query(`select conrelid::regclass::text as t, confrelid::regclass::text as target from pg_constraint
       where contype = 'f' and conrelid in ('campaign_drafts'::regclass, 'campaign_draft_assignments'::regclass) order by 1, 2`);
-    expect(refs.rows.map((r) => r.target).sort()).toEqual(["campaigns", "campaign_drafts", "users", "workspace_members", "workspaces"].sort());
+    expect(refs.rows.map((r) => r.target).sort()).toEqual(["campaigns", "forms", "campaign_drafts", "campaign_files", "users", "workspace_members", "workspaces"].sort()); // forms: the deferred reference to the registration form Finish created (a CRM forms record, not a CRM contact)
     const cols = await fixture.admin.query("select column_name from information_schema.columns where table_name in ('campaign_drafts','campaign_draft_assignments') and column_name ilike '%contact%'");
     expect(cols.rows).toEqual([]);
   });
@@ -105,42 +121,102 @@ describe("create and autosave", () => {
     // The database refuses what the service would not send.
     await expect(fixture.admin.query("update campaign_drafts set name = ' padded ' where id = $1", [draft.id])).rejects.toThrow();
   });
-  it("changing the type reloads the template and removes people from dropped departments", async () => {
+  it("changing the type reloads the template and keeps the customised one when the type is saved again", async () => {
     const draft = await draftFor("member-a", tenantA, "evangelistic_crusade");
-    let v = (await save("member-a", draft.id, 1, "leaders", { departments: ["campaign_leadership", "counseling"], assignments: [
-      { userId: "member-a2", department: "counseling", role: "leader" }, { userId: "admin-a", department: "campaign_leadership", role: "leader" }] })).version;
+    let v = (await save("member-a", draft.id, 1, "leaders", { departments: ["campaign_leadership", "counseling"] })).version;
     const changed = await save("member-a", draft.id, v, "type", { type: "local_outreach" });
     expect(changed.departments).toEqual(["campaign_leadership", "evangelistic_outreach", "prayer_intercession", "volunteers", "discipleship_follow_up"]);
-    expect(changed.assignments.map((a) => a.department)).toEqual(["campaign_leadership"]);
     // Saving the same type again keeps the customised template.
     v = (await save("member-a", draft.id, changed.version, "tools", { modules: ["tasks_boards"] })).version;
     expect((await save("member-a", draft.id, v, "type", { type: "local_outreach" })).modules).toEqual(["tasks_boards"]);
   });
 });
 
-describe("leaders and teams", () => {
-  it("only places ministry members who can edit, and replaces the whole set on each save", async () => {
+describe("teams: departments and invitations", () => {
+  it("places a person in a department only after they accept, for a member picked or an email that is a member's", async () => {
     const draft = await draftFor("member-a");
     const departments = ["campaign_leadership", "volunteers"];
-    for (const person of ["viewer-a", "outsider", "owner-b"]) {
-      expect(await status(save("member-a", draft.id, 1, "leaders", { departments, assignments: [{ userId: person, department: "volunteers", role: "leader" }] }))).toBe(400);
-    }
-    const one = await save("member-a", draft.id, 1, "leaders", { departments, assignments: [{ userId: "admin-a", department: "volunteers", role: "leader" }, { userId: "member-a2", department: "volunteers", role: "member" }] });
-    expect(one.assignments).toHaveLength(2);
-    const two = await save("member-a", draft.id, one.version, "leaders", { departments, assignments: [{ userId: "owner-a", department: "campaign_leadership", role: "leader" }] });
-    expect(two.assignments).toEqual([expect.objectContaining({ userId: "owner-a", department: "campaign_leadership", role: "leader" })]);
-    expect(await status(save("member-a", draft.id, two.version, "leaders", { departments, assignments: [{ userId: "owner-a", department: "counseling", role: "leader" }] }))).toBe(400);
+    await save("member-a", draft.id, 1, "leaders", { departments });
+    expect((await getDraft(fixture.db, "member-a", tenantA, draft.id)).assignments).toEqual([]);
+    const byPick = await invite("member-a", draft.id, { department: "volunteers", role: "leader", userId: "admin-a" });
+    const byEmail = await invite("member-a", draft.id, { department: "volunteers", role: "member", email: " Member-A2@Example.test " });
+    expect(byPick.mail).toMatchObject({ to: "admin-a@example.test", kind: "member" });
+    expect(byEmail.mail).toMatchObject({ to: "member-a2@example.test", kind: "member" }); // a member's email invites that member
+    const pending = (await getDraft(fixture.db, "member-a", tenantA, draft.id)).invitations;
+    expect(pending.map((i) => [i.label, i.state, i.kind]).sort()).toEqual([["admin-a", "pending", "member"], ["member-a2", "pending", "member"]]);
+    expect(JSON.stringify(pending)).not.toContain(byPick.token);
+    expect(await status(invite("member-a", draft.id, { department: "volunteers", role: "leader", userId: "admin-a" }))).toBe(409); // already invited
+    // Someone else's link does nothing; the invited member accepts and is placed.
+    expect(await status(acceptInvitation(fixture.db, "member-a2", { token: byPick.token }))).toBe(404);
+    expect(await acceptInvitation(fixture.db, "admin-a", { token: byPick.token })).toMatchObject({ tenantId: tenantA, draftId: draft.id, department: "volunteers", role: "leader", joined: false });
+    expect((await acceptInvitation(fixture.db, "admin-a", { token: byPick.token })).joined).toBe(false); // repeating is harmless
+    const after = await getDraft(fixture.db, "owner-a", tenantA, draft.id);
+    expect(after.assignments).toEqual([expect.objectContaining({ userId: "admin-a", department: "volunteers", role: "leader" })]);
+    expect(after.invitations.find((i) => i.label === "admin-a")).toMatchObject({ state: "accepted", acceptedBy: "admin-a" });
+    expect(await status(invite("member-a", draft.id, { department: "volunteers", role: "member", userId: "admin-a" }))).toBe(409); // already placed
+    // Viewers and unknown ids cannot be picked; a department not on the draft cannot be used.
+    expect(await status(invite("member-a", draft.id, { department: "volunteers", role: "member", userId: "viewer-a" }))).toBe(400);
+    expect(await status(invite("member-a", draft.id, { department: "volunteers", role: "member", userId: "owner-b" }))).toBe(400);
+    expect(await status(invite("member-a", draft.id, { department: "counseling", role: "member", email: "x@example.test" }))).toBe(400);
+    expect(await status(invite("viewer-a", draft.id, { department: "volunteers", role: "member", email: "x@example.test" }))).toBe(403);
+    // Revoking withdraws a pending one; a revoked link no longer works.
+    await revokeInvitation(fixture.db, "member-a2", tenantA, draft.id, byEmail.id);
+    expect(await status(acceptInvitation(fixture.db, "member-a2", { token: byEmail.token }))).toBe(409);
+    expect(await status(revokeInvitation(fixture.db, "member-a2", tenantA, draft.id, byEmail.id))).toBe(404);
   });
-  it("drops a person from every draft when they leave the ministry", async () => {
+  it("invites an email that is not a member: accepting adds the person to the ministry with no permission anywhere, and places them", async () => {
     const draft = await draftFor("member-a");
-    await save("member-a", draft.id, 1, "leaders", { departments: ["volunteers"], assignments: [{ userId: "member-a2", department: "volunteers", role: "member" }] });
-    await fixture.admin.query("insert into users (id,name,email) values ('leaver','l','leaver@example.test') on conflict do nothing");
-    await fixture.admin.query("insert into workspace_members (tenant_id,user_id,role_id) values ($1,'leaver','member') on conflict do nothing", [tenantA]);
-    const withLeaver = await draftFor("member-a");
-    await save("member-a", withLeaver.id, 1, "leaders", { departments: ["volunteers"], assignments: [{ userId: "leaver", department: "volunteers", role: "member" }] });
-    await fixture.admin.query("delete from workspace_members where tenant_id=$1 and user_id='leaver'", [tenantA]);
-    expect((await getDraft(fixture.db, "member-a", tenantA, withLeaver.id)).assignments).toEqual([]);
-    expect((await getDraft(fixture.db, "member-a", tenantA, draft.id)).assignments).toHaveLength(1);
+    await save("member-a", draft.id, 1, "leaders", { departments: ["volunteers"] });
+    const fresh = "guest-a@example.test";
+    await fixture.db.insert(users).values({ id: "guest-a", name: "Guest A", email: fresh }).onConflictDoNothing();
+    const sent = await invite("member-a", draft.id, { department: "volunteers", role: "member", email: fresh });
+    expect(sent.mail).toMatchObject({ to: fresh, kind: "email" });
+    expect(await status(acceptInvitation(fixture.db, "member-a2", { token: sent.token }))).toBe(404); // another account
+    expect((await fixture.admin.query("select 1 from workspace_members where tenant_id=$1 and user_id='guest-a'", [tenantA])).rowCount).toBe(0);
+    expect(await acceptInvitation(fixture.db, "guest-a", { token: sent.token })).toMatchObject({ department: "volunteers", role: "member", joined: true });
+    expect((await fixture.admin.query("select role_id from workspace_members where tenant_id=$1 and user_id='guest-a'", [tenantA])).rows).toEqual([{ role_id: "campaign_guest" }]);
+    expect((await getDraft(fixture.db, "member-a", tenantA, draft.id)).assignments).toEqual([expect.objectContaining({ userId: "guest-a", department: "volunteers" })]);
+    // The guest holds no permission: no draft, no campaigns, no ministry data.
+    expect(await status(getDraft(fixture.db, "guest-a", tenantA, draft.id))).toBe(403);
+    expect(await status(listDrafts(fixture.db, "guest-a", tenantA))).toBe(403);
+    expect(await status(createDraft(fixture.db, "guest-a", tenantA, {}, key()))).toBe(403);
+    expect((await fixture.admin.query("select action from audit_logs where action='campaign.invitation.accept' and actor_id='guest-a'")).rowCount).toBe(1);
+  });
+  it("lets a link expire after 14 days, and refuses one for a discarded draft", async () => {
+    const draft = await draftFor("member-a");
+    await save("member-a", draft.id, 1, "leaders", { departments: ["volunteers", "counseling"] });
+    const old = await invite("member-a", draft.id, { department: "volunteers", role: "member", userId: "member-a2" });
+    const row = (await fixture.admin.query("select created_at, expires_at from campaign_draft_invitations where id=$1", [old.id])).rows[0];
+    expect(new Date(row.expires_at).getTime() - new Date(row.created_at).getTime()).toBe(14 * 86_400_000);
+    await fixture.admin.query("update campaign_draft_invitations set created_at = created_at - interval '15 days', expires_at = expires_at - interval '15 days' where id=$1", [old.id]);
+    expect((await getDraft(fixture.db, "member-a", tenantA, draft.id)).invitations[0].state).toBe("expired");
+    expect(await status(acceptInvitation(fixture.db, "member-a2", { token: old.token }))).toBe(409);
+    expect((await fixture.admin.query("select count(*)::int as n from campaign_draft_assignments where draft_id=$1", [draft.id])).rows[0].n).toBe(0);
+    // An expired invitation is still pending in the table until it is withdrawn, so a second one to the same person is refused until then.
+    expect(await status(invite("member-a", draft.id, { department: "volunteers", role: "member", userId: "member-a2" }))).toBe(409);
+    await revokeInvitation(fixture.db, "member-a", tenantA, draft.id, old.id).catch(() => undefined);
+    const other = await invite("member-a", draft.id, { department: "counseling", role: "member", userId: "member-a2" });
+    const version = (await getDraft(fixture.db, "member-a", tenantA, draft.id)).version;
+    await discardDraft(fixture.db, "member-a", tenantA, draft.id, { version });
+    expect(await status(acceptInvitation(fixture.db, "member-a2", { token: other.token }))).toBe(409);
+    expect(await status(invite("member-a", draft.id, { department: "counseling", role: "member", userId: "admin-a" }))).toBe(409);
+  });
+  it("removes pending invitations and people with a department that leaves the draft", async () => {
+    const draft = await draftFor("member-a", tenantA, "evangelistic_crusade");
+    const placed = await invite("member-a", draft.id, { department: "counseling", role: "leader", userId: "member-a2" });
+    const waiting = await invite("member-a", draft.id, { department: "counseling", role: "member", email: "waiting@example.test" });
+    await acceptInvitation(fixture.db, "member-a2", { token: placed.token });
+    const kept = await invite("member-a", draft.id, { department: "campaign_leadership", role: "leader", userId: "admin-a" });
+    const v = (await save("member-a", draft.id, 1, "leaders", { departments: ["campaign_leadership"] })).version;
+    const view = await getDraft(fixture.db, "member-a", tenantA, draft.id);
+    expect(view.assignments).toEqual([]);
+    expect(Object.fromEntries(view.invitations.map((i) => [i.id, i.state]))).toEqual({ [placed.id]: "accepted", [waiting.id]: "revoked", [kept.id]: "pending" });
+    expect(await status(acceptInvitation(fixture.db, "admin-a", { token: waiting.token }))).toBe(404);
+    // A different type reloads the template: departments it drops lose their pending invitations too.
+    const changed = await save("member-a", draft.id, v, "type", { type: "custom_project" });
+    expect(changed.departments).toEqual(["campaign_leadership"]);
+    expect(changed.invitations.find((i) => i.id === kept.id)?.state).toBe("pending");
+    expect(await status(acceptInvitation(fixture.db, "admin-a", { token: kept.token }))).toBe(200);
   });
 });
 
@@ -151,20 +227,25 @@ describe("roles and isolation", () => {
     const draft = await draftFor("member-a");
     expect(await status(getDraft(fixture.db, "viewer-a", tenantA, draft.id))).toBe(404);
   });
-  it("keeps a draft private to its creator, with owners and admins able to read and discard only", async () => {
+  it("shares an open draft with everyone who can write campaigns; only the creator, owners and admins discard it", async () => {
     const draft = await draftFor("member-a");
-    expect(await status(getDraft(fixture.db, "member-a2", tenantA, draft.id))).toBe(404);
-    expect((await listDrafts(fixture.db, "member-a2", tenantA)).drafts.some((d) => d.id === draft.id)).toBe(false);
-    for (const admin of ["admin-a", "owner-a"]) {
-      expect((await getDraft(fixture.db, admin, tenantA, draft.id)).id).toBe(draft.id);
-      expect((await listDrafts(fixture.db, admin, tenantA)).drafts.some((d) => d.id === draft.id)).toBe(true);
-      expect(await status(save(admin, draft.id, 1, "basics", { name: "Takeover" }))).toBe(403);
-      expect(await status(finishDraft(fixture.db, admin, tenantA, draft.id, { version: 1 }))).toBe(403);
+    for (const person of ["member-a2", "admin-a", "owner-a"]) {
+      expect((await getDraft(fixture.db, person, tenantA, draft.id)).id).toBe(draft.id);
+      expect((await listDrafts(fixture.db, person, tenantA)).drafts.some((d) => d.id === draft.id)).toBe(true);
     }
-    expect(await status(discardDraft(fixture.db, "member-a2", tenantA, draft.id, { version: 1 }))).toBe(404);
-    expect((await discardDraft(fixture.db, "admin-a", tenantA, draft.id, { version: 1 })).status).toBe("discarded");
-    expect((await discardDraft(fixture.db, "admin-a", tenantA, draft.id, { version: 1 })).status).toBe("discarded");
-    expect(await status(save("member-a", draft.id, 2, "basics", { name: "Late" }))).toBe(409);
+    // Anyone who can write edits it; the version check still refuses a stale save, and the creator stays the creator.
+    let version = (await save("member-a2", draft.id, 1, "basics", { name: "Edited by a colleague" })).version;
+    expect(await status(save("member-a", draft.id, 1, "basics", { name: "Stale" }))).toBe(409);
+    version = (await save("admin-a", draft.id, version, "basics", { name: "Edited by an admin" })).version;
+    expect((await getDraft(fixture.db, "member-a", tenantA, draft.id))).toMatchObject({ name: "Edited by an admin", createdBy: "member-a", version });
+    expect((await fixture.admin.query("select actor_id from audit_logs where action='campaign.draft.save' and target_id=$1 order by created_at", [draft.id])).rows.map((r) => r.actor_id)).toEqual(["member-a2", "admin-a"]);
+    // A plain member discards only a draft they started; a viewer and an outsider reach nothing.
+    expect(await status(discardDraft(fixture.db, "member-a2", tenantA, draft.id, { version }))).toBe(403);
+    expect(await status(getDraft(fixture.db, "viewer-a", tenantA, draft.id))).toBe(404);
+    expect(await status(save("viewer-a", draft.id, version, "basics", { name: "Viewer" }))).toBe(403);
+    expect((await discardDraft(fixture.db, "admin-a", tenantA, draft.id, { version })).status).toBe("discarded");
+    expect((await discardDraft(fixture.db, "admin-a", tenantA, draft.id, { version })).status).toBe("discarded");
+    expect(await status(save("member-a", draft.id, version + 1, "basics", { name: "Late" }))).toBe(409);
     expect((await fixture.admin.query("select actor_id from audit_logs where action='campaign.draft.discard' and target_id=$1", [draft.id])).rows).toEqual([{ actor_id: "admin-a" }]);
   });
   it("isolates ministries: no read, write, finish or discard across tenants, and a foreign id is simply not found", async () => {
@@ -189,21 +270,29 @@ describe("roles and isolation", () => {
     await expect(attempt("member-a", (tx) => tx.insert(campaignDrafts).values({ ...base, createdBy: "member-a2" }))).rejects.toThrow();
     await expect(attempt("viewer-a", (tx) => tx.insert(campaignDrafts).values({ ...base, createdBy: "viewer-a" }))).rejects.toThrow();
     await expect(attempt("member-a", (tx) => tx.delete(campaignDrafts).where(eq(campaignDrafts.id, draft.id)))).rejects.toThrow();
+    // A draft keeps its ministry, creator and key whoever edits it.
     await expect(attempt("member-a", (tx) => tx.update(campaignDrafts).set({ createdBy: "member-a2" }).where(eq(campaignDrafts.id, draft.id)))).rejects.toThrow();
     await expect(attempt("member-a", (tx) => tx.update(campaignDrafts).set({ tenantId: tenantB }).where(eq(campaignDrafts.id, draft.id)))).rejects.toThrow();
-    // An admin's update is refused unless it is a discard.
-    await expect(attempt("admin-a", (tx) => tx.update(campaignDrafts).set({ name: "Sneaky" }).where(eq(campaignDrafts.id, draft.id)))).rejects.toThrow();
+    // A viewer cannot change anything; a colleague who can write can edit but not finish a draft against nothing, nor discard someone else's.
+    expect((await attempt("viewer-a", (tx) => tx.update(campaignDrafts).set({ name: "Viewer" }).where(eq(campaignDrafts.id, draft.id)).returning())) as unknown[]).toEqual([]);
+    await expect(attempt("member-a2", (tx) => tx.update(campaignDrafts).set({ status: "finished" }).where(eq(campaignDrafts.id, draft.id)))).rejects.toThrow();
+    await expect(attempt("member-a2", (tx) => tx.update(campaignDrafts).set({ status: "discarded", version: 2 }).where(eq(campaignDrafts.id, draft.id)))).rejects.toMatchObject({ cause: { code: "42501" } });
     await expect(attempt("admin-a", (tx) => tx.update(campaignDrafts).set({ status: "finished" }).where(eq(campaignDrafts.id, draft.id)))).rejects.toThrow();
-    // Discarding must not carry other edits along with it.
-    await expect(attempt("admin-a", (tx) => tx.update(campaignDrafts).set({ name: "Sneaky", status: "discarded" }).where(eq(campaignDrafts.id, draft.id)))).rejects.toMatchObject({ cause: { code: "42501" } });
-    // The creator cannot mark a draft finished against some other campaign of the ministry.
+    // Nobody marks a draft finished against some other campaign of the ministry.
     const other = await withTenant(fixture.db, "member-a", tenantA, "campaigns:write", (tx) => tx.insert(campaigns)
       .values({ tenantId: tenantA, ownerUserId: "member-a", name: "Other", type: "custom_project", idempotencyKey: key(), fingerprint: "d".repeat(64) }).returning({ id: campaigns.id }));
-    await expect(attempt("member-a", (tx) => tx.update(campaignDrafts).set({ status: "finished", campaignId: other[0].id, finishedAt: new Date() }).where(eq(campaignDrafts.id, draft.id)))).rejects.toThrow();
-    await expect(attempt("member-a2", (tx) => tx.insert(campaignDraftAssignments).values({ tenantId: tenantA, draftId: draft.id, userId: "member-a2", department: "volunteers", role: "member" }))).rejects.toThrow();
-    expect(await attempt("member-a2", (tx) => tx.select().from(campaignDraftAssignments))).toEqual([]);
+    for (const person of ["member-a", "member-a2"]) {
+      await expect(attempt(person, (tx) => tx.update(campaignDrafts).set({ status: "finished", campaignId: other[0].id, finishedAt: new Date() }).where(eq(campaignDrafts.id, draft.id)))).rejects.toThrow();
+    }
+    // A campaign made for a draft needs that draft's creator as owner; a plain insert may not name another owner.
+    await expect(withTenant(fixture.db, "member-a2", tenantA, "campaigns:write", (tx) => tx.insert(campaigns)
+      .values({ tenantId: tenantA, ownerUserId: "member-a", name: "Hijack", type: "custom_project", idempotencyKey: key(), fingerprint: "e".repeat(64) }))).rejects.toThrow();
+    // Assignments follow the draft: a colleague can place people, a viewer cannot.
+    await attempt("member-a2", (tx) => tx.insert(campaignDraftAssignments).values({ tenantId: tenantA, draftId: draft.id, userId: "member-a2", department: "volunteers", role: "member" }));
+    await expect(attempt("viewer-a", (tx) => tx.insert(campaignDraftAssignments).values({ tenantId: tenantA, draftId: draft.id, userId: "member-a2", department: "counseling", role: "member" }))).rejects.toThrow();
+    expect(await attempt("viewer-a", (tx) => tx.select().from(campaignDraftAssignments))).toEqual([]);
     expect((await getDraft(fixture.db, "member-a", tenantA, draft.id)).name).toBeNull();
-    // The admin's plain discard (status, version, timestamp only) still works.
+    // The admin's plain discard still works.
     await attempt("admin-a", (tx) => tx.update(campaignDrafts).set({ status: "discarded", version: 2, updatedAt: new Date() }).where(eq(campaignDrafts.id, draft.id)));
     expect((await getDraft(fixture.db, "admin-a", tenantA, draft.id)).status).toBe("discarded");
   });
@@ -273,5 +362,273 @@ describe("finish and activate", () => {
   it("keeps campaign list and audit rows free of draft-only settings", async () => {
     const audits = await fixture.db.select({ metadata: auditLogs.metadata, action: auditLogs.action }).from(auditLogs).where(eq(auditLogs.tenantId, tenantA));
     expect(JSON.stringify(audits.filter((a) => a.action.startsWith("campaign.")))).not.toMatch(/Synthetic|Private notes|Bangkok|EUR/);
+  });
+});
+
+describe("shared drafts: finishing", () => {
+  it("lets a colleague finish any open draft and keeps the creator as the campaign's owner", async () => {
+    const draft = await draftFor("member-a");
+    const version = await complete("member-a", draft.id, 1);
+    const finished = await finishDraft(fixture.db, "member-a2", tenantA, draft.id, { version });
+    const [row] = (await fixture.admin.query("select owner_user_id, status from campaigns where id=$1", [finished.campaignId])).rows;
+    expect(row).toEqual({ owner_user_id: "member-a", status: "draft" });
+    expect((await finishDraft(fixture.db, "member-a", tenantA, draft.id, { version })).campaignId).toBe(finished.campaignId);
+    expect(await status(finishDraft(fixture.db, "viewer-a", tenantA, draft.id, { version }))).toBe(403);
+    expect((await fixture.admin.query("select actor_id from audit_logs where action in ('campaign.draft.finish','campaign.create') and target_id in ($1,$2) order by action", [draft.id, finished.campaignId])).rows.map((r) => r.actor_id)).toEqual(["member-a2", "member-a2"]);
+  });
+  it("makes the person finishing the owner when the creator can no longer write campaigns", async () => {
+    const draft = await draftFor("temp-a");
+    const version = await complete("temp-a", draft.id, 1);
+    await putMember(fixture.db, "owner-a", tenantA, "temp-a@example.test", "viewer");
+    const finished = await finishDraft(fixture.db, "admin-a", tenantA, draft.id, { version });
+    expect((await fixture.admin.query("select owner_user_id from campaigns where id=$1", [finished.campaignId])).rows).toEqual([{ owner_user_id: "admin-a" }]);
+    await putMember(fixture.db, "owner-a", tenantA, "temp-a@example.test", "member");
+  });
+});
+
+describe("campaign cover", () => {
+  const intent = { kind: "cover", mime: "image/png", name: "logo.png", size: 12, checksum: "a".repeat(64) };
+  const clean = { scan: vi.fn().mockResolvedValue("clean") }, infected = { scan: vi.fn().mockResolvedValue("infected") };
+  const adapter = { presignUpload: vi.fn().mockResolvedValue({ url: "https://storage.example.test/upload", method: "PUT", expiresIn: 300, headers: {} }),
+    inspect: vi.fn().mockResolvedValue({ size: intent.size, mime: intent.mime, checksum: intent.checksum }),
+    presignDownload: vi.fn((key: string) => Promise.resolve(`https://storage.example.test/${key.split("/").at(-1)}`)) };
+  const storage = () => adapter as never;
+  const scope = (draftId: string, tenantId = tenantA) => ({ tenantId, draftId });
+  async function readyFile(draftId: string, user = "member-a") {
+    const { file } = await createDraftCoverUpload(fixture.db, user, scope(draftId), intent, storage);
+    expect((await confirmDraftCoverUpload(fixture.db, user, scope(draftId), file.id, storage, clean)).status).toBe("ready");
+    return file.id;
+  }
+  it("records a private pending file under the draft, then verifies and scans it before it can be used", async () => {
+    const draft = await draftFor("member-a");
+    const { file, upload } = await createDraftCoverUpload(fixture.db, "member-a2", scope(draft.id), intent, storage);
+    expect(upload).toMatchObject({ method: "PUT" });
+    expect(file).toMatchObject({ status: "pending", kind: "cover", mime: "image/png" });
+    expect(adapter.presignUpload).toHaveBeenLastCalledWith(`workspaces/${tenantA}/campaign-drafts/${draft.id}/files/${file.id}`, expect.objectContaining({ visibility: "private" }));
+    // Not ready: it cannot be chosen.
+    expect(await status(setDraftCover(fixture.db, "member-a", scope(draft.id), { fileId: file.id, version: 1 }))).toBe(404);
+    // Only the uploader moves it forward.
+    expect(await status(confirmDraftCoverUpload(fixture.db, "member-a", scope(draft.id), file.id, storage, clean))).toBe(404);
+    expect((await confirmDraftCoverUpload(fixture.db, "member-a2", scope(draft.id), file.id, storage, infected)).status).toBe("quarantined");
+    expect(await status(setDraftCover(fixture.db, "member-a2", scope(draft.id), { fileId: file.id, version: 1 }))).toBe(404);
+    expect(await status(createDraftCoverUpload(fixture.db, "viewer-a", scope(draft.id), intent, storage))).toBe(403);
+    expect(await status(createDraftCoverUpload(fixture.db, "member-a", scope(draft.id), { ...intent, kind: "attachment" }, storage))).toBe(400);
+  });
+  it("chooses, replaces and removes the cover with the version check, and retires what it replaces", async () => {
+    const draft = await draftFor("member-a");
+    const first = await readyFile(draft.id), second = await readyFile(draft.id, "member-a2");
+    const set = await setDraftCover(fixture.db, "member-a2", scope(draft.id), { fileId: first, version: 1 });
+    expect(set).toEqual({ coverFileId: first, version: 2 });
+    expect(await setDraftCover(fixture.db, "member-a2", scope(draft.id), { fileId: first, version: 1 })).toEqual(set); // a retried request
+    expect(await status(setDraftCover(fixture.db, "member-a", scope(draft.id), { fileId: second, version: 1 }))).toBe(409);
+    expect(await setDraftCover(fixture.db, "member-a", scope(draft.id), { fileId: second, version: 2 })).toEqual({ coverFileId: second, version: 3 });
+    const retired = await fixture.admin.query("select id, retired_at is not null as retired from campaign_files where draft_id=$1 order by retired desc", [draft.id]);
+    expect(retired.rows.filter((r) => r.retired).map((r) => r.id)).toEqual([first]);
+    // The autosave keeps working with the version the cover moved on to.
+    expect((await save("member-a", draft.id, 3, "basics", { name: "With a cover" })).version).toBe(4);
+    expect((await getDraft(fixture.db, "member-a", tenantA, draft.id)).coverFileId).toBe(second);
+    expect(await getDraftCoverUrl(fixture.db, "member-a2", scope(draft.id), storage)).toEqual({ url: `https://storage.example.test/${second}`, expiresIn: 60 });
+    expect(await status(getDraftCoverUrl(fixture.db, "viewer-a", scope(draft.id), storage))).toBe(404);
+    expect(await status(getDraftCoverUrl(fixture.db, "owner-b", scope(draft.id, tenantB), storage))).toBe(404);
+    expect(await setDraftCover(fixture.db, "member-a", scope(draft.id), { fileId: null, version: 4 })).toEqual({ coverFileId: null, version: 5 });
+    expect(await status(getDraftCoverUrl(fixture.db, "member-a", scope(draft.id), storage))).toBe(404);
+    expect((await fixture.admin.query("select action from audit_logs where target_id=$1 and action='campaign.draft.cover'", [draft.id])).rows).toHaveLength(3);
+  });
+  it("refuses a file that belongs to another draft or ministry, and a closed draft", async () => {
+    const draft = await draftFor("member-a"), other = await draftFor("member-a");
+    const foreign = await readyFile(other.id);
+    expect(await status(setDraftCover(fixture.db, "member-a", scope(draft.id), { fileId: foreign, version: 1 }))).toBe(404);
+    // Direct SQL cannot get around it either.
+    await expect(withTenant(fixture.db, "member-a", tenantA, "campaigns:write",
+      (tx) => tx.update(campaignDrafts).set({ coverFileId: foreign }).where(eq(campaignDrafts.id, draft.id)))).rejects.toMatchObject({ cause: { code: "23514" } });
+    await expect(withTenant(fixture.db, "member-a", tenantA, "campaigns:write", (tx) => tx.insert(campaigns)
+      .values({ tenantId: tenantA, ownerUserId: "member-a", name: "Borrowed", type: "custom_project", idempotencyKey: key(), fingerprint: "c".repeat(64), coverFileId: foreign }))).rejects.toMatchObject({ cause: { code: "23514" } });
+    // Only the uploader moves a file's scan state, and never straight to ready.
+    const pending = (await createDraftCoverUpload(fixture.db, "member-a", scope(draft.id), intent, storage)).file.id;
+    await expect(withTenant(fixture.db, "member-a2", tenantA, "campaigns:write", (tx) => tx.update(campaignFiles).set({ status: "uploaded" }).where(eq(campaignFiles.id, pending)))).rejects.toThrow();
+    await expect(withTenant(fixture.db, "member-a", tenantA, "campaigns:write", (tx) => tx.update(campaignFiles).set({ status: "ready" }).where(eq(campaignFiles.id, pending)))).rejects.toMatchObject({ cause: { code: "23514" } });
+    const version = await complete("member-a", draft.id, 1);
+    await discardDraft(fixture.db, "member-a", tenantA, draft.id, { version });
+    expect(await status(createDraftCoverUpload(fixture.db, "member-a", scope(draft.id), intent, storage))).toBe(409);
+    expect(await status(setDraftCover(fixture.db, "member-a", scope(draft.id), { fileId: null, version: version + 1 }))).toBe(409);
+  });
+  it("carries the cover to the campaign on Finish, readable by anyone who can read the campaign", async () => {
+    const draft = await draftFor("member-a");
+    const file = await readyFile(draft.id);
+    let version = (await save("member-a", draft.id, 1, "basics", { name: "Cover campaign" })).version;
+    version = (await save("member-a", draft.id, version, "place", place)).version;
+    const { coverFileId, version: after } = await setDraftCover(fixture.db, "member-a2", scope(draft.id), { fileId: file, version });
+    expect(coverFileId).toBe(file);
+    const finished = await finishDraft(fixture.db, "member-a2", tenantA, draft.id, { version: after });
+    expect((await fixture.admin.query("select cover_file_id from campaigns where id=$1", [finished.campaignId])).rows).toEqual([{ cover_file_id: file }]);
+    for (const person of ["member-a", "viewer-a", "owner-a"]) expect((await getCampaignCoverUrl(fixture.db, person, { tenantId: tenantA, campaignId: finished.campaignId }, storage)).url).toBe(`https://storage.example.test/${file}`);
+    expect(await status(getCampaignCoverUrl(fixture.db, "owner-b", { tenantId: tenantB, campaignId: finished.campaignId }, storage))).toBe(404);
+    // A viewer reads that one file and no other.
+    const other = await readyFile((await draftFor("member-a")).id);
+    expect(await withTenant(fixture.db, "viewer-a", tenantA, "campaigns:read", (tx) => tx.select({ id: campaignFiles.id }).from(campaignFiles))).toEqual([{ id: file }]);
+    expect(other).not.toBe(file);
+    // A campaign without a cover has no cover address.
+    const plain = await draftFor("member-a");
+    const plainVersion = await complete("member-a", plain.id, 1);
+    const plainDone = await finishDraft(fixture.db, "member-a", tenantA, plain.id, { version: plainVersion });
+    expect(await status(getCampaignCoverUrl(fixture.db, "member-a", { tenantId: tenantA, campaignId: plainDone.campaignId }, storage))).toBe(404);
+  });
+});
+
+describe("setup checklist", () => {
+  /** A finished campaign whose draft included volunteers and counseling, so leaders can make items tick themselves. */
+  async function campaignWithDepartments() {
+    const draft = await draftFor("member-a");
+    let version = (await save("member-a", draft.id, 1, "leaders", { departments: ["volunteers", "counseling"] })).version;
+    version = await complete("member-a", draft.id, version);
+    const { campaignId } = await finishDraft(fixture.db, "member-a", tenantA, draft.id, { version });
+    return { draftId: draft.id, campaignId };
+  }
+  it("lists the nine PRD items, stores completion per item and lets it be undone", async () => {
+    const { campaignId } = await campaignWithDepartments();
+    const first = await getChecklist(fixture.db, "member-a", tenantA, campaignId);
+    expect(first.map((row) => row.item)).toEqual(["assign_leaders", "confirm_venues", "define_budget", "connect_payments", "publish_registration", "configure_qr", "assign_counseling", "invite_churches", "create_events"]);
+    expect(first.every((row) => !row.done && !row.automatic)).toBe(true);
+    const after = await setChecklistItem(fixture.db, "member-a", tenantA, campaignId, { item: "define_budget", done: true });
+    expect(after.find((row) => row.item === "define_budget")).toMatchObject({ done: true, automatic: false });
+    // Another person sees it, and can undo it: the row keeps who and when, and clears both when undone.
+    expect((await getChecklist(fixture.db, "admin-a", tenantA, campaignId)).find((row) => row.item === "define_budget")?.done).toBe(true);
+    expect((await fixture.admin.query("select done, done_by from campaign_checklist_items where campaign_id=$1", [campaignId])).rows).toEqual([{ done: true, done_by: "member-a" }]);
+    await setChecklistItem(fixture.db, "admin-a", tenantA, campaignId, { item: "define_budget", done: false });
+    expect((await fixture.admin.query("select done, done_by, done_at from campaign_checklist_items where campaign_id=$1", [campaignId])).rows).toEqual([{ done: false, done_by: null, done_at: null }]);
+    await setChecklistItem(fixture.db, "member-a", tenantA, campaignId, { item: "define_budget", done: true });
+    expect((await fixture.admin.query("select count(*)::int as n from campaign_checklist_items where campaign_id=$1", [campaignId])).rows[0].n).toBe(1);
+    expect((await fixture.admin.query("select count(*)::int as n from audit_logs where action='campaign.checklist.set' and target_id=$1", [campaignId])).rows[0].n).toBe(3);
+  });
+  it("ticks leader items by itself from accepted leaders and ignores a stored untick", async () => {
+    const { draftId, campaignId } = await campaignWithDepartments();
+    expect((await getChecklist(fixture.db, "member-a", tenantA, campaignId)).filter((row) => row.automatic)).toEqual([]);
+    // The draft is finished, so leaders are placed straight in the assignments table for this check.
+    await fixture.admin.query("insert into campaign_draft_assignments (tenant_id, draft_id, user_id, department, role) values ($1,$2,'admin-a','counseling','leader')", [tenantA, draftId]);
+    let rows = await getChecklist(fixture.db, "member-a", tenantA, campaignId);
+    expect(rows.find((row) => row.item === "assign_counseling")).toMatchObject({ done: true, automatic: true });
+    expect(rows.find((row) => row.item === "assign_leaders")).toMatchObject({ done: false, automatic: false }); // volunteers still has none
+    await fixture.admin.query("insert into campaign_draft_assignments (tenant_id, draft_id, user_id, department, role) values ($1,$2,'member-a2','volunteers','leader')", [tenantA, draftId]);
+    await setChecklistItem(fixture.db, "member-a", tenantA, campaignId, { item: "assign_leaders", done: false });
+    rows = await getChecklist(fixture.db, "member-a", tenantA, campaignId);
+    expect(rows.find((row) => row.item === "assign_leaders")).toMatchObject({ done: true, automatic: true });
+  });
+  it("is for people who can write campaigns, and stays inside the ministry", async () => {
+    const { campaignId } = await campaignWithDepartments();
+    expect(await status(getChecklist(fixture.db, "viewer-a", tenantA, campaignId))).toBe(403);
+    expect(await status(setChecklistItem(fixture.db, "viewer-a", tenantA, campaignId, { item: "define_budget", done: true }))).toBe(403);
+    expect(await status(getChecklist(fixture.db, "owner-b", tenantA, campaignId))).toBe(403);
+    expect(await status(getChecklist(fixture.db, "owner-b", tenantB, campaignId))).toBe(404);
+    expect(await status(setChecklistItem(fixture.db, "member-a", tenantA, campaignId, { item: "launch_rocket", done: true }))).toBe(400);
+    expect(await status(setChecklistItem(fixture.db, "member-a", tenantA, campaignId, { item: "define_budget", done: true, extra: 1 }))).toBe(400);
+    expect(await status(setChecklistItem(fixture.db, "member-a", tenantA, "00000000-0000-4000-8000-000000000000", { item: "define_budget", done: true }))).toBe(404);
+  });
+  it("forces RLS, grants no delete, no whole-table update, and a write cannot name another person", async () => {
+    const { campaignId } = await campaignWithDepartments();
+    expect((await fixture.admin.query("select relrowsecurity, relforcerowsecurity from pg_class where relname='campaign_checklist_items'")).rows).toEqual([{ relrowsecurity: true, relforcerowsecurity: true }]);
+    expect((await fixture.admin.query("select has_table_privilege('harvest_app','campaign_checklist_items','DELETE') as d, has_table_privilege('harvest_app','campaign_checklist_items','UPDATE') as u, has_table_privilege('public','campaign_checklist_items','SELECT') as p")).rows)
+      .toEqual([{ d: false, u: false, p: false }]);
+    await expect(withTenant(fixture.db, "member-a", tenantA, "campaigns:write", (tx) => tx.insert(campaignChecklistItems).values({ tenantId: tenantA, campaignId, item: "create_events", done: true, doneBy: "admin-a", doneAt: new Date() }))).rejects.toThrow();
+  });
+});
+
+describe("campaign overview", () => {
+  it("reads the finished draft's departments, leaders, members and tools, and reports what is not tracked as unavailable", async () => {
+    const draft = await draftFor("member-a");
+    let version = (await save("member-a", draft.id, 1, "leaders", { departments: ["volunteers", "counseling"] })).version;
+    version = await complete("member-a", draft.id, version);
+    version = (await save("member-a", draft.id, version, "tools", { modules: ["tasks_boards", "campaign_calendar"] })).version;
+    const lead = await invite("member-a", draft.id, { department: "volunteers", role: "leader", userId: "admin-a" });
+    await acceptInvitation(fixture.db, "admin-a", { token: lead.token });
+    await invite("member-a", draft.id, { department: "volunteers", role: "member", email: "later@example.test" }); // pending
+    const { campaignId } = await finishDraft(fixture.db, "member-a", tenantA, draft.id, { version });
+    const overview = await getCampaignOverview(fixture.db, "member-a", tenantA, campaignId);
+    expect(overview.configuration).toEqual({
+      departments: [{ key: "volunteers", leaders: ["admin-a"], members: [], pending: 1 }, { key: "counseling", leaders: [], members: [], pending: 0 }], // the PRD's order
+      modules: ["tasks_boards", "campaign_calendar"], connect: [], registrationFormId: null,
+      budget: { currency: "USD", estimatedBudgetMinor: null, fundraisingEnabled: false, fundraisingGoalMinor: null, onlineDonations: false },
+    });
+    expect(overview.checklist).toEqual({ done: 0, total: 9 });
+    expect(overview.unavailable).toEqual(["progress", "events", "funding", "tasks"]);
+    expect(JSON.stringify(overview)).not.toMatch(/example\.test/); // no email address of an invitee or placed person
+  });
+  it("is for people who can write campaigns, stays inside the ministry, and has nothing for a campaign made without the wizard", async () => {
+    const draft = await draftFor("member-a");
+    const { campaignId } = await finishDraft(fixture.db, "member-a", tenantA, draft.id, { version: await complete("member-a", draft.id, 1) });
+    expect(await status(getCampaignOverview(fixture.db, "viewer-a", tenantA, campaignId))).toBe(403);
+    expect(await status(getCampaignOverview(fixture.db, "owner-b", tenantA, campaignId))).toBe(403);
+    expect(await status(getCampaignOverview(fixture.db, "owner-b", tenantB, campaignId))).toBe(404);
+    const made = await fixture.admin.query("insert into campaigns (tenant_id, owner_user_id, type, name, idempotency_key, fingerprint) values ($1,'owner-a','conference','No wizard','plain-overview',repeat('a',64)) returning id", [tenantA]);
+    expect((await getCampaignOverview(fixture.db, "owner-a", tenantA, made.rows[0].id)).configuration).toBeNull();
+  });
+});
+
+describe("step 7: the draft response source", () => {
+  async function finished(outreach: Record<string, boolean>, modules: string[]) {
+    const draft = await draftFor("member-a");
+    let version = (await save("member-a", draft.id, 1, "tools", { modules })).version;
+    version = await complete("member-a", draft.id, version);
+    version = (await save("member-a", draft.id, version, "connect", { ...defaultOutreach, ...outreach })).version;
+    const { campaignId } = await finishDraft(fixture.db, "member-a", tenantA, draft.id, { version });
+    return { draft, campaignId, version };
+  }
+  const links = async (campaignId: string) => (await fixture.admin.query("select status, form_version_id, public_title, label, published_at from campaign_response_links where campaign_id=$1", [campaignId])).rows;
+  it("adds one unpublished, resource-only link when the response form is on, and none otherwise", async () => {
+    const on = await finished({ qrResponse: true }, ["qr_response_forms"]);
+    expect(await links(on.campaignId)).toEqual([{ status: "draft", form_version_id: null, public_title: null, label: "Evangelistic response QR", published_at: null }]);
+    // Finishing again, from this tab or another, returns the same campaign and adds nothing.
+    expect((await finishDraft(fixture.db, "member-a", tenantA, on.draft.id, { version: on.version })).campaignId).toBe(on.campaignId);
+    await Promise.all([1, 2].map(() => finishDraft(fixture.db, "admin-a", tenantA, on.draft.id, { version: on.version })));
+    expect(await links(on.campaignId)).toHaveLength(1);
+    const off = await finished({ registration: true, followUp: true }, ["registration_forms"]);
+    expect(await links(off.campaignId)).toEqual([]);
+    expect((await fixture.admin.query("select count(*)::int as n from audit_logs where action='connect.link.create' and target_id in (select id::text from campaign_response_links where campaign_id=$1)", [on.campaignId])).rows[0].n).toBe(1);
+  });
+  it("refuses combinations the page would never send", async () => {
+    const draft = await draftFor("member-a");
+    expect(await status(save("member-a", draft.id, 1, "connect", { ...defaultOutreach, followUp: true }))).toBe(400);
+    expect(await status(save("member-a", draft.id, 1, "connect", { ...defaultOutreach, registration: true, communityDiscovery: true }))).toBe(400);
+    expect(await status(save("member-a", draft.id, 1, "connect", { ...defaultOutreach, registration: true, accountInvites: true, communityDiscovery: true }))).toBe(200);
+  });
+});
+
+describe("step 7: the draft registration form", () => {
+  async function finishedAs(finisher: string, outreach: Record<string, boolean>) {
+    const draft = await draftFor("member-a");
+    let version = (await save("member-a", draft.id, 1, "tools", { modules: ["registration_forms", "qr_response_forms"] })).version;
+    version = await complete("member-a", draft.id, version);
+    version = (await save("member-a", draft.id, version, "connect", { ...defaultOutreach, ...outreach })).version;
+    const { campaignId } = await finishDraft(fixture.db, finisher, tenantA, draft.id, { version });
+    return { draft, campaignId, version };
+  }
+  const formsOf = async (draftId: string) => (await fixture.admin.query(`select f.id, f.name, v.status, v.published_at, v.definition->>'kind' as kind, jsonb_array_length(v.definition->'blocks') as blocks
+    from campaign_drafts d join forms f on f.tenant_id = d.tenant_id and f.id = d.registration_form_id join form_versions v on v.tenant_id = f.tenant_id and v.form_id = f.id where d.id = $1`, [draftId])).rows;
+  it("creates one unpublished form when registration is on and an owner or admin finishes, and none on a repeat", async () => {
+    const done = await finishedAs("admin-a", { registration: true });
+    const rows = await formsOf(done.draft.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ name: "Synthetic conference registration", status: "draft", published_at: null, kind: "crm-form-v1" });
+    expect(Number(rows[0].blocks)).toBeGreaterThan(2);
+    const before = (await fixture.admin.query("select count(*)::int as n from forms where tenant_id=$1", [tenantA])).rows[0].n;
+    await finishDraft(fixture.db, "admin-a", tenantA, done.draft.id, { version: done.version });
+    await Promise.all([1, 2].map(() => finishDraft(fixture.db, "owner-a", tenantA, done.draft.id, { version: done.version })));
+    expect((await fixture.admin.query("select count(*)::int as n from forms where tenant_id=$1", [tenantA])).rows[0].n).toBe(before);
+    expect(await formsOf(done.draft.id)).toHaveLength(1);
+    expect((await fixture.admin.query("select count(*)::int as n from audit_logs where action='crm.form.create' and target_id=$1", [rows[0].id])).rows[0].n).toBe(1);
+    expect((await fixture.admin.query("select count(*)::int as n from form_versions where form_id=$1 and status <> 'draft'", [rows[0].id])).rows[0].n).toBe(0);
+  });
+  it("creates none when registration is off, or when the person finishing cannot create forms", async () => {
+    expect(await formsOf((await finishedAs("admin-a", { qrResponse: true })).draft.id)).toEqual([]);
+    const member = await finishedAs("member-a", { registration: true });
+    expect(member.campaignId).toBeTruthy(); // the campaign is still created
+    expect(await formsOf(member.draft.id)).toEqual([]);
+  });
+  it("records the form only in the finishing update", async () => {
+    const done = await finishedAs("admin-a", { registration: true });
+    // A finished draft is closed to updates, so the recorded form cannot be removed or swapped.
+    await withTenant(fixture.db, "admin-a", tenantA, "campaigns:write", (tx) => tx.update(campaignDrafts).set({ registrationFormId: null }).where(eq(campaignDrafts.id, done.draft.id)));
+    expect((await formsOf(done.draft.id))).toHaveLength(1);
+    const open = await draftFor("member-a");
+    await expect(withTenant(fixture.db, "member-a", tenantA, "campaigns:write", (tx) => tx.update(campaignDrafts).set({ registrationFormId: "00000000-0000-4000-8000-000000000000" }).where(eq(campaignDrafts.id, open.id)))).rejects.toThrow();
   });
 });

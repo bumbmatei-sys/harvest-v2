@@ -1,6 +1,6 @@
 {
-  "id": "7f046f0f-8ea8-44e0-b4e6-2154f130df18",
-  "prevId": "143400e4-297d-40ea-9465-ad60722216ea",
+  "id": "8a824a68-947d-4797-a78f-48042eeca386",
+  "prevId": "45b68f66-e94c-4bec-99aa-72b3c8634964",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -4286,6 +4286,109 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.campaign_checklist_items": {
+      "name": "campaign_checklist_items",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "campaign_id": {
+          "name": "campaign_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item": {
+          "name": "item",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "done": {
+          "name": "done",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "done_by": {
+          "name": "done_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "done_at": {
+          "name": "done_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "campaign_checklist_items_done_by_users_id_fk": {
+          "name": "campaign_checklist_items_done_by_users_id_fk",
+          "tableFrom": "campaign_checklist_items",
+          "tableTo": "users",
+          "columnsFrom": [
+            "done_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "campaign_checklist_items_tenant_id_campaign_id_campaigns_tenant_id_id_fk": {
+          "name": "campaign_checklist_items_tenant_id_campaign_id_campaigns_tenant_id_id_fk",
+          "tableFrom": "campaign_checklist_items",
+          "tableTo": "campaigns",
+          "columnsFrom": [
+            "tenant_id",
+            "campaign_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "campaign_checklist_items_tenant_id_campaign_id_item_pk": {
+          "name": "campaign_checklist_items_tenant_id_campaign_id_item_pk",
+          "columns": [
+            "tenant_id",
+            "campaign_id",
+            "item"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "campaign_checklist_item": {
+          "name": "campaign_checklist_item",
+          "value": "\"campaign_checklist_items\".\"item\" in ('assign_leaders', 'confirm_venues', 'define_budget', 'connect_payments', 'publish_registration', 'configure_qr', 'assign_counseling', 'invite_churches', 'create_events')"
+        },
+        "campaign_checklist_done": {
+          "name": "campaign_checklist_done",
+          "value": "(\"campaign_checklist_items\".\"done\" and \"campaign_checklist_items\".\"done_by\" is not null and \"campaign_checklist_items\".\"done_at\" is not null) or (not \"campaign_checklist_items\".\"done\" and \"campaign_checklist_items\".\"done_by\" is null and \"campaign_checklist_items\".\"done_at\" is null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.campaign_draft_assignments": {
       "name": "campaign_draft_assignments",
       "schema": "",
@@ -4446,6 +4549,273 @@
       },
       "isRLSEnabled": false
     },
+    "public.campaign_draft_invitations": {
+      "name": "campaign_draft_invitations",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "draft_id": {
+          "name": "draft_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "department": {
+          "name": "department",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "token_hash": {
+          "name": "token_hash",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now() + interval '14 days'"
+        },
+        "responded_at": {
+          "name": "responded_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "accepted_by": {
+          "name": "accepted_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "campaign_draft_invitations_open_idx": {
+          "name": "campaign_draft_invitations_open_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "draft_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "department",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "coalesce(\"user_id\", \"email\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"campaign_draft_invitations\".\"status\" = 'pending'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "campaign_draft_invitations_draft_idx": {
+          "name": "campaign_draft_invitations_draft_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "draft_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "campaign_draft_invitations_created_by_users_id_fk": {
+          "name": "campaign_draft_invitations_created_by_users_id_fk",
+          "tableFrom": "campaign_draft_invitations",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "campaign_draft_invitations_accepted_by_users_id_fk": {
+          "name": "campaign_draft_invitations_accepted_by_users_id_fk",
+          "tableFrom": "campaign_draft_invitations",
+          "tableTo": "users",
+          "columnsFrom": [
+            "accepted_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "campaign_draft_invitations_tenant_id_draft_id_campaign_drafts_tenant_id_id_fk": {
+          "name": "campaign_draft_invitations_tenant_id_draft_id_campaign_drafts_tenant_id_id_fk",
+          "tableFrom": "campaign_draft_invitations",
+          "tableTo": "campaign_drafts",
+          "columnsFrom": [
+            "tenant_id",
+            "draft_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "campaign_draft_invitations_tenant_id_user_id_workspace_members_tenant_id_user_id_fk": {
+          "name": "campaign_draft_invitations_tenant_id_user_id_workspace_members_tenant_id_user_id_fk",
+          "tableFrom": "campaign_draft_invitations",
+          "tableTo": "workspace_members",
+          "columnsFrom": [
+            "tenant_id",
+            "user_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "user_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "campaign_draft_invitations_tenant_id_id_pk": {
+          "name": "campaign_draft_invitations_tenant_id_id_pk",
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "campaign_draft_invitations_token_hash_unique": {
+          "name": "campaign_draft_invitations_token_hash_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "token_hash"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "campaign_invitation_role": {
+          "name": "campaign_invitation_role",
+          "value": "\"campaign_draft_invitations\".\"role\" in ('leader', 'member')"
+        },
+        "campaign_invitation_department": {
+          "name": "campaign_invitation_department",
+          "value": "\"campaign_draft_invitations\".\"department\" in ('campaign_leadership', 'church_mobilization', 'evangelistic_outreach', 'prayer_intercession', 'marketing_media', 'logistics_equipment', 'finance_fundraising', 'volunteers', 'counseling', 'discipleship_follow_up', 'worship_production', 'security_medical', 'transportation_hospitality')"
+        },
+        "campaign_invitation_target": {
+          "name": "campaign_invitation_target",
+          "value": "(\"campaign_draft_invitations\".\"kind\" = 'member' and \"campaign_draft_invitations\".\"user_id\" is not null and \"campaign_draft_invitations\".\"email\" is null) or (\"campaign_draft_invitations\".\"kind\" = 'email' and \"campaign_draft_invitations\".\"user_id\" is null and \"campaign_draft_invitations\".\"email\" is not null and \"campaign_draft_invitations\".\"email\" = lower(btrim(\"campaign_draft_invitations\".\"email\")) and length(\"campaign_draft_invitations\".\"email\") between 3 and 254 and \"campaign_draft_invitations\".\"email\" ~ '^[^@[:space:]]+@[^@[:space:]]+$')"
+        },
+        "campaign_invitation_status": {
+          "name": "campaign_invitation_status",
+          "value": "\"campaign_draft_invitations\".\"status\" in ('pending', 'accepted', 'revoked') and ((\"campaign_draft_invitations\".\"status\" = 'pending') = (\"campaign_draft_invitations\".\"responded_at\" is null)) and ((\"campaign_draft_invitations\".\"status\" = 'accepted') = (\"campaign_draft_invitations\".\"accepted_by\" is not null))"
+        },
+        "campaign_invitation_token": {
+          "name": "campaign_invitation_token",
+          "value": "\"campaign_draft_invitations\".\"token_hash\" ~ '^[a-f0-9]{64}$'"
+        },
+        "campaign_invitation_expiry": {
+          "name": "campaign_invitation_expiry",
+          "value": "\"campaign_draft_invitations\".\"expires_at\" = \"campaign_draft_invitations\".\"created_at\" + interval '14 days'"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.campaign_drafts": {
       "name": "campaign_drafts",
       "schema": "",
@@ -4594,6 +4964,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "cover_file_id": {
+          "name": "cover_file_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -4714,6 +5090,19 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
+        "campaign_drafts_cover_file_id_campaign_files_id_fk": {
+          "name": "campaign_drafts_cover_file_id_campaign_files_id_fk",
+          "tableFrom": "campaign_drafts",
+          "tableTo": "campaign_files",
+          "columnsFrom": [
+            "cover_file_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
         "campaign_drafts_tenant_id_campaign_id_campaigns_tenant_id_id_fk": {
           "name": "campaign_drafts_tenant_id_campaign_id_campaigns_tenant_id_id_fk",
           "tableFrom": "campaign_drafts",
@@ -4789,6 +5178,189 @@
         "campaign_draft_finished": {
           "name": "campaign_draft_finished",
           "value": "(\"campaign_drafts\".\"status\" = 'finished') = (\"campaign_drafts\".\"campaign_id\" is not null and \"campaign_drafts\".\"finished_at\" is not null) and (\"campaign_drafts\".\"status\" <> 'finished' or (\"campaign_drafts\".\"type\" is not null and \"campaign_drafts\".\"name\" is not null))"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.campaign_files": {
+      "name": "campaign_files",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "draft_id": {
+          "name": "draft_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "uploader_id": {
+          "name": "uploader_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'cover'"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mime": {
+          "name": "mime",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "size": {
+          "name": "size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "checksum": {
+          "name": "checksum",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "retired_at": {
+          "name": "retired_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "campaign_files_draft_idx": {
+          "name": "campaign_files_draft_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "draft_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "campaign_files_uploader_id_users_id_fk": {
+          "name": "campaign_files_uploader_id_users_id_fk",
+          "tableFrom": "campaign_files",
+          "tableTo": "users",
+          "columnsFrom": [
+            "uploader_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "campaign_files_tenant_id_draft_id_campaign_drafts_tenant_id_id_fk": {
+          "name": "campaign_files_tenant_id_draft_id_campaign_drafts_tenant_id_id_fk",
+          "tableFrom": "campaign_files",
+          "tableTo": "campaign_drafts",
+          "columnsFrom": [
+            "tenant_id",
+            "draft_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "campaign_files_key_unique": {
+          "name": "campaign_files_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "campaign_file_kind": {
+          "name": "campaign_file_kind",
+          "value": "\"campaign_files\".\"kind\" = 'cover'"
+        },
+        "campaign_file_mime": {
+          "name": "campaign_file_mime",
+          "value": "\"campaign_files\".\"mime\" in ('image/jpeg','image/png','image/webp')"
+        },
+        "campaign_file_name": {
+          "name": "campaign_file_name",
+          "value": "length(btrim(\"campaign_files\".\"name\")) between 1 and 200"
+        },
+        "campaign_file_size": {
+          "name": "campaign_file_size",
+          "value": "\"campaign_files\".\"size\" between 1 and 10485760"
+        },
+        "campaign_file_checksum": {
+          "name": "campaign_file_checksum",
+          "value": "\"campaign_files\".\"checksum\" ~ '^[a-f0-9]{64}$'"
+        },
+        "campaign_file_status": {
+          "name": "campaign_file_status",
+          "value": "\"campaign_files\".\"status\" in ('pending','uploaded','quarantined','ready')"
+        },
+        "campaign_file_key": {
+          "name": "campaign_file_key",
+          "value": "\"campaign_files\".\"key\" = 'workspaces/' || \"campaign_files\".\"tenant_id\"::text || '/campaign-drafts/' || \"campaign_files\".\"draft_id\"::text || '/files/' || \"campaign_files\".\"id\"::text"
         }
       },
       "isRLSEnabled": false
@@ -6061,6 +6633,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "cover_file_id": {
+          "name": "cover_file_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -6172,6 +6750,19 @@
             "id"
           ],
           "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "campaigns_cover_file_id_campaign_files_id_fk": {
+          "name": "campaigns_cover_file_id_campaign_files_id_fk",
+          "tableFrom": "campaigns",
+          "tableTo": "campaign_files",
+          "columnsFrom": [
+            "cover_file_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
           "onUpdate": "no action"
         }
       },
@@ -11000,7 +11591,7 @@
       "checkConstraints": {
         "community_reaction_emoji": {
           "name": "community_reaction_emoji",
-          "value": "\"community_message_reactions\".\"emoji\" in ('👍','❤️','🙏','😊','🎉','👏','💡','🔥','😮','😢','✅','🙌')"
+          "value": "\"community_message_reactions\".\"emoji\" in ('\ud83d\udc4d','\u2764\ufe0f','\ud83d\ude4f','\ud83d\ude0a','\ud83c\udf89','\ud83d\udc4f','\ud83d\udca1','\ud83d\udd25','\ud83d\ude2e','\ud83d\ude22','\u2705','\ud83d\ude4c')"
         }
       },
       "isRLSEnabled": false
@@ -33689,335 +34280,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.workspace_invitations": {
-      "name": "workspace_invitations",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "email": {
-          "name": "email",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "role": {
-          "name": "role",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "grants": {
-          "name": "grants",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::jsonb"
-        },
-        "can_manage_admins": {
-          "name": "can_manage_admins",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "token_hash": {
-          "name": "token_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'pending'"
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "expires_at": {
-          "name": "expires_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now() + interval '14 days'"
-        },
-        "responded_at": {
-          "name": "responded_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "accepted_by": {
-          "name": "accepted_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "workspace_invitations_open_idx": {
-          "name": "workspace_invitations_open_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "email",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"workspace_invitations\".\"status\" = 'pending'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "workspace_invitations_tenant_idx": {
-          "name": "workspace_invitations_tenant_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "created_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "workspace_invitations_tenant_id_workspaces_tenant_id_fk": {
-          "name": "workspace_invitations_tenant_id_workspaces_tenant_id_fk",
-          "tableFrom": "workspace_invitations",
-          "tableTo": "workspaces",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "columnsTo": [
-            "tenant_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "workspace_invitations_created_by_users_id_fk": {
-          "name": "workspace_invitations_created_by_users_id_fk",
-          "tableFrom": "workspace_invitations",
-          "tableTo": "users",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "workspace_invitations_accepted_by_users_id_fk": {
-          "name": "workspace_invitations_accepted_by_users_id_fk",
-          "tableFrom": "workspace_invitations",
-          "tableTo": "users",
-          "columnsFrom": [
-            "accepted_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "workspace_invitations_tenant_id_id_pk": {
-          "name": "workspace_invitations_tenant_id_id_pk",
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {
-        "workspace_invitations_token_hash_unique": {
-          "name": "workspace_invitations_token_hash_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "token_hash"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "workspace_invitation_role": {
-          "name": "workspace_invitation_role",
-          "value": "\"workspace_invitations\".\"role\" in ('admin','member','viewer','collaborator','guest')"
-        },
-        "workspace_invitation_grants": {
-          "name": "workspace_invitation_grants",
-          "value": "jsonb_typeof(\"workspace_invitations\".\"grants\") = 'object' and (\"workspace_invitations\".\"role\" = 'collaborator' or \"workspace_invitations\".\"grants\" = '{}'::jsonb)"
-        },
-        "workspace_invitation_admins_flag": {
-          "name": "workspace_invitation_admins_flag",
-          "value": "\"workspace_invitations\".\"can_manage_admins\" = false or \"workspace_invitations\".\"role\" = 'admin'"
-        },
-        "workspace_invitation_email": {
-          "name": "workspace_invitation_email",
-          "value": "\"workspace_invitations\".\"email\" = lower(btrim(\"workspace_invitations\".\"email\")) and length(\"workspace_invitations\".\"email\") between 3 and 320"
-        },
-        "workspace_invitation_token": {
-          "name": "workspace_invitation_token",
-          "value": "\"workspace_invitations\".\"token_hash\" ~ '^[a-f0-9]{64}$'"
-        },
-        "workspace_invitation_status": {
-          "name": "workspace_invitation_status",
-          "value": "\"workspace_invitations\".\"status\" in ('pending','accepted','revoked') and ((\"workspace_invitations\".\"status\" = 'pending') = (\"workspace_invitations\".\"responded_at\" is null)) and ((\"workspace_invitations\".\"status\" = 'accepted') = (\"workspace_invitations\".\"accepted_by\" is not null))"
-        },
-        "workspace_invitation_expiry": {
-          "name": "workspace_invitation_expiry",
-          "value": "\"workspace_invitations\".\"expires_at\" = \"workspace_invitations\".\"created_at\" + interval '14 days'"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.workspace_member_access": {
-      "name": "workspace_member_access",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "area": {
-          "name": "area",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "level": {
-          "name": "level",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "granted_by": {
-          "name": "granted_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "workspace_member_access_granted_by_users_id_fk": {
-          "name": "workspace_member_access_granted_by_users_id_fk",
-          "tableFrom": "workspace_member_access",
-          "tableTo": "users",
-          "columnsFrom": [
-            "granted_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "workspace_member_access_member_fk": {
-          "name": "workspace_member_access_member_fk",
-          "tableFrom": "workspace_member_access",
-          "tableTo": "workspace_members",
-          "columnsFrom": [
-            "tenant_id",
-            "user_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "user_id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "workspace_member_access_tenant_id_user_id_area_pk": {
-          "name": "workspace_member_access_tenant_id_user_id_area_pk",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "area"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "workspace_member_access_area": {
-          "name": "workspace_member_access_area",
-          "value": "\"workspace_member_access\".\"area\" in ('crm','giving','campaigns','communities','catalog','social','newsletter','website','office','connect','settings')"
-        },
-        "workspace_member_access_level": {
-          "name": "workspace_member_access_level",
-          "value": "\"workspace_member_access\".\"level\" in ('view','manage')"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.workspace_members": {
       "name": "workspace_members",
       "schema": "",
@@ -34039,13 +34301,6 @@
           "type": "text",
           "primaryKey": false,
           "notNull": true
-        },
-        "can_manage_admins": {
-          "name": "can_manage_admins",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
         },
         "created_at": {
           "name": "created_at",
@@ -34130,12 +34385,7 @@
       },
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {
-        "workspace_member_admins_flag": {
-          "name": "workspace_member_admins_flag",
-          "value": "\"workspace_members\".\"can_manage_admins\" = false or \"workspace_members\".\"role_id\" = 'admin'"
-        }
-      },
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.workspaces": {

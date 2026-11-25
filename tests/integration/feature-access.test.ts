@@ -178,7 +178,8 @@ it("the member-only read policies and every role test are area-aware; no policy 
     expect(pol.find((p) => `${p.tablename}.${p.policyname}` === key)?.t, key).toContain("access_role");
   }
   const raw = pol.filter((p) => /role_id/.test(p.t.replace(/access_role\([^)]*\)/g, ""))).map((p) => `${p.tablename}.${p.policyname}`).sort();
-  expect(raw).toEqual(["workspace_invitations.invitations_read", "workspace_member_access.member_access_read"]);
+  // campaign_invitations_definer_join (0110) only pins the joining row's role to the inert campaign_guest inside the invitation definer; it tests no actor.
+  expect(raw).toEqual(["workspace_invitations.invitations_read", "workspace_member_access.member_access_read", "workspace_members.campaign_invitations_definer_join"]);
   expect(pol.filter((p) => /<>\s*'viewer'/.test(p.t)).map((p) => p.policyname)).toEqual([]);
   const fns = (await f.admin.query("select proname, prosrc from pg_proc where pronamespace='public'::regnamespace and prokind='f'")).rows as { proname: string; prosrc: string }[];
   // docs_rank already returns for guests before this comparison can run.

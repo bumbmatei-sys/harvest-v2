@@ -3,6 +3,7 @@ import type { Pool } from "pg";
 import { publicFilePath } from "../../lib/files";
 import { renderNewsletter } from "../../lib/newsletter-content";
 import { newsletterKey, signNewsletterPreference } from "../newsletter-public";
+import { formatFromHeader } from "../../lib/email-address";
 import { requireWorkerRole } from "../worker-role";
 import { newsletterOrigin } from "./access";
 import { FakeNewsletterProvider } from "./fake-provider";
@@ -12,7 +13,7 @@ import { LIVE_NEWSLETTER_ENABLED } from "./ses-adapter";
 type DeliveryHealth = { pending: number; unknown: number; failed: number; operatorReview: number;
   unresolvedByMinistry: { ministryId: string; unknown: number; operatorReview: number; oldestUnknownAgeSeconds: number }[] };
 type Claimed = { tenant: string; key: string; lease: string };
-type Authorized = { email: string; firstName: string; ministryName: string; from: string; replyTo: string;
+type Authorized = { email: string; firstName: string; ministryName: string; from: string; fromName?: string | null; replyTo: string;
   subject: string; preheader: string | null; content: unknown; images: string[] };
 
 export function newsletterWorkerEnabled(env: Record<string, string | undefined>, flag: string) {
@@ -68,7 +69,7 @@ export async function runNewsletterWorker(pool: Pool, env: NodeJS.ProcessEnv, pr
       }
       // No DB transaction spans the submission. Once authorized, loss of the receipt is ambiguous.
       try {
-        const status = await provider.submit({ ...message, deliveryId: job.key, to: payload.email, from: payload.from,
+        const status = await provider.submit({ ...message, deliveryId: job.key, to: payload.email, from: formatFromHeader(payload.fromName, payload.from),
           replyTo: payload.replyTo, subject: payload.subject, preheader: payload.preheader });
         if (status.state === "accepted") await pool.query("select public.newsletter_delivery_complete($1,$2,$3,'accepted',$4)", [...ids, status.reference]);
         else await pool.query("select public.newsletter_delivery_fail($1,$2,$3,$4)", [...ids, status.state === "unknown"]);

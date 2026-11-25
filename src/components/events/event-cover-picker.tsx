@@ -30,7 +30,7 @@ export function EventCoverPicker({ endpoint, saved, coverFileId, version, url, o
   endpoint: string; saved: boolean; coverFileId: string | null; version: number; url: string | null; onUrlFailed: () => void;
   onChange: (change: CoverChange) => void; onBusyChange: (busy: boolean) => void; disabled?: boolean;
   /** Message namespace of the labels (the same keys); Link in bio reuses this control for its profile photo. */
-  namespace?: "Events.cover" | "LinkInBio.cover" | "LinkInBio.banner";
+  namespace?: "Events.cover" | "LinkInBio.cover" | "LinkInBio.banner" | "CampaignWizard.cover";
 }) {
   const t = useTranslations(namespace), request = useCrmRequest(), inputId = useId();
   const [status, setStatus] = useState<Status>({ kind: "idle" });

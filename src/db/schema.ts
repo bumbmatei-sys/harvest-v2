@@ -108,6 +108,8 @@ export const campaigns = pgTable("campaigns", {
   structure: text("structure").$type<typeof campaignStructures[number]>(),
   idempotencyKey: text("idempotency_key").notNull(), fingerprint: text("fingerprint").notNull(),
   archivedAt: timestamp("archived_at", { withTimezone: true }),
+  // Optional cover image or logo, carried over from the wizard draft's cover when the draft is finished.
+  coverFileId: uuid("cover_file_id").references((): AnyPgColumn => campaignFiles.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
@@ -148,6 +150,10 @@ export const campaignDrafts = pgTable("campaign_drafts", {
   budget: jsonb("budget").$type<BudgetConfig>().notNull(),
   outreach: jsonb("outreach").$type<OutreachConfig>().notNull(),
   campaignId: uuid("campaign_id"), finishedAt: timestamp("finished_at", { withTimezone: true }),
+  coverFileId: uuid("cover_file_id").references((): AnyPgColumn => campaignFiles.id, { onDelete: "set null" }),
+  // The one unpublished registration form Finish created when Public Campaign Registration was on (a record of the CRM forms module). Set only by the
+  // finishing update; its composite reference to forms is deferred to the end of that transaction, so it is added in the migration, not declared here.
+  registrationFormId: uuid("registration_form_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
@@ -169,6 +175,33 @@ export const campaignDrafts = pgTable("campaign_drafts", {
   // A finished draft names its campaign; no other state does. A finished draft is complete: it has a type and a name.
   check("campaign_draft_finished", sql`(${t.status} = 'finished') = (${t.campaignId} is not null and ${t.finishedAt} is not null) and (${t.status} <> 'finished' or (${t.type} is not null and ${t.name} is not null))`),
 ]);
+// The optional cover image or logo of a draft (and of the campaign it becomes). Same scanned-upload states as event covers: pending, uploaded,
+// quarantined, ready. Only a ready, unretired file can be a cover. Storage objects of replaced covers are not cleaned up yet (see the acceptance record).
+export const campaignFiles = pgTable("campaign_files", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(),
+  draftId: uuid("draft_id").notNull(),
+  uploaderId: text("uploader_id").references(() => users.id, { onDelete: "set null" }),
+  key: text("key").notNull().unique(),
+  kind: text("kind", { enum: ["cover"] }).notNull().default("cover"),
+  name: text("name").notNull(),
+  mime: text("mime", { enum: ["image/jpeg", "image/png", "image/webp"] }).notNull(),
+  size: integer("size").notNull(),
+  checksum: text("checksum").notNull(),
+  status: text("status", { enum: ["pending", "uploaded", "quarantined", "ready"] }).notNull().default("pending"),
+  retiredAt: timestamp("retired_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  foreignKey({ columns: [t.tenantId, t.draftId], foreignColumns: [campaignDrafts.tenantId, campaignDrafts.id] }),
+  index("campaign_files_draft_idx").on(t.tenantId, t.draftId),
+  check("campaign_file_kind", sql`${t.kind} = 'cover'`),
+  check("campaign_file_mime", sql`${t.mime} in ('image/jpeg','image/png','image/webp')`),
+  check("campaign_file_name", sql`length(btrim(${t.name})) between 1 and 200`),
+  check("campaign_file_size", sql`${t.size} between 1 and 10485760`),
+  check("campaign_file_checksum", sql`${t.checksum} ~ '^[a-f0-9]{64}$'`),
+  check("campaign_file_status", sql`${t.status} in ('pending','uploaded','quarantined','ready')`),
+  check("campaign_file_key", sql`${t.key} = 'workspaces/' || ${t.tenantId}::text || '/campaign-drafts/' || ${t.draftId}::text || '/files/' || ${t.id}::text`),
+]);
 // Department leaders and members of a draft. People are existing ministry members; a CRM contact is never referenced here.
 export const campaignDraftAssignments = pgTable("campaign_draft_assignments", {
   tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), draftId: uuid("draft_id").notNull(),
@@ -181,6 +214,44 @@ export const campaignDraftAssignments = pgTable("campaign_draft_assignments", {
   index("campaign_draft_assignments_user_idx").on(t.tenantId, t.userId),
   check("campaign_draft_assignment_role", sql`${t.role} in ('leader', 'member')`),
   check("campaign_draft_assignment_department", sql`${t.department} in ('campaign_leadership', 'church_mobilization', 'evangelistic_outreach', 'prayer_intercession', 'marketing_media', 'logistics_equipment', 'finance_fundraising', 'volunteers', 'counseling', 'discipleship_follow_up', 'worship_production', 'security_medical', 'transportation_hospitality')`),
+]);
+
+// CW-06 (founder decision Q8, 25 Nov): the campaign's post-creation setup checklist stores completion per item. A row is the last choice a person made;
+// items that tick themselves from the draft are worked out when the checklist is read and are not stored.
+export const campaignChecklistItems = pgTable("campaign_checklist_items", {
+  tenantId: uuid("tenant_id").notNull(), campaignId: uuid("campaign_id").notNull(), item: text("item").notNull(),
+  done: boolean("done").notNull(), doneBy: text("done_by").references(() => users.id), doneAt: timestamp("done_at", { withTimezone: true }),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.campaignId, t.item] }),
+  foreignKey({ columns: [t.tenantId, t.campaignId], foreignColumns: [campaigns.tenantId, campaigns.id] }).onDelete("cascade"),
+  check("campaign_checklist_item", sql`${t.item} in ('assign_leaders', 'confirm_venues', 'define_budget', 'connect_payments', 'publish_registration', 'configure_qr', 'assign_counseling', 'invite_churches', 'create_events')`),
+  check("campaign_checklist_done", sql`(${t.done} and ${t.doneBy} is not null and ${t.doneAt} is not null) or (not ${t.done} and ${t.doneBy} is null and ${t.doneAt} is null)`),
+]);
+
+// CW-05 (founder decision Q2, 25 Nov): a person is placed in a department by an invitation they must accept. Pending, accepted, declined and revoked
+// are stored; expired is derived from `expiresAt` (14 days). An invitation is for an existing ministry member (kind member) or for an email address
+// (kind email); accepting an email invitation adds the person to the ministry in the inert campaign_guest role. Only the hash of the link token is kept.
+export const campaignDraftInvitations = pgTable("campaign_draft_invitations", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), draftId: uuid("draft_id").notNull(),
+  department: text("department").notNull(), role: text("role").$type<"leader" | "member">().notNull(),
+  kind: text("kind").$type<"member" | "email">().notNull(), userId: text("user_id"), email: text("email"),
+  tokenHash: text("token_hash").notNull().unique(),
+  status: text("status").$type<"pending" | "accepted" | "revoked">().notNull().default("pending"),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull().default(sql`now() + interval '14 days'`),
+  respondedAt: timestamp("responded_at", { withTimezone: true }), acceptedBy: text("accepted_by").references(() => users.id),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.draftId], foreignColumns: [campaignDrafts.tenantId, campaignDrafts.id] }),
+  foreignKey({ columns: [t.tenantId, t.userId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }).onDelete("cascade"),
+  uniqueIndex("campaign_draft_invitations_open_idx").on(t.tenantId, t.draftId, t.department, sql`coalesce(${t.userId}, ${t.email})`).where(sql`${t.status} = 'pending'`),
+  index("campaign_draft_invitations_draft_idx").on(t.tenantId, t.draftId, t.status),
+  check("campaign_invitation_role", sql`${t.role} in ('leader', 'member')`),
+  check("campaign_invitation_department", sql`${t.department} in ('campaign_leadership', 'church_mobilization', 'evangelistic_outreach', 'prayer_intercession', 'marketing_media', 'logistics_equipment', 'finance_fundraising', 'volunteers', 'counseling', 'discipleship_follow_up', 'worship_production', 'security_medical', 'transportation_hospitality')`),
+  check("campaign_invitation_target", sql`(${t.kind} = 'member' and ${t.userId} is not null and ${t.email} is null) or (${t.kind} = 'email' and ${t.userId} is null and ${t.email} is not null and ${t.email} = lower(btrim(${t.email})) and length(${t.email}) between 3 and 254 and ${t.email} ~ '^[^@[:space:]]+@[^@[:space:]]+$')`),
+  check("campaign_invitation_status", sql`${t.status} in ('pending', 'accepted', 'revoked') and ((${t.status} = 'pending') = (${t.respondedAt} is null)) and ((${t.status} = 'accepted') = (${t.acceptedBy} is not null))`),
+  check("campaign_invitation_token", sql`${t.tokenHash} ~ '^[a-f0-9]{64}$'`),
+  check("campaign_invitation_expiry", sql`${t.expiresAt} = ${t.createdAt} + interval '14 days'`),
 ]);
 
 export const contacts = pgTable("contacts", {
@@ -3386,7 +3457,7 @@ export const platformStaffAudit = pgTable("platform_staff_audit", {
   tenantId: uuid("tenant_id"), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("platform_staff_audit_actor_idx").on(t.actorId, t.createdAt), check("platform_staff_audit_shape", sql`length(${t.action}) between 1 and 80`)]);
 
-// Per-feature access (0111). A collaborator (role_id 'collaborator') holds exactly the areas listed here, each at 'view' or 'manage'. Rows are written only by
+// Per-feature access (0113). A collaborator (role_id 'collaborator') holds exactly the areas listed here, each at 'view' or 'manage'. Rows are written only by
 // public.workspace_access_change and public.workspace_invitation_accept (the application role has SELECT only); public.access_role reads them for every module check.
 export const workspaceMemberAccess = pgTable("workspace_member_access", {
   tenantId: uuid("tenant_id").notNull(), userId: text("user_id").notNull(), area: text("area").$type<AccessArea>().notNull(), level: text("level").$type<AccessLevel>().notNull(),
