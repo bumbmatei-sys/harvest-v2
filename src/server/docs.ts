@@ -1,4 +1,4 @@
-import { and, asc, eq, ilike, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, ilike, inArray, isNotNull, isNull, ne, or, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
 import { docFavorites, docPageVersions, docShares, docFolders, docPages, docs, users } from "../db/schema";
@@ -15,7 +15,7 @@ const ownerName = sql<string>`coalesce(nullif(btrim(${users.name}),''), left(spl
 const likeEscape = (value: string) => value.replace(/[\\%_]/g, (c) => `\\${c}`);
 
 export type DocKind = "document" | "spreadsheet";
-export type DocRow = { id: string; kind: DocKind; visibility: "private" | "ministry"; title: string; ownerId: string; ownerName: string; folderId: string | null; updatedAt: string; archivedAt: string | null; deletedAt: string | null; favorite: boolean; rights: DocRights };
+export type DocRow = { id: string; kind: DocKind; visibility: "private" | "ministry"; title: string; ownerId: string; ownerName: string; folderId: string | null; updatedAt: string; archivedAt: string | null; deletedAt: string | null; favorite: boolean; favoritePlacement: "top" | "sidebar" | null; rights: DocRights };
 /** `docCount` is what the card shows (active docs); `docTotal` also counts archived and trashed docs, which still block deleting the folder. */
 export type FolderRow = { id: string; parentId: string | null; name: string; ownerId: string; docCount: number; docTotal: number };
 export type PageRow = { id: string; parentId: string | null; position: number; title: string; icon: string | null; archivedAt: string | null; protected: boolean };
@@ -135,7 +135,13 @@ const listQuery = z.object({
   folderId: z.uuid().optional(), q: z.string().trim().max(100).optional(), status: z.enum(["active", "archived", "trash"]).default("active"),
   sort: z.enum(["updated", "title"]).default("updated"), favorites: z.enum(["1"]).optional(),
 }).strict();
-export type DocsList = { folders: FolderRow[]; docs: DocRow[]; role: string; userId: string };
+export type DocsList = { folders: FolderRow[]; docs: DocRow[]; role: string; userId: string; pinned: FavoriteLink[] };
+export type FavoriteLink = { id: string; title: string };
+/** The person's favorites shown in one place ("top" of the list, or the "sidebar" of the editor): docs they can still read, newest favorite first. */
+async function favoriteLinks(tx: Transaction, tenantId: string, user: string, placement: "top" | "sidebar"): Promise<FavoriteLink[]> {
+  return tx.select({ id: docs.id, title: docs.title }).from(docFavorites).innerJoin(docs, eq(docs.id, docFavorites.docId))
+    .where(and(eq(docFavorites.tenantId, tenantId), eq(docFavorites.userId, user), eq(docFavorites.placement, placement), isNull(docs.deletedAt), isNull(docs.archivedAt))).orderBy(desc(docFavorites.createdAt)).limit(12);
+}
 export async function listDocs(db: Database, user: string, workspace: string, raw: unknown): Promise<DocsList> {
   requireDocsEnabled();
   const query = listQuery.parse(raw ?? {});
@@ -149,7 +155,7 @@ export async function listDocs(db: Database, user: string, workspace: string, ra
       where.push(or(ilike(docs.title, like), sql`exists(select 1 from ${docPages} p where p.doc_id=${docs.id} and p.tenant_id=${docs.tenantId} and p.title ilike ${like})`)!);
     } else if (status === "active" && !query.favorites) where.push(query.folderId ? eq(docs.folderId, query.folderId) : isNull(docs.folderId));
     if (query.favorites) where.push(sql`exists(select 1 from ${docFavorites} f where f.doc_id=${docs.id} and f.user_id=${user})`);
-    const rows = await tx.select({ doc: docs, ownerName: ownerName, favorite: sql<boolean>`exists(select 1 from ${docFavorites} f where f.doc_id=${docs.id} and f.user_id=${user})` })
+    const rows = await tx.select({ doc: docs, ownerName: ownerName, favorite: sql<boolean>`exists(select 1 from ${docFavorites} f where f.doc_id=${docs.id} and f.user_id=${user})`, favoritePlacement: sql<"top" | "sidebar" | null>`(select f.placement from ${docFavorites} f where f.doc_id=${docs.id} and f.user_id=${user})` })
       .from(docs).innerJoin(users, eq(users.id, docs.ownerId)).where(and(...where))
       .orderBy(query.sort === "title" ? sql`lower(${docs.title})` : sql`${docs.updatedAt} desc`, asc(docs.id)).limit(500);
     const mine = rows.length ? await tx.select({ docId: docShares.docId, role: docShares.role }).from(docShares).where(and(eq(docShares.userId, user), inArray(docShares.docId, rows.map((r) => r.doc.id)))) : [];
@@ -158,8 +164,8 @@ export async function listDocs(db: Database, user: string, workspace: string, ra
       docCount: sql<number>`(select count(*) from ${docs} d where d.folder_id=doc_folders.id and d.tenant_id=doc_folders.tenant_id and d.deleted_at is null and d.archived_at is null)`,
       docTotal: sql<number>`(select count(*) from ${docs} d where d.folder_id=doc_folders.id and d.tenant_id=doc_folders.tenant_id)` })
       .from(docFolders).where(and(eq(docFolders.tenantId, tenantId), isNull(docFolders.archivedAt))).orderBy(sql`lower(${docFolders.name})`).limit(docLimits.foldersPerMinistry);
-    return { role, userId: user, folders: folders.map((f) => ({ ...f, docCount: Number(f.docCount), docTotal: Number(f.docTotal) })),
-      docs: rows.map((r) => ({ id: r.doc.id, kind: r.doc.kind, visibility: r.doc.visibility, title: r.doc.title, ownerId: r.doc.ownerId, ownerName: r.ownerName, folderId: r.doc.folderId, updatedAt: r.doc.updatedAt.toISOString(), archivedAt: iso(r.doc.archivedAt), deletedAt: iso(r.doc.deletedAt), favorite: r.favorite, rights: docRights(role, r.doc.ownerId, user, { visibility: r.doc.visibility, ministryAccess: r.doc.ministryAccess, share: shareOf.get(r.doc.id) ?? null }) })) };
+    return { role, userId: user, pinned: await favoriteLinks(tx, tenantId, user, "top"), folders: folders.map((f) => ({ ...f, docCount: Number(f.docCount), docTotal: Number(f.docTotal) })),
+      docs: rows.map((r) => ({ id: r.doc.id, kind: r.doc.kind, visibility: r.doc.visibility, title: r.doc.title, ownerId: r.doc.ownerId, ownerName: r.ownerName, folderId: r.doc.folderId, updatedAt: r.doc.updatedAt.toISOString(), archivedAt: iso(r.doc.archivedAt), deletedAt: iso(r.doc.deletedAt), favorite: r.favorite, favoritePlacement: r.favoritePlacement, rights: docRights(role, r.doc.ownerId, user, { visibility: r.doc.visibility, ministryAccess: r.doc.ministryAccess, share: shareOf.get(r.doc.id) ?? null }) })) };
   });
 }
 
@@ -181,28 +187,28 @@ const touch = (tx: Transaction, tenantId: string, docId: string) => tx.update(do
 
 export async function createDoc(db: Database, user: string, workspace: string, raw: unknown) {
   requireDocsEnabled();
-  const input = z.object({ title: docTitleSchema.default(""), folderId: z.uuid().nullable().optional() }).strict().parse(raw ?? {});
+  const input = z.object({ title: docTitleSchema.default(""), folderId: z.uuid().nullable().optional(), wiki: z.boolean().optional() }).strict().parse(raw ?? {});
   return withTenant(db, user, id(workspace), "docs:write", async (tx, tenantId) => {
     if (input.folderId) await ensureFolder(tx, tenantId, input.folderId);
     const [count] = await tx.select({ n: sql<number>`count(*)` }).from(docs).where(eq(docs.tenantId, tenantId));
     if (Number(count.n) >= docLimits.docsPerMinistry) throw bad("Errors.docsLimitReached");
-    const [row] = await tx.insert(docs).values({ tenantId, kind: "document", folderId: input.folderId ?? null, title: input.title, ownerId: user }).returning();
+    const [row] = await tx.insert(docs).values({ tenantId, kind: "document", folderId: input.folderId ?? null, title: input.title, ownerId: user, wiki: input.wiki === true }).returning();
     const page = await insertPage(tx, tenantId, row.id, user, { parentId: null, title: input.title, content: emptyContent() });
     await audit(tx, tenantId, user, "docs.doc.create", row.id);
     return { id: row.id, pageId: page.id };
   });
 }
 
-export type DocDetail = { doc: { id: string; title: string; ownerId: string; ownerName: string; folderId: string | null; updatedAt: string; archivedAt: string | null; favorite: boolean; visibility: "private" | "ministry"; ministryAccess: "view" | "comment" | "edit"; publicEnabled: boolean; wiki: boolean }; rights: DocRights; pages: PageRow[]; folders: { id: string; parentId: string | null; name: string }[]; role: string; userId: string };
+export type DocDetail = { doc: { id: string; title: string; ownerId: string; ownerName: string; folderId: string | null; updatedAt: string; archivedAt: string | null; favorite: boolean; visibility: "private" | "ministry"; ministryAccess: "view" | "comment" | "edit"; publicEnabled: boolean; wiki: boolean; favoritePlacement: "top" | "sidebar" | null }; pageRoles: Record<string, "view" | "comment" | "edit"> | null; sidebarFavorites: FavoriteLink[]; rights: DocRights; pages: PageRow[]; folders: { id: string; parentId: string | null; name: string }[]; role: string; userId: string };
 export async function getDoc(db: Database, user: string, workspace: string, docId: string): Promise<DocDetail> {
   requireDocsEnabled();
   return withTenant(db, user, id(workspace), "docs:read", async (tx, tenantId, role) => {
-    const { row, rights } = await loadDoc(tx, tenantId, id(docId), user, role);
+    const { row, rights, pageRoles } = await loadDoc(tx, tenantId, id(docId), user, role, false, false, "any");
     const [owner] = await tx.select({ name: ownerName }).from(users).where(eq(users.id, row.ownerId));
-    const [fav] = await tx.select({ n: sql<number>`count(*)` }).from(docFavorites).where(and(eq(docFavorites.docId, row.id), eq(docFavorites.userId, user)));
+    const [fav] = await tx.select({ placement: docFavorites.placement }).from(docFavorites).where(and(eq(docFavorites.docId, row.id), eq(docFavorites.userId, user)));
     const folders = await tx.select({ id: docFolders.id, parentId: docFolders.parentId, name: docFolders.name }).from(docFolders).where(and(eq(docFolders.tenantId, tenantId), isNull(docFolders.archivedAt))).limit(docLimits.foldersPerMinistry);
-    return { role, userId: user, rights, folders, pages: await pageRows(tx, tenantId, row.id),
-      doc: { id: row.id, title: row.title, ownerId: row.ownerId, ownerName: owner?.name ?? "", folderId: row.folderId, updatedAt: row.updatedAt.toISOString(), archivedAt: iso(row.archivedAt), favorite: Number(fav.n) > 0, visibility: row.visibility, ministryAccess: row.ministryAccess, publicEnabled: row.publicEnabled, wiki: row.wiki } };
+    return { role, userId: user, rights, pageRoles, sidebarFavorites: await favoriteLinks(tx, tenantId, user, "sidebar"), folders, pages: await pageRows(tx, tenantId, row.id),
+      doc: { id: row.id, title: row.title, ownerId: row.ownerId, ownerName: owner?.name ?? "", folderId: row.folderId, updatedAt: row.updatedAt.toISOString(), archivedAt: iso(row.archivedAt), favorite: !!fav, favoritePlacement: fav?.placement ?? null, visibility: row.visibility, ministryAccess: row.ministryAccess, publicEnabled: row.publicEnabled, wiki: row.wiki } };
   });
 }
 
@@ -250,13 +256,14 @@ export async function duplicateDoc(db: Database, user: string, workspace: string
   });
 }
 
-export async function setDocFavorite(db: Database, user: string, workspace: string, docId: string, on: boolean) {
+export async function setDocFavorite(db: Database, user: string, workspace: string, docId: string, on: boolean, rawPlacement?: unknown) {
   requireDocsEnabled();
+  const placement = z.enum(["top", "sidebar"]).default("top").parse(rawPlacement ?? undefined);
   return withTenant(db, user, id(workspace), "docs:read", async (tx, tenantId, role) => {
     const { row } = await loadDoc(tx, tenantId, id(docId), user, role);
-    if (on) await tx.insert(docFavorites).values({ tenantId, docId: row.id, userId: user }).onConflictDoNothing();
+    if (on) await tx.insert(docFavorites).values({ tenantId, docId: row.id, userId: user, placement }).onConflictDoUpdate({ target: [docFavorites.docId, docFavorites.userId], set: { placement } });
     else await tx.delete(docFavorites).where(and(eq(docFavorites.docId, row.id), eq(docFavorites.userId, user)));
-    return { favorite: on };
+    return { favorite: on, placement: on ? placement : null };
   });
 }
 
@@ -280,7 +287,7 @@ export async function createPage(db: Database, user: string, workspace: string, 
 export async function getPage(db: Database, user: string, workspace: string, docId: string, pageId: string) {
   requireDocsEnabled();
   return withTenant(db, user, id(workspace), "docs:read", async (tx, tenantId, role) => {
-    const { row } = await loadDoc(tx, tenantId, id(docId), user, role);
+    const { row } = await loadDoc(tx, tenantId, id(docId), user, role, false, false, id(pageId));
     const [page] = await tx.select().from(docPages).where(and(eq(docPages.tenantId, tenantId), eq(docPages.docId, row.id), eq(docPages.id, id(pageId))));
     if (!page) throw new AccessError(404, message("Errors.pageNotFound"));
     // Contributors: everyone who changed this page (the snapshots name them), apart from the doc's owner. People who may not read history see only the last editor.
@@ -327,21 +334,23 @@ export async function updatePage(db: Database, user: string, workspace: string, 
   let content: DocContent | undefined;
   if (input.content !== undefined) { try { content = sanitizeDocContent(input.content); } catch (error) { if (error instanceof DocContentError) throw bad(error.reason === "SIZE" ? "Errors.docContentTooLarge" : "Errors.docContentInvalid"); throw error; } }
   return withTenant(db, user, id(workspace), "docs:read", async (tx, tenantId, role) => {
-    const { row, rights } = await loadDoc(tx, tenantId, id(docId), user, role, true);
+    const { row, rights } = await loadDoc(tx, tenantId, id(docId), user, role, true, false, id(pageId));
     needWrite(rights);
+    // A page share changes the words of that one page: not protection, and nothing about the doc.
+    if (rights.pageOnly && input.protected !== undefined) throw denied();
     const [page] = await tx.select().from(docPages).where(and(eq(docPages.tenantId, tenantId), eq(docPages.docId, row.id), eq(docPages.id, id(pageId)))).for("update");
     if (!page) throw new AccessError(404, message("Errors.pageNotFound"));
     if (page.version !== input.version) throw stale();
     const onlyUnprotect = input.protected === false && input.title === undefined && content === undefined && input.style === undefined && input.icon === undefined && input.subtitle === undefined;
     if (page.protected && !onlyUnprotect) throw new AccessError(409, message("Errors.pageProtected"), { reason: "protected" });
     const now = new Date();
-    if (content && JSON.stringify(content) !== JSON.stringify(page.content)) await snapshotPage(tx, tenantId, row.id, page, user, "autosave");
+    if (!rights.pageOnly && content && JSON.stringify(content) !== JSON.stringify(page.content)) await snapshotPage(tx, tenantId, row.id, page, user, "autosave");
     const [saved] = await tx.update(docPages).set({
       ...(input.title !== undefined ? { title: input.title } : {}), ...(content ? { content } : {}), ...(input.style ? { style: input.style } : {}),
       ...(input.icon !== undefined ? { icon: input.icon } : {}), ...(input.subtitle !== undefined ? { subtitle: input.subtitle } : {}), ...(input.protected !== undefined ? { protected: input.protected } : {}),
       version: page.version + 1, updatedBy: user, updatedAt: now }).where(and(eq(docPages.docId, row.id), eq(docPages.id, page.id))).returning({ version: docPages.version, updatedAt: docPages.updatedAt });
     // The first top-level page names the doc.
-    if (input.title !== undefined && page.parentId === null) {
+    if (!rights.pageOnly && input.title !== undefined && page.parentId === null) {
       const [first] = await tx.select({ id: docPages.id }).from(docPages).where(and(eq(docPages.docId, row.id), isNull(docPages.parentId), isNull(docPages.archivedAt))).orderBy(asc(docPages.position), asc(docPages.id)).limit(1);
       if (first?.id === page.id) await tx.update(docs).set({ title: input.title }).where(and(eq(docs.tenantId, tenantId), eq(docs.id, row.id)));
     }

@@ -1,7 +1,9 @@
 "use client";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { ArchiveRestore, ChevronRight, CornerDownRight, FileText, Lock, MoreHorizontal, Plus } from "lucide-react";
+import { ArchiveRestore, ChevronRight, CornerDownRight, FileText, Lock, MoreHorizontal, Plus, Star } from "lucide-react";
+import { docHref } from "@/lib/docs-list";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { buildPageTree, type PageTreeNode, type TreePage } from "@/lib/docs";
@@ -13,8 +15,8 @@ export type PageAction = "addSubpage" | "rename" | "duplicate" | "moveUp" | "mov
  * The Pages tree of a doc: nesting by indentation with collapse, the current page highlighted, and per-page actions in a menu. Reordering and nesting are menu actions
  * (move up or down, make a subpage of the page above, move out one level), so they work from the keyboard and on a touch screen without dragging.
  */
-export function PageTree({ docTitle, pages, current, canEdit, onOpen, onAdd, onAction }: {
-  docTitle: string; pages: readonly TreePage[]; current: string; canEdit: boolean; onOpen: (id: string) => void; onAdd: () => void; onAction: (action: PageAction, page: TreePage) => void;
+export function PageTree({ docTitle, pages, current, canEdit, onOpen, onAdd, onAction, tenantId, favorites = [] }: {
+  tenantId: string; favorites?: readonly { id: string; title: string }[]; docTitle: string; pages: readonly TreePage[]; current: string; canEdit: boolean; onOpen: (id: string) => void; onAdd: () => void; onAction: (action: PageAction, page: TreePage) => void;
 }) {
   const t = useTranslations("Docs");
   const active = useMemo(() => pages.filter((p) => !p.archivedAt), [pages]);
@@ -61,5 +63,7 @@ export function PageTree({ docTitle, pages, current, canEdit, onOpen, onAdd, onA
     {archived.length > 0 && <div className="mt-2 space-y-1"><h3 className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("archivedPages")}</h3>
       <ul>{archived.map((p) => <li key={p.id} className="flex min-h-11 items-center gap-1 rounded-md px-2 text-sm text-muted-foreground lg:min-h-9"><span className="min-w-0 flex-1 truncate">{p.title || t("untitled")}</span>
         {canEdit && <Button type="button" variant="ghost" size="icon" className="size-11 lg:size-8" aria-label={t("restorePage", { name: p.title || t("untitled") })} onClick={() => onAction("restore", p)}><ArchiveRestore aria-hidden="true" /></Button>}</li>)}</ul></div>}
+    {favorites.length > 0 && <div className="mt-2 space-y-1 border-t pt-2" data-docs-sidebar-favorites><h3 className="text-xs font-medium text-muted-foreground">{t("favoritesSidebar")}</h3>
+      <ul>{favorites.map((f) => <li key={f.id}><Link href={docHref(tenantId, f.id)} className="flex min-h-11 items-center gap-2 rounded-md px-2 text-sm hover:bg-accent lg:min-h-9"><Star className="size-4 shrink-0 fill-current text-warning" aria-hidden="true" /><span className="min-w-0 truncate">{f.title || t("untitled")}</span></Link></li>)}</ul></div>}
   </nav>;
 }

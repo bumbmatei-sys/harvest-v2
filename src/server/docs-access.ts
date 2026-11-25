@@ -1,7 +1,7 @@
 import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Transaction } from "../db/client";
-import { auditLogs, docShares, docs, users } from "../db/schema";
+import { auditLogs, docPageShares, docShares, docs, users } from "../db/schema";
 import { docRights, type DocRights } from "../lib/docs";
 import { message } from "../i18n/messages";
 import { AccessError } from "./permissions";
@@ -19,13 +19,23 @@ export const audit = (tx: Transaction, tenantId: string, actorId: string, action
  * Loads a doc and what the caller may do with it (`docRights`: the same rule as the database policies). A doc the caller may not read is not returned by the database,
  * so it answers "not available". The row lock is taken only by someone who may change the doc (a row the update policy hides cannot be locked).
  */
-export async function loadDoc(tx: Transaction, tenantId: string, docId: string, user: string, role: string, lock = false, trashed = false) {
+export async function loadDoc(tx: Transaction, tenantId: string, docId: string, user: string, role: string, lock = false, trashed = false, page?: string | "any") {
   const [row] = await tx.select().from(docs).where(and(eq(docs.tenantId, tenantId), eq(docs.id, docId), trashed ? isNotNull(docs.deletedAt) : isNull(docs.deletedAt)));
   if (!row) throw gone();
   const [share] = await tx.select({ role: docShares.role }).from(docShares).where(and(eq(docShares.docId, row.id), eq(docShares.userId, user)));
-  const rights = docRights(role, row.ownerId, user, { visibility: row.visibility, ministryAccess: row.ministryAccess, share: share?.role ?? null });
-  if (lock && rights.write) await tx.select({ id: docs.id }).from(docs).where(and(eq(docs.tenantId, tenantId), eq(docs.id, docId))).for("update");
-  return { row, rights };
+  let rights: DocRights = docRights(role, row.ownerId, user, { visibility: row.visibility, ministryAccess: row.ministryAccess, share: share?.role ?? null });
+  let pageRoles: Record<string, "view" | "comment" | "edit"> | null = null;
+  if (!rights.read) {
+    // A person with a page share (and nothing else) sees only the shared page. Everything that does not name a page still answers "not available".
+    if (page === undefined) throw gone();
+    const shares = await tx.select({ pageId: docPageShares.pageId, role: docPageShares.role }).from(docPageShares).where(and(eq(docPageShares.docId, row.id), eq(docPageShares.userId, user), page === "any" ? undefined : eq(docPageShares.pageId, page)));
+    if (!shares.length) throw gone();
+    pageRoles = Object.fromEntries(shares.map((x) => [x.pageId, x.role]));
+    const best = shares.find((x) => x.role === "edit") ?? shares.find((x) => x.role === "comment") ?? shares[0];
+    rights = { manage: false, write: page !== "any" && best.role === "edit", comment: page !== "any" && best.role !== "view", read: true, pageOnly: true };
+  }
+  if (lock && rights.write && !rights.pageOnly) await tx.select({ id: docs.id }).from(docs).where(and(eq(docs.tenantId, tenantId), eq(docs.id, docId))).for("update");
+  return { row, rights, pageRoles };
 }
 export const needWrite = (rights: DocRights) => { if (!rights.write) throw denied(); };
 export const needManage = (rights: DocRights) => { if (!rights.manage) throw denied(); };

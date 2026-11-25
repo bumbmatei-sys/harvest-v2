@@ -2879,6 +2879,7 @@ export const docPages = pgTable("doc_pages", {
   check("doc_pages_style_object", sql`jsonb_typeof(${t.style})='object' AND pg_column_size(${t.style})<=2048`), check("doc_pages_not_own_parent", sql`${t.parentId} is distinct from ${t.id}`)]);
 export const docFavorites = pgTable("doc_favorites", {
   tenantId: uuid("tenant_id").notNull(), docId: uuid("doc_id").notNull(), userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  placement: text("placement").$type<"top" | "sidebar">().notNull().default("top"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.docId, t.userId] }), foreignKey({ name: "doc_favorites_doc_fk", columns: [t.tenantId, t.docId], foreignColumns: [docs.tenantId, docs.id] }).onDelete("cascade")]);
 
@@ -2891,6 +2892,16 @@ export const docShares = pgTable("doc_shares", {
   role: text("role").$type<"view" | "comment" | "edit">().notNull(), createdBy: text("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.docId, t.userId] }), foreignKey({ name: "doc_shares_doc_fk", columns: [t.tenantId, t.docId], foreignColumns: [docs.tenantId, docs.id] }).onDelete("cascade"), foreignKey({ name: "doc_shares_owner_fk", columns: [t.docId, t.ownerId], foreignColumns: [docs.id, docs.ownerId] }).onDelete("cascade"), check("doc_shares_role_known", sql`${t.role} in ('view','comment','edit')`)]);
+/** "Share this page": one person gets view, comment or edit on one page of a doc, and no access to the rest of it. Same denormalised owner as `doc_shares`, for the same reason. */
+export const docPageShares = pgTable("doc_page_shares", {
+  tenantId: uuid("tenant_id").notNull(), docId: uuid("doc_id").notNull(), pageId: uuid("page_id").notNull(),
+  ownerId: text("owner_id").notNull(), userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  role: text("role").$type<"view" | "comment" | "edit">().notNull(), createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.pageId, t.userId] }), index("doc_page_shares_user_idx").on(t.userId, t.docId),
+  foreignKey({ name: "doc_page_shares_page_fk", columns: [t.docId, t.pageId], foreignColumns: [docPages.docId, docPages.id] }).onDelete("cascade"),
+  foreignKey({ name: "doc_page_shares_doc_fk", columns: [t.tenantId, t.docId], foreignColumns: [docs.tenantId, docs.id] }).onDelete("cascade"),
+  foreignKey({ name: "doc_page_shares_owner_fk", columns: [t.docId, t.ownerId], foreignColumns: [docs.id, docs.ownerId] }).onDelete("cascade")]);
 export const docComments = pgTable("doc_comments", {
   id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id").notNull(), docId: uuid("doc_id").notNull(), pageId: uuid("page_id").notNull(), parentId: uuid("parent_id"),
   authorId: text("author_id").notNull().references(() => users.id), body: text("body").notNull(), quote: text("quote"),
