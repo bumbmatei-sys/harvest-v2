@@ -729,6 +729,13 @@
       "when": 1795592043732,
       "tag": "0105_ads_forms_source",
       "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1795597165354,
+      "tag": "0106_campaign_wizard_shared_drafts",
+      "breakpoints": true
     }
   ]
 }
