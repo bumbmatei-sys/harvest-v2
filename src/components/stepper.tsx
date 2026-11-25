@@ -9,7 +9,7 @@ export type StepperStep = { id: string; label: string; done?: boolean; disabled?
 
 const indicatorTone: Record<StepState, string> = {
   active: "border-primary bg-primary text-primary-foreground",
-  done: "border-primary bg-primary/10 text-primary",
+  done: "border-step-done bg-step-done/10 text-step-done",
   upcoming: "border-border bg-background text-muted-foreground",
 };
 
@@ -68,7 +68,7 @@ export function Stepper({ steps, current, label, layout = "wizard", linear, onSe
           <Indicator index={index} state={state} done={done} />
           <span className={cn("min-w-0 truncate", state === "active" ? "font-medium text-foreground" : "text-muted-foreground")}>{step.label}</span>
           {status(state, done)}
-          {index < steps.length - 1 && <span aria-hidden="true" className={cn("mx-3 hidden h-px min-w-6 flex-1 md:block", done ? "bg-primary" : "bg-border")} />}
+          {index < steps.length - 1 && <span aria-hidden="true" className={cn("mx-3 hidden h-px min-w-6 flex-1 md:block", done ? "bg-step-done" : "bg-border")} />}
         </li>;
       })}
     </ol>
