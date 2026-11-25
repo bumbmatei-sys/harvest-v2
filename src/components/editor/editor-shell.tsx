@@ -1,4 +1,5 @@
 "use client";
+import { cn } from "@/lib/utils";
 import { useCallback, useRef, useState } from "react";
 import { Eye, X } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -57,7 +58,7 @@ export function EditorShell({ breadcrumb, title, status, actions, steps, current
         </div>
       </div>
     </header>
-    <div className="grid min-w-0 gap-6 xl:max-[1599px]:grid-cols-[minmax(0,1fr)_22rem] min-[1600px]:grid-cols-[minmax(0,1fr)_24rem]">
+    <div className={cn("grid min-w-0 gap-6", preview && "xl:max-[1599px]:grid-cols-[minmax(0,1fr)_22rem] min-[1600px]:grid-cols-[minmax(0,1fr)_24rem]")}>
       <section className="min-w-0 space-y-6">{children}</section>
       {column && <aside aria-label={previewLabel} data-editor-preview className="min-w-0"><div className="sticky top-4">{livePreview("column", { close: closeSheet })}</div></aside>}
     </div>
@@ -73,7 +74,7 @@ export function EditorShell({ breadcrumb, title, status, actions, steps, current
     </Sheet>
   </div>;
   if (hosted && data) return <div className="min-w-0 space-y-6" data-editor-hosted>
-    <EditorStepBar context={data} onStep={onStep} />
+    <EditorStepBar context={data} onStep={onStep} className="mb-4" />
     <header className="space-y-3">
       {breadcrumb}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -85,8 +86,8 @@ export function EditorShell({ breadcrumb, title, status, actions, steps, current
         </div>
       </div>
     </header>
-    {/* Form first, preview column from 1280px (22rem, 24rem from 1600px); the steps live in the sidebar. */}
-    <div className="grid min-w-0 gap-6 xl:max-[1599px]:grid-cols-[minmax(0,1fr)_22rem] min-[1600px]:grid-cols-[minmax(0,1fr)_24rem]">
+    {/* Form first, preview column from 1280px (22rem, 24rem from 1600px) only when there is a preview, so an editor without one uses the full width; the steps live in the sidebar. */}
+    <div className={cn("grid min-w-0 gap-6", preview && "xl:max-[1599px]:grid-cols-[minmax(0,1fr)_22rem] min-[1600px]:grid-cols-[minmax(0,1fr)_24rem]")}>
       <section className="min-w-0 space-y-6">{children}</section>
       {preview && <aside aria-label={previewLabel} data-editor-preview className="hidden min-w-0 xl:block"><div className="sticky top-4 space-y-3">
         <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground" data-editor-preview-label>{previewLabel}</p>{preview}</div></aside>}
@@ -104,7 +105,7 @@ export function EditorShell({ breadcrumb, title, status, actions, steps, current
         </div>
       </div>
     </header>
-    <div className="grid min-w-0 gap-6 lg:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[13rem_minmax(0,1fr)_22rem]">
+    <div className={cn("grid min-w-0 gap-6 lg:grid-cols-[13rem_minmax(0,1fr)]", preview && "xl:grid-cols-[13rem_minmax(0,1fr)_22rem]")}>
       <Stepper layout="nav" steps={steps} current={current} onSelect={onStep} label={stepsLabel} />
       <section className="min-w-0 space-y-6">{children}</section>
       {preview && <aside aria-label={previewLabel} className="hidden min-w-0 xl:block"><div className="sticky top-4">{preview}</div></aside>}
