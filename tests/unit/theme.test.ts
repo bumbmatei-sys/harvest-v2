@@ -49,7 +49,8 @@ describe("theme registry", () => {
       expect(Object.keys(palette).sort()).toEqual(tokens);
       expect(themeStyles).toContain(`[data-brand-theme="${brand}"][data-theme="${mode}"]`);
       expect(contrastRatio(palette["--brand-color"], palette["--action-foreground"])).toBeGreaterThanOrEqual(4.5);
-      expect(contrastRatio(palette["--action-hover"], palette["--action-foreground"])).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(palette["--action-fill"], palette["--action-fill-foreground"])).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(palette["--action-hover"], palette["--action-fill-foreground"])).toBeGreaterThanOrEqual(4.5);
       expect(contrastRatio(palette["--text-strong"], palette["--surface"])).toBeGreaterThanOrEqual(4.5);
       expect(contrastRatio(palette["--text-muted"], palette["--surface-card"])).toBeGreaterThanOrEqual(4.5);
       expect(contrastRatio(palette["--text-muted"], palette["--surface-tint"])).toBeGreaterThanOrEqual(4.5);
@@ -70,5 +71,39 @@ describe("theme registry", () => {
       expect(themeStyles).toContain(`--chart-5:${colors[4]}`);
     }
   });
+  it("paints Harvest primary buttons Desert Sun gold with dark olive text in both modes, and leaves the other themes' buttons alone", () => {
+    for (const mode of COLOR_MODES) {
+      const palette = themeRegistry.harvest[mode];
+      expect(palette["--action-fill"]).toBe("#d3a265");
+      expect(palette["--action-fill-foreground"]).toBe("#2b2a0c");
+      expect(contrastRatio(palette["--action-fill"], palette["--action-fill-foreground"])).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(palette["--action-hover"], palette["--action-fill-foreground"])).toBeGreaterThanOrEqual(4.5);
+      // Links, selection and focus use the brand colour (dark olive in light, Desert Sun in dark), readable on cards and muted surfaces.
+      expect(contrastRatio(palette["--brand-color"], palette["--surface-sunken"])).toBeGreaterThanOrEqual(4.5);
+      expect(contrastRatio(palette["--ring"], palette["--surface-card"])).toBeGreaterThanOrEqual(3);
+    }
+    for (const mode of COLOR_MODES) {
+      const studio = themeRegistry.studio[mode];
+      expect(studio["--action-fill"]).toBe(studio["--brand-color"]);
+      expect(studio["--action-fill-foreground"]).toBe(studio["--action-foreground"]);
+    }
+  });
+  it("keeps the primary colour readable as link text (text-primary) on cards in every palette", () => {
+    for (const brand of BRAND_THEMES) for (const mode of COLOR_MODES) {
+      const palette = themeRegistry[brand][mode];
+      expect(contrastRatio(palette["--brand-color"], palette["--surface-card"]), `${brand} ${mode}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
   it.each(["__proto__", "constructor", "<script>", null])("rejects unregistered theme %s", (value) => expect(isBrandTheme(value)).toBe(false));
+});
+
+describe("success token (done step check)", () => {
+  it("is defined in every palette and meets AA against the sidebar, the card background and its tint", () => {
+    const palettes = JSON.stringify(themeRegistry).match(/"--success":"#[0-9a-f]{6}"/gi) ?? [];
+    expect(palettes.length).toBeGreaterThanOrEqual(4);
+    const walk = (node: unknown): Record<string, string>[] => node && typeof node === "object" ? [...("--success" in (node as object) ? [node as Record<string, string>] : []), ...Object.values(node as object).flatMap(walk)] : [];
+    for (const palette of walk(themeRegistry)) {
+      for (const against of ["--sidebar", "--card", "--category-green-tint"]) if (palette[against]) expect(contrastRatio(palette["--success"], palette[against]), `${palette["--success"]} on ${against}`).toBeGreaterThanOrEqual(4.5);
+    }
+  });
 });

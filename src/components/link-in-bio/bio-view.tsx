@@ -96,7 +96,7 @@ export function BioPageView({ view, handle, preview = false, photoUrl = null, co
       <Body {...(preview ? {} : { id: "main-content" })} className="space-y-4">
         {view.tabs.length > 1
           ? <Tabs value={active} onValueChange={(value) => setTab(value as typeof tab)} className="gap-4">
-            <TabsList className="h-11 w-full" aria-label={t("tabs")}>{view.tabs.map((x) => <TabsTrigger key={x.id} value={x.id} className="min-h-9 flex-1">{tn(`tabs.${x.id}`)}</TabsTrigger>)}</TabsList>
+            <TabsList className="w-full" aria-label={t("tabs")}>{view.tabs.map((x) => <TabsTrigger key={x.id} value={x.id} className="flex-1">{tn(`tabs.${x.id}`)}</TabsTrigger>)}</TabsList>
             {view.tabs.map((x) => <TabsContent key={x.id} value={x.id} data-bio-tab={x.id}>{panel(x.id, x.blocks)}</TabsContent>)}
           </Tabs>
           : view.tabs.map((x) => <div key={x.id} data-bio-tab={x.id}>{panel(x.id, x.blocks)}</div>)}
