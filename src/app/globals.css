@@ -35,7 +35,7 @@
   --color-sidebar-accent: var(--sidebar-accent); --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-primary: var(--sidebar-primary); --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
   --color-sidebar-border: var(--sidebar-border); --color-sidebar-ring: var(--sidebar-ring);
-  --color-success: var(--category-green-ink); --color-success-tint: var(--category-green-tint);
+  --color-success: var(--category-green-ink); --color-success-tint: var(--category-green-tint); --color-step-done: var(--success);
   --color-warning: var(--category-amber-ink); --color-warning-tint: var(--category-amber-tint);
   --radius-sm: calc(var(--radius) - 4px); --radius-md: calc(var(--radius) - 2px); --radius-lg: var(--radius); --radius-xl: var(--ds-radius-card);
 }
