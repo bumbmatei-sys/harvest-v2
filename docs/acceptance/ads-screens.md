@@ -20,7 +20,7 @@ Route `/workspaces/[id]/social/ads`, nav item **Ads** (target icon) in Social me
 | 10 | Phone layout is cards | BUILT | Shared `DataTable` card layout; 44px targets asserted. e2e. |
 | 11 | Empty and error states, find ad accounts through the connected social account | BUILT | e2e. |
 
-Guided create and Boost a post are PR 2 (below); lead forms and leads are PR 3.
+Guided create and Boost a post are PR 2 and lead forms and leads are PR 3 (below).
 
 ## PR 2: guided create (nine steps) and Boost a post
 
@@ -41,6 +41,18 @@ Route `/workspaces/[id]/social/ads/new` (also `?mode=boost`, `?account=`, `?requ
 
 Server notes: `placements` (automatic, or a chosen list) was added as an optional field of the campaign and boost payloads (`src/lib/ads/ads.ts`); the test provider's validate step now accepts a payload whose lead form id was swapped for the provider's reference (it rejected every lead-goal ad before).
 
+## PR 3: lead forms and leads
+
+Routes `/workspaces/[id]/social/ads/leads` (tabs Lead forms and Leads) and `/social/ads/leads/forms/[formId]` (the builder). Reached from **Lead forms and leads** on the manager and from the lead form picker in the create flow.
+
+| # | Requirement | Status | Evidence |
+| --- | --- | --- | --- |
+| 1 | Lead forms list | BUILT | Forms built in this app (drafts, with the number of published versions) and the forms already on the ad account, in the shared `DataTable`. e2e. |
+| 2 | Builder entry point reusing the shared forms builder with the `ads` preset | BUILT | "New lead form" asks for the network and a privacy policy link (the server builds the starting form: name, email, phone and the notice). The builder is the shared `BuildCanvas` question builder and `PublicForm` preview, with an ads side panel: privacy link, which question collects which standard answer, the three optional consent questions (each its own unticked box, never bundled), the issues that block publishing, and publish to an ad account. Editing a published form starts a new version. e2e. |
+| 3 | Publishing | BUILT, hard-off | `ADS_LEAD_FORM_PUBLISH_ENABLED` stays the literal `false`; only the non-production gate's test provider turns it on (`features.leadFormPublish`), so production still answers 404 and the screen says publishing is not turned on. |
+| 4 | Leads list with convert-to-CRM action | BUILT | Status change (six statuses), filter by status, refresh from the account, **Add to CRM** for one lead, for the selected ones or for all new ones (each lead is matched on email or phone, never overwritten, and gets no consent from the conversion itself), delete with an irreversible warning. A lead shows **In CRM** afterwards (`inCrm` added to the lead view). e2e. |
+| 5 | Personal data | UNCHANGED | Leads stay ad-lead records until a person adds them; the five HC-02 privacy decisions and the wording of the consent questions remain UNAPPROVED (see the server acceptance). The browser run uses invented example addresses and numbers only. |
+
 ## Reuse and exceptions
 
 Reused: `AppShell` and the typed nav registry, `DataTable` (extended with `totals`), `StatCard`, `RangePicker`, `StatusBadge`, `EmptyState`, `ConfirmDialog`, `Sheet`, `Alert`, `Switch`, `DropdownMenu`. New Ads-only pieces are compositions of those; nothing duplicates a shared component.
@@ -48,5 +60,6 @@ Reused: `AppShell` and the typed nav registry, `DataTable` (extended with `total
 ## Evidence
 
 - Unit `tests/unit/ads-screens.test.ts` (table model, copy keys, kit approval record), `navigation.test.ts` (Ads is live).
+- E2E `tests/e2e/ads-leads.spec.ts` (lead forms, builder, publish, leads, add to CRM, delete), shots `lead-forms-*`, `lead-form-builder-*`, `leads-*`.
 - E2E `tests/e2e/ads-create.spec.ts` (create, boost, lead goal, image upload, phone), same axe and screenshot rules, shots `create-*` in `docs/screenshots/ads/`.
 - E2E `tests/e2e/ads-manager.spec.ts` with axe (WCAG 2.0 to 2.2 A and AA) and no horizontal overflow at 360, 768 and 1280, light and dark; screenshots in `docs/screenshots/ads/`.
