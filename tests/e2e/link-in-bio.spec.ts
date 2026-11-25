@@ -159,7 +159,8 @@ test("editor, public page, click counts, Message me and messages", async ({ page
   const submitted = pub.waitForResponse((r) => r.url().endsWith(`/l/${handle}/message`) && r.request().method() === "POST");
   await form.getByRole("button", { name: "Send message" }).click();
   const answer = await submitted;
-  expect(answer.status(), `${answer.status()} ${await answer.text().catch(() => "")}`).toBe(200);
+  // Read the body only to explain a failure, and never wait on it: reading a response body after the page re-renders can block until the test times out.
+  if (answer.status() !== 200) expect(answer.status(), await Promise.race([answer.text().catch(() => ""), new Promise<string>((resolve) => setTimeout(() => resolve("(no body)"), 5_000))])).toBe(200);
   await expect(pub.locator("[data-bio-message-sent]")).toContainText("Your message was sent.");
   await visitor.close();
 
