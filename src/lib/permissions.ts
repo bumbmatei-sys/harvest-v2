@@ -21,6 +21,7 @@ export type Permission = "workspace:read" | "members:write" | "roles:write" | "c
   // non-viewer member; the database policy and definers additionally require the assignment, so this key alone grants no case.
   | "followup:manage" | "followup:work"
   // Social provider integration layer: linking accounts, scheduling posts and reading the inbox are owner/admin until a wider role is decided.
+  | "ads:manage"
   | "social:connect" | "social:schedule" | "social:analytics" | "social:auto_dm" | "social:inbox" | "social:reply" | "social:assign" | "social:saved_replies"
   | "office:connect" | "office:mail" | "office:calendar" | "office:files"
   // Live staff capabilities; community membership is resolved separately.

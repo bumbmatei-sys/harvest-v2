@@ -1,4 +1,5 @@
 import { accountMetrics, postMetrics, type AccountMetric, type AnalyticsStatus, type Metrics, type PostMetric } from "../lib/social/analytics";
+import { adNetworks, adGoals, adStatuses, leadStatuses as adLeadStatuses, type ResultMetrics } from "../lib/ads/ads";
 import type { AutoDmRule } from "../lib/social/auto-dm";
 import { socialUploadLimits } from "../lib/social/upload-limits";
 import { socialMediaMimes, type MediaMetadata } from "../lib/social/media";
@@ -3070,3 +3071,173 @@ export const bioMessages = pgTable("bio_messages", {
 export const bioQuotas = pgTable("bio_quotas", { scope: text("scope").notNull(), minute: timestamp("minute", { withTimezone: true }).notNull(), attempts: integer("attempts").notNull() },
   (t) => [primaryKey({ columns: [t.scope, t.minute] }), index("bio_quota_expiry_idx").on(t.minute)]);
 export const bioReceipts = pgTable("bio_receipts", { id: uuid("id").primaryKey(), expiresAt: timestamp("expires_at", { withTimezone: true }).notNull() }, (t) => [index("bio_receipt_expiry_idx").on(t.expiresAt)]);
+// Ads server (migration 0098). Metadata, numeric results and lead records only: no creative copy beyond what is needed, no provider tokens, no raw responses.
+const inList = (values: readonly string[]) => sql.raw(values.map(v => "'" + v + "'").join(", "));
+export const adsAccounts = pgTable("ads_accounts", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
+  connectionId: uuid("connection_id").notNull(), network: text("network").$type<typeof adNetworks[number]>().notNull(),
+  externalRef: text("external_ref").notNull(), name: text("name").notNull(), currency: text("currency"), timezone: text("timezone"),
+  status: text("status").notNull().default("active"), health: jsonb("health").$type<Record<string, { state: string; fixUrl?: string | null }>>().notNull().default({}),
+  lastRefusal: jsonb("last_refusal").$type<{ code: string; fixUrl: string | null } | null>(), healthCheckedAt: timestamp("health_checked_at", { withTimezone: true }),
+  syncedAt: timestamp("synced_at", { withTimezone: true }), syncState: text("sync_state").notNull().default("pending"),
+  version: integer("version").notNull().default(1), createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "ads_accounts_connection_fk", columns: [t.tenantId, t.connectionId], foreignColumns: [socialConnections.tenantId, socialConnections.id] }),
+  uniqueIndex("ads_accounts_ref_idx").on(t.tenantId, t.connectionId, t.externalRef),
+  check("ads_accounts_shape", sql`${t.network} in (${inList(adNetworks)}) and length(${t.externalRef}) between 1 and 200 and length(${t.name}) between 1 and 200
+    and ${t.status} in ('active','restricted','disabled','closed','unknown') and ${t.syncState} in ('pending','ready','failing','delayed') and jsonb_typeof(${t.health}) = 'object' and pg_column_size(${t.health}) <= 4096`),
+]);
+const entityColumns = () => ({
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), adAccountId: uuid("ad_account_id").notNull(),
+  externalRef: text("external_ref"), name: text("name").notNull(), status: text("status").$type<typeof adStatuses[number]>().notNull().default("paused"),
+  version: integer("version").notNull().default(1), syncedAt: timestamp("synced_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+export const adsCampaigns = pgTable("ads_campaigns", {
+  ...entityColumns(), goal: text("goal").$type<typeof adGoals[number]>().notNull(),
+  budgetAmount: numeric("budget_amount", { precision: 14, scale: 2, mode: "number" }), budgetType: text("budget_type"), budgetLevel: text("budget_level"),
+  sharedBudgetRef: text("shared_budget_ref"), startDate: date("start_date"), endDate: date("end_date"), bidding: jsonb("bidding").$type<{ costType: string; unitCost?: number } | null>(),
+  specialAdCategories: text("special_ad_categories").array().notNull().default(sql`'{}'::text[]`), attributionModel: text("attribution_model").notNull().default("default"),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "ads_campaigns_account_fk", columns: [t.tenantId, t.adAccountId], foreignColumns: [adsAccounts.tenantId, adsAccounts.id] }),
+  uniqueIndex("ads_campaigns_ref_idx").on(t.tenantId, t.adAccountId, t.externalRef), index("ads_campaigns_account_idx").on(t.tenantId, t.adAccountId, t.status),
+  check("ads_campaigns_shape", sql`${t.goal} in (${inList(adGoals)}) and ${t.status} in (${inList(adStatuses)}) and length(${t.name}) between 1 and 200 and ${t.budgetAmount} >= 0
+    and (${t.budgetType} is null or ${t.budgetType} in ('daily','lifetime')) and (${t.budgetLevel} is null or ${t.budgetLevel} in ('campaign','adset'))
+    and (${t.budgetType} is distinct from 'lifetime' or ${t.endDate} is not null) and (${t.startDate} is null or ${t.endDate} is null or ${t.endDate} >= ${t.startDate})`),
+]);
+export const adsAdSets = pgTable("ads_ad_sets", {
+  ...entityColumns(), campaignId: uuid("campaign_id").notNull(),
+  budgetAmount: numeric("budget_amount", { precision: 14, scale: 2, mode: "number" }), budgetType: text("budget_type"), startDate: date("start_date"), endDate: date("end_date"),
+  bidding: jsonb("bidding").$type<{ costType: string; unitCost?: number } | null>(), targeting: jsonb("targeting").$type<Record<string, unknown>>().notNull().default({}),
+  rawTargeting: jsonb("raw_targeting").$type<Record<string, unknown> | null>(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "ads_ad_sets_campaign_fk", columns: [t.tenantId, t.campaignId], foreignColumns: [adsCampaigns.tenantId, adsCampaigns.id] }),
+  foreignKey({ name: "ads_ad_sets_account_fk", columns: [t.tenantId, t.adAccountId], foreignColumns: [adsAccounts.tenantId, adsAccounts.id] }),
+  uniqueIndex("ads_ad_sets_ref_idx").on(t.tenantId, t.adAccountId, t.externalRef), index("ads_ad_sets_campaign_idx").on(t.tenantId, t.campaignId),
+  check("ads_ad_sets_shape", sql`${t.status} in (${inList(adStatuses)}) and length(${t.name}) between 1 and 200 and ${t.budgetAmount} >= 0 and (${t.budgetType} is null or ${t.budgetType} in ('daily','lifetime'))
+    and jsonb_typeof(${t.targeting}) = 'object' and pg_column_size(${t.targeting}) <= 16384 and (${t.rawTargeting} is null or pg_column_size(${t.rawTargeting}) <= 16384)`),
+]);
+export const adsAds = pgTable("ads_ads", {
+  ...entityColumns(), campaignId: uuid("campaign_id").notNull(), adSetId: uuid("ad_set_id").notNull(), format: text("format").notNull(),
+  creativeRef: text("creative_ref"), sourcePostRef: text("source_post_ref"), leadFormId: uuid("lead_form_id"),
+  reviewStatus: text("review_status").notNull().default("unknown"), reviewReason: text("review_reason"), deliveryIssue: text("delivery_issue"),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "ads_ads_ad_set_fk", columns: [t.tenantId, t.adSetId], foreignColumns: [adsAdSets.tenantId, adsAdSets.id] }),
+  foreignKey({ name: "ads_ads_campaign_fk", columns: [t.tenantId, t.campaignId], foreignColumns: [adsCampaigns.tenantId, adsCampaigns.id] }),
+  foreignKey({ name: "ads_ads_account_fk", columns: [t.tenantId, t.adAccountId], foreignColumns: [adsAccounts.tenantId, adsAccounts.id] }),
+  uniqueIndex("ads_ads_ref_idx").on(t.tenantId, t.adAccountId, t.externalRef), index("ads_ads_ad_set_idx").on(t.tenantId, t.adSetId),
+  check("ads_ads_shape", sql`${t.status} in (${inList(adStatuses)}) and length(${t.name}) between 1 and 200 and ${t.format} in ('image','video','carousel','document','event','text','messaging','call')
+    and ${t.reviewStatus} in ('unknown','in_review','approved','rejected') and (${t.reviewReason} is null or length(${t.reviewReason}) <= 500) and (${t.deliveryIssue} is null or length(${t.deliveryIssue}) <= 500)`),
+]);
+export const adsResults = pgTable("ads_results", {
+  tenantId: uuid("tenant_id").notNull(), adAccountId: uuid("ad_account_id").notNull(), level: text("level").notNull(), entityId: uuid("entity_id").notNull(),
+  day: date("day").notNull(), attributionModel: text("attribution_model").notNull().default("default"), capturedAt: timestamp("captured_at", { withTimezone: true }).notNull(),
+  metrics: jsonb("metrics").$type<ResultMetrics>().notNull(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.level, t.entityId, t.day, t.attributionModel] }),
+  foreignKey({ name: "ads_results_account_fk", columns: [t.tenantId, t.adAccountId], foreignColumns: [adsAccounts.tenantId, adsAccounts.id] }),
+  index("ads_results_day_idx").on(t.day, t.tenantId),
+  check("ads_results_shape", sql`${t.level} in ('campaign','adset','ad') and jsonb_typeof(${t.metrics}) = 'object'
+    and ${t.metrics} - array['spend','impressions','reach','clicks','ctr','cpc','cpm','results','costPerResult','conversions','leads'] = '{}'::jsonb
+    and not jsonb_path_exists(${t.metrics}, '$.keyvalue() ? (@.value.type() != "number")')`),
+]);
+export const adsLaunchRequests = pgTable("ads_launch_requests", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), adAccountId: uuid("ad_account_id").notNull(),
+  kind: text("kind").notNull(), payload: jsonb("payload").$type<Record<string, unknown>>().notNull(), status: text("status").notNull().default("draft"),
+  reviewHash: text("review_hash"), reviewedBy: text("reviewed_by").references(() => users.id), reviewedAt: timestamp("reviewed_at", { withTimezone: true }),
+  validation: jsonb("validation").$type<{ ok: boolean; problems: string[] } | null>(), idempotencyKey: uuid("idempotency_key"),
+  resultCampaignId: uuid("result_campaign_id"), resultAdSetId: uuid("result_ad_set_id"), resultAdId: uuid("result_ad_id"), errorCode: text("error_code"),
+  version: integer("version").notNull().default(1), createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "ads_launch_requests_account_fk", columns: [t.tenantId, t.adAccountId], foreignColumns: [adsAccounts.tenantId, adsAccounts.id] }),
+  uniqueIndex("ads_launch_requests_key_idx").on(t.tenantId, t.idempotencyKey).where(sql`${t.idempotencyKey} is not null`),
+  index("ads_launch_requests_account_idx").on(t.tenantId, t.adAccountId, t.createdAt),
+  check("ads_launch_requests_shape", sql`${t.kind} in ('campaign','boost','add_ad') and ${t.status} in ('draft','reviewed','launching','launched','failed','ambiguous','cancelled')
+    and pg_column_size(${t.payload}) <= 65536 and (${t.status} not in ('reviewed','launching','launched','ambiguous') or ${t.reviewHash} is not null)`),
+]);
+export const adsOperations = pgTable("ads_operations", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), adAccountId: uuid("ad_account_id").notNull(), idempotencyKey: uuid("idempotency_key").notNull(),
+  op: text("op").notNull(), targetLevel: text("target_level"), targetId: uuid("target_id"), summary: jsonb("summary").$type<Record<string, unknown>>().notNull().default({}),
+  status: text("status").notNull().default("pending"), errorCode: text("error_code"), actorId: text("actor_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "ads_operations_account_fk", columns: [t.tenantId, t.adAccountId], foreignColumns: [adsAccounts.tenantId, adsAccounts.id] }),
+  uniqueIndex("ads_operations_key_idx").on(t.tenantId, t.idempotencyKey),
+  check("ads_operations_shape", sql`${t.op} in ('status','bulk_status','rename','budget','delete') and ${t.status} in ('pending','applied','failed','ambiguous') and pg_column_size(${t.summary}) <= 8192`),
+]);
+export const adsLeadForms = pgTable("ads_lead_forms", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), adAccountId: uuid("ad_account_id").notNull(), externalRef: text("external_ref"),
+  name: text("name").notNull(), status: text("status").notNull().default("active"), consentText: text("consent_text").notNull(), privacyUrl: text("privacy_url").notNull(),
+  questions: jsonb("questions").$type<string[]>().notNull(), createdBy: text("created_by").references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "ads_lead_forms_account_fk", columns: [t.tenantId, t.adAccountId], foreignColumns: [adsAccounts.tenantId, adsAccounts.id] }),
+  uniqueIndex("ads_lead_forms_ref_idx").on(t.tenantId, t.adAccountId, t.externalRef),
+  check("ads_lead_forms_shape", sql`length(${t.name}) between 1 and 120 and length(${t.consentText}) between 1 and 1000 and ${t.status} in ('active','archived') and jsonb_typeof(${t.questions}) = 'array'`),
+]);
+export const adsLeads = pgTable("ads_leads", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), adAccountId: uuid("ad_account_id").notNull(), network: text("network").notNull(),
+  leadRef: text("lead_ref").notNull(), formRef: text("form_ref"), campaignRef: text("campaign_ref"), adRef: text("ad_ref"),
+  status: text("status").$type<typeof adLeadStatuses[number]>().notNull().default("new"),
+  // Answers the person gave and the exact consent text shown on the form, kept as evidence. No CRM contact exists and no consent is implied until a person reviews it.
+  fields: jsonb("fields").$type<Record<string, string>>().notNull().default({}), consentText: text("consent_text"), submittedAt: timestamp("submitted_at", { withTimezone: true }),
+  version: integer("version").notNull().default(1), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "ads_leads_account_fk", columns: [t.tenantId, t.adAccountId], foreignColumns: [adsAccounts.tenantId, adsAccounts.id] }),
+  uniqueIndex("ads_leads_ref_idx").on(t.tenantId, t.adAccountId, t.leadRef), index("ads_leads_status_idx").on(t.tenantId, t.status, t.createdAt),
+  check("ads_leads_shape", sql`${t.status} in (${inList(adLeadStatuses)}) and ${t.network} in (${inList(adNetworks)}) and length(${t.leadRef}) between 1 and 200
+    and jsonb_typeof(${t.fields}) = 'object' and pg_column_size(${t.fields}) <= 8192 and (${t.consentText} is null or length(${t.consentText}) <= 1000)`),
+]);
+export const adsAudiences = pgTable("ads_audiences", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), adAccountId: uuid("ad_account_id").notNull(), externalRef: text("external_ref").notNull(),
+  kind: text("kind").notNull(), name: text("name").notNull(), sizeEstimate: bigint("size_estimate", { mode: "number" }), status: text("status").notNull().default("ready"),
+  spec: jsonb("spec").$type<Record<string, unknown> | null>(), syncedAt: timestamp("synced_at", { withTimezone: true }),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "ads_audiences_account_fk", columns: [t.tenantId, t.adAccountId], foreignColumns: [adsAccounts.tenantId, adsAccounts.id] }),
+  uniqueIndex("ads_audiences_ref_idx").on(t.tenantId, t.adAccountId, t.externalRef),
+  check("ads_audiences_shape", sql`${t.kind} in ('custom','lookalike','saved_targeting','website','engagement','customer_list') and length(${t.name}) between 1 and 200 and (${t.spec} is null or pg_column_size(${t.spec}) <= 16384)`),
+]);
+export const adsRules = pgTable("ads_rules", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), adAccountId: uuid("ad_account_id").notNull(), name: text("name").notNull(), level: text("level").notNull(),
+  condition: jsonb("condition").$type<Record<string, unknown>>().notNull(), action: text("action").notNull(), enabled: boolean("enabled").notNull().default(false),
+  version: integer("version").notNull().default(1), createdBy: text("created_by").notNull().references(() => users.id), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "ads_rules_account_fk", columns: [t.tenantId, t.adAccountId], foreignColumns: [adsAccounts.tenantId, adsAccounts.id] }),
+  check("ads_rules_shape", sql`length(${t.name}) between 1 and 120 and ${t.level} in ('campaign','adset','ad') and ${t.action} in ('pause','notify') and pg_column_size(${t.condition}) <= 1024`),
+]);
+export const adsRuleRuns = pgTable("ads_rule_runs", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), ruleId: uuid("rule_id").notNull(), targetLevel: text("target_level").notNull(), targetId: uuid("target_id").notNull(),
+  outcome: text("outcome").notNull(), detail: jsonb("detail").$type<Record<string, unknown>>().notNull().default({}), ranAt: timestamp("ran_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "ads_rule_runs_rule_fk", columns: [t.tenantId, t.ruleId], foreignColumns: [adsRules.tenantId, adsRules.id] }).onDelete("cascade"),
+  index("ads_rule_runs_rule_idx").on(t.tenantId, t.ruleId, t.ranAt),
+  check("ads_rule_runs_shape", sql`${t.outcome} in ('triggered','skipped','failed','source') and pg_column_size(${t.detail}) <= 2048`),
+]);
+export const adsAlerts = pgTable("ads_alerts", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), adAccountId: uuid("ad_account_id").notNull(), kind: text("kind").notNull(), severity: text("severity").notNull().default("warning"),
+  subjectLevel: text("subject_level"), subjectId: uuid("subject_id"), dedupeKey: text("dedupe_key").notNull(), state: text("state").notNull().default("open"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "ads_alerts_account_fk", columns: [t.tenantId, t.adAccountId], foreignColumns: [adsAccounts.tenantId, adsAccounts.id] }),
+  uniqueIndex("ads_alerts_open_idx").on(t.tenantId, t.adAccountId, t.dedupeKey).where(sql`${t.state} = 'open'`),
+  check("ads_alerts_shape", sql`${t.kind} in ('ad_rejected','delivery_issue','payment_problem','spend_without_results','budget_capped','connection_lost','sync_failed','account_restricted')
+    and ${t.severity} in ('info','warning','critical') and ${t.state} in ('open','resolved','dismissed') and length(${t.dedupeKey}) between 1 and 200`),
+]);
+// Data model only. No conversion event is ever sent (privacy and consent design is an open founder decision).
+export const adsConversionDestinations = pgTable("ads_conversion_destinations", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), adAccountId: uuid("ad_account_id").notNull(), externalRef: text("external_ref").notNull(),
+  kind: text("kind").notNull().default("pixel"), name: text("name").notNull(), lastEventAt: timestamp("last_event_at", { withTimezone: true }), status: text("status").notNull().default("unknown"),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ name: "ads_conversion_destinations_account_fk", columns: [t.tenantId, t.adAccountId], foreignColumns: [adsAccounts.tenantId, adsAccounts.id] }),
+  uniqueIndex("ads_conversion_destinations_ref_idx").on(t.tenantId, t.adAccountId, t.externalRef),
+  check("ads_conversion_destinations_shape", sql`${t.kind} in ('pixel','conversion_api','offline') and length(${t.name}) between 1 and 200 and ${t.status} in ('unknown','active','inactive')`),
+]);
+export const adsWebhookEvents = pgTable("ads_webhook_events", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), provider: text("provider").notNull(), providerEventId: text("provider_event_id").notNull(),
+  eventType: text("event_type").notNull(), externalAccountRef: text("external_account_ref").notNull(), subjectRef: text("subject_ref"), bodyHash: text("body_hash").notNull(),
+  occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(), receivedAt: timestamp("received_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }), uniqueIndex("ads_webhook_events_event_idx").on(t.tenantId, t.provider, t.providerEventId),
+  check("ads_webhook_events_shape", sql`length(${t.providerEventId}) between 1 and 200 and length(${t.eventType}) between 1 and 80`),
+]);
