@@ -50,7 +50,7 @@ export type NavEntry = {
    */
   exitTo?: string;
 };
-export type NavFeature = "communities" | "events" | "social" | "office" | "newsletter" | "newsletterAutomations" | "docs" | "linkInBio";
+export type NavFeature = "communities" | "catalog" | "events" | "social" | "office" | "newsletter" | "newsletterAutomations" | "docs" | "linkInBio";
 export type NavItem = { id: string; label: NavLabelKey; icon: LucideIcon; href: string; active: boolean };
 /** A `pinned` group is rendered without a header, above the other groups (Discover). */
 export type NavGroup = { id: NavGroupId; label: NavLabelKey; icon?: LucideIcon; pinned?: boolean; items: NavItem[] };
@@ -135,8 +135,9 @@ export const navEntries: readonly NavEntry[] = [
   { id: "communities", group: "community", legacyGroup: "workspace", mode: "public", label: "communities", icon: MessagesSquare, path: "/communities", match: has("/communities"), permission: "communities:read", feature: "communities" },
   { id: "live", group: "community", mode: "public", status: "planned", label: "live", icon: Podcast, path: "/live", match: under("/live") },
   // Public > Courses and products (their own group: sold or given outside a community too).
-  { id: "courses", group: "commerce", mode: "public", status: "planned", label: "courses", icon: BookOpen, path: "/courses", match: under("/courses") },
-  { id: "products", group: "commerce", mode: "public", status: "planned", label: "products", icon: Package, path: "/products", match: under("/products") },
+  // Free courses and downloads: live only where the catalogue server is (feature "catalog"; off in production with it). Every role can read the list; the server gates authoring.
+  { id: "courses", group: "commerce", mode: "public", label: "courses", icon: BookOpen, path: "/courses", match: under("/courses"), feature: "catalog" },
+  { id: "products", group: "commerce", mode: "public", label: "products", icon: Package, path: "/products", match: under("/products"), feature: "catalog" },
   { id: "coaching", group: "commerce", mode: "public", status: "planned", label: "coaching", icon: CalendarClock, path: "/coaching", match: under("/coaching") },
   { id: "coupons", group: "commerce", mode: "public", status: "planned", label: "coupons", icon: TicketPercent, path: "/coupons", match: under("/coupons") },
   { id: "assistant", group: "chat", mode: "assistant", status: "planned", label: "assistant", icon: Bot, path: "/assistant", match: under("/assistant") },
