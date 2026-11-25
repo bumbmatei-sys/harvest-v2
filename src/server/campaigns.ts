@@ -1,5 +1,5 @@
 import { and, count, desc, eq, isNull } from "drizzle-orm";
-import type { Database } from "../db/client";
+import type { Database, Transaction } from "../db/client";
 import { auditLogs, campaigns, users } from "../db/schema";
 import { uuidInput } from "../lib/contact-input";
 import { CAMPAIGN_PAGE_SIZE, campaignIdempotencyKey, campaignInput, campaignPage } from "../lib/campaigns";
@@ -18,23 +18,27 @@ const columns = {
   structure: campaigns.structure, createdAt: campaigns.createdAt, updatedAt: campaigns.updatedAt,
 };
 
-export function createCampaign(db: Database, userId: string, workspace: string, data: unknown, key: unknown) {
+/** The insert both the plain create and the wizard Finish use. The caller owns the transaction and the verified, locked tenant. */
+export async function insertCampaign(tx: Transaction, userId: string, tenantId: string, data: unknown, key: unknown) {
   const input = campaignInput.parse(data), idempotencyKey = campaignIdempotencyKey.parse(key);
   const fingerprint = workFingerprint("campaign.create", { ...input, ownerUserId: userId });
-  return withTenant(db, userId, uuidInput.parse(workspace), "campaigns:write", async (tx, tenantId) => {
-    const [inserted] = await tx.insert(campaigns).values({ ...input, tenantId, ownerUserId: userId, idempotencyKey, fingerprint })
-      .onConflictDoNothing({ target: [campaigns.tenantId, campaigns.idempotencyKey] }).returning(columns);
-    if (inserted) {
-      await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "campaign.create", targetId: inserted.id });
-      return inserted;
-    }
-    const [existing] = await tx.select({ ...columns, fingerprint: campaigns.fingerprint }).from(campaigns)
-      .where(and(eq(campaigns.tenantId, tenantId), eq(campaigns.idempotencyKey, idempotencyKey)));
-    if (!existing || existing.fingerprint !== fingerprint) throw new AccessError(409, message("Campaigns.idempotencyConflict"));
-    const { fingerprint: _fingerprint, ...row } = existing;
-    void _fingerprint;
-    return row;
-  });
+  const [inserted] = await tx.insert(campaigns).values({ ...input, tenantId, ownerUserId: userId, idempotencyKey, fingerprint })
+    .onConflictDoNothing({ target: [campaigns.tenantId, campaigns.idempotencyKey] }).returning(columns);
+  if (inserted) {
+    await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "campaign.create", targetId: inserted.id });
+    return inserted;
+  }
+  const [existing] = await tx.select({ ...columns, fingerprint: campaigns.fingerprint }).from(campaigns)
+    .where(and(eq(campaigns.tenantId, tenantId), eq(campaigns.idempotencyKey, idempotencyKey)));
+  if (!existing || existing.fingerprint !== fingerprint) throw new AccessError(409, message("Campaigns.idempotencyConflict"));
+  const { fingerprint: _fingerprint, ...row } = existing;
+  void _fingerprint;
+  return row;
+}
+
+export function createCampaign(db: Database, userId: string, workspace: string, data: unknown, key: unknown) {
+  campaignInput.parse(data); campaignIdempotencyKey.parse(key);
+  return withTenant(db, userId, uuidInput.parse(workspace), "campaigns:write", (tx, tenantId) => insertCampaign(tx, userId, tenantId, data, key));
 }
 
 export function listCampaigns(db: Database, userId: string, workspace: string, pageInput: unknown = 1) {
