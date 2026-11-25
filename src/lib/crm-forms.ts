@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { newsletterWordingIds, NEWSLETTER_BLOCK_IDS } from "./newsletter-signup";
+import { adBlockTypes, adConsentKinds, adFieldKeys, adWordingIds, AD_CONSENT_IDS, type AdsFormConfig } from "./ads/lead-form";
+import { adNetworks } from "./ads/ads";
 
 // CRM forms builder: the definition a ministry builds, plus the pure rules the builder, the preview and (later) the hosted form share.
 // Stored as the `definition` of a draft `form_versions` row (kind `crm-form-v1`); nothing here is sent anywhere.
@@ -37,6 +39,8 @@ export type NewsletterConfig = { listIds: string[]; wordingVersion: string; cons
 export type FormDefinition = {
   kind: typeof FORM_KIND; revision: number; updatedAt: string; title: string; description: string; cover: (typeof coverIds)[number]; logoUrl: string;
   destination: FormDestination | null; endTitle: string; endBody: string; blocks: FormBlock[]; settings: FormSettings; newsletter?: NewsletterConfig;
+  /** Ad lead form preset (a form published to a network's instant form, never hosted). */
+  ads?: AdsFormConfig;
 };
 
 const httpsUrl = z.union([z.literal(""), z.url({ protocol: /^https$/ }).max(formLimits.url)]);
@@ -55,6 +59,12 @@ export const formDefinitionSchema = z.object({
   newsletter: z.object({
     listIds: z.array(z.uuid()).max(10).refine((ids) => new Set(ids).size === ids.length), wordingVersion: z.enum(newsletterWordingIds),
     consentText: z.string().max(500), fixedNotice: z.string().max(300),
+  }).strict().optional(),
+  ads: z.object({
+    network: z.enum(adNetworks), privacyUrl: z.url({ protocol: /^https$/ }).max(formLimits.url),
+    fields: z.record(z.string().regex(/^[a-z0-9]{8}$/), z.enum(adFieldKeys)),
+    wordings: z.object({ notice: z.enum(adWordingIds.notice), newsletter: z.enum(adWordingIds.newsletter).optional(), followUp: z.enum(adWordingIds.followUp).optional(), marketing: z.enum(adWordingIds.marketing).optional() }).strict(),
+    texts: z.object({ notice: z.string().max(500), newsletter: z.string().max(500).optional(), followUp: z.string().max(500).optional(), marketing: z.string().max(500).optional() }).strict(),
   }).strict().optional(),
   settings: z.object({
     ownerId: z.string().max(100).nullable(), labels: z.array(z.string().trim().min(1).max(formLimits.labelLength)).max(formLimits.labels),
@@ -89,6 +99,28 @@ export const formDefinitionSchema = z.object({
       const rule = fixed[b.id];
       if (!rule || b.type !== rule.type || (rule.required && !b.required) || b.options || (b.id === NEWSLETTER_BLOCK_IDS.email ? b.mapTo !== "email" : b.mapTo)) issue(["blocks", i], "newsletter block");
     });
+  }
+  if (form.ads) {
+    // An ad lead form is its own preset: never a sign-up form, no CRM destination (a lead becomes a person only by an explicit conversion) and no per-question CRM mapping.
+    if (form.newsletter) issue(["ads"], "preset");
+    if (form.destination) issue(["destination"], "ads");
+    const consentIds = new Map<string, (typeof adConsentKinds)[number]>(adConsentKinds.map((k) => [AD_CONSENT_IDS[k], k]));
+    const byId = new Map(form.blocks.map((b) => [b.id, b]));
+    form.blocks.forEach((b, i) => {
+      if (b.mapTo) issue(["blocks", i, "mapTo"], "ads mapping");
+      const kind = consentIds.get(b.id);
+      if (kind) {
+        // Each consent question is optional, its own unticked checkbox, and exists only with its wording version.
+        if (b.type !== "checkbox" || b.required || !form.ads!.wordings[kind]) issue(["blocks", i], "ads consent");
+      } else if (b.type !== "consent" && !(adBlockTypes as readonly string[]).includes(b.type)) issue(["blocks", i, "type"], "ads type");
+    });
+    for (const kind of adConsentKinds) if (form.ads.wordings[kind] && byId.get(AD_CONSENT_IDS[kind])?.type !== "checkbox") issue(["ads", "wordings", kind], "ads consent missing");
+    const seen = new Set<string>();
+    for (const [id, field] of Object.entries(form.ads.fields)) {
+      const b = byId.get(id), want = field === "email" ? "email" : field === "phone" ? "phone" : "short";
+      if (!b || b.type !== want || consentIds.has(id)) issue(["ads", "fields", id], "ads field");
+      if (seen.has(field)) issue(["ads", "fields", id], "ads duplicate field"); seen.add(field);
+    }
   }
 });
 
@@ -153,6 +185,8 @@ export function formIssues(form: FormDefinition): FormIssue[] {
   const issues: FormIssue[] = [];
   // A sign-up form needs at least one list; the address field is fixed, and it has no CRM destination or Name question.
   if (form.newsletter) return form.newsletter.listIds.length ? [] : ["noLists"];
+  // An ad lead form has its own readiness rules (adFormIssues); the hosted rules below do not apply to it.
+  if (form.ads) return [];
   if (!form.destination) issues.push("noDestination");
   if (!form.blocks.some((b) => b.mapTo === "name")) issues.push("noName");
   if (!form.blocks.some((b) => b.mapTo === "email" || b.mapTo === "phone")) issues.push("noContact");
