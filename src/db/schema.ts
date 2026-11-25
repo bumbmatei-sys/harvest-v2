@@ -148,6 +148,9 @@ export const campaignDrafts = pgTable("campaign_drafts", {
   outreach: jsonb("outreach").$type<OutreachConfig>().notNull(),
   campaignId: uuid("campaign_id"), finishedAt: timestamp("finished_at", { withTimezone: true }),
   coverFileId: uuid("cover_file_id").references((): AnyPgColumn => campaignFiles.id, { onDelete: "set null" }),
+  // The one unpublished registration form Finish created when Public Campaign Registration was on (a record of the CRM forms module). Set only by the
+  // finishing update; its composite reference to forms is deferred to the end of that transaction, so it is added in the migration, not declared here.
+  registrationFormId: uuid("registration_form_id"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),

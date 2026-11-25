@@ -750,6 +750,13 @@
       "when": 1795601919590,
       "tag": "0110_campaign_checklist",
       "breakpoints": true
+    },
+    {
+      "idx": 112,
+      "version": "7",
+      "when": 1795609332144,
+      "tag": "0112_campaign_registration_form",
+      "breakpoints": true
     }
   ]
 }

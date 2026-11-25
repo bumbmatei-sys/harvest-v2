@@ -12,7 +12,7 @@ import type { CampaignOverview } from "@/server/campaign-overview";
  */
 const digitsOf = (currency: string) => { try { return new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2; } catch { return 2; } };
 
-export async function CampaignDashboard({ overview, connectHref }: { overview: CampaignOverview; connectHref: string }) {
+export async function CampaignDashboard({ overview, connectHref, formHref }: { overview: CampaignOverview; connectHref: string; formHref: string | null }) {
   const t = await getTranslations("CampaignDashboard"), tw = await getTranslations("CampaignWizard"), format = await getFormatter();
   const config = overview.configuration;
   const staffed = config ? config.departments.filter((department) => department.leaders.length > 0).length : 0;
@@ -51,6 +51,9 @@ export async function CampaignDashboard({ overview, connectHref }: { overview: C
       ] as [string, string][]).map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 break-words text-sm">{value}</dd></div>)}</dl></CardContent></Card>}
     {config && <Card><CardHeader><CardTitle><h3 className="text-sm font-semibold">{t("connect")}</h3></CardTitle><CardDescription>{t("connectDescription")}</CardDescription></CardHeader>
       <CardContent className="space-y-3">{config.connect.length ? <ul className="flex flex-wrap gap-2">{config.connect.map((key) => <li key={key} className="rounded-md border bg-muted/40 px-2 py-1 text-sm">{tw(`connect.options.${key}` as "connect.options.registration")}</li>)}</ul> : <p className="text-sm text-muted-foreground">{t("noConnect")}</p>}
+        {config.connect.includes("registration") && (config.registrationFormId
+          ? (formHref ? <Button asChild variant="outline" className="min-h-11"><Link href={`${formHref}/${config.registrationFormId}`}>{t("openForm")}</Link></Button> : <p className="text-sm text-muted-foreground">{t("formCreated")}</p>)
+          : <p className="text-sm text-muted-foreground">{t("noForm")}</p>)}
         {config.connect.includes("qrResponse") && <Button asChild variant="outline" className="min-h-11"><Link href={connectHref}>{t("openLinks")}</Link></Button>}</CardContent></Card>}
     <Card><CardHeader><CardTitle><h3 className="text-sm font-semibold">{t("notYet")}</h3></CardTitle><CardDescription>{t("notYetDescription")}</CardDescription></CardHeader>
       <CardContent><ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">{overview.unavailable.map((key) => <li key={key} className="rounded-lg border border-dashed p-3"><p className="text-xs text-muted-foreground">{t(`unavailable.${key}`)}</p><p className="mt-1 text-sm">{t("notAvailable")}</p></li>)}</ul></CardContent></Card>

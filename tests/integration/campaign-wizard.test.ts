@@ -62,7 +62,7 @@ describe("campaign wizard database shape", () => {
   it("references no CRM contact, so erasing or merging a contact has nothing to re-key", async () => {
     const refs = await fixture.admin.query(`select conrelid::regclass::text as t, confrelid::regclass::text as target from pg_constraint
       where contype = 'f' and conrelid in ('campaign_drafts'::regclass, 'campaign_draft_assignments'::regclass) order by 1, 2`);
-    expect(refs.rows.map((r) => r.target).sort()).toEqual(["campaigns", "campaign_drafts", "campaign_files", "users", "workspace_members", "workspaces"].sort());
+    expect(refs.rows.map((r) => r.target).sort()).toEqual(["campaigns", "forms", "campaign_drafts", "campaign_files", "users", "workspace_members", "workspaces"].sort()); // forms: the deferred reference to the registration form Finish created (a CRM forms record, not a CRM contact)
     const cols = await fixture.admin.query("select column_name from information_schema.columns where table_name in ('campaign_drafts','campaign_draft_assignments') and column_name ilike '%contact%'");
     expect(cols.rows).toEqual([]);
   });
@@ -545,7 +545,7 @@ describe("campaign overview", () => {
     const overview = await getCampaignOverview(fixture.db, "member-a", tenantA, campaignId);
     expect(overview.configuration).toEqual({
       departments: [{ key: "volunteers", leaders: ["admin-a"], members: [], pending: 1 }, { key: "counseling", leaders: [], members: [], pending: 0 }], // the PRD's order
-      modules: ["tasks_boards", "campaign_calendar"], connect: [],
+      modules: ["tasks_boards", "campaign_calendar"], connect: [], registrationFormId: null,
       budget: { currency: "USD", estimatedBudgetMinor: null, fundraisingEnabled: false, fundraisingGoalMinor: null, onlineDonations: false },
     });
     expect(overview.checklist).toEqual({ done: 0, total: 9 });
@@ -589,5 +589,46 @@ describe("step 7: the draft response source", () => {
     expect(await status(save("member-a", draft.id, 1, "connect", { ...defaultOutreach, followUp: true }))).toBe(400);
     expect(await status(save("member-a", draft.id, 1, "connect", { ...defaultOutreach, registration: true, communityDiscovery: true }))).toBe(400);
     expect(await status(save("member-a", draft.id, 1, "connect", { ...defaultOutreach, registration: true, accountInvites: true, communityDiscovery: true }))).toBe(200);
+  });
+});
+
+describe("step 7: the draft registration form", () => {
+  async function finishedAs(finisher: string, outreach: Record<string, boolean>) {
+    const draft = await draftFor("member-a");
+    let version = (await save("member-a", draft.id, 1, "tools", { modules: ["registration_forms", "qr_response_forms"] })).version;
+    version = await complete("member-a", draft.id, version);
+    version = (await save("member-a", draft.id, version, "connect", { ...defaultOutreach, ...outreach })).version;
+    const { campaignId } = await finishDraft(fixture.db, finisher, tenantA, draft.id, { version });
+    return { draft, campaignId, version };
+  }
+  const formsOf = async (draftId: string) => (await fixture.admin.query(`select f.id, f.name, v.status, v.published_at, v.definition->>'kind' as kind, jsonb_array_length(v.definition->'blocks') as blocks
+    from campaign_drafts d join forms f on f.tenant_id = d.tenant_id and f.id = d.registration_form_id join form_versions v on v.tenant_id = f.tenant_id and v.form_id = f.id where d.id = $1`, [draftId])).rows;
+  it("creates one unpublished form when registration is on and an owner or admin finishes, and none on a repeat", async () => {
+    const done = await finishedAs("admin-a", { registration: true });
+    const rows = await formsOf(done.draft.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ name: "Synthetic conference registration", status: "draft", published_at: null, kind: "crm-form-v1" });
+    expect(Number(rows[0].blocks)).toBeGreaterThan(2);
+    const before = (await fixture.admin.query("select count(*)::int as n from forms where tenant_id=$1", [tenantA])).rows[0].n;
+    await finishDraft(fixture.db, "admin-a", tenantA, done.draft.id, { version: done.version });
+    await Promise.all([1, 2].map(() => finishDraft(fixture.db, "owner-a", tenantA, done.draft.id, { version: done.version })));
+    expect((await fixture.admin.query("select count(*)::int as n from forms where tenant_id=$1", [tenantA])).rows[0].n).toBe(before);
+    expect(await formsOf(done.draft.id)).toHaveLength(1);
+    expect((await fixture.admin.query("select count(*)::int as n from audit_logs where action='crm.form.create' and target_id=$1", [rows[0].id])).rows[0].n).toBe(1);
+    expect((await fixture.admin.query("select count(*)::int as n from form_versions where form_id=$1 and status <> 'draft'", [rows[0].id])).rows[0].n).toBe(0);
+  });
+  it("creates none when registration is off, or when the person finishing cannot create forms", async () => {
+    expect(await formsOf((await finishedAs("admin-a", { qrResponse: true })).draft.id)).toEqual([]);
+    const member = await finishedAs("member-a", { registration: true });
+    expect(member.campaignId).toBeTruthy(); // the campaign is still created
+    expect(await formsOf(member.draft.id)).toEqual([]);
+  });
+  it("records the form only in the finishing update", async () => {
+    const done = await finishedAs("admin-a", { registration: true });
+    // A finished draft is closed to updates, so the recorded form cannot be removed or swapped.
+    await withTenant(fixture.db, "admin-a", tenantA, "campaigns:write", (tx) => tx.update(campaignDrafts).set({ registrationFormId: null }).where(eq(campaignDrafts.id, done.draft.id)));
+    expect((await formsOf(done.draft.id))).toHaveLength(1);
+    const open = await draftFor("member-a");
+    await expect(withTenant(fixture.db, "member-a", tenantA, "campaigns:write", (tx) => tx.update(campaignDrafts).set({ registrationFormId: "00000000-0000-4000-8000-000000000000" }).where(eq(campaignDrafts.id, open.id)))).rejects.toThrow();
   });
 });

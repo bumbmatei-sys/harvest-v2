@@ -66,6 +66,19 @@ export function listCrmForms(db: Database, userId: string, workspace: string): P
   });
 }
 
+/**
+ * One draft form made from the event template, inside a transaction that already runs as an owner or admin: used by the campaign wizard's Finish for
+ * its registration form. It is the same record the forms screen creates (a form with a version 1 draft): unpublished, with no public address, so it
+ * accepts nothing until an owner or admin publishes it there. The caller chooses the id so it can be recorded in the same transaction.
+ */
+export async function createDraftForm(tx: Parameters<Parameters<typeof withTenant>[4]>[0], tenantId: string, userId: string, input: { id: string; title: string }) {
+  const definition = { ...buildForm("event", null, text, new Date().toISOString()), title: input.title };
+  await checkSize(tx, definition);
+  await tx.insert(forms).values({ id: input.id, tenantId, name: input.title, createdBy: userId });
+  await tx.insert(formVersions).values({ tenantId, formId: input.id, version: 1, definition: definition as unknown as Record<string, unknown>, createdBy: userId });
+  await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "crm.form.create", targetId: input.id, metadata: { source: "campaign_wizard" } });
+}
+
 export async function createCrmForm(db: Database, userId: string, workspace: string, raw: unknown) {
   const input = createInput.parse(raw);
   if (input.template !== null && !isTemplateId(input.template)) throw new AccessError(400, message("CrmForms.errors.template"));

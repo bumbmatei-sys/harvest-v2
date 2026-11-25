@@ -735,6 +735,17 @@ test("step 7: six options, all off, dependent ones blocked with a reason, tool h
   const linkList = await (await page.request.get(`/api${root}/${campaignId}/connect/links`)).json();
   expect(linkList.links).toHaveLength(1);
   expect(linkList.links[0]).toMatchObject({ status: "draft", formVersionId: null, publicTitle: null });
+  // Registration was on and an owner finished: one unpublished registration form exists and the dashboard links to it.
+  const formLink = page.getByRole("link", { name: "Open the registration form" });
+  await expect(formLink).toBeVisible();
+  const formPath = new URL((await formLink.getAttribute("href"))!, page.url()).pathname;
+  expect(formPath).toMatch(new RegExp(`/workspaces/${tenant}/crm/forms/[0-9a-f-]{36}$`));
+  await shoot(page, "step-7-dashboard-forms");
+  await formLink.click();
+  await expect(page).toHaveURL(new RegExp(`${formPath}$`));
+  await expect(page.getByText("Connect campaign registration")).toBeVisible();
+  await expect(page.getByText(/not published|unpublished|Draft/i).first()).toBeVisible();
+  await page.goBack();
   await page.getByRole("link", { name: "Open the response QR links" }).click();
   await expect(page).toHaveURL(new RegExp(`${campaignId}/connect$`));
   await shoot(page, "step-7-connect-draft-source");

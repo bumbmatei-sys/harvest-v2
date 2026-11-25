@@ -2204,7 +2204,8 @@
     "invitationClosed": "This invitation is no longer open.",
     "assigneeInvalid": "Choose people who are members of this ministry and can edit.",
     "notReady": "Add the place, dates and time zone before activating this campaign.",
-    "coverAlt": "Cover of {name}"
+    "coverAlt": "Cover of {name}",
+    "registrationFormTitle": "{name} registration"
   },
   "Associations": {
     "permissionsTitle": "Contact permissions",
@@ -8317,6 +8318,9 @@
     "online": "Online donations",
     "on": "On",
     "off": "Off",
-    "notSet": "Not set"
+    "notSet": "Not set",
+    "openForm": "Open the registration form",
+    "formCreated": "A registration form was created. It is unpublished.",
+    "noForm": "No registration form was created. An owner or admin can create one in Forms."
   }
 }
