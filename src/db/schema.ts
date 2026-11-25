@@ -1566,9 +1566,12 @@ export const discoverListings = pgTable("discover_listings", {
   admission: text("admission").array().notNull(),
   searchText: text("search_text").notNull(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  // 0100: unified Discover. Sanitized public fields only; the approval state lives in discover_controls and is applied again at read time.
+  summary: text("summary"), category: text("category"), language: text("language"), audience: text("audience"), isFree: boolean("is_free").notNull().default(true), contentHash: text("content_hash"),
 }, (t) => [primaryKey({ columns: [t.resourceType, t.resourceId] }),
   index("discover_listings_order_idx").on(t.resourceType, t.updatedAt, t.resourceId),
-  check("discover_resource_type", sql`${t.resourceType} in ('community')`)]);
+  check("discover_resource_type", sql`${t.resourceType} in ('community','course','product')`),
+  check("discover_listing_public_fields", sql`(${t.summary} is null or length(${t.summary}) <= 280) and (${t.language} is null or ${t.language} ~ '^[a-z]{2,3}$')`)]);
 
 // C15a (migration 0041): in-app notifications. Members read only their own rows; every write is a definer
 // (plus one staff INSERT for application decisions). Likes and the host queue are grouped into one unread row.
@@ -3274,3 +3277,30 @@ export const socialApprovalNotices = pgTable("social_approval_notices", {
   index("social_approval_notices_inbox_idx").on(t.tenantId, t.recipientUserId, t.readAt, t.createdAt),
   check("social_approval_notices_kind", sql`${t.kind} in ('requested','approved','rejected')`),
 ]);
+// Discover controls (0100): owner metadata and the platform review state, one row per listed-or-requested resource. A community's opt-in stays its canonical column;
+// a course or product has no such column, so its opt-in lives here. Owners can request and withdraw; only the platform functions approve, reject, suspend or reinstate.
+export const discoverControls = pgTable("discover_controls", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId, { onDelete: "cascade" }), resourceType: text("resource_type").$type<"community" | "course" | "product">().notNull(),
+  resourceId: uuid("resource_id").notNull(), ownerOptIn: boolean("owner_opt_in").notNull().default(false), category: text("category"), language: text("language"),
+  reviewState: text("review_state").$type<"not_requested" | "pending" | "approved" | "rejected" | "suspended">().notNull().default("not_requested"), reviewReason: text("review_reason"),
+  reviewedBy: text("reviewed_by"), reviewedAt: timestamp("reviewed_at", { withTimezone: true }), reviewedHash: text("reviewed_hash"), currentHash: text("current_hash"),
+  version: integer("version").notNull().default(1), updatedBy: text("updated_by").references(() => users.id), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.resourceType, t.resourceId] }), index("discover_controls_review_idx").on(t.reviewState, t.updatedAt),
+  check("discover_controls_shape", sql`${t.resourceType} in ('community','course','product') and ${t.reviewState} in ('not_requested','pending','approved','rejected','suspended')
+    and (${t.language} is null or ${t.language} ~ '^[a-z]{2,3}$') and (${t.category} is null or ${t.category} in ('discipleship','prayer','worship','bible_study','outreach','missions','youth','family','leadership','service','recovery','other'))
+    and (${t.reviewReason} is null or length(${t.reviewReason}) <= 500) and ${t.version} >= 1 and (${t.reviewState} not in ('approved','rejected','suspended') or ${t.reviewedBy} is not null)`)]);
+export const discoverMinistryStanding = pgTable("discover_ministry_standing", {
+  tenantId: uuid("tenant_id").primaryKey().references(() => workspaces.tenantId, { onDelete: "cascade" }), suspended: boolean("suspended").notNull().default(false), reason: text("reason"),
+  setBy: text("set_by"), setAt: timestamp("set_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [check("discover_standing_reason", sql`${t.reason} is null or length(${t.reason}) <= 500`)]);
+export const discoverReports = pgTable("discover_reports", {
+  id: uuid("id").primaryKey().defaultRandom(), resourceType: text("resource_type").notNull(), resourceId: uuid("resource_id").notNull(), tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId, { onDelete: "cascade" }),
+  reporterId: text("reporter_id").notNull().references(() => users.id, { onDelete: "cascade" }), reason: text("reason").notNull(), note: text("note"), status: text("status").notNull().default("open"),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), resolvedBy: text("resolved_by"), resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+}, (t) => [uniqueIndex("discover_reports_open_idx").on(t.reporterId, t.resourceType, t.resourceId).where(sql`${t.status} = 'open'`), index("discover_reports_queue_idx").on(t.status, t.createdAt),
+  check("discover_reports_shape", sql`${t.resourceType} in ('community','course','product') and ${t.reason} in ('spam','inappropriate','misleading','impersonation','other') and ${t.status} in ('open','reviewed','dismissed') and (${t.note} is null or length(${t.note}) <= 500)`)]);
+export const discoverReviewEvents = pgTable("discover_review_events", {
+  id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId, { onDelete: "cascade" }), resourceType: text("resource_type").notNull(), resourceId: uuid("resource_id").notNull(),
+  decision: text("decision").notNull(), reason: text("reason"), reviewer: text("reviewer").notNull(), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("discover_review_events_resource_idx").on(t.tenantId, t.resourceType, t.resourceId, t.createdAt),
+  check("discover_review_events_shape", sql`${t.decision} in ('approve','reject','suspend','reinstate','standing_suspend','standing_restore') and (${t.reason} is null or length(${t.reason}) <= 500)`)]);
