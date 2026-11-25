@@ -292,10 +292,15 @@ it("stops only the run with a malformed wait step and carries on with the rest o
   // A wait with no amount at all raises explicitly instead of computing NULL seconds.
   const missing = await create({ type: "list", listId: list }, [waitStep(), emailStep("Never"), endStep()]);
   await fixture.admin.query("update newsletter_automations set steps=steps #- '{0,amount}', state='active' where id=$1", [missing.id]);
+  // A wait with no unit must not fall through to days.
+  const noUnit = await create({ type: "list", listId: list }, [waitStep(), emailStep("Never"), endStep()]);
+  await fixture.admin.query("update newsletter_automations set steps=steps #- '{0,unit}', state='active' where id=$1", [noUnit.id]);
   const good = await activate((await create({ type: "list", listId: list }, [emailStep("Fine"), endStep()])).id);
   const person = await subscribe(list);
   const provider = new FakeNewsletterProvider(), submit = vi.spyOn(provider, "submit");
   expect(await tick(provider)).toMatchObject({ claimed: 1, sent: 1 });
+  const [noUnitRun] = await runs(noUnit.id);
+  expect(noUnitRun).toMatchObject({ state: "stopped", stop_reason: "invalid_step" });
   const [missingRun] = await runs(missing.id);
   expect(missingRun).toMatchObject({ state: "stopped", stop_reason: "invalid_step" });
   const [badRun] = await runs(bad.id), [goodRun] = await runs(good.id);

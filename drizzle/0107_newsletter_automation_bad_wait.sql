@@ -23,7 +23,7 @@ BEGIN
     ELSIF step ->> 'type' = 'wait' THEN
       -- A wait step that cannot be read (a missing or oversized amount, an unknown unit) stops only this run, with a reason; the rest of the batch carries on.
       BEGIN
-        IF step ->> 'unit' NOT IN ('hours', 'days') THEN RAISE invalid_parameter_value; END IF;
+        IF coalesce(step ->> 'unit', '') NOT IN ('hours', 'days') THEN RAISE invalid_parameter_value; END IF;
         seconds := (step ->> 'amount')::bigint * CASE step ->> 'unit' WHEN 'hours' THEN 3600 ELSE 86400 END;
         IF seconds IS NULL OR seconds <= 0 OR seconds > 315360000 THEN RAISE invalid_parameter_value; END IF;
         UPDATE public.newsletter_automation_runs SET step_index = idx + 1, attempt_id = NULL, lease = NULL, lease_until = NULL, next_run_at = clock_timestamp() + make_interval(secs => seconds)
