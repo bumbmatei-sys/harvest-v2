@@ -74,7 +74,6 @@ export function EditorShell({ breadcrumb, title, status, actions, steps, current
     </Sheet>
   </div>;
   if (hosted && data) return <div className="min-w-0 space-y-6" data-editor-hosted>
-    <EditorStepBar context={data} onStep={onStep} className="mb-4" />
     <header className="space-y-3">
       {breadcrumb}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -86,6 +85,8 @@ export function EditorShell({ breadcrumb, title, status, actions, steps, current
         </div>
       </div>
     </header>
+    {/* Below the header, so the header (with Discard and the other actions) has scrolled away before the bar sticks and never sits under it. */}
+    <EditorStepBar context={data} onStep={onStep} />
     {/* Form first, preview column from 1280px (22rem, 24rem from 1600px) only when there is a preview, so an editor without one uses the full width; the steps live in the sidebar. */}
     <div className={cn("grid min-w-0 gap-6", preview && "xl:max-[1599px]:grid-cols-[minmax(0,1fr)_22rem] min-[1600px]:grid-cols-[minmax(0,1fr)_24rem]")}>
       <section className="min-w-0 space-y-6">{children}</section>

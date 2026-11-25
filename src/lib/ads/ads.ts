@@ -142,7 +142,7 @@ export const ruleInput = z.object({
 export const leadStatusInput = z.object({ status: z.enum(leadStatuses), version: versionInput }).strict();
 export const leadFormInput = z.object({
   adAccountId: uuidKey, name: text(120), consentText: text(1000), privacyUrl: z.url().max(2048),
-  questions: z.array(z.enum(["full_name", "first_name", "last_name", "email", "phone", "city", "zip", "custom"])).min(1).max(15),
+  questions: z.array(z.enum(["full_name", "first_name", "last_name", "email", "phone", "city", "zip", "country", "custom", "consent_newsletter", "consent_follow_up", "consent_marketing"])).min(1).max(15),
 }).strict();
 
 /** Counts only: ratios are recomputed from the counts so a stored ratio is never trusted. */
@@ -169,3 +169,21 @@ export function evaluateRule(c: { metric: typeof ruleMetrics[number]; operator: 
 }
 /** Valid status moves. Archived and deleted are terminal. */
 export function canMove(from: AdStatus, to: AdStatus) { return from !== "deleted" && from !== "archived" && (to === "active" || to === "paused" ? from !== to : true); }
+
+// ---- CRM audiences and conversions (0104). Hashed identifiers only; every figure and send is gated by consent in the service layer. ----
+/** Normalised, then SHA-256 hex. Email: lower case, trimmed. Phone: digits with the country code. Nothing else is ever sent to an ad network. */
+export const normaliseEmail = (value: string) => value.trim().toLowerCase();
+export const normalisePhone = (value: string) => value.replace(/[^0-9]/g, "");
+/** Calling-code prefixes of the EEA, the UK and Switzerland, used only as a conservative signal: a phone number is the one location hint the CRM holds. */
+export const eeaUkChPhonePrefixes = ["30", "31", "32", "33", "34", "351", "352", "353", "354", "356", "357", "358", "359", "36", "370", "371", "372", "385", "386", "39", "40", "41", "420", "421", "423", "43", "44", "45", "46", "47", "48", "49"] as const;
+export const eeaUkChCountries = ["AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IS", "IE", "IT", "LV", "LI", "LT", "LU", "MT", "NL", "NO", "PL", "PT", "RO", "SK", "SI", "ES", "SE", "CH", "GB", "UK"] as const;
+export function isEeaUkChPhone(phone: string | null | undefined) {
+  if (!phone || !phone.trim().startsWith("+")) return false;
+  const digits = normalisePhone(phone);
+  return eeaUkChPhonePrefixes.some(prefix => digits.startsWith(prefix));
+}
+export const adConsentQuestions = ["consent_newsletter", "consent_follow_up"] as const;
+export const conversionEventNames = ["Lead", "Contact", "CompleteRegistration", "QualifiedLead"] as const;
+export const audienceUploadInput = z.object({ adAccountId: uuidKey, audienceId: uuidKey, idempotencyKey: uuidKey, confirm: z.literal(true) }).strict();
+export const customerAudienceInput = z.object({ adAccountId: uuidKey, name: text(200), idempotencyKey: uuidKey }).strict();
+export const conversionSendInput = z.object({ adAccountId: uuidKey, destinationId: uuidKey, eventName: z.enum(conversionEventNames), leadIds: z.array(uuidKey).min(1).max(200), idempotencyKey: uuidKey, confirm: z.literal(true) }).strict();

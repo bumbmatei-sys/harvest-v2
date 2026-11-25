@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { Database } from "../db/client";
 import { communities, communityMemberships, workspaceMembers } from "../db/schema";
 import { hashSecret } from "../lib/community-listing";
+import { leaveReasons } from "../lib/community-stats";
 import type { Answers, Question } from "../lib/questions";
 import { can } from "../lib/permissions";
 import { message } from "../i18n/messages";
@@ -62,6 +63,17 @@ export async function enterCommunity(db: Database, userId: string, slug: string,
   throw (refusals[outcome as keyof typeof refusals] ?? refusals.not_allowed)();
 }
 
+const leaveInput = z.object({ reason: z.enum(leaveReasons).optional(), other: z.string().trim().min(1).max(200).refine(v => v.isWellFormed() && !v.includes("\u0000")).optional() }).strict()
+  .refine(v => v.other === undefined || v.reason === "other");
+/** A member leaves, optionally saying why (fixed list; short free text only with "other"). The reason is readable by owners and admins and is deleted with the person. */
+export async function leaveCommunity(db: Database, userId: string, slug: string, raw: unknown) {
+  const input = leaveInput.parse(raw), parsed = communitySlug.parse(slug);
+  const outcome = await withUser(db, userId, async (tx) => (await tx.execute<{ o: string }>(sql`select public.community_leave(${parsed}, ${input.reason ?? null}, ${input.other ?? null}) as o`)).rows[0].o);
+  if (outcome === "left") return { outcome } as const;
+  if (outcome === "owner") throw new AccessError(409, message("Errors.somethingWentWrongPleaseTryAgain"), { code: "OWNER_CANNOT_LEAVE" });
+  throw new AccessError(404, message("Errors.workspaceUnavailable"));
+}
+
 /** The community, if the caller is an active member (member RLS path); otherwise null. */
 export async function activeMembership(db: Database, userId: string, slug: string) {
   const parsed = communitySlug.safeParse(slug);
@@ -77,15 +89,17 @@ export async function activeMembership(db: Database, userId: string, slug: strin
 const discoverInput = z.object({ q: z.string().trim().max(80).optional(), open: z.boolean().optional(), after: z.string().max(200).optional() }).strict();
 export const discoverPageSize = 24;
 
-export async function listDiscover(db: Database, raw: unknown) {
+/** `requireApproval` applies the platform approval rule (the same as the unified Discover search); it is on only when the Discover gate is open, so the launch switch moves both lists together. */
+export async function listDiscover(db: Database, raw: unknown, opts: { requireApproval?: boolean } = {}) {
   const input = discoverInput.parse(raw);
   let after: string | null = null, afterId: string | null = null;
   if (input.after) {
     const [at, id] = Buffer.from(input.after, "base64url").toString().split("|");
     if (at && !Number.isNaN(new Date(at).getTime()) && z.uuid().safeParse(id).success) { after = at; afterId = id; }
   }
-  const rows = await db.transaction(async (tx) => (await tx.execute<{ v: DiscoverItem }>(sql`select public.discover_communities(${input.q ?? ""},
-    ${input.open ?? false}, ${after}::timestamptz, ${afterId}::uuid, ${discoverPageSize + 1}) as v`)).rows.map((r) => r.v));
+  const rows = await db.transaction(async (tx) => (await tx.execute<{ v: DiscoverItem }>(opts.requireApproval
+    ? sql`select public.discover_communities_approved(${input.q ?? ""}, ${input.open ?? false}, ${after}::timestamptz, ${afterId}::uuid, ${discoverPageSize + 1}) as v`
+    : sql`select public.discover_communities(${input.q ?? ""}, ${input.open ?? false}, ${after}::timestamptz, ${afterId}::uuid, ${discoverPageSize + 1}) as v`)).rows.map((r) => r.v));
   const items = rows.slice(0, discoverPageSize), last = items.at(-1);
   return { items, next: rows.length > discoverPageSize && last ? Buffer.from(`${last.updatedAt}|${last.id}`).toString("base64url") : null };
 }
