@@ -3,6 +3,7 @@ import { Check, CircleAlert } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import type { EditorStepView } from "@/lib/editor-context";
+import { scrollToTop } from "@/components/wizard-layout";
 
 const stateKey = { done: "stepDone", attention: "stepAttention", todo: "stepTodo", disabled: "stepDisabled" } as const;
 
@@ -31,7 +32,7 @@ export function focusStepHeadingWhenDrawerCloses() {
   let tries = 0;
   const tick = () => {
     if (document.querySelector('[data-sidebar="sidebar"][data-mobile="true"]') && tries++ < 60) { requestAnimationFrame(tick); return; }
-    window.setTimeout(() => document.querySelector<HTMLElement>('[data-slot="wizard-heading"]')?.focus(), 60);
+    window.setTimeout(() => { const heading = document.querySelector<HTMLElement>('[data-slot="wizard-heading"]'); scrollToTop(heading); heading?.focus({ preventScroll: true }); }, 60);
   };
   requestAnimationFrame(tick);
 }
