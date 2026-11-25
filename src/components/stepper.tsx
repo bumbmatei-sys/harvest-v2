@@ -1,11 +1,12 @@
 /** Derived from Shadcn UI Kit item stepper1 (free), registry retrieved 2026-11-16, approved 2026-11-16 (Kit PR 4). Visual reference only; local changes: docs/ui-sources.md. */
 "use client";
+import { Fragment } from "react";
 import { Check } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { cn } from "@/lib/utils";
 import { stepIndex, stepProgress, stepStates, type StepState } from "@/lib/stepper";
 
-export type StepperStep = { id: string; label: string; done?: boolean; disabled?: boolean; badge?: string };
+export type StepperStep = { id: string; label: string; done?: boolean; disabled?: boolean; badge?: string; /** A heading shown above the first step of each group (for example Campaign, Ad set, Ad). */ group?: string };
 
 const indicatorTone: Record<StepState, string> = {
   active: "border-primary bg-primary text-primary-foreground",
@@ -39,7 +40,7 @@ export function Stepper({ steps, current, label, layout = "wizard", linear, onSe
     <ol className="flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
       {steps.map((step, index) => {
         const { state, done } = states[index];
-        return <li key={step.id} className="shrink-0 lg:shrink">
+        return <Fragment key={step.id}>{step.group && step.group !== steps[index - 1]?.group && <li data-slot="step-group" className="flex items-center gap-2 px-3 pt-3 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground first:pt-0 max-lg:hidden"><span aria-hidden="true" className="size-1.5 rounded-full bg-chart-1" />{step.group}</li>}<li className="shrink-0 lg:shrink">
           <button type="button" onClick={() => { if (!step.disabled) onSelect?.(step.id); }} aria-current={state === "active" ? "step" : undefined} aria-disabled={step.disabled || undefined}
             className={cn("flex min-h-11 w-full items-center gap-2 rounded-md px-3 text-left text-sm transition-colors outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 lg:min-h-9",
               state === "active" ? "bg-muted font-medium" : "hover:bg-muted/60", step.disabled && "cursor-not-allowed text-muted-foreground hover:bg-transparent")}>
@@ -48,7 +49,7 @@ export function Stepper({ steps, current, label, layout = "wizard", linear, onSe
             {step.badge && <span className="whitespace-nowrap rounded-md bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground">{step.badge}</span>}
             {status(state, done)}
           </button>
-        </li>;
+        </li></Fragment>;
       })}
     </ol>
   </nav>;

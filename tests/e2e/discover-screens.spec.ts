@@ -186,7 +186,8 @@ test("public Discover, quick look, report, filters, load more and the owner's Li
   const look = anon.getByRole("dialog");
   await expect(look.getByText("Six weeks on how to pray.")).toBeVisible();
   await expect(look.locator("dd", { hasText: "Prayer" })).toBeVisible();
-  await expect(look.getByText("A public page is not available yet.")).toBeVisible();
+  // Courses and products now have their own public page (#264).
+  await expect(look.getByRole("link", { name: "Open page" })).toHaveAttribute("href", /^\/courses\//);
   await audit(anon, "public-quick-look");
   // Signed out, Report offers sign-in instead of the form.
   await look.getByRole("button", { name: "Report" }).click();

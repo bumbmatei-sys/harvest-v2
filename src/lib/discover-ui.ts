@@ -55,7 +55,7 @@ export const activeFilterCount = (filters: DiscoverFilters) => (filters.category
 export const hasAnyFilter = (filters: DiscoverFilters) => Boolean(filters.q || filters.type) || activeFilterCount(filters) > 0;
 
 /** Public page of a listing. Only communities have a public route today; courses and products open the quick look (see docs/acceptance/discover-screens.md P8). */
-export const publicHref = (card: { type: DiscoverType; slug: string }) => (card.type === "community" ? `/communities/${card.slug}` : null);
+export const publicHref = (card: { type: DiscoverType; slug: string }) => `/${card.type === "community" ? "communities" : card.type === "course" ? "courses" : "products"}/${card.slug}`;
 
 /** One item in the ministry's own Discover view (`GET /api/workspaces/:id/discover/listings`). */
 export type OwnListing = {

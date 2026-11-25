@@ -34,7 +34,7 @@ export async function createLeadForm(db: Database, user: string, workspace: stri
 }
 
 export const leadView = (l: typeof adsLeads.$inferSelect) => ({ id: l.id, formVersionId: l.formVersionId, adAccountId: l.adAccountId, network: l.network, formRef: l.formRef, campaignRef: l.campaignRef, adRef: l.adRef, status: l.status, fields: l.fields, consentText: l.consentText,
-  submittedAt: l.submittedAt?.toISOString() ?? null, version: l.version, crmContactCreated: false });
+  submittedAt: l.submittedAt?.toISOString() ?? null, version: l.version, crmContactCreated: false, inCrm: l.contactId !== null && l.convertedAt !== null });
 
 /** Pulls leads from the provider (the poll path that backs the webhook). Stored as ad-lead records only: no CRM contact and no implied consent. */
 export async function syncLeads(db: Database, user: string, workspace: string, adAccountId: string, deps: AdsDeps) {

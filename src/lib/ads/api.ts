@@ -1,5 +1,7 @@
 import type { AdAccountView, AdsAlert, ResultsRow, TreeCampaign } from "./view";
 import type { AdLevel } from "./ads";
+import type { DraftFormRow, LeadView } from "./leads-view";
+import type { FormDefinition } from "../crm-forms";
 
 // Browser side of the Ads routes under /api/workspaces/:id/social/ads. Every route answers one neutral 404 while Ads is off or the role has no access.
 export class AdsApiError extends Error {
@@ -27,6 +29,7 @@ export type AudienceView = { id: string; kind: string; name: string; sizeEstimat
 export type LaunchRequestView = { id: string; adAccountId: string; kind: string; status: string; payload: Record<string, unknown>; validation: { ok: boolean; problems: string[] } | null; reviewedAt: string | null;
   resultCampaignId: string | null; resultAdSetId: string | null; resultAdId: string | null; errorCode: string | null; version: number; createdAt: string };
 export type BoostablePost = { ref: string; platform: string; caption: string | null; publishedAt: string | null };
+export type AdFormDraft = { id: string; definition: FormDefinition; issues: string[]; frozen: boolean; publications: { versionId: string; leadFormId: string; publishedAt: string }[] };
 export type TargetingHit = { id: string; name: string; kind: string };
 
 export const adsApi = (tenantId: string) => ({
@@ -46,6 +49,17 @@ export const adsApi = (tenantId: string) => ({
   budget: (body: { level: "campaign" | "adset"; id: string; version: number; budgetAmount?: number; endDate?: string }) => adsRequest<unknown>(tenantId, "budget", { method: "POST", body: { ...body, confirm: true, idempotencyKey: newKey() } }),
   remove: (body: { level: AdLevel; id: string; version: number }) => adsRequest<unknown>(tenantId, "delete", { method: "POST", body: { ...body, confirmIrreversible: true, idempotencyKey: newKey() } }),
   leadForms: (adAccountId: string) => adsRequest<{ forms: LeadFormView[] }>(tenantId, `lead-forms?adAccountId=${adAccountId}`),
+  leads: (adAccountId: string) => adsRequest<{ leads: LeadView[] }>(tenantId, `leads?adAccountId=${adAccountId}`),
+  syncLeads: (adAccountId: string) => adsRequest<{ added: number }>(tenantId, `accounts/${adAccountId}/leads-sync`, { method: "POST" }),
+  leadStatus: (id: string, status: string, version: number) => adsRequest<{ lead: LeadView }>(tenantId, `leads/${id}`, { method: "PATCH", body: { status, version } }),
+  deleteLead: (id: string) => adsRequest<{ deleted: boolean }>(tenantId, `leads/${id}`, { method: "DELETE" }),
+  convertLead: (id: string) => adsRequest<{ outcome: string; created: boolean }>(tenantId, `leads/${id}/convert`, { method: "POST" }),
+  convertNewLeads: (adAccountId: string) => adsRequest<{ converted: number; created: number; matched: number; notConvertible: number; conflict: number }>(tenantId, `accounts/${adAccountId}/leads-convert`, { method: "POST" }),
+  formDrafts: () => adsRequest<{ forms: DraftFormRow[] }>(tenantId, "lead-form-drafts"),
+  createFormDraft: (network: string, privacyUrl: string) => adsRequest<{ id: string }>(tenantId, "lead-form-drafts", { method: "POST", body: { network, privacyUrl } }),
+  formDraft: (id: string) => adsRequest<AdFormDraft>(tenantId, `lead-form-drafts/${id}`),
+  saveFormDraft: (id: string, definition: FormDefinition, revision: number) => adsRequest<{ revision: number; definition: FormDefinition; issues: string[] }>(tenantId, `lead-form-drafts/${id}`, { method: "PATCH", body: { definition, revision } }),
+  publishForm: (id: string, adAccountId: string, revision: number) => adsRequest<{ outcome: "published" | "already"; leadFormId: string }>(tenantId, `lead-form-drafts/${id}/publish`, { method: "POST", body: { adAccountId, revision, idempotencyKey: newKey() } }),
   audiences: (adAccountId: string) => adsRequest<{ audiences: AudienceView[] }>(tenantId, `audiences?adAccountId=${adAccountId}`),
   boostable: (adAccountId: string) => adsRequest<{ posts: BoostablePost[] }>(tenantId, `boostable-posts?adAccountId=${adAccountId}`),
   searchTargeting: (adAccountId: string, kind: string, query: string, signal?: AbortSignal) => adsRequest<{ hits: TargetingHit[] }>(tenantId, "targeting-search", { method: "POST", body: { adAccountId, kind, query }, signal }),

@@ -58,7 +58,7 @@ export function InboxList({ tenantId, view, filters, search, selected, me, accou
     </div>
 
     {view.status === "ready" && (problems.length > 0 || view.partial.length > 0 || view.refreshFailed) && <div className="space-y-2 border-b p-3" data-testid="list-notices">
-      {problems.length > 0 && <Alert role="status" data-testid="accounts-problem"><TriangleAlert aria-hidden="true" /><AlertTitle>{t("partial.accountsTitle")}</AlertTitle><AlertDescription>
+      {problems.length > 0 && <Alert variant="attention" role="status" data-testid="accounts-problem"><TriangleAlert aria-hidden="true" /><AlertTitle>{t("partial.accountsTitle")}</AlertTitle><AlertDescription>
         <ul className="list-disc pl-4">{problems.map((channel) => <li key={channel.id}>{t("partial.line", { name: channel.displayName ?? platformLabels[channel.platform], state: t(`partial.state.${accountProblem(channel)}`) })}</li>)}</ul>
         <Link href={`/workspaces/${tenantId}/social/accounts`} prefetch={false} className="mt-1 inline-block font-medium underline underline-offset-2">{t("manageAccounts")}</Link></AlertDescription></Alert>}
       {view.partial.length > 0 && <Alert role="status" data-testid="partial-notice"><TriangleAlert aria-hidden="true" /><AlertTitle>{t("partial.title")}</AlertTitle><AlertDescription>
