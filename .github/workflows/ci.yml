@@ -2,7 +2,7 @@ name: CI
 # The repository is public (12 Nov 2026), so GitHub-hosted minutes are free. This workflow is the
 # main CI: it runs on every PR and on main, and can be started by hand (Actions → CI → Run workflow).
 # No job deploys or sends real messages. The Neon check runs only from main (see the neon job).
-# CircleCI remains available as an optional extra check.
+# It is the only CI: CircleCI was removed on 25 Nov 2026.
 on:
   pull_request:
   push:
@@ -77,7 +77,7 @@ jobs:
 
   browser:
     # Playwright splits the spec files across four runners; each starts its own dev server and
-    # disposable embedded Postgres (tests/database.ts), as in the former CircleCI final review.
+    # disposable embedded Postgres (tests/database.ts), so shards do not share state.
     name: browser ${{ matrix.shard }}/4
     if: ${{ inputs.pr_number == '' }}
     timeout-minutes: 45

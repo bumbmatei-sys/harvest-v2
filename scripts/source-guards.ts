@@ -228,7 +228,7 @@ export function inspectQaBoundary(file: string, source: string): BoundaryViolati
 }
 
 export function checkQaBoundary() {
-  const configs = [".env.example", "next.config.ts", "package.json", ...[".github/workflows", ".circleci"].flatMap((directory) =>
+  const configs = [".env.example", "next.config.ts", "package.json", ...[".github/workflows"].flatMap((directory) =>
     readdirSync(directory).filter((file) => /\.ya?ml$/.test(file)).map((file) => join(directory, file)))];
   return [...sourceFiles("src"), ...sourceFiles("scripts"), ...configs]
     .flatMap((file) => inspectQaBoundary(file, readFileSync(file, "utf8")));
