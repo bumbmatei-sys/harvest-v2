@@ -8,7 +8,7 @@ export type CommunityStats = {
   members: { active: number | null; pending: number | null; joined: number | null };
   /** Started: applications created in the period. Approved and declined: decisions made in the period. */
   applications: { started: number | null; approved: number | null; declined: number | null; approvalPercent: number | null; averageHoursToDecision: number | null };
-  /** Contributors are distinct people who posted or commented in the period. Unanswered: posts older than 24 hours without a visible comment, from the last 90 days (snapshot). */
+  /** Contributors are distinct people who posted or commented in the period. Posts and unanswered posts exclude removed and held posts, like comments. Unanswered: posts older than 24 hours without a visible comment, from the last 90 days (snapshot). */
   engagement: { posts: number | null; comments: number | null; contributors: number | null; unansweredPosts: number | null };
   safety: { reportsOpened: number | null; reportsResolved: number | null; averageHoursToResolve: number | null; openNow: number | null };
   unavailable: readonly CommunityStatsUnavailable[];

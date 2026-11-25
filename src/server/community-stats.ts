@@ -34,7 +34,7 @@ export async function getCommunityStats(db: Database, userId: string, workspace:
     if (!owned) throw new AccessError(404, message("Errors.workspaceUnavailable"));
     const id = community.data, bounds = regionBounds(now), bounded = bound(bounds), regions = periodRegions(period, now), window = periodWindows(now)[period], first = bounds[0]!;
     const from = first.toISOString(), to = now.toISOString(), start = window.start.toISOString(), end = window.end.toISOString();
-    const scope = (alias: string) => sql.raw(`${alias}.tenant_id = '${tenantId}'::uuid and ${alias}.community_id = '${id}'::uuid`);
+    const scope = (alias: string) => sql`${sql.identifier(alias)}.tenant_id = ${tenantId}::uuid and ${sql.identifier(alias)}.community_id = ${id}::uuid`;
     const cells = async (query: ReturnType<typeof sql>) => (await tx.execute<Cell>(query)).rows;
 
     // Counted per atomic region so a published figure is always a sum of safe regions.
@@ -45,7 +45,7 @@ export async function getCommunityStats(db: Database, userId: string, workspace:
     const decided = await cells(sql`select ${regionOf(sql`a.decided_at`, bounded)} as region, a.status as key, count(*)::int as n from public.community_applications a
       where ${scope("a")} and a.status in ('approved','declined') and a.decided_at >= ${from}::timestamptz and a.decided_at < ${to}::timestamptz group by 1, 2`);
     const posts = await cells(sql`select ${regionOf(sql`p.created_at`, bounded)} as region, 'posts' as key, count(*)::int as n from public.community_posts p
-      where ${scope("p")} and p.created_at >= ${from}::timestamptz and p.created_at < ${to}::timestamptz group by 1`);
+      where ${scope("p")} and p.removed_at is null and p.held_at is null and p.created_at >= ${from}::timestamptz and p.created_at < ${to}::timestamptz group by 1`);
     const comments = await cells(sql`select ${regionOf(sql`c.created_at`, bounded)} as region, 'comments' as key, count(*)::int as n from public.community_comments c
       where ${scope("c")} and c.removed_at is null and c.held_at is null and c.created_at >= ${from}::timestamptz and c.created_at < ${to}::timestamptz group by 1`);
     const reports = await cells(sql`select ${regionOf(sql`r.created_at`, bounded)} as region, 'opened' as key, count(*)::int as n from public.community_reports r
@@ -55,18 +55,18 @@ export async function getCommunityStats(db: Database, userId: string, workspace:
     const snapshots = (await tx.execute<{ key: string; n: number }>(sql`
       select 'active' as key, count(*)::int as n from public.community_memberships m where ${scope("m")} and m.status = 'active'
       union all select 'pending', count(*)::int from public.community_memberships m where ${scope("m")} and m.status = 'pending'
-      union all select 'unanswered', count(*)::int from public.community_posts p where ${scope("p")} and p.created_at < ${to}::timestamptz - interval '24 hours' and p.created_at >= ${to}::timestamptz - interval '90 days'
+      union all select 'unanswered', count(*)::int from public.community_posts p where ${scope("p")} and p.removed_at is null and p.held_at is null and p.created_at < ${to}::timestamptz - interval '24 hours' and p.created_at >= ${to}::timestamptz - interval '90 days'
         and not exists (select 1 from public.community_comments c where c.tenant_id = p.tenant_id and c.post_id = p.id and c.removed_at is null and c.held_at is null)
       union all select 'open', count(*)::int from public.community_reports r where ${scope("r")} and r.status = 'open'`)).rows;
     const snap = (key: string) => snapshots.find(row => row.key === key)?.n ?? 0;
     // Distinct people are not additive across regions: counted over the whole period and withheld when 1 to 4.
     const contributorsN = (await tx.execute<{ n: number }>(sql`select count(*)::int as n from (
-      select p.author_id from public.community_posts p where ${scope("p")} and p.author_id is not null and p.created_at >= ${start}::timestamptz and p.created_at < ${end}::timestamptz
+      select p.author_id from public.community_posts p where ${scope("p")} and p.removed_at is null and p.held_at is null and p.author_id is not null and p.created_at >= ${start}::timestamptz and p.created_at < ${end}::timestamptz
       union select c.author_id from public.community_comments c where ${scope("c")} and c.author_id is not null and c.removed_at is null and c.held_at is null
         and c.created_at >= ${start}::timestamptz and c.created_at < ${end}::timestamptz) x`)).rows[0]!.n;
-    const hours = async (table: "community_applications" | "community_reports", statuses: string) => (await tx.execute<{ n: number; hours: number | null }>(sql.raw(`
-      select count(*)::int as n, avg(extract(epoch from (x.decided_at - x.created_at)) / 3600)::float8 as hours from public.${table} x
-      where x.tenant_id = '${tenantId}'::uuid and x.community_id = '${id}'::uuid and x.status in (${statuses}) and x.decided_at >= '${start}'::timestamptz and x.decided_at < '${end}'::timestamptz`))).rows[0]!;
+    const hours = async (table: "community_applications" | "community_reports", statuses: readonly string[]) => (await tx.execute<{ n: number; hours: number | null }>(sql`
+      select count(*)::int as n, avg(extract(epoch from (x.decided_at - x.created_at)) / 3600)::float8 as hours from public.${sql.identifier(table)} x
+      where ${scope("x")} and x.status in (${sql.join(statuses.map(status => sql`${status}`), sql`, `)}) and x.decided_at >= ${start}::timestamptz and x.decided_at < ${end}::timestamptz`)).rows[0]!;
 
     // One release decision per family of figures, so complementary suppression applies inside the family.
     const family = (keys: readonly string[], source: readonly Cell[]) => {
@@ -77,7 +77,7 @@ export async function getCommunityStats(db: Database, userId: string, workspace:
     const postsF = family(["posts"], posts), commentsF = family(["comments"], comments), opened = family(["opened"], reports), resolvedF = family(["resolved"], resolved);
     const snapshot = (key: string, label: string) => { const rows = toRows([{ region: 0, key: label, n: snap(key) }], [label]), release = releaseRows([0], rows); return release.hidden.has(label) ? null : snap(key); };
     const approved = decisions.value("approved"), declined = decisions.value("declined");
-    const appHours = await hours("community_applications", "'approved','declined'"), reportHours = await hours("community_reports", "'dismissed','actioned'");
+    const appHours = await hours("community_applications", ["approved", "declined"]), reportHours = await hours("community_reports", ["dismissed", "actioned"]);
     const decidedAll = decisions.total;
 
     return {

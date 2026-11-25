@@ -103,6 +103,21 @@ it("returns no person: no names, ids or emails anywhere in the response", async 
   expect(keys(await stats(big, "last90")).filter(k => /user|author|member(?!s)|email|name|reporter/i.test(k))).toEqual([]);
 });
 
+it("leaves moderator-removed and held posts out of the posts count, contributors and unanswered snapshot", async () => {
+  const before = await stats(big, "last7");
+  expect(before.engagement).toMatchObject({ posts: 7, contributors: 8, unansweredPosts: 5 });
+  const ids = (await q("select id from community_posts where community_id=$1 and not exists (select 1 from community_comments c where c.post_id=community_posts.id) order by id", [big])).rows.map(r => r.id);
+  // Remove two unanswered posts and hold one: 4 posts remain visible, so the figure is withheld rather than shown as 4.
+  await q("update community_posts set removed_at=now() where id = any($1::uuid[])", [ids.slice(0, 2)]);
+  await q("update community_posts set held_at=now(), held_reason='first_post' where id=$1", [ids[2]]);
+  const after = await stats(big, "last7");
+  expect(after.engagement.posts).toBeNull();
+  expect(after.engagement.unansweredPosts).toBeNull();
+  await q("update community_posts set held_at=null, held_reason=null where id=$1", [ids[2]]);
+  await q("update community_posts set removed_at=null where id = any($1::uuid[])", [ids.slice(0, 2)]);
+  expect((await stats(big, "last7")).engagement.posts).toBe(7);
+});
+
 it("is read only", async () => {
   const before = (await q("select (select count(*) from community_posts)::int p, (select count(*) from audit_logs)::int a, (select count(*) from community_memberships)::int m")).rows[0];
   await stats(big, "last30");

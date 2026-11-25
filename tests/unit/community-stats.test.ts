@@ -12,3 +12,6 @@ it("is read only and never selects a person", () => {
   expect(source).not.toMatch(/select[^;]*\b(email|name|user_id)\b/i);
   expect(source).toContain('"communities:manage"');
 });
+it("builds every query from template parameters, never string interpolation", () => {
+  expect(source).not.toMatch(/sql\.raw/);
+});
