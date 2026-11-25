@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { editorContextKey, editorStepState, editorStepViews, stepPosition, type EditorContextData } from "@/lib/editor-context";
+import { editorContextKey, editorStepState, editorStepViews, stepMarkClass, stepMarkKind, stepPosition, type EditorContextData } from "@/lib/editor-context";
 import { checklistStep, communityEditorSteps, publishChecklist, stepNeedsAttention } from "@/lib/community-editor";
 
 const steps = [
@@ -61,5 +61,25 @@ describe("community step attention", () => {
     expect(checklistStep("name")).toBe("basics");
     expect(checklistStep("admission")).toBe("joining");
     expect(checklistStep("visibility")).toBe("joining");
+  });
+});
+
+describe("step marker (state to icon and colour)", () => {
+  it("draws a finished step as the green check, whether or not it is the current step", () => {
+    expect(stepMarkKind({ state: "done", current: false })).toBe("done");
+    expect(stepMarkKind({ state: "done", current: true })).toBe("done");
+    expect(stepMarkClass.done).toContain("text-step-done");
+    expect(stepMarkClass.done).toContain("border-step-done");
+  });
+  it("keeps the current step the filled primary circle and a step that needs input the alert mark", () => {
+    expect(stepMarkKind({ state: "todo", current: true })).toBe("current");
+    expect(stepMarkKind({ state: "attention", current: true })).toBe("attention");
+    expect(stepMarkKind({ state: "attention", current: false })).toBe("attention");
+    expect(stepMarkKind({ state: "todo", current: false })).toBe("todo");
+    expect(stepMarkKind({ state: "disabled", current: false })).toBe("todo");
+    expect(stepMarkKind({ state: "disabled", current: true })).toBe("todo");
+  });
+  it("only a done step is green", () => {
+    for (const kind of ["attention", "current", "todo"] as const) expect(stepMarkClass[kind]).not.toContain("step-done");
   });
 });

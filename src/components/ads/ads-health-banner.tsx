@@ -12,7 +12,7 @@ export function AdsHealthBanner({ account, alerts, onDismiss }: { account: AdAcc
   const checks = healthChecks.filter((name) => ["warning", "failing"].includes(account.health[name]?.state ?? "unknown"));
   const restricted = account.status !== "active" && account.status !== "unknown";
   if (!restricted && !checks.length && !alerts.length && !account.lastRefusal && account.syncState !== "failing") return null;
-  return <Alert variant={restricted || account.syncState === "failing" ? "destructive" : "default"} role="status" data-ads-health>
+  return <Alert variant="attention" role="status" data-ads-health>
     <AlertTriangle aria-hidden="true" />
     <AlertTitle>{restricted ? t("accountStatus", { status: t(`status.${account.status}`) }) : t("needsAttention")}</AlertTitle>
     <AlertDescription>
