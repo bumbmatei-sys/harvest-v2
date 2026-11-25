@@ -96,7 +96,7 @@ export type Creative = z.infer<typeof creativeSchema>;
 
 const schedule = { startDate: isoDay.optional(), endDate: isoDay.optional() };
 const campaignShape = {
-  adAccountId: uuidKey, name: text(200), goal: z.enum(adGoals),
+  adAccountId: uuidKey, name: text(200), adSetName: text(200).optional(), goal: z.enum(adGoals),
   budgetAmount: money, budgetType: z.enum(budgetTypes).default("daily"), budgetLevel: z.enum(budgetLevels).default("campaign"),
   ...schedule, status: z.enum(["paused", "active"]).default("paused"),
   bidding: biddingSchema.optional(), specialAdCategories: z.array(z.enum(specialAdCategories)).max(5).default([]),

@@ -22,7 +22,9 @@ Route `/workspaces/[id]/social/ads`, nav item **Ads** (target icon) in Social me
 
 Guided create and Boost a post are PR 2 (below); lead forms and leads are PR 3.
 
-## PR 2: guided create and Boost a post
+## PR 2: guided create (nine steps) and Boost a post
+
+**Reworked 25 Nov to the founder's workflow:** CAMPAIGN 01 Create (new campaign, a new ad in an ad set that exists, or boost a post), 02 Objective, 03 Budget; AD SET 04 Ad set (name and bid strategy), 05 Audience, 06 Placements, 07 Schedule; AD 08 Ad, 09 Publish. The steps sit in the shared step list under the group labels Campaign, Ad set and Ad (a new optional `group` on the shared step components), finished steps carry the green check (#250) and the group markers use the gold chart token. The Objective step has the buying type on top (auction, the only one the server accepts), then the objective rows (radio, icon tile, label) beside a detail panel (illustration slot, title, one line, Good for chips; a generic explainer before a choice; under the list on a phone). `ObjectiveArt` (`src/components/ads/objective-art.tsx`) is a neutral placeholder with a fixed props contract for the code-drawn illustrations. Cancel and Continue are in the footer. Flows that do not need a step show it disabled (an added ad has no objective or budget; a boost has no ad step). Server: optional `adSetName` on the campaign payload. Validation, the launch gate and the idempotency key are unchanged.
 
 Route `/workspaces/[id]/social/ads/new` (also `?mode=boost`, `?account=`, `?request=`). Header buttons **Create ad** and **Boost a post** on the manager.
 

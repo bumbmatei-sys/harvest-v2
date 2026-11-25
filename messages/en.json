@@ -8185,14 +8185,20 @@
       "typeLabel": "Ad",
       "stepsLabel": "Create ad steps",
       "steps": {
-        "goal": "Goal",
+        "create": "Create",
+        "objective": "Objective",
+        "budget": "Budget",
         "adset": "Ad set",
+        "audience": "Audience",
+        "placements": "Placements",
+        "schedule": "Schedule",
         "ad": "Ad",
-        "review": "Review and launch"
+        "publish": "Publish"
       },
       "mode": {
         "label": "What do you want to do?",
-        "campaign": "Create an ad",
+        "campaign": "Create new campaign",
+        "add_ad": "New ad in an ad set",
         "boost": "Boost a post"
       },
       "account": "Ad account",
@@ -8220,7 +8226,9 @@
         "phone": "Enter a phone number with the country code, like +15550100100.",
         "link": "Enter a web address starting with https://.",
         "leadForm": "Choose a lead form for a lead goal.",
-        "launchFailed": "The ad network did not accept the ad. Check it and try again."
+        "launchFailed": "The ad network did not accept the ad. Check it and try again.",
+        "adSet": "Choose an ad set.",
+        "bid": "Enter a bid limit above zero."
       },
       "countries": "Countries",
       "addCountry": "Add a country",
@@ -8245,7 +8253,8 @@
         "placements": "Placements",
         "budget": "Budget and schedule",
         "categories": "Special ad categories",
-        "existing": "Ad set"
+        "existing": "Ad set",
+        "schedule": "Schedule"
       },
       "placements": {
         "automatic": "Automatic",
@@ -8269,7 +8278,7 @@
         "financial_products_services": "Financial products and services",
         "social_issues_elections_politics": "Social issues, elections or politics"
       },
-      "existingAdSet": "Add to an existing ad set",
+      "existingAdSet": "Ad set to add the ad to",
       "newAdSet": "Create a new ad set",
       "format": "Format",
       "imageLabel": "Images",
@@ -8347,7 +8356,7 @@
       "startOver": "Start over",
       "restored": "Your unfinished draft was restored.",
       "back": "Back",
-      "next": "Next",
+      "next": "Continue",
       "review": {
         "account": "Ad account",
         "kind": "Type",
@@ -8388,6 +8397,85 @@
         "paused": "Your {kind} was created and is paused.",
         "view": "View in Ads",
         "another": "Create another"
+      },
+      "groups": {
+        "campaign": "Campaign",
+        "adset": "Ad set",
+        "ad": "Ad"
+      },
+      "cancel": "Cancel",
+      "existingAdSetBoost": "Add to an existing ad set",
+      "chooseAdSet": "Choose an ad set",
+      "noAdSets": "This account has no ad sets to add to yet.",
+      "adSetName": "Ad set name",
+      "bidStrategy": "Bid strategy",
+      "bidAmount": "Bid limit",
+      "adName": "Ad name",
+      "bid": {
+        "lowest_cost": "Lowest cost",
+        "cost_cap": "Cost cap",
+        "bid_cap": "Bid cap"
+      },
+      "objective": {
+        "buying": "Buying type",
+        "buyingType": {
+          "auction": "Auction"
+        },
+        "list": "Objective",
+        "detail": "About this objective",
+        "genericTitle": "Choose an objective",
+        "genericBody": "Your objective says what a good result is, so the ad network can show the ad to the people most likely to give it.",
+        "goodFor": "Good for",
+        "items": {
+          "awareness": {
+            "description": "Show your ministry to as many people nearby as possible.",
+            "good1": "New neighbours",
+            "good2": "Community events",
+            "good3": "Brand recognition"
+          },
+          "traffic": {
+            "description": "Send people to your website or event page.",
+            "good1": "Event pages",
+            "good2": "Sermon archive",
+            "good3": "Giving page"
+          },
+          "engagement": {
+            "description": "Get more reactions, comments and shares on a post.",
+            "good1": "Announcements",
+            "good2": "Testimonies",
+            "good3": "Questions"
+          },
+          "video_views": {
+            "description": "Get a video watched by more people.",
+            "good1": "Sermon clips",
+            "good2": "Welcome videos",
+            "good3": "Testimonies"
+          },
+          "lead_generation": {
+            "description": "Collect names and contact details with a form.",
+            "good1": "Camp sign-ups",
+            "good2": "Visitor follow-up",
+            "good3": "Course interest"
+          },
+          "messages": {
+            "description": "Start conversations with people who message you.",
+            "good1": "Questions",
+            "good2": "Prayer requests",
+            "good3": "Visit planning"
+          },
+          "conversions": {
+            "description": "Get people to take an action on your website.",
+            "good1": "Registrations",
+            "good2": "Donations",
+            "good3": "Purchases"
+          },
+          "app_promotion": {
+            "description": "Get more people to install and use your app.",
+            "good1": "Bible apps",
+            "good2": "Church apps",
+            "good3": "Giving apps"
+          }
+        }
       }
     }
   }
