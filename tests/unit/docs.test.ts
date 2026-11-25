@@ -2,7 +2,7 @@ import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import messages from "../../messages/en.json";
-import { type DocContent, buildPageTree, contentStats, docOutline, docRights, DocContentError, flattenTree, folderNameKey, reorder, resolvePageStyle, safeDocHref, sanitizeDocContent, subtreeIds } from "../../src/lib/docs";
+import { type DocContent, buildPageTree, contentStats, docOutline, docRights, DocContentError, flattenTree, folderNameKey, pendingPageFields, reorder, resolvePageStyle, safeDocHref, sanitizeDocContent, subtreeIds } from "../../src/lib/docs";
 import { docHref, docsHref, folderPath, folderSubtree } from "../../src/lib/docs-list";
 import { can } from "../../src/lib/permissions";
 
@@ -78,5 +78,19 @@ describe("docs message catalogue", () => {
   });
   it("uses provider-neutral copy", () => {
     expect(JSON.stringify((messages as Record<string, unknown>).Docs)).not.toMatch(/clickup|notion|google|microsoft/i);
+  });
+});
+
+describe("pending page fields (the save and the page-leave flush)", () => {
+  const base = { edits: 3, savedEdits: 3, title: "T", savedTitle: "T", style: null, getContent: () => { throw new Error("content read although the text is unchanged"); } };
+  it("is null when nothing is pending, and never reads the editor then", () => {
+    expect(pendingPageFields(base)).toBeNull();
+  });
+  it("carries a style change on its own, so a toggle followed by an immediate reload is sent", () => {
+    expect(pendingPageFields({ ...base, style: { font: "serif" } })).toEqual({ style: { font: "serif" } });
+  });
+  it("carries text, title and style together", () => {
+    expect(pendingPageFields({ ...base, edits: 4, title: "New", style: { width: "wide" }, getContent: () => ({ type: "doc" }) }))
+      .toEqual({ content: { type: "doc" }, title: "New", style: { width: "wide" } });
   });
 });
