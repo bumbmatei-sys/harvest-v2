@@ -25,14 +25,15 @@ export async function createLeadForm(db: Database, user: string, workspace: stri
   return withAds(db, user, workspace, deps, async (tx, tenant) => {
     const [row] = await tx.insert(adsLeadForms).values({ tenantId: tenant, adAccountId: input.adAccountId, externalRef: remote.ref, name: input.name, consentText: input.consentText, privacyUrl: input.privacyUrl, questions: input.questions, createdBy: user,
       // A grant exists only for a consent question the form actually asks: the mapping is derived from the questions, never assumed.
-      consentQuestions: { ...(input.questions.includes("consent_newsletter") ? { newsletter: "consent_newsletter" } : {}), ...(input.questions.includes("consent_follow_up") ? { form_follow_up: "consent_follow_up" } : {}) } })
+      consentQuestions: { ...(input.questions.includes("consent_newsletter") ? { newsletter: "consent_newsletter" } : {}), ...(input.questions.includes("consent_follow_up") ? { form_follow_up: "consent_follow_up" } : {}),
+        ...(input.questions.includes("consent_marketing") ? { marketing: "consent_marketing" } : {}) } })
       .onConflictDoUpdate({ target: [adsLeadForms.tenantId, adsLeadForms.adAccountId, adsLeadForms.externalRef], set: { name: input.name } }).returning();
     await audit(tx, tenant, user, "lead_form_create", row.id);
     return { form: { id: row.id, name: row.name, status: row.status, questions: row.questions } };
   });
 }
 
-export const leadView = (l: typeof adsLeads.$inferSelect) => ({ id: l.id, adAccountId: l.adAccountId, network: l.network, formRef: l.formRef, campaignRef: l.campaignRef, adRef: l.adRef, status: l.status, fields: l.fields, consentText: l.consentText,
+export const leadView = (l: typeof adsLeads.$inferSelect) => ({ id: l.id, formVersionId: l.formVersionId, adAccountId: l.adAccountId, network: l.network, formRef: l.formRef, campaignRef: l.campaignRef, adRef: l.adRef, status: l.status, fields: l.fields, consentText: l.consentText,
   submittedAt: l.submittedAt?.toISOString() ?? null, version: l.version, crmContactCreated: false });
 
 /** Pulls leads from the provider (the poll path that backs the webhook). Stored as ad-lead records only: no CRM contact and no implied consent. */
@@ -42,13 +43,13 @@ export async function syncLeads(db: Database, user: string, workspace: string, a
   try { let cursor: string | undefined; for (let i = 0; i < 20; i++) { const page = await prepared.access.provider.listLeads(prepared.access.credential, { ...prepared.access.query, cursor }); leads.push(...page.items); if (!page.nextCursor) break; cursor = page.nextCursor; } }
   catch (error) { throw invalid(`PROVIDER_${failureCode(error)}`); }
   return withAds(db, user, workspace, deps, async (tx, tenant) => {
-    const forms = await tx.select({ ref: adsLeadForms.externalRef, consent: adsLeadForms.consentText }).from(adsLeadForms).where(and(eq(adsLeadForms.tenantId, tenant), eq(adsLeadForms.adAccountId, prepared.ctx.account.id)));
-    const consent = new Map(forms.map(f => [f.ref, f.consent]));
+    const forms = await tx.select({ ref: adsLeadForms.externalRef, consent: adsLeadForms.consentText, version: adsLeadForms.formVersionId }).from(adsLeadForms).where(and(eq(adsLeadForms.tenantId, tenant), eq(adsLeadForms.adAccountId, prepared.ctx.account.id)));
+    const consent = new Map(forms.map(f => [f.ref, f.consent])), versions = new Map(forms.map(f => [f.ref, f.version]));
     let added = 0;
     for (const l of leads.slice(0, 2000)) {
       const fields = Object.fromEntries(Object.entries(l.fields).filter(([, v]) => typeof v === "string").slice(0, 30).map(([k, v]) => [k.slice(0, 60), v.slice(0, 500)]));
       const res = await tx.insert(adsLeads).values({ tenantId: tenant, adAccountId: prepared.ctx.account.id, network: l.network, leadRef: l.ref, formRef: l.formRef, campaignRef: l.campaignRef, adRef: l.adRef, fields,
-        consentText: l.formRef ? consent.get(l.formRef) ?? null : null, submittedAt: l.submittedAt }).onConflictDoNothing().returning({ id: adsLeads.id });
+        consentText: l.formRef ? consent.get(l.formRef) ?? null : null, formVersionId: l.formRef ? versions.get(l.formRef) ?? null : null, submittedAt: l.submittedAt }).onConflictDoNothing().returning({ id: adsLeads.id });
       added += res.length;
     }
     await audit(tx, tenant, user, "leads_sync", prepared.ctx.account.id, { added: String(added) });
