@@ -199,6 +199,20 @@ it.each(["withdraw", "erase", "disable", "merge"] as const)("lets %s win after c
   if (action === "disable") await updateIdentity(fixture.db, owner, tenant, senderId, { enabled: true, version: senderVersion++ });
 });
 
+it("puts the sender's display name in the From header, quoted or encoded as the standard requires", async () => {
+  for (const [name, expected] of [["Smith, Anna", '"Smith, Anna" <sender@sending.example.test>'], ["Grace Church", "Grace Church <sender@sending.example.test>"],
+    ["Église", "=?UTF-8?B?w4lnbGlzZQ==?= <sender@sending.example.test>"], [null, "sender@sending.example.test"]] as const) {
+    await updateIdentity(fixture.db, owner, tenant, senderId, { displayName: name, version: senderVersion++ });
+    const list = await makeList();
+    const person = await subscribe([list]);
+    await queue(list);
+    const provider = new FakeNewsletterProvider(), submit = vi.spyOn(provider, "submit");
+    await worker(provider);
+    expect(submit.mock.calls.find(([message]) => message.to === person.email)?.[0].from).toBe(expected);
+  }
+  await updateIdentity(fixture.db, owner, tenant, senderId, { displayName: null, version: senderVersion++ });
+});
+
 it("recovers a lost lease and reconciles a lost receipt by delivery tag and accepts replay-safe out-of-order callbacks", async () => {
   const list = await makeList();
   const person = await subscribe([list]);

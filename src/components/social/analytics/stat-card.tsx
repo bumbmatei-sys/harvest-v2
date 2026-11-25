@@ -1,6 +1,7 @@
 /** Derived from bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): app/dashboard/(auth)/finance/components/kpi-cards.tsx. Harvest changes: docs/ui-sources.md. */
 "use client";
 
+import { cn } from "@/lib/utils";
 import { Card, CardAction, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { TrendingDownIcon, TrendingUpIcon, MinusIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -14,8 +15,9 @@ import { type Delta, type Reading, type SeriesPoint } from "@/lib/social/analyti
 const chartConfig = { value: { label: "", color: "var(--chart-1)" } } satisfies ChartConfig;
 
 /** One headline number with its change against the previous period and a trend sparkline. A missing reading says "Unavailable"; it is never drawn as zero. */
-export function StatCard({ label, reading, delta, points, animate, index, signed = false, format, periodLabel }: {
-  label: string; reading: Reading; delta: Delta | null; points: readonly SeriesPoint[]; animate: boolean; index: number; signed?: boolean;
+export function StatCard({ label, reading, delta, points, animate, index, signed = false, format, periodLabel, attention = false }: {
+  /** A figure that needs attention: red text on a faintly red card. */
+  attention?: boolean; label: string; reading: Reading; delta: Delta | null; points: readonly SeriesPoint[]; animate: boolean; index: number; signed?: boolean;
   format: (value: number) => string; periodLabel: string;
 }) {
   const t = useTranslations("SocialAnalytics.cards");
@@ -26,7 +28,7 @@ export function StatCard({ label, reading, delta, points, animate, index, signed
   const percent = delta?.percent === null || delta === null ? null : `${delta.percent > 0 ? "+" : ""}${Math.round(delta.percent)}%`;
   const change = delta ? (percent ?? `${delta.difference > 0 ? "+" : ""}${format(delta.difference)}`) : null;
   return (
-    <Card className={entry.className} style={entry.style} data-testid="stat-card" data-metric={label}>
+    <Card className={cn(entry.className, attention && "border-destructive/30 bg-destructive/5 text-destructive dark:bg-destructive/10")} style={entry.style} data-testid="stat-card" data-metric={label}>
       <CardHeader>
         <CardTitle>{label}</CardTitle>
         {delta && change && (
