@@ -97,3 +97,38 @@ describe("ads kit approvals", () => {
     }
   });
 });
+
+import { emptyDraft, fromPayload, problems, stepsFor, toPayload, type Draft } from "../../src/lib/ads/create";
+import { launchPayload } from "../../src/lib/ads/ads";
+describe("ads create model", () => {
+  const good = (patch: Partial<Draft> = {}): Draft => ({ ...emptyDraft("campaign", "11111111-1111-4111-8111-111111111111"), name: "Easter", goal: "traffic", budgetAmount: "20", format: "text", body: "Join us", linkUrl: "https://example.test/easter", ...patch });
+  it("turns a complete draft into a payload the server's own schema accepts, and refuses an incomplete one with the field and step", () => {
+    expect(problems(good())).toEqual([]);
+    expect(() => launchPayload("campaign", toPayload(good()))).not.toThrow();
+    expect(problems(good({ name: "" })).map((p) => [p.field, p.step])).toEqual([["name", "goal"]]);
+    expect(problems(good({ goal: "" })).some((p) => p.field === "goal")).toBe(true);
+    expect(problems(good({ budgetAmount: "" })).map((p) => [p.field, p.step])).toEqual([["budgetAmount", "adset"]]);
+    expect(problems(good({ format: "image" })).map((p) => [p.field, p.step])).toEqual([["creative.mediaRefs", "ad"]]);
+    expect(problems(good({ budgetType: "lifetime" })).map((p) => [p.field, p.step])).toEqual([["endDate", "adset"]]);
+    expect(problems(good({ goal: "lead_generation" })).map((p) => p.field)).toEqual(["creative.leadFormId"]);
+  });
+  it("sends no placements for automatic and the chosen ones for manual", () => {
+    expect(toPayload(good())).not.toHaveProperty("placements");
+    expect(toPayload(good({ placementsMode: "manual", placements: ["feed", "reels"] }))).toMatchObject({ placements: ["feed", "reels"] });
+    expect(() => launchPayload("campaign", toPayload(good({ placementsMode: "manual", placements: ["feed"] })))).not.toThrow();
+  });
+  it("keeps a campaign that starts paused unless asked, and flags the refused category on the ad set step", () => {
+    expect(toPayload(good()).status).toBe("paused");
+    expect(problems(good({ categories: ["social_issues_elections_politics"] })).map((p) => [p.field, p.step])).toEqual([["specialAdCategories", "adset"]]);
+  });
+  it("boosting needs a post and has no ad step", () => {
+    const boost = emptyDraft("boost", "11111111-1111-4111-8111-111111111111");
+    expect(stepsFor("boost")).toEqual(["goal", "adset", "review"]);
+    expect(problems({ ...boost, name: "Boost", goal: "engagement", budgetAmount: "10" }).map((p) => p.field)).toEqual(["postRef"]);
+    expect(() => launchPayload("boost", toPayload({ ...boost, name: "Boost", goal: "engagement", budgetAmount: "10", postRef: "p1" }))).not.toThrow();
+  });
+  it("round-trips a saved payload back into the form", () => {
+    const original = good({ countries: ["US", "CA"], ageMin: "21", gender: "female", placementsMode: "manual", placements: ["feed"], interests: [{ id: "i1", name: "Music" }], status: "active", cta: "sign_up" });
+    expect(fromPayload("campaign", toPayload(original))).toMatchObject({ name: "Easter", goal: "traffic", budgetAmount: "20", countries: ["US", "CA"], ageMin: "21", gender: "female", placements: ["feed"], interests: [{ id: "i1", name: "Music" }], status: "active", cta: "sign_up", format: "text" });
+  });
+});
