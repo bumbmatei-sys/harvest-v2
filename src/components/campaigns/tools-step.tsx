@@ -19,8 +19,8 @@ export function ToolsStep({ form, set, disabled, type }: { form: WizardForm; set
   return <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3" role="group" aria-label={t("steps.tools")}>
     {moduleKeys.map((key) => {
       const later = key === "ai_copilot", on = !later && form.tools.modules.includes(key), name = t(`modules.${key}`);
-      return <Label key={key} htmlFor={`tool-${key}`} className="flex min-h-11 items-center justify-between gap-3 rounded-xl border bg-card p-4 font-normal has-data-[state=checked]:border-primary has-data-[state=checked]:bg-muted/50 has-[button:disabled]:opacity-60">
-        <span className="flex min-w-0 items-center gap-3"><AccentIcon icon={moduleMarks[key].icon} accent={moduleMarks[key].accent} />
+      return <Label key={key} htmlFor={`tool-${key}`} className="flex min-h-11 items-center justify-between gap-3 rounded-xl border bg-card p-4 font-normal has-data-[state=checked]:border-[color:color-mix(in_oklab,var(--accent-primary)_55%,var(--border))] has-data-[state=checked]:bg-muted/50 has-[button:disabled]:opacity-60">
+        <span className="flex min-w-0 items-center gap-3"><AccentIcon icon={moduleMarks[key].icon} accent={moduleMarks[key].accent} tone="neutral" />
           <span className="flex min-w-0 flex-col items-start gap-1.5"><span className="text-sm font-medium">{name}</span>
             {later ? <Badge variant="outline">{t("tools.comingLater")}</Badge> : recommended.includes(key) && <Badge variant="secondary">{t("tools.recommended")}</Badge>}</span></span>
         <Switch id={`tool-${key}`} checked={on} disabled={disabled || later} aria-label={t("tools.toggle", { name })} onCheckedChange={(next) => toggle(key, next)} />

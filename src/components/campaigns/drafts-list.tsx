@@ -55,7 +55,7 @@ export function DraftsList({ tenantId, rows, viewerId, role, creators, canStart 
         </div>;
       })}
     </ItemGroup> : <Empty className="border border-solid bg-card py-16">
-      <EmptyHeader><EmptyMedia><AccentIcon icon={Flag} accent="violet" size="lg" /></EmptyMedia><EmptyTitle><h2>{t("draftsEmpty")}</h2></EmptyTitle><EmptyDescription>{t("draftsEmptyDescription")}</EmptyDescription></EmptyHeader>
+      <EmptyHeader><EmptyMedia><AccentIcon icon={Flag} accent="primary" size="lg" /></EmptyMedia><EmptyTitle><h2>{t("draftsEmpty")}</h2></EmptyTitle><EmptyDescription>{t("draftsEmptyDescription")}</EmptyDescription></EmptyHeader>
       {canStart && <EmptyContent><Button asChild className="min-h-11"><Link href={`${root}/new`}>{t("newCampaign")}</Link></Button></EmptyContent>}
     </Empty>}
     <ConfirmDialog tone="destructive" open={pending !== null} onOpenChange={(open) => { if (!open) setPending(null); }} title={t("discardTitle")} description={t("discardBody")}

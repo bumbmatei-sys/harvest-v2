@@ -2,7 +2,7 @@
 import { CircleCheck } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { accentVars } from "@/components/accent-icon";
-import { CampaignTypeArt, campaignTypeAccent } from "@/components/campaigns/campaign-type-art";
+import { CampaignTypeArt } from "@/components/campaigns/campaign-type-art";
 import { campaignTypes } from "@/lib/campaigns";
 import { cn } from "@/lib/utils";
 
@@ -15,7 +15,7 @@ export function TypeCards({ value, onPick, disabled, labelledBy }: { value: type
   return <div role="radiogroup" aria-labelledby={labelledBy} className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
     {campaignTypes.map((type) => {
       const selected = value === type;
-      return <button key={type} type="button" role="radio" aria-checked={selected} disabled={disabled} onClick={() => onPick(type)} style={accentVars(campaignTypeAccent[type])}
+      return <button key={type} type="button" role="radio" aria-checked={selected} disabled={disabled} onClick={() => onPick(type)} style={accentVars("primary")}
         className={cn("group relative flex min-h-11 flex-col overflow-hidden rounded-xl border bg-card text-left shadow-xs outline-none transition-[border-color,box-shadow] hover:border-[color:color-mix(in_oklab,var(--accent-current)_45%,var(--border))] hover:shadow-sm focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60",
           selected && "border-[color:var(--accent-current)] ring-1 ring-[color:var(--accent-current)] hover:border-[color:var(--accent-current)]")}>
         <CampaignTypeArt type={type} className="border-b" />

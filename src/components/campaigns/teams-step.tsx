@@ -49,7 +49,7 @@ export function TeamsStep({ form, set, disabled, draft, people, endpoint, saveNo
         const rows = draft.invitations.filter((invitation) => invitation.department === department && invitation.state !== "revoked");
         return <section key={department} aria-labelledby={`department-${department}`} className="flex flex-col gap-3 rounded-xl border bg-card p-4">
           <div className="flex items-center justify-between gap-3">
-            <span className="flex min-w-0 items-center gap-3"><AccentIcon icon={departmentMarks[department].icon} accent={departmentMarks[department].accent} size="sm" />
+            <span className="flex min-w-0 items-center gap-3"><AccentIcon icon={departmentMarks[department].icon} accent={departmentMarks[department].accent} tone="neutral" size="sm" />
               <h3 id={`department-${department}`} className="text-sm font-semibold">{name}</h3></span>
             <Switch checked={included} disabled={disabled} aria-label={tt("include", { name })} onCheckedChange={(next) => include(department, next)} />
           </div>
