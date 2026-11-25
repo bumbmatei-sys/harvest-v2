@@ -26,7 +26,7 @@ const q = (query: string, values?: unknown[]) => f.admin.query(query, values);
 const day = (n: number) => new Date(Date.now() + n * 86_400_000).toISOString().slice(0, 10);
 const remote = () => ads.remotes.get("acc-fb-2\u0000act_1")!;
 const lead = async (ref: string, fields: Record<string, string>, formRef: string | null) => (await q(
-  "insert into ads_leads(tenant_id,ad_account_id,network,lead_ref,form_ref,fields,submitted_at) values ($1,$2,'meta',$3,$4,$5,now() - interval '1 hour') returning id", [p.tenant, acct, ref, formRef, fields])).rows[0].id as string;
+  "insert into ads_leads(tenant_id,ad_account_id,network,lead_ref,form_ref,fields,consent_text,submitted_at) values ($1,$2,'meta',$3,$4,$5,(select consent_text from ads_lead_forms where ad_account_id=$2 and external_ref=$4),now() - interval '1 hour') returning id", [p.tenant, acct, ref, formRef, fields])).rows[0].id as string;
 const grants = async (contact: string) => (await q("select purpose, channel, status, notice_version, source, evidence from contact_consents where contact_id=$1 order by purpose", [contact])).rows;
 
 beforeAll(async () => {
@@ -241,4 +241,33 @@ it("keeps a converted lead out of the 90-day retention only until its lead row e
   expect(await (await import("../../src/server/ads/prune")).pruneAdsLeads(f.workerPool, 10)).toBe(1);
   expect((await q("select count(*)::int n from contacts where id=$1 and erased_at is null", [out.contactId])).rows[0].n).toBe(1);
   void syncLeads;
+});
+
+it("grants consent only while the form still carries the exact text the lead was received with, and cites the lead's own text", async () => {
+  const shown = (await q("select consent_text from ads_lead_forms where external_ref=$1", [formRef])).rows[0].consent_text as string;
+  const before = await lead("l-frozen", { full_name: "Frozen Text", email: "frozen@example.test", consent_newsletter: "yes" }, formRef);
+  await q("update ads_lead_forms set consent_text='We may now do anything with your details.' where external_ref=$1", [formRef]);
+  try {
+    // The wording changed after this lead was received: nothing is granted and the new wording is never cited.
+    const out = await convertLeadToContact(f.db, p.admin, p.tenant, before, off);
+    expect(out).toMatchObject({ outcome: "converted", granted: [] });
+    expect(await grants(out.contactId!)).toEqual([]);
+    // A lead received with no stored text (form unknown at receipt) grants nothing either.
+    await q("update ads_lead_forms set consent_text=$2 where external_ref=$1", [formRef, shown]);
+    const bare = await lead("l-bare-text", { full_name: "No Stored Text", email: "nostore@example.test", consent_newsletter: "yes" }, formRef);
+    await q("update ads_leads set consent_text=null where id=$1", [bare]);
+    expect((await convertLeadToContact(f.db, p.admin, p.tenant, bare, off)).granted).toEqual([]);
+    // Unchanged wording: granted, citing the text stored on the lead.
+    const ok = await lead("l-ok-text", { full_name: "Same Text", email: "same@example.test", consent_newsletter: "yes" }, formRef);
+    const granted = await convertLeadToContact(f.db, p.admin, p.tenant, ok, off);
+    expect(granted.granted).toEqual(["newsletter"]);
+    expect((await grants(granted.contactId!))[0].evidence).toContain(shown);
+  } finally { await q("update ads_lead_forms set consent_text=$2 where external_ref=$1", [formRef, shown]); }
+});
+
+it("refuses to erase a contact if one of its leads would survive", async () => {
+  const id = await lead("l-erase-guard", { full_name: "Guard Person", email: "guard@example.test" }, formRef);
+  const r = await convertLeadToContact(f.db, p.admin, p.tenant, id, off);
+  await eraseContact(f.db, p.owner, p.tenant, r.contactId!);
+  expect((await q("select count(*)::int n from ads_leads where lead_ref='l-erase-guard'")).rows[0].n).toBe(0);
 });
