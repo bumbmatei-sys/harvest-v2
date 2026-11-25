@@ -20,10 +20,10 @@ export type WizardStep = StepperStep & { description?: string; icon?: React.Reac
  * to the heading (the editing sidebar and the phone step sheet do). Without `onFinish` the last step has no primary button.
  * A surrounding `--accent-current` (see AccentIcon's `accentVars`) draws a thin accent line along the top of the card; without it nothing is drawn.
  */
-export function WizardLayout({ steps, current, onStepChange, stepsLabel, stepper = true, focusOnStepChange = false, validate, onFinish, busy = false, error, backLabel, nextLabel, finishLabel, children }: {
+export function WizardLayout({ steps, current, onStepChange, stepsLabel, stepper = true, focusOnStepChange = false, validate, onFinish, busy = false, error, backLabel, nextLabel, finishLabel, footerStart, children }: {
   steps: readonly WizardStep[]; current: string; onStepChange: (id: string) => void; stepsLabel: string; stepper?: boolean; focusOnStepChange?: boolean;
   validate?: (stepId: string) => boolean | Promise<boolean>; onFinish?: () => void | Promise<void>; busy?: boolean; error?: string;
-  backLabel?: string; nextLabel?: string; finishLabel?: string; children: React.ReactNode;
+  backLabel?: string; nextLabel?: string; finishLabel?: string; /** Extra controls at the start of the footer, after Back (for example Cancel). */ footerStart?: React.ReactNode; children: React.ReactNode;
 }) {
   const t = useTranslations("ComponentsWizardLayout");
   const heading = useRef<HTMLHeadingElement>(null), moved = useRef(false), mounted = useRef(true);
@@ -78,7 +78,7 @@ export function WizardLayout({ steps, current, onStepChange, stepsLabel, stepper
         {children}
       </CardContent>
       {(previous || next || onFinish) && <CardFooter className="flex flex-wrap items-center justify-between gap-3 border-t pt-6">
-        {previous ? <Button type="button" variant="outline" size="responsive" className="aria-disabled:opacity-70" aria-disabled={working || undefined} onClick={() => void go(-1)}>{backLabel ?? t("back")}</Button> : <span />}
+        <div className="flex flex-wrap items-center gap-2">{previous ? <Button type="button" variant="outline" size="responsive" className="aria-disabled:opacity-70" aria-disabled={working || undefined} onClick={() => void go(-1)}>{backLabel ?? t("back")}</Button> : <span />}{footerStart}</div>
         {next ? <Button type="button" size="responsive" className="aria-disabled:opacity-70" aria-disabled={working || undefined} onClick={() => void go(1)}>{working ? busyLabel : (nextLabel ?? t("next"))}</Button>
           : onFinish ? <Button type="button" size="responsive" className="aria-disabled:opacity-70" aria-disabled={working || undefined} onClick={() => void finish()}>{working ? busyLabel : (finishLabel ?? t("finish"))}</Button> : null}
       </CardFooter>}

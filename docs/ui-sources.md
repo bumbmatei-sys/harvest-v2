@@ -462,6 +462,8 @@ Founder approved these kit items on 25 Nov 2026 (founder, in the task that start
 | `src/components/catalog/catalog-preview.tsx` | `pages/products/[id]/page.tsx` | 3 of 27 (11%) |
 
 What the screens take from the kit: the product list's name cell with a thumbnail, status badge and row actions (on `DataTable`, with the type tab and search); the course modules card's numbered rows with a current marker (the lesson editor's ordered rows, and the learner's lesson list); the study progress card's titled progress bar (shown as "Your place", lesson n of m, because the server stores no completion yet); the course detail page's main column and side column with a sheet below 1024px; the product detail's cover, badges and side card. Not used: prices, stock, ratings and reviews, sales cards, instructor and avatar images, remote images and fixture data, `motion`, TanStack Table, drawer. **Type art.** `src/components/catalog/catalog-type-art.tsx` is original code-drawn artwork in the same family and tokens as `CampaignTypeArt` (`--art-1..5-*` from the palette registry; Desert Sun for downloads, Misty Blue for courses), with the structure of the Eden "new product" type picker (one illustrated card per type) as the only design input; no Eden asset, colour or copy is used.
+| `src/components/catalog/course-learner.tsx` | `apps/courses/course-detail/page.tsx`, `components/study-progress.tsx`, `components/course-modules.tsx` | 5 of 70 (7%), 7 of 70 (10%), 6 of 70 (8%) |
+| `src/components/catalog/catalog-public-page.tsx` | `pages/products/[id]/page.tsx`, `apps/courses/components/instructor-section.tsx` | 4 of 59 (6%), 7 of 59 (11%) |
 
 ## Link in bio (24 Nov 2026)
 
@@ -478,6 +480,8 @@ Founder approval 25 Nov 2026, under the kit item approval gate. Approved kit ite
 | `src/components/ads/ads-table.tsx` | modelled on | `tables14`, `switch-card1`, `dashboard-dropdown7` | Builds on the shared `DataTable`, which gained an optional `totals` row (table) and summary block (cards). |
 | `src/components/ads/ads-edit-panel.tsx` | modelled on | `drawer1` | Shared `Sheet`; every spend-affecting change asks first. |
 | `src/components/ads/ads-summary.tsx` | reuse | Social Analytics `StatCard` | No new card. |
+| `src/components/ads/ad-steps.tsx` | modelled on | `stepper1`, `form-layout1` | The step bodies sit in the shared `EditorShell` and `WizardLayout`; the goal, format and post pickers reuse `RadioCards` (which gained an `aria-label` on each radio so axe names them). |
+| `src/components/ads/ad-preview.tsx` | modelled on | `social-media-post1` | A plain stand-in for a feed post: account, text, media, headline, button. |
 
 ## Discover screens (25 Nov 2026)
 
@@ -491,6 +495,7 @@ Variants used: `select14` (searchable category dropdown with icons, chosen by th
 | `product-quickview2` | premium | 2026-11-25 | 2026-11-25 | `src/components/discover/quick-look.tsx` | Compact dialog with the public fields as a definition list, Report and Open page. |
 | `select14` | premium | 2026-11-25 | 2026-11-25 | `src/components/searchable-select.tsx` | Shared searchable select with icons and an all row; Discover category filter. 26% identical lines (imports, trigger). |
 | `product-list7` (second file) | premium | 2026-11-25 | 2026-11-25 | `src/components/discover/discover-browser.tsx` | Result count, type tabs with facet counts, search and grid on the server's approved listings. |
+| `drawer1` (second file) | free | 2026-11-25 | 2026-11-25 | `src/components/discover/staff-review.tsx` | Right-hand Sheet (bottom sheet on phones) with the listing's public fields, the review actions and the ministry standing, around the shared DataTable (`tables14`, already adopted) with tabs Pending, Approved, Rejected, Suspended and Reports. No kit code copied (3 of 192 lines identical, 2%), no vaul drawer. |
 | `switch-card1` (second file) | premium | 2026-11-25 | 2026-11-25 | `src/components/discover/list-in-discover.tsx` | Label, one line of text and a switch, with review status, category and language beneath; used in the community editor and My listings. |
 
 The shared filter popover is Harvest's CRM pattern (an icon-only filter button with a popover), reimplemented in `src/components/discover/filter-popover.tsx` for three fields because the CRM filter builder is bound to CRM fields (`src/components/crm/filter-builder.tsx`); exception recorded here, not a kit item.
