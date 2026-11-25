@@ -16,7 +16,7 @@ export function TypeCards({ value, onPick, disabled, labelledBy }: { value: type
     {campaignTypes.map((type) => {
       const selected = value === type;
       return <button key={type} type="button" role="radio" aria-checked={selected} disabled={disabled} onClick={() => onPick(type)} style={accentVars("primary")}
-        className={cn("group relative flex min-h-11 flex-col overflow-hidden rounded-xl border bg-card text-left shadow-xs outline-none transition-[border-color,box-shadow] hover:border-[color:color-mix(in_oklab,var(--accent-current)_45%,var(--border))] hover:shadow-sm focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60",
+        className={cn("group relative flex min-h-11 flex-col overflow-hidden rounded-xl border bg-card text-left shadow-xs outline-none transition-[border-color,box-shadow] hover:border-ring hover:shadow-sm focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60",
           selected && "border-[color:var(--accent-current)] ring-1 ring-[color:var(--accent-current)] hover:border-[color:var(--accent-current)]")}>
         <CampaignTypeArt type={type} className="border-b" />
         {selected && <span aria-hidden="true" className="absolute top-2.5 right-2.5 flex size-6 items-center justify-center rounded-full bg-background text-[color:var(--accent-current)] shadow-sm"><CircleCheck className="size-5" /></span>}
