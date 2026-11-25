@@ -4,7 +4,7 @@ import { communities } from "../db/schema";
 import { and, eq } from "drizzle-orm";
 import { message } from "../i18n/messages";
 import { uuidInput } from "../lib/contact-input";
-import { communityStatsUnavailable, type CommunityStats } from "../lib/community-stats";
+import { communityStatsUnavailable, leaveReasons, retentionDays, type CommunityRetention, type CommunityStats, type LeaveReason } from "../lib/community-stats";
 import { leafTotal, percent, periodRegions, periodWindows, regionBounds, releaseRows, reportPeriods, SMALL_GROUP, type ReportRow } from "../lib/crm-reports";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
@@ -68,6 +68,19 @@ export async function getCommunityStats(db: Database, userId: string, workspace:
       select count(*)::int as n, avg(extract(epoch from (x.decided_at - x.created_at)) / 3600)::float8 as hours from public.${sql.identifier(table)} x
       where ${scope("x")} and x.status in (${sql.join(statuses.map(status => sql`${status}`), sql`, `)}) and x.decided_at >= ${start}::timestamptz and x.decided_at < ${end}::timestamptz`)).rows[0]!;
 
+    // Departures by reason (voluntary leaves) and by a host, per region of the departure time.
+    const exits = await cells(sql`select ${regionOf(sql`e.left_at`, bounded)} as region, case when e.kind = 'left' then coalesce(e.reason, 'none') else 'host' end as key, count(*)::int as n
+      from public.community_exits e where ${scope("e")} and e.left_at >= ${from}::timestamptz and e.left_at < ${to}::timestamptz group by 1, 2`);
+    // Retention: members whose current membership started in the period and is at least N days old; lost = left, removed or banned within N days of joining.
+    const cohorts = new Map<number, Cell[]>();
+    for (const days of retentionDays) cohorts.set(days, await cells(sql`select ${regionOf(sql`m.joined_at`, bounded)} as region,
+        case when exists (select 1 from public.community_exits e where e.tenant_id = m.tenant_id and e.community_id = m.community_id and e.user_id = m.user_id and e.joined_at = m.joined_at
+          and e.left_at < m.joined_at + make_interval(days => ${days})) then 'lost' else 'retained' end as key, count(*)::int as n
+      from public.community_memberships m where ${scope("m")} and m.role <> 'owner' and m.joined_at >= ${from}::timestamptz and m.joined_at <= ${to}::timestamptz - make_interval(days => ${days}) group by 1, 2`));
+    // Anonymous counters, by region of the day.
+    const counts = await cells(sql`select ${regionOf(sql`d.day::timestamptz`, bounded)} as region, d.kind as key, sum(d.n)::int as n from public.community_daily_counts d
+      where ${scope("d")} and d.day >= ${from}::timestamptz::date and d.day < ${to}::timestamptz::date + 1 group by 1, 2`);
+
     // One release decision per family of figures, so complementary suppression applies inside the family.
     const family = (keys: readonly string[], source: readonly Cell[]) => {
       const rows = toRows(source, keys), release = releaseRows(regions, rows);
@@ -76,6 +89,12 @@ export async function getCommunityStats(db: Database, userId: string, workspace:
     const membersJoined = family(["joined"], joined), apps = family(["started"], started), decisions = family(["approved", "declined"], decided);
     const postsF = family(["posts"], posts), commentsF = family(["comments"], comments), opened = family(["opened"], reports), resolvedF = family(["resolved"], resolved);
     const snapshot = (key: string, label: string) => { const rows = toRows([{ region: 0, key: label, n: snap(key) }], [label]), release = releaseRows([0], rows); return release.hidden.has(label) ? null : snap(key); };
+    const reasonKeys = [...leaveReasons, "none"] as const, leaves = family(reasonKeys, exits.filter(cell => cell.key !== "host")), hosts = family(["host"], exits.filter(cell => cell.key === "host"));
+    const visitsF = family(["visit", "join_click"], counts);
+    const retentionOf = (days: number): CommunityRetention => {
+      const f = family(["retained", "lost"], cohorts.get(days)!), retained = f.value("retained"), lost = f.value("lost");
+      return f.total === null || retained === null || lost === null ? { cohort: null, retained: null, lost: null, percent: null } : { cohort: f.total, retained, lost, percent: percent(retained, f.total) };
+    };
     const approved = decisions.value("approved"), declined = decisions.value("declined");
     const appHours = await hours("community_applications", ["approved", "declined"]), reportHours = await hours("community_reports", ["dismissed", "actioned"]);
     const decidedAll = decisions.total;
@@ -87,6 +106,10 @@ export async function getCommunityStats(db: Database, userId: string, workspace:
         approvalPercent: decidedAll !== null && approved !== null && decidedAll > 0 ? percent(approved, decidedAll) : null,
         averageHoursToDecision: appHours.hours !== null && appHours.n >= SMALL_GROUP && decidedAll !== null ? round1(appHours.hours) : null },
       engagement: { posts: postsF.value("posts"), comments: commentsF.value("comments"), contributors: safe(contributorsN) ? contributorsN : null, unansweredPosts: snapshot("unanswered", "unanswered") },
+      retention: { cancellations: leaves.total, byReason: Object.fromEntries(reasonKeys.map(key => [key, leaves.value(key)])) as Record<LeaveReason | "none", number | null>, removedByHost: hosts.value("host"),
+        days: { "7": retentionOf(7), "30": retentionOf(30), "90": retentionOf(90) } },
+      acquisition: { visits: visitsF.value("visit"), joinClicks: visitsF.value("join_click"),
+        joinPercentOfVisits: visitsF.value("visit") && membersJoined.value("joined") !== null ? percent(membersJoined.value("joined")!, visitsF.value("visit")!) : null },
       safety: { reportsOpened: opened.value("opened"), reportsResolved: resolvedF.value("resolved"),
         averageHoursToResolve: reportHours.hours !== null && reportHours.n >= SMALL_GROUP && resolvedF.total !== null ? round1(reportHours.hours) : null, openNow: snapshot("open", "open") },
       unavailable: communityStatsUnavailable,

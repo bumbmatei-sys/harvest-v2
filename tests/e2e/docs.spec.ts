@@ -449,6 +449,31 @@ test("editor: title, autosave, formatting toolbar, slash menu, handles, pages tr
   expect(errors).toEqual([]);
 });
 
+test("editor: a page style changed just before leaving is not lost, and the status shows the save", async ({ page }) => {
+  test.setTimeout(180000);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const tenant = await workspace(page);
+  const api = `/api/workspaces/${tenant}/docs`;
+  const doc = await (await post(page, api, { title: "" })).json() as { id: string; pageId: string };
+  await page.goto(`/workspaces/${tenant}/docs/${doc.id}`);
+  await expect(body(page)).toBeVisible();
+  await page.getByRole("button", { name: "Page styles" }).click();
+  const panel = page.getByRole("complementary", { name: "Page styles" });
+  // The toggle reports a save like a text edit does.
+  await panel.getByRole("radio", { name: "Serif" }).click();
+  await expect(page.locator('[data-save-state="saving"]:visible, [data-save-state="saved"]:visible').first()).toBeVisible();
+  await saved(page);
+  // Two toggles followed by an immediate reload, without waiting for the status, are still stored.
+  await panel.getByRole("radio", { name: "Large" }).click();
+  await panel.getByRole("switch", { name: "Outline" }).click();
+  await page.reload();
+  await page.getByRole("button", { name: "Page styles" }).click();
+  const after = page.getByRole("complementary", { name: "Page styles" });
+  await expect(after.getByRole("radio", { name: "Serif" })).toBeChecked();
+  await expect(after.getByRole("radio", { name: "Large" })).toBeChecked();
+  await expect(after.getByRole("switch", { name: "Outline" })).toBeChecked();
+});
+
 test("editor on a phone: 44px toolbar targets that scroll sideways, pages in a sheet, panels in a sheet", async ({ page }) => {
   test.setTimeout(240000);
   await page.setViewportSize({ width: 360, height: 800 });
