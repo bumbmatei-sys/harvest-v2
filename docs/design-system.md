@@ -56,6 +56,20 @@ Do not introduce competing design systems without explicit justification.
 
 
 
+### Accent and artwork tokens (25 November 2026)
+
+Harvest's palettes are mostly neutral, so a small colour layer lives in the **same registry** (`src/lib/theme-registry.ts`), defined by every palette in light and dark. Components reference only these semantic names, never a fixed colour:
+
+| Token | Use | Harvest palette |
+| --- | --- | --- |
+| `--accent-primary`, `--accent-primary-soft` | The palette's highlight: wizard step chips, the accent line on the step card, the phone progress bar, the selected card's ring and check | Wheat gold (`#9a6a12` light, `#d9ab52` dark) on a warm sand fill |
+| `--accent-support-1..3`, `-soft` | At most three quieter supporting tones, used sparingly | Deep ink, sage, terracotta |
+| `--art-1..5-from`, `-to`, `-glow`, `-ink` | The five artwork families (gradient ends, highlight, line colour) of code-drawn illustrations such as `CampaignTypeArt` | Gold, ink, terracotta, sage and warm stone, gold-led |
+
+Rules: colour goes on chips, artwork, progress and highlights, never on large text or page backgrounds. Each accent meets 3:1 against `--surface-card`, `--surface-sunken` and its own soft fill. Each art `-ink` meets 3:1 against its `-to`. `AccentIcon` (`src/components/accent-icon.tsx`) renders the chip; `accentVars()` sets `--accent-current` for a subtree. Status colours (success, attention) are separate tokens.
+
+**Adding one of the 12 future themes:** copy `PALETTE_EXTENSION_TEMPLATE` into the new palette's light and dark objects and choose values from that theme. Map its brand or primary hue to `--accent-primary`, pick up to three harmonious supporting tones, and derive five art families from the same hues. `tests/unit/theme-contract.test.ts` then checks every palette for completeness and contrast.
+
 Establish a centralized design system covering:
 
 - Color palette, semantic colors, and light/dark themes

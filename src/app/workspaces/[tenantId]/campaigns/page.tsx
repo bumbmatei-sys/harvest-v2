@@ -53,7 +53,7 @@ export default async function CampaignsPage({ params, searchParams }: {
         </Link>
       </Item></div>)}
     </ItemGroup> : <Empty className="border border-solid bg-card py-16">
-      <EmptyHeader><EmptyMedia><AccentIcon icon={Flag} accent="violet" size="lg" /></EmptyMedia>
+      <EmptyHeader><EmptyMedia><AccentIcon icon={Flag} accent="primary" size="lg" /></EmptyMedia>
         <EmptyTitle><h2>{t(result.total ? "emptyPage" : "emptyTitle")}</h2></EmptyTitle><EmptyDescription>{t("emptyDescription")}</EmptyDescription>
       </EmptyHeader>
     </Empty>}

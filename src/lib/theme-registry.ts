@@ -47,7 +47,35 @@ export const themeRegistry = {
       "--chart-2": "#2b7a57",
       "--chart-3": "#356aa3",
       "--chart-4": "#b04a36",
-      "--chart-5": "#6a58a6"
+      "--chart-5": "#6a58a6",
+      "--accent-primary": "#9a6a12",
+      "--accent-primary-soft": "#f3ede3",
+      "--accent-support-1": "#34466b",
+      "--accent-support-1-soft": "#e7e9ed",
+      "--accent-support-2": "#4a7560",
+      "--accent-support-2-soft": "#e9eeec",
+      "--accent-support-3": "#a0533a",
+      "--accent-support-3-soft": "#f4eae7",
+      "--art-1-from": "#dcbb74",
+      "--art-1-to": "#9a6a12",
+      "--art-1-glow": "#f7e8c4",
+      "--art-1-ink": "#ffffff",
+      "--art-2-from": "#4b5f86",
+      "--art-2-to": "#25324d",
+      "--art-2-glow": "#e2c37f",
+      "--art-2-ink": "#ffffff",
+      "--art-3-from": "#c48a6e",
+      "--art-3-to": "#8a4a33",
+      "--art-3-glow": "#f1d9bd",
+      "--art-3-ink": "#ffffff",
+      "--art-4-from": "#86a693",
+      "--art-4-to": "#3f6753",
+      "--art-4-glow": "#ecdfb4",
+      "--art-4-ink": "#ffffff",
+      "--art-5-from": "#8d857a",
+      "--art-5-to": "#4a443d",
+      "--art-5-glow": "#e2c37f",
+      "--art-5-ink": "#ffffff"
     },
     "dark": {
       "--shell-canvas": "#0a0a0a",
@@ -94,7 +122,35 @@ export const themeRegistry = {
       "--chart-2": "#5fbf92",
       "--chart-3": "#6fa4dc",
       "--chart-4": "#e08a72",
-      "--chart-5": "#a99be0"
+      "--chart-5": "#a99be0",
+      "--accent-primary": "#d9ab52",
+      "--accent-primary-soft": "#362f20",
+      "--accent-support-1": "#9eb1d4",
+      "--accent-support-1-soft": "#2d3035",
+      "--accent-support-2": "#8fbea4",
+      "--accent-support-2-soft": "#2a322e",
+      "--accent-support-3": "#dc977d",
+      "--accent-support-3-soft": "#372b27",
+      "--art-1-from": "#9a6a12",
+      "--art-1-to": "#4f3608",
+      "--art-1-glow": "#e8c77e",
+      "--art-1-ink": "#f8eedb",
+      "--art-2-from": "#2e3d5c",
+      "--art-2-to": "#151c2c",
+      "--art-2-glow": "#d9ab52",
+      "--art-2-ink": "#e9edf5",
+      "--art-3-from": "#86462f",
+      "--art-3-to": "#45231a",
+      "--art-3-glow": "#e6bf98",
+      "--art-3-ink": "#f6e9e3",
+      "--art-4-from": "#3d6450",
+      "--art-4-to": "#1d3428",
+      "--art-4-glow": "#d9c58a",
+      "--art-4-ink": "#e8f1ec",
+      "--art-5-from": "#4a443d",
+      "--art-5-to": "#24211d",
+      "--art-5-glow": "#d9ab52",
+      "--art-5-ink": "#f1ede6"
     }
   },
   "studio": {
@@ -144,7 +200,35 @@ export const themeRegistry = {
       "--chart-2": "#0e7c86",
       "--chart-3": "#7c3aed",
       "--chart-4": "#c2410c",
-      "--chart-5": "#4d7c0f"
+      "--chart-5": "#4d7c0f",
+      "--accent-primary": "#404040",
+      "--accent-primary-soft": "#e8e8e8",
+      "--accent-support-1": "#475569",
+      "--accent-support-1-soft": "#e9ebed",
+      "--accent-support-2": "#57534e",
+      "--accent-support-2-soft": "#ebeaea",
+      "--accent-support-3": "#52525b",
+      "--accent-support-3-soft": "#eaeaeb",
+      "--art-1-from": "#a3a3a3",
+      "--art-1-to": "#404040",
+      "--art-1-glow": "#f5f5f5",
+      "--art-1-ink": "#ffffff",
+      "--art-2-from": "#94a3b8",
+      "--art-2-to": "#334155",
+      "--art-2-glow": "#f1f5f9",
+      "--art-2-ink": "#ffffff",
+      "--art-3-from": "#a8a29e",
+      "--art-3-to": "#44403c",
+      "--art-3-glow": "#f5f5f4",
+      "--art-3-ink": "#ffffff",
+      "--art-4-from": "#a1a1aa",
+      "--art-4-to": "#3f3f46",
+      "--art-4-glow": "#f4f4f5",
+      "--art-4-ink": "#ffffff",
+      "--art-5-from": "#d4d4d4",
+      "--art-5-to": "#525252",
+      "--art-5-glow": "#fafafa",
+      "--art-5-ink": "#ffffff"
     },
     "dark": {
       "--shell-canvas": "#0a0a0a",
@@ -191,7 +275,35 @@ export const themeRegistry = {
       "--chart-2": "#4cc3cd",
       "--chart-3": "#a78bfa",
       "--chart-4": "#f08a5d",
-      "--chart-5": "#9ccc58"
+      "--chart-5": "#9ccc58",
+      "--accent-primary": "#d4d4d4",
+      "--accent-primary-soft": "#353535",
+      "--accent-support-1": "#94a3b8",
+      "--accent-support-1-soft": "#2b2d31",
+      "--accent-support-2": "#a8a29e",
+      "--accent-support-2-soft": "#2e2d2d",
+      "--accent-support-3": "#a1a1aa",
+      "--accent-support-3-soft": "#2d2d2f",
+      "--art-1-from": "#525252",
+      "--art-1-to": "#1f1f1f",
+      "--art-1-glow": "#d4d4d4",
+      "--art-1-ink": "#fafafa",
+      "--art-2-from": "#334155",
+      "--art-2-to": "#0f172a",
+      "--art-2-glow": "#cbd5e1",
+      "--art-2-ink": "#f1f5f9",
+      "--art-3-from": "#44403c",
+      "--art-3-to": "#1c1917",
+      "--art-3-glow": "#d6d3d1",
+      "--art-3-ink": "#f5f5f4",
+      "--art-4-from": "#3f3f46",
+      "--art-4-to": "#18181b",
+      "--art-4-glow": "#d4d4d8",
+      "--art-4-ink": "#f4f4f5",
+      "--art-5-from": "#404040",
+      "--art-5-to": "#171717",
+      "--art-5-glow": "#e5e5e5",
+      "--art-5-ink": "#fafafa"
     }
   }
 } as const;
@@ -204,58 +316,29 @@ export function isBrandTheme(value: unknown): value is BrandTheme {
   return typeof value === "string" && Object.hasOwn(themeRegistry, value);
 }
 
-/**
- * Campaign type artwork (src/components/campaigns/campaign-type-art.tsx): one fixed, vivid colour family per campaign type, the same for every brand theme
- * because the theme palettes are monochrome. Decorative headers only, never behind text. Lighter in light mode, deeper in dark.
- */
-export const campaignArtTokens = {
-  light: {
-    "--art-crusade-from": "#fb7185", "--art-crusade-to": "#db2777", "--art-crusade-glow": "#fed7aa", "--art-crusade-ink": "#ffffff",
-    "--art-mission-from": "#38bdf8", "--art-mission-to": "#2563eb", "--art-mission-glow": "#a5f3fc", "--art-mission-ink": "#ffffff",
-    "--art-conference-from": "#c4b5fd", "--art-conference-to": "#7c3aed", "--art-conference-glow": "#f9a8d4", "--art-conference-ink": "#ffffff",
-    "--art-outreach-from": "#34d399", "--art-outreach-to": "#0d9488", "--art-outreach-glow": "#d9f99d", "--art-outreach-ink": "#ffffff",
-    "--art-custom-from": "#fbbf24", "--art-custom-to": "#f97316", "--art-custom-glow": "#fef3c7", "--art-custom-ink": "#ffffff",
-  },
-  dark: {
-    "--art-crusade-from": "#be123c", "--art-crusade-to": "#831843", "--art-crusade-glow": "#fed7aa", "--art-crusade-ink": "#ffffff",
-    "--art-mission-from": "#0369a1", "--art-mission-to": "#1e3a8a", "--art-mission-glow": "#a5f3fc", "--art-mission-ink": "#ffffff",
-    "--art-conference-from": "#7c3aed", "--art-conference-to": "#3b0764", "--art-conference-glow": "#f9a8d4", "--art-conference-ink": "#ffffff",
-    "--art-outreach-from": "#047857", "--art-outreach-to": "#134e4a", "--art-outreach-glow": "#d9f99d", "--art-outreach-ink": "#ffffff",
-    "--art-custom-from": "#ea580c", "--art-custom-to": "#9a3412", "--art-custom-glow": "#fde68a", "--art-custom-ink": "#ffffff",
-  },
-} as const satisfies Record<ColorMode, Record<string, string>>;
-
-/**
- * Named accent colours: the colour layer on top of the monochrome themes, for icon chips, art, progress and highlights (never large text or page
- * backgrounds). `--accent-<name>` is the icon / line colour and `--accent-<name>-soft` the chip fill; the solid colour meets 3:1 against the card
- * surface and its own soft fill in every brand theme and mode (checked in tests). Status colours (success, attention) are separate tokens.
- */
-export const ACCENTS = ["pink", "sky", "violet", "emerald", "amber", "teal", "indigo"] as const;
-export type Accent = typeof ACCENTS[number];
-export const accentTokens = {
-  light: {
-    "--accent-pink": "#db2777", "--accent-pink-soft": "#fbe5ef", "--accent-sky": "#0284c7", "--accent-sky-soft": "#e1f0f8",
-    "--accent-violet": "#7c3aed", "--accent-violet-soft": "#efe7fd", "--accent-emerald": "#059669", "--accent-emerald-soft": "#e1f2ed",
-    "--accent-amber": "#b45309", "--accent-amber-soft": "#fef3c7", "--accent-teal": "#0f766e", "--accent-teal-soft": "#e2efee",
-    "--accent-indigo": "#4f46e5", "--accent-indigo-soft": "#eae9fc",
-  },
-  dark: {
-    "--accent-pink": "#f472b6", "--accent-pink-soft": "#3f2734", "--accent-sky": "#38bdf8", "--accent-sky-soft": "#1d3540",
-    "--accent-violet": "#a78bfa", "--accent-violet-soft": "#312c40", "--accent-emerald": "#34d399", "--accent-emerald-soft": "#1c392e",
-    "--accent-amber": "#fbbf24", "--accent-amber-soft": "#403519", "--accent-teal": "#2dd4bf", "--accent-teal-soft": "#1b3935",
-    "--accent-indigo": "#818cf8", "--accent-indigo-soft": "#2a2c40",
-  },
-} as const satisfies Record<ColorMode, Record<`--accent-${Accent}` | `--accent-${Accent}-soft`, string>>;
-
 export const themeStyles = BRAND_THEMES.flatMap((brand) => COLOR_MODES.map((mode) => {
   const fallback = brand === "harvest" && mode === "light" ? ":root," : "";
   const selectors = fallback + ` :root[data-brand-theme="${brand}"][data-theme="${mode}"], [data-theme="${mode}"] .theme-preview[data-preview-brand="${brand}"]`;
-  const tokens = Object.entries({ ...themeRegistry[brand][mode], ...campaignArtTokens[mode], ...accentTokens[mode] }).map(([name, value]) => `${name}:${value}`).join(";");
+  const tokens = Object.entries(themeRegistry[brand][mode]).map(([name, value]) => `${name}:${value}`).join(";");
   return `${selectors}{color-scheme:${mode};${tokens}}`;
 })).join("\n");
 
 /** HC-03 printable QR exports: the quiet zone is always white; the standard ink is black. */
 export const qrExportColors = { background: "#ffffff", standardInk: "#000000" } as const;
+
+/**
+ * Accent and artwork tokens every palette defines (light and dark), so a future theme recolours them like any other semantic token. Components
+ * reference only these names. `--accent-primary` is the palette's highlight (Harvest: wheat gold); `--accent-support-1..3` are quieter supporting tones;
+ * each has a `-soft` chip fill. `--art-1..5-from/to/glow/ink` are the five artwork families (campaign types in order). See docs/design-system.md.
+ */
+export const ACCENTS = ["primary", "support-1", "support-2", "support-3"] as const;
+export type Accent = typeof ACCENTS[number];
+export const ART_SLOTS = [1, 2, 3, 4, 5] as const;
+export const ACCENT_TOKENS = ACCENTS.flatMap((accent) => [`--accent-${accent}`, `--accent-${accent}-soft`] as const);
+export const ART_TOKENS = ART_SLOTS.flatMap((slot) => (["from", "to", "glow", "ink"] as const).map((part) => `--art-${slot}-${part}` as const));
+/** The template a new palette fills in (copy into its light and dark objects; every value is a #rrggbb colour). Checked by tests/unit/theme-contract.test.ts. */
+export const PALETTE_EXTENSION_TEMPLATE: Record<(typeof ACCENT_TOKENS)[number] | (typeof ART_TOKENS)[number], string> =
+  Object.fromEntries([...ACCENT_TOKENS, ...ART_TOKENS].map((token) => [token, "#rrggbb"])) as Record<(typeof ACCENT_TOKENS)[number] | (typeof ART_TOKENS)[number], string>;
 
 export const CHART_TOKENS = ["--chart-1", "--chart-2", "--chart-3", "--chart-4", "--chart-5"] as const;
 

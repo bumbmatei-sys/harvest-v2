@@ -4,7 +4,6 @@ import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it } from "vitest";
 import messages from "../../messages/en.json";
 import { campaignTypes } from "../../src/lib/campaigns";
-import { campaignArtTokens, COLOR_MODES, themeStyles } from "../../src/lib/theme-registry";
 import { CampaignCoverPlaceholder, CampaignTypeArt, campaignTypeArtVars } from "../../src/components/campaigns/campaign-type-art";
 import { TypeCards } from "../../src/components/campaigns/type-cards";
 
@@ -24,19 +23,13 @@ describe("campaign type art", () => {
     }
     expect(motifs.size).toBe(campaignTypes.length);
   });
-  it("reads its colours only from art tokens that exist in both modes and in every theme's styles", () => {
-    for (const type of campaignTypes) {
-      for (const value of Object.values(campaignTypeArtVars(type)) as string[]) {
-        const token = value.match(/^var\((--art-[a-z]+-[a-z]+)\)$/)?.[1] as keyof typeof campaignArtTokens.light;
-        expect(token).toBeTruthy();
-        for (const mode of COLOR_MODES) {
-          expect(campaignArtTokens[mode][token]).toMatch(/^#[0-9a-f]{6}$/);
-          expect(themeStyles).toContain(`${token}:${campaignArtTokens[mode][token]}`);
-        }
-      }
-    }
-    // Each type has its own colour family.
-    expect(new Set(campaignTypes.map((type) => (campaignTypeArtVars(type) as Record<string, string>)["--from"])).size).toBe(5);
+  it("reads its colours only from the palette's art slots, one slot per type", () => {
+    const slots = campaignTypes.map((type) => {
+      const vars = Object.values(campaignTypeArtVars(type)) as string[];
+      for (const value of vars) expect(value).toMatch(/^var\(--art-[1-5]-(from|to|glow|ink)\)$/);
+      return vars[0];
+    });
+    expect(new Set(slots).size).toBe(campaignTypes.length);
   });
   it("renders a cover placeholder variant", () => {
     const html = render(h(CampaignCoverPlaceholder, { type: "mission_trip", className: "rounded-xl" }));

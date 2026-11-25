@@ -1,18 +1,16 @@
 import type { CSSProperties, ReactNode } from "react";
 import type { campaignTypes } from "@/lib/campaigns";
-import type { Accent } from "@/lib/theme-registry";
 import { cn } from "@/lib/utils";
 
-// Original, code-drawn header art for the campaign types: layered gradients, a fine dot grain, soft shapes and one line motif per type.
-// Colours come only from the `--art-<family>-*` tokens (`campaignArtTokens` in theme-registry.ts) (light and dark values), so it follows the colour scheme and needs no assets.
+// Original, code-drawn header art for the campaign types: refined gold-led gradients, a fine grain, soft shapes and one fine line motif per type.
+// Colours come only from the palette's `--art-1..5-*` tokens (every theme in theme-registry.ts defines them) (light and dark values), so it follows the colour scheme and needs no assets.
 // Decorative: always aria-hidden. A <span>, so it can sit inside a button (the type cards). No hooks and no SVG ids, so it renders the same on the server, on the client and many times on one page.
 
 type CampaignType = typeof campaignTypes[number];
-const families: Record<CampaignType, string> = {
-  evangelistic_crusade: "crusade", mission_trip: "mission", conference: "conference", local_outreach: "outreach", custom_project: "custom",
-};
+// Each type's artwork family: one of the palette's five art slots (`--art-1..5-*` in every theme of the registry).
+const slots: Record<CampaignType, number> = { evangelistic_crusade: 1, mission_trip: 2, conference: 3, local_outreach: 4, custom_project: 5 };
 
-const ink = { stroke: "var(--ink)", fill: "none", strokeWidth: 2, strokeLinecap: "round", strokeLinejoin: "round" } as const;
+const ink = { stroke: "var(--ink)", fill: "none", strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round" } as const;
 const inkFill = (opacity: number): CSSProperties => ({ fill: "var(--ink)", fillOpacity: opacity, stroke: "none" });
 const glowFill = (opacity = 1): CSSProperties => ({ fill: "var(--glow)", fillOpacity: opacity, stroke: "none" });
 
@@ -96,16 +94,16 @@ const motifs: Record<CampaignType, () => ReactNode> = {
 
 /** The CSS variables for one type's colour family, set on the art's root so every layer reads them. */
 export function campaignTypeArtVars(type: CampaignType): CSSProperties {
-  const family = families[type];
-  return { "--from": `var(--art-${family}-from)`, "--to": `var(--art-${family}-to)`, "--glow": `var(--art-${family}-glow)`, "--ink": `var(--art-${family}-ink)` } as CSSProperties;
+  const slot = slots[type];
+  return { "--from": `var(--art-${slot}-from)`, "--to": `var(--art-${slot}-to)`, "--glow": `var(--art-${slot}-glow)`, "--ink": `var(--art-${slot}-ink)` } as CSSProperties;
 }
 
 const layers: CSSProperties = {
   backgroundImage: [
     // Fine dot grain.
-    "radial-gradient(color-mix(in oklab, var(--ink) 16%, transparent) 0.7px, transparent 0.9px)",
+    "radial-gradient(color-mix(in oklab, var(--ink) 9%, transparent) 0.6px, transparent 0.8px)",
     // Warm highlight from the upper right and a deeper pool lower left.
-    "radial-gradient(120% 140% at 92% -10%, color-mix(in oklab, var(--glow) 60%, transparent), transparent 55%)",
+    "radial-gradient(120% 140% at 92% -10%, color-mix(in oklab, var(--glow) 42%, transparent), transparent 58%)",
     "radial-gradient(90% 120% at -5% 110%, color-mix(in oklab, var(--to) 80%, transparent), transparent 60%)",
     "linear-gradient(135deg, var(--from), var(--to))",
   ].join(", "),
@@ -122,13 +120,13 @@ export function CampaignTypeArt({ type, variant = "card", className }: { type: C
     style={{ ...campaignTypeArtVars(type), ...layers }}>
     {/* Soft shapes that fill the whole band at any aspect ratio. */}
     <svg viewBox="0 0 320 120" preserveAspectRatio="xMidYMid slice" className="absolute inset-0 size-full" focusable="false">
-      <circle cx="292" cy="112" r="64" style={inkFill(0.1)} />
-      <circle cx="22" cy="6" r="44" style={inkFill(0.08)} />
+      <circle cx="292" cy="112" r="64" style={inkFill(0.06)} />
+      <circle cx="22" cy="6" r="44" style={inkFill(0.05)} />
       <path d="M0 96 C 80 78, 160 118, 320 88 L320 120 L0 120 Z" style={inkFill(0.08)} />
     </svg>
     {/* The motif keeps its proportions and sits in the middle of the band. */}
     <svg viewBox="0 0 200 104" preserveAspectRatio="xMidYMid meet" focusable="false"
-      className={cn("absolute inset-x-0 mx-auto h-full w-full drop-shadow-[0_6px_10px_color-mix(in_oklab,var(--to)_45%,transparent)]", variant === "card" ? "top-0 py-3" : "inset-y-0 py-[8%]")}>
+      className={cn("absolute inset-x-0 mx-auto h-full w-full drop-shadow-[0_4px_8px_color-mix(in_oklab,var(--to)_30%,transparent)]", variant === "card" ? "top-0 py-3" : "inset-y-0 py-[8%]")}>
       <Motif />
     </svg>
   </span>;
@@ -139,7 +137,3 @@ export function CampaignCoverPlaceholder({ type, className }: { type: CampaignTy
   return <CampaignTypeArt type={type} variant="cover" className={cn("aspect-[16/7] h-auto min-h-0", className)} />;
 }
 
-/** Each campaign type's accent, matching its artwork's colour family. Tints the wizard (chips, progress, the selected card) once a type is chosen. */
-export const campaignTypeAccent: Record<CampaignType, Accent> = {
-  evangelistic_crusade: "pink", mission_trip: "sky", conference: "violet", local_outreach: "emerald", custom_project: "amber",
-};
