@@ -1,4 +1,5 @@
 import { mkdir } from "node:fs/promises";
+import { deflateSync, crc32 } from "node:zlib";
 import { expect as baseExpect, test, type Browser, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { origin, signIn } from "./helpers/session";
@@ -39,6 +40,17 @@ async function user(browser: Browser, owner: Page, tenant: string, role: "admin"
 /** The dev server renders first and hydrates after: typing before React attaches would be lost, which a person cannot do. */
 async function hydrated(page: Page) {
   await page.waitForFunction(() => { const field = document.querySelector("input,textarea,select"); return !!field && Object.keys(field).some((key) => key.startsWith("__reactProps")); });
+}
+/** A small real PNG (gradient), so the picture decodes in the browser. */
+function png(width = 320, height = 180) {
+  const raw = Buffer.alloc((width * 3 + 1) * height);
+  for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) { const at = y * (width * 3 + 1) + 1 + x * 3; raw[at] = x * 255 / width; raw[at + 1] = y * 255 / height; raw[at + 2] = 150; }
+  const chunk = (type: string, data: Buffer) => {
+    const out = Buffer.alloc(12 + data.length); out.writeUInt32BE(data.length, 0); out.write(type, 4, "ascii"); data.copy(out, 8);
+    out.writeUInt32BE(crc32(Buffer.concat([Buffer.from(type, "ascii"), data])), 8 + data.length); return out;
+  };
+  const header = Buffer.alloc(13); header.writeUInt32BE(width, 0); header.writeUInt32BE(height, 4); header[8] = 8; header[9] = 2;
+  return Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), chunk("IHDR", header), chunk("IDAT", deflateSync(raw)), chunk("IEND", Buffer.alloc(0))]);
 }
 const heading = (page: Page, name: string) => page.getByRole("heading", { name, level: 2, exact: true });
 
@@ -166,7 +178,7 @@ test("a change made elsewhere shows a clear reload message and nothing is overwr
   await expect(page.getByLabel("Campaign Name")).toBeEnabled();
 });
 
-test("roles: members work on their own drafts, admins see and discard every draft, viewers see none", async ({ page, browser }) => {
+test("roles: anyone who can write edits any open draft, owners and admins and the creator discard, viewers see none", async ({ page, browser }) => {
   test.setTimeout(240_000);
   await mkdir(evidence, { recursive: true });
   await signIn(page);
@@ -181,52 +193,59 @@ test("roles: members work on their own drafts, admins see and discard every draf
     const draftUrl = member.page.url(), draftId = draftUrl.split("/drafts/")[1];
     await autosaved(member.page, async () => { await member.page.getByLabel("Campaign Name").fill("Member mission trip"); });
 
-    // The member's list shows only their own; another member and a viewer see none.
+    // Every open draft is listed for everyone who can write; a viewer sees none and cannot start one.
     await member.page.goto(`${root}/drafts`);
     await expect(member.page.getByRole("heading", { name: "Campaign drafts", level: 1 })).toBeVisible();
-    await expect(member.page.getByText("Your drafts")).toBeVisible();
-    await expect(member.page.getByRole("link", { name: /Member mission trip/ })).toBeVisible();
+    await expect(member.page.getByText("Every draft in this ministry")).toBeVisible();
+    await expect(member.page.getByRole("link", { name: /Member mission trip/ })).toContainText("Started by You");
     await member2.page.goto(`${root}/drafts`);
-    await expect(member2.page.getByRole("heading", { name: "No drafts", level: 2 })).toBeVisible();
-    expect((await member2.page.request.get(`${api}/${draftId}`)).status()).toBe(404);
+    await expect(member2.page.getByRole("link", { name: /Member mission trip/ })).toContainText("Started by A ministry member");
+    expect((await member2.page.request.get(`${api}/${draftId}`)).status()).toBe(200);
     await viewer.page.goto(`${root}/drafts`);
     await expect(viewer.page.getByRole("heading", { name: "No drafts", level: 2 })).toBeVisible();
     await expect(viewer.page.getByRole("link", { name: "New campaign" })).toHaveCount(0);
+    expect((await viewer.page.request.get(`${api}/${draftId}`)).status()).toBe(404);
     expect((await viewer.page.request.post(api, { headers: { origin, "Idempotency-Key": "viewer-1" }, data: { type: "conference" } })).status()).toBe(403);
+    expect((await viewer.page.request.patch(`${api}/${draftId}`, { headers: { origin }, data: { version: 2, step: "basics", data: { name: "Viewer" } } })).status()).toBe(403);
     await viewer.page.goto(`${root}/new`);
     await expect(viewer.page.getByRole("radio")).toHaveCount(0);
     await viewer.page.goto(root);
     await expect(viewer.page.getByRole("link", { name: "New campaign" })).toHaveCount(0);
 
-    // The admin sees it, reads it without being able to edit, and cannot finish it.
-    await admin.page.goto(`${root}/drafts`);
-    await expect(admin.page.getByText("Every draft in this ministry")).toBeVisible();
-    await expect(admin.page.getByRole("link", { name: /Member mission trip/ })).toContainText(`Started by ${member.email}`);
-    await admin.page.getByRole("link", { name: /Member mission trip/ }).click();
-    await expect(admin.page.getByText(`Only ${member.email} can edit this draft.`)).toBeVisible();
-    // The draft resumes at the furthest step reached; the name is on step 2.
-    await (shellModes ? admin.page.getByRole("group", { name: /^Editing/ }) : admin.page.getByRole("navigation", { name: "Campaign setup" })).getByRole("button", { name: /Basic Information/ }).click();
-    await expect(admin.page.getByLabel("Campaign Name")).toBeDisabled();
-    await expect(admin.page.getByLabel("Campaign Name")).toHaveValue("Member mission trip");
-    await expect(admin.page.locator("[data-save-state]")).toHaveCount(0);
-    expect((await admin.page.request.patch(`${api}/${draftId}`, { headers: { origin }, data: { version: 2, step: "basics", data: { name: "Hijack" } } })).status()).toBe(403);
-    await shoot(admin.page, "read-only-admin");
+    // A colleague opens it and edits it: the wizard is not read-only, and the change is saved under the same draft.
+    await member2.page.getByRole("link", { name: /Member mission trip/ }).click();
+    await expect(heading(member2.page, "Location & Dates")).toBeVisible(); // resumes at the furthest step reached
+    await hydrated(member2.page);
+    await (shellModes ? member2.page.getByRole("group", { name: /^Editing/ }) : member2.page.getByRole("navigation", { name: "Campaign setup" })).getByRole("button", { name: /Basic Information/ }).click();
+    await expect(member2.page.getByLabel("Campaign Name")).toBeEnabled();
+    await expect(member2.page.getByLabel("Campaign Name")).toHaveValue("Member mission trip");
+    await expect(member2.page.getByText(/can edit this draft/)).toHaveCount(0);
+    await autosaved(member2.page, async () => { await member2.page.getByLabel("Campaign Name").fill("Edited by a colleague"); });
+    await shoot(member2.page, "shared-draft-colleague");
+    const stored = await (await member.page.request.get(`${api}/${draftId}`)).json();
+    expect(stored).toMatchObject({ name: "Edited by a colleague", status: "draft" });
+    // Two people saving from the same version: the second is refused with a 409 and nothing is overwritten.
+    expect((await admin.page.request.patch(`${api}/${draftId}`, { headers: { origin }, data: { version: stored.version, step: "basics", data: { name: "Edited by an admin" } } })).status()).toBe(200);
+    expect((await admin.page.request.patch(`${api}/${draftId}`, { headers: { origin }, data: { version: stored.version, step: "basics", data: { name: "Stale" } } })).status()).toBe(409);
 
     // A second draft by the member is discarded by the admin from the list, after a confirm.
     expect((await member.page.request.post(api, { headers: { origin, "Idempotency-Key": "second-draft" }, data: { type: "conference" } })).status()).toBe(201);
     await admin.page.goto(`${root}/drafts`);
-    await expect(admin.page.getByRole("list", { name: "Campaign drafts" }).getByRole("listitem")).toHaveCount(2);
+    const drafts = admin.page.getByRole("list", { name: "Campaign drafts" }).getByRole("listitem");
+    await expect(drafts).toHaveCount(2);
     await shoot(admin.page, "drafts-admin");
     await admin.page.getByRole("button", { name: /Discard: Untitled campaign/ }).click();
     await expect(admin.page.getByRole("alertdialog")).toContainText("Discard this draft?");
     await admin.page.getByRole("alertdialog").getByRole("button", { name: "Keep draft" }).click();
-    await expect(admin.page.getByRole("list", { name: "Campaign drafts" }).getByRole("listitem")).toHaveCount(2);
+    await expect(drafts).toHaveCount(2);
     await admin.page.getByRole("button", { name: /Discard: Untitled campaign/ }).click();
     await admin.page.getByRole("alertdialog").getByRole("button", { name: "Discard draft" }).click();
     await expect(admin.page.getByText("Draft discarded.")).toBeVisible();
-    await expect(admin.page.getByRole("list", { name: "Campaign drafts" }).getByRole("listitem")).toHaveCount(1);
-    // A plain member cannot discard another member's draft.
-    expect((await member2.page.request.post(`${api}/${draftId}/discard`, { headers: { origin }, data: { version: 2 } })).status()).toBe(404);
+    await expect(drafts).toHaveCount(1);
+    // A plain member who did not start a draft can edit it but not discard it: no Discard button, and the server refuses.
+    await member2.page.goto(`${root}/drafts`);
+    await expect(member2.page.getByRole("button", { name: /^Discard/ })).toHaveCount(0);
+    expect((await member2.page.request.post(`${api}/${draftId}/discard`, { headers: { origin }, data: { version: 99 } })).status()).toBe(403);
 
     // Activate is for owners and admins only: the member who finished a campaign does not see it.
     const finished = await member.page.request.post(`/api${root}`, { headers: { origin, "Idempotency-Key": "plain-campaign" }, data: { name: "Plain", type: "conference", country: "Chile", startDate: "2027-05-01", endDate: "2027-05-02", timeZone: "America/Santiago", structure: "single" } });
@@ -300,4 +319,67 @@ test("axe: the wizard and the drafts list at 360, 768 and 1280 in light and dark
       }
     }
   }
+});
+
+test("cover: the optional image or logo in step 2 uploads, shows, is replaced and removed, and goes to the campaign on Finish", async ({ page }) => {
+  test.setTimeout(240_000);
+  await mkdir(evidence, { recursive: true });
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await signIn(page);
+  const tenant = (await (await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Cover Church", audience: "church" } })).json()).tenantId as string;
+  const root = `/workspaces/${tenant}/campaigns`, api = `/api${root}/drafts`;
+  const draft = await (await page.request.post(api, { headers: { origin, "Idempotency-Key": "cover-1" }, data: { type: "conference" } })).json();
+  await page.goto(`${root}/drafts/${draft.id}`);
+  await expect(heading(page, "Basic Information")).toBeVisible();
+  await hydrated(page);
+  await expect(page.getByText("Campaign Cover Image or Logo (optional)")).toBeVisible();
+  // The PRD's order: name, description, goal or mission, then the cover.
+  const labels = await page.locator("main label").allInnerTexts();
+  expect(labels.slice(0, 4).map((label) => label.trim())).toEqual(["Campaign Name", "Campaign Description (optional)", "Campaign Goal or Mission (optional)", "Campaign Cover Image or Logo (optional)"]);
+  await autosaved(page, async () => { await page.getByLabel("Campaign Name").fill("Cover campaign"); });
+  const picked = page.waitForResponse((response) => response.request().method() === "PUT" && /\/cover$/.test(response.url()));
+  await page.getByTestId("cover-input").setInputFiles({ name: "logo.png", mimeType: "image/png", buffer: png() });
+  expect((await picked).status()).toBe(200);
+  await expect(page.getByTestId("cover-image")).toBeVisible();
+  await expect.poll(() => page.getByTestId("cover-image").evaluate((img: HTMLImageElement) => img.complete && img.naturalWidth > 0)).toBe(true);
+  const withCover = await (await page.request.get(`${api}/${draft.id}`)).json();
+  expect(withCover.coverFileId).toEqual(expect.any(String));
+  expect((await page.request.get(`${api}/${draft.id}/cover`)).status()).toBe(200);
+  await shoot(page, "step-2-cover");
+  await expectAccessible(page);
+  // Phone width in the dark scheme: no sideways scroll, no violations, 44px targets on the cover buttons.
+  await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 360, height: 800 });
+  await expect(page.getByTestId("cover-image")).toBeVisible();
+  await expectAccessible(page);
+  for (const name of ["Replace", "Remove"]) expect((await page.getByRole("button", { name, exact: true }).boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await shoot(page, "step-2-cover-phone-dark");
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+  await page.setViewportSize({ width: 1280, height: 900 });
+  // Autosave carries on with the version the cover moved on to: no false "changed elsewhere".
+  await autosaved(page, async () => { await page.getByLabel("Campaign Goal or Mission (optional)").fill("Reach the city."); });
+  await expect(page.locator('[data-save-state="conflict"]')).toHaveCount(0);
+  // Replace, then remove.
+  const replaced = page.waitForResponse((response) => response.request().method() === "PUT" && /\/cover$/.test(response.url()));
+  await page.getByTestId("cover-input").setInputFiles({ name: "logo2.png", mimeType: "image/png", buffer: png(200, 120) });
+  expect((await replaced).status()).toBe(200);
+  expect((await (await page.request.get(`${api}/${draft.id}`)).json()).coverFileId).not.toBe(withCover.coverFileId);
+  await page.getByRole("button", { name: "Remove", exact: true }).click();
+  await page.getByRole("alertdialog").getByRole("button", { name: "Remove", exact: true }).click();
+  await expect(page.getByTestId("cover-image")).toHaveCount(0);
+  expect((await (await page.request.get(`${api}/${draft.id}`)).json()).coverFileId).toBeNull();
+  // Choose it again, fill the place, and finish through the API: the campaign takes the cover.
+  const again = page.waitForResponse((response) => response.request().method() === "PUT" && /\/cover$/.test(response.url()));
+  await page.getByTestId("cover-input").setInputFiles({ name: "logo3.png", mimeType: "image/png", buffer: png(240, 135) });
+  expect((await again).status()).toBe(200);
+  const current = await (await page.request.get(`${api}/${draft.id}`)).json();
+  const placed = await page.request.patch(`${api}/${draft.id}`, { headers: { origin }, data: { version: current.version, step: "place", data: { country: "Chile", cityRegion: "Santiago", startDate: "2027-05-01", endDate: "2027-05-02", timeZone: "America/Santiago", structure: "single" } } });
+  expect(placed.status()).toBe(200);
+  const done = await page.request.post(`${api}/${draft.id}/finish`, { headers: { origin }, data: { version: (await placed.json()).version } });
+  expect(done.status()).toBe(200);
+  const campaignId = (await done.json()).campaignId as string;
+  expect((await page.request.get(`/api${root}/${campaignId}/cover`)).status()).toBe(200);
+  expect((await (await page.request.get(`/api${root}/${campaignId}`)).json()).coverFileId).toBe(current.coverFileId);
+  expect(errors).toEqual([]);
 });

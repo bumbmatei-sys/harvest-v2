@@ -14,7 +14,7 @@ export type DraftView = {
   startDate: string | null; endDate: string | null; timeZone: string | null; structure: Structure | null; departments: string[]; modules: string[];
   budget: { currency: string; estimatedBudgetMinor: number | null; fundraisingEnabled: boolean; fundraisingGoalMinor: number | null; onlineDonations: boolean };
   outreach: { registration: boolean; qrResponse: boolean; accountInvites: boolean; communityDiscovery: boolean; followUp: boolean; churchReferrals: boolean };
-  assignments: { userId: string; department: string; role: string }[]; issues: Issue[]; ready: boolean; campaignId: string | null;
+  assignments: { userId: string; department: string; role: string }[]; issues: Issue[]; ready: boolean; campaignId: string | null; coverFileId: string | null;
 };
 
 /** The steps this screen edits so far (the others are listed in the shell but not yet available). */
@@ -97,8 +97,8 @@ export function stepStatuses(issues: readonly Issue[], reached: number): Record<
   })) as Record<WizardStep, StepStatus>;
 }
 
-/** Which draft rows a person may act on in the list: the creator continues an open draft; owners and admins also discard any. */
+/** Which draft rows a person may act on in the list: anyone who can write campaigns continues an open draft; the creator and owners and admins discard. */
 export function draftActions(draft: { createdBy: string }, viewerId: string, role: string) {
-  const mine = draft.createdBy === viewerId, manager = role === "owner" || role === "admin";
-  return { edit: mine, discard: mine || manager };
+  const manager = role === "owner" || role === "admin";
+  return { edit: manager || role === "member", discard: draft.createdBy === viewerId || manager };
 }
