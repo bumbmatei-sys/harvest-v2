@@ -11,7 +11,7 @@ import { expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 import * as schema from "../../src/db/schema";
 import { createWorkspace } from "../../src/server/workspaces";
-import { createCampaign } from "../../src/server/campaigns";
+import { createLegacyCampaign } from "../helpers/legacy-campaign";
 import { createConnectLink, transitionConnectLink } from "../../src/server/connect-links";
 import { getLanding, writeLanding, resolvePublishedLanding } from "../../src/server/connect-landing";
 import journal from "../../drizzle/meta/_journal.json";
@@ -44,7 +44,7 @@ it.each(["fresh", "populated 0029"])("0030 restricted-owner migration and replay
           await seed.query("insert into workspaces (tenant_id,name,created_by) values ($1,$2,$3)", [tenant, `Existing ${i}`, actor]);
           await seed.query("insert into workspace_members (tenant_id,user_id,role_id) values ($1,$2,'owner')", [tenant, actor]);
         } finally { await seed.end(); }
-        const campaign = (await createCampaign(app, actor, tenant, { name: "Existing campaign", type: "conference" }, randomUUID())).id;
+        const campaign = (await createLegacyCampaign(app, actor, tenant, { name: "Existing campaign", type: "conference" }, randomUUID())).id;
         const l = await createConnectLink(app, actor, tenant, campaign, {}); await transitionConnectLink(app, actor, tenant, campaign, l.id, { action: "publish" });
         old.push({ tenant, campaign, id: l.id, code: l.publicCode, short: l.shortCode, actor });
       }
@@ -62,7 +62,7 @@ it.each(["fresh", "populated 0029"])("0030 restricted-owner migration and replay
     }
     const actor = "new-owner"; await app.insert(schema.users).values({ id: actor, name: actor, email: `${actor}@example.test` });
     const tenant = (await createWorkspace(app, actor, "New landing")).tenantId;
-    const campaign = (await createCampaign(app, actor, tenant, { name: "New campaign", type: "conference" }, randomUUID())).id;
+    const campaign = (await createLegacyCampaign(app, actor, tenant, { name: "New campaign", type: "conference" }, randomUUID())).id;
     const l = await createConnectLink(app, actor, tenant, campaign, {}), definition = { heading: "Welcome", message: "Safe upgrade", cards: [] };
     expect(await writeLanding(app, actor, tenant, campaign, l.id, { definition, expectedRevision: 0, expectedCode: l.publicCode })).toMatchObject({ revision: 1 });
     await writeLanding(app, actor, tenant, campaign, l.id, { expectedRevision: 1, expectedCode: l.publicCode }, true);
