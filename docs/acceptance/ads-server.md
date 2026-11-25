@@ -64,6 +64,24 @@ Draft wording (for review; not approved; plain language, provider-neutral):
 5. **Withdrawal confirmation:** "We have stopped using your details for advertising. The platform may take a short time to remove you from its lists."
 Open questions for the founder and legal review: whether a marketing consent may be asked on a lead form at all, the retention of uploaded lists at the platform, and notice wording for people in the EEA, the UK and Switzerland.
 
+## Ad lead forms built in Harvest and the ad_lead source (migration 0105)
+Founder decisions (25 Nov): (1) converted ad leads get the CRM source kind `ad_lead`; (2) ad lead forms are created in Harvest, reusing the shared forms model, then published to the network's instant form.
+
+Acceptance checklist (written before coding; all covered by `tests/unit/ads-lead-form.test.ts` and `tests/integration/ads-forms.test.ts`):
+- [x] No second form model: an `ads` preset of the shared CRM form definition (same blocks, schema, builder state). Hosted paths (list, load, publish, duplicate) never see an ad lead form; the hosted publication refuses an `ads` definition at the database.
+- [x] Questions: standard fields (name, first/last name, email, phone, city, zip, country) mapped by block id, plus custom questions; at most 14.
+- [x] Optional consent questions, each its own unticked, optional checkbox: newsletter, follow-up and a separate marketing question. Exact versioned wording ids (`ad-newsletter-v1`, `ad-follow-up-v1`, `ad-marketing-v1`, notice `ad-notice-v1`); texts are re-stamped server side, so a request cannot choose its own words.
+- [x] Privacy policy link (https) required to save and publish; destination is never set.
+- [x] Published versions are immutable (`ads_form_publications` plus the form_versions freeze trigger); editing starts a new version; the lead form row keeps wording and mapping and is frozen by trigger; leads keep `form_version_id` (poll and webhook paths, by trigger).
+- [x] Publishing goes through the Ads port, hard-off (`ADS_LEAD_FORM_PUBLISH_ENABLED = false`), fake provider only; owner and admin only; the account network must match the form's network.
+- [x] A "yes" to the marketing question grants `marketing` consent on conversion (email, else sms) with the wording id and exact text as evidence; no answer, "no" or a question the version never asked grants nothing. The single consent gate and the marketing audience then include the person.
+- [x] `ad_lead` source: first source of a person created by the conversion (replaces the provisional manual one), detail (network, Harvest lead form, campaign reference; never answers) on the source event, kept earlier first source for an existing person; wired through the source taxonomy, source-rule filters (kind and date), list/export Source column, first-source report and its CSV, contact source history and messages. Erasure removes the detail with the person.
+- [x] Full RLS: `ads_form_publications` is FORCE RLS, append-only, owner/admin only.
+
+DRAFT WORDING, FOUNDER APPROVAL REQUIRED before any real use: the four wordings above (the marketing text is "I agree that {ministry} may use my details to show me relevant ads and measure them. I can withdraw this at any time."). No real network, delivery or data until the HC-02 activation decisions and the ads activation review.
+
+Open for the founder: filtering by network or campaign inside source rules (only kind and date today); the hosted-form-style builder screen (server only here).
+
 ## Activation-review items (not built, recorded)
 - The public Ads webhook route runs as the application role and calls `ads_webhook_apply`. Before activation: a dedicated low-privilege role for that route, or signature verification inside the function, so the grant to the application role does not widen what request code can do.
 - The webhook signing secret reuses the social webhook key purpose; a separate Ads webhook key purpose is needed before activation.
