@@ -123,4 +123,6 @@ Effect on the plan: Q1 and Q3 both need a migration (draft read and edit policie
 
 ## Not built (so far)
 
+Storage cleanup for campaign covers: the files of replaced covers and of discarded drafts stay private and unreachable but are not deleted (the event cover cleanup worker covers events only). **Follow-up:** a retention job for `campaign_files` rows that no draft or campaign points to.
+
 Venues and multiple locations (PRD says later), per-department boards, tasks, files and budget allocation, Finish materialisation (items 1 to 12), Campaign Settings module toggles, draft Connect sources, materialising the campaign's boards, budget, events and forms at Finish (row 35). Reasons are in the rows above.

@@ -1,4 +1,4 @@
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "../../db/client";
 import { adsLeadForms, adsLeads } from "../../db/schema";
@@ -23,7 +23,9 @@ export async function createLeadForm(db: Database, user: string, workspace: stri
   try { remote = await prepared.access.provider.createLeadForm(prepared.access.credential, { ...prepared.access.query, idempotencyKey: key, name: input.name, consentText: input.consentText, privacyUrl: input.privacyUrl, questions: input.questions }); }
   catch (error) { throw invalid(`PROVIDER_${failureCode(error)}`); }
   return withAds(db, user, workspace, deps, async (tx, tenant) => {
-    const [row] = await tx.insert(adsLeadForms).values({ tenantId: tenant, adAccountId: input.adAccountId, externalRef: remote.ref, name: input.name, consentText: input.consentText, privacyUrl: input.privacyUrl, questions: input.questions, createdBy: user })
+    const [row] = await tx.insert(adsLeadForms).values({ tenantId: tenant, adAccountId: input.adAccountId, externalRef: remote.ref, name: input.name, consentText: input.consentText, privacyUrl: input.privacyUrl, questions: input.questions, createdBy: user,
+      // A grant exists only for a consent question the form actually asks: the mapping is derived from the questions, never assumed.
+      consentQuestions: { ...(input.questions.includes("consent_newsletter") ? { newsletter: "consent_newsletter" } : {}), ...(input.questions.includes("consent_follow_up") ? { form_follow_up: "consent_follow_up" } : {}) } })
       .onConflictDoUpdate({ target: [adsLeadForms.tenantId, adsLeadForms.adAccountId, adsLeadForms.externalRef], set: { name: input.name } }).returning();
     await audit(tx, tenant, user, "lead_form_create", row.id);
     return { form: { id: row.id, name: row.name, status: row.status, questions: row.questions } };
@@ -91,4 +93,29 @@ export async function eraseAdLeadsByIdentifier(db: Database, user: string, works
     await audit(tx, tenant, user, "leads_erase", tenant, { erased: String(erased) });
     return { erased };
   });
+}
+
+type ConvertOutcome = { outcome: "converted" | "already" | "not_found" | "invalid_lead" | "conflict"; contactId?: string; created?: boolean; granted?: string[] };
+/**
+ * Turns one ad lead into a CRM contact by an explicit owner or admin action, under the hosted-form rules (see `ads_lead_convert`): matched on email or phone, never overwritten, no consent
+ * from the conversion itself, a newsletter or follow-up grant only where the form asked and the lead answered yes. Idempotent: a converted lead answers `already`.
+ */
+export async function convertLeadToContact(db: Database, user: string, workspace: string, leadId: string, deps: AdsDeps) {
+  const id = recordId(leadId);
+  return withAds(db, user, workspace, deps, async (tx) => {
+    const r = (await tx.execute<{ r: ConvertOutcome }>(sql`select public.ads_lead_convert(${id}::uuid) as r`)).rows[0].r;
+    if (r.outcome === "not_found") throw unavailable();
+    if (r.outcome === "invalid_lead" || r.outcome === "conflict") throw invalid(r.outcome === "conflict" ? "CONTACT_CONFLICT" : "LEAD_NOT_CONVERTIBLE");
+    return { outcome: r.outcome, contactId: r.contactId ?? null, created: r.created ?? false, granted: r.granted ?? [] };
+  });
+}
+/** Converts up to 50 unconverted leads of one ad account; each lead is its own outcome and a lead that cannot be converted is counted, not hidden. */
+export async function convertNewLeads(db: Database, user: string, workspace: string, adAccountId: string, deps: AdsDeps) {
+  const ids = await withAds(db, user, workspace, deps, async (tx, tenant) => (await tx.select({ id: adsLeads.id }).from(adsLeads).where(and(eq(adsLeads.tenantId, tenant), eq(adsLeads.adAccountId, recordId(adAccountId)), isNull(adsLeads.contactId))).orderBy(adsLeads.createdAt).limit(50)).map(r => r.id));
+  const counts = { converted: 0, created: 0, matched: 0, notConvertible: 0, conflict: 0 };
+  for (const id of ids) {
+    try { const r = await convertLeadToContact(db, user, workspace, id, deps); counts.converted++; if (r.created) counts.created++; else counts.matched++; }
+    catch (error) { const code = (error as { details?: { code?: string } }).details?.code; if (code === "CONTACT_CONFLICT") counts.conflict++; else if (code === "LEAD_NOT_CONVERTIBLE") counts.notConvertible++; else throw error; }
+  }
+  return counts;
 }
