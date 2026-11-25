@@ -69,7 +69,7 @@ it("reports real figures for a community large enough to publish them", async ()
   expect(s.applications).toEqual({ started: 10, approved: 5, declined: 5, approvalPercent: 50, averageHoursToDecision: 6 });
   expect(s.engagement).toEqual({ posts: 7, comments: null, contributors: 8, unansweredPosts: 5 });
   expect(s.safety).toEqual({ reportsOpened: 6, reportsResolved: 5, averageHoursToResolve: 10, openNow: null });
-  expect(s.unavailable).toEqual(["acquisition", "retention", "commerce", "courseProgress", "eventParticipation", "chat"]);
+  expect(s.unavailable).toEqual(["commerce", "courseProgress", "eventParticipation", "chat"]);
 });
 
 it("covers longer periods and moves a joined member out of the last 7 days", async () => {
