@@ -47,7 +47,7 @@ export function DocMenu({ tenantId, docId, pageId, canEdit, canManage, favorite,
     <PopoverContent align="end" className="w-72 p-2" data-docs-menu>
       <p className="px-3 pb-2 pt-1 font-semibold">{t("settings")}</p>
       <Tabs value={scope} onValueChange={setScope}>
-        <TabsList className="grid w-full grid-cols-2"><TabsTrigger value="doc" className="min-h-11 lg:min-h-0">{t("entireDoc")}</TabsTrigger><TabsTrigger value="page" className="min-h-11 lg:min-h-0">{t("thisPage")}</TabsTrigger></TabsList>
+        <TabsList className="grid w-full grid-cols-2"><TabsTrigger value="doc">{t("entireDoc")}</TabsTrigger><TabsTrigger value="page">{t("thisPage")}</TabsTrigger></TabsList>
         <TabsContent value="doc" className="mt-2 flex flex-col">
           {canEdit && item("renameDoc", Pencil, t("rename"))}
           {item("copyDocLink", Link2, t("copyLink"))}

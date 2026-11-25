@@ -146,7 +146,7 @@ export function DataTable({ label, note, columns, rows, state = "ready", layout 
     </div>}
     {tabs
       ? <Tabs value={tabs.value} onValueChange={tabs.onValueChange} className="gap-3">
-        <div className="overflow-x-auto [scrollbar-width:none]"><TabsList variant="line" aria-label={tabs.label} className="h-auto gap-1">{tabs.items.map((item) => <TabsTrigger key={item.value} value={item.value} className="min-h-11 flex-none gap-1.5 lg:min-h-9">{item.label}{item.count !== undefined && <StatusBadge tone={item.value === tabs.value ? "info" : "neutral"} label={String(item.count)} className="tabular-nums" />}</TabsTrigger>)}</TabsList></div>
+        <div className="overflow-x-auto [scrollbar-width:none]"><TabsList variant="line" aria-label={tabs.label} className="gap-1">{tabs.items.map((item) => <TabsTrigger key={item.value} value={item.value} className="flex-none gap-1.5">{item.label}{item.count !== undefined && <StatusBadge tone={item.value === tabs.value ? "info" : "neutral"} label={String(item.count)} className="tabular-nums" />}</TabsTrigger>)}</TabsList></div>
         {bulk && selectedCount > 0 && <BulkBar bulk={bulk} count={selectedCount} onClear={() => selection?.onChange(picked.filter((id) => !ids.includes(id)))} />}
         <TabsContent value={tabs.value} className="space-y-3">{results}{pagination}</TabsContent>
       </Tabs>

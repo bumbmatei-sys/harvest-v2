@@ -30,8 +30,10 @@ export type RemoteBoostablePost = { ref: string; platform: string; caption: stri
 export type RemoteIdentity = { ref: string; name: string; sparkCodeSupported: boolean };
 export type TargetingHit = { id: string; name: string; kind: string };
 export type RemoteConversionDestination = { ref: string; kind: "pixel" | "conversion_api" | "offline"; name: string; lastEventAt: Date | null; status: "unknown" | "active" | "inactive" };
-/** Shape only. No adapter implements a send; the call is hard-off and the privacy design is an open founder decision. */
-export type ConversionEventBatch = AdsQuery & { destinationRef: string; events: { name: string; at: Date; eventId: string }[] };
+/** Hashed identifiers only (SHA-256 of the normalised email or phone). The call is hard-off in every adapter that can reach a network. */
+export type HashedIdentity = { email?: string; phone?: string };
+export type ConversionEventBatch = AdsQuery & { destinationRef: string; idempotencyKey: string; events: { name: string; at: Date; eventId: string; userData: HashedIdentity }[] };
+export type AudienceUploadSpec = AdsQuery & { audienceRef: string; idempotencyKey: string; members: HashedIdentity[] };
 export type AdsEvent = {
   eventId: string; type: "ad_account.status_changed" | "account.ads.sync_failed" | "account.ads.sync_recovered" | "account.ads.initial_sync_completed"
     | "campaign.updated" | "ad_set.updated" | "ad.updated" | "ad.review_updated" | "ad.delivery_issue" | "lead.received" | "ad_rule.run";

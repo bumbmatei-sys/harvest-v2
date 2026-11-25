@@ -6,13 +6,16 @@ import { ChevronRight, Flag, LockKeyhole } from "lucide-react";
 import { getDb } from "@/db/client";
 import { pageSession } from "@/server/page-session";
 import { listCampaigns } from "@/server/campaigns";
-import { AccessError } from "@/server/permissions";
+import { getWorkspace } from "@/server/workspaces";
+import { AccessError, can } from "@/server/permissions";
 import { uuidInput } from "@/lib/contact-input";
 import { campaignPage } from "@/lib/campaigns";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AccentIcon } from "@/components/accent-icon";
+import { CampaignCoverPlaceholder } from "@/components/campaigns/campaign-type-art";
 import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from "@/components/ui/empty";
-import { Item, ItemContent, ItemDescription, ItemGroup, ItemTitle } from "@/components/ui/item";
+import { Item, ItemContent, ItemDescription, ItemGroup, ItemMedia, ItemTitle } from "@/components/ui/item";
 import { Pagination, PaginationContent, PaginationItem } from "@/components/ui/pagination";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -22,28 +25,35 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function CampaignsPage({ params, searchParams }: {
   params: Promise<{ tenantId: string }>; searchParams: Promise<{ page?: string }>;
 }) {
-  const t = await getTranslations("Campaigns"), session = await pageSession(), { tenantId } = await params;
+  const t = await getTranslations("Campaigns"), wizard = await getTranslations("CampaignWizard"), session = await pageSession(), { tenantId } = await params;
   if (!uuidInput.safeParse(tenantId).success) notFound();
   const page = campaignPage.safeParse((await searchParams).page);
   const result = await listCampaigns(getDb(), session.user.id, tenantId, page.success ? page.data : 1)
     .catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; });
   if (!result) notFound();
+  const workspace = await getWorkspace(getDb(), session.user.id, tenantId).catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; });
+  const canStart = workspace ? can(workspace.role, "campaigns:write") : false;
   const root = `/workspaces/${tenantId}/campaigns`;
   return <div className="space-y-4">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1><p className="mt-1 text-sm text-muted-foreground">{t("description")}</p></div>
-      <Badge variant="secondary">{t("count", { count: result.total })}</Badge>
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="secondary">{t("count", { count: result.total })}</Badge>
+        {canStart && <Button variant="outline" asChild className="min-h-11"><Link href={`${root}/drafts`}>{wizard("drafts")}</Link></Button>}
+        {canStart && <Button asChild className="min-h-11"><Link href={`${root}/new`}>{wizard("newCampaign")}</Link></Button>}
+      </div>
     </div>
     {result.campaigns.length ? <ItemGroup aria-label={t("title")} className="gap-2">
       {result.campaigns.map((campaign) => <div key={campaign.id} role="listitem"><Item variant="outline" asChild>
         <Link href={`${root}/${campaign.id}`} className="bg-card">
+          <ItemMedia className="max-sm:hidden"><CampaignCoverPlaceholder type={campaign.type} className="aspect-[4/3] w-20 rounded-md" /></ItemMedia>
           <ItemContent className="min-w-0"><ItemTitle className="max-w-full break-words">{campaign.name}</ItemTitle>
             <ItemDescription>{t(`types.${campaign.type}`)}</ItemDescription></ItemContent>
           <Badge variant="secondary">{t(`statuses.${campaign.status}`)}</Badge><ChevronRight className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
         </Link>
       </Item></div>)}
     </ItemGroup> : <Empty className="border border-solid bg-card py-16">
-      <EmptyHeader><EmptyMedia variant="icon"><Flag aria-hidden="true" /></EmptyMedia>
+      <EmptyHeader><EmptyMedia><AccentIcon icon={Flag} accent="primary" size="lg" /></EmptyMedia>
         <EmptyTitle><h2>{t(result.total ? "emptyPage" : "emptyTitle")}</h2></EmptyTitle><EmptyDescription>{t("emptyDescription")}</EmptyDescription>
       </EmptyHeader>
     </Empty>}

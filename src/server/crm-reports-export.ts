@@ -13,7 +13,7 @@ const labels = (): ReportCsvLabels => ({
   deals: { outcome: message("CrmReports.deals.outcome"), count: message("CrmReports.deals.count"), won: message("CrmReports.deals.won"), open: message("CrmReports.deals.open"), lost: message("CrmReports.deals.lost") },
   tasks: { status: message("CrmReports.tasks.status"), count: message("CrmReports.tasks.count"), overdue: message("CrmReports.tasks.overdue"), onTime: message("CrmReports.tasks.onTime") },
   sources: { source: message("CrmReports.sources.source"), added: message("CrmReports.sources.added"), withDeal: message("CrmReports.sources.withDeal"), manual: message("CrmReports.sources.manual"),
-    csv_import: message("CrmReports.sources.csv_import"), connect: message("CrmReports.sources.connect"), form: message("CrmReports.sources.form"), unknown: message("CrmReports.sources.unknown") },
+    csv_import: message("CrmReports.sources.csv_import"), connect: message("CrmReports.sources.connect"), form: message("CrmReports.sources.form"), ad_lead: message("CrmReports.sources.ad_lead"), unknown: message("CrmReports.sources.unknown") },
   stages: { pipeline: message("CrmReports.stages.pipeline"), from: message("CrmReports.stages.from"), to: message("CrmReports.stages.to"), moved: message("CrmReports.stages.moved"), medianDays: message("CrmReports.export.medianDays") },
 });
 

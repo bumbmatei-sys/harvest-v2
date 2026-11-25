@@ -9,9 +9,9 @@ export type RequestResult<T> = { ok: true; data: T } | { ok: false; status: numb
  * Same-origin JSON request for mutations. Errors are mapped through the message
  * catalogue so provider or database text never reaches the screen.
  */
-export async function request<T>(path: string, init: { method: string; body?: unknown }, fallback: MessageKey = "Errors.somethingWentWrongPleaseTryAgain"): Promise<RequestResult<T>> {
+export async function request<T>(path: string, init: { method: string; body?: unknown; headers?: Record<string, string> }, fallback: MessageKey = "Errors.somethingWentWrongPleaseTryAgain"): Promise<RequestResult<T>> {
   try {
-    const response = await fetch(path, { method: init.method, headers: init.body === undefined ? undefined : { "Content-Type": "application/json" }, body: init.body === undefined ? undefined : JSON.stringify(init.body) });
+    const response = await fetch(path, { method: init.method, headers: init.body === undefined && !init.headers ? undefined : { ...(init.body === undefined ? {} : { "Content-Type": "application/json" }), ...init.headers }, body: init.body === undefined ? undefined : JSON.stringify(init.body) });
     const data = await response.json().catch(() => ({}));
     if (!response.ok) return { ok: false, status: response.status, error: errorMessage(data.error, fallback), details: data.details };
     return { ok: true, data: data as T };
@@ -21,7 +21,7 @@ export async function request<T>(path: string, init: { method: string; body?: un
 /** request that sends an expired session back to sign-in. */
 export function useRequest() {
   const router = useRouter();
-  return useCallback(async <T,>(path: string, init: { method: string; body?: unknown }, fallback?: MessageKey) => {
+  return useCallback(async <T,>(path: string, init: { method: string; body?: unknown; headers?: Record<string, string> }, fallback?: MessageKey) => {
     const result = await request<T>(path, init, fallback);
     if (!result.ok && result.status === 401) router.replace("/sign-in");
     return result;

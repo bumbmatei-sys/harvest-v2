@@ -15,14 +15,14 @@ const columns = {
   description: campaigns.description, mission: campaigns.mission,
   country: campaigns.country, cityRegion: campaigns.cityRegion,
   startDate: campaigns.startDate, endDate: campaigns.endDate, timeZone: campaigns.timeZone,
-  structure: campaigns.structure, createdAt: campaigns.createdAt, updatedAt: campaigns.updatedAt,
+  structure: campaigns.structure, coverFileId: campaigns.coverFileId, createdAt: campaigns.createdAt, updatedAt: campaigns.updatedAt,
 };
 
 /** The insert both the plain create and the wizard Finish use. The caller owns the transaction and the verified, locked tenant. */
-export async function insertCampaign(tx: Transaction, userId: string, tenantId: string, data: unknown, key: unknown) {
-  const input = campaignInput.parse(data), idempotencyKey = campaignIdempotencyKey.parse(key);
-  const fingerprint = workFingerprint("campaign.create", { ...input, ownerUserId: userId });
-  const [inserted] = await tx.insert(campaigns).values({ ...input, tenantId, ownerUserId: userId, idempotencyKey, fingerprint })
+export async function insertCampaign(tx: Transaction, userId: string, tenantId: string, data: unknown, key: unknown, options: { owner?: string; coverFileId?: string | null } = {}) {
+  const input = campaignInput.parse(data), idempotencyKey = campaignIdempotencyKey.parse(key), owner = options.owner ?? userId, coverFileId = options.coverFileId ?? null;
+  const fingerprint = workFingerprint("campaign.create", { ...input, ownerUserId: owner, ...(coverFileId ? { coverFileId } : {}) });
+  const [inserted] = await tx.insert(campaigns).values({ ...input, tenantId, ownerUserId: owner, coverFileId, idempotencyKey, fingerprint })
     .onConflictDoNothing({ target: [campaigns.tenantId, campaigns.idempotencyKey] }).returning(columns);
   if (inserted) {
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "campaign.create", targetId: inserted.id });

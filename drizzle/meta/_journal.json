@@ -696,9 +696,58 @@
       "breakpoints": true
     },
     {
+      "idx": 101,
+      "version": "7",
+      "when": 1795589379882,
+      "tag": "0101_community_retention",
+      "breakpoints": true
+    },
+    {
+      "idx": 102,
+      "version": "7",
+      "when": 1795590217725,
+      "tag": "0102_docs_trash_purge",
+      "breakpoints": true
+    },
+    {
+      "idx": 103,
+      "version": "7",
+      "when": 1795590416589,
+      "tag": "0103_platform_staff",
+      "breakpoints": true
+    },
+    {
+      "idx": 104,
+      "version": "7",
+      "when": 1795590646210,
+      "tag": "0104_ads_crm",
+      "breakpoints": true
+    },
+    {
+      "idx": 105,
+      "version": "7",
+      "when": 1795592043732,
+      "tag": "0105_ads_forms_source",
+      "breakpoints": true
+    },
+    {
+      "idx": 106,
+      "version": "7",
+      "when": 1795597165354,
+      "tag": "0106_campaign_wizard_shared_drafts",
+      "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1795630859109,
+      "tag": "0107_newsletter_automation_bad_wait",
+      "breakpoints": true
+    },
+    {
       "idx": 108,
       "version": "7",
-      "when": 1795598740700,
+      "when": 1795630904706,
       "tag": "0108_newsletter_from_name",
       "breakpoints": true
     }
