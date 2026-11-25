@@ -2199,13 +2199,13 @@
     "draftClosed": "This draft is already finished or discarded.",
     "draftIncomplete": "Finish the missing steps before creating the campaign.",
     "draftNotYours": "Only the person who started this draft can change it.",
+    "assigneeInvalid": "Choose people who are members of this ministry and can edit.",
+    "notReady": "Add the place, dates and time zone before activating this campaign.",
     "inviteDepartment": "Add the department to the campaign before inviting someone to it.",
     "invitationExists": "This person is already invited to or placed in that department.",
     "invitationNotFound": "This invitation was not found.",
     "invitationExpired": "This invitation has expired. Ask for a new one.",
     "invitationClosed": "This invitation is no longer open.",
-    "assigneeInvalid": "Choose people who are members of this ministry and can edit.",
-    "notReady": "Add the place, dates and time zone before activating this campaign.",
     "coverAlt": "Cover of {name}",
     "registrationFormTitle": "{name} registration"
   },
@@ -8267,6 +8267,743 @@
       },
       "withReason": "{outcome} ({reason})"
     }
+  },
+  "Catalog": {
+    "coursesTitle": "Courses",
+    "productsTitle": "Products",
+    "newProduct": "New product",
+    "newCourse": "New course",
+    "untitled": "Untitled",
+    "free": "Free",
+    "by": "By {host}",
+    "previewEnrol": "Enrol for free",
+    "previewGet": "Get for free",
+    "coursesLabel": "Courses",
+    "productsLabel": "Products",
+    "columns": {
+      "title": "Name",
+      "kind": "Type",
+      "status": "Status",
+      "visibility": "Visibility",
+      "updated": "Updated",
+      "actions": "Actions"
+    },
+    "kinds": {
+      "course": "Course",
+      "download": "Download"
+    },
+    "states": {
+      "draft": "Draft",
+      "published": "Published",
+      "archived": "Archived"
+    },
+    "visibilities": {
+      "hidden": "Hidden",
+      "unlisted": "Unlisted",
+      "listed": "Listed"
+    },
+    "edit": "Edit",
+    "view": "View",
+    "openPage": "Open page",
+    "search": "Search by name",
+    "kindTabs": "Type",
+    "tabs": {
+      "all": "All",
+      "course": "Courses",
+      "download": "Downloads"
+    },
+    "noMatches": "No matches",
+    "loadMore": "Load more",
+    "emptyCourses": "No courses yet",
+    "emptyProducts": "No products yet",
+    "emptyDescription": "Create a course or a download and share it for free.",
+    "types": {
+      "label": "Product types",
+      "heading": "What do you want to create?",
+      "choose": "Create",
+      "course": {
+        "label": "Course",
+        "description": "Lessons in order, for people to learn at their own pace."
+      },
+      "download": {
+        "label": "Download",
+        "description": "Files people can download after they sign in."
+      }
+    },
+    "editor": {
+      "stepsLabel": "Steps",
+      "preview": "Preview",
+      "newCourse": "New course",
+      "newDownload": "New download",
+      "openPage": "Open page",
+      "steps": {
+        "details": "Details",
+        "lessons": "Lessons",
+        "files": "Files",
+        "access": "Access",
+        "publish": "Publish"
+      },
+      "problems": {
+        "title": "Add a title.",
+        "address": "Use 3 to 60 lowercase letters, numbers or hyphens for the address.",
+        "lessonTitle": "Give every lesson a title."
+      },
+      "saved": "Saved.",
+      "done": {
+        "draft": "Back to draft.",
+        "published": "Published.",
+        "archived": "Archived."
+      },
+      "readOnly": "You can read this item. Owners and admins edit it.",
+      "archived": "This item is archived and cannot be changed.",
+      "reload": "Reload",
+      "detailsTitle": "Details",
+      "fields": {
+        "title": "Title",
+        "address": "Address",
+        "summary": "Summary"
+      },
+      "visibility": "Visibility",
+      "visibilityOptions": {
+        "hidden": "Hidden: only your ministry",
+        "unlisted": "Unlisted: anyone with the link",
+        "listed": "Listed: shown in the catalogue"
+      },
+      "shelfTitle": "Community shelf",
+      "shelfNone": "Create a community to show this item on its shelf.",
+      "shelfPublishFirst": "Publish this item to add it to a community shelf.",
+      "shelfNote": "A shelf shows the item. People still sign in and enrol to open it.",
+      "checklist": "Before you publish",
+      "checks": {
+        "title": "A title",
+        "address": "An address",
+        "visibility": "Visibility other than hidden",
+        "lessons": "At least one published lesson",
+        "files": "Ready files"
+      },
+      "checkDone": "Done",
+      "checkOpen": "Not done",
+      "goToStep": "Go to {step}",
+      "saveDraft": "Save draft",
+      "createDraft": "Create draft",
+      "saving": "Saving",
+      "leaveTitle": "Leave without saving?",
+      "leaveBody": "Your changes have not been saved.",
+      "stay": "Stay",
+      "leave": "Leave",
+      "publish": "Publish",
+      "unpublish": "Back to draft",
+      "archive": "Archive",
+      "archiveTitle": "Archive this item?",
+      "archiveBody": "People can no longer open it. This cannot be undone.",
+      "cancel": "Cancel"
+    },
+    "lessons": {
+      "empty": "No lessons yet",
+      "add": "Add lesson",
+      "label": "Lessons",
+      "titleLabel": "Title of lesson {number}",
+      "titlePlaceholder": "Lesson title",
+      "moveUp": "Move lesson {number} up",
+      "moveDown": "Move lesson {number} down",
+      "remove": "Remove lesson {number}",
+      "published": "Published",
+      "draft": "Draft",
+      "hideBody": "Close",
+      "editBody": "Edit lesson",
+      "bodyLabel": "Content of lesson {number}"
+    },
+    "files": {
+      "chosen": "Files in this download",
+      "noneChosen": "No files chosen",
+      "library": "Your files",
+      "libraryEmpty": "No other files",
+      "upload": "Upload a file",
+      "chooseFile": "Choose a file to upload",
+      "status": {
+        "ready": "Ready",
+        "pending": "Waiting",
+        "uploaded": "Checking",
+        "quarantined": "Rejected"
+      },
+      "moveUp": "Move {name} up",
+      "moveDown": "Move {name} down",
+      "remove": "Remove {name}",
+      "add": "Add {name}",
+      "addShort": "Add",
+      "problems": {
+        "type": "Choose a JPEG, PNG, WebP, PDF or text file up to the size limit.",
+        "rejected": "The file was rejected and cannot be used.",
+        "scanning": "The file is still being checked. Add it when it is ready.",
+        "failed": "The upload failed. Choose the file and try again.",
+        "interrupted": "The connection was lost. Try again."
+      },
+      "phase": {
+        "preparing": "Preparing",
+        "uploading": "Uploading",
+        "verifying": "Checking the file"
+      }
+    }
+  },
+  "Ads": {
+    "title": "Ads",
+    "subtitle": "Paid ads on your own ad accounts, in {zone}.",
+    "refresh": "Refresh",
+    "refreshing": "Refreshing",
+    "refreshed": "Ads data updated",
+    "leadsLink": "Lead forms and leads",
+    "create": "Create ad",
+    "account": {
+      "label": "Ad account",
+      "option": "{name} ({network})"
+    },
+    "networks": {
+      "meta": "Meta",
+      "google": "Google",
+      "linkedin": "LinkedIn",
+      "tiktok": "TikTok",
+      "pinterest": "Pinterest",
+      "x": "X",
+      "reddit": "Reddit",
+      "snapchat": "Snapchat",
+      "amazon": "Amazon",
+      "other": "Other network"
+    },
+    "tabs": {
+      "label": "Ads levels",
+      "campaigns": "Campaigns",
+      "adsets": "Ad sets",
+      "ads": "Ads"
+    },
+    "levels": {
+      "campaign": "Campaign",
+      "adset": "Ad set",
+      "ad": "Ad"
+    },
+    "delivery": {
+      "off": "Off",
+      "active": "Active",
+      "completed": "Completed",
+      "inReview": "In review",
+      "rejected": "Rejected",
+      "issue": "Delivery issue",
+      "notDelivering": "Not delivering",
+      "archived": "Archived"
+    },
+    "review": {
+      "unknown": "Not reviewed",
+      "in_review": "In review",
+      "approved": "Approved",
+      "rejected": "Rejected"
+    },
+    "goals": {
+      "engagement": "Engagement",
+      "traffic": "Traffic",
+      "awareness": "Awareness",
+      "video_views": "Video views",
+      "lead_generation": "Leads",
+      "conversions": "Conversions",
+      "messages": "Messages",
+      "app_promotion": "App promotion"
+    },
+    "formats": {
+      "image": "Image",
+      "video": "Video",
+      "carousel": "Carousel",
+      "document": "Document",
+      "event": "Event",
+      "text": "Text",
+      "messaging": "Messaging",
+      "call": "Call"
+    },
+    "bidding": {
+      "lowest_cost": "Lowest cost",
+      "cost_cap": "Cost cap",
+      "bid_cap": "Bid cap",
+      "target_cost": "Target cost",
+      "manual_cpc": "Manual CPC",
+      "manual_cpm": "Manual CPM"
+    },
+    "states": {
+      "unavailableTitle": "Ads are not available",
+      "unavailable": "Ads are not turned on for this ministry.",
+      "error": "Ads could not be loaded.",
+      "retry": "Try again",
+      "truncated": "Some results are not shown because the range is too large. Choose a shorter range."
+    },
+    "empty": {
+      "noAccountsTitle": "No ad accounts yet",
+      "noAccounts": "Find the ad accounts reachable through your connected social accounts.",
+      "find": "Find ad accounts",
+      "finding": "Looking",
+      "connect": "Connect social accounts",
+      "noneFound": "No ad accounts were found for your connected accounts.",
+      "noConnection": "Connect a social account first.",
+      "noCampaignsTitle": "No campaigns yet",
+      "noCampaigns": "Create your first ad, or refresh to read the campaigns already on this account.",
+      "noRowsTitle": "Nothing to show",
+      "noRows": "Select a different campaign or ad set."
+    },
+    "confirmOn": {
+      "title": "Turn on {name}?",
+      "titleMany": "Turn on {count} items?",
+      "body": "Turning this on can start spending your ad budget.",
+      "confirm": "Turn on",
+      "cancel": "Cancel"
+    },
+    "errors": {
+      "generic": "Something went wrong. Try again.",
+      "network": "Could not connect. Try again.",
+      "stale": "This changed elsewhere. Refresh and try again.",
+      "unavailable": "This is not available.",
+      "policy": "Ads about elections, politics or social issues cannot be launched.",
+      "formNotReady": "The lead form is not ready to publish.",
+      "provider": "The ad network did not accept this. Try again later.",
+      "accountInactive": "This ad account is not active.",
+      "connectionInactive": "The social connection for this ad account is not active.",
+      "invalid": "Check the details and try again."
+    },
+    "summary": {
+      "group": "Ads summary",
+      "spend": "Spend",
+      "results": "Results",
+      "costPerResult": "Cost per result",
+      "reach": "Reach per day",
+      "period": "the previous period"
+    },
+    "table": {
+      "onOff": "On or off",
+      "name": "Name",
+      "switchLabel": "Deliver {name}",
+      "notSwitchable": "Cannot be switched",
+      "dash": "—",
+      "unavailable": "Unavailable",
+      "adSetBudget": "Ad set budget",
+      "daily": "{amount} daily",
+      "lifetime": "{amount} lifetime",
+      "ongoing": "Ongoing",
+      "totals": "Total of {count, plural, one {# row} other {# rows}}",
+      "bulk": "Bulk actions",
+      "bulkOn": "Turn on",
+      "bulkOff": "Turn off",
+      "turnedOn": "{count, plural, one {Turned on} other {Turned on {count} items}}",
+      "turnedOff": "{count, plural, one {Turned off} other {Turned off {count} items}}",
+      "label": {
+        "campaigns": "Campaigns",
+        "adsets": "Ad sets",
+        "ads": "Ads"
+      }
+    },
+    "columns": {
+      "label": "Columns",
+      "sets": "Column sets",
+      "choose": "Choose columns",
+      "group": {
+        "performance": "Performance",
+        "delivery": "Delivery",
+        "engagement": "Engagement",
+        "custom": "Custom"
+      },
+      "column": {
+        "delivery": "Delivery",
+        "budget": "Budget",
+        "results": "Results",
+        "costPerResult": "Cost per result",
+        "reach": "Reach",
+        "reachDay": "Reach per day",
+        "impressions": "Impressions",
+        "spend": "Spend",
+        "ends": "Ends",
+        "goal": "Goal",
+        "bidding": "Bid strategy",
+        "starts": "Starts",
+        "clicks": "Clicks",
+        "ctr": "Click rate",
+        "cpc": "Cost per click",
+        "cpm": "Cost per 1,000",
+        "format": "Format",
+        "review": "Review"
+      }
+    },
+    "panel": {
+      "description": "Change the name, delivery and budget.",
+      "name": "Name",
+      "saveName": "Save name",
+      "renamed": "Name saved",
+      "delivering": "Delivering",
+      "turnedOn": "Turned on",
+      "turnedOff": "Turned off",
+      "budget": "Budget",
+      "dailyBudget": "Daily budget",
+      "lifetimeBudget": "Lifetime budget",
+      "endDate": "End date",
+      "confirmSpend": "I understand this changes what is spent (now {current}).",
+      "saveBudget": "Save budget",
+      "budgetSaved": "Budget saved",
+      "format": "Format",
+      "review": "Review",
+      "boosted": "Source",
+      "boostedPost": "A boosted post",
+      "rejected": "This ad was rejected.",
+      "issue": "Delivery issue: {issue}",
+      "remove": "Remove",
+      "removeTitle": "Remove {name}?",
+      "removeBody": "This cannot be undone. The history is kept where the network allows it.",
+      "removeConfirm": "Remove",
+      "cancel": "Cancel",
+      "removed": "Removed"
+    },
+    "health": {
+      "accountStatus": "This ad account is {status}",
+      "needsAttention": "Needs attention",
+      "syncFailing": "The last refresh failed.",
+      "fix": "How to fix",
+      "lastRefusal": "The ad network refused the last change.",
+      "dismiss": "Dismiss {alert}",
+      "status": {
+        "active": "active",
+        "restricted": "restricted",
+        "disabled": "disabled",
+        "closed": "closed",
+        "unknown": "not confirmed"
+      },
+      "check": {
+        "account_status": {
+          "warning": "The ad account status needs a look.",
+          "failing": "The ad account is not in good standing."
+        },
+        "payment_method": {
+          "warning": "The payment method needs a look.",
+          "failing": "There is a problem with the payment method."
+        },
+        "spend_limit": {
+          "warning": "The spending limit is close.",
+          "failing": "The spending limit is reached."
+        },
+        "page_link": {
+          "warning": "The Page link needs a look.",
+          "failing": "The Page is not linked to this ad account."
+        },
+        "instagram_link": {
+          "warning": "The Instagram account is not linked.",
+          "failing": "The Instagram account link is broken."
+        },
+        "lead_ads_terms": {
+          "warning": "The lead ads terms need a look.",
+          "failing": "The lead ads terms are not accepted."
+        },
+        "pixel": {
+          "warning": "The tracking pixel needs a look.",
+          "failing": "The tracking pixel is not working."
+        },
+        "whatsapp_link": {
+          "warning": "The WhatsApp number needs a look.",
+          "failing": "The WhatsApp number is not linked."
+        }
+      },
+      "alert": {
+        "ad_rejected": "An ad was rejected.",
+        "delivery_issue": "An ad has a delivery issue.",
+        "payment_problem": "There is a payment problem.",
+        "spend_without_results": "A campaign spent money without results.",
+        "budget_capped": "A budget is capped.",
+        "connection_lost": "The connection to the ad network was lost.",
+        "sync_failed": "The last refresh failed.",
+        "account_restricted": "The ad account is restricted."
+      }
+    }
+  },
+  "DiscoverScreens": {
+    "title": "Discover",
+    "searchLabel": "Search Discover",
+    "searchPlaceholder": "Search communities, courses and products",
+    "search": "Search",
+    "clearSearch": "Clear search",
+    "typesLabel": "Type",
+    "types": {
+      "all": "All",
+      "community": "Communities",
+      "course": "Courses",
+      "product": "Products"
+    },
+    "typeNames": {
+      "community": "Community",
+      "course": "Course",
+      "product": "Product"
+    },
+    "filters": "Filters",
+    "filtersTitle": "Filters",
+    "filtersActive": "{count, plural, one {# filter active} other {# filters active}}",
+    "category": "Category",
+    "language": "Language",
+    "price": "Price",
+    "anyCategory": "Any category",
+    "anyLanguage": "Any language",
+    "reset": "Reset",
+    "resetFilters": "Reset filters",
+    "sortLabel": "Sort by",
+    "sorts": {
+      "relevance": "Relevance",
+      "newest": "Newest",
+      "name": "Name"
+    },
+    "activeFilters": "Active filters",
+    "removeFilter": "Remove filter {name}",
+    "categories": {
+      "discipleship": "Discipleship",
+      "prayer": "Prayer",
+      "worship": "Worship",
+      "bible_study": "Bible study",
+      "outreach": "Outreach",
+      "missions": "Missions",
+      "youth": "Youth",
+      "family": "Family",
+      "leadership": "Leadership",
+      "service": "Service",
+      "recovery": "Recovery",
+      "other": "Other"
+    },
+    "resultsLabel": "Results",
+    "resultCount": "{count, plural, one {# result} other {# results}}",
+    "loadMore": "Load more",
+    "loadingMore": "Loading",
+    "loadFailed": "Could not load more results.",
+    "retry": "Try again",
+    "emptyTitle": "Nothing listed yet",
+    "emptyBody": "Approved communities, courses and products appear here.",
+    "noResultsTitle": "No results",
+    "noResultsBody": "Try other words or reset the filters.",
+    "failedTitle": "Search is unavailable",
+    "failedBody": "Try again in a moment.",
+    "by": "By {host}",
+    "free": "Free",
+    "view": "View",
+    "viewNamed": "View {name}",
+    "quickLook": "Quick look",
+    "quickLookNamed": "Quick look at {name}",
+    "admission": {
+      "open": "Open to join",
+      "apply": "By application",
+      "invite": "By invitation",
+      "entitlement": "With a purchase"
+    },
+    "updated": "Updated {date}",
+    "quick": {
+      "host": "Host",
+      "category": "Category",
+      "language": "Language",
+      "price": "Price",
+      "admission": "Joining",
+      "updatedLabel": "Updated",
+      "openPage": "Open page",
+      "noPage": "A public page is not available yet.",
+      "close": "Close"
+    },
+    "report": {
+      "button": "Report",
+      "buttonNamed": "Report {name}",
+      "title": "Report this listing",
+      "reason": "Reason",
+      "note": "Note (optional)",
+      "send": "Send report",
+      "cancel": "Cancel",
+      "sending": "Sending",
+      "reasons": {
+        "spam": "Spam",
+        "inappropriate": "Inappropriate",
+        "misleading": "Misleading",
+        "impersonation": "Impersonation",
+        "other": "Other"
+      },
+      "sent": "Thank you. We will review it.",
+      "duplicate": "You already reported this and it is still open.",
+      "rateLimited": "You have sent too many reports today. Try again tomorrow.",
+      "gone": "This listing is no longer available.",
+      "failed": "Could not send the report. Try again.",
+      "signIn": "Sign in to report",
+      "done": "Done"
+    },
+    "owner": {
+      "title": "Discover",
+      "tabsLabel": "Listings",
+      "tabs": {
+        "all": "All",
+        "community": "Communities",
+        "course": "Courses",
+        "product": "Products"
+      },
+      "tableLabel": "Your listings",
+      "name": "Name",
+      "type": "Type",
+      "status": "Status",
+      "category": "Category",
+      "language": "Language",
+      "actions": "Actions",
+      "manage": "Manage",
+      "manageNamed": "Manage {name}",
+      "none": "Not set",
+      "browse": "Browse Discover",
+      "emptyTitle": "Nothing to list yet",
+      "emptyBody": "Communities, courses and products you create appear here.",
+      "emptyTab": "No listings in this tab.",
+      "listed": "In Discover",
+      "notListed": "Not listed",
+      "loadFailed": "Could not load your listings.",
+      "panelTitle": "Discover listing",
+      "close": "Close",
+      "reload": "Reload"
+    },
+    "card": {
+      "title": "List in Discover",
+      "switch": "List in Discover",
+      "material": "Changing the name, summary, category, language, price, host or audience sends an approved listing back to review.",
+      "optOut": "Turning it off removes it from Discover at once.",
+      "category": "Category",
+      "language": "Language",
+      "unset": "Not set",
+      "saving": "Saving",
+      "saved": "Saved",
+      "status": {
+        "not_requested": "Not listed",
+        "pending": "In review",
+        "approved": "Approved",
+        "rejected": "Not approved",
+        "suspended": "Suspended"
+      },
+      "pending": "Waiting for review. It is not public until approved.",
+      "approved": "Public in Discover.",
+      "rejected": "Not approved: {reason}",
+      "suspended": "Suspended: {reason}",
+      "resubmit": "Send for review again",
+      "communityManaged": "Turn this on or off in the community settings.",
+      "openSettings": "Open community settings",
+      "needsPublished": "Publish it as Listed to list it in Discover.",
+      "conflict": "This changed elsewhere. Reload and try again.",
+      "reload": "Reload",
+      "failed": "Could not save. Try again.",
+      "loadFailed": "Could not load the Discover status.",
+      "readOnly": "Only owners and admins can change this."
+    },
+    "staff": {
+      "title": "Discover review",
+      "role": "Signed in as {role}",
+      "roles": {
+        "reviewer": "reviewer",
+        "admin": "admin"
+      },
+      "tabsLabel": "Review queue",
+      "tabs": {
+        "pending": "Pending",
+        "approved": "Approved",
+        "rejected": "Rejected",
+        "suspended": "Suspended",
+        "reports": "Reports"
+      },
+      "tableLabel": "Listings to review",
+      "reportsLabel": "Open reports",
+      "listing": "Listing",
+      "type": "Type",
+      "host": "Host",
+      "category": "Category",
+      "submitted": "Submitted",
+      "reports": "Reports",
+      "status": "Status",
+      "reason": "Reason",
+      "ministry": "Ministry",
+      "reportedOn": "Reported",
+      "details": "Details",
+      "review": "Review",
+      "empty": {
+        "pending": "Nothing is waiting for review.",
+        "approved": "No approved listings.",
+        "rejected": "No rejected listings.",
+        "reports": "No open reports.",
+        "suspended": "No suspended listings."
+      },
+      "refresh": "Refresh",
+      "loadFailed": "Could not load the queue.",
+      "retry": "Try again",
+      "reauthTitle": "Sign in again",
+      "reauthBody": "Review actions need a sign-in from the last 15 minutes.",
+      "reauthAction": "Sign in again",
+      "panelTitle": "Review listing",
+      "panelReport": "Review report",
+      "close": "Close",
+      "fields": {
+        "name": "Name",
+        "summary": "Summary",
+        "host": "Host",
+        "category": "Category",
+        "language": "Language",
+        "audience": "Audience",
+        "price": "Price",
+        "state": "State",
+        "reason": "Reason",
+        "ministryId": "Ministry ID",
+        "openReports": "Open reports",
+        "listingId": "Listing ID"
+      },
+      "free": "Free",
+      "paid": "Paid",
+      "none": "None",
+      "materialChange": "Changed since it was approved",
+      "approve": "Approve",
+      "reject": "Reject",
+      "suspend": "Suspend",
+      "reinstate": "Reinstate",
+      "reasonLabel": "Reason",
+      "reasonHint": "Required, up to 500 characters.",
+      "reasonRequired": "Enter a reason.",
+      "confirmReject": "Reject this listing?",
+      "confirmRejectBody": "The ministry sees the reason.",
+      "confirmSuspend": "Suspend this listing?",
+      "confirmSuspendBody": "It leaves Discover at once. The ministry sees the reason.",
+      "confirm": "Confirm",
+      "cancel": "Cancel",
+      "decided": {
+        "approved": "Approved.",
+        "rejected": "Rejected.",
+        "suspended": "Suspended.",
+        "reinstated": "Reinstated."
+      },
+      "stale": "This listing changed. Refresh and review it again.",
+      "notReviewable": "This listing can no longer be reviewed.",
+      "failed": "Could not save. Try again.",
+      "standingTitle": "Ministry in Discover",
+      "standingBody": "Hides or restores every listing of this ministry.",
+      "standingSuspend": "Suspend ministry",
+      "standingRestore": "Restore ministry",
+      "standingReason": "Reason",
+      "standingDone": {
+        "suspended": "Ministry suspended in Discover.",
+        "restored": "Ministry restored in Discover."
+      },
+      "report": {
+        "reason": "Reason",
+        "note": "Note",
+        "markReviewed": "Mark reviewed",
+        "dismiss": "Dismiss",
+        "resolved": "Report resolved.",
+        "listing": "Listing",
+        "noName": "Open the listing in the approved tab to see its details.",
+        "reasons": {
+          "spam": "Spam",
+          "inappropriate": "Inappropriate",
+          "misleading": "Misleading",
+          "impersonation": "Impersonation",
+          "other": "Other"
+        }
+      },
+      "adminOnly": "Admins only.",
+      "skip": "Skip to content",
+      "reviewNamed": "Review {name}",
+      "limitNote": "Showing the oldest {count}. Work through them to see more."
+    },
+    "paid": "Paid",
+    "freeOnly": "Free only",
+    "allCategories": "All categories",
+    "searchCategories": "Search categories",
+    "noCategoryMatch": "No category found."
   },
   "CampaignInvitation": {
     "pageTitle": "Campaign invitation",

@@ -36,6 +36,9 @@ export function ReportsView({ tenantId, initial }: { tenantId: string; initial: 
     return () => controller.abort();
   }, [period, attempt, tenantId, initial.period]);
 
+  // Ready only when the shown report is the selected period and no load is running: right after a period change the old report is still on screen
+  // until the fetch starts, and it must not count as ready then.
+  const ready = !state.loading && (state.report.period === period || state.failed);
   const { report } = state, { deals, tasks, contacts, stages } = report, canExport = report.scope === "ministry";
   const exportAction = (table: "deals" | "tasks" | "sources" | "stages", label: string) => canExport ? <ReportExportButton tenantId={tenantId} table={table} period={period} label={label} /> : undefined;
   const num = (value: number | null) => value === null ? null : format.number(value);
@@ -57,18 +60,18 @@ export function ReportsView({ tenantId, initial }: { tenantId: string; initial: 
   const quiet = deals.created === 0 && tasks.completed === 0 && tasks.open === 0 && (!contacts || contacts.added === 0);
   const sources = contacts ? reportSources.map((source) => contacts.sources.find((row) => row.source === source)!) : [];
 
-  return <div className="flex flex-col gap-6" data-testid="reports-page" data-period={report.period} data-scope={report.scope} data-ready={state.loading ? undefined : "true"} aria-busy={state.loading || undefined}>
+  return <div className="flex flex-col gap-6" data-testid="reports-page" data-period={report.period} data-scope={report.scope} data-ready={ready ? "true" : undefined} aria-busy={!ready || undefined}>
     <header className="flex flex-wrap items-end justify-between gap-x-4 gap-y-3">
       <div className="min-w-0">
         <div className="mb-1.5 flex items-center gap-2 text-xs text-muted-foreground"><ChartColumn className="size-3.5" aria-hidden="true" />{t("crm")}</div>
         <h1 className="flex flex-wrap items-center gap-2.5 text-[28px] font-semibold tracking-tight">{t("title")}
           <Badge variant="secondary" className="rounded-md" data-testid="report-scope">{t(report.scope === "ministry" ? "scopeMinistry" : "scopeOwn")}</Badge></h1>
       </div>
-      <ReportPeriodTabs value={period} onValueChange={setPeriod} />
+      <ReportPeriodTabs value={period} onValueChange={(next) => { setState((previous) => ({ ...previous, failed: false })); setPeriod(next); }} />
     </header>
     {state.failed && <Alert variant="destructive" data-testid="reports-error"><AlertDescription className="flex flex-wrap items-center gap-3">{t("error.message")}
       <Button type="button" variant="outline" size="responsive" onClick={() => setAttempt((count) => count + 1)}><RotateCw aria-hidden="true" />{t("error.retry")}</Button></AlertDescription></Alert>}
-    <div className={state.loading ? "flex flex-col gap-6 opacity-60 transition-opacity" : "flex flex-col gap-6"}>
+    <div className={ready ? "flex flex-col gap-6" : "flex flex-col gap-6 opacity-60 transition-opacity"}>
       <ReportStatCards stats={stats} columns={contacts ? 3 : 4} />
       {quiet ? <EmptyState icon={ChartColumn} title={t("empty.title")} description={t("empty.description")} solid headingLevel={2} /> : <div className="grid grid-cols-1 gap-4 xl:grid-cols-2 lg:gap-6">
         <ReportBarsCard id="deals" title={t("deals.title")} description={t("deals.description")} caption={t("chart.deals")} keyHeader={t("deals.outcome")}
