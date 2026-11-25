@@ -2618,8 +2618,10 @@ export const newsletterIdentities = pgTable("newsletter_identities", {
   confirmationDigest: text("confirmation_digest"),
   confirmationExpiresAt: timestamp("confirmation_expires_at", { withTimezone: true }),
   enabled: boolean("enabled").notNull().default(true),
+  displayName: text("display_name"),
   version: integer("version").notNull().default(1),
 }, t => [primaryKey({ columns: [t.tenantId, t.id] }), unique().on(t.tenantId, t.address, t.purpose),
+  check("newsletter_identity_display_name", sql`${t.displayName} is null or (char_length(${t.displayName}) between 1 and 80 and ${t.displayName} !~ '[<>"@[:cntrl:]]')`),
   check("newsletter_identity_purpose", sql`(${t.purpose}='sender' and ${t.connectionId} is not null)
     or (${t.purpose}='reply-to' and ${t.connectionId} is null)`),
   foreignKey({ columns: [t.tenantId, t.connectionId], foreignColumns: [newsletterConnections.tenantId, newsletterConnections.id] })]);
