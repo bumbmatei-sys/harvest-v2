@@ -7458,7 +7458,6 @@
     "draftsTitle": "Campaign drafts",
     "draftsPageTitle": "Campaign drafts · Harvest",
     "draftsAll": "Every draft in this ministry",
-    "draftsMine": "Your drafts",
     "draftsEmpty": "No drafts",
     "draftsEmptyDescription": "Start a campaign and it is saved here as you go.",
     "newCampaign": "New campaign",
@@ -7466,6 +7465,44 @@
     "continue": "Continue",
     "view": "View",
     "discard": "Discard",
+    "cover": {
+      "label": "Campaign Cover Image or Logo (optional)",
+      "alt": "Campaign cover",
+      "drop": "Drop an image here",
+      "limits": "JPG, PNG or WebP, up to {mb} MB",
+      "select": "Select image",
+      "replace": "Replace",
+      "remove": "Remove",
+      "saveFirst": "Save the draft to add a cover.",
+      "saved": "Cover updated.",
+      "removed": "Cover removed.",
+      "removeTitle": "Remove the cover?",
+      "removeBody": "The campaign will have no cover image or logo.",
+      "keep": "Keep cover",
+      "progressLabel": "Upload progress",
+      "cancel": "Cancel",
+      "scanning": "Waiting for the safety check.",
+      "checkAgain": "Check again",
+      "dismiss": "Dismiss",
+      "tryAgain": "Try again",
+      "chooseAnother": "Choose another",
+      "reload": "Reload",
+      "phases": {
+        "preparing": "Preparing",
+        "uploading": "Uploading",
+        "uploadingPercent": "Uploading {percent}%",
+        "verifying": "Checking the image"
+      },
+      "problems": {
+        "type": "Use a JPG, PNG or WebP image.",
+        "size": "The image must be larger than 0 and at most {mb} MB.",
+        "rejected": "This image was not accepted. Choose another.",
+        "interrupted": "The upload was interrupted. Try again.",
+        "failed": "The image could not be uploaded. Try again.",
+        "scan": "The image failed the safety check. Choose another.",
+        "stale": "This draft changed somewhere else. Reload, then try again."
+      }
+    },
     "discardNamed": "Discard: {name}",
     "discardTitle": "Discard this draft?",
     "discardBody": "The draft is closed and no campaign is created. This cannot be undone.",
@@ -7496,8 +7533,6 @@
     "conflictTitle": "This draft changed somewhere else",
     "conflictBody": "Reload to see the latest version. Your last unsaved edits on this screen are not applied.",
     "reload": "Reload",
-    "readOnly": "Only {name} can edit this draft. You can read it and discard it.",
-    "readOnlyUnknown": "Only the person who started this draft can edit it. You can read it and discard it.",
     "closed": {
       "finished": "This draft is already a campaign.",
       "discarded": "This draft was discarded."
@@ -8049,6 +8084,183 @@
         "stopped": "Stopped"
       },
       "withReason": "{outcome} ({reason})"
+    }
+  },
+  "Catalog": {
+    "coursesTitle": "Courses",
+    "productsTitle": "Products",
+    "newProduct": "New product",
+    "newCourse": "New course",
+    "untitled": "Untitled",
+    "free": "Free",
+    "by": "By {host}",
+    "previewEnrol": "Enrol for free",
+    "previewGet": "Get for free",
+    "coursesLabel": "Courses",
+    "productsLabel": "Products",
+    "columns": {
+      "title": "Name",
+      "kind": "Type",
+      "status": "Status",
+      "visibility": "Visibility",
+      "updated": "Updated",
+      "actions": "Actions"
+    },
+    "kinds": {
+      "course": "Course",
+      "download": "Download"
+    },
+    "states": {
+      "draft": "Draft",
+      "published": "Published",
+      "archived": "Archived"
+    },
+    "visibilities": {
+      "hidden": "Hidden",
+      "unlisted": "Unlisted",
+      "listed": "Listed"
+    },
+    "edit": "Edit",
+    "view": "View",
+    "openPage": "Open page",
+    "search": "Search by name",
+    "kindTabs": "Type",
+    "tabs": {
+      "all": "All",
+      "course": "Courses",
+      "download": "Downloads"
+    },
+    "noMatches": "No matches",
+    "loadMore": "Load more",
+    "emptyCourses": "No courses yet",
+    "emptyProducts": "No products yet",
+    "emptyDescription": "Create a course or a download and share it for free.",
+    "types": {
+      "label": "Product types",
+      "heading": "What do you want to create?",
+      "choose": "Create",
+      "course": {
+        "label": "Course",
+        "description": "Lessons in order, for people to learn at their own pace."
+      },
+      "download": {
+        "label": "Download",
+        "description": "Files people can download after they sign in."
+      }
+    },
+    "editor": {
+      "stepsLabel": "Steps",
+      "preview": "Preview",
+      "newCourse": "New course",
+      "newDownload": "New download",
+      "openPage": "Open page",
+      "steps": {
+        "details": "Details",
+        "lessons": "Lessons",
+        "files": "Files",
+        "access": "Access",
+        "publish": "Publish"
+      },
+      "problems": {
+        "title": "Add a title.",
+        "address": "Use 3 to 60 lowercase letters, numbers or hyphens for the address.",
+        "lessonTitle": "Give every lesson a title."
+      },
+      "saved": "Saved.",
+      "done": {
+        "draft": "Back to draft.",
+        "published": "Published.",
+        "archived": "Archived."
+      },
+      "readOnly": "You can read this item. Owners and admins edit it.",
+      "archived": "This item is archived and cannot be changed.",
+      "reload": "Reload",
+      "detailsTitle": "Details",
+      "fields": {
+        "title": "Title",
+        "address": "Address",
+        "summary": "Summary"
+      },
+      "visibility": "Visibility",
+      "visibilityOptions": {
+        "hidden": "Hidden: only your ministry",
+        "unlisted": "Unlisted: anyone with the link",
+        "listed": "Listed: shown in the catalogue"
+      },
+      "shelfTitle": "Community shelf",
+      "shelfNone": "Create a community to show this item on its shelf.",
+      "shelfPublishFirst": "Publish this item to add it to a community shelf.",
+      "shelfNote": "A shelf shows the item. People still sign in and enrol to open it.",
+      "checklist": "Before you publish",
+      "checks": {
+        "title": "A title",
+        "address": "An address",
+        "visibility": "Visibility other than hidden",
+        "lessons": "At least one published lesson",
+        "files": "Ready files"
+      },
+      "checkDone": "Done",
+      "checkOpen": "Not done",
+      "goToStep": "Go to {step}",
+      "saveDraft": "Save draft",
+      "createDraft": "Create draft",
+      "saving": "Saving",
+      "leaveTitle": "Leave without saving?",
+      "leaveBody": "Your changes have not been saved.",
+      "stay": "Stay",
+      "leave": "Leave",
+      "publish": "Publish",
+      "unpublish": "Back to draft",
+      "archive": "Archive",
+      "archiveTitle": "Archive this item?",
+      "archiveBody": "People can no longer open it. This cannot be undone.",
+      "cancel": "Cancel"
+    },
+    "lessons": {
+      "empty": "No lessons yet",
+      "add": "Add lesson",
+      "label": "Lessons",
+      "titleLabel": "Title of lesson {number}",
+      "titlePlaceholder": "Lesson title",
+      "moveUp": "Move lesson {number} up",
+      "moveDown": "Move lesson {number} down",
+      "remove": "Remove lesson {number}",
+      "published": "Published",
+      "draft": "Draft",
+      "hideBody": "Close",
+      "editBody": "Edit lesson",
+      "bodyLabel": "Content of lesson {number}"
+    },
+    "files": {
+      "chosen": "Files in this download",
+      "noneChosen": "No files chosen",
+      "library": "Your files",
+      "libraryEmpty": "No other files",
+      "upload": "Upload a file",
+      "chooseFile": "Choose a file to upload",
+      "status": {
+        "ready": "Ready",
+        "pending": "Waiting",
+        "uploaded": "Checking",
+        "quarantined": "Rejected"
+      },
+      "moveUp": "Move {name} up",
+      "moveDown": "Move {name} down",
+      "remove": "Remove {name}",
+      "add": "Add {name}",
+      "addShort": "Add",
+      "problems": {
+        "type": "Choose a JPEG, PNG, WebP, PDF or text file up to the size limit.",
+        "rejected": "The file was rejected and cannot be used.",
+        "scanning": "The file is still being checked. Add it when it is ready.",
+        "failed": "The upload failed. Choose the file and try again.",
+        "interrupted": "The connection was lost. Try again."
+      },
+      "phase": {
+        "preparing": "Preparing",
+        "uploading": "Uploading",
+        "verifying": "Checking the file"
+      }
     }
   },
   "Ads": {
@@ -8626,5 +8838,182 @@
       "moveCardDown": "Move card {n} down",
       "cardThumb": "Card {n} image"
     }
+  },
+  "DiscoverScreens": {
+    "title": "Discover",
+    "searchLabel": "Search Discover",
+    "searchPlaceholder": "Search communities, courses and products",
+    "search": "Search",
+    "clearSearch": "Clear search",
+    "typesLabel": "Type",
+    "types": {
+      "all": "All",
+      "community": "Communities",
+      "course": "Courses",
+      "product": "Products"
+    },
+    "typeNames": {
+      "community": "Community",
+      "course": "Course",
+      "product": "Product"
+    },
+    "filters": "Filters",
+    "filtersTitle": "Filters",
+    "filtersActive": "{count, plural, one {# filter active} other {# filters active}}",
+    "category": "Category",
+    "language": "Language",
+    "price": "Price",
+    "anyCategory": "Any category",
+    "anyLanguage": "Any language",
+    "reset": "Reset",
+    "resetFilters": "Reset filters",
+    "sortLabel": "Sort by",
+    "sorts": {
+      "relevance": "Relevance",
+      "newest": "Newest",
+      "name": "Name"
+    },
+    "activeFilters": "Active filters",
+    "removeFilter": "Remove filter {name}",
+    "categories": {
+      "discipleship": "Discipleship",
+      "prayer": "Prayer",
+      "worship": "Worship",
+      "bible_study": "Bible study",
+      "outreach": "Outreach",
+      "missions": "Missions",
+      "youth": "Youth",
+      "family": "Family",
+      "leadership": "Leadership",
+      "service": "Service",
+      "recovery": "Recovery",
+      "other": "Other"
+    },
+    "resultsLabel": "Results",
+    "resultCount": "{count, plural, one {# result} other {# results}}",
+    "loadMore": "Load more",
+    "loadingMore": "Loading",
+    "loadFailed": "Could not load more results.",
+    "retry": "Try again",
+    "emptyTitle": "Nothing listed yet",
+    "emptyBody": "Approved communities, courses and products appear here.",
+    "noResultsTitle": "No results",
+    "noResultsBody": "Try other words or reset the filters.",
+    "failedTitle": "Search is unavailable",
+    "failedBody": "Try again in a moment.",
+    "by": "By {host}",
+    "free": "Free",
+    "view": "View",
+    "viewNamed": "View {name}",
+    "quickLook": "Quick look",
+    "quickLookNamed": "Quick look at {name}",
+    "admission": {
+      "open": "Open to join",
+      "apply": "By application",
+      "invite": "By invitation",
+      "entitlement": "With a purchase"
+    },
+    "updated": "Updated {date}",
+    "quick": {
+      "host": "Host",
+      "category": "Category",
+      "language": "Language",
+      "price": "Price",
+      "admission": "Joining",
+      "updatedLabel": "Updated",
+      "openPage": "Open page",
+      "noPage": "A public page is not available yet.",
+      "close": "Close"
+    },
+    "report": {
+      "button": "Report",
+      "buttonNamed": "Report {name}",
+      "title": "Report this listing",
+      "reason": "Reason",
+      "note": "Note (optional)",
+      "send": "Send report",
+      "cancel": "Cancel",
+      "sending": "Sending",
+      "reasons": {
+        "spam": "Spam",
+        "inappropriate": "Inappropriate",
+        "misleading": "Misleading",
+        "impersonation": "Impersonation",
+        "other": "Other"
+      },
+      "sent": "Thank you. We will review it.",
+      "duplicate": "You already reported this and it is still open.",
+      "rateLimited": "You have sent too many reports today. Try again tomorrow.",
+      "gone": "This listing is no longer available.",
+      "failed": "Could not send the report. Try again.",
+      "signIn": "Sign in to report",
+      "done": "Done"
+    },
+    "owner": {
+      "title": "Discover",
+      "tabsLabel": "Listings",
+      "tabs": {
+        "all": "All",
+        "community": "Communities",
+        "course": "Courses",
+        "product": "Products"
+      },
+      "tableLabel": "Your listings",
+      "name": "Name",
+      "type": "Type",
+      "status": "Status",
+      "category": "Category",
+      "language": "Language",
+      "actions": "Actions",
+      "manage": "Manage",
+      "manageNamed": "Manage {name}",
+      "none": "Not set",
+      "browse": "Browse Discover",
+      "emptyTitle": "Nothing to list yet",
+      "emptyBody": "Communities, courses and products you create appear here.",
+      "emptyTab": "No listings in this tab.",
+      "listed": "In Discover",
+      "notListed": "Not listed",
+      "loadFailed": "Could not load your listings.",
+      "panelTitle": "Discover listing",
+      "close": "Close",
+      "reload": "Reload"
+    },
+    "card": {
+      "title": "List in Discover",
+      "switch": "List in Discover",
+      "material": "Changing the name, summary, category, language, price, host or audience sends an approved listing back to review.",
+      "optOut": "Turning it off removes it from Discover at once.",
+      "category": "Category",
+      "language": "Language",
+      "unset": "Not set",
+      "saving": "Saving",
+      "saved": "Saved",
+      "status": {
+        "not_requested": "Not listed",
+        "pending": "In review",
+        "approved": "Approved",
+        "rejected": "Not approved",
+        "suspended": "Suspended"
+      },
+      "pending": "Waiting for review. It is not public until approved.",
+      "approved": "Public in Discover.",
+      "rejected": "Not approved: {reason}",
+      "suspended": "Suspended: {reason}",
+      "resubmit": "Send for review again",
+      "communityManaged": "Turn this on or off in the community settings.",
+      "openSettings": "Open community settings",
+      "needsPublished": "Publish it as Listed to list it in Discover.",
+      "conflict": "This changed elsewhere. Reload and try again.",
+      "reload": "Reload",
+      "failed": "Could not save. Try again.",
+      "loadFailed": "Could not load the Discover status.",
+      "readOnly": "Only owners and admins can change this."
+    },
+    "paid": "Paid",
+    "freeOnly": "Free only",
+    "allCategories": "All categories",
+    "searchCategories": "Search categories",
+    "noCategoryMatch": "No category found."
   }
 }
