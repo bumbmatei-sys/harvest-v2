@@ -82,25 +82,22 @@ it("lets the worker role run the function only, and the application role not eve
   expect(await purge()).toBe(1);
 });
 
-it("leaves a doc in the trash, and carries on, when a table it cannot clear still points at it", async () => {
+it("leaves a doc in the trash, and carries on, when a table it does not know still points at it", async () => {
   const blockedDoc = await trashed(tenant, owner, "blocked", 70);
   const free = await trashed(tenant, owner, "free", 70);
-  // A stand-in for a later slice's table: restrictive foreign key, FORCE RLS and no purge policy yet.
-  await fixture.admin.query(`create table doc_comments(id uuid primary key default gen_random_uuid(), tenant_id uuid not null, doc_id uuid not null,
+  // A stand-in for a later slice's table: restrictive foreign key, which the purge does not know about yet.
+  await fixture.admin.query(`create table doc_future_slice(id uuid primary key default gen_random_uuid(), tenant_id uuid not null, doc_id uuid not null,
     foreign key (tenant_id, doc_id) references docs(tenant_id, id) on delete no action)`);
   try {
-    await fixture.admin.query("grant all on doc_comments to public"); // the test creates it as another role than the migration owner
-    await fixture.admin.query("insert into doc_comments(tenant_id, doc_id) values($1,$2)", [tenant, blockedDoc]);
-    await fixture.admin.query("alter table doc_comments enable row level security; alter table doc_comments force row level security");
+    await fixture.admin.query("insert into doc_future_slice(tenant_id, doc_id) values($1,$2)", [tenant, blockedDoc]);
     expect(await purge()).toBe(1);
     expect(await ids(tenant)).toContain(blockedDoc);
     expect(await ids(tenant)).not.toContain(free);
-    // Once that table's rows can be cleared by the purge, the next run finishes the job.
-    const gate = "current_user <> 'harvest_app' and session_user = 'harvest_worker' and current_setting('app.docs_purge', true) = 'on'";
-    await fixture.admin.query(`create policy docs_purge_remove on doc_comments for delete to public using (${gate}); create policy docs_purge_read on doc_comments for select to public using (${gate})`);
+    // Once that table's rows are gone (a later migration teaches the purge about it), the next run finishes the job.
+    await fixture.admin.query("delete from doc_future_slice");
     expect(await purge()).toBe(1);
     expect(await ids(tenant)).not.toContain(blockedDoc);
-  } finally { await fixture.admin.query("drop table doc_comments"); }
+  } finally { await fixture.admin.query("drop table doc_future_slice"); }
 });
 
 it("clears the Docs slice 2 rows (comments, history, shares, page shares, notifications, links) that point at a purged doc", async () => {
@@ -113,7 +110,7 @@ it("clears the Docs slice 2 rows (comments, history, shares, page shares, notifi
     await q("insert into doc_comments(tenant_id, doc_id, page_id, parent_id, author_id, body) values ($1,$2,$3,$4,$5,'Reply')", [tenant, id, page, comment, owner]);
     await q("insert into doc_page_versions(tenant_id, doc_id, page_id, number, content, created_by) values ($1,$2,$3,1,'{}'::jsonb,$4)", [tenant, id, page, owner]);
     await q("insert into doc_shares(tenant_id, doc_id, owner_id, user_id, role, created_by) values ($1,$2,$3,$4,'view',$3)", [tenant, id, owner, other2]);
-    await q("insert into doc_notifications(tenant_id, user_id, kind, doc_id, actor_id) values ($1,$2,'comment',$3,$4)", [tenant, other2, id, owner]);
+    await q("insert into doc_notifications(tenant_id, user_id, kind, doc_id, actor_id) values ($1,$2,'mention',$3,$4)", [tenant, other2, id, owner]);
   });
   const count = async (table: string) => Number((await q(`select count(*)::int n from ${table} where doc_id=$1`, [doc])).rows[0].n);
   expect(await count("doc_comments")).toBe(2);
