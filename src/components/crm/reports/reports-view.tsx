@@ -67,7 +67,7 @@ export function ReportsView({ tenantId, initial }: { tenantId: string; initial: 
         <h1 className="flex flex-wrap items-center gap-2.5 text-[28px] font-semibold tracking-tight">{t("title")}
           <Badge variant="secondary" className="rounded-md" data-testid="report-scope">{t(report.scope === "ministry" ? "scopeMinistry" : "scopeOwn")}</Badge></h1>
       </div>
-      <ReportPeriodTabs value={period} onValueChange={setPeriod} />
+      <ReportPeriodTabs value={period} onValueChange={(next) => { setState((previous) => ({ ...previous, failed: false })); setPeriod(next); }} />
     </header>
     {state.failed && <Alert variant="destructive" data-testid="reports-error"><AlertDescription className="flex flex-wrap items-center gap-3">{t("error.message")}
       <Button type="button" variant="outline" size="responsive" onClick={() => setAttempt((count) => count + 1)}><RotateCw aria-hidden="true" />{t("error.retry")}</Button></AlertDescription></Alert>}
