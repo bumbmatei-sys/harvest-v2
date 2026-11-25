@@ -1,3 +1,4 @@
+import { e2eReason } from "./e2e-diagnostics";
 import { message } from "../i18n/messages";
 import { and, eq, sql } from "drizzle-orm";
 import type { Database, Transaction } from "../db/client";
@@ -12,8 +13,6 @@ export async function withUser<T>(db: Database, userId: string, run: (tx: Transa
     return run(tx);
   });
 }
-/** In the browser-test server only (HARVEST_E2E_MOCK_EMAIL), a 403 says which check refused, so an intermittent denial is diagnosable from the test's own assertion. Never set in production. */
-const e2eReason = (reason: string) => process.env.HARVEST_E2E_MOCK_EMAIL === "1" ? { reason } : undefined;
 export async function withTenant<T>(db: Database, userId: string, workspaceHint: string, permission: Permission,
   run: (tx: Transaction, tenantId: string, role: string) => Promise<T>) {
   return withUser(db, userId, async (tx) => {

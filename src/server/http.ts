@@ -1,3 +1,4 @@
+import { e2eDenialDetails } from "./e2e-diagnostics";
 import { message } from "../i18n/messages";
 import "server-only";
 import { getAuth } from "./auth-instance";
@@ -28,7 +29,7 @@ export function errorResponse(error: unknown) {
   if (hasSqlState(error, ["42501"])) {
     // Browser-test server only: name the table and constraint of the refused statement (no values) so an intermittent denial can be traced.
     const pg = error && typeof error === "object" ? ("cause" in error && error.cause && typeof error.cause === "object" ? error.cause : error) as { table?: string; constraint?: string; routine?: string; message?: string } : {};
-    const details = process.env.HARVEST_E2E_MOCK_EMAIL === "1" ? { sqlstate: "42501", table: String(pg.table ?? ""), routine: String(pg.routine ?? ""), pg: String(pg.message ?? "").slice(0, 200) } : undefined;
+    const details = e2eDenialDetails(pg);
     return Response.json({ error: message("Errors.workspaceAccessDenied"), ...(details ? { details } : {}) }, { status: 403 });
   }
   if (hasSqlState(error, ["40P01", "40001"])) return Response.json({ error: message("Errors.thisRecordChangedReloadAndTryAgain"), details: { reason: "stale" } }, { status: 409 });
