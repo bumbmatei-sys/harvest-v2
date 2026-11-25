@@ -158,3 +158,14 @@ export function reorder(ids: readonly string[], id: string, index: number): stri
 export type DocRights = { manage: boolean; write: boolean };
 /** Owners and admins manage every doc; members create docs and edit the docs they own; viewers read. */
 export const docRights = (role: string, ownerId: string, userId: string): DocRights => ({ manage: role === "owner" || role === "admin", write: role === "owner" || role === "admin" || (role === "member" && ownerId === userId) });
+
+/**
+ * The fields of a page that are changed but not yet confirmed saved, or null when nothing is pending. Text edits and title changes are
+ * counted, a style change is held until a save confirms it; `getContent` runs only when the text changed. Used by the editor's
+ * autosave and by the page-leave flush, so a style toggle is sent with, or without, pending text.
+ */
+export function pendingPageFields(state: { edits: number; savedEdits: number; title: string; savedTitle: string; style: PageStyle | null; getContent: () => unknown }) {
+  const textChanged = state.edits !== state.savedEdits, titleChanged = state.title !== state.savedTitle;
+  if (!textChanged && !titleChanged && state.style === null) return null;
+  return { ...(textChanged ? { content: state.getContent() } : {}), ...(titleChanged ? { title: state.title } : {}), ...(state.style !== null ? { style: state.style } : {}) };
+}

@@ -87,7 +87,7 @@ export const auditLogs = pgTable("audit_logs", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("audit_logs_tenant_created_idx").on(t.tenantId, t.createdAt), foreignKey({ columns: [t.tenantId], foreignColumns: [workspaces.tenantId] }),
   index("community_chat_mutations_idx").on(t.actorId,t.action,t.createdAt),
-  check("audit_system_actor", sql`${t.actorId} is not null or ${t.action} in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated', 'community.profile_save', 'community.profile_withdraw', 'community.profile_erase', 'crm.form.submit')`)]);
+  check("audit_system_actor", sql`${t.actorId} is not null or ${t.action} in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated', 'community.profile_save', 'community.profile_withdraw', 'community.profile_erase', 'crm.form.submit', 'docs.trash.purge')`)]);
 export const authSchema = { user: users, session: sessions, account: accounts, verification: verifications, rateLimit: rateLimits };
 
 // A campaign belongs to its parent workspace; it never creates another tenant.
