@@ -2,7 +2,7 @@
 "use client";
 import Link from "next/link";
 import { useState } from "react";
-import { Plus, Search, X } from "lucide-react";
+import { ArrowDown, ArrowUp, ImagePlus, Plus, Search, X } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -165,6 +165,8 @@ export function ScheduleStep({ draft, set, bad }: StepProps) {
     </FormSection>;
 }
 
+const moveItem = <T,>(list: readonly T[], index: number, by: -1 | 1): T[] => { const next = [...list], to = index + by; if (to < 0 || to >= next.length) return next; [next[index], next[to]] = [next[to], next[index]]; return next; };
+
 export function AdStep({ tenantId, draft, set, bad, lookups, previews, addPreview, tenantHref }: StepProps & { tenantHref: string }) {
   const t = useTranslations("Ads.wizard"), l = useTranslations("Ads");
   const onAdd = (m: MediaChange) => { addPreview(m.ref, m.previewUrl); set("mediaRefs", [...draft.mediaRefs, { ref: m.ref, name: m.name }]); };
@@ -178,12 +180,19 @@ export function AdStep({ tenantId, draft, set, bad, lookups, previews, addPrevie
         onChange={(label) => set("format", formatsOffered.find((f) => l(`formats.${f}`) === label) ?? "image")} />
       {bad("creative.format") && <FieldError>{t("errors.format")}</FieldError>}</Field>
     {(draft.format === "image" || draft.format === "video") && <Field data-invalid={bad("creative.mediaRefs") || undefined}><FieldLabel>{t(draft.format === "video" ? "videoLabel" : "imageLabel")}</FieldLabel>
-      <AdMediaPicker tenantId={tenantId} kind={draft.format} max={draft.format === "video" ? 1 : 10} value={draft.mediaRefs} previews={previews} onAdd={onAdd} onRemove={(ref) => set("mediaRefs", draft.mediaRefs.filter((m) => m.ref !== ref))}
+      <AdMediaPicker tenantId={tenantId} kind={draft.format} max={1} value={draft.mediaRefs} previews={previews} onAdd={onAdd} onRemove={(ref) => set("mediaRefs", draft.mediaRefs.filter((m) => m.ref !== ref))}
         label={t(draft.format === "video" ? "addVideo" : "addImage")} />{bad("creative.mediaRefs") && <FieldError>{t("errors.media")}</FieldError>}</Field>}
     {draft.format === "carousel" && <Field data-invalid={bad("creative.cards") || undefined}><FieldLabel>{t("cards")}</FieldLabel>
-      <ul className="m-0 flex list-none flex-col gap-3 p-0">{draft.cards.map((card, index) => <li key={card.mediaRef} className="flex flex-col gap-3 rounded-lg border p-3">
-        <div className="flex items-center justify-between gap-2"><span className="text-sm font-medium">{t("cardN", { n: index + 1 })}</span>
-          <Button type="button" variant="ghost" size="responsive" onClick={() => set("cards", draft.cards.filter((_, i) => i !== index))}><X aria-hidden="true" />{t("removeCard")}</Button></div>
+      <ul className="m-0 flex list-none flex-col gap-3 p-0" data-testid="ads-cards">{draft.cards.map((card, index) => <li key={card.mediaRef} className="flex flex-col gap-3 rounded-lg border p-3" data-testid="ads-card">
+        <div className="flex items-center gap-3">
+          {previews[card.mediaRef] ? // eslint-disable-next-line @next/next/no-img-element -- a local blob preview
+            <img src={previews[card.mediaRef]} alt={t("cardThumb", { n: index + 1 })} className="size-14 shrink-0 rounded-md object-cover" /> : <span className="flex size-14 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground"><ImagePlus aria-hidden="true" /></span>}
+          <div className="min-w-0 flex-1"><p className="text-sm font-medium">{t("cardN", { n: index + 1 })}</p><p className="truncate text-xs text-muted-foreground" title={card.mediaName}>{card.mediaName}</p></div>
+          <div className="flex items-center">
+            <Button type="button" variant="ghost" size="icon" className="size-11 lg:size-8" disabled={index === 0} aria-label={t("moveCardUp", { n: index + 1 })} onClick={() => set("cards", moveItem(draft.cards, index, -1))}><ArrowUp aria-hidden="true" /></Button>
+            <Button type="button" variant="ghost" size="icon" className="size-11 lg:size-8" disabled={index === draft.cards.length - 1} aria-label={t("moveCardDown", { n: index + 1 })} onClick={() => set("cards", moveItem(draft.cards, index, 1))}><ArrowDown aria-hidden="true" /></Button>
+            <Button type="button" variant="ghost" size="icon" className="size-11 lg:size-8" aria-label={`${t("removeCard")} ${index + 1}`} onClick={() => set("cards", draft.cards.filter((_, i) => i !== index))}><X aria-hidden="true" /></Button>
+          </div></div>
         <Field><FieldLabel htmlFor={`ads-card-h-${index}`}>{t("headline")}</FieldLabel><Input id={`ads-card-h-${index}`} className="min-h-11" value={card.headline} maxLength={80} onChange={(e) => setCard(index, { headline: e.target.value })} /></Field>
         <Field><FieldLabel htmlFor={`ads-card-l-${index}`}>{t("link")}</FieldLabel><Input id={`ads-card-l-${index}`} type="url" inputMode="url" className="min-h-11" value={card.linkUrl} maxLength={2048} onChange={(e) => setCard(index, { linkUrl: e.target.value })} /></Field>
       </li>)}</ul>

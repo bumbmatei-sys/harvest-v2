@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { mediaKind } from "@/lib/social/media";
 import { acceptsMime, PutError, uploadMedia } from "@/lib/social/media-upload";
+import { socialUploadLimits } from "@/lib/social/upload-limits";
 
 type Item = { key: string; name: string; ref?: string; progress: number; phase: "hashing" | "uploading" | "verifying" | "ready" | "failed"; previewUrl: string; error?: string };
 export type MediaChange = { ref: string; name: string; previewUrl: string };
@@ -26,7 +27,8 @@ export function AdMediaPicker({ tenantId, kind, max, value, previews, onAdd, onR
   function add(files: File[]) {
     for (const file of files.slice(0, Math.max(room, 0))) {
       const key = crypto.randomUUID(), previewUrl = URL.createObjectURL(file);
-      if (!accepted(file.type)) { setItems((current) => [...current, { key, name: file.name, progress: 0, phase: "failed", previewUrl, error: t("typeNotAllowed") }]); continue; }
+      const refusal = !accepted(file.type) ? "typeNotAllowed" : file.size === 0 ? "empty" : file.size > socialUploadLimits.fileBytes ? "tooLarge" : null;
+      if (refusal) { setItems((current) => [...current, { key, name: file.name, progress: 0, phase: "failed", previewUrl, error: t(refusal) }]); continue; }
       setItems((current) => [...current, { key, name: file.name, progress: 0, phase: "hashing", previewUrl }]);
       void uploadMedia(tenantId, file, { signal: new AbortController().signal, phase: (phase) => patch(key, { phase }), progress: (progress) => patch(key, { progress }) })
         .then((stored) => {

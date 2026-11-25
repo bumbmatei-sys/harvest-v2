@@ -8325,7 +8325,9 @@
         "dismiss": "Dismiss",
         "uploading": "Uploading {name}",
         "verifying": "Checking the file",
-        "uploadingPercent": "{percent}%"
+        "uploadingPercent": "{percent}%",
+        "tooLarge": "This file is larger than 4 GB.",
+        "empty": "This file is empty."
       },
       "preview": {
         "label": "Ad preview",
@@ -8343,7 +8345,10 @@
           "send_message": "Send message",
           "call_now": "Call now",
           "donate": "Donate"
-        }
+        },
+        "previousCard": "Previous card",
+        "nextCard": "Next card",
+        "cardOf": "Card {n} of {total}"
       },
       "state": {
         "launched": "Launched",
@@ -8476,7 +8481,10 @@
             "good3": "Giving apps"
           }
         }
-      }
+      },
+      "moveCardUp": "Move card {n} up",
+      "moveCardDown": "Move card {n} down",
+      "cardThumb": "Card {n} image"
     }
   }
 }
