@@ -42,7 +42,7 @@ export function stepMarkKind(step: { state: EditorStepState; current: boolean })
 /** Marker classes by kind. Done uses the `--success` token (tuned for AA on the sidebar and card backgrounds in both colour schemes). */
 export const stepMarkClass: Record<StepMarkKind, string> = {
   done: "border-step-done bg-step-done/10 text-step-done",
-  attention: "border-warning bg-warning-tint text-warning",
+  attention: "border-destructive/30 bg-destructive/10 text-destructive",
   current: "border-primary bg-primary text-primary-foreground",
   todo: "border-border bg-background text-muted-foreground",
 };
