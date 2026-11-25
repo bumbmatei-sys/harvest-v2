@@ -743,6 +743,13 @@
       "when": 1795633515662,
       "tag": "0107_bio_guard_photo_plan",
       "breakpoints": true
+    },
+    {
+      "idx": 108,
+      "version": "7",
+      "when": 1795635138944,
+      "tag": "0108_newsletter_automation_bad_wait",
+      "breakpoints": true
     }
   ]
 }
