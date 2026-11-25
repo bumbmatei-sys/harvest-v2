@@ -16,7 +16,7 @@ import type { InboxCheck } from "@/lib/email/inbox-check";
 import { inboxReady } from "@/lib/email/inbox-check";
 
 export type ListOption = { id: string; name: string; audienceId: string };
-export type SenderOption = { id: string; address: string };
+export type SenderOption = { id: string; address: string; displayName?: string | null };
 type Estimate = { selected: number; eligible: number; skipped: Record<string, number> };
 
 /** Send step: who (lists and saved groups with a live count), when, the summary and the inbox check. Sending itself is off, so the button stays disabled. */
@@ -75,7 +75,7 @@ export function SendStep({ tenantId, lists, groups, senders, listIds, segmentIds
       <dl className="grid gap-3 text-sm sm:grid-cols-2">
         {(["senderId", "replyToId"] as const).map((key) => <div key={key} className="space-y-1"><dt><Label htmlFor={`nl-${key}`}>{t(key === "senderId" ? "from" : "replyTo")}</Label></dt>
           <dd><NativeSelect id={`nl-${key}`} className="w-full" value={(key === "senderId" ? senderId : replyToId) ?? ""} onChange={(e) => onIdentity(key, e.target.value || null)}>
-            <NativeSelectOption value="">{t("noSender")}</NativeSelectOption>{senders.map((s) => <NativeSelectOption key={s.id} value={s.id}>{s.address}</NativeSelectOption>)}</NativeSelect></dd></div>)}
+            <NativeSelectOption value="">{t("noSender")}</NativeSelectOption>{senders.map((s) => <NativeSelectOption key={s.id} value={s.id}>{s.displayName ? t("senderOption", { name: s.displayName, address: s.address }) : s.address}</NativeSelectOption>)}</NativeSelect></dd></div>)}
         {senders.length === 0 && <div className="sm:col-span-2"><Link href={senderHref} className="text-sm underline underline-offset-4" data-sender-link>{t("setUpSender")}</Link></div>}
         <div><dt className="text-muted-foreground">{t("subject")}</dt><dd className="font-medium">{subject}</dd></div>
         <div><dt className="text-muted-foreground">{t("recipients")}</dt><dd className="font-medium">{estimate && listIds.length > 0 ? t("count", { eligible: estimate.eligible, selected: estimate.selected }) : t("pending")}</dd></div>

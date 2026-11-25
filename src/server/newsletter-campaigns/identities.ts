@@ -4,14 +4,19 @@ import { z } from "zod";
 import type { Database, Transaction } from "../../db/client";
 import { newsletterConnections, newsletterIdentities } from "../../db/schema";
 import { message } from "../../i18n/messages";
+import { AccessError } from "../permissions";
 import { audit, conflict, digest, id, pageInput, unavailable, version, withNewsletter } from "./access";
 import { FakeNewsletterProvider } from "./fake-provider";
 import type { DomainRecord } from "./port";
 
 const createInput = z.object({ address: z.string().trim().toLowerCase().max(254).pipe(z.email()),
   purpose: z.enum(["sender", "reply-to"]).default("sender") }).strict();
+// A display name is plain text for the From line: no angle brackets, quotes, at signs or control characters (no header tricks, no look-alike addresses).
+export const displayNameInput = z.string().trim().max(80).regex(/^[^<>"@\p{Cc}]*$/u).transform(value => value || null).nullable();
+const deleteInput = z.object({ version }).strict();
 const editInput = z.union([
   z.object({ version, enabled: z.boolean() }).strict(),
+  z.object({ version, displayName: displayNameInput }).strict(),
   z.object({ version, action: z.literal("confirm"), code: z.string().regex(/^[A-Za-z0-9_-]{43}$/) }).strict(),
   z.object({ version, action: z.literal("request-code") }).strict(),
 ]);
@@ -120,6 +125,10 @@ export async function updateIdentity(db: Database, actor: string, workspace: str
     let changes: Partial<typeof newsletterIdentities.$inferInsert>;
     let mail: ReturnType<typeof challenge>["mail"] | undefined;
     if ("enabled" in input) changes = { enabled: input.enabled };
+    else if ("displayName" in input) {
+      if (current.purpose !== "sender") throw conflict("DISPLAY_NAME_SENDER_ONLY");
+      changes = { displayName: input.displayName };
+    }
     else if (input.action === "confirm") {
       if (!current.confirmationExpiresAt || current.confirmationExpiresAt.getTime() <= Date.now() ||
           digest(input.code) !== current.confirmationDigest) throw conflict("MAILBOX_CONFIRMATION_INVALID");
@@ -141,4 +150,17 @@ export async function updateIdentity(db: Database, actor: string, workspace: str
   });
   if (updated.mail) await sink.confirmMailbox(updated.mail);
   return updated.result;
+}
+
+/** Deletes a sender or reply-to address for real. Refused while any revision of any campaign names it, and when the version is stale. */
+export function deleteIdentity(db: Database, actor: string, workspace: string, identityId: string, raw: unknown) {
+  return withNewsletter(db, actor, workspace, "newsletter:delivery", async (tx, tenant) => {
+    const { version: expected } = deleteInput.parse(raw);
+    const { rows: [result] } = await tx.execute<{ outcome: string }>(sql`select public.newsletter_delete_identity(${tenant}::uuid,${id(identityId)}::uuid,${expected}::integer) as outcome`);
+    if (result?.outcome === "missing") throw unavailable();
+    if (result?.outcome === "stale") throw conflict("STALE_VERSION");
+    if (result?.outcome === "in_use") throw new AccessError(409, message("Errors.senderInUse"), { code: "IDENTITY_IN_USE" });
+    await audit(tx, tenant, actor, "newsletter.identity.delete", identityId, expected);
+    return { deleted: true as const };
+  });
 }

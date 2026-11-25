@@ -5,6 +5,7 @@ import { auditLogs, communities, communityCategories, communityInvites, communit
 import { questionSet } from "../lib/questions";
 import { categoryInput, forumLimits } from "../lib/forum";
 import { normaliseBannedWords } from "../lib/moderation";
+import { refreshDiscoverListing } from "./discover/refresh";
 import { discoverEligible, emailHash, emailHint, hashSecret, listingFor, newInviteToken } from "../lib/community-listing";
 import { communityStaffRoles, type CommunityRole } from "../lib/community-permissions";
 import { readyToPublish } from "../lib/community-editor";
@@ -208,9 +209,11 @@ export async function syncListing(tx: Transaction, tenantId: string, communityId
   const [host] = await tx.select({ name: workspaces.name }).from(workspaces).where(eq(workspaces.tenantId, tenantId));
   const listing = c && host ? listingFor(c, host.name, discoverEligible(tenantId)) : null;
   const key = and(eq(discoverListings.resourceType, "community"), eq(discoverListings.resourceId, communityId));
-  if (!listing) { await tx.delete(discoverListings).where(key); return; }
+  if (!listing) { await tx.delete(discoverListings).where(key); await refreshDiscoverListing(tx, tenantId, "community", communityId); return; }
   const values = { ...listing, updatedAt: new Date() };
   await tx.insert(discoverListings).values(values).onConflictDoUpdate({ target: [discoverListings.resourceType, discoverListings.resourceId], set: values });
+  // Unified Discover: category, language, audience, review state and the material-change hash, in the same transaction.
+  await refreshDiscoverListing(tx, tenantId, "community", communityId);
 }
 
 const inviteInput = z.object({ email: z.email().max(320) }).strict();

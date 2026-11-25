@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useFormatter, useTranslations } from "next-intl";
 import { DndContext, DragOverlay, KeyboardSensor, PointerSensor, TouchSensor, useDraggable, useDroppable, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core";
-import { Archive, ArchiveRestore, ArrowRight, Copy, FilePlus2, FileText, FolderInput, FolderPlus, GripVertical, MoreHorizontal, Pencil, Search, Sheet, Star, Trash2, Undo2 } from "lucide-react";
+import { Archive, ArchiveRestore, ArrowRight, ChevronDown, Copy, FilePlus2, FileText, FolderInput, FolderPlus, GripVertical, Upload, MoreHorizontal, Pencil, Search, Sheet, Star, Trash2, Undo2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
@@ -18,6 +18,7 @@ import { EmptyState } from "@/components/empty-state";
 import { EntryIcon } from "@/components/files/entry-icon";
 import { NameDialog } from "@/components/docs/name-dialog";
 import { MoveDialog } from "@/components/docs/move-dialog";
+import { NotificationsBell } from "@/components/docs/panels/notifications-bell";
 import { useRequest } from "@/hooks/use-request";
 import { docHref, docsHref, folderPath, folderSubtree, type ListView } from "@/lib/docs-list";
 import { notify } from "@/lib/toast";
@@ -88,7 +89,13 @@ export function DocsScreen({ tenantId, list, folderId, q, status, sort, favorite
     setError(""); router.refresh(); return result;
   }
   const fail = (result: { ok: boolean; error?: string }) => (result.ok ? undefined : result.error);
-  async function createDoc() { const r = await call<{ id: string; pageId: string }>("POST", "", { title: "", folderId }); if (r.ok) router.push(docHref(tenantId, r.data.id)); }
+  const picker = useRef<HTMLInputElement>(null);
+  async function importFile(file: File) {
+    if (file.size > 1_000_000) { setError(t("importTooLarge")); return; }
+    const r = await call<{ id: string }>("POST", "/import", { format: /\.(md|markdown|txt)$/i.test(file.name) ? "markdown" : "html", text: await file.text(), split: false, title: file.name.replace(/\.[^.]+$/, "").slice(0, 200), folderId });
+    if (r.ok) router.push(docHref(tenantId, r.data.id));
+  }
+  async function createDoc(wiki = false) { const r = await call<{ id: string; pageId: string }>("POST", "", { title: "", folderId, ...(wiki ? { wiki: true } : {}) }); if (r.ok) router.push(docHref(tenantId, r.data.id)); }
   async function moveDoc(doc: DocRow, to: string | null) {
     if (doc.folderId === to) return undefined;
     const r = await call("PATCH", `/${doc.id}`, { folderId: to }); if (r.ok) notify.success(t("movedTo", { name: folderName(to) })); return fail(r);
@@ -143,10 +150,14 @@ export function DocsScreen({ tenantId, list, folderId, q, status, sort, favorite
     <div className="min-w-0 space-y-6" data-docs-list>
       <header className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-[28px] font-semibold tracking-tight">{t("title")}</h1>
-        {canWrite && <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2"><NotificationsBell tenantId={tenantId} />
+        {canWrite && <>
+          <Button type="button" variant="outline" className="min-h-11" onClick={() => picker.current?.click()}><Upload aria-hidden="true" />{t("import")}</Button>
+          <input ref={picker} type="file" className="sr-only" tabIndex={-1} aria-label={t("chooseFile")} accept=".html,.htm,.md,.markdown,.txt,text/html,text/markdown,text/plain" onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f) void importFile(f); }} />
           <Button type="button" variant="outline" className="min-h-11" onClick={() => setDialog({ kind: "newFolder" })}><FolderPlus aria-hidden="true" />{t("newFolder")}</Button>
-          <Button type="button" className="min-h-11" onClick={() => void createDoc()}><FilePlus2 aria-hidden="true" />{t("newDoc")}</Button>
-        </div>}
+          <DropdownMenu><DropdownMenuTrigger asChild><Button type="button" className="min-h-11"><FilePlus2 aria-hidden="true" />{t("newMenu")}<ChevronDown aria-hidden="true" /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end"><DropdownMenuItem className="min-h-11" onSelect={() => void createDoc()}>{t("newBlankDoc")}</DropdownMenuItem><DropdownMenuItem className="min-h-11" onSelect={() => void createDoc(true)}>{t("newBlankWiki")}</DropdownMenuItem></DropdownMenuContent></DropdownMenu>
+        </>}</div>
       </header>
       {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
       <div className="flex flex-wrap items-center gap-2">
@@ -165,6 +176,8 @@ export function DocsScreen({ tenantId, list, folderId, q, status, sort, favorite
           <BreadcrumbItem>{i === path.length - 1 ? <BreadcrumbPage>{f.name}</BreadcrumbPage> : <CrumbDrop id={`folder:${f.id}`}><BreadcrumbLink asChild><Link href={docsHref(tenantId, { folder: f.id })} className="inline-flex min-h-11 items-center px-1 lg:min-h-8">{f.name}</Link></BreadcrumbLink></CrumbDrop>}</BreadcrumbItem></Fragment>)}
         {searching && <><BreadcrumbSeparator /><BreadcrumbItem><BreadcrumbPage>{q ? t("searchResults") : favorites ? t("starred") : status === "archived" ? t("statusArchived") : t("statusTrash")}</BreadcrumbPage></BreadcrumbItem></>}
       </BreadcrumbList></Breadcrumb>
+      {!searching && list.pinned.length > 0 && <section aria-label={t("favoritesRow")} data-docs-pinned><h2 className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">{t("favoritesRow")}</h2>
+        <ul className="flex flex-wrap gap-2">{list.pinned.map((f) => <li key={f.id}><Link href={docHref(tenantId, f.id)} className="inline-flex min-h-11 items-center gap-2 rounded-lg border bg-card px-3 text-sm hover:bg-accent"><Star className="size-4 fill-current text-warning" aria-hidden="true" /><span className="max-w-48 truncate">{f.title || t("untitled")}</span></Link></li>)}</ul></section>}
       {!searching && children.length > 0 && <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4" aria-label={t("folders")} data-testid="doc-folder-cards">
         {children.map((f) => <FolderCard key={f.id} folder={f} subfolders={subfoldersOf(f.id)} href={docsHref(tenantId, { folder: f.id })} canChange={manager || (canWrite && f.ownerId === list.userId)}
           onOpen={() => go({ folder: f.id })} onAction={(kind) => setDialog({ kind: kind === "rename" ? "renameFolder" : kind === "move" ? "moveFolder" : "deleteFolder", folder: f })} />)}

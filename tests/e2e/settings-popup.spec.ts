@@ -74,7 +74,7 @@ test("Settings pop-up: open, sections by role, keyboard, deep link, Planner entr
   for (const group of ["Office", "People", "Connect", "Ministry"]) await expect(nav.getByRole("button", { name: group, exact: true })).toBeVisible();
   for (const hidden of ["Settings", "Giving"]) await expect(nav.getByRole("button", { name: hidden, exact: true })).toHaveCount(0);
   for (const hidden of ["CRM fields", "Pipeline settings", "Appearance", "Ministry settings", "Social accounts"]) await expect(nav.getByRole("link", { name: hidden, exact: true })).toHaveCount(0);
-  for (const shown of ["Files", "People", "Organizations", "Pipelines", "Tasks", "Imports", "Follow-up", "Campaigns"]) await expect(nav.getByRole("link", { name: shown, exact: true })).toBeVisible();
+  for (const shown of ["Storage", "People", "Organizations", "Pipelines", "Tasks", "Imports", "Follow-up", "Campaigns"]) await expect(nav.getByRole("link", { name: shown, exact: true })).toBeVisible();
   for (const path of ["/crm/settings/fields", "/crm/settings/pipelines", "/appearance", "/settings", "/social/accounts", "/files", "/campaigns", "/connect/follow-up"]) {
     const response = await page.goto(`${base}${path}`);
     expect(response?.status(), path).toBe(200);
@@ -150,13 +150,14 @@ test("Settings pop-up: open, sections by role, keyboard, deep link, Planner entr
   await page.keyboard.press("Escape");
   await expect(dialog(page)).toHaveCount(0);
 
-  // ---- Public sidebar: Social media group only (the Newsletter group is live; unbuilt groups stay hidden) -------------------------------------------------------------------
+  // ---- Public sidebar: Social media group only (the Newsletter and Website groups are live; unbuilt groups stay hidden) -------------------------------------------------------------------
   await page.getByRole("tab", { name: "Public", exact: true }).click();
   await expect(nav.getByRole("button", { name: "Social media", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Planner", exact: true })).toBeVisible();
   await expect(nav.getByRole("button", { name: "Newsletter", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Campaigns", exact: true })).toBeVisible();
-  for (const hidden of ["Website", "Courses and products"]) await expect(nav.getByRole("button", { name: hidden, exact: true })).toHaveCount(0);
+  await expect(nav.getByRole("button", { name: "Website", exact: true })).toBeVisible(); // Link in bio (owners and admins)
+  for (const hidden of ["Courses and products"]) await expect(nav.getByRole("button", { name: hidden, exact: true })).toHaveCount(0);
   await expect(nav.getByRole("link", { name: "Audience", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Sign-up forms", exact: true })).toBeVisible();
   await expect(nav.getByRole("link", { name: "Sender", exact: true })).toBeVisible();

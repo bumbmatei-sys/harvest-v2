@@ -2,7 +2,7 @@ import { randomBytes } from "node:crypto";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../../db/client";
-import { newsletterBrandKits, newsletterConnections, newsletterIdentities } from "../../db/schema";
+import { newsletterBrandKits, newsletterCampaignRevisions, newsletterConnections, newsletterIdentities } from "../../db/schema";
 import { defaultBrand, isEmailDocument } from "../../lib/email/blocks";
 import { message } from "../../i18n/messages";
 import { AccessError } from "../permissions";
@@ -74,13 +74,18 @@ export function senderSetup(db: Database, actor: string, workspace: string) {
     const domains = await tx.select().from(newsletterConnections).where(eq(newsletterConnections.tenantId, tenant)).orderBy(asc(newsletterConnections.domain));
     const identities = await tx.select().from(newsletterIdentities).where(eq(newsletterIdentities.tenantId, tenant)).orderBy(asc(newsletterIdentities.address));
     const byId = new Map(domains.map(domain => [domain.id, domain]));
+    // Addresses any campaign revision still names cannot be deleted; the screen shows that instead of offering the action.
+    const used = new Set((await tx.select({ sender: newsletterCampaignRevisions.senderId, reply: newsletterCampaignRevisions.replyToId }).from(newsletterCampaignRevisions)
+      .where(eq(newsletterCampaignRevisions.tenantId, tenant))).flatMap(row => [row.sender, row.reply]).filter(Boolean));
+    const senders = new Map<string, number>();
+    for (const row of identities) if (row.connectionId) senders.set(row.connectionId, (senders.get(row.connectionId) ?? 0) + 1);
     return {
       identities: identities.map(row => {
         const { confirmationDigest, ...visible } = row, domain = row.connectionId ? byId.get(row.connectionId) ?? null : null;
         return { ...visible, confirmationPending: Boolean(confirmationDigest), domain: domain?.domain ?? null,
-          status: identityStatus(row, domain) };
+          status: identityStatus(row, domain), inUse: used.has(row.id) };
       }),
-      domains: domains.map(domainResponse),
+      domains: domains.map(domain => ({ ...domainResponse(domain), senderCount: senders.get(domain.id) ?? 0 })),
       mailingAddress: await mailingAddress(tx, tenant),
       readiness: await readiness(tx, tenant),
       sending: "off" as const,
@@ -118,6 +123,37 @@ export async function verifyDomain(db: Database, actor: string, workspace: strin
     const [row] = await tx.select().from(newsletterConnections).where(and(eq(newsletterConnections.tenantId, tenant), eq(newsletterConnections.id, current.id)));
     await audit(tx, tenant, actor, "newsletter.domain.verify", current.id, row.version);
     return domainResponse(row);
+  });
+}
+
+const versionInput = z.object({ version }).strict();
+
+/** Removes a sending domain that has no sender addresses. Delete or move the addresses first. */
+export function removeDomain(db: Database, actor: string, workspace: string, domainId: string, raw: unknown) {
+  return withNewsletter(db, actor, workspace, "newsletter:delivery", async (tx, tenant) => {
+    const { version: expected } = versionInput.parse(raw);
+    const { rows: [result] } = await tx.execute<{ outcome: string }>(sql`select public.newsletter_remove_domain(${tenant}::uuid,${id(domainId)}::uuid,${expected}::integer) as outcome`);
+    if (result?.outcome === "missing") throw unavailable();
+    if (result?.outcome === "stale") throw conflict("STALE_VERSION");
+    if (result?.outcome === "has_senders") throw new AccessError(409, message("Errors.domainHasSenders"), { code: "DOMAIN_HAS_SENDERS" });
+    await audit(tx, tenant, actor, "newsletter.domain.remove", domainId, expected);
+    return { removed: true as const };
+  });
+}
+
+/** Issues fresh DNS records for a domain. Every check goes back to "not checked", so the domain and its sender addresses are unverified until the next check. Synthetic records only. */
+export function reissueDomain(db: Database, actor: string, workspace: string, domainId: string, raw: unknown) {
+  requireSyntheticProvider();
+  return withNewsletter(db, actor, workspace, "newsletter:delivery", async (tx, tenant) => {
+    const { version: expected } = versionInput.parse(raw);
+    const [row] = await tx.select().from(newsletterConnections).where(and(eq(newsletterConnections.tenantId, tenant), eq(newsletterConnections.id, id(domainId))));
+    if (!row) throw unavailable();
+    const records = dnsInstructions(row.domain, randomBytes(24).toString("base64url"));
+    const { rows: [result] } = await tx.execute<{ done: boolean }>(sql`select public.newsletter_reissue_domain(${tenant}::uuid,${row.id}::uuid,${expected}::integer,${JSON.stringify(records)}::jsonb) as done`);
+    if (!result?.done) throw conflict("STALE_VERSION");
+    const [fresh] = await tx.select().from(newsletterConnections).where(and(eq(newsletterConnections.tenantId, tenant), eq(newsletterConnections.id, row.id)));
+    await audit(tx, tenant, actor, "newsletter.domain.reissue", row.id, fresh.version);
+    return domainResponse(fresh);
   });
 }
 

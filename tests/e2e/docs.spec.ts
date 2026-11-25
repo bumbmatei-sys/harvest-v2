@@ -50,11 +50,11 @@ test("list: folders, create, rename, move (menu and drag), delete rules, search 
   await expect(page.getByRole("heading", { name: "Docs", exact: true })).toBeVisible();
   await expect(page.getByText("No docs yet")).toBeVisible();
 
-  // Docs sits in Office next to Email, Calendar and Files (shell modes on).
+  // Docs sits in Office next to Email, Calendar, Tasks, Docs and Storage (shell modes on).
   if (process.env.HARVEST_SHELL_MODES !== "disabled") {
     const sidebar = page.locator('[data-sidebar="sidebar"]').first();
     const office = await sidebar.getByRole("link").evaluateAll((links) => links.map((l) => l.textContent?.trim()));
-    expect(office.slice(office.indexOf("Email"), office.indexOf("Email") + 4)).toEqual(["Email", "Calendar", "Docs", "Files"]);
+    expect(office.slice(office.indexOf("Email"), office.indexOf("Email") + 5)).toEqual(["Email", "Calendar", "Tasks", "Docs", "Storage"]);
     await expect(sidebar.getByRole("link", { name: "Docs", exact: true })).toHaveAttribute("data-active", "true");
   }
 
@@ -149,8 +149,8 @@ test("list: folders, create, rename, move (menu and drag), delete rules, search 
   await page.getByRole("button", { name: "Star Easter plan" }).click();
   await expect(page.getByRole("button", { name: "Remove star from Easter plan" })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Starred" }).click();
-  await expect(page.getByRole("link", { name: "Easter plan" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Good Friday" })).toHaveCount(0);
+  await expect(page.getByTestId("doc-link").filter({ hasText: "Easter plan" })).toBeVisible();
+  await expect(page.getByTestId("doc-link").filter({ hasText: "Good Friday" })).toHaveCount(0);
   await page.getByRole("button", { name: "Starred" }).click();
   await page.getByRole("button", { name: "Actions for Good Friday" }).click();
   await page.getByRole("menuitem", { name: "Duplicate" }).click();
@@ -319,20 +319,25 @@ test("editor: title, autosave, formatting toolbar, slash menu, handles, pages tr
   await page.getByRole("button", { name: "Page styles" }).click();
   const panel = page.getByRole("complementary", { name: "Page styles" });
   await expect(panel).toBeVisible();
-  await expect(panel.getByRole("list", { name: "Page statistics" }).or(panel.locator("dl"))).toContainText("Words");
+  await expect(panel.getByRole("list", { name: "Page statistics" }).or(panel.locator("dl"))).toContainText("Word count");
   await panel.getByRole("radio", { name: "Serif" }).click();
   await panel.getByRole("radio", { name: "Large" }).click();
-  await panel.getByRole("radio", { name: "Wide" }).click();
-  await panel.getByRole("switch", { name: "Owner" }).click();
-  await panel.getByRole("switch", { name: "Outline" }).click();
-  await expect(page.locator(".font-serif.text-lg.max-w-5xl")).toBeVisible();
+  await panel.getByRole("radio", { name: "Full width" }).click();
+  await panel.getByRole("switch", { name: "Owners" }).click();
+  await panel.getByRole("switch", { name: "Page outline" }).click();
+  await expect(page.locator(".font-serif.text-lg.max-w-none")).toBeVisible();
   await expect(page.locator("[data-docs-meta]")).not.toContainText("pr03-");
-  await expect(page.getByText("Outline", { exact: true }).first()).toBeVisible();
+  await expect(page.locator("[data-docs-outline]")).toBeVisible();
+  // The style change and the page text are saved in the background: wait until the server has both before reloading, or the reload races the save.
+  await expect.poll(async () => {
+    const first = (await (await page.request.get(`${api}/${doc.id}`)).json()).pages[0].id as string;
+    const saved = await (await page.request.get(`${api}/${doc.id}/pages/${first}`)).json();
+    return [saved.style?.sections?.outline === true, JSON.stringify(saved.content).includes("Section")];
+  }).toEqual([true, true]);
   await page.reload();
   await page.getByRole("button", { name: "Page styles" }).click();
   await expect(page.getByRole("complementary", { name: "Page styles" }).getByRole("radio", { name: "Serif" })).toBeChecked();
-  await page.getByRole("button", { name: "Outline", exact: true }).click();
-  await expect(page.getByRole("complementary", { name: "Outline" }).locator("[data-docs-outline]")).toContainText("Section");
+  await expect(page.locator("[data-docs-outline]")).toContainText("Section");
   await page.getByRole("button", { name: "Close panel" }).click();
   expect(Number(await page.evaluate(() => 0))).toBe(0);
 
@@ -388,6 +393,7 @@ test("editor: title, autosave, formatting toolbar, slash menu, handles, pages tr
   await expect(page.getByText("Link copied")).toBeVisible();
   await page.getByRole("button", { name: "Doc settings" }).click();
   await page.locator("[data-docs-menu]").getByRole("button", { name: "Add to favorites" }).click();
+  await page.locator("[data-docs-submenu]").getByRole("menuitemradio", { name: "Top" }).click();
   await expect(page.getByRole("button", { name: "Remove star from Weekly plan" })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Doc settings" }).click();
   await page.locator("[data-docs-menu]").getByRole("button", { name: "Rename" }).click();
@@ -418,7 +424,7 @@ test("editor: title, autosave, formatting toolbar, slash menu, handles, pages tr
 
   // Trash from the menu returns to the list.
   await page.getByRole("button", { name: "Doc settings" }).click();
-  await page.locator("[data-docs-menu]").getByRole("button", { name: "Move to trash" }).click();
+  await page.locator("[data-docs-menu]").getByRole("button", { name: "Delete" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Move to trash" }).click();
   await expect(page).toHaveURL(new RegExp(`/workspaces/${tenant}/docs$`));
   await expect(page.getByText("No docs yet")).toBeVisible();

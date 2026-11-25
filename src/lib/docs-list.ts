@@ -25,3 +25,4 @@ export function docsHref(tenantId: string, view: ListView = {}) {
   return `/workspaces/${tenantId}/docs${query ? `?${query}` : ""}`;
 }
 export const docHref = (tenantId: string, docId: string, pageId?: string) => `/workspaces/${tenantId}/docs/${docId}${pageId ? `?page=${pageId}` : ""}`;
+export const publicDocHref = (token: string) => `/shared-docs/${token}`;
