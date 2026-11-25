@@ -1,6 +1,7 @@
 import { mkdir } from "node:fs/promises";
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { discoverAdmin } from "./helpers/discover";
 import { origin, signIn } from "./helpers/session";
 import { settleForAxe } from "./helpers/settle";
 
@@ -49,6 +50,8 @@ test("discover, join with rules, invitations and my communities", async ({ page,
   const study = await create("Grace Bible Study", `grace-study-${suffix}`), studySlug = `grace-study-${suffix}`;
   const saved = await patch(study.id, { tagline: "Weekly study and prayer", description: "We read through one book a term.", allowOpen: true, visibility: "listed", discoverOptIn: true, rulesList: ["Be kind.", "Keep prayer requests private."] });
   expect((await page.request.post(`${api}/${study.id}/publish`, { headers: { origin }, data: { version: saved.version, published: true } })).status()).toBe(200);
+  // Unified Discover lists only approved items (founder decision, 25 Nov): a reviewer approves it through the privileged connection, as the ops path does.
+  { const admin = await discoverAdmin(); await admin.decide("community", study.id, "approve"); await admin.end(); }
 
   // A member finds the community in Discover and joins after accepting the rules and confirming their age.
   const member = await person(browser);

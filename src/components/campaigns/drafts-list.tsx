@@ -43,7 +43,7 @@ export function DraftsList({ tenantId, rows, viewerId, role, creators, canStart 
         return <div key={row.id} role="listitem" className="flex flex-wrap items-center gap-2">
           <Item variant="outline" asChild className="min-w-0 flex-1 basis-72">
             <Link href={`${root}/drafts/${row.id}`} className="bg-card">
-              {/* The list does not load cover images: the type's artwork stands in; a draft without a type shows a neutral mark. */}
+              {/* Drafts have no cover yet: the type's artwork stands in; a draft without a type shows a neutral mark. */}
               <ItemMedia className="max-sm:hidden">{row.type ? <CampaignCoverPlaceholder type={row.type} className="aspect-[4/3] w-20 rounded-md" /> : <AccentIcon icon={Flag} size="lg" className="h-15 w-20 rounded-md" />}</ItemMedia>
               <ItemContent className="min-w-0"><ItemTitle className="max-w-full break-words">{row.name?.trim() || t("untitled")}</ItemTitle>
                 <ItemDescription>{[row.type ? types(`${row.type}.label`) : null, t("startedBy", { name: by }), t("updated", { when: format.dateTime(new Date(row.updatedAt), { dateStyle: "medium", timeZone: "UTC" }) })].filter(Boolean).join(" · ")}</ItemDescription></ItemContent>

@@ -149,7 +149,7 @@ export function FormEditor({ tenantId, formId, initial, revision, destinations, 
     <div className="flex flex-wrap items-center justify-between gap-3 border-b pb-3">
       <Badge variant="outline" className="h-8 rounded-md px-3 text-sm font-normal" data-responses>{signup ? tb("signupCount", { count: newsletter!.counts.total }) : tb("responses", { count: responseCount })}</Badge>
       <Badge variant={published ? "default" : "secondary"} className="h-8 rounded-md px-3 text-sm font-normal" data-publication-state={publication?.state ?? "draft"}>{stateLabel}</Badge>
-      <TabsList className="order-last w-full sm:order-none sm:w-auto" aria-label={tb("views")}>{(signup ? ["build", "settings", "preview", "share", "signups"] as const : ["build", "settings", "preview"] as const).map((value) => <TabsTrigger key={value} value={value} className="min-h-11 flex-1 sm:flex-none sm:px-5">{tb(value)}</TabsTrigger>)}</TabsList>
+      <TabsList className="order-last w-full sm:order-none sm:w-auto" aria-label={tb("views")}>{(signup ? ["build", "settings", "preview", "share", "signups"] as const : ["build", "settings", "preview"] as const).map((value) => <TabsTrigger key={value} value={value} className="flex-1 sm:flex-none sm:px-5">{tb(value)}</TabsTrigger>)}</TabsList>
       <div className="flex items-center gap-2">
         {published && available
           ? <Button asChild variant="ghost" size="icon" className="size-11"><a href={publicPath(publication?.slug ?? "")} target="_blank" rel="noopener noreferrer" aria-label={tb("open")} data-open-form><ExternalLink aria-hidden="true" /></a></Button>

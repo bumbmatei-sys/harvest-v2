@@ -34,7 +34,8 @@ export function WizardLayout({ steps, current, onStepChange, stepsLabel, stepper
   useEffect(() => {
     const changed = shown.current !== current;
     shown.current = current;
-    if (moved.current || (focusOnStepChange && changed)) { moved.current = false; heading.current?.focus(); }
+    // A new step starts at the top of the page (otherwise the scroll of a longer step is kept and a sticky step bar covers the header); focus moves without scrolling.
+    if (moved.current || (focusOnStepChange && changed)) { moved.current = false; if (changed) scrollToTop(heading.current); heading.current?.focus({ preventScroll: true }); }
   }, [current, focusOnStepChange]);
   const at = stepIndex(steps, current), step = steps[at];
   const previous = adjacentStep(steps, current, -1), next = adjacentStep(steps, current, 1);
@@ -83,4 +84,13 @@ export function WizardLayout({ steps, current, onStepChange, stepsLabel, stepper
       </CardFooter>}
     </Card>
   </div>;
+}
+
+/** Scrolls the area that holds `node` (the app shell's content pane, or the window) back to the top. */
+export function scrollToTop(node: HTMLElement | null) {
+  for (let parent = node?.parentElement; parent; parent = parent.parentElement) {
+    const overflow = getComputedStyle(parent).overflowY;
+    if ((overflow === "auto" || overflow === "scroll") && parent.scrollHeight > parent.clientHeight) { parent.scrollTo({ top: 0 }); return; }
+  }
+  window.scrollTo({ top: 0 });
 }

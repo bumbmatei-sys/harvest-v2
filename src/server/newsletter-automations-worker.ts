@@ -45,13 +45,17 @@ export async function runNewsletterAutomations(pool: Pool, env: NodeJS.ProcessEn
     } finally { client.release(destroy); }
     if (!payload) { stopped++; continue; }
     let state: "accepted" | "failed" | "unknown" = "failed", reference: string | null = null;
+    let rendered: ReturnType<typeof renderNewsletter> | null = null;
     try {
       const images = new Map(payload.images.map((fileId) => [fileId, new URL(publicFilePath(job.tenant, fileId), origin).href]));
-      const rendered = renderNewsletter(payload.content, { preheader: payload.preheader, firstName: payload.firstName, ministryName: payload.ministryName, unsubscribe: unsubscribe.href, images });
-      const status = await provider.submit({ ...rendered, deliveryId: payload.attempt, to: payload.email, from: syntheticSender, replyTo: syntheticSender,
-        subject: payload.subject, preheader: payload.preheader });
-      if (status.state === "accepted") { state = "accepted"; reference = status.reference; } else state = status.state;
-    } catch { state = "failed"; }
+      rendered = renderNewsletter(payload.content, { preheader: payload.preheader, firstName: payload.firstName, ministryName: payload.ministryName, unsubscribe: unsubscribe.href, images });
+    } catch { state = "failed"; } // nothing reached the provider: a plain failure
+    if (rendered) {
+      try {
+        const status = await provider.submit({ ...rendered, deliveryId: payload.attempt, to: payload.email, from: syntheticSender, replyTo: syntheticSender, subject: payload.subject, preheader: payload.preheader });
+        if (status.state === "accepted") { state = "accepted"; reference = status.reference; } else state = status.state;
+      } catch { state = "unknown"; } // an exception after the call may follow an acceptance: unknown, never failed, so it is not sent again
+    }
     await pool.query("select public.newsletter_automation_finish($1,$2,$3,$4,$5)", [job.tenant, job.run, payload.attempt, state, reference]);
     if (state === "accepted") sent++; else failed++;
   }

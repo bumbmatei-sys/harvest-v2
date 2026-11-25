@@ -4,15 +4,8 @@ import { audiences } from "./audience";
 
 // Unified Discover (communities, courses, products). Pure rules shared by the server and, later, the screens. The listing is a read projection of the canonical record: nothing here
 // owns a community, course or product, and no member, enrolment, payment or application data is ever part of it.
-export const discoverTypes = ["community", "course", "product"] as const;
-export type DiscoverType = typeof discoverTypes[number];
-export const discoverCategories = ["discipleship", "prayer", "worship", "bible_study", "outreach", "missions", "youth", "family", "leadership", "service", "recovery", "other"] as const;
-export const reviewStates = ["not_requested", "pending", "approved", "rejected", "suspended"] as const;
-export type ReviewState = typeof reviewStates[number];
-export const reportReasons = ["spam", "inappropriate", "misleading", "impersonation", "other"] as const;
-export const discoverSorts = ["relevance", "newest", "name"] as const;
-export const discoverPageSize = 24;
-export const maxDiscoverOffset = 960;
+import { discoverCategories, discoverSorts, discoverTypes, maxDiscoverOffset, reportReasons, type DiscoverType } from "./discover-taxonomy";
+export * from "./discover-taxonomy";
 /** Stored in listing controls (course and product opt-in); a community's opt-in stays its own canonical column. */
 export const language = z.string().regex(/^[a-z]{2,3}$/);
 export const category = z.enum(discoverCategories);

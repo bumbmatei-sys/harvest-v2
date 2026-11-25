@@ -97,8 +97,8 @@ describe("three-mode registry (slice 1)", () => {
   });
   it("reserves not-yet-built modules as planned, including blog articles", () => {
     const planned = navEntries.filter((entry) => entry.status === "planned").map((entry) => entry.id);
-    expect(planned).toEqual(expect.arrayContaining(["articles", "ads", "website", "products", "courses", "coaching", "coupons", "live", "discover", "assistant", "responses", "connectLinks", "forms", "spreadsheets", "givingOverview", "donations", "fundraising", "pledges", "donors", "funds", "givingPage", "volunteers", "livestream", "churchProfile"]));
-    expect(navEntries.filter((entry) => entry.status !== "planned").map((entry) => entry.id)).toEqual(["people", "companies", "pipelines", "crmReports", "crmForms", "imports", "mail", "calendar", "tasks", "documents", "campaigns", "followUp", "events", "files", "planner", "inbox", "autoDm", "socialAnalytics", "newsletterAnalytics", "newsletterCampaigns", "newsletterAutomations", "newsletterAudience", "signupForms", "newsletterSender", "linkInBio", "communities", "socialAccounts", "crmFields", "pipelineSettings", "appearance", "ministrySettings"]);
+    expect(planned).toEqual(expect.arrayContaining(["articles", "website", "coaching", "coupons", "live", "assistant", "responses", "connectLinks", "forms", "spreadsheets", "givingOverview", "donations", "fundraising", "pledges", "donors", "funds", "givingPage", "volunteers", "livestream", "churchProfile"]));
+    expect(navEntries.filter((entry) => entry.status !== "planned").map((entry) => entry.id)).toEqual(["people", "companies", "pipelines", "crmReports", "crmForms", "imports", "mail", "calendar", "tasks", "documents", "campaigns", "followUp", "events", "files", "discover", "planner", "inbox", "autoDm", "ads", "socialAnalytics", "newsletterAnalytics", "newsletterCampaigns", "newsletterAutomations", "newsletterAudience", "signupForms", "newsletterSender", "linkInBio", "communities", "courses", "products", "socialAccounts", "crmFields", "pipelineSettings", "appearance", "ministrySettings"]);
   });
   it("never renders, links or labels a planned entry", () => {
     const plannedIds = new Set(navEntries.filter((entry) => entry.status === "planned").map((entry) => entry.id));
@@ -271,11 +271,13 @@ describe("approved sidebar structure (20 Nov)", () => {
     // Tasks moved to Office (24 Nov) in the per-mode sidebar and keeps its CRM slot in the single sidebar.
     expect(resolveNavigation(owner).find((group) => group.id === "crm")?.items.map((item) => item.id)).toContain("tasks");
   });
-  it("shows Discover as the pinned first row of Public once it is live", () => {
-    const live = navEntries.map((entry) => entry.id === "discover" ? { ...entry, status: undefined } : entry);
-    const groups = resolveModeNavigation({ tenantId, role: "owner", pathname: root, mode: "public" }, live).groups;
-    expect(groups[0]).toMatchObject({ id: "discover", pinned: true });
-    expect(groups[0].items.map((item) => item.id)).toEqual(["discover"]);
+  it("shows Discover as the pinned first row of Public only when the server reports it open and the role can manage listings", () => {
+    const groups = (role: string, features: readonly ("discover")[]) => resolveModeNavigation({ tenantId, role, pathname: root, mode: "public", features }).groups;
+    expect(groups("owner", ["discover"])[0]).toMatchObject({ id: "discover", pinned: true });
+    expect(groups("owner", ["discover"])[0].items.map((item) => item.id)).toEqual(["discover"]);
+    expect(groups("admin", ["discover"])[0].items.map((item) => item.id)).toEqual(["discover"]);
+    for (const role of ["member", "viewer"]) expect(groups(role, ["discover"]).flatMap((group) => group.items.map((item) => item.id))).not.toContain("discover");
+    expect(groups("owner", []).flatMap((group) => group.items.map((item) => item.id))).not.toContain("discover");
   });
   it("has no Settings group in any sidebar, and Social accounts is not an Operations row", () => {
     expect(navModes.flatMap((mode) => order(mode))).not.toContain("settings");
