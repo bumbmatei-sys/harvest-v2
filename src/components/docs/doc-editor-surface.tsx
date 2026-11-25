@@ -9,11 +9,14 @@ import { BlockHandles } from "@/components/docs/editor/block-handles";
 import { docExtensions } from "@/components/docs/editor/extensions";
 import { headingsOf, jumpToHeading, type Heading } from "@/components/docs/editor/headings";
 import { SlashCommand, slashLabel } from "@/components/docs/editor/slash-command";
+import { MentionCommand, type MentionItem } from "@/components/docs/editor/mention-command";
+import type { InsertKind } from "@/components/docs/editor/slash-items";
 import { EditorToolbar } from "@/components/docs/editor/toolbar";
 import { contentStats, type DocContent } from "@/lib/docs";
 import { cn } from "@/lib/utils";
 
-export type SurfaceHandle = { focusStart: () => void; getContent: () => DocContent; jumpTo: (position: number) => void; selectionText: () => string; jumpToText: (text: string) => void; insertBlock: (kind: "table" | "columns" | "checklist") => void };
+export type SurfaceHandle = { focusStart: () => void; getContent: () => DocContent; jumpTo: (position: number) => void; selectionText: () => string; jumpToText: (text: string) => void; insertBlock: (kind: "table" | "columns" | "checklist") => void; insertContent: (content: unknown) => void; insertLink: (text: string, href: string) => void };
+export type { MentionItem, InsertKind };
 export type SurfaceStats = ReturnType<typeof contentStats>;
 
 /**
@@ -21,21 +24,21 @@ export type SurfaceStats = ReturnType<typeof contentStats>;
  * (outline, statistics), a handle for the few commands the page needs. Replacing the engine means replacing this component, the folder `editor/`, and the content sanitiser
  * (`engine` and `schema_version` are stored with every page for that day). `theme` is passed for engines that need it; Tiptap follows the shell's colour tokens and ignores it.
  */
-export function DocEditorSurface({ content, readOnly, theme, showToolbar, focusBlock = false, bodyClassName, header, handleRef, onChange, onNewPage, onOutline, onStats }: {
+export function DocEditorSurface({ content, readOnly, theme, showToolbar, focusBlock = false, bodyClassName, header, handleRef, onChange, onNewPage, onInsert, mentionSource, onOutline, onStats }: {
   content: DocContent; readOnly: boolean; theme?: "light" | "dark"; showToolbar: boolean; focusBlock?: boolean; bodyClassName: string; header?: React.ReactNode; handleRef: RefObject<SurfaceHandle | null>;
   /** Called after every edit with a reader for the current content (read it only when saving). */
   onChange: (read: () => DocContent) => void;
-  onNewPage: (child: boolean) => void; onOutline: (items: Heading[]) => void; onStats: (stats: SurfaceStats) => void;
+  onNewPage: (child: boolean) => void; onInsert: (kind: InsertKind) => void; mentionSource: (query: string) => Promise<MentionItem[]>; onOutline: (items: Heading[]) => void; onStats: (stats: SurfaceStats) => void;
 }) {
   const t = useTranslations("Docs");
   // The editor is created once; its callbacks read the newest props through this ref (written after every render, read only from event handlers).
-  const latest = useRef({ onChange, onNewPage, onOutline, onStats });
-  useEffect(() => { latest.current = { onChange, onNewPage, onOutline, onStats }; });
+  const latest = useRef({ onChange, onNewPage, onInsert, mentionSource, onOutline, onStats });
+  useEffect(() => { latest.current = { onChange, onNewPage, onInsert, mentionSource, onOutline, onStats }; });
   const last = useRef({ outline: "", words: -1, characters: -1 });
   const editor = useEditor({
     immediatelyRender: false, editable: !readOnly, content,
     // eslint-disable-next-line react-hooks/refs -- the callbacks run later, from editor events, never during render
-    extensions: [...docExtensions({ placeholder: t("placeholder"), summary: t("toggleSummary") }), SlashCommand.configure({ actions: { newPage: (child) => latest.current.onNewPage(child) }, labelOf: (item) => slashLabel(t, item) })],
+    extensions: [...docExtensions({ placeholder: t("placeholder"), summary: t("toggleSummary") }), MentionCommand.configure({ source: (q) => latest.current.mentionSource(q) }), SlashCommand.configure({ actions: { newPage: (child) => latest.current.onNewPage(child), insert: (kind) => latest.current.onInsert(kind) }, labelOf: (item) => slashLabel(t, item) })],
     editorProps: { attributes: { "aria-label": t("pageContent"), role: "textbox", "aria-multiline": "true", class: "docs-prose", ...(theme ? { "data-theme": theme } : {}) } },
     onCreate: ({ editor: e }) => publish(e),
     onUpdate: ({ editor: e }) => { latest.current.onChange(() => e.getJSON() as DocContent); publish(e); },
@@ -59,6 +62,8 @@ export function DocEditorSurface({ content, readOnly, theme, showToolbar, focusB
       editor.state.doc.descendants((node, pos) => { if (found < 0 && node.isText && node.text) { const at = node.text.indexOf(text); if (at >= 0) found = pos + at; } return found < 0; });
       if (found >= 0) editor.chain().focus().setTextSelection({ from: found, to: found + text.length }).scrollIntoView().run();
     },
+    insertContent: (content) => { editor?.chain().focus().insertContent(content as never).run(); },
+    insertLink: (text, href) => { editor?.chain().focus().insertContent({ type: "text", text, marks: [{ type: "link", attrs: { href } }] }).run(); },
     insertBlock: (kind) => {
       if (!editor) return;
       const chain = editor.chain().focus("end");

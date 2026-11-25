@@ -31,7 +31,7 @@ const SlashList = forwardRef<ListHandle, ListProps>(function SlashList({ items, 
     return false;
   } }), [items, index, command]);
   if (!items.length) return <div id={listId} role="listbox" aria-label={t("slashMenu")} className="w-72 rounded-lg border bg-popover p-3 text-sm text-muted-foreground shadow-md">{t("slashNone")}</div>;
-  return <div ref={box} id={listId} role="listbox" aria-label={t("slashMenu")} data-slash-menu className="max-h-80 w-[min(34rem,calc(100vw-2rem))] overflow-y-auto rounded-lg border bg-popover p-2 text-popover-foreground shadow-md">
+  return <div ref={box} id={listId} role="listbox" tabIndex={0} aria-label={t("slashMenu")} data-slash-menu className="max-h-80 w-[min(34rem,calc(100vw-2rem))] overflow-y-auto rounded-lg border bg-popover p-2 text-popover-foreground shadow-md">
     {slashSections.map((section) => {
       const rows = items.map((item, i) => ({ item, i })).filter((row) => row.item.section === section);
       if (!rows.length) return null;
@@ -41,7 +41,7 @@ const SlashList = forwardRef<ListHandle, ListProps>(function SlashList({ items, 
           className={cn("flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-2 text-sm", i === index ? "bg-accent text-accent-foreground" : "hover:bg-accent/60")}
           onMouseEnter={() => setIndex(i)} onMouseDown={(e) => { e.preventDefault(); command(item); }}>
           <span className="flex size-7 shrink-0 items-center justify-center rounded-md border bg-background"><item.icon className="size-4" aria-hidden="true" /></span>
-          {item.swatch && (item.section === "colors" || item.section === "highlights") && <span className="size-3 shrink-0 rounded-full border" style={{ background: item.swatch }} aria-hidden="true" />}
+          {item.swatch && (item.section === "colors" || item.section === "highlights" || item.section === "badges") && <span className="size-3 shrink-0 rounded-full border" style={{ background: item.swatch }} aria-hidden="true" />}
           {item.swatch && item.section === "text" && <span className={cn("size-3 shrink-0 rounded-full border", swatchClass[item.swatch])} aria-hidden="true" />}
           <span className="min-w-0 truncate">{slashLabel(t, item)}</span></div>)}</div>
       </div>;
@@ -54,7 +54,7 @@ export type SlashOptions = { actions: PageActions; labelOf: (item: SlashItem) =>
 /** "/" opens the block menu. Not offered inside a code block. */
 export const SlashCommand = Extension.create<SlashOptions>({
   name: "docsSlash",
-  addOptions() { return { actions: { newPage: () => {} }, labelOf: (item) => item.id }; },
+  addOptions() { return { actions: { newPage: () => {}, insert: () => {} }, labelOf: (item) => item.id }; },
   addProseMirrorPlugins() {
     const options = this.options, editor = this.editor;
     return [Suggestion<SlashItem, SlashItem>({
@@ -73,8 +73,8 @@ export const SlashCommand = Extension.create<SlashOptions>({
         };
         const aria = (props: SuggestionProps<SlashItem, SlashItem> | null) => {
           const dom = editor.view.dom;
-          if (!props) { dom.removeAttribute("aria-controls"); dom.removeAttribute("aria-expanded"); return; }
-          dom.setAttribute("aria-controls", listId); dom.setAttribute("aria-expanded", "true"); dom.setAttribute("aria-haspopup", "listbox");
+          if (!props) { dom.removeAttribute("aria-controls"); return; }
+          dom.setAttribute("aria-controls", listId);
         };
         return {
           onStart: (props) => {

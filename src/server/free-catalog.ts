@@ -5,6 +5,7 @@ import { auditLogs, catalogItems, catalogLessons, catalogFiles, communities, com
 import { sanitizeRichText, type RichDoc } from "../lib/rich-text";
 import { message } from "../i18n/messages";
 import { freeCatalogEnabled } from "./free-catalog-mode";
+import { refreshDiscoverListing } from "./discover/refresh";
 import { AccessError } from "./permissions";
 import { withTenant, withUser } from "./tenancy";
 import type { StorageAdapter } from "./storage/adapter";
@@ -141,6 +142,7 @@ export function updateCatalogItem(db: Database, user: string, tenant: string, id
     const [item] = await tx.update(catalogItems).set({ ...itemFields(input.draft), version: current.version + 1, updatedAt: new Date() })
       .where(itemScope(scope, id)).returning();
     await audit(tx, scope, user, "catalog.edit", item);
+    await refreshDiscoverListing(tx, scope, item.kind === "course" ? "course" : "product", id);
     return { id, version: item.version };
   });
 }
@@ -167,6 +169,7 @@ export function setCatalogState(db: Database, user: string, tenant: string, id: 
     const [item] = await tx.update(catalogItems).set({ state: input.state, version: current.version + 1, updatedAt: new Date() })
       .where(itemScope(scope, id)).returning();
     await audit(tx, scope, user, "catalog.state", item);
+    await refreshDiscoverListing(tx, scope, item.kind === "course" ? "course" : "product", id);
     return { id, version: item.version, state: item.state };
   });
 }

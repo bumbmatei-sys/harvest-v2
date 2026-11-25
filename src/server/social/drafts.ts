@@ -8,6 +8,7 @@ import { inspectComposer } from "./compose-validation";
 import { allocateSlots, targetInput, timezoneInput } from "./posting-schedules";
 import { auditPublish, publishConflict, publishInvalid, recordId, unavailable, versionInput, withPublish } from "./publish-access";
 import { defaultSocialDeps } from "./registry";
+import { requireApprovalForPublishNow, supersedeApprovals } from "./approvals";
 
 const reviewTtlMs = 10 * 60_000;
 type Draft = typeof socialDrafts.$inferSelect;
@@ -159,6 +160,8 @@ export function changeDraft(db: Database, user: string, workspace: string, id: s
       const { previews } = await inspectComposer(tx, tenant, input.document);
       requireDraftMedia(previews);
       const [saved] = await tx.update(socialDrafts).set({ document: input.document, ...clearReview, ...version(draft) }).where(draftKey(tenant, id)).returning();
+      // An edit after approval invalidates it.
+      await supersedeApprovals(tx, tenant, id, user);
       await auditPublish(tx, tenant, user, "social.draft_save", id);
       return { draft: present(saved, [], now), destinations: previews };
     } else if (input.action === "moveDelivery") {
@@ -197,6 +200,8 @@ export function changeDraft(db: Database, user: string, workspace: string, id: s
         const valid = draft.reviewHash && draft.reviewBy === user && draft.reviewExpires && draft.reviewExpires > now &&
           timingSafeEqual(Buffer.from(draft.reviewHash, "hex"), Buffer.from(hashReview(input.reviewToken, draft, user, previews), "hex"));
         if (!valid) throw publishConflict("REVIEW_REQUIRED");
+        // A ministry that requires approval cannot publish now without a valid one. Scheduling is allowed; the worker holds the post until it is approved.
+        await requireApprovalForPublishNow(tx, tenant, id);
       }
       const platforms = [...new Set(previews.map(preview => preview.account.platform))];
       const slots = input.action === "publishNow" ? new Map(platforms.map(platform => [platform, { at: now, timezone: input.timezone, scheduleId: null }])) :

@@ -21,6 +21,8 @@ export type Permission = "workspace:read" | "members:write" | "roles:write" | "c
   // non-viewer member; the database policy and definers additionally require the assignment, so this key alone grants no case.
   | "followup:manage" | "followup:work"
   // Social provider integration layer: linking accounts, scheduling posts and reading the inbox are owner/admin until a wider role is decided.
+  | "ads:manage"
+  | "social:approvals" | "social:approvals_settings"
   | "social:connect" | "social:schedule" | "social:analytics" | "social:auto_dm" | "social:inbox" | "social:reply" | "social:assign" | "social:saved_replies"
   | "office:connect" | "office:mail" | "office:calendar" | "office:files"
   // Live staff capabilities; community membership is resolved separately.
@@ -34,6 +36,8 @@ export type Permission = "workspace:read" | "members:write" | "roles:write" | "c
   | "crm:reports_export"
   // Docs: every role reads; owners, admins and members create docs and edit the ones they own (database policy); owners and admins manage all.
   | "docs:read" | "docs:write" | "docs:manage"
+  // Link in bio: owners and admins only (the page, its clicks and its messages).
+  | "bio:manage"
   | "newsletter:read" | "newsletter:manage" | "newsletter:campaigns" | "newsletter:delivery" | "newsletter:analytics";
 export function can(role: string, permission: Permission): boolean {
   if (permission === "communities:read" || permission === "workspace:read" || permission === "contacts:read" || permission === "companies:read" || permission === "opportunities:read" || permission === "tasks:read" || permission === "notes:read" || permission === "campaigns:read" || permission === "docs:read") return roleIds.includes(role as Role);
@@ -41,5 +45,7 @@ export function can(role: string, permission: Permission): boolean {
   if (permission === "followup:work" || permission === "contacts:record_withdrawal" || permission === "crm:reports" || permission === "docs:write") return role === "owner" || role === "admin" || role === "member";
   if (permission === "contacts:write" || permission === "companies:write" || permission === "opportunities:write" || permission === "tasks:write" || permission === "notes:write"
     || permission === "campaigns:write" || permission === "crm:import" || permission === "crm:export") return role === "owner" || role === "admin" || role === "member";
+  // Approvals: owners and admins submit and decide; only an owner changes the ministry setting.
+  if (permission === "social:approvals_settings") return role === "owner";
   return role === "owner" || role === "admin";
 }

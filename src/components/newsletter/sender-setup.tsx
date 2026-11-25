@@ -4,6 +4,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { CircleAlert, CircleCheck, Globe, MoreHorizontal, Plus, ShieldCheck } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -18,10 +19,12 @@ import { StatusBadge } from "@/components/status-badge";
 import { useCrmRequest } from "@/components/crm/request";
 import { defineStatusTones } from "@/lib/status-tone";
 
+type Identity = SenderSetupData["identities"][number];
+type Domain = SenderSetupData["domains"][number];
 type Purpose = "ownership" | "dkim" | "spf" | "bounce" | "dmarc";
 export type SenderSetupData = {
-  identities: { id: string; address: string; purpose: "sender" | "reply-to"; enabled: boolean; ownershipVerified: boolean; version: number; confirmationPending: boolean; domain: string | null; status: "unverified" | "pending" | "verified" | "failed" }[];
-  domains: { id: string; domain: string; version: number; status: "pending" | "verified" | "failed"; checkedAt: string | null;
+  identities: { id: string; address: string; purpose: "sender" | "reply-to"; enabled: boolean; ownershipVerified: boolean; displayName: string | null; inUse: boolean; version: number; confirmationPending: boolean; domain: string | null; status: "unverified" | "pending" | "verified" | "failed" }[];
+  domains: { id: string; domain: string; version: number; senderCount: number; status: "pending" | "verified" | "failed"; checkedAt: string | null;
     records: { purpose: Purpose; type: string; name: string; value: string }[]; checks: Record<Purpose, boolean> }[];
   mailingAddress: { address: string; version: number };
   readiness: { domain: boolean; sender: boolean; replyTo: boolean; mailingAddress: boolean; unsubscribe: boolean; ready: boolean };
@@ -35,6 +38,8 @@ export function SenderSetup({ tenantId, initial }: { tenantId: string; initial: 
   const [data, setData] = useState(initial), [error, setError] = useState(""), [busy, setBusy] = useState("");
   const [adding, setAdding] = useState(false), [address, setAddress] = useState(""), [purpose, setPurpose] = useState<"sender" | "reply-to">("sender"), [formError, setFormError] = useState("");
   const [confirming, setConfirming] = useState<SenderSetupData["identities"][number] | null>(null), [code, setCode] = useState(""), [testCode, setTestCode] = useState<string | null>(null), [codeError, setCodeError] = useState("");
+  const [naming, setNaming] = useState<Identity | null>(null), [nameValue, setNameValue] = useState(""), [nameError, setNameError] = useState("");
+  const [deleting, setDeleting] = useState<Identity | null>(null), [removing, setRemoving] = useState<Domain | null>(null), [reissuing, setReissuing] = useState<Domain | null>(null);
   const [domain, setDomain] = useState(""), [domainError, setDomainError] = useState("");
   const [mailing, setMailing] = useState(initial.mailingAddress.address), [mailingState, setMailingState] = useState<"idle" | "saved" | "error">("idle");
   const base = `/api/workspaces/${tenantId}/newsletter`;
@@ -74,6 +79,19 @@ export function SenderSetup({ tenantId, initial }: { tenantId: string; initial: 
     if (!result.ok) { setCodeError(t("codeInvalid")); return; }
     setConfirming(null); await reload();
   }
+  async function saveName() {
+    if (!naming) return;
+    setNameError("");
+    const result = await request(`${base}/sender-identities/${naming.id}`, { method: "PATCH", body: { version: naming.version, displayName: nameValue.trim() || null } });
+    if (!result.ok) { setNameError(result.status === 400 ? t("displayNameInvalid") : result.error); return; }
+    setNaming(null); await reload();
+  }
+  /** Runs a confirmed mutation for a ConfirmDialog: the server's message stays in the dialog on failure, a success reloads the page data. */
+  async function confirmed(call: () => Promise<{ ok: boolean; error?: string }>) {
+    const result = await call();
+    if (!result.ok) return result.error ?? t("failed");
+    await reload();
+  }
   async function addDomain() {
     setDomainError("");
     const result = await request(`${base}/sender-domains`, { method: "POST", body: { domain } });
@@ -93,7 +111,8 @@ export function SenderSetup({ tenantId, initial }: { tenantId: string; initial: 
     { id: "address", header: t("columns.address"), card: "title" }, { id: "kind", header: t("columns.kind") }, { id: "status", header: t("columns.status") },
     { id: "actions", header: t("columns.actions"), srOnlyHeader: true, align: "end", card: "actions", className: "w-16" }];
   const rows: DataTableRow[] = data.identities.map((row) => ({ id: row.id, label: row.address, cells: {
-    address: <span className="flex min-h-11 min-w-0 items-center truncate font-medium">{row.address}</span>,
+    address: <span className="flex min-h-11 min-w-0 flex-col justify-center"><span className="truncate font-medium">{row.displayName ?? row.address}</span>
+      {row.displayName && <span className="truncate text-xs text-muted-foreground">{row.address}</span>}</span>,
     kind: t(row.purpose === "sender" ? "kindSender" : "kindReplyTo"),
     status: <span className="flex flex-wrap items-center gap-2"><StatusBadge tone={row.enabled ? tone(row.status) : "neutral"} label={row.enabled ? t(`status.${row.status}`) : t("status.off")} />
       {row.status === "failed" && row.enabled && <span className="text-xs text-muted-foreground">{t("domainNotVerified")}</span>}</span>,
@@ -101,7 +120,9 @@ export function SenderSetup({ tenantId, initial }: { tenantId: string; initial: 
       <DropdownMenuContent align="end">
         {row.enabled && !row.ownershipVerified && <DropdownMenuItem className="min-h-11" onSelect={() => (row.confirmationPending ? void openConfirm(row) : void requestCode(row))}>{row.confirmationPending ? t("enterCode") : t("sendCode")}</DropdownMenuItem>}
         {row.enabled && !row.ownershipVerified && row.confirmationPending && <DropdownMenuItem className="min-h-11" onSelect={() => void requestCode(row)}>{t("newCode")}</DropdownMenuItem>}
+        {row.purpose === "sender" && <DropdownMenuItem className="min-h-11" onSelect={() => { setNaming(row); setNameValue(row.displayName ?? ""); setNameError(""); }}>{t("editName")}</DropdownMenuItem>}
         <DropdownMenuItem className="min-h-11" onSelect={() => void run("toggle-" + row.id, () => request(`${base}/sender-identities/${row.id}`, { method: "PATCH", body: { version: row.version, enabled: !row.enabled } }))}>{row.enabled ? t("turnOff") : t("turnOn")}</DropdownMenuItem>
+        <DropdownMenuItem className="min-h-11 text-destructive focus:text-destructive" onSelect={() => setDeleting(row)}>{t("delete")}</DropdownMenuItem>
       </DropdownMenuContent></DropdownMenu>,
   } }));
   const checked = (value: string | null) => value ? t("lastChecked", { when: format.dateTime(new Date(value), { dateStyle: "medium", timeStyle: "short" }) }) : t("neverChecked");
@@ -136,7 +157,10 @@ export function SenderSetup({ tenantId, initial }: { tenantId: string; initial: 
       </form>
       {data.domains.length === 0 ? <EmptyState icon={Globe} size="compact" title={t("domainsEmpty")} />
         : <div className="space-y-6">{data.domains.map((d) => <FormSection key={d.id} title={d.domain} as="section" actions={<><StatusBadge tone={tone(d.status)} label={t(`domainStatus.${d.status}`)} />
-          <Button type="button" variant="outline" className="min-h-11" disabled={busy === "verify-" + d.id} onClick={() => void run("verify-" + d.id, () => request(`${base}/sender-domains/${d.id}/verify`, { method: "POST", body: {} }))}>{t("verify")}</Button></>}>
+          <Button type="button" variant="outline" className="min-h-11" disabled={busy === "verify-" + d.id} onClick={() => void run("verify-" + d.id, () => request(`${base}/sender-domains/${d.id}/verify`, { method: "POST", body: {} }))}>{t("verify")}</Button>
+          <DropdownMenu><DropdownMenuTrigger asChild><Button type="button" variant="ghost" size="icon" className="size-11" aria-label={t("domainMenu", { domain: d.domain })}><MoreHorizontal aria-hidden="true" /></Button></DropdownMenuTrigger>
+            <DropdownMenuContent align="end"><DropdownMenuItem className="min-h-11" onSelect={() => setReissuing(d)}>{t("reissue")}</DropdownMenuItem>
+              <DropdownMenuItem className="min-h-11 text-destructive focus:text-destructive" onSelect={() => setRemoving(d)}>{t("removeDomain")}</DropdownMenuItem></DropdownMenuContent></DropdownMenu></>}>
           <p className="text-sm text-muted-foreground" data-last-checked>{checked(d.checkedAt)}</p>
           {purposes.map((p) => { const records = d.records.filter((r) => r.purpose === p); if (!records.length) return null;
             return <div key={p} className="space-y-2" data-record-group={p}>
@@ -169,6 +193,20 @@ export function SenderSetup({ tenantId, initial }: { tenantId: string; initial: 
         {formError && <p role="alert" className="text-sm text-destructive">{formError}</p>}
         <DialogFooter><Button type="button" variant="outline" className="min-h-11" onClick={() => setAdding(false)}>{t("cancel")}</Button><Button type="submit" className="min-h-11" disabled={!address.trim()}>{t("add")}</Button></DialogFooter>
       </form></DialogContent></Dialog>
+
+    <Dialog open={!!naming} onOpenChange={(open) => { if (!open) setNaming(null); }}><DialogContent><DialogHeader><DialogTitle>{t("editName")}</DialogTitle><DialogDescription>{naming?.address}</DialogDescription></DialogHeader>
+      <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); void saveName(); }}>
+        <div className="space-y-2"><Label htmlFor="sender-display-name">{t("displayName")}</Label><Input id="sender-display-name" className="min-h-11" maxLength={80} value={nameValue} onChange={(e) => setNameValue(e.target.value)} autoComplete="off" aria-invalid={nameError ? true : undefined} /></div>
+        {nameError && <p role="alert" className="text-sm text-destructive">{nameError}</p>}
+        <DialogFooter><Button type="button" variant="outline" className="min-h-11" onClick={() => setNaming(null)}>{t("cancel")}</Button><Button type="submit" className="min-h-11">{t("save")}</Button></DialogFooter>
+      </form></DialogContent></Dialog>
+
+    <ConfirmDialog open={!!deleting} onOpenChange={(open) => { if (!open) setDeleting(null); }} title={t("deleteTitle", { address: deleting?.address ?? "" })} description={t("deleteBody")}
+      confirmLabel={t("delete")} cancelLabel={t("cancel")} onConfirm={() => deleting ? confirmed(() => request(`${base}/sender-identities/${deleting.id}`, { method: "DELETE", body: { version: deleting.version } })) : undefined} />
+    <ConfirmDialog open={!!removing} onOpenChange={(open) => { if (!open) setRemoving(null); }} title={t("removeDomainTitle", { domain: removing?.domain ?? "" })} description={t("removeDomainBody")}
+      confirmLabel={t("removeDomain")} cancelLabel={t("cancel")} onConfirm={() => removing ? confirmed(() => request(`${base}/sender-domains/${removing.id}`, { method: "DELETE", body: { version: removing.version } })) : undefined} />
+    <ConfirmDialog tone="neutral" open={!!reissuing} onOpenChange={(open) => { if (!open) setReissuing(null); }} title={t("reissueTitle", { domain: reissuing?.domain ?? "" })} description={t("reissueBody")}
+      confirmLabel={t("reissue")} cancelLabel={t("cancel")} onConfirm={() => reissuing ? confirmed(() => request(`${base}/sender-domains/${reissuing.id}/reissue`, { method: "POST", body: { version: reissuing.version } })) : undefined} />
 
     <Dialog open={!!confirming} onOpenChange={(open) => { if (!open) setConfirming(null); }}><DialogContent><DialogHeader><DialogTitle>{t("confirmTitle")}</DialogTitle><DialogDescription>{confirming?.address}</DialogDescription></DialogHeader>
       <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); void confirm(); }}>

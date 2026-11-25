@@ -18,9 +18,12 @@ import UserAvatar from "@/components/user-avatar";
 import { DocMenu, type MenuAction } from "@/components/docs/doc-menu";
 import { FilePicker } from "@/components/docs/file-picker";
 import { MoveDialog } from "@/components/docs/move-dialog";
+import type { Person } from "@/components/docs/docs-api";
 import { NameDialog } from "@/components/docs/name-dialog";
+import { PageShareDialog } from "@/components/docs/page-share-dialog";
+import { InsertDialog, type InsertMode } from "@/components/docs/insert-dialog";
 import { ShareDialog } from "@/components/docs/share-dialog";
-import { DocEditorSurface, type SurfaceHandle, type SurfaceStats } from "@/components/docs/doc-editor-surface";
+import { DocEditorSurface, type MentionItem, type SurfaceHandle, type SurfaceStats } from "@/components/docs/doc-editor-surface";
 import type { Heading } from "@/components/docs/editor/headings";
 import { PageStylesPanel, readingLabel } from "@/components/docs/page-styles-panel";
 import { PageTree, type PageAction } from "@/components/docs/page-tree";
@@ -44,7 +47,7 @@ import type { TemplateRow } from "@/server/docs-templates";
 type PageData = { id: string; parentId: string | null; title: string; subtitle: string; icon: string | null; content: DocContent; style: PageStyle; protected: boolean; version: number; updatedAt: string; archivedAt: string | null; contributors: { userId: string; name: string }[] };
 type Save = "saved" | "unsaved" | "saving" | "error" | "conflict";
 type Panel = "comments" | "styles" | "relationships" | "templates" | "export" | "history" | null;
-type Dlg = "renameDoc" | "renamePage" | "moveDoc" | "trashDoc" | "deletePage" | "share" | "attach" | "cover" | "saveTemplate" | "updateTemplate" | null;
+type Dlg = "sharePage" | "renameDoc" | "renamePage" | "moveDoc" | "trashDoc" | "deletePage" | "share" | "attach" | "cover" | "saveTemplate" | "updateTemplate" | null;
 const pageIcons = ["📄", "📝", "📖", "✝️", "🙏", "🕊️", "🎵", "📅", "✅", "💡", "📌", "⭐", "❤️", "🏠", "👥", "🎓", "📣", "💬", "📊", "🗂️"];
 const AUTOSAVE_MS = 900;
 // The Pages sidebar's collapsed state is remembered per browser; storage can be blocked, so every access is guarded and the choice also lives in memory.
@@ -66,12 +69,14 @@ const railItems = [{ id: "comments", icon: MessageSquare, label: "comments" }, {
 /** The doc editor: pages tree, title and owner line, formatting toolbar, slash menu, autosave with version check, and the right rail (comments, page styles, relationships, templates, export) with page history and sharing. One page is open at a time; the page is chosen in the URL. */
 export function DocEditor({ tenantId, detail, page, userId }: { tenantId: string; detail: DocDetail; page: PageData; userId: string }) {
   const t = useTranslations("Docs"), format = useFormatter(), router = useRouter(), request = useRequest();
-  const { doc, rights, pages } = detail;
+  const { doc, pages } = detail, pageOnly = detail.rights.pageOnly === true, pageRole = detail.pageRoles?.[page.id] ?? null;
+  // A page share limits what the person may do to the one page: the doc-level rights are all closed, so the effective rights follow that page's role.
+  const rights = pageOnly ? { read: true, manage: false, write: pageRole === "edit", comment: pageRole === "edit" || pageRole === "comment", pageOnly } : detail.rights;
   const api = `/api/workspaces/${tenantId}/docs/${doc.id}`;
   const [title, setTitle] = useState(page.title), [subtitle, setSubtitle] = useState(page.subtitle), [icon, setIcon] = useState(page.icon), [style, setStyle] = useState<PageStyle>(page.style), [locked, setLocked] = useState(page.protected);
   const [save, setSave] = useState<Save>("saved"), [updatedAt, setUpdatedAt] = useState(doc.updatedAt), [error, setError] = useState("");
   const [panel, setPanel] = useState<Panel>(null), [focusPage, setFocusPage] = useState(false), [focusBlock, setFocusBlock] = useState(false), [pagesOpen, setPagesOpen] = useState(false), [dialog, setDialog] = useState<Dlg>(null);
-  const [favorite, setFavorite] = useState(doc.favorite), [wiki, setWiki] = useState(doc.wiki), [links, setLinks] = useState<LinkRow[]>([]), [attachments, setAttachments] = useState<AttachmentRow[]>([]), [templateRows, setTemplateRows] = useState<readonly TemplateRow[]>([]), [coverUrl, setCoverUrl] = useState("");
+  const [favorite, setFavorite] = useState(doc.favorite), [favoritePlacement, setFavoritePlacement] = useState(doc.favoritePlacement), [wiki, setWiki] = useState(doc.wiki), [links, setLinks] = useState<LinkRow[]>([]), [attachments, setAttachments] = useState<AttachmentRow[]>([]), [templateRows, setTemplateRows] = useState<readonly TemplateRow[]>([]), [coverUrl, setCoverUrl] = useState("");
   const [pending, setPending] = useState<{ format: "html" | "markdown"; split: boolean } | null>(null);
   const stored = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => false), [chosen, setChosen] = useState<boolean | null>(null), treeCollapsed = chosen ?? stored;
   const toggleTree = () => { const next = !treeCollapsed; setChosen(next); try { localStorage.setItem(collapsedKey, next ? "1" : "0"); window.dispatchEvent(new Event(collapsedEvent)); } catch { /* storage unavailable: the choice stays in memory */ } };
@@ -82,7 +87,7 @@ export function DocEditor({ tenantId, detail, page, userId }: { tenantId: string
 
   const newPage = useRef<(child: boolean) => void>(() => {});
   const surface = useRef<SurfaceHandle | null>(null);
-  const [templatesTick, setTemplatesTick] = useState(0), [outline, setOutline] = useState<Heading[]>([]), [stats, setStats] = useState<SurfaceStats>({ words: 0, characters: 0, readingMinutes: 0 });
+  const [insertMode, setInsertMode] = useState<InsertMode | null>(null), [templatesTick, setTemplatesTick] = useState(0), [outline, setOutline] = useState<Heading[]>([]), [stats, setStats] = useState<SurfaceStats>({ words: 0, characters: 0, readingMinutes: 0 });
   const onChange = useCallback(() => { edits.current++; schedule(); // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -201,7 +206,9 @@ export function DocEditor({ tenantId, detail, page, userId }: { tenantId: string
     switch (action) {
       case "renameDoc": setDialog("renameDoc"); return;
       case "copyDocLink": case "copyPageLink": { const ok = await copyText(`${location.origin}${action === "copyDocLink" ? docHref(tenantId, doc.id) : pageHref(page.id)}`); if (ok) notify.success(t("linkCopied")); else notify.error(t("linkNotCopied")); return; }
-      case "favorite": { const next = !favorite; setFavorite(next); const r = await call(next ? "PUT" : "DELETE", "/favorite"); if (!r.ok) setFavorite(!next); return; }
+      case "favorite": { const next = !favorite; setFavorite(next); setFavoritePlacement(next ? "top" : null); const r = await call(next ? "PUT" : "DELETE", "/favorite", next ? { placement: "top" } : undefined); if (!r.ok) { setFavorite(!next); setFavoritePlacement(doc.favoritePlacement); } else router.refresh(); return; }
+      case "favoriteTop": case "favoriteSidebar": { const to = action === "favoriteTop" ? "top" : "sidebar"; setFavorite(true); setFavoritePlacement(to); const r = await call("PUT", "/favorite", { placement: to }); if (!r.ok) { setFavorite(doc.favorite); setFavoritePlacement(doc.favoritePlacement); } else router.refresh(); return; }
+      case "sharePage": setDialog("sharePage"); return;
       case "duplicateDoc": { await flush(); const r = await call<{ id: string }>("POST", "/duplicate"); if (r.ok) { notify.success(t("duplicated")); router.push(docHref(tenantId, r.data.id)); } return; }
       case "moveDoc": setDialog("moveDoc"); return;
       case "archiveDoc": { await flush(); const r = await call("PATCH", "", { archived: !doc.archivedAt }); if (r.ok) router.refresh(); return; }
@@ -231,19 +238,29 @@ export function DocEditor({ tenantId, detail, page, userId }: { tenantId: string
   const docName = doc.title || t("untitled");
   const current = pages.find((p) => p.id === page.id);
   const children = pages.filter((p) => !p.archivedAt && p.parentId === page.id).sort((a, b) => a.position - b.position);
-  const treeEl = <PageTree docTitle={docName} pages={pages} current={page.id} canEdit={rights.write} onOpen={(id) => { setPagesOpen(false); if (id !== page.id) void leaveTo(pageHref(id)); }} onAdd={() => newPage.current(false)} onAction={(a, p) => { setPagesOpen(false); void treeAction(a, p); }} />;
+  const treeEl = <PageTree tenantId={tenantId} favorites={detail.sidebarFavorites} docTitle={docName} pages={pages} current={page.id} canEdit={rights.write && !pageOnly} onOpen={(id) => { setPagesOpen(false); if (id !== page.id) void leaveTo(pageHref(id)); }} onAdd={() => newPage.current(false)} onAction={(a, p) => { setPagesOpen(false); void treeAction(a, p); }} />;
   const closePanel = () => setPanel(null);
   const pageVersion = () => version.current;
   const panelBody = panel === "comments" ? <CommentsPanel tenantId={tenantId} docId={doc.id} pageId={page.id} userId={userId} canComment={rights.comment} canManage={rights.manage} getSelection={() => surface.current?.selectionText() ?? ""} onJump={(q) => surface.current?.jumpToText(q)} onClose={closePanel} />
     : panel === "styles" ? <PageStylesPanel style={resolved} stats={stats} disabled={!rights.write} onChange={(next) => void changeStyle(next)} onApplyAll={async () => { await flush(); const r = await call<{ pages: number }>("POST", "/typography", { font: resolved.font, size: resolved.size, width: resolved.width, exceptPageId: page.id }); if (r.ok) notify.success(t("typographyApplied", { count: r.data.pages + 1 })); }}
       onPickCover={() => setDialog("cover")} focusBlock={focusBlock} onFocusBlock={setFocusBlock} focusPage={focusPage} onFocusPage={(on) => { setFocusPage(on); if (on) setPanel(null); }} onClose={closePanel} />
-    : panel === "relationships" ? <RelationshipsPanel tenantId={tenantId} docId={doc.id} pageId={page.id} canEdit={rights.write} onChanged={() => void loadLinks()} onClose={closePanel} />
+    : panel === "relationships" ? <RelationshipsPanel tenantId={tenantId} docId={doc.id} pageId={page.id} canEdit={rights.write && !pageOnly} onChanged={() => void loadLinks()} onClose={closePanel} />
     : panel === "templates" ? <TemplatesPanel key={templatesTick} tenantId={tenantId} docId={doc.id} pageId={page.id} canEdit={editable} pageVersion={pageVersion} onApplied={(id) => { setPanel(null); router.push(pageHref(id)); router.refresh(); }} onSave={() => undefined} onClose={closePanel} openSave={(mode, rows) => { setTemplateRows(rows); setDialog(mode === "save" ? "saveTemplate" : "updateTemplate"); }} />
     : panel === "export" ? <ExportPanel tenantId={tenantId} docId={doc.id} pageId={page.id} canEdit={editable} pageVersion={pageVersion} onImported={(id) => { setPanel(null); router.push(pageHref(id)); router.refresh(); }} onClose={closePanel} />
     : panel === "history" ? <HistoryPanel tenantId={tenantId} docId={doc.id} pageId={page.id} canEdit={editable} pageVersion={pageVersion} onRestored={() => location.reload()} onClose={closePanel} />
     : null;
   const saveLabel = save === "saved" ? t("saved") : save === "saving" ? t("saving") : save === "unsaved" ? t("unsaved") : save === "conflict" ? t("conflict") : t("saveFailed");
 
+  const peopleCache = useRef<Person[] | null>(null);
+  const mentionSource = useCallback(async (query: string): Promise<MentionItem[]> => {
+    const q = query.trim().toLowerCase();
+    if (!peopleCache.current) { const r = await call<{ people: Person[] }>("GET", `/comments?pageId=${page.id}`); peopleCache.current = r.ok ? r.data.people : []; }
+    const people = peopleCache.current.filter((p) => p.name.toLowerCase().includes(q)).slice(0, 5).map((p): MentionItem => ({ kind: "person", id: p.userId, label: p.name }));
+    const sub = pages.filter((p) => !p.archivedAt && (p.title || t("untitled")).toLowerCase().includes(q)).slice(0, 5).map((p): MentionItem => ({ kind: "page", id: p.id, label: p.title || t("untitled") }));
+    const found = q.length >= 2 ? await call<{ id: string; label: string }[]>("GET", `/links/search?kind=task&q=${encodeURIComponent(q)}`) : null;
+    const tasks = found && found.ok ? found.data.slice(0, 5).map((x): MentionItem => ({ kind: "task", id: x.id, label: x.label })) : [];
+    return [...people, ...sub, ...tasks];
+  }, [call, page.id, pages, t]);
   const rail = <>{railItems.map((r) => <Button key={r.id} type="button" variant="ghost" size="icon" className={cn("size-11 lg:size-9", panel === r.id && "bg-accent")} aria-pressed={panel === r.id} aria-label={t(r.label)} onClick={() => setPanel(panel === r.id ? null : r.id)}><r.icon aria-hidden="true" /></Button>)}</>;
   const alerts = ((save === "conflict" || (save === "error" && error)) || locked) && <div className="shrink-0 space-y-2 border-b p-3">
     {(save === "conflict" || (save === "error" && error)) && <Alert variant="destructive" role="alert"><AlertDescription className="flex flex-wrap items-center justify-between gap-2">{error || t("saveFailed")}
@@ -265,8 +282,8 @@ export function DocEditor({ tenantId, detail, page, userId }: { tenantId: string
   </>;
   const trailing = <div className="ml-auto flex shrink-0 items-center gap-1">
     {rights.write && <span role="status" aria-live="polite" data-save-state={save} className={cn("px-2 text-sm", save === "error" || save === "conflict" ? "text-destructive" : "text-muted-foreground")}>{saveLabel}</span>}
-    <Button type="button" variant="ghost" className="min-h-11 gap-1 px-2 lg:min-h-9" onClick={() => setDialog("share")}><UserRound aria-hidden="true" />{t("share")}</Button>
-    <DocMenu tenantId={tenantId} docId={doc.id} pageId={page.id} canEdit={rights.write} canManage={rights.manage} favorite={favorite} archived={Boolean(doc.archivedAt)} wiki={wiki} docProtected={allProtected} pageProtected={locked} publicOffered={false} onAction={(a) => void menuAction(a)} />
+    {!pageOnly && <Button type="button" variant="ghost" className="min-h-11 gap-1 px-2 lg:min-h-9" onClick={() => setDialog("share")}><UserRound aria-hidden="true" />{t("share")}</Button>}
+    <DocMenu tenantId={tenantId} docId={doc.id} pageId={page.id} canEdit={rights.write && !pageOnly} canManage={rights.manage} favorite={favorite} favoritePlacement={favoritePlacement} archived={Boolean(doc.archivedAt)} wiki={wiki} docProtected={allProtected} pageProtected={locked} publicOffered={false} onAction={(a) => void menuAction(a)} />
     <Button asChild variant="ghost" size="icon" className="size-9"><Link href={docsHref(tenantId, { folder: doc.folderId })} aria-label={t("closeDoc")} onClick={(e) => { e.preventDefault(); void leaveTo(docsHref(tenantId, { folder: doc.folderId })); }}><X aria-hidden="true" /></Link></Button>
   </div>;
 
@@ -279,7 +296,7 @@ export function DocEditor({ tenantId, detail, page, userId }: { tenantId: string
     <section className="flex min-w-0 flex-1 flex-col" aria-label={t("pageContent")}>
       {!focusPage && <div className="flex shrink-0 flex-wrap items-center gap-1 border-b px-2 py-1 lg:hidden"><Button type="button" variant="ghost" className="min-h-11 shrink-0 px-2" onClick={() => setPagesOpen(true)}><Menu aria-hidden="true" />{t("pages")}</Button><div className="flex md:hidden">{leading}</div><div className="flex items-center">{rail}</div><div className="flex md:hidden ms-auto">{trailing}</div></div>}
       {alerts}
-      <DocEditorSurface content={page.content} readOnly={!editable} showToolbar={editable} focusBlock={focusBlock} handleRef={surface} onChange={onChange} onNewPage={(child) => newPage.current(child)} onOutline={setOutline} onStats={setStats}
+      <DocEditorSurface content={page.content} readOnly={!editable} showToolbar={editable} focusBlock={focusBlock} handleRef={surface} onChange={onChange} onNewPage={(child) => newPage.current(child)} onInsert={(kind) => (kind === "template" ? setPanel("templates") : setInsertMode(kind))} mentionSource={mentionSource} onOutline={setOutline} onStats={setStats}
         bodyClassName={cn("mx-auto px-4 py-6 sm:px-8", widthClass[resolved.width], fontClass[resolved.font], sizeClass[resolved.size])}
         header={<>
           {resolved.header.cover && coverUrl && <div className="-mx-4 mb-4 h-40 overflow-hidden rounded-lg sm:-mx-8" data-docs-cover>
@@ -334,6 +351,13 @@ export function DocEditor({ tenantId, detail, page, userId }: { tenantId: string
     <ShareDialog open={dialog === "share"} onOpenChange={(o) => !o && setDialog(null)} tenantId={tenantId} docId={doc.id} pageId={page.id} docTitle={doc.title} protectedDoc={allProtected} onProtect={() => void menuAction("protectDoc")} onChanged={() => router.refresh()} />
     <FilePicker open={dialog === "attach"} onOpenChange={(o) => !o && setDialog(null)} tenantId={tenantId} title={t("attachFile")} onPick={async (f) => { const r = await call("POST", "/attachments", { fileId: f.id }); if (!r.ok) return r.error; void loadAttachments(); }} />
     <FilePicker open={dialog === "cover"} onOpenChange={(o) => !o && setDialog(null)} tenantId={tenantId} title={t("chooseCover")} imagesOnly onPick={async (f) => { await changeStyle({ ...style, coverFileId: f.id, header: { ...style.header, cover: true } }); }} />
+    <PageShareDialog open={dialog === "sharePage"} onOpenChange={(o) => !o && setDialog(null)} tenantId={tenantId} docId={doc.id} pageId={page.id} />
+    <InsertDialog mode={insertMode} onClose={() => setInsertMode(null)} onInsert={(mode, v) => {
+      if (mode === "markdown") surface.current?.insertContent(v.blocks);
+      else if (mode === "button") surface.current?.insertContent({ type: "button", attrs: { label: v.label, href: v.href } });
+      else surface.current?.insertLink(v.label, v.href);
+      setInsertMode(null);
+    }} />
     <SaveTemplateDialog key={`${dialog}`} open={dialog === "saveTemplate" || dialog === "updateTemplate"} onOpenChange={(o) => !o && setDialog(null)} tenantId={tenantId} docId={doc.id} pageId={page.id} mode={dialog === "updateTemplate" ? "update" : "save"} templates={templateRows} onDone={() => { notify.success(t("templateSaved")); setTemplatesTick((n) => n + 1); }} />
     <NameDialog open={dialog === "renameDoc"} onOpenChange={(o) => !o && setDialog(null)} title={t("renameDoc")} label={t("docName")} submitLabel={t("save")} maxLength={200} required={false} initial={doc.title}
       onSubmit={async (name) => { const r = await call("PATCH", "", { title: name }); if (r.ok) { router.refresh(); return undefined; } return r.error; }} />
