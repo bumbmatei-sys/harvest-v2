@@ -437,3 +437,9 @@ List and editor. Founder rule (24 Nov): "design of the reference, style of Studi
 ### Ministry settings redesign (24 Nov)
 
 Premium kit `bumbmatei-sys/admin-dashboard` (commit `1631106`), under the founder's standing instruction "Use anything that is pro in the kit". Modelled on, no kit code copied (identical lines by `scripts/ui-identical.sh`): `src/components/settings/settings-section.tsx` (1 of 15, 6%, from `pages/settings/layout.tsx`), `src/components/ministry-type-cards.tsx` (3 of 19, 15%, from `pages/settings/appearance/page.tsx`), `src/components/time-zone-combobox.tsx` (from the language combobox in `pages/settings/account/page.tsx`). Used by the Ministry settings page and the Settings pop-up ministry section. Listed in `src/lib/ui-provenance.ts` (`adminDashboardReferences`).
+
+### Campaign wizard screens (25 Nov)
+
+Founder approved the kit list on 25 Nov 2026: `stepper1` inside the shared EditorShell (autosave and resume); `form-layout1` and `form-layout11` for the step forms (type, name, goal, place, dates, budget); `tables9` member list plus an invite dialog for leaders and teams; `switch-card1` toggle cards for the tools (QR, registration, follow-up, communities); a summary card and `todo-app6` setup checklist for review and finish; stat cards and charts as in CRM reports for the campaign dashboard. Design is the PRD (`docs/prd/harvest-campaign-wizard.md`), style is Studio Admin.
+
+**PR 1 (steps 1 to 3, drafts list, Activate) copies no kit code.** It composes the shared pieces that already carry their own provenance headers: `Stepper` (from `stepper1`), `WizardLayout` and `FormSection` (from `form-layout20` and `form-layout1`), `Field`, `ConfirmDialog`, and the EditorShell editing sidebar. New files are Harvest-written (`src/components/campaigns/*`). The remaining approved items are recorded with the PR that first copies from them, with the identical-line measurement.

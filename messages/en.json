@@ -2145,7 +2145,7 @@
     "pageTitle": "Campaigns · Harvest",
     "description": "Campaigns organized within this ministry.",
     "emptyTitle": "No campaigns yet",
-    "emptyDescription": "Campaigns will appear here once created. Guided setup is coming in a later release.",
+    "emptyDescription": "Start a campaign and it is saved as a draft while you set it up.",
     "emptyPage": "No campaigns on this page",
     "backToCampaigns": "Back to campaigns",
     "private": "Private to this ministry",
@@ -7359,5 +7359,145 @@
     "search": "Search time zones",
     "none": "No time zone found.",
     "utc": "UTC"
+  },
+  "CampaignWizard": {
+    "pageTitle": "Campaign setup · Harvest",
+    "newTitle": "New campaign",
+    "newPageTitle": "New campaign · Harvest",
+    "draftsTitle": "Campaign drafts",
+    "draftsPageTitle": "Campaign drafts · Harvest",
+    "draftsAll": "Every draft in this ministry",
+    "draftsMine": "Your drafts",
+    "draftsEmpty": "No drafts",
+    "draftsEmptyDescription": "Start a campaign and it is saved here as you go.",
+    "newCampaign": "New campaign",
+    "drafts": "Drafts",
+    "continue": "Continue",
+    "view": "View",
+    "discard": "Discard",
+    "discardNamed": "Discard: {name}",
+    "discardTitle": "Discard this draft?",
+    "discardBody": "The draft is closed and no campaign is created. This cannot be undone.",
+    "discardConfirm": "Discard draft",
+    "discardCancel": "Keep draft",
+    "discarded": "Draft discarded.",
+    "untitled": "Untitled campaign",
+    "startedBy": "Started by {name}",
+    "you": "You",
+    "aMember": "A ministry member",
+    "updated": "Updated {when}",
+    "stepProgress": "Step {step} of {total}",
+    "draftBack": "All drafts",
+    "stepsLabel": "Campaign setup",
+    "typeLabel": "Campaign setup",
+    "status": {
+      "draft": "Draft"
+    },
+    "save": {
+      "saved": "Saved",
+      "saving": "Saving…",
+      "unsaved": "Unsaved changes",
+      "error": "Not saved",
+      "invalid": "Fix the highlighted fields to save",
+      "conflict": "Changed elsewhere"
+    },
+    "retry": "Try again",
+    "conflictTitle": "This draft changed somewhere else",
+    "conflictBody": "Reload to see the latest version. Your last unsaved edits on this screen are not applied.",
+    "reload": "Reload",
+    "readOnly": "Only {name} can edit this draft. You can read it and discard it.",
+    "readOnlyUnknown": "Only the person who started this draft can edit it. You can read it and discard it.",
+    "closed": {
+      "finished": "This draft is already a campaign.",
+      "discarded": "This draft was discarded."
+    },
+    "openCampaign": "Open campaign",
+    "leaveTitle": "This draft could not be saved",
+    "leaveBody": "Some changes on this screen are not saved yet. Leave anyway?",
+    "leaveStay": "Stay",
+    "leaveGo": "Leave",
+    "comingSoon": "Soon",
+    "steps": {
+      "type": "Campaign Type",
+      "basics": "Basic Information",
+      "place": "Location & Dates",
+      "leaders": "Teams & Leadership",
+      "tools": "Campaign Features",
+      "budget": "Budget & Fundraising",
+      "connect": "Registration & Follow-Up",
+      "review": "Review & Create"
+    },
+    "questions": {
+      "type": "What type of campaign are you organizing?",
+      "basics": "Tell us about your campaign.",
+      "place": "Where and when will your campaign take place?"
+    },
+    "types": {
+      "evangelistic_crusade": {
+        "label": "Evangelistic Crusade",
+        "description": "Large-scale evangelism, church partnerships, volunteers, fundraising, counseling, and follow-up."
+      },
+      "mission_trip": {
+        "label": "Mission Trip",
+        "description": "Mission teams, travel, accommodation, fundraising, field activities, and logistics."
+      },
+      "conference": {
+        "label": "Conference",
+        "description": "Speakers, sessions, registration, venues, and event management."
+      },
+      "local_outreach": {
+        "label": "Local Outreach",
+        "description": "Street evangelism, smaller outreach events, volunteer coordination, and follow-up."
+      },
+      "custom_project": {
+        "label": "Custom Project",
+        "description": "A blank project with customizable features."
+      }
+    },
+    "changeType": "Changing the type loads that type’s template again.",
+    "basics": {
+      "name": "Campaign Name",
+      "description": "Campaign Description (optional)",
+      "mission": "Campaign Goal or Mission (optional)"
+    },
+    "place": {
+      "structure": "Campaign Structure",
+      "structures": {
+        "single": "Single location",
+        "multi": "Multiple locations",
+        "online_hybrid": "Online / Hybrid"
+      },
+      "country": "Country",
+      "cityRegion": "City / Region",
+      "startDate": "Campaign Start Date",
+      "endDate": "Campaign End Date",
+      "timeZone": "Time Zone",
+      "timeZonePlaceholder": "Choose a time zone",
+      "useMine": "Use my time zone"
+    },
+    "problems": {
+      "REQUIRED": "Required",
+      "INVALID": "Check this value",
+      "INVALID_DATE_RANGE": "End date is before the start date"
+    },
+    "issues": {
+      "TYPE_REQUIRED": "Choose a campaign type."
+    },
+    "activate": {
+      "button": "Activate",
+      "title": "Activate this campaign?",
+      "body": "This marks the campaign active. Nothing is published or sent.",
+      "confirm": "Activate",
+      "working": "Activating…",
+      "back": "Return to draft",
+      "backTitle": "Return to draft?",
+      "backBody": "The campaign goes back to draft. Nothing is published or sent.",
+      "backConfirm": "Return to draft",
+      "cancel": "Cancel",
+      "notReady": "Add the place, dates and time zone before activating.",
+      "ok": "Campaign is now active.",
+      "backOk": "Campaign is back in draft.",
+      "nothingPublished": "Nothing is published yet."
+    }
   }
 }
