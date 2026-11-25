@@ -463,3 +463,19 @@ Founder approval 25 Nov 2026, under the kit item approval gate. Approved kit ite
 | `src/components/ads/ads-table.tsx` | modelled on | `tables14`, `switch-card1`, `dashboard-dropdown7` | Builds on the shared `DataTable`, which gained an optional `totals` row (table) and summary block (cards). |
 | `src/components/ads/ads-edit-panel.tsx` | modelled on | `drawer1` | Shared `Sheet`; every spend-affecting change asks first. |
 | `src/components/ads/ads-summary.tsx` | reuse | Social Analytics `StatCard` | No new card. |
+
+## Discover screens (25 Nov 2026)
+
+Founder approved the kit list on 25 Nov 2026: `product-category` (category tiles), the `product-card` set (result cards for communities, courses and products), `product-list7` (results grid, already referenced by the community Discover card), `product-quickview` (quick look), `switch-card1` (owner List in Discover card), `tables14` (shared DataTable, already adopted) with `drawer1` (staff review side panel), plus the shared filter popover pattern from CRM, the shared EmptyState and ConfirmDialog. Pro kit first, free shadcn only if nothing fits. The registry entries were read on 25 Nov from `https://shadcnuikit.com/r/{name}.json` (the paid kit checkout `/home/user/admin-dashboard` @ `1631106` holds no ecommerce blocks); nothing was committed from them.
+
+Variants used: `select14` (searchable category dropdown with icons, chosen by the founder 25 Nov; it replaced the `product-category3` tiles, removed), `product-card1` (with `product-card2` and `product-card3` read for the badge and button row), `product-quickview2` (the compact dialog; `product-quickview1` read). Each is a **visual reference only: no kit code was copied**, so the identical-line share by `scripts/ui-identical.sh` stays low: `listing-card.tsx` 6 of 52 (11%), `quick-look.tsx` 5 of 40 (12%), `category-tiles.tsx` 2 of 24 (8%), `discover-browser.tsx` against `product-list7` 9 of 100 (9%), `list-in-discover.tsx` against `switch-card1` 5 of 90 (5%). All of it is imports and generic JSX shape. The kit's remote photos, ratings, wishlist, colour and size pickers, add to cart and sample data are not used: the public Discover data carries no cover image, rating or price beyond free, and Harvest never invents them.
+
+| Registry item | Free/premium | Retrieved | Approved (founder) | Files | Local changes |
+| --- | --- | --- | --- | --- | --- |
+| `product-card1` | premium | 2026-11-25 | 2026-11-25 | `src/components/discover/listing-card.tsx` | Token-coloured category mark instead of a photo, type badge, name, summary, host, free badge, first joining route, Quick look, View and Report. |
+| `product-quickview2` | premium | 2026-11-25 | 2026-11-25 | `src/components/discover/quick-look.tsx` | Compact dialog with the public fields as a definition list, Report and Open page. |
+| `select14` | premium | 2026-11-25 | 2026-11-25 | `src/components/searchable-select.tsx` | Shared searchable select with icons and an all row; Discover category filter. 26% identical lines (imports, trigger). |
+| `product-list7` (second file) | premium | 2026-11-25 | 2026-11-25 | `src/components/discover/discover-browser.tsx` | Result count, type tabs with facet counts, search and grid on the server's approved listings. |
+| `switch-card1` (second file) | premium | 2026-11-25 | 2026-11-25 | `src/components/discover/list-in-discover.tsx` | Label, one line of text and a switch, with review status, category and language beneath; used in the community editor and My listings. |
+
+The shared filter popover is Harvest's CRM pattern (an icon-only filter button with a popover), reimplemented in `src/components/discover/filter-popover.tsx` for three fields because the CRM filter builder is bound to CRM fields (`src/components/crm/filter-builder.tsx`); exception recorded here, not a kit item.
