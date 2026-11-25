@@ -66,3 +66,19 @@ describe("WizardLayout step icon", () => {
     expect(html).toContain('class="contents"');
   });
 });
+
+describe("department and feature chips", async () => {
+  const { departmentMarks, moduleMarks } = await import("../../src/components/campaigns/wizard-icons");
+  const { departmentKeys, moduleKeys } = await import("../../src/lib/campaign-wizard");
+  it("gives each of the 13 departments and 18 features its own icon and a defined accent, with neighbours in different colours", () => {
+    for (const [keys, marks] of [[departmentKeys, departmentMarks], [moduleKeys, moduleMarks]] as const) {
+      const list = keys.map((key) => (marks as Record<string, { icon: unknown; accent: string }>)[key]);
+      expect(list.every(Boolean)).toBe(true);
+      expect(new Set(list.map((mark) => mark.icon)).size).toBe(keys.length);
+      for (const mark of list) expect(ACCENTS).toContain(mark.accent);
+      for (let i = 1; i < list.length; i++) expect(list[i].accent).not.toBe(list[i - 1].accent);
+    }
+    expect(departmentKeys).toHaveLength(13);
+    expect(moduleKeys).toHaveLength(18);
+  });
+});
