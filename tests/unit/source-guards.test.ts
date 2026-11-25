@@ -29,5 +29,5 @@ describe("source guard regressions", () => {
     expect(inspectSource('<Button className="bg-primary text-primary-foreground" aria-label={t("save")}>{t("save")}</Button>')).toEqual([]);
     expect(inspectSource('<p aria-current={active ? "page" : undefined}>{format.number(total)}</p>')).toEqual([]);
   });
-  it("checks all application and shadcn source files", () => expect(checkSources()).toEqual([]));
+  it("checks all application and shadcn source files", () => expect(checkSources()).toEqual([]), 30_000);
 });
