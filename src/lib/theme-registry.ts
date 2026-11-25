@@ -204,10 +204,31 @@ export function isBrandTheme(value: unknown): value is BrandTheme {
   return typeof value === "string" && Object.hasOwn(themeRegistry, value);
 }
 
+/**
+ * Campaign type artwork (src/components/campaigns/campaign-type-art.tsx): one fixed, vivid colour family per campaign type, the same for every brand theme
+ * because the theme palettes are monochrome. Decorative headers only, never behind text. Lighter in light mode, deeper in dark.
+ */
+export const campaignArtTokens = {
+  light: {
+    "--art-crusade-from": "#fb7185", "--art-crusade-to": "#db2777", "--art-crusade-glow": "#fed7aa", "--art-crusade-ink": "#ffffff",
+    "--art-mission-from": "#38bdf8", "--art-mission-to": "#2563eb", "--art-mission-glow": "#a5f3fc", "--art-mission-ink": "#ffffff",
+    "--art-conference-from": "#c4b5fd", "--art-conference-to": "#7c3aed", "--art-conference-glow": "#f9a8d4", "--art-conference-ink": "#ffffff",
+    "--art-outreach-from": "#34d399", "--art-outreach-to": "#0d9488", "--art-outreach-glow": "#d9f99d", "--art-outreach-ink": "#ffffff",
+    "--art-custom-from": "#fde047", "--art-custom-to": "#f59e0b", "--art-custom-glow": "#fef9c3", "--art-custom-ink": "#78350f",
+  },
+  dark: {
+    "--art-crusade-from": "#be123c", "--art-crusade-to": "#831843", "--art-crusade-glow": "#fed7aa", "--art-crusade-ink": "#ffffff",
+    "--art-mission-from": "#0369a1", "--art-mission-to": "#1e3a8a", "--art-mission-glow": "#a5f3fc", "--art-mission-ink": "#ffffff",
+    "--art-conference-from": "#7c3aed", "--art-conference-to": "#3b0764", "--art-conference-glow": "#f9a8d4", "--art-conference-ink": "#ffffff",
+    "--art-outreach-from": "#047857", "--art-outreach-to": "#134e4a", "--art-outreach-glow": "#d9f99d", "--art-outreach-ink": "#ffffff",
+    "--art-custom-from": "#a16207", "--art-custom-to": "#7c2d12", "--art-custom-glow": "#fef9c3", "--art-custom-ink": "#fffbeb",
+  },
+} as const satisfies Record<ColorMode, Record<string, string>>;
+
 export const themeStyles = BRAND_THEMES.flatMap((brand) => COLOR_MODES.map((mode) => {
   const fallback = brand === "harvest" && mode === "light" ? ":root," : "";
   const selectors = fallback + ` :root[data-brand-theme="${brand}"][data-theme="${mode}"], [data-theme="${mode}"] .theme-preview[data-preview-brand="${brand}"]`;
-  const tokens = Object.entries(themeRegistry[brand][mode]).map(([name, value]) => `${name}:${value}`).join(";");
+  const tokens = Object.entries({ ...themeRegistry[brand][mode], ...campaignArtTokens[mode] }).map(([name, value]) => `${name}:${value}`).join(";");
   return `${selectors}{color-scheme:${mode};${tokens}}`;
 })).join("\n");
 
