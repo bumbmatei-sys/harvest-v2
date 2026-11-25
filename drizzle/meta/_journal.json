@@ -736,6 +736,13 @@
       "when": 1795597165354,
       "tag": "0106_campaign_wizard_shared_drafts",
       "breakpoints": true
+    },
+    {
+      "idx": 107,
+      "version": "7",
+      "when": 1795633515662,
+      "tag": "0107_bio_guard_photo_plan",
+      "breakpoints": true
     }
   ]
 }
