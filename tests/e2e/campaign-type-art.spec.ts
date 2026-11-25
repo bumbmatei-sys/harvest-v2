@@ -24,7 +24,7 @@ async function expectNoLightEdges(page: Page, selector: string) {
   expect(light, `near-white edges in ${selector}`).toEqual([]);
 }
 /** The dev server renders first and hydrates after: a click before React attaches is lost. */
-const hydrated = (page: Page) => page.waitForFunction(() => { const field = document.querySelector("input,textarea,select,[role=radio]"); return !!field && Object.keys(field).some((key) => key.startsWith("__reactProps")); });
+const hydrated = (page: Page) => page.waitForFunction(() => { const field = document.querySelector("input,textarea,select,[role=radio],[role=switch]"); return !!field && Object.keys(field).some((key) => key.startsWith("__reactProps")); });
 
 // The campaign type cards carry decorative, code-drawn header art: present on every card, hidden from assistive technology, no axe findings,
 // no horizontal scroll, at 1280, 768 and 360 in light and dark.
@@ -58,6 +58,7 @@ test("campaign type art: every card has header art, accessible at three widths i
         return { height: Math.round(art.height), fills: Math.abs(art.width - card.width) <= 2 };
       }));
       for (const size of sizes) { expect(size.height).toBeGreaterThanOrEqual(100); expect(size.fills).toBe(true); }
+      await page.evaluate(() => { scrollTo(0, 0); document.querySelectorAll("*").forEach((node) => { if (node.scrollTop) node.scrollTop = 0; }); }); // the sticky phone step bar overlaps controls once scrolled
       await settleForAxe(page);
       expect((await new AxeBuilder({ page }).withTags(axeTags).analyze()).violations).toEqual([]);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -98,6 +99,7 @@ test("campaign accents: steps 1 to 3 and the drafts list at desktop and phone in
         await expect(heading(step)).toBeVisible();
         await expect(page.locator('[data-slot="card-header"] [data-slot="accent-icon"]')).toHaveCount(1);
         if (scheme === "dark") await expectNoLightEdges(page, '[data-slot="card"], button:has([data-campaign-type-art]), [data-slot="accent-icon"], input, textarea, label');
+        await page.evaluate(() => { scrollTo(0, 0); document.querySelectorAll("*").forEach((node) => { if (node.scrollTop) node.scrollTop = 0; }); }); // the sticky phone step bar overlaps controls once scrolled
         await settleForAxe(page);
         expect((await new AxeBuilder({ page }).withTags(axeTags).analyze()).violations).toEqual([]);
         expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -106,10 +108,48 @@ test("campaign accents: steps 1 to 3 and the drafts list at desktop and phone in
       await page.goto(`${root}/drafts`);
       await expect(page.locator('[data-slot="item-group"] > [role="listitem"]')).toHaveCount(3);
       if (scheme === "dark") await expectNoLightEdges(page, '[data-slot="item"], [data-slot="accent-icon"], [data-campaign-type-art]');
+      await page.evaluate(() => { scrollTo(0, 0); document.querySelectorAll("*").forEach((node) => { if (node.scrollTop) node.scrollTop = 0; }); }); // the sticky phone step bar overlaps controls once scrolled
       await settleForAxe(page);
       expect((await new AxeBuilder({ page }).withTags(axeTags).analyze()).violations).toEqual([]);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
       await page.screenshot({ path: `${evidence}/accent-drafts-${label}-${scheme}.png`, fullPage: true });
     }
+  }
+});
+
+// Phase 2: each department on step 4 and each feature on step 5 carries its own accent icon chip.
+test("campaign accents: department and feature chips on steps 4 and 5 at desktop and phone in light and dark", async ({ page }) => {
+  test.setTimeout(600_000);
+  await mkdir(evidence, { recursive: true });
+  await signIn(page);
+  const tenant = (await (await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Chips Church", audience: "church" } })).json()).tenantId as string;
+  const root = `/workspaces/${tenant}/campaigns`, api = `/api${root}/drafts`;
+  const draft = await (await page.request.post(api, { headers: { origin, "Idempotency-Key": "chips-1" }, data: { type: "evangelistic_crusade" } })).json();
+  let current = draft;
+  for (const [step, data] of [["basics", { name: "City Harvest Night", description: null, mission: null }], ["place", { country: "Chile", cityRegion: "Santiago", startDate: "2027-05-01", endDate: "2027-05-02", timeZone: "America/Santiago", structure: "single" }]] as const) {
+    current = await (await page.request.patch(`${api}/${draft.id}`, { headers: { origin }, data: { version: current.version, step, data } })).json();
+  }
+  const heading = (name: string) => page.getByRole("heading", { name, level: 2, exact: true });
+  const check = async (name: string) => {
+    await page.evaluate(() => { scrollTo(0, 0); document.querySelectorAll("*").forEach((node) => { if (node.scrollTop) node.scrollTop = 0; }); }); // the sticky phone step bar overlaps controls once scrolled
+      await settleForAxe(page);
+    expect((await new AxeBuilder({ page }).withTags(axeTags).analyze()).violations).toEqual([]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: `${evidence}/${name}.png`, fullPage: true });
+  };
+  for (const scheme of ["light", "dark"] as const) for (const [label, width, height] of [["desktop", 1280, 900], ["phone", 360, 800]] as const) {
+    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+    await page.setViewportSize({ width, height });
+    await page.goto(`${root}/drafts/${draft.id}`);
+    await expect(heading("Teams & Leadership")).toBeVisible();
+    await hydrated(page);
+    await expect(page.locator('section[aria-labelledby^="department-"] [data-slot="accent-icon"][data-accent]')).toHaveCount(13);
+    if (scheme === "dark") await expectNoLightEdges(page, '[data-slot="card"], section[aria-labelledby^="department-"], [data-slot="accent-icon"]');
+    await check(`accent-step-teams-${label}-${scheme}`);
+    await page.getByRole("button", { name: "Next", exact: true }).click();
+    await expect(heading("Campaign Features")).toBeVisible();
+    await expect(page.locator('[role="group"] label [data-slot="accent-icon"][data-accent]')).toHaveCount(18);
+    if (scheme === "dark") await expectNoLightEdges(page, '[data-slot="card"], [role="group"] label, [data-slot="accent-icon"]');
+    await check(`accent-step-tools-${label}-${scheme}`);
   }
 });
