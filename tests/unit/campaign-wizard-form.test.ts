@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { adoptServer, dirtySteps, draftActions, formFromDraft, issuesOf, outreachBlocked, setOutreach, stepPayload, stepStatuses, type DraftView } from "../../src/lib/campaign-wizard-form";
+import { adoptServer, dirtySteps, draftActions, formFromDraft, issuesOf, moneyText, outreachBlocked, parseMoney, setOutreach, stepPayload, stepStatuses, type DraftView } from "../../src/lib/campaign-wizard-form";
 
 const draft: DraftView = {
   id: "d1", createdBy: "u1", status: "draft", version: 3, currentStep: 3, type: "conference", name: "Synthetic conference", description: null, mission: null, country: null, cityRegion: null,
@@ -93,5 +93,39 @@ describe("step 7: registration, response and follow-up", () => {
     expect(issuesOf(form, draft)).toContainEqual({ step: "tools", code: "QR_MODULE_OFF" });
     expect(dirtySteps(form, formFromDraft(draft))).toEqual(["connect"]);
     expect(dirtySteps(formFromDraft(draft), formFromDraft(draft))).toEqual([]);
+  });
+});
+
+describe("step 6: budget and fundraising", () => {
+  const form = formFromDraft(draft);
+  it("turns typed amounts into minor units for the currency's own decimals, and refuses anything else", () => {
+    expect(parseMoney("1250.5", "USD")).toEqual({ ok: true, minor: 125050 });
+    expect(parseMoney("1250", "USD")).toEqual({ ok: true, minor: 125000 });
+    expect(parseMoney("1250", "JPY")).toEqual({ ok: true, minor: 1250 });
+    expect(parseMoney("", "USD")).toEqual({ ok: true, minor: null });
+    for (const bad of ["12.345", "1,250", "-5", "1e3", "abc", "12.", ".5", "99999999999999"]) expect(parseMoney(bad, "USD")).toEqual({ ok: false });
+    expect(parseMoney("1250.5", "JPY")).toEqual({ ok: false });
+  });
+  it("shows saved minor units as the text a person types", () => {
+    expect(moneyText(125050, "USD")).toBe("1250.5");
+    expect(moneyText(125000, "USD")).toBe("1250");
+    expect(moneyText(5, "USD")).toBe("0.05");
+    expect(moneyText(1250, "JPY")).toBe("1250");
+    expect(moneyText(null, "USD")).toBe("");
+    for (const minor of [0, 1, 99, 100, 101, 123456789]) expect(parseMoney(moneyText(minor, "USD"), "USD")).toEqual({ ok: true, minor });
+  });
+  it("sends exactly the five fields, and not the goal or online donations without fundraising", () => {
+    const base = { ...form, budget: { currency: "EUR", estimated: "2000", fundraisingEnabled: true, goal: "5000.25", onlineDonations: true } };
+    expect(stepPayload("budget", base)).toEqual({ ok: true, data: { currency: "EUR", estimatedBudgetMinor: 200000, fundraisingEnabled: true, fundraisingGoalMinor: 500025, onlineDonations: true } });
+    const blocked = stepPayload("budget", { ...base, budget: { ...base.budget, fundraisingEnabled: false } });
+    expect(blocked.ok).toBe(false);
+    expect(stepPayload("budget", { ...base, budget: { ...base.budget, estimated: "2k" } })).toEqual({ ok: false, problems: { estimated: "INVALID" } });
+    expect(stepPayload("budget", { ...base, budget: { ...base.budget, fundraisingEnabled: false, goal: "", onlineDonations: false } }).ok).toBe(true);
+  });
+  it("reports fundraising without its tool and counts the step as changed only when an answer changes", () => {
+    const on = { ...form, budget: { ...form.budget, fundraisingEnabled: true } };
+    expect(issuesOf(on, draft)).toContainEqual({ step: "tools", code: "FUNDRAISING_MODULE_OFF" });
+    expect(dirtySteps(on, form)).toEqual(["budget"]);
+    expect(dirtySteps({ ...form, budget: { ...form.budget, estimated: " " } }, form)).toEqual([]); // whitespace is no figure
   });
 });

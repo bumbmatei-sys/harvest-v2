@@ -7556,7 +7556,8 @@
       "leaders": "Who will organize this campaign?",
       "tools": "Which tools would you like to enable?",
       "review": "Check everything, then create the campaign.",
-      "connect": "How would you like participants to connect with your campaign?"
+      "connect": "How would you like participants to connect with your campaign?",
+      "budget": "What is the budget, and will you raise funds?"
     },
     "types": {
       "evangelistic_crusade": {
@@ -7730,7 +7731,14 @@
       "finishing": "Creating…",
       "created": "Campaign created.",
       "failed": "The campaign could not be created. Nothing was published.",
-      "noConnect": "Nothing turned on: no registration, response form or follow-up."
+      "noConnect": "Nothing turned on: no registration, response form or follow-up.",
+      "currency": "Currency",
+      "estimated": "Estimated budget",
+      "fundraising": "Campaign fundraising",
+      "goal": "Fundraising goal",
+      "online": "Online donations",
+      "yes": "Yes",
+      "no": "No"
     },
     "checklist": {
       "title": "Setup checklist",
@@ -7772,6 +7780,20 @@
       "toolsMissing": "Some of these need a tool that is off in Campaign Features.",
       "goToTools": "Go to Campaign Features",
       "nothingPublished": "Nothing is published or sent yet."
+    },
+    "budget": {
+      "currency": "Preferred Currency",
+      "estimated": "Estimated Total Budget",
+      "fundraising": "Enable Campaign Fundraising",
+      "goal": "Fundraising Goal (optional)",
+      "online": "Allow Online Donations",
+      "yes": "Yes",
+      "no": "No",
+      "needsFundraising": "Turn on campaign fundraising first.",
+      "amountProblem": "Enter a plain number with up to {digits, plural, =0 {no decimals} one {# decimal} other {# decimals}}.",
+      "toolMissing": "Fundraising needs Fundraising & Donations turned on in Campaign Features.",
+      "goToTools": "Go to Campaign Features",
+      "nothingCollected": "Nothing is collected and no payment provider is contacted."
     }
   },
   "LinkInBio": {
@@ -8286,6 +8308,15 @@
     "connect": "Registration & follow-up",
     "connectDescription": "What was chosen when the campaign was created. Nothing is published or sent until you do it.",
     "noConnect": "Nothing was turned on.",
-    "openLinks": "Open the response QR links"
+    "openLinks": "Open the response QR links",
+    "budget": "Budget & fundraising",
+    "budgetDescription": "Settings chosen when the campaign was created. Nothing is collected or raised through them.",
+    "estimated": "Estimated budget",
+    "fundraising": "Campaign fundraising",
+    "goal": "Fundraising goal",
+    "online": "Online donations",
+    "on": "On",
+    "off": "Off",
+    "notSet": "Not set"
   }
 }

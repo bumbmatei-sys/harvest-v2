@@ -1,4 +1,4 @@
-import { basicsStep, departmentKeys, leadersStep, moduleKeys, outreachConfig, placeStep, toolsStep, typeStep, validateDraft, wizardSteps, type DataStep, type Issue, type WizardStep } from "./campaign-wizard";
+import { basicsStep, departmentKeys, leadersStep, moduleKeys, budgetConfig, outreachConfig, placeStep, toolsStep, typeStep, validateDraft, wizardSteps, type DataStep, type Issue, type WizardStep } from "./campaign-wizard";
 import type { campaignStructures, campaignTypes } from "./campaigns";
 import type { InvitationState } from "./campaign-wizard";
 
@@ -23,9 +23,9 @@ export type DraftView = {
 };
 
 /** The steps this screen edits so far (the others are listed in the shell but not yet available). */
-export const editableSteps = ["type", "basics", "place", "leaders", "tools", "connect"] as const satisfies readonly DataStep[];
+export const editableSteps = ["type", "basics", "place", "leaders", "tools", "budget", "connect"] as const satisfies readonly DataStep[];
 export type EditableStep = typeof editableSteps[number];
-/** The steps a person can open: the six that take answers, and the review. Budget is listed and not available yet. */
+/** The steps a person can open: the seven that take answers, and the review. */
 export const isAvailable = (step: WizardStep) => isEditable(step) || step === "review";
 export const isEditable = (step: WizardStep): step is EditableStep => (editableSteps as readonly string[]).includes(step);
 
@@ -36,6 +36,8 @@ export type WizardForm = {
   place: { country: string; cityRegion: string; startDate: string; endDate: string; timeZone: string; structure: Structure | "" };
   leaders: { departments: string[] };
   tools: { modules: string[] };
+  /** Amounts are typed text so a half-typed figure stays as typed; they become minor units (cents) only when saved. */
+  budget: { currency: string; estimated: string; fundraisingEnabled: boolean; goal: string; onlineDonations: boolean };
   connect: DraftView["outreach"];
 };
 /** Departments and tools in the PRD's order, so two copies with the same choices compare equal. */
@@ -46,11 +48,48 @@ export function formFromDraft(draft: DraftView): WizardForm {
     type: draft.type,
     basics: { name: draft.name ?? "", description: draft.description ?? "", mission: draft.mission ?? "" },
     place: { country: draft.country ?? "", cityRegion: draft.cityRegion ?? "", startDate: draft.startDate ?? "", endDate: draft.endDate ?? "", timeZone: draft.timeZone ?? "", structure: draft.structure ?? "" },
-    leaders: { departments: inOrder(departmentKeys, draft.departments) }, tools: { modules: inOrder(moduleKeys, draft.modules) }, connect: { ...draft.outreach },
+    leaders: { departments: inOrder(departmentKeys, draft.departments) }, tools: { modules: inOrder(moduleKeys, draft.modules) }, budget: { currency: draft.budget.currency, estimated: moneyText(draft.budget.estimatedBudgetMinor, draft.budget.currency), fundraisingEnabled: draft.budget.fundraisingEnabled,
+      goal: moneyText(draft.budget.fundraisingGoalMinor, draft.budget.currency), onlineDonations: draft.budget.onlineDonations },
+    connect: { ...draft.outreach },
   };
 }
 
 const orNull = (value: string) => value.trim() || null;
+
+/** Currencies offered for the budget. A draft's saved currency is always offered too, whatever it is. */
+export const currencyOptions = ["USD", "EUR", "GBP", "CAD", "AUD", "NZD", "CHF", "SEK", "NOK", "DKK", "PLN", "CZK", "HUF", "UAH", "TRY", "ILS", "AED", "EGP", "ZAR", "NGN", "KES", "GHS", "UGX", "TZS",
+  "INR", "PKR", "BDT", "LKR", "NPR", "THB", "VND", "PHP", "IDR", "MYR", "SGD", "JPY", "KRW", "CNY", "BRL", "MXN", "COP", "CLP", "ARS", "PEN"] as const;
+/** How many decimal places a currency has (2 for dollars, 0 for yen). */
+export const currencyDigits = (currency: string) => { try { return new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2; } catch { return 2; } };
+/** Typed text to minor units: digits with an optional decimal part no longer than the currency allows, no separators. Empty is no figure. */
+export function parseMoney(text: string, currency: string): { ok: true; minor: number | null } | { ok: false } {
+  const value = text.trim();
+  if (!value) return { ok: true, minor: null };
+  const digits = currencyDigits(currency), match = /^(\d{1,13})(?:\.(\d+))?$/.exec(value);
+  if (!match || (match[2]?.length ?? 0) > digits) return { ok: false };
+  const minor = Number(match[1] + (match[2] ?? "").padEnd(digits, "0"));
+  return Number.isSafeInteger(minor) ? { ok: true, minor } : { ok: false };
+}
+/** Minor units back to the plain text a person types, without trailing noise ("1250", "1250.5"). */
+export function moneyText(minor: number | null, currency: string): string {
+  if (minor === null) return "";
+  const digits = currencyDigits(currency), text = String(minor).padStart(digits + 1, "0");
+  const whole = digits ? text.slice(0, -digits) : text, fraction = digits ? text.slice(-digits).replace(/0+$/, "") : "";
+  return fraction ? `${whole}.${fraction}` : whole;
+}
+const budgetFields: Record<string, string> = { estimatedBudgetMinor: "estimated", fundraisingGoalMinor: "goal", fundraisingEnabled: "fundraisingEnabled", onlineDonations: "onlineDonations", currency: "currency" };
+function budgetPayload(budget: WizardForm["budget"]) {
+  const estimated = parseMoney(budget.estimated, budget.currency), goal = parseMoney(budget.goal, budget.currency);
+  const bad: Record<string, string> = {};
+  if (!estimated.ok) bad.estimated = "INVALID";
+  if (!goal.ok) bad.goal = "INVALID";
+  const parsed = estimated.ok && goal.ok ? budgetConfig.safeParse({ currency: budget.currency, estimatedBudgetMinor: estimated.minor, fundraisingEnabled: budget.fundraisingEnabled,
+    fundraisingGoalMinor: goal.minor, onlineDonations: budget.onlineDonations }) : null;
+  if (parsed?.success) return parsed;
+  const issues = parsed ? parsed.error.issues.map((issue) => ({ path: [budgetFields[String(issue.path[0])] ?? String(issue.path[0] ?? "form")], code: issue.code, message: issue.message })) : [];
+  for (const [field, message] of Object.entries(bad)) issues.push({ path: [field], code: "custom", message });
+  return { success: false as const, error: { issues } };
+}
 export type StepPayload = { ok: true; data: Record<string, unknown> } | { ok: false; problems: Record<string, string> };
 
 /** The exact body a save would send for one step, parsed with the server's own schema; or the field problems that stop it being sent. */
@@ -60,6 +99,7 @@ export function stepPayload(step: EditableStep, form: WizardForm): StepPayload {
     : step === "leaders" ? leadersStep.safeParse({ departments: inOrder(departmentKeys, form.leaders.departments) })
     : step === "tools" ? toolsStep.safeParse({ modules: inOrder(moduleKeys, form.tools.modules) })
     : step === "connect" ? outreachConfig.safeParse(form.connect)
+    : step === "budget" ? budgetPayload(form.budget)
     : placeStep.safeParse({ country: orNull(form.place.country), cityRegion: orNull(form.place.cityRegion), startDate: orNull(form.place.startDate), endDate: orNull(form.place.endDate),
       timeZone: orNull(form.place.timeZone), structure: form.place.structure || null });
   if (parsed.success) return { ok: true, data: parsed.data as Record<string, unknown> };
@@ -96,7 +136,7 @@ export function issuesOf(form: WizardForm, draft: DraftView): Issue[] {
   return validateDraft({
     type: form.type, name: form.basics.name.trim() || null, country: orNull(form.place.country), cityRegion: orNull(form.place.cityRegion), startDate: orNull(form.place.startDate),
     endDate: orNull(form.place.endDate), timeZone: orNull(form.place.timeZone), structure: form.place.structure || null, departments: form.leaders.departments, modules: form.tools.modules,
-    budget: draft.budget, outreach: form.connect,
+    budget: { ...draft.budget, fundraisingEnabled: form.budget.fundraisingEnabled }, outreach: form.connect,
   });
 }
 

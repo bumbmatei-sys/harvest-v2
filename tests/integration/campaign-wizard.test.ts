@@ -546,6 +546,7 @@ describe("campaign overview", () => {
     expect(overview.configuration).toEqual({
       departments: [{ key: "volunteers", leaders: ["admin-a"], members: [], pending: 1 }, { key: "counseling", leaders: [], members: [], pending: 0 }], // the PRD's order
       modules: ["tasks_boards", "campaign_calendar"], connect: [],
+      budget: { currency: "USD", estimatedBudgetMinor: null, fundraisingEnabled: false, fundraisingGoalMinor: null, onlineDonations: false },
     });
     expect(overview.checklist).toEqual({ done: 0, total: 9 });
     expect(overview.unavailable).toEqual(["progress", "events", "funding", "tasks"]);

@@ -38,6 +38,12 @@ async function expectCleanWhenScrolled(page: Page) {
   }
   await expectAccessible(page);
 }
+/** Opens a step from the editing sidebar (desktop) or the step bar sheet (below 1024px). */
+async function openStep(page: Page, name: RegExp) {
+  await hydrated(page);
+  if ((page.viewportSize()?.width ?? 1280) >= 1024) await page.getByRole("group", { name: /^Editing/ }).getByRole("button", { name }).click();
+  else { await page.getByRole("button", { name: /^Step \d of 8/ }).click(); await page.getByRole("dialog").getByRole("button", { name }).click(); }
+}
 /** Runs an edit and waits for the autosave it triggers to be accepted. */
 async function autosaved(page: Page, edit: () => Promise<void>) {
   const patch = page.waitForResponse((response) => response.request().method() === "PATCH" && /\/campaigns\/drafts\//.test(response.url()));
@@ -91,9 +97,9 @@ test("create a draft, fill steps 1 to 3 with autosave, resume it, and activate a
   await expect(heading(page, "Basic Information")).toBeVisible();
   await expect(page.locator('[data-save-state="saved"]')).toBeVisible();
   if (shellModes) await expect(page.getByRole("group", { name: /^Editing/ })).toBeVisible(); else await expect(page.getByRole("navigation", { name: "Campaign setup" })).toBeVisible();
-  // Steps 6 to 8 are listed and not available yet.
+  // All eight steps are available now: none is marked "Soon".
   const stepList = shellModes ? page.getByRole("group", { name: /^Editing/ }) : page.getByRole("navigation", { name: "Campaign setup" });
-  for (const label of ["Budget & Fundraising"]) await expect(stepList.getByRole("button", { name: new RegExp(label) })).toHaveAttribute("aria-disabled", "true");
+  await expect(stepList.getByText("Soon")).toHaveCount(0);
 
   // Step 1 can still be changed; it says the template loads again.
   await stepList.getByRole("button", { name: /Campaign Type/ }).click();
@@ -527,6 +533,7 @@ test("teams and tools: invitations by member and by email are pending until acce
       await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
       await page.setViewportSize({ width, height });
       await page.reload();
+      await openStep(page, /Campaign Features/); // a reload resumes at the furthest step reached
       await expect(heading(page, "Campaign Features")).toBeVisible();
       await expectAccessible(page);
       if (width < 768) await expectCleanWhenScrolled(page);
@@ -584,8 +591,10 @@ test("review and finish: a summary, blocked reasons with links, one campaign how
     await hydrated(page);
     await expect(heading(page, "Campaign Features")).toBeVisible(); // resumes at the furthest step
     await page.getByRole("button", { name: "Next", exact: true }).click();
+    await expect(heading(page, "Budget & Fundraising")).toBeVisible();
+    await page.getByRole("button", { name: "Next", exact: true }).click();
     await expect(heading(page, "Registration & Follow-Up")).toBeVisible();
-    await page.getByRole("button", { name: "Next", exact: true }).click(); // budget is not available yet, so the review is next
+    await page.getByRole("button", { name: "Next", exact: true }).click();
     await expect(heading(page, "Review & Create")).toBeVisible();
     await expect(page.getByRole("definition").filter({ hasText: "Review campaign" })).toBeVisible();
     await expect(page.getByText("Santiago", { exact: true })).toBeVisible();
@@ -742,6 +751,94 @@ test("step 7: six options, all off, dependent ones blocked with a reason, tool h
     await expectAccessible(page);
     if (width < 768) await expectCleanWhenScrolled(page);
     await shoot(page, `step-7-connect-${label}-${scheme}`);
+  }
+  expect(errors).toEqual([]);
+});
+
+test("step 6: exactly five fields, fundraising gates the goal and online donations, amounts in the currency's units, settings only", async ({ page }) => {
+  test.setTimeout(420_000);
+  await mkdir(evidence, { recursive: true });
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  page.on("console", (message) => { if (message.type() === "error" && !/Failed to load resource/.test(message.text())) errors.push(message.text()); });
+  await signIn(page);
+  const tenant = (await (await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Budget Church", audience: "church" } })).json()).tenantId as string;
+  const root = `/workspaces/${tenant}/campaigns`, api = `/api${root}/drafts`;
+  const patch = async (id: string, version: number, step: string, data: unknown) => (await (await page.request.patch(`${api}/${id}`, { headers: { origin }, data: { version, step, data } })).json()).version as number;
+  const draft = await (await page.request.post(api, { headers: { origin, "Idempotency-Key": "budget-1" }, data: { type: "evangelistic_crusade" } })).json();
+  let version = await patch(draft.id, draft.version, "basics", { name: "Budget campaign", description: null, mission: null });
+  version = await patch(draft.id, version, "place", { country: "Chile", cityRegion: "Santiago", startDate: "2027-05-01", endDate: "2027-05-02", timeZone: "America/Santiago", structure: "single" });
+  await patch(draft.id, version, "tools", { modules: ["tasks_boards"] }); // fundraising is off in the tools
+  await page.goto(`${root}/drafts/${draft.id}`);
+  await hydrated(page);
+  await page.getByRole("group", { name: /^Editing/ }).getByRole("button", { name: /Budget & Fundraising/ }).click();
+  await expect(heading(page, "Budget & Fundraising")).toBeVisible();
+  await expect(page.getByText("What is the budget, and will you raise funds?")).toBeVisible();
+  // Exactly the five PRD fields.
+  await expect(page.getByLabel("Preferred Currency")).toBeVisible();
+  await expect(page.getByLabel("Estimated Total Budget")).toBeVisible();
+  await expect(page.getByRole("radiogroup", { name: "Enable Campaign Fundraising" })).toBeVisible();
+  await expect(page.getByLabel("Fundraising Goal (optional)")).toBeVisible();
+  await expect(page.getByRole("radiogroup", { name: "Allow Online Donations" })).toBeVisible();
+  await expect(page.locator('[data-slot="wizard-layout"] input:not([type="radio"]), [data-slot="wizard-layout"] select')).toHaveCount(3);
+  await expect(page.getByText("Nothing is collected and no payment provider is contacted.")).toBeVisible();
+  // Fundraising is off: the goal and online donations are disabled with the reason.
+  await expect(page.getByLabel("Fundraising Goal (optional)")).toBeDisabled();
+  await expect(page.getByRole("radio", { name: "Yes" }).last()).toBeDisabled();
+  await expect(page.getByText("Turn on campaign fundraising first.")).toHaveCount(2);
+  await shoot(page, "step-6-budget");
+  await expectAccessible(page);
+  // Amounts are plain numbers in the currency's units: a bad one says so and is not saved.
+  await page.getByLabel("Estimated Total Budget").fill("12.345");
+  await expect(page.getByRole("alert").filter({ hasText: "Enter a plain number" })).toBeVisible();
+  await expect(page.locator('[data-save-state="invalid"]')).toBeVisible();
+  await autosaved(page, async () => { await page.getByLabel("Estimated Total Budget").fill("12000.50"); });
+  await autosaved(page, async () => { await page.getByLabel("Preferred Currency").selectOption("EUR"); });
+  await autosaved(page, async () => { await page.getByRole("radio", { name: "Yes" }).first().click(); });
+  await expect(page.getByLabel("Fundraising Goal (optional)")).toBeEnabled();
+  await expect(page.getByText("Fundraising needs Fundraising & Donations turned on in Campaign Features.")).toBeVisible();
+  await shoot(page, "step-6-budget-tool-hint");
+  await autosaved(page, async () => { await page.getByLabel("Fundraising Goal (optional)").fill("50000"); });
+  await autosaved(page, async () => { await page.getByRole("radio", { name: "Yes" }).last().click(); });
+  const saved = await (await page.request.get(`${api}/${draft.id}`)).json();
+  expect(saved.budget).toEqual({ currency: "EUR", estimatedBudgetMinor: 1200050, fundraisingEnabled: true, fundraisingGoalMinor: 5000000, onlineDonations: true });
+  // Turning fundraising off clears the goal and online donations with it.
+  await autosaved(page, async () => { await page.getByRole("radio", { name: "No" }).first().click(); });
+  await expect(page.getByLabel("Fundraising Goal (optional)")).toHaveValue("");
+  expect((await (await page.request.get(`${api}/${draft.id}`)).json()).budget).toEqual({ currency: "EUR", estimatedBudgetMinor: 1200050, fundraisingEnabled: false, fundraisingGoalMinor: null, onlineDonations: false });
+  await autosaved(page, async () => { await page.getByRole("radio", { name: "Yes" }).first().click(); });
+  await autosaved(page, async () => { await page.getByLabel("Fundraising Goal (optional)").fill("50000"); });
+  // The review shows formatted amounts; the tool hint's link goes to Campaign Features where fundraising is switched on; Finish; the dashboard shows the settings.
+  await page.getByRole("button", { name: "Go to Campaign Features" }).click();
+  await expect(heading(page, "Campaign Features")).toBeVisible();
+  await hydrated(page);
+  await autosaved(page, async () => { await page.getByRole("switch", { name: "Enable Fundraising & Donations" }).click(); });
+  await page.getByRole("group", { name: /^Editing/ }).getByRole("button", { name: /Review & Create/ }).click();
+  await expect(page.getByRole("heading", { name: "Budget & Fundraising", level: 3 })).toBeVisible();
+  await expect(page.getByText("€12,000.50")).toBeVisible();
+  await expect(page.getByText("€50,000.00")).toBeVisible();
+  await shoot(page, "step-6-review");
+  await page.getByRole("button", { name: "Finish — Create Campaign" }).click();
+  await page.waitForURL(new RegExp(`${root}/[0-9a-f-]{36}$`));
+  await expect(page.getByRole("heading", { name: "Budget & fundraising", level: 3 })).toBeVisible();
+  await expect(page.getByText("€12,000.50")).toBeVisible();
+  await shoot(page, "step-6-dashboard");
+  // Nothing was collected: no donation, gift or payment record exists for the campaign.
+  expect(JSON.stringify(await (await page.request.get(`/api${root}/${page.url().split("/").pop()}/overview`)).json())).not.toMatch(/raised|paid|gift|checkout/i);
+  // Every width and scheme for the step.
+  const other = await (await page.request.post(api, { headers: { origin, "Idempotency-Key": "budget-2" }, data: { type: "evangelistic_crusade" } })).json();
+  await page.goto(`${root}/drafts/${other.id}`);
+  for (const scheme of ["light", "dark"] as const) for (const [label, width, height] of [["phone", 360, 800], ["tablet", 768, 1024], ["desktop", 1280, 900]] as const) {
+    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+    await page.setViewportSize({ width, height });
+    await page.reload();
+    await hydrated(page);
+    if (width >= 1024) await page.getByRole("group", { name: /^Editing/ }).getByRole("button", { name: /Budget & Fundraising/ }).click();
+    else { await page.getByRole("button", { name: /^Step \d of 8/ }).click(); await page.getByRole("dialog").getByRole("button", { name: /Budget & Fundraising/ }).click(); }
+    await expect(heading(page, "Budget & Fundraising")).toBeVisible();
+    await expectAccessible(page);
+    if (width < 768) await expectCleanWhenScrolled(page);
+    await shoot(page, `step-6-budget-${label}-${scheme}`);
   }
   expect(errors).toEqual([]);
 });

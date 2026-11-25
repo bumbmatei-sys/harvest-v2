@@ -18,6 +18,8 @@ export type CampaignOverview = {
     modules: string[];
     /** The Registration, Response & Follow-Up options that were turned on in step 7 (choices only: nothing is published or sent). */
     connect: string[];
+    /** Budget and fundraising settings from step 6. Settings only: nothing here is collected or raised. */
+    budget: { currency: string; estimatedBudgetMinor: number | null; fundraisingEnabled: boolean; fundraisingGoalMinor: number | null; onlineDonations: boolean };
   };
   /** Setup checklist progress. */
   checklist: { done: number; total: number };
@@ -37,7 +39,7 @@ export async function getCampaignOverview(db: Database, userId: string, workspac
     const [row] = await tx.select({ id: campaigns.id }).from(campaigns).where(and(eq(campaigns.tenantId, tenantId), eq(campaigns.id, id)));
     if (!row) throw new AccessError(404, message("Campaigns.notFound"));
     const checklist = await checklistOf(tx, tenantId, id), manager = role === "owner" || role === "admin";
-    const [draft] = await tx.select({ id: campaignDrafts.id, departments: campaignDrafts.departments, modules: campaignDrafts.modules, outreach: campaignDrafts.outreach }).from(campaignDrafts)
+    const [draft] = await tx.select({ id: campaignDrafts.id, departments: campaignDrafts.departments, modules: campaignDrafts.modules, outreach: campaignDrafts.outreach, budget: campaignDrafts.budget }).from(campaignDrafts)
       .where(and(eq(campaignDrafts.tenantId, tenantId), eq(campaignDrafts.campaignId, id)));
     let configuration: CampaignOverview["configuration"] = null;
     if (draft) {
@@ -55,6 +57,7 @@ export async function getCampaignOverview(db: Database, userId: string, workspac
         })),
         modules: moduleKeys.filter((key) => draft.modules.includes(key)),
         connect: outreachKeys.filter((key) => draft.outreach[key]),
+        budget: draft.budget,
       };
     }
     return { campaignId: id, configuration, checklist: { done: checklist.filter((item) => item.done).length, total: checklist.length }, unavailable: ["progress", "events", "funding", "tasks"] };

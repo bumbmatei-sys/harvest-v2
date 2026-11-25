@@ -4,7 +4,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { departmentKeys, moduleKeys, type WizardStep } from "@/lib/campaign-wizard";
-import { outreachKeys, type DraftView, type WizardForm } from "@/lib/campaign-wizard-form";
+import { currencyDigits, outreachKeys, parseMoney, type DraftView, type WizardForm } from "@/lib/campaign-wizard-form";
 import type { Issue } from "@/lib/campaign-wizard";
 import type { WizardPerson } from "@/components/campaigns/teams-step";
 
@@ -25,6 +25,8 @@ export function ReviewStep({ form, draft, people, issues, serverIssues, onEdit }
   const place = [[t("place.structure"), form.place.structure ? t(`place.structures.${form.place.structure}`) : notSet],
     [t("place.country"), form.place.country || notSet], [t("place.cityRegion"), form.place.cityRegion || notSet],
     [tr("dates"), form.place.startDate && form.place.endDate ? `${date(form.place.startDate)} – ${date(form.place.endDate)}` : notSet], [t("place.timeZone"), form.place.timeZone || notSet]];
+  const money = (text: string) => { const parsed = parseMoney(text, form.budget.currency); return parsed.ok && parsed.minor !== null ? format.number(parsed.minor / 10 ** currencyDigits(form.budget.currency), { style: "currency", currency: form.budget.currency }) : notSet; };
+  const yesNo = (on: boolean) => tr(on ? "yes" : "no");
   const departments = departmentKeys.filter((key) => form.leaders.departments.includes(key));
   const connected = outreachKeys.filter((key) => form.connect[key]);
   const modules = moduleKeys.filter((key) => form.tools.modules.includes(key));
@@ -53,7 +55,8 @@ export function ReviewStep({ form, draft, people, issues, serverIssues, onEdit }
         <p className="mt-1 break-words text-xs text-muted-foreground">{[leaders.length ? tr("leaders", { names: leaders.join(", ") }) : tr("noLeader"), tr("teamCount", { count: members }), pending ? tr("pending", { count: pending }) : ""].filter(Boolean).join(" · ")}</p></li>;
     })}</ul> : <p className="text-sm text-muted-foreground">{tr("noDepartments")}</p>)}
     {section("tools", t("steps.tools"), modules.length ? <ul className="flex flex-wrap gap-2">{modules.map((key) => <li key={key} className="rounded-md border px-2 py-1 text-sm">{t(`modules.${key}`)}</li>)}</ul> : <p className="text-sm text-muted-foreground">{tr("noTools")}</p>)}
-    <section aria-labelledby="review-budget" className="space-y-2 rounded-xl border bg-card p-4"><h3 id="review-budget" className="text-sm font-semibold">{t("steps.budget")}</h3><p className="text-sm text-muted-foreground">{tr("notAvailable")}</p></section>
+    {section("budget", t("steps.budget"), rows([[tr("currency"), form.budget.currency], [tr("estimated"), money(form.budget.estimated)], [tr("fundraising"), yesNo(form.budget.fundraisingEnabled)],
+      [tr("goal"), form.budget.fundraisingEnabled ? money(form.budget.goal) : notSet], [tr("online"), yesNo(form.budget.onlineDonations)]]))}
     {section("connect", t("steps.connect"), connected.length ? <ul className="flex flex-wrap gap-2">{connected.map((key) => <li key={key} className="rounded-md border px-2 py-1 text-sm">{t(`connect.options.${key}`)}</li>)}</ul> : <p className="text-sm text-muted-foreground">{tr("noConnect")}</p>)}
     <p className="text-sm text-muted-foreground">{tr("nothingPublished")}</p>
   </div>;
