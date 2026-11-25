@@ -4,6 +4,7 @@ CREATE TABLE "workspace_invitations" (
 	"email" text NOT NULL,
 	"role" text NOT NULL,
 	"grants" jsonb DEFAULT '{}'::jsonb NOT NULL,
+	"can_manage_admins" boolean DEFAULT false NOT NULL,
 	"token_hash" text NOT NULL,
 	"status" text DEFAULT 'pending' NOT NULL,
 	"created_by" text NOT NULL,
@@ -15,6 +16,7 @@ CREATE TABLE "workspace_invitations" (
 	CONSTRAINT "workspace_invitations_token_hash_unique" UNIQUE("token_hash"),
 	CONSTRAINT "workspace_invitation_role" CHECK ("workspace_invitations"."role" in ('admin','member','viewer','collaborator','guest')),
 	CONSTRAINT "workspace_invitation_grants" CHECK (jsonb_typeof("workspace_invitations"."grants") = 'object' and ("workspace_invitations"."role" = 'collaborator' or "workspace_invitations"."grants" = '{}'::jsonb)),
+	CONSTRAINT "workspace_invitation_admins_flag" CHECK ("workspace_invitations"."can_manage_admins" = false or "workspace_invitations"."role" = 'admin'),
 	CONSTRAINT "workspace_invitation_email" CHECK ("workspace_invitations"."email" = lower(btrim("workspace_invitations"."email")) and length("workspace_invitations"."email") between 3 and 320),
 	CONSTRAINT "workspace_invitation_token" CHECK ("workspace_invitations"."token_hash" ~ '^[a-f0-9]{64}$'),
 	CONSTRAINT "workspace_invitation_status" CHECK ("workspace_invitations"."status" in ('pending','accepted','revoked') and (("workspace_invitations"."status" = 'pending') = ("workspace_invitations"."responded_at" is null)) and (("workspace_invitations"."status" = 'accepted') = ("workspace_invitations"."accepted_by" is not null))),
@@ -33,6 +35,7 @@ CREATE TABLE "workspace_member_access" (
 	CONSTRAINT "workspace_member_access_level" CHECK ("workspace_member_access"."level" in ('view','manage'))
 );
 --> statement-breakpoint
+ALTER TABLE "workspace_members" ADD COLUMN "can_manage_admins" boolean DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE "workspace_invitations" ADD CONSTRAINT "workspace_invitations_tenant_id_workspaces_tenant_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."workspaces"("tenant_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workspace_invitations" ADD CONSTRAINT "workspace_invitations_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "workspace_invitations" ADD CONSTRAINT "workspace_invitations_accepted_by_users_id_fk" FOREIGN KEY ("accepted_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -40,6 +43,7 @@ ALTER TABLE "workspace_member_access" ADD CONSTRAINT "workspace_member_access_gr
 ALTER TABLE "workspace_member_access" ADD CONSTRAINT "workspace_member_access_member_fk" FOREIGN KEY ("tenant_id","user_id") REFERENCES "public"."workspace_members"("tenant_id","user_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "workspace_invitations_open_idx" ON "workspace_invitations" USING btree ("tenant_id","email") WHERE "workspace_invitations"."status" = 'pending';--> statement-breakpoint
 CREATE INDEX "workspace_invitations_tenant_idx" ON "workspace_invitations" USING btree ("tenant_id","status","created_at");--> statement-breakpoint
+ALTER TABLE "workspace_members" ADD CONSTRAINT "workspace_member_admins_flag" CHECK ("workspace_members"."can_manage_admins" = false or "workspace_members"."role_id" = 'admin');--> statement-breakpoint
 -- Per-feature access (founder decision, 25 Nov). Full account: docs/acceptance/feature-access-server.md.
 --
 -- 1. Roles. `collaborator` holds an explicit set of areas (workspace_member_access). `guest` holds none and reaches only items shared with them by name.
@@ -50,7 +54,8 @@ CREATE INDEX "workspace_invitations_tenant_idx" ON "workspace_invitations" USING
 -- 3. Every module helper and every policy that tested role_id now calls it (rewritten below from the live definitions, with an explicit table/function to area
 --    list). New code must call access_role instead of testing role_id (tests/unit/access-guard.test.ts).
 -- 4. Grants and invitations change only through SECURITY DEFINER functions that write the role, the grants and the audit row together. Only an owner can grant,
---    change or remove `admin`/`owner`; a trigger enforces it for the application role as well.
+--    change or remove `owner`. An `admin` is granted, changed and removed by an owner or by an admin created with can_manage_admins (founder decision, 25 Nov);
+--    a trigger enforces it for the application role as well.
 INSERT INTO public.roles (id) VALUES ('collaborator'), ('guest'), ('campaign_guest') ON CONFLICT DO NOTHING;
 --> statement-breakpoint
 ALTER TABLE public.workspace_member_access ENABLE ROW LEVEL SECURITY;
@@ -182,25 +187,32 @@ $$;
 -- Who may change roles. Only an owner grants, changes or removes `admin`/`owner`; the last owner stays; the first owner of a new account is allowed.
 -- Enforced for the application role (the definers below run as the owner role and check the same rules themselves).
 CREATE FUNCTION public.workspace_member_role_guard() RETURNS trigger LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
-DECLARE actor text := nullif(current_setting('app.user_id', true), ''); actor_role text; t uuid := coalesce(NEW.tenant_id, OLD.tenant_id);
+DECLARE actor text := nullif(current_setting('app.user_id', true), ''); actor_role text; actor_flag boolean; actor_admins boolean; t uuid := coalesce(NEW.tenant_id, OLD.tenant_id);
 BEGIN
   IF current_user <> 'harvest_app' THEN RETURN coalesce(NEW, OLD); END IF;
-  SELECT m.role_id INTO actor_role FROM public.workspace_members m WHERE m.tenant_id = t AND m.user_id = actor;
+  SELECT m.role_id, m.can_manage_admins INTO actor_role, actor_flag FROM public.workspace_members m WHERE m.tenant_id = t AND m.user_id = actor;
+  actor_admins := actor_role = 'owner' OR (actor_role = 'admin' AND coalesce(actor_flag, false));
   IF TG_OP = 'INSERT' THEN
-    IF NEW.role_id IN ('owner', 'admin') AND actor_role IS DISTINCT FROM 'owner'
-      AND NOT (NEW.role_id = 'owner' AND NEW.user_id = actor AND NOT EXISTS (SELECT 1 FROM public.workspace_members x WHERE x.tenant_id = t)) THEN
-      RAISE EXCEPTION 'only an owner can grant admin or owner' USING ERRCODE = '42501';
+    IF NEW.role_id = 'owner' AND actor_role IS DISTINCT FROM 'owner'
+      AND NOT (NEW.user_id = actor AND NOT EXISTS (SELECT 1 FROM public.workspace_members x WHERE x.tenant_id = t)) THEN
+      RAISE EXCEPTION 'only an owner can grant owner' USING ERRCODE = '42501';
     END IF;
+    IF NEW.role_id = 'admin' AND NOT actor_admins THEN RAISE EXCEPTION 'only an owner or an admin who manages admins can grant admin' USING ERRCODE = '42501'; END IF;
   ELSIF TG_OP = 'UPDATE' THEN
-    IF OLD.role_id IS DISTINCT FROM NEW.role_id AND (OLD.role_id IN ('owner', 'admin') OR NEW.role_id IN ('owner', 'admin')) THEN
-      IF actor_role IS DISTINCT FROM 'owner' THEN RAISE EXCEPTION 'only an owner can change admin or owner' USING ERRCODE = '42501'; END IF;
-      IF OLD.role_id = 'owner' AND NOT EXISTS (SELECT 1 FROM public.workspace_members x WHERE x.tenant_id = t AND x.role_id = 'owner' AND x.user_id <> OLD.user_id) THEN
+    IF OLD.role_id IS DISTINCT FROM NEW.role_id AND (OLD.role_id = 'owner' OR NEW.role_id = 'owner') AND actor_role IS DISTINCT FROM 'owner' THEN
+      RAISE EXCEPTION 'only an owner can change owner' USING ERRCODE = '42501';
+    END IF;
+    IF (OLD.role_id IS DISTINCT FROM NEW.role_id AND (OLD.role_id = 'admin' OR NEW.role_id = 'admin') OR OLD.can_manage_admins IS DISTINCT FROM NEW.can_manage_admins) AND NOT actor_admins THEN
+      RAISE EXCEPTION 'only an owner or an admin who manages admins can change admin' USING ERRCODE = '42501';
+    END IF;
+    IF OLD.role_id IS DISTINCT FROM NEW.role_id AND OLD.role_id = 'owner' THEN
+      IF TRUE AND NOT EXISTS (SELECT 1 FROM public.workspace_members x WHERE x.tenant_id = t AND x.role_id = 'owner' AND x.user_id <> OLD.user_id) THEN
         RAISE EXCEPTION 'the account must keep an owner' USING ERRCODE = '23514';
       END IF;
     END IF;
   ELSE
     IF OLD.role_id = 'owner' THEN RAISE EXCEPTION 'transfer ownership before removing an owner' USING ERRCODE = '23514'; END IF;
-    IF OLD.role_id = 'admin' AND actor_role IS DISTINCT FROM 'owner' THEN RAISE EXCEPTION 'only an owner can remove an admin' USING ERRCODE = '42501'; END IF;
+    IF OLD.role_id = 'admin' AND NOT actor_admins THEN RAISE EXCEPTION 'only an owner or an admin who manages admins can remove an admin' USING ERRCODE = '42501'; END IF;
   END IF;
   RETURN coalesce(NEW, OLD);
 END $$;
@@ -223,26 +235,29 @@ REVOKE ALL ON FUNCTION public.access_grants_text(text, jsonb) FROM PUBLIC;
 --> statement-breakpoint
 -- Change an existing member's role and areas (owner/admin only; admin/owner changes need an owner; nobody changes their own access).
 -- Returns {"outcome": ok | forbidden | not_found | invalid | conflict}.
-CREATE FUNCTION public.workspace_access_change(p_user text, p_role text, p_grants jsonb) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+CREATE FUNCTION public.workspace_access_change(p_user text, p_role text, p_grants jsonb, p_can_manage_admins boolean DEFAULT false) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE actor text := nullif(current_setting('app.user_id', true), ''); t uuid := nullif(current_setting('app.tenant_id', true), '')::uuid;
-  actor_role text; target_role text; areas text; previous text; k text; v text;
+  actor_role text; actor_flag boolean; target_role text; areas text; previous text; k text; v text;
 BEGIN
   IF actor IS NULL OR t IS NULL OR p_user IS NULL THEN RETURN '{"outcome":"forbidden"}'::jsonb; END IF;
   PERFORM set_config('app.access_tenant', t::text, true);
-  SELECT role_id INTO actor_role FROM public.workspace_members WHERE tenant_id = t AND user_id = actor FOR SHARE;
+  SELECT role_id, can_manage_admins INTO actor_role, actor_flag FROM public.workspace_members WHERE tenant_id = t AND user_id = actor FOR SHARE;
   IF actor_role IS NULL OR actor_role NOT IN ('owner', 'admin') OR actor = p_user THEN RETURN '{"outcome":"forbidden"}'::jsonb; END IF;
+  IF coalesce(p_can_manage_admins, false) AND p_role <> 'admin' THEN RETURN '{"outcome":"invalid"}'::jsonb; END IF;
   IF p_role NOT IN ('owner', 'admin', 'member', 'viewer', 'collaborator', 'guest') THEN RETURN '{"outcome":"invalid"}'::jsonb; END IF;
   areas := public.access_grants_text(p_role, coalesce(p_grants, '{}'::jsonb));
   IF areas IS NULL THEN RETURN '{"outcome":"invalid"}'::jsonb; END IF;
   SELECT role_id INTO target_role FROM public.workspace_members WHERE tenant_id = t AND user_id = p_user FOR UPDATE;
   IF target_role IS NULL THEN RETURN '{"outcome":"not_found"}'::jsonb; END IF;
-  -- Owner/admin hold every area at manage, so "nobody grants more than they hold" reduces to: only an owner touches admin or owner.
-  IF (p_role IN ('owner', 'admin') OR target_role IN ('owner', 'admin')) AND actor_role <> 'owner' THEN RETURN '{"outcome":"forbidden"}'::jsonb; END IF;
+  -- Owner/admin hold every area at manage, so "nobody grants more than they hold" reduces to: only an owner touches owner, and only an owner or an admin
+  -- who manages admins touches admin (including the manages-admins permission itself, which nobody can give without holding it).
+  IF (p_role = 'owner' OR target_role = 'owner') AND actor_role <> 'owner' THEN RETURN '{"outcome":"forbidden"}'::jsonb; END IF;
+  IF (p_role = 'admin' OR target_role = 'admin') AND NOT (actor_role = 'owner' OR coalesce(actor_flag, false)) THEN RETURN '{"outcome":"forbidden"}'::jsonb; END IF;
   IF target_role = 'owner' AND p_role <> 'owner' AND NOT EXISTS (SELECT 1 FROM public.workspace_members WHERE tenant_id = t AND role_id = 'owner' AND user_id <> p_user) THEN
     RETURN '{"outcome":"conflict"}'::jsonb;
   END IF;
   SELECT coalesce(string_agg(area || ':' || level, ',' ORDER BY area), '') INTO previous FROM public.workspace_member_access WHERE tenant_id = t AND user_id = p_user;
-  UPDATE public.workspace_members SET role_id = p_role WHERE tenant_id = t AND user_id = p_user;
+  UPDATE public.workspace_members SET role_id = p_role, can_manage_admins = (p_role = 'admin' AND coalesce(p_can_manage_admins, false)) WHERE tenant_id = t AND user_id = p_user;
   DELETE FROM public.workspace_member_access WHERE tenant_id = t AND user_id = p_user;
   IF p_role = 'collaborator' THEN
     FOR k, v IN SELECT key, value FROM jsonb_each_text(p_grants) LOOP
@@ -250,33 +265,34 @@ BEGIN
     END LOOP;
   END IF;
   INSERT INTO public.audit_logs (tenant_id, actor_id, action, target_id, metadata)
-    VALUES (t, actor, 'member.access_change', p_user, jsonb_build_object('role', p_role, 'previousRole', target_role, 'areas', areas, 'previousAreas', previous));
+    VALUES (t, actor, 'member.access_change', p_user, jsonb_build_object('role', p_role, 'previousRole', target_role, 'areas', areas, 'previousAreas', previous, 'manageAdmins', (p_role = 'admin' AND coalesce(p_can_manage_admins, false))::text));
   PERFORM set_config('app.access_tenant', '', true);
   RETURN jsonb_build_object('outcome', 'ok', 'role', p_role, 'areas', areas);
 END $$;
-REVOKE ALL ON FUNCTION public.workspace_access_change(text, text, jsonb) FROM PUBLIC, harvest_app;
-GRANT EXECUTE ON FUNCTION public.workspace_access_change(text, text, jsonb) TO harvest_app;
+REVOKE ALL ON FUNCTION public.workspace_access_change(text, text, jsonb, boolean) FROM PUBLIC, harvest_app;
+GRANT EXECUTE ON FUNCTION public.workspace_access_change(text, text, jsonb, boolean) TO harvest_app;
 --> statement-breakpoint
-CREATE FUNCTION public.workspace_invitation_create(p_email text, p_role text, p_grants jsonb, p_token_hash text) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+CREATE FUNCTION public.workspace_invitation_create(p_email text, p_role text, p_grants jsonb, p_token_hash text, p_can_manage_admins boolean DEFAULT false) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE actor text := nullif(current_setting('app.user_id', true), ''); t uuid := nullif(current_setting('app.tenant_id', true), '')::uuid;
-  actor_role text; areas text; em text := lower(btrim(coalesce(p_email, ''))); new_id uuid;
+  actor_role text; actor_flag boolean; areas text; em text := lower(btrim(coalesce(p_email, ''))); new_id uuid;
 BEGIN
   IF actor IS NULL OR t IS NULL THEN RETURN '{"outcome":"forbidden"}'::jsonb; END IF;
   PERFORM set_config('app.access_tenant', t::text, true);
-  SELECT role_id INTO actor_role FROM public.workspace_members WHERE tenant_id = t AND user_id = actor FOR SHARE;
+  SELECT role_id, can_manage_admins INTO actor_role, actor_flag FROM public.workspace_members WHERE tenant_id = t AND user_id = actor FOR SHARE;
   IF actor_role IS NULL OR actor_role NOT IN ('owner', 'admin') THEN RETURN '{"outcome":"forbidden"}'::jsonb; END IF;
+  IF coalesce(p_can_manage_admins, false) AND p_role <> 'admin' THEN RETURN '{"outcome":"invalid"}'::jsonb; END IF;
   IF p_role NOT IN ('admin', 'member', 'viewer', 'collaborator', 'guest') OR p_token_hash IS NULL OR p_token_hash !~ '^[a-f0-9]{64}$' OR length(em) NOT BETWEEN 3 AND 320 THEN RETURN '{"outcome":"invalid"}'::jsonb; END IF;
   areas := public.access_grants_text(p_role, coalesce(p_grants, '{}'::jsonb));
   IF areas IS NULL THEN RETURN '{"outcome":"invalid"}'::jsonb; END IF;
-  IF p_role = 'admin' AND actor_role <> 'owner' THEN RETURN '{"outcome":"forbidden"}'::jsonb; END IF;
+  IF p_role = 'admin' AND NOT (actor_role = 'owner' OR coalesce(actor_flag, false)) THEN RETURN '{"outcome":"forbidden"}'::jsonb; END IF;
   UPDATE public.workspace_invitations SET status = 'revoked', responded_at = clock_timestamp() WHERE tenant_id = t AND email = em AND status = 'pending';
-  INSERT INTO public.workspace_invitations (tenant_id, email, role, grants, token_hash, created_by) VALUES (t, em, p_role, coalesce(p_grants, '{}'::jsonb), p_token_hash, actor) RETURNING id INTO new_id;
-  INSERT INTO public.audit_logs (tenant_id, actor_id, action, target_id, metadata) VALUES (t, actor, 'invitation.create', new_id::text, jsonb_build_object('role', p_role, 'areas', areas));
+  INSERT INTO public.workspace_invitations (tenant_id, email, role, grants, can_manage_admins, token_hash, created_by) VALUES (t, em, p_role, coalesce(p_grants, '{}'::jsonb), coalesce(p_can_manage_admins, false), p_token_hash, actor) RETURNING id INTO new_id;
+  INSERT INTO public.audit_logs (tenant_id, actor_id, action, target_id, metadata) VALUES (t, actor, 'invitation.create', new_id::text, jsonb_build_object('role', p_role, 'areas', areas, 'manageAdmins', coalesce(p_can_manage_admins, false)::text));
   PERFORM set_config('app.access_tenant', '', true);
   RETURN jsonb_build_object('outcome', 'ok', 'id', new_id);
 END $$;
-REVOKE ALL ON FUNCTION public.workspace_invitation_create(text, text, jsonb, text) FROM PUBLIC, harvest_app;
-GRANT EXECUTE ON FUNCTION public.workspace_invitation_create(text, text, jsonb, text) TO harvest_app;
+REVOKE ALL ON FUNCTION public.workspace_invitation_create(text, text, jsonb, text, boolean) FROM PUBLIC, harvest_app;
+GRANT EXECUTE ON FUNCTION public.workspace_invitation_create(text, text, jsonb, text, boolean) TO harvest_app;
 --> statement-breakpoint
 CREATE FUNCTION public.workspace_invitation_revoke(p_id uuid) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE actor text := nullif(current_setting('app.user_id', true), ''); t uuid := nullif(current_setting('app.tenant_id', true), '')::uuid; actor_role text; n integer;
@@ -298,7 +314,7 @@ GRANT EXECUTE ON FUNCTION public.workspace_invitation_revoke(uuid) TO harvest_ap
 -- Accepting is the only way a person who is not yet a member (or whose access changes) takes an invitation. The signed-in account's e-mail must be the one the
 -- invitation names; the inviter must still be allowed to grant it. Returns {"outcome": ok | not_found | closed | expired}.
 CREATE FUNCTION public.workspace_invitation_accept(p_token text) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-DECLARE actor text := nullif(current_setting('app.user_id', true), ''); actor_email text; hash text; inv public.workspace_invitations; inviter_role text; prev_role text; areas text;
+DECLARE actor text := nullif(current_setting('app.user_id', true), ''); actor_email text; hash text; inv public.workspace_invitations; inviter_role text; inviter_flag boolean; prev_role text; areas text;
   k text; v text; joined boolean := false; result jsonb;
   previous_token text := coalesce(current_setting('app.access_token', true), ''); previous_tenant text := coalesce(current_setting('app.access_tenant', true), '');
 BEGIN
@@ -314,15 +330,15 @@ BEGIN
   ELSIF inv.status <> 'pending' THEN result := '{"outcome":"closed"}'::jsonb;
   ELSIF inv.expires_at <= clock_timestamp() THEN result := '{"outcome":"expired"}'::jsonb;
   ELSE
-    SELECT role_id INTO inviter_role FROM public.workspace_members WHERE tenant_id = inv.tenant_id AND user_id = inv.created_by FOR SHARE;
+    SELECT role_id, can_manage_admins INTO inviter_role, inviter_flag FROM public.workspace_members WHERE tenant_id = inv.tenant_id AND user_id = inv.created_by FOR SHARE;
     SELECT role_id INTO prev_role FROM public.workspace_members WHERE tenant_id = inv.tenant_id AND user_id = actor FOR UPDATE;
-    IF inviter_role IS NULL OR inviter_role NOT IN ('owner', 'admin') OR (inv.role = 'admin' AND inviter_role <> 'owner')
-      OR prev_role = 'owner' OR (prev_role = 'admin' AND inviter_role <> 'owner') THEN
+    IF inviter_role IS NULL OR inviter_role NOT IN ('owner', 'admin') OR ((inv.role = 'admin' OR prev_role = 'admin') AND NOT (inviter_role = 'owner' OR coalesce(inviter_flag, false)))
+      OR prev_role = 'owner' THEN
       result := '{"outcome":"closed"}'::jsonb;
     ELSE
       areas := public.access_grants_text(inv.role, inv.grants);
-      IF prev_role IS NULL THEN INSERT INTO public.workspace_members (tenant_id, user_id, role_id) VALUES (inv.tenant_id, actor, inv.role); joined := true;
-      ELSE UPDATE public.workspace_members SET role_id = inv.role WHERE tenant_id = inv.tenant_id AND user_id = actor; END IF;
+      IF prev_role IS NULL THEN INSERT INTO public.workspace_members (tenant_id, user_id, role_id, can_manage_admins) VALUES (inv.tenant_id, actor, inv.role, inv.can_manage_admins AND inv.role = 'admin'); joined := true;
+      ELSE UPDATE public.workspace_members SET role_id = inv.role, can_manage_admins = (inv.can_manage_admins AND inv.role = 'admin') WHERE tenant_id = inv.tenant_id AND user_id = actor; END IF;
       DELETE FROM public.workspace_member_access WHERE tenant_id = inv.tenant_id AND user_id = actor;
       IF inv.role = 'collaborator' THEN
         FOR k, v IN SELECT key, value FROM jsonb_each_text(inv.grants) LOOP

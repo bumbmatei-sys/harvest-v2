@@ -15,8 +15,8 @@ export const INVITATION_DELIVERY_LIVE = false as const;
 export const invitationTestSink: { email: string; token: string }[] = [];
 
 const grantsSchema = z.partialRecord(z.enum(accessAreas), z.enum(accessLevels)).default({});
-export const accessChangeSchema = z.object({ userId: z.string().min(1).max(200), role: z.enum(["owner", "admin", "member", "viewer", "collaborator", "guest"]), grants: grantsSchema }).strict();
-export const invitationSchema = z.object({ email: z.email().toLowerCase(), role: z.enum(["admin", "member", "viewer", "collaborator", "guest"]), grants: grantsSchema }).strict();
+export const accessChangeSchema = z.object({ userId: z.string().min(1).max(200), role: z.enum(["owner", "admin", "member", "viewer", "collaborator", "guest"]), grants: grantsSchema, canManageAdmins: z.boolean().default(false) }).strict();
+export const invitationSchema = z.object({ email: z.email().toLowerCase(), role: z.enum(["admin", "member", "viewer", "collaborator", "guest"]), grants: grantsSchema, canManageAdmins: z.boolean().default(false) }).strict();
 
 type Outcome = { outcome: string; [key: string]: unknown };
 function fail(outcome: string): never {
@@ -36,7 +36,7 @@ async function call(tx: Transaction, query: ReturnType<typeof sql>): Promise<Out
 export function changeMemberAccess(db: Database, actorId: string, workspace: string, data: unknown) {
   const input = accessChangeSchema.parse(data);
   return withTenant(db, actorId, workspace, "members:write", async (tx) => {
-    const out = await call(tx, sql`select public.workspace_access_change(${input.userId}, ${input.role}, ${JSON.stringify(input.grants)}::jsonb) as r`);
+    const out = await call(tx, sql`select public.workspace_access_change(${input.userId}, ${input.role}, ${JSON.stringify(input.grants)}::jsonb, ${input.canManageAdmins}::boolean) as r`);
     if (out.outcome !== "ok") fail(out.outcome);
     return { userId: input.userId, role: input.role, areas: out.areas as string };
   });
@@ -48,7 +48,7 @@ export function inviteMember(db: Database, actorId: string, workspace: string, d
   const token = randomBytes(32).toString("base64url");
   const tokenHash = createHash("sha256").update(token).digest("hex");
   return withTenant(db, actorId, workspace, "members:write", async (tx) => {
-    const out = await call(tx, sql`select public.workspace_invitation_create(${input.email}, ${input.role}, ${JSON.stringify(input.grants)}::jsonb, ${tokenHash}) as r`);
+    const out = await call(tx, sql`select public.workspace_invitation_create(${input.email}, ${input.role}, ${JSON.stringify(input.grants)}::jsonb, ${tokenHash}, ${input.canManageAdmins}::boolean) as r`);
     if (out.outcome !== "ok") fail(out.outcome);
     if (process.env.NODE_ENV !== "production") {
       invitationTestSink.push({ email: input.email, token });
@@ -67,7 +67,7 @@ export function revokeInvitation(db: Database, actorId: string, workspace: strin
   });
 }
 export function listInvitations(db: Database, actorId: string, workspace: string) {
-  return withTenant(db, actorId, workspace, "members:write", (tx) => tx.select({ id: workspaceInvitations.id, email: workspaceInvitations.email, role: workspaceInvitations.role, grants: workspaceInvitations.grants,
+  return withTenant(db, actorId, workspace, "members:write", (tx) => tx.select({ id: workspaceInvitations.id, email: workspaceInvitations.email, role: workspaceInvitations.role, canManageAdmins: workspaceInvitations.canManageAdmins, grants: workspaceInvitations.grants,
     status: workspaceInvitations.status, expiresAt: workspaceInvitations.expiresAt }).from(workspaceInvitations).where(eq(workspaceInvitations.tenantId, workspace)).orderBy(desc(workspaceInvitations.createdAt)));
 }
 /** The signed-in account accepts an invitation made for its e-mail address. The token alone is not enough. */
@@ -82,9 +82,15 @@ export function acceptInvitation(db: Database, userId: string, token: unknown) {
 /** Everyone in the account with their role and areas (owner/admin). */
 export function listMemberAccess(db: Database, actorId: string, workspace: string) {
   return withTenant(db, actorId, workspace, "members:write", async (tx) => {
-    const members = await tx.select({ userId: workspaceMembers.userId, role: workspaceMembers.roleId, name: users.name, email: users.email }).from(workspaceMembers)
+    const members = await tx.select({ userId: workspaceMembers.userId, role: workspaceMembers.roleId, canManageAdmins: workspaceMembers.canManageAdmins, name: users.name, email: users.email }).from(workspaceMembers)
       .innerJoin(users, eq(users.id, workspaceMembers.userId)).where(eq(workspaceMembers.tenantId, workspace));
     const grants = await tx.select().from(workspaceMemberAccess).where(and(eq(workspaceMemberAccess.tenantId, workspace)));
     return members.map((m) => ({ ...m, grants: Object.fromEntries(grants.filter((g) => g.userId === m.userId).map((g) => [g.area, g.level])) as AccessGrants }));
   });
 }
+
+/**
+ * Founder decision (25 Nov): people are added by invitation the invitee accepts. The only direct add left is a non-production test gate for browser
+ * fixtures: it needs the test mailbox variable the e2e configuration sets, and is always off in production.
+ */
+export function directAddAllowed(): boolean { return process.env.NODE_ENV !== "production" && Boolean(process.env.HARVEST_E2E_MAILBOX); }

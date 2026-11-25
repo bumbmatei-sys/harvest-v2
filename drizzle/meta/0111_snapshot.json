@@ -1,5 +1,5 @@
 {
-  "id": "2f55a3c6-ad9a-4f67-b603-0797a4ab2c2a",
+  "id": "956d3892-a9a6-4dd3-92dd-17df3c9b99e3",
   "prevId": "6e46c707-44cf-4c2e-ac1e-5ecad2215eee",
   "version": "7",
   "dialect": "postgresql",
@@ -33498,6 +33498,13 @@
           "notNull": true,
           "default": "'{}'::jsonb"
         },
+        "can_manage_admins": {
+          "name": "can_manage_admins",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "token_hash": {
           "name": "token_hash",
           "type": "text",
@@ -33664,6 +33671,10 @@
           "name": "workspace_invitation_grants",
           "value": "jsonb_typeof(\"workspace_invitations\".\"grants\") = 'object' and (\"workspace_invitations\".\"role\" = 'collaborator' or \"workspace_invitations\".\"grants\" = '{}'::jsonb)"
         },
+        "workspace_invitation_admins_flag": {
+          "name": "workspace_invitation_admins_flag",
+          "value": "\"workspace_invitations\".\"can_manage_admins\" = false or \"workspace_invitations\".\"role\" = 'admin'"
+        },
         "workspace_invitation_email": {
           "name": "workspace_invitation_email",
           "value": "\"workspace_invitations\".\"email\" = lower(btrim(\"workspace_invitations\".\"email\")) and length(\"workspace_invitations\".\"email\") between 3 and 320"
@@ -33802,6 +33813,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "can_manage_admins": {
+          "name": "can_manage_admins",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -33885,7 +33903,12 @@
       },
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {},
+      "checkConstraints": {
+        "workspace_member_admins_flag": {
+          "name": "workspace_member_admins_flag",
+          "value": "\"workspace_members\".\"can_manage_admins\" = false or \"workspace_members\".\"role_id\" = 'admin'"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.workspaces": {

@@ -158,3 +158,10 @@ Approved for the CRM reports slice (`docs/acceptance/crm-reports.md`); they sett
 ## Harvest staff and Discover approval (founder, 25 Nov)
 - **Approval before listing stays at launch** (PRD 8A.3). This supersedes ADR 0013 section 7 ("no pre-approval") for launch.
 - **Harvest staff role** created: reviewers and admins in `platform_staff`, granted only by an ops script (no self-serve, no UI), every staff action audited, staff routes need a sign-in within 15 minutes, staff see only Discover review data. Details: `docs/acceptance/platform-staff-discover.md`.
+
+## Per-feature access (founder, 25 Nov)
+- **Model:** the account owner (the buyer) and full admins; members with a per-area access set (CRM, Giving, Campaigns, Communities, Courses & products, Social media, Newsletter, Website/link in bio, Office, Connect, Settings) at view or manage; guests who see only items shared with them. Invitations are accepted by the invitee. Server in PR #257, checklist `docs/acceptance/feature-access-server.md`.
+- **Admins:** the granter chooses whether a new admin may also manage admins. An admin with it acts like an owner for granting, changing and removing admins, but never removes or demotes the account owner or transfers ownership; an admin without it cannot grant or change admins. Only the owner or an admin with the permission can give it; nobody grants more than they hold; every change is audited.
+- Sensitive actions (erase contact, attest consent, sensitive export columns, webhooks, contact merge) stay owner/admin only. `view` grants nothing in areas without a read-only capability until the module defines one. Settings `manage` may change time zone, audience and appearance but not manage people.
+- **Adding people** is always by an invitation the invitee accepts; direct add exists only behind the non-production test gate for browser fixtures and is refused in production and on the API path.
+

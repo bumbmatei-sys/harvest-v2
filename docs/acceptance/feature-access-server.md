@@ -11,7 +11,7 @@ Written before coding; the status column is filled at the end of the work.
 | Role id | Meaning | Access |
 | --- | --- | --- |
 | `owner` | The account owner (the buyer). More than one owner can exist; the last one cannot be removed or demoted. Removable only by transferring ownership first. | Everything, including granting `admin`. |
-| `admin` | Full administrator. | Everything except granting or changing `owner`/`admin`. |
+| `admin` | Full administrator. Created with a choice, "may manage admins" (`can_manage_admins`). | Everything except granting or changing `owner`. Without the permission it cannot grant, change or remove admins; with it, it acts like an owner for admins (still never removes or demotes the owner or transfers ownership). |
 | `member` | Unchanged legacy role (the standard team member). | Exactly today's `member` rules. |
 | `viewer` | Unchanged legacy role. | Exactly today's `viewer` rules. |
 | `collaborator` | NEW. A member with a per-area access set. | Only the areas granted, each `view` or `manage`. Nothing else. |
@@ -45,7 +45,7 @@ Status legend: [ ] open, [x] done and evidenced by a test named in the last colu
 | D2 | ONE function `access_role(tenant, user, area, role, read)` turns a stored role plus grants into the role that module checks already understand (`admin` for manage, `viewer` for view, `guest` for none). Legacy roles pass through unchanged. SECURITY DEFINER, fixed `search_path`, `REVOKE FROM PUBLIC`, tenant-bound. | [x] | integration |
 | D3 | Every module helper and every policy that tested `role_id` calls it (ads, discover, office, social inbox and approvals, link in bio, docs, catalog, newsletter, community live/stats/chat, Connect, CRM forms and sources, follow-up cases). The migration rewrites them and a source guard keeps new inline `role_id` checks out. | [x] | integration + `tests/unit/access-guard.test.ts` |
 | D4 | `view` also opens SELECT on admin tools (permissive SELECT clones of `FOR ALL` policies); sensitive tables (restricted responses, follow-up cases, docs, chat) are not opened by `view`. | [x] | integration |
-| D5 | Only an owner can grant, change or remove `admin`/`owner`; an admin cannot touch an admin or owner. Enforced by trigger for the application role. The first owner of a new account is allowed. | [x] | integration |
+| D5 | Only an owner touches `owner`. Only an owner or an admin with `can_manage_admins` grants, changes or removes `admin` or that permission; nobody gives the permission without holding it. Enforced by trigger for the application role and by the definers. The first owner of a new account is allowed. | [x] | integration |
 | D6 | Nobody grants more than they hold: only owner/admin can grant, and they hold every area. A collaborator cannot change anyone's access. | [x] | integration |
 | D7 | The last owner cannot be demoted or deleted (trigger, plus the existing server check). | [x] | integration |
 | D8 | Grant changes only through one SECURITY DEFINER function that writes the role, the grants and the audit row in one transaction. | [x] | integration |
@@ -56,11 +56,11 @@ Status legend: [ ] open, [x] done and evidenced by a test named in the last colu
 | # | Requirement | Status | Evidence |
 | --- | --- | --- | --- |
 | I1 | `workspace_invitations` carries the intended role and area set, an e-mail, the hash of a one-time token, expiry (14 days), status. | [x] | integration |
-| I2 | Creating needs owner/admin; granting `admin` needs owner. The inviter's right is re-checked at acceptance (a demoted inviter's invitations lapse). | [x] | integration |
+| I2 | Creating needs owner/admin; inviting an `admin` (with or without the manage-admins permission) needs an owner or an admin who manages admins. The inviter's right is re-checked at acceptance (a demoted inviter's invitations lapse). | [x] | integration |
 | I3 | Accepting needs the signed-in account whose e-mail the invitation names; the token alone is not enough; a second accept, an expired or withdrawn invitation, or another account fails. | [x] | integration |
 | I4 | Nothing is added before acceptance. Acceptance creates the membership and grants and audits it. An existing member invited again gets a role/area change only after accepting. | [x] | integration |
 | I5 | Delivery is a constant off switch; no message is sent. Outside production a test sink holds the link. | [x] | unit |
-| I6 | `PUT /members` changes existing members through the audited function. A new person can still be direct-added as member/viewer (admin by an owner only) for existing callers; `collaborator` and `guest` exist only through an invitation the invitee accepts. | [x] | integration |
+| I6 | Adding people is always by invitation the invitee accepts. `PUT /members` only changes existing members through the audited function; direct add is refused in production and everywhere unless the non-production test gate is on (`NODE_ENV` not production and the e2e mailbox variable set), which exists only for browser fixtures. The `putMember` server helper is for seeds and integration tests and no route reaches it in production. | [x] | integration |
 
 ### Audit
 | # | Requirement | Status | Evidence |
@@ -79,16 +79,19 @@ Status legend: [ ] open, [x] done and evidenced by a test named in the last colu
 - Policies added by other open PRs after this migration keep inline `role_id` checks until they call `access_role`; the source guard fails the build for any new one.
 - Guests: only Docs shares reach a guest today. Campaign-scoped guest screens are PR #251's CW-07 follow-up.
 
-## 4. Open questions for the founder (recorded, not guessed)
+## 4. Founder decisions (25 Nov) and what is still open
 
-1. Should an area `manage` include the privacy-sensitive actions (erase a contact, attest consent, sensitive export columns, webhooks)? Built as NO (owner/admin only).
-2. Should `view` mean read-only everywhere an area has data? Built as the original viewer rule: it opens the read capabilities of CRM, campaigns, the communities list and docs. Social, newsletter, connect, catalog, website and settings have no read-only tier in the code yet, so `view` there grants nothing until each module defines one.
-3. Should a collaborator with `manage` on Settings be able to change time zone, audience and appearance? Built as YES; they still cannot manage people.
-4. May an admin invite or change other admins? Built as NO (owner only), per "only the owner can grant admin".
-5. Are `guest` and `campaign_guest` one role? Built as two ids with identical rules so PR #251 merges without a conflict; merge them later if wanted.
-6. Should Giving (donations and finances) have any grantable capability now? There is no Giving module code yet; the area is stored and reserved.
-8. Should the old direct add of member/viewer/admin (about 40 browser specs depend on it) be removed so EVERY new person accepts an invitation? Built as: kept for the three legacy roles; collaborator and guest are invitation-only.
-7. Does a guest need a ministry-visible name and list, or only the item? Built as the account name only.
+Decided:
+1. **Admins.** When creating or inviting an admin the granter chooses whether that admin may also manage admins. With it, the admin acts like an owner for granting, changing and removing admins (never removes or demotes the owner, never transfers ownership). Without it, no admin changes. Only the owner or an admin with the permission can give it; nobody grants more than they hold; audited (`manageAdmins` in the audit metadata).
+2. Sensitive actions (erase contact, attest consent, sensitive export columns, webhooks, contact merge) stay owner/admin only.
+3. `view` grants nothing in areas without read-only capabilities until each module defines one.
+4. Settings `manage` may change time zone, audience and appearance but not manage people.
+5. Adding people is always by invitation the invitee accepts; direct add survives only behind the non-production test gate.
+
+Still open:
+- Are `guest` and `campaign_guest` one role? Built as two ids with identical rules so PR #251 merges cleanly.
+- Giving has no capabilities yet; the area is stored and reserved.
+- Guests see the account name only; only Docs shares reach a guest today.
 
 ## 5. Evidence
 

@@ -79,8 +79,10 @@ export const workspaceMembers = pgTable("workspace_members", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
   userId: text("user_id").notNull().references(() => users.id),
   roleId: text("role_id").notNull().references(() => roles.id),
+  // Founder decision (25 Nov): an admin created with this flag acts like an owner for granting, changing and removing admins (never for the owner). Admin only.
+  canManageAdmins: boolean("can_manage_admins").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [primaryKey({ columns: [t.tenantId, t.userId] }), index("workspace_members_user_idx").on(t.userId, t.tenantId)]);
+}, (t) => [primaryKey({ columns: [t.tenantId, t.userId] }), index("workspace_members_user_idx").on(t.userId, t.tenantId), check("workspace_member_admins_flag", sql`${t.canManageAdmins} = false or ${t.roleId} = 'admin'`)]);
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id"),
   // Null identifies an automatic follow-up action; application inserts still require the session actor (RLS).
@@ -3377,6 +3379,7 @@ export const workspaceInvitationRoles = ["admin", "member", "viewer", "collabora
 export const workspaceInvitations = pgTable("workspace_invitations", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
   email: text("email").notNull(), role: text("role").$type<typeof workspaceInvitationRoles[number]>().notNull(), grants: jsonb("grants").$type<AccessGrants>().notNull().default({}),
+  canManageAdmins: boolean("can_manage_admins").notNull().default(false),
   tokenHash: text("token_hash").notNull(), status: text("status").$type<"pending" | "accepted" | "revoked">().notNull().default("pending"),
   createdBy: text("created_by").notNull().references(() => users.id), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull().default(sql`now() + interval '14 days'`),
@@ -3386,6 +3389,7 @@ export const workspaceInvitations = pgTable("workspace_invitations", {
   index("workspace_invitations_tenant_idx").on(t.tenantId, t.status, t.createdAt),
   check("workspace_invitation_role", sql`${t.role} in ('admin','member','viewer','collaborator','guest')`),
   check("workspace_invitation_grants", sql`jsonb_typeof(${t.grants}) = 'object' and (${t.role} = 'collaborator' or ${t.grants} = '{}'::jsonb)`),
+  check("workspace_invitation_admins_flag", sql`${t.canManageAdmins} = false or ${t.role} = 'admin'`),
   check("workspace_invitation_email", sql`${t.email} = lower(btrim(${t.email})) and length(${t.email}) between 3 and 320`),
   check("workspace_invitation_token", sql`${t.tokenHash} ~ '^[a-f0-9]{64}$'`),
   check("workspace_invitation_status", sql`${t.status} in ('pending','accepted','revoked') and ((${t.status} = 'pending') = (${t.respondedAt} is null)) and ((${t.status} = 'accepted') = (${t.acceptedBy} is not null))`),

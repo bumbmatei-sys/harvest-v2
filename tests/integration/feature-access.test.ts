@@ -4,7 +4,7 @@ import { testDatabase } from "../database";
 import { auditLogs, users, workspaceMembers } from "../../src/db/schema";
 import { and, eq } from "drizzle-orm";
 import { createWorkspace, getWorkspace, putMember } from "../../src/server/workspaces";
-import { acceptInvitation, changeMemberAccess, inviteMember, invitationTestSink, listInvitations, listMemberAccess, revokeInvitation } from "../../src/server/access";
+import { directAddAllowed, acceptInvitation, changeMemberAccess, inviteMember, invitationTestSink, listInvitations, listMemberAccess, revokeInvitation } from "../../src/server/access";
 import { withTenant } from "../../src/server/tenancy";
 import { AccessError } from "../../src/server/permissions";
 
@@ -114,6 +114,33 @@ it("expired, withdrawn and lapsed invitations cannot be accepted; the owner alon
   const tokenC = invitationTestSink.at(-1)!.token;
   await changeMemberAccess(f.db, "fa-owner", tenant, { userId: "fa-admin", role: "member" }); // the inviter loses the right to grant
   await rejects(acceptInvitation(f.db, "fa-viewer", tokenC), 409);
+  await changeMemberAccess(f.db, "fa-owner", tenant, { userId: "fa-admin", role: "admin" });
+});
+it("an admin created with 'manages admins' acts like an owner for admins, never for the owner", async () => {
+  expect(directAddAllowed()).toBe(false);
+  await changeMemberAccess(f.db, "fa-owner", tenant, { userId: "fa-member", role: "admin", canManageAdmins: true });
+  const flag = async (u: string) => (await f.admin.query("select can_manage_admins f from workspace_members where tenant_id=$1 and user_id=$2", [tenant, u])).rows[0].f;
+  expect(await flag("fa-member")).toBe(true); expect(await flag("fa-admin")).toBe(false);
+  // the plain admin still cannot change admins or give the permission
+  await rejects(changeMemberAccess(f.db, "fa-admin", tenant, { userId: "fa-viewer", role: "admin", canManageAdmins: true }), 403);
+  await rejects(inviteMember(f.db, "fa-admin", tenant, { email: "fa-viewer@example.test", role: "admin" }), 403);
+  // the flagged admin can grant, change and remove admins, and give the permission
+  expect((await changeMemberAccess(f.db, "fa-member", tenant, { userId: "fa-viewer", role: "admin", canManageAdmins: true })).role).toBe("admin");
+  expect(await flag("fa-viewer")).toBe(true);
+  await changeMemberAccess(f.db, "fa-member", tenant, { userId: "fa-admin", role: "viewer" });
+  await changeMemberAccess(f.db, "fa-member", tenant, { userId: "fa-viewer", role: "viewer" });
+  expect(await flag("fa-viewer")).toBe(false);
+  // never the owner, and the permission only goes with the admin role
+  await rejects(changeMemberAccess(f.db, "fa-member", tenant, { userId: "fa-owner", role: "member" }), 403);
+  await rejects(changeMemberAccess(f.db, "fa-member", tenant, { userId: "fa-owner", role: "admin" }), 403);
+  await rejects(changeMemberAccess(f.db, "fa-owner", tenant, { userId: "fa-viewer", role: "member", canManageAdmins: true }), 400);
+  await rejects(withTenant(f.db, "fa-member", tenant, "workspace:read", (tx) => tx.update(workspaceMembers).set({ roleId: "owner" }).where(and(eq(workspaceMembers.tenantId, tenant), eq(workspaceMembers.userId, "fa-viewer")))));
+  // a flagged admin invites an admin; the invitation lapses once the inviter loses the permission
+  await inviteMember(f.db, "fa-member", tenant, { email: "fa-viewer@example.test", role: "admin" });
+  const token = invitationTestSink.at(-1)!.token;
+  await changeMemberAccess(f.db, "fa-owner", tenant, { userId: "fa-member", role: "admin" });
+  await rejects(acceptInvitation(f.db, "fa-viewer", token), 409);
+  await changeMemberAccess(f.db, "fa-owner", tenant, { userId: "fa-member", role: "member" });
   await changeMemberAccess(f.db, "fa-owner", tenant, { userId: "fa-admin", role: "admin" });
 });
 it("every grant change is audited with area names only", async () => {
