@@ -37,7 +37,7 @@ export function DraftsList({ tenantId, rows, viewerId, role, creators, canStart 
     {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
     {rows.length ? <ItemGroup aria-label={t("draftsTitle")} className="gap-2">
       {rows.map((row) => {
-        const actions = draftActions(row, viewerId, role), by = row.createdBy === viewerId ? t("you") : creators[row.createdBy] ?? t("aMember");
+        const actions = draftActions(row, viewerId, role), by = row.createdBy === viewerId ? t("you") : (creators[row.createdBy] || t("aMember"));
         return <div key={row.id} role="listitem" className="flex flex-wrap items-center gap-2">
           <Item variant="outline" asChild className="min-w-0 flex-1 basis-72">
             <Link href={`${root}/drafts/${row.id}`} className="bg-card">
