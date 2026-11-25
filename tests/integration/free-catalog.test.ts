@@ -120,11 +120,15 @@ it("links the canonical published item to a same-ministry community without gran
   await setCatalogState(f.db, owner, tenant, item.id, { version: 1, state: "published" });
   await expect(setCommunityProductLink(f.db, owner, tenant, foreignCircle, item.id, { position: 3 })).rejects.toMatchObject(notFound);
   await expect(setCommunityProductLink(f.db, owner, tenant, circle, item.id, { position: 3 })).resolves.toEqual({ linked: true });
+  // Authors see which communities show the item; members and viewers do not, and the link still confers no access.
+  await expect(getCatalogDraft(f.db, admin, tenant, item.id)).resolves.toMatchObject({ communityIds: [circle] });
+  for (const user of [viewer, member]) await expect(getCatalogDraft(f.db, user, tenant, item.id)).resolves.not.toHaveProperty("communityIds");
   await expect(getCatalogContent(f.db, owner, input.slug)).rejects.toMatchObject(notFound);
   await expect(withTenant(f.db, viewer, tenant, "workspace:read", (tx) => tx.select().from(communityProductLinks))).resolves.toEqual([]);
   await expect(f.admin.query("insert into community_product_links(tenant_id,community_id,item_id) values($1,$2,$3)",
     [tenant, foreignCircle, item.id])).rejects.toMatchObject({ code: "23503" });
   await expect(setCommunityProductLink(f.db, owner, tenant, circle, item.id, undefined, true)).resolves.toEqual({ linked: false });
+  await expect(getCatalogDraft(f.db, owner, tenant, item.id)).resolves.toMatchObject({ communityIds: [] });
 });
 
 it("checks ready private files at publication and at every signed download", async () => {

@@ -8086,6 +8086,183 @@
       "withReason": "{outcome} ({reason})"
     }
   },
+  "Catalog": {
+    "coursesTitle": "Courses",
+    "productsTitle": "Products",
+    "newProduct": "New product",
+    "newCourse": "New course",
+    "untitled": "Untitled",
+    "free": "Free",
+    "by": "By {host}",
+    "previewEnrol": "Enrol for free",
+    "previewGet": "Get for free",
+    "coursesLabel": "Courses",
+    "productsLabel": "Products",
+    "columns": {
+      "title": "Name",
+      "kind": "Type",
+      "status": "Status",
+      "visibility": "Visibility",
+      "updated": "Updated",
+      "actions": "Actions"
+    },
+    "kinds": {
+      "course": "Course",
+      "download": "Download"
+    },
+    "states": {
+      "draft": "Draft",
+      "published": "Published",
+      "archived": "Archived"
+    },
+    "visibilities": {
+      "hidden": "Hidden",
+      "unlisted": "Unlisted",
+      "listed": "Listed"
+    },
+    "edit": "Edit",
+    "view": "View",
+    "openPage": "Open page",
+    "search": "Search by name",
+    "kindTabs": "Type",
+    "tabs": {
+      "all": "All",
+      "course": "Courses",
+      "download": "Downloads"
+    },
+    "noMatches": "No matches",
+    "loadMore": "Load more",
+    "emptyCourses": "No courses yet",
+    "emptyProducts": "No products yet",
+    "emptyDescription": "Create a course or a download and share it for free.",
+    "types": {
+      "label": "Product types",
+      "heading": "What do you want to create?",
+      "choose": "Create",
+      "course": {
+        "label": "Course",
+        "description": "Lessons in order, for people to learn at their own pace."
+      },
+      "download": {
+        "label": "Download",
+        "description": "Files people can download after they sign in."
+      }
+    },
+    "editor": {
+      "stepsLabel": "Steps",
+      "preview": "Preview",
+      "newCourse": "New course",
+      "newDownload": "New download",
+      "openPage": "Open page",
+      "steps": {
+        "details": "Details",
+        "lessons": "Lessons",
+        "files": "Files",
+        "access": "Access",
+        "publish": "Publish"
+      },
+      "problems": {
+        "title": "Add a title.",
+        "address": "Use 3 to 60 lowercase letters, numbers or hyphens for the address.",
+        "lessonTitle": "Give every lesson a title."
+      },
+      "saved": "Saved.",
+      "done": {
+        "draft": "Back to draft.",
+        "published": "Published.",
+        "archived": "Archived."
+      },
+      "readOnly": "You can read this item. Owners and admins edit it.",
+      "archived": "This item is archived and cannot be changed.",
+      "reload": "Reload",
+      "detailsTitle": "Details",
+      "fields": {
+        "title": "Title",
+        "address": "Address",
+        "summary": "Summary"
+      },
+      "visibility": "Visibility",
+      "visibilityOptions": {
+        "hidden": "Hidden: only your ministry",
+        "unlisted": "Unlisted: anyone with the link",
+        "listed": "Listed: shown in the catalogue"
+      },
+      "shelfTitle": "Community shelf",
+      "shelfNone": "Create a community to show this item on its shelf.",
+      "shelfPublishFirst": "Publish this item to add it to a community shelf.",
+      "shelfNote": "A shelf shows the item. People still sign in and enrol to open it.",
+      "checklist": "Before you publish",
+      "checks": {
+        "title": "A title",
+        "address": "An address",
+        "visibility": "Visibility other than hidden",
+        "lessons": "At least one published lesson",
+        "files": "Ready files"
+      },
+      "checkDone": "Done",
+      "checkOpen": "Not done",
+      "goToStep": "Go to {step}",
+      "saveDraft": "Save draft",
+      "createDraft": "Create draft",
+      "saving": "Saving",
+      "leaveTitle": "Leave without saving?",
+      "leaveBody": "Your changes have not been saved.",
+      "stay": "Stay",
+      "leave": "Leave",
+      "publish": "Publish",
+      "unpublish": "Back to draft",
+      "archive": "Archive",
+      "archiveTitle": "Archive this item?",
+      "archiveBody": "People can no longer open it. This cannot be undone.",
+      "cancel": "Cancel"
+    },
+    "lessons": {
+      "empty": "No lessons yet",
+      "add": "Add lesson",
+      "label": "Lessons",
+      "titleLabel": "Title of lesson {number}",
+      "titlePlaceholder": "Lesson title",
+      "moveUp": "Move lesson {number} up",
+      "moveDown": "Move lesson {number} down",
+      "remove": "Remove lesson {number}",
+      "published": "Published",
+      "draft": "Draft",
+      "hideBody": "Close",
+      "editBody": "Edit lesson",
+      "bodyLabel": "Content of lesson {number}"
+    },
+    "files": {
+      "chosen": "Files in this download",
+      "noneChosen": "No files chosen",
+      "library": "Your files",
+      "libraryEmpty": "No other files",
+      "upload": "Upload a file",
+      "chooseFile": "Choose a file to upload",
+      "status": {
+        "ready": "Ready",
+        "pending": "Waiting",
+        "uploaded": "Checking",
+        "quarantined": "Rejected"
+      },
+      "moveUp": "Move {name} up",
+      "moveDown": "Move {name} down",
+      "remove": "Remove {name}",
+      "add": "Add {name}",
+      "addShort": "Add",
+      "problems": {
+        "type": "Choose a JPEG, PNG, WebP, PDF or text file up to the size limit.",
+        "rejected": "The file was rejected and cannot be used.",
+        "scanning": "The file is still being checked. Add it when it is ready.",
+        "failed": "The upload failed. Choose the file and try again.",
+        "interrupted": "The connection was lost. Try again."
+      },
+      "phase": {
+        "preparing": "Preparing",
+        "uploading": "Uploading",
+        "verifying": "Checking the file"
+      }
+    }
+  },
   "Ads": {
     "title": "Ads",
     "subtitle": "Paid ads on your own ad accounts, in {zone}.",

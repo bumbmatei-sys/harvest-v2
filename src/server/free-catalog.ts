@@ -98,7 +98,10 @@ export function getCatalogDraft(db: Database, user: string, tenant: string, id: 
       .from(catalogLessons).where(and(eq(catalogLessons.tenantId, scope), eq(catalogLessons.itemId, id))).orderBy(asc(catalogLessons.position));
     const downloads = await tx.select({ id: catalogFiles.fileId }).from(catalogFiles)
       .where(and(eq(catalogFiles.tenantId, scope), eq(catalogFiles.itemId, id))).orderBy(asc(catalogFiles.position));
-    return { ...item, lessons, fileIds: downloads.map((file) => file.id) };
+    // The communities that show this item on their shelf (a link confers no access). Authors only, like the lessons.
+    const shelves = await tx.select({ id: communityProductLinks.communityId }).from(communityProductLinks)
+      .where(and(eq(communityProductLinks.tenantId, scope), eq(communityProductLinks.itemId, id))).orderBy(asc(communityProductLinks.communityId));
+    return { ...item, lessons, fileIds: downloads.map((file) => file.id), communityIds: shelves.map((link) => link.id) };
   });
 }
 async function writeDraft(tx: Transaction, item: Item, input: Draft) {
