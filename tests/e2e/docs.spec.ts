@@ -319,20 +319,19 @@ test("editor: title, autosave, formatting toolbar, slash menu, handles, pages tr
   await page.getByRole("button", { name: "Page styles" }).click();
   const panel = page.getByRole("complementary", { name: "Page styles" });
   await expect(panel).toBeVisible();
-  await expect(panel.getByRole("list", { name: "Page statistics" }).or(panel.locator("dl"))).toContainText("Words");
+  await expect(panel.getByRole("list", { name: "Page statistics" }).or(panel.locator("dl"))).toContainText("Word count");
   await panel.getByRole("radio", { name: "Serif" }).click();
   await panel.getByRole("radio", { name: "Large" }).click();
-  await panel.getByRole("radio", { name: "Wide" }).click();
-  await panel.getByRole("switch", { name: "Owner" }).click();
-  await panel.getByRole("switch", { name: "Outline" }).click();
-  await expect(page.locator(".font-serif.text-lg.max-w-5xl")).toBeVisible();
+  await panel.getByRole("radio", { name: "Full width" }).click();
+  await panel.getByRole("switch", { name: "Owners" }).click();
+  await panel.getByRole("switch", { name: "Page outline" }).click();
+  await expect(page.locator(".font-serif.text-lg.max-w-none")).toBeVisible();
   await expect(page.locator("[data-docs-meta]")).not.toContainText("pr03-");
-  await expect(page.getByText("Outline", { exact: true }).first()).toBeVisible();
+  await expect(page.locator("[data-docs-outline]")).toBeVisible();
   await page.reload();
   await page.getByRole("button", { name: "Page styles" }).click();
   await expect(page.getByRole("complementary", { name: "Page styles" }).getByRole("radio", { name: "Serif" })).toBeChecked();
-  await page.getByRole("button", { name: "Outline", exact: true }).click();
-  await expect(page.getByRole("complementary", { name: "Outline" }).locator("[data-docs-outline]")).toContainText("Section");
+  await expect(page.locator("[data-docs-outline]")).toContainText("Section");
   await page.getByRole("button", { name: "Close panel" }).click();
   expect(Number(await page.evaluate(() => 0))).toBe(0);
 
@@ -418,7 +417,7 @@ test("editor: title, autosave, formatting toolbar, slash menu, handles, pages tr
 
   // Trash from the menu returns to the list.
   await page.getByRole("button", { name: "Doc settings" }).click();
-  await page.locator("[data-docs-menu]").getByRole("button", { name: "Move to trash" }).click();
+  await page.locator("[data-docs-menu]").getByRole("button", { name: "Delete" }).click();
   await page.getByRole("alertdialog").getByRole("button", { name: "Move to trash" }).click();
   await expect(page).toHaveURL(new RegExp(`/workspaces/${tenant}/docs$`));
   await expect(page.getByText("No docs yet")).toBeVisible();

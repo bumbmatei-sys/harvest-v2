@@ -32,5 +32,5 @@ export default async function DocPage({ params, searchParams }: { params: Promis
   if (!wanted) notFound();
   const current = await getPage(db, user, tenantId, docId, wanted).catch(missing);
   if (!current) notFound();
-  return <DocEditor key={wanted} tenantId={tenantId} detail={detail} page={current} />;
+  return <DocEditor key={wanted} tenantId={tenantId} detail={detail} page={current} userId={user} />;
 }

@@ -48,3 +48,4 @@
 @media (prefers-contrast: more) { .docs-prose mark { outline: 1px solid currentColor; } }
 /* Text colours are stored as fixed values; on the dark theme they are lightened so they stay legible (theme-aware colours are a later decision). */
 .dark .docs-prose span[style*="color"] { filter: brightness(1.45); }
+.docs-focus-block .docs-prose > :not(.is-current-block) { opacity: 0.35; transition: opacity 150ms; }
