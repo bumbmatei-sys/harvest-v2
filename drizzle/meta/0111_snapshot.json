@@ -1,6 +1,6 @@
 {
-  "id": "956d3892-a9a6-4dd3-92dd-17df3c9b99e3",
-  "prevId": "6e46c707-44cf-4c2e-ac1e-5ecad2215eee",
+  "id": "7f046f0f-8ea8-44e0-b4e6-2154f130df18",
+  "prevId": "143400e4-297d-40ea-9465-ad60722216ea",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1787,6 +1787,156 @@
       },
       "isRLSEnabled": false
     },
+    "public.ads_form_publications": {
+      "name": "ads_form_publications",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "form_id": {
+          "name": "form_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version_id": {
+          "name": "version_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lead_form_id": {
+          "name": "lead_form_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "published_by": {
+          "name": "published_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "definition": {
+          "name": "definition",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "published_at": {
+          "name": "published_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "ads_form_publications_lead_form_idx": {
+          "name": "ads_form_publications_lead_form_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "lead_form_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "ads_form_publications_published_by_users_id_fk": {
+          "name": "ads_form_publications_published_by_users_id_fk",
+          "tableFrom": "ads_form_publications",
+          "tableTo": "users",
+          "columnsFrom": [
+            "published_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ads_form_publications_form_fk": {
+          "name": "ads_form_publications_form_fk",
+          "tableFrom": "ads_form_publications",
+          "tableTo": "forms",
+          "columnsFrom": [
+            "tenant_id",
+            "form_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ads_form_publications_version_fk": {
+          "name": "ads_form_publications_version_fk",
+          "tableFrom": "ads_form_publications",
+          "tableTo": "form_versions",
+          "columnsFrom": [
+            "tenant_id",
+            "version_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ads_form_publications_lead_form_fk": {
+          "name": "ads_form_publications_lead_form_fk",
+          "tableFrom": "ads_form_publications",
+          "tableTo": "ads_lead_forms",
+          "columnsFrom": [
+            "tenant_id",
+            "lead_form_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "ads_form_publications_tenant_id_version_id_pk": {
+          "name": "ads_form_publications_tenant_id_version_id_pk",
+          "columns": [
+            "tenant_id",
+            "version_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "ads_form_publications_definition": {
+          "name": "ads_form_publications_definition",
+          "value": "jsonb_typeof(\"ads_form_publications\".\"definition\") = 'object' and \"ads_form_publications\".\"definition\"->>'kind' = 'crm-form-v1' and \"ads_form_publications\".\"definition\" ? 'ads' and octet_length(\"ads_form_publications\".\"definition\"::text) <= 65536"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.ads_launch_requests": {
       "name": "ads_launch_requests",
       "schema": "",
@@ -2103,6 +2253,25 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "form_id": {
+          "name": "form_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "form_version_id": {
+          "name": "form_version_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "consent_texts": {
+          "name": "consent_texts",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::jsonb"
         }
       },
       "indexes": {
@@ -2148,6 +2317,21 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
+        "ads_lead_forms_version_fk": {
+          "name": "ads_lead_forms_version_fk",
+          "tableFrom": "ads_lead_forms",
+          "tableTo": "form_versions",
+          "columnsFrom": [
+            "tenant_id",
+            "form_version_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "ads_lead_forms_account_fk": {
           "name": "ads_lead_forms_account_fk",
           "tableFrom": "ads_lead_forms",
@@ -2178,7 +2362,7 @@
       "checkConstraints": {
         "ads_lead_forms_shape": {
           "name": "ads_lead_forms_shape",
-          "value": "length(\"ads_lead_forms\".\"name\") between 1 and 120 and length(\"ads_lead_forms\".\"consent_text\") between 1 and 1000 and \"ads_lead_forms\".\"status\" in ('active','archived') and jsonb_typeof(\"ads_lead_forms\".\"questions\") = 'array'"
+          "value": "length(\"ads_lead_forms\".\"name\") between 1 and 120 and length(\"ads_lead_forms\".\"consent_text\") between 1 and 1000 and \"ads_lead_forms\".\"status\" in ('active','archived') and jsonb_typeof(\"ads_lead_forms\".\"questions\") = 'array' and jsonb_typeof(\"ads_lead_forms\".\"consent_texts\") = 'object' and pg_column_size(\"ads_lead_forms\".\"consent_texts\") <= 4096"
         }
       },
       "isRLSEnabled": false
@@ -2274,6 +2458,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "form_version_id": {
+          "name": "form_version_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
         "version": {
           "name": "version",
           "type": "integer",
@@ -2360,6 +2550,21 @@
           "columnsFrom": [
             "tenant_id",
             "contact_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "ads_leads_form_version_fk": {
+          "name": "ads_leads_form_version_fk",
+          "tableFrom": "ads_leads",
+          "tableTo": "form_versions",
+          "columnsFrom": [
+            "tenant_id",
+            "form_version_id"
           ],
           "columnsTo": [
             "tenant_id",
@@ -14295,7 +14500,7 @@
       "checkConstraints": {
         "contact_first_sources_kind": {
           "name": "contact_first_sources_kind",
-          "value": "\"contact_first_sources\".\"kind\" in ('manual', 'csv_import', 'connect', 'form')"
+          "value": "\"contact_first_sources\".\"kind\" in ('manual', 'csv_import', 'connect', 'form', 'ad_lead')"
         }
       },
       "isRLSEnabled": false
@@ -14606,6 +14811,24 @@
           "primaryKey": false,
           "notNull": false
         },
+        "ad_network": {
+          "name": "ad_network",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ad_form_id": {
+          "name": "ad_form_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ad_campaign_ref": {
+          "name": "ad_campaign_ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "reverted_at": {
           "name": "reverted_at",
           "type": "timestamp with time zone",
@@ -14788,7 +15011,11 @@
       "checkConstraints": {
         "contact_sources_contract": {
           "name": "contact_sources_contract",
-          "value": "((\"contact_source_events\".\"kind\" = 'manual' and \"contact_source_events\".\"outcome\" = 'created' and \"contact_source_events\".\"import_id\" is null and \"contact_source_events\".\"row_number\" is null and \"contact_source_events\".\"reverted_at\" is null and \"contact_source_events\".\"response_id\" is null and \"contact_source_events\".\"entry_route\" is null) or (\"contact_source_events\".\"kind\" = 'csv_import' and \"contact_source_events\".\"outcome\" in ('created','updated') and \"contact_source_events\".\"import_id\" is not null and \"contact_source_events\".\"row_number\" is not null and \"contact_source_events\".\"row_number\" > 0 and \"contact_source_events\".\"response_id\" is null and \"contact_source_events\".\"entry_route\" is null) or (\"contact_source_events\".\"kind\" = 'connect' and \"contact_source_events\".\"outcome\" in ('created','updated') and \"contact_source_events\".\"import_id\" is null and \"contact_source_events\".\"row_number\" is null and \"contact_source_events\".\"reverted_at\" is null and \"contact_source_events\".\"response_id\" is not null and \"contact_source_events\".\"entry_route\" is not null and \"contact_source_events\".\"entry_route\" in ('qr','short'))) and \"contact_source_events\".\"crm_form_response_id\" is null or (\"contact_source_events\".\"kind\" = 'form' and \"contact_source_events\".\"outcome\" in ('created','updated') and \"contact_source_events\".\"import_id\" is null and \"contact_source_events\".\"row_number\" is null and \"contact_source_events\".\"reverted_at\" is null and \"contact_source_events\".\"response_id\" is null and \"contact_source_events\".\"entry_route\" is null and \"contact_source_events\".\"crm_form_response_id\" is not null)"
+          "value": "(\"contact_source_events\".\"kind\" <> 'ad_lead' and (((\"contact_source_events\".\"kind\" = 'manual' and \"contact_source_events\".\"outcome\" = 'created' and \"contact_source_events\".\"import_id\" is null and \"contact_source_events\".\"row_number\" is null and \"contact_source_events\".\"reverted_at\" is null and \"contact_source_events\".\"response_id\" is null and \"contact_source_events\".\"entry_route\" is null) or (\"contact_source_events\".\"kind\" = 'csv_import' and \"contact_source_events\".\"outcome\" in ('created','updated') and \"contact_source_events\".\"import_id\" is not null and \"contact_source_events\".\"row_number\" is not null and \"contact_source_events\".\"row_number\" > 0 and \"contact_source_events\".\"response_id\" is null and \"contact_source_events\".\"entry_route\" is null) or (\"contact_source_events\".\"kind\" = 'connect' and \"contact_source_events\".\"outcome\" in ('created','updated') and \"contact_source_events\".\"import_id\" is null and \"contact_source_events\".\"row_number\" is null and \"contact_source_events\".\"reverted_at\" is null and \"contact_source_events\".\"response_id\" is not null and \"contact_source_events\".\"entry_route\" is not null and \"contact_source_events\".\"entry_route\" in ('qr','short'))) and \"contact_source_events\".\"crm_form_response_id\" is null or (\"contact_source_events\".\"kind\" = 'form' and \"contact_source_events\".\"outcome\" in ('created','updated') and \"contact_source_events\".\"import_id\" is null and \"contact_source_events\".\"row_number\" is null and \"contact_source_events\".\"reverted_at\" is null and \"contact_source_events\".\"response_id\" is null and \"contact_source_events\".\"entry_route\" is null and \"contact_source_events\".\"crm_form_response_id\" is not null))) or (\"contact_source_events\".\"kind\" = 'ad_lead' and \"contact_source_events\".\"outcome\" in ('created','updated') and \"contact_source_events\".\"import_id\" is null and \"contact_source_events\".\"row_number\" is null and \"contact_source_events\".\"reverted_at\" is null and \"contact_source_events\".\"response_id\" is null and \"contact_source_events\".\"entry_route\" is null and \"contact_source_events\".\"crm_form_response_id\" is null)"
+        },
+        "contact_sources_ad_detail": {
+          "name": "contact_sources_ad_detail",
+          "value": "(\"contact_source_events\".\"kind\" = 'ad_lead') = (\"contact_source_events\".\"ad_network\" is not null) and (\"contact_source_events\".\"kind\" = 'ad_lead' or (\"contact_source_events\".\"ad_form_id\" is null and \"contact_source_events\".\"ad_campaign_ref\" is null)) and (\"contact_source_events\".\"ad_campaign_ref\" is null or length(\"contact_source_events\".\"ad_campaign_ref\") <= 200)"
         }
       },
       "isRLSEnabled": false

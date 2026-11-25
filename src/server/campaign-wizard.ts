@@ -124,7 +124,7 @@ async function stepChanges(tx: Transaction, tenantId: string, current: DraftRow,
       if (people.length) {
         // Leaders and team members are existing ministry members who can edit. A viewer or an outsider cannot be placed.
         const found = await tx.select({ userId: workspaceMembers.userId }).from(workspaceMembers)
-          .where(and(eq(workspaceMembers.tenantId, tenantId), inArray(workspaceMembers.userId, people), notInArray(workspaceMembers.roleId, ["viewer", "guest", "campaign_guest"])));
+          .where(and(eq(workspaceMembers.tenantId, tenantId), inArray(workspaceMembers.userId, people), inArray(workspaceMembers.roleId, ["owner", "admin", "member"])));
         if (found.length !== people.length) throw new AccessError(400, message("Campaigns.assigneeInvalid"));
       }
       return { columns: { departments: data.departments as string[] }, assignments };

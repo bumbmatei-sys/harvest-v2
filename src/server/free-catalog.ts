@@ -51,7 +51,7 @@ async function ministry<T>(db: Database, user: string, workspace: string, write:
   ensureEnabled();
   if (!uuid.safeParse(workspace).success) throw notFound();
   try {
-    return await withTenant(db, user, workspace, write ? "catalog:manage" : "workspace:read", run);
+    return await withTenant(db, user, workspace, write ? "catalog:manage" : "catalog:read", run);
   } catch (error) {
     if (error instanceof AccessError && error.status === 403) throw notFound();
     type DatabaseError = { code?: string; constraint?: string };

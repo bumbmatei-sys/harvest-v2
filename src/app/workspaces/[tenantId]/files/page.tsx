@@ -28,7 +28,7 @@ export default async function FilesPage({ params }: { params: Promise<{ tenantId
   let access, files;
   try {
     [access, files] = await Promise.all([
-      withTenant(getDb(), session.user.id, tenantId, "workspace:read", async (_tx, _id, role) => ({ canUpload: role !== "viewer", officeEnabled: officeScreensEnabled() && can(role, "office:files") })),
+      withTenant(getDb(), session.user.id, tenantId, "workspace:read", async (_tx, _id, role) => ({ canUpload: role === "owner" || role === "admin" || role === "member", officeEnabled: officeScreensEnabled() && can(role, "office:files") })),
       listFiles(getDb(), session.user.id, tenantId),
     ]);
   } catch (error) { if (error instanceof AccessError) notFound(); throw error; }

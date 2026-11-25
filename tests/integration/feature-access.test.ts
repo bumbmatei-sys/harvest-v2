@@ -143,6 +143,49 @@ it("an admin created with 'manages admins' acts like an owner for admins, never 
   await changeMemberAccess(f.db, "fa-owner", tenant, { userId: "fa-member", role: "member" });
   await changeMemberAccess(f.db, "fa-owner", tenant, { userId: "fa-admin", role: "admin" });
 });
+it("guests and area-less collaborators never pass an exclusion check: no share, visibility or sharing change on a doc they own", async () => {
+  const mk = async (owner: string) => (await f.admin.query("insert into docs (tenant_id, title, owner_id) values ($1, 'D', $2) returning id", [tenant, owner])).rows[0].id as string;
+  await changeMemberAccess(f.db, "fa-owner", tenant, { userId: "fa-collab", role: "collaborator", grants: { social: "manage" } });
+  await changeMemberAccess(f.db, "fa-owner", tenant, { userId: "fa-viewer", role: "collaborator", grants: { office: "view" } });
+  await changeMemberAccess(f.db, "fa-owner", tenant, { userId: "fa-member", role: "member" });
+  for (const user of ["fa-guest", "fa-collab", "fa-viewer"]) {
+    const doc = await mk(user);
+    await rejects(withTenant(f.db, user, tenant, "workspace:read", (tx) => tx.execute(sql`insert into doc_shares (tenant_id, doc_id, owner_id, user_id, role, created_by) values (${tenant}::uuid, ${doc}::uuid, ${user}, 'fa-member', 'view', ${user})`)));
+    const changed = await probe(user, sql`update docs set visibility = 'ministry', public_enabled = false where id = ${doc}::uuid returning id`);
+    expect(changed, `${user} visibility`).toEqual([]);
+    await rejects(withTenant(f.db, user, tenant, "workspace:read", (tx) => tx.execute(sql`insert into doc_page_shares (tenant_id, doc_id, page_id, owner_id, user_id, role, created_by) values (${tenant}::uuid, ${doc}::uuid, gen_random_uuid(), ${user}, 'fa-member', 'view', ${user})`)));
+  }
+  // positive control: a member owner can share
+  const own = await mk("fa-member");
+  await withTenant(f.db, "fa-member", tenant, "workspace:read", (tx) => tx.execute(sql`insert into doc_shares (tenant_id, doc_id, owner_id, user_id, role, created_by) values (${tenant}::uuid, ${own}::uuid, 'fa-member', 'fa-owner', 'view', 'fa-member')`));
+  // a share by name lets a guest view that one doc, and only that one
+  const shared = await mk("fa-owner"), unshared = await mk("fa-owner");
+  await withTenant(f.db, "fa-owner", tenant, "workspace:read", (tx) => tx.execute(sql`insert into doc_shares (tenant_id, doc_id, owner_id, user_id, role, created_by) values (${tenant}::uuid, ${shared}::uuid, 'fa-owner', 'fa-guest', 'edit', 'fa-owner')`));
+  const seenByGuest = (await probe("fa-guest", sql`select id from docs where id in (${shared}::uuid, ${unshared}::uuid)`)).map((r) => r.id);
+  expect(seenByGuest).toEqual([shared]);
+  expect(await probe("fa-guest", sql`update docs set title = 'x' where id = ${shared}::uuid returning id`)).toEqual([]);
+});
+it("a member learns nothing about other people's areas; owners and admins do", async () => {
+  await changeMemberAccess(f.db, "fa-owner", tenant, { userId: "fa-collab", role: "collaborator", grants: { social: "manage" } });
+  const level = (viewer: string) => probe(viewer, sql`select public.access_role(${tenant}::uuid, 'fa-collab', 'social', 'collaborator') as r`).then((r) => r[0].r);
+  expect(await level("fa-member")).toBe("guest");
+  expect(await level("fa-owner")).toBe("admin");
+  expect(await level("fa-collab")).toBe("admin");
+});
+it("the member-only read policies and every role test are area-aware; no policy or function lets a role through by exclusion", async () => {
+  const pol = (await f.admin.query("select tablename, policyname, coalesce(qual,'')||coalesce(with_check,'') as t from pg_policies where schemaname='public'")).rows as { tablename: string; policyname: string; t: string }[];
+  for (const key of ["campaign_response_links.campaign_response_links_read", "campaign_response_link_codes.campaign_response_link_codes_read", "catalog_items.catalog_metadata", "doc_templates.docs_template_read", "forms.forms_read", "form_versions.form_versions_read"]) {
+    expect(pol.find((p) => `${p.tablename}.${p.policyname}` === key)?.t, key).toContain("access_role");
+  }
+  const raw = pol.filter((p) => /role_id/.test(p.t.replace(/access_role\([^)]*\)/g, ""))).map((p) => `${p.tablename}.${p.policyname}`).sort();
+  expect(raw).toEqual(["workspace_invitations.invitations_read", "workspace_member_access.member_access_read"]);
+  expect(pol.filter((p) => /<>\s*'viewer'/.test(p.t)).map((p) => p.policyname)).toEqual([]);
+  const fns = (await f.admin.query("select proname, prosrc from pg_proc where pronamespace='public'::regnamespace and prokind='f'")).rows as { proname: string; prosrc: string }[];
+  // docs_rank already returns for guests before this comparison can run.
+  expect(fns.filter((x) => /<>\s*'viewer'/.test(x.prosrc)).map((x) => x.proname)).toEqual(["docs_rank"]);
+  // free catalog read: an area-less collaborator and a guest see no catalog metadata
+  expect(await probe("fa-guest", sql`select count(*)::int as n from catalog_items`)).toEqual([{ n: 0 }]);
+});
 it("every grant change is audited with area names only", async () => {
   const rows = await f.admin.query("select action, metadata from audit_logs where tenant_id=$1 and action in ('member.access_change','invitation.create','invitation.accept','invitation.revoke')", [tenant]);
   const actions = new Set(rows.rows.map((r) => r.action));

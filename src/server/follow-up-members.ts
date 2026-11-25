@@ -1,4 +1,4 @@
-import { and, asc, eq, notInArray } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import type { Database } from "../db/client";
 import { users, workspaceMembers } from "../db/schema";
 import { uuidInput } from "../lib/contact-input";
@@ -13,7 +13,7 @@ export async function listAssignableMembers(db: Database, userId: string, worksp
   return withTenant(db, userId, uuidInput.parse(workspace), "followup:work", async (tx, tenantId, role) => {
     if (role !== "owner" && role !== "admin") return [];
     const rows = await tx.select({ id: users.id, name: users.name, email: users.email }).from(workspaceMembers).innerJoin(users, eq(users.id, workspaceMembers.userId))
-      .where(and(eq(workspaceMembers.tenantId, tenantId), notInArray(workspaceMembers.roleId, ["viewer", "guest", "campaign_guest"]))).orderBy(asc(users.name), asc(users.id));
+      .where(and(eq(workspaceMembers.tenantId, tenantId), inArray(workspaceMembers.roleId, ["owner", "admin", "member"]))).orderBy(asc(users.name), asc(users.id));
     return rows.map((row) => ({ id: row.id, name: row.name || row.email }));
   });
 }

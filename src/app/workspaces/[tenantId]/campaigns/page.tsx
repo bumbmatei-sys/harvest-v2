@@ -6,7 +6,8 @@ import { ChevronRight, Flag, LockKeyhole } from "lucide-react";
 import { getDb } from "@/db/client";
 import { pageSession } from "@/server/page-session";
 import { listCampaigns } from "@/server/campaigns";
-import { AccessError } from "@/server/permissions";
+import { getWorkspace } from "@/server/workspaces";
+import { AccessError, can } from "@/server/permissions";
 import { uuidInput } from "@/lib/contact-input";
 import { campaignPage } from "@/lib/campaigns";
 import { Badge } from "@/components/ui/badge";
@@ -22,17 +23,23 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function CampaignsPage({ params, searchParams }: {
   params: Promise<{ tenantId: string }>; searchParams: Promise<{ page?: string }>;
 }) {
-  const t = await getTranslations("Campaigns"), session = await pageSession(), { tenantId } = await params;
+  const t = await getTranslations("Campaigns"), wizard = await getTranslations("CampaignWizard"), session = await pageSession(), { tenantId } = await params;
   if (!uuidInput.safeParse(tenantId).success) notFound();
   const page = campaignPage.safeParse((await searchParams).page);
   const result = await listCampaigns(getDb(), session.user.id, tenantId, page.success ? page.data : 1)
     .catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; });
   if (!result) notFound();
+  const workspace = await getWorkspace(getDb(), session.user.id, tenantId).catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; });
+  const canStart = workspace ? can(workspace.role, "campaigns:write") : false;
   const root = `/workspaces/${tenantId}/campaigns`;
   return <div className="space-y-4">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div><h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1><p className="mt-1 text-sm text-muted-foreground">{t("description")}</p></div>
-      <Badge variant="secondary">{t("count", { count: result.total })}</Badge>
+      <div className="flex flex-wrap items-center gap-2">
+        <Badge variant="secondary">{t("count", { count: result.total })}</Badge>
+        {canStart && <Button variant="outline" asChild className="min-h-11"><Link href={`${root}/drafts`}>{wizard("drafts")}</Link></Button>}
+        {canStart && <Button asChild className="min-h-11"><Link href={`${root}/new`}>{wizard("newCampaign")}</Link></Button>}
+      </div>
     </div>
     {result.campaigns.length ? <ItemGroup aria-label={t("title")} className="gap-2">
       {result.campaigns.map((campaign) => <div key={campaign.id} role="listitem"><Item variant="outline" asChild>

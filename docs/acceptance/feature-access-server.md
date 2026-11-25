@@ -34,7 +34,7 @@ Status legend: [ ] open, [x] done and evidenced by a test named in the last colu
 | C1 | Every existing `Permission` is mapped to one area (or to workspace-wide / owner-admin-only). The map is exhaustive at compile time. | [x] | `tests/unit/access.test.ts` |
 | C2 | Default mapping keeps today's behaviour: for owner, admin, member, viewer and every unknown role, the new `can` equals a frozen copy of the old `can` for every permission. | [x] | `tests/unit/access.test.ts` (legacy parity) |
 | C3 | Collaborator `manage` grants every permission of the area except the owner/admin-only list; `view` grants only the read-only ones; no grant means no permission. | [x] | unit |
-| C4 | Guests and `campaign_guest` hold no permission except `workspace:read`. | [x] | unit |
+| C4 | Guests and `campaign_guest` hold no permission except `workspace:read` and `docs:read` (the database then shows only docs shared with them by name, view only; `docRank` in code equals `docs_rank` in SQL). | [x] | unit |
 | C5 | Server and navigation share one rule function; the role token carries a collaborator's grants so `can(workspace.role, ...)` works unchanged at the 100+ existing call sites. | [x] | unit |
 | C6 | `withTenant` resolves a collaborator's grants inside the locked transaction and hands the callback the role effective for that permission. | [x] | integration |
 
@@ -66,6 +66,11 @@ Status legend: [ ] open, [x] done and evidenced by a test named in the last colu
 | # | Requirement | Status | Evidence |
 | --- | --- | --- | --- |
 | A1 | Every grant change writes an audit row (`member.access_change`, `member.role_change`, `invitation.create`, `invitation.accept`, `invitation.revoke`) with ids and area names only. | [x] | integration |
+| R1 | No role test lets a role through by exclusion: every `<> 'viewer'` (doc shares, page shares, the sharing guard, TS docs rank, docs screen, files page, member pickers) is a positive allow-list, so a guest or an area-less collaborator (both read as `guest`) never passes. | [x] | `feature-access.test.ts` (doc/page share, visibility, guest share read) + catalog scan of every policy and function |
+| R2 | The rewrite catches every alias (`m2`, `NEW`, `OLD`); only the two new tables' own read policies keep a raw `role_id`. | [x] | `feature-access.test.ts` |
+| R3 | `access_role` is SECURITY INVOKER: an ordinary member reads other people's areas as `guest`; owners/admins and definer owners see them. | [x] | `feature-access.test.ts` |
+| R4 | A collaborator who loses the Connect area, or becomes a guest, has open follow-up cases returned to the queue (grants are written before the role, so the revocation trigger sees them). | [x] | `hc13-follow-up-cases.test.ts` |
+| R5 | The member-only SELECT policies (campaign response links and codes: connect; catalog items: catalog; doc templates: office; forms and form versions: crm or connect) need the area. Privacy notice versions stay readable by every member on purpose (consent screens must show the notice). Free-catalog reads need the new `catalog:read` capability (catalog area), not `workspace:read`. | [x] | `feature-access.test.ts` |
 
 ### Navigation
 | # | Requirement | Status | Evidence |
@@ -73,6 +78,8 @@ Status legend: [ ] open, [x] done and evidenced by a test named in the last colu
 | N1 | Navigation hides every entry the viewer has no access to (collaborator with Social only sees Social; guest sees nothing). | [x] | unit (`access.test.ts`); browser spec `feature-access-nav.spec.ts` written, NOT run (no browser build in the authoring session; CI runs it) |
 
 ## 3. Residual risk and what is not built
+
+- Files service and the AI CRM tools still gate on `workspace:read` plus their own row policies; a collaborator without Office/CRM is stopped by those policies, not by an area check in code (follow-up).
 
 - No screens for choosing areas or accepting an invitation (the page at `/workspace-invitations/<token>` is a follow-up; the API exists).
 - `view` on areas whose modules have no read-only capability yet (website, office mail and calendar, settings) grants no routes today; stored and enforced where a read capability exists.

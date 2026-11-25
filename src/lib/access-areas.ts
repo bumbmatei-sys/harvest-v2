@@ -26,7 +26,7 @@ export const permissionArea = {
   "campaigns:read": "campaigns", "campaigns:write": "campaigns", "campaigns:activate": "campaigns",
   "communities:read": "communities", "communities:manage": "communities",
   "community:live:view": "communities", "community:live:manage": "communities", "community:live:moderate": "communities",
-  "catalog:manage": "catalog",
+  "catalog:manage": "catalog", "catalog:read": "catalog",
   "ads:manage": "social", "social:approvals": "social", "social:connect": "social", "social:schedule": "social", "social:analytics": "social",
   "social:auto_dm": "social", "social:inbox": "social", "social:reply": "social", "social:assign": "social", "social:saved_replies": "social",
   "newsletter:read": "newsletter", "newsletter:manage": "newsletter", "newsletter:campaigns": "newsletter", "newsletter:delivery": "newsletter", "newsletter:analytics": "newsletter",

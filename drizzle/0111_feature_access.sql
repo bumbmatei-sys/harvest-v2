@@ -93,7 +93,9 @@ CREATE POLICY access_definer_audit ON public.audit_logs FOR INSERT TO PUBLIC
     AND action IN ('member.access_change', 'invitation.create', 'invitation.accept', 'invitation.revoke'));
 --> statement-breakpoint
 CREATE FUNCTION public.access_role(p_tenant uuid, p_user text, p_area text, p_role text) RETURNS text
-LANGUAGE sql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+-- SECURITY INVOKER on purpose: grants are read under the caller's own row policy, so an ordinary member learns nothing about other people's areas (they
+-- read as `guest`), owners/admins see everyone's, and a definer function reads them as its owner.
+LANGUAGE sql STABLE SECURITY INVOKER SET search_path = pg_catalog, pg_temp AS $$
   SELECT CASE WHEN p_role IS DISTINCT FROM 'collaborator' THEN p_role
     ELSE coalesce((SELECT CASE a.level WHEN 'manage' THEN 'admin' ELSE 'viewer' END FROM public.workspace_member_access a
       WHERE a.tenant_id = p_tenant AND a.user_id = p_user AND a.area = p_area
@@ -128,11 +130,13 @@ BEGIN
     IF area IS NULL THEN RAISE NOTICE 'access_role: policy % on % has no area and keeps its role check', r.policyname, r.tablename; CONTINUE; END IF;
     stmt := format('ALTER POLICY %I ON public.%I', r.policyname, r.tablename);
     IF r.qual IS NOT NULL THEN
-      q := regexp_replace(r.qual, '\m([a-z_]+)\.role_id\M', format('public.access_role(\1.tenant_id, \1.user_id, %L, \1.role_id)', area), 'g');
+      q := regexp_replace(r.qual, '\m([A-Za-z_][A-Za-z0-9_]*)\.role_id\M', format('public.access_role(\1.tenant_id, \1.user_id, %L, \1.role_id)', area), 'g');
+      q := regexp_replace(q, '(access_role\([^)]*\))\s*<>\s*''viewer''(::text)?', '\1 = ANY (ARRAY[''owner''::text, ''admin''::text, ''member''::text])', 'g');
       stmt := stmt || ' USING (' || q || ')';
     END IF;
     IF r.with_check IS NOT NULL THEN
-      c := regexp_replace(r.with_check, '\m([a-z_]+)\.role_id\M', format('public.access_role(\1.tenant_id, \1.user_id, %L, \1.role_id)', area), 'g');
+      c := regexp_replace(r.with_check, '\m([A-Za-z_][A-Za-z0-9_]*)\.role_id\M', format('public.access_role(\1.tenant_id, \1.user_id, %L, \1.role_id)', area), 'g');
+      c := regexp_replace(c, '(access_role\([^)]*\))\s*<>\s*''viewer''(::text)?', '\1 = ANY (ARRAY[''owner''::text, ''admin''::text, ''member''::text])', 'g');
       stmt := stmt || ' WITH CHECK (' || c || ')';
     END IF;
     EXECUTE stmt; n := n + 1;
@@ -163,8 +167,10 @@ BEGIN
     -- social_approval_guard and social_approval_owner only compare a stored role with 'owner'; a collaborator is never an owner.
     IF area IS NULL THEN RAISE NOTICE 'access_role: function % keeps its role check', r.proname; CONTINUE; END IF;
     def := pg_get_functiondef(r.oid);
-    def := regexp_replace(def, '\m([a-z_]+)\.role_id\M', format('public.access_role(\1.tenant_id, \1.user_id, %L, \1.role_id)', area), 'g');
+    def := regexp_replace(def, '\m([A-Za-z_][A-Za-z0-9_]*)\.role_id\M', format('public.access_role(\1.tenant_id, \1.user_id, %L, \1.role_id)', area), 'g');
     def := regexp_replace(def, '(^|[^.[:alnum:]_])role_id\M', format('\1public.access_role(tenant_id, user_id, %L, role_id)', area), 'g');
+    -- A role test that LETS a role through by exclusion (`<> 'viewer'`) would admit a guest or an area-less collaborator; make it a positive allow-list.
+    def := regexp_replace(def, '(access_role\([^)]*\))\s*<>\s*''viewer''', '\1 IN (''owner'', ''admin'', ''member'')', 'g');
     EXECUTE def; n := n + 1;
   END LOOP;
   RAISE NOTICE 'access_role: % functions rewritten', n;
@@ -257,13 +263,14 @@ BEGIN
     RETURN '{"outcome":"conflict"}'::jsonb;
   END IF;
   SELECT coalesce(string_agg(area || ':' || level, ',' ORDER BY area), '') INTO previous FROM public.workspace_member_access WHERE tenant_id = t AND user_id = p_user;
-  UPDATE public.workspace_members SET role_id = p_role, can_manage_admins = (p_role = 'admin' AND coalesce(p_can_manage_admins, false)) WHERE tenant_id = t AND user_id = p_user;
+  -- Grants first, then the role: the follow-up revocation trigger on role_id reads the new areas (a collaborator who loses Connect, or becomes a guest, is revoked).
   DELETE FROM public.workspace_member_access WHERE tenant_id = t AND user_id = p_user;
   IF p_role = 'collaborator' THEN
     FOR k, v IN SELECT key, value FROM jsonb_each_text(p_grants) LOOP
       INSERT INTO public.workspace_member_access (tenant_id, user_id, area, level, granted_by) VALUES (t, p_user, k, v, actor);
     END LOOP;
   END IF;
+  UPDATE public.workspace_members SET role_id = p_role, can_manage_admins = (p_role = 'admin' AND coalesce(p_can_manage_admins, false)) WHERE tenant_id = t AND user_id = p_user;
   INSERT INTO public.audit_logs (tenant_id, actor_id, action, target_id, metadata)
     VALUES (t, actor, 'member.access_change', p_user, jsonb_build_object('role', p_role, 'previousRole', target_role, 'areas', areas, 'previousAreas', previous, 'manageAdmins', (p_role = 'admin' AND coalesce(p_can_manage_admins, false))::text));
   PERFORM set_config('app.access_tenant', '', true);
@@ -316,7 +323,7 @@ GRANT EXECUTE ON FUNCTION public.workspace_invitation_revoke(uuid) TO harvest_ap
 CREATE FUNCTION public.workspace_invitation_accept(p_token text) RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE actor text := nullif(current_setting('app.user_id', true), ''); actor_email text; hash text; inv public.workspace_invitations; inviter_role text; inviter_flag boolean; prev_role text; areas text;
   k text; v text; joined boolean := false; result jsonb;
-  previous_token text := coalesce(current_setting('app.access_token', true), ''); previous_tenant text := coalesce(current_setting('app.access_tenant', true), '');
+  previous_token text := coalesce(current_setting('app.access_token', true), ''); previous_tenant text := coalesce(current_setting('app.access_tenant', true), ''); previous_app_tenant text := coalesce(current_setting('app.tenant_id', true), '');
 BEGIN
   IF actor IS NULL OR p_token IS NULL OR length(p_token) NOT BETWEEN 16 AND 200 THEN RETURN '{"outcome":"not_found"}'::jsonb; END IF;
   hash := encode(sha256(convert_to(p_token, 'UTF8')), 'hex');
@@ -337,13 +344,18 @@ BEGIN
       result := '{"outcome":"closed"}'::jsonb;
     ELSE
       areas := public.access_grants_text(inv.role, inv.grants);
-      IF prev_role IS NULL THEN INSERT INTO public.workspace_members (tenant_id, user_id, role_id, can_manage_admins) VALUES (inv.tenant_id, actor, inv.role, inv.can_manage_admins AND inv.role = 'admin'); joined := true;
-      ELSE UPDATE public.workspace_members SET role_id = inv.role, can_manage_admins = (inv.can_manage_admins AND inv.role = 'admin') WHERE tenant_id = inv.tenant_id AND user_id = actor; END IF;
+      IF prev_role IS NULL THEN joined := true; INSERT INTO public.workspace_members (tenant_id, user_id, role_id, can_manage_admins) VALUES (inv.tenant_id, actor, inv.role, inv.can_manage_admins AND inv.role = 'admin'); END IF;
       DELETE FROM public.workspace_member_access WHERE tenant_id = inv.tenant_id AND user_id = actor;
       IF inv.role = 'collaborator' THEN
         FOR k, v IN SELECT key, value FROM jsonb_each_text(inv.grants) LOOP
           INSERT INTO public.workspace_member_access (tenant_id, user_id, area, level, granted_by) VALUES (inv.tenant_id, actor, k, v, inv.created_by);
         END LOOP;
+      END IF;
+      -- The tenant is set for the role-change trigger (follow-up revocation reads the new areas through access_role).
+      IF prev_role IS NOT NULL THEN
+        PERFORM set_config('app.tenant_id', inv.tenant_id::text, true);
+        UPDATE public.workspace_members SET role_id = inv.role, can_manage_admins = (inv.can_manage_admins AND inv.role = 'admin') WHERE tenant_id = inv.tenant_id AND user_id = actor;
+        PERFORM set_config('app.tenant_id', previous_app_tenant, true);
       END IF;
       UPDATE public.workspace_invitations SET status = 'accepted', responded_at = clock_timestamp(), accepted_by = actor WHERE tenant_id = inv.tenant_id AND id = inv.id;
       INSERT INTO public.audit_logs (tenant_id, actor_id, action, target_id, metadata)
@@ -357,3 +369,22 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.workspace_invitation_accept(text) FROM PUBLIC, harvest_app;
 GRANT EXECUTE ON FUNCTION public.workspace_invitation_accept(text) TO harvest_app;
+--> statement-breakpoint
+-- The seven SELECT policies that only asked "is this person a member" now also need the area that owns the data (or, for forms, either of the two). The privacy notice
+-- versions stay readable by every member on purpose: consent screens must show the notice a person agreed to.
+DO $$
+DECLARE r record; q text; ar text; extra text; n integer := 0;
+  rules jsonb := '{"campaign_response_links.campaign_response_links_read":["connect"],"campaign_response_link_codes.campaign_response_link_codes_read":["connect"],
+    "catalog_items.catalog_metadata":["catalog"],"doc_templates.docs_template_read":["office"],"forms.forms_read":["crm","connect"],"form_versions.form_versions_read":["crm","connect"]}';
+BEGIN
+  FOR r IN SELECT p.tablename, p.policyname, p.qual FROM pg_policies p WHERE p.schemaname = 'public' AND (p.tablename || '.' || p.policyname) IN (SELECT jsonb_object_keys(rules)) LOOP
+    extra := '';
+    FOR ar IN SELECT jsonb_array_elements_text(rules -> (r.tablename || '.' || r.policyname)) LOOP
+      extra := extra || CASE WHEN extra = '' THEN '' ELSE ' OR ' END
+        || format('public.access_role(m2.tenant_id, m2.user_id, %L, m2.role_id) = ANY (ARRAY[''owner'', ''admin'', ''member'', ''viewer''])', ar);
+    END LOOP;
+    q := '(' || r.qual || ') AND EXISTS (SELECT 1 FROM public.workspace_members m2 WHERE m2.tenant_id = ' || r.tablename || '.tenant_id AND m2.user_id = nullif(current_setting(''app.user_id'', true), '''') AND (' || extra || '))';
+    EXECUTE format('ALTER POLICY %I ON public.%I USING (%s)', r.policyname, r.tablename, q); n := n + 1;
+  END LOOP;
+  RAISE NOTICE 'access_role: % member-only read policies tightened', n;
+END $$;

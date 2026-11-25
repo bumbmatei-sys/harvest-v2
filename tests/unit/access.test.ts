@@ -6,7 +6,7 @@ import { resolveModeNavigation } from "../../src/lib/navigation";
 // A frozen copy of the rules as they were before per-feature access. The new `can` must equal it for every legacy role and unknown role.
 function frozen(role: string, p: string): boolean {
   const all = ["owner", "admin", "member", "viewer"];
-  if (["communities:read", "workspace:read", "contacts:read", "companies:read", "opportunities:read", "tasks:read", "notes:read", "campaigns:read", "docs:read"].includes(p)) return all.includes(role);
+  if (["communities:read", "workspace:read", "contacts:read", "companies:read", "opportunities:read", "tasks:read", "notes:read", "campaigns:read", "docs:read", "catalog:read"].includes(p)) return all.includes(role);
   if (p === "newsletter:read") return ["owner", "admin", "member"].includes(role);
   if (["followup:work", "contacts:record_withdrawal", "crm:reports", "docs:write", "contacts:write", "companies:write", "opportunities:write", "tasks:write", "notes:write", "campaigns:write", "crm:import", "crm:export"].includes(p)) return ["owner", "admin", "member"].includes(role);
   if (p === "social:approvals_settings") return role === "owner";
@@ -33,8 +33,8 @@ describe("feature access, code capabilities", () => {
     for (const p of ["contacts:erase", "contacts:attest_consent", "crm:export_sensitive", "webhooks:manage", "members:write", "roles:write", "contacts:merge"] as const) expect(can(crm, p), p).toBe(false);
     expect(can(crm, "contacts:write")).toBe(true); expect(can("collaborator", "contacts:read")).toBe(false);
   });
-  it("guests and campaign guests hold workspace:read only; tokens fail closed", () => {
-    for (const role of ["guest", "campaign_guest"]) for (const p of everyPermission) expect(can(role, p)).toBe(p === "workspace:read");
+  it("guests and campaign guests hold workspace:read and docs:read only; tokens fail closed", () => {
+    for (const role of ["guest", "campaign_guest"]) for (const p of everyPermission) expect(can(role, p)).toBe(p === "workspace:read" || p === "docs:read");
     expect(parseRoleToken("collaborator;crm=admin;bogus=manage;social=view").grants).toEqual({ social: "view" });
     expect(can("collaboratorX", "contacts:read")).toBe(false);
   });
@@ -49,7 +49,7 @@ describe("feature access, code capabilities", () => {
     const social = ids(roleToken("collaborator", { social: "manage" }));
     expect(social).toContain("planner"); expect(social).toContain("inbox");
     for (const hidden of ["people", "ministrySettings", "files", "crmReports", "newsletterCampaigns", "linkInBio", "mail", "documents"]) expect(social).not.toContain(hidden);
-    expect(ids("guest")).toEqual([]);
+    expect(ids("guest")).toEqual(["documents"]); // shared docs only
     expect(ids("admin").length).toBeGreaterThan(ids(roleToken("collaborator", { social: "manage" })).length);
   });
 });
