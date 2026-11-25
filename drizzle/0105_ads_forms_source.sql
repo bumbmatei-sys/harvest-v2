@@ -65,6 +65,8 @@ REVOKE ALL ON FUNCTION public.ads_lead_form_frozen() FROM PUBLIC;
 CREATE TRIGGER ads_lead_form_frozen BEFORE UPDATE ON public.ads_lead_forms FOR EACH ROW EXECUTE FUNCTION public.ads_lead_form_frozen();
 --> statement-breakpoint
 -- A version that has been published to a network is frozen like a hosted-form publication (same trigger, one more publication table).
+-- NOTE: this trigger is not a definer, so the ads_form_publications check below runs under the CALLER's row security (owner/admin through ads_admin). Any future definer path that updates
+-- crm-form-v1 versions must read ads_form_publications under the ads_definer flag (app.ads_definer = 'on'), or it would see no publication and wrongly allow the edit.
 CREATE OR REPLACE FUNCTION public.crm_form_freeze_draft() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
 BEGIN
@@ -159,13 +161,15 @@ BEGIN
     FOREACH purpose IN ARRAY ARRAY['newsletter', 'form_follow_up', 'marketing'] LOOP
       qkey := f.consent_questions ->> purpose;
       ans := lower(btrim(coalesce(fields ->> qkey, '')));
-      IF qkey IS NOT NULL AND ans IN ('yes', 'true', '1', 'on', 'checked') THEN
+      IF qkey IS NOT NULL AND ans IN ('yes', 'true', '1', 'on', 'checked')
+        -- Frozen at receipt: the lead must carry the notice text the form still has, and the version it answered must be the form's version (the per-question wording is frozen with it).
+        AND l.consent_text IS NOT NULL AND btrim(l.consent_text) = btrim(f.consent_text) AND (f.form_version_id IS NULL OR l.form_version_id IS NOT DISTINCT FROM f.form_version_id) THEN
         -- The newsletter is email only; follow-up and marketing use the address the person gave, else the phone.
         chan := CASE WHEN purpose = 'newsletter' THEN CASE WHEN em IS NOT NULL THEN 'email' END ELSE CASE WHEN em IS NOT NULL THEN 'email' ELSE 'sms' END END;
         IF chan IS NOT NULL THEN
           -- A form built in Harvest keeps, per question, the wording id and the exact text shown (immutable once published). An older form keeps its single consent text.
           wording := f.consent_texts -> purpose ->> 'wording';
-          shown := coalesce(f.consent_texts -> purpose ->> 'text', f.consent_text);
+          shown := coalesce(f.consent_texts -> purpose ->> 'text', l.consent_text);
           INSERT INTO public.contact_consents(tenant_id, contact_id, recorded_by, purpose, notice_version, channel, status, source, evidence, occurred_at)
             VALUES (t, person, actor, purpose, 'ad-lead-form-v1', chan, 'granted', 'ad_lead_form',
               left(CASE WHEN wording IS NOT NULL THEN '[' || wording || '] ' ELSE '' END || btrim(shown), 1500) || ' [lead answered yes: ' || qkey || ']', least(coalesce(l.submitted_at, now()), now()));
