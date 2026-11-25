@@ -16,7 +16,7 @@ import { DEFAULT_TIME_ZONE, zonedDate, zonedStartOfDay } from "./time-zone";
 export const SMALL_GROUP = 5;
 export const reportPeriods = ["last7", "last30", "last90", "thisMonth", "lastMonth"] as const;
 export type ReportPeriod = typeof reportPeriods[number];
-export const reportSources = ["manual", "csv_import", "connect", "form", "unknown"] as const;
+export const reportSources = ["manual", "csv_import", "connect", "form", "ad_lead", "unknown"] as const;
 export type ReportSource = typeof reportSources[number];
 /** Roles that see ministry totals; every other reading role sees only its own work. */
 export const reportsMinistryScope = (role: string) => role === "owner" || role === "admin";

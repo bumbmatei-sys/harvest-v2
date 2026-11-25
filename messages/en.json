@@ -1180,6 +1180,7 @@
       "manual": "Manual",
       "csv_import": "CSV import",
       "form": "Form",
+      "ad_lead": "Ad lead",
       "unknown": "Unknown",
       "created": "Created",
       "updated": "Updated",
@@ -1659,6 +1660,7 @@
       "csv_import": "CSV import",
       "connect": "Connect",
       "form": "Forms",
+      "ad_lead": "Ad leads",
       "unknown": "Unknown"
     },
     "empty": {
@@ -5915,6 +5917,15 @@
       "firstLabel": "First name",
       "lastLabel": "Last name",
       "consent": "Consent wording"
+    },
+    "adForm": {
+      "title": "Ad lead form",
+      "name": "Full name",
+      "email": "Email address",
+      "phone": "Phone number",
+      "endTitle": "Thank you",
+      "endBody": "We received your details.",
+      "button": "Submit"
     },
     "newsletterForm": {
       "title": "Join our newsletter",
