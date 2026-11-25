@@ -33,8 +33,8 @@ test("workspace upload → progress → verified file → private download; publ
   await page.getByLabel("Ministry name").fill("Harvest files workspace");
   await page.getByRole("radio", { name: "Church", exact: true }).check();
   await page.getByRole("button", { name: "Create ministry" }).click();
-  await page.getByRole("link", { name: "Files", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Files", exact: true })).toBeVisible({ timeout: 30_000 });
+  await page.getByRole("link", { name: "Storage", exact: true }).click();
+  await expect(page.getByRole("heading", { name: "Storage", exact: true })).toBeVisible({ timeout: 30_000 });
   const tenantId = page.url().match(/workspaces\/([^/]+)/)![1];
   const base = `/api/workspaces/${tenantId}/files`;
   await expect(page.getByText("No files yet.", { exact: false })).toBeVisible();

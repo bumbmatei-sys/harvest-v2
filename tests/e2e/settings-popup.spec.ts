@@ -74,7 +74,7 @@ test("Settings pop-up: open, sections by role, keyboard, deep link, Planner entr
   for (const group of ["Office", "People", "Connect", "Ministry"]) await expect(nav.getByRole("button", { name: group, exact: true })).toBeVisible();
   for (const hidden of ["Settings", "Giving"]) await expect(nav.getByRole("button", { name: hidden, exact: true })).toHaveCount(0);
   for (const hidden of ["CRM fields", "Pipeline settings", "Appearance", "Ministry settings", "Social accounts"]) await expect(nav.getByRole("link", { name: hidden, exact: true })).toHaveCount(0);
-  for (const shown of ["Files", "People", "Organizations", "Pipelines", "Tasks", "Imports", "Follow-up", "Campaigns"]) await expect(nav.getByRole("link", { name: shown, exact: true })).toBeVisible();
+  for (const shown of ["Storage", "People", "Organizations", "Pipelines", "Tasks", "Imports", "Follow-up", "Campaigns"]) await expect(nav.getByRole("link", { name: shown, exact: true })).toBeVisible();
   for (const path of ["/crm/settings/fields", "/crm/settings/pipelines", "/appearance", "/settings", "/social/accounts", "/files", "/campaigns", "/connect/follow-up"]) {
     const response = await page.goto(`${base}${path}`);
     expect(response?.status(), path).toBe(200);
