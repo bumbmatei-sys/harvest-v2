@@ -41,6 +41,9 @@ if (process.env.CF07_PREPARE_STAGING === "1" && (!process.env.CI || process.env.
     upload_source_maps: false,
     // Minified, the bundle starts in about 620 ms on Cloudflare instead of failing the 1 s startup limit (26 Nov).
     minify: true,
+    // Run next to the Neon database (aws-eu-central-1): each page makes several sequential queries, so a Worker in a
+    // distant colo paid an ocean round trip per query (p50 1.78 s from Chicago, 0.63 s with this hint; 26 Nov).
+    placement: { region: "aws:eu-central-1" },
   };
   await writeFile("cloudflare/wrangler.staging.json", `${JSON.stringify(config, null, 2)}\n`);
   console.log("cloudflare/wrangler.staging.json");
