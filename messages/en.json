@@ -9550,5 +9550,16 @@
       "remove": "Remove {name}",
       "aMember": "A ministry member"
     }
+  },
+  "CampaignEvents": {
+    "title": "Events",
+    "stat": "Events",
+    "create": "New event",
+    "empty": "No events in this campaign yet.",
+    "add": "Add an event",
+    "search": "Search events",
+    "noMatch": "No events found",
+    "remove": "Remove {title} from this campaign",
+    "draft": "Draft"
   }
 }

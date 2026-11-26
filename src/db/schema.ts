@@ -2266,6 +2266,20 @@ export const communityEventLinks = pgTable("community_event_links", {
   foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
 ]);
 
+// Campaign events (founder approval, 26 Nov): an existing ministry event placed in a campaign. The event stays the canonical Events record; this row only
+// links the two. No app grant: reads and changes go through public.campaign_events_operate, which checks both campaigns and events access.
+export const campaignEventLinks = pgTable("campaign_event_links", {
+  tenantId: uuid("tenant_id").notNull(),
+  campaignId: uuid("campaign_id").notNull(),
+  eventId: uuid("event_id").notNull(),
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.campaignId, t.eventId] }),
+  index("campaign_event_links_event_idx").on(t.tenantId, t.eventId),
+  foreignKey({ columns: [t.tenantId, t.campaignId], foreignColumns: [campaigns.tenantId, campaigns.id] }).onDelete("cascade"),
+  foreignKey({ columns: [t.tenantId, t.eventId], foreignColumns: [events.tenantId, events.id] }).onDelete("cascade"),
+]);
+
 export const eventRsvps = pgTable("event_rsvps", {
   tenantId: uuid("tenant_id").notNull(),
   eventId: uuid("event_id").notNull(),

@@ -6,13 +6,14 @@ import { checklistInput, checklistItemKeys, derivedChecklist, type ChecklistItem
 import { message } from "../i18n/messages";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
+import { campaignEventsOf } from "./campaign-events";
 
 export type ChecklistView = { item: ChecklistItem; done: boolean; automatic: boolean; doneAt: string | null }[];
 
 /**
  * The post-creation setup checklist of a campaign (PRD "Post-Creation Checklist"; founder decision Q8). Completion is stored per item, by whoever last
  * ticked or unticked it. Items that tick themselves from what the finished draft already holds (every included department has an accepted leader; the
- * counseling department has one) are reported done and automatic whatever was stored. Only people who can write campaigns read or change it. It reads the
+ * counseling department has one; the campaign shows an event) are reported done and automatic whatever was stored. Only people who can write campaigns read or change it. It reads the
  * draft's departments and placements and changes nothing else: no board, form, page, payment or message is created or published from here.
  */
 export async function getChecklist(db: Database, userId: string, workspace: string, campaign: string): Promise<ChecklistView> {
@@ -41,7 +42,9 @@ export async function checklistOf(tx: Transaction, tenantId: string, campaignId:
     .where(and(eq(campaignDrafts.tenantId, tenantId), eq(campaignDrafts.campaignId, campaignId)));
   const leaders = draft ? (await tx.select({ department: campaignDraftAssignments.department }).from(campaignDraftAssignments)
     .where(and(eq(campaignDraftAssignments.tenantId, tenantId), eq(campaignDraftAssignments.draftId, draft.id), eq(campaignDraftAssignments.role, "leader")))).map((row) => row.department) : [];
-  const derived = derivedChecklist(draft?.departments ?? [], leaders);
+  // Campaign events: "Create initial outreach events" ticks itself once the campaign shows at least one event to this person.
+  const hasEvents = ((await campaignEventsOf(tx, tenantId, campaignId))?.events.length ?? 0) > 0;
+  const derived = derivedChecklist(draft?.departments ?? [], leaders, hasEvents);
   return checklistItemKeys.map((item) => {
     const row = stored.get(item), automatic = derived[item];
     return { item, done: automatic || row?.done === true, automatic, doneAt: row?.done && row.doneAt ? row.doneAt.toISOString() : null };
