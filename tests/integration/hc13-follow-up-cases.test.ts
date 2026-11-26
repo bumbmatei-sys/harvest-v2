@@ -6,6 +6,7 @@ import { withTenant, withUser } from "../../src/server/tenancy";
 import { assignFollowUpCase, getFollowUpCase, listFollowUpCases, openEligibleFollowUpCases, transitionFollowUpCase } from "../../src/server/follow-up-cases";
 import { followUpCaseStates, followUpTransitionAllowed, counselorTransitions } from "../../src/lib/follow-up-cases";
 import { putMember } from "../../src/server/workspaces";
+import { changeMemberAccess } from "../../src/server/access";
 import { eraseContact, recordConsent } from "../../src/server/contacts";
 import { mayContact } from "../../src/server/consent-gate";
 import { mergeContacts } from "../../src/server/crm-merge";
@@ -398,6 +399,22 @@ describe("access: database level", () => {
     await ctx.f.admin.query("delete from workspace_members where user_id = 'd-temp' and tenant_id = $1", [ctx.tenantA]);
     expect(await ctx.caseRow(c.caseId)).toMatchObject({ state: "awaiting_assignment", assignee_id: null });
     expect(await status(getFollowUpCase(ctx.f.db, "d-temp", ctx.tenantA, c.caseId))).toBe(403);
+  });
+
+  it("returns a collaborator's cases to the queue when they lose the Connect area or become a guest, and keeps them while Connect is granted", async () => {
+    await ctx.f.admin.query("insert into users (id,name,email) values ('d-collab','Collab','d-collab@example.test') on conflict do nothing");
+    await putMember(ctx.f.db, "d-owner", ctx.tenantA, "d-collab@example.test", "member");
+    const a = await assigned("d-collab");
+    await changeMemberAccess(ctx.f.db, "d-owner", ctx.tenantA, { userId: "d-collab", role: "collaborator", grants: { connect: "manage", social: "manage" } });
+    expect(await ctx.caseRow(a.caseId)).toMatchObject({ state: "assigned", assignee_id: "d-collab" });
+    expect(await seen("d-collab")).toContain(a.caseId);
+    await changeMemberAccess(ctx.f.db, "d-owner", ctx.tenantA, { userId: "d-collab", role: "collaborator", grants: { social: "manage" } });
+    expect(await ctx.caseRow(a.caseId)).toMatchObject({ state: "awaiting_assignment", assignee_id: null });
+    expect(await seen("d-collab")).toEqual([]);
+    await changeMemberAccess(ctx.f.db, "d-owner", ctx.tenantA, { userId: "d-collab", role: "collaborator", grants: { connect: "manage" } });
+    const b = await assigned("d-collab");
+    await changeMemberAccess(ctx.f.db, "d-owner", ctx.tenantA, { userId: "d-collab", role: "guest" });
+    expect(await ctx.caseRow(b.caseId)).toMatchObject({ state: "awaiting_assignment", assignee_id: null });
   });
 });
 

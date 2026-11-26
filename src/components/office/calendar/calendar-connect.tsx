@@ -46,7 +46,7 @@ export function CalendarConnect({ api, notice, noticeVersion, connection, onConn
 
     {attention
       ? <div className="mt-4 space-y-3">
-        <Alert role="status"><TriangleAlert aria-hidden="true" /><AlertTitle>{c("attentionTitle")}</AlertTitle><AlertDescription>{c("attention")}</AlertDescription></Alert>
+        <Alert variant="attention" role="status"><TriangleAlert aria-hidden="true" /><AlertTitle>{c("attentionTitle")}</AlertTitle><AlertDescription>{c("attention")}</AlertDescription></Alert>
         <div className="flex flex-wrap gap-2">
           <Button type="button" size="responsive" disabled={checking} onClick={() => void check()} data-testid="check-again">{checking ? <Spinner /> : <RotateCw aria-hidden="true" />}{c("checkAgain")}</Button>
           {disconnect}

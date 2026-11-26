@@ -1,4 +1,4 @@
-import { and, asc, eq, ne } from "drizzle-orm";
+import { and, asc, eq, inArray } from "drizzle-orm";
 import type { Database } from "../db/client";
 import { users, workspaceMembers } from "../db/schema";
 import { uuidInput } from "../lib/contact-input";
@@ -15,7 +15,7 @@ export type WizardMember = { id: string; name: string; role: string };
 export async function listWizardMembers(db: Database, userId: string, workspace: string): Promise<WizardMember[]> {
   return withTenant(db, userId, uuidInput.parse(workspace), "campaigns:write", async (tx, tenantId, role) => {
     const rows = await tx.select({ id: users.id, name: users.name, email: users.email, role: workspaceMembers.roleId }).from(workspaceMembers)
-      .innerJoin(users, eq(users.id, workspaceMembers.userId)).where(and(eq(workspaceMembers.tenantId, tenantId), ne(workspaceMembers.roleId, "viewer"))).orderBy(asc(users.name), asc(users.id));
+      .innerJoin(users, eq(users.id, workspaceMembers.userId)).where(and(eq(workspaceMembers.tenantId, tenantId), inArray(workspaceMembers.roleId, ["owner", "admin", "member"]))).orderBy(asc(users.name), asc(users.id));
     const manager = role === "owner" || role === "admin"; // only owners and admins see an email address, and only for a person with no name
     return rows.map((row) => ({ id: row.id, name: row.name.trim() || (manager ? row.email : ""), role: row.role }));
   });

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { can } from "../../src/lib/permissions";
-import { campaignTemplates, departmentKeys, moduleKeys, placeIssues, saveInput, validateDraft, wizardSteps, type DraftSnapshot } from "../../src/lib/campaign-wizard";
+import { campaignTemplates, checklistInput, checklistItemKeys, derivedChecklist, invitationInput, departmentKeys, moduleKeys, placeIssues, saveInput, validateDraft, wizardSteps, type DraftSnapshot } from "../../src/lib/campaign-wizard";
 
 const empty: DraftSnapshot = { type: null, name: null, country: null, cityRegion: null, startDate: null, endDate: null, timeZone: null, structure: null,
   departments: [], modules: [], budget: { currency: "USD", estimatedBudgetMinor: null, fundraisingEnabled: false, fundraisingGoalMinor: null, onlineDonations: false },
@@ -40,11 +40,17 @@ describe("campaign wizard rules", () => {
     expect(save("type", { type: "party" }).success).toBe(false);
     expect(save("tools", { modules: ["tasks_boards", "tasks_boards"] }).success).toBe(false);
   });
-  it("keeps leaders inside the chosen departments and unique", () => {
-    const a = { userId: "u1", department: "volunteers", role: "leader" };
-    expect(save("leaders", { departments: ["volunteers"], assignments: [a] }).success).toBe(true);
-    expect(save("leaders", { departments: ["prayer_intercession"], assignments: [a] }).success).toBe(false);
-    expect(save("leaders", { departments: ["volunteers"], assignments: [a, { ...a, role: "member" }] }).success).toBe(false);
+  it("saves the departments only, unique, and takes invitations by member or by email", () => {
+    expect(save("leaders", { departments: ["volunteers", "counseling"] }).success).toBe(true);
+    expect(save("leaders", { departments: ["volunteers", "volunteers"] }).success).toBe(false);
+    expect(save("leaders", { departments: ["volunteers"], assignments: [] }).success).toBe(false);
+    const member = invitationInput.safeParse({ department: "volunteers", role: "leader", userId: "u1" });
+    expect(member.success).toBe(true);
+    expect(invitationInput.parse({ department: "volunteers", role: "member", email: "  New.Person@Example.TEST " }).email).toBe("new.person@example.test");
+    expect(invitationInput.safeParse({ department: "volunteers", role: "member" }).success).toBe(false);
+    expect(invitationInput.safeParse({ department: "volunteers", role: "member", userId: "u1", email: "a@b.co" }).success).toBe(false);
+    expect(invitationInput.safeParse({ department: "volunteers", role: "member", email: "not an email" }).success).toBe(false);
+    expect(invitationInput.safeParse({ department: "nope", role: "member", userId: "u1" }).success).toBe(false);
   });
   it("keeps donations and goals behind the fundraising switch and responses behind a way to respond", () => {
     const budget = { currency: "USD", estimatedBudgetMinor: 1000, fundraisingEnabled: false, fundraisingGoalMinor: null, onlineDonations: false };
@@ -64,3 +70,20 @@ describe("campaign wizard rules", () => {
   });
 });
 
+
+describe("setup checklist", () => {
+  it("lists the nine PRD items and accepts only them", () => {
+    expect(checklistItemKeys).toHaveLength(9);
+    expect(checklistInput.safeParse({ item: "define_budget", done: true }).success).toBe(true);
+    expect(checklistInput.safeParse({ item: "anything", done: true }).success).toBe(false);
+    expect(checklistInput.safeParse({ item: "define_budget", done: "yes" }).success).toBe(false);
+    expect(checklistInput.safeParse({ item: "define_budget", done: true, extra: 1 }).success).toBe(false);
+  });
+  it("ticks leader items only from real leaders", () => {
+    expect(derivedChecklist([], [])).toMatchObject({ assign_leaders: false, assign_counseling: false });
+    expect(derivedChecklist(["volunteers", "counseling"], ["volunteers"])).toMatchObject({ assign_leaders: false, assign_counseling: false });
+    expect(derivedChecklist(["volunteers", "counseling"], ["volunteers", "counseling"])).toMatchObject({ assign_leaders: true, assign_counseling: true });
+    expect(derivedChecklist(["volunteers"], ["counseling"])).toMatchObject({ assign_leaders: false, assign_counseling: false }); // a leader of a department that is not included counts for nothing
+    expect(Object.entries(derivedChecklist(["volunteers"], ["volunteers"])).filter(([, on]) => on).map(([key]) => key)).toEqual(["assign_leaders"]);
+  });
+});

@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Blocks, Check, CircleAlert, ClipboardCheck, FileText, MapPin, QrCode, Shapes, Users, Wallet, type LucideIcon } from "lucide-react";
 import { useTranslations } from "next-intl";
@@ -11,13 +12,20 @@ import { ConfirmDialog } from "@/components/confirm-dialog";
 import { Spinner } from "@/components/ui/spinner";
 import { WizardLayout } from "@/components/wizard-layout";
 import { EditorShell } from "@/components/editor/editor-shell";
+import { EventCoverPicker, type CoverChange } from "@/components/events/event-cover-picker";
+import { useEventCoverUrl } from "@/components/events/use-event-cover-url";
 import { useEditorHosted } from "@/components/editor/editor-context";
 import { AccentIcon, accentVars } from "@/components/accent-icon";
 import { BasicsStep, PlaceStep, TypeStep, type SetStep } from "@/components/campaigns/wizard-steps";
+import { TeamsStep, type WizardPerson } from "@/components/campaigns/teams-step";
+import { ToolsStep } from "@/components/campaigns/tools-step";
+import { BudgetStep } from "@/components/campaigns/budget-step";
+import { ConnectStep } from "@/components/campaigns/connect-step";
+import { ReviewStep } from "@/components/campaigns/review-step";
 import { useRequest } from "@/hooks/use-request";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
-import { wizardSteps, type WizardStep } from "@/lib/campaign-wizard";
-import { adoptServer, dirtySteps, formFromDraft, isEditable, issuesOf, stepPayload, stepStatuses, type DraftView, type EditableStep } from "@/lib/campaign-wizard-form";
+import { wizardSteps, type Issue, type WizardStep } from "@/lib/campaign-wizard";
+import { adoptServer, dirtySteps, formFromDraft, isAvailable, isEditable, issuesOf, stepPayload, stepStatuses, type DraftView, type EditableStep, type InvitationView } from "@/lib/campaign-wizard-form";
 
 // Each step's mark beside its heading, in the palette's primary accent.
 const stepIcons: Record<WizardStep, LucideIcon> = {
@@ -37,22 +45,19 @@ function SaveStatus({ state }: { state: SaveState }) {
 /**
  * The campaign wizard on the shared EditorShell and WizardLayout (steps 1 to 3 here; the rest are listed and not yet available). Each step autosaves on
  * its own after a short pause. The server checks the version: a change made elsewhere is a 409, shown as "changed elsewhere, reload". Next saves first.
- * Only the person who started the draft edits it; an owner or admin who opens someone else's draft reads it and may discard it. Nothing here publishes
- * or sends anything.
+ * Anyone in the ministry who can write campaigns edits and finishes an open draft (founder decision, 25 Nov); the creator stays its owner. Nothing here
+ * publishes or sends anything.
  */
-export function CampaignWizard({ tenantId, initial, viewerId, canDiscard, ownerName, listHref }: {
-  tenantId: string; initial: DraftView; viewerId: string; canDiscard: boolean; ownerName: string; listHref: string;
-}) {
-  const t = useTranslations("CampaignWizard"), request = useRequest(), hosted = useEditorHosted();
+export function CampaignWizard({ tenantId, initial, canDiscard, listHref, people }: { tenantId: string; initial: DraftView; canDiscard: boolean; listHref: string; people: WizardPerson[] }) {
+  const t = useTranslations("CampaignWizard"), request = useRequest(), hosted = useEditorHosted(), router = useRouter();
   const endpoint = `/api/workspaces/${tenantId}/campaigns/drafts/${initial.id}`;
-  const editable = initial.createdBy === viewerId;
   const [draft, setDraft] = useState(initial), [form, setForm] = useState(() => formFromDraft(initial));
   // Resume where the person left off, but never on a step that is not available yet.
-  const [step, setStep] = useState<WizardStep>(() => { const at = wizardSteps[Math.min(Math.max(initial.currentStep, 1), wizardSteps.length) - 1]; return isEditable(at) ? at : "place"; });
+  const [step, setStep] = useState<WizardStep>(() => { const at = wizardSteps[Math.min(Math.max(initial.currentStep, 1), wizardSteps.length) - 1]; return isAvailable(at) ? at : "tools"; });
   const [saveState, setSaveState] = useState<SaveState>("saved"), [error, setError] = useState(""), [attempted, setAttempted] = useState<Partial<Record<EditableStep, boolean>>>({});
-  const [discarding, setDiscarding] = useState(false), [confirmLeave, setConfirmLeave] = useState(false);
+  const [serverIssues, setServerIssues] = useState<Issue[]>([]), [finishing, setFinishing] = useState(false), [discarding, setDiscarding] = useState(false), [coverBusy, setCoverBusy] = useState(false), [confirmLeave, setConfirmLeave] = useState(false);
   const formRef = useRef(form), draftRef = useRef(draft), locked = useRef(false), chain = useRef<Promise<boolean>>(Promise.resolve(true)), timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const conflict = saveState === "conflict", disabled = !editable || conflict;
+  const conflict = saveState === "conflict", disabled = conflict;
 
   const stale = useCallback(() => { locked.current = true; setSaveState("conflict"); }, []);
   /** Save every step whose answers differ from the server's copy, one at a time so each PATCH carries the version the last one returned. */
@@ -97,7 +102,7 @@ export function CampaignWizard({ tenantId, initial, viewerId, canDiscard, ownerN
   }, [flush]);
 
   // Leaving the page saves first; only a save that cannot complete asks.
-  const { destination, setDestination, leave } = useUnsavedChangesGuard(saveState !== "saved" && saveState !== "conflict");
+  const { destination, setDestination, leave } = useUnsavedChangesGuard((saveState !== "saved" && saveState !== "conflict") || coverBusy);
   useEffect(() => {
     if (!destination) return;
     let live = true;
@@ -106,13 +111,27 @@ export function CampaignWizard({ tenantId, initial, viewerId, canDiscard, ownerN
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [destination]);
 
+  // The cover saves on its own requests and moves the draft's version, so the next autosave must carry the new one.
+  const cover = useEventCoverUrl(endpoint, draft.coverFileId);
+  const coverChanged = ({ coverFileId, version }: CoverChange) => { const next = { ...draftRef.current, coverFileId, version }; draftRef.current = next; setDraft(next); };
+  // Invitations are their own requests and do not move the draft's version; a person accepting elsewhere shows up when the page is visible again.
+  const setInvitations = useCallback((invitations: InvitationView[]) => { const next = { ...draftRef.current, invitations }; draftRef.current = next; setDraft(next); }, []);
+  useEffect(() => {
+    const refresh = async () => {
+      if (document.visibilityState !== "visible") return;
+      const result = await request<DraftView>(endpoint, { method: "GET" });
+      if (result.ok) { const next = { ...draftRef.current, invitations: result.data.invitations, assignments: result.data.assignments }; draftRef.current = next; setDraft(next); }
+    };
+    document.addEventListener("visibilitychange", refresh);
+    return () => document.removeEventListener("visibilitychange", refresh);
+  }, [endpoint, request]);
   const issues = useMemo(() => issuesOf(form, draft), [form, draft]);
   const reached = Math.max(draft.currentStep, wizardSteps.indexOf(step) + 1);
   const statuses = stepStatuses(issues, reached);
   const payload = isEditable(step) ? stepPayload(step, form) : null;
   const problems = payload && !payload.ok && attempted[step as EditableStep] ? payload.problems : {};
-  const shellSteps = wizardSteps.map((id) => ({ id, label: t(`steps.${id}`), done: statuses[id] === "done", attention: statuses[id] === "attention", disabled: !isEditable(id), badge: isEditable(id) ? undefined : t("comingSoon") }));
-  const layoutSteps = shellSteps.map((entry) => ({ ...entry, description: isEditable(entry.id) ? t(`questions.${entry.id}`) : undefined, icon: <AccentIcon icon={stepIcons[entry.id]} /> }));
+  const shellSteps = wizardSteps.map((id) => ({ id, label: t(`steps.${id}`), done: statuses[id] === "done", attention: statuses[id] === "attention", disabled: !isAvailable(id), badge: isAvailable(id) ? undefined : t("comingSoon") }));
+  const layoutSteps = shellSteps.map((entry) => ({ ...entry, description: isAvailable(entry.id) ? t(`questions.${entry.id}` as "questions.type") : undefined, icon: <AccentIcon icon={stepIcons[entry.id]} /> }));
   const title = form.basics.name.trim() || t("untitled");
 
   async function validate(id: string) {
@@ -123,16 +142,37 @@ export function CampaignWizard({ tenantId, initial, viewerId, canDiscard, ownerN
     if (isEditable(current) && !stepPayload(current, formRef.current).ok) return false;
     return flush();
   }
+  /** Finish: save, then ask the server to create the campaign once. A second press, a retry or another tab ends at the same campaign. */
+  async function finish() {
+    setError(""); setServerIssues([]);
+    if (disabled || !await flush()) return;
+    if (issuesOf(formRef.current, draftRef.current).length) return;
+    setFinishing(true);
+    const result = await request<{ campaignId: string }>(`${endpoint}/finish`, { method: "POST", body: { version: draftRef.current.version } });
+    if (result.ok) { locked.current = true; router.push(`/workspaces/${tenantId}/campaigns/${result.data.campaignId}`); return; }
+    setFinishing(false);
+    if (result.status === 409) { stale(); return; }
+    if (result.status === 400 && typeof result.details?.issues === "string") {
+      setServerIssues(result.details.issues.split(",").map((entry) => { const [step, code] = entry.split(":"); return { step, code } as Issue; })); return;
+    }
+    setError(result.error);
+  }
   async function discard() {
     const result = await request(`${endpoint}/discard`, { method: "POST", body: { version: draftRef.current.version } });
     if (!result.ok) { if (result.status !== 409) return result.error; stale(); setDiscarding(false); return; }
     locked.current = true; location.assign(listHref);
   }
 
-  const body = isEditable(step) ? {
+  const body = step === "review" ? <ReviewStep form={form} draft={draft} people={people} issues={issues} serverIssues={serverIssues} onEdit={(id) => setStep(id)} /> : isEditable(step) ? {
     type: <TypeStep form={form} set={set} disabled={disabled} problems={problems} />,
-    basics: <BasicsStep form={form} set={set} disabled={disabled} problems={problems} />,
+    basics: <BasicsStep form={form} set={set} disabled={disabled} problems={problems} cover={
+      <EventCoverPicker endpoint={endpoint} saved coverFileId={draft.coverFileId} version={draft.version} url={cover.url} onUrlFailed={cover.failed} onChange={coverChanged}
+        onBusyChange={setCoverBusy} disabled={disabled || saveState === "saving" || saveState === "dirty"} namespace="CampaignWizard.cover" />} />,
     place: <PlaceStep form={form} set={set} disabled={disabled} problems={problems} />,
+    leaders: <TeamsStep form={form} set={set} disabled={disabled} draft={draft} people={people} endpoint={endpoint} saveNow={flush} onInvitations={setInvitations} />,
+    tools: <ToolsStep form={form} set={set} disabled={disabled} type={form.type} />,
+    budget: <BudgetStep form={form} set={set} disabled={disabled} problems={problems} onEdit={(id) => setStep(id)} />,
+    connect: <ConnectStep form={form} set={set} disabled={disabled} onEdit={(id) => setStep(id)} />,
   }[step] : null;
   const breadcrumb = <Breadcrumb><BreadcrumbList><BreadcrumbItem><BreadcrumbLink asChild><Link href={listHref}>{t("draftBack")}</Link></BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator />
     <BreadcrumbItem><BreadcrumbPage>{title}</BreadcrumbPage></BreadcrumbItem></BreadcrumbList></Breadcrumb>;
@@ -141,15 +181,14 @@ export function CampaignWizard({ tenantId, initial, viewerId, canDiscard, ownerN
     trigger={<Button variant="outline" className="min-h-11">{t("discard")}</Button>} onConfirm={discard} />;
 
   // The palette's primary accent (Harvest: Desert Sun gold) carries the wizard's highlights: the step chips, the accent line on the step card and the phone progress bar.
-  return <div className="contents" data-campaign-accent="primary" style={accentVars("primary")}><EditorShell breadcrumb={breadcrumb} title={title} status={<><Badge variant="secondary">{t("status.draft")}</Badge>{editable && <SaveStatus state={saveState} />}</>} actions={actions}
+  return <div className="contents" data-campaign-accent="primary" style={accentVars("primary")}><EditorShell breadcrumb={breadcrumb} title={title} status={<><Badge variant="secondary">{t("status.draft")}</Badge><SaveStatus state={saveState} /></>} actions={actions}
     steps={shellSteps} current={step} onStep={(id) => setStep(id as WizardStep)} stepsLabel={t("stepsLabel")} previewLabel={t("stepsLabel")} sidebar={sidebar}>
-    {!editable && <Alert><AlertDescription>{ownerName ? t("readOnly", { name: ownerName }) : t("readOnlyUnknown")}</AlertDescription></Alert>}
     {conflict && <Alert variant="destructive" role="alert"><AlertTitle>{t("conflictTitle")}</AlertTitle>
       <AlertDescription className="flex flex-wrap items-center gap-3">{t("conflictBody")}<Button variant="outline" className="min-h-11" onClick={() => location.reload()}>{t("reload")}</Button></AlertDescription></Alert>}
     {error && !conflict && <Alert variant="destructive" role="alert"><AlertDescription className="flex flex-wrap items-center gap-3">{error}
       {saveState === "error" && <Button variant="outline" className="min-h-11" onClick={() => void flush()}>{t("retry")}</Button>}</AlertDescription></Alert>}
     <div onBlurCapture={() => { if (isEditable(step)) setAttempted((state) => (state[step] ? state : { ...state, [step]: true })); }}>
-      <WizardLayout steps={layoutSteps} current={step} onStepChange={(id) => setStep(id as WizardStep)} stepsLabel={t("stepsLabel")} stepper={false} focusOnStepChange={hosted} validate={validate}>
+      <WizardLayout steps={layoutSteps} current={step} onStepChange={(id) => setStep(id as WizardStep)} stepsLabel={t("stepsLabel")} stepper={false} focusOnStepChange={hosted} validate={validate} onFinish={step === "review" ? finish : undefined} busy={finishing} finishLabel={t("review.finish")}>
         {body}
       </WizardLayout>
     </div>

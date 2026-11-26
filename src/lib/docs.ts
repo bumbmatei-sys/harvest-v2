@@ -173,9 +173,11 @@ export const shareRoles: readonly ShareRole[] = ["view", "comment", "edit"];
 const shareRank = (role: string | null | undefined) => role === "edit" ? 3 : role === "comment" ? 2 : role === "view" ? 1 : 0;
 export type DocAccessInput = { role: string; isOwner: boolean; visibility: string; ministryAccess: string; share: string | null };
 export function docRank(i: DocAccessInput): 0 | 1 | 2 | 3 | 4 {
+  // Same as docs_rank in the database. A guest (and a collaborator without an Office grant, who maps to guest) reaches a doc only through a share, and only to view.
+  if (i.role === "guest" || i.role === "campaign_guest") return shareRank(i.share) >= 1 ? 1 : 0;
   if (!["owner", "admin", "member", "viewer"].includes(i.role)) return 0;
   if (i.role === "owner" || i.role === "admin") return 4;
-  if (i.isOwner && i.role !== "viewer") return 4;
+  if (i.isOwner && i.role === "member") return 4;
   const granted = Math.max(shareRank(i.share), i.visibility === "ministry" ? shareRank(i.ministryAccess) : 0);
   return Math.min(granted, i.role === "viewer" ? 2 : 3) as 0 | 1 | 2 | 3;
 }

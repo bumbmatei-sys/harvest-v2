@@ -5,7 +5,7 @@ import { testDatabase, migrationCount } from "../database";
 import * as schema from "../../src/db/schema";
 import type { Database } from "../../src/db/client";
 import { createLegacyWorkspace } from "../helpers/legacy-workspace";
-import { createCampaign } from "../../src/server/campaigns";
+import { createLegacyCampaign } from "../helpers/legacy-campaign";
 import { createConnectLink, transitionConnectLink } from "../../src/server/connect-links";
 import { publishIntakeForm, readIntakeManifest, submitIntake } from "../../src/server/connect-intake";
 import { consumeInvitation, dispatchInvitation, prepareInvitation } from "../../src/server/connect-invitations";
@@ -23,7 +23,7 @@ async function seed(db: Database) {
   const owner = `hc14-${randomUUID()}`, guest = `guest-${randomUUID()}`, email = `${guest}@example.test`;
   await db.insert(schema.users).values([{ id: owner, name: "Synthetic owner", email: `${owner}@example.test`, emailVerified: true }, { id: guest, name: "Synthetic guest", email, emailVerified: true }]);
   const tenant = (await createLegacyWorkspace(db, owner, "Synthetic HC14")).tenantId;
-  const campaign = (await createCampaign(db, owner, tenant, { name: "Synthetic campaign", type: "conference" }, randomUUID())).id;
+  const campaign = (await createLegacyCampaign(db, owner, tenant, { name: "Synthetic campaign", type: "conference" }, randomUUID())).id;
   const form = await publishIntakeForm(db, owner, tenant, campaign, { name: "Synthetic form", notice: "Synthetic notice", retentionDays: 7,
     purposes: ["account_communications", "outreach_follow_up"], definition: { kind: "connect-intake-v3", syntheticOnly: true, preferredName: false, followUpChannel: "email" } });
   const link = await createConnectLink(db, owner, tenant, campaign, { formVersionId: form.id });
@@ -66,7 +66,9 @@ it("upgrades populated 0050 with a restricted owner, reconciles withdrawn cases 
     expect((await f.admin.query("select count(*)::int as n from drizzle.__drizzle_migrations")).rows[0].n).toBe(migrationCount);
     expect((await f.admin.query("select state,assignee_id,version from followup_cases where id=$1", [old!.caseId])).rows).toEqual([{ state: "withdrawn", assignee_id: null, version: 4 }]);
     expect((await f.admin.query("select actor_id,metadata from audit_logs where action='followup.case.withdraw' and target_id=$1", [old!.caseId])).rows).toEqual([{ actor_id: null, metadata: { from: "assigned", to: "withdrawn", previousAssignee: old!.owner } }]);
-    expect((await f.admin.query("select qual,roles,cmd from pg_policies where tablename='followup_cases' and policyname='followup_cases_read'")).rows).toEqual(readPolicy);
+    // Migration 0113 wraps the role in public.access_role (per-feature access); the policy is otherwise unchanged.
+    const unwrap = (rows: { qual: string }[]) => rows.map((row) => ({ ...row, qual: row.qual.replace(/(?:public\.)?access_role\((\w+)\.tenant_id, \1\.user_id, 'connect'::text, (\w+\.role_id)\)/g, "$2") }));
+    expect(unwrap((await f.admin.query("select qual,roles,cmd from pg_policies where tablename='followup_cases' and policyname='followup_cases_read'")).rows)).toEqual(unwrap(readPolicy as { qual: string }[]));
     expect((await f.admin.query("select policyname from pg_policies where policyname='hc14_backfill_scan'")).rows).toEqual([]);
   } finally { await f.close(); vi.unstubAllEnvs(); }
 });

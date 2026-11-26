@@ -268,6 +268,48 @@ it("stops with a reason when an image is no longer ready, and records a lost att
   expect(submit.mock.calls.map(([m]) => m.subject)).toEqual(["Two"]);
 });
 
+it("records an exception thrown by the provider as unknown, not failed, and never sends that step again", async () => {
+  const list = await makeList();
+  const made = await activate((await create({ type: "list", listId: list }, [emailStep("Only"), emailStep("After")])).id);
+  const person = await subscribe(list);
+  const [row] = await runs(made.id);
+  expect(row.contact_id).toBe(person.contactId);
+  const provider = new FakeNewsletterProvider(), submit = vi.spyOn(provider, "submit").mockRejectedValueOnce(new Error("socket hang up"));
+  expect(await tick(provider)).toMatchObject({ claimed: 1, sent: 0, failed: 1 });
+  expect((await outcomes(row.id)).filter((o) => o.startsWith("email"))).toEqual(["email:unknown"]);
+  // The run moved on; the unknown step is not retried.
+  expect(submit).toHaveBeenCalledTimes(1);
+  await due(made.id);
+  await tick(provider);
+  expect(submit.mock.calls.map(([m]) => m.subject)).toEqual(["Only", "After"]);
+});
+
+it("stops only the run with a malformed wait step and carries on with the rest of the batch", async () => {
+  const list = await makeList();
+  const bad = await create({ type: "list", listId: list }, [waitStep(), emailStep("Never"), endStep()]);
+  // Written behind the application's back (a wait whose amount cannot be read), then activated.
+  await fixture.admin.query("update newsletter_automations set steps=jsonb_set(steps,'{0,amount}','\"lots\"'), state='active' where id=$1", [bad.id]);
+  // A wait with no amount at all raises explicitly instead of computing NULL seconds.
+  const missing = await create({ type: "list", listId: list }, [waitStep(), emailStep("Never"), endStep()]);
+  await fixture.admin.query("update newsletter_automations set steps=steps #- '{0,amount}', state='active' where id=$1", [missing.id]);
+  // A wait with no unit must not fall through to days.
+  const noUnit = await create({ type: "list", listId: list }, [waitStep(), emailStep("Never"), endStep()]);
+  await fixture.admin.query("update newsletter_automations set steps=steps #- '{0,unit}', state='active' where id=$1", [noUnit.id]);
+  const good = await activate((await create({ type: "list", listId: list }, [emailStep("Fine"), endStep()])).id);
+  const person = await subscribe(list);
+  const provider = new FakeNewsletterProvider(), submit = vi.spyOn(provider, "submit");
+  expect(await tick(provider)).toMatchObject({ claimed: 1, sent: 1 });
+  const [noUnitRun] = await runs(noUnit.id);
+  expect(noUnitRun).toMatchObject({ state: "stopped", stop_reason: "invalid_step" });
+  const [missingRun] = await runs(missing.id);
+  expect(missingRun).toMatchObject({ state: "stopped", stop_reason: "invalid_step" });
+  const [badRun] = await runs(bad.id), [goodRun] = await runs(good.id);
+  expect(badRun).toMatchObject({ contact_id: person.contactId, state: "stopped", stop_reason: "invalid_step" });
+  expect(await outcomes(badRun.id)).toEqual(["enter:entered", "stopped:stopped:invalid_step"]);
+  expect(submit.mock.calls.map(([m]) => m.subject)).toEqual(["Fine"]);
+  expect(await outcomes(goodRun.id)).toContain("email:sent");
+});
+
 it("erases a person's runs and log with them, and a merged-away person's too, while others keep theirs", async () => {
   const list = await makeList(), made = await activate((await create({ type: "list", listId: list })).id);
   const keep = await subscribe(list), gone = await subscribe(list), merged = await subscribe(list);

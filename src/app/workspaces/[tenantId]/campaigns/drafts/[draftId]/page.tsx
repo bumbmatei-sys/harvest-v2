@@ -34,9 +34,8 @@ export default async function CampaignDraftPage({ params }: { params: Promise<{ 
       <EmptyTitle><h1>{t(draft.status === "finished" ? "closed.finished" : "closed.discarded")}</h1></EmptyTitle></EmptyHeader>
       <EmptyContent><Button asChild className="min-h-11"><Link href={draft.status === "finished" && draft.campaignId ? `${root}/${draft.campaignId}` : `${root}/drafts`}>{draft.status === "finished" ? t("openCampaign") : t("draftBack")}</Link></Button></EmptyContent></Empty>;
   }
-  const members = (await listWizardMembers(db, session.user.id, tenantId).catch(denied)) ?? [];
-  const manager = workspace.role === "owner" || workspace.role === "admin", mine = draft.createdBy === session.user.id;
-  const ownerName = mine ? (members.find((member) => member.id === session.user.id)?.name ?? session.user.name ?? "") : (members.find((member) => member.id === draft.createdBy)?.name ?? "");
-  return <CampaignWizard tenantId={tenantId} viewerId={session.user.id} ownerName={ownerName} canDiscard={mine || manager} listHref={`${root}/drafts`}
+  const people = (await listWizardMembers(db, session.user.id, tenantId).catch(denied)) ?? [];
+  const manager = workspace.role === "owner" || workspace.role === "admin";
+  return <CampaignWizard tenantId={tenantId} canDiscard={draft.createdBy === session.user.id || manager} listHref={`${root}/drafts`} people={people}
     initial={JSON.parse(JSON.stringify(draft)) as DraftView} />;
 }

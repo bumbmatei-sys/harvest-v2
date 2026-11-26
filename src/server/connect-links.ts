@@ -87,6 +87,18 @@ export async function createConnectLink(db: Database, userId: string, workspace:
   });
 }
 
+/**
+ * An unpublished, resource-only link (no form version, so it can never accept a response) for a campaign the campaign wizard has just created, when its
+ * Evangelistic Response Form option is on. It is the same record the Connect links screen creates by hand: it is a draft, has no public title, and
+ * nothing is published or sent until an owner or admin publishes it there.
+ */
+export async function insertWizardDraftLink(tx: Transaction, userId: string, tenantId: string, campaignId: string) {
+  const [created] = await tx.insert(campaignResponseLinks).values({ tenantId, campaignId, createdBy: userId, label: message("Connect.wizardLinkLabel"),
+    publicCode: "0".repeat(32), shortCode: "0".repeat(12) }).returning({ id: campaignResponseLinks.id });
+  await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "connect.link.create", targetId: created.id, metadata: { source: "campaign_wizard" } });
+  return created.id;
+}
+
 const refusals: Partial<Record<LinkOutcome, { status: 404 | 409; key: MessageKey }>> = {
   not_found: { status: 404, key: "Connect.linkNotFound" },
   stale: { status: 409, key: "Connect.outcomeStale" },

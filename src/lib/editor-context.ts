@@ -3,7 +3,7 @@
 
 export type EditorStepState = "done" | "attention" | "todo" | "disabled";
 export type EditorStatusKind = "draft" | "live" | "other";
-export type EditorStepData = { id: string; label: string; state: EditorStepState; badge?: string };
+export type EditorStepData = { id: string; label: string; state: EditorStepState; badge?: string; /** Heading above the first step of each group. */ group?: string };
 /** Everything a page registers except its step handler. Plain data only (no functions, nodes or secrets), so it can be compared by value. */
 export type EditorContextData = {
   title: string; typeLabel?: string; status: { kind: EditorStatusKind; label: string };
@@ -31,3 +31,18 @@ export function stepPosition(steps: readonly EditorStepData[], current: string) 
 }
 /** The registered context is compared and copied by this key; a non-serialisable value would not survive it. */
 export const editorContextKey = (data: EditorContextData) => JSON.stringify(data);
+
+/** How a step's marker is drawn: done is a green check, attention an alert mark, the current step stays the filled primary circle, the rest a plain numbered circle. */
+export type StepMarkKind = "done" | "attention" | "current" | "todo";
+export function stepMarkKind(step: { state: EditorStepState; current: boolean }): StepMarkKind {
+  if (step.state === "done") return "done";
+  if (step.state === "attention") return "attention";
+  return step.current && step.state !== "disabled" ? "current" : "todo";
+}
+/** Marker classes by kind. Done uses the `--success` token (tuned for AA on the sidebar and card backgrounds in both colour schemes). */
+export const stepMarkClass: Record<StepMarkKind, string> = {
+  done: "border-step-done bg-step-done/10 text-step-done",
+  attention: "border-destructive/30 bg-destructive/10 text-destructive",
+  current: "border-primary bg-primary text-primary-foreground",
+  todo: "border-border bg-background text-muted-foreground",
+};

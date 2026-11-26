@@ -20,7 +20,7 @@ import { socialPlatforms, platformCapabilities, type SocialPlatform } from "@/li
 import { defineStatusTones } from "@/lib/status-tone";
 import { notify } from "@/lib/toast";
 
-const healthTone = defineStatusTones({ healthy: "success", degraded: "warning", failing: "danger" });
+const healthTone = defineStatusTones({ healthy: "success", degraded: "danger", failing: "danger" });
 type Level = "supported" | "conditional" | "unavailable";
 const levelOf = (value: string): Level => value === "supported" || value === "conditional" ? value : "unavailable";
 const abilities = (caps: Capabilities): { key: string; level: Level }[] => [
@@ -63,7 +63,7 @@ export function AccountsBoard({ tenantId, testConnect, testCredential, embedded 
     {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
     {data.connections.length === 0 ? <EmptyState icon={ShieldAlert} title={t("empty")} description={testConnect ? undefined : t("emptyNoConnect")} solid />
       : <ul className="m-0 grid list-none gap-3 p-0 lg:grid-cols-2" data-testid="accounts-list">
-        {data.connections.map((connection) => <li key={connection.id} className="space-y-3 rounded-xl border bg-card p-4" data-testid="account-card" data-platform={connection.platform}>
+        {data.connections.map((connection) => <li key={connection.id} className={`space-y-3 rounded-xl border p-4 ${connection.health !== "healthy" || connection.availability !== "available" ? "border-destructive/30 bg-destructive/5" : "bg-card"}`} data-testid="account-card" data-platform={connection.platform}>
           <div className="flex flex-wrap items-center gap-3">
             <RingMark platform={connection.platform} active={false} />
             <div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold">{platformLabels[connection.platform]}</p><p className="truncate text-xs text-muted-foreground">{connection.displayName}</p></div>

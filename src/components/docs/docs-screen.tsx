@@ -65,7 +65,7 @@ function CrumbDrop({ id, children }: { id: string; children: React.ReactNode }) 
 export function DocsScreen({ tenantId, list, folderId, q, status, sort, favorites }: { tenantId: string; list: DocsList; folderId: string | null; q: string; status: Status; sort: "updated" | "title"; favorites: boolean }) {
   const t = useTranslations("Docs"), format = useFormatter(), router = useRouter(), request = useRequest();
   const [search, setSearch] = useState(q), [dialog, setDialog] = useState<DialogState>(null), [error, setError] = useState(""), [dragging, setDragging] = useState<DocRow | null>(null);
-  const canWrite = list.role !== "viewer", manager = list.role === "owner" || list.role === "admin";
+  const canWrite = list.role === "owner" || list.role === "admin" || list.role === "member", manager = list.role === "owner" || list.role === "admin";
   const api = `/api/workspaces/${tenantId}/docs`;
   const view: ListView = { folder: folderId, q, status, sort, favorites };
   const go = (next: ListView, replace = false) => { const href = docsHref(tenantId, next); if (replace) router.replace(href); else router.push(href); };

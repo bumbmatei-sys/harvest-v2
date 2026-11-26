@@ -30,6 +30,8 @@ beforeAll(async () => {
 
   await fixture.admin.query(`create role ${role} nologin nosuperuser nobypassrls noinherit`);
   roleCreated = true;
+  await fixture.admin.query(`grant execute on function public.access_role(uuid,text,text,text) to ${role}`);
+  await fixture.admin.query(`grant select on public.workspace_member_access to ${role}`);
   await fixture.admin.query(`grant usage on schema public to ${role}`);
   await fixture.admin.query(`grant select, insert, update, delete on ${tables.join(", ")} to ${role}`);
   await fixture.admin.query(`grant execute on function public.connect_random_hex(integer), public.connect_short_code() to ${role}`);

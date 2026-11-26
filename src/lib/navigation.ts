@@ -1,6 +1,7 @@
 import { Zap, BadgeDollarSign, ChartColumn, BookOpen, Bot, Briefcase, Building, Calendar, CalendarCheck, CalendarClock, CalendarDays, ClipboardCheck, ClipboardList, ClipboardPen, Cloud, Compass, Contact, ContactRound, FileText, FileUp, Flag, Gift, Globe, GraduationCap, Handshake, HandCoins, HeartHandshake, Kanban, LayoutDashboard, LayoutTemplate, Link2, ListChecks, Mail, MailPlus, MessageCircleReply, MessageSquareText, MessagesSquare, Newspaper, Package, Palette, PiggyBank, Podcast, QrCode, Radio, ScanQrCode, Send, Settings, Share2, Sheet, SlidersHorizontal, Sparkles, Target, TicketPercent, UserCheck, UserCog, UserRoundCheck, Users, UsersRound, Wallet, Church, Landmark, ChartLine, ChartNoAxesCombined, Workflow, TextCursorInput, ShieldCheck, type LucideIcon } from "lucide-react";
 import type { Audience } from "./audience";
 import { can, type Permission } from "./permissions";
+import { canSeeArea, type AccessArea } from "./access-areas";
 
 /** Message keys in `ComponentsAppShell` that the sidebar and breadcrumb may show. */
 export type NavLabelKey = "communities" | "crm" | "workspace" | "settings" | "people" | "companies" | "pipelines" | "tasks" | "reports" | "imports" | "campaigns" | "followUp" | "files" | "crmFields" | "pipelineSettings" | "appearance" | "ministrySettings" | "profile"
@@ -39,6 +40,8 @@ export type NavEntry = {
   sectionMatch?: (pathname: string) => boolean;
   /** Omitted: every member sees it. The server still enforces access on every route. */
   permission?: Permission;
+  /** Per-feature access: a plain link with no capability still hides from a collaborator without this area and from a guest. */
+  area?: AccessArea;
   /** Omitted: every audience, including an unspecified one. */
   audiences?: readonly Audience[];
   audienceLabels?: Partial<Record<Audience, NavLabelKey>>;
@@ -50,7 +53,7 @@ export type NavEntry = {
    */
   exitTo?: string;
 };
-export type NavFeature = "communities" | "events" | "social" | "office" | "newsletter" | "newsletterAutomations" | "docs" | "linkInBio";
+export type NavFeature = "communities" | "catalog" | "events" | "social" | "office" | "newsletter" | "newsletterAutomations" | "docs" | "linkInBio" | "discover";
 export type NavItem = { id: string; label: NavLabelKey; icon: LucideIcon; href: string; active: boolean };
 /** A `pinned` group is rendered without a header, above the other groups (Discover). */
 export type NavGroup = { id: NavGroupId; label: NavLabelKey; icon?: LucideIcon; pinned?: boolean; items: NavItem[] };
@@ -73,9 +76,9 @@ const under = (path: string) => (pathname: string) => new RegExp(`^/workspaces/[
 
 export const navEntries: readonly NavEntry[] = [
   // Operations > People (the CRM).
-  { id: "people", group: "crm", mode: "operations", label: "people", icon: UsersRound, path: "/crm/people", match: has("/crm/people"), sectionMatch: has("/contacts") },
-  { id: "companies", group: "crm", mode: "operations", label: "companies", icon: Building, path: "/crm/companies", match: has("/crm/companies") },
-  { id: "pipelines", group: "crm", mode: "operations", label: "pipelines", icon: Kanban, path: "/crm/pipelines", match: (p) => p.includes("/crm/pipelines") || p.includes("/crm/deals") },
+  { id: "people", area: "crm", group: "crm", mode: "operations", label: "people", icon: UsersRound, path: "/crm/people", match: has("/crm/people"), sectionMatch: has("/contacts") },
+  { id: "companies", area: "crm", group: "crm", mode: "operations", label: "companies", icon: Building, path: "/crm/companies", match: has("/crm/companies") },
+  { id: "pipelines", area: "crm", group: "crm", mode: "operations", label: "pipelines", icon: Kanban, path: "/crm/pipelines", match: (p) => p.includes("/crm/pipelines") || p.includes("/crm/deals") },
   // CRM reports: read-only aggregates; owners and admins see ministry totals, members their own work, viewers never see a dead link.
   { id: "crmReports", group: "crm", mode: "operations", label: "reports", icon: ChartColumn, path: "/crm/reports", match: has("/crm/reports"), permission: "crm:reports" },
   // CRM forms builder: owners and admins build forms that save people to the CRM.
@@ -92,7 +95,7 @@ export const navEntries: readonly NavEntry[] = [
   // Office Calendar: each owner or admin's own calendar. Hidden unless the server reports the Office screens open (never in production).
   { id: "calendar", group: "office", mode: "operations", label: "calendar", icon: Calendar, path: "/calendar", match: under("/calendar"), permission: "office:calendar", feature: "office" },
   // Office Tasks (moved from CRM, 24 Nov): same route, data and permissions; the CRM person and deal pages keep their own tasks panels.
-  { id: "tasks", group: "office", legacyGroup: "crm", legacyRank: 2.5, mode: "operations", label: "tasks", icon: ListChecks, path: "/crm/tasks", match: has("/crm/tasks") },
+  { id: "tasks", area: "crm", group: "office", legacyGroup: "crm", legacyRank: 2.5, mode: "operations", label: "tasks", icon: ListChecks, path: "/crm/tasks", match: has("/crm/tasks") },
   // Office Docs: every ministry role opens the list (viewers read); hidden unless the server reports Docs enabled (never in production).
   { id: "documents", group: "office", mode: "operations", label: "documents", icon: FileText, path: "/docs", match: under("/docs"), permission: "docs:read", feature: "docs" },
   { id: "spreadsheets", group: "office", mode: "operations", status: "planned", label: "spreadsheets", icon: Sheet, path: "/sheets", match: under("/sheets") },
@@ -100,12 +103,12 @@ export const navEntries: readonly NavEntry[] = [
   { id: "churchProfile", group: "workspace", mode: "operations", status: "planned", label: "ministryPage", icon: Landmark, path: "/church-profile", match: under("/church-profile") },
   { id: "volunteers", group: "workspace", mode: "operations", status: "planned", label: "volunteers", icon: UserCheck, path: "/volunteers", match: under("/volunteers") },
   { id: "livestream", group: "workspace", mode: "operations", status: "planned", label: "livestream", icon: Radio, path: "/livestream", match: under("/livestream") },
-  { id: "campaigns", group: "workspace", mode: "operations", label: "campaigns", icon: Flag, path: "/campaigns", match: under("/campaigns") },
+  { id: "campaigns", area: "campaigns", group: "workspace", mode: "operations", label: "campaigns", icon: Flag, path: "/campaigns", match: under("/campaigns") },
   // HC-13: the follow-up queue. Owners, admins and members open it (a member sees only the cases assigned to them); viewers never see a dead link.
   { id: "followUp", group: "connect", legacyGroup: "workspace", mode: "operations", label: "followUp", icon: HeartHandshake, path: "/connect/follow-up", match: has("/connect/follow-up"), permission: "followup:work" },
   // C14: owners and admins; hidden unless the server reports Events enabled (never in production).
   { id: "events", group: "workspace", mode: "operations", label: "events", icon: CalendarCheck, path: "/events", match: under("/events"), permission: "communities:manage", feature: "events" },
-  { id: "files", group: "office", legacyGroup: "workspace", mode: "operations", label: "files", icon: Cloud, path: "/files", match: has("/files") },
+  { id: "files", area: "office", group: "office", legacyGroup: "workspace", mode: "operations", label: "files", icon: Cloud, path: "/files", match: has("/files") },
   // Operations > Giving (its own group; all planned until the giving screens exist).
   { id: "givingOverview", group: "giving", mode: "operations", status: "planned", label: "overview", icon: LayoutDashboard, path: "/giving", match: under("/giving") },
   { id: "donations", group: "giving", mode: "operations", status: "planned", label: "donations", icon: Gift, path: "/giving/donations", match: under("/giving/donations") },
@@ -115,11 +118,12 @@ export const navEntries: readonly NavEntry[] = [
   { id: "funds", group: "giving", mode: "operations", status: "planned", label: "funds", icon: Wallet, path: "/giving/funds", match: under("/giving/funds") },
   { id: "givingPage", group: "giving", mode: "operations", status: "planned", label: "givingPage", icon: BadgeDollarSign, path: "/giving/page", match: under("/giving/page") },
   // Public > Discover (pinned above the groups) and Social media. Planner opens the page whose own tabs are Compose, Calendar and Queue.
-  { id: "discover", group: "discover", mode: "public", status: "planned", label: "discover", icon: Compass, path: "/discover/manage", match: under("/discover/manage") },
+  // Owners and admins; hidden unless the server reports unified Discover open (non-production gate, never in production).
+  { id: "discover", group: "discover", mode: "public", label: "discover", icon: Compass, path: "/discover/manage", match: under("/discover/manage"), permission: "catalog:manage", feature: "discover" },
   { id: "planner", group: "publishing", mode: "public", label: "planner", icon: CalendarDays, path: "/social/planner", match: (pathname) => under("/social/planner")(pathname) || under("/social/compose")(pathname), permission: "social:schedule", feature: "social" },
   { id: "inbox", group: "publishing", mode: "public", label: "inbox", icon: MessageSquareText, path: "/social/inbox", match: under("/social/inbox"), permission: "social:inbox", feature: "social", exitTo: "planner" },
   { id: "autoDm", group: "publishing", mode: "public", label: "autoDm", icon: MessageCircleReply, path: "/social/auto-dm", match: under("/social/auto-dm"), permission: "social:auto_dm", feature: "social" },
-  { id: "ads", group: "publishing", mode: "public", status: "planned", label: "ads", icon: Target, path: "/social/ads", match: under("/social/ads") },
+  { id: "ads", group: "publishing", mode: "public", label: "ads", icon: Target, path: "/social/ads", match: under("/social/ads"), permission: "ads:manage", feature: "social" },
   { id: "socialAnalytics", group: "publishing", mode: "public", label: "socialAnalytics", icon: ChartNoAxesCombined, path: "/social/analytics", match: under("/social/analytics"), permission: "social:analytics", feature: "social" },
   // Public > Newsletter, Website.
   { id: "newsletterAnalytics", group: "newsletter", mode: "public", label: "newsletterAnalytics", icon: ChartLine, path: "/newsletter/analytics", match: under("/newsletter/analytics"), permission: "newsletter:analytics", feature: "newsletter" },
@@ -135,22 +139,23 @@ export const navEntries: readonly NavEntry[] = [
   { id: "communities", group: "community", legacyGroup: "workspace", mode: "public", label: "communities", icon: MessagesSquare, path: "/communities", match: has("/communities"), permission: "communities:read", feature: "communities" },
   { id: "live", group: "community", mode: "public", status: "planned", label: "live", icon: Podcast, path: "/live", match: under("/live") },
   // Public > Courses and products (their own group: sold or given outside a community too).
-  { id: "courses", group: "commerce", mode: "public", status: "planned", label: "courses", icon: BookOpen, path: "/courses", match: under("/courses") },
-  { id: "products", group: "commerce", mode: "public", status: "planned", label: "products", icon: Package, path: "/products", match: under("/products") },
+  // Free courses and downloads: live only where the catalogue server is (feature "catalog"; off in production with it). Every role can read the list; the server gates authoring.
+  { id: "courses", group: "commerce", mode: "public", label: "courses", icon: BookOpen, path: "/courses", match: under("/courses"), feature: "catalog" },
+  { id: "products", group: "commerce", mode: "public", label: "products", icon: Package, path: "/products", match: under("/products"), feature: "catalog" },
   { id: "coaching", group: "commerce", mode: "public", status: "planned", label: "coaching", icon: CalendarClock, path: "/coaching", match: under("/coaching") },
   { id: "coupons", group: "commerce", mode: "public", status: "planned", label: "coupons", icon: TicketPercent, path: "/coupons", match: under("/coupons") },
   { id: "assistant", group: "chat", mode: "assistant", status: "planned", label: "assistant", icon: Bot, path: "/assistant", match: under("/assistant") },
   // Settings entries are not in the sidebar: the Settings pop-up (profile menu) links to their routes, and they keep their breadcrumb and mode.
   { id: "socialAccounts", group: "settings", mode: "operations", label: "socialAccounts", icon: UserCog, path: "/social/accounts", match: under("/social/accounts"), permission: "social:connect", feature: "social" },
-  { id: "crmFields", group: "settings", mode: "operations", label: "crmFields", icon: SlidersHorizontal, path: "/crm/settings/fields", match: has("/crm/settings/fields") },
-  { id: "pipelineSettings", group: "settings", mode: "operations", label: "pipelineSettings", icon: Workflow, path: "/crm/settings/pipelines", match: has("/crm/settings/pipelines") },
-  { id: "appearance", group: "settings", mode: "operations", label: "appearance", icon: Palette, path: "/appearance", match: (p) => p.endsWith("/appearance") },
+  { id: "crmFields", area: "crm", group: "settings", mode: "operations", label: "crmFields", icon: SlidersHorizontal, path: "/crm/settings/fields", match: has("/crm/settings/fields") },
+  { id: "pipelineSettings", area: "crm", group: "settings", mode: "operations", label: "pipelineSettings", icon: Workflow, path: "/crm/settings/pipelines", match: has("/crm/settings/pipelines") },
+  { id: "appearance", area: "settings", group: "settings", mode: "operations", label: "appearance", icon: Palette, path: "/appearance", match: (p) => p.endsWith("/appearance") },
   // Every member can open it; only owners and admins can change the ministry type (enforced by the API).
-  { id: "ministrySettings", group: "settings", mode: "operations", label: "ministrySettings", icon: Settings, path: "/settings", match: (p) => p.endsWith("/settings") },
+  { id: "ministrySettings", area: "settings", group: "settings", mode: "operations", label: "ministrySettings", icon: Settings, path: "/settings", match: (p) => p.endsWith("/settings") },
 ];
 
 const visibleTo = (entry: NavEntry, role: string | undefined, audience: Audience | null | undefined, features: readonly NavFeature[]) =>
-  entry.status !== "planned" && (!entry.feature || features.includes(entry.feature)) && (!entry.permission || (role !== undefined && can(role, entry.permission))) && (!entry.audiences || (audience != null && entry.audiences.includes(audience)));
+  entry.status !== "planned" && (!entry.feature || features.includes(entry.feature)) && (!entry.permission || (role !== undefined && can(role, entry.permission))) && (!entry.area || role === undefined || canSeeArea(role, entry.area)) && (!entry.audiences || (audience != null && entry.audiences.includes(audience)));
 const labelFor = (entry: NavEntry, audience: Audience | null | undefined) => (audience && entry.audienceLabels?.[audience]) || entry.label;
 type Viewer = { tenantId: string; role?: string; audience?: Audience | null; features?: readonly NavFeature[] };
 const toItem = (entry: NavEntry, { tenantId, audience, pathname }: { tenantId: string; audience?: Audience | null; pathname: string }): NavItem => ({
@@ -199,10 +204,14 @@ export function resolveModeNavigation({ tenantId, role, audience, pathname, feat
   return { ...resolved, groups };
 }
 
-/** Breadcrumb section label key for a path, or null when no live registry entry owns it. */
-export function sectionLabel(pathname: string, audience?: Audience | null, entries: readonly NavEntry[] = navEntries): NavLabelKey | null {
+/**
+ * Breadcrumb section label key for a path, or null when no live registry entry owns it. With `access`, also null when that viewer may not see
+ * the entry, so a direct visit to a page outside the viewer's areas does not name it in the header (the page itself shows the access state).
+ */
+export function sectionLabel(pathname: string, audience?: Audience | null, entries: readonly NavEntry[] = navEntries, access?: { role?: string; features?: readonly NavFeature[] }): NavLabelKey | null {
   const entry = entries.find((item) => item.status !== "planned" && (item.match(pathname) || item.sectionMatch?.(pathname)));
-  return entry ? labelFor(entry, audience) : null;
+  if (!entry || (access && !visibleTo(entry, access.role, audience, access.features ?? []))) return null;
+  return labelFor(entry, audience);
 }
 
 /** Where a contextual sidebar's back arrow goes: the route and label key of the entry named by `exitTo`, or null when the entry has none. */

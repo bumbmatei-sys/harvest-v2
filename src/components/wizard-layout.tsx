@@ -20,10 +20,10 @@ export type WizardStep = StepperStep & { description?: string; icon?: React.Reac
  * to the heading (the editing sidebar and the phone step sheet do). Without `onFinish` the last step has no primary button.
  * A surrounding `--accent-current` (see AccentIcon's `accentVars`) draws a thin accent line along the top of the card; without it nothing is drawn.
  */
-export function WizardLayout({ steps, current, onStepChange, stepsLabel, stepper = true, focusOnStepChange = false, validate, onFinish, busy = false, error, backLabel, nextLabel, finishLabel, children }: {
+export function WizardLayout({ steps, current, onStepChange, stepsLabel, stepper = true, focusOnStepChange = false, validate, onFinish, busy = false, error, backLabel, nextLabel, finishLabel, footerStart, children }: {
   steps: readonly WizardStep[]; current: string; onStepChange: (id: string) => void; stepsLabel: string; stepper?: boolean; focusOnStepChange?: boolean;
   validate?: (stepId: string) => boolean | Promise<boolean>; onFinish?: () => void | Promise<void>; busy?: boolean; error?: string;
-  backLabel?: string; nextLabel?: string; finishLabel?: string; children: React.ReactNode;
+  backLabel?: string; nextLabel?: string; finishLabel?: string; /** Extra controls at the start of the footer, after Back (for example Cancel). */ footerStart?: React.ReactNode; children: React.ReactNode;
 }) {
   const t = useTranslations("ComponentsWizardLayout");
   const heading = useRef<HTMLHeadingElement>(null), moved = useRef(false), mounted = useRef(true);
@@ -34,7 +34,8 @@ export function WizardLayout({ steps, current, onStepChange, stepsLabel, stepper
   useEffect(() => {
     const changed = shown.current !== current;
     shown.current = current;
-    if (moved.current || (focusOnStepChange && changed)) { moved.current = false; heading.current?.focus(); }
+    // A new step starts at the top of the page (otherwise the scroll of a longer step is kept and a sticky step bar covers the header); focus moves without scrolling.
+    if (moved.current || (focusOnStepChange && changed)) { moved.current = false; if (changed) scrollToTop(heading.current); heading.current?.focus({ preventScroll: true }); }
   }, [current, focusOnStepChange]);
   const at = stepIndex(steps, current), step = steps[at];
   const previous = adjacentStep(steps, current, -1), next = adjacentStep(steps, current, 1);
@@ -77,10 +78,19 @@ export function WizardLayout({ steps, current, onStepChange, stepsLabel, stepper
         {children}
       </CardContent>
       {(previous || next || onFinish) && <CardFooter className="flex flex-wrap items-center justify-between gap-3 border-t pt-6">
-        {previous ? <Button type="button" variant="outline" size="responsive" className="aria-disabled:opacity-70" aria-disabled={working || undefined} onClick={() => void go(-1)}>{backLabel ?? t("back")}</Button> : <span />}
+        <div className="flex flex-wrap items-center gap-2">{previous ? <Button type="button" variant="outline" size="responsive" className="aria-disabled:opacity-70" aria-disabled={working || undefined} onClick={() => void go(-1)}>{backLabel ?? t("back")}</Button> : <span />}{footerStart}</div>
         {next ? <Button type="button" size="responsive" className="aria-disabled:opacity-70" aria-disabled={working || undefined} onClick={() => void go(1)}>{working ? busyLabel : (nextLabel ?? t("next"))}</Button>
           : onFinish ? <Button type="button" size="responsive" className="aria-disabled:opacity-70" aria-disabled={working || undefined} onClick={() => void finish()}>{working ? busyLabel : (finishLabel ?? t("finish"))}</Button> : null}
       </CardFooter>}
     </Card>
   </div>;
+}
+
+/** Scrolls the area that holds `node` (the app shell's content pane, or the window) back to the top. */
+export function scrollToTop(node: HTMLElement | null) {
+  for (let parent = node?.parentElement; parent; parent = parent.parentElement) {
+    const overflow = getComputedStyle(parent).overflowY;
+    if ((overflow === "auto" || overflow === "scroll") && parent.scrollHeight > parent.clientHeight) { parent.scrollTo({ top: 0 }); return; }
+  }
+  window.scrollTo({ top: 0 });
 }

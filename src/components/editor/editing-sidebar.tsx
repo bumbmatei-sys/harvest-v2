@@ -1,4 +1,5 @@
 "use client";
+import { Fragment } from "react";
 import { ExternalLink } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +31,7 @@ export function EditingSidebar({ context, id }: { context: EditorContext; id: st
     <SidebarGroup className="mt-4 px-[13px] py-0 group-data-[collapsible=icon]:mt-2 group-data-[collapsible=icon]:px-0">
       <nav aria-label={context.stepsLabel} data-editor-steps>
         <ol data-slot="sidebar-menu" data-sidebar="menu" className="flex w-full min-w-0 flex-col gap-px">
-          {steps.map((step) => <SidebarMenuItem key={step.id}>
+          {steps.map((step, index) => <Fragment key={step.id}>{step.group && step.group !== steps[index - 1]?.group && <li data-slot="step-group" className="flex items-center gap-2 px-3 pt-3 pb-1 text-xs font-medium uppercase tracking-wide text-muted-foreground first:pt-0 group-data-[collapsible=icon]:hidden"><span aria-hidden="true" className="size-1.5 rounded-full bg-chart-1" />{step.group}</li>}<SidebarMenuItem>
             <SidebarMenuButton isActive={step.current} tooltip={isMobile ? undefined : step.label} className={menuButton}
               aria-current={step.current ? "step" : undefined} aria-disabled={!step.selectable || undefined}
               onClick={() => { if (!step.selectable) return; context.onStep(step.id); if (isMobile) { setOpenMobile(false); focusStepHeadingWhenDrawerCloses(); } }}>
@@ -38,7 +39,7 @@ export function EditingSidebar({ context, id }: { context: EditorContext; id: st
               <span className="min-w-0 flex-1 truncate text-left group-data-[collapsible=icon]:sr-only">{step.label}</span>
               {step.badge && <span className="shrink-0 rounded-md bg-secondary px-2 py-0.5 text-xs font-medium text-secondary-foreground group-data-[collapsible=icon]:hidden">{step.badge}</span>}
               <StepStatusText step={step} />
-            </SidebarMenuButton></SidebarMenuItem>)}
+            </SidebarMenuButton></SidebarMenuItem></Fragment>)}
         </ol>
       </nav>
     </SidebarGroup>
