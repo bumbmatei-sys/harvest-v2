@@ -3,10 +3,10 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { NextIntlClientProvider } from "next-intl";
 import { describe, expect, it, vi } from "vitest";
 import messages from "../../messages/en.json";
-import { daysRange, dateKey, parseDate, parseEventsView, shiftDays, viewRange, weekStart, type EventItem } from "../../src/lib/event-view";
+import { daysRange, dateKey, parseDate, parseEventsView, shiftDays, viewRange, weekStart, weekTitle, type EventItem } from "../../src/lib/event-view";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: () => undefined }) }));
-const { EventsBoard, weekTitle } = await import("../../src/components/events/events-board");
+const { EventsBoard } = await import("../../src/components/events/events-board");
 const { WeekView } = await import("../../src/components/calendar/week-view");
 const { gridScrollTop, openingHour } = await import("../../src/lib/calendar-days");
 

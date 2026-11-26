@@ -125,3 +125,14 @@ export function toCalendarEvents(events: readonly EventItem[], now: number): Cal
 }
 export function eventsInMonth(events: readonly CalendarEvent[], month: Date) { return events.filter((event) => isSameMonth(event.start, month) || isSameMonth(event.end, month)); }
 export const eventDescriptionLimit = 4000;
+
+/**
+ * Title of a week ("Nov 23 – 29, 2026"). Range formatting differs between the server's and the browser's ICU (the spaces around the dash), which broke
+ * hydration, so the server and the first client render use two plain dates joined by a dash, and the browser switches to its own range format after.
+ */
+export function weekTitle(first: Date, last: Date, locale: string, hydrated: boolean) {
+  const format = new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", year: "numeric" });
+  if (hydrated) return format.formatRange(first, last);
+  const short = new Intl.DateTimeFormat(locale, { month: "short", day: "numeric" });
+  return `${first.getFullYear() === last.getFullYear() ? short.format(first) : format.format(first)} – ${format.format(last)}`;
+}
