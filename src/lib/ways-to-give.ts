@@ -31,7 +31,7 @@ export const givingPlatforms = Object.keys(givingPlatformHosts) as GivingPlatfor
 /** Kinds whose host is one ministry subdomain of a fixed domain (one DNS label, no deeper nesting). */
 const givingHostSuffix: Partial<Record<GivingKind, string>> = { planning_center: ".churchcenter.com" };
 
-/** Kinds the ministry can pick. The names are the ministry's own account types (founder request); no logo or integration comes with them. */
+/** Kinds the ministry can pick. The names are the ministry's own account types (founder request); each shows its brand mark where one is verified (src/components/giving/giving-logos.tsx), and no integration comes with them. */
 export const givingKinds = ["paypal", "wise", "venmo", "zelle", "revolut", "cash_app", "bank_transfer", ...givingPlatforms] as const;
 export type GivingKind = "paypal" | "wise" | "venmo" | "zelle" | "revolut" | "cash_app" | "bank_transfer" | GivingPlatform;
 export const givingLimits = { methods: 20, label: 60, url: 2048, handle: 64, holder: 100, note: 140, reportNote: 500 } as const;
