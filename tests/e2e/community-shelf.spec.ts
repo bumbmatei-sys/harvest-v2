@@ -14,6 +14,11 @@ const sizes = [["phone", 360, 800], ["tablet", 768, 1024], ["desktop", 1440, 100
 const lesson = { title: "Welcome", published: true, body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "You are here." }] }] } };
 const hydrated = (page: Page) => page.waitForFunction(() => { const field = document.querySelector("main button"); return !!field && Object.keys(field).some((key) => key.startsWith("__reactProps")); });
 
+/** The dev server may reload a page while it compiles a route for the first time; one retry of an aborted navigation keeps that out of the result. */
+async function visit(page: Page, url: string) {
+  try { await page.goto(url); } catch (error) { if (!String(error).includes("ERR_ABORTED")) throw error; await page.goto(url); }
+}
+
 /** Light and dark at phone, tablet and desktop: no axe violations, no sideways page scroll; screenshots at phone and desktop. */
 async function check(page: Page, name: string) {
   for (const scheme of ["light", "dark"] as const) {
@@ -119,13 +124,13 @@ test("owner shows a course and a product; a member enrols from the Classroom and
   await hydrated(member);
   await member.getByRole("button", { name: "Enrol for free: Foundations" }).click();
   await member.waitForURL(`**/courses/${courseSlug}/learn`);
-  await member.goto(`/communities/${slug}/classroom`);
+  await visit(member, `/communities/${slug}/classroom`);
   await expect(member.getByRole("link", { name: "Continue Foundations" })).toHaveAttribute("href", `/courses/${courseSlug}/learn`);
   await expect(cards.first().getByText("Enrolled", { exact: true })).toBeVisible();
 
   // Products shows the free download; getting it keeps the member on the tab and the card offers Open.
   await expect(rail.getByRole("link", { name: "Products" })).toHaveAttribute("href", `/communities/${slug}/products`);
-  await member.goto(`/communities/${slug}/products`);
+  await visit(member, `/communities/${slug}/products`);
   await expect(member.getByRole("list", { name: "Products" }).getByRole("listitem")).toHaveCount(1);
   await hydrated(member);
   await member.getByRole("button", { name: "Get for free: Prayer guide" }).click();
@@ -135,7 +140,7 @@ test("owner shows a course and a product; a member enrols from the Classroom and
 
   // Unlinking removes the item from the tab; the member's own enrolment still opens the course.
   expect((await owner.request.delete(`${api}/communities/${community.id}/catalog/${course.id}`, { headers: { origin } })).status()).toBe(200);
-  await member.goto(`/communities/${slug}/classroom`);
+  await visit(member, `/communities/${slug}/classroom`);
   await expect(cards).toHaveCount(1);
   await expect(cards.first()).toContainText("Leaders track");
   expect((await member.request.get(`/api/catalog/${courseSlug}/content`)).status()).toBe(200);
