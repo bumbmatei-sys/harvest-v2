@@ -173,6 +173,8 @@ REVOKE ALL ON FUNCTION public.give_page_scoped(text) FROM PUBLIC, harvest_app;--
 CREATE FUNCTION public.give_released_raised(p_tenant uuid, p_fundraising uuid) RETURNS text LANGUAGE plpgsql STABLE SET search_path = pg_catalog, pg_temp AS $$
 DECLARE raised bigint; gifts integer; supporters integer;
 BEGIN
+  -- Through the app (the owner preview) only owners and admins get a figure; anyone else would see '0' because row security hides the gifts.
+  IF current_user = 'harvest_app' AND NOT public.giving_can(p_tenant, 'owner_admin') THEN RETURN NULL; END IF;
   SELECT coalesce(sum(l.amount_cents), 0), count(*)::integer, count(DISTINCT l.who)::integer INTO raised, gifts, supporters FROM (
     SELECT e.amount_cents, coalesce(k.contact_id, p.contact_id) AS who FROM public.giving_ledger_entries e
       LEFT JOIN public.giving_contact_links k ON k.tenant_id = e.tenant_id AND k.entry_id = e.id
@@ -241,3 +243,42 @@ BEGIN
 END $$;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.give_public_page(text), public.give_public_giving(text), public.give_public_cover(text), public.give_report_giving(text, text, text, text) FROM PUBLIC;--> statement-breakpoint
 GRANT EXECUTE ON FUNCTION public.give_public_page(text), public.give_public_giving(text), public.give_public_cover(text), public.give_report_giving(text, text, text, text) TO harvest_app;
+--> statement-breakpoint
+-- Entry resets (review of d3fb918): the give_public_definer policies are keyed on app.give_public_*, so every owner definer that clears app.* flags on
+-- entry now clears these three as well. Bodies are those of 0119 with the three flags added.
+CREATE OR REPLACE FUNCTION public.bio_scope_clear(p_keep_user boolean) RETURNS jsonb
+LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
+DECLARE prior jsonb := '{}'::jsonb; key text;
+BEGIN
+  FOREACH key IN ARRAY ARRAY['app.bio_handle','app.bio_tenant','app.tenant_id','app.community_definer_tenant','app.crm_forms_slug','app.user_id',
+      'app.giving_definer','app.giving_definer_tenant','app.giving_public_tenant','app.give_public_slug','app.give_public_tenant','app.give_public_fundraising'] LOOP
+    prior := prior || jsonb_build_object(key, coalesce(current_setting(key, true), ''));
+    IF key <> 'app.user_id' OR NOT p_keep_user THEN PERFORM set_config(key, '', true); END IF;
+  END LOOP;
+  RETURN prior;
+END $$;--> statement-breakpoint
+CREATE OR REPLACE FUNCTION public.community_definer_reset() RETURNS void LANGUAGE sql SET search_path = pg_catalog, pg_temp AS $$
+  SELECT set_config(name, '', true) FROM unnest(ARRAY['app.community_resolve_slug','app.community_definer_tenant','app.community_resolve_ids',
+    'app.community_resolve_invite','app.community_resolve_email','app.discover_read','app.community_resolve_user','app.community_purge',
+    'app.community_email_worker','app.giving_definer','app.giving_definer_tenant','app.giving_public_tenant',
+    'app.give_public_slug','app.give_public_tenant','app.give_public_fundraising']) AS name;
+$$;--> statement-breakpoint
+-- campaign_budget_totals (0120) blanked app.* by listing pg_settings, which does not list custom settings (confirmed on PostgreSQL 18.6), so it cleared
+-- nothing. Same body with an explicit list: every app.* flag an owner-role policy reads (app.tenant_id and app.user_id stay, as before).
+CREATE OR REPLACE FUNCTION public.campaign_budget_totals(p_tenant uuid, p_campaign uuid) RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE prior jsonb := '{}'::jsonb; flag text; entry record; result jsonb;
+BEGIN
+  FOREACH flag IN ARRAY ARRAY['app.campaign_budget_tenant','app.give_public_slug','app.give_public_tenant','app.give_public_fundraising','app.bio_handle','app.bio_tenant',
+      'app.community_definer_tenant','app.community_resolve_slug','app.community_resolve_ids','app.community_resolve_invite','app.community_resolve_email',
+      'app.discover_read','app.community_resolve_user','app.community_purge','app.community_email_worker','app.crm_forms_slug','app.giving_definer',
+      'app.giving_definer_tenant','app.giving_public_tenant','app.events_tenant'] LOOP
+    prior := prior || pg_catalog.jsonb_build_object(flag, coalesce(pg_catalog.current_setting(flag, true), ''));
+    PERFORM pg_catalog.set_config(flag, '', true);
+  END LOOP;
+  PERFORM pg_catalog.set_config('app.campaign_budget_tenant', coalesce(p_tenant::text, ''), true);
+  result := public.campaign_budget_totals_scoped(p_tenant, p_campaign);
+  PERFORM pg_catalog.set_config('app.campaign_budget_tenant', '', true);
+  FOR entry IN SELECT key, value FROM pg_catalog.jsonb_each_text(prior) LOOP PERFORM pg_catalog.set_config(entry.key, entry.value, true); END LOOP;
+  RETURN result;
+END $$;

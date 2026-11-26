@@ -36,7 +36,12 @@ fundraising and Ways to give gates: never when `NODE_ENV`, `VERCEL_ENV` or `HARV
     `app.give_public_fundraising`). The entry definers clear the app.* settings any owner-role policy reads on entry and restore them on exit, so nothing is
     left behind and a value the app set beforehand never reaches them (tested).
   - `give_released_raised(tenant, fundraiser)` (SECURITY INVOKER, granted to `harvest_app`): the released raised figure; the public definer calls it under
-    its flags, the owner preview under ordinary row security, so the two cannot drift.
+    its flags, the owner preview under ordinary row security, so the two cannot drift. Called through the app by anyone but an owner/admin it returns NULL
+    (row security would otherwise make it answer '0').
+  - Entry resets (review of d3fb918): `bio_scope_clear` and `community_definer_reset` (0119 bodies) now also blank `app.give_public_slug`,
+    `app.give_public_tenant` and `app.give_public_fundraising`, so a flag the app pre-sets cannot open the give policies inside a link-in-bio or community
+    definer. `campaign_budget_totals` (0120) is redefined with the same body but an explicit flag list: its `pg_settings` enumeration cleared nothing,
+    because PostgreSQL 18.6 does not list custom `app.*` settings there (confirmed by the reviewer).
 - **Raised** = the sum of live gifts the ministry recorded as confirmed (a reversed gift is not live; its replacement is) = the ledger net of reversals (tested
   against the staff total). Pledges never count.
 - **Small-group suppression (spec section "public suppressed progress")**: the raised figure (and so the percentage) is released only when no gift is live
@@ -87,14 +92,14 @@ fundraising and Ways to give gates: never when `NODE_ENV`, `VERCEL_ENV` or `HARV
 - No change to the outreach campaign page or the Fundraising list (the address shows on the fundraiser screen only).
 - Production stays off; nothing activated.
 
-## Founder decisions needed
-1. **Small-total suppression.** Implemented: no raised figure or percentage until at least five distinct identified supporters gave; gifts without a linked
-   CRM contact never count toward the five, so a ministry that records many anonymous gifts shows "Progress shows once more gifts are recorded" until five
-   linked supporters exist. Alternatives: count unknown gifts as one supporter each, or show coarse rounded totals. A visitor who watches the page over time
-   can still infer the size of new gifts once the total is released (the spec leaves update cadence to the privacy review).
-2. **Slug changes after publishing.** Implemented: fixed once the fundraiser leaves draft (as for communities). A later "rename with redirect" would need its own
-   decision and a redirect table.
-3. **Zero before the first gift.** Implemented: shows `0` raised (reveals only that nothing is recorded yet). Alternative: hide progress until the cohort exists.
-4. **Indexing.** Implemented: `noindex` for every give page; listing in search engines or Discover would be a separate choice.
-5. **Report scope.** The Report button posts to `/give/<slug>/report` for any public give page (also when no giving method is enabled the button is not shown,
-   because `WaysToGive` renders nothing without methods).
+## Founder decisions (26 Nov 2026)
+1. **Small-total suppression: kept as built.** No raised figure or percentage until at least five distinct identified supporters gave; gifts without a linked
+   CRM contact never count toward the five.
+2. **Slug: frozen once the fundraiser is open** (as built). A later rename would need its own decision and a redirect table.
+3. **Zero before the first gift: shown** (as built).
+4. **Indexing: every give page stays `noindex`** for now.
+
+## Open for the privacy review
+- **Running-total inference.** A visitor who watches a released total over time can estimate the size of each new gift. Update cadence, rounding or delayed
+  release are left to the privacy review (spec, public suppressed progress); nothing here addresses it.
+- The Report button is part of the Ways to give block, so it is not shown when the ministry has no enabled giving method.
