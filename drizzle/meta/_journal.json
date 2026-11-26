@@ -827,6 +827,13 @@
       "when": 1795711032711,
       "tag": "0119_ways_to_give",
       "breakpoints": true
+    },
+    {
+      "idx": 120,
+      "version": "7",
+      "when": 1795715144118,
+      "tag": "0120_campaign_budget",
+      "breakpoints": true
     }
   ]
 }

@@ -627,12 +627,16 @@ test("review and finish: a summary, blocked reasons with links, one campaign how
     await expect(page.getByRole("heading", { name: "Teams", level: 3 })).toBeVisible();
     await expect(page.getByText("Leader: ").first()).toBeVisible();
     await expect(page.getByRole("heading", { name: "Tools", level: 3 })).toBeVisible();
-    // Boards make tasks and progress real; campaign events (Events on) make events real: only funding stays "Not available yet".
+    // Boards make tasks and progress real; campaign events (Events on) make events real; the budget reads "No budget yet" until a line exists.
+    // Funding stays "Not available yet" without a linked fundraiser (raised vs goal is covered in tests/integration/cw-budget.test.ts).
     await expect(page.getByText("Not available yet")).toHaveCount(1);
+    await expect(stats.getByText("Budget spent")).toBeVisible();
+    await expect(stats.getByText("No budget yet")).toBeVisible();
+    await expect(page.getByRole("link", { name: "Open budget" })).toBeVisible();
     await expect(page.locator("#main-content").getByText("Funding", { exact: true })).toBeVisible();
     await expect(stats.getByText("Tasks done")).toBeVisible();
     await expect(stats.getByText("No tasks yet")).toBeVisible(); // progress with no tasks is never 0%
-    expect((await (await page.request.get(`/api${root}/${campaignId}/overview`)).json()).unavailable).toEqual(["funding"]);
+    expect((await (await page.request.get(`/api${root}/${campaignId}/overview`)).json())).toMatchObject({ unavailable: ["funding"], budget: null, funding: null });
     await expect(page.getByRole("heading", { name: "Setup checklist", level: 2 })).toBeVisible();
     await expect(page.getByRole("checkbox")).toHaveCount(9);
     await expect(page.getByRole("checkbox", { name: "Mark Assign department leaders as not done" })).toBeDisabled();

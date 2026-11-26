@@ -9,6 +9,8 @@ import { workSummaryOf, type CampaignWorkSummary } from "./campaign-boards";
 import { checklistOf } from "./campaign-checklist";
 import { invitationsOf } from "./campaign-wizard-invitations";
 import { campaignEventsOf } from "./campaign-events";
+import { budgetSummaryOf } from "./campaign-budget";
+import { campaignFundraising, fundraisingEnabled } from "./fundraising";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
 
@@ -29,8 +31,12 @@ export type CampaignOverview = {
   checklist: { done: number; total: number };
   /** Tasks and milestones on the campaign's boards, and progress (share of tasks done; null with no tasks). */
   work: CampaignWorkSummary;
-  /** Numbers the dashboard cannot show yet because nothing records them: events (while Events is off) and funding. Reported as unavailable, never as zero. */
+  /** Numbers the dashboard cannot show: events (while Events is off) and funding (no linked fundraiser, or the person may not see raised totals). Reported as unavailable, never as zero. */
   unavailable: ("events" | "funding")[];
+  /** Campaign budget: planned and spent totals in cents (decimal strings). Null while the campaign has no budget line and no expense. */
+  budget: { currency: string; plannedCents: string; spentCents: string; remainingCents: string; expenseCount: number; lines: number } | null;
+  /** Raised vs goal from the linked fundraiser, for people who may see raised totals (owners and admins). Null otherwise (then "funding" stays unavailable). */
+  funding: { currency: string; goalCents: string; raisedCents: string } | null;
   /** Campaign events: how many linked events this person can see. Null while Events is off (then "events" stays unavailable). */
   events: number | null;
 };
@@ -38,12 +44,13 @@ export type CampaignOverview = {
 /**
  * The read behind the campaign dashboard (founder decision Q6): what the finished draft configured (departments, who leads and who joined each one,
  * the tools that are on) and how far the setup checklist is. Only people who can write campaigns read it, because the draft is theirs to see; it
- * carries no donor, response or Connect data. Tasks, milestones and progress come from the campaign's boards; events and funding are reported as unavailable.
+ * carries no donor, response or Connect data. Tasks, milestones and progress come from the campaign's boards and budget totals from its budget; funding
+ * (raised vs goal) comes from the linked fundraiser through campaignFundraising, so only people the fundraising rules let see raised totals get it.
  * Names are shown as stored; an email stands in for a missing name for owners and admins only.
  */
 export async function getCampaignOverview(db: Database, userId: string, workspace: string, campaign: string): Promise<CampaignOverview> {
   const id = uuidInput.parse(campaign);
-  return withTenant(db, userId, uuidInput.parse(workspace), "campaigns:write", async (tx, tenantId, role) => {
+  const overview = await withTenant(db, userId, uuidInput.parse(workspace), "campaigns:write", async (tx, tenantId, role) => {
     const [row] = await tx.select({ id: campaigns.id }).from(campaigns).where(and(eq(campaigns.tenantId, tenantId), eq(campaigns.id, id)));
     if (!row) throw new AccessError(404, message("Campaigns.notFound"));
     const checklist = await checklistOf(tx, tenantId, id), manager = role === "owner" || role === "admin";
@@ -69,10 +76,19 @@ export async function getCampaignOverview(db: Database, userId: string, workspac
       };
     }
     const work = await workSummaryOf(tx, tenantId, id);
-    const overview: CampaignOverview = { campaignId: id, configuration, checklist: { done: checklist.filter((item) => item.done).length, total: checklist.length }, work, unavailable: ["events", "funding"], events: null };
+    const overview: CampaignOverview = { campaignId: id, configuration, checklist: { done: checklist.filter((item) => item.done).length, total: checklist.length }, work, unavailable: ["events", "funding"], events: null,
+      budget: await budgetSummaryOf(tx, tenantId, id), funding: null };
     // Campaign events: once Events is on, the events figure is real and no longer listed as unavailable.
     const linked = await campaignEventsOf(tx, tenantId, id);
     if (linked) Object.assign(overview, { events: linked.events.length, unavailable: overview.unavailable.filter((key) => key !== "events") });
     return overview;
   });
+  // Funding: the fundraising rules decide (Giving access for the goal, owners and admins for raised totals). A refusal keeps funding unavailable.
+  const linked = fundraisingEnabled() ? await campaignFundraising(db, userId, workspace, id).catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; }) : null;
+  const raised = linked?.fundraising?.totals ? linked.fundraising : null;
+  if (raised) Object.assign(overview, {
+    funding: { currency: raised.currency, goalCents: raised.goalCents, raisedCents: raised.totals!.raisedCents },
+    unavailable: overview.unavailable.filter((key) => key !== "funding"),
+  });
+  return overview;
 }
