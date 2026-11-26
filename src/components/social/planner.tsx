@@ -23,7 +23,7 @@ import { ScheduleManager } from "@/components/social/schedule-manager";
 import { SocialHeader, SocialToolbar } from "@/components/social/social-nav";
 import { useReason } from "@/components/social/use-reason";
 import { useSocialData } from "@/components/social/use-social-data";
-import { WeekView } from "@/components/social/week-calendar";
+import { WeekView } from "@/components/calendar/week-view";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { socialApi, SocialApiError, type DraftSummary, type DraftView, type PlannerItem, type Target } from "@/lib/social/api";
 import { parseMonth, type CalendarEvent } from "@/lib/event-view";

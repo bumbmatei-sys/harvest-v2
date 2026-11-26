@@ -1,0 +1,189 @@
+name: Cloudflare production
+# CF-08 (prepared, NOT activated): deploys the whole app to the Cloudflare PRODUCTION Worker, or rolls it back.
+# Manual only, from main only, and only for the exact commit the founder approved (`expected_sha`). The deploy and
+# rollback jobs run in the `cloudflare-production` GitHub environment (required reviewers; deployment branch `main`
+# only), which holds the only production secrets: CLOUDFLARE_API_TOKEN (production-only token) and CLOUDFLARE_ACCOUNT_ID.
+#
+# Two jobs, so the token never shares a machine with the app's dependencies or build plugins:
+#   build  - no environment and no secrets: npm ci, OpenNext build, production config (fails closed on placeholders),
+#            Wrangler bundle (--dry-run --outdir), uploaded as an artifact.
+#   deploy - fresh runner with only the pinned tooling (install scripts off; esbuild and workerd rebuilt), downloads the
+#            bundle, checks it is the production config, deploys it without re-bundling. The token is on that step only.
+# The config has no routes, so a deploy never changes DNS; the custom domain is attached by hand at cut-over
+# (docs/setup/cloudflare-production.md). Database migrations are a separate approved job, never part of this one.
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'deploy, or rollback to the previous Worker version'
+        type: choice
+        options: [deploy, rollback]
+        default: deploy
+      expected_sha:
+        description: 'The approved main commit (full 40-character SHA). The run stops if main is not exactly this commit.'
+        type: string
+        required: true
+      smoke:
+        description: 'Smoke-check the production origin after the step (only once the custom domain points at this Worker)'
+        type: boolean
+        default: true
+permissions:
+  contents: read
+concurrency:
+  group: cf-production
+  cancel-in-progress: false
+env:
+  NEXT_TELEMETRY_DISABLED: '1'
+  WRANGLER_SEND_METRICS: 'false'
+jobs:
+  build:
+    name: build (no secrets)
+    if: ${{ github.ref == 'refs/heads/main' && inputs.action == 'deploy' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      CF08_DEPLOY_JOB: '1'
+      CF08_PREPARE_PRODUCTION: '1'
+    steps:
+      - name: Check the approved commit
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          RUN_SHA: ${{ github.sha }}
+        run: test "$EXPECTED_SHA" = "$RUN_SHA"
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - name: Build for Workers (pinned tooling and cookie patch)
+        run: scripts/cf-build.sh
+      - name: Write the production config (IDs only; refuses placeholders and staging resources)
+        run: node --import tsx scripts/cf-prepare-production.ts
+      - name: Bundle the Worker (no upload)
+        run: cloudflare/tooling/node_modules/.bin/wrangler deploy -c cloudflare/wrangler.production.json --dry-run --outdir cloudflare/dist
+      - name: Stage the deployable bundle
+        run: |
+          cp -R .open-next/assets cloudflare/dist/assets
+          node --import tsx scripts/cf-prepare-production.ts --bundled cloudflare/dist
+          rm -f cloudflare/dist/README.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cf-production-${{ github.sha }}
+          path: cloudflare/dist
+          if-no-files-found: error
+          include-hidden-files: true
+          retention-days: 7
+
+  deploy:
+    name: deploy production
+    needs: build
+    if: ${{ github.ref == 'refs/heads/main' && inputs.action == 'deploy' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: cloudflare-production
+    steps:
+      - name: Check the approved commit
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          RUN_SHA: ${{ github.sha }}
+        run: test "$EXPECTED_SHA" = "$RUN_SHA"
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            cloudflare/tooling
+            cloudflare/production.json
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install the pinned tooling (install scripts off)
+        run: |
+          npm ci --prefix cloudflare/tooling --no-audit --no-fund --ignore-scripts
+          npm rebuild --prefix cloudflare/tooling esbuild workerd
+      - uses: actions/download-artifact@v4
+        with:
+          name: cf-production-${{ github.sha }}
+          path: dist
+      - name: Check the bundle is the production config
+        run: |
+          worker=$(jq -r .CF08_PRODUCTION_WORKER cloudflare/production.json)
+          origin=$(jq -r .CF08_PRODUCTION_ORIGIN cloudflare/production.json)
+          jq -e --arg worker "$worker" --arg origin "$origin" '
+            .name == $worker and .vars.HARVEST_ENV == "production" and .vars.BETTER_AUTH_URL == $origin
+            and .vars.HARVEST_PRODUCTION_ORIGIN == $origin and .workers_dev == false and .preview_urls == false
+            and .no_bundle == true and (has("services") | not) and (has("alias") | not) and (has("routes") | not)
+            and .placement.region == "aws:eu-central-1"' dist/wrangler.json > /dev/null
+          ! grep -q staging dist/wrangler.json
+          test -f dist/app-worker.js
+          echo "CF08_PRODUCTION_ORIGIN=$origin" >> "$GITHUB_ENV"
+      - name: Deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RUN_SHA: ${{ github.sha }}
+        run: cloudflare/tooling/node_modules/.bin/wrangler deploy -c dist/wrangler.json --message "main $RUN_SHA"
+      - name: Smoke check
+        if: ${{ inputs.smoke }}
+        run: |
+          for path in /sign-in /manifest.webmanifest; do
+            status=$(curl -s -o /dev/null -w '%{http_code}' "$CF08_PRODUCTION_ORIGIN$path")
+            echo "$path $status"
+            test "$status" = 200
+          done
+          cache=$(curl -s -D - -o /dev/null "$CF08_PRODUCTION_ORIGIN/sign-in" | tr -d '\r' | awk -F': ' 'tolower($1)=="cache-control"{print $2}')
+          echo "cache-control $cache"
+          test "$cache" = "private, no-store"
+
+  rollback:
+    name: roll back production
+    if: ${{ github.ref == 'refs/heads/main' && inputs.action == 'rollback' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: cloudflare-production
+    steps:
+      - name: Check the approved commit
+        env:
+          EXPECTED_SHA: ${{ inputs.expected_sha }}
+          RUN_SHA: ${{ github.sha }}
+        run: test "$EXPECTED_SHA" = "$RUN_SHA"
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          sparse-checkout: |
+            cloudflare/tooling
+            cloudflare/production.json
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install the pinned tooling (install scripts off)
+        run: |
+          npm ci --prefix cloudflare/tooling --no-audit --no-fund --ignore-scripts
+          npm rebuild --prefix cloudflare/tooling esbuild workerd
+      - name: Load the production name and origin
+        run: |
+          echo "CF08_PRODUCTION_WORKER=$(jq -r '.CF08_PRODUCTION_WORKER | select(test("^[a-z0-9][a-z0-9-]{2,62}$"))' cloudflare/production.json)" >> "$GITHUB_ENV"
+          echo "CF08_PRODUCTION_ORIGIN=$(jq -r '.CF08_PRODUCTION_ORIGIN | select(test("^https://[a-z0-9.-]+$"))' cloudflare/production.json)" >> "$GITHUB_ENV"
+      - name: Roll back to the previous version
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          RUN_SHA: ${{ github.sha }}
+        run: |
+          test -n "$CF08_PRODUCTION_WORKER"
+          cloudflare/tooling/node_modules/.bin/wrangler rollback --name "$CF08_PRODUCTION_WORKER" --message "rollback from $RUN_SHA" --yes
+      - name: Smoke check
+        if: ${{ inputs.smoke }}
+        run: |
+          for path in /sign-in /manifest.webmanifest; do
+            status=$(curl -s -o /dev/null -w '%{http_code}' "$CF08_PRODUCTION_ORIGIN$path")
+            echo "$path $status"
+            test "$status" = 200
+          done
+          cache=$(curl -s -D - -o /dev/null "$CF08_PRODUCTION_ORIGIN/sign-in" | tr -d '\r' | awk -F': ' 'tolower($1)=="cache-control"{print $2}')
+          echo "cache-control $cache"
+          test "$cache" = "private, no-store"
