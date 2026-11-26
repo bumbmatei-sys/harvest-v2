@@ -86,3 +86,20 @@ export function getAgendaEventsForDay(events: CalendarEvent[], day: Date): Calen
     })
     .sort((a, b) => new Date(a.start).getTime() - new Date(b.start).getTime());
 }
+
+/**
+ * Hour the week and day grid opens at: one hour before the earliest timed entry that starts in [from, to), and no later than `latest` (7 AM).
+ * All-day and multi-day entries sit in their own row above the grid, so they do not count.
+ */
+export function openingHour(events: readonly Pick<CalendarEvent, "start" | "end" | "allDay">[], from: Date, to: Date, latest = 7): number {
+  const hours = events.filter((event) => !event.allDay && event.start.getDate() === event.end.getDate() && event.start >= from && event.start < to).map((event) => event.start.getHours());
+  return Math.max(0, Math.min(latest + 1, ...hours) - 1);
+}
+
+/**
+ * Scroll position that shows an hour row just below the grid's sticky day header. `rowTop` is the row's top inside the scrolled content; the hour label
+ * is centred on that line (half above it), so `gap` keeps the whole label clear of the header.
+ */
+export function gridScrollTop(rowTop: number, stickyHeight: number, gap = 16): number {
+  return Math.max(0, Math.round(rowTop - stickyHeight - gap));
+}

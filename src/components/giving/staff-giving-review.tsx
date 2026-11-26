@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
-import { Flag } from "lucide-react";
+import { Check, Eye, EyeOff, Flag, MoreHorizontal, X } from "lucide-react";
 import { request } from "@/hooks/use-request";
 import { authClient } from "@/lib/auth-client";
 import type { StaffGivingReport } from "@/server/platform/giving";
@@ -11,6 +11,7 @@ import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Textarea } from "@/components/ui/textarea";
@@ -42,20 +43,26 @@ export function StaffGivingReview({ role, initialOpen }: { role: "reviewer" | "a
   async function signInAgain() { await authClient.signOut().catch(() => undefined); window.location.replace("/sign-in?next=%2Fplatform%2Fgiving"); }
 
   const columns: DataTableColumn[] = [
-    { id: "ministry", header: t("ministry"), card: "title" }, { id: "reason", header: t("reason") }, { id: "note", header: t("note"), showFrom: "@lg" },
-    { id: "page", header: t("page"), showFrom: "@md" }, { id: "reported", header: t("reported"), showFrom: "@md" }, { id: "giving", header: t("giving") },
-    { id: "actions", header: t("actions"), srOnlyHeader: true, align: "end", card: "actions" },
+    // Text columns wrap (cells default to one line), so the row fits the container at desktop widths instead of pushing the actions out of view.
+    { id: "ministry", header: t("ministry"), card: "title", className: "whitespace-normal" }, { id: "reason", header: t("reason"), className: "whitespace-normal" },
+    { id: "note", header: t("note"), showFrom: "@lg", className: "min-w-40 whitespace-normal" }, { id: "page", header: t("page"), showFrom: "@md", className: "whitespace-normal break-all" },
+    { id: "reported", header: t("reported"), showFrom: "@md", className: "whitespace-normal" }, { id: "giving", header: t("giving") },
+    { id: "actions", header: t("actions"), srOnlyHeader: true, align: "end", card: "actions", className: "w-16" },
   ];
   const rows: DataTableRow[] = reports.map((r) => ({ id: r.id, label: r.ministry, cells: {
     ministry: <span className="break-words font-medium">{r.ministry}</span>, reason: tr(`reasons.${r.reason as "other"}`), note: r.note ? <span className="break-words">{r.note}</span> : t("none"),
     page: t("pageRef", { ref: r.ref }), reported: format.dateTime(new Date(r.createdAt), { dateStyle: "medium", timeStyle: "short", timeZone: "UTC" }),
     giving: <StatusBadge tone={r.hidden ? "danger" : "success"} label={t(r.hidden ? "hidden" : "shown")} dot />,
-    actions: <span className="flex flex-wrap justify-end gap-2">
-      {r.status === "open" && <><Button type="button" variant="outline" size="responsive" aria-label={t("markReviewedNamed", { name: r.ministry })} onClick={() => void act(`/api/platform/giving/reports/${r.id}/resolve`, { status: "reviewed" }, t("resolved"))}>{t("markReviewed")}</Button>
-        <Button type="button" variant="outline" size="responsive" aria-label={t("dismissNamed", { name: r.ministry })} onClick={() => void act(`/api/platform/giving/reports/${r.id}/resolve`, { status: "dismissed" }, t("resolved"))}>{t("dismiss")}</Button></>}
-      {role === "admin" && (r.hidden ? <Button type="button" variant="outline" size="responsive" aria-label={t("restoreNamed", { name: r.ministry })} onClick={() => setRestoring(r)}>{t("restore")}</Button>
-        : <Button type="button" variant="destructive" size="responsive" aria-label={t("hideNamed", { name: r.ministry })} onClick={() => setHiding(r)}>{t("hide")}</Button>)}
-    </span>,
+    // One row menu, like the other DataTable screens: three wide buttons clipped the table at desktop widths.
+    actions: r.status !== "open" && role !== "admin" ? null : <DropdownMenu><DropdownMenuTrigger asChild>
+      <Button type="button" variant="ghost" size="icon" className="size-11 lg:size-9" aria-label={t("actionsNamed", { name: r.ministry })}><MoreHorizontal aria-hidden="true" /></Button></DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        {r.status === "open" && <><DropdownMenuItem className="min-h-11 lg:min-h-0" onSelect={() => void act(`/api/platform/giving/reports/${r.id}/resolve`, { status: "reviewed" }, t("resolved"))}><Check aria-hidden="true" />{t("markReviewed")}</DropdownMenuItem>
+          <DropdownMenuItem className="min-h-11 lg:min-h-0" onSelect={() => void act(`/api/platform/giving/reports/${r.id}/resolve`, { status: "dismissed" }, t("resolved"))}><X aria-hidden="true" />{t("dismiss")}</DropdownMenuItem></>}
+        {role === "admin" && <>{r.status === "open" && <DropdownMenuSeparator />}{r.hidden
+          ? <DropdownMenuItem className="min-h-11 lg:min-h-0" onSelect={() => setRestoring(r)}><Eye aria-hidden="true" />{t("restore")}</DropdownMenuItem>
+          : <DropdownMenuItem variant="destructive" className="min-h-11 lg:min-h-0" onSelect={() => setHiding(r)}><EyeOff aria-hidden="true" />{t("hide")}</DropdownMenuItem>}</>}
+      </DropdownMenuContent></DropdownMenu>,
   } }));
 
   return <div className="min-w-0 space-y-4">
