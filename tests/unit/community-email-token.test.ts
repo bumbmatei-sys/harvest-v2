@@ -11,8 +11,9 @@ describe("unsubscribe token", () => {
     const [payload, mac] = signUnsubscribe(secret, target).split(".");
     const other = Buffer.from(JSON.stringify([1, "t1", "c1", "someone-else", Date.now() + 1000])).toString("base64url");
     expect(verifyUnsubscribe(secret, `${other}.${mac}`)).toBeNull();
-    // Flip the last character deterministically (replacing it with a fixed "AA" left the token unchanged when the MAC already ended that way).
-    expect(verifyUnsubscribe(secret, `${payload}.${mac.slice(0, -1)}${mac.at(-1) === "A" ? "B" : "A"}`)).toBeNull();
+    // Change the first character: all six of its bits are MAC bits. The last base64url character of a 32-byte MAC carries two
+    // padding bits, so changing it can decode to the same bytes and the "tampered" token would still verify (CI, 26 Nov).
+    expect(verifyUnsubscribe(secret, `${payload}.${mac[0] === "A" ? "B" : "A"}${mac.slice(1)}`)).toBeNull();
     expect(verifyUnsubscribe(secret, `${payload}`)).toBeNull();
   });
   it("rejects another secret, an expired token and malformed input", () => {

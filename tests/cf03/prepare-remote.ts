@@ -19,7 +19,7 @@ if (process.env.CF03_PREPARE_STAGING === "1" && !process.env.CI) {
   // Opt-in: the hosted run exposes both Workers on their workers.dev origins for its duration.
   const workersDev = process.env.CF03_STAGING_WORKERS_DEV === "1";
   const id = setting("CF03_STAGING_HYPERDRIVE_ID", /^[a-f0-9]{32}$/);
-  if (id === process.env.CF03_PRODUCTION_HYPERDRIVE_ID) throw new Error("The harness needs an isolated staging Hyperdrive");
+  if (id === setting("CF03_PRODUCTION_HYPERDRIVE_ID", /^[a-f0-9]{32}$/)) throw new Error("The harness needs an isolated staging Hyperdrive");
   const bucket = setting("CF03_STAGING_BUCKET", /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/);
   const mailbox = setting("CF03_STAGING_MAILBOX_SERVICE", /^[a-z0-9][a-z0-9-]+$/);
   if (process.env.CF03_STAGING_CODES_BUCKET === bucket) throw new Error("The synthetic mailbox needs its own bucket");
