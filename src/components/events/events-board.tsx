@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { useLocale, useTranslations } from "next-intl";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 import { format } from "date-fns";
-import { getAllEventsForDay } from "@/lib/calendar-days";
+import { getAllEventsForDay, openingHour } from "@/lib/calendar-days";
+import { useHydrated } from "@/hooks/use-hydrated";
 import { EmptyState } from "@/components/empty-state";
 import { EventCard } from "@/components/events/event-card";
 import { MonthCalendar } from "@/components/events/month-calendar";
@@ -26,7 +27,7 @@ export function EventsBoard({ events, view, month, date, base, detail, now, mana
   events: EventItem[]; view: EventsView; month: string; date?: string; base: string; detail: string; now: number; manage?: boolean; emptyAction?: React.ReactNode;
 }) {
   const t = useTranslations("Events"), locale = useLocale(), router = useRouter();
-  const [selected, setSelected] = useState<Date | null>(null);
+  const [selected, setSelected] = useState<Date | null>(null), hydrated = useHydrated();
   const day = parseDate(date, new Date(now));
   const href = (next: EventsView, value?: string) => next === "list" ? base : next === "calendar" ? `${base}?view=calendar&month=${value ?? month}` : `${base}?view=${next}&date=${value ?? dateKey(day)}`;
   const calendarEvents = useMemo(() => toCalendarEvents(events, now), [events, now]);
@@ -46,8 +47,7 @@ export function EventsBoard({ events, view, month, date, base, detail, now, mana
   </>;
   const grid = () => {
     const first = view === "week" ? weekStart(day) : day, step = view === "week" ? 7 : 1;
-    const title = view === "week"
-      ? new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", year: "numeric" }).formatRange(first, shiftDays(first, 6))
+    const title = view === "week" ? weekTitle(first, shiftDays(first, 6), locale, hydrated)
       : new Intl.DateTimeFormat(locale, { weekday: "long", month: "long", day: "numeric", year: "numeric" }).format(first);
     return <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -57,7 +57,7 @@ export function EventsBoard({ events, view, month, date, base, detail, now, mana
         <h2 className="min-w-0 text-base font-semibold" aria-live="polite">{title}</h2>
       </div>
       <div className="overflow-hidden rounded-xl border bg-card"><div tabIndex={0} role="region" aria-label={t(view === "week" ? "weekGrid" : "dayGrid")} className="max-h-[42rem] overflow-y-auto outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50">
-        <WeekView mode={view === "day" ? "day" : "week"} currentDate={first} events={calendarEvents} label={t(view === "week" ? "weekGrid" : "dayGrid")} zoneLabel={t("eventTime")}
+        <WeekView mode={view === "day" ? "day" : "week"} currentDate={first} events={calendarEvents} openAt={openingHour(calendarEvents, first, shiftDays(first, step))} label={t(view === "week" ? "weekGrid" : "dayGrid")} zoneLabel={t("eventTime")}
           renderChip={line} onEventSelect={(event) => router.push(`${detail}/${event.id}`)} allDay={{ label: t("allDay"), render: (event) => <span className="truncate">{event.title}</span> }}
           overlap={{ moreLabel: (count) => t("moreAtTime", { count }), moreText: (count) => `+${count}`, title: t("sameTime"), renderRow: (event) => <span className="flex min-w-0 flex-col">{line(event)}</span> }} />
       </div></div>
@@ -80,4 +80,15 @@ export function EventsBoard({ events, view, month, date, base, detail, now, mana
         </section>
       </div> : grid()}
   </div>;
+}
+
+/**
+ * Title of a week ("Nov 23 – 29, 2026"). Range formatting differs between the server's and the browser's ICU (the spaces around the dash), which broke
+ * hydration, so the server and the first client render use two plain dates joined by a dash, and the browser switches to its own range format after.
+ */
+export function weekTitle(first: Date, last: Date, locale: string, hydrated: boolean) {
+  const format = new Intl.DateTimeFormat(locale, { month: "short", day: "numeric", year: "numeric" });
+  if (hydrated) return format.formatRange(first, last);
+  const short = new Intl.DateTimeFormat(locale, { month: "short", day: "numeric" });
+  return `${first.getFullYear() === last.getFullYear() ? short.format(first) : format.format(first)} – ${format.format(last)}`;
 }

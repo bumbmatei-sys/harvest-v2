@@ -27,6 +27,7 @@ import { WeekView } from "@/components/calendar/week-view";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { socialApi, SocialApiError, type DraftSummary, type DraftView, type PlannerItem, type Target } from "@/lib/social/api";
 import { parseMonth, type CalendarEvent } from "@/lib/event-view";
+import { openingHour } from "@/lib/calendar-days";
 import { joinParts } from "@/lib/social/join";
 import { platformLabels } from "@/lib/social/labels";
 import { socialPlatforms } from "@/lib/social/platforms";
@@ -52,7 +53,7 @@ export function Planner({ tenantId, view }: { tenantId: string; view: "queue" | 
   const [items, setItems] = useState<PlannerItem[] | null>(null), [failed, setFailed] = useState(false), [reloadKey, setReloadKey] = useState(0);
   const [selectedDay, setSelectedDay] = useState<Date | null>(null), [agendaPick, setAgendaPick] = useState<Date | null>(null), [detail, setDetail] = useState<PlannerItem | null>(null), [action, setAction] = useState<Action | null>(null);
   const [manageOpen, setManageOpen] = useState(false), [draftsOpen, setDraftsOpen] = useState(false), [busyDraft, setBusyDraft] = useState<string | null>(null);
-  const [retrying, setRetrying] = useState<string | null>(null), weekScroll = useRef<HTMLDivElement>(null);
+  const [retrying, setRetrying] = useState<string | null>(null);
   const setParam = useCallback((patch: Record<string, string>) => {
     const next = new URLSearchParams(params.toString()); next.set("view", view);
     for (const [key, value] of Object.entries(patch)) { if (value) next.set(key, value); else next.delete(key); }
@@ -99,14 +100,9 @@ export function Planner({ tenantId, view }: { tenantId: string; view: "queue" | 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [api, data.state, view, rangeKey, zone, account, platform, statusFilter, reloadKey]);
 
-  useEffect(() => {
-    // Open the week at its first post (or 7 AM), not at midnight.
-    if (view !== "calendar" || mode !== "week" || !weekScroll.current || items === null) return;
-    const first = Math.min(...items.filter((item) => item.status !== "draft").map((item) => new Date(item.at)).filter((date) => date >= weekStart && date < addDays(weekStart, 7)).map((date) => date.getHours()), 8);
-    weekScroll.current.scrollTop = Math.max(0, first - 1) * 64;
-  // Runs when the loaded posts or the week change.
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, view, mode, params.get("week")]);
+  // Open the week an hour before its first post (or at 7 AM), not at midnight; the shared grid scrolls once the posts are loaded.
+  const openAt = items === null ? undefined
+    : openingHour(items.filter((item) => item.status !== "draft").map((item) => ({ start: new Date(item.at), end: new Date(item.at) })), weekStart, addDays(weekStart, 7));
   const visible = useMemo(() => (items ?? []).filter((item) => !schedule || item.scheduleId === schedule), [items, schedule]);
   const toolbarProps = { schedules: data.schedules, schedule, onSchedule: (id: string) => setParam({ schedule: id }), onManage: () => setManageOpen(true), draftCount: data.drafts.length, onDrafts: () => setDraftsOpen(true) };
   const connectionName = (item: PlannerItem) => { const connection = data.connections.find((entry) => entry.id === item.connectionId); return connection?.displayName ?? (item.platform ? platformLabels[item.platform] : ""); };
@@ -279,7 +275,7 @@ export function Planner({ tenantId, view }: { tenantId: string; view: "queue" | 
           <section aria-live="polite" aria-labelledby="planner-day" className="space-y-2"><h2 id="planner-day" className="text-sm font-medium text-muted-foreground">{selectedDay ? format(selectedDay, "EEEE, MMMM d") : t("selectDay")}</h2>
             {selectedDay && (dayItems.length === 0 ? <p className="text-sm text-muted-foreground">{t("emptyDay")}</p> : <ul className="m-0 list-none space-y-2 p-0">{dayItems.map(row)}</ul>)}</section></>
           : phone ? (items === null && !failed ? <Skeleton className="h-64 w-full" /> : agenda)
-          : <div className="overflow-hidden rounded-xl border bg-card"><div ref={weekScroll} tabIndex={0} role="region" aria-label={t("calendarScroll")} className="max-h-[42rem] overflow-y-auto outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"><WeekView currentDate={weekStart} events={events} label={t("weekGrid")} overlap={{ moreText: (count) => t("overlapMore", { count }), moreLabel: (count) => t("overlapLabel", { count }), title: t("overlapTitle"), renderRow: overlapRow }} renderChip={weekChip} onEventSelect={(event) => { const item = byId.get(event.id); if (item) setDetail(item); }} onDropAt={dropAt} /></div></div>}
+          : <div className="overflow-hidden rounded-xl border bg-card"><div tabIndex={0} role="region" aria-label={t("calendarScroll")} className="max-h-[42rem] overflow-y-auto outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"><WeekView currentDate={weekStart} events={events} label={t("weekGrid")} overlap={{ moreText: (count) => t("overlapMore", { count }), moreLabel: (count) => t("overlapLabel", { count }), title: t("overlapTitle"), renderRow: overlapRow }} renderChip={weekChip} onEventSelect={(event) => { const item = byId.get(event.id); if (item) setDetail(item); }} onDropAt={dropAt} openAt={openAt} /></div></div>}
       </div>
       {wide && <aside aria-label={t("draftsTitle")} className="min-w-0 space-y-2 rounded-xl border bg-muted/30 p-3"><h2 className="text-sm font-semibold">{t("draftsTitle")}</h2>{drafts}</aside>}
     </div></div>;
