@@ -120,7 +120,7 @@ Keep the planned assistant as Vercel AI SDK-compatible TypeScript on Workers. Cl
 | CF-03 | Auth/environment/secrets/R2 | OTP, cookies, preview isolation, fail-closed prod gates, file upload/download verification and cache safety |
 | CF-04 | Cron, Queues, worker role, job leases, retention and social test-mode execution | Dedupe, retries, crash recovery and scope tests; no enabled production schedules |
 | CF-05 | Secure outbound/inbound webhooks | SSRF, DNS rebinding, signatures, TLS, replay and failure-mode verification on actual target runtime; container fallback if necessary |
-| CF-06 | Optional email-provider parity and AI gateway readiness | Cloudflare email capability/delivery comparison; explicit fallback, cost and privacy review; no new product scope |
+| CF-06 | Optional email-provider parity and AI gateway readiness. **Skipped for launch (founder, 26 Nov): Resend stays.** | Cloudflare email capability/delivery comparison; explicit fallback, cost and privacy review; no new product scope |
 | CF-07 | CI/CD, staging and load testing, operational runbooks | Exact-head CI, staging browser tests, monitored load and rollback rehearsal; manual release approval |
 | CF-08 | Authorized production cutover | Signed release approval, credentials isolated, DB backup/restore readiness, DNS/provider callback checks, monitoring, explicit job activation decision |
 

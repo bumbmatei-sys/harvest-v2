@@ -8,3 +8,8 @@ playwright-report/
 test-results/
 *.tsbuildinfo
 .neon-ci-branch
+
+# CF-07 OpenNext build output and the config copied from cloudflare/open-next.config.ts.in
+/.open-next/
+/open-next.config.ts
+/.wrangler/
