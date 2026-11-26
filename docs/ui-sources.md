@@ -168,6 +168,29 @@ Rule (enforced by `tests/unit/ui-provenance.test.ts`): every kit-derived file st
 | `form-layout11` | **premium** | 2026-11-16 | 2026-11-16 | 2026-11-16 | `src/components/communities/create-community-dialog.tsx` | **Visual reference only** (Kit PR 7); no kit code copied, no react-hook-form or zod 3. New-community form with a visible address prefix and a suggested address; the editor's details step uses a `FormSection`. Cover dropzone, visibility, topic and invite fields are not used (the create API takes a name and an address only; no cover upload exists). Not chosen: `form-layout15`. |
 | `product-list7` | **premium** | 2026-11-16 | 2026-11-16 | 2026-11-16 | `src/components/communities/discover-card.tsx` | **Visual reference only** (Kit PR 7); no kit code copied, no remote images or prices. Discover card with an initials band instead of a photo, host, free and open badges, a View link, and a segmented type switcher. Filtering stays server-side in the URL. Not chosen: `product-list1`. |
 | `social-media-post1` | **premium** | 2026-11-16 | 2026-11-16 | 2026-11-16 | `src/components/forum/post-card.tsx` | **Visual reference only** (Kit PR 7); present in the registry. No kit code copied, no remote avatar or image, no share, save or edit menu. Forum feed card with author header, optional cover, excerpt and a replies and likes footer. Not chosen: `chat-ui3`. |
+| `kanban-board3` | **premium** | 2026-11-26 | 2026-11-26 | 2026-11-26 | `src/components/board/kanban-board.tsx`, `src/components/campaigns/campaign-boards.tsx` | Founder decision 26 Nov: the kit item is richer than the CRM deal board (comparison below), so the shared board follows it. Written for Harvest: 17 of 185 lines identical (9%) in `kanban-board.tsx` against the item's `index.tsx` plus `components/ui/kanban.tsx`; 15 of 227 (6%) in `campaign-boards.tsx` (`scripts/ui-identical.sh`). Kept: column dot, count, totals, options menu; rounded cards with a per-card menu; initials avatar chip; red overdue date; `@dnd-kit/sortable` cards with `closestCenter`; board/list toggle with a table. Changed: no `tunnel-rat` and no kit `ui/kanban.tsx`; Harvest keyboard moves and i18n announcements (from the deal board) instead of the kit `KeyboardSensor` and English text; one `onMove` per drop, data and writes stay with the consumer; touch drag after a short press; 44px targets below 1024px; theme tokens. Not used: sample leads, dollar sums, channel marks, scope select, channel filter, duplicate, `date-fns`. The CRM deal board moves onto it in a separate follow-up PR. |
+
+### Campaign boards: CRM deal board vs `kanban-board3` (26 Nov 2026)
+
+Founder decision, 26 Nov: "If CRM board is most premium and in depth, use that one. If not, board 3 and update in CRM as well." Compared from the registry item source (retrieved 2026-11-26 through the proxy) and `src/components/crm/deals/deal-board.tsx` on main.
+
+| Feature | CRM deal board | `kanban-board3` | Shared board (this PR) |
+| --- | --- | --- | --- |
+| Column header | Dot, name, count, amount sum, probability | Dot, name, count, value sum, options menu | Dot, name, count, meta slot, options menu |
+| Add card per column | No (page-level New deal) | Yes (column menu) and toolbar button | Yes (column menu) and toolbar button |
+| Per-column sort | No | By value, by due date | Not yet (needs a bulk reorder endpoint) |
+| Card fields | Name, company/person, amount, close date, stale badge | Name, description, value, owner avatar, channel, due date (red when overdue), card menu (edit, move, duplicate, delete) | Consumer body (campaign: title, notes, milestone, assignee avatar, due date red when overdue), card menu (edit, move to column, delete) |
+| Labels, priority, progress | No | No | No (campaign tasks have no labels or priority) |
+| Empty column | Dashed "No deals" | Only a filter-empty message in list view | Dashed per-column message |
+| Pointer moves | Across columns (dnd-kit core) | Across and within columns (dnd-kit sortable) | Across and within columns (sortable) |
+| Keyboard moves | Arrows, Enter, Shift+←/→, i18n announcements | dnd-kit KeyboardSensor, English announcements | Deal-board keyboard plus Shift+↑/↓ within a column, i18n announcements |
+| List view | Separate page mode | Board/list toggle with table | Board/list toggle with table |
+| Filters / scope | Page-level CRM filters | Scope select, channel filter, overdue | Board select only (filters not included) |
+| Phone layout | Columns scroll sideways, snap | Columns scroll sideways | Columns scroll sideways, snap; 44px targets |
+| Light/dark | Theme tokens | Theme tokens plus fixed dot colours | Theme tokens only |
+
+Result: `kanban-board3` is richer (column menu, per-column add, card menu, avatar, sortable cards, list view); the deal board is ahead only on keyboard accessibility and i18n, which the shared board keeps.
+
 
 Tier note: the item JSON carries no price flag, and the component category pages show a badge for the first item only; the four items are recorded as free on the founder's statement for `toast1` and the absence of a premium marker on the others. Confirm on the item pages if the license position matters. `dashboard-shell8` and `dashboard-dropdown7` are premium by the founder's approval record (16 Nov 2026), who owns the licence and public-repository consequences.
 

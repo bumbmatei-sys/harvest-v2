@@ -6,32 +6,40 @@ import type { CampaignOverview } from "@/server/campaign-overview";
 
 /**
  * The campaign dashboard for people who set the campaign up: what the finished draft configured (departments, who leads and who joined, the tools that
- * are on) as stat cards and a staffing bar per department, plus the setup checklist progress. Only figures that exist are shown. Progress, events,
- * funding and tasks are not recorded anywhere yet, so they are listed as not available, never as zero. No donor, response or Connect data appears.
+ * are on) as stat cards and a staffing bar per department, plus the setup checklist progress and the tasks, milestones and progress recorded on the
+ * campaign's boards. Only figures that exist are shown. Events and funding are not recorded anywhere yet, so they are listed as not available, never as
+ * zero; progress with no tasks reads "No tasks yet", not 0%. No donor, response or Connect data appears.
  * Colours are the theme's own: surface and border tokens, with the brand token for the bars.
  */
 const digitsOf = (currency: string) => { try { return new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2; } catch { return 2; } };
 
 export async function CampaignDashboard({ overview, connectHref, formHref }: { overview: CampaignOverview; connectHref: string; formHref: string | null }) {
-  const t = await getTranslations("CampaignDashboard"), tw = await getTranslations("CampaignWizard"), format = await getFormatter();
+  const t = await getTranslations("CampaignDashboard"), tw = await getTranslations("CampaignWizard"), tb = await getTranslations("CampaignBoards.dashboard"), format = await getFormatter();
   const config = overview.configuration;
   const staffed = config ? config.departments.filter((department) => department.leaders.length > 0).length : 0;
   const people = config ? config.departments.reduce((total, department) => total + department.leaders.length + department.members.length, 0) : 0;
-  const stats: [string, string, string?][] = config ? [
+  const { work } = overview;
+  const workStats: [string, string][] = [
+    [tb("tasksDone"), t("ofTotal", { done: work.tasks.done, total: work.tasks.total })],
+    [tb("progress"), work.progress === null ? tb("noTasks") : tb("percent", { value: work.progress })],
+    [tb("milestonesReached"), t("ofTotal", { done: work.milestones.reached, total: work.milestones.total })],
+  ];
+  const stats: [string, string][] = config ? [
     [t("departments"), String(config.departments.length)],
     [t("leadersAssigned"), t("ofTotal", { done: staffed, total: config.departments.length })],
     [t("peoplePlaced"), String(people)],
     [t("toolsOn"), t("ofTotal", { done: config.modules.length, total: 18 })],
     [t("setup"), t("ofTotal", { done: overview.checklist.done, total: overview.checklist.total })],
-  ] : [[t("setup"), t("ofTotal", { done: overview.checklist.done, total: overview.checklist.total })]];
+    ...workStats,
+  ] : [[t("setup"), t("ofTotal", { done: overview.checklist.done, total: overview.checklist.total })], ...workStats];
   // Campaign events: the real count of linked events this person can see, once Events is on.
   if (overview.events !== null) stats.push([(await getTranslations("CampaignEvents"))("stat"), String(overview.events)]);
   const amount = (minor: number | null) => minor === null || !config ? t("notSet") : format.number(minor / 10 ** digitsOf(config.budget.currency), { style: "currency", currency: config.budget.currency });
   const widest = config ? Math.max(1, ...config.departments.map((department) => department.leaders.length + department.members.length)) : 1;
   return <section aria-labelledby="campaign-dashboard-title" className="space-y-4">
     <h2 id="campaign-dashboard-title" className="text-base font-semibold">{t("title")}</h2>
-    <ul className="grid grid-cols-2 gap-3 lg:grid-cols-5" aria-label={t("title")}>
-      {stats.map(([label, value]) => <li key={label}><Card className="h-full gap-0 py-0"><CardContent className="space-y-1 p-4"><p className="text-xs text-muted-foreground">{label}</p><p className="text-2xl font-semibold tabular-nums">{value}</p></CardContent></Card></li>)}
+    <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" aria-label={t("title")}>
+      {stats.map(([label, value]) => <li key={label}><Card className="h-full gap-0 py-0"><CardContent className="space-y-1 p-4"><p className="text-xs text-muted-foreground">{label}</p><p className="break-words text-2xl font-semibold tabular-nums">{value}</p></CardContent></Card></li>)}
     </ul>
     {config ? <div className="grid gap-4 lg:grid-cols-2">
       <Card><CardHeader><CardTitle><h3 className="text-sm font-semibold">{t("teams")}</h3></CardTitle><CardDescription>{t("teamsDescription")}</CardDescription></CardHeader>
@@ -57,7 +65,8 @@ export async function CampaignDashboard({ overview, connectHref, formHref }: { o
           ? (formHref ? <Button asChild variant="outline" className="min-h-11"><Link href={`${formHref}/${config.registrationFormId}`}>{t("openForm")}</Link></Button> : <p className="text-sm text-muted-foreground">{t("formCreated")}</p>)
           : <p className="text-sm text-muted-foreground">{t("noForm")}</p>)}
         {config.connect.includes("qrResponse") && <Button asChild variant="outline" className="min-h-11"><Link href={connectHref}>{t("openLinks")}</Link></Button>}</CardContent></Card>}
-    <Card><CardHeader><CardTitle><h3 className="text-sm font-semibold">{t("notYet")}</h3></CardTitle><CardDescription>{t("notYetDescription")}</CardDescription></CardHeader>
-      <CardContent><ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">{overview.unavailable.map((key) => <li key={key} className="rounded-lg border border-dashed p-3"><p className="text-xs text-muted-foreground">{t(`unavailable.${key}`)}</p><p className="mt-1 text-sm">{t("notAvailable")}</p></li>)}</ul></CardContent></Card>
+    {work.tasks.overdue > 0 && <p className="text-sm text-destructive">{tb("overdue", { count: work.tasks.overdue })}</p>}
+    {overview.unavailable.length > 0 && <Card><CardHeader><CardTitle><h3 className="text-sm font-semibold">{t("notYet")}</h3></CardTitle><CardDescription>{t("notYetDescription")}</CardDescription></CardHeader>
+      <CardContent><ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">{overview.unavailable.map((key) => <li key={key} className="rounded-lg border border-dashed p-3"><p className="text-xs text-muted-foreground">{t(`unavailable.${key}`)}</p><p className="mt-1 text-sm">{t("notAvailable")}</p></li>)}</ul></CardContent></Card>}
   </section>;
 }

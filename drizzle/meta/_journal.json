@@ -813,6 +813,13 @@
       "when": 1795710567408,
       "tag": "0117_fundraising_pledges",
       "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1795710773224,
+      "tag": "0118_campaign_boards",
+      "breakpoints": true
     }
   ]
 }

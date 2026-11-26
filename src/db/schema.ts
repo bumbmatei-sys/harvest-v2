@@ -228,6 +228,67 @@ export const campaignChecklistItems = pgTable("campaign_checklist_items", {
   check("campaign_checklist_done", sql`(${t.done} and ${t.doneBy} is not null and ${t.doneAt} is not null) or (not ${t.done} and ${t.doneBy} is null and ${t.doneAt} is null)`),
 ]);
 
+// Campaign boards and tasks (founder approval, 26 Nov; PRD "Departments locked to campaign-scoped boards"). One Kanban board per campaign department
+// plus one campaign-wide board ("general"); boards are created the first time a task is added to them. Tasks move through three fixed columns.
+// Milestones belong to the campaign or to one board. None of this references a CRM contact or extends CRM-05 crm_tasks.
+export const campaignBoards = pgTable("campaign_boards", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), campaignId: uuid("campaign_id").notNull(),
+  department: text("department").notNull(),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.campaignId], foreignColumns: [campaigns.tenantId, campaigns.id] }).onDelete("cascade"),
+  uniqueIndex("campaign_boards_department_idx").on(t.tenantId, t.campaignId, t.department),
+  uniqueIndex("campaign_boards_campaign_id_idx").on(t.tenantId, t.campaignId, t.id),
+  check("campaign_board_department", sql`${t.department} in ('general', 'campaign_leadership', 'church_mobilization', 'evangelistic_outreach', 'prayer_intercession', 'marketing_media', 'logistics_equipment', 'finance_fundraising', 'volunteers', 'counseling', 'discipleship_follow_up', 'worship_production', 'security_medical', 'transportation_hospitality')`),
+]);
+export const campaignMilestones = pgTable("campaign_milestones", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), campaignId: uuid("campaign_id").notNull(),
+  boardId: uuid("board_id"),
+  title: text("title").notNull(), dueDate: date("due_date"),
+  reachedAt: timestamp("reached_at", { withTimezone: true }), reachedBy: text("reached_by").references(() => users.id),
+  version: integer("version").notNull().default(1),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.campaignId], foreignColumns: [campaigns.tenantId, campaigns.id] }).onDelete("cascade"),
+  foreignKey({ name: "campaign_milestones_board_fk", columns: [t.tenantId, t.campaignId, t.boardId], foreignColumns: [campaignBoards.tenantId, campaignBoards.campaignId, campaignBoards.id] }).onDelete("cascade"),
+  uniqueIndex("campaign_milestones_campaign_id_idx").on(t.tenantId, t.campaignId, t.id),
+  index("campaign_milestones_campaign_idx").on(t.tenantId, t.campaignId, t.dueDate),
+  check("campaign_milestone_title", sql`length(btrim(${t.title})) between 1 and 200 and ${t.title} = btrim(${t.title})`),
+  check("campaign_milestone_reached", sql`(${t.reachedAt} is null) = (${t.reachedBy} is null)`),
+  check("campaign_milestone_version", sql`${t.version} >= 1`),
+]);
+export const campaignTasks = pgTable("campaign_tasks", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), campaignId: uuid("campaign_id").notNull(),
+  boardId: uuid("board_id").notNull(), milestoneId: uuid("milestone_id"),
+  title: text("title").notNull(), notes: text("notes").notNull().default(""),
+  status: text("status").$type<"todo" | "in_progress" | "done">().notNull().default("todo"),
+  position: integer("position").notNull().default(0),
+  // A ministry member who can write campaigns; checked by the insert/update policies, not a foreign key, so a member leaving keeps the task.
+  assigneeId: text("assignee_id"),
+  dueDate: date("due_date"),
+  completedAt: timestamp("completed_at", { withTimezone: true }), completedBy: text("completed_by").references(() => users.id),
+  version: integer("version").notNull().default(1),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.campaignId], foreignColumns: [campaigns.tenantId, campaigns.id] }).onDelete("cascade"),
+  foreignKey({ name: "campaign_tasks_board_fk", columns: [t.tenantId, t.campaignId, t.boardId], foreignColumns: [campaignBoards.tenantId, campaignBoards.campaignId, campaignBoards.id] }).onDelete("cascade"),
+  foreignKey({ name: "campaign_tasks_milestone_fk", columns: [t.tenantId, t.campaignId, t.milestoneId], foreignColumns: [campaignMilestones.tenantId, campaignMilestones.campaignId, campaignMilestones.id] }),
+  index("campaign_tasks_board_idx").on(t.tenantId, t.boardId, t.status, t.position),
+  index("campaign_tasks_campaign_idx").on(t.tenantId, t.campaignId, t.status),
+  index("campaign_tasks_milestone_idx").on(t.tenantId, t.milestoneId),
+  check("campaign_task_title", sql`length(btrim(${t.title})) between 1 and 200 and ${t.title} = btrim(${t.title})`),
+  check("campaign_task_notes", sql`length(${t.notes}) <= 5000`),
+  check("campaign_task_status", sql`${t.status} in ('todo', 'in_progress', 'done')`),
+  check("campaign_task_position", sql`${t.position} >= 0`),
+  check("campaign_task_done", sql`(${t.status} = 'done') = (${t.completedAt} is not null) and (${t.completedAt} is null) = (${t.completedBy} is null)`),
+  check("campaign_task_version", sql`${t.version} >= 1`),
+]);
+
 // CW-05 (founder decision Q2, 25 Nov): a person is placed in a department by an invitation they must accept. Pending, accepted, declined and revoked
 // are stored; expired is derived from `expiresAt` (14 days). An invitation is for an existing ministry member (kind member) or for an email address
 // (kind email); accepting an email invitation adds the person to the ministry in the inert campaign_guest role. Only the hash of the link token is kept.
