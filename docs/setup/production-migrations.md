@@ -25,7 +25,7 @@ All four are additive (new tables, columns, functions, policies); none drops or 
 
 ## Missing piece before any run
 
-A small, separately reviewed change is needed to run the migrator against staging/prod: either a manual CircleCI job from `main` with its own restricted context holding the staging/prod owner URL (mirroring `neon_review`), or an explicit, documented flag in `scripts/migrate.ts` that checks the target endpoint against `docs/setup/neon-project.json`. Neither exists today. Recommendation: the CircleCI job, restricted to `refs/heads/main`, one job per environment, no PR code.
+A small, separately reviewed change is needed to run the migrator against staging/prod: either a manual GitHub Actions job from `main` with its own protected environment holding the staging/prod owner URL (mirroring the `neon` job), or an explicit, documented flag in `scripts/migrate.ts` that checks the target endpoint against `docs/setup/neon-project.json`. Neither exists today. Recommendation: the GitHub Actions job, restricted to `refs/heads/main`, one job per environment, no PR code.
 
 ## Procedure (per environment: staging first, then prod)
 
