@@ -1,0 +1,79 @@
+name: Cloudflare staging
+# CF-07c: deploys the whole app to the Cloudflare STAGING Worker, or rolls it back. Manual only, from main only,
+# behind the `cloudflare-staging` GitHub environment (secrets CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID; add
+# required reviewers there). Resource IDs and names are in cloudflare/staging.json.
+# Never touches production: the staging config refuses the production origin and Hyperdrive, and there is no
+# production job here (CF-08 needs separate founder approval).
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'deploy, or rollback to the previous Worker version'
+        type: choice
+        options: [deploy, rollback]
+        default: deploy
+permissions:
+  contents: read
+concurrency:
+  group: cf-staging
+  cancel-in-progress: false
+env:
+  NEXT_TELEMETRY_DISABLED: '1'
+  WRANGLER_SEND_METRICS: 'false'
+jobs:
+  staging:
+    name: ${{ inputs.action }} staging
+    if: ${{ github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: cloudflare-staging
+    # The Cloudflare token is set only on the Deploy and Roll back steps, never on install or build steps, so no
+    # dependency's install script or build plugin can read it.
+    env:
+      CF07_DEPLOY_JOB: '1'
+      CF07_PREPARE_STAGING: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Load the staging settings (IDs and names only; cloudflare/staging.json)
+        # Only CF07_* keys with single-line values, so the file can never set other variables or inject lines.
+        run: jq -r 'to_entries[] | select(.key | test("^CF07_[A-Z0-9_]+$")) | select((.value | tostring) | test("\n") | not) | "\(.key)=\(.value)"' cloudflare/staging.json >> "$GITHUB_ENV"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+        if: ${{ inputs.action == 'deploy' }}
+      - name: Build for Workers (pinned tooling and cookie patch)
+        if: ${{ inputs.action == 'deploy' }}
+        run: scripts/cf-build.sh
+      - name: Write the staging config (IDs only)
+        if: ${{ inputs.action == 'deploy' }}
+        run: node --import tsx tests/cf07/prepare-staging.ts
+      - name: Deploy
+        if: ${{ inputs.action == 'deploy' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: cloudflare/tooling/node_modules/.bin/wrangler deploy -c cloudflare/wrangler.staging.json --message "main ${{ github.sha }}"
+      - name: Install the pinned tooling for rollback
+        if: ${{ inputs.action == 'rollback' }}
+        run: npm ci --prefix cloudflare/tooling --no-audit --no-fund
+      - name: Roll back to the previous version
+        if: ${{ inputs.action == 'rollback' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          cloudflare/tooling/node_modules/.bin/wrangler rollback --name "$CF07_STAGING_WORKER" --message "rollback from ${{ github.sha }}" --yes
+      - name: Smoke check
+        run: |
+          for path in /sign-in /manifest.webmanifest; do
+            status=$(curl -s -o /dev/null -w '%{http_code}' "$CF07_STAGING_ORIGIN$path")
+            echo "$path $status"
+            test "$status" = 200
+          done
+          cache=$(curl -s -D - -o /dev/null "$CF07_STAGING_ORIGIN/sign-in" | tr -d '\r' | awk -F': ' 'tolower($1)=="cache-control"{print $2}')
+          echo "cache-control $cache"
+          test "$cache" = "private, no-store"

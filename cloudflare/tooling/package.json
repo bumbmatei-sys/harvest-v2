@@ -1,0 +1,10 @@
+{
+  "name": "harvest-cloudflare-tooling",
+  "private": true,
+  "description": "CF-07 build and deploy tools, pinned apart from the app so they never move the app's own dependencies.",
+  "devDependencies": {
+    "@opennextjs/aws": "4.2.0",
+    "@opennextjs/cloudflare": "1.20.18",
+    "wrangler": "4.166.0"
+  }
+}

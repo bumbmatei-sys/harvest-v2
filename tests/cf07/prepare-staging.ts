@@ -11,7 +11,8 @@ function setting(name: string, pattern: RegExp) {
   return value;
 }
 
-if (process.env.CF07_PREPARE_STAGING === "1" && !process.env.CI) {
+// The deploy workflow (.github/workflows/cf-staging.yml) sets CF07_DEPLOY_JOB=1; ordinary CI never prepares a deploy.
+if (process.env.CF07_PREPARE_STAGING === "1" && (!process.env.CI || process.env.CF07_DEPLOY_JOB === "1")) {
   const name = setting("CF07_STAGING_WORKER", /^[a-z0-9][a-z0-9-]{2,62}$/);
   const origin = setting("CF07_STAGING_ORIGIN", /^https:\/\/[a-z0-9.-]+$/);
   const production = setting("CF07_PRODUCTION_ORIGIN", /^https:\/\/[a-z0-9.-]+$/);
@@ -38,6 +39,8 @@ if (process.env.CF07_PREPARE_STAGING === "1" && !process.env.CI) {
     observability: { enabled: true },
     // The OpenNext bundle's source maps are about 62 MiB, above the 60 MiB upload limit (error 10021).
     upload_source_maps: false,
+    // Minified, the bundle starts in about 620 ms on Cloudflare instead of failing the 1 s startup limit (26 Nov).
+    minify: true,
   };
   await writeFile("cloudflare/wrangler.staging.json", `${JSON.stringify(config, null, 2)}\n`);
   console.log("cloudflare/wrangler.staging.json");
