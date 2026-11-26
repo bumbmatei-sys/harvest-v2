@@ -16,7 +16,8 @@ export const MAX_CENTS = 1_000_000_000_000n;
 
 /** Positive integer cents as a string ("12550" is 125.50), at most 1e12. */
 export const centsInput = z.string().regex(/^[1-9][0-9]{0,12}$/).refine((value) => /^[1-9][0-9]{0,12}$/.test(value) && BigInt(value) <= MAX_CENTS, "AMOUNT_TOO_LARGE");
-export const idempotencyKeyInput = z.string().min(1).max(200).regex(/^[A-Za-z0-9._:-]+$/);
+/** Client retry key. The `replacement.` prefix is reserved for keys the server derives for correction replacements. */
+export const idempotencyKeyInput = z.string().min(1).max(200).regex(/^[A-Za-z0-9._:-]+$/).refine((value) => !value.startsWith("replacement."), "RESERVED_KEY");
 const optionalText = (max: number) => z.string().trim().max(max).nullish().transform((value) => value || null);
 const optionalDate = z.iso.date().nullish().transform((value) => value ?? null);
 /** A long digit run looks like a card or account number; references and methods must never hold one. */

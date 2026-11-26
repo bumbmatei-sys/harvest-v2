@@ -30,7 +30,11 @@ Record keeping only. No provider, payment flow, webhook, public page, outbound m
 | M8 | Gifts are recorded only with the explicit "confirmed by the ministry" statement and attributed to the recording person (RLS `confirmed_by = app.user_id`) | [x] | `cw-pledges.test.ts` (missing statement 400, forged confirmer 42501) |
 | M9 | Free-text method and reference refuse card/account-like numbers | [x] | `cw-pledges.test.ts` |
 | L1 | Lifecycle draft -> open -> closed -> archived (or draft -> archived), no reopening, versioned, enforced by trigger as well | [x] | `cw-pledges.test.ts` (lifecycle, direct SQL 23514) |
-| L2 | Closed: no new pledges, gifts and corrections still possible; archived: no new gifts, corrections possible | [x] | `cw-pledges.test.ts` |
+| L2 | Closed: no new pledges, but gifts are still accepted on purpose (gifts confirmed after closing still belong to the campaign) and corrections remain possible; archived: no new gifts, corrections possible | [x] | `cw-pledges.test.ts` |
+| E1 | CRM erasure (contact re-key): `giving_contact_before_rekey` clears the pledge's contact, supporter name and contact detail (version + 1) and deletes gift supporter links; ledger rows and totals are unchanged | [x] | `cw-pledges.test.ts` (erasure) |
+| E2 | CRM merge: `merge_contacts_scoped` moves pledges and gift supporter links from the source to the kept contact before the source is re-keyed; the link key has no cascade, so attribution never disappears silently | [x] | `cw-pledges.test.ts` (merge) |
+| K1 | A correction's replacement gift uses a server-derived key (`replacement.<reversal id>`); client keys may not use that prefix | [x] | `cw-pledges.test.ts` |
+| K2 | Recording a gift against a pledge holds a share lock on the pledge, so a concurrent cancel waits | [x] | source review |
 | C1 | CW-09: a fundraiser linked to an outreach campaign takes goal and currency from its budget settings when left empty; one live fundraiser per campaign | [x] | `cw-pledges.test.ts`; unique partial index |
 | C2 | Outreach campaign page shows goal / raised / progress, or a set-up button using the budget goal | [x] | `campaign-fundraising-card.tsx` (not browser-run) |
 | P1 | FORCE RLS on all four tables, no PUBLIC grants, policies use `access_role` (via `giving_can`), no inline `role_id` | [x] | `cw-pledges.test.ts`; `access-guard.test.ts` |
@@ -46,7 +50,7 @@ Record keeping only. No provider, payment flow, webhook, public page, outbound m
 - "Ways to give" methods (separate builder, `feat/cw-giving`); the gift's free-text method label can later sit beside a method id.
 - External giving links, CRM timeline projection (amount-null reference), giving exports, public suppressed progress, giving drafts.
 - A CRM contact picker in the screens (the server accepts a same-ministry contact id); ministry-wide (non-campaign) giving records; pledge editing.
-- Contact erasure handling for pledge supporter text (LEGAL decision pending; no real data until settled).
+- Free-text supporter fields (name, contact detail) on a pledge or gift that has no CRM contact are outside CRM erasure for now: CRM erasure only reaches rows linked to the erased contact. A giving-specific erasure path waits for the LEGAL retention decision; no real data until it is settled.
 - Browser, responsive and light/dark evidence (no browser run in this session).
 
 ## Evidence

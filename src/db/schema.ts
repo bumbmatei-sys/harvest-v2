@@ -3593,6 +3593,7 @@ export const givingContactLinks = pgTable("giving_contact_links", {
 }, (t) => [primaryKey({ columns: [t.tenantId, t.entryId] }),
   index("giving_contact_links_contact_idx").on(t.tenantId, t.contactId),
   foreignKey({ columns: [t.tenantId, t.entryId], foreignColumns: [givingLedgerEntries.tenantId, givingLedgerEntries.id] }),
-  foreignKey({ columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }).onDelete("cascade"),
+  // No cascade: erasure and merge handle links in giving_contact_before_rekey and merge_contacts_scoped, so attribution never disappears silently.
+  foreignKey({ columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }),
   check("giving_contact_link_name", sql`length(btrim(${t.supporterName})) between 1 and 120`),
   check("giving_contact_link_some", sql`${t.contactId} is not null or ${t.supporterName} is not null`)]);

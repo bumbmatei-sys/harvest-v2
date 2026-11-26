@@ -297,7 +297,7 @@ export async function recordGift(db: Database, userId: string, workspace: string
     if (campaign.status === "archived") throw fail(409, "Fundraising.archived");
     if (input.pledgeId) {
       const [pledge] = await tx.select({ status: fundraisingPledges.status }).from(fundraisingPledges)
-        .where(and(eq(fundraisingPledges.tenantId, tenantId), eq(fundraisingPledges.fundraisingId, id), eq(fundraisingPledges.id, input.pledgeId)));
+        .where(and(eq(fundraisingPledges.tenantId, tenantId), eq(fundraisingPledges.fundraisingId, id), eq(fundraisingPledges.id, input.pledgeId))).for("share");
       if (!pledge) throw fail(404, "Fundraising.pledgeNotFound");
       if (pledge.status === "cancelled") throw fail(409, "Fundraising.pledgeCancelled");
     }
@@ -314,6 +314,9 @@ export async function recordGift(db: Database, userId: string, workspace: string
     return { id: inserted.id };
   }));
 }
+
+/** The replacement's key derives from the server-made reversal id, in a prefix client keys may not use, so it can never meet a client's key. */
+const replacementKey = (reversalId: string) => `replacement.${reversalId}`;
 
 /**
  * Corrects a gift: appends its exact reversal and, when a replacement amount is given, one new gift in the same chain. The original row never changes.
@@ -343,7 +346,7 @@ export async function correctGift(db: Database, userId: string, workspace: strin
     if (input.replacementCents) {
       const [replacement] = await tx.insert(givingLedgerEntries).values({ tenantId, fundraisingId: id, pledgeId: original.pledgeId, amountCents: BigInt(input.replacementCents),
         currency: original.currency, kind: "gift", correctionOf: entryId, giftDate: input.replacementDate!, methodLabel: original.methodLabel, reference: original.reference,
-        confirmedBy: userId, idempotencyKey: `${idempotencyKey.slice(0, 180)}:replacement`, fingerprint }).returning({ id: givingLedgerEntries.id });
+        confirmedBy: userId, idempotencyKey: replacementKey(reversal.id), fingerprint }).returning({ id: givingLedgerEntries.id });
       replacementId = replacement.id;
       const [link] = await tx.select().from(givingContactLinks).where(and(eq(givingContactLinks.tenantId, tenantId), eq(givingContactLinks.entryId, entryId)));
       if (link) await tx.insert(givingContactLinks).values({ tenantId, entryId: replacementId, contactId: link.contactId, supporterName: link.supporterName, createdBy: userId });

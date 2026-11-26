@@ -6,7 +6,8 @@ import { testDatabase } from "../database";
 import { createWorkspace, putMember } from "../../src/server/workspaces";
 import { changeMemberAccess } from "../../src/server/access";
 import { createCampaign } from "../../src/server/campaigns";
-import { createContact } from "../../src/server/contacts";
+import { createContact, eraseContact } from "../../src/server/contacts";
+import { mergeContacts } from "../../src/server/crm-merge";
 import { withTenant } from "../../src/server/tenancy";
 import {
   campaignFundraising, correctGift, createFundraising, fundraisingEnabled, getFundraising, listFundraising, listGifts, listPledges, recordGift, recordPledge,
@@ -213,6 +214,37 @@ describe("fundraising campaigns", () => {
     for (const table of ["fundraising_campaigns", "giving_ledger_entries", "fundraising_pledges"]) {
       expect((await asApp("p-other", tenantB, sql`select count(*)::int as n from ${sql.identifier(table)}`)).rows[0], table).toEqual({ n: 0 });
     }
+  });
+
+  it("CRM erasure clears pledge supporter details and gift links without touching the money", async () => {
+    const fund = await createFundraising(f.db, "p-owner", tenantA, { title: "Erasure", goalCents: "1000", currency: "USD" }, key());
+    const person = await createContact(f.db, "p-owner", tenantA, { name: "Erase Me", email: `erase-${randomUUID().slice(0, 8)}@example.test` });
+    const pledge = await recordPledge(f.db, "p-owner", tenantA, fund.id, { amountCents: "500", contactId: person.id, supporterName: "Erase Me", supporterContact: "erase@example.test" }, key());
+    const linked = await recordGift(f.db, "p-owner", tenantA, fund.id, { amountCents: "200", giftDate: "2026-11-25", contactId: person.id, supporterName: "Erase Me", confirmed: true }, key());
+    await recordGift(f.db, "p-owner", tenantA, fund.id, { amountCents: "300", giftDate: "2026-11-25", pledgeId: pledge.id, confirmed: true }, key());
+    await eraseContact(f.db, "p-owner", tenantA, person.id);
+    const [after] = await listPledges(f.db, "p-owner", tenantA, fund.id);
+    expect(after).toMatchObject({ id: pledge.id, amountCents: "500", contactId: null, supporterName: null, supporterContact: null, version: 2 });
+    const gifts = await listGifts(f.db, "p-owner", tenantA, fund.id);
+    expect(gifts.find((gift) => gift.id === linked.id)).toMatchObject({ amountCents: "200", supporterName: null, contactId: null });
+    expect((await f.admin.query("select count(*)::int as n from giving_contact_links where entry_id = $1", [linked.id])).rows[0].n).toBe(0);
+    expect((await getFundraising(f.db, "p-owner", tenantA, fund.id)).totals).toMatchObject({ raisedCents: "500", giftCount: 2, pledgedCents: "500" });
+  });
+
+  it("CRM merge moves pledges and gift links to the kept contact", async () => {
+    const fund = await createFundraising(f.db, "p-owner", tenantA, { title: "Merge", goalCents: "1000", currency: "USD" }, key());
+    const kept = await createContact(f.db, "p-owner", tenantA, { name: "Kept", email: `kept-${randomUUID().slice(0, 8)}@example.test` });
+    const source = await createContact(f.db, "p-owner", tenantA, { name: "Duplicate", email: `dup-${randomUUID().slice(0, 8)}@example.test` });
+    const pledge = await recordPledge(f.db, "p-owner", tenantA, fund.id, { amountCents: "400", contactId: source.id }, key());
+    const gift = await recordGift(f.db, "p-owner", tenantA, fund.id, { amountCents: "150", giftDate: "2026-11-25", contactId: source.id, confirmed: true }, key());
+    await mergeContacts(f.db, "p-owner", tenantA, kept.id, { sourceId: source.id, sourceVersion: source.version, targetVersion: kept.version });
+    expect((await listPledges(f.db, "p-owner", tenantA, fund.id))[0]).toMatchObject({ id: pledge.id, contactId: kept.id, version: 2 });
+    expect((await listGifts(f.db, "p-owner", tenantA, fund.id)).find((row) => row.id === gift.id)?.contactId).toBe(kept.id);
+  });
+
+  it("reserves the replacement key prefix for the server", async () => {
+    const fund = await createFundraising(f.db, "p-owner", tenantA, { title: "Keys", goalCents: "1000", currency: "USD" }, key());
+    expect(await status(recordGift(f.db, "p-owner", tenantA, fund.id, { amountCents: "1", giftDate: "2026-11-25", confirmed: true }, `replacement.${randomUUID()}`))).toBe(400);
   });
 
   it("forces row-level security and grants the app no update or delete on the ledger", async () => {

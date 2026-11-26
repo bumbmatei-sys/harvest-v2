@@ -102,7 +102,7 @@ ALTER TABLE "fundraising_pledges" ADD CONSTRAINT "fundraising_pledges_tenant_id_
 ALTER TABLE "fundraising_pledges" ADD CONSTRAINT "fundraising_pledges_tenant_id_contact_id_contacts_tenant_id_id_fk" FOREIGN KEY ("tenant_id","contact_id") REFERENCES "public"."contacts"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "giving_contact_links" ADD CONSTRAINT "giving_contact_links_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "giving_contact_links" ADD CONSTRAINT "giving_contact_links_tenant_id_entry_id_giving_ledger_entries_tenant_id_id_fk" FOREIGN KEY ("tenant_id","entry_id") REFERENCES "public"."giving_ledger_entries"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "giving_contact_links" ADD CONSTRAINT "giving_contact_links_tenant_id_contact_id_contacts_tenant_id_id_fk" FOREIGN KEY ("tenant_id","contact_id") REFERENCES "public"."contacts"("tenant_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "giving_contact_links" ADD CONSTRAINT "giving_contact_links_tenant_id_contact_id_contacts_tenant_id_id_fk" FOREIGN KEY ("tenant_id","contact_id") REFERENCES "public"."contacts"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "giving_ledger_entries" ADD CONSTRAINT "giving_ledger_entries_confirmed_by_users_id_fk" FOREIGN KEY ("confirmed_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "giving_ledger_entries" ADD CONSTRAINT "giving_ledger_entries_tenant_id_fundraising_id_currency_fundraising_campaigns_tenant_id_id_currency_fk" FOREIGN KEY ("tenant_id","fundraising_id","currency") REFERENCES "public"."fundraising_campaigns"("tenant_id","id","currency") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "giving_ledger_entries" ADD CONSTRAINT "giving_ledger_entries_tenant_id_pledge_id_fundraising_id_fundraising_pledges_tenant_id_id_fundraising_id_fk" FOREIGN KEY ("tenant_id","pledge_id","fundraising_id") REFERENCES "public"."fundraising_pledges"("tenant_id","id","fundraising_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
@@ -203,3 +203,44 @@ BEGIN
 END $$;--> statement-breakpoint
 CREATE TRIGGER fundraising_pledge_guard BEFORE UPDATE ON public.fundraising_pledges FOR EACH ROW EXECUTE FUNCTION public.guard_fundraising_pledge();--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.reject_giving_ledger_mutation(), public.guard_giving_ledger_entry(), public.guard_fundraising_campaign(), public.guard_fundraising_pledge() FROM PUBLIC;
+--> statement-breakpoint
+-- CRM erasure and merge. Both re-key contacts.id (the merge source is erased that way too), and the supporter references here use NO ACTION keys,
+-- so these definers clear or move them first. The ledger is never touched: money history stays, only who it is attributed to goes.
+CREATE POLICY giving_definer_pledges ON public.fundraising_pledges TO PUBLIC
+  USING (current_user <> 'harvest_app' AND current_setting('app.giving_definer', true) = 'on')
+  WITH CHECK (current_user <> 'harvest_app' AND current_setting('app.giving_definer', true) = 'on');--> statement-breakpoint
+CREATE POLICY giving_definer_links ON public.giving_contact_links TO PUBLIC
+  USING (current_user <> 'harvest_app' AND current_setting('app.giving_definer', true) = 'on')
+  WITH CHECK (current_user <> 'harvest_app' AND current_setting('app.giving_definer', true) = 'on');--> statement-breakpoint
+-- Erasure: the pledge keeps its amount and status but loses the contact and every supporter field; a gift's supporter link is deleted.
+CREATE FUNCTION public.giving_contact_before_rekey() RETURNS trigger
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE prior text := current_setting('app.giving_definer', true);
+BEGIN
+  PERFORM set_config('app.giving_definer', 'on', true);
+  UPDATE public.fundraising_pledges SET contact_id = NULL, supporter_name = NULL, supporter_contact = NULL, version = version + 1, updated_at = now()
+    WHERE tenant_id = OLD.tenant_id AND contact_id = OLD.id;
+  DELETE FROM public.giving_contact_links WHERE tenant_id = OLD.tenant_id AND contact_id = OLD.id;
+  PERFORM set_config('app.giving_definer', coalesce(prior, ''), true);
+  RETURN NEW;
+END $$;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.giving_contact_before_rekey() FROM PUBLIC, harvest_app;--> statement-breakpoint
+CREATE TRIGGER giving_contact_before_rekey BEFORE UPDATE OF id ON public.contacts
+  FOR EACH ROW WHEN (OLD.id IS DISTINCT FROM NEW.id AND NEW.erased_at IS NOT NULL)
+  EXECUTE FUNCTION public.giving_contact_before_rekey();--> statement-breakpoint
+-- Merge: move pledges and gift links from the source to the target before the source is re-keyed (same text patch as 0104; port it if
+-- merge_contacts_scoped is redefined).
+DO $$
+DECLARE def text; patched text;
+  hook text := '  UPDATE public.crm_form_responses SET contact_id = p_target WHERE tenant_id = p_tenant AND contact_id = p_source;';
+BEGIN
+  def := pg_get_functiondef('public.merge_contacts_scoped(uuid, uuid, uuid)'::regprocedure);
+  patched := replace(def, hook, hook || '
+  PERFORM set_config(''app.giving_merge_prior'', coalesce(current_setting(''app.giving_definer'', true), ''''), true);
+  PERFORM set_config(''app.giving_definer'', ''on'', true);
+  UPDATE public.fundraising_pledges SET contact_id = p_target, version = version + 1, updated_at = now() WHERE tenant_id = p_tenant AND contact_id = p_source;
+  UPDATE public.giving_contact_links SET contact_id = p_target WHERE tenant_id = p_tenant AND contact_id = p_source;
+  PERFORM set_config(''app.giving_definer'', current_setting(''app.giving_merge_prior'', true), true);');
+  IF patched = def THEN RAISE EXCEPTION 'merge hook not found'; END IF;
+  EXECUTE patched;
+END $$;
