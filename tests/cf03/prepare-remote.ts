@@ -17,9 +17,11 @@ if (process.env.CF03_PREPARE_STAGING === "1" && !process.env.CI) {
   const id = setting("CF03_STAGING_HYPERDRIVE_ID", /^[a-f0-9]{32}$/);
   const bucket = setting("CF03_STAGING_BUCKET", /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/);
   const mailbox = setting("CF03_STAGING_MAILBOX_SERVICE", /^[a-z0-9][a-z0-9-]+$/);
+  if (process.env.CF03_STAGING_CODES_BUCKET === bucket) throw new Error("The synthetic mailbox needs its own bucket");
   const directory = await mkdtemp(join(tmpdir(), "harvest-cf03-staging-"));
   try {
     await bundleCf03(directory);
+    await bundleCf03(directory, "harness");
     await writeFile(join(directory, "wrangler.json"), JSON.stringify({
       name: "harvest-cf03-staging-fixture",
       main: "worker.mjs",
@@ -34,6 +36,13 @@ if (process.env.CF03_PREPARE_STAGING === "1" && !process.env.CI) {
       hyperdrive: [{ binding: "APP_HYPERDRIVE", id }],
       r2_buckets: [{ binding: "FILES", bucket_name: bucket }],
       services: [{ binding: "MAILBOX", service: mailbox }],
+    }, null, 2));
+    // The staging-only harness serves the fixture's MAILBOX binding and the seed steps; its codes bucket is separate.
+    await writeFile(join(directory, "harness.json"), JSON.stringify({
+      name: mailbox, main: "harness.mjs", compatibility_date: "2026-11-19", compatibility_flags: ["nodejs_compat"],
+      workers_dev: false, preview_urls: false, vars: { APP_DATABASE_NAME: database },
+      hyperdrive: [{ binding: "APP_HYPERDRIVE", id }],
+      r2_buckets: [{ binding: "CODES", bucket_name: setting("CF03_STAGING_CODES_BUCKET", /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/) }],
     }, null, 2));
     console.log(directory);
   } catch {

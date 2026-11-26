@@ -90,7 +90,7 @@ describe.each(["node", "workers"] as const)("%s request scopes", (runtime) => {
         hyperdrive.password = "cf02-generated-fixture";
         await expect(withDb({ runtime: "workers", role: "app", APP_HYPERDRIVE: { connectionString: hyperdrive.href } }, use)).rejects.toThrow("DATABASE_PRINCIPAL_INVALID");
         hyperdrive.username = fixture.migrationOwner!;
-        await expect(withDb({ runtime: "workers", role: "app", APP_HYPERDRIVE: { connectionString: hyperdrive.href } }, use)).rejects.toThrow();
+        await expect(withDb({ runtime: "workers", role: "app", APP_HYPERDRIVE: { connectionString: hyperdrive.href } }, use)).rejects.toThrow(/not permitted to log in|password authentication failed/);
       } finally { await fixture.admin.query(`DROP ROLE ${generated}`); }
     }
     expect(use).not.toHaveBeenCalled();
