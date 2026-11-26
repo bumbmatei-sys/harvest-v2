@@ -19,6 +19,7 @@ import { AccentIcon, accentVars } from "@/components/accent-icon";
 import { BasicsStep, PlaceStep, TypeStep, type SetStep } from "@/components/campaigns/wizard-steps";
 import { TeamsStep, type WizardPerson } from "@/components/campaigns/teams-step";
 import { ToolsStep } from "@/components/campaigns/tools-step";
+import { BudgetStep } from "@/components/campaigns/budget-step";
 import { ConnectStep } from "@/components/campaigns/connect-step";
 import { ReviewStep } from "@/components/campaigns/review-step";
 import { useRequest } from "@/hooks/use-request";
@@ -170,6 +171,7 @@ export function CampaignWizard({ tenantId, initial, canDiscard, listHref, people
     place: <PlaceStep form={form} set={set} disabled={disabled} problems={problems} />,
     leaders: <TeamsStep form={form} set={set} disabled={disabled} draft={draft} people={people} endpoint={endpoint} saveNow={flush} onInvitations={setInvitations} />,
     tools: <ToolsStep form={form} set={set} disabled={disabled} type={form.type} />,
+    budget: <BudgetStep form={form} set={set} disabled={disabled} problems={problems} onEdit={(id) => setStep(id)} />,
     connect: <ConnectStep form={form} set={set} disabled={disabled} onEdit={(id) => setStep(id)} />,
   }[step] : null;
   const breadcrumb = <Breadcrumb><BreadcrumbList><BreadcrumbItem><BreadcrumbLink asChild><Link href={listHref}>{t("draftBack")}</Link></BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator />

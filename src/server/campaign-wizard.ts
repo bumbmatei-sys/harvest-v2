@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { and, desc, eq, isNull, notInArray } from "drizzle-orm";
 import type { Database, Transaction } from "../db/client";
 import { auditLogs, campaignDraftAssignments, campaignDrafts, campaigns, workspaceMembers } from "../db/schema";
@@ -8,9 +9,10 @@ import {
 } from "../lib/campaign-wizard";
 import { message } from "../i18n/messages";
 import { insertCampaign } from "./campaigns";
+import { createDraftForm } from "./crm-forms";
 import { insertWizardDraftLink } from "./connect-links";
 import { invitationsOf, revokeOutside } from "./campaign-wizard-invitations";
-import { AccessError } from "./permissions";
+import { AccessError, can } from "./permissions";
 import { withTenant } from "./tenancy";
 
 const draftColumns = {
@@ -167,7 +169,10 @@ export async function finishDraft(db: Database, userId: string, workspace: strin
       name: current.name, type: current.type, description: current.description, mission: current.mission, country: current.country,
       cityRegion: current.cityRegion, startDate: current.startDate, endDate: current.endDate, timeZone: current.timeZone, structure: current.structure,
     }, `wizard-${id}`, { owner, coverFileId: current.coverFileId });
-    const [row] = await tx.update(campaignDrafts).set({ status: "finished", campaignId: campaign.id, finishedAt: new Date(), version: version + 1, updatedAt: new Date() })
+    // Public Campaign Registration gets one unpublished registration form, but only when the person finishing may create forms (owners and admins); the id
+    // is chosen here and recorded by the same update that wins the finish, so a losing or repeated finish creates none.
+    const registrationFormId = current.outreach.registration && can(role, "crm:forms_manage") ? randomUUID() : null;
+    const [row] = await tx.update(campaignDrafts).set({ status: "finished", campaignId: campaign.id, finishedAt: new Date(), version: version + 1, updatedAt: new Date(), ...(registrationFormId ? { registrationFormId } : {}) })
       .where(and(eq(campaignDrafts.tenantId, tenantId), eq(campaignDrafts.id, id), eq(campaignDrafts.version, version), eq(campaignDrafts.status, "draft")))
       .returning(draftColumns);
     if (!row) {
@@ -178,6 +183,7 @@ export async function finishDraft(db: Database, userId: string, workspace: strin
     }
     // Only the finish that won the update gets here, so a retry or a second tab never adds a second link.
     if (current.outreach.qrResponse) await insertWizardDraftLink(tx, userId, tenantId, campaign.id);
+    if (registrationFormId) await createDraftForm(tx, tenantId, userId, { id: registrationFormId, title: message("Campaigns.registrationFormTitle", { name: campaign.name }).slice(0, 200) });
     await audit(tx, tenantId, userId, "campaign.draft.finish", id, { campaign: campaign.id });
     return { draft: await view(tx, row as DraftRow), campaignId: campaign.id };
   });

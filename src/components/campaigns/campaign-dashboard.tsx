@@ -1,4 +1,4 @@
-import { getTranslations } from "next-intl/server";
+import { getFormatter, getTranslations } from "next-intl/server";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,8 +10,10 @@ import type { CampaignOverview } from "@/server/campaign-overview";
  * funding and tasks are not recorded anywhere yet, so they are listed as not available, never as zero. No donor, response or Connect data appears.
  * Colours are the theme's own: surface and border tokens, with the brand token for the bars.
  */
-export async function CampaignDashboard({ overview, connectHref }: { overview: CampaignOverview; connectHref: string }) {
-  const t = await getTranslations("CampaignDashboard"), tw = await getTranslations("CampaignWizard");
+const digitsOf = (currency: string) => { try { return new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2; } catch { return 2; } };
+
+export async function CampaignDashboard({ overview, connectHref, formHref }: { overview: CampaignOverview; connectHref: string; formHref: string | null }) {
+  const t = await getTranslations("CampaignDashboard"), tw = await getTranslations("CampaignWizard"), format = await getFormatter();
   const config = overview.configuration;
   const staffed = config ? config.departments.filter((department) => department.leaders.length > 0).length : 0;
   const people = config ? config.departments.reduce((total, department) => total + department.leaders.length + department.members.length, 0) : 0;
@@ -22,6 +24,7 @@ export async function CampaignDashboard({ overview, connectHref }: { overview: C
     [t("toolsOn"), t("ofTotal", { done: config.modules.length, total: 18 })],
     [t("setup"), t("ofTotal", { done: overview.checklist.done, total: overview.checklist.total })],
   ] : [[t("setup"), t("ofTotal", { done: overview.checklist.done, total: overview.checklist.total })]];
+  const amount = (minor: number | null) => minor === null || !config ? t("notSet") : format.number(minor / 10 ** digitsOf(config.budget.currency), { style: "currency", currency: config.budget.currency });
   const widest = config ? Math.max(1, ...config.departments.map((department) => department.leaders.length + department.members.length)) : 1;
   return <section aria-labelledby="campaign-dashboard-title" className="space-y-4">
     <h2 id="campaign-dashboard-title" className="text-base font-semibold">{t("title")}</h2>
@@ -41,8 +44,16 @@ export async function CampaignDashboard({ overview, connectHref }: { overview: C
       <Card><CardHeader><CardTitle><h3 className="text-sm font-semibold">{t("tools")}</h3></CardTitle><CardDescription>{t("toolsDescription")}</CardDescription></CardHeader>
         <CardContent>{config.modules.length ? <ul className="flex flex-wrap gap-2">{config.modules.map((key) => <li key={key} className="rounded-md border bg-muted/40 px-2 py-1 text-sm">{tw(`modules.${key}` as "modules.tasks_boards")}</li>)}</ul> : <p className="text-sm text-muted-foreground">{t("noTools")}</p>}</CardContent></Card>
     </div> : <p className="text-sm text-muted-foreground">{t("noConfiguration")}</p>}
+    {config && <Card><CardHeader><CardTitle><h3 className="text-sm font-semibold">{t("budget")}</h3></CardTitle><CardDescription>{t("budgetDescription")}</CardDescription></CardHeader>
+      <CardContent><dl className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{([
+        [t("estimated"), amount(config.budget.estimatedBudgetMinor)], [t("fundraising"), t(config.budget.fundraisingEnabled ? "on" : "off")],
+        [t("goal"), config.budget.fundraisingEnabled ? amount(config.budget.fundraisingGoalMinor) : t("notSet")], [t("online"), t(config.budget.onlineDonations ? "on" : "off")],
+      ] as [string, string][]).map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 break-words text-sm">{value}</dd></div>)}</dl></CardContent></Card>}
     {config && <Card><CardHeader><CardTitle><h3 className="text-sm font-semibold">{t("connect")}</h3></CardTitle><CardDescription>{t("connectDescription")}</CardDescription></CardHeader>
       <CardContent className="space-y-3">{config.connect.length ? <ul className="flex flex-wrap gap-2">{config.connect.map((key) => <li key={key} className="rounded-md border bg-muted/40 px-2 py-1 text-sm">{tw(`connect.options.${key}` as "connect.options.registration")}</li>)}</ul> : <p className="text-sm text-muted-foreground">{t("noConnect")}</p>}
+        {config.connect.includes("registration") && (config.registrationFormId
+          ? (formHref ? <Button asChild variant="outline" className="min-h-11"><Link href={`${formHref}/${config.registrationFormId}`}>{t("openForm")}</Link></Button> : <p className="text-sm text-muted-foreground">{t("formCreated")}</p>)
+          : <p className="text-sm text-muted-foreground">{t("noForm")}</p>)}
         {config.connect.includes("qrResponse") && <Button asChild variant="outline" className="min-h-11"><Link href={connectHref}>{t("openLinks")}</Link></Button>}</CardContent></Card>}
     <Card><CardHeader><CardTitle><h3 className="text-sm font-semibold">{t("notYet")}</h3></CardTitle><CardDescription>{t("notYetDescription")}</CardDescription></CardHeader>
       <CardContent><ul className="grid grid-cols-2 gap-3 lg:grid-cols-4">{overview.unavailable.map((key) => <li key={key} className="rounded-lg border border-dashed p-3"><p className="text-xs text-muted-foreground">{t(`unavailable.${key}`)}</p><p className="mt-1 text-sm">{t("notAvailable")}</p></li>)}</ul></CardContent></Card>

@@ -51,7 +51,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ tenan
       {campaign.description && <p className="mt-3 whitespace-pre-wrap break-words text-sm text-muted-foreground">{campaign.description}</p>}
     </div>
     {canActivate && <CampaignStatusAction tenantId={tenantId} campaignId={campaignId} status={campaign.status} />}
-    {overview && <CampaignDashboard overview={overview} connectHref={`/workspaces/${tenantId}/campaigns/${campaignId}/connect`} />}
+    {overview && <CampaignDashboard overview={overview} connectHref={`/workspaces/${tenantId}/campaigns/${campaignId}/connect`} formHref={workspace && can(workspace.role, "crm:forms_manage") ? `/workspaces/${tenantId}/crm/forms` : null} />}
     {checklist && <CampaignChecklist tenantId={tenantId} campaignId={campaignId} initial={checklist} />}
     <Card><CardHeader><CardTitle>{t("details")}</CardTitle></CardHeader><CardContent>
       <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{details.map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 break-words text-sm">{value}</dd></div>)}</dl>
