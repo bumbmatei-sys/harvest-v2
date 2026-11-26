@@ -41,7 +41,9 @@ export type Permission = "workspace:read" | "members:write" | "roles:write" | "c
   | "docs:read" | "docs:write" | "docs:manage"
   // Link in bio: owners and admins only (the page, its clicks and its messages).
   | "bio:manage"
-  | "newsletter:read" | "newsletter:manage" | "newsletter:campaigns" | "newsletter:delivery" | "newsletter:analytics";
+  | "newsletter:read" | "newsletter:manage" | "newsletter:campaigns" | "newsletter:delivery" | "newsletter:analytics"
+  // Fundraising pledge campaigns: owners and admins. Campaign settings follow the Giving area; pledges, gifts and supporter details stay owner/admin only.
+  | "fundraising:read" | "fundraising:manage" | "fundraising:publish" | "giving:record" | "giving:correct" | "giving:read_donors";
 function legacyCan(role: string, permission: Permission): boolean {
   if (permission === "communities:read" || permission === "workspace:read" || permission === "contacts:read" || permission === "companies:read" || permission === "opportunities:read" || permission === "tasks:read" || permission === "notes:read" || permission === "campaigns:read" || permission === "docs:read" || permission === "catalog:read") return roleIds.includes(role as Role);
   if (permission === "newsletter:read") return role === "owner" || role === "admin" || role === "member";

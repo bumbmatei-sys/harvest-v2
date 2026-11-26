@@ -32,6 +32,8 @@ export async function CampaignDashboard({ overview, connectHref, formHref }: { o
     [t("setup"), t("ofTotal", { done: overview.checklist.done, total: overview.checklist.total })],
     ...workStats,
   ] : [[t("setup"), t("ofTotal", { done: overview.checklist.done, total: overview.checklist.total })], ...workStats];
+  // Campaign events: the real count of linked events this person can see, once Events is on.
+  if (overview.events !== null) stats.push([(await getTranslations("CampaignEvents"))("stat"), String(overview.events)]);
   const amount = (minor: number | null) => minor === null || !config ? t("notSet") : format.number(minor / 10 ** digitsOf(config.budget.currency), { style: "currency", currency: config.budget.currency });
   const widest = config ? Math.max(1, ...config.departments.map((department) => department.leaders.length + department.members.length)) : 1;
   return <section aria-labelledby="campaign-dashboard-title" className="space-y-4">

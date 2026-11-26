@@ -8,6 +8,7 @@ import { message } from "../i18n/messages";
 import { workSummaryOf, type CampaignWorkSummary } from "./campaign-boards";
 import { checklistOf } from "./campaign-checklist";
 import { invitationsOf } from "./campaign-wizard-invitations";
+import { campaignEventsOf } from "./campaign-events";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
 
@@ -28,8 +29,10 @@ export type CampaignOverview = {
   checklist: { done: number; total: number };
   /** Tasks and milestones on the campaign's boards, and progress (share of tasks done; null with no tasks). */
   work: CampaignWorkSummary;
-  /** Numbers the dashboard cannot show yet because nothing records them: events and funding. Reported as unavailable, never as zero. */
+  /** Numbers the dashboard cannot show yet because nothing records them: events (while Events is off) and funding. Reported as unavailable, never as zero. */
   unavailable: ("events" | "funding")[];
+  /** Campaign events: how many linked events this person can see. Null while Events is off (then "events" stays unavailable). */
+  events: number | null;
 };
 
 /**
@@ -66,6 +69,10 @@ export async function getCampaignOverview(db: Database, userId: string, workspac
       };
     }
     const work = await workSummaryOf(tx, tenantId, id);
-    return { campaignId: id, configuration, checklist: { done: checklist.filter((item) => item.done).length, total: checklist.length }, work, unavailable: ["events", "funding"] };
+    const overview: CampaignOverview = { campaignId: id, configuration, checklist: { done: checklist.filter((item) => item.done).length, total: checklist.length }, work, unavailable: ["events", "funding"], events: null };
+    // Campaign events: once Events is on, the events figure is real and no longer listed as unavailable.
+    const linked = await campaignEventsOf(tx, tenantId, id);
+    if (linked) Object.assign(overview, { events: linked.events.length, unavailable: overview.unavailable.filter((key) => key !== "events") });
+    return overview;
   });
 }
