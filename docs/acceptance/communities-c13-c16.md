@@ -31,6 +31,7 @@ A shelf link is a pointer to the canonical catalogue item (PRD 7.2, free courses
 - `tests/integration/community-shelf.test.ts`: owner list and links, viewer read-only, cross-ministry refusal, member classroom and products, enrolment state, raw SQL limits, policy roles, archive, unlink and leaving.
 - `tests/e2e/community-shelf.spec.ts`: owner switches, outsider redirect, member enrol from both tabs, Continue and Open, unlink, axe at phone, tablet and desktop in light and dark, no sideways page scroll, 44px bottom-bar targets. Screenshots in `docs/screenshots/communities-c13-c16/`.
 - Updated `community-editor.spec.ts` and `shell-slice3a.spec.ts`: Products is no longer a "Coming soon" step.
+- Local browser runs (webpack dev server; the shared machine ran at load 16 to 25, and parallel sessions removed its embedded database twice): `shell-slice3a.spec.ts` 6 passed, 1 skipped. `community-editor.spec.ts` reached its last line with every assertion passing, then failed on one dev-mode console error ("Router action dispatched before initialization"). `community-shelf.spec.ts` passed through the owner step, the outsider redirect, the Classroom checks (axe, no sideways scroll, 44px bar, light and dark) and course enrolment; the Products half and the unlink did not complete locally because the server timed out, crashed or was killed. CI must confirm the full spec.
 
 The free catalogue gate keeps everything off in production. The hosted migration has not been run. All five HC-02 gates remain **UNAPPROVED**.
 
