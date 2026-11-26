@@ -29,7 +29,8 @@ async function capture(page: Page, name: string) {
   await expectFullWidthShell(page);
   await page.screenshot({ path: `${evidence}/${name}.png`, fullPage: true, animations: "disabled" });
   const result = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
-  expect(result.violations.map((violation) => `${violation.id}: ${violation.nodes.map((node) => node.target.join(" ")).join(", ")}`), name).toEqual([]);
+  // Each node carries axe's measured data (for color-contrast: fgColor, bgColor and ratio), so a CI failure says what was compared.
+  expect(result.violations.map((violation) => `${violation.id}: ${violation.nodes.map((node) => `${node.target.join(" ")} ${JSON.stringify(node.any.map((check) => check.data))}`).join(", ")}`), name).toEqual([]);
 }
 async function api(page: Page, method: "get" | "post" | "put" | "patch", path: string, data?: unknown) {
   const response = await page.request[method](path, { headers: { origin }, data });

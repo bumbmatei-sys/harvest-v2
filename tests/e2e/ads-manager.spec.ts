@@ -1,49 +1,16 @@
-import { mkdir } from "node:fs/promises";
-import { expect as base, test, type Page } from "@playwright/test";
-import AxeBuilder from "@axe-core/playwright";
-import { origin, signIn } from "./helpers/session";
-import { settleForAxe } from "./helpers/settle";
-import { releaseSocialConnectionsAfterEach } from "./helpers/social-accounts";
+import { test, type Page } from "@playwright/test";
+import { adsWorkspace, audit, expect, releaseAfterEach } from "./helpers/ads";
+import { signIn } from "./helpers/session";
 
 // Ads manager against the real Ads routes and the in-memory test provider with invented accounts, campaigns and numbers. Nothing leaves the process: no network, no spend.
-const expect = base.configure({ timeout: 30_000 });
 test.use({ actionTimeout: 30_000, timezoneId: "UTC", reducedMotion: "reduce" });
-const shots = "docs/screenshots/ads";
-const credential = "harvest-test-credential";
-const release = releaseSocialConnectionsAfterEach();
-const sizes = [["phone", 360, 800], ["tablet", 768, 1024], ["desktop", 1280, 900]] as const;
-
-async function workspace(page: Page) {
-  await signIn(page);
-  const tenant = (await (await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Grace Community Church", audience: "church" } })).json()).tenantId as string;
-  release(tenant);
-  const link = await page.request.post(`/api/workspaces/${tenant}/social/connections`, { headers: { origin }, data: { provider: "fake", credential, accountRef: "test-facebook" } });
-  expect(link.status()).toBe(201);
-  return tenant;
-}
+const release = releaseAfterEach();
+const workspace = (page: Page) => adsWorkspace(page, release);
 const ready = (page: Page) => expect(page.locator('[data-ads-ready="true"]')).toBeVisible();
 const row = (page: Page, name: string) => page.getByRole("row").filter({ has: page.getByRole("button", { name, exact: true }) });
 
-/** Axe (WCAG 2.0 to 2.2 A and AA), no horizontal overflow and a screenshot, at three widths in both colour schemes. */
-async function audit(page: Page, name: string) {
-  for (const scheme of ["light", "dark"] as const) {
-    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
-    for (const [label, width, height] of sizes) {
-      await page.setViewportSize({ width, height });
-      await settleForAxe(page);
-      const found = (await new AxeBuilder({ page }).exclude("iframe").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations;
-      expect(found.map((v) => `${label}/${scheme} ${v.id}: ${v.nodes.map((n) => n.target.join(" ")).slice(0, 3).join(" | ")}`)).toEqual([]);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      await page.screenshot({ path: `${shots}/${name}-${label}-${scheme}.png`, fullPage: true, animations: "disabled" });
-    }
-  }
-  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
-  await page.setViewportSize({ width: 1280, height: 900 });
-}
-
 test("ads manager: accounts, three-level table, filters, switches, columns, edit panel, health and totals", async ({ page }) => {
   test.setTimeout(420_000);
-  await mkdir(shots, { recursive: true });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -71,10 +38,12 @@ test("ads manager: accounts, three-level table, filters, switches, columns, edit
   const cards = page.locator("[data-ads-summary] [data-testid=stat-card]");
   await expect(cards).toHaveCount(4);
   await expect(page.locator("[data-ads-health]")).toContainText("Instagram");
-  await expect(page.getByRole("tab", { name: /Campaigns/ })).toContainText("4");
-  await expect(page.getByRole("tab", { name: /Ad sets/ })).toContainText("6");
-  await expect(page.getByRole("tab", { name: /^Ads/ })).toContainText("9");
-  await expect(page.locator('[data-slot="data-table-totals"]')).toContainText("Total of 4 rows");
+  // The test provider is shared by the specs in one run, so another spec may have added campaigns: the invented ones are a floor, not an exact count.
+  const count = async (name: RegExp) => Number((await page.getByRole("tab", { name }).innerText()).match(/\d+/)![0]);
+  expect(await count(/Campaigns/)).toBeGreaterThanOrEqual(4);
+  expect(await count(/Ad sets/)).toBeGreaterThanOrEqual(6);
+  expect(await count(/^Ads/)).toBeGreaterThanOrEqual(9);
+  await expect(page.locator('[data-slot="data-table-totals"]')).toContainText(/Total of \d+ rows/);
   // Reach is an average per day, and the campaign with no reported results says Unavailable, not zero.
   await expect(page.getByRole("columnheader", { name: "Reach per day" })).toBeVisible();
   await expect(row(page, "Christmas Eve boost")).toContainText("Unavailable");

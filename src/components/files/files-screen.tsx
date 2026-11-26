@@ -140,7 +140,7 @@ export function FilesScreen({ tenantId, files, canUpload, officeEnabled }: { ten
     const listing = listings[source.id];
     if (!listing || listing.status === "loading" || listing.status === "ready") return null;
     const text = listing.status === "error" ? t("sourceError", { source: source.name }) : t(`sourceState.${listing.status}`, { source: source.name });
-    return <Alert key={source.id} variant={listing.status === "error" ? "destructive" : "default"} role={listing.status === "error" ? "alert" : "status"} data-testid="source-alert"><TriangleAlert aria-hidden="true" />
+    return <Alert key={source.id} variant={listing.status === "error" ? "attention" : "default"} role={listing.status === "error" ? "alert" : "status"} data-testid="source-alert"><TriangleAlert aria-hidden="true" />
       <AlertDescription className="flex flex-wrap items-center gap-2">{text}<Button type="button" variant="outline" size="responsive" onClick={retry}><RotateCw aria-hidden="true" />{t("retry")}</Button></AlertDescription></Alert>;
   });
   const partial = activeDrives.some((source) => listings[source.id]?.partial);
@@ -184,7 +184,7 @@ export function FilesScreen({ tenantId, files, canUpload, officeEnabled }: { ten
       {drives.length > 0 && <SourceFilter sources={sources} selection={selection} onToggle={toggle} onAll={() => { setSelection(none); home(); }} />}
     </div>
 
-    {unhealthy.length > 0 && <Alert role="status" data-testid="source-attention"><TriangleAlert aria-hidden="true" /><AlertDescription>{t("sourceAttention")}</AlertDescription></Alert>}
+    {unhealthy.length > 0 && <Alert variant="attention" role="status" data-testid="source-attention"><TriangleAlert aria-hidden="true" /><AlertDescription>{t("sourceAttention")}</AlertDescription></Alert>}
     {actionError && <Alert variant="destructive"><AlertDescription>{actionError}</AlertDescription></Alert>}
     {sourceAlerts}
     {partial && <Alert role="status" data-testid="partial-notice"><AlertDescription>{t("partial")}</AlertDescription></Alert>}

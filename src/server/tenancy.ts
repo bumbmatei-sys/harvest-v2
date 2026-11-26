@@ -1,3 +1,4 @@
+import { e2eReason } from "./e2e-diagnostics";
 import { message } from "../i18n/messages";
 import { and, eq, sql } from "drizzle-orm";
 import type { Database, Transaction } from "../db/client";
@@ -21,14 +22,14 @@ export async function withTenant<T>(db: Database, userId: string, workspaceHint:
     const [membership] = await tx.select(member).from(workspaceMembers).where(and(
       eq(workspaceMembers.userId, userId), eq(workspaceMembers.tenantId, workspaceHint),
     ));
-    if (!membership) throw new AccessError(403, message("Errors.workspaceAccessDenied"));
+    if (!membership) throw new AccessError(403, message("Errors.workspaceAccessDenied"), e2eReason("no_membership"));
     if (membership.roleId !== "collaborator") requirePermission(membership.roleId, permission);
     // Parameterized set_config(..., true) is SET LOCAL and resets on commit/rollback.
     await tx.execute(sql`select set_config('app.tenant_id', ${membership.tenantId}, true)`);
     const [locked] = await tx.select(member).from(workspaceMembers).where(and(
       eq(workspaceMembers.userId, userId), eq(workspaceMembers.tenantId, membership.tenantId),
     )).for("share");
-    if (!locked) throw new AccessError(403, message("Errors.workspaceAccessDenied"));
+    if (!locked) throw new AccessError(403, message("Errors.workspaceAccessDenied"), e2eReason("membership_lock"));
     // A collaborator's grants are read inside the locked transaction. `access` is the role token (carries the grants); `role` is the role effective for this
     // capability, so callbacks that compare roles see what the database checks see (admin for manage, viewer for view).
     let access: string = locked.roleId, effective: string = locked.roleId;

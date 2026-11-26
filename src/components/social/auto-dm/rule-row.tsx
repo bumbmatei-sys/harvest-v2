@@ -37,7 +37,7 @@ export function RuleRow({ tenantId, rule, account, stats, busy, onSwitch }: {
         <p className="text-xs text-muted-foreground" data-testid="row-last">{stats?.state === "ready" ? (stats.lastAt ? t("last", { when: formatWhen(stats.lastAt) }) : t("never")) : " "}</p>
       </div>
       <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-        {!accountOk(account) && <StatusBadge tone="warning" label={t("accountAttention")} />}
+        {!accountOk(account) && <StatusBadge tone="danger" label={t("accountAttention")} />}
         <label className="inline-flex min-h-11 items-center gap-2 lg:min-h-9"><StatusBadge tone={rule.enabled ? "success" : "neutral"} dot label={rule.enabled ? t("on") : t("off")} />
           <Switch checked={rule.enabled} disabled={busy} aria-label={t("switch", { name: rule.name })} onCheckedChange={(next) => onSwitch(rule, next)} /></label>
         <Button asChild variant="outline" size="responsive"><Link href={base} prefetch={false}>{t("edit")}</Link></Button>

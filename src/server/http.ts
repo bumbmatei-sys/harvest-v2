@@ -1,3 +1,4 @@
+import { e2eDenialDetails } from "./e2e-diagnostics";
 import { message } from "../i18n/messages";
 import "server-only";
 import { getAuth } from "./auth-instance";
@@ -25,7 +26,12 @@ function hasSqlState(error: unknown, codes: string[]): boolean {
 export function errorResponse(error: unknown) {
   if (error instanceof AccessError) return Response.json({ error: error.message, ...(error.details ? { details: error.details } : {}) }, { status: error.status });
   if (error instanceof ZodError || error instanceof SyntaxError) return Response.json({ error: message("Errors.checkTheSuppliedDetails") }, { status: 400 });
-  if (hasSqlState(error, ["42501"])) return Response.json({ error: message("Errors.workspaceAccessDenied") }, { status: 403 });
+  if (hasSqlState(error, ["42501"])) {
+    // Browser-test server only: name the table and constraint of the refused statement (no values) so an intermittent denial can be traced.
+    const pg = error && typeof error === "object" ? ("cause" in error && error.cause && typeof error.cause === "object" ? error.cause : error) as { table?: string; constraint?: string; routine?: string; message?: string } : {};
+    const details = e2eDenialDetails(pg);
+    return Response.json({ error: message("Errors.workspaceAccessDenied"), ...(details ? { details } : {}) }, { status: 403 });
+  }
   if (hasSqlState(error, ["40P01", "40001"])) return Response.json({ error: message("Errors.thisRecordChangedReloadAndTryAgain"), details: { reason: "stale" } }, { status: 409 });
   console.error("request_failed");
   return Response.json({ error: message("Errors.somethingWentWrongPleaseTryAgain") }, { status: 500 });
