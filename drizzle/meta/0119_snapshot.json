@@ -11681,7 +11681,7 @@
       "checkConstraints": {
         "community_reaction_emoji": {
           "name": "community_reaction_emoji",
-          "value": "\"community_message_reactions\".\"emoji\" in ('👍','❤️','🙏','😊','🎉','👏','💡','🔥','😮','😢','✅','🙌')"
+          "value": "\"community_message_reactions\".\"emoji\" in ('\ud83d\udc4d','\u2764\ufe0f','\ud83d\ude4f','\ud83d\ude0a','\ud83c\udf89','\ud83d\udc4f','\ud83d\udca1','\ud83d\udd25','\ud83d\ude2e','\ud83d\ude22','\u2705','\ud83d\ude4c')"
         }
       },
       "isRLSEnabled": false
@@ -24878,6 +24878,10 @@
         "giving_methods_shape": {
           "name": "giving_methods_shape",
           "value": "case\n    when \"giving_methods\".\"kind\" = 'bank_transfer' then \"giving_methods\".\"iban\" is not null and \"giving_methods\".\"account_holder\" is not null and \"giving_methods\".\"url\" is null and \"giving_methods\".\"handle\" is null\n    when \"giving_methods\".\"kind\" = 'zelle' then \"giving_methods\".\"handle\" is not null and \"giving_methods\".\"url\" is null and \"giving_methods\".\"iban\" is null and \"giving_methods\".\"bic\" is null and \"giving_methods\".\"account_holder\" is null\n    when \"giving_methods\".\"kind\" in ('venmo','revolut','cash_app') then (\"giving_methods\".\"url\" is null) <> (\"giving_methods\".\"handle\" is null) and \"giving_methods\".\"iban\" is null and \"giving_methods\".\"bic\" is null and \"giving_methods\".\"account_holder\" is null\n    else \"giving_methods\".\"url\" is not null and \"giving_methods\".\"handle\" is null and \"giving_methods\".\"iban\" is null and \"giving_methods\".\"bic\" is null and \"giving_methods\".\"account_holder\" is null end"
+        },
+        "giving_methods_url_host": {
+          "name": "giving_methods_url_host",
+          "value": "public.giving_url_allowed(\"giving_methods\".\"kind\", \"giving_methods\".\"url\")"
         }
       },
       "isRLSEnabled": false

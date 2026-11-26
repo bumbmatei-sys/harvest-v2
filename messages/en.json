@@ -9758,7 +9758,8 @@
       "hiddenDone": "Giving details hidden.",
       "restoredDone": "Giving details restored.",
       "reauth": "Sign in again to continue.",
-      "signInAgain": "Sign in again"
+      "signInAgain": "Sign in again",
+      "openBadge": "{count, plural, one {# open report} other {# open reports}}"
     }
   }
 }

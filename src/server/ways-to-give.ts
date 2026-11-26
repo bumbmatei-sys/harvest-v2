@@ -95,13 +95,18 @@ export async function reorderGivingMethods(db: Database, user: string, workspace
 
 // ---- Public ----------------------------------------------------------------------------------------------------------------------------------------------
 /**
- * Enabled methods of a ministry for a public page that is being shown (the caller has already resolved a published page of this ministry, such as a published
- * campaign). Enabled means public; anything that no longer validates is dropped. Empty while the module is off.
+ * The owner's preview: the enabled methods a visitor would see, read through row security as the signed-in manager (owner, admin, or a collaborator with Giving
+ * at manage; anyone else reads none). Empty while Harvest staff hide the ministry's giving details or the module is off. There is deliberately no
+ * tenant-keyed public read: each public page resolves its ministry in its own definer first (link in bio: bio_public_giving).
  */
-export async function publicGivingMethodsFor(db: Database | Transaction, tenantId: string, env: Record<string, string | undefined> = process.env): Promise<GivingPublicMethod[]> {
-  if (!waysToGiveEnabled(env) || !uuid.safeParse(tenantId).success) return [];
-  const { rows: [row] } = await db.execute<{ result: unknown }>(sql`select public.giving_public_methods(${tenantId}::uuid) as result`);
-  return publicGivingMethods(row?.result);
+export async function managerGivingPreview(tx: Transaction, tenantId: string, env: Record<string, string | undefined> = process.env): Promise<GivingPublicMethod[]> {
+  if (!waysToGiveEnabled(env)) return [];
+  const [standing] = await tx.select({ hidden: givingStanding.hidden }).from(givingStanding).where(eq(givingStanding.tenantId, tenantId));
+  if (standing?.hidden) return [];
+  const rows = await tx.select({ id: givingMethods.id, kind: givingMethods.kind, label: givingMethods.label, url: givingMethods.url, handle: givingMethods.handle, iban: givingMethods.iban,
+    bic: givingMethods.bic, accountHolder: givingMethods.accountHolder, note: givingMethods.note }).from(givingMethods)
+    .where(and(eq(givingMethods.tenantId, tenantId), eq(givingMethods.enabled, true))).orderBy(asc(givingMethods.position), asc(givingMethods.id)).limit(givingLimits.methods);
+  return publicGivingMethods(rows);
 }
 
 /** The methods of a published link-in-bio page's shown "Ways to give" block, or [] (unpublished, block hidden or absent, nothing enabled, module off). */

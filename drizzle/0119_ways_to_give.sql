@@ -14,6 +14,39 @@ BEGIN
 END $$;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.giving_iban_valid(text) FROM PUBLIC;--> statement-breakpoint
 GRANT EXECUTE ON FUNCTION public.giving_iban_valid(text) TO harvest_app;--> statement-breakpoint
+-- Exact host allow-list per kind, repeated from src/lib/ways-to-give.ts (a unit test keeps the two in step). GoFundMe and Donorbox are TEMPORARY: the PR that
+-- adds a payment provider for donations removes them here and in the code, with founder sign-off. Planning Center Giving: one subdomain of churchcenter.com.
+CREATE FUNCTION public.giving_url_allowed(p_kind text, p_url text) RETURNS boolean
+LANGUAGE plpgsql IMMUTABLE SET search_path = pg_catalog, pg_temp AS $$
+DECLARE host text;
+BEGIN
+  IF p_url IS NULL THEN RETURN true; END IF;
+  host := substring(p_url FROM '^https://([a-z0-9.-]+)(/|\?|#|$)');
+  IF host IS NULL THEN RETURN false; END IF;
+  RETURN CASE p_kind
+    WHEN 'paypal' THEN host IN ('paypal.me', 'www.paypal.me', 'paypal.com', 'www.paypal.com')
+    WHEN 'wise' THEN host IN ('wise.com', 'www.wise.com')
+    WHEN 'venmo' THEN host IN ('venmo.com', 'www.venmo.com', 'account.venmo.com')
+    WHEN 'revolut' THEN host IN ('revolut.me')
+    WHEN 'cash_app' THEN host IN ('cash.app')
+    WHEN 'gofundme' THEN host IN ('gofundme.com', 'www.gofundme.com', 'gofund.me')
+    WHEN 'donorbox' THEN host IN ('donorbox.org', 'www.donorbox.org')
+    WHEN 'givebutter' THEN host IN ('givebutter.com', 'www.givebutter.com')
+    WHEN 'tithely' THEN host IN ('tithe.ly', 'www.tithe.ly', 'give.tithe.ly')
+    WHEN 'pushpay' THEN host IN ('pushpay.com', 'www.pushpay.com')
+    WHEN 'subsplash' THEN host IN ('subsplash.com', 'www.subsplash.com')
+    WHEN 'givelify' THEN host IN ('givelify.com', 'www.givelify.com', 'giving.givelify.com')
+    WHEN 'zeffy' THEN host IN ('zeffy.com', 'www.zeffy.com')
+    WHEN 'every_org' THEN host IN ('every.org', 'www.every.org')
+    WHEN 'justgiving' THEN host IN ('justgiving.com', 'www.justgiving.com')
+    WHEN 'patreon' THEN host IN ('patreon.com', 'www.patreon.com')
+    WHEN 'ko_fi' THEN host IN ('ko-fi.com', 'www.ko-fi.com')
+    WHEN 'buy_me_a_coffee' THEN host IN ('buymeacoffee.com', 'www.buymeacoffee.com')
+    WHEN 'planning_center' THEN host ~ '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.churchcenter\.com$' AND host <> 'www.churchcenter.com'
+    ELSE false END;
+END $$;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.giving_url_allowed(text, text) FROM PUBLIC;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.giving_url_allowed(text, text) TO harvest_app;--> statement-breakpoint
 CREATE TABLE "giving_methods" (
 	"tenant_id" uuid NOT NULL,
 	"id" uuid DEFAULT gen_random_uuid() NOT NULL,
@@ -37,6 +70,7 @@ CREATE TABLE "giving_methods" (
 	CONSTRAINT "giving_methods_position" CHECK ("giving_methods"."position" between 0 and 1000),
 	CONSTRAINT "giving_methods_url" CHECK ("giving_methods"."url" is null or ("giving_methods"."url" ~ '^https://[^/@:\s]+(/[^\s]*)?$' and length("giving_methods"."url") <= 2048)),
 	CONSTRAINT "giving_methods_lengths" CHECK (coalesce(length("giving_methods"."handle"), 0) <= 64 and coalesce(length("giving_methods"."account_holder"), 0) <= 100 and coalesce(length("giving_methods"."note"), 0) <= 140),
+	CONSTRAINT "giving_methods_url_host" CHECK (public.giving_url_allowed("giving_methods"."kind", "giving_methods"."url")),
 	CONSTRAINT "giving_methods_iban" CHECK ("giving_methods"."iban" is null or public.giving_iban_valid("giving_methods"."iban")),
 	CONSTRAINT "giving_methods_bic" CHECK ("giving_methods"."bic" is null or "giving_methods"."bic" ~ '^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$'),
 	CONSTRAINT "giving_methods_shape" CHECK (case
@@ -128,23 +162,25 @@ BEGIN
   END LOOP;
   EXECUTE 'CREATE POLICY giving_standing_manage_read ON public.giving_standing FOR SELECT TO harvest_app USING (' || manager || ')';
   -- The staff definers read the reported ministry's name (and check it exists); only while they set the flag, never as harvest_app.
-  EXECUTE format($p$CREATE POLICY giving_definer_ministry ON public.workspaces FOR SELECT TO %I USING (current_setting('app.giving_definer', true) = 'on')$p$, current_user);
+  -- Narrowed (review of 85f6b9f): only ministries that have a report, or the one ministry a standing change names.
+  EXECUTE format($p$CREATE POLICY giving_definer_ministry ON public.workspaces FOR SELECT TO %I USING (current_setting('app.giving_definer', true) = 'on' AND (
+    EXISTS (SELECT 1 FROM public.giving_reports r WHERE r.tenant_id = workspaces.tenant_id) OR tenant_id = nullif(current_setting('app.giving_definer_tenant', true), '')::uuid))$p$, current_user);
 END $$;--> statement-breakpoint
 GRANT SELECT ON public.giving_standing TO harvest_app;--> statement-breakpoint
 -- Internal helpers (not granted): whether staff hid a ministry's giving details, and a minute bucket that returns true while within its limit.
 CREATE FUNCTION public.giving_hidden(p_tenant uuid) RETURNS boolean
 LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-DECLARE prior text := coalesce(current_setting('app.giving_definer', true), ''); result boolean;
+DECLARE result boolean;
 BEGIN
   PERFORM set_config('app.giving_definer', 'on', true);
   SELECT coalesce((SELECT s.hidden FROM public.giving_standing s WHERE s.tenant_id = p_tenant), false) INTO result;
-  PERFORM set_config('app.giving_definer', prior, true);
+  PERFORM set_config('app.giving_definer', '', true);
   RETURN result;
 END $$;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.giving_hidden(uuid) FROM PUBLIC, harvest_app;--> statement-breakpoint
 CREATE FUNCTION public.giving_report_record(p_tenant uuid, p_page text, p_ref text, p_reason text, p_note text, p_visitor text) RETURNS text
 LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
-DECLARE prior text := coalesce(current_setting('app.giving_definer', true), ''); minute_start timestamptz := date_trunc('minute', clock_timestamp()); used integer; exceeded boolean := false;
+DECLARE minute_start timestamptz := date_trunc('minute', clock_timestamp()); used integer; exceeded boolean := false;
   bucket text; cap integer;
 BEGIN
   IF p_visitor !~ '^[a-f0-9]{64}$' OR p_reason NOT IN ('impersonation','scam','wrong_details','inappropriate','other') THEN RETURN 'invalid'; END IF;
@@ -159,7 +195,7 @@ BEGIN
   IF NOT exceeded THEN
     INSERT INTO public.giving_reports (tenant_id, page, ref, reason, note) VALUES (p_tenant, p_page, p_ref, p_reason, nullif(btrim(coalesce(p_note, '')), ''));
   END IF;
-  PERFORM set_config('app.giving_definer', prior, true);
+  PERFORM set_config('app.giving_definer', '', true);
   RETURN CASE WHEN exceeded THEN 'limited' ELSE 'ok' END;
 END $$;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.giving_report_record(uuid, text, text, text, text, text) FROM PUBLIC, harvest_app;--> statement-breakpoint
@@ -180,11 +216,12 @@ BEGIN
 END $$;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.bio_report_giving(text, text, text, text) FROM PUBLIC;--> statement-breakpoint
 GRANT EXECUTE ON FUNCTION public.bio_report_giving(text, text, text, text) TO harvest_app;--> statement-breakpoint
--- Harvest staff (platform_staff, the role Discover review uses): list reports, resolve them, hide or restore a ministry's public giving details at once.
+-- Harvest staff (platform_staff, the role Discover review uses): reviewers and admins list and resolve reports; admins hide or restore a ministry's public giving
+-- details at once.
 -- Each re-checks the active staff role of the signed-in user and writes a platform_staff_audit row. Reports carry no visitor identity.
 CREATE FUNCTION public.platform_giving_reports(p_status text, p_limit integer) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-DECLARE actor text := nullif(current_setting('app.user_id', true), ''); prior text := coalesce(current_setting('app.giving_definer', true), ''); result jsonb;
+DECLARE actor text := nullif(current_setting('app.user_id', true), ''); result jsonb;
 BEGIN
   IF public.platform_staff_role(actor) IS NULL THEN RAISE EXCEPTION 'not staff' USING ERRCODE = 'P0001'; END IF;
   IF p_status IS NULL OR p_status NOT IN ('open','reviewed','dismissed') THEN RAISE EXCEPTION 'invalid report status' USING ERRCODE = '22023'; END IF;
@@ -194,55 +231,70 @@ BEGIN
       'createdAt', r.created_at, 'hidden', coalesce(s.hidden, false)) x
     FROM public.giving_reports r JOIN public.workspaces w ON w.tenant_id = r.tenant_id LEFT JOIN public.giving_standing s ON s.tenant_id = r.tenant_id
     WHERE r.status = p_status ORDER BY r.created_at DESC, r.id DESC LIMIT least(greatest(coalesce(p_limit, 25), 1), 100)) q;
-  PERFORM set_config('app.giving_definer', prior, true);
+  PERFORM set_config('app.giving_definer', '', true);
   PERFORM public.platform_staff_log(actor, 'giving.reports', 'queue', p_status, NULL);
   RETURN result;
 END $$;--> statement-breakpoint
 CREATE FUNCTION public.platform_giving_resolve_report(p_id uuid, p_status text) RETURNS boolean
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-DECLARE actor text := nullif(current_setting('app.user_id', true), ''); prior text := coalesce(current_setting('app.giving_definer', true), ''); tenant uuid;
+DECLARE actor text := nullif(current_setting('app.user_id', true), ''); tenant uuid;
 BEGIN
   IF public.platform_staff_role(actor) IS NULL THEN RAISE EXCEPTION 'not staff' USING ERRCODE = 'P0001'; END IF;
   IF p_status IS NULL OR p_status NOT IN ('reviewed','dismissed') THEN RAISE EXCEPTION 'invalid report status' USING ERRCODE = '22023'; END IF;
   PERFORM set_config('app.giving_definer', 'on', true);
   UPDATE public.giving_reports SET status = p_status, resolved_by = actor, resolved_at = now() WHERE id = p_id AND status = 'open' RETURNING tenant_id INTO tenant;
-  PERFORM set_config('app.giving_definer', prior, true);
+  PERFORM set_config('app.giving_definer', '', true);
   IF tenant IS NULL THEN RETURN false; END IF;
   PERFORM public.platform_staff_log(actor, 'giving.report.' || p_status, 'giving_report', p_id::text, tenant);
   RETURN true;
 END $$;--> statement-breakpoint
 CREATE FUNCTION public.platform_giving_standing(p_tenant uuid, p_hidden boolean, p_reason text) RETURNS boolean
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-DECLARE actor text := nullif(current_setting('app.user_id', true), ''); prior text := coalesce(current_setting('app.giving_definer', true), '');
+DECLARE actor text := nullif(current_setting('app.user_id', true), '');
 BEGIN
-  IF public.platform_staff_role(actor) IS NULL THEN RAISE EXCEPTION 'not staff' USING ERRCODE = 'P0001'; END IF;
+  -- Staff admins only (founder, 26 Nov: the same rule as a Discover standing change). Reviewers read and resolve reports.
+  IF public.platform_staff_role(actor) IS DISTINCT FROM 'admin' THEN RAISE EXCEPTION 'not staff' USING ERRCODE = 'P0001'; END IF;
   IF p_hidden IS NULL OR (p_hidden AND nullif(btrim(coalesce(p_reason, '')), '') IS NULL) THEN RAISE EXCEPTION 'a reason is required to hide' USING ERRCODE = '22023'; END IF;
   PERFORM set_config('app.giving_definer', 'on', true);
-  IF NOT EXISTS (SELECT FROM public.workspaces w WHERE w.tenant_id = p_tenant) THEN PERFORM set_config('app.giving_definer', prior, true); RETURN false; END IF;
+  PERFORM set_config('app.giving_definer_tenant', coalesce(p_tenant::text, ''), true);
+  IF NOT EXISTS (SELECT FROM public.workspaces w WHERE w.tenant_id = p_tenant) THEN
+    PERFORM set_config('app.giving_definer', '', true); PERFORM set_config('app.giving_definer_tenant', '', true); RETURN false;
+  END IF;
   INSERT INTO public.giving_standing (tenant_id, hidden, reason, changed_by, changed_at) VALUES (p_tenant, p_hidden, CASE WHEN p_hidden THEN left(btrim(p_reason), 500) END, actor, now())
     ON CONFLICT (tenant_id) DO UPDATE SET hidden = EXCLUDED.hidden, reason = EXCLUDED.reason, changed_by = EXCLUDED.changed_by, changed_at = EXCLUDED.changed_at;
-  PERFORM set_config('app.giving_definer', prior, true);
+  PERFORM set_config('app.giving_definer', '', true); PERFORM set_config('app.giving_definer_tenant', '', true);
   PERFORM public.platform_staff_log(actor, CASE WHEN p_hidden THEN 'giving.standing.hide' ELSE 'giving.standing.restore' END, 'ministry', p_tenant::text, p_tenant);
   RETURN true;
 END $$;--> statement-breakpoint
-REVOKE ALL ON FUNCTION public.platform_giving_reports(text, integer), public.platform_giving_resolve_report(uuid, text), public.platform_giving_standing(uuid, boolean, text) FROM PUBLIC;--> statement-breakpoint
-GRANT EXECUTE ON FUNCTION public.platform_giving_reports(text, integer), public.platform_giving_resolve_report(uuid, text), public.platform_giving_standing(uuid, boolean, text) TO harvest_app;--> statement-breakpoint
--- Enabled methods of one ministry, in order, as a visitor may see them (explicit allow-list: no creator, no dates, no position). Enabled means public: the
--- server calls this only for a ministry whose public page (link in bio, a published campaign) is being shown.
+-- The in-app badge: how many reports are open (a number only; no email or other alert).
+CREATE FUNCTION public.platform_giving_open_count() RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE actor text := nullif(current_setting('app.user_id', true), ''); n integer;
+BEGIN
+  IF public.platform_staff_role(actor) IS NULL THEN RAISE EXCEPTION 'not staff' USING ERRCODE = 'P0001'; END IF;
+  PERFORM set_config('app.giving_definer', 'on', true);
+  SELECT count(*)::integer INTO n FROM public.giving_reports WHERE status = 'open';
+  PERFORM set_config('app.giving_definer', '', true);
+  RETURN n;
+END $$;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.platform_giving_reports(text, integer), public.platform_giving_resolve_report(uuid, text), public.platform_giving_standing(uuid, boolean, text), public.platform_giving_open_count() FROM PUBLIC;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.platform_giving_reports(text, integer), public.platform_giving_resolve_report(uuid, text), public.platform_giving_standing(uuid, boolean, text), public.platform_giving_open_count() TO harvest_app;--> statement-breakpoint
+-- Enabled methods of one ministry, in order, as a visitor may see them (explicit allow-list: no creator, no dates, no position).
 CREATE FUNCTION public.giving_public_methods(p_tenant uuid) RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-DECLARE prior text := coalesce(current_setting('app.giving_public_tenant', true), ''); result jsonb;
+DECLARE result jsonb;
 BEGIN
   IF p_tenant IS NULL OR public.giving_hidden(p_tenant) THEN RETURN '[]'::jsonb; END IF;
   PERFORM set_config('app.giving_public_tenant', p_tenant::text, true);
   SELECT coalesce(jsonb_agg(jsonb_build_object('id', g.id, 'kind', g.kind, 'label', g.label, 'url', g.url, 'handle', g.handle, 'iban', g.iban, 'bic', g.bic,
       'accountHolder', g.account_holder, 'note', g.note) ORDER BY g.position, g.id), '[]'::jsonb)
     INTO result FROM (SELECT * FROM public.giving_methods m WHERE m.tenant_id = p_tenant AND m.enabled ORDER BY m.position, m.id LIMIT 20) g;
-  PERFORM set_config('app.giving_public_tenant', prior, true);
+  PERFORM set_config('app.giving_public_tenant', '', true);
   RETURN result;
 END $$;--> statement-breakpoint
-REVOKE ALL ON FUNCTION public.giving_public_methods(uuid) FROM PUBLIC;--> statement-breakpoint
-GRANT EXECUTE ON FUNCTION public.giving_public_methods(uuid) TO harvest_app;--> statement-breakpoint
+-- Internal: never granted to harvest_app (it would hand any ministry's enabled bank details to any caller with a tenant id). Each public page gets its own
+-- definer that first resolves a published page of the ministry (link in bio: bio_public_giving); the owner's preview reads through row security.
+REVOKE ALL ON FUNCTION public.giving_public_methods(uuid) FROM PUBLIC, harvest_app;--> statement-breakpoint
 -- The "Ways to give" block of a published link-in-bio page: the methods only while the page is published with that block shown; NULL otherwise.
 CREATE FUNCTION public.bio_public_giving(p_handle text) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
@@ -259,4 +311,21 @@ BEGIN
   RETURN result;
 END $$;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.bio_public_giving(text) FROM PUBLIC;--> statement-breakpoint
-GRANT EXECUTE ON FUNCTION public.bio_public_giving(text) TO harvest_app;
+GRANT EXECUTE ON FUNCTION public.bio_public_giving(text) TO harvest_app;--> statement-breakpoint
+-- Entry resets (review of 85f6b9f): a value the app pre-set for the giving definers' settings can never reach another owner definer.
+CREATE OR REPLACE FUNCTION public.bio_scope_clear(p_keep_user boolean) RETURNS jsonb
+LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
+DECLARE prior jsonb := '{}'::jsonb; key text;
+BEGIN
+  FOREACH key IN ARRAY ARRAY['app.bio_handle','app.bio_tenant','app.tenant_id','app.community_definer_tenant','app.crm_forms_slug','app.user_id',
+      'app.giving_definer','app.giving_definer_tenant','app.giving_public_tenant'] LOOP
+    prior := prior || jsonb_build_object(key, coalesce(current_setting(key, true), ''));
+    IF key <> 'app.user_id' OR NOT p_keep_user THEN PERFORM set_config(key, '', true); END IF;
+  END LOOP;
+  RETURN prior;
+END $$;--> statement-breakpoint
+CREATE OR REPLACE FUNCTION public.community_definer_reset() RETURNS void LANGUAGE sql SET search_path = pg_catalog, pg_temp AS $$
+  SELECT set_config(name, '', true) FROM unnest(ARRAY['app.community_resolve_slug','app.community_definer_tenant','app.community_resolve_ids',
+    'app.community_resolve_invite','app.community_resolve_email','app.discover_read','app.community_resolve_user','app.community_purge',
+    'app.community_email_worker','app.giving_definer','app.giving_definer_tenant','app.giving_public_tenant']) AS name;
+$$;

@@ -32,8 +32,10 @@ webhook and processes no payment.
 
 ## Approved giving platforms (founder decision 26 Nov)
 Every link is validated to the exact hosts below (https, no login part, no port, no IP literal). There is no free "any link" kind; the database refuses
-`other`. **GoFundMe and Donorbox are TEMPORARY and will be removed once a payment provider (Stripe or another) is added** (also noted next to the list in
-`src/lib/ways-to-give.ts`, the schema check and `docs/decisions/founder-decisions-2026-11.md`).
+`other`. **GoFundMe and Donorbox are TEMPORARY.** They are removed by the PR that adds a payment provider for donations (Stripe or another), with founder
+sign-off on that PR: that PR deletes them from `givingPlatformHosts` in `src/lib/ways-to-give.ts`, from the kind check and `giving_url_allowed` in a new
+migration (existing GoFundMe/Donorbox rows are turned off or migrated first), and from the messages. Noted next to the list in code, in the database function
+and in `docs/decisions/founder-decisions-2026-11.md`.
 
 | Kind | Hosts |
 |---|---|
@@ -59,8 +61,8 @@ Every link is validated to the exact hosts below (https, no login part, no port,
 | Ko-fi | ko-fi.com, www.ko-fi.com |
 | Buy Me a Coffee | buymeacoffee.com, www.buymeacoffee.com |
 
-The database checks the kind list and the link shape; the exact hosts are checked by the server on every write and again on every public read (a method
-that no longer validates is not shown).
+The exact hosts are enforced three times: by the server on every write, by the database (`giving_url_allowed(kind, url)`, an IMMUTABLE check like the
+IBAN one; a unit test keeps its list identical to the code's), and again on every public read (a method that no longer validates is not shown).
 
 ## Reports and Harvest staff takedown (founder decision 26 Nov)
 - **Report button** on the public Ways to give block (link in bio; the embeddable component takes the page's own `reportUrl`). Any visitor, no account:
@@ -69,14 +71,22 @@ that no longer validates is not shown).
 - **Rate limit** like the link-in-bio click and message forms: the visitor key is the same keyed hash of the client address, kept only in a one-minute
   counter (`giving_report_quotas`, purged after two minutes): 3 reports a minute per visitor and ministry, 30 a minute per ministry. A report row stores the
   ministry, page, handle, reason, note and status only; no address, key or account.
-- **Staff** (`platform_staff`, the Discover review role, reviewer or admin, fresh sign-in within 15 minutes): `/platform/giving` lists reports by status
-  (open, reviewed, dismissed), resolves them, and hides a ministry's public giving details at once (reason required) or restores them. Every call writes a
-  `platform_staff_audit` row (`giving.reports`, `giving.report.reviewed|dismissed`, `giving.standing.hide|restore`). Both staff roles may hide and restore.
-- **Effect:** `giving_standing.hidden` makes `giving_public_methods` (and so the link-in-bio block, the editor preview and any embed) return nothing for the
-  ministry. The owner keeps editing the list and sees "Hidden by Harvest staff" with the reason; owners cannot lift it (no write grant).
+- **Staff** (`platform_staff`, the Discover review role, fresh sign-in within 15 minutes): `/platform/giving`. Reviewers and admins list reports by status
+  (open, reviewed, dismissed) and mark them reviewed or dismissed. **Hiding (reason required) and restoring are staff admins only** (founder, 26 Nov, the
+  same rule as Discover standing), enforced in `platform_giving_standing`, in the server, and in the screen (reviewers do not get the buttons). Every call
+  writes a `platform_staff_audit` row (`giving.reports`, `giving.report.reviewed|dismissed`, `giving.standing.hide|restore`).
+- **Alerts:** in-app only (founder, 26 Nov): the open-report count is a badge in the staff page header and on the Open tab (`platform_giving_open_count`).
+  No email or other notification.
+- **Effect:** `giving_standing.hidden` makes `giving_public_methods` (and so the link-in-bio block and any embed) and the owner preview return nothing for
+  the ministry. The owner keeps editing the list and sees "Hidden by Harvest staff" with the reason; owners cannot lift it (no write grant).
 - Tables `giving_standing`, `giving_reports`, `giving_report_quotas`: RLS forced, no app grant except owner/admin SELECT on their own standing; all other
   access through the definers (`bio_report_giving`, `platform_giving_reports`, `platform_giving_resolve_report`, `platform_giving_standing`).
-  One owner-only read policy on `workspaces` lets the staff definers read the reported ministry's name while they set their own flag.
+  One owner-only read policy on `workspaces` lets the staff definers read a ministry's name, narrowed to ministries that have a report or the one ministry
+  a standing change names, and only while they set their flag. Every giving definer resets its settings to empty when it finishes; `bio_scope_clear` and
+  `community_definer_reset` also clear them, so a value the app pre-set never reaches another owner definer (review of 85f6b9f).
+- **No tenant-keyed public read:** `giving_public_methods(uuid)` is not granted to the app (it would return any ministry's enabled bank details for any
+  tenant id). Each public page gets its own definer that first resolves a published page (link in bio: `bio_public_giving`); the campaign page adds its
+  own. The owner's editor preview reads through row security as the manager (`managerGivingPreview`).
 
 ## Reuse and exceptions
 - Reused: Item/ItemGroup, Button, Switch, Dialog, Field/Input, Alert, SearchableSelect, EmptyState, FormSection, StatusBadge, ConfirmDialog, CopyButton,
@@ -89,12 +99,13 @@ that no longer validates is not shown).
 - `tests/integration/ways-to-give.test.ts`: roles (owner/admin vs member/viewer/outsider), server and database validation, version/stale, reorder,
   delete, audit without account details, RLS (member, viewer, other ministry, public setting from the app role), public allow-list and order,
   link-in-bio publish/hidden/disabled/unpublished, the database refusing `other`, visitor reports (validation, origin, honeypot, rate limit, nothing
-  identifying stored, closed to the app role), staff list/resolve (non-staff get 404), takedown hiding every public read, owner notice, restore and the staff
-  audit rows.
+  identifying stored, closed to the app role), staff list/resolve and open count (non-staff get 404), takedown by an admin hiding every public read, a
+  reviewer refused by the server and the database, owner notice, restore, staff audit rows, the database host check for every platform, the app unable to
+  call `giving_public_methods`, and settings the app pre-sets never widening owner definers' view of `workspaces`.
 - Existing link-in-bio, navigation, access-guard, source-guards and migration unit tests pass; typecheck and eslint clean on changed files.
 - Not run: full browser suite (disk). Responsive and light/dark not visually verified in a browser; the screens use theme tokens and 44px targets.
 
 ## Not included
 - Pledges, recorded gifts and goal/raised totals (feat/cw-pledges). The campaign page embed itself (that builder calls `publicGivingMethodsFor` and
   renders `WaysToGive`). Logos, QR codes for methods, per-campaign method selection. Production migration not applied; feature off in production.
-- Reports are not yet notified to staff (they check `/platform/giving`); reporting from the campaign page needs that page's own report route.
+- Staff email alerts (in-app badge only, by decision); reporting from and embedding on the campaign page need that page's own definer and report route.

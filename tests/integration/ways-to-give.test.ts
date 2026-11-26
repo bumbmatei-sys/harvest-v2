@@ -3,10 +3,11 @@ import { sql } from "drizzle-orm";
 import { emptyBioDefinition, type BioDefinition } from "../../src/lib/link-in-bio";
 import { getBioPage, getPublicBio, saveBioDraft, transitionBioPage, bioChoices } from "../../src/server/link-in-bio";
 import { respondToBioGivingReport } from "../../src/server/link-in-bio-public";
-import { staffGivingReports, staffGivingStanding, staffResolveGivingReport } from "../../src/server/platform/giving";
+import { staffGivingOpenCount, staffGivingReports, staffGivingStanding, staffResolveGivingReport } from "../../src/server/platform/giving";
 import { users } from "../../src/db/schema";
-import { createGivingMethod, deleteGivingMethod, givingStandingFor, listGivingMethods, publicGivingMethodsFor, reorderGivingMethods, updateGivingMethod } from "../../src/server/ways-to-give";
-import { withTenant } from "../../src/server/tenancy";
+import { createGivingMethod, deleteGivingMethod, bioGivingMethods, givingStandingFor, listGivingMethods, reorderGivingMethods, updateGivingMethod } from "../../src/server/ways-to-give";
+import { withTenant, withUser } from "../../src/server/tenancy";
+import { publicGivingMethods } from "../../src/lib/ways-to-give";
 import { testDatabase } from "../database";
 import { noNetwork, seedPeople } from "./social-layer-fixture";
 
@@ -17,6 +18,8 @@ let fixture: Awaited<ReturnType<typeof testDatabase>>;
 let people: Awaited<ReturnType<typeof seedPeople>>;
 let fetchSpy: ReturnType<typeof noNetwork>;
 const db = () => fixture.db;
+// giving_public_methods is internal (no app grant): read it as the migration owner, the way the public definers do.
+const publicGivingMethodsFor = async (tenant: string) => publicGivingMethods((await fixture.admin.query("select public.giving_public_methods($1::uuid) r", [tenant])).rows[0].r);
 const status = (promise: Promise<unknown>) => promise.then(() => 200, (e: { status?: number; name?: string }) => e.status ?? (e.name === "ZodError" ? 400 : 500));
 const iban = "GB82WEST12345698765432";
 const bank = { kind: "bank_transfer", label: "Bank transfer", iban: "gb82 west 1234 5698 7654 32", bic: "WESTGB2L", accountHolder: "Grace Church", note: "Gift", enabled: true };
@@ -63,6 +66,16 @@ describe("managing ways to give", () => {
     expect(await raw("url", "'javascript:alert(1)'")).toBe("23514");
     expect(await raw("url", "'https://user@example.org/'")).toBe("23514");
     expect(await raw("url, handle", "'https://example.org/', '@x'")).toBe("23514");
+    // The database holds every link to its platform's hosts too.
+    const link = (kind: string, url: string) => fixture.admin.query("insert into giving_methods (tenant_id, position, kind, label, created_by, url) values ($1, 9, $2, 'x', $3, $4)", [people.tenant, kind, people.owner, url]).then(() => "ok", (e: { code?: string }) => e.code);
+    expect(await link("gofundme", "https://give.example.org/x")).toBe("23514");
+    expect(await link("paypal", "https://paypal.me.evil.example/x")).toBe("23514");
+    expect(await link("planning_center", "https://www.churchcenter.com/giving")).toBe("23514");
+    expect(await link("planning_center", "https://a.b.churchcenter.com/giving")).toBe("23514");
+    const { givingKindRules, givingPlatforms } = await import("../../src/lib/ways-to-give");
+    for (const platform of givingPlatforms.filter((k) => givingKindRules[k].hosts?.length)) expect(await link(platform, `https://${givingKindRules[platform].hosts![0]}/grace`), platform).toBe("ok");
+    expect(await link("planning_center", "https://grace.churchcenter.com/giving")).toBe("ok");
+    await fixture.admin.query("delete from giving_methods where tenant_id=$1 and position=9", [people.tenant]);
     // There is no free "any link" kind any more.
     expect(await fixture.admin.query("insert into giving_methods (tenant_id, position, kind, label, created_by, url) values ($1, 9, 'other', 'x', $2, 'https://example.org/')", [people.tenant, people.owner]).then(() => "ok", (e: { code?: string }) => e.code)).toBe("23514");
     expect(await status(createGivingMethod(db(), people.owner, people.tenant, { kind: "other", label: "Any", url: "https://example.org", enabled: true }))).toBe(400);
@@ -106,11 +119,13 @@ describe("public display", () => {
   it("shows only enabled methods, in order, with an allow-listed shape", async () => {
     const [first] = await listGivingMethods(db(), people.owner, people.tenant);
     await updateGivingMethod(db(), people.owner, people.tenant, first.id, { version: first.version, method: { ...paypal, enabled: false } });
-    const shown = await publicGivingMethodsFor(db(), people.tenant);
+    const shown = await publicGivingMethodsFor(people.tenant);
     expect(shown.map((m) => m.kind)).toEqual(["zelle", "bank_transfer"]);
     expect(Object.keys(shown[1]).sort()).toEqual(["accountHolder", "bic", "handle", "iban", "id", "kind", "label", "note", "url"]);
-    expect(await publicGivingMethodsFor(db(), people.other)).toEqual([]);
-    expect(await publicGivingMethodsFor(db(), people.tenant, { NODE_ENV: "production" })).toEqual([]);
+    expect(await publicGivingMethodsFor(people.other)).toEqual([]);
+    expect(await bioGivingMethods(db(), "give-church", { NODE_ENV: "production" })).toEqual([]);
+    // The app role cannot call the tenant-keyed read at all (it would hand out any ministry's bank details).
+    expect(await status(withTenant(db(), people.owner, people.tenant, "workspace:read", (tx) => tx.execute(sql`select public.giving_public_methods(${people.tenant}::uuid)`)))).toBe(500);
   });
 
   it("adds a Ways to give block to the published link in bio, and nowhere it is hidden or unpublished", async () => {
@@ -176,19 +191,26 @@ describe("reports and Harvest staff takedown", () => {
     expect(await status(staffGivingReports(db(), people.owner, "open"))).toBe(404);
     const { reports } = await staffGivingReports(db(), "give-reviewer", "open");
     expect(reports.length).toBe(3);
+    expect((await staffGivingReports(db(), "give-reviewer", "open")).openCount).toBe(3);
     expect(reports[0]).toMatchObject({ tenantId: people.tenant, ministry: "give ministry", page: "bio", ref: "give-church", status: "open", hidden: false });
     expect(await staffResolveGivingReport(db(), "give-reviewer", reports[0].id, { status: "dismissed" })).toEqual({ resolved: true });
     expect(await status(staffResolveGivingReport(db(), "give-reviewer", reports[0].id, { status: "reviewed" }))).toBe(404);
     expect(await status(staffResolveGivingReport(db(), people.admin, reports[1].id, { status: "reviewed" }))).toBe(404);
     expect((await staffGivingReports(db(), "give-staff", "dismissed")).reports.map((r) => r.id)).toEqual([reports[0].id]);
+    expect(await staffGivingOpenCount(db(), "give-staff")).toBe(2);
+    expect(await status(staffGivingOpenCount(db(), people.owner))).toBe(404);
   });
 
   it("hides a ministry's public giving details at once, shows the owner why, and restores them; audited", async () => {
-    expect((await publicGivingMethodsFor(db(), people.tenant)).length).toBeGreaterThan(0);
+    expect((await publicGivingMethodsFor(people.tenant)).length).toBeGreaterThan(0);
     expect(await status(staffGivingStanding(db(), people.owner, people.tenant, { hidden: true, reason: "x" }))).toBe(404);
     expect(await status(staffGivingStanding(db(), "give-staff", people.tenant, { hidden: true }))).toBe(400);
-    expect(await staffGivingStanding(db(), "give-reviewer", people.tenant, { hidden: true, reason: "Reported as impersonation" })).toEqual({ hidden: true });
-    expect(await publicGivingMethodsFor(db(), people.tenant)).toEqual([]);
+    // Hiding and restoring are staff admins only: a reviewer is refused by the server and by the database function itself.
+    expect(await status(staffGivingStanding(db(), "give-reviewer", people.tenant, { hidden: true, reason: "x" }))).toBe(404);
+    expect(await withUser(db(), "give-reviewer", (tx) => tx.execute(sql`select public.platform_giving_standing(${people.tenant}::uuid, true, 'x')`)).then(() => "ok", (e: { cause?: { code?: string } }) => e.cause?.code)).toBe("P0001");
+    expect(await publicGivingMethodsFor(people.tenant)).not.toEqual([]);
+    expect(await staffGivingStanding(db(), "give-staff", people.tenant, { hidden: true, reason: "Reported as impersonation" })).toEqual({ hidden: true });
+    expect(await publicGivingMethodsFor(people.tenant)).toEqual([]);
     expect((await getPublicBio(db(), "give-church"))!.tabs.flatMap((t) => t.blocks).some((b) => b.type === "giving")).toBe(false);
     expect((await bioChoices(db(), people.owner, people.tenant)).giving).toEqual([]);
     expect(await givingStandingFor(db(), people.owner, people.tenant)).toMatchObject({ hidden: true, reason: "Reported as impersonation" });
@@ -197,11 +219,46 @@ describe("reports and Harvest staff takedown", () => {
     expect((await listGivingMethods(db(), people.owner, people.tenant)).length).toBeGreaterThan(0);
     expect(await status(withTenant(db(), people.owner, people.tenant, "workspace:read", (tx) => tx.execute(sql`update giving_standing set hidden = false`)))).toBe(500);
     expect((await staffGivingReports(db(), "give-staff", "open")).reports.every((r) => r.hidden)).toBe(true);
+    expect(await status(staffGivingStanding(db(), "give-reviewer", people.tenant, { hidden: false }))).toBe(404);
     expect(await staffGivingStanding(db(), "give-staff", people.tenant, { hidden: false })).toEqual({ hidden: false });
-    expect((await publicGivingMethodsFor(db(), people.tenant)).length).toBeGreaterThan(0);
+    expect((await publicGivingMethodsFor(people.tenant)).length).toBeGreaterThan(0);
     expect(await givingStandingFor(db(), people.owner, people.tenant)).toMatchObject({ hidden: false, reason: null });
     const audit = (await fixture.admin.query("select actor_id, action, tenant_id from platform_staff_audit where action like 'giving.%' order by created_at")).rows;
     expect(audit.map((r) => r.action)).toEqual(expect.arrayContaining(["giving.reports", "giving.report.dismissed", "giving.standing.hide", "giving.standing.restore"]));
-    expect(audit.find((r) => r.action === "giving.standing.hide")).toMatchObject({ actor_id: "give-reviewer", tenant_id: people.tenant });
+    expect(audit.find((r) => r.action === "giving.standing.hide")).toMatchObject({ actor_id: "give-staff", tenant_id: people.tenant });
   });
 });
+
+describe("definer settings the app pre-sets", () => {
+  it("never widen what owner definers see of other ministries", async () => {
+    const owner = fixture.migrationOwner!;
+    const asOwner = async (setup: string[], query: string) => {
+      const client = await fixture.admin.connect();
+      try {
+        await client.query("begin"); await client.query(`set local role ${owner}`);
+        for (const statement of setup) await client.query(statement);
+        return (await client.query(query)).rows;
+      } finally { await client.query("rollback"); client.release(); }
+    };
+    // The bare flag no longer opens every ministry: only ones with a report (or the one a standing change names).
+    const visible = (await asOwner(["select set_config('app.giving_definer', 'on', true)"], "select tenant_id from workspaces")).map((r) => r.tenant_id);
+    expect(visible).toContain(people.tenant); expect(visible).not.toContain(people.other);
+    // The entry resets clear what the app may have set before calling another owner definer.
+    for (const reset of ["select public.bio_scope_clear(false)", "select public.community_definer_reset()"]) {
+      const rows = await asOwner(["select set_config('app.giving_definer', 'on', true)", "select set_config('app.giving_definer_tenant', '" + people.other + "', true)", "select set_config('app.giving_public_tenant', '" + people.other + "', true)", reset],
+        "select current_setting('app.giving_definer', true) a, current_setting('app.giving_definer_tenant', true) b, current_setting('app.giving_public_tenant', true) c, (select count(*)::int from workspaces where tenant_id = '" + people.other + "') n");
+      expect(rows[0]).toEqual({ a: "", b: "", c: "", n: 0 });
+    }
+    // Through the app: pre-setting the flag and calling an owner definer that reads workspaces (the public link-in-bio page) shows no other ministry.
+    const view = await withTenant(db(), people.outsider, people.other, "workspace:read", async (tx) => {
+      await tx.execute(sql`select set_config('app.giving_definer', 'on', true)`);
+      return (await tx.execute<{ r: { ministryName: string } | null }>(sql`select public.bio_public_page('give-church') r`)).rows[0].r;
+    });
+    expect(view === null || view.ministryName === "give ministry").toBe(true);
+    expect(await withTenant(db(), people.outsider, people.other, "workspace:read", async (tx) => {
+      await tx.execute(sql`select set_config('app.giving_definer', 'on', true)`);
+      return Number((await tx.execute(sql`select count(*)::int n from workspaces`)).rows[0].n);
+    })).toBe(1);
+  });
+});
+

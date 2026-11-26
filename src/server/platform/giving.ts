@@ -11,8 +11,8 @@ import { withUser } from "../tenancy";
 import { waysToGiveEnabled } from "../ways-to-give-mode";
 import { assertFreshSignIn, staffRole } from "./staff";
 
-// Harvest staff review of Ways to give reports (CW-10): the same platform_staff role and fresh-sign-in rule as Discover review. Staff list reports, resolve them
-// and hide or restore a ministry's public giving details at once. Every database function re-checks the active staff role and writes a staff audit row.
+// Harvest staff review of Ways to give reports (CW-10): the same platform_staff role and fresh-sign-in rule as Discover review. Reviewers and admins list and
+// resolve reports; admins only hide or restore a ministry's public giving details at once. Every database function re-checks the active staff role and writes a staff audit row.
 const notFound = () => new AccessError(404, message("Errors.workspaceUnavailable"));
 const invalid = () => new AccessError(400, message("Errors.checkTheSuppliedDetails"));
 function isNotStaff(error: unknown): boolean {
@@ -27,10 +27,18 @@ async function staff<T>(db: Database, user: string, run: (tx: Parameters<Paramet
 
 export type StaffGivingReport = { id: string; tenantId: string; ministry: string; page: "bio"; ref: string; reason: string; note: string | null; status: "open" | "reviewed" | "dismissed"; createdAt: string; hidden: boolean };
 const statuses = z.enum(["open", "reviewed", "dismissed"]);
-export async function staffGivingReports(db: Database, user: string, rawStatus: string | undefined, limit = 50): Promise<{ reports: StaffGivingReport[] }> {
+/** One status page of reports plus the open count (the in-app badge; no email or other alert). Reviewers and admins. */
+export async function staffGivingReports(db: Database, user: string, rawStatus: string | undefined, limit = 50): Promise<{ reports: StaffGivingReport[]; openCount: number }> {
   const status = statuses.safeParse(rawStatus ?? "open");
   if (!status.success) throw invalid();
-  return staff(db, user, async (tx) => ({ reports: (await tx.execute<{ r: StaffGivingReport[] }>(sql`select public.platform_giving_reports(${status.data}, ${Math.min(Math.max(limit, 1), 100)}) as r`)).rows[0].r }));
+  return staff(db, user, async (tx) => ({
+    reports: (await tx.execute<{ r: StaffGivingReport[] }>(sql`select public.platform_giving_reports(${status.data}, ${Math.min(Math.max(limit, 1), 100)}) as r`)).rows[0].r,
+    openCount: Number((await tx.execute<{ n: number }>(sql`select public.platform_giving_open_count() as n`)).rows[0].n),
+  }));
+}
+/** The open-report count alone, for the page header badge. */
+export async function staffGivingOpenCount(db: Database, user: string): Promise<number> {
+  return staff(db, user, async (tx) => Number((await tx.execute<{ n: number }>(sql`select public.platform_giving_open_count() as n`)).rows[0].n));
 }
 export async function staffResolveGivingReport(db: Database, user: string, id: string, raw: unknown) {
   const body = z.object({ status: z.enum(["reviewed", "dismissed"]) }).strict().safeParse(raw), report = z.uuid().safeParse(id);
@@ -39,10 +47,11 @@ export async function staffResolveGivingReport(db: Database, user: string, id: s
   if (!done) throw notFound();
   return { resolved: true };
 }
-/** Hide (a reason is required) or restore every public giving detail of a ministry at once. */
+/** Staff admins only (founder, 26 Nov, as for Discover standing): hide (a reason is required) or restore every public giving detail of a ministry at once. */
 export async function staffGivingStanding(db: Database, user: string, tenant: string, raw: unknown) {
   const body = z.object({ hidden: z.boolean(), reason: z.string().trim().min(1).max(500).optional() }).strict().refine((v) => !v.hidden || v.reason !== undefined).safeParse(raw), id = z.uuid().safeParse(tenant);
   if (!body.success || !id.success) throw invalid();
+  if ((await staffRole(db, user)) !== "admin") throw notFound();
   const done = await staff(db, user, async (tx) => (await tx.execute<{ r: boolean }>(sql`select public.platform_giving_standing(${id.data}::uuid, ${body.data.hidden}, ${body.data.reason ?? null}) as r`)).rows[0].r);
   if (!done) throw notFound();
   return { hidden: body.data.hidden };

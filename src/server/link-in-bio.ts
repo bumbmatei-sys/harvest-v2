@@ -11,7 +11,7 @@ import type { GivingPublicMethod } from "../lib/ways-to-give";
 import { bioMessagesKey, linkInBioEnabled } from "./link-in-bio-mode";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
-import { bioGivingMethods, publicGivingMethodsFor } from "./ways-to-give";
+import { bioGivingMethods, managerGivingPreview } from "./ways-to-give";
 
 export function requireLinkInBioEnabled() { if (!linkInBioEnabled()) throw new AccessError(404, message("Errors.thisViewIsNotAvailable")); }
 const uuid = z.uuid();
@@ -200,8 +200,8 @@ export async function bioChoices(db: Database, user: string, workspace: string):
       join forms f on f.tenant_id = a.tenant_id and f.id = a.form_id and f.archived_at is null
       join crm_form_publications p on p.tenant_id = a.tenant_id and p.form_id = a.form_id and p.version_id = a.version_id
       where a.tenant_id = ${tenantId} and a.version_id is not null and p.definition->'newsletter' is not null order by a.slug limit 50`);
-    // The preview shows the same enabled methods a visitor would see (enabled means public).
-    const giving = await publicGivingMethodsFor(tx, tenantId);
+    // The preview shows the enabled methods a visitor would see, read through row security as this manager (none without Giving access).
+    const giving = await managerGivingPreview(tx, tenantId);
     return { communities: list, signups: rows, giving };
   });
 }

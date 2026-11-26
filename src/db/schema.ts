@@ -3516,6 +3516,7 @@ export const givingMethods = pgTable("giving_methods", {
   check("giving_methods_position", sql`${t.position} between 0 and 1000`),
   check("giving_methods_url", sql`${t.url} is null or (${t.url} ~ '^https://[^/@:\\s]+(/[^\\s]*)?$' and length(${t.url}) <= 2048)`),
   check("giving_methods_lengths", sql`coalesce(length(${t.handle}), 0) <= 64 and coalesce(length(${t.accountHolder}), 0) <= 100 and coalesce(length(${t.note}), 0) <= 140`),
+  check("giving_methods_url_host", sql`public.giving_url_allowed(${t.kind}, ${t.url})`),
   check("giving_methods_iban", sql`${t.iban} is null or public.giving_iban_valid(${t.iban})`),
   check("giving_methods_bic", sql`${t.bic} is null or ${t.bic} ~ '^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$'`),
   check("giving_methods_shape", sql`case

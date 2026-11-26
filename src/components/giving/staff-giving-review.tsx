@@ -19,16 +19,19 @@ type Status = "open" | "reviewed" | "dismissed";
 type Load = "loading" | "ready" | "error" | "reauth";
 const statuses: Status[] = ["open", "reviewed", "dismissed"];
 
-/** Harvest staff: Ways to give reports on the shared DataTable, with resolve, hide-at-once and restore. The server re-checks the staff role on every call. */
-export function StaffGivingReview() {
+/**
+ * Harvest staff: Ways to give reports on the shared DataTable, with the open count on the Open tab. Reviewers and admins resolve reports; admins only hide a
+ * ministry's giving details at once and restore them (not rendered for a reviewer; the server and database refuse it too).
+ */
+export function StaffGivingReview({ role, initialOpen }: { role: "reviewer" | "admin"; initialOpen: number }) {
   const t = useTranslations("WaysToGive.staff"), tr = useTranslations("WaysToGive.report"), format = useFormatter();
-  const [status, setStatus] = useState<Status>("open"), [reports, setReports] = useState<StaffGivingReport[]>([]), [load, setLoad] = useState<Load>("loading"), [banner, setBanner] = useState("");
+  const [status, setStatus] = useState<Status>("open"), [reports, setReports] = useState<StaffGivingReport[]>([]), [openCount, setOpenCount] = useState(initialOpen), [load, setLoad] = useState<Load>("loading"), [banner, setBanner] = useState("");
   const [hiding, setHiding] = useState<StaffGivingReport | null>(null), [restoring, setRestoring] = useState<StaffGivingReport | null>(null);
   const refresh = useCallback(async (which: Status) => {
     setLoad("loading");
-    const result = await request<{ reports: StaffGivingReport[] }>(`/api/platform/giving/reports?status=${which}`, { method: "GET" });
+    const result = await request<{ reports: StaffGivingReport[]; openCount: number }>(`/api/platform/giving/reports?status=${which}`, { method: "GET" });
     if (!result.ok) { setLoad(result.status === 401 ? "reauth" : "error"); return; }
-    setReports(result.data.reports); setLoad("ready");
+    setReports(result.data.reports); setOpenCount(result.data.openCount); setLoad("ready");
   }, []);
   useEffect(() => { const timer = setTimeout(() => void refresh(status), 0); return () => clearTimeout(timer); }, [refresh, status]);
   async function act(path: string, body: unknown, done: string) {
@@ -50,8 +53,8 @@ export function StaffGivingReview() {
     actions: <span className="flex flex-wrap justify-end gap-2">
       {r.status === "open" && <><Button type="button" variant="outline" size="responsive" aria-label={t("markReviewedNamed", { name: r.ministry })} onClick={() => void act(`/api/platform/giving/reports/${r.id}/resolve`, { status: "reviewed" }, t("resolved"))}>{t("markReviewed")}</Button>
         <Button type="button" variant="outline" size="responsive" aria-label={t("dismissNamed", { name: r.ministry })} onClick={() => void act(`/api/platform/giving/reports/${r.id}/resolve`, { status: "dismissed" }, t("resolved"))}>{t("dismiss")}</Button></>}
-      {r.hidden ? <Button type="button" variant="outline" size="responsive" aria-label={t("restoreNamed", { name: r.ministry })} onClick={() => setRestoring(r)}>{t("restore")}</Button>
-        : <Button type="button" variant="destructive" size="responsive" aria-label={t("hideNamed", { name: r.ministry })} onClick={() => setHiding(r)}>{t("hide")}</Button>}
+      {role === "admin" && (r.hidden ? <Button type="button" variant="outline" size="responsive" aria-label={t("restoreNamed", { name: r.ministry })} onClick={() => setRestoring(r)}>{t("restore")}</Button>
+        : <Button type="button" variant="destructive" size="responsive" aria-label={t("hideNamed", { name: r.ministry })} onClick={() => setHiding(r)}>{t("hide")}</Button>)}
     </span>,
   } }));
 
@@ -59,7 +62,7 @@ export function StaffGivingReview() {
     {banner && <p role="status" className="rounded-md border bg-card px-3 py-2 text-sm">{banner}</p>}
     {load === "reauth" ? <Alert role="alert"><AlertDescription className="flex flex-wrap items-center gap-3">{t("reauth")}<Button type="button" size="responsive" onClick={() => void signInAgain()}>{t("signInAgain")}</Button></AlertDescription></Alert>
       : <DataTable label={t("tableLabel")} columns={columns} rows={rows} state={load === "loading" ? "loading" : load === "error" ? "error" : "ready"}
-        tabs={{ label: t("tabsLabel"), value: status, onValueChange: (value) => { setStatus(value as Status); setBanner(""); }, items: statuses.map((value) => ({ value, label: t(`tabs.${value}`) })) }}
+        tabs={{ label: t("tabsLabel"), value: status, onValueChange: (value) => { setStatus(value as Status); setBanner(""); }, items: statuses.map((value) => ({ value, label: t(`tabs.${value}`), ...(value === "open" ? { count: openCount } : {}) })) }}
         toolbar={{ actions: <Button type="button" variant="outline" size="responsive" disabled={load === "loading"} onClick={() => void refresh(status)}>{t("refresh")}</Button> }}
         error={<Alert variant="destructive" role="alert"><AlertDescription>{t("loadFailed")}</AlertDescription></Alert>}
         empty={<EmptyState icon={Flag} size="compact" title={t(`empty.${status}`)} />} />}

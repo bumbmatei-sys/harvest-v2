@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { formatIban, givingFieldIssues, givingKindRules, givingKinds, givingPlatforms, givingReportSchema, givingHandle, givingMethodInputSchema, givingUrl, publicGivingMethods, validBic, validIban } from "../../src/lib/ways-to-give";
 import { bioDefinitionSchema, emptyBioDefinition, fieldIssues } from "../../src/lib/link-in-bio";
@@ -41,6 +42,12 @@ describe("links", () => {
     for (const [kind, bad] of [["gofundme", "https://give.example.org/now"], ["donorbox", "https://gofundme.com/f/x"], ["patreon", "https://patreon.com.evil.example/x"], ["zeffy", "https://203.0.113.9/give"],
       ["every_org", "https://every.org:444/"], ["justgiving", "data:text/html,x"]] as const) expect(givingUrl(kind, bad), bad).toBeNull();
     for (const platform of givingPlatforms) expect(givingKindRules[platform].url).toBe("required");
+  });
+  it("keeps the database host allow-list in step with this one", () => {
+    const sqlText = readFileSync("drizzle/0119_ways_to_give.sql", "utf8");
+    const inDb = Object.fromEntries([...sqlText.matchAll(/WHEN '([a-z_]+)' THEN host IN \(([^)]*)\)/g)].map((m) => [m[1], [...m[2].matchAll(/'([^']+)'/g)].map((h) => h[1])]));
+    const inCode = Object.fromEntries(givingKinds.filter((kind) => (givingKindRules[kind].hosts ?? []).length).map((kind) => [kind, [...givingKindRules[kind].hosts!]]));
+    expect(inDb).toEqual(inCode);
   });
   it("takes one ministry subdomain for Planning Center Giving", () => {
     expect(givingUrl("planning_center", "https://gracechurch.churchcenter.com/giving")).toBe("https://gracechurch.churchcenter.com/giving");
