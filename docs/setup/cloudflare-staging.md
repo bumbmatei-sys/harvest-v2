@@ -20,8 +20,9 @@ keep them. Rotate by setting new values with `wrangler secret put` (and redeploy
 ## One-time GitHub setup (founder)
 
 1. Cloudflare: My Profile → API Tokens → Create Token → template **Edit Cloudflare Workers** (account: Bumbmatei@gmail.com's Account).
-2. GitHub: Settings → Environments → `cloudflare-staging`. Deployment branches: `main` only. Optionally required reviewers.
-   Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
+2. GitHub: Settings → Environments → `cloudflare-staging`. **Deployment branches: `main` only** (this, not the job's
+   `if`, is what keeps the secrets off other branches). Optionally required reviewers.
+   Secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`. The workflow exposes them only to its Deploy and Roll back steps.
 
 ## Deploy, roll back
 
@@ -35,6 +36,13 @@ Actions → **Cloudflare staging** → Run workflow (from `main`) → `deploy` o
 `tests/cf07/run-staging.ts` against the staging origin with the helper origin and token (see the script header). Passed on
 26 Nov: OTP sign-in, signed-out redirect, 50 concurrent rendered pages from two users without cross-user leaks, private
 cache, no edge cache hit.
+
+## Before any Cloudflare production resource exists (CF-08)
+
+`cloudflare/staging.json` sets `CF07_PRODUCTION_ORIGIN` and `CF07_PRODUCTION_HYPERDRIVE_ID` to placeholders, so the
+staging/production guards compare against nothing real yet. Replace them with the real production origin and
+Hyperdrive ID before production is created, and give production its own token: the staging token can edit any Worker
+on the account.
 
 ## Limits to watch
 

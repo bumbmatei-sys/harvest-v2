@@ -27,20 +27,24 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     environment: cloudflare-staging
+    # The Cloudflare token is set only on the Deploy and Roll back steps, never on install or build steps, so no
+    # dependency's install script or build plugin can read it.
     env:
-      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CF07_DEPLOY_JOB: '1'
       CF07_PREPARE_STAGING: '1'
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Load the staging settings (IDs and names only; cloudflare/staging.json)
-        run: jq -r 'to_entries[] | "\(.key)=\(.value)"' cloudflare/staging.json >> "$GITHUB_ENV"
+        # Only CF07_* keys with single-line values, so the file can never set other variables or inject lines.
+        run: jq -r 'to_entries[] | select(.key | test("^CF07_[A-Z0-9_]+$")) | select((.value | tostring) | test("\n") | not) | "\(.key)=\(.value)"' cloudflare/staging.json >> "$GITHUB_ENV"
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
           cache: npm
       - run: npm ci
+        if: ${{ inputs.action == 'deploy' }}
       - name: Build for Workers (pinned tooling and cookie patch)
         if: ${{ inputs.action == 'deploy' }}
         run: scripts/cf-build.sh
@@ -49,11 +53,19 @@ jobs:
         run: node --import tsx tests/cf07/prepare-staging.ts
       - name: Deploy
         if: ${{ inputs.action == 'deploy' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: cloudflare/tooling/node_modules/.bin/wrangler deploy -c cloudflare/wrangler.staging.json --message "main ${{ github.sha }}"
+      - name: Install the pinned tooling for rollback
+        if: ${{ inputs.action == 'rollback' }}
+        run: npm ci --prefix cloudflare/tooling --no-audit --no-fund
       - name: Roll back to the previous version
         if: ${{ inputs.action == 'rollback' }}
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
-          npm ci --prefix cloudflare/tooling --no-audit --no-fund
           cloudflare/tooling/node_modules/.bin/wrangler rollback --name "$CF07_STAGING_WORKER" --message "rollback from ${{ github.sha }}" --yes
       - name: Smoke check
         run: |
