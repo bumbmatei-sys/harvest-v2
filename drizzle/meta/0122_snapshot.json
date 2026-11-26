@@ -1,6 +1,6 @@
 {
-  "id": "0dc6b0a0-03df-400e-9005-0efa211c3e75",
-  "prevId": "e6a5a20f-98ad-45da-a42f-fcebf1bc1d44",
+  "id": "aacc2891-77cc-43d6-88e0-35cb6d546880",
+  "prevId": "cdd153c7-4ae2-49e9-b3c0-2b8e31817cab",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -4434,6 +4434,165 @@
       },
       "isRLSEnabled": false
     },
+    "public.campaign_budget_lines": {
+      "name": "campaign_budget_lines",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "campaign_id": {
+          "name": "campaign_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "planned_cents": {
+          "name": "planned_cents",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "campaign_budget_lines_category_idx": {
+          "name": "campaign_budget_lines_category_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "campaign_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "category",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "campaign_budget_lines_created_by_users_id_fk": {
+          "name": "campaign_budget_lines_created_by_users_id_fk",
+          "tableFrom": "campaign_budget_lines",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "tableTo": "users",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "campaign_budget_lines_tenant_id_campaign_id_campaigns_tenant_id_id_fk": {
+          "name": "campaign_budget_lines_tenant_id_campaign_id_campaigns_tenant_id_id_fk",
+          "tableFrom": "campaign_budget_lines",
+          "columnsFrom": [
+            "tenant_id",
+            "campaign_id"
+          ],
+          "tableTo": "campaigns",
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {
+        "campaign_budget_lines_tenant_id_id_pk": {
+          "name": "campaign_budget_lines_tenant_id_id_pk",
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "campaign_budget_line_category": {
+          "name": "campaign_budget_line_category",
+          "value": "\"campaign_budget_lines\".\"category\" in ('venue', 'equipment_production', 'marketing_media', 'printing_materials', 'travel_transport', 'accommodation', 'hospitality_food', 'volunteers_staff', 'security_medical', 'administration', 'other')"
+        },
+        "campaign_budget_line_currency": {
+          "name": "campaign_budget_line_currency",
+          "value": "\"campaign_budget_lines\".\"currency\" in ('USD','EUR','GBP','CAD','AUD','NZD','CHF','ZAR','BRL','MXN','INR','PHP','KES','NGN','GHS','RON')"
+        },
+        "campaign_budget_line_planned": {
+          "name": "campaign_budget_line_planned",
+          "value": "\"campaign_budget_lines\".\"planned_cents\" between 0 and 1000000000000"
+        },
+        "campaign_budget_line_version": {
+          "name": "campaign_budget_line_version",
+          "value": "\"campaign_budget_lines\".\"version\" >= 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.campaign_checklist_items": {
       "name": "campaign_checklist_items",
       "schema": "",
@@ -5453,6 +5612,201 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.campaign_expenses": {
+      "name": "campaign_expenses",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "campaign_id": {
+          "name": "campaign_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "spent_on": {
+          "name": "spent_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "category": {
+          "name": "category",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "payee": {
+          "name": "payee",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reference": {
+          "name": "reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "recorded_by": {
+          "name": "recorded_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "campaign_expenses_campaign_idx": {
+          "name": "campaign_expenses_campaign_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "campaign_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "spent_on",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "campaign_expenses_recorded_by_users_id_fk": {
+          "name": "campaign_expenses_recorded_by_users_id_fk",
+          "tableFrom": "campaign_expenses",
+          "columnsFrom": [
+            "recorded_by"
+          ],
+          "tableTo": "users",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "campaign_expenses_tenant_id_campaign_id_campaigns_tenant_id_id_fk": {
+          "name": "campaign_expenses_tenant_id_campaign_id_campaigns_tenant_id_id_fk",
+          "tableFrom": "campaign_expenses",
+          "columnsFrom": [
+            "tenant_id",
+            "campaign_id"
+          ],
+          "tableTo": "campaigns",
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {
+        "campaign_expenses_tenant_id_id_pk": {
+          "name": "campaign_expenses_tenant_id_id_pk",
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "campaign_expense_category": {
+          "name": "campaign_expense_category",
+          "value": "\"campaign_expenses\".\"category\" in ('venue', 'equipment_production', 'marketing_media', 'printing_materials', 'travel_transport', 'accommodation', 'hospitality_food', 'volunteers_staff', 'security_medical', 'administration', 'other')"
+        },
+        "campaign_expense_currency": {
+          "name": "campaign_expense_currency",
+          "value": "\"campaign_expenses\".\"currency\" in ('USD','EUR','GBP','CAD','AUD','NZD','CHF','ZAR','BRL','MXN','INR','PHP','KES','NGN','GHS','RON')"
+        },
+        "campaign_expense_amount": {
+          "name": "campaign_expense_amount",
+          "value": "\"campaign_expenses\".\"amount_cents\" between 1 and 1000000000000"
+        },
+        "campaign_expense_description": {
+          "name": "campaign_expense_description",
+          "value": "length(btrim(\"campaign_expenses\".\"description\")) between 1 and 200 and \"campaign_expenses\".\"description\" = btrim(\"campaign_expenses\".\"description\")"
+        },
+        "campaign_expense_payee": {
+          "name": "campaign_expense_payee",
+          "value": "length(btrim(\"campaign_expenses\".\"payee\")) between 1 and 120"
+        },
+        "campaign_expense_reference": {
+          "name": "campaign_expense_reference",
+          "value": "length(btrim(\"campaign_expenses\".\"reference\")) between 1 and 120"
+        },
+        "campaign_expense_version": {
+          "name": "campaign_expense_version",
+          "value": "\"campaign_expenses\".\"version\" >= 1"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.campaign_files": {

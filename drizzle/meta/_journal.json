@@ -829,9 +829,16 @@
       "breakpoints": true
     },
     {
+      "idx": 120,
+      "version": "7",
+      "when": 1795715144118,
+      "tag": "0120_campaign_budget",
+      "breakpoints": true
+    },
+    {
       "idx": 122,
       "version": "7",
-      "when": 1795717904237,
+      "when": 1795720235364,
       "tag": "0122_newsletter_reschedule",
       "breakpoints": true
     }
