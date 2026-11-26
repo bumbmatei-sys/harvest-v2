@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
-import { can, roleIds } from "../../src/lib/permissions";
+import { can } from "../../src/lib/permissions";
 import { counselorTransitions, FOLLOW_UP_PAGE_DEFAULT, FOLLOW_UP_PAGE_MAX, followUpAssignInput, followUpCaseStates, followUpOpenInput, followUpPageInput, followUpTerminalStates,
   followUpTransitionAllowed, followUpTransitionInput, followUpTransitionTargets, followUpTransitions } from "../../src/lib/follow-up-cases";
 
 describe("follow-up permission rules (HC-13)", () => {
   it("lets only owners and admins manage cases", () => {
-    expect(roleIds.map((role) => can(role, "followup:manage"))).toEqual([true, true, false, false]);
+    expect((["owner", "admin", "member", "viewer"] as const).map((role) => can(role, "followup:manage"))).toEqual([true, true, false, false]);
   });
   it("lets owners, admins and members work cases (the database adds the assignment) and never viewers", () => {
-    expect(roleIds.map((role) => can(role, "followup:work"))).toEqual([true, true, true, false]);
+    expect((["owner", "admin", "member", "viewer"] as const).map((role) => can(role, "followup:work"))).toEqual([true, true, true, false]);
   });
   it("denies unknown roles every case permission", () => {
     for (const role of ["", "counselor", "superadmin", "Owner", "owner "]) for (const permission of ["followup:manage", "followup:work"] as const) expect(can(role, permission), `${role}/${permission}`).toBe(false);

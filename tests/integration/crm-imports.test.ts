@@ -442,6 +442,8 @@ describe("definers without superuser or BYPASSRLS", () => {
       await fixture.admin.query(`grant usage on schema public to ${role}`);
       await fixture.admin.query(`grant select, insert, update, delete on ${tables.join(", ")} to ${role}`);
       await fixture.admin.query(`grant execute on function public.erase_contact(uuid, uuid) to ${role}`);
+      await fixture.admin.query(`grant execute on function public.access_role(uuid,text,text,text) to ${role}`);
+      await fixture.admin.query(`grant select on public.workspace_member_access to ${role}`);
       await fixture.admin.query(`grant execute on function public.newsletter_capability(text,text) to ${role}`);
       await fixture.admin.query(`grant select, update on newsletter_deliveries to ${role}`);
       await fixture.admin.query(`create policy test_crm06_newsletter_deliveries on newsletter_deliveries to ${role}

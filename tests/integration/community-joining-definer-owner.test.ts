@@ -67,6 +67,8 @@ beforeAll(async () => {
   // Move the chat and DM definitions together so every nested invocation uses the restricted owner.
   const chatFunctions = (await fixture.admin.query("select oid::regprocedure::text signature from pg_proc where pronamespace='public'::regnamespace and (proname like 'community_chat_%' or proname like 'community_channel_%' or proname like 'community_message_%' or proname like 'community_dm_%' or proname in ('community_reaction_toggle','community_report_decide_forum') or oid='public.community_notifications_list(text,integer,boolean)'::regprocedure)")).rows;
   definers.push(...chatFunctions.map(row => row.signature));
+  await fixture.admin.query(`grant execute on function public.access_role(uuid,text,text,text) to ${role}`);
+  await fixture.admin.query(`grant select on public.workspace_member_access to ${role}`);
   for (const definer of definers) await fixture.admin.query(`alter function ${definer} owner to ${role}`);
 });
 afterAll(async () => {

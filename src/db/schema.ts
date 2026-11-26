@@ -9,6 +9,7 @@ import type { LandingDefinition } from "../lib/connect-landing";
 import type { RichDoc } from "../lib/rich-text";
 import type { BrandTheme } from "../lib/theme-registry";
 import type { Audience } from "../lib/audience";
+import type { AccessArea, AccessGrants, AccessLevel } from "../lib/access-areas";
 import type { campaignStructures, campaignTypes } from "../lib/campaigns";
 import type { BudgetConfig, OutreachConfig } from "../lib/campaign-wizard";
 import type { ConnectPurpose, formVersionStatuses, responseConsentActors, responseConsentStatuses, responseContactKinds, responseLinkStatuses, responseStatuses } from "../lib/connect-data";
@@ -78,8 +79,10 @@ export const workspaceMembers = pgTable("workspace_members", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
   userId: text("user_id").notNull().references(() => users.id),
   roleId: text("role_id").notNull().references(() => roles.id),
+  // Founder decision (25 Nov): an admin created with this flag acts like an owner for granting, changing and removing admins (never for the owner). Admin only.
+  canManageAdmins: boolean("can_manage_admins").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-}, (t) => [primaryKey({ columns: [t.tenantId, t.userId] }), index("workspace_members_user_idx").on(t.userId, t.tenantId)]);
+}, (t) => [primaryKey({ columns: [t.tenantId, t.userId] }), index("workspace_members_user_idx").on(t.userId, t.tenantId), check("workspace_member_admins_flag", sql`${t.canManageAdmins} = false or ${t.roleId} = 'admin'`)]);
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id"),
   // Null identifies an automatic follow-up action; application inserts still require the session actor (RLS).
@@ -3453,3 +3456,33 @@ export const platformStaffAudit = pgTable("platform_staff_audit", {
   id: uuid("id").primaryKey().defaultRandom(), actorId: text("actor_id").notNull(), action: text("action").notNull(), targetType: text("target_type"), targetId: text("target_id"),
   tenantId: uuid("tenant_id"), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("platform_staff_audit_actor_idx").on(t.actorId, t.createdAt), check("platform_staff_audit_shape", sql`length(${t.action}) between 1 and 80`)]);
+
+// Per-feature access (0113). A collaborator (role_id 'collaborator') holds exactly the areas listed here, each at 'view' or 'manage'. Rows are written only by
+// public.workspace_access_change and public.workspace_invitation_accept (the application role has SELECT only); public.access_role reads them for every module check.
+export const workspaceMemberAccess = pgTable("workspace_member_access", {
+  tenantId: uuid("tenant_id").notNull(), userId: text("user_id").notNull(), area: text("area").$type<AccessArea>().notNull(), level: text("level").$type<AccessLevel>().notNull(),
+  grantedBy: text("granted_by").notNull().references(() => users.id), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.userId, t.area] }),
+  foreignKey({ name: "workspace_member_access_member_fk", columns: [t.tenantId, t.userId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }).onDelete("cascade"),
+  check("workspace_member_access_area", sql`${t.area} in ('crm','giving','campaigns','communities','catalog','social','newsletter','website','office','connect','settings')`),
+  check("workspace_member_access_level", sql`${t.level} in ('view','manage')`)]);
+// An invitation carries the intended role and area set; nothing is added until the invited account accepts. Only the hash of the token is stored.
+export const workspaceInvitationRoles = ["admin", "member", "viewer", "collaborator", "guest"] as const;
+export const workspaceInvitations = pgTable("workspace_invitations", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
+  email: text("email").notNull(), role: text("role").$type<typeof workspaceInvitationRoles[number]>().notNull(), grants: jsonb("grants").$type<AccessGrants>().notNull().default({}),
+  canManageAdmins: boolean("can_manage_admins").notNull().default(false),
+  tokenHash: text("token_hash").notNull(), status: text("status").$type<"pending" | "accepted" | "revoked">().notNull().default("pending"),
+  createdBy: text("created_by").notNull().references(() => users.id), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull().default(sql`now() + interval '14 days'`),
+  respondedAt: timestamp("responded_at", { withTimezone: true }), acceptedBy: text("accepted_by").references(() => users.id),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }), unique("workspace_invitations_token_hash_unique").on(t.tokenHash),
+  uniqueIndex("workspace_invitations_open_idx").on(t.tenantId, t.email).where(sql`${t.status} = 'pending'`),
+  index("workspace_invitations_tenant_idx").on(t.tenantId, t.status, t.createdAt),
+  check("workspace_invitation_role", sql`${t.role} in ('admin','member','viewer','collaborator','guest')`),
+  check("workspace_invitation_grants", sql`jsonb_typeof(${t.grants}) = 'object' and (${t.role} = 'collaborator' or ${t.grants} = '{}'::jsonb)`),
+  check("workspace_invitation_admins_flag", sql`${t.canManageAdmins} = false or ${t.role} = 'admin'`),
+  check("workspace_invitation_email", sql`${t.email} = lower(btrim(${t.email})) and length(${t.email}) between 3 and 320`),
+  check("workspace_invitation_token", sql`${t.tokenHash} ~ '^[a-f0-9]{64}$'`),
+  check("workspace_invitation_status", sql`${t.status} in ('pending','accepted','revoked') and ((${t.status} = 'pending') = (${t.respondedAt} is null)) and ((${t.status} = 'accepted') = (${t.acceptedBy} is not null))`),
+  check("workspace_invitation_expiry", sql`${t.expiresAt} = ${t.createdAt} + interval '14 days'`)]);

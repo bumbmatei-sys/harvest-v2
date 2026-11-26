@@ -11,7 +11,8 @@ import { audiences, type Audience } from "../lib/audience";
 import { isValidTimeZone, timeZoneOrDefault } from "../lib/time-zone";
 
 export function getWorkspace(db: Database, userId: string, workspace: string) {
-  return withTenant(db, userId, z.uuid().parse(workspace), "workspace:read", async (tx, tenantId, role) => {
+  return withTenant(db, userId, z.uuid().parse(workspace), "workspace:read", async (tx, tenantId, _role, access) => {
+    const role = access;
     const [row] = await tx.select().from(workspaces).where(eq(workspaces.tenantId, tenantId));
     if (!row) throw new AccessError(404, message("Errors.workspaceUnavailable"));
     return { ...row, role };
@@ -55,7 +56,7 @@ export async function createWorkspace(db: Database, userId: string, name: string
     const tenantId = randomUUID();
     await tx.execute(sql`select set_config('app.tenant_id', ${tenantId}, true)`);
     const [workspace] = await tx.insert(workspaces).values({ tenantId, name, audience: chosen, timeZone: timeZoneOrDefault(timeZone), createdBy: userId }).returning();
-    await tx.insert(workspaceMembers).values({ tenantId, userId, roleId: "owner" });
+    await tx.execute(sql`insert into workspace_members (tenant_id, user_id, role_id) values (${tenantId}::uuid, ${userId}, 'owner')`);
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "workspace.create", targetId: tenantId });
     return workspace;
   });
@@ -69,19 +70,26 @@ export async function listWorkspaces(db: Database, userId: string) {
     return { ...workspace, role: m.roleId, memberCount: members?.count ?? 0 };
   })));
 }
-export function putMember(db: Database, actorId: string, workspaceHint: string, email: string, roleId: Role) {
+/** Seed/test helper that adds or re-roles a signed-up person directly. No route uses it to add people (invitations are accepted by the invitee, see access.ts). */
+export function putMember(db: Database, actorId: string, workspaceHint: string, email: string, roleId: Exclude<Role, "collaborator" | "guest">) {
   return withTenant(db, actorId, workspaceHint, "members:write", async (tx, tenantId, actorRole) => {
     // Serialize role changes to preserve at least one owner, including concurrent requests.
     await tx.execute(sql`select tenant_id from workspaces where tenant_id = ${tenantId} for update`);
     const [target] = await tx.select({ id: users.id }).from(users).where(eq(users.email, email));
     if (!target) throw new AccessError(404, message("Errors.askThisPersonToSignInBeforeAdding"));
-    const [previous] = await tx.select().from(workspaceMembers).where(and(eq(workspaceMembers.tenantId, tenantId), eq(workspaceMembers.userId, target.id)));
-    if (actorRole !== "owner" && (roleId === "owner" || previous?.roleId === "owner")) throw new AccessError(403, message("Errors.onlyOwnersCanChangeOwnership"));
+    const [previous] = await tx.select({ roleId: workspaceMembers.roleId }).from(workspaceMembers).where(and(eq(workspaceMembers.tenantId, tenantId), eq(workspaceMembers.userId, target.id)));
+    // The flag is read only when an admin acts on admins (so fixtures on a database that predates it keep working).
+    const touchesAdmin = roleId === "admin" || previous?.roleId === "admin";
+    const actor = actorRole === "admin" && touchesAdmin ? (await tx.select({ flag: workspaceMembers.canManageAdmins }).from(workspaceMembers).where(and(eq(workspaceMembers.tenantId, tenantId), eq(workspaceMembers.userId, actorId))))[0] : undefined;
+    const managesAdmins = actorRole === "owner" || Boolean(actor?.flag);
+    if ((actorRole !== "owner" && (roleId === "owner" || previous?.roleId === "owner")) || (!managesAdmins && (roleId === "admin" || previous?.roleId === "admin"))) throw new AccessError(403, message("Errors.onlyOwnersCanChangeOwnership"));
     if (previous?.roleId === "owner" && roleId !== "owner") {
       const owners = await tx.select().from(workspaceMembers).where(and(eq(workspaceMembers.tenantId, tenantId), eq(workspaceMembers.roleId, "owner")));
       if (owners.length <= 1) throw new AccessError(409, message("Errors.workspaceMustKeepOwner"));
     }
-    await tx.insert(workspaceMembers).values({ tenantId, userId: target.id, roleId }).onConflictDoUpdate({ target: [workspaceMembers.tenantId, workspaceMembers.userId], set: { roleId } });
+    // Raw insert: fixtures also run on databases that predate can_manage_admins, and a Drizzle insert would name that column.
+    await tx.execute(sql`insert into workspace_members (tenant_id, user_id, role_id) values (${tenantId}::uuid, ${target.id}, ${roleId}) on conflict (tenant_id, user_id) do update set role_id = excluded.role_id`);
+    if (previous?.roleId === "admin" && roleId !== "admin") await tx.update(workspaceMembers).set({ canManageAdmins: false }).where(and(eq(workspaceMembers.tenantId, tenantId), eq(workspaceMembers.userId, target.id)));
     await tx.insert(auditLogs).values({ tenantId, actorId, action: previous ? "member.role_change" : "member.add", targetId: target.id, metadata: { role: roleId, ...(previous ? { previousRole: previous.roleId } : {}) } });
     return { userId: target.id, roleId };
   });
