@@ -3912,7 +3912,9 @@
       "illegal_transition": "That change isn't allowed from this state.",
       "consent_not_in_effect": "Follow-up consent isn't in effect for this person.",
       "assignee_not_eligible": "Choose an owner, admin or member of this ministry."
-    }
+    },
+    "campaignFilter": "Showing one campaign",
+    "allCampaigns": "All campaigns"
   },
   "CommunityScreens": {
     "basicsTitle": "Community details",
@@ -9531,6 +9533,22 @@
     "notSet": "Not set",
     "openForm": "Open the registration form",
     "formCreated": "A registration form was created. It is unpublished.",
-    "noForm": "No registration form was created. An owner or admin can create one in Forms."
+    "noForm": "No registration form was created. An owner or admin can create one in Forms.",
+    "followUp": {
+      "title": "Follow-up",
+      "openList": "Open follow-up list",
+      "countsLabel": "Follow-up cases by stage",
+      "waiting": "Waiting",
+      "assigned": "Assigned",
+      "connected": "Connected",
+      "closed": "Closed",
+      "team": "Follow-up team",
+      "noTeam": "No one on the team yet.",
+      "add": "Add to team",
+      "search": "Search members",
+      "noMatch": "No members found",
+      "remove": "Remove {name}",
+      "aMember": "A ministry member"
+    }
   }
 }

@@ -11,6 +11,9 @@ import { AccessError, can } from "@/server/permissions";
 import { getChecklist } from "@/server/campaign-checklist";
 import { getCampaignOverview } from "@/server/campaign-overview";
 import { CampaignDashboard } from "@/components/campaigns/campaign-dashboard";
+import { CampaignFollowUp } from "@/components/campaigns/campaign-follow-up";
+import { campaignFollowUpCounts, campaignFollowUpTeam } from "@/server/follow-up-cases";
+import { listAssignableMembers } from "@/server/follow-up-members";
 import { CampaignCover } from "@/components/campaigns/campaign-cover";
 import { CampaignChecklist } from "@/components/campaigns/campaign-checklist";
 import { CampaignStatusAction } from "@/components/campaigns/campaign-status-action";
@@ -35,6 +38,11 @@ export default async function CampaignPage({ params }: { params: Promise<{ tenan
   // The setup checklist is for the people who set the campaign up (they can write campaigns), not for read-only members.
   const checklist = workspace && can(workspace.role, "campaigns:write") ? await getChecklist(getDb(), session.user.id, tenantId, campaignId).catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; }) : null;
   const overview = workspace && can(workspace.role, "campaigns:write") ? await getCampaignOverview(getDb(), session.user.id, tenantId, campaignId).catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; }) : null;
+  // CW-11: owners and admins also see the campaign's follow-up counts and team. Any refusal simply hides the card.
+  const followUp = workspace && can(workspace.role, "followup:manage") ? await Promise.all([
+    campaignFollowUpCounts(getDb(), session.user.id, tenantId, campaignId), campaignFollowUpTeam(getDb(), session.user.id, tenantId, campaignId),
+    listAssignableMembers(getDb(), session.user.id, tenantId),
+  ]).then(([counts, team, members]) => ({ counts, team, members }), (error: unknown) => { if (error instanceof AccessError) return null; throw error; }) : null;
   const format = await getFormatter();
   const details = [
     [t("location"), [campaign.cityRegion, campaign.country].filter(Boolean).join(", ") || t("notSet")],
@@ -52,6 +60,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ tenan
     </div>
     {canActivate && <CampaignStatusAction tenantId={tenantId} campaignId={campaignId} status={campaign.status} />}
     {overview && <CampaignDashboard overview={overview} connectHref={`/workspaces/${tenantId}/campaigns/${campaignId}/connect`} formHref={workspace && can(workspace.role, "crm:forms_manage") ? `/workspaces/${tenantId}/crm/forms` : null} />}
+    {followUp && <CampaignFollowUp tenantId={tenantId} campaignId={campaignId} {...followUp} />}
     {checklist && <CampaignChecklist tenantId={tenantId} campaignId={campaignId} initial={checklist} />}
     <Card><CardHeader><CardTitle>{t("details")}</CardTitle></CardHeader><CardContent>
       <dl className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{details.map(([label, value]) => <div key={label} className="min-w-0"><dt className="text-xs text-muted-foreground">{label}</dt><dd className="mt-1 break-words text-sm">{value}</dd></div>)}</dl>

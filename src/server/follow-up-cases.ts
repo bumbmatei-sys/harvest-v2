@@ -2,7 +2,7 @@ import { sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database } from "../db/client";
 import { uuidInput } from "../lib/contact-input";
-import { FOLLOW_UP_PAGE_DEFAULT, FOLLOW_UP_PAGE_MAX, followUpAssignInput, followUpOpenInput, followUpPageInput, followUpTransitionInput, type FollowUpCaseState } from "../lib/follow-up-cases";
+import { FOLLOW_UP_PAGE_DEFAULT, FOLLOW_UP_PAGE_MAX, campaignFollowUpTeamInput, followUpAssignInput, type CampaignFollowUpCounts, followUpOpenInput, followUpPageInput, followUpTransitionInput, type FollowUpCaseState } from "../lib/follow-up-cases";
 import { message } from "../i18n/messages";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
@@ -63,9 +63,19 @@ const fromJson = (json: Json): FollowUpCase => ({ ...json, createdAt: new Date(j
  * One bounded page, oldest first (default 50, at most 200, keyset on created time then id). Owners/admins see every case in the ministry;
  * a member sees only open cases assigned to them (the database policy decides, not this query). No total is ever returned.
  */
-export async function listFollowUpCases(db: Database, userId: string, workspace: string, pageInput: { limit?: number; cursor?: string; state?: FollowUpCaseState } = {}) {
+export async function listFollowUpCases(db: Database, userId: string, workspace: string, pageInput: { limit?: number; cursor?: string; state?: FollowUpCaseState; campaignId?: string } = {}) {
   const page = followUpPageInput.parse(pageInput), tenant = uuidInput.parse(workspace);
   const limit = Math.min(page.limit ?? FOLLOW_UP_PAGE_DEFAULT, FOLLOW_UP_PAGE_MAX), after = page.cursor !== undefined ? decodeCursor(page.cursor) : null;
+  if (page.campaignId) {
+    // CW-11: campaign_id is unreadable to the app (0048), so the per-campaign page comes from an owner/admin-only definer.
+    const campaign = page.campaignId;
+    return withTenant(db, userId, tenant, "followup:manage", async (tx, tenantId) => {
+      const result = await tx.execute(sql`select public.followup_campaign_cases(${tenantId}::uuid, ${campaign}::uuid, ${limit + 1}::integer,
+        ${after ? after[0] : null}::timestamptz, ${after ? after[1] : null}::uuid, ${page.state ?? null}::text) as page`);
+      const rows = (result.rows[0]?.page ?? []) as (Json & { cursorKey: string })[], items = rows.slice(0, limit), last = items.at(-1);
+      return { items: items.map((item) => fromJson(Object.fromEntries(Object.entries(item).filter(([key]) => key !== "cursorKey")) as Json)), nextCursor: rows.length > limit && last ? encodeCursor(last.cursorKey, last.id) : null };
+    }).catch(mapped);
+  }
   return withTenant(db, userId, tenant, "followup:work", async (tx, tenantId) => {
     const result = await tx.execute(sql`select ${columns}, created_at::text as cursor_key from public.followup_cases
       where tenant_id = ${tenantId}::uuid ${page.state ? sql`and state = ${page.state}` : sql``}
@@ -111,5 +121,33 @@ export async function transitionFollowUpCase(db: Database, userId: string, works
   return withTenant(db, userId, tenant, "followup:work", async (tx, tenantId) => {
     const result = await tx.execute(sql`select public.transition_followup_case(${tenantId}::uuid, ${id}::uuid, ${data.to}::text, ${data.version}::integer) as result`);
     return fromJson(result.rows[0]?.result as Json);
+  }).catch(mapped);
+}
+
+/** CW-11, owner/admin: how many of one campaign's cases are waiting, assigned, connected or closed. Counts only, never names or contacts. */
+export async function campaignFollowUpCounts(db: Database, userId: string, workspace: string, campaignId: string): Promise<CampaignFollowUpCounts> {
+  const tenant = uuidInput.parse(workspace), campaign = uuidInput.parse(campaignId);
+  return withTenant(db, userId, tenant, "followup:manage", async (tx, tenantId) => {
+    const result = await tx.execute(sql`select public.followup_campaign_counts(${tenantId}::uuid, ${campaign}::uuid) as counts`);
+    const counts = result.rows[0]?.counts as Record<keyof CampaignFollowUpCounts, number | string>;
+    return { waiting: Number(counts.waiting), assigned: Number(counts.assigned), connected: Number(counts.connected), closed: Number(counts.closed) };
+  }).catch(mapped);
+}
+
+/** CW-11, owner/admin: the user ids on a campaign's follow-up team (suggested first when assigning that campaign's cases). */
+export async function campaignFollowUpTeam(db: Database, userId: string, workspace: string, campaignId: string): Promise<string[]> {
+  const tenant = uuidInput.parse(workspace), campaign = uuidInput.parse(campaignId);
+  return withTenant(db, userId, tenant, "followup:manage", async (tx, tenantId) => {
+    const result = await tx.execute(sql`select public.followup_campaign_team(${tenantId}::uuid, ${campaign}::uuid) as team`);
+    return (result.rows[0]?.team ?? []) as string[];
+  }).catch(mapped);
+}
+
+/** CW-11, owner/admin: add or remove one active owner, admin or member. Returns whether anything changed. */
+export async function setCampaignFollowUpTeamMember(db: Database, userId: string, workspace: string, campaignId: string, input: unknown) {
+  const tenant = uuidInput.parse(workspace), campaign = uuidInput.parse(campaignId), data = campaignFollowUpTeamInput.parse(input);
+  return withTenant(db, userId, tenant, "followup:manage", async (tx, tenantId) => {
+    const result = await tx.execute(sql`select public.set_followup_campaign_team_member(${tenantId}::uuid, ${campaign}::uuid, ${data.userId}::text, ${data.member}::boolean) as changed`);
+    return { changed: result.rows[0]?.changed === true };
   }).catch(mapped);
 }

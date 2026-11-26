@@ -28,7 +28,10 @@ export const followUpTransitionTargets = ["awaiting_assignment", "attempted", "n
 
 export const FOLLOW_UP_PAGE_DEFAULT = 50, FOLLOW_UP_PAGE_MAX = 200;
 export const followUpPageInput = z.object({ limit: z.number().int().min(1).optional(), cursor: z.string().max(200).optional(),
-  state: z.enum(followUpCaseStates).optional() }).strict();
+  state: z.enum(followUpCaseStates).optional(), campaignId: z.uuid().optional() }).strict();
+/** CW-11 dashboard groups: counts only, never names. */
+export type CampaignFollowUpCounts = { waiting: number; assigned: number; connected: number; closed: number };
+export const campaignFollowUpTeamInput = z.object({ userId: z.string().min(1).max(200), member: z.boolean() }).strict();
 export const followUpOpenInput = z.object({ limit: z.number().int().min(1).optional() }).strict();
 /** assigneeId null unassigns (back to awaiting_assignment). */
 export const followUpAssignInput = z.object({ assigneeId: z.string().min(1).max(200).nullable(), version: z.number().int().min(1) }).strict();
