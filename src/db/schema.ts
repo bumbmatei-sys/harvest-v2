@@ -3512,3 +3512,102 @@ export const workspaceInvitations = pgTable("workspace_invitations", {
   check("workspace_invitation_token", sql`${t.tokenHash} ~ '^[a-f0-9]{64}$'`),
   check("workspace_invitation_status", sql`${t.status} in ('pending','accepted','revoked') and ((${t.status} = 'pending') = (${t.respondedAt} is null)) and ((${t.status} = 'accepted') = (${t.acceptedBy} is not null))`),
   check("workspace_invitation_expiry", sql`${t.expiresAt} = ${t.createdAt} + interval '14 days'`)]);
+
+// Fundraising pledge campaigns (docs/superpowers/specs/2026-11-17-fundraising-pledge-campaigns-design.md). Record keeping only: Harvest moves no money.
+// Pledges are intentions; the append-only ledger holds gifts the ministry says it confirmed outside Harvest. Money is integer cents in one currency
+// per campaign. The composite (tenant, id, currency) key makes every pledge and ledger row carry the campaign's currency, and refuses a currency change
+// once any exists. Supporter identity lives in mutable rows (pledges, giving_contact_links), never in the immutable ledger.
+export const fundraisingCampaigns = pgTable("fundraising_campaigns", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  id: uuid("id").notNull().defaultRandom(),
+  campaignId: uuid("campaign_id"),
+  title: text("title").notNull(), summary: text("summary"),
+  status: text("status").$type<"draft" | "published" | "closed" | "archived">().notNull().default("draft"),
+  goalCents: bigint("goal_cents", { mode: "bigint" }).notNull(), currency: text("currency").notNull(),
+  version: integer("version").notNull().default(1),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  idempotencyKey: text("idempotency_key").notNull(), fingerprint: text("fingerprint").notNull(),
+  publishedAt: timestamp("published_at", { withTimezone: true }), closedAt: timestamp("closed_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  unique("fundraising_campaigns_currency_key").on(t.tenantId, t.id, t.currency),
+  uniqueIndex("fundraising_campaigns_idempotency_idx").on(t.tenantId, t.idempotencyKey),
+  index("fundraising_campaigns_created_idx").on(t.tenantId, t.createdAt, t.id),
+  // One live fundraiser per outreach campaign, so the campaign page shows one goal and one raised figure.
+  uniqueIndex("fundraising_campaigns_campaign_idx").on(t.tenantId, t.campaignId).where(sql`${t.campaignId} is not null and ${t.status} <> 'archived'`),
+  foreignKey({ columns: [t.tenantId, t.campaignId], foreignColumns: [campaigns.tenantId, campaigns.id] }),
+  check("fundraising_title", sql`length(btrim(${t.title})) between 1 and 200 and ${t.title} = btrim(${t.title})`),
+  check("fundraising_summary", sql`length(${t.summary}) <= 2000`),
+  check("fundraising_status", sql`${t.status} in ('draft', 'published', 'closed', 'archived')`),
+  check("fundraising_goal", sql`${t.goalCents} between 1 and 1000000000000`),
+  check("fundraising_currency", sql`${t.currency} in ('USD','EUR','GBP','CAD','AUD','NZD','CHF','ZAR','BRL','MXN','INR','PHP','KES','NGN','GHS','RON')`),
+  check("fundraising_version", sql`${t.version} >= 1`),
+  check("fundraising_idempotency_key", sql`length(${t.idempotencyKey}) between 1 and 200 and ${t.idempotencyKey} ~ '^[A-Za-z0-9._:-]+$'`)]);
+
+export const fundraisingPledges = pgTable("fundraising_pledges", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), fundraisingId: uuid("fundraising_id").notNull(),
+  amountCents: bigint("amount_cents", { mode: "bigint" }).notNull(), currency: text("currency").notNull(),
+  contactId: uuid("contact_id"), supporterName: text("supporter_name"), supporterContact: text("supporter_contact"),
+  status: text("status").$type<"pending" | "accepted" | "cancelled">().notNull().default("pending"),
+  expectedOn: date("expected_on"), source: text("source").$type<"staff">().notNull().default("staff"),
+  version: integer("version").notNull().default(1), createdBy: text("created_by").notNull().references(() => users.id),
+  idempotencyKey: text("idempotency_key").notNull(), fingerprint: text("fingerprint").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  unique("fundraising_pledges_campaign_key").on(t.tenantId, t.id, t.fundraisingId),
+  uniqueIndex("fundraising_pledges_idempotency_idx").on(t.tenantId, t.idempotencyKey),
+  index("fundraising_pledges_campaign_idx").on(t.tenantId, t.fundraisingId, t.createdAt, t.id),
+  foreignKey({ columns: [t.tenantId, t.fundraisingId, t.currency], foreignColumns: [fundraisingCampaigns.tenantId, fundraisingCampaigns.id, fundraisingCampaigns.currency] }),
+  foreignKey({ columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }),
+  check("fundraising_pledge_amount", sql`${t.amountCents} between 1 and 1000000000000`),
+  check("fundraising_pledge_status", sql`${t.status} in ('pending', 'accepted', 'cancelled')`),
+  check("fundraising_pledge_source", sql`${t.source} in ('staff')`),
+  check("fundraising_pledge_name", sql`length(btrim(${t.supporterName})) between 1 and 120`),
+  check("fundraising_pledge_contact", sql`length(btrim(${t.supporterContact})) between 1 and 200`),
+  check("fundraising_pledge_version", sql`${t.version} >= 1`),
+  check("fundraising_pledge_idempotency_key", sql`length(${t.idempotencyKey}) between 1 and 200 and ${t.idempotencyKey} ~ '^[A-Za-z0-9._:-]+$'`)]);
+
+export const givingLedgerEntries = pgTable("giving_ledger_entries", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), fundraisingId: uuid("fundraising_id").notNull(),
+  pledgeId: uuid("pledge_id"),
+  amountCents: bigint("amount_cents", { mode: "bigint" }).notNull(), currency: text("currency").notNull(),
+  kind: text("kind").$type<"gift" | "reversal">().notNull(), correctionOf: uuid("correction_of"),
+  reason: text("reason").$type<"entered_in_error" | "wrong_amount" | "wrong_campaign" | "other">(),
+  giftDate: date("gift_date").notNull(),
+  // Free text for now ("Bank transfer", "Cash"); a later "Ways to give" method id can sit beside it.
+  methodLabel: text("method_label"), reference: text("reference"),
+  confirmedBy: text("confirmed_by").notNull().references(() => users.id),
+  confirmedAt: timestamp("confirmed_at", { withTimezone: true }).notNull().defaultNow(),
+  idempotencyKey: text("idempotency_key").notNull(), fingerprint: text("fingerprint").notNull(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  uniqueIndex("giving_ledger_idempotency_idx").on(t.tenantId, t.idempotencyKey),
+  uniqueIndex("giving_ledger_one_reversal_idx").on(t.tenantId, t.correctionOf).where(sql`${t.kind} = 'reversal'`),
+  uniqueIndex("giving_ledger_one_replacement_idx").on(t.tenantId, t.correctionOf).where(sql`${t.kind} = 'gift' and ${t.correctionOf} is not null`),
+  index("giving_ledger_campaign_idx").on(t.tenantId, t.fundraisingId, t.confirmedAt, t.id),
+  index("giving_ledger_pledge_idx").on(t.tenantId, t.pledgeId),
+  foreignKey({ columns: [t.tenantId, t.fundraisingId, t.currency], foreignColumns: [fundraisingCampaigns.tenantId, fundraisingCampaigns.id, fundraisingCampaigns.currency] }),
+  foreignKey({ columns: [t.tenantId, t.pledgeId, t.fundraisingId], foreignColumns: [fundraisingPledges.tenantId, fundraisingPledges.id, fundraisingPledges.fundraisingId] }),
+  foreignKey({ columns: [t.tenantId, t.correctionOf], foreignColumns: [t.tenantId, t.id] }),
+  check("giving_ledger_kind", sql`${t.kind} in ('gift', 'reversal')`),
+  check("giving_ledger_amount", sql`(${t.kind} = 'gift' and ${t.amountCents} between 1 and 1000000000000) or (${t.kind} = 'reversal' and ${t.amountCents} between -1000000000000 and -1)`),
+  check("giving_ledger_correction", sql`(${t.kind} = 'reversal') = (${t.reason} is not null) and (${t.kind} = 'gift' or ${t.correctionOf} is not null)`),
+  check("giving_ledger_reason", sql`${t.reason} in ('entered_in_error', 'wrong_amount', 'wrong_campaign', 'other')`),
+  check("giving_ledger_method", sql`length(btrim(${t.methodLabel})) between 1 and 80`),
+  check("giving_ledger_reference", sql`length(btrim(${t.reference})) between 1 and 120`),
+  check("giving_ledger_idempotency_key", sql`length(${t.idempotencyKey}) between 1 and 200 and ${t.idempotencyKey} ~ '^[A-Za-z0-9._:-]+$'`)]);
+
+// Who a gift came from, when it was not recorded against a pledge. Detachable: erasing or unlinking removes this row and never touches the money.
+export const givingContactLinks = pgTable("giving_contact_links", {
+  tenantId: uuid("tenant_id").notNull(), entryId: uuid("entry_id").notNull(),
+  contactId: uuid("contact_id"), supporterName: text("supporter_name"),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.entryId] }),
+  index("giving_contact_links_contact_idx").on(t.tenantId, t.contactId),
+  foreignKey({ columns: [t.tenantId, t.entryId], foreignColumns: [givingLedgerEntries.tenantId, givingLedgerEntries.id] }),
+  // No cascade: erasure and merge handle links in giving_contact_before_rekey and merge_contacts_scoped, so attribution never disappears silently.
+  foreignKey({ columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }),
+  check("giving_contact_link_name", sql`length(btrim(${t.supporterName})) between 1 and 120`),
+  check("giving_contact_link_some", sql`${t.contactId} is not null or ${t.supporterName} is not null`)]);

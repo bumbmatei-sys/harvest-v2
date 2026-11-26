@@ -57,7 +57,7 @@ export function formFromDraft(draft: DraftView): WizardForm {
 const orNull = (value: string) => value.trim() || null;
 
 /** Currencies offered for the budget. A draft's saved currency is always offered too, whatever it is. */
-export const currencyOptions = ["USD", "EUR", "GBP", "CAD", "AUD", "NZD", "CHF", "SEK", "NOK", "DKK", "PLN", "CZK", "HUF", "UAH", "TRY", "ILS", "AED", "EGP", "ZAR", "NGN", "KES", "GHS", "UGX", "TZS",
+export const currencyOptions = ["USD", "EUR", "GBP", "CAD", "AUD", "NZD", "CHF", "SEK", "NOK", "DKK", "PLN", "CZK", "HUF", "RON", "UAH", "TRY", "ILS", "AED", "EGP", "ZAR", "NGN", "KES", "GHS", "UGX", "TZS",
   "INR", "PKR", "BDT", "LKR", "NPR", "THB", "VND", "PHP", "IDR", "MYR", "SGD", "JPY", "KRW", "CNY", "BRL", "MXN", "COP", "CLP", "ARS", "PEN"] as const;
 /** How many decimal places a currency has (2 for dollars, 0 for yen). */
 export const currencyDigits = (currency: string) => { try { return new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2; } catch { return 2; } };
