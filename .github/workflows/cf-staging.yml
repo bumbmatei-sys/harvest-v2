@@ -59,7 +59,9 @@ jobs:
         run: cloudflare/tooling/node_modules/.bin/wrangler deploy -c cloudflare/wrangler.staging.json --message "main ${{ github.sha }}"
       - name: Install the pinned tooling for rollback
         if: ${{ inputs.action == 'rollback' }}
-        run: npm ci --prefix cloudflare/tooling --no-audit --no-fund
+        run: |
+          npm ci --prefix cloudflare/tooling --no-audit --no-fund --ignore-scripts
+          npm rebuild --prefix cloudflare/tooling esbuild workerd
       - name: Roll back to the previous version
         if: ${{ inputs.action == 'rollback' }}
         env:
