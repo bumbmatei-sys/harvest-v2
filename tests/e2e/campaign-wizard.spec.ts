@@ -627,9 +627,11 @@ test("review and finish: a summary, blocked reasons with links, one campaign how
     await expect(page.getByRole("heading", { name: "Teams", level: 3 })).toBeVisible();
     await expect(page.getByText("Leader: ").first()).toBeVisible();
     await expect(page.getByRole("heading", { name: "Tools", level: 3 })).toBeVisible();
-    await expect(page.getByText("Not available yet")).toHaveCount(4);
-    for (const label of ["Progress", "Events", "Funding", "Tasks"]) await expect(page.locator("#main-content").getByText(label, { exact: true })).toBeVisible();
-    expect((await (await page.request.get(`/api${root}/${campaignId}/overview`)).json()).unavailable).toEqual(["progress", "events", "funding", "tasks"]);
+    await expect(page.getByText("Not available yet")).toHaveCount(2);
+    for (const label of ["Events", "Funding"]) await expect(page.locator("#main-content").getByText(label, { exact: true })).toBeVisible();
+    await expect(stats.getByText("Tasks done")).toBeVisible();
+    await expect(stats.getByText("No tasks yet")).toBeVisible(); // progress with no tasks is never 0%
+    expect((await (await page.request.get(`/api${root}/${campaignId}/overview`)).json()).unavailable).toEqual(["events", "funding"]);
     await expect(page.getByRole("heading", { name: "Setup checklist", level: 2 })).toBeVisible();
     await expect(page.getByRole("checkbox")).toHaveCount(9);
     await expect(page.getByRole("checkbox", { name: "Mark Assign department leaders as not done" })).toBeDisabled();
