@@ -118,7 +118,7 @@ export function KanbanBoard<T extends KanbanItem>({ columns, items, writable, co
       <div role="region" aria-label={copy.board} className="-mx-1 flex min-w-0 snap-x gap-3 overflow-x-auto px-1 pb-3">
         {columns.map((column, columnIndex) => {
           const cards = cardsOf(column.id);
-          return <Column key={column.id} column={column} index={columnIndex}>
+          return <Column key={column.id} column={column} index={columnIndex} empty={cards.length === 0}>
             <SortableContext items={cards.map((item) => item.id)} strategy={verticalListSortingStrategy}>
               {cards.map((item, cardIndex) => <SortableCard key={item.id} item={item} attribute={cardAttribute} writable={writable} reorder={reorder} hintId={hintId}
                 menu={cardMenu?.(item) ?? null} onKeyDown={(event) => onCardKeyDown(event, item, columnIndex, cardIndex)}>{renderCard(item)}</SortableCard>)}
@@ -145,9 +145,8 @@ function ActionsMenu({ label, actions }: { label: string; actions: KanbanAction[
   </DropdownMenu>;
 }
 
-function Column({ column, index, children }: { column: KanbanColumn; index: number; children: ReactNode }) {
+function Column({ column, index, empty, children }: { column: KanbanColumn; index: number; empty: boolean; children: ReactNode }) {
   const { setNodeRef, isOver } = useDroppable({ id: column.id });
-  const empty = column.count === 0;
   return <div ref={setNodeRef} data-board-column={index} role="group" aria-label={column.label}
     className={cn("flex w-72 shrink-0 snap-start flex-col rounded-xl bg-muted/50 text-sm ring-1 transition-colors", isOver ? "ring-primary/20" : "ring-transparent")}>
     <div className="flex items-center gap-2 px-3 pt-3 pb-1 font-medium">
