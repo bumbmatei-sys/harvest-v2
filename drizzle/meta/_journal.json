@@ -843,9 +843,16 @@
       "breakpoints": true
     },
     {
+      "idx": 123,
+      "version": "7",
+      "when": 1795733024319,
+      "tag": "0123_community_shelf",
+      "breakpoints": true
+    },
+    {
       "idx": 126,
       "version": "7",
-      "when": 1795734784425,
+      "when": 1795736596671,
       "tag": "0126_newsletter_click_tracking",
       "breakpoints": true
     }

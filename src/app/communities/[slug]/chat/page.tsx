@@ -11,6 +11,7 @@ import { moderationCount } from "@/server/community-moderation";
 import { unreadCount } from "@/server/community-notifications";
 import { AccessError } from "@/server/permissions";
 import { pageSession } from "@/server/page-session";
+import { freeCatalogEnabled } from "@/server/free-catalog-mode";
 
 export const metadata = { robots: { index: false, follow: false } };
 // Keep the composer above the on-screen keyboard instead of letting the keyboard cover it.
@@ -47,7 +48,7 @@ export default async function ChatPage({ params, searchParams }: {
   const access = { role, moderate: communityCan(role, "chat:moderate"), restore: communityCan(role, "chat:restore"), muted: staff?.scope.muted ?? !!forum?.context.mutedUntil };
   const members = staff?.members ?? forum?.members ?? [], hidden = staff?.hidden ?? [];
   const name = staff?.scope.name ?? forum?.context.name ?? slug;
-  return <CommunityShell slug={slug} name={name} chat chatView initialChatUnread={chatUnreadTotal(state.channels)} moderation={moderation} notifications={forum ? { unread, prefs: forum.context.prefs } : undefined}>
+  return <CommunityShell slug={slug} name={name} chat chatView shelf={freeCatalogEnabled()} initialChatUnread={chatUnreadTotal(state.channels)} moderation={moderation} notifications={forum ? { unread, prefs: forum.context.prefs } : undefined}>
     <ChatLayout key={`${me}:${slug}:${channel.data ?? ""}`} slug={slug} me={me} access={access} initial={state.channels} initialChannel={channel.data} members={members} hidden={hidden} manage={manage} initialDmUnread={state.dm?.unreadConversations ?? 0} />
   </CommunityShell>;
 }

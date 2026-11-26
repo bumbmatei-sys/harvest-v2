@@ -2987,7 +2987,7 @@
       "channels": "Channels",
       "messages": "Messages",
       "people": "People",
-      "products": "Products",
+      "products": "Classroom and products",
       "page": "Page",
       "publish": "Publish"
     },
@@ -3352,6 +3352,7 @@
     "items": {
       "chat": "Chat",
       "forum": "Forum",
+      "classroom": "Classroom",
       "events": "Events",
       "products": "Products",
       "members": "Members",
@@ -3365,6 +3366,33 @@
     "myCommunities": "My communities",
     "toReview": "{count, plural, one {# item to review} other {# items to review}}",
     "manyItems": "99+"
+  },
+  "CommunityShelf": {
+    "classroomTitle": "Classroom",
+    "productsTitle": "Products",
+    "emptyClassroom": "No courses yet",
+    "emptyProducts": "No products yet",
+    "enrolled": "Enrolled",
+    "owned": "Yours",
+    "continue": "Continue",
+    "continueNamed": "Continue {name}",
+    "open": "Open",
+    "openNamed": "Open {name}",
+    "details": "Details",
+    "detailsNamed": "Details for {name}",
+    "enrolNamed": "Enrol for free: {name}",
+    "getNamed": "Get for free: {name}",
+    "noCourses": "No published courses",
+    "noProducts": "No published products",
+    "newCourse": "New course",
+    "newProduct": "New product",
+    "readOnly": "Only ministry staff who manage courses and products can change this.",
+    "featured": "Featured",
+    "membersOnly": "Members only",
+    "moveUp": "Move {name} up",
+    "moveDown": "Move {name} down",
+    "featureNamed": "Feature {name}",
+    "unfeatureNamed": "Stop featuring {name}"
   },
   "ForumCategories": {
     "list": "Forum categories",
@@ -8543,7 +8571,7 @@
       },
       "visibility": "Visibility",
       "visibilityOptions": {
-        "hidden": "Hidden: only your ministry",
+        "hidden": "Hidden: only on community shelves you choose",
         "unlisted": "Unlisted: anyone with the link",
         "listed": "Listed: shown in the catalogue"
       },
@@ -8555,7 +8583,6 @@
       "checks": {
         "title": "A title",
         "address": "An address",
-        "visibility": "Visibility other than hidden",
         "lessons": "At least one published lesson",
         "files": "Ready files"
       },

@@ -1,7 +1,7 @@
 // Pure community-editor rules shared by the editor UI and the server (ADR 0013, C04).
 export const communityEditorSteps = ["offer", "basics", "joining", "channels", "messages", "people", "products", "page", "publish"] as const;
 export type CommunityEditorStep = typeof communityEditorSteps[number];
-/** Steps whose slices have not shipped yet; shown disabled with "Coming soon". */
+/** Steps whose slices have not shipped yet; shown disabled with "Coming soon". Products opens when the editor gets the C13/C16 shelf (free catalogue gate). */
 export const comingSoonSteps: readonly CommunityEditorStep[] = ["messages", "products", "page"];
 
 export type PublishFields = { name: string; visibility: string; allowOpen: boolean; allowApply: boolean; allowInvite: boolean; allowEntitlement: boolean };
