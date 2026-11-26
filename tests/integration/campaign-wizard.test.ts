@@ -8,6 +8,7 @@ import { createDraft, discardDraft, finishDraft, getDraft, listDrafts, saveDraft
 import { listCampaigns } from "../../src/server/campaigns";
 import { acceptInvitation, inviteToDraft, revokeInvitation, type InvitationMail } from "../../src/server/campaign-wizard-invitations";
 import { confirmDraftCoverUpload, createDraftCoverUpload, getCampaignCoverUrl, getDraftCoverUrl, setDraftCover } from "../../src/server/campaign-wizard-cover";
+import { getCampaignOverview } from "../../src/server/campaign-overview";
 import { getChecklist, setChecklistItem } from "../../src/server/campaign-checklist";
 import { defaultBudget, defaultOutreach } from "../../src/lib/campaign-wizard";
 
@@ -528,5 +529,35 @@ describe("setup checklist", () => {
     expect((await fixture.admin.query("select has_table_privilege('harvest_app','campaign_checklist_items','DELETE') as d, has_table_privilege('harvest_app','campaign_checklist_items','UPDATE') as u, has_table_privilege('public','campaign_checklist_items','SELECT') as p")).rows)
       .toEqual([{ d: false, u: false, p: false }]);
     await expect(withTenant(fixture.db, "member-a", tenantA, "campaigns:write", (tx) => tx.insert(campaignChecklistItems).values({ tenantId: tenantA, campaignId, item: "create_events", done: true, doneBy: "admin-a", doneAt: new Date() }))).rejects.toThrow();
+  });
+});
+
+describe("campaign overview", () => {
+  it("reads the finished draft's departments, leaders, members and tools, and reports what is not tracked as unavailable", async () => {
+    const draft = await draftFor("member-a");
+    let version = (await save("member-a", draft.id, 1, "leaders", { departments: ["volunteers", "counseling"] })).version;
+    version = await complete("member-a", draft.id, version);
+    version = (await save("member-a", draft.id, version, "tools", { modules: ["tasks_boards", "campaign_calendar"] })).version;
+    const lead = await invite("member-a", draft.id, { department: "volunteers", role: "leader", userId: "admin-a" });
+    await acceptInvitation(fixture.db, "admin-a", { token: lead.token });
+    await invite("member-a", draft.id, { department: "volunteers", role: "member", email: "later@example.test" }); // pending
+    const { campaignId } = await finishDraft(fixture.db, "member-a", tenantA, draft.id, { version });
+    const overview = await getCampaignOverview(fixture.db, "member-a", tenantA, campaignId);
+    expect(overview.configuration).toEqual({
+      departments: [{ key: "volunteers", leaders: ["admin-a"], members: [], pending: 1 }, { key: "counseling", leaders: [], members: [], pending: 0 }], // the PRD's order
+      modules: ["tasks_boards", "campaign_calendar"],
+    });
+    expect(overview.checklist).toEqual({ done: 0, total: 9 });
+    expect(overview.unavailable).toEqual(["progress", "events", "funding", "tasks"]);
+    expect(JSON.stringify(overview)).not.toMatch(/example\.test/); // no email address of an invitee or placed person
+  });
+  it("is for people who can write campaigns, stays inside the ministry, and has nothing for a campaign made without the wizard", async () => {
+    const draft = await draftFor("member-a");
+    const { campaignId } = await finishDraft(fixture.db, "member-a", tenantA, draft.id, { version: await complete("member-a", draft.id, 1) });
+    expect(await status(getCampaignOverview(fixture.db, "viewer-a", tenantA, campaignId))).toBe(403);
+    expect(await status(getCampaignOverview(fixture.db, "owner-b", tenantA, campaignId))).toBe(403);
+    expect(await status(getCampaignOverview(fixture.db, "owner-b", tenantB, campaignId))).toBe(404);
+    const made = await fixture.admin.query("insert into campaigns (tenant_id, owner_user_id, type, name, idempotency_key, fingerprint) values ($1,'owner-a','conference','No wizard','plain-overview',repeat('a',64)) returning id", [tenantA]);
+    expect((await getCampaignOverview(fixture.db, "owner-a", tenantA, made.rows[0].id)).configuration).toBeNull();
   });
 });
