@@ -90,7 +90,7 @@ IBAN one; a unit test keeps its list identical to the code's), and again on ever
 
 ## Reuse and exceptions
 - Reused: Item/ItemGroup, Button, Switch, Dialog, Field/Input, Alert, SearchableSelect, EmptyState, FormSection, StatusBadge, ConfirmDialog, CopyButton,
-  link-in-bio Row/EditorShell and `safeHttpsUrl`. No new kit items, no new dependencies, generic lucide icons only (no provider logos).
+  link-in-bio Row/EditorShell and `safeHttpsUrl`. No new kit items, no new dependencies. Brand logos (founder request 26 Nov) come from Simple Icons 16.38.1 (CC0-1.0, copied, not installed) for 12 kinds; bank transfer and the 8 brands without a verified mark keep generic lucide icons (`src/components/giving/giving-logos.tsx`, docs/ui-sources.md "Ways to give logos").
 - Kind names (PayPal, Wise, Venmo, Zelle, Revolut, Cash App) are the ministry's own account labels at the founder's request; all other copy is provider-neutral.
 
 ## Evidence (author-executed)
@@ -107,5 +107,5 @@ IBAN one; a unit test keeps its list identical to the code's), and again on ever
 
 ## Not included
 - Pledges, recorded gifts and goal/raised totals (feat/cw-pledges). The campaign page embed itself (that builder calls `publicGivingMethodsFor` and
-  renders `WaysToGive`). Logos, QR codes for methods, per-campaign method selection. Production migration not applied; feature off in production.
+  renders `WaysToGive`). QR codes for methods, per-campaign method selection. Production migration not applied; feature off in production.
 - Staff email alerts (in-app badge only, by decision); reporting from and embedding on the campaign page need that page's own definer and report route.

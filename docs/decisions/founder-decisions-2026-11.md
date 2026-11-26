@@ -183,4 +183,5 @@ Approved for the CRM reports slice (`docs/acceptance/crm-reports.md`); they sett
 - **Impersonation:** any visitor can report a page showing Ways to give (reason and an optional short note, no account, rate limited, no address kept). Harvest staff (the Discover review staff role) list and resolve reports; **only staff admins** hide a ministry's public giving details at once and restore them (same rule as Discover). Every action is audited and the ministry owner sees that staff hid them.
 - **Alerts:** in-app badge only (the open-report count on the staff screen); no email.
 - **Platform list:** approved as built (26 Nov). GoFundMe and Donorbox are removed by the PR that adds a payment provider for donations, with founder sign-off.
+- **Logos (26 Nov, after the screenshots):** every method shows its real brand logo except bank transfer, which keeps its generic icon. Logos come only from a verified source (Simple Icons, CC0); a brand without a verified mark keeps a generic icon until its official mark and terms are checked. GoFundMe's and Donorbox's entries go with those kinds.
 
