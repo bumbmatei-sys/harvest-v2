@@ -1,6 +1,6 @@
 {
-  "id": "3d73f892-108e-4f38-92c1-3e4312dd5553",
-  "prevId": "870e4e96-f8f4-41c4-b128-d679897f6f4d",
+  "id": "72888708-2924-49eb-be1e-980ab007caa0",
+  "prevId": "3f340911-4307-4b0c-9b6a-7119e09a80b2",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -26159,6 +26159,345 @@
       },
       "isRLSEnabled": false
     },
+    "public.fundraising_files": {
+      "name": "fundraising_files",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fundraising_id": {
+          "name": "fundraising_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "uploader_id": {
+          "name": "uploader_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "key": {
+          "name": "key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'cover'"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "mime": {
+          "name": "mime",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "size": {
+          "name": "size",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "checksum": {
+          "name": "checksum",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "retired_at": {
+          "name": "retired_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "fundraising_files_parent_idx": {
+          "name": "fundraising_files_parent_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "fundraising_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "fundraising_files_uploader_id_users_id_fk": {
+          "name": "fundraising_files_uploader_id_users_id_fk",
+          "tableFrom": "fundraising_files",
+          "tableTo": "users",
+          "columnsFrom": [
+            "uploader_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "fundraising_files_tenant_id_fundraising_id_fundraising_campaigns_tenant_id_id_fk": {
+          "name": "fundraising_files_tenant_id_fundraising_id_fundraising_campaigns_tenant_id_id_fk",
+          "tableFrom": "fundraising_files",
+          "tableTo": "fundraising_campaigns",
+          "columnsFrom": [
+            "tenant_id",
+            "fundraising_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "fundraising_files_key_unique": {
+          "name": "fundraising_files_key_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "key"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "fundraising_file_kind": {
+          "name": "fundraising_file_kind",
+          "value": "\"fundraising_files\".\"kind\" = 'cover'"
+        },
+        "fundraising_file_mime": {
+          "name": "fundraising_file_mime",
+          "value": "\"fundraising_files\".\"mime\" in ('image/jpeg','image/png','image/webp')"
+        },
+        "fundraising_file_name": {
+          "name": "fundraising_file_name",
+          "value": "length(btrim(\"fundraising_files\".\"name\")) between 1 and 200"
+        },
+        "fundraising_file_size": {
+          "name": "fundraising_file_size",
+          "value": "\"fundraising_files\".\"size\" between 1 and 10485760"
+        },
+        "fundraising_file_checksum": {
+          "name": "fundraising_file_checksum",
+          "value": "\"fundraising_files\".\"checksum\" ~ '^[a-f0-9]{64}$'"
+        },
+        "fundraising_file_status": {
+          "name": "fundraising_file_status",
+          "value": "\"fundraising_files\".\"status\" in ('pending','uploaded','quarantined','ready')"
+        },
+        "fundraising_file_key": {
+          "name": "fundraising_file_key",
+          "value": "\"fundraising_files\".\"key\" = 'workspaces/' || \"fundraising_files\".\"tenant_id\"::text || '/fundraising/' || \"fundraising_files\".\"fundraising_id\"::text || '/files/' || \"fundraising_files\".\"id\"::text"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.fundraising_pages": {
+      "name": "fundraising_pages",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fundraising_id": {
+          "name": "fundraising_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "description": {
+          "name": "description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "cover_file_id": {
+          "name": "cover_file_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "show_amount": {
+          "name": "show_amount",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "fundraising_pages_slug_idx": {
+          "name": "fundraising_pages_slug_idx",
+          "columns": [
+            {
+              "expression": "slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "fundraising_pages_cover_file_id_fundraising_files_id_fk": {
+          "name": "fundraising_pages_cover_file_id_fundraising_files_id_fk",
+          "tableFrom": "fundraising_pages",
+          "tableTo": "fundraising_files",
+          "columnsFrom": [
+            "cover_file_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "fundraising_pages_created_by_users_id_fk": {
+          "name": "fundraising_pages_created_by_users_id_fk",
+          "tableFrom": "fundraising_pages",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fundraising_pages_tenant_id_fundraising_id_fundraising_campaigns_tenant_id_id_fk": {
+          "name": "fundraising_pages_tenant_id_fundraising_id_fundraising_campaigns_tenant_id_id_fk",
+          "tableFrom": "fundraising_pages",
+          "tableTo": "fundraising_campaigns",
+          "columnsFrom": [
+            "tenant_id",
+            "fundraising_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "fundraising_pages_tenant_id_fundraising_id_pk": {
+          "name": "fundraising_pages_tenant_id_fundraising_id_pk",
+          "columns": [
+            "tenant_id",
+            "fundraising_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "fundraising_page_slug": {
+          "name": "fundraising_page_slug",
+          "value": "\"fundraising_pages\".\"slug\" ~ '^[a-z0-9](?:[a-z0-9-]{1,46}[a-z0-9])$' and \"fundraising_pages\".\"slug\" not in ('new', 'create', 'edit', 'settings', 'admin', 'api', 'account', 'give', 'giving', 'donate', 'report', 'cover', 'search', 'discover', 'harvest', 'login', 'signup', 'help', 'support', 'about', 'terms', 'privacy', 'official', 'staff', 'null', 'undefined')"
+        },
+        "fundraising_page_description": {
+          "name": "fundraising_page_description",
+          "value": "\"fundraising_pages\".\"description\" is null or (length(\"fundraising_pages\".\"description\") between 1 and 5000 and \"fundraising_pages\".\"description\" = btrim(\"fundraising_pages\".\"description\") and \"fundraising_pages\".\"description\" !~ '[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]')"
+        },
+        "fundraising_page_version": {
+          "name": "fundraising_page_version",
+          "value": "\"fundraising_pages\".\"version\" >= 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.fundraising_pledges": {
       "name": "fundraising_pledges",
       "schema": "",
@@ -27307,7 +27646,7 @@
       "checkConstraints": {
         "giving_reports_page": {
           "name": "giving_reports_page",
-          "value": "\"giving_reports\".\"page\" in ('bio')"
+          "value": "\"giving_reports\".\"page\" in ('bio', 'give')"
         },
         "giving_reports_ref": {
           "name": "giving_reports_ref",

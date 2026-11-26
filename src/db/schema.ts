@@ -3705,7 +3705,7 @@ export const givingReports = pgTable("giving_reports", {
   resolvedBy: text("resolved_by").references(() => users.id), resolvedAt: timestamp("resolved_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("giving_reports_open_idx").on(t.status, t.createdAt), index("giving_reports_tenant_idx").on(t.tenantId, t.createdAt),
-  check("giving_reports_page", sql`${t.page} in ('bio')`), check("giving_reports_ref", sql`length(${t.ref}) between 1 and 64`),
+  check("giving_reports_page", sql`${t.page} in ('bio', 'give')`), check("giving_reports_ref", sql`length(${t.ref}) between 1 and 64`),
   check("giving_reports_reason", sql`${t.reason} in ('impersonation','scam','wrong_details','inappropriate','other')`),
   check("giving_reports_note", sql`${t.note} is null or length(${t.note}) between 1 and 500`),
   check("giving_reports_status", sql`${t.status} in ('open','reviewed','dismissed') and ((${t.status} = 'open') = (${t.resolvedAt} is null))`)]);
@@ -3812,3 +3812,46 @@ export const givingContactLinks = pgTable("giving_contact_links", {
   foreignKey({ columns: [t.tenantId, t.contactId], foreignColumns: [contacts.tenantId, contacts.id] }),
   check("giving_contact_link_name", sql`length(btrim(${t.supporterName})) between 1 and 120`),
   check("giving_contact_link_some", sql`${t.contactId} is not null or ${t.supporterName} is not null`)]);
+
+// Public fundraising page (/give/<slug>, founder 26 Nov). One page per fundraiser; the slug is global and fixed once the fundraiser leaves draft. Visitors read
+// it only through give_public_page and its siblings, which return an allow-listed answer for a published fundraiser and never a name, pledge or gift row.
+export const fundraisingPages = pgTable("fundraising_pages", {
+  tenantId: uuid("tenant_id").notNull(), fundraisingId: uuid("fundraising_id").notNull(),
+  slug: text("slug").notNull(), description: text("description"),
+  coverFileId: uuid("cover_file_id").references((): AnyPgColumn => fundraisingFiles.id, { onDelete: "set null" }),
+  showAmount: boolean("show_amount").notNull().default(true),
+  version: integer("version").notNull().default(1),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.fundraisingId] }),
+  foreignKey({ columns: [t.tenantId, t.fundraisingId], foreignColumns: [fundraisingCampaigns.tenantId, fundraisingCampaigns.id] }),
+  uniqueIndex("fundraising_pages_slug_idx").on(t.slug),
+  check("fundraising_page_slug", sql`${t.slug} ~ '^[a-z0-9](?:[a-z0-9-]{1,46}[a-z0-9])$' and ${t.slug} not in ('new', 'create', 'edit', 'settings', 'admin', 'api', 'account', 'give', 'giving', 'donate', 'report', 'cover', 'search', 'discover', 'harvest', 'login', 'signup', 'help', 'support', 'about', 'terms', 'privacy', 'official', 'staff', 'null', 'undefined')`),
+  check("fundraising_page_description", sql`${t.description} is null or (length(${t.description}) between 1 and 5000 and ${t.description} = btrim(${t.description}) and ${t.description} !~ '[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]')`),
+  check("fundraising_page_version", sql`${t.version} >= 1`)]);
+// The page's cover image: the scanned-upload steps of campaign and event covers (pending -> uploaded -> ready or quarantined).
+export const fundraisingFiles = pgTable("fundraising_files", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull(), fundraisingId: uuid("fundraising_id").notNull(),
+  uploaderId: text("uploader_id").references(() => users.id, { onDelete: "set null" }),
+  key: text("key").notNull().unique(),
+  kind: text("kind", { enum: ["cover"] }).notNull().default("cover"),
+  name: text("name").notNull(),
+  mime: text("mime", { enum: ["image/jpeg", "image/png", "image/webp"] }).notNull(),
+  size: integer("size").notNull(),
+  checksum: text("checksum").notNull(),
+  status: text("status", { enum: ["pending", "uploaded", "quarantined", "ready"] }).notNull().default("pending"),
+  retiredAt: timestamp("retired_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  foreignKey({ columns: [t.tenantId, t.fundraisingId], foreignColumns: [fundraisingCampaigns.tenantId, fundraisingCampaigns.id] }),
+  index("fundraising_files_parent_idx").on(t.tenantId, t.fundraisingId),
+  check("fundraising_file_kind", sql`${t.kind} = 'cover'`),
+  check("fundraising_file_mime", sql`${t.mime} in ('image/jpeg','image/png','image/webp')`),
+  check("fundraising_file_name", sql`length(btrim(${t.name})) between 1 and 200`),
+  check("fundraising_file_size", sql`${t.size} between 1 and 10485760`),
+  check("fundraising_file_checksum", sql`${t.checksum} ~ '^[a-f0-9]{64}$'`),
+  check("fundraising_file_status", sql`${t.status} in ('pending','uploaded','quarantined','ready')`),
+  check("fundraising_file_key", sql`${t.key} = 'workspaces/' || ${t.tenantId}::text || '/fundraising/' || ${t.fundraisingId}::text || '/files/' || ${t.id}::text`),
+]);

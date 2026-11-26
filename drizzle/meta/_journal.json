@@ -850,9 +850,16 @@
       "breakpoints": true
     },
     {
+      "idx": 124,
+      "version": "7",
+      "when": 1795735597475,
+      "tag": "0124_give_pages",
+      "breakpoints": true
+    },
+    {
       "idx": 126,
       "version": "7",
-      "when": 1795736596671,
+      "when": 1795737332426,
       "tag": "0126_newsletter_click_tracking",
       "breakpoints": true
     }
