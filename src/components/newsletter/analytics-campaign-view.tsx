@@ -4,6 +4,8 @@ import Link from "next/link";
 import { ArrowLeft, MailPlus } from "lucide-react";
 import { useFormatter, useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { DataTable } from "@/components/data-table";
 import { EmptyState } from "@/components/empty-state";
 import { StatusBadge } from "@/components/status-badge";
 import { ReportBarsCard } from "@/components/crm/reports/report-bars-card";
@@ -17,7 +19,7 @@ const tone = defineStatusTones({ draft: "neutral", reviewed: "info", scheduled: 
 /** One campaign's analytics on the shared report tiles, trend card and bars card. Aggregates only; a withheld figure reads "Fewer than 5". */
 export function AnalyticsCampaignView({ tenantId, data }: { tenantId: string; data: CampaignAnalytics }) {
   const t = useTranslations("NewsletterAnalytics"), campaignT = useTranslations("NewsletterCampaigns"), format = useFormatter();
-  const base = `/workspaces/${tenantId}/newsletter`, { totals, status } = data;
+  const base = `/workspaces/${tenantId}/newsletter`, { totals, status, clicks } = data;
   const num = (value: number | null | undefined) => value === null || value === undefined ? null : format.number(value);
   const rate = (part: number | undefined) => {
     const value = part === undefined || !totals ? null : percent(part, totals.sent);
@@ -31,12 +33,18 @@ export function AnalyticsCampaignView({ tenantId, data }: { tenantId: string; da
     { id: "bounced", name: t("tiles.bounced"), value: num(totals?.bounced), color: "bg-chart-4", ratio: ratio(totals?.bounced), target: rate(totals?.bounced) },
     { id: "complained", name: t("tiles.complained"), value: num(totals?.complained), color: "bg-chart-5", ratio: ratio(totals?.complained), target: rate(totals?.complained) },
     { id: "unsubscribed", name: t("tiles.unsubscribed"), value: num(totals?.unsubscribed), color: "bg-chart-1", ratio: ratio(totals?.unsubscribed), target: rate(totals?.unsubscribed) },
+    // Clicks are totals only and may include link scanners; never unique readers.
+    { id: "clicks", name: t("tiles.clicks"), value: clicks && !clicks.counting && clicks.total === 0 ? t("clicksOff") : num(clicks?.total), target: t("clicksNote"), color: "bg-chart-3" },
   ];
+  const showClicks = !!clicks && (clicks.counting || clicks.total !== 0);
   const series = [
     { key: "sent", label: t("tiles.sent"), color: "var(--chart-1)" }, { key: "delivered", label: t("tiles.delivered"), color: "var(--chart-2)" },
     { key: "bounced", label: t("tiles.bounced"), color: "var(--chart-4)" }, { key: "unsubscribed", label: t("tiles.unsubscribed"), color: "var(--chart-5)" },
+    ...(showClicks ? [{ key: "clicks", label: t("tiles.clicks"), color: "var(--chart-3)" }] : []),
   ];
-  const points = data.days.map((day) => ({ day: day.day, values: Object.fromEntries(series.map((item) => [item.key, day.counts ? day.counts[item.key as "sent"] : null])) }));
+  const clicksByDay = new Map((clicks?.days ?? []).map((day) => [day.day, day.clicks]));
+  const points = data.days.map((day) => ({ day: day.day, values: Object.fromEntries(series.map((item) => [item.key, item.key === "clicks" ? clicksByDay.get(day.day) ?? 0
+    : day.counts ? day.counts[item.key as "sent"] : null])) }));
   const keys = ["selected", "skipped", "queued", "failed", "unknown", "operatorReview", "accepted", "delivered"] as const;
   const date = (value: string) => format.dateTime(new Date(`${value}T12:00:00Z`), { timeZone: "UTC", dateStyle: "medium" });
 
@@ -50,13 +58,23 @@ export function AnalyticsCampaignView({ tenantId, data }: { tenantId: string; da
       <Button asChild variant="outline" size="responsive"><Link href={`${base}/campaigns/${data.campaign.id}`}><MailPlus aria-hidden="true" />{t("openCampaign")}</Link></Button>
     </header>
     {!data.sent ? <EmptyState icon={MailPlus} title={t("notSent.title")} description={t("notSent.description")} solid headingLevel={2} /> : <>
-      <ReportStatCards stats={stats} columns={3} />
+      <ReportStatCards stats={stats} columns={4} />
       <ReportTrendCard id="campaign-daily" title={t("campaign.sinceSend")} caption={t("daily.caption")} dayHeader={t("daily.day")} points={points} series={series} />
       <ReportBarsCard id="status" title={t("campaign.statusTitle")} description="" caption={t("campaign.statusCaption")} keyHeader={t("campaign.statusKey")}
         rows={keys.map((key) => ({ key, label: t(`campaign.status.${key}`), values: { count: status ? status[key] : null } }))} series={[{ key: "count", label: t("campaign.count"), color: "var(--chart-1)" }]} />
+      {showClicks && clicks && <Card data-testid="top-links">
+        <CardHeader><CardTitle>{t("topLinks.title")}</CardTitle></CardHeader>
+        <CardContent>
+          <DataTable bordered={false} label={t("topLinks.title")} empty={<p className="text-sm text-muted-foreground">{t("topLinks.empty")}</p>}
+            columns={[{ id: "link", header: t("topLinks.link"), card: "title" }, { id: "clicks", header: t("topLinks.clicks"), align: "end", className: "w-24" }]}
+            rows={clicks.links.map((link) => ({ id: link.url, label: link.url, cells: {
+              link: <span className="flex min-h-11 min-w-0 items-center break-all text-sm" data-top-link>{link.url}</span>,
+              clicks: <span className="tabular-nums">{format.number(link.clicks)}</span> } }))} />
+        </CardContent>
+      </Card>}
     </>}
     <footer className="text-xs text-muted-foreground" data-testid="analytics-footer">
-      <p>{t("campaign.footer", { start: date(data.range.from), end: date(data.generatedAt.slice(0, 10)) })}</p>
+      <p>{t("campaign.footer", { start: date(data.range.from), end: date(data.generatedAt.slice(0, 10)), clicks: t(clicks?.counting ? "clicksFooter.on" : "clicksFooter.off") })}</p>
     </footer>
   </div>;
 }

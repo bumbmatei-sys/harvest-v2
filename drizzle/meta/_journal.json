@@ -841,6 +841,13 @@
       "when": 1795720235364,
       "tag": "0122_newsletter_reschedule",
       "breakpoints": true
+    },
+    {
+      "idx": 126,
+      "version": "7",
+      "when": 1795734784425,
+      "tag": "0126_newsletter_click_tracking",
+      "breakpoints": true
     }
   ]
 }

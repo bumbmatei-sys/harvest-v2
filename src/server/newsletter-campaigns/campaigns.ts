@@ -7,7 +7,7 @@ import { newsletterCampaigns as campaigns, newsletterCampaignRevisions as revisi
 import { message } from "../../i18n/messages";
 import { newsletterContent, newsletterStarters } from "../../lib/newsletter-content";
 import { assertMailingAddress } from "./sender-setup";
-import { audit, campaignPreview, conflict, digest, id, pageInput, unavailable, version, withNewsletter } from "./access";
+import { audit, campaignPreview, countsClicks, conflict, digest, id, pageInput, unavailable, version, withNewsletter } from "./access";
 import { formatFromHeader } from "../../lib/email-address";
 import { assertVerified, identity } from "./identities";
 import { draftSelectionInput, resolveRecipients, selectionPins } from "./recipients";
@@ -139,7 +139,7 @@ async function reviewData(tx: Transaction, tenant: string, row: Awaited<ReturnTy
   if (pins.lists.some((list, index) => list.version !== listPins[index].listVersion) ||
       pins.segments.some((segment, index) => segment.version !== segmentPins[index].segmentVersion)) throw conflict("SELECTION_CHANGED");
   const { recipients, estimate } = await resolveRecipients(tx, tenant, selection, pins);
-  const preview = { subject: revision.subject, preheader: revision.preheader, ...(await campaignPreview(tx, tenant, revision.content, revision.preheader)) };
+  const preview = { subject: revision.subject, preheader: revision.preheader, ...(await campaignPreview(tx, tenant, revision.content, revision.preheader, await countsClicks(tx, tenant))) };
   if (dispatch.mode === "schedule" && Date.parse(dispatch.schedule.at) <= Date.now()) throw conflict("SCHEDULE_IN_PAST");
   const identities = {
     senderVersion: from.identity.version, replyVersion: reply.identity.version,
