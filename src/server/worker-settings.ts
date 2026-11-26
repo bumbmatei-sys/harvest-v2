@@ -1,4 +1,4 @@
-import { AsyncLocalStorage } from "node:async_hooks";
+import { sharedScope } from "../lib/shared-scope";
 import { runtimeConnectionString } from "../db/request";
 import type { FileBucket } from "./storage/r2";
 import { hasQaSignInBindings, type QaSignInBindings } from "./qa-sign-in-gate";
@@ -55,4 +55,4 @@ function canonicalOrigin(value: string, local: boolean) {
   }
   throw invalid();
 }
-export const workerSettings = new AsyncLocalStorage<ReturnType<typeof readWorkerSettings>>();
+export const workerSettings = sharedScope<ReturnType<typeof readWorkerSettings>>("worker-settings");

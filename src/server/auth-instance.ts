@@ -1,5 +1,5 @@
 import "server-only";
-import { AsyncLocalStorage } from "node:async_hooks";
+import { sharedScope } from "../lib/shared-scope";
 import { getDb, withDb, type DatabaseEnvironment } from "../db/client";
 import { getRequestDb } from "../db/request";
 import { requiredEnv } from "../lib/env";
@@ -15,7 +15,7 @@ export type WorkerRequestEnvironment = Omit<Extract<DatabaseEnvironment, { runti
   cookiePrefix?: string;
   mail?: Parameters<typeof makeAuth>[1]["mail"];
 };
-const requestAuth = new AsyncLocalStorage<{ get: () => Auth }>();
+const requestAuth = sharedScope<{ get: () => Auth }>("request-auth");
 let nodeAuth: Auth | undefined;
 
 /** Worker entry point for buffered handlers. Await all DB work before returning. */

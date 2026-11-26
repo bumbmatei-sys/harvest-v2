@@ -1,4 +1,4 @@
-import { AsyncLocalStorage } from "node:async_hooks";
+import { sharedScope } from "../lib/shared-scope";
 import { drizzle, type NodePgDatabase } from "drizzle-orm/node-postgres";
 import { Client, type Pool, type QueryConfig } from "pg";
 import * as schema from "./schema";
@@ -12,8 +12,8 @@ export type DatabaseEnvironment =
   | { runtime: "workers"; role: DatabaseRole; APP_HYPERDRIVE?: HyperdriveBinding; WORKER_HYPERDRIVE?: HyperdriveBinding; database?: string };
 
 const roleNames = { app: "harvest_app", worker: "harvest_worker" } as const;
-const requestDatabase = new AsyncLocalStorage<Database>();
-const transactionDatabase = new AsyncLocalStorage<Database>();
+const requestDatabase = sharedScope<Database>("request-database");
+const transactionDatabase = sharedScope<Database>("transaction-database");
 
 export function getRequestDb() {
   return requestDatabase.getStore();

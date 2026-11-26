@@ -50,6 +50,12 @@ function matchApi(request: Request, path: string): Handler | undefined {
   }
 }
 
+/** True when the explicit buffered API (not OpenNext) serves this request. */
+export function isBufferedApiRequest(request: Request) {
+  const path = new URL(request.url).pathname;
+  return path === FILE_TRANSFER_PATH || matchApi(request, path) !== undefined;
+}
+
 function privateResponse(response: Response) {
   // Preserve separate Set-Cookie values. Some runtime responses have immutable headers.
   const result = new Response(response.body, response);
