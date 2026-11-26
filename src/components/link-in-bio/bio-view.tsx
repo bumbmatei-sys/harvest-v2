@@ -72,7 +72,7 @@ export function BioPageView({ view, handle, preview = false, photoUrl = null, co
       {links.length > 0 && <section className="rounded-xl border bg-card text-card-foreground"><ul className="divide-y overflow-hidden rounded-xl">{links.map(row)}</ul></section>}
       {others.map((item) => item.type === "newsletter" ? <div key={item.id} data-bio-block={item.id}>{preview ? <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">{t("newsletterPlaceholder")}</div> : <HostedSignup slug={item.slug} />}</div>
         : item.type === "message" ? <div key={item.id} data-bio-block={item.id}><BioMessageForm handle={handle} title={item.title} notice={messageNotice(view.ministryName)} inert={preview} /></div>
-        : item.type === "giving" ? <div key={item.id} data-bio-block={item.id}><WaysToGive methods={item.methods} title={item.title} ministryName={view.ministryName} inert={preview} /></div> : null)}
+        : item.type === "giving" ? <div key={item.id} data-bio-block={item.id}><WaysToGive methods={item.methods} title={item.title} ministryName={view.ministryName} inert={preview} reportUrl={preview ? undefined : `/l/${encodeURIComponent(handle)}/report`} /></div> : null)}
     </div>;
   };
 

@@ -72,7 +72,10 @@ test("Settings pop-up: open, sections by role, keyboard, deep link, Planner entr
   await page.goto(`${base}/crm/people`); await ready(page);
   const nav = sidebarNav(page);
   for (const group of ["Office", "People", "Connect", "Ministry"]) await expect(nav.getByRole("button", { name: group, exact: true })).toBeVisible();
-  for (const hidden of ["Settings", "Giving"]) await expect(nav.getByRole("button", { name: hidden, exact: true })).toHaveCount(0);
+  await expect(nav.getByRole("button", { name: "Settings", exact: true })).toHaveCount(0);
+  // Giving is a sidebar group since CW-10: Ways to give is its first live row (owners and admins, non-production).
+  await expect(nav.getByRole("button", { name: "Giving", exact: true })).toBeVisible();
+  await expect(nav.getByRole("link", { name: "Ways to give", exact: true })).toBeVisible();
   for (const hidden of ["CRM fields", "Pipeline settings", "Appearance", "Ministry settings", "Social accounts"]) await expect(nav.getByRole("link", { name: hidden, exact: true })).toHaveCount(0);
   for (const shown of ["Storage", "People", "Organizations", "Pipelines", "Tasks", "Imports", "Follow-up", "Campaigns"]) await expect(nav.getByRole("link", { name: shown, exact: true })).toBeVisible();
   for (const path of ["/crm/settings/fields", "/crm/settings/pipelines", "/appearance", "/settings", "/social/accounts", "/files", "/campaigns", "/connect/follow-up"]) {

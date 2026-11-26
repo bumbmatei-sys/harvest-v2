@@ -5,15 +5,41 @@ import { safeHttpsUrl } from "./link-in-bio";
 // by hand. Each method is a label the ministry chose for one of its own accounts. Harvest never calls these services, fetches, previews or follows the links,
 // and processes no payment. Everything here is pure: kinds, limits, validation and the projection the public block shows.
 
+/**
+ * Approved giving platforms (founder decision 26 Nov): each is validated to its exact web hosts. There is no free "any link" kind.
+ * TEMPORARY: GoFundMe and Donorbox are allowed only until Harvest adds a payment provider (Stripe or another); remove them from this list, the database check
+ * in the ways-to-give migration and the messages when that provider ships (docs/decisions/founder-decisions-2026-11.md, docs/acceptance/cw-giving.md).
+ */
+export const givingPlatformHosts = {
+  gofundme: ["gofundme.com", "www.gofundme.com", "gofund.me"], // TEMPORARY until a payment provider is added.
+  donorbox: ["donorbox.org", "www.donorbox.org"], // TEMPORARY until a payment provider is added.
+  givebutter: ["givebutter.com", "www.givebutter.com"],
+  tithely: ["tithe.ly", "www.tithe.ly", "give.tithe.ly"],
+  pushpay: ["pushpay.com", "www.pushpay.com"],
+  planning_center: [], // Planning Center Giving: one ministry subdomain of churchcenter.com (see givingHostSuffix).
+  subsplash: ["subsplash.com", "www.subsplash.com"],
+  givelify: ["givelify.com", "www.givelify.com", "giving.givelify.com"],
+  zeffy: ["zeffy.com", "www.zeffy.com"],
+  every_org: ["every.org", "www.every.org"],
+  justgiving: ["justgiving.com", "www.justgiving.com"],
+  patreon: ["patreon.com", "www.patreon.com"],
+  ko_fi: ["ko-fi.com", "www.ko-fi.com"],
+  buy_me_a_coffee: ["buymeacoffee.com", "www.buymeacoffee.com"],
+} as const satisfies Record<string, readonly string[]>;
+export type GivingPlatform = keyof typeof givingPlatformHosts;
+export const givingPlatforms = Object.keys(givingPlatformHosts) as GivingPlatform[];
+/** Kinds whose host is one ministry subdomain of a fixed domain (one DNS label, no deeper nesting). */
+const givingHostSuffix: Partial<Record<GivingKind, string>> = { planning_center: ".churchcenter.com" };
+
 /** Kinds the ministry can pick. The names are the ministry's own account types (founder request); no logo or integration comes with them. */
-export const givingKinds = ["paypal", "wise", "venmo", "zelle", "revolut", "cash_app", "bank_transfer", "other"] as const;
-export type GivingKind = typeof givingKinds[number];
-export const givingLimits = { methods: 20, label: 60, url: 2048, handle: 64, holder: 100, note: 140 } as const;
+export const givingKinds = ["paypal", "wise", "venmo", "zelle", "revolut", "cash_app", "bank_transfer", ...givingPlatforms] as const;
+export type GivingKind = "paypal" | "wise" | "venmo" | "zelle" | "revolut" | "cash_app" | "bank_transfer" | GivingPlatform;
+export const givingLimits = { methods: 20, label: 60, url: 2048, handle: 64, holder: 100, note: 140, reportNote: 500 } as const;
 
 type KindRule = { url: "required" | "optional" | "none"; handle: "required" | "optional" | "none"; hosts?: readonly string[]; bank?: true };
 /**
- * Exact host allow-lists for the named kinds (no subdomain wildcard, no lookalike). "Other" takes any public https host. Venmo, Revolut and Cash App take a
- * link or a handle (exactly one); Zelle takes a handle (email or phone) only; a bank transfer takes account details only.
+ * Exact host allow-lists for every link (no wildcard, no lookalike). Venmo, Revolut and Cash App take a link or a handle (exactly one); Zelle takes a handle
+ * (email or phone) only; a bank transfer takes account details only; every giving platform takes a link on its own hosts.
  */
 export const givingKindRules: Record<GivingKind, KindRule> = {
   paypal: { url: "required", handle: "none", hosts: ["paypal.me", "www.paypal.me", "paypal.com", "www.paypal.com"] },
@@ -23,22 +49,25 @@ export const givingKindRules: Record<GivingKind, KindRule> = {
   revolut: { url: "optional", handle: "optional", hosts: ["revolut.me"] },
   cash_app: { url: "optional", handle: "optional", hosts: ["cash.app"] },
   bank_transfer: { url: "none", handle: "none", bank: true },
-  other: { url: "required", handle: "none" },
+  ...Object.fromEntries(givingPlatforms.map((platform) => [platform, { url: "required", handle: "none", hosts: givingPlatformHosts[platform] }])) as unknown as Record<GivingPlatform, KindRule>,
 };
 
 // ---- Links -----------------------------------------------------------------------------------------------------------------------------------------------
 const ipv4 = /^\d{1,3}(\.\d{1,3}){3}$/;
 /**
- * A giving link: the link-in-bio https rules (no credentials, no control characters, a dotted host) plus no IP literal, no explicit port, and for a named kind
- * one of its exact hosts. Returns the normalised address or null. Nothing is fetched.
+ * A giving link: the link-in-bio https rules (no credentials, no control characters, a dotted host) plus no IP literal, no explicit port, and one of the kind's
+ * exact hosts (or, for a subdomain kind, one label under its domain). Returns the normalised address or null. Nothing is fetched.
  */
 export function givingUrl(kind: GivingKind, value: string): string | null {
   const safe = safeHttpsUrl(value);
   if (!safe) return null;
   const url = new URL(safe);
   if (url.port || ipv4.test(url.hostname) || url.hostname.startsWith("[")) return null;
-  const hosts = givingKindRules[kind].hosts;
-  if (hosts && !hosts.includes(url.hostname)) return null;
+  const rule = givingKindRules[kind], suffix = givingHostSuffix[kind];
+  if (rule.url === "none") return null;
+  const label = suffix && url.hostname.endsWith(suffix) ? url.hostname.slice(0, -suffix.length) : null;
+  const subdomainOk = label !== null && /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label) && label !== "www";
+  if (!(rule.hosts ?? []).includes(url.hostname) && !subdomainOk) return null;
   return url.href;
 }
 
@@ -88,7 +117,7 @@ const optionalText = (max: number) => plain(max).nullable().optional().transform
 
 /** One method as the owner submits it. `superRefine` applies the per-kind rules and normalises link, handle and bank details. */
 export const givingMethodInputSchema = z.object({
-  kind: z.enum(givingKinds),
+  kind: z.enum(givingKinds as unknown as [GivingKind, ...GivingKind[]]),
   label: plain(givingLimits.label).pipe(z.string().min(1)),
   url: optionalText(givingLimits.url),
   handle: optionalText(givingLimits.handle),
@@ -142,7 +171,7 @@ export function givingFieldIssues(input: GivingMethodInput): Partial<Record<"lab
 // ---- What a visitor sees ---------------------------------------------------------------------------------------------------------------------------------
 /** An enabled method as the public block shows it (no ids of people, no order numbers, no audit data). */
 export type GivingPublicMethod = { id: string; kind: GivingKind; label: string; url: string | null; handle: string | null; iban: string | null; bic: string | null; accountHolder: string | null; note: string | null };
-const publicMethodSchema = z.object({ id: z.uuid(), kind: z.enum(givingKinds), label: z.string(), url: z.string().nullable(), handle: z.string().nullable(), iban: z.string().nullable(),
+const publicMethodSchema = z.object({ id: z.uuid(), kind: z.enum(givingKinds as unknown as [GivingKind, ...GivingKind[]]), label: z.string(), url: z.string().nullable(), handle: z.string().nullable(), iban: z.string().nullable(),
   bic: z.string().nullable(), accountHolder: z.string().nullable(), note: z.string().nullable() });
 /** Parses what the database returns and drops anything that no longer validates (a link is re-checked on every read). */
 export function publicGivingMethods(raw: unknown): GivingPublicMethod[] {
@@ -156,3 +185,14 @@ export function publicGivingMethods(raw: unknown): GivingPublicMethod[] {
     return [method];
   });
 }
+
+// ---- Reports (a visitor flags a page; Harvest staff review) ----------------------------------------------------------------------------------------------
+export const givingReportReasons = ["impersonation", "scam", "wrong_details", "inappropriate", "other"] as const;
+export type GivingReportReason = typeof givingReportReasons[number];
+/** What the visitor sends. Each public page has its own report route that resolves the ministry (link in bio: POST /l/:handle/report). */
+export const givingReportSchema = z.object({
+  reason: z.enum(givingReportReasons),
+  note: z.string().max(givingLimits.reportNote).refine((value) => !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value)).transform((value) => value.trim() || null).optional(),
+  website: z.string().max(200).optional(), // Honeypot.
+}).strict();
+export type GivingReportInput = z.input<typeof givingReportSchema>;

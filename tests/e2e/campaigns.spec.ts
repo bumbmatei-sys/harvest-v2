@@ -45,7 +45,8 @@ test("CW-01: mobile shell Tab reaches every navigation link and campaign targets
     const links = navigation.getByRole("link");
     // Ministries entry plus the CRM, Connect, Office and Ministry links. The Settings group left the sidebar (Settings pop-up, 20 Nov): five fewer links than before.
     // Follow-up (followup:work) and Communities (ADR 0013, while the flag is on) are the 14th and 15th links, after Email and Calendar (Office, non-production; only in the shell-modes sidebar, so 13 with shell modes on and 12 with HARVEST_SHELL_MODES=disabled before Reports (crm:reports, every non-viewer role) adds one: 14 and 13, where Email and Calendar are not in the sidebar); with the mode switcher on, Communities moves to the Public sidebar and Social accounts (Settings) is the 15th Operations link. Operations "Events" (feature "events", C14) adds one more link in both modes.
-    await expect(links).toHaveCount(process.env.HARVEST_SHELL_MODES === "disabled" ? 13 : 15); // Docs (Office, non-production) is one more link, only in the shell-modes sidebar
+    // Docs (Office, non-production) and Ways to give (Operations > Giving, giving:manage, non-production; CW-10) are one more link each, only in the shell-modes sidebar.
+    await expect(links).toHaveCount(process.env.HARVEST_SHELL_MODES === "disabled" ? 13 : 16);
     const expected = new Set(await links.evaluateAll((nodes) => nodes.map((node) => node.getAttribute("href"))));
     await sheet.getByRole("link", { name: "Harvest", exact: true }).focus();
     for (let tab = 0; tab < 30 && expected.size; tab++) {

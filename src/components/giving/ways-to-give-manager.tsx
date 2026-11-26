@@ -1,8 +1,8 @@
 "use client";
 import { useMemo, useState } from "react";
 import { useTranslations } from "next-intl";
-import { ArrowDown, ArrowUp, AtSign, HandCoins, Landmark, Link2, Pencil, Plus, Trash2, type LucideIcon } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ArrowDown, ArrowUp, HandCoins, Pencil, Plus, ShieldAlert, Trash2 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
@@ -14,12 +14,11 @@ import { EmptyState } from "@/components/empty-state";
 import { FormSection } from "@/components/form-section";
 import { SearchableSelect } from "@/components/searchable-select";
 import { StatusBadge } from "@/components/status-badge";
-import { WaysToGive } from "@/components/giving/ways-to-give";
+import { givingKindIcon, WaysToGive } from "@/components/giving/ways-to-give";
 import { useRequest } from "@/hooks/use-request";
 import { formatIban, givingFieldIssues, givingKindRules, givingKinds, givingLimits, type GivingFieldIssue, type GivingKind, type GivingMethodInput } from "@/lib/ways-to-give";
-import type { GivingMethod } from "@/server/ways-to-give";
+import type { GivingMethod, GivingStanding } from "@/server/ways-to-give";
 
-const kindIcons: Record<GivingKind, LucideIcon> = { paypal: Link2, wise: Link2, venmo: AtSign, zelle: AtSign, revolut: AtSign, cash_app: AtSign, bank_transfer: Landmark, other: Link2 };
 type Draft = { kind: GivingKind; label: string; url: string; handle: string; iban: string; bic: string; accountHolder: string; note: string; enabled: boolean };
 const blank = (kind: GivingKind = "paypal"): Draft => ({ kind, label: "", url: "", handle: "", iban: "", bic: "", accountHolder: "", note: "", enabled: true });
 const fromMethod = (m: GivingMethod): Draft => ({ kind: m.kind, label: m.label, url: m.url ?? "", handle: m.handle ?? "", iban: m.iban ? formatIban(m.iban) : "", bic: m.bic ?? "", accountHolder: m.accountHolder ?? "", note: m.note ?? "", enabled: m.enabled });
@@ -33,7 +32,7 @@ function toInput(draft: Draft): GivingMethodInput {
 const summary = (m: GivingMethod) => m.iban ? `${m.iban.slice(0, 4)} •••• ${m.iban.slice(-4)}` : m.handle ?? (m.url ? new URL(m.url).hostname : "");
 
 /** Operations > Giving > Ways to give: the ministry's own giving accounts, in order, with a live preview of what visitors see. Owners and admins. */
-export function WaysToGiveManager({ tenantId, ministryName, initial }: { tenantId: string; ministryName: string; initial: GivingMethod[] }) {
+export function WaysToGiveManager({ tenantId, ministryName, initial, standing }: { tenantId: string; ministryName: string; initial: GivingMethod[]; standing: GivingStanding }) {
   const t = useTranslations("WaysToGive");
   const request = useRequest();
   const endpoint = `/api/workspaces/${tenantId}/giving/methods`;
@@ -73,11 +72,13 @@ export function WaysToGiveManager({ tenantId, ministryName, initial }: { tenantI
         <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1><p className="mt-1 text-sm text-muted-foreground">{t("description")}</p></div>
       {methods.length > 0 && <div className="flex flex-wrap items-center gap-2">{full && <span className="text-sm text-muted-foreground">{t("limit", { max: givingLimits.methods })}</span>}{add}</div>}
     </div>
+    {standing.hidden && <Alert variant="destructive" data-giving-hidden><ShieldAlert aria-hidden="true" /><AlertTitle>{t("hiddenByStaff")}</AlertTitle>
+      <AlertDescription>{standing.reason ? t("hiddenReason", { reason: standing.reason }) : t("hiddenNoReason")}</AlertDescription></Alert>}
     {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
     {methods.length === 0 ? <EmptyState icon={HandCoins} title={t("emptyTitle")} description={t("emptyDescription")} action={add} solid headingLevel={2} />
       : <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,24rem)]">
         <ItemGroup aria-label={t("title")} className="gap-2" data-giving-list>
-          {methods.map((method, index) => { const Icon = kindIcons[method.kind]; return <div key={method.id} role="listitem"><Item variant="outline" className="flex-wrap bg-card" data-giving-row={method.id}>
+          {methods.map((method, index) => { const Icon = givingKindIcon(method.kind); return <div key={method.id} role="listitem"><Item variant="outline" className="flex-wrap bg-card" data-giving-row={method.id}>
             <ItemMedia variant="icon"><Icon aria-hidden="true" /></ItemMedia>
             <ItemContent className="min-w-0"><ItemTitle className="max-w-full break-words">{method.label}</ItemTitle>
               <ItemDescription className="break-all">{t("rowSummary", { kind: t(`kinds.${method.kind}`), detail: summary(method) })}</ItemDescription></ItemContent>
@@ -92,7 +93,7 @@ export function WaysToGiveManager({ tenantId, ministryName, initial }: { tenantI
           </Item></div>; })}
         </ItemGroup>
         <FormSection title={t("preview")}>
-          {enabled.length ? <WaysToGive methods={enabled} ministryName={ministryName} inert headingLevel={3} />
+          {enabled.length && !standing.hidden ? <WaysToGive methods={enabled} ministryName={ministryName} inert headingLevel={3} />
             : <EmptyState size="compact" title={t("previewEmpty")} />}
         </FormSection>
       </div>}
@@ -129,7 +130,7 @@ function MethodDialog({ endpoint, method, onClose, onSaved }: { endpoint: string
     if (!result.ok) { setError(result.error); return; }
     onSaved(result.data);
   }
-  const kindOptions = givingKinds.map((kind) => ({ value: kind, label: t(`kinds.${kind}`), icon: kindIcons[kind] }));
+  const kindOptions = givingKinds.map((kind) => ({ value: kind, label: t(`kinds.${kind}`), icon: givingKindIcon(kind) }));
   return <Dialog open onOpenChange={(open) => { if (!open && !busy) onClose(); }}>
     <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-lg">
       <DialogHeader><DialogTitle>{t(method ? "editTitle" : "addTitle")}</DialogTitle></DialogHeader>

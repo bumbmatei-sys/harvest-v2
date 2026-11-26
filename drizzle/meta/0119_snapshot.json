@@ -1,5 +1,5 @@
 {
-  "id": "f2afcbed-4cac-4525-8e0a-0f264fc327f2",
+  "id": "1d6e8d77-d967-41dd-9566-a91d959e7ea4",
   "prevId": "90d12426-f63f-4b3c-b734-9a2bfb756ace",
   "version": "7",
   "dialect": "postgresql",
@@ -24849,7 +24849,7 @@
       "checkConstraints": {
         "giving_methods_kind": {
           "name": "giving_methods_kind",
-          "value": "\"giving_methods\".\"kind\" in ('paypal','wise','venmo','zelle','revolut','cash_app','bank_transfer','other')"
+          "value": "\"giving_methods\".\"kind\" in ('paypal','wise','venmo','zelle','revolut','cash_app','bank_transfer','gofundme','donorbox','givebutter','tithely','pushpay','planning_center','subsplash','givelify','zeffy','every_org','justgiving','patreon','ko_fi','buy_me_a_coffee')"
         },
         "giving_methods_label": {
           "name": "giving_methods_label",
@@ -24878,6 +24878,308 @@
         "giving_methods_shape": {
           "name": "giving_methods_shape",
           "value": "case\n    when \"giving_methods\".\"kind\" = 'bank_transfer' then \"giving_methods\".\"iban\" is not null and \"giving_methods\".\"account_holder\" is not null and \"giving_methods\".\"url\" is null and \"giving_methods\".\"handle\" is null\n    when \"giving_methods\".\"kind\" = 'zelle' then \"giving_methods\".\"handle\" is not null and \"giving_methods\".\"url\" is null and \"giving_methods\".\"iban\" is null and \"giving_methods\".\"bic\" is null and \"giving_methods\".\"account_holder\" is null\n    when \"giving_methods\".\"kind\" in ('venmo','revolut','cash_app') then (\"giving_methods\".\"url\" is null) <> (\"giving_methods\".\"handle\" is null) and \"giving_methods\".\"iban\" is null and \"giving_methods\".\"bic\" is null and \"giving_methods\".\"account_holder\" is null\n    else \"giving_methods\".\"url\" is not null and \"giving_methods\".\"handle\" is null and \"giving_methods\".\"iban\" is null and \"giving_methods\".\"bic\" is null and \"giving_methods\".\"account_holder\" is null end"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.giving_report_quotas": {
+      "name": "giving_report_quotas",
+      "schema": "",
+      "columns": {
+        "scope": {
+          "name": "scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "minute": {
+          "name": "minute",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempts": {
+          "name": "attempts",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "giving_report_quota_expiry_idx": {
+          "name": "giving_report_quota_expiry_idx",
+          "columns": [
+            {
+              "expression": "minute",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {
+        "giving_report_quotas_scope_minute_pk": {
+          "name": "giving_report_quotas_scope_minute_pk",
+          "columns": [
+            "scope",
+            "minute"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.giving_reports": {
+      "name": "giving_reports",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "page": {
+          "name": "page",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ref": {
+          "name": "ref",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "note": {
+          "name": "note",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'open'"
+        },
+        "resolved_by": {
+          "name": "resolved_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "resolved_at": {
+          "name": "resolved_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "giving_reports_open_idx": {
+          "name": "giving_reports_open_idx",
+          "columns": [
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "giving_reports_tenant_idx": {
+          "name": "giving_reports_tenant_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "giving_reports_tenant_id_workspaces_tenant_id_fk": {
+          "name": "giving_reports_tenant_id_workspaces_tenant_id_fk",
+          "tableFrom": "giving_reports",
+          "tableTo": "workspaces",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "tenant_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "giving_reports_resolved_by_users_id_fk": {
+          "name": "giving_reports_resolved_by_users_id_fk",
+          "tableFrom": "giving_reports",
+          "tableTo": "users",
+          "columnsFrom": [
+            "resolved_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "giving_reports_page": {
+          "name": "giving_reports_page",
+          "value": "\"giving_reports\".\"page\" in ('bio')"
+        },
+        "giving_reports_ref": {
+          "name": "giving_reports_ref",
+          "value": "length(\"giving_reports\".\"ref\") between 1 and 64"
+        },
+        "giving_reports_reason": {
+          "name": "giving_reports_reason",
+          "value": "\"giving_reports\".\"reason\" in ('impersonation','scam','wrong_details','inappropriate','other')"
+        },
+        "giving_reports_note": {
+          "name": "giving_reports_note",
+          "value": "\"giving_reports\".\"note\" is null or length(\"giving_reports\".\"note\") between 1 and 500"
+        },
+        "giving_reports_status": {
+          "name": "giving_reports_status",
+          "value": "\"giving_reports\".\"status\" in ('open','reviewed','dismissed') and ((\"giving_reports\".\"status\" = 'open') = (\"giving_reports\".\"resolved_at\" is null))"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.giving_standing": {
+      "name": "giving_standing",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "hidden": {
+          "name": "hidden",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "changed_by": {
+          "name": "changed_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "changed_at": {
+          "name": "changed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "giving_standing_tenant_id_workspaces_tenant_id_fk": {
+          "name": "giving_standing_tenant_id_workspaces_tenant_id_fk",
+          "tableFrom": "giving_standing",
+          "tableTo": "workspaces",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "tenant_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "giving_standing_changed_by_users_id_fk": {
+          "name": "giving_standing_changed_by_users_id_fk",
+          "tableFrom": "giving_standing",
+          "tableTo": "users",
+          "columnsFrom": [
+            "changed_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "giving_standing_reason": {
+          "name": "giving_standing_reason",
+          "value": "\"giving_standing\".\"reason\" is null or length(\"giving_standing\".\"reason\") between 1 and 500"
+        },
+        "giving_standing_hidden_reason": {
+          "name": "giving_standing_hidden_reason",
+          "value": "not \"giving_standing\".\"hidden\" or \"giving_standing\".\"reason\" is not null"
         }
       },
       "isRLSEnabled": false

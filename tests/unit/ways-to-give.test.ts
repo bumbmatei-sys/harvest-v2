@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { formatIban, givingFieldIssues, givingHandle, givingMethodInputSchema, givingUrl, publicGivingMethods, validBic, validIban } from "../../src/lib/ways-to-give";
+import { formatIban, givingFieldIssues, givingKindRules, givingKinds, givingPlatforms, givingReportSchema, givingHandle, givingMethodInputSchema, givingUrl, publicGivingMethods, validBic, validIban } from "../../src/lib/ways-to-give";
 import { bioDefinitionSchema, emptyBioDefinition, fieldIssues } from "../../src/lib/link-in-bio";
 import { navEntries, resolveModeNavigation } from "../../src/lib/navigation";
 import { can } from "../../src/lib/permissions";
@@ -31,9 +31,21 @@ describe("links", () => {
       expect(givingUrl("paypal", bad), bad).toBeNull();
     expect(givingUrl("wise", "https://paypal.me/x")).toBeNull();
   });
-  it("lets Other take any public https host but no IP literal or port", () => {
-    expect(givingUrl("other", "https://give.example.org/now")).toBe("https://give.example.org/now");
-    for (const bad of ["https://203.0.113.9/give", "https://[2001:db8::1]/give", "https://give.example.org:444/", "data:text/html,x"]) expect(givingUrl("other", bad), bad).toBeNull();
+  it("has no free 'any link' kind: every platform is held to its own hosts", () => {
+    expect((givingKinds as readonly string[]).includes("other")).toBe(false);
+    expect(givingUrl("gofundme", "https://www.gofundme.com/f/grace")).toBe("https://www.gofundme.com/f/grace");
+    expect(givingUrl("gofundme", "https://gofund.me/abc123")).toBe("https://gofund.me/abc123");
+    expect(givingUrl("donorbox", "https://donorbox.org/grace")).toBe("https://donorbox.org/grace");
+    expect(givingUrl("tithely", "https://give.tithe.ly/?formId=1")).toBe("https://give.tithe.ly/?formId=1");
+    expect(givingUrl("ko_fi", "https://ko-fi.com/grace")).toBe("https://ko-fi.com/grace");
+    for (const [kind, bad] of [["gofundme", "https://give.example.org/now"], ["donorbox", "https://gofundme.com/f/x"], ["patreon", "https://patreon.com.evil.example/x"], ["zeffy", "https://203.0.113.9/give"],
+      ["every_org", "https://every.org:444/"], ["justgiving", "data:text/html,x"]] as const) expect(givingUrl(kind, bad), bad).toBeNull();
+    for (const platform of givingPlatforms) expect(givingKindRules[platform].url).toBe("required");
+  });
+  it("takes one ministry subdomain for Planning Center Giving", () => {
+    expect(givingUrl("planning_center", "https://gracechurch.churchcenter.com/giving")).toBe("https://gracechurch.churchcenter.com/giving");
+    for (const bad of ["https://churchcenter.com/giving", "https://a.b.churchcenter.com/giving", "https://www.churchcenter.com/", "https://evilchurchcenter.com/", "https://grace.churchcenter.com.evil.example/"])
+      expect(givingUrl("planning_center", bad), bad).toBeNull();
   });
 });
 
@@ -59,9 +71,9 @@ describe("method input", () => {
     expect(givingFieldIssues({ ...base, kind: "venmo" })).toEqual({ handle: "required" });
     expect(givingFieldIssues({ ...base, kind: "venmo", url: "https://venmo.com/u/grace", handle: "@gracechurch" })).toEqual({ handle: "one_of" });
     expect(givingFieldIssues({ ...base, kind: "zelle", handle: "give@example.org", url: "https://example.org" })).toEqual({ url: "not_allowed" });
-    expect(givingFieldIssues({ ...base, kind: "other", url: "https://give.example.org", iban: "GB82WEST12345698765432" })).toEqual({ iban: "not_allowed" });
-    expect(givingFieldIssues({ ...base, label: "  ", kind: "other", url: "https://give.example.org" })).toMatchObject({ label: "required" });
-    expect(givingFieldIssues({ ...base, label: "<b>", kind: "other", url: "https://give.example.org" })).toMatchObject({ label: "invalid" });
+    expect(givingFieldIssues({ ...base, kind: "givebutter", url: "https://givebutter.com/grace", iban: "GB82WEST12345698765432" })).toEqual({ iban: "not_allowed" });
+    expect(givingFieldIssues({ ...base, label: "  ", kind: "givebutter", url: "https://givebutter.com/grace" })).toMatchObject({ label: "required" });
+    expect(givingFieldIssues({ ...base, label: "<b>", kind: "givebutter", url: "https://givebutter.com/grace" })).toMatchObject({ label: "invalid" });
     expect(givingFieldIssues({ ...base, kind: "cash_app", handle: "$Grace" })).toEqual({});
   });
   it("re-checks what the database returns before a visitor sees it", () => {
@@ -69,6 +81,14 @@ describe("method input", () => {
     const ok = { id, kind: "paypal", label: "PayPal", url: "https://paypal.me/x", handle: null, iban: null, bic: null, accountHolder: null, note: null };
     expect(publicGivingMethods([ok, { ...ok, url: "https://evil.example/x" }, { ...ok, kind: "bank_transfer", url: null, iban: "GB00WEST12345698765432" }, { junk: true }])).toEqual([ok]);
     expect(publicGivingMethods(null)).toEqual([]);
+  });
+});
+
+describe("reports", () => {
+  it("takes a known reason and an optional short note, and nothing else", () => {
+    expect(givingReportSchema.parse({ reason: "impersonation", note: "  not them " })).toEqual({ reason: "impersonation", note: "not them" });
+    expect(givingReportSchema.parse({ reason: "scam", note: "   " })).toEqual({ reason: "scam", note: null });
+    for (const bad of [{ reason: "spam" }, { reason: "scam", note: "x".repeat(501) }, { reason: "scam", email: "a@b.c" }, {}]) expect(givingReportSchema.safeParse(bad).success).toBe(false);
   });
 });
 

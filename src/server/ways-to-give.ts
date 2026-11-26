@@ -1,9 +1,10 @@
 import { and, asc, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
-import { auditLogs, givingMethods } from "../db/schema";
+import { auditLogs, givingMethods, givingStanding } from "../db/schema";
 import { message } from "../i18n/messages";
-import { givingLimits, givingMethodInputSchema, publicGivingMethods, type GivingKind, type GivingPublicMethod } from "../lib/ways-to-give";
+import { handleProblem } from "../lib/link-in-bio";
+import { givingLimits, givingMethodInputSchema, givingReportSchema, publicGivingMethods, type GivingKind, type GivingPublicMethod } from "../lib/ways-to-give";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
 import { waysToGiveEnabled } from "./ways-to-give-mode";
@@ -108,4 +109,32 @@ export async function bioGivingMethods(db: Database, handle: string, env: Record
   if (!waysToGiveEnabled(env)) return [];
   const { rows: [row] } = await db.execute<{ result: unknown }>(sql`select public.bio_public_giving(${handle}) as result`);
   return publicGivingMethods(row?.result);
+}
+
+// ---- Staff takedown (owner side) --------------------------------------------------------------------------------------------------------------------------
+export type GivingStanding = { hidden: boolean; reason: string | null; changedAt: string | null };
+/** Whether Harvest staff hid this ministry's public giving details (owners and admins see it on their screen). */
+export async function givingStandingFor(db: Database, user: string, workspace: string): Promise<GivingStanding> {
+  requireWaysToGiveEnabled();
+  return withTenant(db, user, uuid.parse(workspace), "giving:manage", async (tx, tenantId) => {
+    const [row] = await tx.select({ hidden: givingStanding.hidden, reason: givingStanding.reason, changedAt: givingStanding.changedAt }).from(givingStanding).where(eq(givingStanding.tenantId, tenantId));
+    return row ? { hidden: row.hidden, reason: row.hidden ? row.reason : null, changedAt: row.changedAt.toISOString() } : { hidden: false, reason: null, changedAt: null };
+  });
+}
+
+// ---- Visitor reports ---------------------------------------------------------------------------------------------------------------------------------------
+export type GivingReportOutcome = "ok" | "invalid" | "not_found" | "limited";
+/**
+ * A visitor reports a page that shows Ways to give. No account; the visitor key is a keyed hash that lives only in a one-minute counter, as for link-in-bio
+ * clicks and messages. A filled honeypot is accepted and dropped. Nothing is sent to anyone.
+ */
+export async function submitBioGivingReport(db: Database, handle: string, raw: unknown, visitor: string, env: Record<string, string | undefined> = process.env): Promise<GivingReportOutcome> {
+  if (!waysToGiveEnabled(env)) return "not_found";
+  const parsed = givingReportSchema.safeParse(raw);
+  if (!parsed.success) return "invalid";
+  const input = parsed.data;
+  if (input.website) return "ok";
+  if (handleProblem(handle) !== null) return "not_found";
+  const { rows: [row] } = await db.execute<{ result: GivingReportOutcome }>(sql`select public.bio_report_giving(${handle}, ${input.reason}, ${input.note ?? null}, ${visitor}) as result`);
+  return row.result;
 }

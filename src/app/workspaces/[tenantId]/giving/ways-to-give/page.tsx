@@ -4,7 +4,7 @@ import { getTranslations } from "next-intl/server";
 import { getDb } from "@/db/client";
 import { pageSession } from "@/server/page-session";
 import { getWorkspace } from "@/server/workspaces";
-import { listGivingMethods } from "@/server/ways-to-give";
+import { givingStandingFor, listGivingMethods } from "@/server/ways-to-give";
 import { waysToGiveEnabled } from "@/server/ways-to-give-mode";
 import { AccessError } from "@/server/permissions";
 import { uuidInput } from "@/lib/contact-input";
@@ -25,5 +25,6 @@ export default async function WaysToGivePage({ params }: { params: Promise<{ ten
   if (!workspace) return <AccessState />;
   const methods = await listGivingMethods(db, user, tenantId).catch(denied);
   if (!methods) return <AccessState />;
-  return <WaysToGiveManager tenantId={tenantId} ministryName={workspace.name} initial={methods} />;
+  const standing = await givingStandingFor(db, user, tenantId);
+  return <WaysToGiveManager tenantId={tenantId} ministryName={workspace.name} initial={methods} standing={standing} />;
 }

@@ -176,3 +176,9 @@ Approved for the CRM reports slice (`docs/acceptance/crm-reports.md`); they sett
 - Sensitive actions (erase contact, attest consent, sensitive export columns, webhooks, contact merge) stay owner/admin only. `view` grants nothing in areas without a read-only capability until the module defines one. Settings `manage` may change time zone, audience and appearance but not manage people.
 - **Adding people** is always by an invitation the invitee accepts; direct add exists only behind the non-production test gate for browser fixtures and is refused in production and on the API path.
 
+## Ways to give (founder, 26 Nov)
+- Until a payment provider is chosen, people give through the ministry's own accounts and an admin updates fundraising totals by hand. A ministry-level "Ways to give" list (Operations > Giving) is shown on the link in bio and embeddable on other public pages. Harvest processes no payment and calls no provider.
+- **No free "any link" kind:** every link must be on an approved giving platform's own web host (PayPal, Wise, Venmo, Revolut, Cash App, GoFundMe, Donorbox, Givebutter, Tithe.ly, Pushpay, Planning Center Giving, Subsplash Giving, Givelify, Zeffy, Every.org, JustGiving, Patreon, Ko-fi, Buy Me a Coffee), plus Zelle handles and bank transfer (IBAN) details. Hosts are listed in `docs/acceptance/cw-giving.md`.
+- **GoFundMe and Donorbox are temporary:** they will be removed once a payment provider (Stripe or another) is added.
+- **Impersonation:** any visitor can report a page showing Ways to give (reason and an optional short note, no account, rate limited, no address kept). Harvest staff (the Discover review staff role) list reports and can hide a ministry's public giving details at once and restore them; every action is audited and the ministry owner sees that staff hid them.
+
