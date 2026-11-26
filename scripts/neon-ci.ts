@@ -2,11 +2,9 @@ import { appendFile, readFile, writeFile } from "node:fs/promises";
 import { requiredEnv } from "../src/lib/env";
 const projectId = requiredEnv("NEON_PROJECT_ID");
 const headers = { Authorization: `Bearer ${requiredEnv("NEON_API_KEY")}`, "Content-Type": "application/json" };
-// Preserve the existing GitHub Actions path while supporting CircleCI Free.
-// Branch names are bound to this CI job so cleanup cannot touch dev/prod.
-const runId = process.env.GITHUB_RUN_ID ??
-  (process.env.CIRCLE_WORKFLOW_ID && process.env.CIRCLE_WORKFLOW_ID.replace(/-/g, ""));
-const runAttempt = process.env.GITHUB_RUN_ATTEMPT ?? process.env.CIRCLE_BUILD_NUM;
+// Branch names are bound to this GitHub Actions run so cleanup cannot touch dev/prod.
+const runId = process.env.GITHUB_RUN_ID;
+const runAttempt = process.env.GITHUB_RUN_ATTEMPT;
 if (!runId || !runAttempt || !/^[a-zA-Z0-9]+$/.test(runId) || !/^[0-9]+$/.test(runAttempt)) {
   throw new Error("A recognized CI run ID and attempt/build number are required.");
 }
@@ -76,10 +74,6 @@ async function main() {
   const { uri } = await api(`/connection_uri?${params}`);
   if (process.env.GITHUB_ENV) {
     await appendFile(process.env.GITHUB_ENV, `DATABASE_URL_UNPOOLED=${uri}\n`);
-  } else if (process.env.BASH_ENV) {
-    // CircleCI sources BASH_ENV for the next step; never print the URI.
-    const quoted = "'" + uri.replace(/'/g, "'\\''") + "'";
-    await appendFile(process.env.BASH_ENV, `export DATABASE_URL_UNPOOLED=${quoted}\n`);
   } else {
     throw new Error("No supported CI environment export file is available.");
   }
