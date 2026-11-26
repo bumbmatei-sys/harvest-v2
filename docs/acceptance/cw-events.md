@@ -4,7 +4,7 @@ Founder approval (26 Nov 2026): link the existing ministry events to a campaign,
 "Create initial outreach events" checklist item tick itself.
 
 ## Delivered
-- Migration `0118_campaign_events` (tentative number; 0116 and 0117 are held by other open work): table `campaign_event_links`
+- Migration `0116_campaign_events` (renumbered from the tentative 0118 because it merges first): table `campaign_event_links`
   (tenant, campaign, event; cascades with either side; RLS enabled and forced; no app grant) and the SECURITY DEFINER entry
   `public.campaign_events_operate(tenant, campaign, action, event)` with actions `list`, `candidates`, `link`, `unlink`. It sets the
   Events definer settings like `events_operate` and restores them. Roles come from `public.access_role` (0113 guard), never `role_id`.
