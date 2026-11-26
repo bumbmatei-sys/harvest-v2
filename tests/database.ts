@@ -81,6 +81,9 @@ export async function testDatabase(options: { migrationOwner?: boolean; beforeCr
   await migrate(drizzle(admin), { migrationsFolder: "drizzle" });
   if (migrationOwner) await admin.query("RESET ROLE");
   const appPassword = randomBytes(24).toString("hex");
+  // harvest_app and harvest_worker are cluster-wide roles, so every testDatabase() re-passwords them. On a shared server
+  // (CI sets TEST_DATABASE_URL) an earlier fixture's pools then fail with 28P01 on their next new connection, and two
+  // setups at once can fail with "tuple concurrently updated". Use one live fixture per file, or close one before the next.
   await admin.query(`ALTER ROLE harvest_app LOGIN PASSWORD ${escapeLiteral(appPassword)}`);
   url.username = "harvest_app"; url.password = appPassword;
   // max:1 guarantees physical backend reuse, rather than merely hoping a pool reuses it.
