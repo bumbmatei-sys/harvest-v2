@@ -32,7 +32,7 @@ function mapped(error: unknown): never {
   if (error instanceof AccessError) throw error.status === 403 ? denied() : error;
   const { code, message: text } = pgError(error);
   if (code === "42501") throw denied();
-  if (code === "P0002") throw caseMissing();
+  if (code === "P0002") throw text.includes("campaign not found") ? new AccessError(404, message("Errors.campaignNotFound"), { reason: "campaign_not_found" }) : caseMissing();
   if (code === "40001" || code === "40P01") throw stale();
   if (code === "23514") {
     if (text.includes("assignee is not an eligible member")) throw new AccessError(400, message("Errors.theAssigneeMustBeAWorkspaceMember"), { reason: "assignee_not_eligible" });
