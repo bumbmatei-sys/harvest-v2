@@ -33,7 +33,7 @@ try {
   let otp: string | undefined;
   let deliveries = 0;
   runtime = new Miniflare(convertV4MiniflareOptions({
-    cf: false, host: "127.0.0.1", scriptPath, modules: true, compatibilityDate: "2026-11-17", compatibilityFlags: ["nodejs_compat"],
+    cf: false, host: "127.0.0.1", scriptPath, modules: true, modulesRoot: directory, compatibilityDate: "2026-11-17", compatibilityFlags: ["nodejs_compat"],
     hyperdrives: { APP_HYPERDRIVE: fixture.appURL, WORKER_HYPERDRIVE: fixture.workerURL },
     bindings: { CF02_PROBE_TOKEN: token, CF02_AUTH_SECRET: randomBytes(48).toString("base64url"),
       RESEND_API_KEY: "fixture", EMAIL_FROM: "test@example.invalid" },
@@ -69,18 +69,31 @@ try {
   assert.deepEqual(await workspace.json(), []);
   console.log("PASS reused-isolate OTP issue / sign-in / authenticated workspace (200 / 200 / 200)");
 
-  const { rows: [state] } = await fixture.admin.query(`
+  // The timeoutAbort probe's pg_sleep(3) keeps running on the server after the client aborts and closes its socket;
+  // PostgreSQL ends it only when the statement finishes. Wait for it to drain instead of racing it.
+  const active = async () => (await fixture!.admin.query<{ active: number }>(`
     select count(*)::int as active from pg_stat_activity where datname = current_database()
-      and usename in ('harvest_app', 'harvest_worker') and state is distinct from 'idle'`);
-  assert.equal(state.active, 0, "No app or worker sessions should be active after probes");
+      and usename in ('harvest_app', 'harvest_worker') and state is distinct from 'idle'`)).rows[0].active;
+  let busy = await active();
+  for (let attempt = 0; busy > 0 && attempt < 50; attempt++) {
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    busy = await active();
+  }
+  assert.equal(busy, 0, "No app or worker sessions should be active after probes");
 } finally {
   try {
     await runtime?.dispose();
     if (fixture) {
-      const { rows: [state] } = await fixture.admin.query(`
+      // PostgreSQL ends a backend asynchronously after its client socket closes, so allow it a moment (as the integration suite does).
+      const remaining = async () => (await fixture!.admin.query<{ count: number }>(`
         select count(*)::int as count from pg_stat_activity where datname = current_database()
-          and usename in ('harvest_app', 'harvest_worker')`);
-      assert.equal(state.count, 0, "No app or worker connections should remain after disposing the local runtime");
+          and usename in ('harvest_app', 'harvest_worker')`)).rows[0].count;
+      let count = await remaining();
+      for (let attempt = 0; count > 0 && attempt < 30; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, 100));
+        count = await remaining();
+      }
+      assert.equal(count, 0, "No app or worker connections should remain after disposing the local runtime");
     }
   } finally {
     try { await fixture?.close(); }

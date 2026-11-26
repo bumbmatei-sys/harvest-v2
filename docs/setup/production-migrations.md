@@ -56,8 +56,12 @@ A small, separately reviewed change is needed to run the migrator against stagin
    select column_name, is_nullable from information_schema.columns where table_name='workspaces' and column_name='audience';
    -- 0034 backfill: every pre-existing account has a skipped row
    select (select count(*) from users) as users, (select count(*) from user_profiles where onboarding_skipped_at is not null) as skipped;
+   -- 0114 statement limits for the runtime logins in this database (0114 only raises a notice if it could not set them)
+   select r.rolname, s.setconfig from pg_db_role_setting s join pg_roles r on r.oid = s.setrole
+    join pg_database d on d.oid = s.setdatabase
+    where d.datname = current_database() and r.rolname in ('harvest_app', 'harvest_worker');
    ```
-   Expect RLS true/true on every listed table, select/insert/update `true` and `can_delete = false`, `audience` nullable, and `skipped = users` immediately after the run.
+   Expect RLS true/true on every listed table, select/insert/update `true` and `can_delete = false`, `audience` nullable, and `skipped = users` immediately after the run. For 0114 expect `harvest_app {statement_timeout=20s}` and `harvest_worker {statement_timeout=60s}`; if a row is missing, run the 0114 block again as the owner that created the logins before releasing.
 7. **Smoke test** the deployed app on that environment: sign in, open a ministry, open `/account/welcome` with an existing account (no onboarding redirect), CRM People list loads. No real messages, no intake.
 8. **Record** the result (commit, migrations applied, verification output, restore-branch name) in the PR or acceptance record, then delete the restore branch only after Matei agrees.
 
