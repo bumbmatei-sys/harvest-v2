@@ -11,7 +11,8 @@ import { publicPath, type CatalogKind } from "@/lib/catalog";
 import type { ShelfItem } from "@/server/community-shelf";
 
 /**
- * C13 Classroom (courses) and C16 Products (downloads) in the member area. Reuses the Discover ListingCard; the action is the canonical access step:
+ * C13 Classroom (courses) and C16 Products (downloads) in the member area. The featured item comes first with a badge; hidden items appear only here.
+ * Reuses the Discover ListingCard; the action is the canonical access step:
  * enrol for free on the shelf, then Continue (course lessons) or Open (download files). A shelf link grants nothing by itself.
  */
 export function CommunityShelf({ kind, items }: { kind: CatalogKind; items: ShelfItem[] }) {
@@ -38,5 +39,6 @@ function ShelfCard({ item }: { item: ShelfItem }) {
       <Button asChild variant="outline" className="min-h-11"><Link href={page} prefetch={false} aria-label={t("detailsNamed", { name: item.title })}>{t("details")}</Link></Button>
       <EnrolButton slug={item.slug} kind={item.kind} signedIn signInHref={page} ariaLabel={t(course ? "enrolNamed" : "getNamed", { name: item.title })} />
     </>;
-  return <ListingCard item={card} status={item.enrolled ? <Badge variant="outline">{t(course ? "enrolled" : "owned")}</Badge> : undefined} action={action} />;
+  const status = <>{item.featured && <Badge>{t("featured")}</Badge>}{item.enrolled && <Badge variant="outline">{t(course ? "enrolled" : "owned")}</Badge>}</>;
+  return <ListingCard item={card} status={status} action={action} />;
 }

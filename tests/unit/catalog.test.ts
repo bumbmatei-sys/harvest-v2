@@ -75,8 +75,8 @@ describe("catalogue rules", () => {
   });
   it("mirrors the server publish rules in the checklist", () => {
     const done = (items: ReturnType<typeof publishChecklist>) => Object.fromEntries(items.map((check) => [check.id, check.done]));
-    expect(done(publishChecklist("course", form({ visibility: "hidden", lessons: [{ ...newLesson(), published: false }] }), []))).toEqual({ title: true, address: true, visibility: false, lessons: false });
-    expect(done(publishChecklist("course", form({ lessons: [{ ...newLesson(), published: true }] }), []))).toMatchObject({ lessons: true, visibility: true });
+    expect(done(publishChecklist("course", form({ visibility: "hidden", lessons: [{ ...newLesson(), published: false }] }), []))).toEqual({ title: true, address: true, lessons: false });
+    expect(done(publishChecklist("course", form({ lessons: [{ ...newLesson(), published: true }] }), []))).toMatchObject({ lessons: true });
     expect(publishChecklist("download", form({ fileIds: [] }), [file("ready")]).at(-1)).toEqual({ id: "files", done: false });
     expect(publishChecklist("download", form({ fileIds: ["f1"] }), [file("ready")]).at(-1)).toEqual({ id: "files", done: true });
     // Every chosen file must be ready and private.
@@ -85,7 +85,7 @@ describe("catalogue rules", () => {
     expect(publishChecklist("download", form({ fileIds: ["f1"] }), [file("quarantined")]).at(-1)?.done).toBe(false);
   });
   it("sends a failed check to the step that fixes it", () => {
-    expect(["title", "address", "visibility", "lessons", "files"].map((id) => stepOfCheck(id as never))).toEqual(["details", "details", "access", "content", "content"]);
+    expect(["title", "address", "lessons", "files"].map((id) => stepOfCheck(id as never))).toEqual(["details", "details", "content", "content"]);
   });
   it("reads an item into a form, with a member's metadata-only read as an empty one", () => {
     const item = { title: "T", slug: "tt", summary: "S", visibility: "listed" as const, lessons: [{ id: "l1", title: "One", body: emptyBody(), published: true }], fileIds: undefined };

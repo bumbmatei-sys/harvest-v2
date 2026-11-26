@@ -41,6 +41,10 @@ test("owner shows a course and a product; a member enrols from the Classroom and
   const courseSlug = `foundations-${stamp}`, guideSlug = `prayer-guide-${stamp}`, slug = `circle-${stamp}`;
   const course = await (await owner.request.post(`${api}/catalog`, { headers: { origin }, data: { kind: "course", slug: courseSlug, title: "Foundations", summary: "Four lessons for new believers.", visibility: "unlisted", lessons: [lesson] } })).json();
   expect((await owner.request.put(`${api}/catalog/${course.id}/state`, { headers: { origin }, data: { version: course.version, state: "published" } })).status()).toBe(200);
+  // A hidden course is published for community shelves only.
+  const leadersSlug = `leaders-${stamp}`;
+  const leaders = await (await owner.request.post(`${api}/catalog`, { headers: { origin }, data: { kind: "course", slug: leadersSlug, title: "Leaders track", visibility: "hidden", lessons: [lesson] } })).json();
+  expect((await owner.request.put(`${api}/catalog/${leaders.id}/state`, { headers: { origin }, data: { version: leaders.version, state: "published" } })).status()).toBe(200);
   const bytes = Buffer.from("Prayer guide\n".repeat(50));
   const created = await (await owner.request.post(`${api}/files`, { headers: { origin }, data: { name: "prayer-guide.txt", mime: "text/plain", size: bytes.length, checksum: createHash("sha256").update(bytes).digest("hex"), visibility: "private" } })).json();
   expect((await owner.request.put(created.upload.url, { headers: created.upload.headers, data: bytes })).ok()).toBe(true);
@@ -55,15 +59,24 @@ test("owner shows a course and a product; a member enrols from the Classroom and
   await owner.goto(`/workspaces/${tenant}/communities/${community.id}/edit`);
   await owner.getByRole("navigation", { name: "Community setup" }).getByRole("button", { name: /Classroom and products/ }).click();
   const classroom = owner.getByRole("list", { name: "Classroom" }), products = owner.getByRole("list", { name: "Products" });
-  await expect(classroom.getByRole("listitem")).toHaveCount(1);
+  await expect(classroom.getByRole("listitem")).toHaveCount(2);
   await expect(products.getByRole("listitem")).toHaveCount(1);
   await hydrated(owner);
-  for (const [name, item] of [["Foundations", course.id], ["Prayer guide", guide.id]] as const) {
+  for (const [name, item] of [["Foundations", course.id], ["Leaders track", leaders.id], ["Prayer guide", guide.id]] as const) {
     const toggle = owner.getByRole("switch", { name });
     await expect(toggle).not.toBeChecked();
     await Promise.all([waitForCommunityResponse(owner, "PUT", `${api}/communities/${community.id}/catalog/${item}`), toggle.click()]);
     await expect(toggle).toBeChecked();
   }
+  // Order and feature: the featured item moves to the top and cannot be moved; the other order buttons save at once.
+  await expect(owner.getByRole("button", { name: "Move Foundations up" })).toBeDisabled();
+  await Promise.all([waitForCommunityResponse(owner, "PUT", `${api}/communities/${community.id}/catalog`), owner.getByRole("button", { name: "Move Foundations down" }).click()]);
+  await expect(classroom.getByRole("listitem").first()).toContainText("Leaders track");
+  await Promise.all([waitForCommunityResponse(owner, "PUT", `${api}/communities/${community.id}/catalog`), owner.getByRole("button", { name: "Feature Foundations" }).click()]);
+  await expect(owner.getByRole("button", { name: "Stop featuring Foundations" })).toHaveAttribute("aria-pressed", "true");
+  await expect(classroom.getByRole("listitem").first()).toContainText("Featured");
+  await expect(owner.getByRole("button", { name: "Move Foundations down" })).toBeDisabled();
+  await expect(owner.getByRole("button", { name: "Move Leaders track up" })).toBeDisabled();
   await owner.reload();
   await owner.getByRole("navigation", { name: "Community setup" }).getByRole("button", { name: /Classroom and products/ }).click();
   await expect(owner.getByRole("switch", { name: "Foundations" })).toBeChecked();
@@ -74,6 +87,9 @@ test("owner shows a course and a product; a member enrols from the Classroom and
   await signIn(outsider);
   await outsider.goto(`/communities/${slug}/classroom`);
   await expect(outsider).toHaveURL(new RegExp(`/communities/${slug}$`));
+  // The hidden course stays invisible outside the shelf.
+  expect((await outsider.goto(`/courses/${leadersSlug}`))?.status()).toBe(404);
+  expect((await outsider.request.get(`/api/catalog/${leadersSlug}`)).status()).toBe(404);
 
   // Member: Classroom shows the course; enrolling opens its lessons; back on the tab it says Continue.
   const member = await (await browser.newContext({ viewport: { width: 1440, height: 1000 }, reducedMotion: "reduce" })).newPage();
@@ -87,7 +103,10 @@ test("owner shows a course and a product; a member enrols from the Classroom and
   await expect(rail.getByRole("link", { name: "Classroom" })).toHaveAttribute("aria-current", "page");
   await expect(member.getByRole("heading", { name: "Classroom", level: 2 })).toBeVisible();
   const cards = member.getByRole("list", { name: "Classroom" }).getByRole("listitem");
-  await expect(cards).toHaveCount(1);
+  await expect(cards).toHaveCount(2);
+  await expect(cards.first()).toContainText("Foundations");
+  await expect(cards.first().getByText("Featured", { exact: true })).toBeVisible();
+  await expect(cards.nth(1)).toContainText("Leaders track");
   await expect(cards.getByText("Four lessons for new believers.")).toBeVisible();
   await expect(member.getByText(/\$|price|checkout/i)).toHaveCount(0);
   await check(member, "classroom");
@@ -102,7 +121,7 @@ test("owner shows a course and a product; a member enrols from the Classroom and
   await member.waitForURL(`**/courses/${courseSlug}/learn`);
   await member.goto(`/communities/${slug}/classroom`);
   await expect(member.getByRole("link", { name: "Continue Foundations" })).toHaveAttribute("href", `/courses/${courseSlug}/learn`);
-  await expect(cards.getByText("Enrolled", { exact: true })).toBeVisible();
+  await expect(cards.first().getByText("Enrolled", { exact: true })).toBeVisible();
 
   // Products shows the free download; getting it keeps the member on the tab and the card offers Open.
   await expect(rail.getByRole("link", { name: "Products" })).toHaveAttribute("href", `/communities/${slug}/products`);
@@ -117,7 +136,8 @@ test("owner shows a course and a product; a member enrols from the Classroom and
   // Unlinking removes the item from the tab; the member's own enrolment still opens the course.
   expect((await owner.request.delete(`${api}/communities/${community.id}/catalog/${course.id}`, { headers: { origin } })).status()).toBe(200);
   await member.goto(`/communities/${slug}/classroom`);
-  await expect(member.getByText("No courses yet")).toBeVisible();
+  await expect(cards).toHaveCount(1);
+  await expect(cards.first()).toContainText("Leaders track");
   expect((await member.request.get(`/api/catalog/${courseSlug}/content`)).status()).toBe(200);
   expect(errors).toEqual([]);
 });

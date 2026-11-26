@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 import { testDatabase } from "../database";
@@ -6,7 +7,7 @@ import { catalogItems, communityProductLinks, users } from "../../src/db/schema"
 import { createWorkspace, putMember } from "../../src/server/workspaces";
 import { createCommunity, getCommunity, publishCommunity, updateCommunity } from "../../src/server/communities";
 import { enterCommunity, leaveCommunity } from "../../src/server/community-joining";
-import { createCatalogItem, enrolInCatalogItem, getCatalogContent, listCommunityShelf, setCatalogState, setCommunityProductLink } from "../../src/server/free-catalog";
+import { arrangeCommunityShelf, createCatalogItem, enrolInCatalogItem, getCatalogContent, getPublicCatalogItem, listCatalog, listCommunityShelf, setCatalogState, setCommunityProductLink } from "../../src/server/free-catalog";
 import { communityShelf } from "../../src/server/community-shelf";
 import { withUser } from "../../src/server/tenancy";
 
@@ -60,7 +61,7 @@ afterAll(async () => { await f?.close(); });
 it("gives owners every published item with this community's links, and nothing else", async () => {
   const shelf = await listCommunityShelf(f.db, owner, tenant, circle);
   expect(shelf.map(({ title, kind, linked }) => ({ title, kind, linked }))).toEqual([
-    { title: "Another course", kind: "course", linked: false }, { title: "Foundations", kind: "course", linked: true }, { title: "Prayer guide", kind: "download", linked: true },
+    { title: "Prayer guide", kind: "download", linked: true }, { title: "Foundations", kind: "course", linked: true }, { title: "Another course", kind: "course", linked: false },
   ]);
   expect(shelf.some((item) => item.id === hiddenDraft)).toBe(false);
   // A ministry viewer has no catalogue rights: the same items, none shown as linked, and the link route refuses them.
@@ -73,7 +74,7 @@ it("gives owners every published item with this community's links, and nothing e
 
 it("shows members the classroom and products of their community only, without granting access", async () => {
   const classroom = await communityShelf(f.db, member, "shelf-circle", "course");
-  expect(classroom?.items).toEqual([{ id: course, kind: "course", slug: "shelf-course", title: "Foundations", summary: "", enrolled: false }]);
+  expect(classroom?.items).toEqual([{ id: course, kind: "course", slug: "shelf-course", title: "Foundations", summary: "", visibility: "unlisted", featured: false, enrolled: false }]);
   expect((await communityShelf(f.db, member, "shelf-circle", "download"))?.items.map((item) => item.slug)).toEqual(["shelf-guide"]);
   expect((await communityShelf(f.db, member, "quiet-circle", "course"))?.items.map((item) => item.slug)).toEqual(["spare-course"]);
   expect((await communityShelf(f.db, owner, "shelf-circle", "course"))?.items.map((item) => item.slug)).toEqual(["shelf-course"]);
@@ -95,7 +96,7 @@ it("keeps raw SQL to the caller's own communities and to published shelf items",
     expect(await withUser(f.db, user, (tx) => tx.select().from(catalogItems))).toEqual([]);
     expect(await withUser(f.db, user, (tx) => tx.select().from(communityProductLinks))).toEqual([]);
   }
-  await expect(withUser(f.db, member, (tx) => tx.insert(communityProductLinks).values({ tenantId: tenant, communityId: circle, itemId: spare }))).rejects.toThrow();
+  await expect(withUser(f.db, member, (tx) => tx.insert(communityProductLinks).values({ tenantId: tenant, communityId: circle, itemId: spare, kind: "course" }))).rejects.toThrow();
   await expect(withUser(f.db, member, (tx) => tx.update(catalogItems).set({ title: "Changed" }).returning())).resolves.toEqual([]);
   expect((await f.admin.query(`select policyname, roles::text[] as roles, cmd from pg_policies where schemaname='public'
     and policyname in ('community_shelf_member','catalog_community_shelf') order by policyname`)).rows).toEqual([
@@ -113,4 +114,59 @@ it("drops items that are archived or unlinked and ends a leaver's view", async (
   expect((await communityShelf(f.db, member, "shelf-circle", "course"))?.items).toEqual([]);
   // A separate enrolment survives the unlink.
   await expect(getCatalogContent(f.db, member, "shelf-course")).resolves.toMatchObject({ title: "Foundations" });
+});
+
+it("shows a hidden item only to members through the shelf, and nowhere else", async () => {
+  const hidden = (await createCatalogItem(f.db, owner, tenant, { ...courseInput("members-course", "Members course"), visibility: "hidden" })).id;
+  await publish(owner, tenant, hidden);
+  await setCommunityProductLink(f.db, owner, tenant, quiet, hidden, { position: 1 });
+  // Members of the shelf's community see, enrol and open it; the public page resolves for them only.
+  expect((await communityShelf(f.db, member, "quiet-circle", "course"))?.items.map((item) => [item.slug, item.visibility])).toContainEqual(["members-course", "hidden"]);
+  await expect(getPublicCatalogItem(f.db, "members-course", member)).resolves.toMatchObject({ title: "Members course", kind: "course" });
+  await enrolInCatalogItem(f.db, member, "members-course");
+  await expect(getCatalogContent(f.db, member, "members-course")).resolves.toMatchObject({ lessons: [{ title: "One" }] });
+  // Signed out, a non-member, another ministry and a ministry viewer get nothing: not the page, not enrolment, not the row.
+  await expect(getPublicCatalogItem(f.db, "members-course")).rejects.toMatchObject(notFound);
+  for (const user of [outsider, other, viewer]) {
+    await expect(getPublicCatalogItem(f.db, "members-course", user)).rejects.toMatchObject(notFound);
+    await expect(enrolInCatalogItem(f.db, user, "members-course")).rejects.toMatchObject(notFound);
+    expect(await withUser(f.db, user, (tx) => tx.select({ id: catalogItems.id }).from(catalogItems))).toEqual([]);
+    expect(await communityShelf(f.db, user, "quiet-circle", "course")).toBeNull();
+  }
+  // Discover never lists it, and the ministry's catalogue keeps showing it to staff only.
+  expect((await f.admin.query("select count(*)::int n from discover_listings where resource_id=$1", [hidden])).rows).toEqual([{ n: 0 }]);
+  expect((await listCatalog(f.db, owner, tenant, null)).some((item) => item.id === hidden && item.visibility === "hidden")).toBe(true);
+  // A pre-set community setting does not open the definer: the caller is still not a member.
+  await expect(withUser(f.db, outsider, async (tx) => {
+    await tx.execute(sql`select set_config('app.community_definer_tenant', ${tenant}, true), set_config('app.catalog_tenant', ${tenant}, true)`);
+    return (await tx.execute<{ data: unknown }>(sql`select public.catalog_access('members-course', 'metadata', null) as data`)).rows[0].data;
+  })).resolves.toBeNull();
+  // Unlinked, the hidden item is gone even for the enrolled member: it is seen only through a shelf.
+  await setCommunityProductLink(f.db, owner, tenant, quiet, hidden, undefined, true);
+  await expect(getCatalogContent(f.db, member, "members-course")).rejects.toMatchObject(notFound);
+  await expect(getPublicCatalogItem(f.db, "members-course", member)).rejects.toMatchObject(notFound);
+});
+
+it("orders a shelf and keeps one featured item per community and shelf", async () => {
+  const extra = (await createCatalogItem(f.db, owner, tenant, courseInput("third-course", "Third course"))).id;
+  await publish(owner, tenant, extra);
+  await setCommunityProductLink(f.db, owner, tenant, quiet, extra, { position: 2 });
+  expect((await communityShelf(f.db, member, "quiet-circle", "course"))?.items.map((item) => item.id)).toEqual([spare, extra]);
+  await expect(arrangeCommunityShelf(f.db, owner, tenant, quiet, { kind: "course", order: [extra, spare], featured: spare })).resolves.toEqual({ order: [extra, spare], featured: spare });
+  const shelf = (await communityShelf(f.db, member, "quiet-circle", "course"))!.items;
+  expect(shelf.map((item) => [item.id, item.featured])).toEqual([[spare, true], [extra, false]]);
+  expect((await listCommunityShelf(f.db, owner, tenant, quiet)).filter((item) => item.linked).map((item) => [item.id, item.featured, item.position]))
+    .toEqual([[spare, true, 1], [extra, false, 0]]);
+  // The order must name exactly this shelf's items; the featured item must be on it.
+  for (const input of [{ kind: "course", order: [spare], featured: null }, { kind: "course", order: [extra, spare], featured: download },
+    { kind: "download", order: [extra, spare], featured: null }, { kind: "course", order: [spare, spare], featured: null }])
+    await expect(arrangeCommunityShelf(f.db, owner, tenant, quiet, input)).rejects.toBeTruthy();
+  await expect(arrangeCommunityShelf(f.db, viewer, tenant, quiet, { kind: "course", order: [spare, extra], featured: null })).rejects.toMatchObject(notFound);
+  await expect(arrangeCommunityShelf(f.db, other, foreignTenant, quiet, { kind: "course", order: [spare, extra], featured: null })).rejects.toMatchObject(notFound);
+  // Moving the feature clears the old one; the database refuses a second featured item and a link whose kind differs from its item.
+  await arrangeCommunityShelf(f.db, owner, tenant, quiet, { kind: "course", order: [extra, spare], featured: extra });
+  expect((await f.admin.query("select item_id from community_product_links where community_id=$1 and featured", [quiet])).rows).toEqual([{ item_id: extra }]);
+  await expect(f.admin.query("update community_product_links set featured=true where community_id=$1 and item_id=$2", [quiet, spare])).rejects.toMatchObject({ code: "23505" });
+  await expect(f.admin.query("update community_product_links set kind='download' where community_id=$1 and item_id=$2", [quiet, spare])).rejects.toMatchObject({ code: "23503" });
+  await expect(withUser(f.db, member, (tx) => tx.update(communityProductLinks).set({ featured: true }).returning())).resolves.toEqual([]);
 });

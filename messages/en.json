@@ -3385,7 +3385,13 @@
     "noProducts": "No published products",
     "newCourse": "New course",
     "newProduct": "New product",
-    "readOnly": "Only ministry staff who manage courses and products can change this."
+    "readOnly": "Only ministry staff who manage courses and products can change this.",
+    "featured": "Featured",
+    "membersOnly": "Members only",
+    "moveUp": "Move {name} up",
+    "moveDown": "Move {name} down",
+    "featureNamed": "Feature {name}",
+    "unfeatureNamed": "Stop featuring {name}"
   },
   "ForumCategories": {
     "list": "Forum categories",
@@ -8410,7 +8416,7 @@
       },
       "visibility": "Visibility",
       "visibilityOptions": {
-        "hidden": "Hidden: only your ministry",
+        "hidden": "Hidden: only on community shelves you choose",
         "unlisted": "Unlisted: anyone with the link",
         "listed": "Listed: shown in the catalogue"
       },
@@ -8422,7 +8428,6 @@
       "checks": {
         "title": "A title",
         "address": "An address",
-        "visibility": "Visibility other than hidden",
         "lessons": "At least one published lesson",
         "files": "Ready files"
       },
