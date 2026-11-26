@@ -23,7 +23,7 @@ An expired grouped claim with an unknown provider outcome and no reference becom
 
 The integration project runs the same eight isolation cases with a shared Node pool and with a new pg client per scope. Additional assertions cover reuse versus fresh physical connections, escaped handles, pool/backend counts, and credential refusal. The fake publisher test covers a lost claim, unchanged `unknown` outcome, rejection of stale completion, and two competing runs with one synthetic publish. No application dependency or lockfile change is needed.
 
-`tests/cf02/run-local.ts` adds the same cases and a repeated real OTP issue, sign-in, and authenticated workspace GET under standalone workerd. It accepts the absolute path to the Miniflare package entry in `CF02_MINIFLARE_MODULE`. Use the CF-01 pins `miniflare@5.20261117.0-beta` and `workerd@1.20261117.1` in a disposable directory. In the following example, `CF02_COPY` is a disposable checkout with the same lockfile dependencies and `CF02_TOOLING` is that disposable tooling directory. Miniflare’s `hyperdrives` values are the equivalent of Wrangler’s local `localConnectionString`. Both point only at automatically generated embedded PostgreSQL fixture credentials. The mock mailbox is an internal service binding.
+`tests/cf02/run-local.ts` (pass `SSL_CERT_FILE` if workerd finds no system CA certificates) adds the same cases and a repeated real OTP issue, sign-in, and authenticated workspace GET under standalone workerd. It accepts the absolute path to the Miniflare package entry in `CF02_MINIFLARE_MODULE`. Use the CF-01 pins `miniflare@5.20261117.0-beta` and `workerd@1.20261117.1` in a disposable directory. In the following example, `CF02_COPY` is a disposable checkout with the same lockfile dependencies and `CF02_TOOLING` is that disposable tooling directory. Miniflare’s `hyperdrives` values are the equivalent of Wrangler’s local `localConnectionString`. Both point only at automatically generated embedded PostgreSQL fixture credentials. The mock mailbox is an internal service binding.
 
 ```sh
 cd "$CF02_COPY"
@@ -47,7 +47,7 @@ LD_PRELOAD="$CF02_TOOLING/loopback.so" \
 | Standalone probe bundles, executed under Node against embedded PostgreSQL | Both bundles built offline. The eight isolation probes and the separate concurrent request check passed. With the fake mailbox, the actual OTP issue, sign-in and workspace routes returned 200/200/200 on the Workers-style database path. |
 | `npm run build` | Passed in a disposable Node checkout. Next generated 24 static entries. |
 | `npm run test:pwa` | Passed with the script's placeholder `DATABASE_URL`. Lighthouse installability passed and accessibility and best-practices scores were both 1. The production offline fallback, static-only cache and axe audit passed. |
-| Miniflare/workerd local run | Prepared. The pinned packages were absent from the local installation. An offline install returned `ENOTCACHED`. The Node-hosted probes leave the original workerd regression and workerd socket cleanup unverified. |
+| Miniflare/workerd local run | **Passed on 26 Nov 2026**, 3 of 3 runs, with `miniflare@5.20261117.0-beta` (`modulesRoot` set, `SSL_CERT_FILE` pointed at the system bundle for workerd). The eight isolation probes, concurrent requests and the CF-01 regression all passed: on one reused isolate, OTP issue / sign-in / authenticated workspace GET returned **200 / 200 / 200** (CF-01 saw 200 / 500 / 401). After dispose, no app or worker connection remained. |
 | Real Neon through Hyperdrive | **Passed on 26 Nov 2026** (founder-authorized test resources; details below). |
 
 ## Neon staging run · 26 Nov 2026
@@ -71,7 +71,9 @@ Keep the origin credentials in a secret manager and inject them directly. The te
 
 ## Go or no-go
 
-Real Neon through cache-disabled Hyperdrive is verified (26 Nov). Close the reused-isolate regression on workerd before marking CF-02 complete. Hosting cutover stays **no-go**.
+Real Neon through cache-disabled Hyperdrive and the reused-isolate regression on workerd are both verified (26 Nov), so CF-02's exit criterion is met. Hosting cutover stays **no-go**.
+
+Finding for activation: when a request is aborted (deadline or client disconnect), `withDb` closes its connection, but PostgreSQL keeps running the statement until it finishes (the `timeoutAbort` probe's `pg_sleep(3)` stayed active about 3 s), and behind Hyperdrive the origin connection stays busy for that time. The local harness now waits for it to drain. Before activation, decide a role-level `statement_timeout` for `harvest_app` and `harvest_worker` (or an explicit cancel on abort) so an abandoned request cannot hold an origin connection beyond the request deadline.
 
 | Slice | Remaining evidence |
 | --- | --- |
