@@ -70,6 +70,7 @@ describe("per-campaign follow-up", () => {
       expect(await status(setCampaignFollowUpTeamMember(ctx.f.db, user, ctx.tenantA, ctx.campaign, { userId: "d-member", member: true })), user).toBe(403);
     }
     expect(await status(campaignFollowUpCounts(ctx.f.db, "d-owner", ctx.tenantA, randomUUID()))).toBe(404);
+    await expect(campaignFollowUpTeam(ctx.f.db, "d-owner", ctx.tenantA, randomUUID())).rejects.toMatchObject({ status: 404, details: { reason: "campaign_not_found" } });
     // Another ministry's campaign id is unknown here.
     expect(await status(campaignFollowUpCounts(ctx.f.db, "d-other", ctx.tenantB, ctx.campaign))).toBe(404);
   });

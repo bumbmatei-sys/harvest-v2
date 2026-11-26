@@ -43,6 +43,7 @@ export function CampaignFollowUp({ tenantId, campaignId, counts, team, members }
         <h3 id="campaign-follow-up-team" className="text-sm font-semibold">{t("team")}</h3>
         {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
         {team.length ? <ul className="flex flex-wrap gap-2">{team.map((id) => {
+          // Someone whose role was later lowered stays on the team (it grants nothing; assignment re-checks) until removed here.
           const name = names.get(id) ?? t("aMember");
           return <li key={id} className="flex items-center gap-1 rounded-md border bg-muted/40 py-0.5 pl-2 text-sm">
             <span className="min-w-0 break-words">{name}</span>

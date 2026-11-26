@@ -780,7 +780,8 @@
     "linkInBioBlockUnavailable": "One of the blocks points to something that is not available.",
     "newsletterImageUnavailable": "An image in this email is not available. Choose it again.",
     "newsletterImageSuggestionUnavailable": "A thumbnail suggestion is not available.",
-    "waysToGiveLimit": "This ministry already has the most ways to give allowed."
+    "waysToGiveLimit": "This ministry already has the most ways to give allowed.",
+    "campaignNotFound": "Campaign not found"
   },
   "LibEnv": {
     "missingRequiredEnvironmentVariableValue": "Missing required environment variable: {name}"
@@ -9629,7 +9630,7 @@
       "search": "Search members",
       "noMatch": "No members found",
       "remove": "Remove {name}",
-      "aMember": "A ministry member"
+      "aMember": "No longer eligible"
     }
   },
   "WaysToGive": {
