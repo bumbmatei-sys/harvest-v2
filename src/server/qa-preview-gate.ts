@@ -20,6 +20,7 @@ type SeedDatabase = { stage: Exclude<QaSeedStage, "test">; host: string; databas
  */
 export const qaSeedDatabases: readonly SeedDatabase[] = [
   { stage: "preview", host: "ep-misty-pond-ba96mdcl.c-8.eu-central-1.aws.neon.tech", database: "harvest", note: "Neon vercel-preview branch (br-shy-hall-baslhh18)" },
+  { stage: "staging", host: "ep-royal-firefly-ba0hg29h.c-8.eu-central-1.aws.neon.tech", database: "harvest", note: "Neon cf-staging branch, direct endpoint (founder, 26 Nov)" },
 ];
 
 const loopback = ["localhost", "127.0.0.1", "[::1]"];
@@ -46,15 +47,17 @@ export function qaSeedTarget(env: Env, allowlist: readonly SeedDatabase[] = qaSe
 }
 
 const TOKEN_MIN = 32;
+/** Worker stages where the test sign-in shortcut may run. Never production. */
+export const qaShortcutStages: readonly string[] = ["preview", "staging", "local"];
 
 /**
- * The QA_PREVIEW_TOKEN Worker binding. Absent is normal. Present, it is accepted only on a preview or local Worker and
- * must be long and distinct from every other secret; anywhere else (staging, production) the Worker refuses to start.
+ * The QA_PREVIEW_TOKEN Worker binding. Absent is normal. Present, it is accepted only on a preview, staging (founder
+ * decision, 26 Nov) or local Worker and must be long and distinct from every other secret; on production the Worker refuses to start.
  */
 export function qaPreviewTokenBinding(stage: string, env: { QA_PREVIEW_TOKEN?: string }, otherSecrets: readonly (string | undefined)[]): string | null {
   const token = env.QA_PREVIEW_TOKEN;
   if (token === undefined) return null;
-  if ((stage !== "preview" && stage !== "local") || token.trim().length < TOKEN_MIN || otherSecrets.includes(token)) {
+  if (!qaShortcutStages.includes(stage) || token.trim().length < TOKEN_MIN || otherSecrets.includes(token)) {
     throw new Error("QA_PREVIEW_TOKEN_REFUSED");
   }
   return token;

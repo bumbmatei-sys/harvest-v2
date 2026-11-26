@@ -42,9 +42,9 @@ How it behaves:
 
 Done by the coordinator, not by a building session.
 
-1. Add the `cf-staging` Neon endpoint host to `qaSeedDatabases` (`stage: "staging"`, database `harvest`) in a reviewed
-   change. Until then the seed refuses staging, by design: the host is not recorded in this repository.
-2. Use the `harvest_app` connection string for that endpoint (the one Hyperdrive uses), never the owner's.
+1. The `cf-staging` direct endpoint (`ep-royal-firefly-ba0hg29h.c-8.eu-central-1.aws.neon.tech`, database `harvest`) is on
+   `qaSeedDatabases` as `stage: "staging"`. The pooled host and any other database are refused.
+2. Use a `harvest_app` connection string for that direct endpoint, never the owner's. Only the host is in the repository.
 3. Check the branch is at the current migration (the seed uses tables up to the latest merged migration).
 4. Run the command above. Run it again to confirm the counts do not change.
 
@@ -69,12 +69,13 @@ Where it is open:
 
 | Runtime | Open when |
 | --- | --- |
-| Cloudflare Worker | `HARVEST_ENV=preview` (or `local`) and the Worker secret `QA_PREVIEW_TOKEN` is set |
+| Cloudflare Worker | `HARVEST_ENV=preview`, `staging` (founder decision, 26 Nov) or `local`, and the Worker secret `QA_PREVIEW_TOKEN` is set |
 | Local Node server | `HARVEST_ENV=test`, a loopback `BETTER_AUTH_URL`, a local `harvest_test*` database and `QA_PREVIEW_TOKEN` (the browser test server sets all four) |
 
-Everywhere else it answers `404`. On a `staging` or `production` Worker the `QA_PREVIEW_TOKEN` secret makes the whole
-Worker refuse to start (`worker_configuration_invalid`, `503`), so it cannot be switched on there by mistake. Whether the
-permanent staging site may carry the shortcut is an open founder decision; today it cannot.
+Everywhere else it answers `404`, including the staging Worker while the secret is unset. On a `production` Worker the
+`QA_PREVIEW_TOKEN` secret makes the whole Worker refuse to start (`worker_configuration_invalid`, `503`), so it cannot be
+switched on there by mistake. To open it on staging, the coordinator sets the secret after review:
+`wrangler secret put QA_PREVIEW_TOKEN --name harvest-staging`; to close it again, `wrangler secret delete`.
 
 Rules it keeps:
 
@@ -86,5 +87,5 @@ Rules it keeps:
   A second attempt for the same address within a minute gets `429`.
 - It refuses (`422`) any address outside `@example.invalid` and any address with no account. It never creates accounts.
 - Responses are `no-store` and `noindex`. Logs say `qa_shortcut_sign_in` or `qa_shortcut_refused`, never an address.
-- It is never reachable on the production origin: the request origin must equal the Worker's own origin, and a preview
-  Worker's origin can never be the production one.
+- It is never reachable on the production origin: the request origin must equal the Worker's own origin, and a preview or
+  staging Worker's origin can never be the production one (the Worker refuses to start otherwise).

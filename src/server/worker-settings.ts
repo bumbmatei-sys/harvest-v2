@@ -17,7 +17,7 @@ export interface WorkerBindings extends QaSignInBindings {
   FILES?: FileBucket;
   HARVEST_COMMUNITIES?: string;
   FILES_REQUIRE_SCAN_PRIVATE?: string;
-  /** QA-2: accepted on a preview or local Worker only; see qa-preview-gate.ts. */
+  /** QA-2: accepted on a preview, staging or local Worker only, never production; see qa-preview-gate.ts. */
   QA_PREVIEW_TOKEN?: string;
 }
 

@@ -48,8 +48,11 @@ it("checks every required production binding and rejects QA settings and another
   const token = secret();
   expect(readWorkerSettings({ ...env, HARVEST_ENV: "preview", BETTER_AUTH_URL: "https://preview.example.invalid", QA_PREVIEW_TOKEN: token }).qaPreviewToken === token).toBe(true);
   expect(readWorkerSettings(env).qaPreviewToken).toBeNull();
-  for (const patch of [{ HARVEST_ENV: "staging" }, { HARVEST_ENV: "preview", QA_PREVIEW_TOKEN: "short" }, { HARVEST_ENV: "preview", QA_PREVIEW_TOKEN: env.BETTER_AUTH_SECRET }]) {
-    expect(() => readWorkerSettings({ ...env, BETTER_AUTH_URL: "https://preview.example.invalid", QA_PREVIEW_TOKEN: token, ...patch })).toThrow("WORKER_CONFIGURATION_INVALID");
+  // Founder decision 26 Nov: the permanent staging Worker may carry the token; production never.
+  expect(readWorkerSettings({ ...env, HARVEST_ENV: "staging", BETTER_AUTH_URL: "https://staging.example.invalid", QA_PREVIEW_TOKEN: token }).qaPreviewToken === token).toBe(true);
+  expect(() => readWorkerSettings({ ...env, QA_PREVIEW_TOKEN: token })).toThrow("WORKER_CONFIGURATION_INVALID");
+  for (const patch of [{ HARVEST_ENV: "staging", QA_PREVIEW_TOKEN: "short" }, { HARVEST_ENV: "preview", QA_PREVIEW_TOKEN: "short" }, { HARVEST_ENV: "preview", QA_PREVIEW_TOKEN: env.BETTER_AUTH_SECRET }]) {
+    expect(() => readWorkerSettings({ ...env, BETTER_AUTH_URL: "https://preview.example.invalid", ...patch })).toThrow("WORKER_CONFIGURATION_INVALID");
   }
   // A deployed binding names a generated login and database; withDb checks the database name on each connection instead.
   const deployed = readWorkerSettings({ ...env, APP_HYPERDRIVE: { connectionString: "postgresql://cd6b1073dbd0@0a1b2c.hyperdrive.local:5432/5a08?sslmode=disable" } });

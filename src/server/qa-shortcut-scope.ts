@@ -1,6 +1,6 @@
 import { randomInt } from "node:crypto";
 import { sharedScope } from "../lib/shared-scope";
-import { qaShortcutNodeAccess, qaSyntheticEmail } from "./qa-preview-gate";
+import { qaShortcutNodeAccess, qaShortcutStages, qaSyntheticEmail } from "./qa-preview-gate";
 import { workerSettings } from "./worker-settings";
 import type { AuthOtpInput } from "./auth-otp-hooks-contract";
 
@@ -9,11 +9,11 @@ import type { AuthOtpInput } from "./auth-otp-hooks-contract";
 type ShortcutState = { email: string; code?: string };
 export const qaShortcutScope = sharedScope<ShortcutState>("qa-shortcut");
 
-/** Token and origin when the shortcut may run here, else null. Workers: preview or local stage with the binding. Node: see the gate. */
+/** Token and origin when the shortcut may run here, else null. Workers: preview, staging or local stage with the binding. Node: see the gate. */
 export function qaShortcutAccess(): { token: string; origin: string } | null {
   const settings = workerSettings.getStore();
   if (settings) {
-    return (settings.stage === "preview" || settings.stage === "local") && settings.qaPreviewToken
+    return qaShortcutStages.includes(settings.stage) && settings.stage !== "production" && settings.qaPreviewToken
       ? { token: settings.qaPreviewToken, origin: settings.origin } : null;
   }
   return qaShortcutNodeAccess(process.env);

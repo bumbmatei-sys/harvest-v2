@@ -34,14 +34,20 @@ it("QA-1 seed: refuses production, unknown stages, wrong hosts, databases and ro
     expect(() => qaSeedTarget({ HARVEST_ENV: stage, DATABASE_URL: url }, allowed), `${stage} ${url}`).toThrow("QA_SEED_TARGET_REFUSED");
   }
   // The committed list names no production, staging or dev Neon endpoint recorded in the repository.
+  expect(qaSeedTarget({ HARVEST_ENV: "staging", DATABASE_URL: "postgresql://harvest_app:pw@ep-royal-firefly-ba0hg29h.c-8.eu-central-1.aws.neon.tech/harvest?sslmode=require" }).stage).toBe("staging");
+  for (const url of ["postgresql://harvest_app:pw@ep-royal-firefly-ba0hg29h-pooler.c-8.eu-central-1.aws.neon.tech/harvest", "postgresql://harvest_app:pw@ep-royal-firefly-ba0hg29h.c-8.eu-central-1.aws.neon.tech/neondb"]) {
+    expect(() => qaSeedTarget({ HARVEST_ENV: "staging", DATABASE_URL: url })).toThrow("QA_SEED_TARGET_REFUSED");
+  }
+  expect(() => qaSeedTarget({ HARVEST_ENV: "preview", DATABASE_URL: "postgresql://harvest_app:pw@ep-royal-firefly-ba0hg29h.c-8.eu-central-1.aws.neon.tech/harvest" })).toThrow("QA_SEED_TARGET_REFUSED");
   for (const forbidden of ["ep-still-cell-baeb9pie"]) expect(qaSeedDatabases.some((item) => item.host.startsWith(forbidden))).toBe(false);
 });
 
-it("QA-2 binding: only a preview or local Worker accepts the token, and only a strong distinct one", () => {
+it("QA-2 binding: only a preview, staging or local Worker accepts the token, and only a strong distinct one", () => {
   expect(qaPreviewTokenBinding("production", {}, [])).toBeNull();
   expect(qaPreviewTokenBinding("preview", { QA_PREVIEW_TOKEN: token }, ["other"])).toBe(token);
   expect(qaPreviewTokenBinding("local", { QA_PREVIEW_TOKEN: token }, [])).toBe(token);
-  for (const [stage, value, others] of [["production", token, []], ["staging", token, []], ["unknown", token, []], ["preview", "short", []],
+  expect(qaPreviewTokenBinding("staging", { QA_PREVIEW_TOKEN: token }, [])).toBe(token);
+  for (const [stage, value, others] of [["production", token, []], ["Production", token, []], ["test", token, []], ["unknown", token, []], ["staging", "short", []], ["preview", "short", []],
     ["preview", " ".repeat(40), []], ["preview", token, [token]]] as const) {
     expect(() => qaPreviewTokenBinding(stage, { QA_PREVIEW_TOKEN: value }, others), stage).toThrow("QA_PREVIEW_TOKEN_REFUSED");
   }
@@ -59,12 +65,13 @@ it("QA-2 Node gate: HARVEST_ENV=test, loopback origin, local test database and a
   }
 });
 
-it("QA-2 Worker gate: the stage and binding decide; staging and production never open, whatever process.env says", () => {
+it("QA-2 Worker gate: the stage and binding decide; staging opens with the token, production never, whatever process.env says", () => {
   vi.stubEnv("HARVEST_ENV", "test");
   vi.stubEnv("QA_PREVIEW_TOKEN", token);
   const settings = (stage: string, qaPreviewToken: string | null) => ({ stage, qaPreviewToken, origin: "https://preview.example.invalid" }) as never;
   expect(workerSettings.run(settings("preview", token), qaShortcutAccess)).toEqual({ token, origin: "https://preview.example.invalid" });
-  for (const [stage, value] of [["production", token], ["staging", token], ["preview", null]] as const) {
+  expect(workerSettings.run(settings("staging", token), qaShortcutAccess)).toEqual({ token, origin: "https://preview.example.invalid" });
+  for (const [stage, value] of [["production", token], ["staging", null], ["preview", null], ["unknown", token]] as const) {
     expect(workerSettings.run(settings(stage, value), qaShortcutAccess)).toBeNull();
   }
 });
@@ -91,6 +98,15 @@ it("QA-2 route: hidden on a production Worker and without the gate", async () =>
   const response = await workerSettings.run(production, () => qaShortcutSignIn(request(), db));
   expect(response.status).toBe(404);
   expect(response.headers.get("cache-control")).toBe("no-store");
+  expect(db).not.toHaveBeenCalled();
+  // Staging without the token: hidden.
+  const staging = { stage: "staging", qaPreviewToken: null, origin: "https://staging.example.invalid" } as never;
+  const plain = new Request("https://staging.example.invalid/api/qa/sign-in", { method: "POST", headers: { "x-qa-preview-token": token }, body: "{}" });
+  expect((await workerSettings.run(staging, () => qaShortcutSignIn(plain, db))).status).toBe(404);
+  // Staging with the token passes the gate (an invalid body then gets the account refusal, before any database read).
+  const open = { stage: "staging", qaPreviewToken: token, origin: "https://staging.example.invalid" } as never;
+  const refused = new Request("https://staging.example.invalid/api/qa/sign-in", { method: "POST", headers: { "x-qa-preview-token": token }, body: JSON.stringify({ email: "someone@gmail.com" }) });
+  expect((await workerSettings.run(open, () => qaShortcutSignIn(refused, db))).status).toBe(422);
   expect(db).not.toHaveBeenCalled();
 });
 
