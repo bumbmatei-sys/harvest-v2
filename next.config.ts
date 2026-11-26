@@ -15,6 +15,9 @@ export default function config(phase: string): NextConfig {
   return withNextIntl({
     poweredByHeader: false,
     devIndicators: false,
+    // Vercel builds ran out of memory from #220 on: the in-build type check peaks while webpack's memory is still held.
+    // The required GitHub Actions `typecheck` job runs the same tsc on every PR head, so skip only the duplicate on Vercel.
+    typescript: { ignoreBuildErrors: process.env.VERCEL === "1" },
     turbopack: { resolveAlias: {
       ...(aliasQaOtp ? { [otpModule]: previewOtpModule } : {}),
       ...(aliasE2eMailer ? { resend: "./tests/e2e/resend-mock.ts" } : {}),
