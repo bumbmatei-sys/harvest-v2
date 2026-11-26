@@ -14,3 +14,4 @@ test-results/
 /open-next.config.ts
 /.wrangler/
 /cloudflare/wrangler.staging.json
+/cloudflare/.wrangler/
