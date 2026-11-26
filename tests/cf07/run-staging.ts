@@ -47,8 +47,10 @@ if (process.env.CI || process.env.CF07_RUN_STAGING !== "1") {
     assert.match(await signInPage.text(), /<html/i);
     assert.equal(signInPage.headers.get("cache-control"), "private, no-store");
 
-    step = "static asset and manifest";
-    assert.equal((await send("/manifest.webmanifest")).status, 200);
+    if (process.env.CF07_STAGING_SKIP_ASSETS !== "1") {
+      step = "static asset and manifest";
+      assert.equal((await send("/manifest.webmanifest")).status, 200);
+    }
 
     step = "sign in and seed";
     const alice = await signIn(), bob = await signIn();
@@ -76,7 +78,7 @@ if (process.env.CI || process.env.CF07_RUN_STAGING !== "1") {
     const cancelled = await send("/workspaces", { headers: { cookie: alice.cookie } });
     await cancelled.body?.cancel();
 
-    console.log("PASS CF-07 hosted: sign-in page, manifest, OTP sign-in, signed-out redirect, 50 concurrent rendered pages from two users with no cross-user leak, private cache, no edge cache hit, cancelled body");
+    console.log(`PASS CF-07 hosted: sign-in page, ${process.env.CF07_STAGING_SKIP_ASSETS === "1" ? "" : "manifest, "}OTP sign-in, signed-out redirect, 50 concurrent rendered pages from two users with no cross-user leak, private cache, no edge cache hit, cancelled body`);
   } catch (error) {
     const detail = error instanceof assert.AssertionError ? `: ${error.message}` : "";
     console.error(`CF-07 hosted check failed during ${step}${detail}`);

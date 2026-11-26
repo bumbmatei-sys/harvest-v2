@@ -1,6 +1,6 @@
 # CF-07a · The whole app on Workers
 
-Status 26 Nov 2026: **local workerd check passes**. Nothing is deployed, provisioned or activated. Hosting cutover stays **no-go** (CF-08 needs separate founder approval).
+Status 26 Nov 2026: **local workerd check and hosted staging run pass**. Nothing is deployed, provisioned or activated. Hosting cutover stays **no-go** (CF-08 needs separate founder approval).
 
 ## What this slice adds
 
@@ -26,9 +26,19 @@ Result, 3 of 3 runs: the sign-in page renders; OTP sign-in through the buffered 
 
 - Upload: 42.9 MB, **7.86 MB gzip**. This is above the Workers Free 3 MB limit, so Workers Paid ($5/month, 10 MB compressed limit per published pricing) is needed. Confirm the account plan and current limits before CF-07b.
 
+## Hosted staging run · 26 Nov 2026 (CF-07b)
+
+Founder-authorized disposable resources, all deleted afterwards: a schema-only Neon branch with all **113 migrations through 0114** applied by the owner, a cache-disabled Hyperdrive config for `harvest_app`, two private R2 buckets, the CF-03 harness, and the whole-app Worker deployed with **Wrangler** from `tests/cf07/prepare-staging.ts` (workers.dev opt-in, IDs only; secrets added with `wrangler secret bulk` from a temporary file). The account is now on **Workers Paid** (founder, 26 Nov).
+
+- **0114 applied as intended on Neon:** `pg_db_role_setting` showed `harvest_app {statement_timeout=20s}` and `harvest_worker {statement_timeout=60s}`, so the Neon owner can set them.
+- **`tests/cf07/run-staging.ts`, 3 of 3 runs:** sign-in page 200 and `private, no-store`, OTP sign-in through the real edge, the signed-out ministries page redirects, **50 concurrent rendered ministries pages from two users with no cross-user leak**, no edge cache hit, cancelled body. Afterwards the origin showed only idle Hyperdrive pool sessions.
+- **Hosted logs:** 204 events, no generated secret. The only failure was one `get-session` request made before the secrets were added.
+- **Measured:** upload 7.86 MB gzip; **Worker startup 820 ms**, close to the 1 s startup limit, so keep an eye on bundle growth (CF-07c).
+- **Deploy notes:** the OpenNext source maps are about 62 MiB, above the 60 MiB upload limit, so the config sets `upload_source_maps: false`. Static assets were not uploaded in this run (`CF07_STAGING_SKIP_ASSETS=1`): the operator's network proxy rewrites `Authorization`, and the asset upload uses its own session token. A deploy job with its own token (CF-07c) uploads them, and then the manifest and static-file checks run too.
+
 ## Still open (CF-07b and CF-07c)
 
-- Deploy to an isolated staging origin (Neon branch, cache-disabled Hyperdrive, R2, the CF-03 harness) and run the existing browser and PWA suites against it.
-- Load profile, observability, deploy and rollback rehearsal, and the runbook. Make the build reproducible in CI (pinned devDependencies or a tooling job) with the patch step.
+- With static assets (deploy job with its own token): manifest, offline page and the existing browser and PWA suites against staging.
+- Load profile (including connection pressure from holding a connection for the whole page transfer, up to the 15 s deadline), observability, deploy and rollback rehearsal, and the runbook. Exact devDependency pins for `@opennextjs/cloudflare` 1.20.18 and `@opennextjs/aws` 4.2.0, and report the cookie interop bug upstream. Make the build reproducible in CI (pinned devDependencies or a tooling job) with the patch step.
 - Multipart and large uploads, the public download redirect, and the CF-04 Queue/Cron run on real Workers.
 - CF-06 (Cloudflare email) is **skipped for launch** (founder, 26 Nov). Resend stays the transactional provider.

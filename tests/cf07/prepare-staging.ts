@@ -23,7 +23,9 @@ if (process.env.CF07_PREPARE_STAGING === "1" && !process.env.CI) {
     compatibility_flags: ["nodejs_compat", "global_fetch_strictly_public"],
     // Public on workers.dev only when explicitly requested for a hosted run; otherwise unreachable.
     workers_dev: process.env.CF07_STAGING_WORKERS_DEV === "1", preview_urls: false,
-    assets: { binding: "ASSETS", directory: "../.open-next/assets", html_handling: "none" },
+    // CF07_STAGING_SKIP_ASSETS=1 deploys without static assets for an operator whose proxy rewrites Authorization (the
+    // asset upload uses its own session token). Rendered pages still run; static files and the manifest are then absent.
+    ...(process.env.CF07_STAGING_SKIP_ASSETS === "1" ? {} : { assets: { binding: "ASSETS", directory: "../.open-next/assets", html_handling: "none" } }),
     alias: { resend: "../tests/cf07/resend-mailbox.mjs", "server-only": "./server-only.mjs" },
     vars: {
       HARVEST_ENV: "staging", BETTER_AUTH_URL: origin, HARVEST_PRODUCTION_ORIGIN: production,
@@ -34,6 +36,8 @@ if (process.env.CF07_PREPARE_STAGING === "1" && !process.env.CI) {
     r2_buckets: [{ binding: "FILES", bucket_name: setting("CF07_STAGING_BUCKET", /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/) }],
     services: [{ binding: "MAILBOX", service: setting("CF07_STAGING_MAILBOX_SERVICE", /^[a-z0-9][a-z0-9-]+$/), entrypoint: "Mailbox" }],
     observability: { enabled: true },
+    // The OpenNext bundle's source maps are about 62 MiB, above the 60 MiB upload limit (error 10021).
+    upload_source_maps: false,
   };
   await writeFile("cloudflare/wrangler.staging.json", `${JSON.stringify(config, null, 2)}\n`);
   console.log("cloudflare/wrangler.staging.json");
