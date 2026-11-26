@@ -96,7 +96,7 @@ it("keeps a stored pause rule off for good: the API, the database check and the 
   // New pause rules are refused by the trigger even as the migration owner, switched on or off.
   await expect(insert(false)).rejects.toMatchObject({ code: "23514" });
   await expect(insert(true)).rejects.toMatchObject({ code: "23514" });
-  // A rule stored before 0123: simulate it with the trigger off for this one insert, then the CHECK still refuses switching it on.
+  // A rule stored before 0125: simulate it with the trigger off for this one insert, then the CHECK still refuses switching it on.
   await q("alter table ads_rules disable trigger ads_rules_flag_only");
   const { rows: [old] } = await insert(false);
   await q("alter table ads_rules enable trigger ads_rules_flag_only");

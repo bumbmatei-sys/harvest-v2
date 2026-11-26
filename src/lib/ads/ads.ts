@@ -34,7 +34,7 @@ export type ResultMetric = typeof resultMetrics[number];
 export type ResultMetrics = Partial<Record<ResultMetric, number>>;
 export const ruleMetrics = ["costPerResult", "spend", "ctr", "cpc", "cpm", "results", "impressions", "clicks"] as const;
 export const ruleOperators = ["gt", "gte", "lt", "lte"] as const;
-/** Founder decision 26 Nov: rules only flag. `pause` survives only on rules stored before 0123; they stay off and are never run. */
+/** Founder decision 26 Nov: rules only flag. `pause` survives only on rules stored before 0125; they stay off and are never run. */
 export const ruleActions = ["notify"] as const;
 export const storedRuleActions = ["pause", "notify"] as const;
 export const bulkStatusLimit = 50;

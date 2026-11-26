@@ -27,7 +27,7 @@ export async function listRules(db: Database, user: string, workspace: string, d
 export async function setRuleEnabled(db: Database, user: string, workspace: string, ruleId: string, data: unknown, deps: AdsDeps) {
   const input = parse(z.object({ enabled: z.boolean(), version: versionInput }).strict(), data);
   return withAds(db, user, workspace, deps, async (tx, tenant) => {
-    // A rule stored with an action other than flag (before 0123) can be switched off or removed, never on.
+    // A rule stored with an action other than flag (before 0125) can be switched off or removed, never on.
     if (input.enabled) {
       const [current] = await tx.select({ action: adsRules.action }).from(adsRules).where(and(eq(adsRules.tenantId, tenant), eq(adsRules.id, recordId(ruleId))));
       if (current && current.action !== "notify") throw invalid("ADS_RULE_FLAG_ONLY");
