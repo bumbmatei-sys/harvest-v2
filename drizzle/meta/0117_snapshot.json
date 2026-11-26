@@ -1,6 +1,6 @@
 {
-  "id": "d3aa2f49-b2ce-42a5-888b-fdbd4eb35f70",
-  "prevId": "90d12426-f63f-4b3c-b734-9a2bfb756ace",
+  "id": "e81078fe-8d6f-405d-811a-21ac5fec254e",
+  "prevId": "eaafc109-a1ca-459e-a8df-89d60b02658d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -5186,6 +5186,125 @@
           "value": "(\"campaign_drafts\".\"status\" = 'finished') = (\"campaign_drafts\".\"campaign_id\" is not null and \"campaign_drafts\".\"finished_at\" is not null) and (\"campaign_drafts\".\"status\" <> 'finished' or (\"campaign_drafts\".\"type\" is not null and \"campaign_drafts\".\"name\" is not null))"
         }
       },
+      "isRLSEnabled": false
+    },
+    "public.campaign_event_links": {
+      "name": "campaign_event_links",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "campaign_id": {
+          "name": "campaign_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "event_id": {
+          "name": "event_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "campaign_event_links_event_idx": {
+          "name": "campaign_event_links_event_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "event_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "campaign_event_links_created_by_users_id_fk": {
+          "name": "campaign_event_links_created_by_users_id_fk",
+          "tableFrom": "campaign_event_links",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "campaign_event_links_tenant_id_campaign_id_campaigns_tenant_id_id_fk": {
+          "name": "campaign_event_links_tenant_id_campaign_id_campaigns_tenant_id_id_fk",
+          "tableFrom": "campaign_event_links",
+          "tableTo": "campaigns",
+          "columnsFrom": [
+            "tenant_id",
+            "campaign_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "campaign_event_links_tenant_id_event_id_events_tenant_id_id_fk": {
+          "name": "campaign_event_links_tenant_id_event_id_events_tenant_id_id_fk",
+          "tableFrom": "campaign_event_links",
+          "tableTo": "events",
+          "columnsFrom": [
+            "tenant_id",
+            "event_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "campaign_event_links_tenant_id_campaign_id_event_id_pk": {
+          "name": "campaign_event_links_tenant_id_campaign_id_event_id_pk",
+          "columns": [
+            "tenant_id",
+            "campaign_id",
+            "event_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.campaign_files": {

@@ -12,6 +12,9 @@ import { getChecklist } from "@/server/campaign-checklist";
 import { getCampaignOverview } from "@/server/campaign-overview";
 import { CampaignDashboard } from "@/components/campaigns/campaign-dashboard";
 import { CampaignFollowUp } from "@/components/campaigns/campaign-follow-up";
+import { CampaignEvents } from "@/components/campaigns/campaign-events";
+import { campaignEventCandidates, listCampaignEvents } from "@/server/campaign-events";
+import { serverNow } from "@/server/event-page";
 import { campaignFollowUpCounts, campaignFollowUpTeam } from "@/server/follow-up-cases";
 import { listAssignableMembers } from "@/server/follow-up-members";
 import { campaignFundraising, fundraisingEnabled } from "@/server/fundraising";
@@ -48,6 +51,9 @@ export default async function CampaignPage({ params }: { params: Promise<{ tenan
   // Fundraising pledge campaigns: goal, raised and progress for people with Giving; hidden where the module is off or access is refused.
   const fundraising = workspace && fundraisingEnabled() && can(workspace.role, "fundraising:read")
     ? await campaignFundraising(getDb(), session.user.id, tenantId, campaignId).catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; }) : null;
+  // Campaign events: people who can write campaigns see the linked events Events shows them; Events owners/admins also get the add/remove controls.
+  const campaignEvents = overview ? await listCampaignEvents(getDb(), session.user.id, tenantId, campaignId).catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; }) : null;
+  const eventCandidates = campaignEvents?.manage ? await campaignEventCandidates(getDb(), session.user.id, tenantId, campaignId).catch((error: unknown) => { if (error instanceof AccessError) return []; throw error; }) : [];
   const format = await getFormatter();
   const details = [
     [t("location"), [campaign.cityRegion, campaign.country].filter(Boolean).join(", ") || t("notSet")],
@@ -65,6 +71,7 @@ export default async function CampaignPage({ params }: { params: Promise<{ tenan
     </div>
     {canActivate && <CampaignStatusAction tenantId={tenantId} campaignId={campaignId} status={campaign.status} />}
     {overview && <CampaignDashboard overview={overview} connectHref={`/workspaces/${tenantId}/campaigns/${campaignId}/connect`} formHref={workspace && can(workspace.role, "crm:forms_manage") ? `/workspaces/${tenantId}/crm/forms` : null} />}
+    {campaignEvents && <CampaignEvents tenantId={tenantId} campaignId={campaignId} view={campaignEvents} candidates={eventCandidates} now={serverNow()} />}
     {followUp && <CampaignFollowUp tenantId={tenantId} campaignId={campaignId} {...followUp} />}
     {fundraising && <CampaignFundraisingCard tenantId={tenantId} campaignId={campaignId} campaignName={campaign.name} {...fundraising} canManage={can(workspace!.role, "fundraising:manage")} />}
     {checklist && <CampaignChecklist tenantId={tenantId} campaignId={campaignId} initial={checklist} />}

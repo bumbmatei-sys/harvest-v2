@@ -9713,5 +9713,16 @@
     "amountPlaceholder": "0.00",
     "reversalLabel": "Reversal · {reason}",
     "pledgeOption": "{name} · {amount}"
+  },
+  "CampaignEvents": {
+    "title": "Events",
+    "stat": "Events",
+    "create": "New event",
+    "empty": "No events in this campaign yet.",
+    "add": "Add an event",
+    "search": "Search events",
+    "noMatch": "No events found",
+    "remove": "Remove {title} from this campaign",
+    "draft": "Draft"
   }
 }
