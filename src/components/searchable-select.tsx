@@ -1,14 +1,15 @@
 /** Derived from Shadcn UI Kit item select14 (premium), registry retrieved 2026-11-25, approved by the founder 2026-11-25 (Discover category control). Code written for Harvest on the shared Command and Popover; local changes: docs/ui-sources.md. */
 "use client";
 import { useState } from "react";
-import type { LucideIcon } from "lucide-react";
+import type { ComponentType } from "react";
 import { Check, ChevronDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
-export type SearchableSelectOption = { value: string; label: string; icon?: LucideIcon };
+/** `icon`: a lucide icon or any component taking `className` (brand marks); it is decorative, the label names the option. */
+export type SearchableSelectOption = { value: string; label: string; icon?: ComponentType<{ className?: string; "aria-hidden"?: true | "true" }> };
 
 /**
  * One-line select with type-to-search, an optional icon per option and an optional "all" row that clears the value. Shared: any screen with a long, fixed list

@@ -554,3 +554,16 @@ The shared filter popover is Harvest's CRM pattern (an icon-only filter button w
 ### Campaign wizard steps 4 and 5 (25 Nov)
 
 Steps 4 and 5 and the invitation page copy no kit code. They compose shared shadcn components (`Switch`, `Dialog`, `Badge`, `NativeSelect`, `Field`, `Card`) in the shape of the approved `switch-card1` and a plain department card; the kit items stay approved for later screens.
+
+## Ways to give logos (26 Nov 2026)
+
+Founder request (26 Nov): show the real brand logo for every "Ways to give" method except bank transfer, which keeps its generic bank icon. The marks are used only to identify the ministry's own giving accounts; they remain their owners' trademarks and imply no endorsement, partnership or integration (Harvest still calls, fetches and processes nothing for these methods).
+
+- **Source:** Simple Icons, npm `simple-icons@16.38.1` (https://simpleicons.org). The package tarball was downloaded with `npm pack` into a scratch directory outside the repository; its `LICENSE.md` is CC0 1.0 Universal and `package.json` declares `CC0-1.0`. Only the twelve SVG `path` strings and each icon's `hex` were copied into `src/components/giving/giving-logos.tsx` (provenance header in the file). `simple-icons` is **not** a dependency.
+- **Logos taken (12):** PayPal, Wise, Venmo, Zelle, Revolut, Cash App, GoFundMe, Every.org, JustGiving, Patreon, Ko-fi, Buy Me a Coffee.
+- **Left generic (9):** Bank transfer (bank icon, by decision). Donorbox, Givebutter, Tithe.ly, Pushpay, Planning Center Giving, Subsplash Giving, Givelify and Zeffy are not in Simple Icons 16.38.1, and their own press kits and logo terms could not be reached from the build environment (egress refused), so no mark could be verified; they show a generic link icon. No brand mark was drawn or guessed. Any of them can get its official mark later from the brand's press kit once its terms are checked.
+- **Colour:** each mark sits on a neutral chip (`bg-muted`, the theme's `--surface-sunken`) and uses the brand's Simple Icons colour in a mode only where it meets 3:1 non-text contrast against that chip in every registered theme; otherwise it is drawn in the chip's text colour (`currentColor`). Values in `src/lib/theme-registry.ts` (`givingBrandFill`, `light-dark()` per mode), checked in `tests/unit/giving-logos.test.ts`.
+- **Where shown:** the owner list (row chip) and the kind picker (shared `SearchableSelect`, now typed to take any icon component), the "What visitors see" preview, the public link-in-bio block and the embeddable `WaysToGive` component. Marks are `role="img"` with the method's kind name as the accessible name; in the kind picker they are decorative because the name is the option text.
+- **Temporary:** GoFundMe (logo) and Donorbox (generic) are removed, with their entries in `givingLogos`, `givingGenericKinds`, `givingBrandFill` and `givingLogoProvenance.temporary`, by the PR that adds a payment provider for donations.
+
+Record: `givingLogoProvenance` in `src/lib/ui-provenance.ts`. No kit items are used; Harvest's existing `Item`, `ItemMedia`, `SearchableSelect`, `Button` and `CopyButton` are reused.

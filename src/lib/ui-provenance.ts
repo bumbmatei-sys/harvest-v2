@@ -306,3 +306,21 @@ export const kitApprovals = [
   { feature: "Discover screens", approvedOn: "2026-11-25", approvedBy: "founder",
     items: ["product-category", "product-card", "product-list7", "product-quickview", "switch-card1", "tables14", "drawer1"], note: "Plus the shared filter popover pattern from CRM, the shared EmptyState and ConfirmDialog. Pro kit first, free shadcn only if nothing fits. Variants used: product-category3, product-card1 (product-card2 and product-card3 read), product-quickview2. See docs/ui-sources.md." },
 ] as const;
+
+/**
+ * Ways to give brand marks (founder request 26 Nov 2026): one-colour SVG paths copied from the `simple-icons` npm package (not installed as a dependency) into
+ * src/components/giving/giving-logos.tsx. The SVG data is CC0-1.0 (the package's LICENSE.md, checked on the downloaded tarball); the marks remain their owners'
+ * trademarks and are used only to identify the ministry's own giving accounts, with no endorsement or integration implied. `temporary` kinds are removed with
+ * their logos when a payment provider is added (docs/decisions/founder-decisions-2026-11.md, Ways to give). See docs/ui-sources.md "Ways to give logos".
+ */
+export const givingLogoProvenance = {
+  source: "simple-icons", version: "16.38.1", license: "CC0-1.0", url: "https://simpleicons.org", requestedBy: "founder", requestedOn: "2026-11-26",
+  file: "src/components/giving/giving-logos.tsx", colours: "src/lib/theme-registry.ts givingBrandFill",
+  logos: ["paypal", "wise", "venmo", "zelle", "revolut", "cash_app", "gofundme", "every_org", "justgiving", "patreon", "ko_fi", "buy_me_a_coffee"],
+  generic: [
+    { kind: "bank_transfer", reason: "Generic bank icon by decision (founder request 26 Nov)." },
+    ...(["donorbox", "givebutter", "tithely", "pushpay", "planning_center", "subsplash", "givelify", "zeffy"] as const).map((kind) => ({ kind,
+      reason: "Not in Simple Icons 16.38.1, and the brand's own press kit and terms could not be reached from the build environment, so no mark was verified; a generic link icon is shown (no mark drawn or guessed)." })),
+  ],
+  temporary: ["gofundme", "donorbox"],
+} as const;
