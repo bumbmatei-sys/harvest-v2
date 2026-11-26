@@ -1,6 +1,6 @@
 {
-  "id": "5a10f48a-5f41-4eb7-9ad7-d62d42573a9b",
-  "prevId": "cdd153c7-4ae2-49e9-b3c0-2b8e31817cab",
+  "id": "3f340911-4307-4b0c-9b6a-7119e09a80b2",
+  "prevId": "870e4e96-f8f4-41c4-b128-d679897f6f4d",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -8405,10 +8405,6 @@
           "name": "catalog_item_visibility",
           "value": "\"catalog_items\".\"visibility\" in ('hidden','unlisted','listed')"
         },
-        "catalog_item_publication": {
-          "name": "catalog_item_publication",
-          "value": "\"catalog_items\".\"state\" <> 'published' or \"catalog_items\".\"visibility\" <> 'hidden'"
-        },
         "catalog_item_slug": {
           "name": "catalog_item_slug",
           "value": "\"catalog_items\".\"slug\" ~ '^[a-z0-9][a-z0-9-]{1,58}[a-z0-9]$'"
@@ -14078,9 +14074,51 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "featured": {
+          "name": "featured",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "community_product_featured": {
+          "name": "community_product_featured",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "community_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"community_product_links\".\"featured\"",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "community_product_links_tenant_id_item_id_catalog_items_tenant_id_id_fk": {
           "name": "community_product_links_tenant_id_item_id_catalog_items_tenant_id_id_fk",
@@ -14093,6 +14131,23 @@
           "columnsTo": [
             "tenant_id",
             "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "community_product_links_tenant_id_item_id_kind_catalog_items_tenant_id_id_kind_fk": {
+          "name": "community_product_links_tenant_id_item_id_kind_catalog_items_tenant_id_id_kind_fk",
+          "tableFrom": "community_product_links",
+          "tableTo": "catalog_items",
+          "columnsFrom": [
+            "tenant_id",
+            "item_id",
+            "kind"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id",
+            "kind"
           ],
           "onDelete": "no action",
           "onUpdate": "no action"

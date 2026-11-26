@@ -147,6 +147,8 @@ test("sender: addresses, domain verification, mailing address, readiness and the
   await page.getByRole("navigation", { name: "Campaign steps" }).getByRole("button", { name: /^Send/ }).click();
   await expect(page.locator('[data-check="address"][data-level="pass"]')).toBeVisible();
   await expect(page.locator("#nl-senderId option", { hasText: "hello@news.example.test" })).toHaveCount(1);
+  await page.locator("[data-review-button]").click();
+  await expect(page.locator("[data-sending-off]")).toContainText("Sending is off");
   await expect(page.locator("[data-send-button]")).toBeDisabled();
 
   // API: the review refuses an email without an address, members see nothing.

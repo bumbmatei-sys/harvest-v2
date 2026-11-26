@@ -2986,7 +2986,7 @@
       "channels": "Channels",
       "messages": "Messages",
       "people": "People",
-      "products": "Products",
+      "products": "Classroom and products",
       "page": "Page",
       "publish": "Publish"
     },
@@ -3351,6 +3351,7 @@
     "items": {
       "chat": "Chat",
       "forum": "Forum",
+      "classroom": "Classroom",
       "events": "Events",
       "products": "Products",
       "members": "Members",
@@ -3364,6 +3365,33 @@
     "myCommunities": "My communities",
     "toReview": "{count, plural, one {# item to review} other {# items to review}}",
     "manyItems": "99+"
+  },
+  "CommunityShelf": {
+    "classroomTitle": "Classroom",
+    "productsTitle": "Products",
+    "emptyClassroom": "No courses yet",
+    "emptyProducts": "No products yet",
+    "enrolled": "Enrolled",
+    "owned": "Yours",
+    "continue": "Continue",
+    "continueNamed": "Continue {name}",
+    "open": "Open",
+    "openNamed": "Open {name}",
+    "details": "Details",
+    "detailsNamed": "Details for {name}",
+    "enrolNamed": "Enrol for free: {name}",
+    "getNamed": "Get for free: {name}",
+    "noCourses": "No published courses",
+    "noProducts": "No published products",
+    "newCourse": "New course",
+    "newProduct": "New product",
+    "readOnly": "Only ministry staff who manage courses and products can change this.",
+    "featured": "Featured",
+    "membersOnly": "Members only",
+    "moveUp": "Move {name} up",
+    "moveDown": "Move {name} down",
+    "featureNamed": "Feature {name}",
+    "unfeatureNamed": "Stop featuring {name}"
   },
   "ForumCategories": {
     "list": "Forum categories",
@@ -6932,7 +6960,10 @@
       "back": "Back to campaigns",
       "draft": "Draft",
       "insertField": "Insert {field}",
-      "coverTitle": "Cover image"
+      "coverTitle": "Cover image",
+      "review": "Review",
+      "lockedScheduled": "This email is scheduled. Cancel the schedule to make changes.",
+      "lockedFinished": "This email can no longer be edited. Duplicate it to send it again."
     },
     "fields": {
       "title": "Title",
@@ -7053,13 +7084,11 @@
       "subject": "Subject",
       "recipients": "Recipients",
       "inbox": "Inbox check",
-      "schedule": "Schedule",
-      "sendNow": "Send",
-      "notReady": "Sending is not available yet.",
-      "fixFirst": "Fix the failed checks first.",
       "pending": "Not counted yet",
       "openSender": "Open Sender",
-      "setUpSender": "Set up a sender"
+      "setUpSender": "Set up a sender",
+      "zone": "Times are in the ministry's time zone: {zone}.",
+      "continue": "Continue to review"
     },
     "checks": {
       "subject": {
@@ -7142,6 +7171,137 @@
       "chosen": "Image chosen.",
       "removed": "Image removed.",
       "altLabel": "Image description"
+    },
+    "review": {
+      "offTitle": "Sending is off",
+      "offBody": "Nothing is delivered yet. A scheduled email waits in the queue and nobody receives it until sending is turned on.",
+      "statusTitle": "Status",
+      "scheduledFor": "{when} ({zone})",
+      "queued": "Queued. Sending is off, so nobody receives it at this time.",
+      "cancelledBody": "The schedule was cancelled. Nobody received this email.",
+      "newTime": "New date and time",
+      "zone": "Times are in the ministry's time zone: {zone}.",
+      "changeTime": "Change time",
+      "saveTime": "Save new time",
+      "keepTime": "Keep current time",
+      "cancelSchedule": "Cancel schedule",
+      "duplicate": "Duplicate as a new draft",
+      "copyName": "{name} (copy)",
+      "summary": "Summary",
+      "audience": "Audience",
+      "recipients": "Recipients",
+      "subject": "Subject",
+      "preheader": "Preview text",
+      "from": "From",
+      "fromValue": "{name} ({address})",
+      "replyTo": "Reply to",
+      "when": "When",
+      "whenNow": "Now",
+      "noTime": "No time chosen",
+      "missing": "Not set",
+      "noAudience": "No list chosen",
+      "counting": "Counting",
+      "countFailed": "Could not count recipients.",
+      "count": "{eligible} of {selected} people will receive it.",
+      "checklist": "Before you schedule",
+      "blocking": "{count, plural, one {# problem blocks scheduling.} other {# problems block scheduling.}}",
+      "noBlocking": "Nothing blocks scheduling.",
+      "items": {
+        "audience": {
+          "pass": "A list is chosen.",
+          "warn": "",
+          "fail": "Choose at least one list."
+        },
+        "recipients": {
+          "pass": "People with consent will receive it.",
+          "warn": "Counting people with consent.",
+          "fail": "No one on these lists has agreed to receive email."
+        },
+        "subject": {
+          "pass": "Subject added.",
+          "warn": "",
+          "fail": "Add a subject."
+        },
+        "content": {
+          "pass": "Email has content.",
+          "warn": "",
+          "fail": "Add some content."
+        },
+        "links": {
+          "pass": "Buttons have links.",
+          "warn": "",
+          "fail": "{count, plural, one {# button has} other {# buttons have}} no link."
+        },
+        "address": {
+          "pass": "Mailing address set.",
+          "warn": "",
+          "fail": "Add a mailing address."
+        },
+        "unsubscribe": {
+          "pass": "Unsubscribe link is added to every email.",
+          "warn": "",
+          "fail": ""
+        },
+        "sender": {
+          "pass": "From and reply-to addresses chosen.",
+          "warn": "",
+          "fail": "Choose a verified from and reply-to address."
+        },
+        "time": {
+          "pass": "Time is in the next 60 days.",
+          "warn": "",
+          "fail": "Pick a future time within 60 days."
+        },
+        "preview": {
+          "pass": "Preview text added.",
+          "warn": "Add preview text.",
+          "fail": "Add preview text."
+        }
+      },
+      "fix": {
+        "audience": "Choose lists",
+        "recipients": "Open Audience",
+        "subject": "Edit email",
+        "content": "Edit email",
+        "links": "Edit email",
+        "address": "Edit email",
+        "sender": "Choose addresses",
+        "time": "Pick a time",
+        "preview": "Edit email",
+        "imageAlt": "Edit email"
+      },
+      "test": "Test send",
+      "testNone": "No test sent yet.",
+      "testSent": "Test sent to the test inbox at {time}.",
+      "testFailed": "The last test could not be sent.",
+      "sendTest": "Send me a test",
+      "sendNow": "Send now",
+      "nowOff": "Sending is off. Pick a time to schedule it.",
+      "schedule": "Schedule",
+      "scheduleHint": "You confirm the details before it is queued.",
+      "fixFirst": "Fix the problems above to schedule.",
+      "confirmTitle": "Schedule this email?",
+      "confirmBody": "{eligible} of {selected} people, {when} ({zone}). Sending is off, so it waits in the queue.",
+      "confirm": "Schedule",
+      "back": "Back",
+      "scheduling": "Scheduling",
+      "cancelTitle": "Cancel this schedule?",
+      "cancelDescription": "The email leaves the queue. You can duplicate it later.",
+      "cancelConfirm": "Cancel schedule",
+      "keepScheduled": "Keep it",
+      "errors": {
+        "IDENTITY_REQUIRED": "Choose a from and reply-to address.",
+        "IDENTITY_UNVERIFIED": "A chosen address is not verified. Check Sender.",
+        "SELECTION_REQUIRED": "Choose at least one list.",
+        "SELECTION_CHANGED": "A list or saved group changed. Choose the audience again.",
+        "SCHEDULE_IN_PAST": "Pick a time in the future.",
+        "SCHEDULE_TOO_FAR": "Pick a time within 60 days.",
+        "MAILING_ADDRESS_REQUIRED": "Add a mailing address.",
+        "STALE_VERSION": "This email changed. Reload to continue.",
+        "REVIEW_REQUIRED": "The review expired. Schedule again.",
+        "NOT_RESCHEDULABLE": "This email can no longer be moved.",
+        "notSaved": "Save the email before scheduling."
+      }
     }
   },
   "NewsletterAudience": {
@@ -8388,7 +8548,7 @@
       },
       "visibility": "Visibility",
       "visibilityOptions": {
-        "hidden": "Hidden: only your ministry",
+        "hidden": "Hidden: only on community shelves you choose",
         "unlisted": "Unlisted: anyone with the link",
         "listed": "Listed: shown in the catalogue"
       },
@@ -8400,7 +8560,6 @@
       "checks": {
         "title": "A title",
         "address": "An address",
-        "visibility": "Visibility other than hidden",
         "lessons": "At least one published lesson",
         "files": "Ready files"
       },
@@ -9534,7 +9693,11 @@
     "board": "Board",
     "boardOption": "{name} ({count})",
     "boardRegion": "{name} board",
-    "columns": { "todo": "To do", "in_progress": "In progress", "done": "Done" },
+    "columns": {
+      "todo": "To do",
+      "in_progress": "In progress",
+      "done": "Done"
+    },
     "columnLabel": "{column}, {count, plural, one {# task} other {# tasks}}",
     "cardLabel": "{task}, {column}",
     "emptyColumn": "No tasks",
@@ -9902,19 +10065,16 @@
       "reported": "Reported",
       "giving": "Giving details",
       "actions": "Actions",
+      "actionsNamed": "Actions for the report on {name}",
       "none": "None",
       "shown": "Shown",
       "hidden": "Hidden",
       "markReviewed": "Mark reviewed",
-      "markReviewedNamed": "Mark report on {name} reviewed",
       "dismiss": "Dismiss",
-      "dismissNamed": "Dismiss report on {name}",
       "hide": "Hide giving details",
-      "hideNamed": "Hide giving details of {name}",
       "hideTitle": "Hide giving details of {name}",
       "hideReason": "Reason (shown to the ministry)",
       "restore": "Restore",
-      "restoreNamed": "Restore giving details of {name}",
       "restoreTitle": "Restore giving details?",
       "restoreBody": "{name}'s enabled ways to give will show on its public pages again.",
       "cancel": "Cancel",

@@ -19,10 +19,14 @@ import Link from "next/link";
 
 const missing = (error: unknown) => { if (error instanceof AccessError && error.status === 404) return null; throw error; };
 
-/** The item's public metadata, or null when it is not published, hidden, archived, or not of this kind. A listed or unlisted item resolves by its exact address. */
+/**
+ * The item's metadata, or null when it is not published, archived, or not of this kind. A listed or unlisted item resolves by its exact address; a hidden
+ * one only for a signed-in member of a community whose shelf shows it (C13/C16), so it stays invisible to everyone else.
+ */
 export async function resolvePublicItem(slug: string, kind: CatalogKind) {
   if (!freeCatalogEnabled()) return null;
-  const item = await getPublicCatalogItem(getDb(), slug).catch(missing);
+  const session = await optionalSession();
+  const item = await getPublicCatalogItem(getDb(), slug, session?.user.id).catch(missing);
   if (!item) return null;
   if (item.kind !== kind) redirect(publicPath(item.kind, item.slug));
   return item;

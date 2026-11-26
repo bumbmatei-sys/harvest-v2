@@ -87,10 +87,9 @@ test("owner flow: pick a type, build a course with ordered lessons, publish, she
   await expect(page.getByRole("alert").filter({ hasText: "Give every lesson a title." })).toBeVisible();
   await page.getByRole("button", { name: "Remove lesson 3" }).click();
 
-  // Access: hidden cannot be published, unlisted can; the shelf waits for publication.
+  // Access: any visibility can be published (hidden then shows only on community shelves); the shelf waits for publication.
   await openStep(page, "Access");
   await expect(page.getByText("Publish this item to add it to a community shelf.")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Publish", exact: true })).toBeDisabled();
   await page.getByRole("radio", { name: /Unlisted/ }).click();
   await page.getByRole("button", { name: "Publish", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "Published." })).toBeVisible();
