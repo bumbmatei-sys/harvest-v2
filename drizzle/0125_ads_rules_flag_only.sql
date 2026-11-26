@@ -1,6 +1,9 @@
 -- Founder decision 26 Nov: ad rules are flag only. A rule may never change delivery or spend.
 -- Existing pause rules are kept as a record but switched off; they can never be switched on again (CHECK) and no new rule may pause (trigger).
+-- ads_rules has FORCE RLS and the migration owner has no BYPASSRLS: the backfill reads every ministry's rows through the ads_definer policy (0098), and the flag is blanked straight after.
+SELECT set_config('app.ads_definer', 'on', true);--> statement-breakpoint
 UPDATE "ads_rules" SET "enabled" = false, "version" = "version" + 1, "updated_at" = now() WHERE "action" <> 'notify' AND "enabled";--> statement-breakpoint
+SELECT set_config('app.ads_definer', '', true);--> statement-breakpoint
 ALTER TABLE "ads_rules" DROP CONSTRAINT "ads_rules_shape";--> statement-breakpoint
 ALTER TABLE "ads_rules" ADD CONSTRAINT "ads_rules_shape" CHECK (length("ads_rules"."name") between 1 and 120 and "ads_rules"."level" in ('campaign','adset','ad') and "ads_rules"."action" in ('pause','notify') and ("ads_rules"."action" = 'notify' or not "ads_rules"."enabled") and pg_column_size("ads_rules"."condition") <= 1024);--> statement-breakpoint
 CREATE FUNCTION public.ads_rules_flag_only() RETURNS trigger
