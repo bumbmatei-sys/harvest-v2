@@ -1,0 +1,11 @@
+{
+  "CF07_STAGING_WORKER": "harvest-staging",
+  "CF07_STAGING_ORIGIN": "https://harvest-staging.bumbmatei-bee.workers.dev",
+  "CF07_PRODUCTION_ORIGIN": "https://production.example.invalid",
+  "CF07_STAGING_HYPERDRIVE_ID": "2cf97de592ea4784b37f0e44f8cd8805",
+  "CF07_PRODUCTION_HYPERDRIVE_ID": "00000000000000000000000000000000",
+  "CF07_STAGING_DATABASE": "harvest",
+  "CF07_STAGING_BUCKET": "harvest-staging-files",
+  "CF07_STAGING_MAILBOX_SERVICE": "harvest-staging-mailbox",
+  "CF07_STAGING_WORKERS_DEV": "1"
+}
