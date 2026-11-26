@@ -24,9 +24,13 @@ type State = { report: CrmReport; loading: boolean; failed: boolean };
 export function ReportsView({ tenantId, initial }: { tenantId: string; initial: CrmReport }) {
   const t = useTranslations("CrmReports"), format = useFormatter();
   const [period, setPeriod] = useState<ReportPeriod>(initial.period), [state, setState] = useState<State>({ report: initial, loading: false, failed: false });
-  const [attempt, setAttempt] = useState(0), first = useRef(true);
+  // The last (period, attempt) fetched; the server already rendered the first one. Keyed rather than a "first run" flag, so a repeated mount effect
+  // (React StrictMode in development) does not refetch and dim a page that is already showing the right report.
+  const [attempt, setAttempt] = useState(0), fetched = useRef(`${initial.period}:0`);
   useEffect(() => {
-    if (first.current) { first.current = false; if (period === initial.period) return; }
+    const key = `${period}:${attempt}`;
+    if (fetched.current === key) return;
+    fetched.current = key;
     const controller = new AbortController();
     setState((previous) => ({ ...previous, loading: true, failed: false }));
     fetch(`/api/workspaces/${tenantId}/crm/reports?period=${period}`, { cache: "no-store", signal: controller.signal })
@@ -34,7 +38,7 @@ export function ReportsView({ tenantId, initial }: { tenantId: string; initial: 
       .then((report) => setState({ report, loading: false, failed: false }))
       .catch((error: unknown) => { if ((error as { name?: string })?.name !== "AbortError") setState((previous) => ({ ...previous, loading: false, failed: true })); });
     return () => controller.abort();
-  }, [period, attempt, tenantId, initial.period]);
+  }, [period, attempt, tenantId]);
 
   // Ready only when the shown report is the selected period and no load is running: right after a period change the old report is still on screen
   // until the fetch starts, and it must not count as ready then.

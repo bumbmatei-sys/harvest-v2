@@ -1,5 +1,5 @@
 "use client";
-import { useCallback, useEffect, useId, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -15,16 +15,19 @@ type State = "idle" | "sending" | "sent" | "invalid" | "limited" | "unavailable"
  * "Message me": name, email, message and the fixed consent line (never pre-ticked). The proof comes from the server when the form mounts (and again if it expires);
  * a hidden field catches bots. Nothing is stored in the browser, and no email is sent to anyone. In the editor's preview the same form is shown inert.
  */
+const MINIMUM_FILL_MS = 1_100; // the server minimum is one second
 export function BioMessageForm({ handle, title, notice, inert = false }: { handle: string; title: string; notice: string; inert?: boolean }) {
   const t = useTranslations("LinkInBio.public"), id = useId();
   const [proof, setProof] = useState<string | null>(null), [state, setState] = useState<State>("idle");
+  // When the current proof reached this browser: the server refuses a message sent less than a second after its proof was issued (bots), so a proof loaded just now is waited out.
+  const proofAt = useRef(0);
   const [fields, setFields] = useState({ name: "", email: "", message: "", website: "" }), [agreed, setAgreed] = useState(false);
   const loadProof = useCallback(async () => {
     try {
       const response = await fetch(`/l/${encodeURIComponent(handle)}/message`, { headers: { Accept: "application/json" }, cache: "no-store" });
       if (!response.ok) { setProof(null); setState(response.status === 404 ? "unavailable" : "limited"); return null; }
       const data = await response.json() as { proof?: string };
-      setProof(data.proof ?? null);
+      setProof(data.proof ?? null); proofAt.current = Date.now();
       return data.proof ?? null;
     } catch { setState("unavailable"); return null; }
   }, [handle]);
@@ -37,6 +40,9 @@ export function BioMessageForm({ handle, title, notice, inert = false }: { handl
     setState("sending");
     const current = proof ?? await loadProof();
     if (!current) { setState((previous) => previous === "sending" ? "unavailable" : previous); return; }
+    // A proof fetched a moment ago (the first load was slow or failed) is too fresh for the server's minimum fill time: wait it out instead of failing the first send.
+    const wait = MINIMUM_FILL_MS - (Date.now() - proofAt.current);
+    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
     try {
       const response = await fetch(`/l/${encodeURIComponent(handle)}/message`, { method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ proof: current, name: fields.name, email: fields.email, message: fields.message, consent: true, ...(fields.website ? { website: fields.website } : {}) }) });
