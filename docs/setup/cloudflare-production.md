@@ -14,7 +14,7 @@ Staging, the rehearsal and the measured numbers: [cloudflare-staging.md](cloudfl
 | HC-02 privacy and security activation decisions (five) | `docs/decisions/hc-02-activation-gates.md` | UNAPPROVED. Moving hosting enables no real-data intake and no real invitation delivery |
 | Cloudflare as a data processor: DPA and sub-processor review, data location of Workers, Hyperdrive, R2 and logs | PRD `docs/prd/cloudflare-infrastructure-migration.md` | Open |
 | Production migrations: production at the migration `main` needs, run by the approved job as `harvest_owner`, Neon restore point first | `docs/setup/production-migrations.md` | No production migration job exists yet |
-| Real email sender: verified sending domain, production key | `docs/setup/email.md` | Open. The real provider path has only been bundled, never sent from Workers (staging uses the synthetic mailbox) |
+| Real email sender: verified sending domain, production key | `docs/setup/email.md` | Open. The real provider path has only been bundled, never sent from Workers (staging uses the synthetic mailbox). 26 Nov: the one approved real test send from staging was **not made**: in the email provider, `theharvest.app` is partially failed and `support.theharvest.app` failed verification (no fully verified Harvest sender), and staging has no real sending key. Fix the domain records, then repeat the test |
 | Founder go for the exact `main` commit, and for the cut-over time | this page | Not given |
 | Repository private before any marketing (kit licence) | `CLAUDE.md` | Open |
 
