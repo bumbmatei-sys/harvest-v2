@@ -38,9 +38,10 @@ export function signClickToken(key: Buffer, reference: ClickReference) {
 export function verifyClickToken(key: Buffer | null, token: unknown): ClickReference | null {
   if (!key || typeof token !== "string" || !clickTokenPattern.test(token)) return null;
   const [payload, signature] = token.split(".");
-  const expected = mac(key, payload), supplied = Buffer.from(signature, "base64url");
+  const expected = mac(key, payload), supplied = Buffer.from(signature, "base64url"), bytes = Buffer.from(payload, "base64url");
+  // Only the canonical encoding is accepted: base64url's unused trailing bits must not give one token several spellings.
+  if (supplied.toString("base64url") !== signature || bytes.toString("base64url") !== payload) return null;
   if (supplied.length !== expected.length || !timingSafeEqual(supplied, expected)) return null;
-  const bytes = Buffer.from(payload, "base64url");
   if (bytes.length !== PAYLOAD_BYTES || bytes.readUInt8(0) !== VERSION) return null;
   const revision = bytes.readUInt32BE(49), link = bytes.readUInt16BE(53);
   if (revision < 1 || revision > 0x7fffffff || link >= MAX_TRACKED_LINKS) return null;

@@ -37,6 +37,9 @@ describe("click tokens", () => {
     expect(verifyClickToken(key, `${swap(payload, 30)}.${signature}`)).toBeNull();
     expect(verifyClickToken(key, `${payload}.${swap(signature, 5)}`)).toBeNull();
     expect(verifyClickToken(randomBytes(32), token)).toBeNull();
+    // A non-canonical spelling (changed unused trailing bits) is refused too.
+    const last = signature.at(-1)!, alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_";
+    expect(verifyClickToken(key, `${payload}.${signature.slice(0, -1)}${alphabet[alphabet.indexOf(last) ^ 1]}`)).toBeNull();
     expect(verifyClickToken(null, token)).toBeNull();
     for (const bad of [undefined, 42, "", "a.b", token + "x", `${payload}.${signature}.extra`]) expect(verifyClickToken(key, bad)).toBeNull();
     expect(() => signClickToken(key, { ...reference, link: MAX_TRACKED_LINKS })).toThrow();
