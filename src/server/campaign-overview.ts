@@ -7,6 +7,7 @@ import { outreachKeys } from "../lib/campaign-wizard-form";
 import { message } from "../i18n/messages";
 import { checklistOf } from "./campaign-checklist";
 import { invitationsOf } from "./campaign-wizard-invitations";
+import { campaignEventsOf } from "./campaign-events";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
 
@@ -27,6 +28,8 @@ export type CampaignOverview = {
   checklist: { done: number; total: number };
   /** Numbers the dashboard cannot show yet because nothing records them: progress, events, funding and tasks. Reported as unavailable, never as zero. */
   unavailable: ("progress" | "events" | "funding" | "tasks")[];
+  /** Campaign events: how many linked events this person can see. Null while Events is off (then "events" stays unavailable). */
+  events: number | null;
 };
 
 /**
@@ -62,6 +65,10 @@ export async function getCampaignOverview(db: Database, userId: string, workspac
         budget: draft.budget, registrationFormId: draft.registrationFormId,
       };
     }
-    return { campaignId: id, configuration, checklist: { done: checklist.filter((item) => item.done).length, total: checklist.length }, unavailable: ["progress", "events", "funding", "tasks"] };
+    const overview: CampaignOverview = { campaignId: id, configuration, checklist: { done: checklist.filter((item) => item.done).length, total: checklist.length }, unavailable: ["progress", "events", "funding", "tasks"], events: null };
+    // Campaign events: once Events is on, the events figure is real and no longer listed as unavailable.
+    const linked = await campaignEventsOf(tx, tenantId, id);
+    if (linked) Object.assign(overview, { events: linked.events.length, unavailable: overview.unavailable.filter((key) => key !== "events") });
+    return overview;
   });
 }
