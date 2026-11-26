@@ -836,9 +836,16 @@
       "breakpoints": true
     },
     {
+      "idx": 122,
+      "version": "7",
+      "when": 1795720235364,
+      "tag": "0122_newsletter_reschedule",
+      "breakpoints": true
+    },
+    {
       "idx": 123,
       "version": "7",
-      "when": 1795723716868,
+      "when": 1795733024319,
       "tag": "0123_community_shelf",
       "breakpoints": true
     }

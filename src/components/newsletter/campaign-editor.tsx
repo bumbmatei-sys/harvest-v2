@@ -15,7 +15,8 @@ import { BlockCanvas } from "@/components/newsletter/block-canvas";
 import { ImagePicker } from "@/components/newsletter/image-picker";
 import { DesignPanel } from "@/components/newsletter/design-panel";
 import { EmailPreview } from "@/components/newsletter/email-preview";
-import { SendStep, type ListOption, type SenderOption } from "@/components/newsletter/send-step";
+import { SendStep, type ListOption, type SenderOption, type When } from "@/components/newsletter/send-step";
+import { ReviewStep, type Dispatch, type TestResult } from "@/components/newsletter/review-step";
 import { TemplatePicker } from "@/components/newsletter/template-picker";
 import { useCrmRequest } from "@/components/crm/request";
 import { emailDocumentSchema, isEmailDocument, type BrandKit, type EmailBlock, type EmailDocument } from "@/lib/email/blocks";
@@ -23,17 +24,18 @@ import { inboxCheck } from "@/lib/email/inbox-check";
 import { blankDocument, templateDocument, type TemplateId } from "@/lib/email/templates";
 import { commit, redo, startHistory, undo } from "@/lib/crm-forms";
 import { notify } from "@/lib/toast";
+import { scheduleInputValue } from "@/lib/newsletter-schedule";
 
 export type CampaignData = { id: string; name: string; state: string; version: number; subject: string; preheader: string | null; senderId: string | null; replyToId: string | null;
-  content: unknown; selection: { listIds: string[]; segmentIds: string[] } };
+  content: unknown; selection: { listIds: string[]; segmentIds: string[] }; scheduledAt?: string | null; timezone?: string | null; frozenAt?: string | null };
 type Draft = { name: string; subject: string; preheader: string; doc: EmailDocument; listIds: string[]; segmentIds: string[]; senderId: string | null; replyToId: string | null };
 type Save = "saved" | "saving" | "error" | "conflict";
 const AUTOSAVE_MS = 1200;
 const copyKeys = ["title", "heading", "text", "button", "cite", "date", "time", "location", "caption", "leftHeading", "leftText", "rightHeading", "rightText", "linkOne", "linkTwo", "note"] as const;
 
-/** The campaign editor (shared EditorShell): Write (subject, block canvas, design, templates, preview) and Send (audience with a live count, when, inbox check). */
-export function CampaignEditor({ tenantId, ministryName, campaign, brandKit, lists, groups, senders, suggestions }: {
-  suggestions: boolean; tenantId: string; ministryName: string; campaign: CampaignData; brandKit: { kit: BrandKit; version: number }; lists: ListOption[]; groups: ListOption[]; senders: SenderOption[];
+/** The campaign editor (shared EditorShell): Write (subject, block canvas, design, templates, preview), Send (audience with a live count, when, inbox check) and Review (summary, blocking checklist, test result, schedule). */
+export function CampaignEditor({ tenantId, ministryName, timeZone, campaign, brandKit, lists, groups, senders, suggestions }: {
+  suggestions: boolean; tenantId: string; ministryName: string; timeZone: string; campaign: CampaignData; brandKit: { kit: BrandKit; version: number }; lists: ListOption[]; groups: ListOption[]; senders: SenderOption[];
 }) {
   const t = useTranslations("NewsletterCampaigns"), e = useTranslations("NewsletterCampaigns.editor"), d = useTranslations("NewsletterCampaigns.defaults"), request = useCrmRequest();
   const initial = useMemo<Draft>(() => ({
@@ -45,8 +47,13 @@ export function CampaignEditor({ tenantId, ministryName, campaign, brandKit, lis
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }), []);
   const [history, setHistory] = useState(() => startHistory(initial));
+  const [dispatch, setDispatch] = useState<Dispatch>({ state: campaign.state, version: campaign.version, scheduledAt: campaign.scheduledAt ?? null, timezone: campaign.timezone ?? null, frozenAt: campaign.frozenAt ?? null });
+  // Only a draft (or a reviewed draft) can change; a scheduled, cancelled or sent email is frozen.
+  const locked = !["draft", "reviewed"].includes(dispatch.state);
+  const [when, setWhen] = useState<When>(() => campaign.scheduledAt ? { mode: "later", at: scheduleInputValue(campaign.scheduledAt, campaign.timezone ?? timeZone) } : { mode: "now", at: "" });
+  const [testResult, setTestResult] = useState<TestResult>(null);
   const draft = history.present;
-  const [step, setStep] = useState("write"), [selected, setSelected] = useState<string | null>(null), [panel, setPanel] = useState<"design" | "templates" | null>(null);
+  const [step, setStep] = useState(locked ? "review" : "write"), [selected, setSelected] = useState<string | null>(null), [panel, setPanel] = useState<"design" | "templates" | null>(null);
   const [save, setSave] = useState<Save>("saved"), [announcement, setAnnouncement] = useState(""), [kitVersion, setKitVersion] = useState(brandKit.version), [kitSaving, setKitSaving] = useState(false);
   const [pendingTemplate, setPendingTemplate] = useState<TemplateId | "blank" | null>(null);
   const version = useRef(campaign.version), busy = useRef(false);
@@ -62,21 +69,22 @@ export function CampaignEditor({ tenantId, ministryName, campaign, brandKit, lis
   const changeBrand = useCallback((patch: Partial<BrandKit>, key?: string) => change((x) => ({ ...x, doc: { ...x.doc, brand: { ...x.doc.brand, ...patch } } }), key ? `brand-${key}` : undefined), [change]);
 
   const flush = useCallback(async (value: Draft) => {
-    if (busy.current) return;
+    if (busy.current) return false;
     busy.current = true; setSave("saving");
     const body = JSON.stringify(value);
     const result = await request<{ version: number }>(`/api/workspaces/${tenantId}/newsletter/campaigns/${campaign.id}`, { method: "PATCH", body: {
       name: value.name.trim(), subject: value.subject.trim(), preheader: value.preheader.trim() || null, senderId: value.senderId, replyToId: value.replyToId,
       selection: { listIds: value.listIds, segmentIds: value.segmentIds }, content: value.doc, version: version.current } });
     busy.current = false;
-    if (result.ok) { version.current = result.data.version; setSavedJson(body); setSave("saved"); } else setSave(result.status === 409 ? "conflict" : "error");
+    if (result.ok) { version.current = result.data.version; setDispatch((x) => ({ ...x, state: "draft", version: result.data.version })); setSavedJson(body); setSave("saved"); return true; }
+    setSave(result.status === 409 ? "conflict" : "error"); return false;
   }, [request, tenantId, campaign.id]);
 
   useEffect(() => {
-    if (!dirty || !valid || save === "conflict") return;
+    if (!dirty || !valid || save === "conflict" || locked) return;
     const timer = setTimeout(() => void flush(draft), AUTOSAVE_MS);
     return () => clearTimeout(timer);
-  }, [draft, dirty, valid, save, flush]);
+  }, [draft, dirty, valid, save, flush, locked]);
 
   useEffect(() => {
     function keys(event: KeyboardEvent) {
@@ -89,8 +97,9 @@ export function CampaignEditor({ tenantId, ministryName, campaign, brandKit, lis
   }, []);
 
   async function sendTest() {
-    if (dirty && valid) await flush(draft);
+    if (dirty && valid && !locked) await flush(draft);
     const result = await request(`/api/workspaces/${tenantId}/newsletter/campaigns/${campaign.id}/test-sink`, { method: "POST", body: {} });
+    setTestResult({ ok: result.ok, at: Date.now() });
     if (result.ok) notify.success(e("testSent")); else notify.error(e("testFailed"));
   }
   async function saveKit() {
@@ -107,7 +116,13 @@ export function CampaignEditor({ tenantId, ministryName, campaign, brandKit, lis
 
   const shown = save === "saved" && dirty ? (valid ? "saving" : "invalid") : save;
   const status = shown === "saving" ? e("saving") : shown === "saved" ? e("saved") : shown === "conflict" ? e("conflict") : shown === "invalid" ? e("fixFields") : e("saveFailed");
-  const sidebar = { typeLabel: t("heading"), status: { kind: "draft" as const, label: t(`status.${campaign.state}` as "status.draft") },
+  /** Saves pending edits before the server review, which reads the stored revision. */
+  async function beforeReview() {
+    if (busy.current || !valid) return false;
+    return dirty ? flush(draft) : true;
+  }
+  const changeDispatch = (next: Partial<Dispatch>) => setDispatch((x) => { const merged = { ...x, ...next }; version.current = merged.version; return merged; });
+  const sidebar = { typeLabel: t("heading"), status: { kind: "draft" as const, label: t(`status.${dispatch.state}` as "status.draft") },
     back: { href: `/workspaces/${tenantId}/newsletter/campaigns`, label: e("back") }, dirty: shown !== "saved" };
   const preview = <EmailPreview tenantId={tenantId} doc={draft.doc} preheader={draft.preheader} ministryName={ministryName} firstName={t("preview.firstName")} />;
 
@@ -123,10 +138,14 @@ export function CampaignEditor({ tenantId, ministryName, campaign, brandKit, lis
         <Button type="button" variant="ghost" size="icon" className="size-11" disabled={!history.future.length} aria-label={e("redo")} onClick={() => setHistory(redo)}><Redo2 aria-hidden="true" /></Button>
         <Button type="button" variant="outline" className="min-h-11" onClick={() => void sendTest()}><Send aria-hidden="true" />{e("sendTest")}</Button>
       </>}
-      steps={[{ id: "write", label: e("write") }, { id: "send", label: e("send") }]} current={step} onStep={setStep} stepsLabel={e("steps")}
+      steps={[{ id: "write", label: e("write") }, { id: "send", label: e("send") }, { id: "review", label: e("review") }]} current={step} onStep={setStep} stepsLabel={e("steps")}
       preview={preview} previewLabel={e("preview")} sidebar={sidebar}>
       {save === "conflict" && <Alert variant="destructive"><AlertDescription>{e("conflict")}</AlertDescription></Alert>}
-      {step === "write" ? <>
+      {locked && step !== "review" && <Alert data-locked><AlertDescription>{e(dispatch.state === "scheduled" ? "lockedScheduled" : "lockedFinished")}</AlertDescription></Alert>}
+      {step === "review" ? <ReviewStep tenantId={tenantId} campaignId={campaign.id} campaignName={draft.name} lists={lists} groups={groups} senders={senders} listIds={draft.listIds} segmentIds={draft.segmentIds}
+        senderId={draft.senderId} replyToId={draft.replyToId} subject={draft.subject} preheader={draft.preheader} checks={checks} when={when} timeZone={timeZone}
+        dispatch={dispatch} onDispatch={changeDispatch} testResult={testResult} onSendTest={sendTest} onStep={setStep} beforeReview={beforeReview} busy={shown === "saving" || shown === "invalid"} />
+      : <div inert={locked || undefined} className="space-y-6" data-editable={!locked}>{step === "write" ? <>
         <FormSection title={e("write")}>
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2"><Label htmlFor="nl-name">{e("name")}</Label><Input id="nl-name" className="min-h-11" maxLength={100} value={draft.name} onChange={(ev) => change((x) => ({ ...x, name: ev.target.value }), "name")} /></div>
@@ -145,7 +164,8 @@ export function CampaignEditor({ tenantId, ministryName, campaign, brandKit, lis
         </FormSection>
         <BlockCanvas tenantId={tenantId} suggestions={suggestions} blocks={draft.doc.blocks} change={changeBlocks} selected={selected} setSelected={setSelected} notify={setAnnouncement} copy={copy} />
       </> : <SendStep tenantId={tenantId} lists={lists} groups={groups} senders={senders} listIds={draft.listIds} segmentIds={draft.segmentIds} senderId={draft.senderId} replyToId={draft.replyToId} subject={draft.subject} checks={checks}
-        onSelection={(listIds, segmentIds) => change((x) => ({ ...x, listIds, segmentIds }), "selection")} onIdentity={(key, id) => change((x) => ({ ...x, [key]: id }))} />}
+        onSelection={(listIds, segmentIds) => change((x) => ({ ...x, listIds, segmentIds }), "selection")} onIdentity={(key, id) => change((x) => ({ ...x, [key]: id }))}
+        when={when} onWhen={setWhen} timeZone={timeZone} onReview={() => setStep("review")} />}</div>}
     </EditorShell>
     <div role="status" aria-live="polite" className="sr-only">{announcement}</div>
     <Sheet open={panel === "design"} onOpenChange={(open) => !open && setPanel(null)}><SheetContent className="w-full overflow-y-auto sm:max-w-lg" aria-describedby={undefined}><SheetHeader><SheetTitle>{t("design.title")}</SheetTitle></SheetHeader>
