@@ -3527,7 +3527,7 @@ export const fundraisingCampaigns = pgTable("fundraising_campaigns", {
   check("fundraising_summary", sql`length(${t.summary}) <= 2000`),
   check("fundraising_status", sql`${t.status} in ('draft', 'published', 'closed', 'archived')`),
   check("fundraising_goal", sql`${t.goalCents} between 1 and 1000000000000`),
-  check("fundraising_currency", sql`${t.currency} in ('USD','EUR','GBP','CAD','AUD','NZD','CHF','ZAR','BRL','MXN','INR','PHP','KES','NGN','GHS')`),
+  check("fundraising_currency", sql`${t.currency} in ('USD','EUR','GBP','CAD','AUD','NZD','CHF','ZAR','BRL','MXN','INR','PHP','KES','NGN','GHS','RON')`),
   check("fundraising_version", sql`${t.version} >= 1`),
   check("fundraising_idempotency_key", sql`length(${t.idempotencyKey}) between 1 and 200 and ${t.idempotencyKey} ~ '^[A-Za-z0-9._:-]+$'`)]);
 

@@ -21,7 +21,7 @@ CREATE TABLE "fundraising_campaigns" (
 	CONSTRAINT "fundraising_summary" CHECK (length("fundraising_campaigns"."summary") <= 2000),
 	CONSTRAINT "fundraising_status" CHECK ("fundraising_campaigns"."status" in ('draft', 'published', 'closed', 'archived')),
 	CONSTRAINT "fundraising_goal" CHECK ("fundraising_campaigns"."goal_cents" between 1 and 1000000000000),
-	CONSTRAINT "fundraising_currency" CHECK ("fundraising_campaigns"."currency" in ('USD','EUR','GBP','CAD','AUD','NZD','CHF','ZAR','BRL','MXN','INR','PHP','KES','NGN','GHS')),
+	CONSTRAINT "fundraising_currency" CHECK ("fundraising_campaigns"."currency" in ('USD','EUR','GBP','CAD','AUD','NZD','CHF','ZAR','BRL','MXN','INR','PHP','KES','NGN','GHS','RON')),
 	CONSTRAINT "fundraising_version" CHECK ("fundraising_campaigns"."version" >= 1),
 	CONSTRAINT "fundraising_idempotency_key" CHECK (length("fundraising_campaigns"."idempotency_key") between 1 and 200 and "fundraising_campaigns"."idempotency_key" ~ '^[A-Za-z0-9._:-]+$')
 );

@@ -4,7 +4,7 @@ import { z } from "zod";
 import { defineStatusTones } from "./status-tone";
 
 /** Two-decimal ISO currencies only, so "cents" is exact. Others need a reviewed minor-unit design first. Mirrors the database check. */
-export const fundraisingCurrencies = ["USD", "EUR", "GBP", "CAD", "AUD", "NZD", "CHF", "ZAR", "BRL", "MXN", "INR", "PHP", "KES", "NGN", "GHS"] as const;
+export const fundraisingCurrencies = ["USD", "EUR", "GBP", "CAD", "AUD", "NZD", "CHF", "ZAR", "BRL", "MXN", "INR", "PHP", "KES", "NGN", "GHS", "RON"] as const;
 export type FundraisingCurrency = typeof fundraisingCurrencies[number];
 export const fundraisingStatuses = ["draft", "published", "closed", "archived"] as const;
 export type FundraisingStatus = typeof fundraisingStatuses[number];

@@ -62,6 +62,8 @@ describe("fundraising campaigns", () => {
     for (const bad of [{ goalCents: "0" }, { goalCents: "12.5" }, { goalCents: "1e5" }, { goalCents: "10000000000001" }, { currency: "JPY" }, { currency: "KWD" }]) {
       expect(await status(createFundraising(f.db, "p-owner", tenantA, { title: "Bad", goalCents: "100", currency: "USD", ...bad }, key())), JSON.stringify(bad)).toBe(400);
     }
+    // RON (founder, 26 Nov) is accepted.
+    expect(await createFundraising(f.db, "p-owner", tenantA, { title: "Lei", goalCents: "100", currency: "RON" }, key())).toMatchObject({ currency: "RON" });
     const shown = await campaignFundraising(f.db, "p-owner", tenantA, budgetCampaign);
     expect(shown.fundraising?.id).toBe(fromBudget.id);
     expect(shown.fundraising?.totals).toEqual({ raisedCents: "0", giftCount: 0, pledgedCents: "0", pledgeCount: 0 });

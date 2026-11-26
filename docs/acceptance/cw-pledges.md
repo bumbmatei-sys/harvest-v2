@@ -21,7 +21,7 @@ Record keeping only. No provider, payment flow, webhook, public page, outbound m
 | # | Requirement | Status | Evidence |
 | --- | --- | --- | --- |
 | M1 | Integer cents (bigint) at rest, decimal strings at the API, bounded 1 to 1e12; no floats, rounding or conversion | [x] | `cw-pledges.test.ts` (bounds) |
-| M2 | Two-decimal currency allowlist (15 codes), database check equals code list | [x] | `cw-pledges.test.ts` (JPY, KWD refused) |
+| M2 | Two-decimal currency allowlist (16 codes; RON added by the founder 26 Nov), database check equals code list | [x] | `cw-pledges.test.ts` (JPY, KWD refused) |
 | M3 | Every pledge and ledger row carries the campaign's currency (composite FK on tenant, id, currency); currency cannot change once anything is recorded | [x] | `cw-pledges.test.ts` (currency locked, USD row on CAD campaign refused 23503) |
 | M4 | Raised = net confirmed ledger entries only; pledges have a separate total; no combined figure; totals never clamped to the goal | [x] | `cw-pledges.test.ts` (exact totals) |
 | M5 | Ledger append-only for every role (statement trigger), app has no UPDATE/DELETE grant | [x] | `cw-pledges.test.ts` (app 42501, migration owner refused) |

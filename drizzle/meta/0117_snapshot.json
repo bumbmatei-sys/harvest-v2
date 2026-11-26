@@ -24933,7 +24933,7 @@
         },
         "fundraising_currency": {
           "name": "fundraising_currency",
-          "value": "\"fundraising_campaigns\".\"currency\" in ('USD','EUR','GBP','CAD','AUD','NZD','CHF','ZAR','BRL','MXN','INR','PHP','KES','NGN','GHS')"
+          "value": "\"fundraising_campaigns\".\"currency\" in ('USD','EUR','GBP','CAD','AUD','NZD','CHF','ZAR','BRL','MXN','INR','PHP','KES','NGN','GHS','RON')"
         },
         "fundraising_version": {
           "name": "fundraising_version",
