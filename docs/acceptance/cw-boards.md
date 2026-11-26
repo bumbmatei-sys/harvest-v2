@@ -16,7 +16,7 @@ PRD: `docs/prd/harvest-campaign-wizard.md`, "Departments locked to campaign-scop
 - **API**: `GET …/campaigns/[campaignId]/boards`; `POST …/boards/tasks`; `PATCH`/`DELETE …/boards/tasks/[taskId]`; `POST …/boards/milestones`; `PATCH`/`DELETE …/boards/milestones/[milestoneId]` (origin-checked writes, `private, no-store`).
 - **Dashboard figures**: `getCampaignOverview` now returns `work` (tasks total/done/in progress/overdue, milestones total/reached, progress = share of tasks done, `null` with no tasks) and `unavailable` is `["events", "funding"]`. The dashboard shows Tasks done, Progress ("No tasks yet" instead of 0%) and Milestones reached, plus an overdue line.
 - **UI**: shared `KanbanBoard` (`src/components/board/kanban-board.tsx`), derived from kit item `kanban-board3` per the founder decision; campaign page `/workspaces/[tenantId]/campaigns/[campaignId]/boards` (board select, board/list toggle, Add task, column menus, card menus, task dialog, milestones card); an "Open boards" card on the campaign page. Copy in `messages/en.json` under `CampaignBoards`.
-- **Provenance**: comparison table and `kanban-board3` row in `docs/ui-sources.md`; `kitProvenance` entry in `src/lib/ui-provenance.ts` (premium, retrieved and approved 2026-11-26, 17 of 186 lines identical in the shared board, 15 of 227 in the campaign screen); `docs/component-registry.md` row.
+- **Provenance**: comparison table and `kanban-board3` row in `docs/ui-sources.md`; `kitProvenance` entry in `src/lib/ui-provenance.ts` (premium, retrieved and approved 2026-11-26, 17 of 185 lines identical in the shared board, 15 of 227 in the campaign screen); `docs/component-registry.md` row.
 
 ## Evidence (author-executed)
 
