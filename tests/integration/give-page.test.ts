@@ -306,11 +306,15 @@ describe("entry resets of other owner definers (review of d3fb918)", () => {
     const campaign = (await createCampaign(db(), people.owner, people.tenant, { name: "Budget probe", type: "conference" }, key())).id;
     const results = await withTenant(db(), people.outsider, people.other, "workspace:read", async (tx) => {
       await tx.execute(sql`select set_config('app.give_public_slug', 'christmas-meals', true), set_config('app.give_public_tenant', ${people.tenant}, true),
-        set_config('app.give_public_fundraising', ${fund}, true), set_config('app.campaign_budget_tenant', ${people.tenant}, true)`);
+        set_config('app.give_public_fundraising', ${fund}, true), set_config('app.campaign_budget_tenant', ${people.tenant}, true),
+        set_config('app.campaign_invite_tenant', ${people.tenant}, true), set_config('app.access_tenant', ${people.tenant}, true),
+        set_config('app.connect_resolve_tenant', ${people.tenant}, true), set_config('app.connect_campaign', ${campaign}, true)`);
       const bio = (await tx.execute(sql`select public.bio_public_giving('no-such-handle') r`)).rows[0].r;
       const community = (await tx.execute(sql`select public.community_public('no-such-community', null) r`)).rows[0].r;
       const budget = (await tx.execute(sql`select public.campaign_budget_totals(${people.tenant}::uuid, ${campaign}::uuid) r`)).rows[0].r;
-      const flags = (await tx.execute(sql`select coalesce(current_setting('app.give_public_tenant', true), '') g, coalesce(current_setting('app.campaign_budget_tenant', true), '') c`)).rows[0];
+      const flags = (await tx.execute(sql`select coalesce(current_setting('app.give_public_tenant', true), '') g, coalesce(current_setting('app.campaign_budget_tenant', true), '') c,
+        coalesce(current_setting('app.campaign_invite_tenant', true), '') i, coalesce(current_setting('app.access_tenant', true), '') a,
+        coalesce(current_setting('app.connect_resolve_tenant', true), '') r, coalesce(current_setting('app.connect_campaign', true), '') k`)).rows[0];
       // The app role still reads no give rows with the flags set.
       const rows = Number((await tx.execute(sql`select (select count(*) from fundraising_pages where tenant_id = ${people.tenant}) + (select count(*) from fundraising_campaigns where tenant_id = ${people.tenant})
         + (select count(*) from giving_ledger_entries where tenant_id = ${people.tenant}) n`)).rows[0].n);
@@ -320,13 +324,14 @@ describe("entry resets of other owner definers (review of d3fb918)", () => {
     expect(JSON.stringify(results.community ?? null)).not.toContain("christmas");
     expect(results.budget).toEqual({ outcome: "not_found" });
     // The community definers reset (blank) their flags on the way out rather than restoring them; blank is the safe direction. Budget restores.
-    expect(results.flags.c).toBe(people.tenant);
+    expect(results.flags).toMatchObject({ c: people.tenant, i: people.tenant, a: people.tenant, r: people.tenant, k: campaign });
     expect(["", people.tenant]).toContain(results.flags.g);
     expect(results.rows).toBe(0);
     // campaign_budget_totals no longer relies on pg_settings (which lists no custom settings) and clears the give flags by name.
     const source = (await f.admin.query("select prosrc from pg_proc where proname = 'campaign_budget_totals'")).rows[0].prosrc as string;
     expect(source).not.toContain("pg_settings");
-    for (const flag of [...giveFlags, "app.campaign_budget_tenant", "app.community_definer_tenant", "app.giving_public_tenant"]) expect(source).toContain(`'${flag}'`);
+    for (const flag of [...giveFlags, "app.campaign_budget_tenant", "app.community_definer_tenant", "app.giving_public_tenant", "app.campaign_invite_tenant", "app.access_tenant",
+      "app.connect_resolve_tenant", "app.connect_campaign"]) expect(source).toContain(`'${flag}'`);
     // An owner still gets their own totals.
     const own = await withTenant(db(), people.owner, people.tenant, "campaigns:read", async (tx) =>
       (await tx.execute(sql`select public.campaign_budget_totals(${people.tenant}::uuid, ${campaign}::uuid) r`)).rows[0].r as { outcome: string });

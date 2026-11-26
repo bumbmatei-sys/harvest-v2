@@ -272,7 +272,8 @@ BEGIN
   FOREACH flag IN ARRAY ARRAY['app.campaign_budget_tenant','app.give_public_slug','app.give_public_tenant','app.give_public_fundraising','app.bio_handle','app.bio_tenant',
       'app.community_definer_tenant','app.community_resolve_slug','app.community_resolve_ids','app.community_resolve_invite','app.community_resolve_email',
       'app.discover_read','app.community_resolve_user','app.community_purge','app.community_email_worker','app.crm_forms_slug','app.giving_definer',
-      'app.giving_definer_tenant','app.giving_public_tenant','app.events_tenant'] LOOP
+      'app.giving_definer_tenant','app.giving_public_tenant','app.events_tenant','app.campaign_invite_tenant','app.access_tenant',
+      'app.connect_resolve_tenant','app.connect_campaign'] LOOP
     prior := prior || pg_catalog.jsonb_build_object(flag, coalesce(pg_catalog.current_setting(flag, true), ''));
     PERFORM pg_catalog.set_config(flag, '', true);
   END LOOP;

@@ -32,7 +32,10 @@ test("owner publishes the give page, a visitor sees it, and the amount hides whe
   await signIn(page);
   const tenant = (await (await post(page, "/api/workspaces", { name: "Grace Community Church", audience: "church" })).json()).tenantId as string;
   await page.context().setExtraHTTPHeaders({});
-  expect((await post(page, `/api/workspaces/${tenant}/giving/methods`, { kind: "paypal", label: "Give online", url: "https://paypal.me/gracechurch", enabled: true })).ok()).toBe(true);
+  for (const method of [{ kind: "paypal", label: "Give online", url: "https://paypal.me/gracechurch" }, { kind: "revolut", label: "Revolut", url: "https://revolut.me/gracechurch" },
+    { kind: "wise", label: "Wise", url: "https://wise.com/pay/me/gracechurch" },
+    { kind: "bank_transfer", label: "Bank transfer", iban: "GB82WEST12345698765432", bic: "WESTGB2L", accountHolder: "Grace Community Church" }])
+    expect((await post(page, `/api/workspaces/${tenant}/giving/methods`, { ...method, enabled: true })).ok()).toBe(true);
   const fund = await (await post(page, `/api/workspaces/${tenant}/fundraising`, { title: "Christmas outreach", goalCents: "500000", currency: "USD" }, { "idempotency-key": randomUUID() })).json();
   // Five synthetic supporters, so the total clears small-group suppression.
   for (const n of [1, 2, 3, 4, 5]) {
@@ -76,6 +79,9 @@ test("owner publishes the give page, a visitor sees it, and the amount hides whe
   await expect(guest.locator("[data-give-raised]")).toHaveText("$3,750.00");
   await expect(guest.getByText("75% of goal")).toBeVisible();
   await expect(guest.locator("[data-ways-to-give]")).toContainText("Give online");
+  // The same method rendering as link in bio: brand logos for platforms, the generic bank icon for bank transfer.
+  for (const kind of ["paypal", "revolut", "wise"]) await expect(guest.locator(`[data-ways-to-give] [data-giving-logo="${kind}"]`)).toBeVisible();
+  await expect(guest.locator('[data-ways-to-give] [data-giving-generic="bank_transfer"]')).toBeVisible();
   await expect(guest.locator("[data-giving-report]")).toBeVisible();
   await expect(guest.locator("[data-give-notice]")).toHaveText("Gifts go directly to Grace Community Church. Harvest doesn't process payments.");
   await expect(guest.locator("body")).not.toContainText("Synthetic Supporter");

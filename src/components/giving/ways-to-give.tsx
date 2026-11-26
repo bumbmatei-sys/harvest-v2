@@ -30,8 +30,9 @@ export function WaysToGive({ methods, title, ministryName, inert = false, headin
   const inertProps = inert ? { tabIndex: -1, onClick: (event: React.MouseEvent) => event.preventDefault() } : {};
   const detail = (key: string, label: string, value: string, copy: string, mono = false) => <div key={key} className="flex min-h-11 items-center gap-2">
     <dt className="w-28 shrink-0 text-xs text-muted-foreground">{label}</dt>
-    <dd className={mono ? "min-w-0 flex-1 break-all font-mono text-sm" : "min-w-0 flex-1 break-words text-sm"}>{value}</dd>
-    <CopyButton value={copy} label={t("copy", { item: label })} />
+    {/* The copy button sits inside the dd: a div in a dl may hold only dt and dd (axe definition-list). */}
+    <dd className="flex min-w-0 flex-1 items-center gap-2"><span className={mono ? "min-w-0 flex-1 break-all font-mono text-sm" : "min-w-0 flex-1 break-words text-sm"}>{value}</span>
+      <CopyButton value={copy} label={t("copy", { item: label })} /></dd>
   </div>;
   return <section className="rounded-xl border bg-card text-card-foreground" aria-label={title || t("title")} data-ways-to-give>
     <div className="flex items-center gap-2 border-b px-4 py-3"><HandCoins className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
