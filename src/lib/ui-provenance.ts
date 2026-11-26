@@ -288,6 +288,7 @@ export const adsKitApprovals = {
   ],
   files: [
     "src/components/ads/ads-table.tsx", "src/components/ads/ads-edit-panel.tsx", "src/components/ads/ad-steps.tsx", "src/components/ads/ad-preview.tsx",
+    "src/components/ads/ads-rules.tsx",
   ],
 } as const;
 

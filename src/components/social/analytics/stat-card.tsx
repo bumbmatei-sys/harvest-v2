@@ -15,9 +15,11 @@ import { type Delta, type Reading, type SeriesPoint } from "@/lib/social/analyti
 const chartConfig = { value: { label: "", color: "var(--chart-1)" } } satisfies ChartConfig;
 
 /** One headline number with its change against the previous period and a trend sparkline. A missing reading says "Unavailable"; it is never drawn as zero. */
-export function StatCard({ label, reading, delta, points, animate, index, signed = false, format, periodLabel, attention = false }: {
+export function StatCard({ label, reading, delta, points, animate, index, signed = false, format, periodLabel, attention = false, upIsGood = true }: {
   /** A figure that needs attention: red text on a faintly red card. */
-  attention?: boolean; label: string; reading: Reading; delta: Delta | null; points: readonly SeriesPoint[]; animate: boolean; index: number; signed?: boolean;
+  attention?: boolean;
+  /** False for a figure where a rise is bad news (a cost): the change badge then reads red when it goes up. */
+  upIsGood?: boolean; label: string; reading: Reading; delta: Delta | null; points: readonly SeriesPoint[]; animate: boolean; index: number; signed?: boolean;
   format: (value: number) => string; periodLabel: string;
 }) {
   const t = useTranslations("SocialAnalytics.cards");
@@ -33,7 +35,7 @@ export function StatCard({ label, reading, delta, points, animate, index, signed
         <CardTitle>{label}</CardTitle>
         {delta && change && (
           <CardAction>
-            <StatusBadge tone={delta.direction === "up" ? "success" : delta.direction === "down" ? "danger" : "neutral"} label={change}
+            <StatusBadge tone={delta.direction === "flat" ? "neutral" : (delta.direction === "up") === upIsGood ? "success" : "danger"} label={change}
               className="h-6 gap-1 text-xs" />
             <span className="sr-only">{t(delta.direction === "up" ? "increased" : delta.direction === "down" ? "decreased" : "unchanged", { period: periodLabel })}</span>
           </CardAction>
