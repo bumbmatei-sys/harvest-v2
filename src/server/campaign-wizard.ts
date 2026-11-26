@@ -8,6 +8,7 @@ import {
 } from "../lib/campaign-wizard";
 import { message } from "../i18n/messages";
 import { insertCampaign } from "./campaigns";
+import { insertWizardDraftLink } from "./connect-links";
 import { invitationsOf, revokeOutside } from "./campaign-wizard-invitations";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
@@ -175,6 +176,8 @@ export async function finishDraft(db: Database, userId: string, workspace: strin
       if (settled.status === "finished" && settled.campaignId === campaign.id) return { draft: await view(tx, settled), campaignId: campaign.id };
       throw stale();
     }
+    // Only the finish that won the update gets here, so a retry or a second tab never adds a second link.
+    if (current.outreach.qrResponse) await insertWizardDraftLink(tx, userId, tenantId, campaign.id);
     await audit(tx, tenantId, userId, "campaign.draft.finish", id, { campaign: campaign.id });
     return { draft: await view(tx, row as DraftRow), campaignId: campaign.id };
   });

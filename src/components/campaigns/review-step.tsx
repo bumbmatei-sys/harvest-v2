@@ -4,7 +4,7 @@ import { useFormatter, useTranslations } from "next-intl";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { departmentKeys, moduleKeys, type WizardStep } from "@/lib/campaign-wizard";
-import type { DraftView, WizardForm } from "@/lib/campaign-wizard-form";
+import { outreachKeys, type DraftView, type WizardForm } from "@/lib/campaign-wizard-form";
 import type { Issue } from "@/lib/campaign-wizard";
 import type { WizardPerson } from "@/components/campaigns/teams-step";
 
@@ -26,6 +26,7 @@ export function ReviewStep({ form, draft, people, issues, serverIssues, onEdit }
     [t("place.country"), form.place.country || notSet], [t("place.cityRegion"), form.place.cityRegion || notSet],
     [tr("dates"), form.place.startDate && form.place.endDate ? `${date(form.place.startDate)} – ${date(form.place.endDate)}` : notSet], [t("place.timeZone"), form.place.timeZone || notSet]];
   const departments = departmentKeys.filter((key) => form.leaders.departments.includes(key));
+  const connected = outreachKeys.filter((key) => form.connect[key]);
   const modules = moduleKeys.filter((key) => form.tools.modules.includes(key));
   const section = (id: WizardStep, title: string, body: React.ReactNode) => <section key={id} aria-labelledby={`review-${id}`} className="space-y-3 rounded-xl border bg-card p-4">
     <div className="flex items-center justify-between gap-3"><h3 id={`review-${id}`} className="text-sm font-semibold">{title}</h3>
@@ -53,7 +54,7 @@ export function ReviewStep({ form, draft, people, issues, serverIssues, onEdit }
     })}</ul> : <p className="text-sm text-muted-foreground">{tr("noDepartments")}</p>)}
     {section("tools", t("steps.tools"), modules.length ? <ul className="flex flex-wrap gap-2">{modules.map((key) => <li key={key} className="rounded-md border px-2 py-1 text-sm">{t(`modules.${key}`)}</li>)}</ul> : <p className="text-sm text-muted-foreground">{tr("noTools")}</p>)}
     <section aria-labelledby="review-budget" className="space-y-2 rounded-xl border bg-card p-4"><h3 id="review-budget" className="text-sm font-semibold">{t("steps.budget")}</h3><p className="text-sm text-muted-foreground">{tr("notAvailable")}</p></section>
-    <section aria-labelledby="review-connect" className="space-y-2 rounded-xl border bg-card p-4"><h3 id="review-connect" className="text-sm font-semibold">{t("steps.connect")}</h3><p className="text-sm text-muted-foreground">{tr("notAvailable")}</p></section>
+    {section("connect", t("steps.connect"), connected.length ? <ul className="flex flex-wrap gap-2">{connected.map((key) => <li key={key} className="rounded-md border px-2 py-1 text-sm">{t(`connect.options.${key}`)}</li>)}</ul> : <p className="text-sm text-muted-foreground">{tr("noConnect")}</p>)}
     <p className="text-sm text-muted-foreground">{tr("nothingPublished")}</p>
   </div>;
 }
