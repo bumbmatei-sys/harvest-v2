@@ -8,6 +8,9 @@ import { AccessError, can } from "@/server/permissions";
 import { uuidInput } from "@/lib/contact-input";
 import { AccessState } from "@/components/access-state";
 import { FundraisingDetail } from "@/components/fundraising/fundraising-detail";
+import { GivePageSection } from "@/components/fundraising/give-page-section";
+import { givePageEnabled } from "@/server/give-page-mode";
+import { getGivePage, givePagePreview } from "@/server/give-page";
 
 export async function generateMetadata() { return { title: (await getTranslations("Fundraising"))("metaTitle") }; }
 
@@ -23,6 +26,12 @@ export default async function FundraisingDetailPage({ params }: { params: Promis
   if (!row) notFound();
   const records = can(workspace.role, "giving:read_donors");
   const [pledges, gifts] = records ? await Promise.all([listPledges(db, session.user.id, tenantId, fundraisingId), listGifts(db, session.user.id, tenantId, fundraisingId)]) : [null, null];
-  return <FundraisingDetail tenantId={tenantId} row={row} pledges={pledges} gifts={gifts}
+  // The public page section (/give/<slug>): owners and admins, wherever the page module is on (never production).
+  const pageSettings = givePageEnabled() && can(workspace.role, "fundraising:publish")
+    ? await Promise.all([getGivePage(db, session.user.id, tenantId, fundraisingId), givePagePreview(db, session.user.id, tenantId, fundraisingId)]) : null;
+  const origin = (() => { try { return new URL(process.env.BETTER_AUTH_URL ?? "").origin; } catch { return ""; } })();
+  const publicPage = pageSettings ? <GivePageSection tenantId={tenantId} fundraisingId={row.id} title={row.title} status={row.status} origin={origin}
+    page={pageSettings[0]} preview={pageSettings[1]} /> : null;
+  return <FundraisingDetail tenantId={tenantId} row={row} pledges={pledges} gifts={gifts} publicPage={publicPage}
     can={{ manage: can(workspace.role, "fundraising:manage"), publish: can(workspace.role, "fundraising:publish"), record: can(workspace.role, "giving:record"), correct: can(workspace.role, "giving:correct") }} />;
 }

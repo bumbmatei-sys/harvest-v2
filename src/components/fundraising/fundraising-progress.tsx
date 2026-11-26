@@ -27,3 +27,26 @@ export function FundraisingProgress({ row, compact = false }: { row: Pick<Fundra
     </div> : <p className="text-sm text-muted-foreground">{t("raisedHidden")}</p>}
   </div>;
 }
+
+/**
+ * The public progress block of a give page: raised, goal and percentage as the database released them (live from gifts the ministry recorded, never pledges).
+ * `raisedCents` null means small-group suppression: the goal shows, the raised figure and the percentage do not. No donor names exist in this data.
+ */
+export function GiveProgress({ amount }: { amount: { currency: string; goalCents: string; raisedCents: string | null } }) {
+  const t = useTranslations("GivePage.public"), locale = useLocale();
+  const money = (cents: string) => formatCents(cents, amount.currency, locale);
+  const raised = amount.raisedCents, percent = raised === null ? null : progressPercent(raised, amount.goalCents);
+  return <div className="space-y-3" data-give-progress={raised === null ? "suppressed" : "shown"}>
+    {raised !== null && percent !== null ? <>
+      <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <p className="text-3xl font-semibold tabular-nums" data-give-raised>{money(raised)}</p>
+        <p className="text-sm text-muted-foreground tabular-nums">{t("ofGoal", { percent })}</p>
+      </div>
+      <Progress value={Math.min(percent, 100)} aria-label={t("progressLabel")} />
+      <p className="text-sm text-muted-foreground">{t("raisedOf", { raised: money(raised), goal: money(amount.goalCents) })}</p>
+    </> : <>
+      <div><p className="text-xs text-muted-foreground">{t("goal")}</p><p className="text-3xl font-semibold tabular-nums" data-give-goal>{money(amount.goalCents)}</p></div>
+      <p className="text-sm text-muted-foreground">{t("suppressed")}</p>
+    </>}
+  </div>;
+}

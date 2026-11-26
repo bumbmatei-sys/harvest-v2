@@ -25,7 +25,9 @@ const actionsFor = (status: FundraisingRow["status"]) =>
  * One fundraising campaign: header with status and lifecycle actions, the shared progress block, and (owners and admins) the Gifts and Pledges tables
  * with the record, correct, accept and cancel actions. Every mutation goes to the fundraising API and then refreshes the server data.
  */
-export function FundraisingDetail({ tenantId, row, pledges, gifts, can }: { tenantId: string; row: FundraisingRow; pledges: PledgeRow[] | null; gifts: GiftRow[] | null; can: Caps }) {
+export function FundraisingDetail({ tenantId, row, pledges, gifts, can, publicPage = null }: { tenantId: string; row: FundraisingRow; pledges: PledgeRow[] | null; gifts: GiftRow[] | null; can: Caps;
+  /** The "Public page" section (owners and admins), rendered by the page so its server data stays there. */
+  publicPage?: React.ReactNode }) {
   const t = useTranslations("Fundraising"), format = useFormatter(), locale = useLocale(), router = useRouter(), request = useRequest();
   const [error, setError] = useState("");
   const endpoint = `/api/workspaces/${tenantId}/fundraising/${row.id}`, refresh = () => router.refresh();
@@ -117,6 +119,7 @@ export function FundraisingDetail({ tenantId, row, pledges, gifts, can }: { tena
       </div>
     </div>
     <Card><CardContent className="space-y-3 pt-6"><FundraisingProgress row={row} /><p className="text-xs text-muted-foreground">{t("recordOnly")}</p></CardContent></Card>
+    {publicPage}
     {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
     {gifts && pledges && <Tabs defaultValue="gifts" className="min-w-0">
       <div className="flex flex-wrap items-center justify-between gap-3">
