@@ -11,16 +11,19 @@ const envelope = z.object({
   timeoutMs: z.number().int().min(1_000).max(15_000),
 }).strict();
 
-/** Single-use nonces, remembered for twice the acceptance window. A full cache refuses new requests rather than forgetting early. */
+/**
+ * Single-use nonces. Each is kept until the last moment its timestamp is still inside the acceptance window (timestamp + window,
+ * inclusive), so a nonce is never forgotten while its request could still be accepted. A full cache refuses new requests rather than
+ * forgetting early. Per process: the relay must run as a single instance (or share this store) before activation.
+ */
 export class NonceCache {
   private seen = new Map<string, number>();
   constructor(private readonly capacity = 10_000) {}
-  /** True when the nonce is new (and is now recorded); false when it was seen or the cache is full. */
-  claim(nonce: string, nowMs: number) {
-    const ttl = RELAY_WINDOW_SECONDS * 2_000;
-    for (const [key, at] of this.seen) { if (nowMs - at < ttl) break; this.seen.delete(key); }
+  /** True when the nonce is new (and is now recorded until `expiresAtMs`); false when it is still remembered or the cache is full. */
+  claim(nonce: string, expiresAtMs: number, nowMs: number) {
+    for (const [key, expires] of this.seen) if (nowMs > expires) this.seen.delete(key);
     if (this.seen.has(nonce) || this.seen.size >= this.capacity) return false;
-    this.seen.set(nonce, nowMs);
+    this.seen.set(nonce, expiresAtMs);
     return true;
   }
 }
@@ -69,7 +72,7 @@ export function createRelayHandler({ key, dispatch, now = () => Date.now(), nonc
     if (raw === null) return refuse(413);
     if (!(await verifyRelaySignature(key, timestamp, nonce, raw, signature))) return refuse(401);
     // Recorded only after the signature checks out, so an unauthenticated flood cannot fill the cache.
-    if (!nonces.claim(nonce, nowMs)) return refuse(409);
+    if (!nonces.claim(nonce, (Number(timestamp) + RELAY_WINDOW_SECONDS) * 1000, nowMs)) return refuse(409);
     let input: z.infer<typeof envelope>;
     try { input = envelope.parse(JSON.parse(raw)); } catch { return refuse(400); }
     const result = await dispatch(input);

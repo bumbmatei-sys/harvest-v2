@@ -16,7 +16,8 @@ CF-01 showed that the CRM webhook sender cannot run unchanged on Workers: `https
 
 ## Relay rules
 
-- 60-second window on the relay's clock; nonce recorded only after the signature verifies, kept for 120 s, cache bounded at 10,000 (full means refuse, never forget early).
+- 60-second window on the relay's clock; nonce recorded only after the signature verifies and kept until its timestamp leaves the window (timestamp + 60 s, inclusive), cache bounded at 10,000 (full means refuse, never forget early).
+- **Single instance:** the nonce cache is per process. Before activation the relay must run as exactly one instance, or the cache must move to a shared store; otherwise a captured request could be replayed once per instance within the window.
 - Key at least 32 characters, held only in the two services' secrets.
 - Request: `POST /v1/dispatch`, `application/json`, at most 160 KiB; envelope exactly `{ url, headers, body, timeoutMs }`, body ≤ 64 KiB, `timeoutMs` 1–15 s, headers limited to `content-type`, `user-agent` and `harvest-*` (no `authorization`, `host`, cookies), at most 12.
 - The relay re-runs the full destination check: https on 443, DNS names only, every resolved address public, connection pinned to the checked address, no redirects, 4 KiB response cap, bounded time. Nothing is logged about the request.

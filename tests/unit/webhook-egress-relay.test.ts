@@ -87,8 +87,21 @@ describe("webhook egress relay (CF-05)", () => {
     expect((await handler(await signed(body, undefined, undefined, "x".repeat(40)))).status).toBe(401);
     expect((await handler(await signed(body))).status).toBe(200);
     expect((await handler(await signed(body))).status).toBe(409);
-    // Expired entries make room again.
-    expect(nonces.claim(newRelayNonce(), now + RELAY_WINDOW_SECONDS * 2_000 + 1)).toBe(true);
+    // An entry is dropped only after its request could no longer be accepted, which makes room again.
+    const late = now + 2 * RELAY_WINDOW_SECONDS * 1_000 + 1;
+    expect(nonces.claim(newRelayNonce(), late + RELAY_WINDOW_SECONDS * 1_000, late)).toBe(true);
+  });
+  it("refuses a replay at the exact window boundary (timestamp at the future edge, replayed at the past edge)", async () => {
+    const t0 = Math.floor(now / 1000), ts = t0 + RELAY_WINDOW_SECONDS, nonce = newRelayNonce(), body = JSON.stringify(delivery);
+    const nonces = new NonceCache();
+    let clock = now;
+    const handler = createRelayHandler({ key, dispatch: async () => ({ ok: true, status: 200 }), now: () => clock, nonces });
+    expect((await handler(await signed(body, ts, nonce))).status).toBe(200);
+    // ts - (t0 + 120 s) = -60 s is still inside the window, so the nonce must still be remembered.
+    clock = now + 2 * RELAY_WINDOW_SECONDS * 1_000;
+    expect((await handler(await signed(body, ts, nonce))).status).toBe(409);
+    clock += 1_000;
+    expect((await handler(await signed(body, ts, nonce))).status).toBe(401);
   });
   it("client: any answer that is not a well-formed relay result is a retryable NETWORK failure; a slow relay is TIMEOUT", async () => {
     const answer = (response: Response) => relayDispatcher({ origin, key, fetcher: (async () => response) as typeof fetch });
