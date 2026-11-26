@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useTranslations } from "next-intl";
 import { CircleAlert, CircleCheck, TriangleAlert } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -13,22 +12,17 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { FormSection } from "@/components/form-section";
 import { useCrmRequest } from "@/components/crm/request";
 import type { InboxCheck } from "@/lib/email/inbox-check";
-import { inboxReady } from "@/lib/email/inbox-check";
 
 export type ListOption = { id: string; name: string; audienceId: string };
 export type SenderOption = { id: string; address: string; displayName?: string | null };
-type Estimate = { selected: number; eligible: number; skipped: Record<string, number> };
+export type Estimate = { selected: number; eligible: number; skipped: Record<string, number> };
+export type When = { mode: "now" | "later"; at: string };
 
-/** Send step: who (lists and saved groups with a live count), when, the summary and the inbox check. Sending itself is off, so the button stays disabled. */
-export function SendStep({ tenantId, lists, groups, senders, listIds, segmentIds, senderId, replyToId, onSelection, onIdentity, subject, checks }: {
-  tenantId: string; lists: ListOption[]; groups: ListOption[]; senders: SenderOption[]; listIds: string[]; segmentIds: string[]; senderId: string | null; replyToId: string | null;
-  onSelection: (listIds: string[], segmentIds: string[]) => void; onIdentity: (key: "senderId" | "replyToId", id: string | null) => void; subject: string; checks: InboxCheck[];
-}) {
-  const t = useTranslations("NewsletterCampaigns.send"), c = useTranslations("NewsletterCampaigns.checks"), request = useCrmRequest();
+/** Live recipient estimate for a selection (debounced). `null` while counting or with no list; "error" when the count failed. */
+export function useRecipientEstimate(tenantId: string, listIds: string[], segmentIds: string[]) {
+  const request = useCrmRequest();
   const [estimate, setEstimate] = useState<Estimate | null>(null), [state, setState] = useState<"idle" | "error">("idle");
-  const [when, setWhen] = useState<"now" | "later">("now"), [at, setAt] = useState("");
   const selection = JSON.stringify([listIds, segmentIds]);
-
   useEffect(() => {
     if (listIds.length === 0) return;
     let live = true;
@@ -40,6 +34,18 @@ export function SendStep({ tenantId, lists, groups, senders, listIds, segmentIds
     return () => { live = false; clearTimeout(timer); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selection, tenantId, request]);
+  return { estimate: listIds.length ? estimate : null, failed: state === "error" };
+}
+
+/** Send step: who (lists and saved groups with a live count), when (in the ministry's time zone), from and reply-to, and the inbox check. Review and scheduling follow in the Review step. */
+export function SendStep({ tenantId, lists, groups, senders, listIds, segmentIds, senderId, replyToId, onSelection, onIdentity, subject, checks, when, onWhen, timeZone, onReview }: {
+  tenantId: string; lists: ListOption[]; groups: ListOption[]; senders: SenderOption[]; listIds: string[]; segmentIds: string[]; senderId: string | null; replyToId: string | null;
+  onSelection: (listIds: string[], segmentIds: string[]) => void; onIdentity: (key: "senderId" | "replyToId", id: string | null) => void; subject: string; checks: InboxCheck[];
+  when: When; onWhen: (when: When) => void; timeZone: string; onReview: () => void;
+}) {
+  const t = useTranslations("NewsletterCampaigns.send"), c = useTranslations("NewsletterCampaigns.checks");
+  const { estimate, failed } = useRecipientEstimate(tenantId, listIds, segmentIds);
+  const state = failed ? "error" : "idle";
 
   const toggleList = (id: string, on: boolean) => {
     const next = on ? [...listIds, id] : listIds.filter((x) => x !== id);
@@ -50,7 +56,6 @@ export function SendStep({ tenantId, lists, groups, senders, listIds, segmentIds
   const skipped = estimate ? Object.values(estimate.skipped).reduce((n, v) => n + (v ?? 0), 0) : 0;
   const icon = (level: InboxCheck["level"]) => level === "pass" ? <CircleCheck className="size-4 text-primary" aria-hidden="true" /> : level === "warn" ? <TriangleAlert className="size-4 text-foreground" aria-hidden="true" /> : <CircleAlert className="size-4 text-destructive" aria-hidden="true" />;
   const senderHref = `/workspaces/${tenantId}/newsletter/sender`;
-  const ready = inboxReady(checks) && listIds.length > 0;
 
   return <div className="space-y-6" data-send-step>
     <FormSection title={t("who")}>
@@ -66,10 +71,11 @@ export function SendStep({ tenantId, lists, groups, senders, listIds, segmentIds
         <p className="mt-1 text-muted-foreground">{t("autoSkip")}</p></div>
     </FormSection>
     <FormSection title={t("when")}>
-      <RadioGroup value={when} onValueChange={(v) => setWhen(v as "now" | "later")} className="gap-1">
+      <RadioGroup value={when.mode} onValueChange={(v) => onWhen({ ...when, mode: v as "now" | "later" })} className="gap-1">
         <Label className="flex min-h-11 items-center gap-3 font-normal"><RadioGroupItem value="now" />{t("now")}</Label>
         <Label className="flex min-h-11 items-center gap-3 font-normal"><RadioGroupItem value="later" />{t("pickTime")}</Label></RadioGroup>
-      {when === "later" && <div className="space-y-2"><Label htmlFor="nl-at">{t("time")}</Label><Input id="nl-at" type="datetime-local" className="min-h-11 w-full sm:w-72" value={at} onChange={(e) => setAt(e.target.value)} /></div>}
+      {when.mode === "later" && <div className="space-y-2"><Label htmlFor="nl-at">{t("time")}</Label><Input id="nl-at" type="datetime-local" className="min-h-11 w-full sm:w-72" aria-describedby="nl-at-zone" value={when.at} onChange={(e) => onWhen({ ...when, at: e.target.value })} />
+        <p id="nl-at-zone" className="text-sm text-muted-foreground" data-time-zone>{t("zone", { zone: timeZone })}</p></div>}
     </FormSection>
     <FormSection title={t("summary")}>
       <dl className="grid gap-3 text-sm sm:grid-cols-2">
@@ -85,9 +91,8 @@ export function SendStep({ tenantId, lists, groups, senders, listIds, segmentIds
       <ul className="space-y-2" data-inbox-check>{checks.map((check) => { const text = c(`${check.id}.${check.level}` as "subject.pass", { count: check.count ?? 0 });
         return text ? <li key={check.id} className="flex items-start gap-2 text-sm" data-check={check.id} data-level={check.level}>{icon(check.level)}<span>{text}{check.id === "address" && check.level === "fail" && <> <Link href={senderHref} className="underline underline-offset-4" data-sender-link>{t("openSender")}</Link></>}</span></li> : null; })}</ul>
     </FormSection>
-    <div className="space-y-2">
-      <Button type="button" className="min-h-11" disabled data-send-button>{when === "later" ? t("schedule") : t("sendNow")}</Button>
-      <Alert><AlertDescription>{t("notReady")}{!ready ? ` ${t("fixFirst")}` : ""}</AlertDescription></Alert>
+    <div className="flex flex-wrap gap-2">
+      <Button type="button" className="min-h-11" onClick={onReview} data-review-button>{t("continue")}</Button>
     </div>
   </div>;
 }

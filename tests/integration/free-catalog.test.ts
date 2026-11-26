@@ -125,7 +125,7 @@ it("links the canonical published item to a same-ministry community without gran
   for (const user of [viewer, member]) await expect(getCatalogDraft(f.db, user, tenant, item.id)).resolves.not.toHaveProperty("communityIds");
   await expect(getCatalogContent(f.db, owner, input.slug)).rejects.toMatchObject(notFound);
   await expect(withTenant(f.db, viewer, tenant, "workspace:read", (tx) => tx.select().from(communityProductLinks))).resolves.toEqual([]);
-  await expect(f.admin.query("insert into community_product_links(tenant_id,community_id,item_id) values($1,$2,$3)",
+  await expect(f.admin.query("insert into community_product_links(tenant_id,community_id,item_id,kind) values($1,$2,$3,'course')",
     [tenant, foreignCircle, item.id])).rejects.toMatchObject({ code: "23503" });
   await expect(setCommunityProductLink(f.db, owner, tenant, circle, item.id, undefined, true)).resolves.toEqual({ linked: false });
   await expect(getCatalogDraft(f.db, owner, tenant, item.id)).resolves.toMatchObject({ communityIds: [] });

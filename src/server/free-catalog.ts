@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
 import { auditLogs, catalogItems, catalogLessons, catalogFiles, communities, communityProductLinks, files } from "../db/schema";
@@ -156,7 +156,7 @@ export function setCatalogState(db: Database, user: string, tenant: string, id: 
     if (input.version !== current.version || current.state === "archived") throw conflict();
     if (input.state === current.state) return { id, version: current.version, state: current.state };
     if (input.state === "published") {
-      if (current.visibility === "hidden") throw invalid();
+      // A hidden item may be published (founder, 26 Nov): it is then seen only through the community shelves that show it.
       if (current.kind === "course") {
         const [published] = await tx.select({ id: catalogLessons.id }).from(catalogLessons).where(and(
           eq(catalogLessons.tenantId, scope), eq(catalogLessons.itemId, id), eq(catalogLessons.published, true),
@@ -190,12 +190,57 @@ export function setCommunityProductLink(db: Database, user: string, tenant: stri
       if (!deleted.length) throw notFound();
     } else {
       if (current.state !== "published") throw notFound();
-      await tx.insert(communityProductLinks).values({ tenantId: scope, communityId, itemId: id, position })
+      await tx.insert(communityProductLinks).values({ tenantId: scope, communityId, itemId: id, position, kind: current.kind })
         .onConflictDoUpdate({ target: [communityProductLinks.tenantId, communityProductLinks.communityId, communityProductLinks.itemId], set: { position } });
     }
     await tx.insert(auditLogs).values({ tenantId: scope, actorId: user, action: remove ? "catalog.unlink" : "catalog.link",
       targetId: id, metadata: { communityId } });
     return { linked: !remove };
+  });
+}
+/**
+ * C13/C16 owner view: the ministry's published courses and downloads, each with whether this community shows it. Links are read under the catalogue
+ * staff policy, so a ministry member without catalogue rights sees every item unlinked (and cannot change it).
+ */
+export function listCommunityShelf(db: Database, user: string, tenant: string, communityId: string) {
+  return ministry(db, user, tenant, false, async (tx, scope) => {
+    if (!uuid.safeParse(communityId).success) throw notFound();
+    const [community] = await tx.select({ id: communities.id }).from(communities)
+      .where(and(eq(communities.tenantId, scope), eq(communities.id, communityId)));
+    if (!community) throw notFound();
+    const rows = await tx.select({ id: catalogItems.id, kind: catalogItems.kind, slug: catalogItems.slug, title: catalogItems.title, visibility: catalogItems.visibility,
+      position: communityProductLinks.position, featured: communityProductLinks.featured })
+      .from(catalogItems).leftJoin(communityProductLinks, and(eq(communityProductLinks.tenantId, catalogItems.tenantId),
+        eq(communityProductLinks.itemId, catalogItems.id), eq(communityProductLinks.communityId, communityId)))
+      .where(and(eq(catalogItems.tenantId, scope), eq(catalogItems.state, "published")))
+      .orderBy(sql`${communityProductLinks.position} is null`, desc(communityProductLinks.featured), asc(communityProductLinks.position), asc(catalogItems.title), asc(catalogItems.id)).limit(500);
+    return rows.map(({ position, featured, ...row }) => ({ ...row, linked: position !== null, position, featured: featured === true }));
+  });
+}
+const arrangement = z.object({ kind: z.enum(["course", "download"]), order: z.array(uuid).max(500).refine((ids) => new Set(ids).size === ids.length),
+  featured: uuid.nullable() }).strict();
+/**
+ * C13/C16 owner order of one shelf: `order` must name exactly the items this community shows of that kind; their positions become the list order.
+ * `featured` is one of them or null. At most one featured item per community and shelf (partial unique index); the old one is cleared first.
+ */
+export function arrangeCommunityShelf(db: Database, user: string, tenant: string, communityId: string, raw: unknown) {
+  return ministry(db, user, tenant, true, async (tx, scope) => {
+    if (!uuid.safeParse(communityId).success) throw notFound();
+    const input = arrangement.parse(raw);
+    const [community] = await tx.select({ id: communities.id }).from(communities)
+      .where(and(eq(communities.tenantId, scope), eq(communities.id, communityId)));
+    if (!community) throw notFound();
+    const shelf = and(eq(communityProductLinks.tenantId, scope), eq(communityProductLinks.communityId, communityId), eq(communityProductLinks.kind, input.kind));
+    const current = await tx.select({ id: communityProductLinks.itemId }).from(communityProductLinks).where(shelf).for("update");
+    const linked = new Set(current.map((row) => row.id));
+    if (input.order.length !== linked.size || input.order.some((id) => !linked.has(id))) throw conflict();
+    if (input.featured !== null && !linked.has(input.featured)) throw conflict();
+    await tx.update(communityProductLinks).set({ featured: false }).where(and(shelf, eq(communityProductLinks.featured, true)));
+    for (const [position, itemId] of input.order.entries())
+      await tx.update(communityProductLinks).set({ position, featured: itemId === input.featured }).where(and(shelf, eq(communityProductLinks.itemId, itemId)));
+    await tx.insert(auditLogs).values({ tenantId: scope, actorId: user, action: "catalog.arrange", targetId: communityId,
+      metadata: { kind: input.kind, featured: input.featured ?? "" } });
+    return { order: input.order, featured: input.featured };
   });
 }
 async function access<T>(db: Database, slug: string, action: "metadata" | "enrol" | "content" | "file", user?: string, file?: string) {
@@ -209,7 +254,8 @@ async function access<T>(db: Database, slug: string, action: "metadata" | "enrol
   if (data == null) throw notFound();
   return data;
 }
-export const getPublicCatalogItem = (db: Database, slug: string) => access<Metadata>(db, slug, "metadata");
+/** Published metadata by exact slug. A hidden item resolves only with the `user` of a community whose shelf shows it (0123). */
+export const getPublicCatalogItem = (db: Database, slug: string, user?: string) => access<Metadata>(db, slug, "metadata", user);
 export const enrolInCatalogItem = (db: Database, user: string, slug: string) => access<{ enrolled: true }>(db, slug, "enrol", user);
 export const getCatalogContent = (db: Database, user: string, slug: string) => access<Content>(db, slug, "content", user);
 export async function catalogDownload(db: Database, user: string, slug: string, fileId: string, storage: () => Pick<StorageAdapter, "presignDownload">) {

@@ -1,7 +1,7 @@
 /** Derived from bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): app/dashboard/(auth)/apps/calendar/components/week-view.tsx. Harvest changes: docs/ui-sources.md. */
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import {
   addHours,
   areIntervalsOverlapping,
@@ -20,8 +20,9 @@ import {
 } from "date-fns";
 
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { isMultiDayEvent } from "@/lib/calendar-days";
+import { gridScrollTop, isMultiDayEvent } from "@/lib/calendar-days";
 import { useCurrentTimeIndicator } from "@/hooks/use-current-time-indicator";
+import { useHydrated } from "@/hooks/use-hydrated";
 import type { CalendarEvent } from "@/lib/event-view";
 import { cn } from "@/lib/utils";
 
@@ -47,6 +48,17 @@ interface WeekViewProps {
   zoneLabel?: string;
   /** Posts that overlap in time collapse into the first one plus a "+N" button that opens a list of all of them. */
   overlap: { moreLabel: (count: number) => string; moreText: (count: number) => string; title: string; renderRow: (event: CalendarEvent) => React.ReactNode };
+  /** Hour (0-23) to show first, just below the sticky day header, by scrolling the nearest scrolling ancestor once the grid is in the page. Omit to leave the scroll alone. */
+  openAt?: number;
+}
+
+/** The nearest ancestor that scrolls vertically (the screen's grid region). */
+function scrollParent(node: HTMLElement | null): HTMLElement | null {
+  for (let current = node?.parentElement ?? null; current; current = current.parentElement) {
+    const { overflowY } = getComputedStyle(current);
+    if (overflowY === "auto" || overflowY === "scroll") return current;
+  }
+  return null;
 }
 
 interface PositionedEvent {
@@ -60,7 +72,11 @@ interface PositionedEvent {
   group?: CalendarEvent[];
 }
 
-export function WeekView({ currentDate, events, onEventSelect, renderChip, onDropAt, label, overlap, mode = "week", allDay, zoneLabel }: WeekViewProps) {
+export function WeekView({ currentDate, events, onEventSelect, renderChip, onDropAt, label, overlap, mode = "week", allDay, zoneLabel, openAt }: WeekViewProps) {
+  // "Today" and the viewer's GMT offset are only known in the browser (the server runs in its own zone): both apply after hydration, so the server
+  // render and the first client render are the same.
+  const hydrated = useHydrated();
+  const root = useRef<HTMLDivElement>(null), header = useRef<HTMLDivElement>(null);
   const days = useMemo(() => {
     if (mode === "day") return [startOfDay(currentDate)];
     const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
@@ -210,20 +226,29 @@ export function WeekView({ currentDate, events, onEventSelect, renderChip, onDro
   };
 
   const { currentTimePosition, currentTimeVisible } = useCurrentTimeIndicator(currentDate, mode);
+  const firstDay = days[0]?.getTime();
+  useEffect(() => {
+    // Client only, after layout: the grid opens at `openAt` with that hour's label fully below the sticky header.
+    if (openAt === undefined || !root.current) return;
+    const scroller = scrollParent(root.current), row = root.current.querySelector<HTMLElement>(`[data-hour-row="${openAt}"]`);
+    if (!scroller || !row) return;
+    const rowTop = row.getBoundingClientRect().top - scroller.getBoundingClientRect().top + scroller.scrollTop;
+    scroller.scrollTop = gridScrollTop(rowTop, header.current?.offsetHeight ?? 0);
+  }, [openAt, firstDay, mode]);
   const cols = mode === "day" ? "grid-cols-[3rem_1fr] sm:grid-cols-[4rem_1fr]" : "grid-cols-8";
   const spanning = allDay ? events.filter((event) => event.allDay || isMultiDayEvent(event)) : [];
 
   return (
-    <div data-slot="week-view" aria-label={label} role="group" className="flex h-full flex-col" style={{ "--week-cells-height": `${WeekCellsHeight}px` } as React.CSSProperties}>
-      <div className={cn("bg-card/80 border-border/70 sticky top-0 z-30 grid border-b backdrop-blur-md", cols)}>
+    <div ref={root} data-slot="week-view" aria-label={label} role="group" className="flex h-full flex-col" style={{ "--week-cells-height": `${WeekCellsHeight}px` } as React.CSSProperties}>
+      <div ref={header} className={cn("bg-card/80 border-border/70 sticky top-0 z-30 grid border-b backdrop-blur-md", cols)}>
         <div className="text-muted-foreground py-2 text-center text-sm">
-          <span className="max-[479px]:sr-only">{zoneLabel ?? format(new Date(), "O")}</span>
+          <span className="max-[479px]:sr-only">{zoneLabel ?? (hydrated ? format(new Date(), "O") : "")}</span>
         </div>
         {days.map((day) => (
           <div
             key={day.toString()}
             className="data-today:text-foreground text-muted-foreground py-2 text-center text-sm data-today:font-medium"
-            data-today={isToday(day) || undefined}>
+            data-today={(hydrated && isToday(day)) || undefined}>
             <span className="sm:hidden" aria-hidden="true">
               {format(day, "E")[0]} {format(day, "d")}
             </span>
@@ -244,6 +269,7 @@ export function WeekView({ currentDate, events, onEventSelect, renderChip, onDro
           {hours.map((hour, index) => (
             <div
               key={hour.toString()}
+              data-hour-row={index}
               className="border-border/70 relative min-h-[var(--week-cells-height)] border-b last:border-b-0">
               {index > 0 && (
                 <span className="bg-card text-muted-foreground absolute -top-3 left-0 flex h-6 w-16 max-w-full items-center justify-end pe-2 text-[10px] sm:pe-4 sm:text-xs">
@@ -258,7 +284,7 @@ export function WeekView({ currentDate, events, onEventSelect, renderChip, onDro
           <div
             key={day.toString()}
             className="border-border/70 relative grid auto-cols-fr border-r last:border-r-0"
-            data-today={isToday(day) || undefined}>
+            data-today={(hydrated && isToday(day)) || undefined}>
             {/* Positioned events */}
             {(processedDayEvents[dayIndex] ?? []).map((positionedEvent) => (
               <div
@@ -309,7 +335,7 @@ export function WeekView({ currentDate, events, onEventSelect, renderChip, onDro
             ))}
 
             {/* Current time indicator - only show for today's column */}
-            {currentTimeVisible && isToday(day) && (
+            {currentTimeVisible && hydrated && isToday(day) && (
               <div
                 className="pointer-events-none absolute right-0 left-0 z-20"
                 style={{ top: `${currentTimePosition}%` }}>

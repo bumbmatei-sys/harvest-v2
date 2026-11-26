@@ -111,7 +111,7 @@ export function CatalogEditor({ tenantId, kind, initial, communities, files: ini
   }
 
   const steps = editorSteps.map((id) => ({ id, label: label(id), disabled: id === "publish" && !item,
-    done: id === "details" ? checklist[0].done && checklist[1].done : id === "content" ? checklist[3].done : id === "access" ? form.visibility !== "hidden" : state === "published",
+    done: id === "details" ? checklist[0].done && checklist[1].done : id === "content" ? checklist[2].done : id === "access" ? true : state === "published",
     attention: attempted && ((id === "details" && (found.includes("title") || found.includes("address"))) || (id === "content" && found.includes("lessonTitle"))) }));
   const sidebar = { typeLabel: shared(`kinds.${kind}`), status: { kind: state === "published" ? "live" as const : "draft" as const, label: shared(`states.${state}`) }, back: { href: listHref, label: listLabel },
     openPage: state === "published" && item ? { href: publicPath(kind, form.slug), label: t("openPage") } : undefined, dirty };
