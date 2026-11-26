@@ -10,8 +10,10 @@ import { backoffMs } from "./jobs/primitives";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
 import {
-  endpointSecret, httpsTransport, parseDestination, resolveDestination, signDelivery, systemResolver, TransportError, type Resolver, type Transport,
+  endpointSecret, httpsTransport, parseDestination, signDelivery, systemResolver, type Resolver, type Transport,
 } from "./webhooks/destination";
+import type { Dispatcher } from "./webhooks/dispatch";
+import { directDispatcher } from "./webhooks/direct-dispatcher";
 
 /**
  * CRM-08 outbound webhooks: the smallest delivery foundation for CRM events (no general integration
@@ -146,7 +148,8 @@ export async function fanOutWebhookDeliveries(tx: Transaction, event: CrmEventEn
 
 type Claimed = { id: string; token: string; url: string; endpointId: string; secretVersion: number; body: string; eventId: string; eventType: string; attempts: number; maxAttempts: number };
 type Outcome = { ok: true; status: number } | { ok: false; error: "TIMEOUT" | "NETWORK" | "BLOCKED_DESTINATION" | "INVALID_DESTINATION" | "HTTP_STATUS" | "REDIRECT"; status?: number; permanent?: boolean };
-export type DeliveryOptions = { transport?: Transport; resolve?: Resolver; signingKey?: string | null; enabled?: boolean; limit?: number; now?: () => Date };
+/** `dispatch` replaces the default Node path (resolve + pinned transport); a Worker passes the egress relay client (relay-client.ts). */
+export type DeliveryOptions = { transport?: Transport; resolve?: Resolver; dispatch?: Dispatcher; signingKey?: string | null; enabled?: boolean; limit?: number; now?: () => Date };
 
 /**
  * One delivery pass (operator-run, like the job drain). Deliveries go ONE AT A TIME: claim one in a short
@@ -160,14 +163,14 @@ export async function runWebhookDeliveries(db: Database, userId: string, workspa
   // Membership and permission are checked even when sending is off.
   const tenantId = await withTenant(db, userId, hint, "jobs:operate", async (_tx, tenant) => tenant);
   if (!enabled || !signingKey) return { disabled: true as const, attempted: 0, succeeded: 0, retrying: 0, dead: 0 };
-  const now = options.now ?? (() => new Date()), transport = options.transport ?? httpsTransport, resolve = options.resolve ?? systemResolver;
+  const now = options.now ?? (() => new Date()), dispatch = options.dispatch ?? directDispatcher(options.resolve ?? systemResolver, options.transport ?? httpsTransport);
   const summary = { disabled: false as const, attempted: 0, succeeded: 0, retrying: 0, dead: 0 };
   for (let i = 0; i < limit; i++) {
     const item = await withTenant(db, userId, hint, "jobs:operate", (tx) => claimNext(tx, tenantId));
     if (item === "none") break;
     if (item === "skipped") continue;
     summary.attempted++;
-    const outcome = await attempt(item, tenantId, signingKey, transport, resolve, now);
+    const outcome = await attempt(item, tenantId, signingKey, dispatch, now);
     const status = await withTenant(db, userId, hint, "jobs:operate", async (tx) => {
       const values = outcome.ok
         ? { status: "succeeded" as const, lastStatusCode: outcome.status, lastError: null, deliveredAt: sql`now()`, lockedAt: null, lockToken: null, updatedAt: sql`now()` }
@@ -217,22 +220,18 @@ function failure(attempts: number, maxAttempts: number, error: NonNullable<typeo
     nextAttemptAt: dead ? sql`now()` : sql`now() + ${backoffMs(Math.max(1, attempts))} * interval '1 millisecond'` };
 }
 
-async function attempt(item: Claimed, tenantId: string, signingKey: string, transport: Transport, resolve: Resolver, now: () => Date): Promise<Outcome> {
-  // Re-validated on every attempt: DNS may have changed since the endpoint was saved.
-  const target = await resolveDestination(item.url, resolve);
-  if (!target.ok) return { ok: false, error: target.error, permanent: target.error !== "NETWORK" };
+async function attempt(item: Claimed, tenantId: string, signingKey: string, dispatch: Dispatcher, now: () => Date): Promise<Outcome> {
   const timestamp = Math.floor(now().getTime() / 1000).toString();
   const secret = endpointSecret(signingKey, tenantId, item.endpointId, item.secretVersion);
-  try {
-    const { status } = await transport({ url: target.url, address: target.address, family: target.family, body: item.body, timeoutMs: DELIVERY_TIMEOUT_MS, headers: {
-      "content-type": "application/json", "user-agent": "Harvest-Webhooks/1",
-      "harvest-event-id": item.eventId, "harvest-event-type": item.eventType, "harvest-timestamp": timestamp,
-      "harvest-signature": signDelivery(secret, item.eventId, timestamp, item.body),
-    } });
-    if (status >= 200 && status < 300) return { ok: true, status };
-    if (status >= 300 && status < 400) return { ok: false, error: "REDIRECT", status };
-    return { ok: false, error: "HTTP_STATUS", status: status >= 100 && status <= 599 ? status : undefined };
-  } catch (error) {
-    return { ok: false, error: error instanceof TransportError ? error.code : "NETWORK" };
-  }
+  // The destination is re-validated inside every dispatch: DNS may have changed since the endpoint was saved.
+  const result = await dispatch({ url: item.url, body: item.body, timeoutMs: DELIVERY_TIMEOUT_MS, headers: {
+    "content-type": "application/json", "user-agent": "Harvest-Webhooks/1",
+    "harvest-event-id": item.eventId, "harvest-event-type": item.eventType, "harvest-timestamp": timestamp,
+    "harvest-signature": signDelivery(secret, item.eventId, timestamp, item.body),
+  } });
+  if (!result.ok) return { ok: false, error: result.error, permanent: result.error === "BLOCKED_DESTINATION" || result.error === "INVALID_DESTINATION" };
+  const { status } = result;
+  if (status >= 200 && status < 300) return { ok: true, status };
+  if (status >= 300 && status < 400) return { ok: false, error: "REDIRECT", status };
+  return { ok: false, error: "HTTP_STATUS", status: status >= 100 && status <= 599 ? status : undefined };
 }
