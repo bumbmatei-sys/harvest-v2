@@ -3,7 +3,9 @@
 # dependencies), links OpenNext so the copied config resolves it, builds, and applies the checked cookie patch.
 set -euo pipefail
 cd "$(dirname "$0")/.."
-npm ci --prefix cloudflare/tooling --no-audit --no-fund
+# Install scripts are off for every tooling package; only esbuild and workerd (which fetch their platform binary) are rebuilt.
+npm ci --prefix cloudflare/tooling --no-audit --no-fund --ignore-scripts
+npm rebuild --prefix cloudflare/tooling esbuild workerd
 mkdir -p node_modules/@opennextjs
 ln -sfn ../../cloudflare/tooling/node_modules/@opennextjs/cloudflare node_modules/@opennextjs/cloudflare
 cp cloudflare/open-next.config.ts.in open-next.config.ts
