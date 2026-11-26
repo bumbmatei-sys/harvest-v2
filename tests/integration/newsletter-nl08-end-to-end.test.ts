@@ -224,6 +224,14 @@ it("reschedules only a scheduled, unstarted campaign of the caller's ministry, i
     await tx.execute(sql`select set_config('app.nl_reschedule', ${people.tenant + ":" + campaign.id}, true)`);
     await tx.execute(sql`update public.newsletter_campaigns set scheduled_at=${later.at}::timestamptz, version=version+1 where id=${campaign.id}::uuid`);
   })).rejects.toHaveProperty("cause.code", "23514");
+  // Nor can any other role that sets the marker: only the owner of the reschedule definer passes the guard branch.
+  const other = await fixture.admin.connect();
+  try {
+    await other.query("begin");
+    await other.query("select set_config('app.nl_reschedule',$1,true)", [people.tenant + ":" + campaign.id]);
+    await expect(other.query("update public.newsletter_campaigns set scheduled_at=$1::timestamptz, version=version+1 where id=$2::uuid", [later.at, campaign.id]))
+      .rejects.toHaveProperty("code", "23514");
+  } finally { await other.query("rollback"); other.release(); }
   // The definer refuses a direct call for another ministry.
   await expect(withTenant(fixture.db, people.owner, people.tenant, "newsletter:delivery", (tx) =>
     tx.execute(sql`select public.newsletter_reschedule_campaign(${people.other}::uuid, ${campaign.id}::uuid, ${queued.version}, ${later.at}::timestamptz, 'UTC')`))).rejects.toHaveProperty("cause.code", "42501");
@@ -253,5 +261,28 @@ it("refuses to move a campaign once the worker has claimed or attempted a delive
   await fixture.admin.query("update newsletter_deliveries set lease=null, lease_until=null, attempted_at=now() where campaign_id=$1 and lease is not null", [campaign.id]);
   await expect(rescheduleCampaign(fixture.db, people.owner, people.tenant, campaign.id, { version: queued.version, schedule: inSeconds(7200) }))
     .rejects.toMatchObject({ status: 409, details: { code: "NOT_RESCHEDULABLE" } });
+  expect((await getCampaign(fixture.db, people.owner, people.tenant, campaign.id)).version).toBe(queued.version);
+});
+
+it("does not move deliveries that a concurrent worker leases while the reschedule waits", async () => {
+  const campaign = await draft("Concurrent");
+  const queued = await schedule(campaign.id, campaign.version, inSeconds(3600));
+  const before = await deliveries(campaign.id);
+  // A worker transaction holds one queued delivery (as the claim's FOR UPDATE does) and leases it after the reschedule has started.
+  const worker = await fixture.admin.connect();
+  try {
+    await worker.query("begin");
+    const { rows: [held] } = await worker.query("select id from newsletter_deliveries where campaign_id=$1 and state='queued' limit 1 for update", [campaign.id]);
+    const pending = rescheduleCampaign(fixture.db, people.owner, people.tenant, campaign.id, { version: queued.version, schedule: inSeconds(7200) });
+    const settled = pending.then(() => "resolved", () => "rejected");
+    await new Promise((resolve) => setTimeout(resolve, 750));
+    // Still waiting on the lock: the definer locks every delivery before it checks them.
+    expect(await Promise.race([settled, new Promise((resolve) => setTimeout(() => resolve("waiting"), 50))])).toBe("waiting");
+    await worker.query("update newsletter_deliveries set lease=gen_random_uuid(), lease_until=now()+interval '1 minute' where id=$1", [held.id]);
+    await worker.query("commit");
+    await expect(pending).rejects.toMatchObject({ status: 409, details: { code: "NOT_RESCHEDULABLE" } });
+  } finally { worker.release(); }
+  // Nothing moved: every delivery keeps its time and the campaign keeps its version.
+  expect((await deliveries(campaign.id)).map((row) => new Date(row.next_check_at).toISOString())).toEqual(before.map((row) => new Date(row.next_check_at).toISOString()));
   expect((await getCampaign(fixture.db, people.owner, people.tenant, campaign.id)).version).toBe(queued.version);
 });
