@@ -41,6 +41,8 @@ export type Permission = "workspace:read" | "members:write" | "roles:write" | "c
   | "docs:read" | "docs:write" | "docs:manage"
   // Link in bio: owners and admins only (the page, its clicks and its messages).
   | "bio:manage"
+  // Ways to give (CW-10): the ministry's own giving accounts. Owners and admins (a collaborator with Giving at manage).
+  | "giving:manage"
   | "newsletter:read" | "newsletter:manage" | "newsletter:campaigns" | "newsletter:delivery" | "newsletter:analytics";
 function legacyCan(role: string, permission: Permission): boolean {
   if (permission === "communities:read" || permission === "workspace:read" || permission === "contacts:read" || permission === "companies:read" || permission === "opportunities:read" || permission === "tasks:read" || permission === "notes:read" || permission === "campaigns:read" || permission === "docs:read" || permission === "catalog:read") return roleIds.includes(role as Role);

@@ -249,7 +249,8 @@
     "newsletterSender": "Sender",
     "websiteBuilder": "Website builder",
     "ministryPage": "Ministry page",
-    "newsletterAutomations": "Automations"
+    "newsletterAutomations": "Automations",
+    "waysToGive": "Ways to give"
   },
   "ComponentsAppearanceForm": {
     "couldNotSaveAppearanceTryAgain": "Could not save appearance. Try again.",
@@ -778,7 +779,8 @@
     "linkInBioNotReady": "Add your name and at least one visible link or block, and fix any highlighted field.",
     "linkInBioBlockUnavailable": "One of the blocks points to something that is not available.",
     "newsletterImageUnavailable": "An image in this email is not available. Choose it again.",
-    "newsletterImageSuggestionUnavailable": "A thumbnail suggestion is not available."
+    "newsletterImageSuggestionUnavailable": "A thumbnail suggestion is not available.",
+    "waysToGiveLimit": "This ministry already has the most ways to give allowed."
   },
   "LibEnv": {
     "missingRequiredEnvironmentVariableValue": "Missing required environment variable: {name}"
@@ -7936,7 +7938,10 @@
       "signupPlaceholder": "The sign-up form appears here.",
       "already": "Already added",
       "hiddenBadge": "Hidden",
-      "messageTab": "Partnership"
+      "messageTab": "Partnership",
+      "giving": "Ways to give",
+      "givingCount": "{count, plural, =0 {No methods shown yet.} one {# method shown.} other {# methods shown.}}",
+      "givingManage": "Manage ways to give"
     },
     "design": {
       "heading": "Design",
@@ -9550,5 +9555,97 @@
       "remove": "Remove {name}",
       "aMember": "A ministry member"
     }
+  },
+  "WaysToGive": {
+    "group": "Giving",
+    "title": "Ways to give",
+    "description": "Your ministry's own giving accounts, shown on your public pages.",
+    "add": "Add method",
+    "addTitle": "Add a way to give",
+    "editTitle": "Edit way to give",
+    "limit": "Up to {max} methods.",
+    "emptyTitle": "No ways to give yet",
+    "emptyDescription": "Add the accounts people can give to, such as a payment link or bank details.",
+    "shown": "Shown",
+    "hidden": "Hidden",
+    "showLabel": "Show {label} on public pages",
+    "moveUp": "Move {label} up",
+    "moveDown": "Move {label} down",
+    "edit": "Edit {label}",
+    "remove": "Remove {label}",
+    "removeTitle": "Remove this way to give?",
+    "removeBody": "{label} will no longer appear on your public pages.",
+    "removeConfirm": "Remove",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving…",
+    "preview": "What visitors see",
+    "previewEmpty": "Nothing is shown yet.",
+    "searchKinds": "Search types",
+    "noKinds": "No matching type.",
+    "kinds": {
+      "paypal": "PayPal",
+      "wise": "Wise",
+      "venmo": "Venmo",
+      "zelle": "Zelle",
+      "revolut": "Revolut",
+      "cash_app": "Cash App",
+      "bank_transfer": "Bank transfer",
+      "other": "Other link"
+    },
+    "fields": {
+      "kind": "Type",
+      "label": "Name shown",
+      "url": "Link (https)",
+      "iban": "IBAN",
+      "bic": "BIC (optional)",
+      "accountHolder": "Account holder",
+      "note": "Reference note (optional)",
+      "enabled": "Show on public pages"
+    },
+    "handleLabels": {
+      "venmo": "Venmo username",
+      "zelle": "Zelle email or phone",
+      "revolut": "Revolut username",
+      "cash_app": "Cash App $cashtag",
+      "paypal": "Handle",
+      "wise": "Handle",
+      "bank_transfer": "Handle",
+      "other": "Handle"
+    },
+    "issues": {
+      "required": "Required.",
+      "url": "Enter a secure link (https) for this type.",
+      "handle": "Enter a valid username, email or phone.",
+      "iban": "This IBAN is not valid.",
+      "bic": "This BIC is not valid.",
+      "one_of": "Use a link or a username, not both.",
+      "not_allowed": "Not used for this type.",
+      "invalid": "Use plain text only."
+    },
+    "public": {
+      "title": "Ways to give",
+      "give": "Give",
+      "newTab": "(opens in a new tab)",
+      "copy": "Copy {item}",
+      "handle": "Username",
+      "iban": "IBAN",
+      "bic": "BIC",
+      "accountHolder": "Account holder",
+      "reference": "Reference",
+      "notice": "Gifts go directly to {ministry}.",
+      "theMinistry": "the ministry",
+      "kinds": {
+        "paypal": "PayPal",
+        "wise": "Wise",
+        "venmo": "Venmo",
+        "zelle": "Zelle",
+        "revolut": "Revolut",
+        "cash_app": "Cash App",
+        "bank_transfer": "Bank transfer",
+        "other": "Other link"
+      }
+    },
+    "rowSummary": "{kind} · {detail}"
   }
 }

@@ -1,4 +1,4 @@
-import { Zap, BadgeDollarSign, ChartColumn, BookOpen, Bot, Briefcase, Building, Calendar, CalendarCheck, CalendarClock, CalendarDays, ClipboardCheck, ClipboardList, ClipboardPen, Cloud, Compass, Contact, ContactRound, FileText, FileUp, Flag, Gift, Globe, GraduationCap, Handshake, HandCoins, HeartHandshake, Kanban, LayoutDashboard, LayoutTemplate, Link2, ListChecks, Mail, MailPlus, MessageCircleReply, MessageSquareText, MessagesSquare, Newspaper, Package, Palette, PiggyBank, Podcast, QrCode, Radio, ScanQrCode, Send, Settings, Share2, Sheet, SlidersHorizontal, Sparkles, Target, TicketPercent, UserCheck, UserCog, UserRoundCheck, Users, UsersRound, Wallet, Church, Landmark, ChartLine, ChartNoAxesCombined, Workflow, TextCursorInput, ShieldCheck, type LucideIcon } from "lucide-react";
+import { Zap, BadgeDollarSign, Banknote, ChartColumn, BookOpen, Bot, Briefcase, Building, Calendar, CalendarCheck, CalendarClock, CalendarDays, ClipboardCheck, ClipboardList, ClipboardPen, Cloud, Compass, Contact, ContactRound, FileText, FileUp, Flag, Gift, Globe, GraduationCap, Handshake, HandCoins, HeartHandshake, Kanban, LayoutDashboard, LayoutTemplate, Link2, ListChecks, Mail, MailPlus, MessageCircleReply, MessageSquareText, MessagesSquare, Newspaper, Package, Palette, PiggyBank, Podcast, QrCode, Radio, ScanQrCode, Send, Settings, Share2, Sheet, SlidersHorizontal, Sparkles, Target, TicketPercent, UserCheck, UserCog, UserRoundCheck, Users, UsersRound, Wallet, Church, Landmark, ChartLine, ChartNoAxesCombined, Workflow, TextCursorInput, ShieldCheck, type LucideIcon } from "lucide-react";
 import type { Audience } from "./audience";
 import { can, type Permission } from "./permissions";
 import { canSeeArea, type AccessArea } from "./access-areas";
@@ -8,7 +8,7 @@ export type NavLabelKey = "communities" | "crm" | "workspace" | "settings" | "pe
   | "office" | "forms" | "mail" | "calendar" | "documents" | "spreadsheets" | "giving" | "volunteers" | "livestream" | "churchProfile"
   | "connect" | "qrAndLinks" | "responses" | "events"
   | "publishing" | "community" | "commerce" | "chat" | "composer" | "planner" | "socialAccounts" | "socialAnalytics" | "inbox" | "autoDm" | "articles" | "website" | "linkInBio" | "newsletter" | "discover" | "products" | "assistant"
-  | "overview" | "donations" | "fundraising" | "pledges" | "donors" | "funds" | "givingPage" | "ads" | "live" | "courses" | "coaching" | "coupons" | "newsletterCampaigns" | "newsletterAutomations" | "audience" | "signupForms" | "newsletterAnalytics" | "newsletterSender" | "websiteBuilder" | "ministryPage"
+  | "overview" | "donations" | "fundraising" | "pledges" | "donors" | "funds" | "givingPage" | "waysToGive" | "ads" | "live" | "courses" | "coaching" | "coupons" | "newsletterCampaigns" | "newsletterAutomations" | "audience" | "signupForms" | "newsletterAnalytics" | "newsletterSender" | "websiteBuilder" | "ministryPage"
   | "modeOperations" | "modePublic" | "modeAssistant";
 /** Shell modes (three-mode shell spec, 16 Nov 2026). The names are final. */
 export type NavMode = "operations" | "public" | "assistant";
@@ -53,7 +53,7 @@ export type NavEntry = {
    */
   exitTo?: string;
 };
-export type NavFeature = "communities" | "catalog" | "events" | "social" | "office" | "newsletter" | "newsletterAutomations" | "docs" | "linkInBio" | "discover";
+export type NavFeature = "communities" | "catalog" | "events" | "social" | "office" | "newsletter" | "newsletterAutomations" | "docs" | "linkInBio" | "discover" | "giving";
 export type NavItem = { id: string; label: NavLabelKey; icon: LucideIcon; href: string; active: boolean };
 /** A `pinned` group is rendered without a header, above the other groups (Discover). */
 export type NavGroup = { id: NavGroupId; label: NavLabelKey; icon?: LucideIcon; pinned?: boolean; items: NavItem[] };
@@ -117,6 +117,8 @@ export const navEntries: readonly NavEntry[] = [
   { id: "donors", group: "giving", mode: "operations", status: "planned", label: "donors", icon: UserRoundCheck, path: "/giving/donors", match: under("/giving/donors") },
   { id: "funds", group: "giving", mode: "operations", status: "planned", label: "funds", icon: Wallet, path: "/giving/funds", match: under("/giving/funds") },
   { id: "givingPage", group: "giving", mode: "operations", status: "planned", label: "givingPage", icon: BadgeDollarSign, path: "/giving/page", match: under("/giving/page") },
+  // Ways to give (CW-10): the ministry's own giving accounts. Owners and admins; hidden unless the server reports Giving open (never in production).
+  { id: "waysToGive", group: "giving", mode: "operations", label: "waysToGive", icon: Banknote, path: "/giving/ways-to-give", match: under("/giving/ways-to-give"), permission: "giving:manage", feature: "giving" },
   // Public > Discover (pinned above the groups) and Social media. Planner opens the page whose own tabs are Compose, Calendar and Queue.
   // Owners and admins; hidden unless the server reports unified Discover open (non-production gate, never in production).
   { id: "discover", group: "discover", mode: "public", label: "discover", icon: Compass, path: "/discover/manage", match: under("/discover/manage"), permission: "catalog:manage", feature: "discover" },

@@ -3498,3 +3498,27 @@ export const workspaceInvitations = pgTable("workspace_invitations", {
   check("workspace_invitation_token", sql`${t.tokenHash} ~ '^[a-f0-9]{64}$'`),
   check("workspace_invitation_status", sql`${t.status} in ('pending','accepted','revoked') and ((${t.status} = 'pending') = (${t.respondedAt} is null)) and ((${t.status} = 'accepted') = (${t.acceptedBy} is not null))`),
   check("workspace_invitation_expiry", sql`${t.expiresAt} = ${t.createdAt} + interval '14 days'`)]);
+
+// Ways to give (CW-10, migration 0119): the ministry's own giving accounts, in order. Owners and admins (and a collaborator with Giving at manage) manage them through
+// the app role; visitors see only enabled methods, through public.giving_public_methods and public.bio_public_giving. Harvest processes no payment.
+export const givingMethods = pgTable("giving_methods", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
+  position: integer("position").notNull(),
+  kind: text("kind").$type<import("../lib/ways-to-give").GivingKind>().notNull(), label: text("label").notNull(),
+  url: text("url"), handle: text("handle"), iban: text("iban"), bic: text("bic"), accountHolder: text("account_holder"), note: text("note"),
+  enabled: boolean("enabled").notNull().default(false), version: integer("version").notNull().default(1),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(), updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }), index("giving_methods_order_idx").on(t.tenantId, t.position, t.id),
+  check("giving_methods_kind", sql`${t.kind} in ('paypal','wise','venmo','zelle','revolut','cash_app','bank_transfer','other')`),
+  check("giving_methods_label", sql`length(btrim(${t.label})) between 1 and 60 and ${t.label} = btrim(${t.label})`),
+  check("giving_methods_position", sql`${t.position} between 0 and 1000`),
+  check("giving_methods_url", sql`${t.url} is null or (${t.url} ~ '^https://[^/@:\\s]+(/[^\\s]*)?$' and length(${t.url}) <= 2048)`),
+  check("giving_methods_lengths", sql`coalesce(length(${t.handle}), 0) <= 64 and coalesce(length(${t.accountHolder}), 0) <= 100 and coalesce(length(${t.note}), 0) <= 140`),
+  check("giving_methods_iban", sql`${t.iban} is null or public.giving_iban_valid(${t.iban})`),
+  check("giving_methods_bic", sql`${t.bic} is null or ${t.bic} ~ '^[A-Z]{4}[A-Z]{2}[A-Z0-9]{2}([A-Z0-9]{3})?$'`),
+  check("giving_methods_shape", sql`case
+    when ${t.kind} = 'bank_transfer' then ${t.iban} is not null and ${t.accountHolder} is not null and ${t.url} is null and ${t.handle} is null
+    when ${t.kind} = 'zelle' then ${t.handle} is not null and ${t.url} is null and ${t.iban} is null and ${t.bic} is null and ${t.accountHolder} is null
+    when ${t.kind} in ('venmo','revolut','cash_app') then (${t.url} is null) <> (${t.handle} is null) and ${t.iban} is null and ${t.bic} is null and ${t.accountHolder} is null
+    else ${t.url} is not null and ${t.handle} is null and ${t.iban} is null and ${t.bic} is null and ${t.accountHolder} is null end`)]);

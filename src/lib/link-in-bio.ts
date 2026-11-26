@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { GivingPublicMethod } from "./ways-to-give";
 
 // Link in bio: one public page per ministry (docs/plans/link-in-bio.md). Everything here is pure: the draft definition, its limits, the handle rules and the
 // projection the public page and the owner's live preview share. Nothing here reads or stores anything.
@@ -67,6 +68,8 @@ export const bioBlockSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("event"), id: blockId, hidden: z.boolean(), tab, title: trimmed(bioLimits.eventTitle), when: trimmed(bioLimits.eventWhen), url: httpsUrl }).strict(),
   z.object({ type: z.literal("community"), id: blockId, hidden: z.boolean(), tab, communityId: z.uuid() }).strict(),
   z.object({ type: z.literal("newsletter"), id: blockId, hidden: z.boolean(), tab, slug: signupSlug }).strict(),
+  // Ways to give (CW-10): the ministry's enabled giving methods, managed under Operations > Giving. At most one.
+  z.object({ type: z.literal("giving"), id: blockId, hidden: z.boolean(), tab, title: trimmed(bioLimits.messageTitle) }).strict(),
 ]);
 export type BioBlock = z.infer<typeof bioBlockSchema>;
 export type BioBlockType = BioBlock["type"];
@@ -87,7 +90,8 @@ export const bioDefinitionSchema = z.object({
     .refine((list) => new Set(list.map((item) => item.network)).size === list.length),
   blocks: z.array(bioBlockSchema).max(bioLimits.blocks)
     .refine((list) => new Set(list.map((block) => block.id)).size === list.length)
-    .refine((list) => list.filter((block) => block.type === "message").length <= 1),
+    .refine((list) => list.filter((block) => block.type === "message").length <= 1)
+    .refine((list) => list.filter((block) => block.type === "giving").length <= 1),
 }).strict();
 export type BioDefinition = z.infer<typeof bioDefinitionSchema>;
 
@@ -130,7 +134,7 @@ export function fieldIssues(definition: BioDefinition): Record<string, "url" | "
     if ((block.type === "link" || block.type === "event") && !safeHttpsUrl(block.url)) out[block.id] = "url";
     else if (block.type === "link" && !block.label.trim()) out[block.id] = "required";
     else if (block.type === "event" && (!block.title.trim() || !block.when.trim())) out[block.id] = "required";
-    else if (block.type === "message" && !block.title.trim()) out[block.id] = "required";
+    else if ((block.type === "message" || block.type === "giving") && !block.title.trim()) out[block.id] = "required";
   }
   for (const detail of definition.details) if (!detail.value.trim() || (detail.kind === "website" && !safeHttpsUrl(detail.value))) out[`detail:${detail.id}`] = detail.kind === "website" ? "url" : "required";
   for (const social of definition.socials) if (!safeHttpsUrl(social.url)) out[`social:${social.network}`] = "url";
@@ -143,7 +147,8 @@ export type BioViewBlock =
   | { type: "event"; id: string; title: string; when: string; url: string }
   | { type: "community"; id: string; name: string; tagline: string | null; slug: string }
   | { type: "newsletter"; id: string; slug: string }
-  | { type: "message"; id: string; title: string };
+  | { type: "message"; id: string; title: string }
+  | { type: "giving"; id: string; title: string; methods: GivingPublicMethod[] };
 export type BioView = {
   ministryName: string; name: string; subtitle: string; bio: string; details: { id: string; kind: BioDetailKind; value: string }[]; tabs: { id: BioTabId; blocks: BioViewBlock[] }[]; hasPhoto: boolean; hasCover: boolean; scheme: typeof bioSchemes[number]; buttons: typeof bioButtonStyles[number];
   brandTheme: string | null; socials: { network: BioNetwork; url: string }[];

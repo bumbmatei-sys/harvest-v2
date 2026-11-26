@@ -7,9 +7,11 @@ import { message } from "../i18n/messages";
 import { isBrandTheme } from "../lib/theme-registry";
 import { bioDefinitionSchema, bioHandleSchema, bioMessageSchema, emptyBioDefinition, fieldIssues, handleProblem, publishIssues, suggestHandle,
   type BioDefinition, type BioView, type BioViewBlock } from "../lib/link-in-bio";
+import type { GivingPublicMethod } from "../lib/ways-to-give";
 import { bioMessagesKey, linkInBioEnabled } from "./link-in-bio-mode";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
+import { bioGivingMethods, publicGivingMethodsFor } from "./ways-to-give";
 
 export function requireLinkInBioEnabled() { if (!linkInBioEnabled()) throw new AccessError(404, message("Errors.thisViewIsNotAvailable")); }
 const uuid = z.uuid();
@@ -188,7 +190,7 @@ export async function deleteBioMessage(db: Database, user: string, workspace: st
 }
 
 /** What the owner may pick from: this ministry's communities and its currently published sign-up forms. */
-export type BioChoices = { communities: { id: string; name: string; status: string }[]; signups: { slug: string; title: string }[] };
+export type BioChoices = { communities: { id: string; name: string; status: string }[]; signups: { slug: string; title: string }[]; giving?: GivingPublicMethod[] };
 export async function bioChoices(db: Database, user: string, workspace: string): Promise<BioChoices> {
   requireLinkInBioEnabled();
   return withTenant(db, user, uuid.parse(workspace), "bio:manage", async (tx, tenantId) => {
@@ -198,7 +200,9 @@ export async function bioChoices(db: Database, user: string, workspace: string):
       join forms f on f.tenant_id = a.tenant_id and f.id = a.form_id and f.archived_at is null
       join crm_form_publications p on p.tenant_id = a.tenant_id and p.form_id = a.form_id and p.version_id = a.version_id
       where a.tenant_id = ${tenantId} and a.version_id is not null and p.definition->'newsletter' is not null order by a.slug limit 50`);
-    return { communities: list, signups: rows };
+    // The preview shows the same enabled methods a visitor would see (enabled means public).
+    const giving = await publicGivingMethodsFor(tx, tenantId);
+    return { communities: list, signups: rows, giving };
   });
 }
 
@@ -217,6 +221,7 @@ export async function getPublicBio(db: Database, handle: string, env: Record<str
   if (!parsed.success) return null;
   const { definition } = { definition: parsed.data };
   const messages = bioMessagesKey(env) !== null;
+  const giving = definition.blocks.some((block) => block.type === "giving" && !block.hidden) ? await bioGivingMethods(db, handle, env) : [];
   const project = (block: BioDefinition["blocks"][number]): BioViewBlock[] => {
     if (block.hidden) return [];
     switch (block.type) {
@@ -225,6 +230,7 @@ export async function getPublicBio(db: Database, handle: string, env: Record<str
       case "community": { const card = row.result!.communities[block.communityId]; return card ? [{ type: "community", id: block.id, name: card.name, tagline: card.tagline, slug: card.slug }] : []; }
       case "newsletter": return row.result!.signups.includes(block.slug) ? [{ type: "newsletter", id: block.id, slug: block.slug }] : [];
       case "message": return messages ? [{ type: "message", id: block.id, title: block.title }] : [];
+      case "giving": return giving.length ? [{ type: "giving", id: block.id, title: block.title, methods: giving }] : [];
     }
   };
   const details = definition.details.filter((item) => !item.hidden).map(({ id, kind, value }) => ({ id, kind, value }));

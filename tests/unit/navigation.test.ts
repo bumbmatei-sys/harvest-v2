@@ -98,7 +98,7 @@ describe("three-mode registry (slice 1)", () => {
   it("reserves not-yet-built modules as planned, including blog articles", () => {
     const planned = navEntries.filter((entry) => entry.status === "planned").map((entry) => entry.id);
     expect(planned).toEqual(expect.arrayContaining(["articles", "website", "coaching", "coupons", "live", "assistant", "responses", "connectLinks", "forms", "spreadsheets", "givingOverview", "donations", "fundraising", "pledges", "donors", "funds", "givingPage", "volunteers", "livestream", "churchProfile"]));
-    expect(navEntries.filter((entry) => entry.status !== "planned").map((entry) => entry.id)).toEqual(["people", "companies", "pipelines", "crmReports", "crmForms", "imports", "mail", "calendar", "tasks", "documents", "campaigns", "followUp", "events", "files", "discover", "planner", "inbox", "autoDm", "ads", "socialAnalytics", "newsletterAnalytics", "newsletterCampaigns", "newsletterAutomations", "newsletterAudience", "signupForms", "newsletterSender", "linkInBio", "communities", "courses", "products", "socialAccounts", "crmFields", "pipelineSettings", "appearance", "ministrySettings"]);
+    expect(navEntries.filter((entry) => entry.status !== "planned").map((entry) => entry.id)).toEqual(["people", "companies", "pipelines", "crmReports", "crmForms", "imports", "mail", "calendar", "tasks", "documents", "campaigns", "followUp", "events", "files", "waysToGive", "discover", "planner", "inbox", "autoDm", "ads", "socialAnalytics", "newsletterAnalytics", "newsletterCampaigns", "newsletterAutomations", "newsletterAudience", "signupForms", "newsletterSender", "linkInBio", "communities", "courses", "products", "socialAccounts", "crmFields", "pipelineSettings", "appearance", "ministrySettings"]);
   });
   it("never renders, links or labels a planned entry", () => {
     const plannedIds = new Set(navEntries.filter((entry) => entry.status === "planned").map((entry) => entry.id));
@@ -211,7 +211,7 @@ describe("approved sidebar structure (20 Nov)", () => {
   it("lists the planned rows of every group in the approved order", () => {
     const rows = (group: string) => navEntries.filter((entry) => entry.group === group).map((entry) => entry.id);
     expect(rows("office")).toEqual(["mail", "calendar", "tasks", "documents", "spreadsheets", "files"]);
-    expect(rows("giving")).toEqual(["givingOverview", "donations", "fundraising", "pledges", "donors", "funds", "givingPage"]);
+    expect(rows("giving")).toEqual(["givingOverview", "donations", "fundraising", "pledges", "donors", "funds", "givingPage", "waysToGive"]);
     expect(rows("publishing")).toEqual(["planner", "inbox", "autoDm", "ads", "socialAnalytics"]);
     expect(rows("newsletter")).toEqual(["newsletterAnalytics", "newsletterCampaigns", "newsletterAutomations", "newsletterAudience", "signupForms", "newsletterSender"]);
     expect(rows("website")).toEqual(["linkInBio", "articles", "website"]);

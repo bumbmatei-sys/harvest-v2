@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { bioIconComponents, NetworkMark } from "@/components/link-in-bio/bio-icons";
 import { BioMessageForm } from "@/components/link-in-bio/bio-message-form";
+import { WaysToGive } from "@/components/giving/ways-to-give";
 import { messageNotice, safeHttpsUrl, type BioDetailKind, type BioView, type BioViewBlock } from "@/lib/link-in-bio";
 import { cn } from "@/lib/utils";
 
@@ -70,7 +71,8 @@ export function BioPageView({ view, handle, preview = false, photoUrl = null, co
           {url ? <a href={url} target="_blank" rel="nofollow noopener noreferrer ugc" {...inert} className="min-w-0 break-words text-sm underline-offset-4 hover:underline">{d.value}</a> : <span className="min-w-0 break-words text-sm">{d.value}</span>}</li>; })}</ul></section>}
       {links.length > 0 && <section className="rounded-xl border bg-card text-card-foreground"><ul className="divide-y overflow-hidden rounded-xl">{links.map(row)}</ul></section>}
       {others.map((item) => item.type === "newsletter" ? <div key={item.id} data-bio-block={item.id}>{preview ? <div className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">{t("newsletterPlaceholder")}</div> : <HostedSignup slug={item.slug} />}</div>
-        : item.type === "message" ? <div key={item.id} data-bio-block={item.id}><BioMessageForm handle={handle} title={item.title} notice={messageNotice(view.ministryName)} inert={preview} /></div> : null)}
+        : item.type === "message" ? <div key={item.id} data-bio-block={item.id}><BioMessageForm handle={handle} title={item.title} notice={messageNotice(view.ministryName)} inert={preview} /></div>
+        : item.type === "giving" ? <div key={item.id} data-bio-block={item.id}><WaysToGive methods={item.methods} title={item.title} ministryName={view.ministryName} inert={preview} /></div> : null)}
     </div>;
   };
 

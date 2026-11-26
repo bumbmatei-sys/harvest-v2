@@ -49,6 +49,7 @@ export function draftView(definition: BioDefinition, choices: BioChoices, minist
       case "community": { const c = choices.communities.find((x) => x.id === block.communityId); return c ? [{ type: "community", id: block.id, name: c.name, tagline: null, slug: "" }] : []; }
       case "newsletter": return [{ type: "newsletter", id: block.id, slug: block.slug }];
       case "message": return [{ type: "message", id: block.id, title: block.title || "…" }];
+      case "giving": return choices.giving?.length ? [{ type: "giving", id: block.id, title: block.title || "…", methods: choices.giving }] : [];
     }
   };
   const details = definition.details.filter((d) => !d.hidden && d.value.trim()).map(({ id, kind, value }) => ({ id, kind, value }));
@@ -158,7 +159,7 @@ export function BioEditor({ tenantId, initial, choices, ministryName, brandTheme
   const addBlock = (block: BioBlock) => setBlocks((blocks) => [...blocks, block]);
   const ids = () => definition.blocks.map((b) => b.id);
   const full = definition.blocks.length >= bioLimits.blocks;
-  const hasMessage = definition.blocks.some((b) => b.type === "message");
+  const hasMessage = definition.blocks.some((b) => b.type === "message"), hasGiving = definition.blocks.some((b) => b.type === "giving");
   const label = (b: BioBlock) => b.type === "link" ? (b.label || t("links.untitled")) : b.type === "event" ? (b.title || t("blocks.event")) : t(`blocks.${b.type}`);
 
   const done = { profile: Boolean(definition.name.trim()), content: definition.blocks.some((b) => !b.hidden) && !Object.keys(issues).length, design: true, publish: published && !data.unpublishedChanges };
@@ -230,6 +231,7 @@ export function BioEditor({ tenantId, initial, choices, ministryName, brandTheme
                 <DropdownMenuItem className="min-h-11" disabled={hasMessage} onSelect={() => addBlock({ type: "message", id: newBlockId(ids()), hidden: false, tab: "partnership", title: t("blocks.message") })}>{t("blocks.message")}{hasMessage && <span className="ms-2 text-xs text-muted-foreground">{t("blocks.already")}</span>}</DropdownMenuItem>
                 <DropdownMenuItem className="min-h-11" onSelect={() => addBlock({ type: "event", id: newBlockId(ids()), hidden: false, tab: "home", title: "", when: "", url: "https://" })}>{t("blocks.event")}</DropdownMenuItem>
                 <DropdownMenuItem className="min-h-11" disabled={!choices.communities.length} onSelect={() => addBlock({ type: "community", id: newBlockId(ids()), hidden: false, tab: "home", communityId: choices.communities[0].id })}>{t("blocks.community")}{!choices.communities.length && <span className="ms-2 text-xs text-muted-foreground">{t("blocks.noCommunities")}</span>}</DropdownMenuItem>
+                <DropdownMenuItem className="min-h-11" disabled={hasGiving} onSelect={() => addBlock({ type: "giving", id: newBlockId(ids()), hidden: false, tab: "partnership", title: t("blocks.giving") })}>{t("blocks.giving")}{hasGiving && <span className="ms-2 text-xs text-muted-foreground">{t("blocks.already")}</span>}</DropdownMenuItem>
                 <DropdownMenuItem className="min-h-11" disabled={!choices.signups.length} onSelect={() => addBlock({ type: "newsletter", id: newBlockId(ids()), hidden: false, tab: "partnership", slug: choices.signups[0].slug })}>{t("blocks.newsletter")}{!choices.signups.length && <span className="ms-2 text-xs text-muted-foreground">{t("blocks.noSignups")}</span>}</DropdownMenuItem>
               </DropdownMenuContent></DropdownMenu>
             {full && <span className="text-sm text-muted-foreground">{t("links.maxBlocks", { max: bioLimits.blocks })}</span>}
@@ -254,6 +256,11 @@ export function BioEditor({ tenantId, initial, choices, ministryName, brandTheme
                       <Field><FieldLabel htmlFor={`m-${block.id}`}>{t("blocks.messageTitle")}</FieldLabel>
                         <Input id={`m-${block.id}`} className="min-h-11" maxLength={bioLimits.messageTitle} value={block.title} onChange={(e) => patchBlock(block.id, { title: e.target.value })} /></Field>
                       <p className="self-end text-sm text-muted-foreground">{data.messagesAvailable ? t("blocks.messageHint") : t("blocks.messageOff")}</p></Row>;
+                    case "giving": return <Row key={block.id} {...common}>
+                      <Field data-invalid={bad === "required" || undefined}><FieldLabel htmlFor={`g-${block.id}`}>{t("blocks.messageTitle")}</FieldLabel>
+                        <Input id={`g-${block.id}`} className="min-h-11" maxLength={bioLimits.messageTitle} value={block.title} aria-invalid={bad === "required" || undefined} onChange={(e) => patchBlock(block.id, { title: e.target.value })} />{bad === "required" && <FieldError>{t("links.labelProblem")}</FieldError>}</Field>
+                      <p className="flex flex-wrap items-center gap-2 self-end text-sm text-muted-foreground"><span>{t("blocks.givingCount", { count: choices.giving?.length ?? 0 })}</span>
+                        <Link href={`/workspaces/${tenantId}/giving/ways-to-give`} className="inline-flex min-h-11 items-center font-medium text-foreground underline-offset-4 hover:underline">{t("blocks.givingManage")}</Link></p></Row>;
                     case "event": return <Row key={block.id} {...common}>
                       <Field data-invalid={bad === "required" || undefined}><FieldLabel htmlFor={`et-${block.id}`}>{t("blocks.eventTitle")}</FieldLabel>
                         <Input id={`et-${block.id}`} className="min-h-11" maxLength={bioLimits.eventTitle} value={block.title} aria-invalid={bad === "required" || undefined} onChange={(e) => patchBlock(block.id, { title: e.target.value })} /></Field>
