@@ -289,6 +289,48 @@ export const campaignTasks = pgTable("campaign_tasks", {
   check("campaign_task_version", sql`${t.version} >= 1`),
 ]);
 
+// Campaign budgets (PRD "What Happens After Clicking Finish?", item 4; launch scope rows 2 and 3). Record keeping only: no money moves, no provider.
+// One budget line per campaign and category (planned cents) and the campaign's expenses (spent cents). Money is bigint cents in one two-decimal
+// currency per campaign (the server uses the wizard's budget currency), bounded like fundraising. None of this references a CRM contact.
+const budgetCategorySql = sql.raw(`'venue', 'equipment_production', 'marketing_media', 'printing_materials', 'travel_transport', 'accommodation', 'hospitality_food', 'volunteers_staff', 'security_medical', 'administration', 'other'`);
+const budgetCurrencySql = sql.raw(`'USD','EUR','GBP','CAD','AUD','NZD','CHF','ZAR','BRL','MXN','INR','PHP','KES','NGN','GHS','RON'`);
+export const campaignBudgetLines = pgTable("campaign_budget_lines", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), campaignId: uuid("campaign_id").notNull(),
+  category: text("category").notNull(),
+  plannedCents: bigint("planned_cents", { mode: "bigint" }).notNull(), currency: text("currency").notNull(),
+  version: integer("version").notNull().default(1),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.campaignId], foreignColumns: [campaigns.tenantId, campaigns.id] }).onDelete("cascade"),
+  uniqueIndex("campaign_budget_lines_category_idx").on(t.tenantId, t.campaignId, t.category),
+  check("campaign_budget_line_category", sql`${t.category} in (${budgetCategorySql})`),
+  check("campaign_budget_line_currency", sql`${t.currency} in (${budgetCurrencySql})`),
+  check("campaign_budget_line_planned", sql`${t.plannedCents} between 0 and 1000000000000`),
+  check("campaign_budget_line_version", sql`${t.version} >= 1`),
+]);
+export const campaignExpenses = pgTable("campaign_expenses", {
+  tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), campaignId: uuid("campaign_id").notNull(),
+  spentOn: date("spent_on").notNull(), category: text("category").notNull(),
+  amountCents: bigint("amount_cents", { mode: "bigint" }).notNull(), currency: text("currency").notNull(),
+  description: text("description").notNull(), payee: text("payee"), reference: text("reference"),
+  recordedBy: text("recorded_by").notNull().references(() => users.id),
+  version: integer("version").notNull().default(1),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
+  foreignKey({ columns: [t.tenantId, t.campaignId], foreignColumns: [campaigns.tenantId, campaigns.id] }).onDelete("cascade"),
+  index("campaign_expenses_campaign_idx").on(t.tenantId, t.campaignId, t.spentOn),
+  check("campaign_expense_category", sql`${t.category} in (${budgetCategorySql})`),
+  check("campaign_expense_currency", sql`${t.currency} in (${budgetCurrencySql})`),
+  check("campaign_expense_amount", sql`${t.amountCents} between 1 and 1000000000000`),
+  check("campaign_expense_description", sql`length(btrim(${t.description})) between 1 and 200 and ${t.description} = btrim(${t.description})`),
+  check("campaign_expense_payee", sql`length(btrim(${t.payee})) between 1 and 120`),
+  check("campaign_expense_reference", sql`length(btrim(${t.reference})) between 1 and 120`),
+  check("campaign_expense_version", sql`${t.version} >= 1`),
+]);
+
 // CW-05 (founder decision Q2, 25 Nov): a person is placed in a department by an invitation they must accept. Pending, accepted, declined and revoked
 // are stored; expired is derived from `expiresAt` (14 days). An invitation is for an existing ministry member (kind member) or for an email address
 // (kind email); accepting an email invitation adds the person to the ministry in the inert campaign_guest role. Only the hash of the link token is kept.
