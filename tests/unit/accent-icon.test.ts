@@ -5,6 +5,7 @@ import { Flag } from "lucide-react";
 import { describe, expect, it } from "vitest";
 import messages from "../../messages/en.json";
 import { AccentIcon, accentVars } from "../../src/components/accent-icon";
+import { ACCENTS } from "../../src/lib/theme-registry";
 import { WizardLayout } from "../../src/components/wizard-layout";
 
 const render = (element: ReactElement) => renderToStaticMarkup(h(NextIntlClientProvider, { locale: "en", messages, children: element }));
@@ -43,5 +44,22 @@ describe("WizardLayout step icon", () => {
     const html = render(h(WizardLayout, { steps, current: "a", onStepChange: () => {}, stepsLabel: "Steps", stepper: false, children: null }));
     expect(html).not.toContain("data-slot=\"accent-icon\"");
     expect(html).toContain('class="contents"');
+  });
+});
+
+describe("department and feature chips", async () => {
+  const { departmentMarks, moduleMarks } = await import("../../src/components/campaigns/wizard-icons");
+  const { departmentKeys, moduleKeys } = await import("../../src/lib/campaign-wizard");
+  it("gives each of the 13 departments and 18 features its own icon, mostly in the primary accent", () => {
+    for (const [keys, marks] of [[departmentKeys, departmentMarks], [moduleKeys, moduleMarks]] as const) {
+      const list = keys.map((key) => (marks as Record<string, { icon: unknown; accent: string }>)[key]);
+      expect(list.every(Boolean)).toBe(true);
+      expect(new Set(list.map((mark) => mark.icon)).size).toBe(keys.length);
+      for (const mark of list) expect(ACCENTS).toContain(mark.accent);
+      expect(list.filter((mark) => mark.accent === "primary").length).toBeGreaterThan(list.length / 2);
+      expect(new Set(list.map((mark) => mark.accent)).size).toBeLessThanOrEqual(2);
+    }
+    expect(departmentKeys).toHaveLength(13);
+    expect(moduleKeys).toHaveLength(18);
   });
 });
