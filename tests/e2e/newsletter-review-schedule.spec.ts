@@ -42,7 +42,8 @@ test("newsletter review: checklist, schedule, change time and cancel with sendin
   const headers = { origin };
   const tenant = (await (await page.request.post("/api/workspaces", { headers, timeout: 120_000, data: { name: "Grace Community Church", audience: "church", timeZone: zone } })).json()).tenantId as string;
   const api = `/api/workspaces/${tenant}/newsletter`;
-  const ok = async (response: Awaited<ReturnType<Page["request"]["post"]>>) => { expect(response.status(), await response.text()).toBeLessThan(300); return response.json(); };
+  type ApiResult = { id: string; identity: { id: string; version: number } };
+  const ok = async (response: Awaited<ReturnType<Page["request"]["post"]>>): Promise<ApiResult> => { expect(response.status(), await response.text()).toBeLessThan(300); return await response.json() as ApiResult; };
 
   // Synthetic sender: a test domain, a from and a reply-to address confirmed with the test code, and a mailing address.
   const domain = await ok(await page.request.post(`${api}/sender-domains`, { headers, timeout: 120_000, data: { domain: "review.example.test" } }));
