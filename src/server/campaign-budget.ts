@@ -3,8 +3,8 @@ import type { Database, Transaction } from "../db/client";
 import { auditLogs, campaignBudgetLines, campaignDrafts, campaignExpenses, campaigns, users } from "../db/schema";
 import { uuidInput } from "../lib/contact-input";
 import {
-  budgetCurrencyOf, budgetLineCreateInput, budgetLineUpdateInput, budgetTotals, budgetVersionInput, expenseCreateInput, expenseUpdateInput, MAX_EXPENSES_PER_CAMPAIGN,
-  type BudgetCategory, type BudgetTotals, type CampaignBudgetView,
+  budgetCategories, budgetCurrencyOf, budgetLineCreateInput, budgetLineUpdateInput, budgetTotals, budgetVersionInput, expenseCreateInput, expenseUpdateInput, MAX_EXPENSES_PER_CAMPAIGN,
+  type BudgetCategory, type BudgetCategoryTotal, type BudgetTotals, type CampaignBudgetView,
 } from "../lib/campaign-budget";
 import type { FundraisingCurrency } from "../lib/fundraising";
 import { message, type MessageKey } from "../i18n/messages";
@@ -14,7 +14,8 @@ import { withTenant } from "./tenancy";
 /**
  * Campaign budgets (PRD "What Happens After Clicking Finish?", item 4; launch scope rows 2 and 3): budget lines (planned per category) and expenses
  * (spent), in the campaign's one budget currency. Record keeping only: no money moves and no payment provider is involved. Everyone who can read
- * campaigns reads the totals; owners and admins see the individual expenses and add, change and remove lines and expenses (version-checked).
+ * campaigns reads the totals (through the totals definer); owners and admins read the individual expenses (the database lets only them) and add,
+ * change and remove lines and expenses (version-checked).
  * Audit rows carry ids and field names only, never amounts, descriptions, payees or references.
  */
 const managers = ["owner", "admin"];
@@ -62,8 +63,25 @@ async function totalsOf(tx: Transaction, tenantId: string, campaignId: string) {
   return { lines: typed, ...budgetTotals(typed, spent.map((row) => ({ ...row, category: row.category as BudgetCategory }))) };
 }
 
+/**
+ * Totals for anyone who can read campaigns, from public.campaign_budget_totals (a definer that sums per category and never returns a row): members and
+ * viewers cannot read campaign_expenses themselves (founder decision, 26 Nov). Categories come back in the display order.
+ */
+async function totalsViaDefiner(tx: Transaction, tenantId: string, campaignId: string): Promise<{ categories: BudgetCategoryTotal[]; totals: BudgetTotals }> {
+  type Result = { outcome: "ok"; categories: (BudgetCategoryTotal & { expenseCount: number })[]; totals: BudgetTotals } | { outcome: "not_found" };
+  const result = (await tx.execute<{ result: Result }>(sql`select public.campaign_budget_totals(${tenantId}::uuid, ${campaignId}::uuid) as result`)).rows[0].result;
+  if (result.outcome !== "ok") throw fail(404, "Campaigns.notFound");
+  const byKey = new Map(result.categories.map((entry) => [entry.category, entry]));
+  const categories = budgetCategories.filter((key) => byKey.has(key)).map((key) => {
+    const { category, plannedCents, spentCents, remainingCents, planned } = byKey.get(key)!;
+    return { category, plannedCents, spentCents, remainingCents, planned };
+  });
+  return { categories, totals: result.totals };
+}
+
 async function viewOf(tx: Transaction, tenantId: string, campaignId: string, manage: boolean): Promise<CampaignBudgetView> {
   const currency = await campaignOf(tx, tenantId, campaignId, false);
+  if (!manage) return { currency, manage: false, lines: [], ...(await totalsViaDefiner(tx, tenantId, campaignId)), expenses: null };
   const { lines, categories, totals } = await totalsOf(tx, tenantId, campaignId);
   const order = new Map(lines.map((line) => [line.category, line]));
   const expenses = manage ? (await tx.select({
@@ -74,12 +92,12 @@ async function viewOf(tx: Transaction, tenantId: string, campaignId: string, man
     .where(and(eq(campaignExpenses.tenantId, tenantId), eq(campaignExpenses.campaignId, campaignId)))
     .orderBy(desc(campaignExpenses.spentOn), desc(campaignExpenses.createdAt), asc(campaignExpenses.id)))
     .map((row) => ({ ...row, category: row.category as BudgetCategory, recordedByName: row.recordedByName.trim(), createdAt: row.createdAt.toISOString() })) : null;
-  return { currency, manage: manage && currency !== null, lines: categories.filter((entry) => entry.planned).map((entry) => order.get(entry.category)!), categories, totals, expenses };
+  return { currency, manage: currency !== null, lines: categories.filter((entry) => entry.planned).map((entry) => order.get(entry.category)!), categories, totals, expenses };
 }
 
 /** Totals only, for the campaign dashboard and the setup checklist. Null when the campaign has neither a budget line nor an expense. */
 export async function budgetSummaryOf(tx: Transaction, tenantId: string, campaignId: string): Promise<(BudgetTotals & { currency: string; lines: number }) | null> {
-  const { lines, totals } = await totalsOf(tx, tenantId, campaignId);
+  const { categories, totals } = await totalsViaDefiner(tx, tenantId, campaignId), lines = categories.filter((entry) => entry.planned);
   if (!lines.length && !totals.expenseCount) return null;
   // Rows exist only in the campaign's supported budget currency (writes check it), so the currency is known here.
   return { ...totals, currency: (await campaignOf(tx, tenantId, campaignId, false)) ?? "USD", lines: lines.length };

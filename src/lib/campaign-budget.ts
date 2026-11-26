@@ -53,7 +53,7 @@ export type CampaignBudgetView = {
   lines: BudgetLine[];
   categories: BudgetCategoryTotal[];
   totals: BudgetTotals;
-  /** The individual expenses (payee and reference included): owners and admins only. Null for everyone else, who see the totals. */
+  /** The individual expenses (payee and reference included): owners and admins only (founder decision, 26 Nov; enforced by RLS). Null for everyone else, who see the totals. */
   expenses: BudgetExpense[] | null;
 };
 

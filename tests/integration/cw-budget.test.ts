@@ -42,7 +42,7 @@ beforeAll(async () => {
 afterAll(async () => { await f?.close(); });
 
 describe("database shape", () => {
-  it("forces RLS, limits grants to the editable columns, uses access_role and adds no definer function", async () => {
+  it("forces RLS, limits grants to the editable columns, uses access_role, and has only the pinned totals definer", async () => {
     const rls = await f.admin.query("select relname, relrowsecurity as r, relforcerowsecurity as fr from pg_class where relname in ('campaign_budget_lines','campaign_expenses') order by relname");
     expect(rls.rows).toEqual(["campaign_budget_lines", "campaign_expenses"].map((relname) => ({ relname, r: true, fr: true })));
     const grants = await f.admin.query(`select has_table_privilege('harvest_app','campaign_budget_lines','UPDATE') as line_update, has_table_privilege('harvest_app','campaign_expenses','UPDATE') as expense_update,
@@ -54,10 +54,23 @@ describe("database shape", () => {
       "campaign_budget_lines.planned_cents", "campaign_budget_lines.updated_at", "campaign_budget_lines.version",
       ...["amount_cents", "category", "description", "payee", "reference", "spent_on", "updated_at", "version"].map((column) => `campaign_expenses.${column}`),
     ]);
-    expect((await f.admin.query("select count(*)::int as n from pg_proc where prosecdef and (prosrc ilike '%campaign_expenses%' or prosrc ilike '%campaign_budget_lines%')")).rows[0].n).toBe(0);
-    const policies = await f.admin.query("select policyname, coalesce(qual, '') || coalesce(with_check, '') as body from pg_policies where tablename in ('campaign_budget_lines','campaign_expenses')");
-    expect(policies.rows.length).toBe(8);
-    for (const row of policies.rows) expect(row.body, row.policyname).toMatch(/access_role/);
+    // One definer: the totals entry point, with search_path pinned, executable by the application role only, owned by the restricted migration owner.
+    const definers = await f.admin.query(`select p.proname, p.proconfig, pg_get_userbyid(p.proowner) as owner, r.rolsuper, r.rolbypassrls,
+      has_function_privilege('public', p.oid, 'EXECUTE') as public_exec, has_function_privilege('harvest_app', p.oid, 'EXECUTE') as app_exec
+      from pg_proc p join pg_roles r on r.oid = p.proowner where p.prosecdef and (p.prosrc ilike '%campaign_expenses%' or p.prosrc ilike '%campaign_budget%')`);
+    expect(definers.rows).toEqual([expect.objectContaining({ proname: "campaign_budget_totals", proconfig: ["search_path=pg_catalog, pg_temp"], rolsuper: false, rolbypassrls: false, public_exec: false, app_exec: true })]);
+    const inner = await f.admin.query("select has_function_privilege('harvest_app', 'public.campaign_budget_totals_scoped(uuid, uuid)', 'EXECUTE') as app, has_function_privilege('public', 'public.campaign_budget_totals_scoped(uuid, uuid)', 'EXECUTE') as pub");
+    expect(inner.rows).toEqual([{ app: false, pub: false }]);
+    const policies = await f.admin.query("select policyname, roles::text[] as roles, coalesce(qual, '') || coalesce(with_check, '') as body from pg_policies where tablename in ('campaign_budget_lines','campaign_expenses')");
+    expect(policies.rows.length).toBe(10);
+    for (const row of policies.rows) {
+      if (row.roles.includes("harvest_app")) expect(row.body, row.policyname).toMatch(/access_role/);
+      else expect(row.body, row.policyname).toMatch(/app\.campaign_budget_tenant/);
+    }
+    // Individual expenses: owners and admins only, in the database.
+    const read = policies.rows.find((row) => row.policyname === "campaign_expenses_read");
+    expect(read?.body).toMatch(/'owner'::text, 'admin'::text\]/);
+    expect(read?.body).not.toMatch(/'member'|'viewer'/);
     const types = await f.admin.query("select table_name, column_name, data_type from information_schema.columns where table_name in ('campaign_budget_lines','campaign_expenses') and column_name like '%cents' order by 1");
     expect(types.rows.map((row) => row.data_type)).toEqual(["bigint", "bigint"]);
   });
@@ -186,6 +199,35 @@ describe("access", () => {
     }
     const foreign = await asApp("b-other", tenantB, sql`select (select count(*) from campaign_expenses)::int as e, (select count(*) from campaign_budget_lines)::int as l`);
     expect(foreign.rows[0]).toEqual({ e: 0, l: 0 });
+    // Members and viewers read no expense row directly, even with the definer's flag set beforehand; the manager still reads rows.
+    for (const user of ["b-member", "b-viewer"]) {
+      const direct = await asApp(user, tenantA, sql`select set_config('app.campaign_budget_tenant', ${tenantA}, true), (select count(*)::int from campaign_expenses where campaign_id = ${eur}) as n`);
+      expect(direct.rows[0].n, user).toBe(0);
+    }
+    expect((await asApp("b-admin", tenantA, sql`select count(*)::int as n from campaign_expenses where campaign_id = ${eur}`)).rows[0].n).toBeGreaterThan(0);
+  });
+
+  it("returns totals only from the definer, to campaign readers of that ministry, and puts the session flags back", async () => {
+    const totals = (user: string, tenant: string, campaign: string) => asApp(user, tenant, sql`select public.campaign_budget_totals(${tenant}::uuid, ${campaign}::uuid) as r`).then((result) => result.rows[0].r as { outcome: string; totals?: unknown; categories: Record<string, unknown>[] });
+    const manager = await getCampaignBudget(f.db, "b-owner", tenantA, eur);
+    for (const user of ["b-member", "b-viewer", "b-owner"]) {
+      const result = await totals(user, tenantA, eur);
+      expect(result.outcome, user).toBe("ok");
+      expect(result.totals, user).toEqual(manager.totals);
+      expect(JSON.stringify(result), user).not.toMatch(/Tape|Water|INV-7|b-collab|b-owner/); // no description, reference or recorder
+      expect(Object.keys(result.categories[0]).sort(), user).toEqual(["category", "expenseCount", "planned", "plannedCents", "remainingCents", "spentCents"]);
+    }
+    // Unknown campaign, another ministry's campaign, or a ministry other than the caller's: refused.
+    expect((await totals("b-member", tenantA, randomUUID())).outcome).toBe("not_found");
+    expect((await totals("b-other", tenantB, eur)).outcome).toBe("not_found");
+    expect(((await asApp("b-member", tenantA, sql`select public.campaign_budget_totals(${tenantB}::uuid, ${eur}::uuid) as r`)).rows[0].r as { outcome: string }).outcome).toBe("not_found");
+    expect(await status(totals("b-outsider", tenantA, eur))).toBe(403); // not a member: withTenant refuses before the definer runs
+    // Flags the app set beforehand are cleared for the call and put back afterwards; the definer leaves its own flag empty.
+    const flags = await asApp("b-member", tenantA, sql`select set_config('app.giving_definer', 'on', true), public.campaign_budget_totals(${tenantA}::uuid, ${eur}::uuid) as r,
+      current_setting('app.giving_definer', true) as giving, current_setting('app.campaign_budget_tenant', true) as own, current_setting('app.tenant_id', true) as tenant`);
+    expect(flags.rows[0]).toMatchObject({ giving: "on", own: "", tenant: tenantA });
+    // The application role cannot call the inner function.
+    await expect(asApp("b-owner", tenantA, sql`select public.campaign_budget_totals_scoped(${tenantA}::uuid, ${eur}::uuid)`)).rejects.toMatchObject({ cause: { code: "42501" } });
   });
 
   it("makes an archived campaign's budget read-only", async () => {
