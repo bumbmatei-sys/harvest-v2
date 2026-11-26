@@ -34,8 +34,40 @@ Actions → **Cloudflare staging** → Run workflow (from `main`) → `deploy` o
 ## Hosted check
 
 `tests/cf07/run-staging.ts` against the staging origin with the helper origin and token (see the script header). Passed on
-26 Nov: OTP sign-in, signed-out redirect, 50 concurrent rendered pages from two users without cross-user leaks, private
+26 Nov (and again after the rollback rehearsal below): OTP sign-in, signed-out redirect, 50 concurrent rendered pages from two users without cross-user leaks, private
 cache, no edge cache hit.
+
+## Browser smoke (26 Nov, `tests/cf07/browser-staging.ts`)
+
+The local Playwright suite cannot target staging: it starts its own server and seeds the local database. This separate
+script drives a real Chromium against staging (skips by default and in CI; refuses any origin that is not a
+`harvest-staging` `workers.dev` host). Same environment variables as the hosted check, plus optional
+`CF07_SCREENSHOTS=<dir>`.
+
+Passed 7 of 7 steps on main `9106d1b` (15:06 UTC) and again on main `8d15567` after the rehearsal (15:36 UTC):
+sign-in page, OTP sign-in through the form with the synthetic mailbox, ministries page, CRM People module page, dark mode
+(theme attribute, `dark` class and a different background from light), phone width 390 px with no horizontal scroll on
+three pages, and a signed-out module page landing on sign-in. Every page 200, `private, no-store`, no edge cache hit, no
+private material in the HTML, no uncaught page errors.
+
+## Rollback rehearsal (26 Nov)
+
+All three runs from `main` through **Cloudflare staging**; the job smoke check passed each time and the hosted check was
+run by hand after each change of version.
+
+| Step | Run | Result | Live version afterwards |
+| --- | --- | --- | --- |
+| `deploy` main `8d15567` | 45847100501 | success, 5 min 16 s | `5746daa3` (main 8d15567) |
+| `rollback` | 45848077892 | success, 37 s | `c3117142` (main 9106d1b, the previous deploy) |
+| `deploy` main `8d15567` again | 45848717246 | success, 4 min 20 s | `2039f864` (main 8d15567) |
+
+After the rollback: `/sign-in` 200, `/manifest.webmanifest` 200, `cache-control: private, no-store`, and
+`tests/cf07/run-staging.ts` passed (OTP sign-in, 50 concurrent pages, no cross-user leak). After the final deploy the
+hosted check and the browser smoke both passed again. A rollback restores the previous Worker version only, never the
+database: `wrangler rollback` takes under a minute, a fresh deploy about five.
+
+Note: main `8d15567` includes migration 0115 (#280); the `cf-staging` branch is at 0114. Applying 0115 to staging needs the
+owner's approval; the checked pages do not use it.
 
 ## Before any Cloudflare production resource exists (CF-08)
 
@@ -62,10 +94,17 @@ page holding its connection for the whole transfer (CF-07a). These are staging n
 
 ## Before CF-08 (production)
 
-- Size the production Neon compute and Hyperdrive for the measured tail, then re-run the load profile against the production-shaped setup.
-- Keep `placement` next to the production database.
-- Replace the placeholder production origin and Hyperdrive ID in `cloudflare/staging.json` (below) and use a separate production token.
-- Production deploy job: split into a **build** job without secrets that uploads `.open-next` and the generated config as an artifact, and an environment-protected **deploy** job with a fresh checkout and only the pinned tooling, so the token never shares a filesystem with the app's install scripts or build plugins.
+Done on staging: whole app on Workers, hosted check, browser smoke, load profile, deploy and rollback rehearsal. The
+production workflow, the fail-closed config generator and the cut-over runbook are prepared separately in
+`docs/setup/cloudflare-production.md` (draft PR #284); nothing there is activated. Remaining, in order:
+
+- [ ] Approve the gates in cloudflare-production.md (HC-02 decisions, Cloudflare DPA and sub-processor review, production migrations, real email sender, founder go for the exact commit).
+- [ ] Production migration job and run (`docs/setup/production-migrations.md`), Neon restore point first.
+- [ ] Size the production Neon compute and Hyperdrive for the measured tail, then re-run the load profile against a production-sized throwaway branch.
+- [ ] Create the production token (Workers Scripts Edit only), the `cloudflare-production` GitHub environment, Hyperdrive, R2 bucket and Worker secrets.
+- [ ] Replace the placeholder production origin and Hyperdrive ID in `cloudflare/staging.json` and `cloudflare/production.json` (the generator refuses until both agree).
+- [ ] Send one real sign-in email from Workers to a founder-controlled address (staging only ever used the synthetic mailbox).
+- [ ] Deploy with `smoke=false`, attach the custom domain at the cut-over, deploy or smoke again, watch logs for 30 minutes.
 
 ## Limits to watch
 
