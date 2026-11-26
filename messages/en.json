@@ -9709,6 +9709,9 @@
       "openFundraiser": "Open fundraising",
       "goalFromBudget": "Goal from budget settings: {goal}",
       "none": "No fundraising campaign yet."
-    }
+    },
+    "amountPlaceholder": "0.00",
+    "reversalLabel": "Reversal · {reason}",
+    "pledgeOption": "{name} · {amount}"
   }
 }

@@ -20,7 +20,8 @@ export const idempotencyKeyInput = z.string().min(1).max(200).regex(/^[A-Za-z0-9
 const optionalText = (max: number) => z.string().trim().max(max).nullish().transform((value) => value || null);
 const optionalDate = z.iso.date().nullish().transform((value) => value ?? null);
 /** A long digit run looks like a card or account number; references and methods must never hold one. */
-const noAccountNumber = (value: string | null) => value === null || !/\d(?:[\s-]?\d){11,}/.test(value);
+export const looksLikeAccountNumber = (value: string | null) => value !== null && /\d(?:[\s-]?\d){11,}/.test(value);
+const noAccountNumber = (value: string | null) => !looksLikeAccountNumber(value);
 
 export const fundraisingCreateInput = z.object({
   title: z.string().trim().min(1).max(200),
