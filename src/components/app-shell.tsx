@@ -182,7 +182,9 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
   const [busy, setBusy] = useState(false);
   const [navigationContainer, setNavigationContainer] = useState<HTMLElement | null>(null);
   const workspace = workspaces.find((item) => item.tenantId === selected);
-  const sectionKey = sectionLabel(pathname, workspace?.audience);
+  const sectionKey = sectionLabel(pathname, workspace?.audience, undefined, { role: workspace?.role, features });
+  // The ministry crumb opens the first page this viewer may use (a collaborator may hold no CRM area).
+  const homeHref = selected ? resolveNavigation({ tenantId: selected, role: workspace?.role, audience: workspace?.audience, pathname, features })[0]?.items[0]?.href ?? `/workspaces/${selected}` : "/workspaces";
   const section = pathname === "/profile" ? t("profile") : sectionKey ? t(sectionKey) : t("workspaces");
   async function signOut() {
     setBusy(true); setError("");
@@ -232,7 +234,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
       <header data-shell-header className="flex h-12 shrink-0 items-center gap-2 border-b px-4 lg:px-6">
         <SidebarTrigger size="icon-responsive" className="shrink-0" />
         <Breadcrumb className="min-w-0"><BreadcrumbList className="flex-nowrap text-[13px]">
-          {workspace && <><BreadcrumbItem className="min-w-0"><BreadcrumbLink asChild className="truncate"><Link href={`/workspaces/${selected}/crm/people`}>{workspace.name}</Link></BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator /></>}
+          {workspace && <><BreadcrumbItem className="min-w-0"><BreadcrumbLink asChild className="truncate"><Link href={homeHref}>{workspace.name}</Link></BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator /></>}
           <BreadcrumbItem><BreadcrumbPage className="font-medium">{section}</BreadcrumbPage></BreadcrumbItem>
         </BreadcrumbList></Breadcrumb>
         <ShellHeaderSlot />

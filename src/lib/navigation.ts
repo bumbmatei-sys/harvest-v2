@@ -204,10 +204,14 @@ export function resolveModeNavigation({ tenantId, role, audience, pathname, feat
   return { ...resolved, groups };
 }
 
-/** Breadcrumb section label key for a path, or null when no live registry entry owns it. */
-export function sectionLabel(pathname: string, audience?: Audience | null, entries: readonly NavEntry[] = navEntries): NavLabelKey | null {
+/**
+ * Breadcrumb section label key for a path, or null when no live registry entry owns it. With `access`, also null when that viewer may not see
+ * the entry, so a direct visit to a page outside the viewer's areas does not name it in the header (the page itself shows the access state).
+ */
+export function sectionLabel(pathname: string, audience?: Audience | null, entries: readonly NavEntry[] = navEntries, access?: { role?: string; features?: readonly NavFeature[] }): NavLabelKey | null {
   const entry = entries.find((item) => item.status !== "planned" && (item.match(pathname) || item.sectionMatch?.(pathname)));
-  return entry ? labelFor(entry, audience) : null;
+  if (!entry || (access && !visibleTo(entry, access.role, audience, access.features ?? []))) return null;
+  return labelFor(entry, audience);
 }
 
 /** Where a contextual sidebar's back arrow goes: the route and label key of the entry named by `exitTo`, or null when the entry has none. */
