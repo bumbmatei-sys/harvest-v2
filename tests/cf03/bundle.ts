@@ -1,10 +1,10 @@
 import { build } from "esbuild";
 import { join } from "node:path";
 
-export async function bundleCf03(directory: string) {
-  const outfile = join(directory, "worker.mjs");
+export async function bundleCf03(directory: string, entry: "fixture" | "harness" = "fixture") {
+  const outfile = join(directory, entry === "fixture" ? "worker.mjs" : "harness.mjs");
   await build({
-    entryPoints: ["src/worker/buffered-api.ts"], outfile, bundle: true, platform: "node", format: "esm",
+    entryPoints: [entry === "fixture" ? "src/worker/buffered-api.ts" : "tests/cf03/harness-worker.ts"], outfile, bundle: true, platform: "node", format: "esm",
     conditions: ["workerd", "react-server"], external: ["cloudflare:*", "pg-native"],
     banner: { js: 'import { createRequire } from "node:module"; const require = createRequire(import.meta.url);' },
     plugins: [{
