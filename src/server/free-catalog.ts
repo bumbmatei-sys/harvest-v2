@@ -198,6 +198,24 @@ export function setCommunityProductLink(db: Database, user: string, tenant: stri
     return { linked: !remove };
   });
 }
+/**
+ * C13/C16 owner view: the ministry's published courses and downloads, each with whether this community shows it. Links are read under the catalogue
+ * staff policy, so a ministry member without catalogue rights sees every item unlinked (and cannot change it).
+ */
+export function listCommunityShelf(db: Database, user: string, tenant: string, communityId: string) {
+  return ministry(db, user, tenant, false, async (tx, scope) => {
+    if (!uuid.safeParse(communityId).success) throw notFound();
+    const [community] = await tx.select({ id: communities.id }).from(communities)
+      .where(and(eq(communities.tenantId, scope), eq(communities.id, communityId)));
+    if (!community) throw notFound();
+    const rows = await tx.select({ id: catalogItems.id, kind: catalogItems.kind, slug: catalogItems.slug, title: catalogItems.title, visibility: catalogItems.visibility,
+      position: communityProductLinks.position })
+      .from(catalogItems).leftJoin(communityProductLinks, and(eq(communityProductLinks.tenantId, catalogItems.tenantId),
+        eq(communityProductLinks.itemId, catalogItems.id), eq(communityProductLinks.communityId, communityId)))
+      .where(and(eq(catalogItems.tenantId, scope), eq(catalogItems.state, "published"))).orderBy(asc(catalogItems.title), asc(catalogItems.id)).limit(500);
+    return rows.map(({ position, ...row }) => ({ ...row, linked: position !== null }));
+  });
+}
 async function access<T>(db: Database, slug: string, action: "metadata" | "enrol" | "content" | "file", user?: string, file?: string) {
   ensureEnabled();
   if (!slugSchema.safeParse(slug).success || (file && !uuid.safeParse(file).success)) throw notFound();

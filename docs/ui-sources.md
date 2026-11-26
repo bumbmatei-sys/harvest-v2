@@ -533,7 +533,7 @@ Variants used: `select14` (searchable category dropdown with icons, chosen by th
 
 | Registry item | Free/premium | Retrieved | Approved (founder) | Files | Local changes |
 | --- | --- | --- | --- | --- | --- |
-| `product-card1` | premium | 2026-11-25 | 2026-11-25 | `src/components/discover/listing-card.tsx` | Token-coloured category mark instead of a photo, type badge, name, summary, host, free badge, first joining route, Quick look, View and Report. |
+| `product-card1` | premium | 2026-11-25 | 2026-11-25 | `src/components/discover/listing-card.tsx` | Token-coloured category mark instead of a photo, type badge, name, summary, host, free badge, first joining route, Quick look, View and Report. Reused (26 Nov, C13/C16) by the community Classroom and Products tabs (`src/components/communities/community-shelf.tsx`): Quick look and Report are optional, an empty host line is left out, and an `action` slot replaces View with the free enrol, Continue or Open step. No new kit item. |
 | `product-quickview2` | premium | 2026-11-25 | 2026-11-25 | `src/components/discover/quick-look.tsx` | Compact dialog with the public fields as a definition list, Report and Open page. |
 | `select14` | premium | 2026-11-25 | 2026-11-25 | `src/components/searchable-select.tsx` | Shared searchable select with icons and an all row; Discover category filter. 26% identical lines (imports, trigger). |
 | `product-list7` (second file) | premium | 2026-11-25 | 2026-11-25 | `src/components/discover/discover-browser.tsx` | Result count, type tabs with facet counts, search and grid on the server's approved listings. |
