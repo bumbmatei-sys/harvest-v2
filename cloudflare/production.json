@@ -1,0 +1,8 @@
+{
+  "CF08_PRODUCTION_WORKER": "harvest-production",
+  "CF08_PRODUCTION_ORIGIN": "https://production.example.invalid",
+  "CF08_PRODUCTION_HYPERDRIVE_ID": "00000000000000000000000000000000",
+  "CF08_PRODUCTION_DATABASE": "harvest",
+  "CF08_PRODUCTION_BUCKET": "harvest-production-files",
+  "CF08_PRODUCTION_EMAIL_FROM": "Harvest <no-reply@production.example.invalid>"
+}
