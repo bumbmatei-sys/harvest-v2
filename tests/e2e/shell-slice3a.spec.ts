@@ -119,7 +119,8 @@ test("editing sidebar: swap, steps, back link, open page, mode switcher and prev
   await expect(steps(page).getByRole("button", { name: /Offer/ })).toContainText("Done");
   await expect(steps(page).getByRole("button", { name: /Joining/ })).toContainText("Done");
   await expect(steps(page).getByRole("button", { name: /Channels/ })).toContainText("Not started");
-  for (const label of ["Messages", "Products", "Page"]) await expect(steps(page).getByRole("button", { name: new RegExp(label) })).toHaveAttribute("aria-disabled", "true");
+  for (const label of ["Messages", "Page"]) await expect(steps(page).getByRole("button", { name: new RegExp(label) })).toHaveAttribute("aria-disabled", "true");
+  await expect(steps(page).getByRole("button", { name: /Classroom and products/ })).not.toHaveAttribute("aria-disabled", "true");
   // The preview column is a labelled live preview (3b) from 1280px and the form keeps room.
   const preview = page.getByRole("complementary", { name: "Preview" });
   await expect(preview).toBeVisible();

@@ -28,6 +28,7 @@ import { BannedWordsEditor } from "@/components/communities/banned-words-editor"
 import { ChatChannelsEditor, type ChatSettings } from "@/components/communities/chat/chat-channels-editor";
 import { ForumCategoriesEditor, type ForumCategory } from "@/components/communities/forum-categories-editor";
 import { CommunityInvites, type CommunityInvite } from "@/components/communities/community-invites";
+import { CommunityShelfEditor, type ShelfOption } from "@/components/communities/community-shelf-editor";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -59,8 +60,10 @@ const fieldsOf = (c: EditableCommunity): Fields => ({ name: c.name, slug: c.slug
   holdFirstPosts: c.holdFirstPosts, bannedWords: c.bannedWords, welcomeMessage: c.welcomeMessage, introCategoryId: c.introCategoryId });
 const same = (a: Fields, b: Fields) => (Object.keys(a) as (keyof Fields)[]).every((key) => equal(a[key], b[key]));
 
-export function CommunityEditor({ initial, members, invites, applications, categories, chat, endpoint, listHref, host, writable, discoverTenant, discoverListing }: { initial: EditableCommunity; members: CommunityMember[]; invites: CommunityInvite[];
-  applications: ApplicationQueue | null; categories: ForumCategory[]; chat?: ChatSettings | null; endpoint: string; listHref: string; host: string; writable: boolean;
+export function CommunityEditor({ initial, members, invites, applications, categories, chat, shelf, endpoint, listHref, host, writable, discoverTenant, discoverListing }: { initial: EditableCommunity; members: CommunityMember[]; invites: CommunityInvite[];
+  applications: ApplicationQueue | null; categories: ForumCategory[]; chat?: ChatSettings | null;
+  /** C13/C16: the Classroom and Products step (free catalogue gate); absent, the step stays "Coming soon". */
+  shelf?: { tenantId: string; items: ShelfOption[]; writable: boolean } | null; endpoint: string; listHref: string; host: string; writable: boolean;
   /** The ministry id when unified Discover is open (non-production gate): the opt-in becomes the shared List in Discover card. Absent, the original checkbox stays. */
   discoverTenant?: string; discoverListing?: OwnListing }) {
   const t = useTranslations("CommunityEditor"), screens = useTranslations("CommunityScreens"), request = useCrmRequest();
@@ -121,7 +124,8 @@ export function CommunityEditor({ initial, members, invites, applications, categ
 
   function discard() { setFields(fieldsOf(data)); setSlugFollows(slugFollowsName(data)); setRulesOn(data.rulesList.length > 0); setQuestionsOn(data.joinQuestions.length > 0); setNotice(""); setError(""); setConflict(false); }
 
-  const steps = communityEditorSteps.map((id) => ({ id, label: t(`steps.${id}`), disabled: comingSoonSteps.includes(id), badge: comingSoonSteps.includes(id) ? t("comingSoon") : undefined,
+  const soon = (id: CommunityEditorStep) => comingSoonSteps.includes(id) && !(id === "products" && shelf);
+  const steps = communityEditorSteps.map((id) => ({ id, label: t(`steps.${id}`), disabled: soon(id), badge: soon(id) ? t("comingSoon") : undefined,
     done: id === "basics" ? checklist[0].done : id === "joining" ? checklist[1].done : id === "publish" ? data.status === "published" : id === "offer" || (id === "people" && members.length > 0),
     attention: stepNeedsAttention(id, checklist, data.status === "published") }));
   const sidebar = { typeLabel: t("typeLabel"), status: { kind: data.status === "published" ? "live" as const : "draft" as const, label: t(`status.${data.status}`) }, back: { href: listHref, label: t("back") },
@@ -215,6 +219,7 @@ export function CommunityEditor({ initial, members, invites, applications, categ
         <CommunityInvites endpoint={endpoint} initial={invites} />
         {applications && (fields.allowApply || applications.applications.length > 0) && <CommunityApplications endpoint={endpoint} initial={applications} />}
       </div>}
+      {step === "products" && shelf && <CommunityShelfEditor tenantId={shelf.tenantId} communityId={data.id} initial={shelf.items} writable={shelf.writable} />}
       {step === "publish" && <ul className="space-y-2" aria-label={t("checklist")}>
         {checklist.map((item) => <li key={item.key} className="flex min-h-11 items-center gap-3 rounded-md border px-3">
           {item.done ? <CircleCheck className="size-4 text-primary" aria-hidden="true" /> : <Circle className="size-4 text-muted-foreground" aria-hidden="true" />}

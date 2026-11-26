@@ -75,10 +75,10 @@ export const editorSteps: readonly EditorStepId[] = ["details", "content", "acce
 /** The content step is lessons for a course and files for a download. */
 export const contentStep = (kind: CatalogKind) => (kind === "course" ? "lessons" : "files");
 
-export type CheckId = "title" | "address" | "visibility" | "lessons" | "files";
+export type CheckId = "title" | "address" | "lessons" | "files";
 export type Check = { id: CheckId; done: boolean };
 /**
- * The publish checklist, mirroring the server: a published item needs a title and address, a visibility other than hidden, and either one published lesson
+ * The publish checklist, mirroring the server: a published item needs a title and address and either one published lesson
  * or ready private files. `ready` is the number of the selected files that are ready; every selected file must be.
  */
 export function publishChecklist(kind: CatalogKind, form: CatalogForm, files: readonly CatalogFile[]): Check[] {
@@ -87,11 +87,11 @@ export function publishChecklist(kind: CatalogKind, form: CatalogForm, files: re
   return [
     { id: "title", done: form.title.trim().length > 0 },
     { id: "address", done: addressPattern.test(form.slug) },
-    { id: "visibility", done: form.visibility !== "hidden" },
     kind === "course" ? { id: "lessons", done: form.lessons.some((lesson) => lesson.published) } : { id: "files", done: ready },
   ];
 }
-export const stepOfCheck = (id: CheckId): EditorStepId => (id === "title" || id === "address" ? "details" : id === "visibility" ? "access" : "content");
+/** Any visibility can be published (founder, 26 Nov): a hidden item is then seen only through the community shelves that show it. */
+export const stepOfCheck = (id: CheckId): EditorStepId => (id === "title" || id === "address" ? "details" : "content");
 
 /** A file size as a number and an Intl unit, for `format.number(value, { style: "unit", unit })`. */
 export function fileSize(size: number): { value: number; unit: "byte" | "kilobyte" | "megabyte" } {

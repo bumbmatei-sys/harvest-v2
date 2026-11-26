@@ -3,7 +3,7 @@ import { createContext, useContext, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
-import { CalendarDays, Info, LayoutList, MessageCircle, MessagesSquare, Package, ShieldCheck, Users, Wheat } from "lucide-react";
+import { CalendarDays, GraduationCap, Info, LayoutList, MessageCircle, MessagesSquare, Package, ShieldCheck, Users, Wheat } from "lucide-react";
 import { NotificationBell } from "@/components/communities/notification-bell";
 import type { NotificationPrefs } from "@/lib/notifications";
 import { usePolling } from "@/hooks/use-polling";
@@ -18,7 +18,7 @@ export function useChatUnreadBadge() { return useContext(ChatUnreadContext); }
  * Members, Messages); style is Studio Admin through the shared tokens. On phones the rail becomes a bottom bar.
  * `chatView` makes the chat full screen on phones, like a messaging app: no header and no bottom bar (the chat supplies its own back control).
  */
-export function CommunityShell({ slug, name, chat = false, events = false, chatView = false, initialChatUnread = 0, moderation = null, notifications, children }: { slug: string; name: string; chat?: boolean; events?: boolean; chatView?: boolean; initialChatUnread?: number; moderation?: number | null; notifications?: { unread: number; prefs: NotificationPrefs }; children: React.ReactNode }) {
+export function CommunityShell({ slug, name, chat = false, events = false, shelf = false, chatView = false, initialChatUnread = 0, moderation = null, notifications, children }: { slug: string; name: string; chat?: boolean; events?: boolean; /** C13/C16: the Classroom and Products tabs (free catalogue gate). */ shelf?: boolean; chatView?: boolean; initialChatUnread?: number; moderation?: number | null; notifications?: { unread: number; prefs: NotificationPrefs }; children: React.ReactNode }) {
   const t = useTranslations("CommunityShell"), pathname = usePathname(), base = `/communities/${slug}`;
   const [badge, setBadge] = useState(initialChatUnread);
   const etag = useRef<{ slug: string; tag: string | null }>(null);
@@ -39,7 +39,9 @@ export function CommunityShell({ slug, name, chat = false, events = false, chatV
   type Item = { id: string; icon: typeof Info; soon?: true; href?: string; match?: string[]; badge?: number };
   const items: Item[] = [
     ...(chat ? [{ id: "chat", icon: MessagesSquare, href: `${base}/chat`, match: [`${base}/chat`], badge }] : []), { id: "forum", icon: LayoutList, href: `${base}/forum`, match: [`${base}/forum`, `${base}/posts`] },
-    ...(events ? [{ id: "events", icon: CalendarDays, href: `${base}/events`, match: [`${base}/events`] }] : [{ id: "events", icon: CalendarDays, soon: true as const }]), { id: "products", icon: Package, soon: true },
+    ...(shelf ? [{ id: "classroom", icon: GraduationCap, href: `${base}/classroom`, match: [`${base}/classroom`] }] : []),
+    ...(events ? [{ id: "events", icon: CalendarDays, href: `${base}/events`, match: [`${base}/events`] }] : [{ id: "events", icon: CalendarDays, soon: true as const }]),
+    shelf ? { id: "products", icon: Package, href: `${base}/products`, match: [`${base}/products`] } : { id: "products", icon: Package, soon: true as const },
     { id: "members", icon: Users, href: `${base}/members`, match: [`${base}/members`] }, chat ? { id: "messages", icon: MessageCircle, href: `${base}/messages`, match: [`${base}/messages`] } : { id: "messages", icon: MessageCircle, soon: true as const },
     { id: "about", icon: Info, href: `${base}/about`, match: [`${base}/about`] },
     // C12a: hosts only, with open reports plus held items as a badge.
@@ -70,7 +72,8 @@ export function CommunityShell({ slug, name, chat = false, events = false, chatV
         {notifications && <NotificationBell slug={slug} unread={notifications.unread} prefs={notifications.prefs} />}</header>
       <main id="community-main" tabIndex={-1} className="min-w-0 flex-1 outline-none"><ChatUnreadContext.Provider value={setBadge}>{children}</ChatUnreadContext.Provider></main>
     </div>
-    {!chatView && <nav aria-label={t("navigation")} className="fixed inset-x-0 bottom-0 z-40 grid border-t bg-background px-1 py-1 md:hidden" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
+    {/* Every entry keeps a 44px target; on the narrowest phones the bar scrolls sideways instead of shrinking them. */}
+    {!chatView && <nav aria-label={t("navigation")} className="fixed inset-x-0 bottom-0 z-40 grid overflow-x-auto border-t bg-background px-1 py-1 md:hidden" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(2.75rem, 1fr))` }}>
       {items.map((item) => entry(item, true))}
     </nav>}
   </div>;

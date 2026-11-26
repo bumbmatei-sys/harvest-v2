@@ -2475,7 +2475,6 @@ export const catalogItems = pgTable("catalog_items", {
   check("catalog_item_kind", sql`${t.kind} in ('course','download')`),
   check("catalog_item_state", sql`${t.state} in ('draft','published','archived')`),
   check("catalog_item_visibility", sql`${t.visibility} in ('hidden','unlisted','listed')`),
-  check("catalog_item_publication", sql`${t.state} <> 'published' or ${t.visibility} <> 'hidden'`),
   check("catalog_item_slug", sql`${t.slug} ~ '^[a-z0-9][a-z0-9-]{1,58}[a-z0-9]$'`),
   check("catalog_item_title", sql`length(trim(${t.title})) between 1 and 120`),
   check("catalog_item_summary", sql`length(${t.summary}) <= 2000`),
@@ -2521,9 +2520,14 @@ export const catalogEnrolments = pgTable("catalog_enrolments", {
 export const communityProductLinks = pgTable("community_product_links", {
   tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(), itemId: uuid("item_id").notNull(),
   position: integer("position").notNull().default(0),
+  // C13/C16 (0123): the shelf an item sits on (the item's own kind, enforced by the foreign key) and at most one featured item per shelf.
+  kind: text("kind", { enum: ["course", "download"] }).notNull(),
+  featured: boolean("featured").notNull().default(false),
 }, (t) => [
   primaryKey({ columns: [t.tenantId, t.communityId, t.itemId] }),
   foreignKey({ columns: [t.tenantId, t.itemId], foreignColumns: [catalogItems.tenantId, catalogItems.id] }),
+  foreignKey({ columns: [t.tenantId, t.itemId, t.kind], foreignColumns: [catalogItems.tenantId, catalogItems.id, catalogItems.kind] }),
+  uniqueIndex("community_product_featured").on(t.tenantId, t.communityId, t.kind).where(sql`${t.featured}`),
   foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
   check("community_product_position", sql`${t.position} between 0 and 1000`),
 ]);
