@@ -4,7 +4,17 @@
 -- Founder, 26 Nov: a hidden item may be published; it is then seen only through community shelves (see catalog_access below).
 ALTER TABLE "catalog_items" DROP CONSTRAINT "catalog_item_publication";--> statement-breakpoint
 ALTER TABLE "community_product_links" ADD COLUMN "kind" text;--> statement-breakpoint
-UPDATE "community_product_links" l SET "kind" = i."kind" FROM "catalog_items" i WHERE i."tenant_id" = l."tenant_id" AND i."id" = l."item_id";--> statement-breakpoint
+-- Backfill. The owner runs under FORCE row security (0061), which hides every link and item, so both tables are relaxed for this
+-- block only and put back exactly as found (the 0091 pattern).
+DO $$
+DECLARE r regclass; forced regclass[];
+BEGIN
+  SELECT coalesce(array_agg(c.oid::regclass), '{}') INTO forced FROM pg_class c
+    WHERE c.relforcerowsecurity AND c.oid IN ('public.community_product_links'::regclass, 'public.catalog_items'::regclass);
+  FOREACH r IN ARRAY forced LOOP EXECUTE format('ALTER TABLE %s NO FORCE ROW LEVEL SECURITY', r); END LOOP;
+  UPDATE public.community_product_links l SET kind = i.kind FROM public.catalog_items i WHERE i.tenant_id = l.tenant_id AND i.id = l.item_id;
+  FOREACH r IN ARRAY forced LOOP EXECUTE format('ALTER TABLE %s FORCE ROW LEVEL SECURITY', r); END LOOP;
+END $$;--> statement-breakpoint
 ALTER TABLE "community_product_links" ALTER COLUMN "kind" SET NOT NULL;--> statement-breakpoint
 ALTER TABLE "community_product_links" ADD COLUMN "featured" boolean DEFAULT false NOT NULL;--> statement-breakpoint
 ALTER TABLE "community_product_links" ADD CONSTRAINT "community_product_links_tenant_id_item_id_kind_catalog_items_tenant_id_id_kind_fk" FOREIGN KEY ("tenant_id","item_id","kind") REFERENCES "public"."catalog_items"("tenant_id","id","kind") ON DELETE no action ON UPDATE no action;--> statement-breakpoint

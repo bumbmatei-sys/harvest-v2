@@ -8,7 +8,7 @@ Migration **0123** (`0123_community_shelf`; renumbered from 0121 for the coordin
 
 ## Database (0123)
 
-- `community_product_links`: `kind` (backfilled, NOT NULL, foreign key to the item's kind), `featured` (default false), and the partial unique index.
+- `community_product_links`: `kind` (backfilled with FORCE row security lifted on both tables for that block only and restored as found, the 0091 pattern, so a NOBYPASSRLS owner reaches every row; `community-shelf-upgrade.test.ts` seeds a link before 0123 as the migration owner and fails without this; NOT NULL, foreign key to the item's kind), `featured` (default false), and the partial unique index.
 - `catalog_items`: drop `catalog_item_publication`.
 - `harvest_app` SELECT policies:
   - `community_shelf_member` on links: `community_can_read` and the community is published.
