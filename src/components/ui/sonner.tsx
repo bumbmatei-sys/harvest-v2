@@ -3,17 +3,28 @@ import * as React from "react"
 import { Toaster as Sonner, type ToasterProps } from "sonner"
 import { CircleAlertIcon, CircleCheckIcon, InfoIcon, XIcon } from "lucide-react"
 import { useTranslations } from "next-intl"
+import { useMediaQuery } from "@/hooks/use-media-query"
+
+/** Sonner switches to its full-width phone layout at this width; the position follows the same breakpoint. */
+const phoneQuery = "(max-width: 600px)"
+/** Distance from the screen edge plus the device safe area (notch, home indicator), so a toast never sits under either. */
+const edge = (gap: number, side: "top" | "right" | "bottom" | "left") => `calc(${gap}px + env(safe-area-inset-${side}, 0px))`
 
 /**
  * The one global toast outlet (mounted once in the root layout). All colors come from the theme tokens, so every palette and
  * light/dark mode inherits them; text is supplied by callers from the message catalogue (see `src/lib/toast.ts`).
  * Messages are announced politely and are never the only place an error appears next to a form field.
+ * One position for the whole app: bottom right from 601px; on phones full width at the top, clear of the bottom navigation, sticky save
+ * bars, the chat composer and the on-screen keyboard. Both keep the safe-area insets.
  */
 function Toaster({ ...props }: ToasterProps) {
   const t = useTranslations("ComponentsUiToaster")
+  const phone = useMediaQuery(phoneQuery)
   return (
     <Sonner
-      position="bottom-right"
+      position={phone ? "top-center" : "bottom-right"}
+      offset={{ top: edge(24, "top"), right: edge(24, "right"), bottom: edge(24, "bottom"), left: edge(24, "left") }}
+      mobileOffset={{ top: edge(16, "top"), right: edge(16, "right"), bottom: edge(16, "bottom"), left: edge(16, "left") }}
       duration={5000}
       visibleToasts={3}
       closeButton

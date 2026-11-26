@@ -207,6 +207,8 @@ export function DocEditor({ tenantId, detail, page, userId }: { tenantId: string
   const deleting = deleteTarget ?? pages.find((p) => p.id === page.id)!;
   const deleteCount = subtreeIds(pages, deleting.id).length;
   const imp = useImport(tenantId, doc.id, page.id, () => version.current, (id) => { router.push(pageHref(id)); router.refresh(); });
+  // An import started from the page menu reports its failure through the app's one toast position (it was a separate floating alert).
+  useEffect(() => { if (imp.error) notify.error(imp.error, { id: "doc-import" }); }, [imp.error]);
   const allProtected = pages.length > 0 && pages.every((p) => p.protected);
 
   async function menuAction(action: MenuAction) {
@@ -351,7 +353,6 @@ export function DocEditor({ tenantId, detail, page, userId }: { tenantId: string
     {focusPage && <Button type="button" variant="outline" className="fixed end-4 bottom-4 z-30 min-h-11 shadow-md" onClick={() => setFocusPage(false)}><Maximize2 aria-hidden="true" />{t("exitFocus")}</Button>}
     <input ref={filePicker} type="file" className="sr-only" tabIndex={-1} aria-label={t("chooseFile")} accept=".html,.htm,.md,.markdown,.txt,text/html,text/markdown,text/plain"
       onChange={(e) => { const f = e.target.files?.[0]; e.target.value = ""; if (f && pending) void imp.run(f, pending.format, pending.split, "new_pages"); }} />
-    {imp.error && <div className="fixed start-4 bottom-4 z-30 max-w-sm"><Alert variant="destructive" role="alert"><AlertDescription>{imp.error}</AlertDescription></Alert></div>}
 
     <Sheet open={pagesOpen && !docked} onOpenChange={setPagesOpen}><SheetContent side="left" className="w-80 overflow-y-auto p-4" aria-describedby={undefined}><SheetHeader className="p-0"><SheetTitle className="sr-only">{t("pages")}</SheetTitle></SheetHeader>{treeEl}</SheetContent></Sheet>
     <Sheet open={!docked && panelBody !== null} onOpenChange={(o) => { if (!o) setPanel(null); }}><SheetContent showCloseButton={false} className="w-full gap-0 p-0 sm:max-w-sm" aria-describedby={undefined}><SheetHeader className="sr-only"><SheetTitle>{t("pageTools")}</SheetTitle></SheetHeader><div className="h-full min-h-0">{panelBody}</div></SheetContent></Sheet>
