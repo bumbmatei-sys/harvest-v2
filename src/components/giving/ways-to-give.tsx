@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 import { useTranslations } from "next-intl";
-import { AtSign, ExternalLink, Flag, HandCoins, Landmark, Link2, type LucideIcon } from "lucide-react";
+import { ExternalLink, Flag, HandCoins } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -9,16 +9,15 @@ import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { CopyButton } from "@/components/copy-button";
+import { GivingMarkChip } from "@/components/giving/giving-logos";
 import { request } from "@/hooks/use-request";
-import { formatIban, givingLimits, givingReportReasons, type GivingKind, type GivingPublicMethod } from "@/lib/ways-to-give";
-
-/** Generic icons only (no provider logos): a link, a handle or a bank. */
-export const givingKindIcon = (kind: GivingKind): LucideIcon => kind === "bank_transfer" ? Landmark : ["venmo", "zelle", "revolut", "cash_app"].includes(kind) ? AtSign : Link2;
+import { formatIban, givingLimits, givingReportReasons, type GivingPublicMethod } from "@/lib/ways-to-give";
 
 /**
  * The public "Ways to give" block: the ministry's enabled giving methods with an open-in-new-tab link or copyable account details, and the short note that gifts
  * go directly to the ministry. One component for the link-in-bio page, the owner preview and any public page that embeds it (a campaign page). `inert` makes
- * links non-navigating (previews). Built from Harvest's Button and CopyButton; no provider logos, nothing fetched.
+ * links non-navigating (previews). Built from Harvest's Button and CopyButton; each method shows its brand mark (generic for a bank transfer and brands
+ * without a verified mark, see giving-logos.tsx), nothing fetched.
  */
 export function WaysToGive({ methods, title, ministryName, inert = false, headingLevel = 2, reportUrl }: {
   methods: GivingPublicMethod[]; title?: string; ministryName: string; inert?: boolean; headingLevel?: 2 | 3 | 4;
@@ -38,16 +37,15 @@ export function WaysToGive({ methods, title, ministryName, inert = false, headin
     <div className="flex items-center gap-2 border-b px-4 py-3"><HandCoins className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
       <Heading className="text-base font-semibold">{title || t("title")}</Heading></div>
     <ul className="divide-y">{methods.map((method) => {
-      const Icon = givingKindIcon(method.kind);
       return <li key={method.id} className="space-y-2 px-4 py-3" data-giving-method={method.kind}>
         <div className="flex flex-wrap items-center gap-3">
-          <Icon className="size-5 shrink-0 text-muted-foreground" aria-hidden="true" />
+          <GivingMarkChip kind={method.kind} label={t(`kinds.${method.kind}`)} />
           <span className="min-w-0 flex-1"><span className="block break-words text-base font-medium">{method.label}</span>
             <span className="block text-xs text-muted-foreground">{t(`kinds.${method.kind}`)}</span></span>
           {method.url && <Button asChild variant="outline" className="min-h-11 w-full sm:w-auto"><a href={method.url} target="_blank" rel="noopener noreferrer" {...inertProps}>
             {t("give")}<ExternalLink aria-hidden="true" /><span className="sr-only">{t("newTab")}</span></a></Button>}
         </div>
-        {(method.handle || method.iban || method.note) && <dl className="space-y-1 ps-8">
+        {(method.handle || method.iban || method.note) && <dl className="space-y-1 sm:ps-12">
           {method.handle && detail("handle", t("handle"), method.handle, method.handle)}
           {method.iban && detail("iban", t("iban"), formatIban(method.iban), method.iban, true)}
           {method.bic && detail("bic", t("bic"), method.bic, method.bic, true)}

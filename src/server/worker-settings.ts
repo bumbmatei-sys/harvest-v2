@@ -2,6 +2,7 @@ import { sharedScope } from "../lib/shared-scope";
 import { runtimeConnectionString } from "../db/request";
 import type { FileBucket } from "./storage/r2";
 import { hasQaSignInBindings, type QaSignInBindings } from "./qa-sign-in-gate";
+import { qaPreviewTokenBinding } from "./qa-preview-gate";
 
 export interface WorkerBindings extends QaSignInBindings {
   HARVEST_ENV?: string;
@@ -16,6 +17,8 @@ export interface WorkerBindings extends QaSignInBindings {
   FILES?: FileBucket;
   HARVEST_COMMUNITIES?: string;
   FILES_REQUIRE_SCAN_PRIVATE?: string;
+  /** QA-2: accepted on a preview, staging or local Worker only, never production; see qa-preview-gate.ts. */
+  QA_PREVIEW_TOKEN?: string;
 }
 
 export function readWorkerSettings(env: WorkerBindings) {
@@ -32,11 +35,13 @@ export function readWorkerSettings(env: WorkerBindings) {
   const production = canonicalOrigin(env.HARVEST_PRODUCTION_ORIGIN, false);
   const origin = canonicalOrigin(BETTER_AUTH_URL, stage === "local");
   if ((stage === "production") !== (origin === production)) throw invalid();
+  let qaPreviewToken: string | null;
+  try { qaPreviewToken = qaPreviewTokenBinding(stage, env, [BETTER_AUTH_SECRET, FILE_GRANT_SECRET, RESEND_API_KEY]); } catch { throw invalid(); }
   // The binding URL names a generated database; withDb checks APP_DATABASE_NAME against current_database() on every connection.
   try { runtimeConnectionString(APP_HYPERDRIVE.connectionString, "app", "hyperdrive"); } catch { throw invalid(); }
 
   return {
-    stage, origin, authSecret: BETTER_AUTH_SECRET, grantSecret: FILE_GRANT_SECRET,
+    stage, origin, qaPreviewToken, authSecret: BETTER_AUTH_SECRET, grantSecret: FILE_GRANT_SECRET,
     hyperdrive: APP_HYPERDRIVE, databaseName: env.APP_DATABASE_NAME, bucket: FILES, mailKey: RESEND_API_KEY, mailFrom: EMAIL_FROM,
     features: { NODE_ENV: stage === "production" ? "production" : "development", HARVEST_COMMUNITIES: env.HARVEST_COMMUNITIES },
     requirePrivateScan: stage === "production" || (env.FILES_REQUIRE_SCAN_PRIVATE !== undefined && env.FILES_REQUIRE_SCAN_PRIVATE !== "false"),
