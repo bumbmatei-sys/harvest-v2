@@ -1,6 +1,6 @@
 {
-  "id": "1d6e8d77-d967-41dd-9566-a91d959e7ea4",
-  "prevId": "90d12426-f63f-4b3c-b734-9a2bfb756ace",
+  "id": "e6a5a20f-98ad-45da-a42f-fcebf1bc1d44",
+  "prevId": "2fa36457-0ae0-4124-9cba-426748b21952",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -4286,6 +4286,154 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.campaign_boards": {
+      "name": "campaign_boards",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "campaign_id": {
+          "name": "campaign_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "department": {
+          "name": "department",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "campaign_boards_department_idx": {
+          "name": "campaign_boards_department_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "campaign_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "department",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "campaign_boards_campaign_id_idx": {
+          "name": "campaign_boards_campaign_id_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "campaign_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "campaign_boards_created_by_users_id_fk": {
+          "name": "campaign_boards_created_by_users_id_fk",
+          "tableFrom": "campaign_boards",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "campaign_boards_tenant_id_campaign_id_campaigns_tenant_id_id_fk": {
+          "name": "campaign_boards_tenant_id_campaign_id_campaigns_tenant_id_id_fk",
+          "tableFrom": "campaign_boards",
+          "tableTo": "campaigns",
+          "columnsFrom": [
+            "tenant_id",
+            "campaign_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "campaign_boards_tenant_id_id_pk": {
+          "name": "campaign_boards_tenant_id_id_pk",
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "campaign_board_department": {
+          "name": "campaign_board_department",
+          "value": "\"campaign_boards\".\"department\" in ('general', 'campaign_leadership', 'church_mobilization', 'evangelistic_outreach', 'prayer_intercession', 'marketing_media', 'logistics_equipment', 'finance_fundraising', 'volunteers', 'counseling', 'discipleship_follow_up', 'worship_production', 'security_medical', 'transportation_hospitality')"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.campaign_checklist_items": {
       "name": "campaign_checklist_items",
       "schema": "",
@@ -5188,6 +5336,125 @@
       },
       "isRLSEnabled": false
     },
+    "public.campaign_event_links": {
+      "name": "campaign_event_links",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "campaign_id": {
+          "name": "campaign_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "event_id": {
+          "name": "event_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "campaign_event_links_event_idx": {
+          "name": "campaign_event_links_event_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "event_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "campaign_event_links_created_by_users_id_fk": {
+          "name": "campaign_event_links_created_by_users_id_fk",
+          "tableFrom": "campaign_event_links",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "campaign_event_links_tenant_id_campaign_id_campaigns_tenant_id_id_fk": {
+          "name": "campaign_event_links_tenant_id_campaign_id_campaigns_tenant_id_id_fk",
+          "tableFrom": "campaign_event_links",
+          "tableTo": "campaigns",
+          "columnsFrom": [
+            "tenant_id",
+            "campaign_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "campaign_event_links_tenant_id_event_id_events_tenant_id_id_fk": {
+          "name": "campaign_event_links_tenant_id_event_id_events_tenant_id_id_fk",
+          "tableFrom": "campaign_event_links",
+          "tableTo": "events",
+          "columnsFrom": [
+            "tenant_id",
+            "event_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "campaign_event_links_tenant_id_campaign_id_event_id_pk": {
+          "name": "campaign_event_links_tenant_id_campaign_id_event_id_pk",
+          "columns": [
+            "tenant_id",
+            "campaign_id",
+            "event_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.campaign_files": {
       "name": "campaign_files",
       "schema": "",
@@ -5453,6 +5720,230 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.campaign_milestones": {
+      "name": "campaign_milestones",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "campaign_id": {
+          "name": "campaign_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "board_id": {
+          "name": "board_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "due_date": {
+          "name": "due_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reached_at": {
+          "name": "reached_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reached_by": {
+          "name": "reached_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "campaign_milestones_campaign_id_idx": {
+          "name": "campaign_milestones_campaign_id_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "campaign_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "campaign_milestones_campaign_idx": {
+          "name": "campaign_milestones_campaign_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "campaign_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "due_date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "campaign_milestones_reached_by_users_id_fk": {
+          "name": "campaign_milestones_reached_by_users_id_fk",
+          "tableFrom": "campaign_milestones",
+          "tableTo": "users",
+          "columnsFrom": [
+            "reached_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "campaign_milestones_created_by_users_id_fk": {
+          "name": "campaign_milestones_created_by_users_id_fk",
+          "tableFrom": "campaign_milestones",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "campaign_milestones_tenant_id_campaign_id_campaigns_tenant_id_id_fk": {
+          "name": "campaign_milestones_tenant_id_campaign_id_campaigns_tenant_id_id_fk",
+          "tableFrom": "campaign_milestones",
+          "tableTo": "campaigns",
+          "columnsFrom": [
+            "tenant_id",
+            "campaign_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "campaign_milestones_board_fk": {
+          "name": "campaign_milestones_board_fk",
+          "tableFrom": "campaign_milestones",
+          "tableTo": "campaign_boards",
+          "columnsFrom": [
+            "tenant_id",
+            "campaign_id",
+            "board_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "campaign_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "campaign_milestones_tenant_id_id_pk": {
+          "name": "campaign_milestones_tenant_id_id_pk",
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "campaign_milestone_title": {
+          "name": "campaign_milestone_title",
+          "value": "length(btrim(\"campaign_milestones\".\"title\")) between 1 and 200 and \"campaign_milestones\".\"title\" = btrim(\"campaign_milestones\".\"title\")"
+        },
+        "campaign_milestone_reached": {
+          "name": "campaign_milestone_reached",
+          "value": "(\"campaign_milestones\".\"reached_at\" is null) = (\"campaign_milestones\".\"reached_by\" is null)"
+        },
+        "campaign_milestone_version": {
+          "name": "campaign_milestone_version",
+          "value": "\"campaign_milestones\".\"version\" >= 1"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.campaign_response_consents": {
@@ -6611,6 +7102,319 @@
         "campaign_scan_count": {
           "name": "campaign_scan_count",
           "value": "\"campaign_scan_days\".\"count\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.campaign_tasks": {
+      "name": "campaign_tasks",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "campaign_id": {
+          "name": "campaign_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "board_id": {
+          "name": "board_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "milestone_id": {
+          "name": "milestone_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "notes": {
+          "name": "notes",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'todo'"
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "assignee_id": {
+          "name": "assignee_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "due_date": {
+          "name": "due_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "completed_by": {
+          "name": "completed_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "campaign_tasks_board_idx": {
+          "name": "campaign_tasks_board_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "board_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "position",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "campaign_tasks_campaign_idx": {
+          "name": "campaign_tasks_campaign_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "campaign_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "status",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "campaign_tasks_milestone_idx": {
+          "name": "campaign_tasks_milestone_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "milestone_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "campaign_tasks_completed_by_users_id_fk": {
+          "name": "campaign_tasks_completed_by_users_id_fk",
+          "tableFrom": "campaign_tasks",
+          "tableTo": "users",
+          "columnsFrom": [
+            "completed_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "campaign_tasks_created_by_users_id_fk": {
+          "name": "campaign_tasks_created_by_users_id_fk",
+          "tableFrom": "campaign_tasks",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "campaign_tasks_tenant_id_campaign_id_campaigns_tenant_id_id_fk": {
+          "name": "campaign_tasks_tenant_id_campaign_id_campaigns_tenant_id_id_fk",
+          "tableFrom": "campaign_tasks",
+          "tableTo": "campaigns",
+          "columnsFrom": [
+            "tenant_id",
+            "campaign_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "campaign_tasks_board_fk": {
+          "name": "campaign_tasks_board_fk",
+          "tableFrom": "campaign_tasks",
+          "tableTo": "campaign_boards",
+          "columnsFrom": [
+            "tenant_id",
+            "campaign_id",
+            "board_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "campaign_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "campaign_tasks_milestone_fk": {
+          "name": "campaign_tasks_milestone_fk",
+          "tableFrom": "campaign_tasks",
+          "tableTo": "campaign_milestones",
+          "columnsFrom": [
+            "tenant_id",
+            "campaign_id",
+            "milestone_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "campaign_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "campaign_tasks_tenant_id_id_pk": {
+          "name": "campaign_tasks_tenant_id_id_pk",
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "campaign_task_title": {
+          "name": "campaign_task_title",
+          "value": "length(btrim(\"campaign_tasks\".\"title\")) between 1 and 200 and \"campaign_tasks\".\"title\" = btrim(\"campaign_tasks\".\"title\")"
+        },
+        "campaign_task_notes": {
+          "name": "campaign_task_notes",
+          "value": "length(\"campaign_tasks\".\"notes\") <= 5000"
+        },
+        "campaign_task_status": {
+          "name": "campaign_task_status",
+          "value": "\"campaign_tasks\".\"status\" in ('todo', 'in_progress', 'done')"
+        },
+        "campaign_task_position": {
+          "name": "campaign_task_position",
+          "value": "\"campaign_tasks\".\"position\" >= 0"
+        },
+        "campaign_task_done": {
+          "name": "campaign_task_done",
+          "value": "(\"campaign_tasks\".\"status\" = 'done') = (\"campaign_tasks\".\"completed_at\" is not null) and (\"campaign_tasks\".\"completed_at\" is null) = (\"campaign_tasks\".\"completed_by\" is null)"
+        },
+        "campaign_task_version": {
+          "name": "campaign_task_version",
+          "value": "\"campaign_tasks\".\"version\" >= 1"
         }
       },
       "isRLSEnabled": false
@@ -11681,7 +12485,7 @@
       "checkConstraints": {
         "community_reaction_emoji": {
           "name": "community_reaction_emoji",
-          "value": "\"community_message_reactions\".\"emoji\" in ('\ud83d\udc4d','\u2764\ufe0f','\ud83d\ude4f','\ud83d\ude0a','\ud83c\udf89','\ud83d\udc4f','\ud83d\udca1','\ud83d\udd25','\ud83d\ude2e','\ud83d\ude22','\u2705','\ud83d\ude4c')"
+          "value": "\"community_message_reactions\".\"emoji\" in ('👍','❤️','🙏','😊','🎉','👏','💡','🔥','😮','😢','✅','🙌')"
         }
       },
       "isRLSEnabled": false
@@ -24672,6 +25476,1013 @@
       },
       "isRLSEnabled": false
     },
+    "public.fundraising_campaigns": {
+      "name": "fundraising_campaigns",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "campaign_id": {
+          "name": "campaign_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "summary": {
+          "name": "summary",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "goal_cents": {
+          "name": "goal_cents",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fingerprint": {
+          "name": "fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "published_at": {
+          "name": "published_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "closed_at": {
+          "name": "closed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "fundraising_campaigns_idempotency_idx": {
+          "name": "fundraising_campaigns_idempotency_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "idempotency_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "fundraising_campaigns_created_idx": {
+          "name": "fundraising_campaigns_created_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "fundraising_campaigns_campaign_idx": {
+          "name": "fundraising_campaigns_campaign_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "campaign_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"fundraising_campaigns\".\"campaign_id\" is not null and \"fundraising_campaigns\".\"status\" <> 'archived'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "fundraising_campaigns_tenant_id_workspaces_tenant_id_fk": {
+          "name": "fundraising_campaigns_tenant_id_workspaces_tenant_id_fk",
+          "tableFrom": "fundraising_campaigns",
+          "tableTo": "workspaces",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "tenant_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fundraising_campaigns_created_by_users_id_fk": {
+          "name": "fundraising_campaigns_created_by_users_id_fk",
+          "tableFrom": "fundraising_campaigns",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fundraising_campaigns_tenant_id_campaign_id_campaigns_tenant_id_id_fk": {
+          "name": "fundraising_campaigns_tenant_id_campaign_id_campaigns_tenant_id_id_fk",
+          "tableFrom": "fundraising_campaigns",
+          "tableTo": "campaigns",
+          "columnsFrom": [
+            "tenant_id",
+            "campaign_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "fundraising_campaigns_tenant_id_id_pk": {
+          "name": "fundraising_campaigns_tenant_id_id_pk",
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "fundraising_campaigns_currency_key": {
+          "name": "fundraising_campaigns_currency_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id",
+            "currency"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "fundraising_title": {
+          "name": "fundraising_title",
+          "value": "length(btrim(\"fundraising_campaigns\".\"title\")) between 1 and 200 and \"fundraising_campaigns\".\"title\" = btrim(\"fundraising_campaigns\".\"title\")"
+        },
+        "fundraising_summary": {
+          "name": "fundraising_summary",
+          "value": "length(\"fundraising_campaigns\".\"summary\") <= 2000"
+        },
+        "fundraising_status": {
+          "name": "fundraising_status",
+          "value": "\"fundraising_campaigns\".\"status\" in ('draft', 'published', 'closed', 'archived')"
+        },
+        "fundraising_goal": {
+          "name": "fundraising_goal",
+          "value": "\"fundraising_campaigns\".\"goal_cents\" between 1 and 1000000000000"
+        },
+        "fundraising_currency": {
+          "name": "fundraising_currency",
+          "value": "\"fundraising_campaigns\".\"currency\" in ('USD','EUR','GBP','CAD','AUD','NZD','CHF','ZAR','BRL','MXN','INR','PHP','KES','NGN','GHS','RON')"
+        },
+        "fundraising_version": {
+          "name": "fundraising_version",
+          "value": "\"fundraising_campaigns\".\"version\" >= 1"
+        },
+        "fundraising_idempotency_key": {
+          "name": "fundraising_idempotency_key",
+          "value": "length(\"fundraising_campaigns\".\"idempotency_key\") between 1 and 200 and \"fundraising_campaigns\".\"idempotency_key\" ~ '^[A-Za-z0-9._:-]+$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.fundraising_pledges": {
+      "name": "fundraising_pledges",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "fundraising_id": {
+          "name": "fundraising_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contact_id": {
+          "name": "contact_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "supporter_name": {
+          "name": "supporter_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "supporter_contact": {
+          "name": "supporter_contact",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "expected_on": {
+          "name": "expected_on",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "source": {
+          "name": "source",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'staff'"
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fingerprint": {
+          "name": "fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "fundraising_pledges_idempotency_idx": {
+          "name": "fundraising_pledges_idempotency_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "idempotency_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "fundraising_pledges_campaign_idx": {
+          "name": "fundraising_pledges_campaign_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "fundraising_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "created_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "fundraising_pledges_created_by_users_id_fk": {
+          "name": "fundraising_pledges_created_by_users_id_fk",
+          "tableFrom": "fundraising_pledges",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fundraising_pledges_tenant_id_fundraising_id_currency_fundraising_campaigns_tenant_id_id_currency_fk": {
+          "name": "fundraising_pledges_tenant_id_fundraising_id_currency_fundraising_campaigns_tenant_id_id_currency_fk",
+          "tableFrom": "fundraising_pledges",
+          "tableTo": "fundraising_campaigns",
+          "columnsFrom": [
+            "tenant_id",
+            "fundraising_id",
+            "currency"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id",
+            "currency"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "fundraising_pledges_tenant_id_contact_id_contacts_tenant_id_id_fk": {
+          "name": "fundraising_pledges_tenant_id_contact_id_contacts_tenant_id_id_fk",
+          "tableFrom": "fundraising_pledges",
+          "tableTo": "contacts",
+          "columnsFrom": [
+            "tenant_id",
+            "contact_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "fundraising_pledges_tenant_id_id_pk": {
+          "name": "fundraising_pledges_tenant_id_id_pk",
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "fundraising_pledges_campaign_key": {
+          "name": "fundraising_pledges_campaign_key",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "id",
+            "fundraising_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "fundraising_pledge_amount": {
+          "name": "fundraising_pledge_amount",
+          "value": "\"fundraising_pledges\".\"amount_cents\" between 1 and 1000000000000"
+        },
+        "fundraising_pledge_status": {
+          "name": "fundraising_pledge_status",
+          "value": "\"fundraising_pledges\".\"status\" in ('pending', 'accepted', 'cancelled')"
+        },
+        "fundraising_pledge_source": {
+          "name": "fundraising_pledge_source",
+          "value": "\"fundraising_pledges\".\"source\" in ('staff')"
+        },
+        "fundraising_pledge_name": {
+          "name": "fundraising_pledge_name",
+          "value": "length(btrim(\"fundraising_pledges\".\"supporter_name\")) between 1 and 120"
+        },
+        "fundraising_pledge_contact": {
+          "name": "fundraising_pledge_contact",
+          "value": "length(btrim(\"fundraising_pledges\".\"supporter_contact\")) between 1 and 200"
+        },
+        "fundraising_pledge_version": {
+          "name": "fundraising_pledge_version",
+          "value": "\"fundraising_pledges\".\"version\" >= 1"
+        },
+        "fundraising_pledge_idempotency_key": {
+          "name": "fundraising_pledge_idempotency_key",
+          "value": "length(\"fundraising_pledges\".\"idempotency_key\") between 1 and 200 and \"fundraising_pledges\".\"idempotency_key\" ~ '^[A-Za-z0-9._:-]+$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.giving_contact_links": {
+      "name": "giving_contact_links",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entry_id": {
+          "name": "entry_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "contact_id": {
+          "name": "contact_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "supporter_name": {
+          "name": "supporter_name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "giving_contact_links_contact_idx": {
+          "name": "giving_contact_links_contact_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "contact_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "giving_contact_links_created_by_users_id_fk": {
+          "name": "giving_contact_links_created_by_users_id_fk",
+          "tableFrom": "giving_contact_links",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "giving_contact_links_tenant_id_entry_id_giving_ledger_entries_tenant_id_id_fk": {
+          "name": "giving_contact_links_tenant_id_entry_id_giving_ledger_entries_tenant_id_id_fk",
+          "tableFrom": "giving_contact_links",
+          "tableTo": "giving_ledger_entries",
+          "columnsFrom": [
+            "tenant_id",
+            "entry_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "giving_contact_links_tenant_id_contact_id_contacts_tenant_id_id_fk": {
+          "name": "giving_contact_links_tenant_id_contact_id_contacts_tenant_id_id_fk",
+          "tableFrom": "giving_contact_links",
+          "tableTo": "contacts",
+          "columnsFrom": [
+            "tenant_id",
+            "contact_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "giving_contact_links_tenant_id_entry_id_pk": {
+          "name": "giving_contact_links_tenant_id_entry_id_pk",
+          "columns": [
+            "tenant_id",
+            "entry_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "giving_contact_link_name": {
+          "name": "giving_contact_link_name",
+          "value": "length(btrim(\"giving_contact_links\".\"supporter_name\")) between 1 and 120"
+        },
+        "giving_contact_link_some": {
+          "name": "giving_contact_link_some",
+          "value": "\"giving_contact_links\".\"contact_id\" is not null or \"giving_contact_links\".\"supporter_name\" is not null"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.giving_ledger_entries": {
+      "name": "giving_ledger_entries",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "fundraising_id": {
+          "name": "fundraising_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pledge_id": {
+          "name": "pledge_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "amount_cents": {
+          "name": "amount_cents",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "currency": {
+          "name": "currency",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "correction_of": {
+          "name": "correction_of",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "gift_date": {
+          "name": "gift_date",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "method_label": {
+          "name": "method_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reference": {
+          "name": "reference",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "confirmed_by": {
+          "name": "confirmed_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "confirmed_at": {
+          "name": "confirmed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "idempotency_key": {
+          "name": "idempotency_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "fingerprint": {
+          "name": "fingerprint",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "giving_ledger_idempotency_idx": {
+          "name": "giving_ledger_idempotency_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "idempotency_key",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "giving_ledger_one_reversal_idx": {
+          "name": "giving_ledger_one_reversal_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "correction_of",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"giving_ledger_entries\".\"kind\" = 'reversal'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "giving_ledger_one_replacement_idx": {
+          "name": "giving_ledger_one_replacement_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "correction_of",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"giving_ledger_entries\".\"kind\" = 'gift' and \"giving_ledger_entries\".\"correction_of\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "giving_ledger_campaign_idx": {
+          "name": "giving_ledger_campaign_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "fundraising_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "confirmed_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "giving_ledger_pledge_idx": {
+          "name": "giving_ledger_pledge_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "pledge_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "giving_ledger_entries_confirmed_by_users_id_fk": {
+          "name": "giving_ledger_entries_confirmed_by_users_id_fk",
+          "tableFrom": "giving_ledger_entries",
+          "tableTo": "users",
+          "columnsFrom": [
+            "confirmed_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "giving_ledger_entries_tenant_id_fundraising_id_currency_fundraising_campaigns_tenant_id_id_currency_fk": {
+          "name": "giving_ledger_entries_tenant_id_fundraising_id_currency_fundraising_campaigns_tenant_id_id_currency_fk",
+          "tableFrom": "giving_ledger_entries",
+          "tableTo": "fundraising_campaigns",
+          "columnsFrom": [
+            "tenant_id",
+            "fundraising_id",
+            "currency"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id",
+            "currency"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "giving_ledger_entries_tenant_id_pledge_id_fundraising_id_fundraising_pledges_tenant_id_id_fundraising_id_fk": {
+          "name": "giving_ledger_entries_tenant_id_pledge_id_fundraising_id_fundraising_pledges_tenant_id_id_fundraising_id_fk",
+          "tableFrom": "giving_ledger_entries",
+          "tableTo": "fundraising_pledges",
+          "columnsFrom": [
+            "tenant_id",
+            "pledge_id",
+            "fundraising_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id",
+            "fundraising_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "giving_ledger_entries_tenant_id_correction_of_giving_ledger_entries_tenant_id_id_fk": {
+          "name": "giving_ledger_entries_tenant_id_correction_of_giving_ledger_entries_tenant_id_id_fk",
+          "tableFrom": "giving_ledger_entries",
+          "tableTo": "giving_ledger_entries",
+          "columnsFrom": [
+            "tenant_id",
+            "correction_of"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "giving_ledger_entries_tenant_id_id_pk": {
+          "name": "giving_ledger_entries_tenant_id_id_pk",
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "giving_ledger_kind": {
+          "name": "giving_ledger_kind",
+          "value": "\"giving_ledger_entries\".\"kind\" in ('gift', 'reversal')"
+        },
+        "giving_ledger_amount": {
+          "name": "giving_ledger_amount",
+          "value": "(\"giving_ledger_entries\".\"kind\" = 'gift' and \"giving_ledger_entries\".\"amount_cents\" between 1 and 1000000000000) or (\"giving_ledger_entries\".\"kind\" = 'reversal' and \"giving_ledger_entries\".\"amount_cents\" between -1000000000000 and -1)"
+        },
+        "giving_ledger_correction": {
+          "name": "giving_ledger_correction",
+          "value": "(\"giving_ledger_entries\".\"kind\" = 'reversal') = (\"giving_ledger_entries\".\"reason\" is not null) and (\"giving_ledger_entries\".\"kind\" = 'gift' or \"giving_ledger_entries\".\"correction_of\" is not null)"
+        },
+        "giving_ledger_reason": {
+          "name": "giving_ledger_reason",
+          "value": "\"giving_ledger_entries\".\"reason\" in ('entered_in_error', 'wrong_amount', 'wrong_campaign', 'other')"
+        },
+        "giving_ledger_method": {
+          "name": "giving_ledger_method",
+          "value": "length(btrim(\"giving_ledger_entries\".\"method_label\")) between 1 and 80"
+        },
+        "giving_ledger_reference": {
+          "name": "giving_ledger_reference",
+          "value": "length(btrim(\"giving_ledger_entries\".\"reference\")) between 1 and 120"
+        },
+        "giving_ledger_idempotency_key": {
+          "name": "giving_ledger_idempotency_key",
+          "value": "length(\"giving_ledger_entries\".\"idempotency_key\") between 1 and 200 and \"giving_ledger_entries\".\"idempotency_key\" ~ '^[A-Za-z0-9._:-]+$'"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.giving_methods": {
       "name": "giving_methods",
       "schema": "",
@@ -24867,6 +26678,10 @@
           "name": "giving_methods_lengths",
           "value": "coalesce(length(\"giving_methods\".\"handle\"), 0) <= 64 and coalesce(length(\"giving_methods\".\"account_holder\"), 0) <= 100 and coalesce(length(\"giving_methods\".\"note\"), 0) <= 140"
         },
+        "giving_methods_url_host": {
+          "name": "giving_methods_url_host",
+          "value": "public.giving_url_allowed(\"giving_methods\".\"kind\", \"giving_methods\".\"url\")"
+        },
         "giving_methods_iban": {
           "name": "giving_methods_iban",
           "value": "\"giving_methods\".\"iban\" is null or public.giving_iban_valid(\"giving_methods\".\"iban\")"
@@ -24878,10 +26693,6 @@
         "giving_methods_shape": {
           "name": "giving_methods_shape",
           "value": "case\n    when \"giving_methods\".\"kind\" = 'bank_transfer' then \"giving_methods\".\"iban\" is not null and \"giving_methods\".\"account_holder\" is not null and \"giving_methods\".\"url\" is null and \"giving_methods\".\"handle\" is null\n    when \"giving_methods\".\"kind\" = 'zelle' then \"giving_methods\".\"handle\" is not null and \"giving_methods\".\"url\" is null and \"giving_methods\".\"iban\" is null and \"giving_methods\".\"bic\" is null and \"giving_methods\".\"account_holder\" is null\n    when \"giving_methods\".\"kind\" in ('venmo','revolut','cash_app') then (\"giving_methods\".\"url\" is null) <> (\"giving_methods\".\"handle\" is null) and \"giving_methods\".\"iban\" is null and \"giving_methods\".\"bic\" is null and \"giving_methods\".\"account_holder\" is null\n    else \"giving_methods\".\"url\" is not null and \"giving_methods\".\"handle\" is null and \"giving_methods\".\"iban\" is null and \"giving_methods\".\"bic\" is null and \"giving_methods\".\"account_holder\" is null end"
-        },
-        "giving_methods_url_host": {
-          "name": "giving_methods_url_host",
-          "value": "public.giving_url_allowed(\"giving_methods\".\"kind\", \"giving_methods\".\"url\")"
         }
       },
       "isRLSEnabled": false

@@ -549,7 +549,10 @@ describe("campaign overview", () => {
       budget: { currency: "USD", estimatedBudgetMinor: null, fundraisingEnabled: false, fundraisingGoalMinor: null, onlineDonations: false },
     });
     expect(overview.checklist).toEqual({ done: 0, total: 9 });
-    expect(overview.unavailable).toEqual(["progress", "events", "funding", "tasks"]);
+    // Boards (work) and campaign events (Events on in tests, no event linked: 0) are real figures; funding stays unavailable.
+    expect(overview.unavailable).toEqual(["funding"]);
+    expect(overview.events).toBe(0);
+    expect(overview.work).toEqual({ tasks: { total: 0, done: 0, inProgress: 0, overdue: 0 }, milestones: { total: 0, reached: 0 }, progress: null });
     expect(JSON.stringify(overview)).not.toMatch(/example\.test/); // no email address of an invitee or placed person
   });
   it("is for people who can write campaigns, stays inside the ministry, and has nothing for a campaign made without the wizard", async () => {

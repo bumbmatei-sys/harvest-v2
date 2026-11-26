@@ -53,7 +53,7 @@ export type NavEntry = {
    */
   exitTo?: string;
 };
-export type NavFeature = "communities" | "catalog" | "events" | "social" | "office" | "newsletter" | "newsletterAutomations" | "docs" | "linkInBio" | "discover" | "giving";
+export type NavFeature = "communities" | "catalog" | "events" | "social" | "office" | "newsletter" | "newsletterAutomations" | "docs" | "linkInBio" | "discover" | "giving" | "fundraising";
 export type NavItem = { id: string; label: NavLabelKey; icon: LucideIcon; href: string; active: boolean };
 /** A `pinned` group is rendered without a header, above the other groups (Discover). */
 export type NavGroup = { id: NavGroupId; label: NavLabelKey; icon?: LucideIcon; pinned?: boolean; items: NavItem[] };
@@ -112,7 +112,8 @@ export const navEntries: readonly NavEntry[] = [
   // Operations > Giving (its own group; all planned until the giving screens exist).
   { id: "givingOverview", group: "giving", mode: "operations", status: "planned", label: "overview", icon: LayoutDashboard, path: "/giving", match: under("/giving") },
   { id: "donations", group: "giving", mode: "operations", status: "planned", label: "donations", icon: Gift, path: "/giving/donations", match: under("/giving/donations") },
-  { id: "fundraising", group: "giving", mode: "operations", status: "planned", label: "fundraising", icon: PiggyBank, path: "/giving/fundraising", match: under("/giving/fundraising") },
+  // Fundraising pledge campaigns: owners, admins and Giving collaborators; hidden unless the server reports the module on (never in production).
+  { id: "fundraising", group: "giving", mode: "operations", label: "fundraising", icon: PiggyBank, path: "/giving/fundraising", match: under("/giving/fundraising"), permission: "fundraising:read", feature: "fundraising" },
   { id: "pledges", group: "giving", mode: "operations", status: "planned", label: "pledges", icon: Handshake, path: "/giving/pledges", match: under("/giving/pledges") },
   { id: "donors", group: "giving", mode: "operations", status: "planned", label: "donors", icon: UserRoundCheck, path: "/giving/donors", match: under("/giving/donors") },
   { id: "funds", group: "giving", mode: "operations", status: "planned", label: "funds", icon: Wallet, path: "/giving/funds", match: under("/giving/funds") },

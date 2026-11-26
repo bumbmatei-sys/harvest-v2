@@ -5,8 +5,10 @@ import { uuidInput } from "../lib/contact-input";
 import { departmentKeys, moduleKeys } from "../lib/campaign-wizard";
 import { outreachKeys } from "../lib/campaign-wizard-form";
 import { message } from "../i18n/messages";
+import { workSummaryOf, type CampaignWorkSummary } from "./campaign-boards";
 import { checklistOf } from "./campaign-checklist";
 import { invitationsOf } from "./campaign-wizard-invitations";
+import { campaignEventsOf } from "./campaign-events";
 import { AccessError } from "./permissions";
 import { withTenant } from "./tenancy";
 
@@ -25,14 +27,18 @@ export type CampaignOverview = {
   };
   /** Setup checklist progress. */
   checklist: { done: number; total: number };
-  /** Numbers the dashboard cannot show yet because nothing records them: progress, events, funding and tasks. Reported as unavailable, never as zero. */
-  unavailable: ("progress" | "events" | "funding" | "tasks")[];
+  /** Tasks and milestones on the campaign's boards, and progress (share of tasks done; null with no tasks). */
+  work: CampaignWorkSummary;
+  /** Numbers the dashboard cannot show yet because nothing records them: events (while Events is off) and funding. Reported as unavailable, never as zero. */
+  unavailable: ("events" | "funding")[];
+  /** Campaign events: how many linked events this person can see. Null while Events is off (then "events" stays unavailable). */
+  events: number | null;
 };
 
 /**
  * The read behind the campaign dashboard (founder decision Q6): what the finished draft configured (departments, who leads and who joined each one,
  * the tools that are on) and how far the setup checklist is. Only people who can write campaigns read it, because the draft is theirs to see; it
- * carries no donor, response or Connect data and nothing that counts activity, so progress, events, funding and tasks are reported as unavailable.
+ * carries no donor, response or Connect data. Tasks, milestones and progress come from the campaign's boards; events and funding are reported as unavailable.
  * Names are shown as stored; an email stands in for a missing name for owners and admins only.
  */
 export async function getCampaignOverview(db: Database, userId: string, workspace: string, campaign: string): Promise<CampaignOverview> {
@@ -62,6 +68,11 @@ export async function getCampaignOverview(db: Database, userId: string, workspac
         budget: draft.budget, registrationFormId: draft.registrationFormId,
       };
     }
-    return { campaignId: id, configuration, checklist: { done: checklist.filter((item) => item.done).length, total: checklist.length }, unavailable: ["progress", "events", "funding", "tasks"] };
+    const work = await workSummaryOf(tx, tenantId, id);
+    const overview: CampaignOverview = { campaignId: id, configuration, checklist: { done: checklist.filter((item) => item.done).length, total: checklist.length }, work, unavailable: ["events", "funding"], events: null };
+    // Campaign events: once Events is on, the events figure is real and no longer listed as unavailable.
+    const linked = await campaignEventsOf(tx, tenantId, id);
+    if (linked) Object.assign(overview, { events: linked.events.length, unavailable: overview.unavailable.filter((key) => key !== "events") });
+    return overview;
   });
 }

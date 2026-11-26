@@ -35,6 +35,9 @@ export const permissionArea = {
   "office:connect": "office", "office:mail": "office", "office:calendar": "office", "office:files": "office", "docs:read": "office", "docs:write": "office", "docs:manage": "office",
   "connect:publish": "connect", "followup:manage": "connect", "followup:work": "connect",
   "settings:write": "settings",
+  // Giving: a collaborator with Giving can run campaign settings; supporter details, pledges and gifts are owner/admin only (a separate decision).
+  "fundraising:read": "giving", "fundraising:manage": "giving", "fundraising:publish": "giving",
+  "giving:record": "owner_admin", "giving:correct": "owner_admin", "giving:read_donors": "owner_admin",
 } as const satisfies Record<Permission, AreaOf>;
 
 export const everyPermission = Object.keys(permissionArea) as Permission[];
