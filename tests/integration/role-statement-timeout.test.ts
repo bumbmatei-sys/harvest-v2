@@ -4,7 +4,8 @@ import { testDatabase } from "../database";
 // 0114: the runtime logins have a per-database statement_timeout so an aborted request cannot keep an origin connection busy.
 let fixture: Awaited<ReturnType<typeof testDatabase>>;
 let owned: Awaited<ReturnType<typeof testDatabase>>;
-beforeAll(async () => { [fixture, owned] = await Promise.all([testDatabase(), testDatabase({ migrationOwner: true })]); }, 240_000);
+// One at a time: each setup alters the shared harvest_app login, and parallel ALTER ROLE fails with "tuple concurrently updated".
+beforeAll(async () => { fixture = await testDatabase(); owned = await testDatabase({ migrationOwner: true }); }, 240_000);
 afterAll(async () => { await Promise.all([fixture?.close(), owned?.close()]); });
 
 it("bounds app statements at 20 s and worker statements at 60 s", async () => {
