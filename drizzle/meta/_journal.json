@@ -820,6 +820,13 @@
       "when": 1795710773224,
       "tag": "0118_campaign_boards",
       "breakpoints": true
+    },
+    {
+      "idx": 119,
+      "version": "7",
+      "when": 1795711032711,
+      "tag": "0119_ways_to_give",
+      "breakpoints": true
     }
   ]
 }

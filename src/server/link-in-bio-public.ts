@@ -7,9 +7,11 @@ import { getPublicBio, issueBioProof, recordBioClick, submitBioMessage } from ".
 import { errorResponse, verifyOrigin } from "./http";
 import { readBoundedJson } from "./request-json";
 import { workerSettings } from "./worker-settings";
+import { submitBioGivingReport } from "./ways-to-give";
+import { waysToGiveEnabled } from "./ways-to-give-mode";
 import { z } from "zod";
 
-const bodyLimit = 8 * 1024;
+const bodyLimit = 8 * 1024, reportLimit = 4 * 1024;
 const headers = { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "X-Content-Type-Options": "nosniff" } as const;
 const unavailable = () => new Response(JSON.stringify({ error: "not_found" }), { status: 404, headers: { ...headers, "Content-Type": "application/json" } });
 const json = (body: unknown, status = 200, extra: Record<string, string> = {}) => new Response(JSON.stringify(body), { status, headers: { ...headers, "Content-Type": "application/json", ...extra } });
@@ -92,6 +94,31 @@ export async function respondToBioMessage(request: Request, context: Context) {
       case "limited": return json({ error: "rate_limited" }, 429, { "Retry-After": "60" });
       case "conflict": return json({ error: "submission_conflict" }, 409);
       default: return json({ error: "invalid_submission" }, 400);
+    }
+  } catch (error) {
+    if (error instanceof BodyTooLarge) return json({ error: "body_too_large" }, 413);
+    return errorResponse(error);
+  }
+}
+
+/** POST /l/:handle/report: a visitor reports the page's Ways to give block. Same origin, JSON, 4 KiB, honeypot, database rate limits; no account needed. */
+export async function respondToBioGivingReport(request: Request, context: Context) {
+  try {
+    if (!waysToGiveEnabled() || workerSettings.getStore()) return unavailable();
+    const { handle } = await context.params;
+    if (handleProblem(handle)) return unavailable();
+    let originError: unknown;
+    try { verifyOrigin(request); } catch (error) { originError = error; }
+    const visitor = bioVisitorKey(request);
+    if (originError || !visitor) return unavailable();
+    if (request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") return json({ error: "json_required" }, 415);
+    if (Number(request.headers.get("content-length")) > reportLimit) throw new BodyTooLarge();
+    const input = await readBoundedJson(request, reportLimit, () => new BodyTooLarge());
+    switch (await submitBioGivingReport(getDb(), handle, input, visitor)) {
+      case "ok": return json({ accepted: true });
+      case "limited": return json({ error: "rate_limited" }, 429, { "Retry-After": "60" });
+      case "invalid": return json({ error: "invalid_submission" }, 400);
+      default: return unavailable();
     }
   } catch (error) {
     if (error instanceof BodyTooLarge) return json({ error: "body_too_large" }, 413);

@@ -257,7 +257,7 @@ describe("photo, choices and cross-ministry safety", () => {
     await expect(fixture.admin.query("update bio_pages set photo_file_id=$1 where tenant_id=$2", [randomUUID(), people.tenant])).rejects.toThrow();
   });
   it("offers only this ministry's communities and published sign-up forms", async () => {
-    expect(await bioChoices(db(), people.owner, people.tenant)).toEqual({ communities: [], signups: [] });
+    expect(await bioChoices(db(), people.owner, people.tenant)).toEqual({ communities: [], signups: [], giving: [] });
     expect(await status(bioChoices(db(), people.member, people.tenant))).toBe(403);
   });
   it("keeps the anonymous functions out of PUBLIC and pinned to a fixed search path", async () => {

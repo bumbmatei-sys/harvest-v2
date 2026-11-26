@@ -31,6 +31,7 @@ export const permissionArea = {
   "social:auto_dm": "social", "social:inbox": "social", "social:reply": "social", "social:assign": "social", "social:saved_replies": "social",
   "newsletter:read": "newsletter", "newsletter:manage": "newsletter", "newsletter:campaigns": "newsletter", "newsletter:delivery": "newsletter", "newsletter:analytics": "newsletter",
   "bio:manage": "website",
+  "giving:manage": "giving",
   "office:connect": "office", "office:mail": "office", "office:calendar": "office", "office:files": "office", "docs:read": "office", "docs:write": "office", "docs:manage": "office",
   "connect:publish": "connect", "followup:manage": "connect", "followup:work": "connect",
   "settings:write": "settings",
