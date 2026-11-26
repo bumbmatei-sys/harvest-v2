@@ -43,6 +43,8 @@ interface WeekViewProps {
   allDay?: { label: string; render: (event: CalendarEvent) => React.ReactNode };
   /** Label for the grid (screen readers). */
   label: string;
+  /** Replaces the viewer's GMT offset above the hour column, when times are not the viewer's (Events show each event in its own zone). */
+  zoneLabel?: string;
   /** Posts that overlap in time collapse into the first one plus a "+N" button that opens a list of all of them. */
   overlap: { moreLabel: (count: number) => string; moreText: (count: number) => string; title: string; renderRow: (event: CalendarEvent) => React.ReactNode };
 }
@@ -58,7 +60,7 @@ interface PositionedEvent {
   group?: CalendarEvent[];
 }
 
-export function WeekView({ currentDate, events, onEventSelect, renderChip, onDropAt, label, overlap, mode = "week", allDay }: WeekViewProps) {
+export function WeekView({ currentDate, events, onEventSelect, renderChip, onDropAt, label, overlap, mode = "week", allDay, zoneLabel }: WeekViewProps) {
   const days = useMemo(() => {
     if (mode === "day") return [startOfDay(currentDate)];
     const weekStart = startOfWeek(currentDate, { weekStartsOn: 1 });
@@ -215,7 +217,7 @@ export function WeekView({ currentDate, events, onEventSelect, renderChip, onDro
     <div data-slot="week-view" aria-label={label} role="group" className="flex h-full flex-col" style={{ "--week-cells-height": `${WeekCellsHeight}px` } as React.CSSProperties}>
       <div className={cn("bg-card/80 border-border/70 sticky top-0 z-30 grid border-b backdrop-blur-md", cols)}>
         <div className="text-muted-foreground py-2 text-center text-sm">
-          <span className="max-[479px]:sr-only">{format(new Date(), "O")}</span>
+          <span className="max-[479px]:sr-only">{zoneLabel ?? format(new Date(), "O")}</span>
         </div>
         {days.map((day) => (
           <div

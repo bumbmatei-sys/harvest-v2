@@ -11,9 +11,9 @@ import { uuidInput } from "@/lib/contact-input";
 import { AccessState } from "@/components/access-state";
 import { Button } from "@/components/ui/button";
 import { EventsBoard } from "@/components/events/events-board";
-import { monthKey, monthRange, parseMonth, type EventItem } from "@/lib/event-view";
+import { dateKey, monthKey, parseDate, parseEventsView, parseMonth, viewRange, type EventItem } from "@/lib/event-view";
 
-type Props = { params: Promise<{ tenantId: string }>; searchParams: Promise<{ view?: string; month?: string }> };
+type Props = { params: Promise<{ tenantId: string }>; searchParams: Promise<{ view?: string; month?: string; date?: string }> };
 
 // C14: the ministry's events for owners and admins, drafts included. Members see events in their communities instead.
 export default async function WorkspaceEventsPage({ params, searchParams }: Props) {
@@ -22,8 +22,8 @@ export default async function WorkspaceEventsPage({ params, searchParams }: Prop
   if (!uuidInput.safeParse(tenantId).success) return <AccessState />;
   const workspace = await getWorkspace(getDb(), session.user.id, tenantId).catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; });
   if (!workspace || !can(workspace.role, "communities:manage")) return <AccessState />;
-  const now = serverNow(), view = query.view === "calendar" ? "calendar" : "list", month = parseMonth(query.month, new Date(now));
-  const events = await orNotFound(listEvents(getDb(), session.user.id, tenantId, view === "calendar" ? monthRange(month) : upcomingRange(now))) as EventItem[];
+  const now = serverNow(), view = parseEventsView(query.view), month = parseMonth(query.month, new Date(now)), date = parseDate(query.date, new Date(now));
+  const events = await orNotFound(listEvents(getDb(), session.user.id, tenantId, viewRange(view, month, date) ?? upcomingRange(now))) as EventItem[];
   const base = `/workspaces/${tenantId}/events`;
   const create = <Button asChild className="min-h-11"><Link href={`${base}/new`} prefetch={false}><Plus aria-hidden="true" />{t("newEvent")}</Link></Button>;
   return <div className="min-w-0 space-y-6">
@@ -31,6 +31,6 @@ export default async function WorkspaceEventsPage({ params, searchParams }: Prop
       <div><CalendarDays className="mb-4 size-5 text-muted-foreground" aria-hidden="true" /><h1 className="text-[28px] font-semibold tracking-tight">{t("title")}</h1></div>
       {create}
     </div>
-    <EventsBoard events={events} view={view} month={monthKey(month)} base={base} detail={base} now={now} manage emptyAction={create} />
+    <EventsBoard events={events} view={view} month={monthKey(month)} date={dateKey(date)} base={base} detail={base} now={now} manage emptyAction={create} />
   </div>;
 }

@@ -19,7 +19,7 @@ import { AgendaView } from "@/components/office/calendar/agenda-view";
 import { EventDialog } from "@/components/office/calendar/event-form";
 import { CalendarLogo } from "@/components/office/provider-logo";
 import { PlatformLogo } from "@/components/social/platform-logo";
-import { WeekView } from "@/components/social/week-calendar";
+import { WeekView } from "@/components/calendar/week-view";
 import type { CalendarEvent } from "@/lib/event-view";
 import { showMarks, toggleSource, shownSources, type Selection, type Source } from "@/lib/files-screen";
 import { calendarEvent, calendarLabel, calendarViews, isSocialId, overlayStatuses, rangeFor, shiftDate, socialEvent, writesAvailable, type CalendarApi, type CalendarItem, type CalendarView, type NamedCalendar } from "@/lib/office/calendar";

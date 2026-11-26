@@ -144,7 +144,7 @@ test("events: owner form and roster, member list, calendar and detail with RSVP,
       await expect(list.getByText("Happening now")).toBeVisible();
       await audit(m1.page, "member-list");
       await tall(list.getByRole("link"));
-      await m1.page.getByRole("link", { name: "Calendar", exact: true }).click();
+      await m1.page.getByRole("link", { name: "Month", exact: true }).click();
       await expect(m1.page.getByRole("heading", { name: "Calendar" })).toBeVisible();
       await expect(m1.page.getByRole("button", { name: /\d+ events?, |no events/ }).first()).toBeVisible();
       const cell = m1.page.getByRole("button", { name: new RegExp(`${new Date(now + 3 * day).toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: "UTC" })}, 1 event`) });
