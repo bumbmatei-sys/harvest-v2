@@ -1,14 +1,16 @@
-import { getFormatter, getTranslations } from "next-intl/server";
+import { getFormatter, getLocale, getTranslations } from "next-intl/server";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { formatCents } from "@/lib/fundraising";
 import type { CampaignOverview } from "@/server/campaign-overview";
 
 /**
  * The campaign dashboard for people who set the campaign up: what the finished draft configured (departments, who leads and who joined, the tools that
  * are on) as stat cards and a staffing bar per department, plus the setup checklist progress and the tasks, milestones and progress recorded on the
- * campaign's boards. Only figures that exist are shown. Events and funding are not recorded anywhere yet, so they are listed as not available, never as
- * zero; progress with no tasks reads "No tasks yet", not 0%. No donor, response or Connect data appears.
+ * campaign's boards, budget spent of planned, and funding raised of goal. Only figures that exist are shown: events while Events is off and funding
+ * without a linked fundraiser (or for someone who may not see raised totals) are listed as not available, never as zero; progress with no tasks reads
+ * "No tasks yet", not 0%, and a campaign with no budget reads "No budget yet". No donor, response or Connect data appears.
  * Colours are the theme's own: surface and border tokens, with the brand token for the bars.
  */
 const digitsOf = (currency: string) => { try { return new Intl.NumberFormat("en", { style: "currency", currency }).resolvedOptions().maximumFractionDigits ?? 2; } catch { return 2; } };
@@ -34,6 +36,10 @@ export async function CampaignDashboard({ overview, connectHref, formHref }: { o
   ] : [[t("setup"), t("ofTotal", { done: overview.checklist.done, total: overview.checklist.total })], ...workStats];
   // Campaign events: the real count of linked events this person can see, once Events is on.
   if (overview.events !== null) stats.push([(await getTranslations("CampaignEvents"))("stat"), String(overview.events)]);
+  // Campaign budget: spent of planned. Funding: raised of goal from the linked fundraiser, only when the overview carries it.
+  const locale = await getLocale(), budget = overview.budget, funding = overview.funding;
+  stats.push([t("budgetStat"), budget ? t("spentOf", { spent: formatCents(budget.spentCents, budget.currency, locale), planned: formatCents(budget.plannedCents, budget.currency, locale) }) : t("noBudget")]);
+  if (funding) stats.push([t("fundingStat"), t("raisedOf", { raised: formatCents(funding.raisedCents, funding.currency, locale), goal: formatCents(funding.goalCents, funding.currency, locale) })]);
   const amount = (minor: number | null) => minor === null || !config ? t("notSet") : format.number(minor / 10 ** digitsOf(config.budget.currency), { style: "currency", currency: config.budget.currency });
   const widest = config ? Math.max(1, ...config.departments.map((department) => department.leaders.length + department.members.length)) : 1;
   return <section aria-labelledby="campaign-dashboard-title" className="space-y-4">
