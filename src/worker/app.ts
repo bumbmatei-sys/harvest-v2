@@ -28,12 +28,12 @@ export function holdUntilDone(response: Response, done: () => void): Response {
   return new Response(body, response);
 }
 
-function privatePage(response: Response) {
-  // Tenant pages are never shared-cacheable; public caching needs an explicit policy (PRD section 8).
+/** Tenant pages are never shared-cacheable; public caching needs an explicit policy (PRD section 8). A response that
+ * sets a cookie is always private, even if it says public, so the edge can never cache a session cookie. */
+export function privatePage(response: Response) {
   const result = new Response(response.body, response);
-  if (!result.headers.has("cache-control") || !/\bpublic\b/.test(result.headers.get("cache-control") ?? "")) {
-    result.headers.set("Cache-Control", "private, no-store");
-  }
+  const explicitlyPublic = /\bpublic\b/.test(result.headers.get("cache-control") ?? "");
+  if (!explicitlyPublic || result.headers.has("set-cookie")) result.headers.set("Cache-Control", "private, no-store");
   return result;
 }
 

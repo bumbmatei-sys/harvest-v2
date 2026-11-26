@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { sharedScope } from "../../src/lib/shared-scope";
 
 vi.mock("server-only", () => ({}));
-const { holdUntilDone } = await import("../../src/worker/app");
+const { holdUntilDone, privatePage } = await import("../../src/worker/app");
 const { isBufferedApiRequest } = await import("../../src/worker/buffered-api");
 
 const streamed = (...chunks: string[]) => new Response(new ReadableStream<Uint8Array>({
@@ -35,6 +35,18 @@ describe("holdUntilDone", () => {
     const done = vi.fn();
     holdUntilDone(new Response(null, { status: 204 }), done);
     expect(done).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("privatePage", () => {
+  const cache = (headers: Record<string, string>) => privatePage(new Response("x", { headers })).headers.get("cache-control");
+  it("makes every page private unless it explicitly says public", () => {
+    expect(cache({})).toBe("private, no-store");
+    expect(cache({ "cache-control": "s-maxage=60" })).toBe("private, no-store");
+    expect(cache({ "cache-control": "public, max-age=60" })).toBe("public, max-age=60");
+  });
+  it("keeps a page that sets a cookie private even when it says public", () => {
+    expect(cache({ "cache-control": "public, max-age=60", "set-cookie": "a=b; Secure" })).toBe("private, no-store");
   });
 });
 
