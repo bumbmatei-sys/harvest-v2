@@ -4092,7 +4092,22 @@
         "scan": "The image failed the safety check. Choose another.",
         "stale": "This event changed since you opened it. Reload, then try again."
       }
-    }
+    },
+    "month": "Month",
+    "week": "Week",
+    "day": "Day",
+    "previousWeek": "Previous week",
+    "nextWeek": "Next week",
+    "previousDay": "Previous day",
+    "nextDay": "Next day",
+    "today": "Today",
+    "weekGrid": "Events this week",
+    "dayGrid": "Events this day",
+    "eventTime": "Event time",
+    "allDay": "All day",
+    "moreAtTime": "{count, plural, one {# more event at this time} other {# more events at this time}}",
+    "sameTime": "At the same time",
+    "emptyWeek": "No events this week."
   },
   "SocialPublish": {
     "nav": {

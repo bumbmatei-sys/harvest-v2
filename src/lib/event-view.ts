@@ -92,6 +92,33 @@ export function monthRange(month: Date) {
   const from = new Date(Date.UTC(month.getFullYear(), month.getMonth(), 1) - 36 * 3_600_000), to = new Date(Date.UTC(month.getFullYear(), month.getMonth() + 1, 1) + 36 * 3_600_000);
   return { from: from.toISOString(), to: to.toISOString() };
 }
+/** Week and day views (founder decision, 26 Nov): `?date=YYYY-MM-DD` picks the day (or the Monday-first week holding it), on the viewer's calendar. */
+export const datePattern = /^(\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/;
+export function dateKey(date: Date) { return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`; }
+export function parseDate(value: string | null | undefined, fallback: Date): Date {
+  const match = value ? datePattern.exec(value) : null;
+  const date = match ? new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3])) : null;
+  return date && date.getDate() === Number(match![3]) ? date : new Date(fallback.getFullYear(), fallback.getMonth(), fallback.getDate());
+}
+/** Monday of the week holding `date`, like the shared week grid. */
+export function weekStart(date: Date) { return new Date(date.getFullYear(), date.getMonth(), date.getDate() - ((date.getDay() + 6) % 7)); }
+export function shiftDays(date: Date, by: number) { return new Date(date.getFullYear(), date.getMonth(), date.getDate() + by); }
+/** API range for a week or day grid, with the same day and a half of slack each side as the month range. */
+export function daysRange(first: Date, days: number) {
+  const start = Date.UTC(first.getFullYear(), first.getMonth(), first.getDate());
+  return { from: new Date(start - 36 * 3_600_000).toISOString(), to: new Date(start + days * 86_400_000 + 36 * 3_600_000).toISOString() };
+}
+export const eventsViews = ["list", "calendar", "week", "day"] as const;
+/** `calendar` is the month grid (its URL value predates the week and day views). */
+export type EventsView = typeof eventsViews[number];
+export const parseEventsView = (value: string | undefined): EventsView => (eventsViews as readonly string[]).includes(value ?? "") ? value as EventsView : "list";
+/** The list API range for a grid view; null for the upcoming list, whose range the page sets. */
+export function viewRange(view: EventsView, month: Date, date: Date) {
+  if (view === "calendar") return monthRange(month);
+  if (view === "week") return daysRange(weekStart(date), 7);
+  if (view === "day") return daysRange(date, 1);
+  return null;
+}
 export function toCalendarEvents(events: readonly EventItem[], now: number): CalendarEvent[] {
   return events.map((event) => ({ id: event.id, title: event.title, start: wallClock(event.startsAt, event.timeZone), end: wallClock(event.endsAt, event.timeZone), status: event.status,
     ended: new Date(event.endsAt).getTime() <= now }));

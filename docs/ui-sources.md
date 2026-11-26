@@ -266,7 +266,7 @@ Layout and flow follow the founder's first Harvest version (private repository `
 | --- | --- | --- | --- | --- |
 | `src/components/ui/hover-card.tsx` | **copied** (kit) | admin-dashboard `components/ui/hover-card.tsx` | 37 of 39 (94%) | The platform ring's popup (limit and characters written) on hover, focus and tap. State variants changed to Radix `data-[state=...]`. |
 | `src/components/ui/attachment.tsx` | **copied** (kit) | admin-dashboard `components/ui/attachment.tsx` | 80 of 84 (95%) | Copied with 3 class-string tweaks, per the independent reviewer's count against the public registry item; I could not reach the registry to reproduce it (404), so that figure is the reviewer's. Against the kit repo copy the script gives 190 of 191 (99%, only the header line added). The media cards inside the post card, with their upload states. |
-| `src/components/social/week-calendar.tsx` | **derived** (kit) | admin-dashboard `apps/calendar/components/week-view.tsx` | 225 of 313 (71%) | The Calendar's week grid. Monday first; overlapping posts collapse into the first plus a "+N" Popover list; all-day section removed; dnd-kit replaced by native drag-and-drop on posts and quarter-hour cells. |
+| `src/components/social/week-calendar.tsx` (now `src/components/calendar/week-view.tsx`) | **derived** (kit) | admin-dashboard `apps/calendar/components/week-view.tsx` | 225 of 313 (71%) | The Calendar's week grid. Monday first; overlapping posts collapse into the first plus a "+N" Popover list; all-day section removed; dnd-kit replaced by native drag-and-drop on posts and quarter-hour cells. |
 | `src/hooks/use-current-time-indicator.ts` | **copied** (kit) | admin-dashboard `apps/calendar/hooks/use-current-time-indicator.ts` | 37 of 42 (88%) | Current-time line of the week view. |
 | `src/components/events/month-calendar.tsx` | copied (Events), **extended** | admin-dashboard `apps/calendar/components/month-view.tsx` | 68 of 144 (47%) | Optional message namespace, chip renderer, drag-and-drop day targets and a `weekStartsOn` option (Monday for the Calendar; Events stays Sunday-first). |
 | `src/components/social/option-rows.tsx` | modelled on (kit) | admin-dashboard `pages/settings/notifications/page.tsx` | none copied | The bordered switch rows of the composer (first comment, auto repost, made with AI, link, TikTok consent). |
@@ -339,6 +339,25 @@ Founder design: "Studio Admin look and the Admin Studio calendar app screens", a
 **Not copied, and why.** `event-item.tsx`, `draggable-event.tsx`, `droppable-cell.tsx` and `calendar-dnd-context.tsx` (drag and drop to reschedule is a write; every write is hard-off, so nothing is draggable); `events-popup.tsx` (Harvest's week grid already has the overlap popover and the month shows "+N more" and opens the day); the kit's colour classes (the event takes its calendar's mark instead). Dependencies were checked against `package.json`: `@dnd-kit/*`, `date-fns`, `react-day-picker`, `lucide-react` are present; `@remixicon/react` and a Drawer are not, so neither is added (lucide and the shared Sheet are used). No new dependency.
 
 Calendar source marks (`CalendarLogo` in `src/components/office/provider-logo.tsx`, colours in `calendarMarkColors`) are simplified marks drawn for Harvest, flagged subject to each owner's brand guidelines like the Gmail, Outlook, Drive and OneDrive marks.
+
+### Events week and day views (shared week grid, 26 Nov 2026)
+
+Founder decision (26 Nov): give the Events calendar week and day views; "If the existing one is most premium and in depth, use that one. If not, event-calendar1 and update the other as well." Compared: Harvest's week grid (`src/components/calendar/week-view.tsx`, derived from the premium admin-dashboard kit `apps/calendar/components/week-view.tsx`, commit `1631106`, already approved and used by Social and Office Calendar) against Shadcn UI Kit item `event-calendar1` (premium, `@shadcnuikit`, preview https://shadcnuikit.com/blocks/application-ui/event-calendar#event-calendar-1). No registry token was in the environment and `shadcnuikit.com` is outside this session's allowed network, so `event-calendar1` was compared only from what is known of it (the same kit's calendar app that the admin-dashboard files come from). Nothing was fetched or copied from it.
+
+| Feature | Harvest week grid (`week-view.tsx`) | `event-calendar1` (not inspected; see above) |
+| --- | --- | --- |
+| Week grid | Yes, Monday first, 24 hours, quarter-hour cells | Week view (same kit family) |
+| Day grid | Yes (`mode="day"`, one column; used by Office Calendar) | Day view |
+| All-day row | Yes (optional `allDay`; multi-day entries too) | All-day section |
+| Overlapping events | Collapsed lead plus a "+N" Popover list (44px rows) | Side-by-side slivers in the kit week view |
+| Current-time line | Yes (kit hook `use-current-time-indicator.ts`) | Yes |
+| Time zone | Wall-clock positioning; Events pass each event's own zone (`toCalendarEvents`) and a `zoneLabel` replaces the viewer's GMT offset | Viewer's zone |
+| Keyboard | Every event and "+N" is a button; the scroll region is focusable; prev/next/today are links. No arrow-key cell navigation | Not verified |
+| Phone layout | Single-letter day headers, hour labels shrink, 44px chips and controls below `sm` | Not verified |
+| Light/dark | Theme tokens only (card, muted, border, primary) | Kit palette classes |
+| Drag and drop | Optional native drop on quarter-hour cells (Social); off for Events and Office | dnd-kit |
+
+**Result.** The existing grid is at least as complete for what Harvest needs, already premium-derived and approved, so it is reused: it moves unchanged from `src/components/social/week-calendar.tsx` to `src/components/calendar/week-view.tsx` and gains one optional prop (`zoneLabel`). Social Planner, Office Calendar and Events now import the same component. **No new kit code**, no new provenance item and no new identical-line count (the move changes no kit-derived lines; the record in `src/lib/ui-provenance.ts` now names the new path). The Events list/month/week/day choice stays in the URL (`?view=week&date=YYYY-MM-DD`, `?view=day&date=…`, `?view=calendar&month=…`). Known limits: hour and day labels inside the grid use date-fns English formats, as in Office Calendar; the current-time line follows the viewer's clock.
 
 ### Settings pop-up (profile menu)
 
