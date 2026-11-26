@@ -45,6 +45,15 @@ describe("queue URL state", () => {
     expect(queueHref("/q", { state: "all", cursor: "c1" })).toBe("/q?cursor=c1");
     expect(parseQueueQuery(Object.fromEntries(new URL(queueHref("http://x/q", { state: "closed", cursor: "c1" })).searchParams))).toEqual({ state: "closed", cursor: "c1" });
   });
+  it("keeps a campaign filter for owners and admins only (CW-11)", () => {
+    const campaign = "0b9a3c1e-7d2f-4a5b-9c8d-1e2f3a4b5c6d";
+    expect(parseQueueQuery({ campaign }, "admin")).toEqual({ state: "all", campaign });
+    expect(parseQueueQuery({ campaign: campaign.toUpperCase() }, "owner")).toEqual({ state: "all", campaign });
+    expect(parseQueueQuery({ campaign }, "member")).toEqual({ state: "all" });
+    expect(parseQueueQuery({ campaign: "not-a-uuid" }, "owner")).toEqual({ state: "all" });
+    const href = queueHref("http://x/q", { state: "assigned", campaign, cursor: "c1" });
+    expect(parseQueueQuery(Object.fromEntries(new URL(href).searchParams), "owner")).toEqual({ state: "assigned", campaign, cursor: "c1" });
+  });
 });
 
 describe("case presentation helpers", () => {

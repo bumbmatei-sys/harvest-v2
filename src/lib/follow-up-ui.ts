@@ -26,14 +26,19 @@ export function queueTabs(role: string | undefined): QueueTab[] {
 }
 
 /** URL state of the queue: a state filter and the opaque cursor of the page. Unknown values fall back to the first page of everything. */
-export function parseQueueQuery(raw: Record<string, string | string[] | undefined>, role?: string): { state: QueueTab; cursor?: string } {
+export type QueueQuery = { state: QueueTab; cursor?: string; campaign?: string };
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** CW-11: `campaign` narrows the list to one campaign and is only honoured for owners and admins (the server refuses it for everyone else). */
+export function parseQueueQuery(raw: Record<string, string | string[] | undefined>, role?: string): QueueQuery {
   const one = (value: string | string[] | undefined) => (typeof value === "string" ? value : undefined);
-  const state = one(raw.state), cursor = one(raw.cursor);
+  const state = one(raw.state), cursor = one(raw.cursor), campaign = one(raw.campaign);
   const known = (followUpCaseStates as readonly string[]).includes(state ?? "") && (role === undefined || queueTabs(role).includes(state as QueueTab));
-  return { state: known ? (state as FollowUpCaseState) : "all", ...(cursor && cursor.length <= 200 && /^[A-Za-z0-9_-]+$/.test(cursor) ? { cursor } : {}) };
+  return { state: known ? (state as FollowUpCaseState) : "all", ...(cursor && cursor.length <= 200 && /^[A-Za-z0-9_-]+$/.test(cursor) ? { cursor } : {}),
+    ...(campaign && uuidPattern.test(campaign) && (role === undefined || canManageFollowUp(role)) ? { campaign: campaign.toLowerCase() } : {}) };
 }
-export function queueHref(base: string, query: { state: QueueTab; cursor?: string }) {
+export function queueHref(base: string, query: QueueQuery) {
   const params = new URLSearchParams();
+  if (query.campaign) params.set("campaign", query.campaign);
   if (query.state !== "all") params.set("state", query.state);
   if (query.cursor) params.set("cursor", query.cursor);
   const text = params.toString();

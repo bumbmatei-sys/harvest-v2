@@ -5,7 +5,7 @@ import { ZodError } from "zod";
 import { getDb } from "@/db/client";
 import { pageSession } from "@/server/page-session";
 import { getWorkspace } from "@/server/workspaces";
-import { listFollowUpCases } from "@/server/follow-up-cases";
+import { campaignFollowUpTeam, listFollowUpCases } from "@/server/follow-up-cases";
 import { listAssignableMembers } from "@/server/follow-up-members";
 import { AccessError } from "@/server/permissions";
 import { uuidInput } from "@/lib/contact-input";
@@ -31,13 +31,16 @@ export default async function FollowUpPage({ params, searchParams }: { params: P
   const workspace = await getWorkspace(db, session.user.id, tenantId).catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; });
   if (!workspace || !canOpenFollowUp(workspace.role)) return <AccessState />;
   const query = parseQueueQuery(await searchParams, workspace.role);
-  const ask = (cursor?: string) => listFollowUpCases(db, session.user.id, tenantId, { state: query.state === "all" ? undefined : query.state, cursor });
+  const ask = (cursor?: string) => listFollowUpCases(db, session.user.id, tenantId, { state: query.state === "all" ? undefined : query.state, cursor, campaignId: query.campaign });
   const listing = await ask(query.cursor).then((page) => ({ page, cursor: query.cursor }), (error: unknown) => {
     if (error instanceof ZodError) return ask().then((page) => ({ page, cursor: undefined })); // a malformed cursor starts over
     throw error;
   }).catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; });
   if (!listing) return <AccessState />;
-  const members = await listAssignableMembers(db, session.user.id, tenantId).catch((error: unknown) => { if (error instanceof AccessError) return []; throw error; });
+  const allMembers = await listAssignableMembers(db, session.user.id, tenantId).catch((error: unknown) => { if (error instanceof AccessError) return []; throw error; });
+  // CW-11: when one campaign is shown, its follow-up team is listed first so they are suggested first when assigning.
+  const team = query.campaign ? await campaignFollowUpTeam(db, session.user.id, tenantId, query.campaign).catch((error: unknown) => { if (error instanceof AccessError) return []; throw error; }) : [];
+  const members = [...allMembers.filter((member) => team.includes(member.id)), ...allMembers.filter((member) => !team.includes(member.id))];
   const manage = canManageFollowUp(workspace.role);
   return <div className="space-y-4">
     <div className="flex flex-wrap items-end justify-between gap-3">
@@ -45,7 +48,7 @@ export default async function FollowUpPage({ params, searchParams }: { params: P
         <h1 className="text-[28px] font-semibold tracking-tight">{t("title")}</h1></div>
       {manage && <FollowUpOpenButton tenantId={tenantId} />}
     </div>
-    <FollowUpQueue tenantId={tenantId} currentUserId={session.user.id} members={members} manage={manage} tabs={queueTabs(workspace.role)} state={query.state}
+    <FollowUpQueue tenantId={tenantId} currentUserId={session.user.id} members={members} manage={manage} tabs={queueTabs(workspace.role)} state={query.state} campaign={query.campaign}
       nextCursor={listing.page.nextCursor} hasCursor={listing.cursor !== undefined}
       rows={listing.page.items.map((item) => ({ id: item.id, state: item.state, contactId: item.contactId, assigneeId: item.assigneeId, stateChangedAt: item.stateChangedAt.toISOString() }))} />
   </div>;

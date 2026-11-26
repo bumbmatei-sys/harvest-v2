@@ -1252,6 +1252,7 @@ export const followUpCases = pgTable("followup_cases", {
   index("followup_cases_queue_idx").on(t.tenantId, t.createdAt, t.id),
   index("followup_cases_assignee_idx").on(t.tenantId, t.assigneeId, t.createdAt, t.id).where(sql`${t.assigneeId} is not null`),
   index("followup_cases_contact_idx").on(t.tenantId, t.contactId),
+  index("followup_cases_campaign_idx").on(t.tenantId, t.campaignId, t.createdAt, t.id),
   check("followup_case_state", sql`${t.state} in ('requested', 'awaiting_assignment', 'assigned', 'attempted', 'no_response', 'connected', 'closed', 'withdrawn')`),
   check("followup_case_assignee", sql`(${t.state} in ('assigned', 'attempted') and ${t.assigneeId} is not null)
     or (${t.state} in ('requested', 'awaiting_assignment', 'withdrawn') and ${t.assigneeId} is null) or ${t.state} in ('no_response', 'connected', 'closed')`),
@@ -1727,6 +1728,17 @@ export const socialConnections = pgTable("social_connections", {
   // Shape only: a sealed envelope has these keys and nothing resembling a plain token field.
   check("social_connection_envelope", sql`jsonb_typeof(${t.credentialEnvelope}) = 'object' and ${t.credentialEnvelope} ?& array['version', 'keyId', 'binding', 'iv', 'tag', 'ciphertext'] and not (${t.credentialEnvelope} ?| array['secret', 'token', 'apiKey', 'accessToken']) and octet_length(${t.credentialEnvelope}::text) <= 4096`),
 ]);
+/** CW-11: the members a campaign's owners/admins put on its follow-up team; suggested first when assigning that campaign's cases.
+ * It grants nothing: who can see or work a case is still decided by followup_cases' own policy and definers. */
+export const campaignFollowupTeam = pgTable("campaign_followup_team", {
+  tenantId: uuid("tenant_id").notNull(), campaignId: uuid("campaign_id").notNull(), userId: text("user_id").notNull(),
+  addedBy: text("added_by").notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.campaignId, t.userId] }),
+  foreignKey({ columns: [t.tenantId, t.campaignId], foreignColumns: [campaigns.tenantId, campaigns.id] }).onDelete("cascade"),
+  foreignKey({ columns: [t.tenantId, t.userId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }).onDelete("cascade"),
+]);
+
 export const socialSchedules = pgTable("social_schedules", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
   id: uuid("id").notNull().defaultRandom(),

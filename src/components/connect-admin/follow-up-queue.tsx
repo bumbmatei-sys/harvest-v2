@@ -20,8 +20,8 @@ const link = "inline-flex min-h-11 items-center font-medium underline-offset-4 h
  * timestamp the case API returned; the person is reached through the CRM link, which enforces its own permissions. No totals: the server
  * returns none, so the tabs carry no counts. Which cases appear is decided by the database policy, never by this component.
  */
-export function FollowUpQueue({ tenantId, rows, tabs, state, nextCursor, hasCursor, currentUserId, members, manage }: {
-  tenantId: string; rows: QueueRow[]; tabs: QueueTab[]; state: QueueTab; nextCursor: string | null; hasCursor: boolean;
+export function FollowUpQueue({ tenantId, rows, tabs, state, campaign, nextCursor, hasCursor, currentUserId, members, manage }: {
+  tenantId: string; rows: QueueRow[]; tabs: QueueTab[]; state: QueueTab; campaign?: string; nextCursor: string | null; hasCursor: boolean;
   currentUserId: string; members: { id: string; name: string }[]; manage: boolean;
 }) {
   const t = useTranslations("FollowUp");
@@ -44,14 +44,20 @@ export function FollowUpQueue({ tenantId, rows, tabs, state, nextCursor, hasCurs
     assignee: assignee(row.assigneeId),
     updated: <time dateTime={row.stateChangedAt}>{format.dateTime(new Date(row.stateChangedAt), "date")}</time>,
   } }));
-  const filtered = state !== "all";
+  const filtered = state !== "all" || campaign !== undefined;
   const empty = <EmptyState icon={HeartHandshake} title={filtered ? t("emptyFiltered") : manage ? t("emptyManage") : t("emptyMember")}
     description={filtered ? undefined : manage ? t("emptyManageHelp") : undefined}
     action={filtered ? <Button asChild variant="outline" size="responsive"><Link href={base}>{t("showAll")}</Link></Button> : undefined} />;
   const pagination = nextCursor || hasCursor ? <nav aria-label={t("pages")} className="flex flex-wrap items-center justify-between gap-2">
-    {hasCursor ? <Button asChild variant="outline" size="responsive"><Link href={queueHref(base, { state })}>{t("firstPage")}</Link></Button> : <span />}
-    {nextCursor ? <Button asChild variant="outline" size="responsive"><Link href={queueHref(base, { state, cursor: nextCursor })}>{t("nextPage")}</Link></Button> : null}
+    {hasCursor ? <Button asChild variant="outline" size="responsive"><Link href={queueHref(base, { state, campaign })}>{t("firstPage")}</Link></Button> : <span />}
+    {nextCursor ? <Button asChild variant="outline" size="responsive"><Link href={queueHref(base, { state, campaign, cursor: nextCursor })}>{t("nextPage")}</Link></Button> : null}
   </nav> : undefined;
-  return <DataTable label={t("queueLabel")} columns={columns} rows={tableRows} empty={empty} pagination={pagination}
-    tabs={{ label: t("filterByState"), value: state, onValueChange: (value) => router.push(queueHref(base, { state: value as QueueTab })), items: tabs.map((value) => ({ value, label: t(value === "all" ? "tabs.all" : `states.${value}`) })) }} />;
+  const table = <DataTable label={t("queueLabel")} columns={columns} rows={tableRows} empty={empty} pagination={pagination}
+    tabs={{ label: t("filterByState"), value: state, onValueChange: (value) => router.push(queueHref(base, { state: value as QueueTab, campaign })), items: tabs.map((value) => ({ value, label: t(value === "all" ? "tabs.all" : `states.${value}`) })) }} />;
+  if (!campaign) return table;
+  return <div className="space-y-3">
+    <div className="flex flex-wrap items-center gap-2 text-sm"><span className="text-muted-foreground">{t("campaignFilter")}</span>
+      <Button asChild variant="outline" size="responsive"><Link href={queueHref(base, { state })}>{t("allCampaigns")}</Link></Button></div>
+    {table}
+  </div>;
 }
