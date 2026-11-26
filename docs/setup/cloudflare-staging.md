@@ -44,6 +44,29 @@ staging/production guards compare against nothing real yet. Replace them with th
 Hyperdrive ID before production is created, and give production its own token: the staging token can edit any Worker
 on the account.
 
+## Load profile (26 Nov, `tests/cf07/load-staging.ts`)
+
+Run from Chicago against staging (Neon `cf-staging` at 0.25 CU, the smallest size), two synthetic users, a mix of
+`/workspaces`, `/sign-in` and `/api/workspaces`. No 5xx in any run.
+
+| Setup | Concurrency | Requests | p50 | p95 | p99 | Requests/s |
+| --- | --- | --- | --- | --- | --- | --- |
+| Worker in the visitor's colo (Chicago) | 1 | 60 | 1716 ms | 1849 ms | 1860 ms | 0.7 |
+| Worker in the visitor's colo (Chicago) | 20 | 400 | 1777 ms | 3869 ms | 5012 ms | 11.1 |
+| Placed next to the database (`aws:eu-central-1`), warm | 1 | 40 | 649 ms | 1018 ms | 1032 ms | 1.7 |
+| Placed next to the database, warm | 20 | 400 | 627 ms | 5666 ms | 8296 ms | 13.0 |
+
+Reading: each page makes several sequential queries, so distance to the database dominated; the placement hint cuts the
+median by about two thirds. Under 20 concurrent requests the tail grows, consistent with the 0.25-CU staging compute and each
+page holding its connection for the whole transfer (CF-07a). These are staging numbers, not production promises.
+
+## Before CF-08 (production)
+
+- Size the production Neon compute and Hyperdrive for the measured tail, then re-run the load profile against the production-shaped setup.
+- Keep `placement` next to the production database.
+- Replace the placeholder production origin and Hyperdrive ID in `cloudflare/staging.json` (below) and use a separate production token.
+- Production deploy job: split into a **build** job without secrets that uploads `.open-next` and the generated config as an artifact, and an environment-protected **deploy** job with a fresh checkout and only the pinned tooling, so the token never shares a filesystem with the app's install scripts or build plugins.
+
 ## Limits to watch
 
 - **Startup:** 624 ms minified (unminified it failed the 1 s limit). Bundle growth moves this; check `Worker Startup Time` on every deploy.
