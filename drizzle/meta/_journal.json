@@ -803,8 +803,22 @@
     {
       "idx": 116,
       "version": "7",
-      "when": 1795705819844,
-      "tag": "0116_campaign_boards",
+      "when": 1795705820444,
+      "tag": "0116_campaign_events",
+      "breakpoints": true
+    },
+    {
+      "idx": 117,
+      "version": "7",
+      "when": 1795710567408,
+      "tag": "0117_fundraising_pledges",
+      "breakpoints": true
+    },
+    {
+      "idx": 118,
+      "version": "7",
+      "when": 1795710773224,
+      "tag": "0118_campaign_boards",
       "breakpoints": true
     }
   ]

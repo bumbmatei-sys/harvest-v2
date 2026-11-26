@@ -129,7 +129,7 @@ describe("dashboard figures", () => {
   it("reports tasks, overdue, milestones and progress on the overview; progress is null with no tasks, never 0", async () => {
     const before = await getCampaignOverview(fixture.db, "member-a", tenantA, plain);
     expect(before.work.milestones).toEqual({ total: 1, reached: 0 });
-    expect(before.unavailable).toEqual(["events", "funding"]);
+    expect(before.unavailable).toEqual(["funding"]) // campaign events (Events on in tests) make events a real figure;
     await createCampaignTask(fixture.db, "member-a", tenantA, campaign, { board: "general", title: "Overdue thing", dueDate: "2020-01-01" });
     const overview = await getCampaignOverview(fixture.db, "member-a", tenantA, campaign);
     const view = await getCampaignBoards(fixture.db, "member-a", tenantA, campaign), all = view.boards.flatMap((board) => board.tasks);

@@ -21,12 +21,13 @@ export function EventBadges({ event, now, manage = false }: { event: EventItem; 
   </div>;
 }
 
-/** An event in a list: date tile, title, time in the event's own zone and badges. The whole card is one link of at least 44px. */
-export function EventCard({ event, href, now, manage = false, className }: { event: EventItem; href: string; now: number; manage?: boolean; className?: string }) {
+/** An event in a list: date tile, title, time in the event's own zone and badges. The whole card is one link of at least 44px; without `href` (the viewer has
+ * no event screen to open, e.g. a campaign showing an event) it is the same card, not a link. */
+export function EventCard({ event, href, now, manage = false, className }: { event: EventItem; href?: string; now: number; manage?: boolean; className?: string }) {
   const locale = useLocale();
   const [weekday, ...rest] = formatDay(event.startsAt, event.timeZone, locale).replace(",", "").split(" ");
   const cancelled = event.status === "cancelled";
-  return <Link href={href} prefetch={false} className={cn("flex min-h-11 items-start gap-4 rounded-xl border bg-card p-4 outline-none hover:bg-muted/50 focus-visible:ring-[3px] focus-visible:ring-ring/50", className)}>
+  const body = <>
     <span className="flex w-14 shrink-0 flex-col items-center rounded-lg bg-muted py-1.5 text-center" aria-hidden="true">
       <span className="text-xs text-muted-foreground uppercase">{weekday}</span>
       <span className="text-sm font-semibold">{rest.join(" ")}</span>
@@ -36,5 +37,8 @@ export function EventCard({ event, href, now, manage = false, className }: { eve
       <span className="block text-sm text-muted-foreground">{formatTimeRange(event, locale)}</span>
       <EventBadges event={event} now={now} manage={manage} />
     </span>
-  </Link>;
+  </>;
+  const frame = "flex min-h-11 items-start gap-4 rounded-xl border bg-card p-4";
+  return href ? <Link href={href} prefetch={false} className={cn(frame, "outline-none hover:bg-muted/50 focus-visible:ring-[3px] focus-visible:ring-ring/50", className)}>{body}</Link>
+    : <div className={cn(frame, className)}>{body}</div>;
 }

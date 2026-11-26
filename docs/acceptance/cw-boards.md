@@ -5,7 +5,7 @@ PRD: `docs/prd/harvest-campaign-wizard.md`, "Departments locked to campaign-scop
 
 ## Delivered
 
-- **Migration `0116_campaign_boards`** (tentative number; the coordinator renumbers at merge). Self-contained: references only `campaigns`, `users` and its own tables.
+- **Migration `0118_campaign_boards`** (renumbered from the tentative 0116; merges after 0116 campaign events and 0117 fundraising). Self-contained: references only `campaigns`, `users` and its own tables.
   - `campaign_boards`: one row per campaign and board key (`general` plus the 13 department keys), created the first time a task or milestone is added to it.
   - `campaign_tasks`: title, notes, column (`todo`, `in_progress`, `done`), position, assignee (a ministry member), due date, optional milestone, completion (who and when), version.
   - `campaign_milestones`: title, due date, optional board, reached (who and when), version.

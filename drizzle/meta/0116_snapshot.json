@@ -1,5 +1,5 @@
 {
-  "id": "b0f3cab3-5273-4747-9938-89303612535e",
+  "id": "eaafc109-a1ca-459e-a8df-89d60b02658d",
   "prevId": "90d12426-f63f-4b3c-b734-9a2bfb756ace",
   "version": "7",
   "dialect": "postgresql",
@@ -4286,154 +4286,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.campaign_boards": {
-      "name": "campaign_boards",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "campaign_id": {
-          "name": "campaign_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "department": {
-          "name": "department",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "campaign_boards_department_idx": {
-          "name": "campaign_boards_department_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "campaign_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "department",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "campaign_boards_campaign_id_idx": {
-          "name": "campaign_boards_campaign_id_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "campaign_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "campaign_boards_created_by_users_id_fk": {
-          "name": "campaign_boards_created_by_users_id_fk",
-          "tableFrom": "campaign_boards",
-          "tableTo": "users",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "campaign_boards_tenant_id_campaign_id_campaigns_tenant_id_id_fk": {
-          "name": "campaign_boards_tenant_id_campaign_id_campaigns_tenant_id_id_fk",
-          "tableFrom": "campaign_boards",
-          "tableTo": "campaigns",
-          "columnsFrom": [
-            "tenant_id",
-            "campaign_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "campaign_boards_tenant_id_id_pk": {
-          "name": "campaign_boards_tenant_id_id_pk",
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "campaign_board_department": {
-          "name": "campaign_board_department",
-          "value": "\"campaign_boards\".\"department\" in ('general', 'campaign_leadership', 'church_mobilization', 'evangelistic_outreach', 'prayer_intercession', 'marketing_media', 'logistics_equipment', 'finance_fundraising', 'volunteers', 'counseling', 'discipleship_follow_up', 'worship_production', 'security_medical', 'transportation_hospitality')"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.campaign_checklist_items": {
       "name": "campaign_checklist_items",
       "schema": "",
@@ -5336,6 +5188,125 @@
       },
       "isRLSEnabled": false
     },
+    "public.campaign_event_links": {
+      "name": "campaign_event_links",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "campaign_id": {
+          "name": "campaign_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "event_id": {
+          "name": "event_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "campaign_event_links_event_idx": {
+          "name": "campaign_event_links_event_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "event_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "campaign_event_links_created_by_users_id_fk": {
+          "name": "campaign_event_links_created_by_users_id_fk",
+          "tableFrom": "campaign_event_links",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "campaign_event_links_tenant_id_campaign_id_campaigns_tenant_id_id_fk": {
+          "name": "campaign_event_links_tenant_id_campaign_id_campaigns_tenant_id_id_fk",
+          "tableFrom": "campaign_event_links",
+          "tableTo": "campaigns",
+          "columnsFrom": [
+            "tenant_id",
+            "campaign_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "campaign_event_links_tenant_id_event_id_events_tenant_id_id_fk": {
+          "name": "campaign_event_links_tenant_id_event_id_events_tenant_id_id_fk",
+          "tableFrom": "campaign_event_links",
+          "tableTo": "events",
+          "columnsFrom": [
+            "tenant_id",
+            "event_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "campaign_event_links_tenant_id_campaign_id_event_id_pk": {
+          "name": "campaign_event_links_tenant_id_campaign_id_event_id_pk",
+          "columns": [
+            "tenant_id",
+            "campaign_id",
+            "event_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.campaign_files": {
       "name": "campaign_files",
       "schema": "",
@@ -5601,230 +5572,6 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.campaign_milestones": {
-      "name": "campaign_milestones",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "campaign_id": {
-          "name": "campaign_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "board_id": {
-          "name": "board_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "due_date": {
-          "name": "due_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reached_at": {
-          "name": "reached_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "reached_by": {
-          "name": "reached_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "campaign_milestones_campaign_id_idx": {
-          "name": "campaign_milestones_campaign_id_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "campaign_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "campaign_milestones_campaign_idx": {
-          "name": "campaign_milestones_campaign_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "campaign_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "due_date",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "campaign_milestones_reached_by_users_id_fk": {
-          "name": "campaign_milestones_reached_by_users_id_fk",
-          "tableFrom": "campaign_milestones",
-          "tableTo": "users",
-          "columnsFrom": [
-            "reached_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "campaign_milestones_created_by_users_id_fk": {
-          "name": "campaign_milestones_created_by_users_id_fk",
-          "tableFrom": "campaign_milestones",
-          "tableTo": "users",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "campaign_milestones_tenant_id_campaign_id_campaigns_tenant_id_id_fk": {
-          "name": "campaign_milestones_tenant_id_campaign_id_campaigns_tenant_id_id_fk",
-          "tableFrom": "campaign_milestones",
-          "tableTo": "campaigns",
-          "columnsFrom": [
-            "tenant_id",
-            "campaign_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "campaign_milestones_board_fk": {
-          "name": "campaign_milestones_board_fk",
-          "tableFrom": "campaign_milestones",
-          "tableTo": "campaign_boards",
-          "columnsFrom": [
-            "tenant_id",
-            "campaign_id",
-            "board_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "campaign_id",
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "campaign_milestones_tenant_id_id_pk": {
-          "name": "campaign_milestones_tenant_id_id_pk",
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "campaign_milestone_title": {
-          "name": "campaign_milestone_title",
-          "value": "length(btrim(\"campaign_milestones\".\"title\")) between 1 and 200 and \"campaign_milestones\".\"title\" = btrim(\"campaign_milestones\".\"title\")"
-        },
-        "campaign_milestone_reached": {
-          "name": "campaign_milestone_reached",
-          "value": "(\"campaign_milestones\".\"reached_at\" is null) = (\"campaign_milestones\".\"reached_by\" is null)"
-        },
-        "campaign_milestone_version": {
-          "name": "campaign_milestone_version",
-          "value": "\"campaign_milestones\".\"version\" >= 1"
-        }
-      },
       "isRLSEnabled": false
     },
     "public.campaign_response_consents": {
@@ -6983,319 +6730,6 @@
         "campaign_scan_count": {
           "name": "campaign_scan_count",
           "value": "\"campaign_scan_days\".\"count\" >= 0"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.campaign_tasks": {
-      "name": "campaign_tasks",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "campaign_id": {
-          "name": "campaign_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "board_id": {
-          "name": "board_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "milestone_id": {
-          "name": "milestone_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "notes": {
-          "name": "notes",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'todo'"
-        },
-        "position": {
-          "name": "position",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 0
-        },
-        "assignee_id": {
-          "name": "assignee_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "due_date": {
-          "name": "due_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "completed_at": {
-          "name": "completed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "completed_by": {
-          "name": "completed_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "version": {
-          "name": "version",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true,
-          "default": 1
-        },
-        "created_by": {
-          "name": "created_by",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "campaign_tasks_board_idx": {
-          "name": "campaign_tasks_board_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "board_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "position",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "campaign_tasks_campaign_idx": {
-          "name": "campaign_tasks_campaign_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "campaign_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "campaign_tasks_milestone_idx": {
-          "name": "campaign_tasks_milestone_idx",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "milestone_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "campaign_tasks_completed_by_users_id_fk": {
-          "name": "campaign_tasks_completed_by_users_id_fk",
-          "tableFrom": "campaign_tasks",
-          "tableTo": "users",
-          "columnsFrom": [
-            "completed_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "campaign_tasks_created_by_users_id_fk": {
-          "name": "campaign_tasks_created_by_users_id_fk",
-          "tableFrom": "campaign_tasks",
-          "tableTo": "users",
-          "columnsFrom": [
-            "created_by"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "campaign_tasks_tenant_id_campaign_id_campaigns_tenant_id_id_fk": {
-          "name": "campaign_tasks_tenant_id_campaign_id_campaigns_tenant_id_id_fk",
-          "tableFrom": "campaign_tasks",
-          "tableTo": "campaigns",
-          "columnsFrom": [
-            "tenant_id",
-            "campaign_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "campaign_tasks_board_fk": {
-          "name": "campaign_tasks_board_fk",
-          "tableFrom": "campaign_tasks",
-          "tableTo": "campaign_boards",
-          "columnsFrom": [
-            "tenant_id",
-            "campaign_id",
-            "board_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "campaign_id",
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "campaign_tasks_milestone_fk": {
-          "name": "campaign_tasks_milestone_fk",
-          "tableFrom": "campaign_tasks",
-          "tableTo": "campaign_milestones",
-          "columnsFrom": [
-            "tenant_id",
-            "campaign_id",
-            "milestone_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "campaign_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "campaign_tasks_tenant_id_id_pk": {
-          "name": "campaign_tasks_tenant_id_id_pk",
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "campaign_task_title": {
-          "name": "campaign_task_title",
-          "value": "length(btrim(\"campaign_tasks\".\"title\")) between 1 and 200 and \"campaign_tasks\".\"title\" = btrim(\"campaign_tasks\".\"title\")"
-        },
-        "campaign_task_notes": {
-          "name": "campaign_task_notes",
-          "value": "length(\"campaign_tasks\".\"notes\") <= 5000"
-        },
-        "campaign_task_status": {
-          "name": "campaign_task_status",
-          "value": "\"campaign_tasks\".\"status\" in ('todo', 'in_progress', 'done')"
-        },
-        "campaign_task_position": {
-          "name": "campaign_task_position",
-          "value": "\"campaign_tasks\".\"position\" >= 0"
-        },
-        "campaign_task_done": {
-          "name": "campaign_task_done",
-          "value": "(\"campaign_tasks\".\"status\" = 'done') = (\"campaign_tasks\".\"completed_at\" is not null) and (\"campaign_tasks\".\"completed_at\" is null) = (\"campaign_tasks\".\"completed_by\" is null)"
-        },
-        "campaign_task_version": {
-          "name": "campaign_task_version",
-          "value": "\"campaign_tasks\".\"version\" >= 1"
         }
       },
       "isRLSEnabled": false
