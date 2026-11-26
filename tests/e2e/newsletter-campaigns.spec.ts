@@ -150,7 +150,7 @@ test("campaigns: templates, block editor, brand kit, preview, test send and the 
   for (const item of ["sender", "time", "links"]) await expect(page.locator(`[data-item="${item}"]`)).toHaveAttribute("data-level", "fail");
   await expect(page.locator('[data-item="unsubscribe"]')).toHaveAttribute("data-level", "pass");
   await expect(page.locator("[data-schedule-button]")).toBeDisabled();
-  await expect(page.locator('[data-test-result="none"]')).toBeVisible();
+  await expect(page.locator('[data-test-result="sent"]')).toBeVisible();
   await page.locator('[data-fix="time"]').click();
   await expect(page.getByLabel("Date and time")).toBeVisible();
   await expect(page.locator('[data-save-status="saved"]')).toBeVisible();
