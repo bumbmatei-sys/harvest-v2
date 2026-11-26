@@ -48,9 +48,18 @@ LD_PRELOAD="$CF02_TOOLING/loopback.so" \
 | `npm run build` | Passed in a disposable Node checkout. Next generated 24 static entries. |
 | `npm run test:pwa` | Passed with the script's placeholder `DATABASE_URL`. Lighthouse installability passed and accessibility and best-practices scores were both 1. The production offline fallback, static-only cache and axe audit passed. |
 | Miniflare/workerd local run | Prepared. The pinned packages were absent from the local installation. An offline install returned `ENOTCACHED`. The Node-hosted probes leave the original workerd regression and workerd socket cleanup unverified. |
-| Real Neon through Hyperdrive | Prepared only. Verified that staging skips by default and in CI. |
+| Real Neon through Hyperdrive | **Passed on 26 Nov 2026** (founder-authorized test resources; details below). |
 
-## Neon staging harness · prepared
+## Neon staging run · 26 Nov 2026
+
+Founder-authorized disposable resources: Neon branch `cf02-staging-20261126` (schema only, no copied data), all 112 migrations through 0113 applied by the owner over Neon's HTTPS SQL endpoint (one transaction per migration, recorded in `drizzle.__drizzle_migrations`), SQL-created `harvest_app` and `harvest_worker` logins with new private passwords, and two Hyperdrive configs (`harvest-cf02-staging-app-20261126`, `harvest-cf02-staging-worker-20261126`) targeting that branch's direct endpoint and `harvest` database, each with its own login and **caching disabled** (confirmed from the config API). The probe bundle from `prepare-worker.ts` ran as a temporary token-protected Worker on a workers.dev subdomain, uploaded through the API with both Hyperdrive bindings and the two temporary secrets; no routes, schedules or production bindings.
+
+- **Finding, fixed here:** a deployed Hyperdrive binding gives the Worker a generated user name and a generated database name, not `harvest_app`/`harvest`. The first run failed every request with `DATABASE_URL_INVALID`, so production Workers could never have connected. `runtimeConnectionString(..., "hyperdrive")` now accepts a non-Harvest generated name but still rejects any other `harvest_*` login, and `verifyRole` remains the identity check on the real origin session (`session_user = current_user = harvest_app` and no elevated flags, memberships or ownership). The worker-settings "foreign database" guard moved from the binding URL to the connection: `withDb` takes an optional `database` and checks `current_database()`; the app Worker passes `APP_DATABASE_NAME`.
+- **Result after the fix:** all eight isolation cases passed (`concurrent`, `crossTenant`, `revoked`, `rollback`, `readAfterWrite`, `roles`, `timeoutAbort`, `authExpiry`) plus the concurrent independent requests check across 5 isolates. Afterwards the origin showed only idle sessions (14 app, 3 worker), which is Hyperdrive's origin pool. The branch held only the harness's synthetic rows (3 users, 2 workspaces).
+- **Local regression:** `tests/integration/cf02-database.test.ts` adds a generated login (passes the URL check, refused as `DATABASE_PRINCIPAL_INVALID`) and the connection-time database check; `tests/unit/cf03.test.ts` covers a deployed-shape binding and a swapped `harvest_worker` URL.
+- **Disposed after the run:** the probe Worker, both Hyperdrive configs and the Neon branch.
+
+## Neon staging harness · how to re-run
 
 Run only in a later, separately authorized staging session. The founder supplies a disposable Neon test branch with synthetic data and the existing migrations through 0073. Apply migrations using the existing trusted process. Supply two distinct **direct** branch-origin URLs for the SQL-created `harvest_app` and `harvest_worker` logins. A Cloudflare account needs two distinct staging Hyperdrive configs targeting that branch and database, each using its corresponding login with query caching disabled. Confirm the branch endpoint, role and cache settings in those configurations. The suite can check role privileges and database name through the bindings, while the branch identity and Hyperdrive cache settings are deployment metadata.
 
@@ -62,7 +71,7 @@ Keep the origin credentials in a secret manager and inject them directly. The te
 
 ## Go or no-go
 
-Continue local engineering and prepare isolated staging. Close the reused-isolate regression on workerd and verify real Neon through cache-disabled Hyperdrive before marking CF-02 complete. Hosting cutover stays **no-go**.
+Real Neon through cache-disabled Hyperdrive is verified (26 Nov). Close the reused-isolate regression on workerd before marking CF-02 complete. Hosting cutover stays **no-go**.
 
 | Slice | Remaining evidence |
 | --- | --- |

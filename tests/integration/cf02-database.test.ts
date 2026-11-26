@@ -81,10 +81,26 @@ describe.each(["node", "workers"] as const)("%s request scopes", (runtime) => {
       const withOptions = new URL(fixture.appURL);
       withOptions.searchParams.set("options", "endpoint=fixture");
       await expect(withDb({ runtime: "workers", role: "app", APP_HYPERDRIVE: { connectionString: withOptions.href } }, use)).rejects.toThrow("DATABASE_URL_INVALID");
-      const owner = new URL(fixture.appURL);
-      owner.username = fixture.migrationOwner!;
-      await expect(withDb({ runtime: "workers", role: "app", APP_HYPERDRIVE: { connectionString: owner.href } }, use)).rejects.toThrow("DATABASE_URL_INVALID");
+      // A deployed binding has a generated login name, so a non-Harvest name passes the URL check and the principal check decides.
+      const generated = `cf02_${randomBytes(8).toString("hex")}`;
+      await fixture.admin.query(`CREATE ROLE ${generated} LOGIN PASSWORD 'cf02-generated-fixture' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS`);
+      try {
+        const hyperdrive = new URL(fixture.appURL);
+        hyperdrive.username = generated;
+        hyperdrive.password = "cf02-generated-fixture";
+        await expect(withDb({ runtime: "workers", role: "app", APP_HYPERDRIVE: { connectionString: hyperdrive.href } }, use)).rejects.toThrow("DATABASE_PRINCIPAL_INVALID");
+        hyperdrive.username = fixture.migrationOwner!;
+        await expect(withDb({ runtime: "workers", role: "app", APP_HYPERDRIVE: { connectionString: hyperdrive.href } }, use)).rejects.toThrow();
+      } finally { await fixture.admin.query(`DROP ROLE ${generated}`); }
     }
+    expect(use).not.toHaveBeenCalled();
+  });
+
+  it("checks the expected database name on the connection, not in the binding URL", async () => {
+    const name = (await fixture.admin.query<{ name: string }>("select current_database() as name")).rows[0].name;
+    await expect(withDb({ ...app, database: name }, async (db) => (await db.execute(sql`select 1 as one`)).rows.length)).resolves.toBe(1);
+    const use = vi.fn(async () => undefined);
+    await expect(withDb({ ...app, database: `${name}_other` }, use)).rejects.toThrow("DATABASE_PRINCIPAL_INVALID");
     expect(use).not.toHaveBeenCalled();
   });
 });

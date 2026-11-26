@@ -21,7 +21,7 @@ let nodeAuth: Auth | undefined;
 /** Worker entry point for buffered handlers. Await all DB work before returning. */
 export function withWorkerRequest<T>(env: WorkerRequestEnvironment, request: Request, run: () => Promise<T>) {
   if (!env.BETTER_AUTH_SECRET || !env.BETTER_AUTH_URL) throw new Error("WORKER_AUTH_CONFIGURATION_REQUIRED");
-  return withDb({ runtime: "workers", role: "app", APP_HYPERDRIVE: env.APP_HYPERDRIVE }, async (db) => {
+  return withDb({ runtime: "workers", role: "app", APP_HYPERDRIVE: env.APP_HYPERDRIVE, database: env.database }, async (db) => {
     let auth: Auth | undefined;
     return requestAuth.run({
       get: () => auth ??= makeAuth(db, {

@@ -28,7 +28,7 @@ afterEach(() => {
   vi.unstubAllEnvs();
 });
 
-it("checks every required production binding and rejects QA settings and a foreign database name", () => {
+it("checks every required production binding and rejects QA settings and another Harvest login", () => {
   const env = fixture();
   expect(readWorkerSettings(env).requirePrivateScan).toBe(true);
   for (const key of Object.keys(env) as (keyof WorkerBindings)[]) {
@@ -36,12 +36,16 @@ it("checks every required production binding and rejects QA settings and a forei
   }
   for (const patch of [
     { HARVEST_ENV: "test" }, { HARVEST_ENV: "preview" }, { HARVEST_QA_SIGN_IN: "preview" }, { QA_SIGN_IN_SECRET: "" }, { QA_SIGN_IN_HELPER_SECRET: "" },
-    { BETTER_AUTH_URL: "http://production.example.invalid" }, { APP_DATABASE_NAME: "preview_fixture" },
+    { BETTER_AUTH_URL: "http://production.example.invalid" },
+    { APP_HYPERDRIVE: { connectionString: "postgres://harvest_worker@127.0.0.1/production_fixture" } },
     { FILE_GRANT_SECRET: env.BETTER_AUTH_SECRET },
   ]) {
     expect(() => readWorkerSettings({ ...env, ...patch })).toThrow("WORKER_CONFIGURATION_INVALID");
   }
   expect(readWorkerSettings({ ...env, HARVEST_ENV: "preview", BETTER_AUTH_URL: "https://preview.example.invalid" }).requirePrivateScan).toBe(false);
+  // A deployed binding names a generated login and database; withDb checks the database name on each connection instead.
+  const deployed = readWorkerSettings({ ...env, APP_HYPERDRIVE: { connectionString: "postgresql://cd6b1073dbd0@0a1b2c.hyperdrive.local:5432/5a08?sslmode=disable" } });
+  expect(deployed.databaseName).toBe("production_fixture");
 });
 
 it("reads distinct runtimes from their bindings and ignores equivalent process variables", () => {

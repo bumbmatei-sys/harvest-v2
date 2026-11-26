@@ -8,8 +8,8 @@ export type Transaction = Parameters<Parameters<Database["transaction"]>[0]>[0];
 export type DatabaseRole = "app" | "worker";
 type HyperdriveBinding = { connectionString: string };
 export type DatabaseEnvironment =
-  | { runtime: "node"; role: DatabaseRole; pool: Pool }
-  | { runtime: "workers"; role: DatabaseRole; APP_HYPERDRIVE?: HyperdriveBinding; WORKER_HYPERDRIVE?: HyperdriveBinding };
+  | { runtime: "node"; role: DatabaseRole; pool: Pool; database?: string }
+  | { runtime: "workers"; role: DatabaseRole; APP_HYPERDRIVE?: HyperdriveBinding; WORKER_HYPERDRIVE?: HyperdriveBinding; database?: string };
 
 const roleNames = { app: "harvest_app", worker: "harvest_worker" } as const;
 const requestDatabase = new AsyncLocalStorage<Database>();
@@ -19,12 +19,15 @@ export function getRequestDb() {
   return requestDatabase.getStore();
 }
 
-export function runtimeConnectionString(value: string | undefined, role: DatabaseRole): string {
+// A deployed Hyperdrive binding carries generated credentials and a generated database name, not the origin's (CF-02 staging, 26 Nov).
+// Its URL can only rule out the other Harvest logins; verifyRole checks the real origin principal and database after connecting.
+export function runtimeConnectionString(value: string | undefined, role: DatabaseRole, source: "direct" | "hyperdrive" = "direct"): string {
   try {
     if (value) {
       const url = new URL(value);
+      const user = decodeURIComponent(url.username);
       if (["postgresql:", "postgres:"].includes(url.protocol) && url.hostname && url.pathname.length > 1 &&
-          decodeURIComponent(url.username) === roleNames[role] &&
+          (user === roleNames[role] || (source === "hyperdrive" && user !== "" && !user.startsWith("harvest_"))) &&
           !["user", "host", "port", "options"].some((key) => url.searchParams.has(key))) return value;
     }
   } catch {
@@ -33,11 +36,11 @@ export function runtimeConnectionString(value: string | undefined, role: Databas
   throw new Error("DATABASE_URL_INVALID");
 }
 
-async function verifyRole(client: Pick<Client, "query">, role: DatabaseRole) {
+async function verifyRole(client: Pick<Client, "query">, role: DatabaseRole, database: string | undefined) {
   // Bindings can be misprovisioned even with a valid URL. Check the connected
   // principal before handing out a handle. Do not select or switch roles.
   const { rows: [result] } = await client.query<{ allowed: boolean }>(`
-    select session_user = current_user and current_user = $1
+    select session_user = current_user and current_user = $1 and ($2::text is null or current_database() = $2)
       and not (r.rolsuper or r.rolbypassrls or r.rolcreaterole or r.rolcreatedb or r.rolinherit or r.rolreplication)
       and not exists (select 1 from pg_catalog.pg_auth_members where member = r.oid)
       and not exists (select 1 from pg_catalog.pg_database where datname = current_database() and datdba = r.oid)
@@ -47,7 +50,7 @@ async function verifyRole(client: Pick<Client, "query">, role: DatabaseRole) {
       and not exists (select 1 from pg_catalog.pg_proc p join pg_catalog.pg_namespace n on n.oid = p.pronamespace
         where n.nspname = 'public' and p.proowner = r.oid)
       as allowed
-    from pg_catalog.pg_roles r where r.rolname = current_user`, [roleNames[role]]);
+    from pg_catalog.pg_roles r where r.rolname = current_user`, [roleNames[role], database ?? null]);
   if (!result?.allowed) throw new Error("DATABASE_PRINCIPAL_INVALID");
 }
 
@@ -92,7 +95,7 @@ export async function withDb<T>(env: DatabaseEnvironment, run: (db: Database, co
         return client;
       }
       const binding = env.role === "app" ? env.APP_HYPERDRIVE : env.WORKER_HYPERDRIVE;
-      const connectionString = runtimeConnectionString(binding?.connectionString, env.role);
+      const connectionString = runtimeConnectionString(binding?.connectionString, env.role, "hyperdrive");
       const client = new Client({ connectionString, connectionTimeoutMillis: 15_000 });
       // Query errors reach the caller. Handle socket errors emitted between queries.
       client.on("error", (error) => cancellation.abort(error));
@@ -101,7 +104,7 @@ export async function withDb<T>(env: DatabaseEnvironment, run: (db: Database, co
       return client;
     })();
     const client = await Promise.race([acquired, cancelled]);
-    await Promise.race([verifyRole(client, env.role), cancelled]);
+    await Promise.race([verifyRole(client, env.role, env.database), cancelled]);
 
     // A pg connection can carry only one transaction at a time. Queue root
     // queries and whole transactions so parallel callers cannot interleave them.
