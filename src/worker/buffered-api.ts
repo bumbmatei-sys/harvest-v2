@@ -80,7 +80,7 @@ export async function fetchBufferedApi(request: Request, env: WorkerBindings) {
     if (!route && url.pathname !== FILE_TRANSFER_PATH) return privateResponse(new Response(null, { status: 404 }));
 
     const withAuth = <T>(run: () => Promise<T>) => withWorkerRequest({
-      APP_HYPERDRIVE: settings.hyperdrive, BETTER_AUTH_SECRET: settings.authSecret, BETTER_AUTH_URL: settings.origin,
+      APP_HYPERDRIVE: settings.hyperdrive, database: settings.databaseName, BETTER_AUTH_SECRET: settings.authSecret, BETTER_AUTH_URL: settings.origin,
       AUTH_IP_ADDRESS_HEADERS: "cf-connecting-ip", cookiePrefix: `harvest-${settings.stage}`,
       mail: { apiKey: settings.mailKey, from: settings.mailFrom },
     }, request, run);

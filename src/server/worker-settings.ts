@@ -32,12 +32,12 @@ export function readWorkerSettings(env: WorkerBindings) {
   const production = canonicalOrigin(env.HARVEST_PRODUCTION_ORIGIN, false);
   const origin = canonicalOrigin(BETTER_AUTH_URL, stage === "local");
   if ((stage === "production") !== (origin === production)) throw invalid();
-  const dbUrl = new URL(runtimeConnectionString(APP_HYPERDRIVE.connectionString, "app"));
-  if (decodeURIComponent(dbUrl.pathname.slice(1)) !== env.APP_DATABASE_NAME) throw invalid();
+  // The binding URL names a generated database; withDb checks APP_DATABASE_NAME against current_database() on every connection.
+  try { runtimeConnectionString(APP_HYPERDRIVE.connectionString, "app", "hyperdrive"); } catch { throw invalid(); }
 
   return {
     stage, origin, authSecret: BETTER_AUTH_SECRET, grantSecret: FILE_GRANT_SECRET,
-    hyperdrive: APP_HYPERDRIVE, bucket: FILES, mailKey: RESEND_API_KEY, mailFrom: EMAIL_FROM,
+    hyperdrive: APP_HYPERDRIVE, databaseName: env.APP_DATABASE_NAME, bucket: FILES, mailKey: RESEND_API_KEY, mailFrom: EMAIL_FROM,
     features: { NODE_ENV: stage === "production" ? "production" : "development", HARVEST_COMMUNITIES: env.HARVEST_COMMUNITIES },
     requirePrivateScan: stage === "production" || (env.FILES_REQUIRE_SCAN_PRIVATE !== undefined && env.FILES_REQUIRE_SCAN_PRIVATE !== "false"),
   };
