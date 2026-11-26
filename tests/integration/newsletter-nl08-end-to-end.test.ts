@@ -239,7 +239,8 @@ it("reschedules only a scheduled, unstarted campaign of the caller's ministry, i
   // After cancelling, the campaign can no longer be moved.
   await cancelCampaign(fixture.db, people.owner, people.tenant, campaign.id, { version: current.version });
   await expect(rescheduleCampaign(fixture.db, people.owner, people.tenant, campaign.id, { version: current.version + 1, schedule: later })).rejects.toMatchObject({ status: 409, details: { code: "STALE_VERSION" } });
-  expect((await deliveries(campaign.id)).every((row) => row.state === "skipped" && row.skip_reason === "cancelled")).toBe(true);
+  // Ana unsubscribed earlier (skipped at selection); Ben's queued delivery is cancelled. Nothing stays queued.
+  expect((await deliveries(campaign.id)).map((row) => row.skip_reason).sort()).toEqual(["cancelled", "list_suppressed"]);
 });
 
 it("refuses to move a campaign once the worker has claimed or attempted a delivery", async () => {
