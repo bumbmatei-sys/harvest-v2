@@ -827,6 +827,13 @@
       "when": 1795711032711,
       "tag": "0119_ways_to_give",
       "breakpoints": true
+    },
+    {
+      "idx": 122,
+      "version": "7",
+      "when": 1795717904237,
+      "tag": "0122_newsletter_reschedule",
+      "breakpoints": true
     }
   ]
 }
