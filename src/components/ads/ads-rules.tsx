@@ -60,7 +60,7 @@ export function AdsRules({ tenantId }: { tenantId: string }) {
     name: <Button type="button" variant="link" className="h-auto min-h-11 px-0 text-start font-medium whitespace-normal lg:min-h-0" onClick={() => setOpened(rule)}>{rule.name}</Button>,
     condition: describe(rule), level: l(`levels.${rule.level}`),
     action: rule.action === "notify" ? <StatusBadge tone="info" dot label={t("flagOnly")} /> : <StatusBadge tone="warning" dot label={t("pauseAction")} />,
-    on: <Switch checked={rule.enabled} disabled={busy !== null} aria-label={t("turnOn", { name: rule.name })} onCheckedChange={(on) => void run(rule.id, () => api.setRuleEnabled(rule.id, on, rule.version), on ? t("turnedOn") : t("turnedOff"))} />,
+    on: <Switch checked={rule.enabled} disabled={busy !== null || (rule.action !== "notify" && !rule.enabled)} aria-label={t("turnOn", { name: rule.name })} onCheckedChange={(on) => void run(rule.id, () => api.setRuleEnabled(rule.id, on, rule.version), on ? t("turnedOn") : t("turnedOff"))} />,
     actions: <Button type="button" variant="ghost" size="icon" className="size-11 lg:size-8" aria-label={t("remove", { name: rule.name })} onClick={() => setRemoving(rule)}><Trash2 aria-hidden="true" /></Button>,
   } }));
   const enabled = rules.filter((rule) => rule.enabled).length;
@@ -141,46 +141,48 @@ function NewRuleDialog({ open, onOpenChange, currency, onCreate }: { open: boole
   </DialogContent></Dialog>;
 }
 
-/** A rule's detail: what it would flag right now (a preview that changes nothing) and its recent flags. */
+/** A rule's detail: what it would flag right now (a preview that changes nothing) and its recent checks. */
 function RuleSheet({ rule, describe, api, currency, onClose }: { rule: RuleView | null; describe: (rule: RuleView) => string; api: ReturnType<typeof useAdAccounts>["api"]; currency: string; onClose: () => void }) {
+  return <Sheet open={rule !== null} onOpenChange={(open) => { if (!open) onClose(); }}>
+    <SheetContent className="w-full overflow-y-auto sm:max-w-md" data-ads-rule-sheet>
+      {rule && <RuleDetail key={rule.id} rule={rule} describe={describe} api={api} currency={currency} />}
+    </SheetContent>
+  </Sheet>;
+}
+
+function RuleDetail({ rule, describe, api, currency }: { rule: RuleView; describe: (rule: RuleView) => string; api: ReturnType<typeof useAdAccounts>["api"]; currency: string }) {
   const t = useTranslations("Ads.rules"), l = useTranslations("Ads"), format = useFormatter(), explain = useAdsError();
   const [preview, setPreview] = useState<{ id: string; name: string; metrics: Record<string, number> }[] | null>(null), [runs, setRuns] = useState<RuleRun[] | null>(null), [error, setError] = useState("");
-  const id = rule?.id ?? null;
+  const id = rule.id;
   useEffect(() => {
-    if (!id) return;
     const controller = new AbortController();
-    setPreview(null); setRuns(null); setError("");
     Promise.all([api.previewRule(id, controller.signal), api.ruleRuns(id, controller.signal)]).then(([p, r]) => { setPreview(p.wouldAct); setRuns(r.runs); })
       .catch((cause: unknown) => { if (!(cause instanceof DOMException && cause.name === "AbortError")) setError(explain(cause)); });
     return () => controller.abort();
   }, [api, id, explain]);
   const shown = (metric: string, v: number | undefined) => v === undefined ? t("unavailable") : moneyMetrics.has(metric) ? format.number(v, { style: "currency", currency }) : isPercentMetric(metric) ? format.number(v, { style: "percent", maximumFractionDigits: 2 }) : format.number(v, { maximumFractionDigits: 2 });
-  return <Sheet open={rule !== null} onOpenChange={(open) => { if (!open) onClose(); }}>
-    <SheetContent className="w-full overflow-y-auto sm:max-w-md" data-ads-rule-sheet>
-      {rule && <div className="flex flex-col gap-5 p-4 pt-12">
-        <header className="space-y-2">
-          <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{l(`levels.${rule.level}`)}</p>
-          <SheetTitle className="text-lg break-words">{rule.name}</SheetTitle>
-          <SheetDescription>{describe(rule)}</SheetDescription>
-          <StatusBadge tone={rule.enabled ? "success" : "neutral"} dot label={rule.enabled ? t("on") : t("off")} />
-        </header>
-        {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
-        <section className="flex flex-col gap-2" aria-labelledby="ads-rule-preview">
-          <h3 id="ads-rule-preview" className="text-sm font-semibold">{t("previewTitle")}</h3>
-          {preview === null ? <p role="status" className="text-sm text-muted-foreground">{t("loading")}</p>
-            : preview.length === 0 ? <p className="text-sm text-muted-foreground">{t("previewNone")}</p>
-              : <ul className="flex flex-col divide-y rounded-lg border" data-ads-rule-preview>{preview.map((item) => <li key={item.id} className="flex min-h-11 items-center justify-between gap-3 px-3 py-2 text-sm">
-                <span className="min-w-0 break-words">{item.name}</span><span className="shrink-0 tabular-nums text-muted-foreground">{shown(rule.condition.metric, item.metrics[rule.condition.metric])}</span></li>)}</ul>}
-        </section>
-        <section className="flex flex-col gap-2" aria-labelledby="ads-rule-runs">
-          <h3 id="ads-rule-runs" className="text-sm font-semibold">{t("runsTitle")}</h3>
-          {runs === null ? <p role="status" className="text-sm text-muted-foreground">{t("loading")}</p>
-            : runs.length === 0 ? <p className="text-sm text-muted-foreground">{t("runsNone")}</p>
-              : <ul className="flex flex-col divide-y rounded-lg border">{runs.slice(0, 20).map((item) => <li key={item.id} className="flex min-h-11 items-center justify-between gap-3 px-3 py-2 text-sm">
-                <span>{format.dateTime(new Date(item.ranAt), { dateStyle: "medium", timeStyle: "short" })}</span>
-                <StatusBadge tone={item.outcome === "triggered" ? "warning" : "danger"} label={item.outcome === "triggered" ? t("flagged") : t("failed")} /></li>)}</ul>}
-        </section>
-      </div>}
-    </SheetContent>
-  </Sheet>;
+  return <div className="flex flex-col gap-5 p-4 pt-12">
+    <header className="space-y-2">
+      <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">{l(`levels.${rule.level}`)}</p>
+      <SheetTitle className="text-lg break-words">{rule.name}</SheetTitle>
+      <SheetDescription>{describe(rule)}</SheetDescription>
+      <StatusBadge tone={rule.enabled ? "success" : "neutral"} dot label={rule.enabled ? t("on") : t("off")} />
+    </header>
+    {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
+    <section className="flex flex-col gap-2" aria-labelledby="ads-rule-preview">
+      <h3 id="ads-rule-preview" className="text-sm font-semibold">{t("previewTitle")}</h3>
+      {preview === null ? <p role="status" className="text-sm text-muted-foreground">{t("loading")}</p>
+        : preview.length === 0 ? <p className="text-sm text-muted-foreground">{t("previewNone")}</p>
+          : <ul className="flex flex-col divide-y rounded-lg border" data-ads-rule-preview>{preview.map((item) => <li key={item.id} className="flex min-h-11 items-center justify-between gap-3 px-3 py-2 text-sm">
+            <span className="min-w-0 break-words">{item.name}</span><span className="shrink-0 tabular-nums text-muted-foreground">{shown(rule.condition.metric, item.metrics[rule.condition.metric])}</span></li>)}</ul>}
+    </section>
+    <section className="flex flex-col gap-2" aria-labelledby="ads-rule-runs">
+      <h3 id="ads-rule-runs" className="text-sm font-semibold">{t("runsTitle")}</h3>
+      {runs === null ? <p role="status" className="text-sm text-muted-foreground">{t("loading")}</p>
+        : runs.length === 0 ? <p className="text-sm text-muted-foreground">{t("runsNone")}</p>
+          : <ul className="flex flex-col divide-y rounded-lg border">{runs.slice(0, 20).map((item) => <li key={item.id} className="flex min-h-11 items-center justify-between gap-3 px-3 py-2 text-sm">
+            <span>{format.dateTime(new Date(item.ranAt), { dateStyle: "medium", timeStyle: "short" })}</span>
+            <StatusBadge tone={item.outcome === "triggered" ? "warning" : "danger"} label={item.outcome === "triggered" ? t("flagged") : t("failed")} /></li>)}</ul>}
+    </section>
+  </div>;
 }

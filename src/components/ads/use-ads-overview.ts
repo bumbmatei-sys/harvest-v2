@@ -55,14 +55,16 @@ export function useAdsOverview(tenantId: string, range: { from: string; to: stri
     if (first.current) first.current = false; else setReloading(true);
     (async () => {
       try {
-        const [treeResult, now, then, alertResult, ruleResult] = await Promise.all([api.tree(accountId, signal), api.results(accountId, "campaign", from, to, signal),
-          api.results(accountId, "campaign", before.from, before.to, signal), api.alerts(signal), api.rules(signal)]);
+        // Two small batches rather than one burst: the overview reads more routes than any other Ads screen.
+        const [treeResult, now, then] = await Promise.all([api.tree(accountId, signal), api.results(accountId, "campaign", from, to, signal), api.results(accountId, "campaign", before.from, before.to, signal)]);
+        const [alertResult, ruleResult] = await Promise.all([api.alerts(signal), api.rules(signal)]);
         // Budget use: spend from each budget's first counting day to the account's today, at the level that owns the budget.
         const windows = budgetWindows(treeResult.campaigns, accountToday);
         const start = clampStart([...windows.values()].reduce((min, day) => day < min ? day : min, accountToday), accountToday);
         const [campaignSpend, adsetSpend] = windows.size ? await Promise.all([api.results(accountId, "campaign", start, accountToday, signal), api.results(accountId, "adset", start, accountToday, signal)]) : [{ rows: [], truncated: false }, { rows: [], truncated: false }];
         const mine = ruleResult.rules.filter((rule) => rule.adAccountId === accountId);
-        const runs = new Map<string, RuleRun[]>(await Promise.all(mine.map(async (rule) => [rule.id, (await api.ruleRuns(rule.id, signal)).runs] as const)));
+        const runs = new Map<string, RuleRun[]>();
+        for (const rule of mine) runs.set(rule.id, (await api.ruleRuns(rule.id, signal)).runs);
         if (signal.aborted) return;
         setTree(treeResult.campaigns); setCurrent(now.rows); setPrevious(then.rows); setTruncated(now.truncated || then.truncated);
         setAlerts(alertResult.alerts.filter((item) => item.adAccountId === accountId));

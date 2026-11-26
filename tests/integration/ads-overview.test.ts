@@ -90,3 +90,26 @@ it("answers the overview and rules routes with a neutral 404 to a member", async
   await expect(listRules(f.db, p.member, p.tenant, deps)).rejects.toMatchObject({ status: 404 });
   await expect(readResults(f.db, p.member, p.tenant, { adAccountId: acct, level: "campaign", from: day(-1), to: day(0) }, deps)).rejects.toMatchObject({ status: 404 });
 });
+
+it("keeps a stored pause rule off for good: the API, the database check and the trigger refuse it, and the runner never executes it", async () => {
+  const insert = (enabled: boolean) => q(`insert into ads_rules (tenant_id, ad_account_id, name, level, condition, action, enabled, created_by) values ($1, $2, 'Old pause', 'campaign', '{"metric":"spend","operator":"gt","threshold":1,"windowDays":1}', 'pause', $3, $4) returning id, version`, [p.tenant, acct, enabled, p.owner]);
+  // New pause rules are refused by the trigger even as the migration owner, switched on or off.
+  await expect(insert(false)).rejects.toMatchObject({ code: "23514" });
+  await expect(insert(true)).rejects.toMatchObject({ code: "23514" });
+  // A rule stored before 0123: simulate it with the trigger off for this one insert, then the CHECK still refuses switching it on.
+  await q("alter table ads_rules disable trigger ads_rules_flag_only");
+  const { rows: [old] } = await insert(false);
+  await q("alter table ads_rules enable trigger ads_rules_flag_only");
+  await expect(q("update ads_rules set enabled = true where id = $1", [old.id])).rejects.toMatchObject({ code: "23514" });
+  const { rows: [flag] } = await q(`insert into ads_rules (tenant_id, ad_account_id, name, level, condition, action, created_by) values ($1, $2, 'Flag', 'campaign', '{"metric":"spend","operator":"gt","threshold":1,"windowDays":1}', 'notify', $3) returning id`, [p.tenant, acct, p.owner]);
+  await expect(q("update ads_rules set action = 'pause' where id = $1", [flag.id])).rejects.toMatchObject({ code: "23514" });
+  await expect(setRuleEnabled(f.db, p.owner, p.tenant, old.id, { enabled: true, version: old.version }, deps)).rejects.toMatchObject({ status: 422, details: { code: "ADS_RULE_FLAG_ONLY" } });
+  await expect(createRule(f.db, p.owner, p.tenant, { adAccountId: acct, name: "Pause", level: "campaign", condition: { metric: "spend", operator: "gt", threshold: 1 }, action: "pause" }, deps)).rejects.toMatchObject({ status: 422 });
+  expect((await listRules(f.db, p.owner, p.tenant, deps)).rules.find((r) => r.id === old.id)).toMatchObject({ action: "pause", enabled: false });
+  ads.calls.length = 0;
+  expect(await runRules(f.db, p.owner, p.tenant, acct, deps)).toMatchObject({ ran: 0, triggered: 0, failed: 0 });
+  expect(ads.calls).toEqual([]);
+  expect((await readTree(f.db, p.owner, p.tenant, acct, deps)).campaigns[0].status).toBe("active");
+  await deleteRule(f.db, p.owner, p.tenant, old.id, deps);
+  await deleteRule(f.db, p.owner, p.tenant, flag.id, deps);
+});

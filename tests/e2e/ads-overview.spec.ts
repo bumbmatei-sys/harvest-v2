@@ -33,10 +33,11 @@ test("ads overview: stat cards, chart, needs attention, account health, and flag
   await page.getByTestId("series-results").click();
   await expect(page.getByTestId("series-card")).toContainText("Results");
 
-  // Needs attention: the rejected ad, the in-review-free delivery issue and the Instagram link warning of the invented account.
+  // Needs attention: the rejected ad, the ad held by a capped budget and the Instagram link warning of the invented account, each once.
   const attention = page.locator("[data-ads-attention]");
-  await expect(attention.locator('[data-attention="adRejected"]')).toContainText("Camp carousel");
-  await expect(attention.locator('[data-attention="deliveryIssue"]')).toContainText("Boosted post");
+  await expect(attention.getByRole("listitem").filter({ hasText: "Camp carousel" })).toHaveCount(1);
+  await expect(attention.getByRole("listitem").filter({ hasText: "Camp carousel" })).toContainText("rejected");
+  await expect(attention.getByRole("listitem").filter({ hasText: "Boosted post" })).toHaveCount(1);
   await expect(attention.locator('[data-attention="healthCheck"]')).toContainText("Instagram");
 
   // Account health: one card per connected ad account, every named check, Check now stores a fresh answer.

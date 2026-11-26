@@ -14,6 +14,7 @@ const tone: Record<"ok" | "warning" | "failing" | "unknown", StatusTone> = { ok:
 /** One card per connected ad account: its status, each named health check (a check the network never answered reads Not confirmed, never OK) and a Check now action. */
 export function AdsAccountHealth({ accounts, checking, onCheck }: { accounts: readonly AdAccountView[]; checking: string | null; onCheck: (id: string) => void }) {
   const t = useTranslations("Ads.overview.health"), l = useTranslations("Ads"), format = useFormatter();
+  const networkName = (network: string) => l.has(`networks.${network}`) ? l(`networks.${network}`) : l("networks.other");
   return <section aria-labelledby="ads-health-title" className="flex flex-col gap-4" data-ads-account-health>
     <h2 id="ads-health-title" className="text-lg font-semibold">{t("title")}</h2>
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-2 lg:gap-6">
@@ -22,7 +23,7 @@ export function AdsAccountHealth({ accounts, checking, onCheck }: { accounts: re
         return <Card key={account.id} className="min-w-0" data-ads-health-account={account.name}>
           <CardHeader>
             <CardTitle className="break-words">{account.name}</CardTitle>
-            <CardDescription>{l.has(`networks.${account.network}`) ? l(`networks.${account.network}`) : l("networks.other")}{account.currency ? ` · ${account.currency}` : ""}</CardDescription>
+            <CardDescription>{account.currency ? t("networkCurrency", { network: networkName(account.network), currency: account.currency }) : networkName(account.network)}</CardDescription>
             <CardAction><StatusBadge tone={tone[summary]} dot label={t(`summary.${summary}`)} /></CardAction>
           </CardHeader>
           <CardContent>
@@ -36,7 +37,7 @@ export function AdsAccountHealth({ accounts, checking, onCheck }: { accounts: re
           <CardFooter className="flex flex-wrap items-center justify-between gap-3">
             <span className="text-xs text-muted-foreground">{account.healthCheckedAt ? t("checkedAt", { time: format.dateTime(new Date(account.healthCheckedAt), { dateStyle: "medium", timeStyle: "short" }) }) : t("never")}</span>
             <Button type="button" variant="outline" size="responsive" disabled={checking !== null} onClick={() => onCheck(account.id)} aria-label={t("checkNamed", { name: account.name })}>
-              <RotateCw aria-hidden="true" />{checking === account.id ? t("checking") : t("check")}</Button>
+              <RotateCw aria-hidden="true" />{checking === account.id ? t("checking") : t("checkNow")}</Button>
           </CardFooter>
         </Card>;
       })}

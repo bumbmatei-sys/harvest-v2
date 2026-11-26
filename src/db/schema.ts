@@ -3440,7 +3440,7 @@ export const adsRules = pgTable("ads_rules", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
   foreignKey({ name: "ads_rules_account_fk", columns: [t.tenantId, t.adAccountId], foreignColumns: [adsAccounts.tenantId, adsAccounts.id] }),
-  check("ads_rules_shape", sql`length(${t.name}) between 1 and 120 and ${t.level} in ('campaign','adset','ad') and ${t.action} in ('pause','notify') and pg_column_size(${t.condition}) <= 1024`),
+  check("ads_rules_shape", sql`length(${t.name}) between 1 and 120 and ${t.level} in ('campaign','adset','ad') and ${t.action} in ('pause','notify') and (${t.action} = 'notify' or not ${t.enabled}) and pg_column_size(${t.condition}) <= 1024`),
 ]);
 export const adsRuleRuns = pgTable("ads_rule_runs", {
   tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), ruleId: uuid("rule_id").notNull(), targetLevel: text("target_level").notNull(), targetId: uuid("target_id").notNull(),

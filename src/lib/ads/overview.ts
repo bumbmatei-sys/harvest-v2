@@ -87,7 +87,8 @@ export function attentionItems(input: { account: AdAccountView; alerts: readonly
     if (alert.adAccountId !== account.id || alert.state !== "open") continue;
     // The account-level alerts repeat the account status and the failing refresh shown above.
     if ((alert.kind === "account_restricted" && items.some((i) => i.kind === "accountStatus")) || (alert.kind === "sync_failed" && items.some((i) => i.kind === "syncFailing"))) continue;
-    if (alert.subjectId) covered.add(`${alert.kind}:${alert.subjectId}`);
+    // An alert about an ad replaces the tree's own line for the same problem (a capped budget is a delivery issue).
+    if (alert.subjectId) covered.add(`${alert.kind === "budget_capped" ? "delivery_issue" : alert.kind}:${alert.subjectId}`);
     items.push({ ...base, key: `alert:${alert.id}`, kind: "alert", severity: alert.severity === "critical" ? "critical" : "warning", subject: subject(alert.subjectId), detail: alert.kind, alertId: alert.id });
   }
   for (const ad of flat.ads) {

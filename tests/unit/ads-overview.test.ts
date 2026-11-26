@@ -83,6 +83,8 @@ describe("ads rules (flag only)", () => {
     expect(made).toMatchObject({ ok: true, body: { name: "Spend over 50", action: "notify", condition: { metric: "spend", operator: "gt", threshold: 50, windowDays: 3 } } });
     if (!made.ok) throw new Error("expected a payload");
     expect(() => ruleInput.parse(made.body)).not.toThrow();
+    // Founder decision 26 Nov: the server schema refuses any action that changes delivery or spend.
+    expect(() => ruleInput.parse({ ...made.body, action: "pause" })).toThrow();
     for (const metric of ["spend", "costPerResult", "ctr"] as const) {
       const other = rulePayload({ ...emptyRuleDraft(), name: "x", metric, threshold: "2" }, ACCOUNT);
       expect(other.ok && other.body.action).toBe("notify");

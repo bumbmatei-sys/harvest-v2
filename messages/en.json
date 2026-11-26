@@ -9217,9 +9217,11 @@
           "pixel": "Tracking pixel",
           "whatsapp_link": "WhatsApp number"
         },
+        "checkNow": "Check now",
         "checkNamed": "Check now: {name}",
         "checking": "Checking…",
         "checkedAt": "Checked {time}",
+          "networkCurrency": "{network} · {currency}",
         "never": "Not checked yet",
         "summary": {
           "ok": "Healthy",

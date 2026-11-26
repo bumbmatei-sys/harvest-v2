@@ -43,8 +43,10 @@ export function AdsOverview({ tenantId }: { tenantId: string }) {
   const currency = data.account?.currency ?? "USD", busy = data.status === "loading" || data.reloading;
   const ids = useMemo(() => new Set(data.tree.map((c) => c.id)), [data.tree]);
   const days = useMemo(() => daysBetween(range.from, range.to), [range.from, range.to]);
-  const now = useMemo(() => totalsFor(data.current, ids), [data.current, ids]), before = useMemo(() => totalsFor(data.previous, ids), [data.previous, ids]);
-  const items = useMemo(() => data.account ? attentionItems({ account: data.account, alerts: data.alerts, campaigns: data.tree, spent: data.spent, flags: data.flags }) : [], [data.account, data.alerts, data.tree, data.spent, data.flags]);
+  const { current, previous } = data;
+  const now = useMemo(() => totalsFor(current, ids), [current, ids]), before = useMemo(() => totalsFor(previous, ids), [previous, ids]);
+  const { account, alerts, tree, spent, flags } = data;
+  const items = useMemo(() => account ? attentionItems({ account, alerts, campaigns: tree, spent, flags }) : [], [account, alerts, tree, spent, flags]);
 
   const asMoney = (v: number) => format.number(v, { style: "currency", currency, maximumFractionDigits: v >= 100 ? 0 : 2 }), asCount = (v: number) => format.number(Math.round(v));
   const fmt = (m: ResultMetric) => money.has(m) ? asMoney : m === "ctr" ? (v: number) => format.number(v, { style: "percent", maximumFractionDigits: 2 }) : asCount;
