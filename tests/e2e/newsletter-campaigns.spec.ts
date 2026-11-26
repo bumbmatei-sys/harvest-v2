@@ -143,8 +143,16 @@ test("campaigns: templates, block editor, brand kit, preview, test send and the 
   await expect(page.getByLabel("Date and time")).toBeVisible();
   await expect(page.locator('[data-check="address"]')).toHaveAttribute("data-level", "pass");
   await expect(page.locator('[data-check="links"]')).toHaveAttribute("data-level", "fail");
-  await expect(page.locator("[data-send-button]")).toBeDisabled();
-  await expect(page.getByText("Sending is not available yet.")).toBeVisible();
+  await expect(page.locator("[data-time-zone]")).toContainText("UTC");
+  // Review: the checklist names what blocks scheduling (no sender, no time, a button without a link) and says sending is off.
+  await page.locator("[data-review-button]").click();
+  await expect(page.locator("[data-sending-off]")).toContainText("Sending is off");
+  for (const item of ["sender", "time", "links"]) await expect(page.locator(`[data-item="${item}"]`)).toHaveAttribute("data-level", "fail");
+  await expect(page.locator('[data-item="unsubscribe"]')).toHaveAttribute("data-level", "pass");
+  await expect(page.locator("[data-schedule-button]")).toBeDisabled();
+  await expect(page.locator('[data-test-result="sent"]')).toBeVisible();
+  await page.locator('[data-fix="time"]').click();
+  await expect(page.getByLabel("Date and time")).toBeVisible();
   await expect(page.locator('[data-save-status="saved"]')).toBeVisible();
   await shoot(page, "send");
 
