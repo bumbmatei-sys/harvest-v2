@@ -18,7 +18,7 @@ const uploadInput = communityUploadInput.refine((input) => input.kind === "cover
 const photoInput = z.object({ fileId: uuid.nullable(), version: z.number().int().min(1).max(2147483646) }).strict();
 type Storage = () => StorageAdapter;
 type FileMeta = { id: string; key: string; checksum: string; name: string; mime: ImageMime; size: number; status: "pending" | "uploaded" | "quarantined" | "ready"; kind: "photo" | "cover" | "gallery" };
-/** 0136: `gallery` pictures are listed by a gallery block, never set on the page. */
+/** `gallery` pictures are listed by a gallery block, never set on the page. */
 export type BioImageKind = "photo" | "cover" | "gallery";
 type Action = "serve" | "create" | "inspect" | "status" | "set";
 type Result<T> = { outcome: "ok"; data: T } | { outcome: "not_found" | "conflict" | "invalid" };

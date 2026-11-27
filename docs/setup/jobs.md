@@ -143,3 +143,7 @@ Unit tests cover canonical idempotency, backoff bounds, permissions, exact-byte 
 Tests use disposable local PostgreSQL (or an explicitly supplied local `harvest_test` database). Existing email tests mock delivery; no outbound email is needed. The former draft-branch Neon exemptions have been removed: the [CI workflow](../../.github/workflows/ci.yml) runs its existing isolated Neon CI branch migration/cleanup on all PRs and main. Local verification provisions no hosted resources. No cloud cron, deployment or merge is part of this follow-up; outstanding release gates are tracked in [AC8](../acceptance/public-release-ac8.md).
 
 Before real provider rollout: define provider ordering and remote idempotency contracts, connection/credential rotation and revocation, event retention/export/erasure requirements, queue monitoring/alert thresholds and production scheduling. These are future release decisions; Phase 1 does not claim production adapter readiness.
+
+## Link in bio gallery cleanup
+
+Run `npx tsx scripts/bio-gallery-cleanup.ts run` with the dedicated worker database login and disposable storage. Pass `check` to check the latest run without accessing storage. Both commands require `HARVEST_BIO_GALLERY_CLEANUP_ENABLED=1` in development or test. A sweep starts deleting files seven days after they stop appearing in both the saved draft and the published version. Hidden galleries still count as references. Each run records deletion and failure counts.

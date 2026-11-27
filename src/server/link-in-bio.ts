@@ -229,7 +229,7 @@ export async function bioChoices(db: Database, user: string, workspace: string):
 type PublicRow = { handle: string; ministryName: string; brandTheme: string | null; definition: unknown; hasPhoto: boolean; hasCover: boolean; communities: Record<string, { name: string; tagline: string | null; slug: string }>; signups: string[];
   /** 0134: published, not hidden products and courses of the ministry, and its live hosted form addresses. Absent before that migration. */
   catalog?: Record<string, Omit<BioCatalogCard, "id">>; forms?: string[];
-  /** 0136: ready gallery pictures that a gallery block of the published copy lists. */
+  /** ready gallery pictures that a gallery block of the published copy lists. */
   gallery?: string[] };
 
 /**

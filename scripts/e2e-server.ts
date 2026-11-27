@@ -42,6 +42,7 @@ const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev",
     HARVEST_E2E_MOCK_EMAIL: "1", NEXT_TELEMETRY_DISABLED: "1",
     // The dev server compiles routes on demand and holds them in memory for the whole run; give it room so a long shard is not killed or starved (ECONNRESET, "destination stream errored").
     NODE_OPTIONS: `${process.env.NODE_OPTIONS ?? ""} --max-old-space-size=3072`.trim(),
+    FILE_GRANT_SECRET: process.env.CI ? process.env.FILE_GRANT_SECRET || randomBytes(32).toString("hex") : randomBytes(32).toString("hex"),
     FILES_REQUIRE_SCAN_PRIVATE: "false",
     // Newsletter automations are hard-off by default; the browser tests turn them on (entering and stopping only; nothing is sent).
     HARVEST_NEWSLETTER_AUTOMATIONS: "1",
