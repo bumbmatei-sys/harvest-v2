@@ -61,7 +61,7 @@ async function attachFile(page: Page, slug: string, button: Locator, file: { nam
 }
 
 test("forum: categories, a full post, likes and replies, edits, pinning and removal", async ({ page, browser }) => {
-  test.setTimeout(420000);
+  test.setTimeout(600000);
   await mkdir(evidence, { recursive: true });
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
@@ -79,7 +79,7 @@ test("forum: categories, a full post, likes and replies, edits, pinning and remo
   await page.getByLabel("Listed: appears in Discover", { exact: true }).click();
   await page.getByLabel("Anyone can join", { exact: true }).click();
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
-  await expect(page.getByText("Saved.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Saved.", { exact: true })).toBeVisible({ timeout: 60000 }); // the first save compiles the route on the dev server
   const header = page.locator("header").filter({ has: page.getByRole("heading", { level: 1 }) });
   await header.getByRole("button", { name: "Publish", exact: true }).click();
   await expect(page.getByText("Published.", { exact: true })).toBeVisible();

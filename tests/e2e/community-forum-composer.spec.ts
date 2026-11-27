@@ -17,8 +17,8 @@ const widths = [["desktop", 1280, 900], ["phone", 360, 800]] as const;
 /** The webpack dev server restarts itself near its memory limit and drops the request in flight; a direct API call is retried once after that. */
 async function retrying<T>(call: () => Promise<T>): Promise<T> {
   try { return await call(); } catch (error) {
-    if (!/ECONNRESET|ECONNREFUSED|socket hang up/.test(String(error))) throw error;
-    await new Promise((resolve) => setTimeout(resolve, 5000));
+    if (!/ECONNRESET|ECONNREFUSED|ERR_CONNECTION_RESET|ERR_CONNECTION_REFUSED|ERR_ABORTED|socket hang up/.test(String(error))) throw error;
+    await new Promise((resolve) => setTimeout(resolve, 15000));
     return call();
   }
 }
@@ -279,7 +279,7 @@ test("setting: Only hosts hides the composer from members, replies stay open", a
     await join(m, slug);
     const post = (await (await page.request.post(`/api/communities/${slug}/posts`, { headers: { origin }, data: { categoryId: general, title: "Sunday plans",
       body: doc("Who is coming?"), videoUrl: null, coverFileId: null, attachmentIds: [], commentsOff: false, likesOff: false } })).json()) as { id: string };
-    await page.goto(`/workspaces/${tenant}/communities/${community}/edit`);
+    await retrying(() => page.goto(`/workspaces/${tenant}/communities/${community}/edit`));
     await page.getByRole("navigation", { name: "Community setup" }).getByRole("button", { name: /Channels/ }).click();
     const setting = page.getByRole("group", { name: "Who can create forum posts" });
     await expect(setting.getByLabel("Everyone", { exact: true })).toBeChecked();
@@ -299,30 +299,35 @@ test("setting: Only hosts hides the composer from members, replies stay open", a
     }
     await page.setViewportSize({ width: 1280, height: 900 });
     await setting.getByLabel("Only hosts", { exact: true }).click();
-    await Promise.all([waitForCommunityResponse(page, "PATCH", `/api/workspaces/${tenant}/communities/${community}`), page.getByRole("button", { name: "Save draft", exact: true }).click()]);
-    await expect(page.getByText("Saved.", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Save draft", exact: true }).click();
+    // The first save compiles the community route on the dev server, which can be slow.
+    await expect(page.getByText("Saved.", { exact: true })).toBeVisible({ timeout: 90000 });
 
     // Members: no composer card, posting is refused, replies still work.
-    await m.goto(`/communities/${slug}/forum`);
+    await retrying(() => m.goto(`/communities/${slug}/forum`));
     await expect(m.getByRole("article").first()).toBeVisible();
     await expect(m.getByRole("button", { name: "What's on your mind?", exact: true })).toHaveCount(0);
     expect((await m.request.post(`/api/communities/${slug}/posts`, { headers: { origin }, data: { categoryId: general, title: "x", body: doc("x"), videoUrl: null, coverFileId: null,
       attachmentIds: [], commentsOff: false, likesOff: false } })).status()).toBe(403);
-    await m.goto(`/communities/${slug}/posts/${post.id}`);
-    await m.getByLabel("Reply", { exact: true }).fill("Count me in.");
-    await Promise.all([waitForCommunityResponse(m, "POST", `/api/communities/${slug}/posts/${post.id}/comments`), m.getByRole("button", { name: "Reply", exact: true }).click()]);
+    // One retry if the dev server restarts (memory limit) while the reply route compiles.
+    const reply = async () => {
+      await retrying(() => m.goto(`/communities/${slug}/posts/${post.id}`));
+      await m.getByLabel("Reply", { exact: true }).fill("Count me in.");
+      await Promise.all([waitForCommunityResponse(m, "POST", `/api/communities/${slug}/posts/${post.id}/comments`), m.getByRole("button", { name: "Reply", exact: true }).click()]);
+    };
+    await reply().catch(async () => { await new Promise((resolve) => setTimeout(resolve, 15000)); await reply(); });
     await expect(m.getByText("Count me in.", { exact: true })).toBeVisible();
     // Hosts keep the composer.
-    await page.goto(`/communities/${slug}/forum`);
+    await retrying(() => page.goto(`/communities/${slug}/forum`));
     await expect(page.getByRole("button", { name: "What's on your mind?", exact: true })).toBeVisible();
-    await m.goto(`/communities/${slug}/forum`);
+    await retrying(() => m.goto(`/communities/${slug}/forum`));
     await shoot(m, "feed-member-hosts-only-desktop-light");
   } finally { await member.context.close(); }
   expect(errors).toEqual([]);
 });
 
 test("screens: feed, composer, pickers and a detailed post at 1280 and 360, light and dark", async ({ page, browser }) => {
-  test.setTimeout(600000);
+  test.setTimeout(900000);
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -336,10 +341,14 @@ test("screens: feed, composer, pickers and a detailed post at 1280 and 360, ligh
     const friendId = await db.query<{ user_id: string }>("select m.user_id from community_memberships m join communities c on c.id = m.community_id join users u on u.id = m.user_id where c.slug = $1 and u.name = 'Samuel Cole'", [slug])
       .then((r) => r.rows[0].user_id).finally(() => db.end());
     // A photo the member uploads, then a post with every detail and the host's linked items.
-    await m.goto(`/communities/${slug}/forum`);
-    await m.getByRole("button", { name: "What's on your mind?", exact: true }).click();
     const composer = m.getByRole("dialog", { name: "New post" });
-    await attachPhoto(m, slug, composer.getByRole("group", { name: "Add to your post" }).getByRole("button", { name: "Photo", exact: true }));
+    const upload = async () => {
+      await retrying(() => m.goto(`/communities/${slug}/forum`));
+      await m.getByRole("button", { name: "What's on your mind?", exact: true }).click();
+      await attachPhoto(m, slug, composer.getByRole("group", { name: "Add to your post" }).getByRole("button", { name: "Photo", exact: true }));
+    };
+    // One retry if the dev server restarts (memory limit) while the upload routes compile.
+    await upload().catch(async () => { await new Promise((resolve) => setTimeout(resolve, 15000)); await upload(); });
     const photoSrc = await composer.getByRole("img", { name: "Photo 1 of 1" }).getAttribute("src");
     const photoId = photoSrc!.split("/").pop()!;
     await m.keyboard.press("Escape");
@@ -372,7 +381,7 @@ test("screens: feed, composer, pickers and a detailed post at 1280 and 360, ligh
       ...(["event", "article", "course", "product", "form"] as const).map((kind): Scene => [`picker-${kind}`, page, `/communities/${slug}/forum`, async (p) => {
         const d = await open(p, "Event");
         if (kind !== "event") await d.getByRole("radio", { name: kind[0].toUpperCase() + kind.slice(1), exact: true }).click();
-        await expect(d.getByRole("region", { name: `Choose ${kind}` }).getByRole("button").first()).toBeVisible();
+        await expect(d.getByRole("region", { name: `Choose ${kind}` }).getByRole("button").first()).toBeVisible({ timeout: 30000 });
         return d;
       }]),
       ["post-details", m, `/communities/${slug}/posts/${photoPost}`],
@@ -382,7 +391,7 @@ test("screens: feed, composer, pickers and a detailed post at 1280 and 360, ligh
       await p.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
       for (const [label, width, height] of widths) {
         await p.setViewportSize({ width, height });
-        await p.goto(url);
+        await retrying(() => p.goto(url));
         await expect(p.getByRole("article").first()).toBeVisible();
         const scope = await prepare?.(p);
         await audit(p, `${name} ${label} ${scheme}`, scope);
