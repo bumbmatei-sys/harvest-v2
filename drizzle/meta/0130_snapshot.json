@@ -1,5 +1,5 @@
 {
-  "id": "18797871-4116-4252-9ee4-7016cdc55f24",
+  "id": "b67b52d9-3232-4917-9e49-a298f72afcc7",
   "prevId": "4bfcbac8-d81f-4ab1-958f-10cd671b25a3",
   "version": "7",
   "dialect": "postgresql",
@@ -8413,7 +8413,7 @@
       "checkConstraints": {
         "catalog_item_labels": {
           "name": "catalog_item_labels",
-          "value": "(\"catalog_items\".\"kind\" = 'course' or (\"catalog_items\".\"level_label\" is null and \"catalog_items\".\"section_label\" is null and \"catalog_items\".\"lesson_label\" is null))\n    and (\"catalog_items\".\"level_label\" is null or length(trim(\"catalog_items\".\"level_label\")) between 1 and 24)\n    and (\"catalog_items\".\"section_label\" is null or length(trim(\"catalog_items\".\"section_label\")) between 1 and 24)\n    and (\"catalog_items\".\"lesson_label\" is null or length(trim(\"catalog_items\".\"lesson_label\")) between 1 and 24)"
+          "value": "(\"catalog_items\".\"kind\" = 'course' or (\"catalog_items\".\"level_label\" is null and \"catalog_items\".\"section_label\" is null and \"catalog_items\".\"lesson_label\" is null))\n    and (\"catalog_items\".\"level_label\" is null or (length(trim(\"catalog_items\".\"level_label\")) between 1 and 24 and \"catalog_items\".\"level_label\" = btrim(\"catalog_items\".\"level_label\") and \"catalog_items\".\"level_label\" !~ '[[:cntrl:]]'))\n    and (\"catalog_items\".\"section_label\" is null or (length(trim(\"catalog_items\".\"section_label\")) between 1 and 24 and \"catalog_items\".\"section_label\" = btrim(\"catalog_items\".\"section_label\") and \"catalog_items\".\"section_label\" !~ '[[:cntrl:]]'))\n    and (\"catalog_items\".\"lesson_label\" is null or (length(trim(\"catalog_items\".\"lesson_label\")) between 1 and 24 and \"catalog_items\".\"lesson_label\" = btrim(\"catalog_items\".\"lesson_label\") and \"catalog_items\".\"lesson_label\" !~ '[[:cntrl:]]'))"
         },
         "catalog_item_kind": {
           "name": "catalog_item_kind",
