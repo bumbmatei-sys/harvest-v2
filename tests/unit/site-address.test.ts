@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import {
   acceptsLegacyCallback, appLink, appOrigin, bioLink, blogImageLink, blogLink, blogRssLink, campaignInvitationLink,
-  communityInviteLink, communityLink, communityUnsubscribeLinks, connectClaimLink, connectExportLink, connectLinks, eventCalendarLink,
+  communityInviteLink, communityLink, communityPostLink, communityUnsubscribeLinks, connectClaimLink, connectExportLink, connectLinks, eventCalendarLink,
   giveCoverLink, giveLink, legacyRedirect, marketingOrigin, newsletterFileLink, newsletterSignupLink,
   newsletterUnavailableLink, newsletterUnsubscribeLink, readSiteAddresses, signInLink,
 } from "../../src/lib/site-address";
@@ -43,6 +43,7 @@ it.each<[() => string, string]>([
   [() => giveLink("fund"), "/give/fund"],
   [() => giveCoverLink("fund"), "/give/fund/cover"],
   [() => communityLink("members"), "/communities/members"],
+  [() => communityPostLink("members", "example"), "/communities/members/posts/example"],
   [() => communityInviteLink("members", "synthetic"), "/communities/members?invite=synthetic"],
   [() => communityUnsubscribeLinks("synthetic").form, "/communities/unsubscribe#token=synthetic"],
   [() => communityUnsubscribeLinks("synthetic").oneClick, "/api/communities/unsubscribe?token=synthetic"],

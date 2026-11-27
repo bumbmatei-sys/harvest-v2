@@ -1,3 +1,4 @@
+import { communityPostLink } from "@/lib/site-address";
 /** Layout and behaviour modelled on bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): app/dashboard/(auth)/apps/social-media/components/post-item.tsx; code written for Harvest, no kit code copied. The post page is the feed card expanded: full post, the replies below and the reply box in the card footer. */
 import Link from "next/link";
 import { getFormatter, getTranslations } from "next-intl/server";
@@ -50,7 +51,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
         <span className="text-muted-foreground text-xs">{t("edited")}</span>
         {context.canModerate && <EditHistory slug={context.slug} targetType="post" targetId={post.id} name={post.title} compact />}
       </>}
-      menu={<PostMenu slug={context.slug} post={{ id: post.id, title: post.title, pinned: post.pinned, held: post.held }} isAuthor={isAuthor} canModerate={context.canModerate} detail
+      menu={<PostMenu slug={context.slug} copyHref={communityPostLink(context.slug, post.id)} post={{ id: post.id, title: post.title, pinned: post.pinned, held: post.held }} isAuthor={isAuthor} canModerate={context.canModerate} detail
         edit={isAuthor && !muted ? { categories: context.categories, author: myName, initial: { id: post.id, categoryId: post.categoryId, title: post.title, body: post.body, videoUrl: post.videoUrl,
           cover: post.coverFileId ? { id: post.coverFileId, name: t("currentCover") } : null, attachments: attachments.map((a) => ({ id: a.id, name: a.name })),
           commentsOff: post.commentsOff, likesOff: post.likesOff } } : undefined} />}>

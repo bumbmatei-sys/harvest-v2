@@ -106,6 +106,7 @@ export function communityUnsubscribeLinks(token: string, base = appOrigin()) {
   oneClick.searchParams.set("token", token);
   return { form: form.href, oneClick: oneClick.href };
 }
+export const communityPostLink = (slug: string, post: string) => appLink(`/communities/${segment(slug)}/posts/${segment(post)}`);
 export const communityInviteLink = (slug: string, token: string) => appLink(`/communities/${segment(slug)}`, { invite: token });
 export const eventCalendarLink = (tenant: string, event: string) =>
   appLink(`/api/workspaces/${segment(tenant)}/events/${segment(event)}/calendar`);
