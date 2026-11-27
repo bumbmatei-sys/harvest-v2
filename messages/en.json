@@ -8262,7 +8262,21 @@
       "addTestimonial": "Add testimonial",
       "removeTestimonial": "Remove testimonial {position}",
       "testimonialProblem": "Add a quote and a name.",
-      "maxItems": "Up to {max}."
+      "maxItems": "Up to {max}.",
+      "gallery": "Photo gallery",
+      "share": "Share and QR code",
+      "countdown": "Countdown",
+      "countdownTitle": "Label",
+      "countdownAt": "Date and time",
+      "countdownUrl": "Link once it starts (https, optional)",
+      "countdownProblem": "Use a valid date and a full https address.",
+      "galleryPhoto": "Photo {position}",
+      "galleryChecking": "Waiting for the safety check",
+      "galleryMoveUp": "Move photo {position} earlier",
+      "galleryRemove": "Remove photo {position}",
+      "galleryAdd": "Add photo",
+      "galleryUploading": "Uploading…",
+      "galleryProblem": "This photo could not be added. Use a JPG, PNG or WebP image up to 10 MB."
     },
     "design": {
       "heading": "Design",
@@ -8385,7 +8399,28 @@
       "liveLabel": "Live now",
       "openForm": "Open form",
       "catalogLabel": "Courses and products",
-      "videoLabel": "Video"
+      "videoLabel": "Video",
+      "galleryLabel": "Photos",
+      "galleryOpen": "Open photo {position} of {count}",
+      "galleryHint": "Swipe, or use the arrow keys or the buttons.",
+      "galleryPosition": "Photo {position} of {count}",
+      "galleryPrevious": "Previous photo",
+      "galleryNext": "Next photo",
+      "countdownStarted": "It has started.",
+      "countdownOpen": "Open",
+      "countdown": {
+        "days": "Days",
+        "hours": "Hours",
+        "minutes": "Minutes",
+        "seconds": "Seconds"
+      },
+      "shareHint": "Copy the link or save the QR code.",
+      "shareLink": "Page link",
+      "shareCopy": "Copy link",
+      "shareDevice": "Share",
+      "qrAlt": "QR code for this page",
+      "qrDownload": "Download QR code",
+      "qrTitle": "QR code for {name}"
     },
     "mode": {
       "unavailable": "Link in bio is not available in this environment."

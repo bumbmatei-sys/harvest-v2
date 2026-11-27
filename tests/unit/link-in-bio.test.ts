@@ -189,6 +189,34 @@ describe("new block types (rework PR 2)", () => {
   });
 });
 
+describe("gallery, share and countdown (rework PR 3)", () => {
+  const base = { ...emptyBioDefinition("Grace Church"), blocks: [link()] };
+  const parse = (block: Record<string, unknown>) => bioDefinitionSchema.safeParse({ ...base, blocks: [{ id: "bbbbbbbb", hidden: false, tab: "home", ...block }] });
+  const photo = (i: number) => `33333333-3333-4333-8333-${String(i).padStart(12, "0")}`;
+  it("takes one to twelve gallery pictures by id", () => {
+    expect(parse({ type: "gallery", title: "", fileIds: [photo(1), photo(2)] }).success).toBe(true);
+    expect(parse({ type: "gallery", title: "", fileIds: [] }).success).toBe(false);
+    expect(parse({ type: "gallery", title: "", fileIds: [photo(1), photo(1)] }).success).toBe(false);
+    expect(parse({ type: "gallery", title: "", fileIds: Array.from({ length: bioLimits.galleryPhotos + 1 }, (_, i) => photo(i)) }).success).toBe(false);
+    expect(fieldIssues({ ...base, blocks: [{ type: "gallery", id: "bbbbbbbb", hidden: false, tab: "home", title: "", fileIds: [] }] })).toEqual({ bbbbbbbb: "required" });
+  });
+  it("takes a share button with a label and a countdown with a moment and an optional https link", () => {
+    expect(parse({ type: "share", title: "Share this page" }).success).toBe(true);
+    expect(parse({ type: "share", title: " " }).success).toBe(false);
+    expect(parse({ type: "countdown", title: "Easter", at: "2027-03-28T09:00:00.000Z", url: "" }).success).toBe(true);
+    expect(parse({ type: "countdown", title: "Easter", at: "2027-03-28T10:00:00+01:00", url: "https://example.org/live" }).success).toBe(true);
+    expect(parse({ type: "countdown", title: "Easter", at: "next Sunday", url: "" }).success).toBe(false);
+    expect(parse({ type: "countdown", title: "Easter", at: "2027-03-28T09:00:00.000Z", url: "http://example.org" }).success).toBe(false);
+  });
+  it("keeps the gallery pictures behind the published page in the database", () => {
+    const sql = readFileSync("drizzle/0141_bio_gallery.sql", "utf8");
+    expect(sql).toMatch(/CHECK \("bio_files"\."kind" in \('photo','cover','gallery'\)\)/);
+    expect(sql).toMatch(/public\.bio_role_can\(public\.access_role\(tenant_id, user_id, 'website', role_id\)\)/);
+    expect(sql).toMatch(/b->>'type' = 'gallery' AND public\.bio_block_shown\(page\.published, b\)/);
+    expect(sql).toMatch(/DECLARE prior jsonb := public\.bio_scope_clear\(false\)/);
+  });
+});
+
 describe("message me", () => {
   const ok = { proof: "x", name: "Ana", email: "ana@example.test", message: "Hello", consent: true };
   it("needs name, email, message and an explicit consent", () => {
