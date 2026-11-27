@@ -11,6 +11,7 @@ import { runNewsletterAutomations } from "../../src/server/newsletter-automation
 import { FakeNewsletterProvider } from "../../src/server/newsletter-campaigns/fake-provider";
 import { purgeNewsletterAutomationClicks } from "../../src/server/newsletter-campaigns/maintenance";
 import { newsletterClickSettings, saveNewsletterClickSettings } from "../../src/server/newsletter-clicks";
+import { changeMemberAccess } from "../../src/server/access";
 import { withTenant } from "../../src/server/tenancy";
 import { testDatabase } from "../database";
 import { noNetwork, seedPeople } from "./social-layer-fixture";
@@ -224,6 +225,55 @@ it("never lets link totals reveal a withheld step or day: links count only shown
   expect(linkTotal).toBeLessThanOrEqual(shownSteps);
   expect(linkTotal).toBeLessThanOrEqual(shownDays);
   for (const link of result.links) expect(link.clicks).toBe(5);
+});
+
+it("keeps delegated newsletter managers out of the report: owners and admins only", async () => {
+  await changeMemberAccess(fixture.db, people.owner, people.tenant, { userId: people.viewer, role: "collaborator", grants: { newsletter: "manage" } });
+  try {
+    await expect(report(counted.automation, people.viewer)).rejects.toMatchObject({ status: 404 });
+    await expect(withTenant(fixture.db, people.viewer, people.tenant, "newsletter:analytics", (tx) =>
+      tx.execute(sql`select public.newsletter_automation_click_report(${people.tenant}::uuid,${counted.automation}::uuid,current_date,current_date+1)`)))
+      .rejects.toHaveProperty("cause.code", "42501");
+  } finally {
+    await changeMemberAccess(fixture.db, people.owner, people.tenant, { userId: people.viewer, role: "viewer" });
+  }
+});
+
+it("does not release a small link, step or day count by subtracting overlapping UTC ranges", async () => {
+  // Reviewer's case: one step, link A with 6 clicks on day 1 and 2 on day 2, and each step-day at 5 or more. Before the fix [d1,d2) showed A = 6 and
+  // [d1,d3) showed A = 8, so the difference revealed 2. Clicks sit on UTC day edges written in other offsets.
+  const d1 = "2026-04-03", d2 = "2026-04-04", d3 = "2026-04-05", d4 = "2026-04-06";
+  const automation = await automationWith(6, "Ranges");
+  expect(await tick()).toHaveLength(6);
+  try {
+    const cells: [number, string, number][] = [
+      [0, "2026-04-04T01:59:59+02:00", 1], [0, "2026-04-03T12:00:00Z", 5], [1, "2026-04-03T12:00:00Z", 5],
+      [0, "2026-04-03T20:00:00-04:00", 1], [0, "2026-04-04T00:00:00Z", 1], [1, "2026-04-04T09:00:00Z", 3],
+      [0, "2026-04-05T09:00:00Z", 5], [1, "2026-04-05T23:59:59.999Z", 5]];
+    for (const [link, at, count] of cells) for (let n = 0; n < count; n++) await fixture.admin.query(
+      "insert into newsletter_automation_clicks(tenant_id,automation_id,attempt_id,step_index,link_index,clicked_at) values($1,$2,$3,0,$4,$5)",
+      [people.tenant, automation, randomUUID(), link, at]);
+    const range = (from: string, until: string, zone: string) => withTenant(fixture.db, people.owner, people.tenant, "newsletter:analytics", async (tx) => {
+      await tx.execute(sql`select set_config('TimeZone', ${zone}, true)`);
+      return (await tx.execute<{ r: unknown }>(sql`select public.newsletter_automation_click_report(${people.tenant}::uuid,${automation}::uuid,${from}::date,${until}::date) as r`)).rows[0].r;
+    });
+    const firstDay = [{ url: links.give, clicks: 6 }, { url: links.events, clicks: 5 }];
+    expect(await range(d1, d2, "Pacific/Kiritimati")).toEqual({ total: 11, days: [{ day: d1, clicks: 11 }], steps: [{ step: 0, clicks: 11 }], links: firstDay });
+    // Day 2 has a link under 5, so the whole step-day is withheld and adding it to the range changes no shown figure.
+    expect(await range(d1, d3, "America/Los_Angeles")).toEqual({ total: null, days: [{ day: d1, clicks: 11 }, { day: d2, clicks: null }],
+      steps: [{ step: 0, clicks: null }], links: firstDay });
+    expect(await range(d2, d3, "UTC")).toEqual({ total: null, days: [{ day: d2, clicks: null }], steps: [{ step: 0, clicks: null }], links: [] });
+    // A later safe day adds whole cells of 5 or more, never the withheld ones.
+    const wide = await range(d1, d4, "Asia/Kolkata");
+    expect(wide).toEqual({ total: null, days: [{ day: d1, clicks: 11 }, { day: d2, clicks: null }, { day: d3, clicks: 10 }],
+      steps: [{ step: 0, clicks: null }], links: [{ url: links.give, clicks: 11 }, { url: links.events, clicks: 10 }] });
+    expect(await range(d3, d4, "UTC")).toMatchObject({ total: 10, links: [{ url: links.events, clicks: 5 }, { url: links.give, clicks: 5 }] });
+    const shown = await automationClicks(fixture.db, people.admin, people.tenant, automation, new Date("2026-04-06T12:00:00Z"));
+    expect(shown).toMatchObject({ total: null, steps: [{ step: 0, clicks: null }], links: [{ url: links.give, clicks: 11 }, { url: links.events, clicks: 10 }] });
+    expect(shown.days.filter((day) => day.day >= d1 && day.day <= d3)).toEqual([{ day: d1, clicks: 11 }, { day: d2, clicks: null }, { day: d3, clicks: 10 }]);
+  } finally {
+    await fixture.admin.query("delete from newsletter_automation_clicks where automation_id=$1", [automation]);
+  }
 });
 
 it("stops rewriting and counting as soon as counting is turned off, and does not count earlier emails when it is turned on again", async () => {

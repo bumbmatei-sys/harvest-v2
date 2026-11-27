@@ -118,16 +118,16 @@ describe("catalog", () => {
       expect(fns.length, name).toBeGreaterThan(0);
       for (const fn of fns) {
         expect(fn.prosecdef, name).toBe(true);
-        const set = [...fn.prosrc.matchAll(/set_config\(\s*'(app\.[a-z_]+)'/g)].map((m) => m[1]);
+        const set = [...fn.prosrc.matchAll(/set_config\(\s*'(app\.[a-z0-9_]+)'/g)].map((m) => m[1]);
         expect(new Set(set), name).toEqual(new Set(flag ? [flag] : []));
-        expect(/set_config\(\s*'app\.[a-z_]+'\s*,\s*(coalesce\(previous|'')/.test(fn.prosrc), `${name} blanks or restores its flag`).toBe(true);
+        expect(/set_config\(\s*'app\.[a-z0-9_]+'\s*,\s*(coalesce\(previous|'')/.test(fn.prosrc), `${name} blanks or restores its flag`).toBe(true);
         if (fn.is_trigger) expect(fn.app_exec || fn.worker_exec, name).toBe(false);
       }
     }
     // community_definer_reset itself blanks every flag that an owner-role policy on a community table reads (0129 added nine).
     const policyFlags = new Set((await f.admin.query(`select coalesce(qual, '') || coalesce(with_check, '') as expr from pg_policies p
       where p.schemaname = 'public' and not ('harvest_app' = any (p.roles)) and (p.tablename ~ '^(communit|discover_)')`)).rows
-      .flatMap((r) => [...(r.expr as string).matchAll(/app\.[a-z_]+/g)].map((m) => m[0])));
+      .flatMap((r) => [...(r.expr as string).matchAll(/app\.[a-z0-9_]+/g)].map((m) => m[0])));
     expect(policyFlags.size).toBeGreaterThan(15);
     const reset = byName.get("community_definer_reset")![0].prosrc;
     expect([...policyFlags].filter((flag) => !reset.includes(`'${flag}'`) && flag !== "app.tenant_id" && flag !== "app.user_id").sort()).toEqual([]);

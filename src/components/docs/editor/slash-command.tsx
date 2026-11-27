@@ -50,7 +50,7 @@ const SlashList = forwardRef<ListHandle, ListProps>(function SlashList({ items, 
 });
 
 const key = new PluginKey("docsSlash");
-export type SlashOptions = { actions: PageActions; labelOf: (item: SlashItem) => string };
+export type SlashOptions = { actions: PageActions; labelOf: (item: SlashItem) => string; exclude?: readonly string[] };
 /** "/" opens the block menu. Not offered inside a code block. */
 export const SlashCommand = Extension.create<SlashOptions>({
   name: "docsSlash",
@@ -60,7 +60,7 @@ export const SlashCommand = Extension.create<SlashOptions>({
     return [Suggestion<SlashItem, SlashItem>({
       editor, pluginKey: key, char: "/", allowSpaces: false, startOfLine: false,
       allow: ({ state, range }) => !state.doc.resolve(range.from).parent.type.spec.code,
-      items: ({ query }) => filterSlash(query, options.labelOf),
+      items: ({ query }) => filterSlash(query, options.labelOf, options.exclude),
       command: ({ editor: e, range, props }: { editor: Editor; range: Range; props: SlashItem }) => props.run(e, range, options.actions),
       render: () => {
         let renderer: ReactRenderer<ListHandle, ListProps> | null = null, host: HTMLDivElement | null = null;

@@ -17,7 +17,7 @@ export function CommunityExamples() {
         <li><DiscoverCard item={{ id: "d1", slug: "example", name: t("communityName"), tagline: t("tagline"), hostName: t("hostName"), admission: ["open"] }} /></li>
         <li><DiscoverCard item={{ id: "d2", slug: "example-2", name: t("communityName2"), tagline: null, hostName: t("hostName"), admission: ["apply"] }} /></li></ul></div>
     <div className="space-y-2"><h3 className="text-sm font-medium">{t("postTitle")}</h3>
-      <PostCard slug="example" category={{ name: t("category"), emoji: null }} post={{ id: "p1", title: t("postHeading"), excerpt: t("postExcerpt"), authorName: t("ownerName"), createdAt: new Date("2026-01-01T00:00:00Z"),
+      <PostCard slug="example" category={{ name: t("category"), emoji: null }} post={{ id: "p1", title: t("postHeading"), excerpt: t("postExcerpt"), authorId: "u1", authorName: t("ownerName"), createdAt: new Date("2026-01-01T00:00:00Z"),
         likes: 3, comments: 2, liked: false, likesOff: true, coverFileId: null, hasVideo: false, held: false, pinned: true }} /></div>
   </div>;
 }

@@ -12,15 +12,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { moderationLimits, reportReasons, type ReportReason, type ReportTarget } from "@/lib/moderation";
 
 /** Report a post, reply or member to the community's hosts. The reported person never sees who reported them. */
-export function ReportDialog({ slug, targetType, targetId, name, compact = false, dm, afterReport }: {
+export function ReportDialog({ slug, targetType, targetId, name, compact = false, dm, afterReport, defaultOpen = false, onClose }: {
   slug: string; targetType: ReportTarget; targetId: string; name: string; compact?: boolean;
   /** A private message: the report goes with its conversation, and the dialog says who will see what. */
   dm?: { conversationId: string };
   /** Shown with the thanks, for example an offer to block. Receives a function that closes the dialog. */
   afterReport?: (close: () => void) => React.ReactNode;
+  /** Opened from elsewhere (a post's actions menu): mounts open with no trigger of its own and calls onClose once closed. */
+  defaultOpen?: boolean; onClose?: () => void;
 }) {
   const t = useTranslations("Report"), request = useCrmRequest();
-  const [open, setOpen] = useState(false), [reason, setReason] = useState<ReportReason | "">(""), [note, setNote] = useState("");
+  const [open, setOpenState] = useState(defaultOpen), [reason, setReason] = useState<ReportReason | "">(""), [note, setNote] = useState("");
   const [busy, setBusy] = useState(false), [error, setError] = useState(""), [done, setDone] = useState(false);
   async function submit() {
     setBusy(true); setError("");
@@ -30,11 +32,12 @@ export function ReportDialog({ slug, targetType, targetId, name, compact = false
     setBusy(false);
     if (result.ok) setDone(true); else setError(result.error);
   }
+  const setOpen = (next: boolean) => { setOpenState(next); if (!next) onClose?.(); };
   const label = t(`open.${targetType}`, { name });
   return <Dialog open={open} onOpenChange={(next) => { setOpen(next); if (next) { setReason(""); setNote(""); setError(""); setDone(false); } }}>
-    <DialogTrigger asChild>{compact
+    {!onClose && <DialogTrigger asChild>{compact
       ? <Button variant="ghost" size="icon" className="size-11 text-muted-foreground" aria-label={label}><Flag aria-hidden="true" /></Button>
-      : <Button variant="outline" className="min-h-11" aria-label={label}><Flag aria-hidden="true" />{t("action")}</Button>}</DialogTrigger>
+      : <Button variant="outline" className="min-h-11" aria-label={label}><Flag aria-hidden="true" />{t("action")}</Button>}</DialogTrigger>}
     <DialogContent className="sm:max-w-md">
       <DialogHeader><DialogTitle>{t(`title.${targetType}`)}</DialogTitle></DialogHeader>
       {done ? <div className="space-y-3"><p role="status" className="text-sm">{t("thanks")}</p>{afterReport?.(() => setOpen(false))}</div> : <div className="space-y-4">
