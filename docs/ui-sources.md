@@ -527,6 +527,15 @@ Founder approval 25 Nov 2026, under the kit item approval gate. Approved kit ite
 | `src/components/ads/ad-steps.tsx` | modelled on | `stepper1`, `form-layout1` | The step bodies sit in the shared `EditorShell` and `WizardLayout`; the goal, format and post pickers reuse `RadioCards` (which gained an `aria-label` on each radio so axe names them). |
 | `src/components/ads/ad-preview.tsx` | modelled on | `social-media-post1` | A plain stand-in for a feed post: account, text, media, headline, button. |
 
+**Ads overview, account health and rules (26 Nov 2026).** No new kit item: the founder's 25 Nov Ads approval (stat cards and charts as in Social Analytics and the CRM reports, `tables14`, `switch-card1`, `drawer1`, `badge1`) covers every piece, and no kit source was retrieved or copied.
+
+| File | Relation | Reference | Notes |
+| --- | --- | --- | --- |
+| `src/components/ads/ads-overview.tsx` | reuse | Social Analytics `StatCard`, `SeriesCard`, `RangePicker`, `useEntrance` | Four stat cards and the per-day chart. `SeriesCard` became generic over its measure list and gained an optional value format; `StatCard` gained `upIsGood` so a rising cost reads red. No new card or chart. |
+| `src/components/ads/ads-attention.tsx` | reuse | shared `Card`, `StatusBadge`, `EmptyState` | The needs-attention list; every line is text with a severity badge. |
+| `src/components/ads/ads-account-health.tsx` | reuse | shared `Card`, `StatusBadge`, `Button` | One card per ad account with the eight named checks. |
+| `src/components/ads/ads-rules.tsx` | modelled on | `tables14`, `switch-card1`, `drawer1` | Shared `DataTable`, `Switch`, `Sheet`, `Dialog` (as in the lead form dialog), `ConfirmDialog`. Listed in `adsKitApprovals`. |
+
 ## Discover screens (25 Nov 2026)
 
 Founder approved the kit list on 25 Nov 2026: `product-category` (category tiles), the `product-card` set (result cards for communities, courses and products), `product-list7` (results grid, already referenced by the community Discover card), `product-quickview` (quick look), `switch-card1` (owner List in Discover card), `tables14` (shared DataTable, already adopted) with `drawer1` (staff review side panel), plus the shared filter popover pattern from CRM, the shared EmptyState and ConfirmDialog. Pro kit first, free shadcn only if nothing fits. The registry entries were read on 25 Nov from `https://shadcnuikit.com/r/{name}.json` (the paid kit checkout `/home/user/admin-dashboard` @ `1631106` holds no ecommerce blocks); nothing was committed from them.

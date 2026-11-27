@@ -2,6 +2,7 @@ import type { AdAccountView, AdsAlert, ResultsRow, TreeCampaign } from "./view";
 import type { AdLevel } from "./ads";
 import type { DraftFormRow, LeadView } from "./leads-view";
 import type { FormDefinition } from "../crm-forms";
+import type { RuleRun, RuleView } from "./overview";
 
 // Browser side of the Ads routes under /api/workspaces/:id/social/ads. Every route answers one neutral 404 while Ads is off or the role has no access.
 export class AdsApiError extends Error {
@@ -69,5 +70,12 @@ export const adsApi = (tenantId: string) => ({
   validate: (id: string) => adsRequest<{ request: LaunchRequestView }>(tenantId, `launch-requests/${id}/validate`, { method: "POST" }),
   review: (id: string, version: number) => adsRequest<{ request: LaunchRequestView }>(tenantId, `launch-requests/${id}/review`, { method: "POST", body: { version } }),
   launch: (id: string, idempotencyKey: string) => adsRequest<{ request: LaunchRequestView; replayed: boolean }>(tenantId, `launch-requests/${id}/launch`, { method: "POST", body: { idempotencyKey } }),
+  rules: (signal?: AbortSignal) => adsRequest<{ rules: RuleView[] }>(tenantId, "rules", { signal }),
+  createRule: (body: Record<string, unknown>) => adsRequest<{ rule: RuleView }>(tenantId, "rules", { method: "POST", body }),
+  setRuleEnabled: (id: string, enabled: boolean, version: number) => adsRequest<{ rule: RuleView }>(tenantId, `rules/${id}/enabled`, { method: "POST", body: { enabled, version } }),
+  deleteRule: (id: string) => adsRequest<{ deleted: boolean }>(tenantId, `rules/${id}`, { method: "DELETE" }),
+  ruleRuns: (id: string, signal?: AbortSignal) => adsRequest<{ runs: RuleRun[] }>(tenantId, `rules/${id}/runs`, { signal }),
+  previewRule: (id: string, signal?: AbortSignal) => adsRequest<{ wouldAct: { id: string; name: string; metrics: Record<string, number> }[]; action: string }>(tenantId, `rules/${id}/preview`, { signal }),
+  runRules: (adAccountId: string) => adsRequest<{ ran: number; triggered: number; failed: number }>(tenantId, `accounts/${adAccountId}/rules-run`, { method: "POST" }),
   cancelRequest: (id: string) => adsRequest<{ cancelled: boolean }>(tenantId, `launch-requests/${id}/cancel`, { method: "POST" }),
 });

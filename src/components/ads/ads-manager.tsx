@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Megaphone, Plus, Rocket, RotateCw, Target, Users } from "lucide-react";
+import { LayoutDashboard, ListChecks, Megaphone, Plus, Rocket, RotateCw, Target, Users } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -75,6 +75,8 @@ export function AdsManager({ tenantId }: { tenantId: string }) {
         {data.accounts.map((account) => <NativeSelectOption key={account.id} value={account.id}>{t("account.option", { name: account.name, network: t.has(`networks.${account.network}`) ? t(`networks.${account.network}`) : t("networks.other") })}</NativeSelectOption>)}</NativeSelect>}
       {data.account && <RangePicker range={range} today={today} onChange={setRange} />}
       {data.account && <Button type="button" variant="outline" size="responsive" disabled={refreshing} onClick={() => void refresh()}><RotateCw aria-hidden="true" />{refreshing ? t("refreshing") : t("refresh")}</Button>}
+      <Button asChild variant="outline" size="responsive"><Link href={`/workspaces/${tenantId}/social/ads/overview`}><LayoutDashboard aria-hidden="true" />{t("overviewLink")}</Link></Button>
+      <Button asChild variant="outline" size="responsive"><Link href={`/workspaces/${tenantId}/social/ads/rules`}><ListChecks aria-hidden="true" />{t("rulesLink")}</Link></Button>
       <Button asChild variant="outline" size="responsive"><Link href={`/workspaces/${tenantId}/social/ads/leads`}><Users aria-hidden="true" />{t("leadsLink")}</Link></Button>
       {data.account && <Button asChild variant="outline" size="responsive"><Link href={`/workspaces/${tenantId}/social/ads/new?mode=boost&account=${data.account.id}`}><Rocket aria-hidden="true" />{t("boost")}</Link></Button>}
       {data.account && <Button asChild size="responsive"><Link href={`/workspaces/${tenantId}/social/ads/new?account=${data.account.id}`}><Plus aria-hidden="true" />{t("create")}</Link></Button>}
