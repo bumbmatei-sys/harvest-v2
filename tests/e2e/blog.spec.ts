@@ -66,6 +66,7 @@ test("write, schedule, publish and read an article publicly", async ({ page }) =
   // Write: a new draft opens in the editor.
   await page.getByRole("button", { name: "New article" }).click();
   await expect(page).toHaveURL(new RegExp(`${list}/[0-9a-f-]{36}$`), { timeout: 180_000 });
+  await expect(page.locator("[data-blog-body] .docs-prose")).toBeVisible({ timeout: 180_000 });
   await page.getByLabel("Title", { exact: true }).fill("Advent hope for every home");
   const body = page.getByRole("textbox", { name: "Article text" });
   await body.click();
@@ -123,6 +124,7 @@ test("write, schedule, publish and read an article publicly", async ({ page }) =
   await page.goto(list);
   await page.getByRole("button", { name: "New article" }).click();
   await expect(page).toHaveURL(new RegExp(`${list}/[0-9a-f-]{36}$`), { timeout: 180_000 });
+  await expect(page.locator("[data-blog-body] .docs-prose")).toBeVisible({ timeout: 180_000 });
   await page.getByLabel("Title", { exact: true }).fill("Private draft notes");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("Saved.").first()).toBeVisible();
