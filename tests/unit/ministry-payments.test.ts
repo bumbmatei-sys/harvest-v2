@@ -1,10 +1,31 @@
 import { readFile } from "node:fs/promises";
 import { createHmac } from "node:crypto";
-import { expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
+vi.mock("server-only", () => ({}));
+vi.mock("../../src/server/http", async original => {
+  const { AccessError } = await import("../../src/server/permissions");
+  return { ...await original<typeof import("../../src/server/http")>(), verifiedUser: async () => { throw new AccessError(401, "Sign in"); } };
+});
+vi.mock("../../src/db/client", async original => ({
+  ...await original<typeof import("../../src/db/client")>(),
+  getDb: vi.fn(() => { throw new Error("Finance DB must stay unopened"); }),
+}));
 import { ministryApplicationFee, paymentPolicy } from "../../src/lib/ministry-payments";
 import { CONNECT_LIVE_ENABLED, CONNECT_WEBHOOK_SECRET, stripeConnectAdapter } from "../../src/server/ministry-payments/provider";
 import { validConnectSignature } from "../../src/server/ministry-payments/webhook";
 import { POST } from "../../src/app/api/payments/stripe/connect-webhook/route";
+import { GET as readLedger } from "../../src/app/api/workspaces/[tenantId]/payments/ledger/route";
+
+afterEach(() => vi.unstubAllEnvs());
+
+it("returns a neutral 404 for an anonymous finance read without opening a DB connection", async () => {
+  vi.stubEnv("HARVEST_SYNTHETIC_MINISTRY_PAYMENTS", "1");
+  const response = await readLedger(new Request("https://app.example.invalid"), {
+    params: Promise.resolve({ tenantId: "0c341737-eea5-421c-af34-0b325c7eab2b" }),
+  });
+  expect(response.status).toBe(404);
+});
+
 
 it("uses the central integer fee table and rounds down", () => {
   expect(ministryApplicationFee("donation", 10_001n)).toBe(0n);
