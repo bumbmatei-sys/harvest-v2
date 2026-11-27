@@ -4064,3 +4064,46 @@ export const blogPosts = pgTable("blog_posts", {
     and (${t.status} = 'draft' or ${t.firstPublishedAt} is not null or ${t.status} = 'scheduled')`),
   check("blog_posts_version", sql`${t.version} >= 1`),
 ]);
+
+export const ministryProfiles = pgTable("ministry_profiles", {
+  tenantId: uuid("tenant_id").primaryKey().references(() => workspaces.tenantId),
+  published: boolean("published").notNull().default(false),
+  version: integer("version").notNull().default(1),
+}, (t) => [check("ministry_profile_version", sql`${t.version} > 0`)]);
+
+export const ministryProfileFields = pgTable("ministry_profile_fields", {
+  tenantId: uuid("tenant_id").notNull().references(() => ministryProfiles.tenantId, { onDelete: "cascade" }),
+  field: text("field").notNull(),
+  value: jsonb("value").notNull(),
+  visibility: text("visibility", { enum: ["public", "members", "staff"] }).notNull().default("staff"),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.field] }),
+  check("ministry_profile_field_name", sql`${t.field} in ('name','description','logo','cover','tradition','website','email','phone','socialLinks','serviceTimes')`),
+  check("ministry_profile_field_visibility", sql`${t.visibility} in ('public','members','staff')`),
+]);
+
+export const ministryLocations = pgTable("ministry_locations", {
+  tenantId: uuid("tenant_id").notNull().references(() => ministryProfiles.tenantId, { onDelete: "cascade" }),
+  id: uuid("id").notNull().defaultRandom(),
+  name: text("name").notNull(),
+  address1: text("address1").notNull(),
+  address2: text("address2"),
+  city: text("city").notNull(),
+  region: text("region"),
+  postalCode: text("postal_code"),
+  country: text("country").notNull(),
+  serviceTimes: jsonb("service_times").$type<string[]>().notNull().default([]),
+  primary: boolean("is_primary").notNull().default(false),
+  visibility: text("visibility", { enum: ["public", "members", "staff"] }).notNull().default("staff"),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  uniqueIndex("ministry_locations_one_primary").on(t.tenantId).where(sql`${t.primary}`),
+  check("ministry_location_visibility", sql`${t.visibility} in ('public','members','staff')`),
+]);
+
+export const ministryProfileReadGrants = pgTable("ministry_profile_read_grants", {
+  backend: integer("backend").primaryKey(),
+  transaction: text("transaction").notNull(),
+  tenantId: uuid("tenant_id").notNull(),
+  assetId: uuid("asset_id"),
+});
