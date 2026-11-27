@@ -920,9 +920,16 @@
       "breakpoints": true
     },
     {
+      "idx": 134,
+      "version": "7",
+      "when": 1795775982843,
+      "tag": "0134_your_data_export",
+      "breakpoints": true
+    },
+    {
       "idx": 142,
       "version": "7",
-      "when": 1795777455126,
+      "when": 1795780316833,
       "tag": "0142_newsletter_click_fixed_buckets",
       "breakpoints": true
     }

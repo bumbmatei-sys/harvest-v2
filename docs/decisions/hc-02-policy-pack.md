@@ -209,7 +209,7 @@ The ministry, as controller, answers requests from its people. Harvest, as proce
 | Right | Article | How it works in Harvest |
 | --- | --- | --- |
 | Be informed | 13, 14 | Notice on every form, sign-up and community join |
-| Access and copy | 15, 20 | Self-serve download of your own data (founder, 27 Nov: built before launch; not built yet). Staff-assisted access has no export workflow yet; never use a broad CRM export as an answer |
+| Access and copy | 15, 20 | Self-serve "Download my data" on the profile page (founder, 27 Nov; `docs/acceptance/your-data.md`, not active in production until launch). Staff-assisted access has no export workflow yet; never use a broad CRM export as an answer |
 | Correct | 16 | Profile and CRM edit |
 | Erase | 17 | Self-serve account deletion (founder, 27 Nov: built before launch; not built yet); Connect response and contact erasure (built) |
 | Restrict | 18 | Staff mark the contact; no automated sending (needs a field; not built) |
