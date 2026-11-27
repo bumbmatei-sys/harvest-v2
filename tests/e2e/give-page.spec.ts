@@ -83,6 +83,7 @@ test("owner publishes the give page, a visitor sees it, and the amount hides whe
   await expect(guest.locator("[data-give-raised]")).toHaveText("$3,750.00");
   await expect(guest.getByText("75% of goal")).toBeVisible();
   await expect(guest.locator("[data-ways-to-give]")).toContainText("Give online");
+  await expect(guest.locator("[data-ways-to-give]")).toContainText("PayPal");
   // The same method rendering as link in bio: brand logos for platforms, the generic bank icon for bank transfer.
   for (const kind of ["paypal", "revolut", "wise"]) await expect(guest.locator(`[data-ways-to-give] [data-giving-logo="${kind}"]`)).toBeVisible();
   await expect(guest.locator('[data-ways-to-give] [data-giving-generic="bank_transfer"]')).toBeVisible();
