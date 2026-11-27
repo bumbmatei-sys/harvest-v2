@@ -3271,6 +3271,8 @@
     "decline": "Decline"
   },
   "CommunityForum": {
+    "linkUnavailable": "No longer available",
+    "formerMember": "Former member",
     "defaultCategory": "General",
     "videoTitle": "Video: {title}",
     "uploadErrors": {

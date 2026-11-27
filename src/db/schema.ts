@@ -1401,6 +1401,7 @@ export const communities = pgTable("communities", {
   // C15a: shown in the new-member welcome card; the introductions category is where "Introduce yourself" leads.
   welcomeMessage: text("welcome_message"),
   introCategoryId: uuid("intro_category_id").references((): AnyPgColumn => communityCategories.id, { onDelete: "set null" }),
+  forumPosting: text("forum_posting", { enum: ["everyone", "hosts"] }).notNull().default("everyone"),
   chatEnabled: boolean("chat_enabled").notNull().default(true),
   dmPolicy: text("dm_policy").notNull().default("channels_only"),
   discoverOptIn: boolean("discover_opt_in").notNull().default(false),
@@ -1413,6 +1414,7 @@ export const communities = pgTable("communities", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
   uniqueIndex("communities_slug_idx").on(t.slug),
+  check("community_forum_posting", sql`${t.forumPosting} in ('everyone', 'hosts')`),
   check("community_dm_policy", sql`${t.dmPolicy} in ('channels_only','members')`),
   check("community_slug", sql`${t.slug} ~ '^[a-z0-9](?:[a-z0-9-]{1,46}[a-z0-9])$' and ${t.slug} not in (${reservedSlugSql})`),
   check("community_name", sql`length(${t.name}) between 1 and 80`),
@@ -1609,6 +1611,16 @@ export const communityPosts = pgTable("community_posts", {
   check("community_post_body", sql`jsonb_typeof(${t.body}) = 'object' and length(${t.body}::text) <= 100000`),
   check("community_post_body_text", sql`length(${t.bodyText}) <= 20000`),
   check("community_post_video", sql`${t.videoUrl} is null or (length(${t.videoUrl}) <= 500 and ${t.videoUrl} like 'https://%')`)]);
+
+export const communityPostDetails = pgTable("community_post_details", {
+  postId: uuid("post_id").primaryKey().references(() => communityPosts.id, { onDelete: "cascade" }),
+  tenantId: uuid("tenant_id").notNull(),
+  communityId: uuid("community_id").notNull(),
+  details: jsonb("details").$type<import("../lib/forum").ForumPostDetailsInput>().notNull(),
+}, t => [
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  check("community_post_details_object", sql`jsonb_typeof(${t.details}) = 'object'`),
+]);
 
 export const communityComments = pgTable("community_comments", {
   id: uuid("id").primaryKey().defaultRandom(),
