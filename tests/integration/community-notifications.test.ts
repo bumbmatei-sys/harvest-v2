@@ -44,7 +44,7 @@ it("lists notifications, counts unread, marks read and honours preferences", asy
   await savePreferences(f.db, "s-author", "service-club", { replies: false, likes: true, announcements: true, muted: false });
   await saveComment(f.db, "s-replier", "service-club", p.id!, { body: "More" });
   expect(await unreadCount(f.db, "s-author", "service-club")).toBe(0);
-  expect((await forumContext(f.db, "s-author", "service-club"))!.prefs).toEqual({ replies: false, likes: true, announcements: true, muted: false });
+  expect((await forumContext(f.db, "s-author", "service-club"))!.prefs).toEqual({ replies: false, likes: true, announcements: true, muted: false, email: "important" });
   await expect(savePreferences(f.db, "s-author", "service-club", { replies: false })).rejects.toThrow();
   for (const call of [() => listNotifications(f.db, "s-outsider", "service-club"), () => unreadCount(f.db, "s-outsider", "service-club"), () => savePreferences(f.db, "s-outsider", "service-club", { replies: true, likes: true, announcements: true, muted: false })])
     await expect(call()).rejects.toMatchObject({ status: 404 });

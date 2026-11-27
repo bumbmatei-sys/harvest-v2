@@ -30,7 +30,7 @@ async function context(tx: Transaction, userId: string, slug: string): Promise<F
     rulesList: communities.rulesList, chatEnabled: communities.chatEnabled, status: communities.status, role: communityMemberships.role, mutedUntil: communityMemberships.mutedUntil,
     welcomeMessage: communities.welcomeMessage, introCategoryId: communities.introCategoryId, joinedAt: communityMemberships.joinedAt, rowCreatedAt: communityMemberships.createdAt,
     notifyReplies: communityMemberships.notifyReplies, notifyLikes: communityMemberships.notifyLikes, notifyAnnouncements: communityMemberships.notifyAnnouncements,
-    notificationsMuted: communityMemberships.notificationsMuted, seenAt: communityMemberships.notificationsSeenAt, welcomeDismissedAt: communityMemberships.welcomeDismissedAt })
+    notificationsMuted: communityMemberships.notificationsMuted, emailFrequency: communityMemberships.emailFrequency, seenAt: communityMemberships.notificationsSeenAt, welcomeDismissedAt: communityMemberships.welcomeDismissedAt })
     .from(communities).innerJoin(communityMemberships, and(eq(communityMemberships.tenantId, communities.tenantId), eq(communityMemberships.communityId, communities.id)))
     .where(and(eq(communities.slug, parsed.data), eq(communityMemberships.userId, userId), eq(communityMemberships.status, "active")));
   if (!row || row.status !== "published" || !(await readable(tx, row.tenantId, row.id))) return null;
@@ -38,7 +38,7 @@ async function context(tx: Transaction, userId: string, slug: string): Promise<F
     .from(communityCategories).where(eq(communityCategories.communityId, row.id)).orderBy(asc(communityCategories.position), asc(communityCategories.createdAt));
   return { id: row.id, tenantId: row.tenantId, slug: row.slug, name: row.name, description: row.description, rulesList: row.rulesList, role: row.role,
     canModerate: communityCan(row.role, "community:moderate"), chatEnabled: row.chatEnabled, mutedUntil: row.mutedUntil && row.mutedUntil > new Date() ? row.mutedUntil : null,
-    prefs: { ...defaultPrefs, replies: row.notifyReplies, likes: row.notifyLikes, announcements: row.notifyAnnouncements, muted: row.notificationsMuted },
+    prefs: { ...defaultPrefs, replies: row.notifyReplies, likes: row.notifyLikes, announcements: row.notifyAnnouncements, muted: row.notificationsMuted, email: row.emailFrequency },
     notificationsSince: row.seenAt ?? row.joinedAt ?? row.rowCreatedAt,
     welcome: { message: row.welcomeMessage, introCategoryId: row.introCategoryId, dismissed: row.welcomeDismissedAt !== null }, categories };
 }

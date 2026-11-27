@@ -3783,6 +3783,14 @@
       "declined": "Declined"
     }
   },
+  "CommunityUnsubscribe": {
+    "metaTitle": "Community email",
+    "title": "Stop emails from this community?",
+    "body": "You can turn email back on in the community's notification settings.",
+    "confirm": "Stop emails",
+    "doneTitle": "Your request was received",
+    "doneBody": "If this link was valid, this community will not email you again unless you turn email back on."
+  },
   "CommunityNotifications": {
     "bell": "Notifications",
     "bellUnread": "{count, plural, one {Notifications, # unread} other {Notifications, # unread}}",
@@ -3796,6 +3804,18 @@
     "someone": "Someone",
     "settingsTitle": "Notification settings",
     "save": "Save",
+    "savedToast": "Notification settings saved.",
+    "email": {
+      "title": "Email",
+      "off": "Off",
+      "offHint": "No email from this community",
+      "important": "Important only",
+      "importantHint": "Decisions and warnings about you",
+      "daily": "Daily summary",
+      "dailyHint": "Important email and one summary a day",
+      "weekly": "Weekly summary",
+      "weeklyHint": "Important email and one summary a week"
+    },
     "prefs": {
       "replies": "Replies",
       "likes": "Likes",
