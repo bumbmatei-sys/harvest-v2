@@ -140,9 +140,9 @@ BEGIN
     END $body$$policy$, current_user);
 END $retention$;
 DROP TRIGGER audit_append_only ON public.audit_logs;
-CREATE TRIGGER audit_append_only BEFORE TRUNCATE ON public.audit_logs
+CREATE TRIGGER audit_no_truncate BEFORE TRUNCATE ON public.audit_logs
   FOR EACH STATEMENT EXECUTE FUNCTION public.reject_audit_mutation();
-CREATE TRIGGER audit_retention_guard_delete BEFORE DELETE ON public.audit_logs
+CREATE TRIGGER audit_append_only BEFORE DELETE ON public.audit_logs
   FOR EACH ROW EXECUTE FUNCTION public.audit_retention_guard_delete();
 REVOKE ALL ON FUNCTION public.audit_retention_guard_delete() FROM PUBLIC;
 --> statement-breakpoint

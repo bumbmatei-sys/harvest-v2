@@ -308,10 +308,9 @@ export function recordConsent(db: Database, userId: string, workspace: string, c
       metadata: { consentId: consent.id, purpose: input.purpose, channel: input.channel, status: input.status, attested: "staff" } });
     // Purpose, channel and status only: the source and evidence stay in the consent ledger.
     await emitCrmEvent(tx, tenantId, "crm.person.consent_recorded", `crm:consent:${consent.id}`, { tenantId, actorId: userId, contactId: id, consentId: consent.id, purpose: input.purpose, channel: input.channel, status: input.status });
-    const { rows: [details] } = can(access, "contacts:consent_evidence")
-      ? await tx.execute<{ source: string | null; evidence: string | null }>(sql`select source, evidence from public.crm_consent_evidence(${tenantId}::uuid, ${id}::uuid) where id = ${consent.id}::uuid`)
-      : { rows: [] };
-    return { ...consent, ...(details ?? hiddenConsentEvidence) };
+    return { ...consent, ...(can(access, "contacts:consent_evidence")
+      ? { source: input.source, evidence: input.evidence }
+      : hiddenConsentEvidence) };
   });
 }
 
