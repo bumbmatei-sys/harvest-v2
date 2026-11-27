@@ -44,7 +44,7 @@ Stripe's account types (Standard, Express, Custom) are now also described by "co
 | Harvest's compliance load | Lowest | Medium | Highest |
 | Fit with "money goes straight to them" | Best | Possible, but money flows through the platform | Poor |
 
-**Recommendation: Standard accounts with direct charges.** The ministry is the seller and the recipient of each gift. Funds settle in its own balance. It handles refunds and disputes in its own dashboard. Harvest is never in the funds flow. Many churches already have a Stripe account and can connect it. **Founder decision (27 Nov): Standard accounts with direct charges.** Express is considered again only if Stripe requires it during platform review, with a new founder decision.
+**Recommendation: Standard accounts with direct charges.** The ministry is the seller and the recipient of each gift. Funds settle in its own balance. It handles refunds and disputes in its own dashboard. Harvest never holds or routes the donor's or buyer's payment; on sales it only receives its 3% application fee, in its own platform balance. Many churches already have a Stripe account and can connect it. **Founder decision (27 Nov): Standard accounts with direct charges.** Express is considered again only if Stripe requires it during platform review, with a new founder decision.
 
 ## 4. Onboarding
 
@@ -69,7 +69,7 @@ Stripe's account types (Standard, Express, Custom) are now also described by "co
 ## 5a. Individual missionaries (founder, 27 Nov)
 
 - Individual missionaries can connect their own Stripe account for donations from day one.
-- Their give page and checkout show a fixed notice: gifts are personal support for the missionary and are not tax-deductible.
+- Their give page and checkout show this fixed notice: "Gifts are personal support and may not be tax-deductible."
 - The notice cannot be edited or hidden, and the receipt email repeats it.
 - The ministry type comes from the existing audience setting (`0033_workspace_audience`). The notice is shown for the missionary audience.
 - Stripe may still refuse or limit personal fundraising accounts. If it does, Ways to give stays the fallback.
@@ -170,7 +170,7 @@ Answered on 27 Nov ([decisions log](../decisions/founder-decisions-2026-11.md#fo
 - Account type: **Standard accounts with direct charges.**
 - Harvest fee on donations: **0%.**
 - Harvest fee on course and product sales: **3%**, on top of Stripe's own fee (after the LLC).
-- Individual missionaries: **can connect for donations from day one**; their give page says gifts are personal support and not tax-deductible.
+- Individual missionaries: **can connect for donations from day one**; their give page says: "Gifts are personal support and may not be tax-deductible."
 
 Still open:
 1. Offer donors "cover the processing fee": yes or no?

@@ -147,7 +147,7 @@ Explicit consent is already how the code works: purposes are separate, unchecked
 | Newsletter hard bounce and complaint blocks | While needed to stop sending to that address | Founder, 20 Nov ("minimum necessary") | `docs/runbooks/connect-rights-requests.md#newsletter-suppression` |
 | Community applications (declined, withdrawn) | 90 days | Engineering default | C23 item 5.4 |
 | Community chat and DMs (deleted items) | 30 days | Engineering default | C23 item 7.7 |
-| Public community posts after leaving or account deletion | Kept, anonymised | Founder, 27 Nov (G2) | §11 |
+| Community posts, replies and channel messages after leaving or account deletion; DMs after leaving | Kept, shown as "Former member" (DMs are deleted on account deletion) | Founder, 27 Nov (G2) | §11 |
 | Prayer requests | 30 days after closed, at most 90 days after submission; prayer wall 180 days | Founder, 27 Nov (G7) | §12, not built |
 | Audit log rows | 12 months | Founder, 27 Nov | Not built |
 | Rights-request register | 3 years after the request closes | Founder, 27 Nov | Not built |
@@ -264,7 +264,11 @@ Product copy never names vendors. Internal docs may name infrastructure provider
 
 ## 11. G2: public community contributions after leaving or deleting an account
 
-**Policy (founder, 27 Nov).** When someone leaves a community or deletes their account, their forum posts and replies, community chat messages and DMs stay, but are anonymised. Their name and photo are removed and the author shows as "Former member". Before leaving, they can delete their own posts. They can also ask the ministry to delete specific posts at any time.
+**Policy (founder, 27 Nov).**
+- **Leaving a community:** their forum posts, replies, channel messages and DMs stay, but are anonymised. Their name and photo are removed and the author shows as "Former member".
+- **Deleting the whole account:** their forum posts, replies and channel messages stay as "Former member". Their DMs are deleted.
+
+Before leaving, they can delete their own posts. They can also ask the ministry to delete specific posts at any time.
 
 **Reasoning.** Keeping a discussion readable is a legitimate interest of the community (Art. 6(1)(f)). Removing the name and photo limits the impact on the person. The text itself can still mention the person, so this is pseudonymisation, not full anonymisation. A specific request to delete a post is handled as an erasure request (Art. 17), and the ministry should agree unless it has a strong reason not to.
 
@@ -276,7 +280,8 @@ Product copy never names vendors. Internal docs may name infrastructure provider
 - On **leaving** a community, detach the author from that community's posts and replies (today the author link and name stay).
 - Show "Former member" (today the post page falls back to a generic label from `t("unnamed")`).
 - Clear the author from mentions and reactions, or show them as "Former member" too.
-- Apply the same rule to community chat messages and DMs (founder, 27 Nov): on leaving, detach the author in that community's channels and in DMs started through it; show "Former member" in the chat and DM screens (already the fallback label there).
+- On leaving: detach the author in that community's channels and in DMs started through it; show "Former member" in the chat and DM screens (already the fallback label there).
+- On account deletion: the `chat-erasure` hook deletes the person's DMs (`docs/runbooks/communities.md`, `docs/setup/feature-flags.md`). Not built: today DM text outlives the account (`author_id` becomes null) until the 30-day purge removes deleted messages only.
 
 ## 12. G7: prayer requests in Community Live
 
@@ -349,7 +354,7 @@ Tick each line to approve it. Then record the date and "founder, engineering-dra
 - [ ] Adults only at launch (§8).
 - [ ] CRM contact visibility, audit retention and denial logging policies (§9).
 - [ ] Transfer rule: primary data in the EU, signed DPAs, sub-processor list, and US email delivery under the DPF or SCCs (§10).
-- [ ] G2 "Former member" policy for posts, replies, chat messages and DMs (§11).
+- [ ] G2 policy (§11): posts, replies and channel messages stay as "Former member" on leaving and on account deletion; DMs stay as "Former member" on leaving and are deleted on account deletion.
 - [ ] G7 prayer policy, host team = owner, admins and moderators (§12).
 - [ ] Records of Processing table (§13).
 - [ ] Do a DPIA from the §14 outline before launch.
