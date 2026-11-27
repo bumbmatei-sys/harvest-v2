@@ -186,13 +186,13 @@ export function BlogEditor({ tenantId, initial, origin }: { tenantId: string; in
           {post.status === "published" && post.publishedAt && <span>{t("publishedOn", { date: formatScheduled(post.publishedAt, settings.timeZone) })}</span>}</div>
         {missing.length > 0 && post.status !== "published" && <Alert role="status"><AlertDescription>{missing.map((m) => t(`missing.${m}`)).join(" ")}</AlertDescription></Alert>}
         {post.status !== "published" && <>
-          <div className="flex flex-wrap gap-2"><Button type="button" className="min-h-11" disabled={busy || !canPublish} onClick={() => void act("publish")}><Send aria-hidden="true" />{t("publishNow")}</Button></div>
-          <div className="grid gap-3 sm:grid-cols-[minmax(0,16rem)_auto] sm:items-end">
-            <Field><FieldLabel htmlFor="blog-slot">{t("scheduleAt")}</FieldLabel>
-              <Input id="blog-slot" type="datetime-local" className="min-h-11" value={slot} onChange={(e) => setSlot(e.target.value)} aria-describedby="blog-slot-zone" />
-              <FieldDescription id="blog-slot-zone">{t("timeZone", { zone: `${settings.timeZone} (${utcOffsetLabel(settings.timeZone, new Date())})` })}</FieldDescription></Field>
-            <Button type="button" variant="outline" className="min-h-11" disabled={busy || !canPublish || !slot} onClick={() => void act("schedule")}><CalendarClock aria-hidden="true" />{t("schedule")}</Button>
-          </div>
+          {/* Publish now lives in the header; here the date field and Schedule share one row, the button aligned to the input (label above, zone below). */}
+          <Field className="max-w-xl"><FieldLabel htmlFor="blog-slot">{t("scheduleAt")}</FieldLabel>
+            <div className="flex flex-wrap items-center gap-2">
+              <Input id="blog-slot" type="datetime-local" className="min-h-11 min-w-0 flex-1 basis-48" value={slot} onChange={(e) => setSlot(e.target.value)} aria-describedby="blog-slot-zone" />
+              <Button type="button" variant="outline" className="min-h-11 max-sm:w-full" disabled={busy || !canPublish || !slot} onClick={() => void act("schedule")}><CalendarClock aria-hidden="true" />{t("schedule")}</Button>
+            </div>
+            <FieldDescription id="blog-slot-zone">{t("timeZone", { zone: `${settings.timeZone} (${utcOffsetLabel(settings.timeZone, new Date())})` })}</FieldDescription></Field>
           {post.status === "scheduled" && <div><Button type="button" variant="ghost" className="min-h-11" disabled={busy} onClick={() => void act("unschedule")}><X aria-hidden="true" />{t("unschedule")}</Button></div>}
         </>}
         {post.status === "published" && <div className="flex flex-wrap gap-2">
