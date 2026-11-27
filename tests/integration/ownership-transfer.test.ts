@@ -1,9 +1,11 @@
+import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 import { testDatabase } from "../database";
 import { users } from "../../src/db/schema";
 import { createWorkspace } from "../../src/server/workspaces";
 import { accountDeletionBlockers, deleteMyAccount } from "../../src/server/account-deletion";
+import { withTenant } from "../../src/server/tenancy";
 import { listOwnershipNotifications, markOwnershipNotifications, ownershipTransfer } from "../../src/server/ownership-transfer";
 
 const owner = "transfer-owner", admin = "transfer-admin", member = "transfer-member", outsider = "transfer-outsider";
@@ -20,6 +22,11 @@ beforeAll(async () => {
 afterAll(async () => { await f?.close(); });
 
 it("requires an owner and an admin in the same ministry", async () => {
+  await expect(withTenant(f.db, owner, tenant, "workspace:read", async tx => {
+    await tx.execute(sql`select set_config('app.access_tenant',${tenant},true),set_config('app.access_token','forged',true)`);
+    await tx.execute(sql`insert into audit_logs (tenant_id,actor_id,action,target_id)
+      values (${tenant}::uuid,${owner},'ministry.ownership_transfer',${tenant})`);
+  })).rejects.toThrow();
   await expect(ownershipTransfer(f.db, admin, tenant, { action: "offer", recipientUserId: member })).rejects.toMatchObject({ status: 403 });
   for (const recipientUserId of [member, outsider]) {
     await expect(ownershipTransfer(f.db, owner, tenant, { action: "offer", recipientUserId })).rejects.toMatchObject({ details: { code: "ineligible_recipient" } });

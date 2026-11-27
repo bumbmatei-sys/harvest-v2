@@ -65,13 +65,41 @@ BEGIN
       AND tenant_id = nullif(current_setting('app.access_tenant', true), '')::uuid)$p$, current_user);
   EXECUTE format('CREATE POLICY workspace_ownership_offer ON public.workspace_ownership_offers TO %I USING (%s) WITH CHECK (%s)',
     current_user, grant_match, grant_match);
-  EXECUTE format('CREATE POLICY workspace_ownership_audit ON public.audit_logs FOR INSERT TO %I WITH CHECK (%s AND action = %L)',
-    current_user, grant_match, 'ministry.ownership_transfer');
-  EXECUTE format('CREATE POLICY workspace_ownership_notification ON public.crm_notifications FOR INSERT TO %I WITH CHECK (%s AND kind = %L)',
-    current_user, grant_match, 'ownership_transfer');
+  EXECUTE format($p$CREATE POLICY workspace_ownership_audit ON public.audit_logs FOR INSERT TO %I
+    WITH CHECK (tenant_id = nullif(current_setting('app.access_tenant',true),'')::uuid
+      AND action = 'ministry.ownership_transfer')$p$, current_user);
+  EXECUTE format($p$CREATE POLICY workspace_ownership_notification ON public.crm_notifications FOR INSERT TO %I
+    WITH CHECK (tenant_id = nullif(current_setting('app.access_tenant',true),'')::uuid
+      AND kind = 'ownership_transfer')$p$, current_user);
 END $$;
 ALTER POLICY crm_notifications_insert ON public.crm_notifications
   WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid AND kind <> 'ownership_transfer');
+--> statement-breakpoint
+-- Verify the grant only for ownership writes. Existing audit and notification definers can keep their
+-- restricted table privileges, even when their owners share these tables and their owner-role policies.
+CREATE FUNCTION public.workspace_ownership_guard_event() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
+BEGIN
+  IF TG_TABLE_NAME = 'audit_logs' THEN
+    IF NEW.action <> 'ministry.ownership_transfer' THEN RETURN NEW; END IF;
+  ELSE
+    IF NEW.kind <> 'ownership_transfer' THEN RETURN NEW; END IF;
+  END IF;
+  IF current_user = 'harvest_app' THEN
+    RAISE EXCEPTION 'ownership event requires a live grant' USING ERRCODE = '42501';
+  END IF;
+  IF NOT EXISTS (SELECT FROM public.workspace_ownership_grants g
+    WHERE g.token::text = current_setting('app.access_token',true) AND g.tenant_id = NEW.tenant_id
+      AND g.actor_id = nullif(current_setting('app.user_id',true),'') AND g.issued_at = pg_catalog.now()) THEN
+    RAISE EXCEPTION 'ownership event requires a live grant' USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END $$;
+REVOKE ALL ON FUNCTION public.workspace_ownership_guard_event() FROM PUBLIC;
+CREATE TRIGGER workspace_ownership_guard_audit BEFORE INSERT ON public.audit_logs
+  FOR EACH ROW EXECUTE FUNCTION public.workspace_ownership_guard_event();
+CREATE TRIGGER workspace_ownership_guard_notification BEFORE INSERT ON public.crm_notifications
+  FOR EACH ROW EXECUTE FUNCTION public.workspace_ownership_guard_event();
 --> statement-breakpoint
 CREATE FUNCTION public.workspace_ownership_transfer(p_tenant uuid, p_action text, p_recipient text, p_offer uuid)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
