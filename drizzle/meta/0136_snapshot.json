@@ -1,6 +1,6 @@
 {
-  "id": "7f2a47bf-8178-4f47-81a9-7a7a2e3931c5",
-  "prevId": "abc8ccb0-e46c-4b28-a8bf-75722c62a312",
+  "id": "f018a68f-ad87-4151-9d52-52ecd1874c34",
+  "prevId": "6a68760d-6a9a-4352-b9c2-82a839f07794",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -4353,6 +4353,503 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.blog_posts": {
+      "name": "blog_posts",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "slug": {
+          "name": "slug",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
+        "excerpt": {
+          "name": "excerpt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "body": {
+          "name": "body",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "image_ids": {
+          "name": "image_ids",
+          "type": "uuid[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::uuid[]"
+        },
+        "cover_file_id": {
+          "name": "cover_file_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "share_file_id": {
+          "name": "share_file_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "seo_title": {
+          "name": "seo_title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "seo_description": {
+          "name": "seo_description",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "publish_at": {
+          "name": "publish_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "published_at": {
+          "name": "published_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "first_published_at": {
+          "name": "first_published_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "scheduled_by": {
+          "name": "scheduled_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "blog_posts_slug_idx": {
+          "name": "blog_posts_slug_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "slug",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        },
+        "blog_posts_public_idx": {
+          "name": "blog_posts_public_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "published_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "where": "\"blog_posts\".\"status\" = 'published'",
+          "concurrently": false
+        },
+        "blog_posts_due_idx": {
+          "name": "blog_posts_due_idx",
+          "columns": [
+            {
+              "expression": "publish_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "where": "\"blog_posts\".\"status\" = 'scheduled'",
+          "concurrently": false
+        },
+        "blog_posts_list_idx": {
+          "name": "blog_posts_list_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "blog_posts_tenant_id_blog_settings_tenant_id_fk": {
+          "name": "blog_posts_tenant_id_blog_settings_tenant_id_fk",
+          "tableFrom": "blog_posts",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "tableTo": "blog_settings",
+          "columnsTo": [
+            "tenant_id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "blog_posts_cover_file_id_files_id_fk": {
+          "name": "blog_posts_cover_file_id_files_id_fk",
+          "tableFrom": "blog_posts",
+          "columnsFrom": [
+            "cover_file_id"
+          ],
+          "tableTo": "files",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "set null"
+        },
+        "blog_posts_share_file_id_files_id_fk": {
+          "name": "blog_posts_share_file_id_files_id_fk",
+          "tableFrom": "blog_posts",
+          "columnsFrom": [
+            "share_file_id"
+          ],
+          "tableTo": "files",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "set null"
+        },
+        "blog_posts_scheduled_by_users_id_fk": {
+          "name": "blog_posts_scheduled_by_users_id_fk",
+          "tableFrom": "blog_posts",
+          "columnsFrom": [
+            "scheduled_by"
+          ],
+          "tableTo": "users",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "set null"
+        },
+        "blog_posts_created_by_users_id_fk": {
+          "name": "blog_posts_created_by_users_id_fk",
+          "tableFrom": "blog_posts",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "tableTo": "users",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "blog_posts_updated_by_users_id_fk": {
+          "name": "blog_posts_updated_by_users_id_fk",
+          "tableFrom": "blog_posts",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "tableTo": "users",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "set null"
+        }
+      },
+      "compositePrimaryKeys": {
+        "blog_posts_tenant_id_id_pk": {
+          "name": "blog_posts_tenant_id_id_pk",
+          "columns": [
+            "tenant_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "blog_posts_slug": {
+          "name": "blog_posts_slug",
+          "value": "\"blog_posts\".\"slug\" ~ '^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$' and position('--' in \"blog_posts\".\"slug\") = 0 and \"blog_posts\".\"slug\" not in ('rss', 'feed', 'images', 'page')"
+        },
+        "blog_posts_title": {
+          "name": "blog_posts_title",
+          "value": "length(\"blog_posts\".\"title\") <= 200 and \"blog_posts\".\"title\" = btrim(\"blog_posts\".\"title\")"
+        },
+        "blog_posts_text": {
+          "name": "blog_posts_text",
+          "value": "(\"blog_posts\".\"excerpt\" is null or (length(\"blog_posts\".\"excerpt\") between 1 and 300 and \"blog_posts\".\"excerpt\" = btrim(\"blog_posts\".\"excerpt\") and \"blog_posts\".\"excerpt\" !~ '[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]')) and (\"blog_posts\".\"seo_title\" is null or (length(\"blog_posts\".\"seo_title\") between 1 and 70 and \"blog_posts\".\"seo_title\" = btrim(\"blog_posts\".\"seo_title\") and \"blog_posts\".\"seo_title\" !~ '[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]')) and (\"blog_posts\".\"seo_description\" is null or (length(\"blog_posts\".\"seo_description\") between 1 and 160 and \"blog_posts\".\"seo_description\" = btrim(\"blog_posts\".\"seo_description\") and \"blog_posts\".\"seo_description\" !~ '[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]'))"
+        },
+        "blog_posts_body": {
+          "name": "blog_posts_body",
+          "value": "jsonb_typeof(\"blog_posts\".\"body\") = 'object' and \"blog_posts\".\"body\"->>'type' = 'doc' and pg_column_size(\"blog_posts\".\"body\") <= 524288"
+        },
+        "blog_posts_images": {
+          "name": "blog_posts_images",
+          "value": "cardinality(\"blog_posts\".\"image_ids\") <= 50 and array_position(\"blog_posts\".\"image_ids\", null) is null"
+        },
+        "blog_posts_status": {
+          "name": "blog_posts_status",
+          "value": "\"blog_posts\".\"status\" in ('draft', 'scheduled', 'published')\n    and ((\"blog_posts\".\"status\" = 'scheduled') = (\"blog_posts\".\"publish_at\" is not null))\n    and ((\"blog_posts\".\"status\" = 'published') = (\"blog_posts\".\"published_at\" is not null))\n    and (\"blog_posts\".\"status\" = 'draft' or \"blog_posts\".\"first_published_at\" is not null or \"blog_posts\".\"status\" = 'scheduled')"
+        },
+        "blog_posts_version": {
+          "name": "blog_posts_version",
+          "value": "\"blog_posts\".\"version\" >= 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.blog_settings": {
+      "name": "blog_settings",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "handle": {
+          "name": "handle",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "intro": {
+          "name": "intro",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "version": {
+          "name": "version",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "first_published_at": {
+          "name": "first_published_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "blog_settings_handle_idx": {
+          "name": "blog_settings_handle_idx",
+          "columns": [
+            {
+              "expression": "handle",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "blog_settings_tenant_id_workspaces_tenant_id_fk": {
+          "name": "blog_settings_tenant_id_workspaces_tenant_id_fk",
+          "tableFrom": "blog_settings",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "tableTo": "workspaces",
+          "columnsTo": [
+            "tenant_id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "blog_settings_created_by_users_id_fk": {
+          "name": "blog_settings_created_by_users_id_fk",
+          "tableFrom": "blog_settings",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "tableTo": "users",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "blog_settings_handle": {
+          "name": "blog_settings_handle",
+          "value": "\"blog_settings\".\"handle\" ~ '^[a-z0-9](?:[a-z0-9-]{1,28}[a-z0-9])$' and position('--' in \"blog_settings\".\"handle\") = 0 and \"blog_settings\".\"handle\" not in ('account', 'admin', 'api', 'app', 'articles', 'assets', 'auth', 'bio', 'blog', 'blogs', 'c', 'click', 'communities', 'connect', 'discover', 'edit', 'f', 'feed', 'harvest', 'health', 'help', 'images', 'l', 'link', 'links', 'login', 'message', 'messages', 'new', 'newsletter', 'photo', 'preview', 'profile', 'resources', 'rss', 's', 'settings', 'sign-in', 'subscribe', 'support', 'workspace', 'workspaces', 'www')"
+        },
+        "blog_settings_title": {
+          "name": "blog_settings_title",
+          "value": "length(\"blog_settings\".\"title\") between 1 and 100 and \"blog_settings\".\"title\" = btrim(\"blog_settings\".\"title\")"
+        },
+        "blog_settings_intro": {
+          "name": "blog_settings_intro",
+          "value": "(\"blog_settings\".\"intro\" is null or (length(\"blog_settings\".\"intro\") between 1 and 500 and \"blog_settings\".\"intro\" = btrim(\"blog_settings\".\"intro\") and \"blog_settings\".\"intro\" !~ '[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]'))"
+        },
+        "blog_settings_version": {
+          "name": "blog_settings_version",
+          "value": "\"blog_settings\".\"version\" >= 1"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.campaign_boards": {

@@ -1,6 +1,6 @@
 /** Layout and behaviour modelled on bumbmatei-sys/admin-dashboard (Shadcn UI Kit, premium, founder-supplied): components/ui/custom/tiptap/toolbars/editor-toolbar.tsx and components/ui/custom/tiptap/toolbars/color-and-highlight.tsx; code written for Harvest, no kit code copied. Harvest notes: docs/ui-sources.md. */
 "use client";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { useEditorState, type Editor } from "@tiptap/react";
 import { useTranslations } from "next-intl";
 import { Toolbar as ToolbarPrimitive } from "radix-ui";
@@ -33,7 +33,9 @@ const Sep = () => <ToolbarPrimitive.Separator className="mx-1 h-6 w-px shrink-0 
  * The fixed formatting toolbar. Radix Toolbar gives one tab stop and arrow-key movement; every button is a shared Toggle, Button or DropdownMenu and names its action
  * (tooltip and accessible name). It scrolls sideways on a narrow screen; targets are 44px below 1024px.
  */
-export function EditorToolbar({ editor }: { editor: Editor }) {
+/** `extras`: actions another editor adds near the start of the bar, after undo and redo, so they stay in view (the blog's in-body picture), with the same look, tooltip and 44px targets. */
+export type ToolbarExtra = { label: string; icon: typeof Bold; onSelect: () => void };
+export function EditorToolbar({ editor, extras = [] }: { editor: Editor; extras?: readonly ToolbarExtra[] }) {
   const t = useTranslations("Docs.toolbar"), c = useTranslations("Docs");
   const s = useEditorState({ editor, selector: ({ editor: e }) => ({
     undo: e.can().undo(), redo: e.can().redo(), bold: e.isActive("bold"), italic: e.isActive("italic"), underline: e.isActive("underline"), strike: e.isActive("strike"), code: e.isActive("code"),
@@ -70,6 +72,7 @@ export function EditorToolbar({ editor }: { editor: Editor }) {
       {button(t("undo"), Undo2, () => run().undo().run(), !s.undo, "Ctrl+Z")}
       {button(t("redo"), Redo2, () => run().redo().run(), !s.redo, "Ctrl+Shift+Z")}
       <Sep />
+      {extras.length > 0 && <>{extras.map((extra) => <Fragment key={extra.label}>{button(extra.label, extra.icon, extra.onSelect)}</Fragment>)}<Sep /></>}
       <DropdownMenu><Tool label={t("textStyle")}><DropdownMenuTrigger asChild><Button type="button" variant="ghost" className="h-11 min-w-28 justify-between gap-1 px-2 lg:h-8" aria-label={t("textStyle")}>{s.level ? t(`h${s.level}` as "h1") : t("normal")}<ChevronDown className="size-3.5" aria-hidden="true" /></Button></DropdownMenuTrigger></Tool>
         <DropdownMenuContent align="start">
           <DropdownMenuItem className="min-h-11" aria-current={s.level === 0 || undefined} onSelect={() => run().setParagraph().run()}>{t("normal")}</DropdownMenuItem>

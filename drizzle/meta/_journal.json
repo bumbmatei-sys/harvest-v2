@@ -927,10 +927,17 @@
       "breakpoints": true
     },
     {
-      "idx": 142,
+      "idx": 135,
       "version": "7",
-      "when": 1795780316833,
-      "tag": "0142_newsletter_click_fixed_buckets",
+      "when": 1795785935924,
+      "tag": "0135_native_blog",
+      "breakpoints": true
+    },
+    {
+      "idx": 136,
+      "version": "7",
+      "when": 1795789481530,
+      "tag": "0136_newsletter_click_fixed_buckets",
       "breakpoints": true
     }
   ]
