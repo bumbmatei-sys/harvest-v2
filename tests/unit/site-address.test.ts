@@ -20,6 +20,7 @@ afterEach(() => vi.unstubAllEnvs());
 
 it("configures marketing and keeps authentication on the app origin", () => {
   expect(appOrigin()).toBe(app);
+  expect(readSiteAddresses({ BETTER_AUTH_URL: app, BETTER_AUTH_TRUSTED_ORIGINS: ` ${app}, ${app} , ` }).trustedOrigins).toEqual([app]);
   expect(marketingOrigin()).toBe(app);
   const settings = readSiteAddresses({ BETTER_AUTH_URL: app, MARKETING_ORIGIN: "https://www.example.invalid" });
   expect(settings).toMatchObject({ marketing: "https://www.example.invalid", trustedOrigins: [app], cookieDomain: undefined });

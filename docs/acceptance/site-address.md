@@ -6,3 +6,4 @@ This server change centralizes the app and marketing origins, signs in on the ap
 - Check that a configured legacy GET or HEAD preserves the path and query, and that callback endpoints and signed one-click POSTs keep their original request.
 - Check that the marketing host is outside the sign-in trust boundary unless a cookie domain is explicitly shared. The sign-in request origin must still be the app origin.
 - Migration required: none. Hosted Neon, real DNS, and the real email provider remain unverified. HC-02 activation gates remain **UNAPPROVED**.
+- Comma-separated trusted-origin entries ignore surrounding whitespace and empty entries. The configured app origin remains the sign-in trust boundary.

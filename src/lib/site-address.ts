@@ -37,7 +37,7 @@ function newsletterAddress(value: string | undefined, app: string | undefined) {
 
 export function readSiteAddresses(env: SiteAddressEnvironment = process.env as SiteAddressEnvironment) {
   const app = origin(env.BETTER_AUTH_URL);
-  const additionalTrusted = env.BETTER_AUTH_TRUSTED_ORIGINS?.split(",").filter(Boolean) ?? [];
+  const additionalTrusted = env.BETTER_AUTH_TRUSTED_ORIGINS?.split(",").map(value => value.trim()).filter(Boolean) ?? [];
   if (additionalTrusted.some(item => item !== app)) throw new Error("AUTH_TRUSTED_ORIGINS_INVALID");
   const marketing = env.MARKETING_ORIGIN ? origin(env.MARKETING_ORIGIN) : app;
   const legacy = (env.LEGACY_ORIGINS ?? "").split(",").map(value => value.trim()).filter(Boolean).map(origin);
