@@ -50,6 +50,7 @@ CREATE FUNCTION public.community_email_check_suppression(p_id uuid, p_hash text,
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE delivery public.community_email_deliveries%ROWTYPE;
 BEGIN
+  PERFORM public.community_definer_reset();
   IF session_user <> 'harvest_worker' THEN RAISE insufficient_privilege; END IF;
   IF p_hash IS NULL OR p_hash !~ '^[0-9a-f]{64}$' OR p_mask IS NULL OR p_mask !~ '^[*]{3}@[a-z0-9.-]{1,253}$' THEN
     RAISE invalid_parameter_value;
@@ -74,6 +75,7 @@ CREATE FUNCTION public.community_email_apply_feedback(p_event uuid, p_delivery u
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE delivery public.community_email_deliveries%ROWTYPE;
 BEGIN
+  PERFORM public.community_definer_reset();
   IF session_user <> 'harvest_worker' THEN RAISE insufficient_privilege; END IF;
   IF p_event IS NULL OR p_outcome IS NULL OR p_outcome NOT IN ('soft_bounce', 'hard_bounce', 'complaint') THEN
     RAISE invalid_parameter_value;
@@ -99,6 +101,7 @@ CREATE FUNCTION public.community_email_suppression_report(p_tenant uuid, p_page 
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE result jsonb;
 BEGIN
+  PERFORM public.community_definer_reset();
   IF p_tenant IS DISTINCT FROM nullif(current_setting('app.tenant_id', true), '')::uuid OR NOT EXISTS (
     SELECT FROM public.workspace_members m WHERE m.tenant_id = p_tenant
     AND m.user_id = nullif(current_setting('app.user_id', true), '') AND public.access_role(m.tenant_id, m.user_id, 'owner_admin', m.role_id) IN ('owner', 'admin')
@@ -121,6 +124,7 @@ END $$;
 CREATE FUNCTION public.community_email_remove_soft_suppression(p_tenant uuid, p_id uuid) RETURNS boolean
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 BEGIN
+  PERFORM public.community_definer_reset();
   IF p_tenant IS DISTINCT FROM nullif(current_setting('app.tenant_id', true), '')::uuid OR NOT EXISTS (
     SELECT FROM public.workspace_members m WHERE m.tenant_id = p_tenant
     AND m.user_id = nullif(current_setting('app.user_id', true), '') AND public.access_role(m.tenant_id, m.user_id, 'owner_admin', m.role_id) IN ('owner', 'admin')
