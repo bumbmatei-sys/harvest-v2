@@ -952,12 +952,12 @@
       "version": "7",
       "when": 1795796244452,
       "tag": "0138_blog_scope_clear",
-        "breakpoints": true
-      },
-      {
+      "breakpoints": true
+    },
+    {
       "idx": 140,
       "version": "7",
-      "when": 1795780316165,
+      "when": 1795796245452,
       "tag": "0140_community_forum_post_details",
       "breakpoints": true
     }
