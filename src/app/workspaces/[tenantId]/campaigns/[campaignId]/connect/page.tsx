@@ -5,6 +5,7 @@ import { getFormatter, getTranslations } from "next-intl/server";
 import { ArrowLeft, Eye, Info, MonitorPlay, QrCode } from "lucide-react";
 import { getDb } from "@/db/client";
 import { listConnectLinks, type ConnectLink } from "@/server/connect-links";
+import { landingJoinCounts } from "@/server/connect-landing";
 import { syntheticIntakeEnabled } from "@/server/connect-intake-mode";
 import { pageSession } from "@/server/page-session";
 import { AccessError } from "@/server/permissions";
@@ -34,6 +35,8 @@ export default async function ConnectLinksPage({ params }: { params: Promise<{ t
   const data = await listConnectLinks(getDb(), session.user.id, tenantId, campaignId)
     .catch((error: unknown) => { if (error instanceof AccessError) return null; throw error; });
   if (!data) notFound();
+  // C20: joins that started from each QR page's recommended community (counts only, 1 to 4 withheld). Staff who manage links see them.
+  const joins = data.permissions.manage ? await landingJoinCounts(getDb(), session.user.id, tenantId, campaignId).catch(() => ({} as Record<string, number | null>)) : {};
   const format = await getFormatter(), permissions = data.permissions;
   const root = `/workspaces/${tenantId}/campaigns/${campaignId}/connect`, api = `/api/workspaces/${tenantId}/campaigns/${campaignId}/connect/links`;
   const active = data.links.filter((link) => link.status !== "archived"), archived = data.links.filter((link) => link.status === "archived");
@@ -65,6 +68,7 @@ export default async function ConnectLinksPage({ params }: { params: Promise<{ t
             <li>{t("locales.en")}</li>
             <li>{link.expiresAt ? t("expires", { date: date(link.expiresAt) }) : t("noExpiry")}</li>
             <li>{t("rotations", { count: link.codeGeneration - 1 })}</li>
+            {link.id in joins && <li data-slot="community-joins">{joins[link.id] === null ? t("communityJoinsFew") : t("communityJoins", { count: joins[link.id] ?? 0 })}</li>}
           </ul>
           {link.status !== "archived" && <div className="flex flex-wrap gap-2">
             {permissions.manage && <>

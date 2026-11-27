@@ -1,4 +1,4 @@
-import type { LandingDefinition } from "./connect-landing";
+import type { LandingCommunity, LandingDefinition } from "./connect-landing";
 import type { Locale } from "../i18n/locale";
 
 /** Public presentation only; no Campaigns/Forms entity or tenant/person identifiers. */
@@ -49,11 +49,13 @@ export type CampaignLanding = Readonly<{
   /** HC-05 owns intake: no campaign link accepts a submission in HC-03. */
   acceptsResponses: false;
   definition?: LandingDefinition;
+  /** C20: the ministry's recommended community (public fields only), shown after the free resources. */
+  community?: LandingCommunity;
 }>;
 export type LandingView = PublicLanding | CampaignLanding;
-export function campaignLanding(locale: Locale, title: string | null, definition?: LandingDefinition): CampaignLanding {
+export function campaignLanding(locale: Locale, title: string | null, definition?: LandingDefinition, community?: LandingCommunity): CampaignLanding {
   return Object.freeze({ version: 1, source: "campaign-link", publication: "published", locale, title,
-    resourceIds: Object.freeze(starterResources.map(({ id }) => id)), acceptsResponses: false, ...(definition ? { definition } : {}) });
+    resourceIds: Object.freeze(starterResources.map(({ id }) => id)), acceptsResponses: false, ...(definition ? { definition } : {}), ...(community ? { community } : {}) });
 }
 
 export function getStarterResource(id: string) {

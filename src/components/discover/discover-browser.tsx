@@ -27,7 +27,9 @@ export type DiscoverPage = { items: DiscoverCard[]; facets: Record<DiscoverType,
  * The search, filters, results and dialogs of the public Discover page. The page URL is the state (every change is a navigation that the server answers), so a link, a reload and the
  * back button all give the same results; "Load more" appends the next server page without leaving the page.
  */
-export function DiscoverBrowser({ filters, initial, signedIn, failed, between }: { filters: DiscoverFilters; initial: DiscoverPage; signedIn: boolean; failed: boolean; between?: React.ReactNode }) {
+export function DiscoverBrowser({ filters, initial, signedIn, failed, between, recommended = [] }: { filters: DiscoverFilters; initial: DiscoverPage; signedIn: boolean; failed: boolean; between?: React.ReactNode;
+  /** C20: the server's Recommended listings for this view (approved public listings only); empty hides the section. */
+  recommended?: DiscoverCard[] }) {
   const t = useTranslations("DiscoverScreens"), router = useRouter(), [pending, start] = useTransition();
   const go = (to: DiscoverFilters) => start(() => router.replace(`/discover?${filtersToParams(to)}`.replace(/\?$/, ""), { scroll: false }));
   const hrefFor = (to: DiscoverFilters) => `/discover?${filtersToParams(to)}`.replace(/\?$/, "");
@@ -76,13 +78,13 @@ export function DiscoverBrowser({ filters, initial, signedIn, failed, between }:
     {between}
 
     <section aria-label={t("resultsLabel")} aria-busy={pending}>
-      <Results key={filtersToParams(filters).toString()} filters={filters} initial={initial} signedIn={signedIn} failed={failed} />
+      <Results key={filtersToParams(filters).toString()} filters={filters} initial={initial} signedIn={signedIn} failed={failed} recommended={recommended} />
     </section>
   </div>;
 }
 
 /** The grid for one search. Keyed by the search, so a new search starts from the server's first page, while the controls above (and an open filter popover) stay mounted. */
-function Results({ filters, initial, signedIn, failed }: { filters: DiscoverFilters; initial: DiscoverPage; signedIn: boolean; failed: boolean }) {
+function Results({ filters, initial, signedIn, failed, recommended }: { filters: DiscoverFilters; initial: DiscoverPage; signedIn: boolean; failed: boolean; recommended: DiscoverCard[] }) {
   const t = useTranslations("DiscoverScreens");
   const [items, setItems] = useState(initial.items), [next, setNext] = useState(initial.next), [more, setMore] = useState<"idle" | "loading" | "failed">("idle");
   const [look, setLook] = useState<ListingCardItem | null>(null), [report, setReport] = useState<ListingCardItem | null>(null);
@@ -108,6 +110,12 @@ function Results({ filters, initial, signedIn, failed }: { filters: DiscoverFilt
           ? <EmptyState icon={SearchX} title={t("noResultsTitle")} description={t("noResultsBody")} action={<Button asChild variant="outline" size="responsive"><Link href="/discover" prefetch={false}>{t("resetFilters")}</Link></Button>} />
           : <EmptyState icon={Compass} title={t("emptyTitle")} description={t("emptyBody")} />
         : <>
+          {recommended.length > 0 && <section aria-labelledby="discover-recommended" data-slot="discover-recommended" className="space-y-3 pb-4">
+            <h2 id="discover-recommended" className="text-lg font-semibold">{t("recommended")}</h2>
+            <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              {recommended.map((item) => <li key={`r:${item.type}:${item.id}`} className="min-w-0"><ListingCard item={item} onQuickLook={() => setLook(item)} onReport={() => setReport(item)} /></li>)}
+            </ul>
+          </section>}
           <p role="status" className="text-sm text-muted-foreground">{t("resultCount", { count: total })}</p>
           <ul className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {items.map((item) => <li key={`${item.type}:${item.id}`} className="min-w-0"><ListingCard item={item} onQuickLook={() => setLook(item)} onReport={() => setReport(item)} /></li>)}

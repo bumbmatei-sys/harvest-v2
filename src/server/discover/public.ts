@@ -1,4 +1,5 @@
-import { sql } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, or, sql } from "drizzle-orm";
+import { communityMemberships, entitlements } from "../../db/schema";
 import type { Database } from "../../db/client";
 import { decodeCursor, discoverPageSize, encodeCursor, reportInput, searchInput } from "../../lib/discover";
 import { withUser } from "../tenancy";
@@ -44,5 +45,26 @@ export async function reportListing(db: Database, user: string, raw: unknown, de
   if (status === "unknown") throw new AccessError(404, message("Errors.workspaceUnavailable"));
   if (status === "rate_limited") throw new AccessError(429, message("Errors.somethingWentWrongPleaseTryAgain"));
   return { status: status as "reported" | "duplicate" };
+}
+export const recommendedCount = 3;
+/**
+ * C20 "Recommended": approved public listings only (the database function applies the same visibility rule as search). For a signed-in person the only personal input is what
+ * they themselves joined or enrolled in, read under their own row policy and used for its public category; signed out (or with nothing joined) the order is non-personal:
+ * the most recent public change first. Recommending never joins, enrols or charges anyone.
+ */
+export async function recommendDiscover(db: Database, user: string | null, type: DiscoverCard["type"] | undefined, deps: DiscoverDeps, limit = recommendedCount) {
+  assertDiscoverEnabled(deps);
+  const run = async (tx: Parameters<Parameters<Database["transaction"]>[0]>[0], seed: string[]) =>
+    (await tx.execute<{ v: DiscoverCard[] }>(sql`select public.discover_recommend(${type ?? null}, ${`{${seed.join(",")}}`}::uuid[], ${limit}) as v`)).rows[0].v;
+  if (!user) return { items: await db.transaction(tx => run(tx, [])), personal: false };
+  return withUser(db, user, async (tx) => {
+    const joined = await tx.select({ id: communityMemberships.communityId }).from(communityMemberships)
+      .where(and(eq(communityMemberships.userId, user), eq(communityMemberships.status, "active"))).limit(250);
+    const enrolled = await tx.select({ id: entitlements.resourceId }).from(entitlements)
+      .where(and(eq(entitlements.userId, user), inArray(entitlements.resourceType, ["course", "product"]), isNull(entitlements.revokedAt),
+        or(isNull(entitlements.validUntil), gt(entitlements.validUntil, sql`now()`)))).limit(250);
+    const seed = [...new Set([...joined, ...enrolled].map(r => r.id))];
+    return { items: await run(tx, seed), personal: seed.length > 0 };
+  });
 }
 void DiscoverValidationError;

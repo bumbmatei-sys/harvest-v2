@@ -21,13 +21,16 @@ import { sameLandingDefinition, landingDefinition, type LandingCard, type Landin
 import type { IntakeManifest } from "@/lib/connect-intake";
 import type { EditableLanding } from "@/server/connect-landing";
 
-export function LandingEditor({ initial, endpoint, backHref, manifest }: { initial: EditableLanding; endpoint: string; backHref: string; manifest: IntakeManifest | null }) {
+export function LandingEditor({ initial, endpoint, backHref, manifest, communityPicker = false }: { initial: EditableLanding; endpoint: string; backHref: string; manifest: IntakeManifest | null;
+  /** C20: offer the "Recommended community" choice (communities are switched on). */
+  communityPicker?: boolean }) {
   const t = useTranslations("LandingEditor"), links = useTranslations("ConnectLinks"), resources = useTranslations("Connect"), id = useId(), request = useRequest();
   const [data, setData] = useState(initial), [heading, setHeading] = useState(initial.definition.heading), [welcome, setWelcome] = useState(initial.definition.message);
   const [cards, setCards] = useState(() => initial.definition.cards.map((card, index) => ({ id: `${id}-${index}`, card })));
   const [busy, setBusy] = useState<"save" | "publish" | null>(null), [error, setError] = useState(""), [notice, setNotice] = useState("");
-  const [conflict, setConflict] = useState(false);
-  const definition: LandingDefinition = { heading, message: welcome, cards: cards.map(({ card }) => card) };
+  const [conflict, setConflict] = useState(false), [communityId, setCommunityId] = useState(initial.definition.communityId ?? "");
+  const definition: LandingDefinition = { heading, message: welcome, cards: cards.map(({ card }) => card), ...(communityId ? { communityId } : {}) };
+  const recommended = data.communities.find((c) => c.id === communityId);
   const dirty = !sameLandingDefinition(definition, data.definition);
   const { destination, setDestination, leave } = useUnsavedChangesGuard(dirty || busy !== null);
   async function persist(publish: boolean) {
@@ -91,6 +94,12 @@ export function LandingEditor({ initial, endpoint, backHref, manifest }: { initi
           </Card></li>)}</ol>
           <div className="flex flex-wrap gap-2"><Button id={`${id}-add-resource`} type="button" variant="outline" disabled={cards.length >= 8} className="min-h-11 whitespace-normal" onClick={() => add({ kind: "resource", resourceId: "first-reading" })}><Plus aria-hidden="true" />{t("addResource")}</Button>
             <Button type="button" variant="outline" disabled={cards.length >= 8} className="min-h-11 whitespace-normal" onClick={() => add({ kind: "external", category: "community", price: "free", title: "", description: "", url: "" })}><Plus aria-hidden="true" />{t("addExternal")}</Button></div>
+          {communityPicker && <Field><FieldLabel htmlFor={`${id}-community`}>{t("recommendedCommunity")}</FieldLabel>
+            <NativeSelect id={`${id}-community`} value={communityId} onChange={e => { setNotice(""); setCommunityId(e.target.value); }} className="min-h-11 max-w-full">
+              <NativeSelectOption value="">{t("noCommunity")}</NativeSelectOption>
+              {communityId && !recommended && <NativeSelectOption value={communityId} disabled>{t("communityUnavailable")}</NativeSelectOption>}
+              {data.communities.map((c) => <NativeSelectOption key={c.id} value={c.id}>{c.name}</NativeSelectOption>)}
+            </NativeSelect></Field>}
           <p className="text-sm text-muted-foreground">{t("publicationHelp")}</p>
           <div className="flex flex-wrap gap-3"><Button type="submit" disabled={!dirty} className="min-h-11">{t(busy === "save" ? "saving" : "save")}</Button>
             {data.permissions.publish && <Button type="button" variant="outline" className="min-h-11" disabled={dirty || data.revision === 0 || data.published?.revision === data.revision} onClick={() => void persist(true)}>{t(busy === "publish" ? "publishing" : "publish")}</Button>}
@@ -100,7 +109,7 @@ export function LandingEditor({ initial, endpoint, backHref, manifest }: { initi
       <section className="min-w-0 space-y-4" aria-label={t("preview")}>
         <div className="space-y-2"><h2 className="text-lg font-semibold">{t("preview")}</h2><p className="text-sm text-muted-foreground">{t("previewHelp")}</p></div>
         <div className="min-w-0 rounded-xl border bg-background p-4 sm:p-6">
-          <LandingContent landing={campaignLanding("en", data.title, definition)} responseHref={manifest ? "#response-form" : undefined} invitationAvailable={Boolean(manifest?.purposes.includes("account_communications"))} preview />
+          <LandingContent landing={campaignLanding("en", data.title, definition, communityPicker && recommended ? { slug: recommended.slug, name: recommended.name, tagline: recommended.tagline } : undefined)} responseHref={manifest ? "#response-form" : undefined} invitationAvailable={Boolean(manifest?.purposes.includes("account_communications"))} preview />
           {manifest && <ResponseForm manifest={manifest} endpoint="" preview />}
         </div>
       </section>

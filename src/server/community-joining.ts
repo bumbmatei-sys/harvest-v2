@@ -9,6 +9,8 @@ import type { Answers, Question } from "../lib/questions";
 import { can } from "../lib/permissions";
 import { message } from "../i18n/messages";
 import { communitySlug, listCommunities } from "./communities";
+import { countLandingJoin } from "./connect-landing";
+import { landingJoinCode } from "../lib/connect-landing";
 import { AccessError } from "./permissions";
 import { withUser } from "./tenancy";
 
@@ -30,7 +32,7 @@ export async function getPublicCommunity(db: Database, slug: string, invite?: st
 
 const answersInput = z.record(z.string().regex(/^[a-z0-9]{8}$/), z.union([z.string().max(2000), z.array(z.string().max(100)).max(20)]));
 const enterInput = z.object({ rulesVersion: z.number().int().min(0), questionsVersion: z.number().int().min(0).default(0), answers: answersInput.default({}),
-  adult: z.boolean(), invite: inviteToken.optional(), inviteId: z.uuid().optional() }).strict();
+  adult: z.boolean(), invite: inviteToken.optional(), inviteId: z.uuid().optional(), qr: landingJoinCode.optional() }).strict();
 // Not found, wrong address, expired and revoked invitations share one answer; so do "closed" and "banned".
 const refusals = {
   not_found: () => new AccessError(404, message("Errors.communityNotFound")),
@@ -57,8 +59,13 @@ export function cleanAnswers(answers: Record<string, string | string[]>): Answer
 /** Open join, application (when approval is on), or redemption of a personal invitation (by link token or by id). */
 export async function enterCommunity(db: Database, userId: string, slug: string, raw: unknown) {
   const input = enterInput.parse(raw), parsed = communitySlug.parse(slug), answers = JSON.stringify(cleanAnswers(input.answers));
-  const outcome = await withUser(db, userId, async (tx) => (await tx.execute<{ o: string }>(sql`select public.community_enter(${parsed}, ${input.rulesVersion},
-    ${input.questionsVersion}, ${answers}::jsonb, ${input.adult}, ${input.invite ? hashSecret(input.invite) : null}, ${input.inviteId ?? null}::uuid) as o`)).rows[0].o);
+  const outcome = await withUser(db, userId, async (tx) => {
+    const o = (await tx.execute<{ o: string }>(sql`select public.community_enter(${parsed}, ${input.rulesVersion},
+    ${input.questionsVersion}, ${answers}::jsonb, ${input.adult}, ${input.invite ? hashSecret(input.invite) : null}, ${input.inviteId ?? null}::uuid) as o`)).rows[0].o;
+    // C20: a new open join from a QR page's recommended community adds one to that page's count (no person is linked; a failure never blocks the join).
+    if (o === "joined" && input.qr && !input.invite && !input.inviteId) await countLandingJoin(tx, input.qr, parsed);
+    return o;
+  });
   if (outcome === "joined" || outcome === "already_member" || outcome === "applied") return { outcome } as const;
   throw (refusals[outcome as keyof typeof refusals] ?? refusals.not_allowed)();
 }

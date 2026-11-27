@@ -39,9 +39,11 @@ export function JoinFormFields({ questions, answers, onAnswers, rules, rulesOk, 
  * Join (open), apply (approval on) or accept an invitation (by link token or, from the account page, by invite id).
  * Order: the owner's questions, then the rules (if any), then the 18+ confirmation (PRD launch policy).
  */
-export function JoinDialog({ slug, name, rules, rulesVersion, questions, questionsVersion, apply = false, invite, inviteId, signedIn, signInHref, action: kind }: {
+export function JoinDialog({ slug, name, rules, rulesVersion, questions, questionsVersion, apply = false, invite, inviteId, qr, signedIn, signInHref, action: kind }: {
   slug: string; name: string; rules: string[]; rulesVersion: number; questions: Question[]; questionsVersion: number; apply?: boolean;
-  invite?: string; inviteId?: string; signedIn: boolean; signInHref: string; action?: "join" | "accept" | "apply";
+  invite?: string; inviteId?: string;
+  /** C20: the QR page code the visitor came from; the server only adds one to that page's join count. */
+  qr?: string; signedIn: boolean; signInHref: string; action?: "join" | "accept" | "apply";
 }) {
   const t = useTranslations("JoinDialog"), request = useCrmRequest(), router = useRouter();
   const [open, setOpen] = useState(false), [rulesOk, setRulesOk] = useState(false), [adult, setAdult] = useState(false), [answers, setAnswers] = useState<Answers>({});
@@ -53,7 +55,7 @@ export function JoinDialog({ slug, name, rules, rulesVersion, questions, questio
   async function submit() {
     setBusy(true); setError("");
     const result = await request<{ outcome: string }>(`/api/communities/${slug}/join`, { method: "POST",
-      body: { rulesVersion, questionsVersion, answers, adult, ...(invite ? { invite } : {}), ...(inviteId ? { inviteId } : {}) } });
+      body: { rulesVersion, questionsVersion, answers, adult, ...(invite ? { invite } : {}), ...(inviteId ? { inviteId } : {}), ...(qr && !invite && !inviteId ? { qr } : {}) } });
     if (result.ok) {
       if (result.data.outcome === "applied") { setBusy(false); setApplied(true); router.refresh(); return; }
       router.push(`/communities/${slug}/forum`); return;

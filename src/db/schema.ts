@@ -1450,6 +1450,16 @@ export const communities = pgTable("communities", {
   check("community_welcome_message", sql`${t.welcomeMessage} is null or length(${t.welcomeMessage}) between 1 and 1000`),
   check("community_rules_version", sql`${t.rulesVersion} >= 0`)]);
 
+// C20: joins that started from a QR page's recommended community. A count per QR link and community and nothing else: no person, membership,
+// response or time is stored. Written only by public.connect_count_community_join in the transaction that created the membership.
+export const connectCommunityJoinCounts = pgTable("connect_community_join_counts", {
+  tenantId: uuid("tenant_id").notNull(), linkId: uuid("link_id").notNull(), communityId: uuid("community_id").notNull(),
+  joins: integer("joins").notNull().default(0),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.linkId, t.communityId] }),
+  foreignKey({ name: "connect_community_join_counts_link_fk", columns: [t.tenantId, t.linkId], foreignColumns: [campaignResponseLinks.tenantId, campaignResponseLinks.id] }).onDelete("cascade"),
+  foreignKey({ name: "connect_community_join_counts_community_fk", columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  check("connect_community_join_counts_joins", sql`${t.joins} >= 0`)]);
+
 export const communityMemberships = pgTable("community_memberships", {
   eventAccessEpoch: uuid("event_access_epoch").notNull().defaultRandom(),
   tenantId: uuid("tenant_id").notNull(),
