@@ -29,7 +29,7 @@ export const permissionArea = {
   "catalog:manage": "catalog", "catalog:read": "catalog",
   "ads:manage": "social", "social:approvals": "social", "social:connect": "social", "social:schedule": "social", "social:analytics": "social",
   "social:auto_dm": "social", "social:inbox": "social", "social:reply": "social", "social:assign": "social", "social:saved_replies": "social",
-  "newsletter:read": "newsletter", "newsletter:manage": "newsletter", "newsletter:campaigns": "newsletter", "newsletter:delivery": "newsletter", "newsletter:analytics": "newsletter",
+  "newsletter:read": "newsletter", "newsletter:manage": "newsletter", "newsletter:campaigns": "newsletter", "newsletter:delivery": "newsletter", "newsletter:analytics": "owner_admin",
   "bio:manage": "website", "blog:manage": "website",
   "giving:manage": "giving",
   "office:connect": "office", "office:mail": "office", "office:calendar": "office", "office:files": "office", "docs:read": "office", "docs:write": "office", "docs:manage": "office",
