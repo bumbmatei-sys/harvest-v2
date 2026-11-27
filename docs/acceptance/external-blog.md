@@ -10,6 +10,17 @@ Working migration `0145_external_blog`. The server reuses the social connections
 - `GET .../posts/{postId}/destinations` returns conversion warnings, canonical availability, delivery state, and whether a Harvest schedule change needs an explicit update. `POST` accepts `{version,destinationId,operation,timing?,tags?}`. The operations are `push`, `update`, and `check`. Choose `{mode:"draft"}`, `{mode:"same_time"}`, or `{mode:"own_time",at}` for push or update. Saving or rescheduling in Harvest does not enqueue an external update. Unpublishing a destination is an explicit update with draft timing.
 - `GET .../blog/planner?from=…&to=…&includeDestinations=1` returns `{articles,destinations}` with destination entries linked by `postId`. Existing calls still receive the native articles array.
 
+## Screens
+
+Built only from existing Harvest parts (EditorShell's Publish step, `FormSection`, `StatusBadge`, `NativeSelect`, `Field`, `Switch`, `EmptyState`, `PlatformLogo`); no new kit item.
+
+- **Publish step, "Also publish to"** (`src/components/blog/external-blog-section.tsx`): one row per connected blog with its platform type, a status chip (Not sent, Queued, Scheduled, Published, Draft, Failed, Changed on blog, plus "Reconnect needed" when the blog is unavailable), a Timing select (Draft, Same time, Own time with a date and time), the server's list of elements that are not carried over, and "Open copy" once the blog returns a link. Same time needs a Harvest time; a blog without its own scheduler offers only Draft (and Same time once the article is published). Sending saves pending editor changes first. "Update on <blog>" appears only when the article changed since the last push, the Harvest time moved, or the blog copy changed; "Check status" appears after a disputed create. Canonical is not shown: every destination reports it unsupported today.
+- **Harvest page switch** on the Publish step, saved with the article. Off hides "Open article"; the schedule and copies keep working.
+- **Empty state**: "No blogs connected" with "Connect a blog" linking to the account connections screen.
+- **Planner**: each non-draft copy is its own chip at its blog time (platform logo, accessible label "<Platform> copy, <status>, <title>") in week, month and the overlap list, and phone agenda and month day lists now show articles and copies as rows; each opens the article. Draft copies have no time and are not shown.
+- The destination routes use the same non-production gate as the Social Publish routes (`socialRouteDeps`: the in-memory fake outside production, the hard-off defaults in production). The remote image route stays on `SOCIAL_INTEGRATION_ENABLED`, which is `false`.
+- e2e: `tests/e2e/blog-external.spec.ts` (seeded synthetic connections and blogs; worker outcomes set in the local database because no worker runs) covers the empty state, the three modes through the real queue route, every status, the update button and its explicit update job, Harvest page off, planner chips and the phone agenda, with axe at 1280 and 360 in light and dark, 44px targets and no horizontal overflow.
+
 ## Destination behavior
 
 | Platform | Draft | Native schedule | Explicit update | Canonical | Images | Changes and warnings |

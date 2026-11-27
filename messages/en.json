@@ -10790,7 +10790,52 @@
     "pending": "…",
     "addCover": "Add cover",
     "changeCover": "Change cover",
-    "removeCover": "Remove cover"
+    "removeCover": "Remove cover",
+    "harvestPage": "Harvest blog page",
+    "external": {
+      "title": "Also publish to",
+      "empty": "No blogs connected",
+      "connect": "Connect a blog",
+      "timing": "Timing",
+      "at": "Date and time",
+      "on": "on {blog}",
+      "modes": {
+        "draft": "Draft",
+        "same_time": "Same time",
+        "own_time": "Own time"
+      },
+      "send": "Send",
+      "update": "Update on {blog}",
+      "check": "Check status",
+      "open": "Open copy",
+      "reconnect": "Reconnect needed",
+      "pickTime": "Choose a date and time",
+      "queued": "Queued for {blog}",
+      "checking": "Checking {blog}",
+      "status": {
+        "none": "Not sent",
+        "queued": "Queued",
+        "scheduled_on_blog": "Scheduled",
+        "published": "Published",
+        "draft_on_blog": "Draft",
+        "failed": "Failed",
+        "changed_on_blog": "Changed on blog"
+      },
+      "warnings": "Not carried over to {blog}",
+      "warning": {
+        "video_link": "Videos become links",
+        "code_block": "Code blocks become plain text",
+        "nested_image": "Pictures in lists and quotes are left out",
+        "image_unavailable": "A picture can't be sent",
+        "editor_block": "Some blocks are simplified",
+        "inline_style": "Some text styles are left out",
+        "wix_block_limit": "Very long blocks are left out",
+        "seo_unsupported": "Search title and description aren't sent",
+        "excerpt_optional": "The excerpt isn't sent",
+        "featured_image_preserved": "The blog keeps its current cover"
+      },
+      "planner": "{platform} copy"
+    }
   },
   "MyNotes": {
     "title": "My notes",

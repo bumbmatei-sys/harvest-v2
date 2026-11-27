@@ -203,11 +203,15 @@ const deliveryView = (delivery: Delivery, article: Article) => {
   const expected = article.publishAt ?? article.publishedAt;
   return {
     id: delivery.id, destinationId: delivery.destinationId, mode: delivery.mode, requestedAt: delivery.requestedAt,
-    status: delivery.status, reason: delivery.reason, remoteUrl: delivery.remoteUrl, pushedVersion: delivery.pushedVersion,
+    status: delivery.status, reason: delivery.reason, remote: delivery.remoteId !== null, remoteUrl: delivery.remoteUrl, pushedVersion: delivery.pushedVersion,
     createdAt: delivery.createdAt, updatedAt: delivery.updatedAt, pushedAt: delivery.pushedAt, checkedAt: delivery.checkedAt,
     scheduleUpdateAvailable: delivery.mode === "same_time" && (delivery.requestedAt?.getTime() ?? null) !== (expected?.getTime() ?? null),
   };
 };
+
+export type ExternalBlogOptions = Awaited<ReturnType<typeof externalBlogOptions>>;
+export type ExternalDeliveryView = ReturnType<typeof deliveryView>;
+export type ExternalPlannerDelivery = Awaited<ReturnType<typeof externalBlogPlanner>>[number];
 
 export async function externalBlogOptions(db: Database, user: string, workspace: string, postId: string, deps = defaultSocialDeps()) {
   authorize(deps);
