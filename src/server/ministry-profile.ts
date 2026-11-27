@@ -8,7 +8,7 @@ import { ministryMapsLink, profileImageField, saveMinistryProfileInput } from ".
 import { AccessError } from "./permissions";
 import type { ImageMime, StorageAdapter } from "./storage/adapter";
 import { withTenant } from "./tenancy";
-import { workerSettings } from "./worker-settings";
+import { appOriginIfConfigured } from "../lib/site-address";
 
 type Image = { key: string; name: string; mime: ImageMime };
 type ImageField = z.infer<typeof profileImageField>;
@@ -47,8 +47,8 @@ async function chosenImage(tx: Transaction, tenant: string, id: string): Promise
 function imageHref(tenant: string, field: string, isPublic: boolean) {
   const scope = isPublic ? "public/ministries" : "workspaces";
   const path = `/api/${scope}/${encodeURIComponent(tenant)}/profile/images/${encodeURIComponent(field)}`;
-  const base = workerSettings.getStore()?.origin ?? process.env.BETTER_AUTH_URL;
-  return base ? new URL(path, new URL(base).origin).href : path;
+  const base = appOriginIfConfigured();
+  return base ? new URL(path, base).href : path;
 }
 
 function presented<T extends PublicLocation>(tenant: string, data: { fields: Profile["fields"]; locations: T[] }, isPublic: boolean) {
