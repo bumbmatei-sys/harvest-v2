@@ -6,7 +6,7 @@ This is a checklist, not an approval. It approves no HC-02 gate, no production m
 
 **Status key.** PASS: evidence exists in the repository and was run for this PR. GAP: a missing test or behaviour; "fixed" ones are fixed here, "open" ones are follow-ups. GATE: needs a founder, privacy or legal decision before real use.
 
-**Totals.** 104 items: 81 PASS, 6 GAP fixed in this PR, 10 GAP open, 7 GATE.
+**Totals (updated 27 Nov, after #302, #304 and the founder's decisions).** 104 items: 86 PASS, 6 GAP fixed in #303, 6 GAP open, 6 GATE. At merge of #303 it was 81 PASS, 6 GAP fixed, 10 GAP open, 7 GATE; see "Updates after #303" at the end.
 
 ## How the catalog checks work
 
@@ -47,7 +47,7 @@ This is a checklist, not an approval. It approves no HC-02 gate, no production m
 |---|---|---|---|
 | 3.1 | A published community's address (slug) cannot change; the API answers 409 | `tests/e2e/shell-slice3b.spec.ts` (PATCH answers 409) | PASS |
 | 3.2 | The lock is covered at the service level, not only in a browser test | **added** `community-c23-hardening` behaviour: "keeps the published address locked" | GAP fixed |
-| 3.3 | The lock is enforced by the database as well (the app role has UPDATE on `communities`) | none: the check lives in `updateCommunity` only | GAP open (F3) |
+| 3.3 | The lock is enforced by the database as well (the app role has UPDATE on `communities`) | #302 (0128): `communities.first_published_at` and trigger `community_address_lock` refuse a slug change once ever published, for every role; `community-address-lock*.test.ts` | PASS |
 
 ## 4. Joining and invitations
 
@@ -134,7 +134,7 @@ This is a checklist, not an approval. It approves no HC-02 gate, no production m
 | 11.3 | Unlisted at once on unpublish, hidden or opt-out | `discover-server.test.ts`, `community-joining.test.ts` | PASS |
 | 11.4 | No contacts, members or payments in any Discover table | `discover-server.test.ts` | PASS |
 | 11.5 | Reports from signed-in people only, rate limited, reporter hidden | `discover-server.test.ts`, `discover_report` (0100) | PASS |
-| 11.6 | Anonymous Discover reads are rate limited | none: `/api/discover` and `/api/discover/listings` are bounded and cached privately but not throttled | GAP open (F1) |
+| 11.6 | Anonymous Discover reads are rate limited | #304: `discover` scope in `src/server/public-read-limit.ts`, 60 a minute per visitor; `public-read-limit.test.ts` | PASS |
 | 11.7 | Discover screens pass axe | `tests/e2e/discover-screens.spec.ts`, `discover-staff.spec.ts` | PASS |
 | 11.8 | Production enablement of Discover | hard-off; needs platform review staffing and founder approval | GATE (G6) |
 
@@ -166,7 +166,7 @@ This is a checklist, not an approval. It approves no HC-02 gate, no production m
 | 14.2 | No inferred religious label from joining; membership, marketing and pastoral consents separate | `docs/decisions/hc-02-activation-gates.md`; community tables hold no consent purpose | PASS |
 | 14.3 | Small-group suppression in community stats | `community-stats.test.ts`, `community-retention.test.ts` | PASS |
 | 14.4 | Real personal or pastoral data, special-category basis (EEA Article 9) | the five HC-02 gates are UNAPPROVED | GATE (G1) |
-| 14.5 | Minors (edge case 19): adults only at launch; any minors programme | adult confirmation enforced (4.1); no minors programme | GATE (G3) |
+| 14.5 | Minors (edge case 19): adults only at launch; any minors programme | founder decision 27 Nov: adults only (18+) at launch, with age confirmation; adult confirmation enforced (4.1); a minors programme is a later decision | PASS |
 | 14.6 | Prayer-request data in Community Live (sensitive category) | `community-live.test.ts`; retention and encryption under HC-DEC3–5 | GATE (G7) |
 
 ## 15. Public endpoints
@@ -178,7 +178,7 @@ This is a checklist, not an approval. It approves no HC-02 gate, no production m
 | 15.3 | Hidden or missing communities, profiles and DMs answer the same 404 | `community-joining.test.ts`, `community-member-profile.test.ts`, `community-dm.test.ts`, `discover-server.test.ts` | PASS |
 | 15.4 | Write limits answer 429 with one fixed message and `Retry-After` | unit gate: "answers a database write limit…" | PASS |
 | 15.5 | The anonymous count beacon and unsubscribe answer the same for every input | `community-retention.test.ts`, `community-email.test.ts` | PASS |
-| 15.6 | The anonymous unsubscribe endpoint and public community page are throttled | none; tokens are signed and answers constant, so brute force learns nothing | GAP open (F1) |
+| 15.6 | The anonymous unsubscribe endpoint and public community page are throttled | #304: `community-page` and `community-beacon` 60 a minute per visitor. One-click unsubscribe is deliberately not throttled (mailbox providers send it from shared servers); signed tokens and a constant answer protect it | PASS |
 
 ## 16. Logs and audits
 
@@ -203,7 +203,7 @@ This is a checklist, not an approval. It approves no HC-02 gate, no production m
 |---|---|---|---|
 | 18.1 | axe (WCAG 2.2 AA tags) on every member screen: forum, post, members, member profile, chat, messages, moderation, classroom, products, events | the specs above | PASS |
 | 18.2 | axe on the owner screens: community list, editor, Discover manage, platform Discover, account communities | `kit-pr7-communities.spec.ts`, `community-editor.spec.ts`, `discover-screens.spec.ts`, `discover-staff.spec.ts`, `community-joining.spec.ts` | PASS |
-| 18.3 | axe on the About page | visited in `community-forum.spec.ts` but not audited | GAP open (F2) |
+| 18.3 | axe on the About page | #304: `community-forum.spec.ts` audits About at 1280 and 360, light and dark, with 44px targets | PASS |
 | 18.4 | 44px tap targets on phone for the bottom bar, chat controls and send | `community-forum.spec.ts` (bottom bar), `community-chat.spec.ts` (controls and send) | PASS |
 | 18.5 | A 44px check across every interactive element of every community screen | only the controls above are measured | GAP open (F2) |
 | 18.6 | Video captions and transcript hooks | not built | GAP open (F6) |
@@ -221,14 +221,14 @@ No backfill, so the 0091 NO FORCE pattern is not needed. No UI change and no new
 
 | ID | Item | Proposed fix |
 |---|---|---|
-| F1 | Anonymous reads (`/api/discover`, `/api/discover/listings`, `/communities/:slug`) and unsubscribe are not throttled (11.6, 15.6) | Platform firewall rate rule per IP for these paths, or the existing hashed-IP limiter pattern used by link in bio. Needs an infrastructure choice. |
-| F2 | About page not audited by axe; no screen-wide 44px sweep (18.3, 18.5) | Add `shoot(a, "about")` in `community-forum.spec.ts`, and a shared helper that measures every visible button and link at phone width. Needs a browser run. |
-| F3 | Address lock only in the service (3.3) | `BEFORE UPDATE` trigger on `communities` refusing a slug change while `status = 'published'`. |
+| F1 (resolved by #304) | Anonymous reads (`/api/discover`, `/api/discover/listings`, `/communities/:slug`) and unsubscribe are not throttled (11.6, 15.6) | Platform firewall rate rule per IP for these paths, or the existing hashed-IP limiter pattern used by link in bio. Needs an infrastructure choice. |
+| F2 (About part resolved by #304; 18.5 open) | About page not audited by axe; no screen-wide 44px sweep (18.3, 18.5) | Add `shoot(a, "about")` in `community-forum.spec.ts`, and a shared helper that measures every visible button and link at phone width. Needs a browser run. |
+| F3 (resolved by #302) | Address lock only in the service (3.3) | `BEFORE UPDATE` trigger on `communities` refusing a slug change while `status = 'published'`. |
 | F4 | Invitation creation and cross-community applications have no time-window limit (4.6, 5.5) | Extend `community_write_rate_guard` to `community_invites` and `community_applications` once thresholds are agreed. |
 | F5 | No load test or LCP measurement (17.3) | Measure on a Preview deployment with synthetic data before launch. |
 | F6 | Video captions and transcript hooks (18.6) | Part of the Live and Classroom media work. |
 | F7 | Two-workspace adversarial coverage of search, notifications, AI and media as one suite (PRD §18 F) | Per-area tests exist; a single adversarial suite is still to write. |
-| F8 | Write-limit thresholds (10, 30, 20 per 10 minutes) are engineering defaults | Confirm with real usage on Preview; the numbers are trigger arguments, so a change is one migration. |
+| F8 (decided 27 Nov) | Write-limit thresholds (10, 30, 20 per 10 minutes) | Founder kept the numbers and exempted hosts and moderators; the exemption is in a follow-up PR (migration 0134). |
 | F9 | The limit message says "posting" for reports as well | Wording review with the next copy pass. |
 | F10 | No concurrent two-moderator decision test (5.7) | Two transactions deciding the same application; exactly one wins, the other gets 409. |
 
@@ -238,8 +238,8 @@ No backfill, so the 0091 NO FORCE pattern is not needed. No UI change and no new
 |---|---|---|
 | G1 | The five HC-02 privacy and security activation gates, including the Article 9 basis for faith and pastoral data | Founder, privacy review |
 | G2 | Retention periods and the deletion or anonymisation policy for public contributions (edge case 18) | Founder, privacy review |
-| G3 | Minors: keep adults only at launch (as built) or approve a minors programme | Founder, legal |
-| G4 | Production email sender and real delivery | Founder |
+| G3 (decided 27 Nov) | Minors: adults only (18+) at launch, with age confirmation; a minors programme later | Founder |
+| G4 | Production email sender and real delivery. Founder decision 27 Nov: bounce and complaint handling is required before any real community email | Founder |
 | G5 | Payment provider for paid communities and product sales (UNDECIDED; Dodo stays SaaS billing only) | Founder |
 | G6 | Production enablement of Discover and the platform review process | Founder |
 | G7 | Prayer-request data handling in Community Live (HC-DEC3 to 5) | Founder, privacy review |
@@ -255,3 +255,19 @@ No backfill, so the 0091 NO FORCE pattern is not needed. No UI change and no new
 - Browser (E2E) suites: no UI changed. The axe and tap-target evidence above is from the existing specs on main.
 - The Neon migration check: it runs from `main` by hand (`neon_only=true`) for PRs that change `drizzle/`.
 - No production migration, deployment or real email.
+
+## Updates after #303
+
+Updated 27 Nov 2026 once #302 and #304 were on main and after the founder's decisions that morning.
+
+| Row | Was | Now | Source |
+|---|---|---|---|
+| 3.3 | GAP open (F3) | PASS | #302, migration 0128 |
+| 11.6 | GAP open (F1) | PASS | #304 |
+| 15.6 | GAP open (F1) | PASS (unsubscribe not throttled by design) | #304 |
+| 18.3 | GAP open (F2) | PASS | #304 |
+| 14.5 | GATE (G3) | PASS: adults only at launch | Founder, 27 Nov |
+| F8 | open | Decided: numbers kept, hosts and moderators exempt (pending PR) | Founder, 27 Nov |
+| G4 | open | Still a gate; bounce and complaint handling is now a required part of it | Founder, 27 Nov |
+
+Still open: F4 (invitations and cross-community applications), F5 (load and LCP), F2 for 18.5 (screen-wide 44px sweep), F6 (captions), F7 (single adversarial suite), F9 (limit wording), F10 (concurrent moderator decisions). Still gates: G1, G2, G4, G5, G6, G7.
