@@ -47,7 +47,7 @@ export function listMyListings(db: Database, user: string, workspace: string, de
     return { items: [
       ...comms.map(c => view("community", c.id, c.name, c.status === "published" && c.visibility === "listed", c.discoverOptIn, listed.has(`community:${c.id}`), control("community", c.id))),
       ...items.map(i => { const t = i.kind === "course" ? "course" as const : "product" as const; const c = control(t, i.id);
-        return view(t, i.id, i.title, i.state === "published" && i.visibility === "listed", c?.ownerOptIn ?? false, listed.has(`${t}:${i.id}`), c); }),
+        return view(t, i.id, i.title, i.state === "published" && (i.visibility === "listed" || i.visibility === "public"), c?.ownerOptIn ?? false, listed.has(`${t}:${i.id}`), c); }),
     ] };
   });
 }
@@ -98,5 +98,5 @@ async function listMine(tx: Transaction, tenant: string) {
   const listed = new Set(listings.map(l => `${l.type}:${l.id}`));
   const control = (t: string, id: string) => controls.find(c => c.resourceType === t && c.resourceId === id);
   return [...comms.map(c => view("community", c.id, c.name, c.status === "published" && c.visibility === "listed", c.discoverOptIn, listed.has(`community:${c.id}`), control("community", c.id))),
-    ...items.map(i => { const t = i.kind === "course" ? "course" as const : "product" as const; const c = control(t, i.id); return view(t, i.id, i.title, i.state === "published" && i.visibility === "listed", c?.ownerOptIn ?? false, listed.has(`${t}:${i.id}`), c); })];
+    ...items.map(i => { const t = i.kind === "course" ? "course" as const : "product" as const; const c = control(t, i.id); return view(t, i.id, i.title, i.state === "published" && (i.visibility === "listed" || i.visibility === "public"), c?.ownerOptIn ?? false, listed.has(`${t}:${i.id}`), c); })];
 }
