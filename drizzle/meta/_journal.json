@@ -876,6 +876,13 @@
       "when": 1795746812980,
       "tag": "0127_newsletter_audience_growth",
       "breakpoints": true
+    },
+    {
+      "idx": 128,
+      "version": "7",
+      "when": 1795752720179,
+      "tag": "0128_community_address_lock",
+      "breakpoints": true
     }
   ]
 }

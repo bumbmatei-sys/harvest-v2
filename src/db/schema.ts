@@ -1370,7 +1370,7 @@ export const communityPricings = ["free", "paid"] as const;
 export const communityMembershipRoles = ["owner", "admin", "moderator", "contributor", "member"] as const;
 export const communityMembershipStatuses = ["active", "pending", "banned", "left", "removed"] as const;
 export const entitlementSources = ["community_free_join", "admin_grant", "invitation", "application", "product_purchase", "bundle", "subscription", "free_enrolment"] as const;
-export const reservedCommunitySlugs = ["new", "discover", "search", "create", "settings", "admin", "api", "me", "account"] as const;
+export const reservedCommunitySlugs = ["new", "discover", "search", "create", "settings", "admin", "api", "me", "account", "unsubscribe"] as const;
 const reservedSlugSql = sql.raw(reservedCommunitySlugs.map((slug) => `'${slug}'`).join(", "));
 
 export const communities = pgTable("communities", {
@@ -1404,6 +1404,8 @@ export const communities = pgTable("communities", {
   chatEnabled: boolean("chat_enabled").notNull().default(true),
   dmPolicy: text("dm_policy").notNull().default("channels_only"),
   discoverOptIn: boolean("discover_opt_in").notNull().default(false),
+  // Set the first time the community is published and never cleared (0128): once set, the address (slug) is locked for good.
+  firstPublishedAt: timestamp("first_published_at", { withTimezone: true }),
   // Cleared if the creator's account is deleted, so account erasure is never blocked by a community.
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   version: integer("version").notNull().default(1),
