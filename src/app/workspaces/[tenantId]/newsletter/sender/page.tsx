@@ -6,6 +6,7 @@ import { pageSession } from "@/server/page-session";
 import { getWorkspace } from "@/server/workspaces";
 import { newsletterEnabled } from "@/server/newsletter";
 import { senderSetup } from "@/server/newsletter-campaigns/sender-setup";
+import { newsletterClickSettings } from "@/server/newsletter-clicks";
 import { AccessError, can } from "@/server/permissions";
 import { uuidInput } from "@/lib/contact-input";
 import { AccessState } from "@/components/access-state";
@@ -27,5 +28,6 @@ export default async function SenderPage({ params }: { params: Promise<{ tenantI
   if (!workspace) return <AccessState />;
   if (!can(workspace.role, "newsletter:delivery")) return <Alert><AlertDescription>{t("viewOnly")}</AlertDescription></Alert>;
   const setup = JSON.parse(JSON.stringify(await senderSetup(db, session.user.id, tenantId))) as SenderSetupData;
-  return <SenderSetup tenantId={tenantId} initial={setup} />;
+  const clicks = await newsletterClickSettings(db, session.user.id, tenantId);
+  return <SenderSetup tenantId={tenantId} initial={setup} clickSettings={clicks} />;
 }

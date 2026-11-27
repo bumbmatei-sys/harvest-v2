@@ -7,7 +7,7 @@ import type { FormAnswers, FormDefinition } from "@/lib/crm-forms";
 type Manifest = {
   title: string; description: string; cover: FormDefinition["cover"]; logoUrl: string; endTitle: string; endBody: string; ministryName: string | null;
   blocks: Pick<FormDefinition["blocks"][number], "id" | "type" | "label" | "required" | "options" | "text">[]; settings: Omit<FormDefinition["settings"], "ownerId" | "labels" | "landing">;
-  newsletter?: { wordingVersion: string; consentText: string; fixedNotice: string }; proof: string;
+  newsletter?: { wordingVersion: string; consentText: string; fixedNotice: string }; proof: string; clicksCounted?: boolean;
 };
 
 /** The public sign-up page: the published form from the hosted forms server, then a plain post. Nothing is stored in the browser. */
@@ -41,5 +41,8 @@ export function HostedSignup({ slug }: { slug: string }) {
     endTitle: manifest.endTitle, endBody: manifest.endBody, blocks: manifest.blocks.map((block) => ({ ...block, mapTo: null })),
     settings: { ownerId: null, labels: [], landing: "build", ...manifest.settings }, newsletter: { listIds: [], ...manifest.newsletter! },
   };
-  return <PublicForm form={definition} ministryName={manifest.ministryName} idPrefix="signup" preview={false} onSubmit={submit} />;
+  return <>
+    <PublicForm form={definition} ministryName={manifest.ministryName} idPrefix="signup" preview={false} onSubmit={submit} />
+    {manifest.clicksCounted && <p className="mt-4 text-sm text-muted-foreground" data-clicks-counted>{t("clicksCounted")}</p>}
+  </>;
 }

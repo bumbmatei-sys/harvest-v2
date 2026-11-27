@@ -2971,6 +2971,52 @@ export const newsletterArchivedCounts = pgTable("newsletter_archived_counts", {
 }, t => [primaryKey({ columns: [t.tenantId, t.campaignId, t.day, t.metric] }),
   foreignKey({ columns: [t.tenantId, t.campaignId], foreignColumns: [newsletterCampaigns.tenantId, newsletterCampaigns.id] })]);
 
+/** Per-ministry newsletter settings. Link-click counting is off until the owner turns it on; `click_tracking_since` is set by the database when it is turned on. */
+export const newsletterSettings = pgTable("newsletter_settings", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  clickTracking: boolean("click_tracking").notNull().default(false),
+  clickTrackingSince: timestamp("click_tracking_since", { withTimezone: true }),
+  version: integer("version").notNull().default(1),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [primaryKey({ columns: [t.tenantId] }),
+  check("newsletter_settings_click_since", sql`${t.clickTracking} = (${t.clickTrackingSince} is not null)`)]);
+
+/** The content links of a frozen revision, by position, written by the delivery worker when clicks are counted. The redirect reads the URL from here, never from the link. */
+export const newsletterClickLinks = pgTable("newsletter_click_links", {
+  tenantId: uuid("tenant_id").notNull(),
+  campaignId: uuid("campaign_id").notNull(),
+  revision: integer("revision").notNull(),
+  linkIndex: integer("link_index").notNull(),
+  url: text("url").notNull(),
+}, t => [primaryKey({ columns: [t.tenantId, t.campaignId, t.revision, t.linkIndex] }),
+  unique("newsletter_click_link_url").on(t.tenantId, t.campaignId, t.revision, t.url),
+  foreignKey({ name: "newsletter_click_link_revision_fk", columns: [t.tenantId, t.campaignId, t.revision], foreignColumns: [newsletterCampaignRevisions.tenantId, newsletterCampaignRevisions.campaignId, newsletterCampaignRevisions.revision] }),
+  check("newsletter_click_link_shape", sql`${t.linkIndex} between 0 and 199 and ${t.url} ~ '^https://' and char_length(${t.url}) <= 2000`)]);
+
+// One row per delivery and link for at most 90 days (no address, IP, user agent or device), then only anonymous campaign/day/link counts remain.
+export const newsletterClicks = pgTable("newsletter_clicks", {
+  tenantId: uuid("tenant_id").notNull(),
+  campaignId: uuid("campaign_id").notNull(),
+  revision: integer("revision").notNull(),
+  deliveryId: uuid("delivery_id").notNull(),
+  linkIndex: integer("link_index").notNull(),
+  clickedAt: timestamp("clicked_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [primaryKey({ columns: [t.tenantId, t.deliveryId, t.linkIndex] }),
+  index("newsletter_click_retention_idx").on(t.clickedAt),
+  index("newsletter_click_campaign_idx").on(t.tenantId, t.campaignId, t.clickedAt),
+  foreignKey({ name: "newsletter_click_link_fk", columns: [t.tenantId, t.campaignId, t.revision, t.linkIndex], foreignColumns: [newsletterClickLinks.tenantId, newsletterClickLinks.campaignId, newsletterClickLinks.revision, newsletterClickLinks.linkIndex] })]);
+
+export const newsletterClickCounts = pgTable("newsletter_click_counts", {
+  tenantId: uuid("tenant_id").notNull(),
+  campaignId: uuid("campaign_id").notNull(),
+  revision: integer("revision").notNull(),
+  day: date("day").notNull(),
+  linkIndex: integer("link_index").notNull(),
+  count: bigint("count", { mode: "number" }).notNull(),
+}, t => [primaryKey({ columns: [t.tenantId, t.campaignId, t.revision, t.day, t.linkIndex] }),
+  foreignKey({ name: "newsletter_click_count_link_fk", columns: [t.tenantId, t.campaignId, t.revision, t.linkIndex], foreignColumns: [newsletterClickLinks.tenantId, newsletterClickLinks.campaignId, newsletterClickLinks.revision, newsletterClickLinks.linkIndex] }),
+  check("newsletter_click_count_positive", sql`${t.count} > 0`)]);
+
 export const newsletterSuppressions = pgTable("newsletter_suppressions", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
   // The nil UUID denotes a ministry-wide block. Any other scope is a newsletter list.
