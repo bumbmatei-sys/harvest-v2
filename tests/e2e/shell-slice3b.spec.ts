@@ -383,7 +383,7 @@ test("role matrix: member and viewer see the preview read-only; admin edits", as
   }
 });
 
-test("address: fixed /communities/ prefix, slug follows the title until edited by hand, locked once published", async ({ page, browser }) => {
+test("address: fixed /communities/ prefix, slug follows the title until edited by hand, locked for good once first published", async ({ page, browser }) => {
   test.setTimeout(300_000);
   await mkdir(evidence, { recursive: true });
   await page.setViewportSize({ width: 1280, height: 900 });
@@ -444,4 +444,31 @@ test("address: fixed /communities/ prefix, slug follows the title until edited b
   if (!off) await expect(page.getByRole("link", { name: "Open page" }).first()).toHaveAttribute("href", "/communities/prayer-group");
   const visitor = await browser.newContext({ baseURL: origin });
   try { const pub = await visitor.newPage(); expect((await pub.goto("/communities/prayer-group"))?.status()).toBe(200); } finally { await visitor.close(); }
+  // 0128: the lock is permanent. Unpublished, the community keeps its address, read-only with one line saying why, and the API still refuses a change.
+  const shown = await (await page.request.get(endpoint)).json();
+  expect(shown.firstPublishedAt).toBeTruthy();
+  const back = await page.request.post(`${endpoint}/publish`, { headers: { origin }, data: { version: shown.version, published: false } });
+  expect(back.status()).toBe(200);
+  const unpublished = await back.json();
+  expect(unpublished).toMatchObject({ status: "draft", firstPublishedAt: shown.firstPublishedAt });
+  expect((await page.request.patch(endpoint, { headers: { origin }, data: { version: unpublished.version, slug: "changed-address" } })).status()).toBe(409);
+  const shots = process.env.FOUNDER_SHOTS;
+  if (shots) await mkdir(shots, { recursive: true });
+  for (const scheme of ["light", "dark"] as const) for (const [w, h, label] of [[1280, 900, "desktop-1280"], [390, 844, "phone-390"]] as const) {
+    await page.setViewportSize({ width: w, height: h });
+    await setColorMode(page, scheme, `/workspaces/${tenant}/communities/${id}/edit`);
+    await expect(address).toHaveAttribute("readonly", "");
+    await expect(address).toHaveValue("prayer-group");
+    const why = page.locator("#community-address-locked");
+    await expect(why).toHaveText("Fixed once published, so shared links keep working.");
+    await expect(address).toHaveAttribute("aria-describedby", "community-address-locked");
+    await page.locator("#community-name").fill(`Renamed ${scheme} ${label}`);
+    await expect(address).toHaveValue("prayer-group");
+    expect(await overflow(page)).toBeLessThanOrEqual(0);
+    await axe(page);
+    if (shots) {
+      await why.evaluate((node) => node.scrollIntoView({ block: "center" }));
+      await page.screenshot({ path: `${shots}/address-locked-unpublished-${label}-${scheme}.png` });
+    }
+  }
 });

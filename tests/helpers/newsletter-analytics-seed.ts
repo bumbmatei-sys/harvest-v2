@@ -30,3 +30,11 @@ export async function seedCampaign(admin: ClientBase, input: { tenant: string; u
   } finally { await admin.query("set session_replication_role = origin"); }
   return id;
 }
+
+/** Synthetic daily audience counts (counts only, no people) for days before the worker's first real snapshot. Same privileged connection rule as above. */
+export type SeedSnapshot = { day: string; subscribed: number; unsubscribed: number; suppressed: number };
+export async function seedAudienceSnapshots(admin: ClientBase, tenant: string, days: readonly SeedSnapshot[]) {
+  for (const day of days) await admin.query(`insert into newsletter_audience_snapshots(tenant_id,day,subscribed,unsubscribed,suppressed) values($1,$2,$3,$4,$5)
+    on conflict (tenant_id,day) do update set subscribed=excluded.subscribed,unsubscribed=excluded.unsubscribed,suppressed=excluded.suppressed`,
+    [tenant, day.day, day.subscribed, day.unsubscribed, day.suppressed]);
+}

@@ -106,7 +106,8 @@ test("owner names and builds levels and sections with a video lesson; the learne
   await page.setViewportSize({ width: 1280, height: 900 });
   await openStep(page, "Publish");
   await page.getByRole("button", { name: "Publish", exact: true }).click();
-  await expect(page.getByRole("status").filter({ hasText: "Published." })).toBeVisible();
+  // The first publish compiles the state route on the dev server.
+  await expect(page.getByRole("status").filter({ hasText: "Published." })).toBeVisible({ timeout: 90_000 });
 
   // The learner: the structure in the side list, and no request to a video host until play.
   const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, reducedMotion: "reduce" }), learner = await context.newPage();

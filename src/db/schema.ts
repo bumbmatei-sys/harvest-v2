@@ -1370,7 +1370,7 @@ export const communityPricings = ["free", "paid"] as const;
 export const communityMembershipRoles = ["owner", "admin", "moderator", "contributor", "member"] as const;
 export const communityMembershipStatuses = ["active", "pending", "banned", "left", "removed"] as const;
 export const entitlementSources = ["community_free_join", "admin_grant", "invitation", "application", "product_purchase", "bundle", "subscription", "free_enrolment"] as const;
-export const reservedCommunitySlugs = ["new", "discover", "search", "create", "settings", "admin", "api", "me", "account"] as const;
+export const reservedCommunitySlugs = ["new", "discover", "search", "create", "settings", "admin", "api", "me", "account", "unsubscribe"] as const;
 const reservedSlugSql = sql.raw(reservedCommunitySlugs.map((slug) => `'${slug}'`).join(", "));
 
 export const communities = pgTable("communities", {
@@ -1404,6 +1404,8 @@ export const communities = pgTable("communities", {
   chatEnabled: boolean("chat_enabled").notNull().default(true),
   dmPolicy: text("dm_policy").notNull().default("channels_only"),
   discoverOptIn: boolean("discover_opt_in").notNull().default(false),
+  // Set the first time the community is published and never cleared (0128): once set, the address (slug) is locked for good.
+  firstPublishedAt: timestamp("first_published_at", { withTimezone: true }),
   // Cleared if the creator's account is deleted, so account erasure is never blocked by a community.
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   version: integer("version").notNull().default(1),
@@ -1600,6 +1602,9 @@ export const communityPosts = pgTable("community_posts", {
   foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
   check("community_post_held", sql`(${t.heldAt} is null) = (${t.heldReason} is null) and (${t.heldReason} is null or ${t.heldReason} in ('first_post', 'banned_word'))`),
   index("community_posts_feed_idx").on(t.communityId, t.pinned, t.createdAt),
+  // C23: the category-filtered forum list and the per-author write limit (0129).
+  index("community_posts_category_feed_idx").on(t.communityId, t.categoryId, t.pinned, t.createdAt),
+  index("community_posts_author_recent_idx").on(t.communityId, t.authorId, t.createdAt),
   check("community_post_title", sql`length(${t.title}) between 1 and 200`),
   check("community_post_body", sql`jsonb_typeof(${t.body}) = 'object' and length(${t.body}::text) <= 100000`),
   check("community_post_body_text", sql`length(${t.bodyText}) <= 20000`),
@@ -1621,6 +1626,7 @@ export const communityComments = pgTable("community_comments", {
   foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
   check("community_comment_held", sql`(${t.heldAt} is null) = (${t.heldReason} is null) and (${t.heldReason} is null or ${t.heldReason} in ('first_post', 'banned_word'))`),
   index("community_comments_post_idx").on(t.postId, t.createdAt),
+  index("community_comments_author_recent_idx").on(t.communityId, t.authorId, t.createdAt),
   check("community_comment_body", sql`length(${t.body}) between 1 and 5000`)]);
 
 export const communityLikes = pgTable("community_likes", {
@@ -1656,6 +1662,7 @@ export const communityReports = pgTable("community_reports", {
   index("community_dm_reports_open_age_idx").on(t.createdAt, t.id).where(sql`${t.targetType} = 'dm_message' and ${t.status} = 'open'`),
   uniqueIndex("community_reports_open_idx").on(t.communityId, t.reporterId, t.targetType, t.targetId).where(sql`${t.status} = 'open'`),
   index("community_reports_queue_idx").on(t.communityId, t.status, t.targetType, t.targetId),
+  index("community_reports_reporter_recent_idx").on(t.communityId, t.reporterId, t.createdAt),
   check("community_report_target", sql`${t.targetType} in ('post', 'comment', 'member', 'message', 'dm_message') and length(${t.targetId}) between 1 and 200`),
   check("community_report_reason", sql`${t.reason} in ('spam', 'harassment', 'inappropriate', 'other')`),
   check("community_report_note", sql`${t.note} is null or length(${t.note}) between 1 and 500`),
@@ -3035,6 +3042,24 @@ export const newsletterArchivedCounts = pgTable("newsletter_archived_counts", {
   count: bigint("count", { mode: "number" }).notNull(),
 }, t => [primaryKey({ columns: [t.tenantId, t.campaignId, t.day, t.metric] }),
   foreignKey({ columns: [t.tenantId, t.campaignId], foreignColumns: [newsletterCampaigns.tenantId, newsletterCampaigns.id] })]);
+
+// A one-transaction token that only newsletter_snapshot_audience writes and deletes; the worker-only `workspaces` read policy requires it, so a
+// session that sets the scan flag by hand opens nothing.
+export const newsletterGrowthScans = pgTable("newsletter_growth_scans", {
+  token: uuid("token").primaryKey(),
+  xact: text("xact").notNull(),
+});
+
+// One row per ministry per UTC day: audience counts only (no person ids), written by the newsletter worker for the growth chart.
+export const newsletterAudienceSnapshots = pgTable("newsletter_audience_snapshots", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  day: date("day").notNull(),
+  subscribed: integer("subscribed").notNull(),
+  unsubscribed: integer("unsubscribed").notNull(),
+  suppressed: integer("suppressed").notNull(),
+  takenAt: timestamp("taken_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [primaryKey({ columns: [t.tenantId, t.day] }),
+  check("newsletter_audience_snapshot_counts", sql`${t.subscribed} >= 0 and ${t.unsubscribed} >= 0 and ${t.suppressed} >= 0`)]);
 
 /** Per-ministry newsletter settings. Link-click counting is off until the owner turns it on; `click_tracking_since` is set by the database when it is turned on. */
 export const newsletterSettings = pgTable("newsletter_settings", {

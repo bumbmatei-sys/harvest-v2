@@ -32,6 +32,8 @@ export function errorResponse(error: unknown) {
     const details = e2eDenialDetails(pg);
     return Response.json({ error: message("Errors.workspaceAccessDenied"), ...(details ? { details } : {}) }, { status: 403 });
   }
+  // P0429: a database write limit (0129 community_write_rate_guard). The same answer whatever the limit or the record.
+  if (hasSqlState(error, ["P0429"])) return Response.json({ error: message("Errors.communityWriteLimited") }, { status: 429, headers: { "Retry-After": "600" } });
   if (hasSqlState(error, ["40P01", "40001"])) return Response.json({ error: message("Errors.thisRecordChangedReloadAndTryAgain"), details: { reason: "stale" } }, { status: 409 });
   console.error("request_failed");
   return Response.json({ error: message("Errors.somethingWentWrongPleaseTryAgain") }, { status: 500 });
