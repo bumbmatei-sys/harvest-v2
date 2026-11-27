@@ -66,7 +66,7 @@ describe("field definitions", () => {
       await expect(createFieldDefinition(fixture.db, user, tenantA, { objectType: "person", label: "Denied", type: "text" })).rejects.toMatchObject({ status: 403 });
       await expect(updateFieldDefinition(fixture.db, user, tenantA, fields.church.id, { label: "Denied", version: 1 })).rejects.toMatchObject({ status: 403 });
     }
-    expect((await listFieldDefinitions(fixture.db, "viewer-a", tenantA, "person")).length).toBe(8);
+    await expect(listFieldDefinitions(fixture.db, "viewer-a", tenantA, "person")).rejects.toMatchObject({ status: 403 });
   });
   it("keeps key and type immutable and checks options in SQL", async () => {
     await expect(withTenant(fixture.db, "owner-a", tenantA, "crm:fields_write", (tx) => tx.execute(sql`update crm_field_definitions set key = 'renamed'`))).rejects.toMatchObject({ cause: { code: "42501" } });
@@ -197,7 +197,7 @@ describe("filters, sorts and columns", () => {
     const subscribers = await listContacts(fixture.db, "member-a", tenantA, { f: "marketing~any_of~granted" });
     expect(subscribers.rows.map((row) => [row.id, row.marketingEmail])).toEqual([[personA, "granted"]]);
     expect((await listContacts(fixture.db, "member-a", tenantA, { marketing: "none" })).rows.map((row) => row.id)).toEqual([personA2]);
-    const views = await listViews(fixture.db, "viewer-a", tenantA, "person");
+    const views = await listViews(fixture.db, "member-a", tenantA, "person");
     expect(views.filter((view) => view.kind === "system").map((view) => view.id)).toEqual(["system:all-people", "system:email-subscribers", "system:unsubscribed", "system:no-email-decision", "system:no-company"]);
   });
   it("company lists filter, sort and expose custom values too", async () => {
@@ -239,7 +239,7 @@ describe("saved views", () => {
     await expect(createView(fixture.db, "viewer-a", tenantA, { objectType: "person", name: "Denied", state: fullState({}) })).rejects.toMatchObject({ status: 403 });
     await expect(deleteView(fixture.db, "viewer-a", tenantA, "person", shared.id)).rejects.toMatchObject({ status: 403 });
     await expect(updateView(fixture.db, "member-a", tenantA, "person", "system:all-people", { name: "x", version: 1 })).rejects.toMatchObject({ status: 403 });
-    expect(await findView(fixture.db, "viewer-a", tenantA, "person", "system:unknown")).toBeNull();
+    await expect(findView(fixture.db, "viewer-a", tenantA, "person", "system:unknown")).rejects.toMatchObject({ status: 403 });
     expect(await findView(fixture.db, "viewer-a", tenantA, "company", shared.id)).toBeNull();
   });
 });

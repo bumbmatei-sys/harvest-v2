@@ -126,7 +126,9 @@ describe("consent per purpose (required test 3)", () => {
     await new Promise((resolve) => setTimeout(resolve, 5));
     await grant("owner-a", tenantA, eve, "form_follow_up", "granted", "email");
     expect(await recordAssociation(fixture.db, "member-a", tenantA, { ...form, externalId: "form-3" })).toMatchObject({ stored: true });
-    const permissions = await associationPermissions(fixture.db, "viewer-a", tenantA, eve);
+    await expect(associationPermissions(fixture.db, "viewer-a", tenantA, eve)).rejects.toMatchObject({ status: 403 });
+    const permissions = await associationPermissions(fixture.db, "owner-a", tenantA, eve);
+    expect((await associationPermissions(fixture.db, "member-a", tenantA, eve)).purposes[1].source).toBeNull();
     expect(permissions.purposes.map((item) => [item.purpose, item.status])).toEqual([["messaging", "granted"], ["form_follow_up", "granted"], ["newsletter", "none"]]);
     expect(permissions.purposes[1].source).toBe("Synthetic form_follow_up granted");
   });
@@ -159,7 +161,7 @@ describe("consent edge cases (review S2, S3)", () => {
     await recordConsent(fixture.db, "owner-a", tenantA, una, { channel: "email", status: "unknown", purpose: "newsletter", noticeVersion: "notice-v1", source: "Synthetic unknown", evidence: "Synthetic test evidence" });
     expect((await getContact(fixture.db, "owner-a", tenantA, una)).effectiveConsents.filter((consent) => consent.purpose === "newsletter").map((consent) => consent.status)).toEqual(["unknown"]);
     expect(await recordAssociation(fixture.db, "member-a", tenantA, { source: "form", kind: "signup", purpose: "newsletter", contactId: una, summary: "After" })).toMatchObject({ stored: false, reason: "consent_missing" });
-    expect((await associationPermissions(fixture.db, "viewer-a", tenantA, una)).purposes.find((item) => item.purpose === "newsletter")).toMatchObject({ status: "none" });
+    expect((await associationPermissions(fixture.db, "member-a", tenantA, una)).purposes.find((item) => item.purpose === "newsletter")).toMatchObject({ status: "none" });
     // The SQL guard refuses the superseded grant even when the service is bypassed.
     await expect(withTenant(fixture.db, "member-a", tenantA, "contacts:write", (tx, tenantId) => tx.insert(crmAssociations).values({ tenantId, contactId: una, source: "form", kind: "signup", purpose: "newsletter", consentId: grantId, occurredAt: new Date(), createdBy: "member-a" })))
       .rejects.toThrow();
@@ -175,7 +177,7 @@ describe("consent edge cases (review S2, S3)", () => {
     const wen = (await createContact(fixture.db, "owner-a", tenantA, { name: "Synthetic Wen" })).id;
     await grant("owner-a", tenantA, wen, "messaging", "granted", "social");
     await grant("owner-a", tenantA, wen, "messaging", "withdrawn", "email");
-    expect((await associationPermissions(fixture.db, "viewer-a", tenantA, wen)).purposes.find((item) => item.purpose === "messaging")).toMatchObject({ status: "withdrawn", channel: "email" });
+    expect((await associationPermissions(fixture.db, "member-a", tenantA, wen)).purposes.find((item) => item.purpose === "messaging")).toMatchObject({ status: "withdrawn", channel: "email" });
     // A new grant on social (the usual messaging channel) does not clear an email withdrawal; one on email does.
     await grant("owner-a", tenantA, wen, "messaging", "granted", "social");
     expect(await recordAssociation(fixture.db, "member-a", tenantA, message({ contactId: wen }))).toMatchObject({ stored: false, reason: "consent_withdrawn" });
@@ -274,7 +276,7 @@ describe("merge (required test 5)", () => {
     // The row survives the merged person's erasure, unredacted, now on the kept person with its consent row (which moved too).
     const row = (await fixture.admin.query("select a.contact_id, a.summary, a.redacted_at, c.contact_id as consent_contact from crm_associations a join contact_consents c on c.tenant_id = a.tenant_id and c.id = a.consent_id where a.id = $1", [stored.id])).rows[0];
     expect(row).toMatchObject({ contact_id: kept, consent_contact: kept, summary: "Synthetic: merged-away note", redacted_at: null });
-    const timeline = (await getTimeline(fixture.db, "viewer-a", tenantA, "person", kept)).items;
+    const timeline = (await getTimeline(fixture.db, "member-a", tenantA, "person", kept)).items;
     expect(timeline.some((item) => item.kind === "association" && item.associationId === stored.id)).toBe(true);
     // Later erasure of the kept person still removes it.
     await eraseContact(fixture.db, "owner-a", tenantA, kept);
@@ -290,9 +292,9 @@ describe("timeline (required test 6)", () => {
       await createNote(fixture.db, "owner-a", tenantA, { target: "person", targetId: mia, body: `Note ${index}` });
       await recordAssociation(fixture.db, "member-a", tenantA, { source: "form", kind: "signup", purpose: "newsletter", contactId: mia, companyId: index === 0 ? companyA : undefined, summary: `Signup ${index}` });
     }
-    const first = await getTimeline(fixture.db, "viewer-a", tenantA, "person", mia);
+    const first = await getTimeline(fixture.db, "member-a", tenantA, "person", mia);
     expect(first.items).toHaveLength(50);
-    const second = await getTimeline(fixture.db, "viewer-a", tenantA, "person", mia, first.nextCursor);
+    const second = await getTimeline(fixture.db, "member-a", tenantA, "person", mia, first.nextCursor);
     const all = [...first.items, ...second.items];
     expect(second.nextCursor).toBeNull();
     expect(all).toHaveLength(62); // 30 notes, 30 associations, contact.create, contact.consent_record
@@ -303,9 +305,9 @@ describe("timeline (required test 6)", () => {
     // Newest first, by ledger time and id: strictly ordered with no repeats across the page boundary.
     const stamps = all.map((item) => item.createdAt.getTime());
     expect(stamps).toEqual([...stamps].sort((a, b) => b - a));
-    const company = (await getTimeline(fixture.db, "viewer-a", tenantA, "company", companyA)).items.filter((item) => item.kind === "association");
+    const company = (await getTimeline(fixture.db, "member-a", tenantA, "company", companyA)).items.filter((item) => item.kind === "association");
     expect(company.some((item) => item.kind === "association" && item.person?.id === mia && item.summary === "Signup 0")).toBe(true);
-    await expect(later(() => getTimeline(fixture.db, "viewer-a", tenantA, "person", mia, "garbage"))).rejects.toMatchObject({ status: 400 });
-    await expect(getTimeline(fixture.db, "viewer-a", tenantA, "person", "00000000-0000-4000-8000-000000000000")).rejects.toMatchObject({ status: 404 });
+    await expect(later(() => getTimeline(fixture.db, "member-a", tenantA, "person", mia, "garbage"))).rejects.toMatchObject({ status: 400 });
+    await expect(getTimeline(fixture.db, "member-a", tenantA, "person", "00000000-0000-4000-8000-000000000000")).rejects.toMatchObject({ status: 404 });
   });
 });

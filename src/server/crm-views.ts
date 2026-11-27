@@ -41,7 +41,7 @@ function visibleRows(tx: Transaction, tenantId: string, userId: string, objectTy
  */
 export function listViews(db: Database, userId: string, workspace: string, objectType: ObjectType, options?: { writable: boolean; includeLocked?: boolean }) {
   const type = z.enum(objectTypes).parse(objectType);
-  return withTenant(db, userId, uuidInput.parse(workspace), readPermission(type), async (tx, tenantId, role) => {
+  return withTenant(db, userId, uuidInput.parse(workspace), readPermission(type), async (tx, tenantId, _role, role) => {
     const writable = options?.writable ?? false;
     const rows = await visibleRows(tx, tenantId, userId, type);
     const saved = rows.map((row) => toView(row, writable)).flatMap((view) => !sourceLocked(role, view.state) ? [view]
@@ -56,7 +56,7 @@ export function listViews(db: Database, userId: string, workspace: string, objec
 /** Resolve a view id for the caller. Unknown, foreign or another user's personal view → null. */
 export function findView(db: Database, userId: string, workspace: string, objectType: ObjectType, id: string) {
   const type = z.enum(objectTypes).parse(objectType);
-  return withTenant(db, userId, uuidInput.parse(workspace), readPermission(type), async (tx, tenantId, role) => {
+  return withTenant(db, userId, uuidInput.parse(workspace), readPermission(type), async (tx, tenantId, _role, role) => {
     const system = systemViews[type].find((view) => view.id === id);
     if (system) return { id: system.id, name: system.name, objectType: type, kind: "system", state: fullState(system.state), version: 1, editable: false } satisfies SavedView;
     if (!uuidInput.safeParse(id).success) return null;
@@ -70,7 +70,7 @@ export function findView(db: Database, userId: string, workspace: string, object
 /** Views are saved only by writers; the stored state must be valid for this tenant now. */
 export function createView(db: Database, userId: string, workspace: string, data: ViewInput) {
   const input = viewInput.parse(data);
-  return withTenant(db, userId, uuidInput.parse(workspace), writePermission(input.objectType), async (tx, tenantId, role) => {
+  return withTenant(db, userId, uuidInput.parse(workspace), writePermission(input.objectType), async (tx, tenantId, _role, role) => {
     resolveState(input.objectType, input.state, await loadDefinitions(tx, tenantId, input.objectType));
     await checkSources(tx, tenantId, role, input.state);
     const [row] = await tx.insert(crmSavedViews).values({ tenantId, objectType: input.objectType, name: input.name, ownerUserId: input.shared ? null : userId, state: input.state, createdBy: userId }).returning();
@@ -91,7 +91,7 @@ async function lockOwned(tx: Transaction, tenantId: string, userId: string, id: 
 }
 export function updateView(db: Database, userId: string, workspace: string, objectType: ObjectType, id: string, data: ViewPatch) {
   const type = z.enum(objectTypes).parse(objectType), { version, ...input } = viewPatch.parse(data);
-  return withTenant(db, userId, uuidInput.parse(workspace), writePermission(type), async (tx, tenantId, role) => {
+  return withTenant(db, userId, uuidInput.parse(workspace), writePermission(type), async (tx, tenantId, _role, role) => {
     const current = await lockOwned(tx, tenantId, userId, id, role);
     if (current.objectType !== type) throw missing();
     if (current.version !== version) throw stale();
@@ -106,7 +106,7 @@ export function updateView(db: Database, userId: string, workspace: string, obje
 }
 export function deleteView(db: Database, userId: string, workspace: string, objectType: ObjectType, id: string) {
   const type = z.enum(objectTypes).parse(objectType);
-  return withTenant(db, userId, uuidInput.parse(workspace), writePermission(type), async (tx, tenantId, role) => {
+  return withTenant(db, userId, uuidInput.parse(workspace), writePermission(type), async (tx, tenantId, _role, role) => {
     const current = await lockOwned(tx, tenantId, userId, id, role);
     if (current.objectType !== type) throw missing();
     await tx.delete(crmSavedViews).where(and(eq(crmSavedViews.tenantId, tenantId), eq(crmSavedViews.id, current.id)));

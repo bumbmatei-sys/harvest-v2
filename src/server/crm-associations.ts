@@ -38,7 +38,7 @@ export type AssociationResult =
  * (the newsletter counts email grants only).
  */
 export async function purposeConsent(tx: Transaction, tenantId: string, contactId: string, purpose: AssociationPurpose) {
-  const decision = decideConsent(await loadLedger(tx, tenantId, contactId, purpose), purpose);
+  const decision = decideConsent(await loadLedger(tx, tenantId, contactId, purpose, true), purpose);
   if (decision.allowed) return { allowed: true as const, consentId: decision.consentId, event: decision.event };
   // The only reasons reachable without a channel on an association purpose.
   const reason = decision.reason === "consent_withdrawn" ? "consent_withdrawn" as const : "consent_missing" as const;

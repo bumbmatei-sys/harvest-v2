@@ -133,10 +133,8 @@ it("keeps list, count and export identical, and adds Sources only when the colum
 
 it("refuses source rules to members, viewers, revoked admins and foreign or missing references", async () => {
   const rules = [rule({ mode: "include", kinds: ["connect"] })];
-  for (const actor of ["s-member", "s-viewer"]) {
-    const list = await listContacts(f.db, actor, tenant, params(rules));
-    expect(list).toMatchObject({ rows: [], total: 0, locked: "source_access" });
-  }
+  expect(await listContacts(f.db, "s-member", tenant, params(rules))).toMatchObject({ rows: [], total: 0, locked: "source_access" });
+  await expect(listContacts(f.db, "s-viewer", tenant, params(rules))).rejects.toMatchObject({ status: 403 });
   await expect(exportCount(f.db, "s-member", tenant, "person", params(rules))).rejects.toMatchObject({ status: 403 });
   await expect(exportRecords(f.db, "s-member", tenant, "person", params(rules))).rejects.toMatchObject({ status: 403 });
   await expect(exportCount(f.db, "s-viewer", tenant, "person", params(rules))).rejects.toMatchObject({ status: 403 });

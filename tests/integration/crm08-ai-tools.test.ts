@@ -57,15 +57,17 @@ describe("read tools", () => {
   });
 
   it("answers through the app's services and never returns notes, custom values, consent evidence, bodies, close reasons or activity content", async () => {
+    await expect(executeCrmTool(fixture.db, "viewer-a", tenantA, "crm_search_people", { query: "Ana" })).rejects.toMatchObject({ status: 403 });
+    await expect(executeCrmTool(fixture.db, "viewer-a", tenantA, "crm_get_person", { personId: person })).rejects.toMatchObject({ status: 403 });
     const outputs = [
-      await executeCrmTool(fixture.db, "viewer-a", tenantA, "crm_search_people", { query: "Ana" }),
-      await executeCrmTool(fixture.db, "viewer-a", tenantA, "crm_get_person", { personId: person }),
+      await executeCrmTool(fixture.db, "member-a", tenantA, "crm_search_people", { query: "Ana" }),
+      await executeCrmTool(fixture.db, "member-a", tenantA, "crm_get_person", { personId: person }),
       await executeCrmTool(fixture.db, "viewer-a", tenantA, "crm_search_organizations", { query: "grace" }),
       await executeCrmTool(fixture.db, "viewer-a", tenantA, "crm_get_organization", { organizationId: org }),
-      await executeCrmTool(fixture.db, "viewer-a", tenantA, "crm_get_timeline", { subject: "person", recordId: person }),
+      await executeCrmTool(fixture.db, "member-a", tenantA, "crm_get_timeline", { subject: "person", recordId: person }),
       await executeCrmTool(fixture.db, "viewer-a", tenantA, "crm_get_timeline", { subject: "organization", recordId: org }),
       await executeCrmTool(fixture.db, "viewer-a", tenantA, "crm_get_deal", { dealId: deal }),
-      await executeCrmTool(fixture.db, "viewer-a", tenantA, "crm_list_related_deals", { subject: "person", recordId: person }),
+      await executeCrmTool(fixture.db, "member-a", tenantA, "crm_list_related_deals", { subject: "person", recordId: person }),
       await executeCrmTool(fixture.db, "member-a", tenantA, "crm_list_my_tasks", {}),
     ];
     const dump = JSON.stringify(outputs);

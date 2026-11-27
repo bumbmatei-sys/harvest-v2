@@ -49,7 +49,8 @@ describe("tasks", () => {
   it("creates a linked task, audits relation ids, notifies the assignee and appends a redacted outbox event in the same transaction", async () => {
     const created = await createTask(fixture.db, "owner-a", tenantA, { title: "Call about the tent order", body: "Sensitive pastoral detail", priority: "high", dueAt: hoursFromNow(48), assigneeUserId: "member-a", contactId: personA, opportunityId: dealA });
     taskId = created.id; version = created.version;
-    const task = await getTask(fixture.db, "viewer-a", tenantA, taskId);
+    const task = await getTask(fixture.db, "member-a", tenantA, taskId);
+    expect(await getTask(fixture.db, "viewer-a", tenantA, taskId)).toMatchObject({ contactName: null });
     expect(task).toMatchObject({ status: "open", priority: "high", assigneeName: "Synthetic member-a", contactName: "Synthetic Priscilla", dealName: "Tent order", completedAt: null });
     const [log] = (await fixture.admin.query("select metadata from audit_logs where target_id = $1 and action = 'task.create'", [taskId])).rows;
     expect(log.metadata).toEqual({ contactId: personA, opportunityId: dealA });
@@ -118,7 +119,7 @@ describe("tasks", () => {
     }
   });
   it("lists related tasks on person, company and deal records", async () => {
-    expect((await listRelatedTasks(fixture.db, "viewer-a", tenantA, "person", personA)).tasks.map((task) => task.id)).toEqual([taskId]);
+    expect((await listRelatedTasks(fixture.db, "member-a", tenantA, "person", personA)).tasks.map((task) => task.id)).toEqual([taskId]);
     expect((await listRelatedTasks(fixture.db, "viewer-a", tenantA, "deal", dealA)).tasks.map((task) => task.id)).toEqual([taskId]);
     expect((await listRelatedTasks(fixture.db, "viewer-a", tenantA, "company", companyA)).tasks.map((task) => task.title)).toEqual(["Overdue visit"]);
   });
@@ -164,10 +165,10 @@ describe("notes", () => {
 
 describe("unified timeline", () => {
   it("merges ledger events and notes newest first for a person", async () => {
-    const before = await getTimeline(fixture.db, "viewer-a", tenantA, "person", personA);
+    const before = await getTimeline(fixture.db, "member-a", tenantA, "person", personA);
     await patchContact(fixture.db, "owner-a", tenantA, personA, { notes: "Updated", version: (await withTenant(fixture.db, "owner-a", tenantA, "contacts:read", (tx) => tx.execute(sql`select version from contacts where id = ${personA}::uuid`))).rows[0].version as number });
     const note = await createNote(fixture.db, "owner-a", tenantA, { target: "person", targetId: personA, body: "Newest note" });
-    const { items } = await getTimeline(fixture.db, "viewer-a", tenantA, "person", personA);
+    const { items } = await getTimeline(fixture.db, "member-a", tenantA, "person", personA);
     expect(items.length).toBe(before.items.length + 2);
     expect(items[0]).toMatchObject({ kind: "note", id: note.id, body: "Newest note" });
     expect(items[1]).toMatchObject({ kind: "event", action: "contact.update" });
@@ -217,7 +218,7 @@ describe("unified timeline", () => {
   it("shows a person note's archive event on that person's timeline only", async () => {
     const note = await createNote(fixture.db, "owner-a", tenantA, { target: "person", targetId: personA, body: "Person note to archive" });
     await updateNote(fixture.db, "owner-a", tenantA, note.id, { archived: true, version: 1 });
-    const person = (await getTimeline(fixture.db, "viewer-a", tenantA, "person", personA)).items;
+    const person = (await getTimeline(fixture.db, "member-a", tenantA, "person", personA)).items;
     expect(person.some((item) => item.kind === "event" && item.action === "note.archive")).toBe(true);
     expect(person.some((item) => item.kind === "note" && item.id === note.id)).toBe(false);
     const company = (await getTimeline(fixture.db, "viewer-a", tenantA, "company", companyA)).items;

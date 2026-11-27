@@ -204,10 +204,10 @@ describe("CRM lists: search, filters, sorting and tenant scope", () => {
 
 describe("CRM activity and erasure", () => {
   it("builds person and company activity from real audit events", async () => {
-    const contactActivity = await listContactActivity(fixture.db, "viewer-a", tenantA, personA);
+    const contactActivity = await listContactActivity(fixture.db, "member-a", tenantA, personA);
     expect(contactActivity.map((row) => row.action)).toEqual(expect.arrayContaining(["contact.create", "contact.update", "contact.company_link", "contact.company_unlink", "contact.consent_record"]));
     expect(contactActivity.find((row) => row.action === "contact.consent_record")).toMatchObject({ channel: "email" });
-    const companyActivity = await listCompanyActivity(fixture.db, "viewer-a", tenantA, companyA);
+    const companyActivity = await listCompanyActivity(fixture.db, "member-a", tenantA, companyA);
     expect(companyActivity.filter((row) => row.action === "contact.company_link").map((row) => row.contact?.name).sort()).toEqual(["Synthetic Ada Lovelace", "Synthetic Charles"]);
     expect(companyActivity.at(-1)).toMatchObject({ action: "company.create", actor: { name: "Synthetic owner-a" } });
   });

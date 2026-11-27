@@ -85,7 +85,8 @@ describe("deals", () => {
     await expect(later(() => createDeal(fixture.db, "member-a", tenantA, { name: "No relation" }))).rejects.toMatchObject({ status: 400 });
     const created = await createDeal(fixture.db, "member-a", tenantA, { name: "Fabric order", companyId: companyA, contactId: personA, amount: "1000", expectedCloseDate: daysFromToday(30), ownerUserId: "member-a" });
     dealId = created.id; version = created.version;
-    const { deal } = await getDeal(fixture.db, "viewer-a", tenantA, dealId);
+    const { deal } = await getDeal(fixture.db, "member-a", tenantA, dealId);
+    expect((await getDeal(fixture.db, "viewer-a", tenantA, dealId)).deal.contactName).toBeNull();
     expect(deal).toMatchObject({ stageId: stage(pipelineA, "new").id, amount: "1000.00", currency: "USD", companyName: "Thyatira Cloth", contactName: "Synthetic Lydia", ownerName: "Synthetic member-a" });
   });
   it("rejects foreign relations, non-member owners and invalid input", async () => {
@@ -173,7 +174,7 @@ describe("board totals, stale deals and filters", () => {
   });
   it("lists related deals on companies and people, for readers only in the right tenant", async () => {
     expect((await listRelatedDeals(fixture.db, "viewer-a", tenantA, "company", companyA)).deals.map((deal) => deal.name).sort()).toEqual(["Closed long ago", "Fabric order (large)", "No amount"]);
-    expect((await listRelatedDeals(fixture.db, "viewer-a", tenantA, "person", personA)).deals).toHaveLength(2);
+    expect((await listRelatedDeals(fixture.db, "member-a", tenantA, "person", personA)).deals).toHaveLength(2);
     expect((await listRelatedDeals(fixture.db, "owner-b", tenantB, "company", companyA)).deals).toEqual([]);
   });
 });

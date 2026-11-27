@@ -37,9 +37,10 @@ export function decideConsent(rows: readonly LedgerEvent[], purpose: ConsentPurp
 }
 
 /** One person's non-redacted ledger rows for one purpose, newest first, with outstanding withdrawals marked. */
-export async function loadLedger(tx: Transaction, tenantId: string, contactId: string, purpose: ConsentPurpose): Promise<LedgerEvent[]> {
+export async function loadLedger(tx: Transaction, tenantId: string, contactId: string, purpose: ConsentPurpose, includeEvidence = false): Promise<LedgerEvent[]> {
   const rows = await tx.execute<LedgerEvent>(sql`
-    select c.id, c.status, c.channel, c.occurred_at, c.recorded_at, c.source,
+    select c.id, c.status, c.channel, c.occurred_at, c.recorded_at,
+      ${includeEvidence ? sql`(select e.source from public.crm_consent_evidence(${tenantId}::uuid, ${contactId}::uuid) e where e.id = c.id)` : sql`null::text`} as source,
       (c.status = 'withdrawn' and not exists (select 1 from contact_consents g where g.tenant_id = c.tenant_id and g.contact_id = c.contact_id
         and g.channel = c.channel and g.purpose = c.purpose and g.status = 'granted' and g.recorded_at > c.recorded_at and g.occurred_at > c.occurred_at)) as outstanding
     from contact_consents c

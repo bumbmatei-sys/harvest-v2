@@ -32,7 +32,7 @@ describe("contact input and permissions", () => {
   });
   it("permits member contact writes, viewer reads and admin settings", () => {
     expect(can("member", "contacts:write")).toBe(true);
-    expect(can("viewer", "contacts:read")).toBe(true);
+    expect(can("viewer", "contacts:read")).toBe(false);
     expect(can("viewer", "contacts:write")).toBe(false);
     expect(can("member", "settings:write")).toBe(false);
     expect(can("admin", "settings:write")).toBe(true);

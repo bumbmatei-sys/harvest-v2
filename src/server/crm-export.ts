@@ -49,7 +49,7 @@ async function sourcePolicy(tx: Transaction, tenantId: string, role: Parameters<
 export function exportRecords(db: Database, userId: string, workspace: string, entity: "person" | "company", params: RawParams = {}) {
   const parsed = paramsToState(entity, params);
   if (!parsed) throw invalidView();
-  return withTenant(db, userId, uuidInput.parse(workspace), "crm:export", async (tx, tenantId, role) => {
+  return withTenant(db, userId, uuidInput.parse(workspace), "crm:export", async (tx, tenantId, _role, role) => {
     const definitions = await loadDefinitions(tx, tenantId, entity);
     const state = resolveState(entity, parsed.state, definitions);
     const active = definitions.filter((field) => !field.archivedAt);
@@ -117,7 +117,7 @@ export function exportRecords(db: Database, userId: string, workspace: string, e
 export function exportCount(db: Database, userId: string, workspace: string, entity: "person" | "company", params: RawParams = {}) {
   const parsed = paramsToState(entity, params);
   if (!parsed) throw invalidView();
-  return withTenant(db, userId, uuidInput.parse(workspace), "crm:export", async (tx, tenantId, role) => {
+  return withTenant(db, userId, uuidInput.parse(workspace), "crm:export", async (tx, tenantId, _role, role) => {
     const definitions = await loadDefinitions(tx, tenantId, entity);
     const state = resolveState(entity, parsed.state, definitions);
     const sources = await sourcePolicy(tx, tenantId, role, entity, state);

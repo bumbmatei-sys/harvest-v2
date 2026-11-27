@@ -3,17 +3,18 @@ import { can, legacyRules } from "../../src/lib/permissions";
 import { everyPermission, parseRoleToken, permissionArea, roleToken, withinGrants } from "../../src/lib/access-areas";
 import { resolveModeNavigation } from "../../src/lib/navigation";
 
-// A frozen copy of the rules as they were before per-feature access. The new `can` must equal it for every legacy role and unknown role.
+// The legacy role matrix with the approved exception for CRM contact visibility.
 function frozen(role: string, p: string): boolean {
+  if (p === "contacts:read") return ["owner", "admin", "member"].includes(role);
   const all = ["owner", "admin", "member", "viewer"];
-  if (["communities:read", "workspace:read", "contacts:read", "companies:read", "opportunities:read", "tasks:read", "notes:read", "campaigns:read", "docs:read", "catalog:read"].includes(p)) return all.includes(role);
+  if (["communities:read", "workspace:read", "companies:read", "opportunities:read", "tasks:read", "notes:read", "campaigns:read", "docs:read", "catalog:read"].includes(p)) return all.includes(role);
   if (p === "newsletter:read") return ["owner", "admin", "member"].includes(role);
   if (["followup:work", "contacts:record_withdrawal", "crm:reports", "docs:write", "contacts:write", "companies:write", "opportunities:write", "tasks:write", "notes:write", "campaigns:write", "crm:import", "crm:export"].includes(p)) return ["owner", "admin", "member"].includes(role);
   if (p === "social:approvals_settings") return role === "owner";
   return role === "owner" || role === "admin";
 }
 describe("feature access, code capabilities", () => {
-  it("keeps every legacy role and unknown role exactly as before", () => {
+  it("applies the legacy role matrix and the CRM contact visibility rule", () => {
     for (const role of ["owner", "admin", "member", "viewer", "superadmin", "", "OWNER"]) for (const p of everyPermission) expect(can(role, p), `${role} ${p}`).toBe(frozen(role, p));
     expect(legacyRules("member", "crm:import")).toBe(true);
   });
@@ -30,7 +31,7 @@ describe("feature access, code capabilities", () => {
     const view = roleToken("collaborator", { crm: "view" });
     expect(can(view, "contacts:read")).toBe(true); expect(can(view, "contacts:write")).toBe(false);
     const crm = roleToken("collaborator", { crm: "manage" });
-    for (const p of ["contacts:erase", "contacts:attest_consent", "crm:export_sensitive", "webhooks:manage", "members:write", "roles:write", "contacts:merge"] as const) expect(can(crm, p), p).toBe(false);
+    for (const p of ["contacts:erase", "contacts:attest_consent", "contacts:consent_evidence", "contacts:sources_read", "crm:export_sensitive", "webhooks:manage", "members:write", "roles:write", "contacts:merge"] as const) expect(can(crm, p), p).toBe(false);
     expect(can(crm, "contacts:write")).toBe(true); expect(can("collaborator", "contacts:read")).toBe(false);
   });
   it("guests and campaign guests hold workspace:read and docs:read only; tokens fail closed", () => {

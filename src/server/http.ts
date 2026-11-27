@@ -1,3 +1,6 @@
+import { headers } from "next/headers";
+import { after } from "next/server";
+import { apiDenialRoute, apiDenialRouteHeader } from "../lib/api-denial-route";
 import { e2eDenialDetails } from "./e2e-diagnostics";
 import { message } from "../i18n/messages";
 import "server-only";
@@ -22,10 +25,25 @@ function hasSqlState(error: unknown, codes: string[]): boolean {
   if (!error || typeof error !== "object") return false;
   return ("code" in error && typeof error.code === "string" && codes.includes(error.code)) || ("cause" in error && hasSqlState(error.cause, codes));
 }
+function logDenial(reason: "permission_denied" | "origin_denied" | "row_policy_denied") {
+  try {
+    const requestHeaders = headers();
+    after(async () => {
+      const route = (await requestHeaders).get(apiDenialRouteHeader);
+      console.warn({ route: route && apiDenialRoute(route) === route ? route : "/api/:route", reason });
+    });
+  } catch {
+    // Callers outside the request lifecycle cannot identify a route.
+  }
+}
 export function errorResponse(error: unknown) {
-  if (error instanceof AccessError) return Response.json({ error: error.message, ...(error.details ? { details: error.details } : {}) }, { status: error.status });
+  if (error instanceof AccessError) {
+    if (error.status === 403) logDenial(error.message === message("Errors.requestOriginDenied") ? "origin_denied" : "permission_denied");
+    return Response.json({ error: error.message, ...(error.details ? { details: error.details } : {}) }, { status: error.status });
+  }
   if (error instanceof ZodError || error instanceof SyntaxError) return Response.json({ error: message("Errors.checkTheSuppliedDetails") }, { status: 400 });
   if (hasSqlState(error, ["42501"])) {
+    logDenial("row_policy_denied");
     // Browser-test server only: name the table and constraint of the refused statement (no values) so an intermittent denial can be traced.
     const pg = error && typeof error === "object" ? ("cause" in error && error.cause && typeof error.cause === "object" ? error.cause : error) as { table?: string; constraint?: string; routine?: string; message?: string } : {};
     const details = e2eDenialDetails(pg);

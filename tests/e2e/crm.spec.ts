@@ -310,11 +310,8 @@ test("CRM: people and companies create, edit, link, filter, isolate and render i
   const viewer = await viewerContext.newPage();
   const viewerEmail = await signIn(viewer);
   expect((await api(page, "put", `${apiRoot}/members`, { email: viewerEmail, role: "viewer" })).status).toBe(200);
-  await viewer.goto(`${root}/crm/people/${personId}`);
-  await expect(viewer.getByText("You have view-only access to this record.")).toBeVisible();
-  await expect(viewer.getByRole("button", { name: /^Edit / })).toHaveCount(0);
-  await expect(viewer.getByRole("button", { name: "Link organization" })).toHaveCount(0);
-  await capture(viewer, "person-viewer-light");
+  expect((await api(viewer, "get", `${apiRoot}/contacts`)).status).toBe(403);
+  expect((await api(viewer, "get", `${apiRoot}/contacts/${personId}`)).status).toBe(403);
   expect((await api(viewer, "patch", `${apiRoot}/contacts/${personId}`, { name: "Denied", version: 1 })).status).toBe(403);
   expect((await api(viewer, "post", `${apiRoot}/companies`, { name: "Denied" })).status).toBe(403);
   expect((await api(viewer, "post", `${apiRoot}/contacts/${personId}/companies`, { companyId })).status).toBe(403);

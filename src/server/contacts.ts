@@ -45,10 +45,10 @@ export type ListExtension = { where?: (tx: Transaction, tenantId: string) => Pro
 export function listContacts(db: Database, userId: string, workspace: string, params: ListParams = {}, extension: ListExtension = {}) {
   const parsed = paramsToState("person", params);
   if (!parsed) throw invalidView();
-  return withTenant(db, userId, uuidInput.parse(workspace), "contacts:read", async (tx, tenantId, role) => {
+  return withTenant(db, userId, uuidInput.parse(workspace), "contacts:read", async (tx, tenantId, _role, access) => {
     const definitions = await loadDefinitions(tx, tenantId, "person");
     const state = resolveState("person", parsed.state, definitions), page = parsed.page;
-    const sourceAccess = can(role, "contacts:sources_read");
+    const sourceAccess = can(access, "contacts:sources_read");
     // HC-06C: a source rule the caller may not use, or one naming a reference that is gone, shows
     // an empty locked list. It never falls back to the default view and never drops the rule.
     let sourceNames = new Map<string, string>();
@@ -106,15 +106,21 @@ export async function loadLiveContact(tx: Transaction, tenantId: string, id: str
   return row;
 }
 
+const { source: consentSource, evidence: consentEvidence, ...consentColumns } = getTableColumns(contactConsents);
+void consentSource;
+void consentEvidence;
+
+const hiddenConsentEvidence = { source: null, evidence: null };
+
 export function getContact(db: Database, userId: string, workspace: string, contact: string) {
-  return withTenant(db, userId, uuidInput.parse(workspace), "contacts:read", async (tx, tenantId, role) => {
+  return withTenant(db, userId, uuidInput.parse(workspace), "contacts:read", async (tx, tenantId, _role, access) => {
     const id = uuidInput.parse(contact);
     const row = await loadLiveContact(tx, tenantId, id);
     const identifiers = await tx.select().from(contactIdentifiers).where(and(eq(contactIdentifiers.tenantId, tenantId), eq(contactIdentifiers.contactId, id)));
     const grants = alias(contactConsents, "later_grants");
     // Compare in PostgreSQL so strict ordering retains sub-millisecond precision.
     const events = await tx.select({
-      event: getTableColumns(contactConsents),
+      event: consentColumns,
       outstandingWithdrawal: sql<boolean>`${and(eq(contactConsents.status, "withdrawn"), notExists(
         tx.select({ one: sql`1` }).from(grants).where(and(
           eq(grants.tenantId, contactConsents.tenantId), eq(grants.contactId, contactConsents.contactId),
@@ -124,7 +130,12 @@ export function getContact(db: Database, userId: string, workspace: string, cont
       ))}`,
     }).from(contactConsents).where(and(eq(contactConsents.tenantId, tenantId), eq(contactConsents.contactId, id)))
       .orderBy(desc(contactConsents.recordedAt), desc(contactConsents.occurredAt), desc(contactConsents.id));
-    const consents = events.map(({ event }) => event);
+    const evidence = can(access, "contacts:consent_evidence")
+      ? await tx.execute<{ id: string; source: string | null; evidence: string | null }>(sql`select * from public.crm_consent_evidence(${tenantId}::uuid, ${id}::uuid)`)
+      : { rows: [] };
+    const evidenceById = new Map(evidence.rows.map(({ id, ...details }) => [id, details]));
+    const withEvidence = (event: typeof events[number]["event"]) => ({ ...event, ...(evidenceById.get(event.id) ?? hiddenConsentEvidence) });
+    const consents = events.map(({ event }) => withEvidence(event));
     // Any unsuperseded unsubscribe wins over grants and unknowns for its scope.
     const effective = new Map<string, typeof events[number]>();
     for (const entry of events) {
@@ -133,7 +144,7 @@ export function getContact(db: Database, userId: string, workspace: string, cont
       const previous = effective.get(key);
       if (!previous || (!previous.outstandingWithdrawal && entry.outstandingWithdrawal)) effective.set(key, entry);
     }
-    const effectiveConsents = [...effective.values()].map(({ event }) => event);
+    const effectiveConsents = [...effective.values()].map(({ event }) => withEvidence(event));
     const companyLinks = await tx.select({ companyId: companies.id, name: companies.name, domain: companies.domain, title: contactCompanyLinks.title, isPrimary: contactCompanyLinks.isPrimary, linkedAt: contactCompanyLinks.createdAt })
       .from(contactCompanyLinks).innerJoin(companies, and(eq(companies.tenantId, contactCompanyLinks.tenantId), eq(companies.id, contactCompanyLinks.companyId)))
       .where(and(eq(contactCompanyLinks.tenantId, tenantId), eq(contactCompanyLinks.contactId, id)))
@@ -142,7 +153,7 @@ export function getContact(db: Database, userId: string, workspace: string, cont
     const possibleDuplicates = row.normalizedName.length >= DUPLICATE_MIN_LENGTH ? await tx.select({ id: contacts.id, name: contacts.name, createdAt: contacts.createdAt }).from(contacts)
       .where(and(eq(contacts.tenantId, tenantId), isNull(contacts.erasedAt), eq(contacts.normalizedName, row.normalizedName), ne(contacts.id, id)))
       .orderBy(asc(contacts.createdAt), asc(contacts.id)).limit(5) : [];
-    const sourceHistory = can(role, "contacts:sources_read") ? await tx.select({ id: contactSourceEvents.id, kind: contactSourceEvents.kind, outcome: contactSourceEvents.outcome, sourceLabel: sql<string|null>`case when ${contactSourceEvents.kind} = 'form' then (
+    const sourceHistory = can(access, "contacts:sources_read") ? await tx.select({ id: contactSourceEvents.id, kind: contactSourceEvents.kind, outcome: contactSourceEvents.outcome, sourceLabel: sql<string|null>`case when ${contactSourceEvents.kind} = 'form' then (
       select p.definition->>'title' from crm_form_responses r join crm_form_publications p
         on (p.tenant_id, p.form_id, p.version_id) = (r.tenant_id, r.form_id, r.version_id)
       where r.tenant_id = ${tenantId} and r.id = contact_source_events.crm_form_response_id
@@ -288,16 +299,19 @@ export function recordConsent(db: Database, userId: string, workspace: string, c
   // HC-DEC1b: attesting a grant (or 'unknown') on a person's behalf is owner/admin only. Recording a withdrawal is open to every non-viewer member
   // (it can only narrow what we may send). UNAPPROVED engineering defaults, legal review pending. The permission depends only on the validated status.
   const permission = input.status === "withdrawn" ? "contacts:record_withdrawal" : "contacts:attest_consent";
-  return withTenant(db, userId, uuidInput.parse(workspace), permission, async (tx, tenantId) => {
+  return withTenant(db, userId, uuidInput.parse(workspace), permission, async (tx, tenantId, _role, access) => {
     const [parent] = await tx.select({ id: contacts.id }).from(contacts).where(and(eq(contacts.tenantId, tenantId), eq(contacts.id, id), isNull(contacts.erasedAt))).for("share");
     if (!parent) throw contactMissing();
-    const [consent] = await tx.insert(contactConsents).values({ ...input, tenantId, contactId: id, recordedBy: userId, occurredAt: input.occurredAt ? new Date(input.occurredAt) : new Date() }).returning();
+    const [consent] = await tx.insert(contactConsents).values({ ...input, tenantId, contactId: id, recordedBy: userId, occurredAt: input.occurredAt ? new Date(input.occurredAt) : new Date() }).returning(consentColumns);
     await tx.insert(auditLogs).values({ tenantId, actorId: userId, action: "contact.consent_record", targetId: id, 
       // Ids and categories only: never the source or evidence text, and never contact details.
       metadata: { consentId: consent.id, purpose: input.purpose, channel: input.channel, status: input.status, attested: "staff" } });
     // Purpose, channel and status only: the source and evidence stay in the consent ledger.
     await emitCrmEvent(tx, tenantId, "crm.person.consent_recorded", `crm:consent:${consent.id}`, { tenantId, actorId: userId, contactId: id, consentId: consent.id, purpose: input.purpose, channel: input.channel, status: input.status });
-    return consent;
+    const { rows: [details] } = can(access, "contacts:consent_evidence")
+      ? await tx.execute<{ source: string | null; evidence: string | null }>(sql`select source, evidence from public.crm_consent_evidence(${tenantId}::uuid, ${id}::uuid) where id = ${consent.id}::uuid`)
+      : { rows: [] };
+    return { ...consent, ...(details ?? hiddenConsentEvidence) };
   });
 }
 
