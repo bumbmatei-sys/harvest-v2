@@ -73,11 +73,19 @@ describe("kbd and scroll area", () => {
 });
 
 describe("bottom sheet", () => {
-  it("adds a height cap, rounded top and safe-area padding to the bottom side only", () => {
+  it("adds a height cap and rounded top to the bottom side only", () => {
     expect(sheetSideClasses.bottom).toContain("max-h-[85dvh]");
     expect(sheetSideClasses.bottom).toContain("rounded-t-xl");
-    expect(sheetSideClasses.bottom).toContain("env(safe-area-inset-bottom)");
-    for (const side of ["right", "left", "top"] as const) expect(sheetSideClasses[side]).not.toContain("safe-area");
+    for (const side of ["right", "left", "top"] as const) expect(sheetSideClasses[side]).not.toContain("rounded-t-xl");
+  });
+  it("pads exactly the screen edges each side touches (edge to edge, founder 26 Nov)", () => {
+    const touches = { right: ["top", "right", "bottom"], left: ["top", "bottom", "left"], top: ["top", "right", "left"], bottom: ["right", "bottom", "left"] } as const;
+    for (const [side, edges] of Object.entries(touches) as [keyof typeof touches, readonly string[]][]) {
+      for (const edge of ["top", "right", "bottom", "left"]) {
+        const padded = sheetSideClasses[side].includes(`p${edge[0]}-[env(safe-area-inset-${edge})]`);
+        expect(padded, `${side} sheet, ${edge} edge`).toBe(edges.includes(edge));
+      }
+    }
   });
   it("keeps the existing side classes", () => {
     expect(sheetSideClasses.right).toContain("inset-y-0 right-0");

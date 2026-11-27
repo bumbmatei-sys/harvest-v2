@@ -119,7 +119,7 @@ COMMIT;
 | Chat messages, edits, reactions, slow mode | on `main` (0057) | Per-person limits inside the chat definers; `rate_limited` or `slow_mode` with a retry time. |
 | Private messages | on `main` (0058, 0063) | Start cap and message windows; every refusal is the same `not_available`. |
 | Discover reports | on `main` (0100) | Signed-in people only, limited inside `discover_report`. |
-| Forum posts, forum replies, community reports | **pending PR #303 (0129)** | Trigger `community_write_rate_guard`: 10 posts, 30 replies, 20 reports per person per community in 10 minutes. The community's owner, admins (hosts) and moderators are exempt (founder, 27 Nov; 0134). Over it: SQLSTATE `P0429`, HTTP 429 with `Retry-After`, nothing kept. The numbers are engineering defaults (C23 F8). |
+| Forum posts, forum replies, community reports | **pending PR #303 (0129)** | Trigger `community_write_rate_guard`: 10 posts, 30 replies, 20 reports per person per community in 10 minutes. The community's owner, admins (hosts) and moderators are exempt (founder, 27 Nov; 0132). Over it: SQLSTATE `P0429`, HTTP 429 with `Retry-After`, nothing kept. The numbers are engineering defaults (C23 F8). |
 | Anonymous Discover, public community page, visit beacon | **pending PR #304** | `src/server/public-read-limit.ts`: 60 a minute per visitor for `discover`, `community-page` and `community-beacon`. One-click unsubscribe is deliberately **not** throttled: mailbox providers send it from shared servers, and a bad token is rejected offline before any database call. Hashed visitor key, stored in the existing `rate_limits` table under `public-read:`; no new table. If the limiter fails, the read is served and `public_read_limit_failed` is logged. |
 
 Still open (C23): invitations and applications across many communities have no time-window limit (F4).
@@ -128,7 +128,7 @@ To change a write limit after #303: a new migration that recreates the trigger w
 
 ## 6. Erasure and rights requests
 
-No self-service account deletion exists. There is no export of a person's community data. Handle every request through the ministry's privacy owner, using the same steps as `docs/runbooks/connect-rights-requests.md` (receive, verify, confirm scope, act, check, close). Retention periods and the policy for public contributions are open decision G2.
+No self-service account deletion exists. There is no export of a person's community data. Handle every request through the ministry's privacy owner, using the same steps as `docs/runbooks/connect-rights-requests.md` (receive, verify, confirm scope, act, check, close). Retention periods and the policy for public contributions (G2) are drafted in `docs/decisions/hc-02-policy-pack.md` §11 (founder direction 27 Nov: posts, replies and channel messages stay as "Former member"; DMs are deleted with the account by the `chat-erasure` hook below); the gate stays UNAPPROVED.
 
 What the database does when a user row is deleted:
 

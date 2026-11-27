@@ -25,6 +25,8 @@ import { WizardLayout } from "@/components/wizard-layout";
 import { CatalogFilePicker } from "@/components/catalog/catalog-file-picker";
 import { CatalogPreview } from "@/components/catalog/catalog-preview";
 import { LessonListEditor } from "@/components/catalog/lesson-list-editor";
+import { ProgressSummaryCard } from "@/components/catalog/progress-summary";
+import type { ProgressSummary } from "@/lib/course-progress";
 import { useRequest } from "@/hooks/use-request";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
 import {
@@ -33,6 +35,7 @@ import {
 } from "@/lib/catalog";
 
 type Shelf = { id: string; name: string };
+const contentProblems: readonly string[] = ["lessonTitle", "videoLink", "label"];
 type Saved = { id: string; version: number };
 type Moved = { id: string; version: number; state: CatalogState };
 
@@ -41,8 +44,9 @@ type Moved = { id: string; version: number; state: CatalogState };
  * sends it with the expected version (a stale version is "changed elsewhere, reload"), and Publish saves first. Creating the draft opens the editor for it.
  * Owners and admins edit; everyone else reads. Free only: there is no price, checkout or coupon. The server decides everything; this only guides.
  */
-export function CatalogEditor({ tenantId, kind, initial, communities, files: initialFiles, host, writable }: {
+export function CatalogEditor({ tenantId, kind, initial, communities, files: initialFiles, host, writable, progress = null }: {
   tenantId: string; kind: CatalogKind; initial: CatalogItem | null; communities: Shelf[]; files: CatalogFile[]; host: string; writable: boolean;
+  /** Owners and admins of a course: aggregate learner progress, counts only. */ progress?: ProgressSummary | null;
 }) {
   const t = useTranslations("Catalog.editor"), shared = useTranslations("Catalog"), request = useRequest(), router = useRouter(), hosted = useEditorHosted();
   const [item, setItem] = useState(initial), [files, setFiles] = useState(initialFiles);
@@ -67,7 +71,7 @@ export function CatalogEditor({ tenantId, kind, initial, communities, files: ini
   /** Saves the draft: creates it (and opens its editor) or replaces it with the expected version. Returns the current item, or null on a failure. */
   async function save(): Promise<CatalogItem | null> {
     setAttempted(true);
-    if (found.length) { setStep(found[0] === "lessonTitle" ? "content" : "details"); setError(t(`problems.${found[0]}`)); return null; }
+    if (found.length) { setStep(contentProblems.includes(found[0]) ? "content" : "details"); setError(t(`problems.${found[0]}`)); return null; }
     if (!item) {
       const created = await request<Saved>(endpoint, { method: "POST", body: draftPayload(kind, form) });
       if (!created.ok) { fail(created); if (created.details?.reason === "address_unavailable") setStep("details"); return null; }
@@ -112,7 +116,7 @@ export function CatalogEditor({ tenantId, kind, initial, communities, files: ini
 
   const steps = editorSteps.map((id) => ({ id, label: label(id), disabled: id === "publish" && !item,
     done: id === "details" ? checklist[0].done && checklist[1].done : id === "content" ? checklist[2].done : id === "access" ? true : state === "published",
-    attention: attempted && ((id === "details" && (found.includes("title") || found.includes("address"))) || (id === "content" && found.includes("lessonTitle"))) }));
+    attention: attempted && ((id === "details" && (found.includes("title") || found.includes("address"))) || (id === "content" && found.some((problem) => contentProblems.includes(problem)))) }));
   const sidebar = { typeLabel: shared(`kinds.${kind}`), status: { kind: state === "published" ? "live" as const : "draft" as const, label: shared(`states.${state}`) }, back: { href: listHref, label: listLabel },
     openPage: state === "published" && item ? { href: publicPath(kind, form.slug), label: t("openPage") } : undefined, dirty };
   const status = <StatusBadge tone={stateTone(state)} label={shared(`states.${state}`)} dot />;
@@ -146,7 +150,8 @@ export function CatalogEditor({ tenantId, kind, initial, communities, files: ini
           <Textarea id="catalog-summary" rows={4} value={form.summary} maxLength={2000} disabled={!editable} onChange={(event) => set("summary", event.target.value)} /></Field>
       </FormSection>}
       {step === "content" && (kind === "course"
-        ? <LessonListEditor lessons={form.lessons} onChange={(next) => set("lessons", next)} disabled={!editable} problems={attempted} />
+        ? <LessonListEditor value={form} onChange={(next) => { setNotice(""); setForm((current) => ({ ...current, ...next })); }} onLabels={(next) => set("labels", next)}
+          disabled={!editable} problems={attempted} />
         : <CatalogFilePicker tenantId={tenantId} value={form.fileIds} onChange={(next) => set("fileIds", next)} files={files} onFiles={setFiles} disabled={!editable} />)}
       {step === "access" && <>
         <FormSection as="fieldset" title={t("visibility")}>
@@ -166,6 +171,7 @@ export function CatalogEditor({ tenantId, kind, initial, communities, files: ini
             {communities.length > 0 && state === "published" && <p className="text-sm text-muted-foreground">{t("shelfNote")}</p>}
           </CardContent></Card>
       </>}
+      {step === "publish" && progress && <ProgressSummaryCard summary={progress} />}
       {step === "publish" && <ul className="space-y-2" aria-label={t("checklist")}>
         {checklist.map((check) => <li key={check.id} className="flex min-h-11 flex-wrap items-center gap-3 rounded-md border px-3">
           {check.done ? <CircleCheck className="size-4 text-success" aria-hidden="true" /> : <Circle className="size-4 text-muted-foreground" aria-hidden="true" />}

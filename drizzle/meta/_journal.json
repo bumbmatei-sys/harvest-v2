@@ -892,10 +892,24 @@
       "breakpoints": true
     },
     {
-      "idx": 134,
+      "idx": 130,
       "version": "7",
-      "when": 1795761758170,
-      "tag": "0134_limits_followups",
+      "when": 1795761590767,
+      "tag": "0130_course_structure",
+      "breakpoints": true
+    },
+    {
+      "idx": 131,
+      "version": "7",
+      "when": 1795761650767,
+      "tag": "0131_course_progress",
+      "breakpoints": true
+    },
+    {
+      "idx": 132,
+      "version": "7",
+      "when": 1795769192415,
+      "tag": "0132_limits_followups",
       "breakpoints": true
     }
   ]

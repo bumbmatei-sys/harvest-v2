@@ -41,7 +41,7 @@ export function InboxFrame({ testId = "inbox", hosted, slot, filterPane, labels,
       </section>
     </div>
     {!hosted && <Sheet open={paneOpen} onOpenChange={onPaneOpenChange}>
-      <SheetContent side="left" className="w-[min(20rem,90vw)] overflow-y-auto p-0">
+      <SheetContent side="left" className="w-[min(20rem,90vw)] overflow-y-auto p-0 pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]">
         <SheetHeader><SheetTitle>{labels.filters}</SheetTitle><SheetDescription className="sr-only">{labels.filtersDescription}</SheetDescription></SheetHeader>
         {filterPane}
       </SheetContent>

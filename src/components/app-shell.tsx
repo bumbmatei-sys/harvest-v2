@@ -195,7 +195,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
     } catch { setError(t("couldNotConnectPleaseTryAgain")); }
     finally { setBusy(false); }
   }
-  const shell = <SidebarProvider defaultOpen={defaultOpen} data-hydrated={hydrated} className="h-dvh min-h-0 overflow-hidden bg-shell-canvas has-data-[variant=inset]:bg-shell-canvas" style={{ "--sidebar-width": "272px", "--sidebar-width-icon": "48px" } as React.CSSProperties}>
+  const shell = <SidebarProvider defaultOpen={defaultOpen} data-hydrated={hydrated} className="h-dvh min-h-0 overflow-hidden bg-shell-canvas pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)] has-data-[variant=inset]:bg-shell-canvas" style={{ "--sidebar-width": "272px", "--sidebar-width-icon": "48px" } as React.CSSProperties}>
     <WorkspaceTheme brandTheme={brandTheme} />
     {/* Not role=status: pages own that role for their own feedback, and the announcement is only for mode changes. */}
     {modeSwitcher && <div aria-live="polite" aria-atomic="true" data-mode-announcer className="sr-only">{announcement}</div>}
@@ -248,7 +248,7 @@ export function AppShell({ children, workspaces, selected, email, brandTheme = "
         {/* Workspace screens use the full width beside the sidebar with compact gutters
             (16px, 24px from lg) that match the breadcrumb. Focused short forms opt into
             their own narrow width; the shell never centres or caps the content column. */}
-        <div data-shell-content className="w-full max-w-none p-4 lg:p-6">
+        <div data-shell-content className="w-full max-w-none p-4 pb-[calc(1rem+env(safe-area-inset-bottom))] lg:p-6 lg:pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
           {error && <Alert variant="destructive" className="mb-6"><AlertDescription>{error}</AlertDescription></Alert>}
           {children}
         </div>

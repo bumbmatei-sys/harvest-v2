@@ -2477,8 +2477,14 @@ export const catalogItems = pgTable("catalog_items", {
   version: integer("version").notNull().default(1),
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  // 0130: a course's own names for its levels, sections and lessons ("Module", "Week"). Null is the default label.
+  levelLabel: text("level_label"), sectionLabel: text("section_label"), lessonLabel: text("lesson_label"),
 }, (t) => [
   primaryKey({ columns: [t.tenantId, t.id] }), unique().on(t.tenantId, t.id, t.kind),
+  check("catalog_item_labels", sql`(${t.kind} = 'course' or (${t.levelLabel} is null and ${t.sectionLabel} is null and ${t.lessonLabel} is null))
+    and (${t.levelLabel} is null or (length(trim(${t.levelLabel})) between 1 and 24 and ${t.levelLabel} = btrim(${t.levelLabel}) and ${t.levelLabel} !~ '[[:cntrl:]]'))
+    and (${t.sectionLabel} is null or (length(trim(${t.sectionLabel})) between 1 and 24 and ${t.sectionLabel} = btrim(${t.sectionLabel}) and ${t.sectionLabel} !~ '[[:cntrl:]]'))
+    and (${t.lessonLabel} is null or (length(trim(${t.lessonLabel})) between 1 and 24 and ${t.lessonLabel} = btrim(${t.lessonLabel}) and ${t.lessonLabel} !~ '[[:cntrl:]]'))`),
   check("catalog_item_kind", sql`${t.kind} in ('course','download')`),
   check("catalog_item_state", sql`${t.state} in ('draft','published','archived')`),
   check("catalog_item_visibility", sql`${t.visibility} in ('hidden','unlisted','listed')`),
@@ -2488,19 +2494,78 @@ export const catalogItems = pgTable("catalog_items", {
   check("catalog_item_version", sql`${t.version} > 0`),
 ]);
 
+// 0130 course structure: optional levels, each holding sections; every lesson sits in a section. Positions run across the whole course, so
+// the lesson order is one list (levels, then sections, then lessons) and the learner's order is the lesson position, as before.
+export const catalogLevels = pgTable("catalog_levels", {
+  tenantId: uuid("tenant_id").notNull(), itemId: uuid("item_id").notNull(), id: uuid("id").notNull().defaultRandom(),
+  kind: text("kind").notNull().default("course"),
+  position: integer("position").notNull(), title: text("title").notNull().default(""),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.itemId, t.id] }), unique().on(t.tenantId, t.itemId, t.position),
+  foreignKey({ columns: [t.tenantId, t.itemId, t.kind], foreignColumns: [catalogItems.tenantId, catalogItems.id, catalogItems.kind] }),
+  check("catalog_level_kind", sql`${t.kind} = 'course'`),
+  check("catalog_level_position", sql`${t.position} between 0 and 9`),
+  check("catalog_level_title", sql`length(${t.title}) <= 120 and ${t.title} = trim(${t.title})`),
+]);
+
+export const catalogSections = pgTable("catalog_sections", {
+  tenantId: uuid("tenant_id").notNull(), itemId: uuid("item_id").notNull(), id: uuid("id").notNull().defaultRandom(),
+  kind: text("kind").notNull().default("course"),
+  levelId: uuid("level_id"),
+  position: integer("position").notNull(), title: text("title").notNull().default(""),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.itemId, t.id] }), unique().on(t.tenantId, t.itemId, t.position),
+  foreignKey({ columns: [t.tenantId, t.itemId, t.kind], foreignColumns: [catalogItems.tenantId, catalogItems.id, catalogItems.kind] }),
+  foreignKey({ columns: [t.tenantId, t.itemId, t.levelId], foreignColumns: [catalogLevels.tenantId, catalogLevels.itemId, catalogLevels.id] }),
+  check("catalog_section_kind", sql`${t.kind} = 'course'`),
+  check("catalog_section_position", sql`${t.position} between 0 and 49`),
+  check("catalog_section_title", sql`length(${t.title}) <= 120 and ${t.title} = trim(${t.title})`),
+]);
+
 export const catalogLessons = pgTable("catalog_lessons", {
   tenantId: uuid("tenant_id").notNull(), itemId: uuid("item_id").notNull(), id: uuid("id").notNull().defaultRandom(),
   kind: text("kind").notNull().default("course"),
   position: integer("position").notNull(), title: text("title").notNull(),
   body: jsonb("body").$type<RichDoc>().notNull(),
   published: boolean("published").notNull(),
+  // 0130: the lesson's section, and an optional video stored as an allow-listed provider and its video id only (never a URL or HTML).
+  sectionId: uuid("section_id").notNull(),
+  videoProvider: text("video_provider", { enum: ["youtube", "vk"] }), videoId: text("video_id"),
 }, (t) => [
   primaryKey({ columns: [t.tenantId, t.itemId, t.id] }), unique().on(t.tenantId, t.itemId, t.position),
   foreignKey({ columns: [t.tenantId, t.itemId, t.kind], foreignColumns: [catalogItems.tenantId, catalogItems.id, catalogItems.kind] }),
+  foreignKey({ columns: [t.tenantId, t.itemId, t.sectionId], foreignColumns: [catalogSections.tenantId, catalogSections.itemId, catalogSections.id] }),
+  check("catalog_lesson_video", sql`(${t.videoProvider} is null and ${t.videoId} is null)
+    or (${t.videoProvider} = 'youtube' and ${t.videoId} is not null and ${t.videoId} ~ '^[A-Za-z0-9_-]{11}$')
+    or (${t.videoProvider} = 'vk' and ${t.videoId} is not null and ${t.videoId} ~ '^-?[0-9]{1,19}_[0-9]{1,19}(_[A-Za-z0-9]{1,32})?$')`),
   check("catalog_lesson_kind", sql`${t.kind} = 'course'`),
   check("catalog_lesson_position", sql`${t.position} between 0 and 49`),
   check("catalog_lesson_title", sql`length(trim(${t.title})) between 1 and 120`),
   check("catalog_lesson_body", sql`jsonb_typeof(${t.body}) = 'object' and octet_length(${t.body}::text) <= 32000`),
+]);
+
+// 0131 learner progress and private notes, one row per (learner, lesson). Learners write only their own rows, through public.catalog_learner;
+// owners and admins see aggregate counts only (public.catalog_progress_summary) and never read notes. A removed lesson takes its rows with it.
+export const catalogProgress = pgTable("catalog_progress", {
+  tenantId: uuid("tenant_id").notNull(), itemId: uuid("item_id").notNull(), lessonId: uuid("lesson_id").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  completedAt: timestamp("completed_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.itemId, t.lessonId, t.userId] }),
+  foreignKey({ columns: [t.tenantId, t.itemId, t.lessonId], foreignColumns: [catalogLessons.tenantId, catalogLessons.itemId, catalogLessons.id] }).onDelete("cascade"),
+  index("catalog_progress_user_idx").on(t.userId, t.tenantId, t.itemId),
+]);
+
+export const catalogNotes = pgTable("catalog_notes", {
+  tenantId: uuid("tenant_id").notNull(), itemId: uuid("item_id").notNull(), lessonId: uuid("lesson_id").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  body: text("body").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.itemId, t.lessonId, t.userId] }),
+  foreignKey({ columns: [t.tenantId, t.itemId, t.lessonId], foreignColumns: [catalogLessons.tenantId, catalogLessons.itemId, catalogLessons.id] }).onDelete("cascade"),
+  index("catalog_notes_user_idx").on(t.userId, t.updatedAt),
+  check("catalog_note_body", sql`length(btrim(${t.body})) between 1 and 4000 and translate(${t.body}, E'\\n\\r\\t', '') !~ '[[:cntrl:]]'`),
 ]);
 
 export const catalogFiles = pgTable("catalog_files", {

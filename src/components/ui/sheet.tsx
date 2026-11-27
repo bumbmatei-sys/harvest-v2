@@ -44,16 +44,16 @@ function SheetOverlay({
   )
 }
 
-/** Per-side layout; the bottom side is a phone-first sheet: height cap, rounded top, safe-area padding. */
+/** Per-side layout with safe-area padding on the screen edges each side touches (edge to edge); the bottom side is a phone-first sheet with a height cap and rounded top. */
 const sheetSideClasses = {
   right:
-    "inset-y-0 right-0 h-full w-3/4 border-l data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm",
+    "inset-y-0 right-0 h-full w-3/4 border-l pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right sm:max-w-sm",
   left:
-    "inset-y-0 left-0 h-full w-3/4 border-r data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm",
+    "inset-y-0 left-0 h-full w-3/4 border-r pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left sm:max-w-sm",
   top:
-    "inset-x-0 top-0 h-auto border-b data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
+    "inset-x-0 top-0 h-auto border-b pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)] data-[state=closed]:slide-out-to-top data-[state=open]:slide-in-from-top",
   bottom:
-    "inset-x-0 bottom-0 h-auto max-h-[85dvh] overflow-y-auto rounded-t-xl border-t pb-[env(safe-area-inset-bottom)] data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
+    "inset-x-0 bottom-0 h-auto max-h-[85dvh] overflow-y-auto rounded-t-xl border-t pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)] data-[state=closed]:slide-out-to-bottom data-[state=open]:slide-in-from-bottom",
 } as const
 
 function SheetContent({
@@ -88,9 +88,9 @@ function SheetContent({
         {children}
         {showCloseButton && (
           <SheetPrimitive.Close className={cn(
-            "absolute top-4 right-4 rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-secondary",
+            "absolute top-[calc(1rem+env(safe-area-inset-top))] right-[calc(1rem+env(safe-area-inset-right))] rounded-xs opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:outline-hidden disabled:pointer-events-none data-[state=open]:bg-secondary",
             // Bottom sheets are phone-first: 44px target below 1024px.
-            side === "bottom" && "top-2 right-2 flex size-11 items-center justify-center rounded-md lg:size-8"
+            side === "bottom" && "top-2 right-[calc(0.5rem+env(safe-area-inset-right))] flex size-11 items-center justify-center rounded-md lg:size-8"
           )}>
             <XIcon className="size-4" />
             <span className="sr-only">{t("close")}</span>

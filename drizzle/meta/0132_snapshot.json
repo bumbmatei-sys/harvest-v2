@@ -1,6 +1,6 @@
 {
-  "id": "e61a31d0-3e4f-4327-950e-9bb2ee612028",
-  "prevId": "c1c9f4a2-7dd4-4ca3-92cb-7843c8184ade",
+  "id": "f2540c72-0ada-4a0b-8d6f-4d8275c38938",
+  "prevId": "a459f666-e1a4-45c3-bd1f-38e05c825102",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -8333,6 +8333,24 @@
           "primaryKey": false,
           "notNull": true,
           "default": "now()"
+        },
+        "level_label": {
+          "name": "level_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "section_label": {
+          "name": "section_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "lesson_label": {
+          "name": "lesson_label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -8393,6 +8411,10 @@
       },
       "policies": {},
       "checkConstraints": {
+        "catalog_item_labels": {
+          "name": "catalog_item_labels",
+          "value": "(\"catalog_items\".\"kind\" = 'course' or (\"catalog_items\".\"level_label\" is null and \"catalog_items\".\"section_label\" is null and \"catalog_items\".\"lesson_label\" is null))\n    and (\"catalog_items\".\"level_label\" is null or (length(trim(\"catalog_items\".\"level_label\")) between 1 and 24 and \"catalog_items\".\"level_label\" = btrim(\"catalog_items\".\"level_label\") and \"catalog_items\".\"level_label\" !~ '[[:cntrl:]]'))\n    and (\"catalog_items\".\"section_label\" is null or (length(trim(\"catalog_items\".\"section_label\")) between 1 and 24 and \"catalog_items\".\"section_label\" = btrim(\"catalog_items\".\"section_label\") and \"catalog_items\".\"section_label\" !~ '[[:cntrl:]]'))\n    and (\"catalog_items\".\"lesson_label\" is null or (length(trim(\"catalog_items\".\"lesson_label\")) between 1 and 24 and \"catalog_items\".\"lesson_label\" = btrim(\"catalog_items\".\"lesson_label\") and \"catalog_items\".\"lesson_label\" !~ '[[:cntrl:]]'))"
+        },
         "catalog_item_kind": {
           "name": "catalog_item_kind",
           "value": "\"catalog_items\".\"kind\" in ('course','download')"
@@ -8477,6 +8499,24 @@
           "type": "boolean",
           "primaryKey": false,
           "notNull": true
+        },
+        "section_id": {
+          "name": "section_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "video_provider": {
+          "name": "video_provider",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "video_id": {
+          "name": "video_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
         }
       },
       "indexes": {},
@@ -8494,6 +8534,23 @@
             "tenant_id",
             "id",
             "kind"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "catalog_lessons_tenant_id_item_id_section_id_catalog_sections_tenant_id_item_id_id_fk": {
+          "name": "catalog_lessons_tenant_id_item_id_section_id_catalog_sections_tenant_id_item_id_id_fk",
+          "tableFrom": "catalog_lessons",
+          "columnsFrom": [
+            "tenant_id",
+            "item_id",
+            "section_id"
+          ],
+          "tableTo": "catalog_sections",
+          "columnsTo": [
+            "tenant_id",
+            "item_id",
+            "id"
           ],
           "onUpdate": "no action",
           "onDelete": "no action"
@@ -8522,6 +8579,10 @@
       },
       "policies": {},
       "checkConstraints": {
+        "catalog_lesson_video": {
+          "name": "catalog_lesson_video",
+          "value": "(\"catalog_lessons\".\"video_provider\" is null and \"catalog_lessons\".\"video_id\" is null)\n    or (\"catalog_lessons\".\"video_provider\" = 'youtube' and \"catalog_lessons\".\"video_id\" is not null and \"catalog_lessons\".\"video_id\" ~ '^[A-Za-z0-9_-]{11}$')\n    or (\"catalog_lessons\".\"video_provider\" = 'vk' and \"catalog_lessons\".\"video_id\" is not null and \"catalog_lessons\".\"video_id\" ~ '^-?[0-9]{1,19}_[0-9]{1,19}(_[A-Za-z0-9]{1,32})?$')"
+        },
         "catalog_lesson_kind": {
           "name": "catalog_lesson_kind",
           "value": "\"catalog_lessons\".\"kind\" = 'course'"
@@ -8537,6 +8598,464 @@
         "catalog_lesson_body": {
           "name": "catalog_lesson_body",
           "value": "jsonb_typeof(\"catalog_lessons\".\"body\") = 'object' and octet_length(\"catalog_lessons\".\"body\"::text) <= 32000"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.catalog_levels": {
+      "name": "catalog_levels",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'course'"
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "catalog_levels_tenant_id_item_id_kind_catalog_items_tenant_id_id_kind_fk": {
+          "name": "catalog_levels_tenant_id_item_id_kind_catalog_items_tenant_id_id_kind_fk",
+          "tableFrom": "catalog_levels",
+          "columnsFrom": [
+            "tenant_id",
+            "item_id",
+            "kind"
+          ],
+          "tableTo": "catalog_items",
+          "columnsTo": [
+            "tenant_id",
+            "id",
+            "kind"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "catalog_levels_tenant_id_item_id_id_pk": {
+          "name": "catalog_levels_tenant_id_item_id_id_pk",
+          "columns": [
+            "tenant_id",
+            "item_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "catalog_levels_tenant_id_item_id_position_unique": {
+          "name": "catalog_levels_tenant_id_item_id_position_unique",
+          "columns": [
+            "tenant_id",
+            "item_id",
+            "position"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "catalog_level_kind": {
+          "name": "catalog_level_kind",
+          "value": "\"catalog_levels\".\"kind\" = 'course'"
+        },
+        "catalog_level_position": {
+          "name": "catalog_level_position",
+          "value": "\"catalog_levels\".\"position\" between 0 and 9"
+        },
+        "catalog_level_title": {
+          "name": "catalog_level_title",
+          "value": "length(\"catalog_levels\".\"title\") <= 120 and \"catalog_levels\".\"title\" = trim(\"catalog_levels\".\"title\")"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.catalog_notes": {
+      "name": "catalog_notes",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lesson_id": {
+          "name": "lesson_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "catalog_notes_user_idx": {
+          "name": "catalog_notes_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "catalog_notes_user_id_users_id_fk": {
+          "name": "catalog_notes_user_id_users_id_fk",
+          "tableFrom": "catalog_notes",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "tableTo": "users",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        },
+        "catalog_notes_tenant_id_item_id_lesson_id_catalog_lessons_tenant_id_item_id_id_fk": {
+          "name": "catalog_notes_tenant_id_item_id_lesson_id_catalog_lessons_tenant_id_item_id_id_fk",
+          "tableFrom": "catalog_notes",
+          "columnsFrom": [
+            "tenant_id",
+            "item_id",
+            "lesson_id"
+          ],
+          "tableTo": "catalog_lessons",
+          "columnsTo": [
+            "tenant_id",
+            "item_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {
+        "catalog_notes_tenant_id_item_id_lesson_id_user_id_pk": {
+          "name": "catalog_notes_tenant_id_item_id_lesson_id_user_id_pk",
+          "columns": [
+            "tenant_id",
+            "item_id",
+            "lesson_id",
+            "user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "catalog_note_body": {
+          "name": "catalog_note_body",
+          "value": "length(btrim(\"catalog_notes\".\"body\")) between 1 and 4000 and translate(\"catalog_notes\".\"body\", E'\\n\\r\\t', '') !~ '[[:cntrl:]]'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.catalog_progress": {
+      "name": "catalog_progress",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lesson_id": {
+          "name": "lesson_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "catalog_progress_user_idx": {
+          "name": "catalog_progress_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "item_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "with": {},
+          "method": "btree",
+          "concurrently": false
+        }
+      },
+      "foreignKeys": {
+        "catalog_progress_user_id_users_id_fk": {
+          "name": "catalog_progress_user_id_users_id_fk",
+          "tableFrom": "catalog_progress",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "tableTo": "users",
+          "columnsTo": [
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        },
+        "catalog_progress_tenant_id_item_id_lesson_id_catalog_lessons_tenant_id_item_id_id_fk": {
+          "name": "catalog_progress_tenant_id_item_id_lesson_id_catalog_lessons_tenant_id_item_id_id_fk",
+          "tableFrom": "catalog_progress",
+          "columnsFrom": [
+            "tenant_id",
+            "item_id",
+            "lesson_id"
+          ],
+          "tableTo": "catalog_lessons",
+          "columnsTo": [
+            "tenant_id",
+            "item_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "cascade"
+        }
+      },
+      "compositePrimaryKeys": {
+        "catalog_progress_tenant_id_item_id_lesson_id_user_id_pk": {
+          "name": "catalog_progress_tenant_id_item_id_lesson_id_user_id_pk",
+          "columns": [
+            "tenant_id",
+            "item_id",
+            "lesson_id",
+            "user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.catalog_sections": {
+      "name": "catalog_sections",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "kind": {
+          "name": "kind",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'course'"
+        },
+        "level_id": {
+          "name": "level_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "title": {
+          "name": "title",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "catalog_sections_tenant_id_item_id_kind_catalog_items_tenant_id_id_kind_fk": {
+          "name": "catalog_sections_tenant_id_item_id_kind_catalog_items_tenant_id_id_kind_fk",
+          "tableFrom": "catalog_sections",
+          "columnsFrom": [
+            "tenant_id",
+            "item_id",
+            "kind"
+          ],
+          "tableTo": "catalog_items",
+          "columnsTo": [
+            "tenant_id",
+            "id",
+            "kind"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        },
+        "catalog_sections_tenant_id_item_id_level_id_catalog_levels_tenant_id_item_id_id_fk": {
+          "name": "catalog_sections_tenant_id_item_id_level_id_catalog_levels_tenant_id_item_id_id_fk",
+          "tableFrom": "catalog_sections",
+          "columnsFrom": [
+            "tenant_id",
+            "item_id",
+            "level_id"
+          ],
+          "tableTo": "catalog_levels",
+          "columnsTo": [
+            "tenant_id",
+            "item_id",
+            "id"
+          ],
+          "onUpdate": "no action",
+          "onDelete": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "catalog_sections_tenant_id_item_id_id_pk": {
+          "name": "catalog_sections_tenant_id_item_id_id_pk",
+          "columns": [
+            "tenant_id",
+            "item_id",
+            "id"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "catalog_sections_tenant_id_item_id_position_unique": {
+          "name": "catalog_sections_tenant_id_item_id_position_unique",
+          "columns": [
+            "tenant_id",
+            "item_id",
+            "position"
+          ],
+          "nullsNotDistinct": false
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "catalog_section_kind": {
+          "name": "catalog_section_kind",
+          "value": "\"catalog_sections\".\"kind\" = 'course'"
+        },
+        "catalog_section_position": {
+          "name": "catalog_section_position",
+          "value": "\"catalog_sections\".\"position\" between 0 and 49"
+        },
+        "catalog_section_title": {
+          "name": "catalog_section_title",
+          "value": "length(\"catalog_sections\".\"title\") <= 120 and \"catalog_sections\".\"title\" = trim(\"catalog_sections\".\"title\")"
         }
       },
       "isRLSEnabled": false

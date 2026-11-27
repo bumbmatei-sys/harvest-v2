@@ -1,4 +1,5 @@
-import { mkdir } from "node:fs/promises";
+import { mkdir, readFile } from "node:fs/promises";
+import { Client } from "pg";
 import { expect as playwrightExpect, test, type Browser, type Page } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
 import { signIn, origin } from "./helpers/session";
@@ -23,7 +24,7 @@ async function openAccountMenu(page: Page) {
 }
 const ministryItem = (page: Page, name: string) => page.getByRole("menuitem").filter({ has: page.locator("[data-workspace-name]", { hasText: name }) });
 async function guest(browser: Browser) {
-  const context = await browser.newContext({ baseURL: "http://127.0.0.1:3100" });
+  const context = await browser.newContext({ baseURL: origin });
   const page = await context.newPage();
   const email = await signIn(page);
   return { context, page, email };
@@ -203,5 +204,34 @@ test("account menu for a person with no ministry passes axe and offers the creat
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(0);
     expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
     await page.keyboard.press("Escape");
+  }
+});
+
+test("the switcher counts everyone with access and names the collaborator and guest roles", async ({ page, browser }) => {
+  test.setTimeout(180_000);
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await signIn(page);
+  const grace = await createMinistry(page, "Grace Church");
+  const partner = await guest(browser), visitor = await guest(browser);
+  // Collaborators and guests join by accepting an invitation; the accepted rows are written directly here.
+  const admin = new Client({ connectionString: await readFile(`${process.env.HARVEST_E2E_MAILBOX}.admin`, "utf8") });
+  await admin.connect();
+  try {
+    for (const [person, role] of [[partner, "collaborator"], [visitor, "guest"]] as const)
+      await admin.query("insert into workspace_members (tenant_id, user_id, role_id) select $1, id, $3 from users where email = $2", [grace, person.email, role]);
+  } finally { await admin.end(); }
+  await page.goto("/workspaces");
+  // The menu opens only once the shell has hydrated (the first visit compiles the page).
+  await expect(page.locator('[data-hydrated="true"]')).toHaveCount(1);
+  await openAccountMenu(page);
+  await expect(ministryItem(page, "Grace Church")).toContainText("Owner · 3 members");
+  for (const [person, label] of [[partner, "Collaborator"], [visitor, "Guest"]] as const) {
+    await person.page.setViewportSize({ width: 1280, height: 900 });
+    await person.page.goto("/workspaces");
+    await expect(person.page.getByText(`Role: ${label.toLowerCase()}`, { exact: true })).toBeVisible();
+    await expect(person.page.locator('[data-hydrated="true"]')).toHaveCount(1);
+    await openAccountMenu(person.page);
+    await expect(ministryItem(person.page, "Grace Church")).toContainText(`${label} · 3 members`);
+    await person.context.close();
   }
 });
