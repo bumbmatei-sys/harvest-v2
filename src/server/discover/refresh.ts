@@ -48,5 +48,5 @@ async function load(tx: Transaction, tenant: string, type: DiscoverType, id: str
   }
   const [item] = await tx.select().from(catalogItems).where(and(eq(catalogItems.tenantId, tenant), eq(catalogItems.id, id), eq(catalogItems.kind, type === "course" ? "course" : "download")));
   // Every course and download is free until the founder opens an LLC (16 Nov exception).
-  return item ? { name: item.title, summary: item.summary, tagline: null, slug: item.slug, free: true, pricing: "free", admission: [], published: item.state === "published" && item.visibility === "listed", optIn: null } : null;
+  return item ? { name: item.title, summary: item.summary, tagline: null, slug: item.slug, free: item.priceLabel === "Free", pricing: "free", admission: [], published: item.state === "published" && (item.visibility === "listed" || item.visibility === "public"), optIn: null } : null;
 }

@@ -2522,7 +2522,9 @@ export const catalogItems = pgTable("catalog_items", {
   title: text("title").notNull(),
   summary: text("summary").notNull().default(""),
   state: text("state", { enum: ["draft", "published", "archived"] }).notNull().default("draft"),
-  visibility: text("visibility", { enum: ["hidden", "unlisted", "listed"] }).notNull().default("hidden"),
+  visibility: text("visibility", { enum: ["hidden", "unlisted", "listed", "community", "public"] }).notNull().default("hidden"),
+  coverFileId: uuid("cover_file_id"),
+  priceLabel: text("price_label").notNull().default("Free"),
   version: integer("version").notNull().default(1),
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
@@ -2534,9 +2536,11 @@ export const catalogItems = pgTable("catalog_items", {
     and (${t.levelLabel} is null or (length(trim(${t.levelLabel})) between 1 and 24 and ${t.levelLabel} = btrim(${t.levelLabel}) and ${t.levelLabel} !~ '[[:cntrl:]]'))
     and (${t.sectionLabel} is null or (length(trim(${t.sectionLabel})) between 1 and 24 and ${t.sectionLabel} = btrim(${t.sectionLabel}) and ${t.sectionLabel} !~ '[[:cntrl:]]'))
     and (${t.lessonLabel} is null or (length(trim(${t.lessonLabel})) between 1 and 24 and ${t.lessonLabel} = btrim(${t.lessonLabel}) and ${t.lessonLabel} !~ '[[:cntrl:]]'))`),
+  foreignKey({ columns: [t.tenantId, t.coverFileId], foreignColumns: [files.tenantId, files.id] }),
+  check("catalog_item_free_price", sql`${t.priceLabel} = 'Free'`),
   check("catalog_item_kind", sql`${t.kind} in ('course','download')`),
   check("catalog_item_state", sql`${t.state} in ('draft','published','archived')`),
-  check("catalog_item_visibility", sql`${t.visibility} in ('hidden','unlisted','listed')`),
+  check("catalog_item_visibility", sql`${t.visibility} in ('hidden','unlisted','listed','community','public')`),
   check("catalog_item_slug", sql`${t.slug} ~ '^[a-z0-9][a-z0-9-]{1,58}[a-z0-9]$'`),
   check("catalog_item_title", sql`length(trim(${t.title})) between 1 and 120`),
   check("catalog_item_summary", sql`length(${t.summary}) <= 2000`),
@@ -2592,6 +2596,21 @@ export const catalogLessons = pgTable("catalog_lessons", {
   check("catalog_lesson_title", sql`length(trim(${t.title})) between 1 and 120`),
   check("catalog_lesson_body", sql`jsonb_typeof(${t.body}) = 'object' and octet_length(${t.body}::text) <= 32000`),
 ]);
+
+export const catalogLessonAttachments = pgTable("catalog_lesson_attachments", {
+  tenantId: uuid("tenant_id").notNull(), itemId: uuid("item_id").notNull(),
+  lessonId: uuid("lesson_id").notNull(), fileId: uuid("file_id").notNull(), position: integer("position").notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.itemId, t.lessonId, t.fileId] }),
+  unique().on(t.tenantId, t.itemId, t.lessonId, t.position),
+  foreignKey({ columns: [t.tenantId, t.itemId, t.lessonId], foreignColumns: [catalogLessons.tenantId, catalogLessons.itemId, catalogLessons.id] }).onDelete("cascade"),
+  foreignKey({ columns: [t.tenantId, t.fileId], foreignColumns: [files.tenantId, files.id] }),
+  check("catalog_lesson_attachment_position", sql`${t.position} between 0 and 19`),
+]);
+export const catalogAssetGrants = pgTable("catalog_asset_grants", {
+  token: uuid("token").primaryKey(), tenantId: uuid("tenant_id").notNull(),
+  issuedAt: timestamp("issued_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 // 0131 learner progress and private notes, one row per (learner, lesson). Learners write only their own rows, through public.catalog_learner;
 // owners and admins see aggregate counts only (public.catalog_progress_summary) and never read notes. A removed lesson takes its rows with it.

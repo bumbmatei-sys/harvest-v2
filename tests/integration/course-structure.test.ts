@@ -144,7 +144,7 @@ it("gives an enrolled learner the published structure and videos only, and keeps
   const { id } = await createCatalogItem(f.db, owner, tenant, structured(slug));
   await expect(getCatalogContent(f.db, learner, slug)).rejects.toMatchObject(notFound);
   await setCatalogState(f.db, owner, tenant, id, { version: 1, state: "published" });
-  await expect(getPublicCatalogItem(f.db, slug)).resolves.toEqual({ slug, title: "Discipleship path", summary: "", kind: "course" });
+  await expect(getPublicCatalogItem(f.db, slug)).resolves.toEqual({ slug, title: "Discipleship path", summary: "", kind: "course", priceLabel: "Free", hasCover: false });
   await expect(getCatalogContent(f.db, learner, slug)).rejects.toMatchObject(notFound);
   await enrolInCatalogItem(f.db, learner, slug);
   const content = await getCatalogContent(f.db, learner, slug) as unknown as {
