@@ -249,14 +249,14 @@ it("reports totals, the UTC day and top links only, withholding small groups, fo
   const [campaignId] = [...fullTokens][0];
   const overview = await newsletterAnalyticsOverview(fixture.db, people.owner, people.tenant, 30);
   expect(overview.clicks.counting).toBe(true);
-  expect(overview.clicks.total).toBe(13);
+  expect(overview.clicks.total).toBeNull();
   const today = new Date().toISOString().slice(0, 10);
-  expect(overview.clicks.days.find((day) => day.day === today)?.clicks).toBe(13);
-  expect(overview.campaigns.find((row) => row.id === campaignId)?.clicks).toBe(13);
+  expect(overview.clicks.days.find((day) => day.day === today)?.clicks).toBeNull();
+  expect(overview.campaigns.find((row) => row.id === campaignId)?.clicks).toBeNull();
   const detail = await newsletterCampaignAnalytics(fixture.db, people.admin, people.tenant, campaignId);
-  expect(detail.clicks?.total).toBe(13);
-  // Link C (2 clicks) is a small group, and leaving only it out would let it be subtracted, so the smallest shown link (B) is left out too.
-  expect(detail.clicks?.links).toEqual([{ url: links.a, clicks: 6 }]);
+  expect(detail.clicks?.total).toBeNull();
+  // The daily total together with the visible links could identify the small group.
+  expect(detail.clicks?.links).toEqual([]);
   const text = JSON.stringify([overview, detail]);
   for (const email of recipients) expect(text).not.toContain(email);
   expect(text).not.toMatch(/delivery|subscriber|contact/i);
@@ -299,7 +299,7 @@ it("withholds a small day, the period total and that campaign's row, and every c
     expect(overview.campaigns.find((row) => row.id === small)?.clicks).toBeNull();
     expect(overview.campaigns.find((row) => row.id === tiny)?.clicks).toBeNull();
     const today = new Date().toISOString().slice(0, 10);
-    expect(overview.clicks.days.find((row) => row.day === today)?.clicks).toBe(13);
+    expect(overview.clicks.days.find((row) => row.day === today)?.clicks).toBeNull();
     const detail = await newsletterCampaignAnalytics(fixture.db, people.owner, people.tenant, tiny);
     expect(detail.clicks).toMatchObject({ total: null, links: [] });
   } finally {
@@ -308,7 +308,7 @@ it("withholds a small day, the period total and that campaign's row, and every c
   }
 });
 
-it("never lets a campaign's link totals reveal a withheld day: top links count only shown days", async () => {
+it("keeps safe UTC day and link counts stable when a different day is withheld", async () => {
   // Review regression: one campaign to 6 people; 10 clicks on one day (5 per link), then 3 clicks on one link the next day. Before the fix the
   // links read 8 and 5 while every day was withheld, so the hidden figures could be recovered.
   const shownDay = new Date(Date.now() - 5 * 86_400_000).toISOString().slice(0, 10), hiddenDay = new Date(Date.now() - 4 * 86_400_000).toISOString().slice(0, 10);
@@ -322,13 +322,44 @@ it("never lets a campaign's link totals reveal a withheld day: top links count o
     await add(0, shownDay, 5); await add(1, shownDay, 5); await add(0, hiddenDay, 3);
     const { clicks } = await newsletterCampaignAnalytics(fixture.db, people.owner, people.tenant, campaign);
     expect(clicks!.total).toBeNull();
-    // A small day withholds every day of that campaign (the differencing rule), so no link may show a figure either.
     expect(clicks!.days.find((row) => row.day === hiddenDay)?.clicks).toBeNull();
-    expect(clicks!.days.find((row) => row.day === shownDay)?.clicks).toBeNull();
+    expect(clicks!.days.find((row) => row.day === shownDay)?.clicks).toBe(10);
     const shownDays = clicks!.days.reduce((sum, row) => sum + (row.clicks ?? 0), 0);
     const linkTotal = clicks!.links.reduce((sum, link) => sum + link.clicks, 0);
     expect(linkTotal).toBeLessThanOrEqual(shownDays);
-    expect(clicks!.links).toEqual([]);
+    expect(clicks!.links).toEqual([{ url: links.a, clicks: 5 }, { url: links.b, clicks: 5 }]);
+  } finally {
+    if (campaign) await client.query("delete from newsletter_clicks where campaign_id=$1", [campaign]);
+    client.release();
+  }
+});
+
+it("does not release a small link count by subtracting overlapping UTC ranges", async () => {
+  const day = "2026-04-03", next = "2026-04-04", until = "2026-04-05";
+  const client = await fixture.admin.connect();
+  let campaign = "";
+  try {
+    campaign = await seedCampaign(client, { tenant: people.tenant, user: people.owner, name: "Date range privacy", days: [{ day, accepted: 12 }] });
+    for (const [index, url] of [links.a, links.b].entries()) await client.query(
+      "insert into newsletter_click_links(tenant_id,campaign_id,revision,link_index,url) values($1,$2,1,$3,$4)",
+      [people.tenant, campaign, index, url]);
+    for (const [index, timestamp, count] of [[0, "2026-04-04T01:59:59+02:00", 6], [0, "2026-04-03T20:00:00-04:00", 1], [1, "2026-04-04T00:00:00Z", 5]] as const) {
+      for (let n = 0; n < count; n++) await client.query(
+        "insert into newsletter_clicks(tenant_id,campaign_id,revision,delivery_id,link_index,clicked_at) values($1,$2,1,$3,$4,$5)",
+        [people.tenant, campaign, randomUUID(), index, timestamp]);
+    }
+    const report = (from: string, end: string, zone: string) =>
+      withTenant(fixture.db, people.owner, people.tenant, "newsletter:analytics", async (tx) => {
+        await tx.execute(sql`select set_config('TimeZone', ${zone}, true)`);
+        return (await tx.execute<{ r: unknown }>(sql`select public.newsletter_click_report(${people.tenant}::uuid,${campaign}::uuid,${from}::date,${end}::date) as r`)).rows[0].r;
+      });
+    const short = await report(day, next, "Pacific/Kiritimati");
+    const long = await report(day, until, "America/Los_Angeles");
+    expect(short).toMatchObject({ total: 6, links: [{ url: links.a, clicks: 6 }] });
+    expect(long).toMatchObject({ total: null, days: [{ day, clicks: 6 }, { day: next, clicks: null }], links: [{ url: links.a, clicks: 6 }] });
+    expect(await report(next, until, "UTC")).toMatchObject({ total: null, links: [] });
+    const detail = await newsletterCampaignAnalytics(fixture.db, people.admin, people.tenant, campaign, new Date("2026-04-05T12:00:00Z"));
+    expect(detail.clicks).toMatchObject({ total: null, links: [{ url: links.a, clicks: 6 }] });
   } finally {
     if (campaign) await client.query("delete from newsletter_clicks where campaign_id=$1", [campaign]);
     client.release();
