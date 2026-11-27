@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { writeFile } from "node:fs/promises";
-import { appendFileSync } from "node:fs";
+import { appendFileSync, writeFileSync } from "node:fs";
 import { testDatabase } from "../tests/database";
 import { storageMock } from "../tests/storage-mock";
 const database = await testDatabase();
@@ -52,6 +52,8 @@ const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev",
 // The output still reaches this terminal. Known dev-server chunk failures are also noted in a file next to the mailbox, so a spec can tell a dev-only
 // hydration mismatch (which follows them) from a real one.
 const devErrors = process.env.HARVEST_E2E_MAILBOX ? `${process.env.HARVEST_E2E_MAILBOX}.dev-errors` : null;
+// Each line is "<epoch ms> <message>"; the file starts empty for every server run, so a spec sees only this run's failures.
+if (devErrors) writeFileSync(devErrors, "", { mode: 0o600 });
 const devErrorPattern = /__webpack_modules__\[moduleId\] is not a function|destination stream errored/;
 for (const [stream, sink] of [[child.stdout, process.stdout], [child.stderr, process.stderr]] as const) stream?.on("data", (chunk: Buffer) => {
   sink.write(chunk);
