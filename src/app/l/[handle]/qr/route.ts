@@ -10,7 +10,7 @@ export async function GET(request: Request, context: { params: Promise<{ handle:
   const { handle } = await context.params, url = new URL(request.url);
   const format = url.searchParams.get("format") === "png" ? "png" : "svg";
   try {
-    const result = await bioPageQr(getDb(), handle, format, url.origin);
+    const result = await bioPageQr(getDb(), handle, format);
     if (!result) return new Response(null, { status: 404, headers: { "Cache-Control": "no-store" } });
     return new Response(result.body, { headers: { "Content-Type": result.type, "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
       ...(url.searchParams.get("download") === "1" ? { "Content-Disposition": `attachment; filename="${handle}-qr.${format}"` } : {}) } });

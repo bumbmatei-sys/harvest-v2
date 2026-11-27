@@ -272,7 +272,7 @@ export async function getPublicBio(db: Database, handle: string, env: Record<str
   };
   // A hidden tab, and a tab with nothing to show, never reach the visitor.
   const tabs = shownTabs(definition, definition.blocks).map((t) => ({ ...t, blocks: t.blocks.flatMap(project) })).filter((t) => t.blocks.length > 0);
-  return { ministryName: row.result.ministryName, name: definition.name, bio: definition.bio, tabs, layout: definition.layout, showCover: definition.cover,
+  return { handle: row.result.handle, ministryName: row.result.ministryName, name: definition.name, bio: definition.bio, tabs, layout: definition.layout, showCover: definition.cover,
     photoAlign: definition.photoAlign, iconStyle: definition.iconStyle, hasPhoto: row.result.hasPhoto, hasCover: definition.cover && row.result.hasCover,
     scheme: definition.scheme, buttons: definition.buttons, brandTheme: isBrandTheme(row.result.brandTheme) ? row.result.brandTheme : null, socials: definition.socials };
 }

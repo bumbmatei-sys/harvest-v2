@@ -68,7 +68,7 @@ export function draftView(definition: BioDefinition, choices: BioChoices, minist
     }
   };
   const tabs = shownTabs(definition, definition.blocks).map((t) => ({ ...t, blocks: t.blocks.flatMap(project) })).filter((t) => t.blocks.length > 0);
-  return { ministryName, name: definition.name || "…", bio: oneLine(definition.bio), tabs, layout: definition.layout, showCover: definition.cover, photoAlign: definition.photoAlign,
+  return { handle: "", ministryName, name: definition.name || "…", bio: oneLine(definition.bio), tabs, layout: definition.layout, showCover: definition.cover, photoAlign: definition.photoAlign,
     iconStyle: definition.iconStyle, hasPhoto, hasCover: definition.cover && hasCover, scheme: definition.scheme, buttons: definition.buttons,
     brandTheme: brandTheme as BioView["brandTheme"], socials: definition.socials.filter((s) => /^https:\/\//.test(s.url)) };
 }

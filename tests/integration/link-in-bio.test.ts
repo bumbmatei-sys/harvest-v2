@@ -496,18 +496,38 @@ describe("rework PR 3: gallery, share and countdown (0136)", () => {
     expect((await operate("serve", pending, { kind: "gallery" })).outcome).toBe("not_found");
     expect((await operate("set", ready, { kind: "gallery", version })).outcome).toBe("invalid");
     expect((await withUser(db(), people.member, async (tx) => (await tx.execute(sql`select public.bio_photo_operate(${people.tenant}::uuid, 'serve', ${ready}::uuid, ${JSON.stringify({ kind: "gallery" })}::jsonb) r`)).rows[0].r as { outcome: string })).outcome).toBe("not_found");
-    // At most 60 live gallery pictures per page.
+    // At most 60 gallery pictures in use per page: listed by a block of the draft or the published copy, or still uploading (last hour).
     const page = await getBioPage(db(), people.owner, people.tenant);
-    const live = Number((await fixture.admin.query("select count(*)::int n from bio_files where page_id=$1 and kind='gallery' and retired_at is null", [page.id])).rows[0].n);
-    for (let i = live; i < 60; i++) await galleryFile("ready");
-    const create = await operate("create", randomUUID(), { kind: "gallery", name: "g.png", mime: "image/png", size: 10, checksum: "f".repeat(64) });
-    expect(create.outcome).toBe("invalid");
+    await fixture.admin.query("update bio_files set retired_at=now() where page_id=$1 and kind='gallery'", [page.id]);
+    const sixty: string[] = [];
+    for (let i = 0; i < 60; i++) sixty.push(await galleryFile("ready"));
+    const galleryBlock = (fileIds: string[]) => ({ type: "gallery" as const, id: "gallery2", hidden: false, tab: "home", title: "", fileIds });
+    const draftWith = (lists: string[][]) => ({ ...page.draft, layout: "single" as const, blocks: [...lists.map((ids, n) => ({ ...galleryBlock(ids), id: `gallery${n + 2}` })), { type: "share" as const, id: "share001", hidden: false, tab: "home", title: "Share" }] });
+    version = page.version;
+    await save(people.owner, undefined, draftWith([0, 1, 2, 3, 4].map((n) => sixty.slice(n * 12, n * 12 + 12))));
+    const newUpload = () => operate("create", randomUUID(), { kind: "gallery", name: "g.png", mime: "image/png", size: 10, checksum: "f".repeat(64) });
+    expect((await newUpload()).outcome).toBe("invalid");
+    // Removed from every block (and never published): they no longer count, so one more upload is accepted.
+    await save(people.owner, undefined, draftWith([[sixty[0]]]));
+    expect((await newUpload()).outcome).toBe("ok");
+    // Uploads still waiting for their upload or scan count for an hour.
+    await fixture.admin.query("update bio_files set retired_at=now() where page_id=$1 and kind='gallery' and status='ready' and id <> $2", [page.id, sixty[0]]);
+    for (let i = 0; i < 58; i++) await galleryFile("pending");
+    expect((await newUpload()).outcome).toBe("invalid");
+    await fixture.admin.query("update bio_files set created_at=now() - interval '2 hours' where page_id=$1 and kind='gallery' and status='pending'", [page.id]);
+    expect((await newUpload()).outcome).toBe("ok");
   });
   it("draws the QR code of a published page only", async () => {
     const { bioPageQr } = await import("../../src/server/link-in-bio-qr");
-    const svg = await bioPageQr(db(), "grace-church", "svg", origin);
+    const { bioPageUrl } = await import("../../src/server/link-in-bio-qr");
+    const env = { ...process.env, BETTER_AUTH_URL: "https://harvest.example.invalid" };
+    const svg = await bioPageQr(db(), "grace-church", "svg", env);
     expect(svg?.type).toBe("image/svg+xml"); expect(String(svg?.body)).toContain("<svg");
-    expect((await bioPageQr(db(), "grace-church", "png", origin))?.type).toBe("image/png");
-    expect(await bioPageQr(db(), "no-such-page", "svg", origin)).toBeNull();
+    expect((await bioPageQr(db(), "grace-church", "png", env))?.type).toBe("image/png");
+    expect(await bioPageQr(db(), "no-such-page", "svg", env)).toBeNull();
+    // The encoded address is the configured site's, never a request's Host header; without a site address there is no code.
+    expect(bioPageUrl("grace-church", env)).toBe("https://harvest.example.invalid/l/grace-church");
+    expect(await bioPageQr(db(), "grace-church", "svg", { ...env, BETTER_AUTH_URL: undefined })).toBeNull();
+    expect((await getPublicBio(db(), "grace-church"))!.handle).toBe("grace-church");
   });
 });

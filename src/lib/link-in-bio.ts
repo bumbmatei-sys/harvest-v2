@@ -254,7 +254,8 @@ export const whatsappHref = (value: string) => `https://wa.me/${phoneDigits(valu
 export const mapsHref = (address: string) => `https://www.openstreetmap.org/search?query=${encodeURIComponent(address.trim())}`;
 export type BioView = {
   /** `bio` is the one-line short bio under the name. */
-  ministryName: string; name: string; bio: string;
+  /** The stored handle of the page (empty in the editor's preview before the address is saved). */
+  handle: string; ministryName: string; name: string; bio: string;
   /** Tabs in order. `label` is empty for an original tab that keeps its default name, and for the single-page layout. */
   tabs: { id: BioTabId; label: string; blocks: BioViewBlock[] }[]; layout: BioLayout; showCover: boolean; photoAlign: BioPhotoAlign; iconStyle: BioIconStyle;
   hasPhoto: boolean; hasCover: boolean; scheme: typeof bioSchemes[number]; buttons: typeof bioButtonStyles[number];

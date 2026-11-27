@@ -21,7 +21,7 @@ BEGIN
   IF NOT FOUND THEN RETURN missing; END IF;
   current_id := CASE kind_name WHEN 'cover' THEN page.cover_file_id WHEN 'photo' THEN page.photo_file_id END;
   published_id := CASE kind_name WHEN 'cover' THEN page.published_cover_file_id WHEN 'photo' THEN page.published_photo_file_id END;
-  -- 0136 gallery pictures: never "set" on the page (a gallery block lists them); served to the owner by id; at most 60 live per page.
+  -- 0136 gallery pictures: never "set" on the page (a gallery block lists them); served to the owner by id; at most 60 in use per page.
   IF kind_name = 'gallery' THEN
     IF p_action = 'set' THEN RETURN '{"outcome":"invalid"}'; END IF;
     IF p_action = 'serve' THEN
@@ -29,7 +29,12 @@ BEGIN
       IF NOT FOUND THEN RETURN missing; END IF;
       RETURN jsonb_build_object('outcome', 'ok', 'data', jsonb_build_object('key', file.key, 'name', file.name, 'mime', file.mime));
     END IF;
-    IF p_action = 'create' AND (SELECT count(*) FROM public.bio_files f WHERE f.tenant_id = p_tenant AND f.page_id = page.id AND f.kind = 'gallery' AND f.retired_at IS NULL) >= 60 THEN
+    -- The cap counts pictures a gallery block of the draft or the published copy lists, plus uploads of the last hour still waiting for their upload or scan
+    -- (the editor adds a picture to its block once it is ready). Pictures removed from every block no longer count.
+    IF p_action = 'create' AND (SELECT count(*) FROM public.bio_files f WHERE f.tenant_id = p_tenant AND f.page_id = page.id AND f.kind = 'gallery' AND f.retired_at IS NULL
+        AND ((f.status IN ('pending','uploaded') AND f.created_at > pg_catalog.clock_timestamp() - interval '1 hour') OR f.id::text IN (
+          SELECT i FROM pg_catalog.jsonb_array_elements(coalesce(page.draft->'blocks', '[]'::jsonb) || coalesce(page.published->'blocks', '[]'::jsonb)) b,
+            pg_catalog.jsonb_array_elements_text(b->'fileIds') i WHERE b->>'type' = 'gallery'))) >= 60 THEN
       RETURN '{"outcome":"invalid"}';
     END IF;
   END IF;

@@ -24,6 +24,8 @@ export const publicReadLimits = {
   "community-beacon": 60,
   // Link in bio share dialog: the page's QR code (SVG to show, PNG to save).
   "bio-qr": 30,
+  // Link in bio gallery pictures (a page shows up to 12 per gallery block, and the viewer loads them again).
+  "bio-photo": 120,
 } as const;
 export type PublicReadScope = keyof typeof publicReadLimits;
 export type PublicReadCharge = { limited: false } | { limited: true; retryAfter: number };
