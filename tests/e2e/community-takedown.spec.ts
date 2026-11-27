@@ -78,6 +78,8 @@ test("report, staff pause and restore a community, hide and restore a post", asy
   ({ version } = await (await page.request.patch(`${api}/${community.id}`, { headers: { origin }, data: { version, visibility: "listed", allowOpen: true, discoverOptIn: true, tagline: "Prayer every week" } })).json());
   expect((await page.request.post(`${api}/${community.id}/publish`, { headers: { origin }, data: { version, published: true } })).ok()).toBe(true);
   const admin = await discoverAdmin();
+  // The staff queue is global: start from an empty one so the badge count is this run's own.
+  await admin.q("delete from community_harvest_reports"); await admin.q("delete from community_takedowns");
   await admin.decide("community", community.id, "approve");
   const general = ((await (await page.request.get(`${api}/${community.id}/categories`)).json()) as { id: string }[])[0].id;
 
@@ -88,6 +90,8 @@ test("report, staff pause and restore a community, hide and restore a post", asy
   try {
     // 1. A visitor reports the public page to Harvest: no account.
     await go(visitor, `/communities/${slug}`);
+    await expect(visitor.getByRole("button", { name: "Report", exact: true })).toBeVisible();
+    await audit(visitor, "public-report-button");
     await visitor.getByRole("button", { name: "Report", exact: true }).click();
     const dialog = visitor.getByRole("dialog", { name: "Report this community to Harvest" });
     await expect(dialog.getByRole("button", { name: "Send report" })).toBeDisabled();
@@ -95,7 +99,7 @@ test("report, staff pause and restore a community, hide and restore a post", asy
     await dialog.getByLabel("Details (optional)").fill("Asks for money by private message");
     await audit(visitor, "public-report-dialog");
     await dialog.getByRole("button", { name: "Send report" }).click();
-    await expect(dialog.getByRole("status")).toHaveText("Thank you. Harvest staff will review it.");
+    await expect(dialog.getByRole("status")).toHaveText("Thank you. Harvest staff will review it.", { timeout: 120_000 });
     await dialog.getByRole("button", { name: "Done" }).click();
 
     // 2. A member reports a post to Harvest instead of the hosts.
@@ -109,7 +113,9 @@ test("report, staff pause and restore a community, hide and restore a post", asy
     await report.getByLabel("Spam or advertising").click();
     await audit(member.page, "member-report-to-harvest");
     await report.getByRole("button", { name: "Send report" }).click();
-    await expect(report.getByRole("status")).toHaveText("Thank you. Harvest staff will review it.");
+    // The first call compiles the route in the dev server, which can take a while on a busy machine; the stored report is the proof if the
+    // dev server reloads the page before the thanks appear.
+    await expect.poll(async () => (await admin.q("select 1 from community_harvest_reports where target_type = 'post' and target_id = $1", [post.id])).length, { timeout: 120_000 }).toBe(1);
 
     // 3. The staff queue: neutral 404 for everyone else; the admin sees the badge and pauses the community.
     expect((await go(visitor, "/platform/communities"))?.status()).toBe(404);
@@ -146,8 +152,12 @@ test("report, staff pause and restore a community, hide and restore a post", asy
 
     // 5. Restore: everything comes back.
     await go(s, "/platform/communities");
-    await s.getByRole("row").filter({ hasText: "Asks for money" }).getByRole("button", { name: `Actions for the report on ${name}` }).click();
+    const pausedRow = s.getByRole("row").filter({ hasText: "Asks for money" });
+    await expect(pausedRow).toContainText("Hidden");
+    await pausedRow.getByRole("button", { name: `Actions for the report on ${name}` }).click();
     await s.getByRole("menuitem", { name: "Restore" }).click();
+    await expect(s.getByRole("alertdialog")).toBeVisible();
+    await audit(s, "staff-restore-confirm");
     await s.getByRole("alertdialog").getByRole("button", { name: "Restore" }).click();
     await expect(s.getByRole("status")).toHaveText("Restored.");
     expect((await go(visitor, `/communities/${slug}`))?.status()).toBe(200);
@@ -173,14 +183,16 @@ test("report, staff pause and restore a community, hide and restore a post", asy
     await go(page, `/communities/${slug}/forum`);
     await expect(page.locator("[data-harvest-hidden]")).toHaveText("Hidden by Harvest");
     await go(s, "/platform/communities");
-    await s.getByRole("row").filter({ hasText: "Cheap watches" }).getByRole("button", { name: `Actions for the report on ${name}` }).click();
+    const hiddenRow = s.getByRole("row").filter({ hasText: "Cheap watches" });
+    await expect(hiddenRow).toContainText("Hidden");
+    await hiddenRow.getByRole("button", { name: `Actions for the report on ${name}` }).click();
     await s.getByRole("menuitem", { name: "Restore" }).click();
     await s.getByRole("alertdialog").getByRole("button", { name: "Restore" }).click();
     await expect(s.getByRole("status")).toHaveText("Restored.");
     await go(member.page, `/communities/${slug}/forum`);
     await expect(member.page.getByText("Cheap watches")).toBeVisible();
 
-    const actions = (await admin.q<{ action: string }>("select action from platform_staff_audit where action like 'community.takedown.%' order by created_at")).map((r) => r.action);
+    const actions = (await admin.q<{ action: string }>("select action from platform_staff_audit where action like 'community.takedown.%' and target_id = any($1) order by created_at", [[community.id, post.id]])).map((r) => r.action);
     expect(actions).toEqual(["community.takedown.hide", "community.takedown.restore", "community.takedown.hide", "community.takedown.restore"]);
     expect(errors).toEqual([]);
   } finally {

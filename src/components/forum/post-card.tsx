@@ -1,9 +1,10 @@
 /** Derived from Shadcn UI Kit item social-media-post1 (premium), registry retrieved 2026-11-16, approved 2026-11-16 (Kit PR 7). Visual reference only; local changes: docs/ui-sources.md. */
 import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
-import { EyeOff, MessageSquare, Pin, PlayCircle } from "lucide-react";
+import { MessageSquare, Pin, PlayCircle } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
 import { LikeButton } from "@/components/forum/like-button";
 import { memberInitials } from "@/lib/community-members";
@@ -24,7 +25,7 @@ export function PostCard({ slug, post, category }: { slug: string; post: PostCar
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         {post.pinned && <Badge variant="secondary"><Pin className="size-3" aria-hidden="true" />{t("pinned")}</Badge>}
         {post.held && <Badge variant="outline">{t("awaitingReview")}</Badge>}
-        {post.harvestHidden && <Badge variant="destructive" data-harvest-hidden><EyeOff className="size-3" aria-hidden="true" />{th("hiddenByHarvest")}</Badge>}
+        {post.harvestHidden && <span data-harvest-hidden className="inline-flex"><StatusBadge tone="danger" label={th("hiddenByHarvest")} dot /></span>}
         {category && <Badge variant="outline">{category.emoji ? `${category.emoji} ` : ""}{category.name}</Badge>}
         {post.hasVideo && <PlayCircle className="size-4" aria-label={t("hasVideo")} />}
       </div>

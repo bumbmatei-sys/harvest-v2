@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { getFormatter, getTranslations } from "next-intl/server";
-import { ArrowLeft, EyeOff, FileText, Pin } from "lucide-react";
+import { ArrowLeft, FileText, Pin } from "lucide-react";
 import { getDb } from "@/db/client";
 import { getPost } from "@/server/community-forum";
 import { pageSession } from "@/server/page-session";
@@ -13,6 +13,7 @@ import { LikeButton } from "@/components/forum/like-button";
 import { CommentActions, PostActions, ReplyForm } from "@/components/forum/forum-actions";
 import { PostComposer } from "@/components/forum/post-composer";
 import { Badge } from "@/components/ui/badge";
+import { StatusBadge } from "@/components/status-badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { ReportDialog } from "@/components/communities/report-dialog";
 import { EditHistory } from "@/components/communities/edit-history";
@@ -27,7 +28,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
   const t = await getTranslations("CommunityForum"), format = await getFormatter(), files = `/api/communities/${context.slug}/files`;
   const isAuthor = post.authorId === me, author = post.authorName?.trim() || t("unnamed"), muted = context.mutedUntil;
   const awaiting = <Badge variant="outline">{t("awaitingReview")}</Badge>;
-  const th = await getTranslations("CommunityTakedown"), hiddenByHarvest = <Badge variant="destructive" data-harvest-hidden><EyeOff className="size-3" aria-hidden="true" />{th("hiddenByHarvest")}</Badge>;
+  const th = await getTranslations("CommunityTakedown"), hiddenByHarvest = <span data-harvest-hidden className="inline-flex"><StatusBadge tone="danger" label={th("hiddenByHarvest")} dot /></span>;
   return <article className="mx-auto w-full max-w-3xl space-y-6 p-4 lg:p-6">
     <Link href={`/communities/${context.slug}/forum`} prefetch={false} className="inline-flex min-h-11 items-center gap-2 text-sm text-muted-foreground hover:text-foreground">
       <ArrowLeft className="size-4" aria-hidden="true" />{t("backToForum")}</Link>
