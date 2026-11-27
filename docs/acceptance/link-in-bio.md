@@ -14,7 +14,7 @@ Draft PR "Link in bio with Message me". Plan and decisions: `docs/plans/link-in-
 
 ## Rework PR 1 (founder decision 25 Nov; kit items approved 27 Nov)
 
-Migration `0134_bio_tabs_layout` (no columns; `bio_block_shown` learns the single-page layout, `bio_public_photo_scoped` stops serving a cover that is switched off).
+Migration `0139_bio_tabs_layout` (no columns; `bio_block_shown` learns the single-page layout, `bio_public_photo_scoped` stops serving a cover that is switched off).
 
 - **Header** (`BioHeader`, layout from kit `profile-block2`): cover on or off (brand gradient without an image), a **required** profile photo placed left or centre (publishing is refused without one, in the editor checklist and on the server), name, a one-line short bio, and the social and website icons in one style for the page (outline or colour). Founder decision 27 Nov: nothing else in the header; the subtitle becomes the one-line bio when there is no bio, and the details list and the main action button are dropped (that information goes in blocks). Older pages are normalised on read.
 - **Profile step** (`BioProfileStep`, kit `form-layout14`): label-left rows; cover and photo use the shared `EventCoverPicker` in a new small square variant.
@@ -24,7 +24,7 @@ Migration `0134_bio_tabs_layout` (no columns; `bio_block_shown` learns the singl
 
 ## Rework PR 2: new block types
 
-Migration `0135_bio_blocks` (no columns). `bio_public_page_scoped` resolves products and courses (published, not hidden, this ministry only; public fields only) and live hosted form addresses; `bio_record_click_scoped` counts the new blocks that lead somewhere (Live now only while on); `bio_scope_clear` adds the catalog resolver flags it now sets.
+Migration `0140_bio_blocks` (no columns). `bio_public_page_scoped` resolves products and courses (published, not hidden, this ministry only; public fields only) and live hosted form addresses; `bio_record_click_scoped` counts the new blocks that lead somewhere (Live now only while on); `bio_scope_clear` adds the catalog resolver flags it now sets.
 
 - **Products and courses** (shared `ListingCard`) and **PDFs and ebooks** (`BioFileList`, kit `list-block13`): the owner picks the ministry's own items; a draft or hidden item never reaches a visitor, and a file row opens the download product's own page (sign-in and delivery unchanged).
 - **Forms**: a hosted form (a prayer request, for example) opened at `/f/<slug>`; newsletter sign-up and Message me stay as they were.
@@ -36,7 +36,7 @@ Migration `0135_bio_blocks` (no columns). `bio_public_page_scoped` resolves prod
 
 ## Rework PR 3: gallery, share and QR, countdown
 
-Migration `0136_bio_gallery`: `bio_files.kind` gains `gallery` (drizzle-generated constraint swap); `bio_photo_perform` (0094 body as rewritten by 0113 for `access_role`) handles gallery pictures (served to the owner by id, never set on the page; at most 60 in use per page: pictures a gallery block of the draft or published copy lists, plus uploads of the last hour still waiting for their upload or scan); `bio_public_page_scoped` lists the ready gallery pictures shown gallery blocks name; new definer `bio_public_gallery` (scope cleared and restored, pinned search path, granted to the app role only).
+Migration `0141_bio_gallery`: `bio_files.kind` gains `gallery` (drizzle-generated constraint swap); `bio_photo_perform` (0094 body as rewritten by 0113 for `access_role`) handles gallery pictures (served to the owner by id, never set on the page; at most 60 in use per page: pictures a gallery block of the draft or published copy lists, plus uploads of the last hour still waiting for their upload or scan); `bio_public_page_scoped` lists the ready gallery pictures shown gallery blocks name; new definer `bio_public_gallery` (scope cleared and restored, pinned search path, granted to the app role only).
 
 - **Photo gallery** (`BioGallery`, kit `customer-reviews9`): up to 12 uploaded pictures per block through the private, scanned upload path; square grid, full-screen viewer with swipe (`embla-carousel-react`), previous and next buttons and arrow keys. Visitors reach a picture only at `/l/<handle>/gallery/<id>` (a one-minute signed redirect, 120 a minute per visitor) while a shown gallery block of the published page lists it.
 - **Share and QR** (`BioShare`, kit `dashboard-modal2`): the page link with a copy button, the device share sheet, and the QR code from the Connect renderer at `/l/<handle>/qr` (SVG, or PNG to download; published pages only; 30 a minute per visitor). The code encodes the stored handle on the configured site address (`BETTER_AUTH_URL`), never the request's Host header.

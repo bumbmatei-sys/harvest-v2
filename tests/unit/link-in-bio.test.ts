@@ -129,7 +129,7 @@ describe("header and tabs (rework, 25 Nov)", () => {
     expect(isLegacyTabId("home")).toBe(true); expect(isLegacyTabId("abcdefgh")).toBe(false);
   });
   it("keeps the database's block rule in step with the application's", () => {
-    const sql = readFileSync("drizzle/0134_bio_tabs_layout.sql", "utf8");
+    const sql = readFileSync("drizzle/0139_bio_tabs_layout.sql", "utf8");
     expect(sql).toMatch(/coalesce\(p_published->>'layout', 'tabs'\) = 'single'/);
     expect(sql).toMatch(/p_kind = 'cover' AND \(page\.published->>'cover'\) = 'false'/);
     expect(sql.split("\n").filter((line) => !line.startsWith("--")).join("\n")).not.toMatch(/SECURITY DEFINER/);
@@ -181,7 +181,7 @@ describe("new block types (rework PR 2)", () => {
     expect(parse({ type: "form", title: "", slug: "prayer-request" }).success).toBe(false);
   });
   it("keeps the database's click list and catalog rule in step", () => {
-    const sql = readFileSync("drizzle/0135_bio_blocks.sql", "utf8");
+    const sql = readFileSync("drizzle/0140_bio_blocks.sql", "utf8");
     const listed = sql.match(/b->>'type' IN \(([^)]*)\)\n\s*AND \(b->>'type' <> 'live'/)![1].match(/'([^']+)'/g)!.map((w) => w.slice(1, -1));
     expect(listed.sort()).toEqual([...bioClickTypes].sort());
     expect(sql).toMatch(/c\.state = 'published' AND c\.visibility <> 'hidden'/);
@@ -209,7 +209,7 @@ describe("gallery, share and countdown (rework PR 3)", () => {
     expect(parse({ type: "countdown", title: "Easter", at: "2027-03-28T09:00:00.000Z", url: "http://example.org" }).success).toBe(false);
   });
   it("keeps the gallery pictures behind the published page in the database", () => {
-    const sql = readFileSync("drizzle/0136_bio_gallery.sql", "utf8");
+    const sql = readFileSync("drizzle/0141_bio_gallery.sql", "utf8");
     expect(sql).toMatch(/CHECK \("bio_files"\."kind" in \('photo','cover','gallery'\)\)/);
     expect(sql).toMatch(/public\.bio_role_can\(public\.access_role\(tenant_id, user_id, 'website', role_id\)\)/);
     expect(sql).toMatch(/b->>'type' = 'gallery' AND public\.bio_block_shown\(page\.published, b\)/);

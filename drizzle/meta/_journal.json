@@ -913,24 +913,66 @@
       "breakpoints": true
     },
     {
+      "idx": 133,
+      "version": "7",
+      "when": 1795772565019,
+      "tag": "0133_newsletter_consent_v2",
+      "breakpoints": true
+    },
+    {
       "idx": 134,
       "version": "7",
-      "when": 1795774216586,
-      "tag": "0134_bio_tabs_layout",
+      "when": 1795775982843,
+      "tag": "0134_your_data_export",
       "breakpoints": true
     },
     {
       "idx": 135,
       "version": "7",
-      "when": 1795774346872,
-      "tag": "0135_bio_blocks",
+      "when": 1795785935924,
+      "tag": "0135_native_blog",
       "breakpoints": true
     },
     {
       "idx": 136,
       "version": "7",
-      "when": 1795774452821,
-      "tag": "0136_bio_gallery",
+      "when": 1795787887914,
+      "tag": "0136_account_deletion",
+      "breakpoints": true
+    },
+    {
+      "idx": 137,
+      "version": "7",
+      "when": 1795792371617,
+      "tag": "0137_newsletter_click_fixed_buckets",
+      "breakpoints": true
+    },
+    {
+      "idx": 138,
+      "version": "7",
+      "when": 1795796244452,
+      "tag": "0138_blog_scope_clear",
+      "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1795798348794,
+      "tag": "0139_bio_tabs_layout",
+      "breakpoints": true
+    },
+    {
+      "idx": 140,
+      "version": "7",
+      "when": 1795806172656,
+      "tag": "0140_bio_blocks",
+      "breakpoints": true
+    },
+    {
+      "idx": 141,
+      "version": "7",
+      "when": 1795807824409,
+      "tag": "0141_bio_gallery",
       "breakpoints": true
     }
   ]

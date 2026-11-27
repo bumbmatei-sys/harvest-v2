@@ -5,7 +5,7 @@ import { bioVisitorKey } from "./link-in-bio-public";
 import { workerSettings } from "./worker-settings";
 
 /**
- * Throttles anonymous public reads (Discover, the public community page and its beacon), C23 follow-up F1. Community unsubscribe is
+ * Throttles anonymous public reads (Discover, the public community page and its beacon, the public blog), C23 follow-up F1. Community unsubscribe is
  * deliberately not throttled (one-click POSTs come from mailbox providers' servers, many real people behind one address).
  *
  * - Identity: the same keyed-hashed visitor key the link-in-bio and give-page report limits use (`bioVisitorKey`), so no raw address is
@@ -26,6 +26,8 @@ export const publicReadLimits = {
   "bio-qr": 30,
   // Link in bio gallery pictures (a page shows up to 12 per gallery block, and the viewer loads them again).
   "bio-photo": 120,
+  /** The public blog: index, article, feed and pictures share one budget (a page loads several pictures). */
+  blog: 120,
 } as const;
 export type PublicReadScope = keyof typeof publicReadLimits;
 export type PublicReadCharge = { limited: false } | { limited: true; retryAfter: number };

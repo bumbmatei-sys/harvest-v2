@@ -331,7 +331,7 @@ describe("tabs, details and the cover", () => {
   });
 });
 
-describe("rework: named tabs, single page, cover switch (0134)", () => {
+describe("rework: named tabs, single page, cover switch (0139)", () => {
   const tab = (id: string, label: string, hidden = false) => ({ id, label, hidden });
   it("serves up to six named tabs in the owner's order and never a hidden one", async () => {
     version = (await getBioPage(db(), people.owner, people.tenant)).version;
@@ -396,7 +396,7 @@ describe("rework: named tabs, single page, cover switch (0134)", () => {
   });
 });
 
-describe("rework PR 2: new blocks (0135)", () => {
+describe("rework PR 2: new blocks (0140)", () => {
   const catalogRow = async (tenant: string, kind: "course" | "download", state: string, visibility: string, title: string) => {
     const id = randomUUID();
     await fixture.admin.query("insert into catalog_items(tenant_id,id,kind,slug,title,summary,state,visibility) values($1,$2,$3,$4,$5,'Synthetic summary',$6,$7)",
@@ -462,7 +462,7 @@ describe("rework PR 2: new blocks (0135)", () => {
   });
 });
 
-describe("rework PR 3: gallery, share and countdown (0136)", () => {
+describe("rework PR 3: gallery, share and countdown (0141)", () => {
   const galleryFile = async (status: "ready" | "pending", tenant = people.tenant) => {
     const page = await getBioPage(db(), tenant === people.tenant ? people.owner : people.outsider, tenant), id = randomUUID();
     await fixture.admin.query("insert into bio_files(id,tenant_id,page_id,key,kind,name,mime,size,checksum,status) values($1,$2,$3,$4,'gallery','g.png','image/png',10,$5,$6)",
