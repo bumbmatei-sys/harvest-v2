@@ -6,6 +6,7 @@ import { crmFormVisitorKey } from "./crm-form-visitor";
 import { errorResponse, verifyOrigin } from "./http";
 import { readBoundedJson } from "./request-json";
 import { newsletterFormCountsClicks } from "./newsletter-clicks";
+import { signupTexts } from "../lib/newsletter-signup";
 import { workerSettings } from "./worker-settings";
 
 export type CrmFormContext = { params: Promise<{ slug: string }> };
@@ -47,8 +48,13 @@ async function handleCrmForm(request: Request, context: CrmFormContext, submit: 
     }
     if (!submit) {
       const manifest = crmFormManifest(form, slug, key);
-      // A newsletter sign-up page says so when the ministry counts link clicks in its emails (shown beside, not inside, the recorded consent wording).
-      return Response.json(manifest.newsletter ? { ...manifest, clicksCounted: await newsletterFormCountsClicks(db, slug) } : manifest);
+      if (!manifest.newsletter) return Response.json(manifest);
+      // A newsletter sign-up page shows the wording that applies now: newsletter-consent-v2, which adds the clicks line to the consent statement,
+      // while the ministry counts link clicks, and the form's frozen wording otherwise. The submission must name the wording it showed.
+      const clicksCounted = await newsletterFormCountsClicks(db, slug);
+      const newsletter = signupTexts(manifest.newsletter, clicksCounted);
+      const blocks = manifest.blocks.map((block) => block.type === "consent" ? { ...block, label: newsletter.consentText, text: `${newsletter.consentText} ${newsletter.fixedNotice}` } : block);
+      return Response.json({ ...manifest, blocks, newsletter, clicksCounted });
     }
     if (request.headers.get("content-type")?.split(";")[0].trim().toLowerCase() !== "application/json") {
       return Response.json({ error: "json_required" }, { status: 415 });

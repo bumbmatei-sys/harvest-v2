@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { defaultBrand, type EmailDocument } from "@/lib/email/blocks";
 import { renderEmail } from "@/lib/email/render";
 import { renderNewsletter } from "@/lib/newsletter-content";
-import { clickRewriter, clickTokenPattern, clickUrl, linkCollector, MAX_TRACKED_LINKS, signClickToken, verifyClickToken, type ClickReference } from "@/lib/newsletter-click-token";
+import { automationClickUrl, clickRewriter, clickTokenPattern, clickUrl, linkCollector, MAX_TRACKED_LINKS, readClickToken, signAutomationClickToken, signClickToken, verifyClickToken, type AutomationClickReference, type ClickReference } from "@/lib/newsletter-click-token";
 
 const key = randomBytes(32);
 const reference: ClickReference = { tenant: randomUUID(), campaign: randomUUID(), revision: 3, delivery: randomUUID(), link: 2 };
@@ -45,6 +45,20 @@ describe("click tokens", () => {
     expect(() => signClickToken(key, { ...reference, link: MAX_TRACKED_LINKS })).toThrow();
     expect(() => signClickToken(key, { ...reference, tenant: "not-a-uuid" })).toThrow();
     expect(() => signClickToken(key, { ...reference, revision: 0 })).toThrow();
+  });
+
+  it("sign automation links with their own version: never read as a campaign link, and the other way round", () => {
+    const automation: AutomationClickReference = { tenant: randomUUID(), automation: randomUUID(), attempt: randomUUID(), link: 4 };
+    const token = signAutomationClickToken(key, automation);
+    expect(token).toMatch(clickTokenPattern);
+    expect(readClickToken(key, token)).toEqual({ kind: "automation", reference: automation });
+    expect(verifyClickToken(key, token)).toBeNull();
+    expect(readClickToken(key, signClickToken(key, reference))).toEqual({ kind: "campaign", reference });
+    expect(readClickToken(randomBytes(32), token)).toBeNull();
+    expect(Buffer.from(token.split(".")[0], "base64url").toString("latin1")).not.toMatch(/https|example/);
+    expect(new URL(automationClickUrl("https://newsletter.example.test", key, automation)).pathname).toBe("/api/newsletter/link");
+    expect(() => signAutomationClickToken(key, { ...automation, link: MAX_TRACKED_LINKS })).toThrow();
+    expect(() => signAutomationClickToken(key, { ...automation, attempt: "nope" })).toThrow();
   });
 });
 

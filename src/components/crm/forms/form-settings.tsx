@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { ChevronDown, Columns2, Moon, Rows3, Square, Sun, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
-import { asksFor, setNameQuestion } from "@/lib/newsletter-signup";
+import { asksFor, CLICKS_COUNTED_LINE, setNameQuestion, signupWording } from "@/lib/newsletter-signup";
 import type { ListChoice } from "@/components/newsletter/signup-forms-list";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -72,7 +72,8 @@ export function FormSettingsPanel({ form, destinations, members, onSettings, onD
       </Section>
       <Section id="consent" title={tn("consent")} open={open.consent} onOpen={set("consent")}>
         <div className="space-y-2 text-sm" data-signup-wording><Badge variant="outline">{config.wordingVersion}</Badge>
-          <p>{config.consentText}</p><p className="text-muted-foreground">{config.fixedNotice}</p></div>
+          <p>{config.consentText}</p><p className="text-muted-foreground">{config.fixedNotice}</p>
+          <p className="text-muted-foreground" data-counted-wording>{tn("countedWording", { version: signupWording(config.wordingVersion, true), line: CLICKS_COUNTED_LINE })}</p></div>
       </Section></>}
     {!newsletter && <Section id="after" title={t("after.title")} open={open.after} onOpen={set("after")}>
       <Row label={t("after.saveTo")} htmlFor="set-destination">
