@@ -4,6 +4,7 @@ import { getDb } from "@/db/client";
 import { isBrandTheme } from "@/lib/theme-registry";
 import { BioPageView } from "@/components/link-in-bio/bio-view";
 import { getPublicBio } from "@/server/link-in-bio";
+import { bioLink } from "@/lib/site-address";
 
 // The public link-in-bio page. A handle that is missing, unpublished or not served here answers the same 404; no draft text ever reaches the metadata.
 export const dynamic = "force-dynamic";
@@ -23,5 +24,5 @@ export default async function BioPage({ params }: Props) {
   // Colours come from the ministry's brand; light or dark follows the visitor's device unless the owner fixed it. Only validated values are written.
   const brand = view.brandTheme && isBrandTheme(view.brandTheme) ? view.brandTheme : "harvest";
   const script = `(function(){var d=document.documentElement,s=${JSON.stringify(view.scheme)},m=s==='auto'?(matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light'):s;d.dataset.brandTheme=${JSON.stringify(brand)};d.dataset.theme=m;d.classList.toggle('dark',m==='dark')})()`;
-  return <div className="min-h-dvh bg-background text-foreground pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]"><script dangerouslySetInnerHTML={{ __html: script }} /><BioPageView view={view} handle={handle} /></div>;
+  return <div className="min-h-dvh bg-background text-foreground pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]"><script dangerouslySetInnerHTML={{ __html: script }} /><BioPageView view={view} handle={handle} shareUrl={bioLink(handle)} /></div>;
 }

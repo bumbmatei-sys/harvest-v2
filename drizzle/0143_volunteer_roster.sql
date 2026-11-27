@@ -83,9 +83,9 @@ CREATE TABLE "volunteers" (
 	CONSTRAINT "volunteer_dates" CHECK ("volunteers"."end_date" >= "volunteers"."start_date" and length("volunteers"."note") <= 2000)
 );
 --> statement-breakpoint
+ALTER TABLE "crm_notifications" DROP CONSTRAINT "crm_notification_target";--> statement-breakpoint
 ALTER TABLE "crm_notifications" DROP CONSTRAINT "crm_notification_kind";--> statement-breakpoint
 ALTER TABLE "crm_notifications" DROP CONSTRAINT "crm_notification_due_at";--> statement-breakpoint
-ALTER TABLE "crm_notifications" ALTER COLUMN "task_id" DROP NOT NULL;--> statement-breakpoint
 ALTER TABLE "crm_notifications" ADD COLUMN "volunteer_slot_id" uuid;--> statement-breakpoint
 ALTER TABLE "volunteer_assignments" ADD CONSTRAINT "volunteer_assignments_tenant_id_slot_id_role_id_volunteer_slots_tenant_id_id_role_id_fk" FOREIGN KEY ("tenant_id","slot_id","role_id") REFERENCES "public"."volunteer_slots"("tenant_id","id","role_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "volunteer_assignments" ADD CONSTRAINT "volunteer_assignments_tenant_id_volunteer_id_role_id_volunteers_tenant_id_id_role_id_fk" FOREIGN KEY ("tenant_id","volunteer_id","role_id") REFERENCES "public"."volunteers"("tenant_id","id","role_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -104,9 +104,9 @@ CREATE UNIQUE INDEX "volunteer_request_pending" ON "volunteer_requests" USING bt
 CREATE INDEX "volunteer_slot_date" ON "volunteer_slots" USING btree ("tenant_id","service_date","id");--> statement-breakpoint
 ALTER TABLE "crm_notifications" ADD CONSTRAINT "crm_notifications_tenant_id_volunteer_slot_id_volunteer_slots_tenant_id_id_fk" FOREIGN KEY ("tenant_id","volunteer_slot_id") REFERENCES "public"."volunteer_slots"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "crm_notification_volunteer_reminder" ON "crm_notifications" USING btree ("tenant_id","volunteer_slot_id","recipient_user_id","due_at") WHERE "crm_notifications"."kind" = 'volunteer_reminder';--> statement-breakpoint
-ALTER TABLE "crm_notifications" ADD CONSTRAINT "crm_notification_volunteer_target" CHECK (num_nonnulls("crm_notifications"."task_id", "crm_notifications"."volunteer_slot_id") = 1 and ("crm_notifications"."volunteer_slot_id" is not null) = ("crm_notifications"."kind" in ('volunteer_assigned','volunteer_changed','volunteer_reminder','volunteer_swap_requested')));--> statement-breakpoint
-ALTER TABLE "crm_notifications" ADD CONSTRAINT "crm_notification_kind" CHECK ("crm_notifications"."kind" in ('task_assigned', 'task_due', 'task_overdue', 'volunteer_assigned', 'volunteer_changed', 'volunteer_reminder', 'volunteer_swap_requested'));--> statement-breakpoint
-ALTER TABLE "crm_notifications" ADD CONSTRAINT "crm_notification_due_at" CHECK (("crm_notifications"."kind" in ('task_assigned','volunteer_assigned','volunteer_changed','volunteer_swap_requested')) = ("crm_notifications"."due_at" is null));--> statement-breakpoint
+ALTER TABLE "crm_notifications" ADD CONSTRAINT "crm_notification_target" CHECK (num_nonnulls("crm_notifications"."task_id", "crm_notifications"."ownership_offer_id", "crm_notifications"."volunteer_slot_id") = 1 and ("crm_notifications"."kind" = 'ownership_transfer') = ("crm_notifications"."ownership_offer_id" is not null) and ("crm_notifications"."kind" in ('volunteer_assigned','volunteer_changed','volunteer_reminder','volunteer_swap_requested')) = ("crm_notifications"."volunteer_slot_id" is not null));--> statement-breakpoint
+ALTER TABLE "crm_notifications" ADD CONSTRAINT "crm_notification_kind" CHECK ("crm_notifications"."kind" in ('task_assigned', 'task_due', 'task_overdue', 'ownership_transfer', 'volunteer_assigned', 'volunteer_changed', 'volunteer_reminder', 'volunteer_swap_requested'));--> statement-breakpoint
+ALTER TABLE "crm_notifications" ADD CONSTRAINT "crm_notification_due_at" CHECK (("crm_notifications"."kind" in ('task_assigned', 'ownership_transfer', 'volunteer_assigned', 'volunteer_changed', 'volunteer_swap_requested')) = ("crm_notifications"."due_at" is null));--> statement-breakpoint
 CREATE FUNCTION public.volunteer_role(p_tenant uuid) RETURNS text
 LANGUAGE sql STABLE SET search_path = pg_catalog, pg_temp AS $$
   SELECT public.access_role(tenant_id,user_id,'owner_admin',role_id) FROM public.workspace_members
@@ -363,4 +363,8 @@ BEGIN
   RETURN result;
 END $$;
 REVOKE ALL ON FUNCTION public.volunteer_change(uuid,text,uuid,text,uuid,timestamptz) FROM PUBLIC;
-GRANT EXECUTE ON FUNCTION public.volunteer_change(uuid,text,uuid,text,uuid,timestamptz) TO harvest_app;
+GRANT EXECUTE ON FUNCTION public.volunteer_change(uuid,text,uuid,text,uuid,timestamptz) TO harvest_app;--> statement-breakpoint
+-- Application inserts stay limited to task notices: ownership notices (0142) and volunteer notices are written only by their definers.
+ALTER POLICY crm_notifications_insert ON public.crm_notifications
+  WITH CHECK (tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid
+    AND kind NOT IN ('ownership_transfer', 'volunteer_assigned', 'volunteer_changed', 'volunteer_reminder', 'volunteer_swap_requested'));

@@ -1,6 +1,6 @@
 {
-  "id": "003d788c-10f8-4004-8dc4-ce9639620ae9",
-  "prevId": "3b468b07-3629-4465-9e32-5ed3870f10f3",
+  "id": "4441d37a-dd62-4e6b-b0ec-ea56d01ec586",
+  "prevId": "e9b98093-e068-417d-a9ce-30ad795fd3d2",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3948,7 +3948,7 @@
       "checkConstraints": {
         "bio_file_kind": {
           "name": "bio_file_kind",
-          "value": "\"bio_files\".\"kind\" in ('photo','cover')"
+          "value": "\"bio_files\".\"kind\" in ('photo','cover','gallery')"
         },
         "bio_file_mime": {
           "name": "bio_file_mime",
@@ -14053,7 +14053,7 @@
       "checkConstraints": {
         "community_reaction_emoji": {
           "name": "community_reaction_emoji",
-          "value": "\"community_message_reactions\".\"emoji\" in ('\ud83d\udc4d','\u2764\ufe0f','\ud83d\ude4f','\ud83d\ude0a','\ud83c\udf89','\ud83d\udc4f','\ud83d\udca1','\ud83d\udd25','\ud83d\ude2e','\ud83d\ude22','\u2705','\ud83d\ude4c')"
+          "value": "\"community_message_reactions\".\"emoji\" in ('👍','❤️','🙏','😊','🎉','👏','💡','🔥','😮','😢','✅','🙌')"
         }
       },
       "isRLSEnabled": false
@@ -20975,8 +20975,8 @@
           "primaryKey": false,
           "notNull": false
         },
-        "volunteer_slot_id": {
-          "name": "volunteer_slot_id",
+        "ownership_offer_id": {
+          "name": "ownership_offer_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
@@ -21074,40 +21074,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "crm_notification_volunteer_reminder": {
-          "name": "crm_notification_volunteer_reminder",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "volunteer_slot_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "recipient_user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "due_at",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"crm_notifications\".\"kind\" = 'volunteer_reminder'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -21150,6 +21116,19 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
+        "crm_notifications_ownership_offer_id_workspace_ownership_offers_id_fk": {
+          "name": "crm_notifications_ownership_offer_id_workspace_ownership_offers_id_fk",
+          "tableFrom": "crm_notifications",
+          "tableTo": "workspace_ownership_offers",
+          "columnsFrom": [
+            "ownership_offer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
         "crm_notifications_tenant_id_task_id_crm_tasks_tenant_id_id_fk": {
           "name": "crm_notifications_tenant_id_task_id_crm_tasks_tenant_id_id_fk",
           "tableFrom": "crm_notifications",
@@ -21157,21 +21136,6 @@
           "columnsFrom": [
             "tenant_id",
             "task_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "crm_notifications_tenant_id_volunteer_slot_id_volunteer_slots_tenant_id_id_fk": {
-          "name": "crm_notifications_tenant_id_volunteer_slot_id_volunteer_slots_tenant_id_id_fk",
-          "tableFrom": "crm_notifications",
-          "tableTo": "volunteer_slots",
-          "columnsFrom": [
-            "tenant_id",
-            "volunteer_slot_id"
           ],
           "columnsTo": [
             "tenant_id",
@@ -21193,17 +21157,17 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
+        "crm_notification_target": {
+          "name": "crm_notification_target",
+          "value": "num_nonnulls(\"crm_notifications\".\"task_id\", \"crm_notifications\".\"ownership_offer_id\") = 1 and (\"crm_notifications\".\"kind\" = 'ownership_transfer') = (\"crm_notifications\".\"ownership_offer_id\" is not null)"
+        },
         "crm_notification_kind": {
           "name": "crm_notification_kind",
-          "value": "\"crm_notifications\".\"kind\" in ('task_assigned', 'task_due', 'task_overdue', 'volunteer_assigned', 'volunteer_changed', 'volunteer_reminder', 'volunteer_swap_requested')"
+          "value": "\"crm_notifications\".\"kind\" in ('task_assigned', 'task_due', 'task_overdue', 'ownership_transfer')"
         },
         "crm_notification_due_at": {
           "name": "crm_notification_due_at",
-          "value": "(\"crm_notifications\".\"kind\" in ('task_assigned','volunteer_assigned','volunteer_changed','volunteer_swap_requested')) = (\"crm_notifications\".\"due_at\" is null)"
-        },
-        "crm_notification_volunteer_target": {
-          "name": "crm_notification_volunteer_target",
-          "value": "num_nonnulls(\"crm_notifications\".\"task_id\", \"crm_notifications\".\"volunteer_slot_id\") = 1 and (\"crm_notifications\".\"volunteer_slot_id\" is not null) = (\"crm_notifications\".\"kind\" in ('volunteer_assigned','volunteer_changed','volunteer_reminder','volunteer_swap_requested'))"
+          "value": "(\"crm_notifications\".\"kind\" in ('task_assigned', 'ownership_transfer')) = (\"crm_notifications\".\"due_at\" is null)"
         }
       },
       "isRLSEnabled": false
@@ -39440,766 +39404,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.volunteer_assignments": {
-      "name": "volunteer_assignments",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "slot_id": {
-          "name": "slot_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "role_id": {
-          "name": "role_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "volunteer_id": {
-          "name": "volunteer_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "volunteer_assignments_tenant_id_slot_id_role_id_volunteer_slots_tenant_id_id_role_id_fk": {
-          "name": "volunteer_assignments_tenant_id_slot_id_role_id_volunteer_slots_tenant_id_id_role_id_fk",
-          "tableFrom": "volunteer_assignments",
-          "tableTo": "volunteer_slots",
-          "columnsFrom": [
-            "tenant_id",
-            "slot_id",
-            "role_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id",
-            "role_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "volunteer_assignments_tenant_id_volunteer_id_role_id_volunteers_tenant_id_id_role_id_fk": {
-          "name": "volunteer_assignments_tenant_id_volunteer_id_role_id_volunteers_tenant_id_id_role_id_fk",
-          "tableFrom": "volunteer_assignments",
-          "tableTo": "volunteers",
-          "columnsFrom": [
-            "tenant_id",
-            "volunteer_id",
-            "role_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id",
-            "role_id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "volunteer_assignments_tenant_id_user_id_workspace_members_tenant_id_user_id_fk": {
-          "name": "volunteer_assignments_tenant_id_user_id_workspace_members_tenant_id_user_id_fk",
-          "tableFrom": "volunteer_assignments",
-          "tableTo": "workspace_members",
-          "columnsFrom": [
-            "tenant_id",
-            "user_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "user_id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "volunteer_assignments_tenant_id_id_pk": {
-          "name": "volunteer_assignments_tenant_id_id_pk",
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {
-        "volunteer_assignment_slot_user": {
-          "name": "volunteer_assignment_slot_user",
-          "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "slot_id",
-            "user_id"
-          ]
-        },
-        "volunteer_assignment_slot_volunteer": {
-          "name": "volunteer_assignment_slot_volunteer",
-          "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "slot_id",
-            "volunteer_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "volunteer_assignment_person": {
-          "name": "volunteer_assignment_person",
-          "value": "num_nonnulls(\"volunteer_assignments\".\"user_id\", \"volunteer_assignments\".\"volunteer_id\") = 1"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.volunteer_availability": {
-      "name": "volunteer_availability",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "unavailable_date": {
-          "name": "unavailable_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "volunteer_availability_tenant_id_user_id_workspace_members_tenant_id_user_id_fk": {
-          "name": "volunteer_availability_tenant_id_user_id_workspace_members_tenant_id_user_id_fk",
-          "tableFrom": "volunteer_availability",
-          "tableTo": "workspace_members",
-          "columnsFrom": [
-            "tenant_id",
-            "user_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "user_id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "volunteer_availability_tenant_id_user_id_unavailable_date_pk": {
-          "name": "volunteer_availability_tenant_id_user_id_unavailable_date_pk",
-          "columns": [
-            "tenant_id",
-            "user_id",
-            "unavailable_date"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.volunteer_requests": {
-      "name": "volunteer_requests",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "slot_id": {
-          "name": "slot_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "replacement_user_id": {
-          "name": "replacement_user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "kind": {
-          "name": "kind",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "state": {
-          "name": "state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'pending'"
-        },
-        "replacement_accepted_at": {
-          "name": "replacement_accepted_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "volunteer_request_pending": {
-          "name": "volunteer_request_pending",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "slot_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "user_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "\"volunteer_requests\".\"state\" = 'pending'",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "volunteer_requests_tenant_id_slot_id_volunteer_slots_tenant_id_id_fk": {
-          "name": "volunteer_requests_tenant_id_slot_id_volunteer_slots_tenant_id_id_fk",
-          "tableFrom": "volunteer_requests",
-          "tableTo": "volunteer_slots",
-          "columnsFrom": [
-            "tenant_id",
-            "slot_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "volunteer_requests_tenant_id_user_id_workspace_members_tenant_id_user_id_fk": {
-          "name": "volunteer_requests_tenant_id_user_id_workspace_members_tenant_id_user_id_fk",
-          "tableFrom": "volunteer_requests",
-          "tableTo": "workspace_members",
-          "columnsFrom": [
-            "tenant_id",
-            "user_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "user_id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "volunteer_requests_tenant_id_replacement_user_id_workspace_members_tenant_id_user_id_fk": {
-          "name": "volunteer_requests_tenant_id_replacement_user_id_workspace_members_tenant_id_user_id_fk",
-          "tableFrom": "volunteer_requests",
-          "tableTo": "workspace_members",
-          "columnsFrom": [
-            "tenant_id",
-            "replacement_user_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "user_id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "volunteer_requests_tenant_id_id_pk": {
-          "name": "volunteer_requests_tenant_id_id_pk",
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "volunteer_request_state": {
-          "name": "volunteer_request_state",
-          "value": "\"volunteer_requests\".\"state\" in ('pending','approved','rejected','cancelled','declined')"
-        },
-        "volunteer_request_acceptance": {
-          "name": "volunteer_request_acceptance",
-          "value": "\"volunteer_requests\".\"replacement_accepted_at\" is null or \"volunteer_requests\".\"kind\" = 'swap'"
-        },
-        "volunteer_request_kind": {
-          "name": "volunteer_request_kind",
-          "value": "((\"volunteer_requests\".\"kind\" = 'swap' and \"volunteer_requests\".\"replacement_user_id\" <> \"volunteer_requests\".\"user_id\") or \"volunteer_requests\".\"kind\" = 'decline') and (\"volunteer_requests\".\"kind\" = 'swap') = (\"volunteer_requests\".\"replacement_user_id\" is not null)"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.volunteer_roles": {
-      "name": "volunteer_roles",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "description": {
-          "name": "description",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "''"
-        },
-        "department": {
-          "name": "department",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "archived": {
-          "name": "archived",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "volunteer_roles_tenant_id_workspaces_tenant_id_fk": {
-          "name": "volunteer_roles_tenant_id_workspaces_tenant_id_fk",
-          "tableFrom": "volunteer_roles",
-          "tableTo": "workspaces",
-          "columnsFrom": [
-            "tenant_id"
-          ],
-          "columnsTo": [
-            "tenant_id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "volunteer_roles_tenant_id_id_pk": {
-          "name": "volunteer_roles_tenant_id_id_pk",
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "volunteer_role_name": {
-          "name": "volunteer_role_name",
-          "value": "length(btrim(\"volunteer_roles\".\"name\")) between 1 and 120 and length(\"volunteer_roles\".\"description\") <= 2000"
-        },
-        "volunteer_role_department": {
-          "name": "volunteer_role_department",
-          "value": "\"volunteer_roles\".\"department\" in ('campaign_leadership', 'church_mobilization', 'evangelistic_outreach', 'prayer_intercession', 'marketing_media', 'logistics_equipment', 'finance_fundraising', 'volunteers', 'counseling', 'discipleship_follow_up', 'worship_production', 'security_medical', 'transportation_hospitality')"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.volunteer_roster_grants": {
-      "name": "volunteer_roster_grants",
-      "schema": "",
-      "columns": {
-        "backend": {
-          "name": "backend",
-          "type": "integer",
-          "primaryKey": true,
-          "notNull": true
-        },
-        "transaction": {
-          "name": "transaction",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.volunteer_slots": {
-      "name": "volunteer_slots",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "role_id": {
-          "name": "role_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "event_id": {
-          "name": "event_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "title": {
-          "name": "title",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "service_date": {
-          "name": "service_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "starts_at": {
-          "name": "starts_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ends_at": {
-          "name": "ends_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "needed": {
-          "name": "needed",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "open": {
-          "name": "open",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        }
-      },
-      "indexes": {
-        "volunteer_slot_date": {
-          "name": "volunteer_slot_date",
-          "columns": [
-            {
-              "expression": "tenant_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "service_date",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "volunteer_slots_tenant_id_role_id_volunteer_roles_tenant_id_id_fk": {
-          "name": "volunteer_slots_tenant_id_role_id_volunteer_roles_tenant_id_id_fk",
-          "tableFrom": "volunteer_slots",
-          "tableTo": "volunteer_roles",
-          "columnsFrom": [
-            "tenant_id",
-            "role_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "volunteer_slots_tenant_id_event_id_events_tenant_id_id_fk": {
-          "name": "volunteer_slots_tenant_id_event_id_events_tenant_id_id_fk",
-          "tableFrom": "volunteer_slots",
-          "tableTo": "events",
-          "columnsFrom": [
-            "tenant_id",
-            "event_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "volunteer_slots_tenant_id_id_pk": {
-          "name": "volunteer_slots_tenant_id_id_pk",
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {
-        "volunteer_slot_role": {
-          "name": "volunteer_slot_role",
-          "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "id",
-            "role_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "volunteer_slot_details": {
-          "name": "volunteer_slot_details",
-          "value": "length(btrim(\"volunteer_slots\".\"title\")) between 1 and 120 and \"volunteer_slots\".\"needed\" between 1 and 500 and \"volunteer_slots\".\"ends_at\" > \"volunteer_slots\".\"starts_at\""
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.volunteers": {
-      "name": "volunteers",
-      "schema": "",
-      "columns": {
-        "tenant_id": {
-          "name": "tenant_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "role_id": {
-          "name": "role_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "contact_id": {
-          "name": "contact_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "start_date": {
-          "name": "start_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "end_date": {
-          "name": "end_date",
-          "type": "date",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "note": {
-          "name": "note",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "volunteers_tenant_id_role_id_volunteer_roles_tenant_id_id_fk": {
-          "name": "volunteers_tenant_id_role_id_volunteer_roles_tenant_id_id_fk",
-          "tableFrom": "volunteers",
-          "tableTo": "volunteer_roles",
-          "columnsFrom": [
-            "tenant_id",
-            "role_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "volunteers_tenant_id_user_id_workspace_members_tenant_id_user_id_fk": {
-          "name": "volunteers_tenant_id_user_id_workspace_members_tenant_id_user_id_fk",
-          "tableFrom": "volunteers",
-          "tableTo": "workspace_members",
-          "columnsFrom": [
-            "tenant_id",
-            "user_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "user_id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "volunteers_tenant_id_contact_id_contacts_tenant_id_id_fk": {
-          "name": "volunteers_tenant_id_contact_id_contacts_tenant_id_id_fk",
-          "tableFrom": "volunteers",
-          "tableTo": "contacts",
-          "columnsFrom": [
-            "tenant_id",
-            "contact_id"
-          ],
-          "columnsTo": [
-            "tenant_id",
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "volunteers_tenant_id_id_pk": {
-          "name": "volunteers_tenant_id_id_pk",
-          "columns": [
-            "tenant_id",
-            "id"
-          ]
-        }
-      },
-      "uniqueConstraints": {
-        "volunteers_role_identity": {
-          "name": "volunteers_role_identity",
-          "nullsNotDistinct": false,
-          "columns": [
-            "tenant_id",
-            "id",
-            "role_id"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "volunteer_person": {
-          "name": "volunteer_person",
-          "value": "num_nonnulls(\"volunteers\".\"user_id\", \"volunteers\".\"contact_id\") = 1"
-        },
-        "volunteer_dates": {
-          "name": "volunteer_dates",
-          "value": "\"volunteers\".\"end_date\" >= \"volunteers\".\"start_date\" and length(\"volunteers\".\"note\") <= 2000"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.webhook_resource_states": {
       "name": "webhook_resource_states",
       "schema": "",
@@ -40728,6 +39932,13 @@
           "primaryKey": false,
           "notNull": true
         },
+        "revision": {
+          "name": "revision",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
         "can_manage_admins": {
           "name": "can_manage_admins",
           "type": "boolean",
@@ -40822,6 +40033,180 @@
         "workspace_member_admins_flag": {
           "name": "workspace_member_admins_flag",
           "value": "\"workspace_members\".\"can_manage_admins\" = false or \"workspace_members\".\"role_id\" = 'admin'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.workspace_ownership_grants": {
+      "name": "workspace_ownership_grants",
+      "schema": "",
+      "columns": {
+        "token": {
+          "name": "token",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "actor_id": {
+          "name": "actor_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "issued_at": {
+          "name": "issued_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.workspace_ownership_offers": {
+      "name": "workspace_ownership_offers",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from_user_id": {
+          "name": "from_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "to_user_id": {
+          "name": "to_user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "from_revision": {
+          "name": "from_revision",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "to_revision": {
+          "name": "to_revision",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'pending'"
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "workspace_ownership_one_offer": {
+          "name": "workspace_ownership_one_offer",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"workspace_ownership_offers\".\"status\" = 'pending'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "workspace_ownership_offers_tenant_id_workspaces_tenant_id_fk": {
+          "name": "workspace_ownership_offers_tenant_id_workspaces_tenant_id_fk",
+          "tableFrom": "workspace_ownership_offers",
+          "tableTo": "workspaces",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "tenant_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "workspace_ownership_offers_from_user_id_users_id_fk": {
+          "name": "workspace_ownership_offers_from_user_id_users_id_fk",
+          "tableFrom": "workspace_ownership_offers",
+          "tableTo": "users",
+          "columnsFrom": [
+            "from_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "workspace_ownership_offers_to_user_id_users_id_fk": {
+          "name": "workspace_ownership_offers_to_user_id_users_id_fk",
+          "tableFrom": "workspace_ownership_offers",
+          "tableTo": "users",
+          "columnsFrom": [
+            "to_user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "workspace_ownership_distinct_members": {
+          "name": "workspace_ownership_distinct_members",
+          "value": "\"workspace_ownership_offers\".\"from_user_id\" <> \"workspace_ownership_offers\".\"to_user_id\""
+        },
+        "workspace_ownership_offer_status": {
+          "name": "workspace_ownership_offer_status",
+          "value": "\"workspace_ownership_offers\".\"status\" in ('pending','accepted','cancelled','declined','expired','membership_changed')"
         }
       },
       "isRLSEnabled": false

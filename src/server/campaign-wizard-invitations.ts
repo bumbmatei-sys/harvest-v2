@@ -1,3 +1,4 @@
+import { campaignInvitationLink } from "../lib/site-address";
 import { createHash, randomBytes } from "node:crypto";
 import { appendFile } from "node:fs/promises";
 import { and, eq, inArray } from "drizzle-orm";
@@ -24,7 +25,6 @@ export const syntheticInvitationSink: InvitationSender = async (mail) => {
 };
 
 const hash = (token: string) => createHash("sha256").update(token).digest("hex");
-const origin = () => process.env.BETTER_AUTH_URL ?? "http://127.0.0.1:3000";
 export const invitationState = (row: { status: "pending" | "accepted" | "revoked"; expiresAt: Date }, now = new Date()): InvitationState =>
   row.status === "pending" && row.expiresAt <= now ? "expired" : row.status;
 
@@ -80,7 +80,7 @@ export async function inviteToDraft(db: Database, userId: string, workspace: str
     return { id: row.id, to: target.kind === "member" ? target.to : target.email, kind: target.kind, invitations: await invitationsOf(tx, tenantId, draftId) };
   });
   // After the commit, so a failed delivery never undoes the invitation. The live sender is off; a test sink may record the link.
-  await send({ to: created.to, url: new URL(`/campaign-invitations/${token}`, origin()).href, kind: created.kind }).catch(() => undefined);
+  await Promise.resolve().then(() => send({ to: created.to, url: campaignInvitationLink(token), kind: created.kind })).catch(() => undefined);
   return { id: created.id, invitations: created.invitations };
 }
 

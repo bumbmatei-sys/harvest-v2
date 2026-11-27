@@ -100,10 +100,32 @@ export const workspaceMembers = pgTable("workspace_members", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
   userId: text("user_id").notNull().references(() => users.id),
   roleId: text("role_id").notNull().references(() => roles.id),
+  revision: uuid("revision").defaultRandom().notNull(),
   // Founder decision (25 Nov): an admin created with this flag acts like an owner for granting, changing and removing admins (never for the owner). Admin only.
   canManageAdmins: boolean("can_manage_admins").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.userId] }), index("workspace_members_user_idx").on(t.userId, t.tenantId), check("workspace_member_admins_flag", sql`${t.canManageAdmins} = false or ${t.roleId} = 'admin'`)]);
+export const workspaceOwnershipOffers = pgTable("workspace_ownership_offers", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  fromUserId: text("from_user_id").notNull().references(() => users.id),
+  toUserId: text("to_user_id").notNull().references(() => users.id),
+  fromRevision: uuid("from_revision").notNull(),
+  toRevision: uuid("to_revision").notNull(),
+  status: text("status").notNull().default("pending"),
+  expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("workspace_ownership_one_offer").on(t.tenantId).where(sql`${t.status} = 'pending'`),
+  check("workspace_ownership_distinct_members", sql`${t.fromUserId} <> ${t.toUserId}`),
+  check("workspace_ownership_offer_status", sql`${t.status} in ('pending','accepted','cancelled','declined','expired','membership_changed')`),
+]);
+export const workspaceOwnershipGrants = pgTable("workspace_ownership_grants", {
+  token: uuid("token").primaryKey(),
+  tenantId: uuid("tenant_id").notNull(),
+  actorId: text("actor_id").notNull(),
+  issuedAt: timestamp("issued_at", { withTimezone: true }).notNull().defaultNow(),
+});
 export const auditLogs = pgTable("audit_logs", {
   id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id"),
   // Null identifies an automatic follow-up action; application inserts still require the session actor (RLS).
@@ -654,13 +676,14 @@ export const crmNotes = pgTable("crm_notes", {
   check("crm_note_target", sql`num_nonnulls(${t.contactId}, ${t.companyId}, ${t.opportunityId}) = 1`),
   check("crm_note_body", sql`length(btrim(${t.body})) between 1 and 10000`),
   check("crm_note_version", sql`${t.version} >= 1`)]);
-export const crmNotificationKinds = ["task_assigned", "task_due", "task_overdue", "volunteer_assigned", "volunteer_changed", "volunteer_reminder", "volunteer_swap_requested"] as const;
+export const crmNotificationKinds = ["task_assigned", "task_due", "task_overdue", "ownership_transfer", "volunteer_assigned", "volunteer_changed", "volunteer_reminder", "volunteer_swap_requested"] as const;
 export const crmNotifications = pgTable("crm_notifications", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
   recipientUserId: text("recipient_user_id").notNull().references(() => users.id),
   actorUserId: text("actor_user_id").references(() => users.id),
   kind: text("kind").$type<typeof crmNotificationKinds[number]>().notNull(),
   taskId: uuid("task_id"),
+  ownershipOfferId: uuid("ownership_offer_id").references(() => workspaceOwnershipOffers.id),
   volunteerSlotId: uuid("volunteer_slot_id"),
   // The due time a due/overdue notice was generated for; with the task, recipient and kind it is the dedupe key.
   dueAt: timestamp("due_at", { withTimezone: true }),
@@ -671,9 +694,9 @@ export const crmNotifications = pgTable("crm_notifications", {
   foreignKey({ columns: [t.tenantId, t.volunteerSlotId], foreignColumns: [volunteerSlots.tenantId, volunteerSlots.id] }),
   index("crm_notifications_recipient_idx").on(t.tenantId, t.recipientUserId, t.readAt, t.createdAt),
   uniqueIndex("crm_notifications_due_unique").on(t.tenantId, t.taskId, t.recipientUserId, t.kind, t.dueAt).where(sql`${t.kind} in ('task_due', 'task_overdue')`),
-  check("crm_notification_kind", sql`${t.kind} in ('task_assigned', 'task_due', 'task_overdue', 'volunteer_assigned', 'volunteer_changed', 'volunteer_reminder', 'volunteer_swap_requested')`),
-  check("crm_notification_due_at", sql`(${t.kind} in ('task_assigned','volunteer_assigned','volunteer_changed','volunteer_swap_requested')) = (${t.dueAt} is null)`),
-  check("crm_notification_volunteer_target", sql`num_nonnulls(${t.taskId}, ${t.volunteerSlotId}) = 1 and (${t.volunteerSlotId} is not null) = (${t.kind} in ('volunteer_assigned','volunteer_changed','volunteer_reminder','volunteer_swap_requested'))`),
+  check("crm_notification_target", sql`num_nonnulls(${t.taskId}, ${t.ownershipOfferId}, ${t.volunteerSlotId}) = 1 and (${t.kind} = 'ownership_transfer') = (${t.ownershipOfferId} is not null) and (${t.kind} in ('volunteer_assigned','volunteer_changed','volunteer_reminder','volunteer_swap_requested')) = (${t.volunteerSlotId} is not null)`),
+  check("crm_notification_kind", sql`${t.kind} in ('task_assigned', 'task_due', 'task_overdue', 'ownership_transfer', 'volunteer_assigned', 'volunteer_changed', 'volunteer_reminder', 'volunteer_swap_requested')`),
+  check("crm_notification_due_at", sql`(${t.kind} in ('task_assigned', 'ownership_transfer', 'volunteer_assigned', 'volunteer_changed', 'volunteer_swap_requested')) = (${t.dueAt} is null)`),
   uniqueIndex("crm_notification_volunteer_reminder").on(t.tenantId, t.volunteerSlotId, t.recipientUserId, t.dueAt).where(sql`${t.kind} = 'volunteer_reminder'`),
 ]);
 // Per-person on/off for each due/overdue kind in one ministry (default on; in-app only).
@@ -3460,7 +3483,7 @@ export const bioFiles = pgTable("bio_files", {
   checksum: text("checksum").notNull(), status: text("status").$type<"pending" | "uploaded" | "quarantined" | "ready">().notNull().default("pending"),
   retiredAt: timestamp("retired_at", { withTimezone: true }), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("bio_files_page").on(t.tenantId, t.pageId), foreignKey({ columns: [t.tenantId, t.pageId], foreignColumns: [bioPages.tenantId, bioPages.id] }).onDelete("cascade"),
-  check("bio_file_kind", sql`${t.kind} in ('photo','cover')`), check("bio_file_mime", sql`${t.mime} in ('image/jpeg','image/png','image/webp')`),
+  check("bio_file_kind", sql`${t.kind} in ('photo','cover','gallery')`), check("bio_file_mime", sql`${t.mime} in ('image/jpeg','image/png','image/webp')`),
   check("bio_file_name", sql`length(btrim(${t.name})) between 1 and 200`), check("bio_file_size", sql`${t.size} between 1 and 10485760`),
   check("bio_file_checksum", sql`${t.checksum} ~ '^[a-f0-9]{64}$'`), check("bio_file_status", sql`${t.status} in ('pending','uploaded','quarantined','ready')`),
   check("bio_file_key", sql`${t.key} = 'workspaces/' || ${t.tenantId}::text || '/bio/' || ${t.pageId}::text || '/files/' || ${t.id}::text`)]);

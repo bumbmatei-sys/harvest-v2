@@ -1,6 +1,6 @@
 # Volunteer roles and roster
 
-Working migration `0161_volunteer_roster`.
+Working migration `0143_volunteer_roster`.
 
 | Route | Contract |
 | --- | --- |
@@ -24,3 +24,6 @@ Previously, approving a swap assigned the named replacement at once and only sen
 5. The swap happens only when staff approve an accepted request. Membership, active role, same-slot conflict, capacity (counted without the requester's place) and the unavailable and double-booked warnings are all checked again at that moment.
 
 All writes stay in the `volunteer_change` definer under its transaction-tied grant and advisory lock. The new notice kind is added inside the migration's existing `crm_notifications` constraint drop and re-add, and `volunteer_notice_guard` is unchanged. This PR has no roster screen, so Accept and Decline are API actions only.
+
+## Merge with ownership transfer (0142)
+Re-chained as `0143_volunteer_roster` after `0142_ownership_transfer`. Both changed `crm_notifications`, so this migration carries the union: one target check `num_nonnulls(task_id, ownership_offer_id, volunteer_slot_id) = 1` with both kind-to-column links, the union of notice kinds, `due_at` null for task_assigned, ownership_transfer, volunteer_assigned, volunteer_changed and volunteer_swap_requested, and the application insert policy `crm_notifications_insert` excludes ownership and all volunteer kinds (those are written only by their definers). The earlier `crm_notification_volunteer_target` check is folded into `crm_notification_target`.
