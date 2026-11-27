@@ -331,7 +331,7 @@ describe("tabs, details and the cover", () => {
   });
 });
 
-describe("rework: named tabs, single page, cover switch (0134)", () => {
+describe("rework: named tabs, single page, cover switch (0139)", () => {
   const tab = (id: string, label: string, hidden = false) => ({ id, label, hidden });
   it("serves up to six named tabs in the owner's order and never a hidden one", async () => {
     version = (await getBioPage(db(), people.owner, people.tenant)).version;

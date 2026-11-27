@@ -129,7 +129,7 @@ describe("header and tabs (rework, 25 Nov)", () => {
     expect(isLegacyTabId("home")).toBe(true); expect(isLegacyTabId("abcdefgh")).toBe(false);
   });
   it("keeps the database's block rule in step with the application's", () => {
-    const sql = readFileSync("drizzle/0134_bio_tabs_layout.sql", "utf8");
+    const sql = readFileSync("drizzle/0139_bio_tabs_layout.sql", "utf8");
     expect(sql).toMatch(/coalesce\(p_published->>'layout', 'tabs'\) = 'single'/);
     expect(sql).toMatch(/p_kind = 'cover' AND \(page\.published->>'cover'\) = 'false'/);
     expect(sql.split("\n").filter((line) => !line.startsWith("--")).join("\n")).not.toMatch(/SECURITY DEFINER/);

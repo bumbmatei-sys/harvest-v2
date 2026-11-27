@@ -6,6 +6,7 @@ import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetClose, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import { ShellHeaderPortal, ShellHeaderTrail } from "@/components/shell-header-slot";
 import type { PreviewSurface } from "@/components/editor/preview-panel";
 import { Stepper, type StepperStep } from "@/components/stepper";
 import { EditorStepBar } from "@/components/editor/editor-step-bar";
@@ -30,10 +31,12 @@ export type EditorSidebarInfo = Pick<EditorContextData, "typeLabel" | "status" |
  * `?step=<id>` (shell slice S8) opens that step when it is known and not locked, and the address follows every step change; pass
  * `stepParam={false}` for an editor whose steps must not be linkable. Data, saving and permissions stay with the consumer.
  */
-export function EditorShell({ breadcrumb, title, status, actions, steps, current, onStep, stepsLabel, preview, livePreview, previewLabel, sidebar, stepParam = true, children }: {
+export function EditorShell({ breadcrumb, title, status, actions, steps, current, onStep, stepsLabel, preview, livePreview, previewLabel, sidebar, stepParam = true, headerInShell = false, children }: {
   breadcrumb?: React.ReactNode; title: string; status?: React.ReactNode; actions?: React.ReactNode;
   steps: readonly EditorStep[]; current: string; onStep: (id: string) => void; stepsLabel: string;
-  preview?: React.ReactNode; livePreview?: LivePreview; previewLabel: string; sidebar?: EditorSidebarInfo; stepParam?: boolean; children: React.ReactNode;
+  preview?: React.ReactNode; livePreview?: LivePreview; previewLabel: string; sidebar?: EditorSidebarInfo; stepParam?: boolean;
+  /** Put the title (as a breadcrumb continuation), status and actions in the app header bar instead of a header row in the page. */
+  headerInShell?: boolean; children: React.ReactNode;
 }) {
   const root = useRef<HTMLDivElement>(null);
   // A step opened from the address gets focus on its heading (WizardLayout's), or on the editor title when the step has none.
@@ -57,18 +60,23 @@ export function EditorShell({ breadcrumb, title, status, actions, steps, current
   const closeSheet = useCallback((then?: () => void) => { setAfter(then ? { run: then } : null); setSheetOpen(false); }, []);
   // The column replaces the sheet: a sheet left open while the viewport grows must not reopen when it shrinks again.
   if (column && sheetOpen) setSheetOpen(false);
-  if (hosted && data && livePreview) return <div ref={root} className="min-w-0 space-y-6" data-editor-hosted data-editor-live-preview>
-    <EditorStepBar context={data} onStep={onStep} onPreview={openSheet} />
-    <header className="space-y-3">
+  // `headerInShell`: the breadcrumb continuation (this item's title), the status and the actions go into the app header bar (ShellHeaderTrail), so the page starts
+  // with the form; the title stays the page's (visually hidden) h1 and focus target.
+  const top = (extra: React.ReactNode) => headerInShell
+    ? <><ShellHeaderPortal><ShellHeaderTrail title={title} status={status} actions={<>{extra}{actions}</>} /></ShellHeaderPortal>
+      <h1 tabIndex={-1} data-editor-heading className="sr-only">{title}</h1></>
+    : <header className="space-y-3">
       {breadcrumb}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex min-w-0 items-center gap-3"><h1 tabIndex={-1} data-editor-heading className="truncate text-[28px] font-semibold tracking-tight outline-none">{title}</h1>{status}</div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button variant="outline" className="min-h-11 max-lg:hidden xl:hidden" onClick={openSheet}><Eye aria-hidden="true" />{previewLabel}</Button>
-          {actions}
-        </div>
+        <div className="flex flex-wrap items-center gap-2">{extra}{actions}</div>
       </div>
-    </header>
+    </header>;
+  if (hosted && data && livePreview) return <div ref={root} className="min-w-0 space-y-6" data-editor-hosted data-editor-live-preview>
+    <EditorStepBar context={data} onStep={onStep} onPreview={openSheet} />
+    {top(<>
+          <Button variant="outline" className="min-h-11 max-lg:hidden xl:hidden" onClick={openSheet}><Eye aria-hidden="true" />{previewLabel}</Button>
+          </>)}
     <div className={cn("grid min-w-0 gap-6", preview && "xl:max-[1599px]:grid-cols-[minmax(0,1fr)_22rem] min-[1600px]:grid-cols-[minmax(0,1fr)_24rem]")}>
       <section className="min-w-0 space-y-6">{children}</section>
       {column && <aside aria-label={previewLabel} data-editor-preview className="min-w-0"><div className="sticky top-4">{livePreview("column", { close: closeSheet })}</div></aside>}
@@ -85,17 +93,10 @@ export function EditorShell({ breadcrumb, title, status, actions, steps, current
     </Sheet>
   </div>;
   if (hosted && data) return <div ref={root} className="min-w-0 space-y-6" data-editor-hosted>
-    <header className="space-y-3">
-      {breadcrumb}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3"><h1 tabIndex={-1} data-editor-heading className="truncate text-[28px] font-semibold tracking-tight outline-none">{title}</h1>{status}</div>
-        <div className="flex flex-wrap items-center gap-2">
+    {top(<>
           {preview && <Sheet><SheetTrigger asChild><Button variant="outline" className="min-h-11 xl:hidden"><Eye aria-hidden="true" />{previewLabel}</Button></SheetTrigger>
             <SheetContent className="w-full overflow-y-auto sm:max-w-md"><SheetHeader><SheetTitle>{previewLabel}</SheetTitle></SheetHeader><div className="p-4">{preview}</div></SheetContent></Sheet>}
-          {actions}
-        </div>
-      </div>
-    </header>
+          </>)}
     {/* Below the header, so the header (with Discard and the other actions) has scrolled away before the bar sticks and never sits under it. */}
     <EditorStepBar context={data} onStep={onStep} />
     {/* Form first, preview column from 1280px (22rem, 24rem from 1600px) only when there is a preview, so an editor without one uses the full width; the steps live in the sidebar. */}
@@ -106,17 +107,10 @@ export function EditorShell({ breadcrumb, title, status, actions, steps, current
     </div>
   </div>;
   return <div ref={root} className="min-w-0 space-y-6">
-    <header className="space-y-3">
-      {breadcrumb}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex min-w-0 items-center gap-3"><h1 tabIndex={-1} data-editor-heading className="truncate text-[28px] font-semibold tracking-tight outline-none">{title}</h1>{status}</div>
-        <div className="flex flex-wrap items-center gap-2">
+    {top(<>
           {preview && <Sheet><SheetTrigger asChild><Button variant="outline" className="min-h-11 xl:hidden"><Eye aria-hidden="true" />{previewLabel}</Button></SheetTrigger>
             <SheetContent className="w-full overflow-y-auto sm:max-w-md"><SheetHeader><SheetTitle>{previewLabel}</SheetTitle></SheetHeader><div className="p-4">{preview}</div></SheetContent></Sheet>}
-          {actions}
-        </div>
-      </div>
-    </header>
+          </>)}
     <div className={cn("grid min-w-0 gap-6 lg:grid-cols-[13rem_minmax(0,1fr)]", preview && "xl:grid-cols-[13rem_minmax(0,1fr)_22rem]")}>
       <Stepper layout="nav" steps={steps} current={current} onSelect={onStep} label={stepsLabel} />
       <section className="min-w-0 space-y-6">{children}</section>

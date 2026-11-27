@@ -69,9 +69,9 @@ export const slashItems: readonly SlashItem[] = [
 ];
 export const colorKeys = colorNames;
 
-/** Items for a query: the Suggestions section only while nothing is typed (its entries repeat the others). Matches the translated label or the English keywords. */
-export function filterSlash(query: string, labelOf: (item: SlashItem) => string): SlashItem[] {
-  const needle = query.trim().toLowerCase();
-  if (!needle) return slashItems.slice();
-  return slashItems.filter((item) => item.section !== "suggestions" && (labelOf(item).toLowerCase().includes(needle) || item.keywords.includes(needle)));
+/** Items for a query (`exclude` drops items by id where an editor has no use for them, such as pages in the blog): the Suggestions section only while nothing is typed (its entries repeat the others). Matches the translated label or the English keywords. */
+export function filterSlash(query: string, labelOf: (item: SlashItem) => string, exclude: readonly string[] = []): SlashItem[] {
+  const needle = query.trim().toLowerCase(), offered = exclude.length ? slashItems.filter((item) => !exclude.includes(item.id)) : slashItems;
+  if (!needle) return offered.slice();
+  return offered.filter((item) => item.section !== "suggestions" && (labelOf(item).toLowerCase().includes(needle) || item.keywords.includes(needle)));
 }
