@@ -1,6 +1,6 @@
 # Native blog, slice 1 (PRs #315 and #316)
 
-Status: draft PRs, not merged, nothing deployed or activated. Migration `0133_native_blog` (the final number is assigned at merge time).
+Status: draft PRs, not merged, nothing deployed or activated. Migration `0135_native_blog` (the final number is assigned at merge time).
 
 ## Founder decisions (27 Nov 2026)
 
