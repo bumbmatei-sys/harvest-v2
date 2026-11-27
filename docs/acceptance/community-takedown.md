@@ -40,7 +40,7 @@ Migration `0137_community_takedown` (tentative; the final number is assigned at 
 - **Restore** removes every effect at once.
 - **Audit:** every staff call writes `platform_staff_audit` (`community.reports`, `community.report.reviewed|dismissed`, `community.takedown.hide|restore`, with
   the target type and id and the ministry).
-- `community_definer_reset` also clears `app.community_takedown`; the takedown check sets and restores only that flag (reviewed exception in the C23 test).
+- `community_definer_reset` and `account_self_reset` (0134) also clear `app.community_takedown`; the takedown check sets and restores only that flag (reviewed exception in the C23 test).
 
 ## Reuse
 - Extracted and shared with Ways to give: `PublicReportDialog`, `StaffHideDialog`, `StaffPageFrame`, `staffAreaResponse` / `asStaff` (`src/server/platform/staff-area.ts`).

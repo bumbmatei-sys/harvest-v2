@@ -1,9 +1,78 @@
 {
-  "id": "b8853160-4749-479d-a89d-1fbd45a8ba62",
-  "prevId": "a459f666-e1a4-45c3-bd1f-38e05c825102",
+  "id": "7d478ccf-0894-4214-8c50-1877d279cb4c",
+  "prevId": "abc8ccb0-e46c-4b28-a8bf-75722c62a312",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
+    "public.account_export_requests": {
+      "name": "account_export_requests",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "requested_at": {
+          "name": "requested_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "account_export_requests_user_idx": {
+          "name": "account_export_requests_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "requested_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "account_export_requests_user_id_users_id_fk": {
+          "name": "account_export_requests_user_id_users_id_fk",
+          "tableFrom": "account_export_requests",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.accounts": {
       "name": "accounts",
       "schema": "",
@@ -29228,6 +29297,291 @@
       },
       "isRLSEnabled": false
     },
+    "public.newsletter_automation_click_counts": {
+      "name": "newsletter_automation_click_counts",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "automation_id": {
+          "name": "automation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "step_index": {
+          "name": "step_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "day": {
+          "name": "day",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "link_index": {
+          "name": "link_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "count": {
+          "name": "count",
+          "type": "bigint",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "newsletter_automation_click_count_link_fk": {
+          "name": "newsletter_automation_click_count_link_fk",
+          "tableFrom": "newsletter_automation_click_counts",
+          "tableTo": "newsletter_automation_click_links",
+          "columnsFrom": [
+            "tenant_id",
+            "automation_id",
+            "link_index"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "automation_id",
+            "link_index"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "newsletter_automation_click_counts_tenant_id_automation_id_step_index_day_link_index_pk": {
+          "name": "newsletter_automation_click_counts_tenant_id_automation_id_step_index_day_link_index_pk",
+          "columns": [
+            "tenant_id",
+            "automation_id",
+            "step_index",
+            "day",
+            "link_index"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "newsletter_automation_click_count_shape": {
+          "name": "newsletter_automation_click_count_shape",
+          "value": "\"newsletter_automation_click_counts\".\"count\" > 0 and \"newsletter_automation_click_counts\".\"step_index\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.newsletter_automation_click_links": {
+      "name": "newsletter_automation_click_links",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "automation_id": {
+          "name": "automation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "link_index": {
+          "name": "link_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "url": {
+          "name": "url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "newsletter_automation_click_link_automation_fk": {
+          "name": "newsletter_automation_click_link_automation_fk",
+          "tableFrom": "newsletter_automation_click_links",
+          "tableTo": "newsletter_automations",
+          "columnsFrom": [
+            "tenant_id",
+            "automation_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "newsletter_automation_click_links_tenant_id_automation_id_link_index_pk": {
+          "name": "newsletter_automation_click_links_tenant_id_automation_id_link_index_pk",
+          "columns": [
+            "tenant_id",
+            "automation_id",
+            "link_index"
+          ]
+        }
+      },
+      "uniqueConstraints": {
+        "newsletter_automation_click_link_url": {
+          "name": "newsletter_automation_click_link_url",
+          "nullsNotDistinct": false,
+          "columns": [
+            "tenant_id",
+            "automation_id",
+            "url"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "newsletter_automation_click_link_shape": {
+          "name": "newsletter_automation_click_link_shape",
+          "value": "\"newsletter_automation_click_links\".\"link_index\" between 0 and 199 and \"newsletter_automation_click_links\".\"url\" ~ '^https://' and char_length(\"newsletter_automation_click_links\".\"url\") <= 2000"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.newsletter_automation_clicks": {
+      "name": "newsletter_automation_clicks",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "automation_id": {
+          "name": "automation_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "attempt_id": {
+          "name": "attempt_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "step_index": {
+          "name": "step_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "link_index": {
+          "name": "link_index",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "clicked_at": {
+          "name": "clicked_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "newsletter_automation_click_retention_idx": {
+          "name": "newsletter_automation_click_retention_idx",
+          "columns": [
+            {
+              "expression": "clicked_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "newsletter_automation_click_automation_idx": {
+          "name": "newsletter_automation_click_automation_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "automation_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "clicked_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "newsletter_automation_click_link_fk": {
+          "name": "newsletter_automation_click_link_fk",
+          "tableFrom": "newsletter_automation_clicks",
+          "tableTo": "newsletter_automation_click_links",
+          "columnsFrom": [
+            "tenant_id",
+            "automation_id",
+            "link_index"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "automation_id",
+            "link_index"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "newsletter_automation_clicks_tenant_id_attempt_id_link_index_pk": {
+          "name": "newsletter_automation_clicks_tenant_id_attempt_id_link_index_pk",
+          "columns": [
+            "tenant_id",
+            "attempt_id",
+            "link_index"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "newsletter_automation_click_step": {
+          "name": "newsletter_automation_click_step",
+          "value": "\"newsletter_automation_clicks\".\"step_index\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.newsletter_automation_log": {
       "name": "newsletter_automation_log",
       "schema": "",
@@ -29319,6 +29673,28 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "newsletter_automation_log_attempt_idx": {
+          "name": "newsletter_automation_log_attempt_idx",
+          "columns": [
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "attempt_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"newsletter_automation_log\".\"attempt_id\" is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}

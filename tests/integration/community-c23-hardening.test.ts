@@ -195,7 +195,7 @@ describe("catalog", () => {
 describe("behaviour", () => {
   let tenant: string, club: string, general: string;
   const slug = "c23-hardening";
-  const people = ["h-owner", "h-one", "h-two", "h-three"];
+  const people = ["h-owner", "h-one", "h-two", "h-three", "h-mod"];
   beforeAll(async () => {
     await f.db.insert(users).values(people.map((id) => ({ id, name: id, email: `${id}@example.invalid`, emailVerified: true })));
     tenant = (await createWorkspace(f.db, "h-owner", "Hardening Church", "church")).tenantId;
@@ -203,7 +203,7 @@ describe("behaviour", () => {
     const { version } = await getCommunity(f.db, "h-owner", tenant, club);
     const updated = await updateCommunity(f.db, "h-owner", tenant, club, { version, visibility: "listed", allowOpen: true });
     await publishCommunity(f.db, "h-owner", tenant, club, { version: updated.version, published: true });
-    for (const user of ["h-one", "h-two", "h-three"]) await enterCommunity(f.db, user, slug, { rulesVersion: 0, adult: true });
+    for (const user of ["h-one", "h-two", "h-three", "h-mod"]) await enterCommunity(f.db, user, slug, { rulesVersion: 0, adult: true });
     general = (await listCategories(f.db, "h-owner", tenant, club))[0].id;
   });
   const doc = { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Synthetic" }] }] };
@@ -237,6 +237,37 @@ describe("behaviour", () => {
     const target = (await f.admin.query("select id from community_posts where author_id = 'h-one' limit 1")).rows[0].id;
     expect(await status(reportContent(f.db, "h-two", slug, { targetType: "post", targetId: target, reason: "spam" }))).toBe(429);
     expect(await status(reportContent(f.db, "h-three", slug, { targetType: "post", targetId: target, reason: "spam" }))).toBe(200);
+  });
+
+  it("exempts the owner and moderators from the write limits, while a member over the limit still gets 429", async () => {
+    // Role comes from the active community membership the server reads, not from anything the caller sends.
+    await f.admin.query("update community_memberships set role = 'moderator' where tenant_id = $1 and community_id = $2 and user_id = 'h-mod'", [tenant, club]);
+    const roles = (await f.admin.query("select user_id, role from community_memberships where community_id = $1 and user_id in ('h-owner', 'h-mod') order by 1",
+      [club])).rows.map((r) => [r.user_id, r.role]);
+    expect(roles).toEqual([["h-mod", "moderator"], ["h-owner", "owner"]]);
+    const target = (await f.admin.query("select id from community_posts where author_id = 'h-two' limit 1")).rows[0].id;
+    const reported = (await f.admin.query("select id from community_posts where author_id = 'h-one' limit 1")).rows[0].id;
+    for (const host of ["h-owner", "h-mod"]) {
+      await f.admin.query(`insert into community_posts (tenant_id, community_id, category_id, author_id, title, body)
+        select $1, $2, $3, $4, 'Host seeded ' || g, '{"type":"doc"}'::jsonb from generate_series(1, 10) g`, [tenant, club, general, host]);
+      await f.admin.query(`insert into community_comments (tenant_id, community_id, post_id, author_id, body)
+        select $1, $2, $3, $4, 'Host seeded ' || g from generate_series(1, 30) g`, [tenant, club, target, host]);
+      await f.admin.query(`insert into community_reports (tenant_id, community_id, reporter_id, target_type, target_id, reason)
+        select $1, $2, $3, 'post', gen_random_uuid()::text, 'spam' from generate_series(1, 20)`, [tenant, club, host]);
+      expect(await status(post(host, "Eleventh post"))).toBe(200);
+      expect(await status(saveComment(f.db, host, slug, target, { body: "Thirty-first reply" }))).toBe(200);
+      expect(await status(reportContent(f.db, host, slug, { targetType: "post", targetId: reported, reason: "spam" }))).toBe(200);
+    }
+    // A member is still limited: ten recent posts, then 429 with nothing kept.
+    const recent = (await f.admin.query("select count(*)::int as n from community_posts where author_id = 'h-two' and created_at > now() - interval '10 minutes'")).rows[0].n;
+    await f.admin.query(`insert into community_posts (tenant_id, community_id, category_id, author_id, title, body)
+      select $1, $2, $3, 'h-two', 'Member seeded ' || g, '{"type":"doc"}'::jsonb from generate_series(1, $4::int) g`, [tenant, club, general, 10 - recent]);
+    const before = (await f.admin.query("select count(*)::int as n from community_posts where author_id = 'h-two'")).rows[0].n;
+    expect(await status(post("h-two", "Over the limit"))).toBe(429);
+    expect((await f.admin.query("select count(*)::int as n from community_posts where author_id = 'h-two'")).rows[0].n).toBe(before);
+    // A moderator who is demoted to member is limited again.
+    await f.admin.query("update community_memberships set role = 'member' where tenant_id = $1 and community_id = $2 and user_id = 'h-mod'", [tenant, club]);
+    expect(await status(post("h-mod", "After demotion"))).toBe(429);
   });
 
   it("counts rows in the same community only, so the same person elsewhere does not use up the limit", async () => {

@@ -1,8 +1,8 @@
-# HC-02 policy pack (draft for founder approval)
+# HC-02 policy pack (approved by the founder, 27 Nov 2026)
 
-Drafted 27 Nov 2026 by the engineering team. **Status: DRAFT. All five HC-02 gates stay UNAPPROVED** until the founder ticks the checklist at the end and the approval is recorded in [the gate register](hc-02-activation-gates.md).
+Drafted 27 Nov 2026 by the engineering team. **Status: APPROVED by the founder on 27 Nov 2026 as an engineering-drafted policy, not legal advice.** The founder ticked all 16 lines of the [checklist](#16-founder-approval-checklist) on 27 Nov, and the approval is recorded in [the gate register](hc-02-activation-gates.md). Scope: EU/EEA, UK and US (the founder answered "US and Europe" on 27 Nov; engineering reads Europe as the EU/EEA and the UK). GDPR stays the baseline (engineering framing), with the US additions in [§10a](#10a-us-additions). **Approving the policy activates nothing:** each gate stays hard-off for real data until its "Still to build" items are built, reviewed and separately approved for activation.
 
-> **Not legal advice.** These are best-practice drafts written by the engineering team, based on our reading of the EU GDPR and the UK GDPR as of November 2026. Nobody with legal qualifications has reviewed them. The founder chose on 27 Nov to approve engineering-drafted policies instead of hiring a lawyer for now ([decisions log](founder-decisions-2026-11.md#founder-decisions-27-nov-launch-gates)). A qualified privacy review is still recommended before any real personal data is collected. Article numbers below are pointers for that review, not conclusions.
+> **Not legal advice.** These are best-practice drafts written by the engineering team, based on our reading of the EU GDPR and the UK GDPR as of November 2026, with US pointers in §10a. Nobody with legal qualifications has reviewed them. The founder chose on 27 Nov to approve engineering-drafted policies instead of hiring a lawyer for now ([decisions log](founder-decisions-2026-11.md#founder-decisions-27-nov-launch-gates)). A qualified privacy review is still recommended before any real personal data is collected. Article numbers below are pointers for that review, not conclusions.
 
 Approving a policy here does not approve a merge, a deployment, a production migration, real collection, real sending or real payments. Each of those still needs its own explicit founder approval. Production stays hard-off.
 
@@ -26,7 +26,7 @@ Processing special-category data needs **both** an Art. 6 lawful basis **and** a
 | **Explicit consent, Art. 9(2)(a)** | Default for Connect guests, prayer requests and anyone who is not already a member | A clear, separate statement the person actively agrees to (unchecked box), naming the purpose; recorded with time and notice version; as easy to withdraw as to give (Art. 7(3)); no service made conditional on it |
 | **Not-for-profit religious body, Art. 9(2)(d)** | A ministry's own records about its members, former members, or people in regular contact with it | (1) the ministry is a foundation, association or other not-for-profit body with a religious aim; (2) processing is part of its legitimate activities, with appropriate safeguards; (3) it is only about members, former members or people in regular contact connected with its purposes; (4) the data is not shared outside the ministry without the person's consent |
 
-**Draft rule.** Harvest products rely on **explicit consent** for every flow that captures religious or pastoral data from guests or the public (Connect follow-up, prayer requests). Art. 9(2)(d) is available only to the ministry as controller, only for its own member records, and never for Harvest's own purposes (Harvest is a company, not a religious body). Harvest does not choose 9(2)(d) on a ministry's behalf; the onboarding notice tells ministries that the default is explicit consent. Harvest never infers religious beliefs, never uses faith data for ads or audience targeting, and never shares it across ministries.
+**Rule.** Harvest products rely on **explicit consent** for every flow that captures religious or pastoral data from guests or the public (Connect follow-up, prayer requests). Art. 9(2)(d) is available only to the ministry as controller, only for its own member records, and never for Harvest's own purposes (Harvest is a company, not a religious body). Harvest does not choose 9(2)(d) on a ministry's behalf; the onboarding notice tells ministries that the default is explicit consent. Harvest never infers religious beliefs, never uses faith data for ads or audience targeting, and never shares it across ministries.
 
 Explicit consent is already how the code works: purposes are separate, unchecked and independently withdrawable (`src/lib/consent-purposes.ts`, HC-DEC1 acceptance `docs/acceptance/hc-dec1.md`).
 
@@ -133,7 +133,7 @@ Explicit consent is already how the code works: purposes are separate, unchecked
 
 **Policy.** We keep data only as long as we need it. Unverified Connect responses are deleted after at most 30 days; a ministry can choose shorter. Everything else follows the table below. A daily job deletes what has expired, and an alert fires if it fails.
 
-**Lawful basis and reasoning.** Storage limitation (Art. 5(1)(e)). Short fixed periods are easier to defend and to test. The three periods once marked "proposed" (24-month review, 12 months, 3 years) were approved as written by the founder on 27 Nov; they are part of this Gate 4 draft, which itself stays UNAPPROVED until the checklist is ticked.
+**Lawful basis and reasoning.** Storage limitation (Art. 5(1)(e)). Short fixed periods are easier to defend and to test. The three periods once marked "proposed" (24-month review, 12 months, 3 years) were approved as written by the founder on 27 Nov; they are part of Gate 4, which the founder approved with the checklist on 27 Nov. The "Status" column below records where each value came from; every value in the table is approved policy as of 27 Nov.
 
 | Data | Retention | Status | Where enforced |
 | --- | --- | --- | --- |
@@ -178,14 +178,14 @@ Explicit consent is already how the code works: purposes are separate, unchecked
 
 **Retention.** Keys outlive the data they protect only as long as needed to read it. A retired key is destroyed once no stored data uses it (after re-encryption).
 
-**Access.** Decryption only through the single audited opener. No Harvest staff member has routine access to keys. Key administration needs two people (proposed).
+**Access.** Decryption only through the single audited opener. No Harvest staff member has routine access to keys. Key administration needs two people.
 
 **Encryption and key-management plan.**
 1. **Algorithm.** AES-256-GCM envelopes with associated data binding each value to its row (already built).
 2. **Key service.** A managed key service in the EU, in the same region as the database (internal note: AWS KMS in `eu-central-1` is the natural fit, since the database runs in `aws-eu-central-1`; this is a proposal, not a selection).
 3. **Envelope keys.** The key service holds the master key. The app asks it to unwrap data keys; master keys never leave the service.
 4. **Separate keys per purpose.** Intake, invitations, fingerprints, capabilities, prayer. A leak of one does not open the others.
-5. **Rotation.** Master keys rotate every 12 months (proposed). New data uses the new key; a bounded job re-encrypts old envelopes; the old key is retired when nothing uses it.
+5. **Rotation.** Master keys rotate every 12 months. New data uses the new key; a bounded job re-encrypts old envelopes; the old key is retired when nothing uses it.
 6. **Protected search.** Fingerprints and lookup hashes need a dual-key lookup during rotation (design still open).
 7. **Audit.** Every decrypt writes a durable, insert-only audit row with counts and purpose only, never the value.
 8. **Recovery.** A written runbook for key loss and backup restore, rehearsed once before real data.
@@ -209,14 +209,14 @@ The ministry, as controller, answers requests from its people. Harvest, as proce
 | Right | Article | How it works in Harvest |
 | --- | --- | --- |
 | Be informed | 13, 14 | Notice on every form, sign-up and community join |
-| Access and copy | 15, 20 | Self-serve download of your own data (founder, 27 Nov: built before launch; not built yet). Staff-assisted access has no export workflow yet; never use a broad CRM export as an answer |
+| Access and copy | 15, 20 | Self-serve "Download my data" on the profile page (founder, 27 Nov; `docs/acceptance/your-data.md`, not active in production until launch). Staff-assisted access has no export workflow yet; never use a broad CRM export as an answer |
 | Correct | 16 | Profile and CRM edit |
 | Erase | 17 | Self-serve account deletion (founder, 27 Nov: built before launch; not built yet); Connect response and contact erasure (built) |
 | Restrict | 18 | Staff mark the contact; no automated sending (needs a field; not built) |
 | Object | 21 | Withdrawal of a purpose; newsletter unsubscribe (RFC 8058, built) |
 | Withdraw consent | 7(3) | Per purpose, as easy as giving it (built for Connect and newsletter) |
 
-**Steps (draft).**
+**Steps.**
 1. Log the request in the restricted register: reference, date received, type, handler. No request text or identity documents in logs.
 2. Verify proportionately (runbook step 2). A signed-in person's own account is enough for their own data.
 3. Confirm the scope: withdrawal, erasure of one response, erasure of the whole contact, or access.
@@ -234,8 +234,8 @@ The ministry, as controller, answers requests from its people. Harvest, as proce
 ## 9. Gaps outside the five gates that block real data
 
 From the [gate register](hc-02-activation-gates.md#activation-prerequisites-outside-the-five-decisions):
-- **CRM contact visibility.** Every ministry role can read every contact and consent row. Draft policy: viewers and members without CRM access see no contacts; consent evidence text is owner/admin only. Not built.
-- **Audit retention and denial logging.** Draft policy: 12 months for audit rows; log denied attempts with route and reason code only. Not built.
+- **CRM contact visibility.** Every ministry role can read every contact and consent row. Policy: viewers and members without CRM access see no contacts; consent evidence text is owner/admin only. Not built.
+- **Audit retention and denial logging.** Policy: 12 months for audit rows; log denied attempts with route and reason code only. Not built.
 - **Rights-request register.** Not built.
 
 ## 10. International transfers
@@ -254,13 +254,27 @@ Product copy never names vendors. Internal docs may name infrastructure provider
 | Live video embeds | YouTube | Viewer's device data when the embed loads | US | Embed loads only after the viewer acts (to build); DPF |
 | Staging previews | Vercel (if still used) | Synthetic data only | US | Synthetic only; no real data |
 
-**US email delivery (founder, 27 Nov: US audience first).** The main database stays in the EU (Frankfurt) for now, but SES runs in `us-east-1`. Every community and newsletter email therefore sends the recipient's address and the message content to a US processor for delivery, and delivery events come back from the US. This is a restricted transfer under GDPR Chapter V (Art. 44 onward) for EU and UK recipients. Best-practice draft, not legal advice:
+**US email delivery (founder, 27 Nov: US audience first).** The main database stays in the EU (Frankfurt) for now, but SES runs in `us-east-1`. Every community and newsletter email therefore sends the recipient's address and the message content to a US processor for delivery, and delivery events come back from the US. This is a restricted transfer under GDPR Chapter V (Art. 44 onward) for EU and UK recipients. Engineering best practice, not legal advice:
 - rely on the provider's EU-US Data Privacy Framework certification (Art. 45 adequacy decision) where it covers the service, and on the SCCs in the provider's DPA (Art. 46(2)(c)) as the fallback; for UK recipients, the UK extension to the DPF or the UK addendum to the SCCs;
 - record a short transfer risk assessment for the SCC route;
 - send only what delivery needs: address, subject, body, unsubscribe headers and the delivery tag; no CRM notes, consent evidence or pastoral data in message content beyond what the recipient asked for;
 - name the US processing in the ministry DPA sub-processor list and in the privacy notice ("email delivery is handled by a provider in the United States").
 
-**Draft rule.** Keep primary data in the EU. Use only providers with a signed DPA and a valid transfer mechanism. List them as sub-processors in the ministry DPA, and tell ministries before adding one.
+**Rule.** Keep primary data in the EU. Use only providers with a signed DPA and a valid transfer mechanism. List them as sub-processors in the ministry DPA, and tell ministries before adding one.
+
+## 10a. US additions
+
+**Scope.** The founder's answer on 27 Nov was "US and Europe". Engineering reads "Europe" as the EU/EEA and the UK; Switzerland and other European countries are not assessed yet. The rest of this section is engineering framing, not a founder decision: GDPR stays the baseline for everyone, because it is the stricter frame, and the rules in §1 to §15 apply to US users too. The points below are added on top for the US. They are pointers for a qualified review, not legal advice, and each is checked before real US data. This section was added on 27 Nov, after the checklist walkthrough, to record the "US and Europe" answer; its wording was not one of the 16 ticked lines.
+
+- **Commercial email (CAN-SPAM Act, 15 U.S.C. 7701 onward; FTC rule, 16 CFR Part 316).** Newsletter and community emails can promote courses, products or events, so treat every one as covered: accurate From, reply-to and subject lines; the sending ministry's valid physical postal address in each email; a clear unsubscribe that works for at least 30 days after sending and is honoured within 10 business days, with no fee, sign-in or extra details asked. Harvest's explicit opt-in (Gate 1) already goes further than the US opt-out model; keep opt-in for everyone. The rule that a commercial email says it is an ad is waived only for recipients who gave prior affirmative consent, so the recorded opt-in is what earns that exemption. Never sell or pass on an address after it unsubscribes. Service messages (sign-in codes, community decision emails) are mostly exempt but must not be misleading.
+- **State privacy laws.** About 20 states have broad consumer privacy laws (for example California, Colorado, Virginia, Connecticut, Oregon and Texas). Who they cover differs: some exempt nonprofits and some do not, and thresholds vary. Most treat religious beliefs as sensitive data that needs opt-in consent (a few, such as California, give a right to limit or opt out instead), which the explicit consent default (§1) already meets. Before real US data, check which laws reach Harvest (as a business and as a processor) and each ministry, and whether the ministry DPA's processor terms meet them.
+- **Consumer health data.** Prayer requests can include health details. Washington's My Health My Data Act and similar state laws set their own consent and notice rules for health data. Check them before prayer requests (§12) go live for US users.
+- **Breach notification.** Every US state has its own breach-notification law, with its own triggers and deadlines. Add the US route to the §15 steps before real US data.
+- **Children.** Adults only (§8) is meant to keep Harvest a general-audience, adults-only service. The US children's privacy law (COPPA, under 13) still applies if Harvest knows it holds a child's data, so the §8 close-and-erase rule must hold, and the Connect forms' adults-only notice (used at events where children may be present) is still to build.
+- **Texting (TCPA and state laws such as Florida's).** The consent model has an SMS channel. Marketing texts need prior express written consent, quiet hours and a working opt-out. No SMS sending is in launch scope; any texting feature needs this review first.
+- **Data location.** Unchanged: primary data stays in the EU (§10). Nothing above requires US data location.
+
+**Still to build.** A sending ministry's postal address in newsletter and community email footers (not found in the code on 27 Nov); a check that every unsubscribe path takes effect within the 10-business-day limit; the state-law and health-data review above.
 
 ## 11. G2: public community contributions after leaving or deleting an account
 
@@ -297,15 +311,15 @@ Before leaving, they can delete their own posts. They can also ask the ministry 
 
 ## 13. Records of Processing (Art. 30)
 
-Draft. Harvest keeps this as processor (Art. 30(2)) and offers it to each ministry as a starting point for its own record (Art. 30(1)).
+Harvest keeps this as processor (Art. 30(2)) and offers it to each ministry as a starting point for its own record (Art. 30(1)).
 
 | Activity | Controller | People | Data | Purpose | Basis (Art. 6 / Art. 9) | Retention | Recipients |
 | --- | --- | --- | --- | --- | --- | --- | --- |
 | Harvest accounts and sign-in | Harvest | Users | Name, email, sign-in codes, sessions | Provide the service | 6(1)(b) | While the account exists | Database, sign-in email provider |
 | Harvest SaaS billing | Harvest | Account owners | Billing contact, plan, invoices | Billing | 6(1)(b), 6(1)(c) | Statutory accounting periods | SaaS billing provider |
 | Connect intake | Ministry | Guests | Name, contact method, chosen purposes | Follow up as asked | 6(1)(a) / 9(2)(a) | 30 days unverified | Database, email provider |
-| CRM | Ministry | Contacts | Contact details, notes, tasks, consents | Ministry relationships | 6(1)(a) or (f) / 9(2)(a) or (d) | Active, 24-month review (proposed) | Database |
-| Follow-up cases | Ministry | Guests | Case state, assignee | Pastoral follow-up | 6(1)(a) / 9(2)(a) | 12 months after closing (proposed) | Assigned counselor |
+| CRM | Ministry | Contacts | Contact details, notes, tasks, consents | Ministry relationships | 6(1)(a) or (f) / 9(2)(a) or (d) | Active, 24-month review | Database |
+| Follow-up cases | Ministry | Guests | Case state, assignee | Pastoral follow-up | 6(1)(a) / 9(2)(a) | 12 months after closing | Assigned counselor |
 | Newsletter | Ministry | Subscribers | Email, delivery and click records | Send newsletters | 6(1)(a) | Delivery and clicks 90 days | Email provider |
 | Communities | Ministry | Members | Profile, posts, chat, applications | Run the community | 6(1)(b) / 9(2)(a) or (d) where faith is revealed | See §5 | Members of that community |
 | Prayer requests | Ministry | Members | Request text | Prayer | 6(1)(a) / 9(2)(a) | 30/90/180 days | Host team |
@@ -316,7 +330,7 @@ Draft. Harvest keeps this as processor (Art. 30(2)) and offers it to each minist
 
 ## 14. DPIA outline (Art. 35)
 
-A DPIA is likely needed: Harvest processes religious data, sometimes about people met once at an event, with new technology and across many ministries. Draft outline:
+A DPIA is likely needed: Harvest processes religious data, sometimes about people met once at an event, with new technology and across many ministries. Outline:
 
 1. **Description.** Flows in §13, data map, providers in §10.
 2. **Necessity and proportionality.** Purposes, bases, minimisation (no religious labels, no inferred data), retention (§5), rights (§7).
@@ -327,7 +341,7 @@ A DPIA is likely needed: Harvest processes religious data, sometimes about peopl
 
 ## 15. Breach notification
 
-Draft steps.
+Steps.
 
 1. **Detect and contain.** Anyone who suspects a breach tells the founder at once. Revoke keys or sessions, disable the affected route by its hard-off switch, keep logs.
 2. **Assess within 24 hours.** What data, which ministries, how many people, special-category or not, likely harm.
@@ -341,23 +355,27 @@ Breach and system alerts go to the founder's mailbox for now (founder, 27 Nov; t
 
 ## 16. Founder approval checklist
 
-Tick each line to approve it. Then record the date and "founder, engineering-drafted policy, not legal advice" in the [gate register](hc-02-activation-gates.md) table. An unticked line stays UNAPPROVED.
+**All 16 lines ticked by the founder on 27 Nov 2026** (engineering-drafted policy, not legal advice). Evidence: a line-by-line walkthrough in the coordinating Claude chat, 08:54 to 09:00 Berlin; the founder answered "Agreed" to the first line and "Approve" to each of the other fifteen, in checklist order. The approval is recorded in the [gate register](hc-02-activation-gates.md) table.
 
-- [ ] I understand these are engineering best-practice drafts, not legal advice, and that a qualified review is recommended before real data.
-- [ ] **Gate 1 (purposes):** approve the §2 text.
-- [ ] **Gate 2 (pending access):** approve the §3 text.
-- [ ] **Gate 3 (erasure tombstones):** approve the §4 text (90 days, fewer than 5 hidden).
-- [ ] **Gate 4 (retention):** approve the §5 text and table, including the three periods chosen on 27 Nov (24 months, 12 months, 3 years).
-- [ ] **Gate 5 (encryption):** approve the §6 text and key plan.
-- [ ] Explicit consent (Art. 9(2)(a)) is the default for religious and pastoral data; Art. 9(2)(d) only for a ministry's own member records (§1).
-- [ ] Rights-request steps (§7).
-- [ ] Adults only at launch (§8).
-- [ ] CRM contact visibility, audit retention and denial logging policies (§9).
-- [ ] Transfer rule: primary data in the EU, signed DPAs, sub-processor list, and US email delivery under the DPF or SCCs (§10).
-- [ ] G2 policy (§11): posts, replies and channel messages stay as "Former member" on leaving and on account deletion; DMs stay as "Former member" on leaving and are deleted on account deletion.
-- [ ] G7 prayer policy, host team = owner, admins and moderators (§12).
-- [ ] Records of Processing table (§13).
-- [ ] Do a DPIA from the §14 outline before launch.
-- [ ] Breach steps (§15).
+- [x] I understand these are engineering best-practice drafts, not legal advice, and that a qualified review is recommended before real data.
+- [x] **Gate 1 (purposes):** approve the §2 text.
+- [x] **Gate 2 (pending access):** approve the §3 text.
+- [x] **Gate 3 (erasure tombstones):** approve the §4 text (90 days, fewer than 5 hidden).
+- [x] **Gate 4 (retention):** approve the §5 text and table, including the three periods chosen on 27 Nov (24 months, 12 months, 3 years).
+- [x] **Gate 5 (encryption):** approve the §6 text and key plan.
+- [x] Explicit consent (Art. 9(2)(a)) is the default for religious and pastoral data; Art. 9(2)(d) only for a ministry's own member records (§1).
+- [x] Rights-request steps (§7).
+- [x] Adults only at launch (§8).
+- [x] CRM contact visibility, audit retention and denial logging policies (§9).
+- [x] Transfer rule: primary data in the EU, signed DPAs, sub-processor list, and US email delivery under the DPF or SCCs (§10).
+- [x] G2 policy (§11): posts, replies and channel messages stay as "Former member" on leaving and on account deletion; DMs stay as "Former member" on leaving and are deleted on account deletion.
+- [x] G7 prayer policy, host team = owner, admins and moderators (§12).
+- [x] Records of Processing table (§13).
+- [x] Do a DPIA from the §14 outline before launch.
+- [x] Breach steps (§15).
 
-Approval of any line does not approve real collection, sending, payments, a deployment or a production migration. Real data stays hard-disabled until each "Still to build" item for that gate is built, reviewed and separately approved for activation.
+After the approval, only "Draft" and "(proposed)" labels were removed (§1, §6, §7, §9, §10, §13, §14, §15, and the Gate 4 status note); no other approved wording changed. §10a was added afterwards and is marked as such.
+
+Still open after approval (not decided on 27 Nov): the owner of the breach log and the lead supervisory authority (§15), and the US reviews in §10a.
+
+Approval of these lines does not approve real collection, sending, payments, a deployment or a production migration. Real data stays hard-disabled until each "Still to build" item for that gate is built, reviewed and separately approved for activation.

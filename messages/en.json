@@ -787,7 +787,8 @@
     "newsletterImageUnavailable": "An image in this email is not available. Choose it again.",
     "newsletterImageSuggestionUnavailable": "A thumbnail suggestion is not available.",
     "waysToGiveLimit": "This ministry already has the most ways to give allowed.",
-    "campaignNotFound": "Campaign not found"
+    "campaignNotFound": "Campaign not found",
+    "dataExportLimited": "You can download your data 3 times an hour. Try again later."
   },
   "LibEnv": {
     "missingRequiredEnvironmentVariableValue": "Missing required environment variable: {name}"
@@ -4837,8 +4838,8 @@
     },
     "limits": {
       "cooldown": "Wait between replies to a person",
-      "recipientDaily": "Per person each day",
-      "ruleDaily": "Per rule each day",
+      "recipientDaily": "Per person in 24 hours",
+      "ruleDaily": "Per rule in 24 hours",
       "hoursTitle": "Working hours",
       "hoursMode": {
         "ignore": "Reply any time",
@@ -4885,7 +4886,7 @@
       "trigger": "Trigger",
       "keywords": "Keywords",
       "limits": "Limits",
-      "limitsValue": "Wait {cooldown}, {person} a day per person, {rule} a day per rule",
+      "limitsValue": "Wait {cooldown}, {person} per person and {rule} per rule in 24 hours",
       "hours": "Hours",
       "handoff": "Hand-off",
       "handoffOn": "To a person",
@@ -5993,7 +5994,8 @@
       "last": "Ask for last name",
       "firstLabel": "First name",
       "lastLabel": "Last name",
-      "consent": "Consent wording"
+      "consent": "Consent wording",
+      "countedWording": "While link clicks are counted, sign-ups record {version}, which adds: {line}"
     },
     "adForm": {
       "title": "Ad lead form",
@@ -7677,8 +7679,7 @@
       "pageTitle": "Newsletter sign-up",
       "loading": "Loading",
       "busyTitle": "Too many requests. Try again in a minute.",
-      "unavailableTitle": "This sign-up form is not available.",
-      "clicksCounted": "This ministry counts link clicks in its emails, as totals only."
+      "unavailableTitle": "This sign-up form is not available."
     },
     "confirm": {
       "pageTitle": "Confirm sign-up",
@@ -8510,6 +8511,17 @@
         "stopped": "Stopped"
       },
       "withReason": "{outcome} ({reason})"
+    },
+    "clicks": {
+      "title": "Link clicks",
+      "daily": "Clicks by day",
+      "dailyCaption": "Automation link clicks by day (UTC)",
+      "byStep": "Clicks by step",
+      "byStepCaption": "Automation link clicks by step",
+      "stepHeader": "Step",
+      "step": "Step {number}",
+      "stepNamed": "Step {number}: {subject}",
+      "footer": "Last 90 days, UTC. Click records are kept for 90 days. {clicks} Groups under 5 are not shown."
     }
   },
   "Catalog": {
@@ -10711,5 +10723,15 @@
       "signInAgain": "Sign in again",
       "openBadge": "{count, plural, one {# open report} other {# open reports}}"
     }
+  },
+  "YourData": {
+    "title": "Your data",
+    "downloadHelp": "A JSON file of your profile, memberships, posts, messages, courses and files. File links in it expire after an hour.",
+    "download": "Download my data",
+    "preparing": "Preparing…",
+    "downloaded": "Your data was downloaded.",
+    "downloadFailed": "Could not prepare your data. Try again.",
+    "limited": "You can download your data 3 times an hour. Try again later.",
+    "newslettersNote": "Newsletter subscriptions belong to each ministry's contact list and are not linked to your account. Use the unsubscribe link in any email, or ask the ministry."
   }
 }

@@ -32,6 +32,12 @@ export const userProfiles = pgTable("user_profiles", {
   onboardingSkippedAt: timestamp("onboarding_skipped_at", { withTimezone: true }),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [check("user_profile_city_region", sql`${t.cityRegion} is null or length(${t.cityRegion}) between 1 and 200`)]);
+// "Your data" (27 Nov): one row per self-serve export, for the rolling rate limit. Written only by public.account_export (0134); the app role has no grant.
+export const accountExportRequests = pgTable("account_export_requests", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [index("account_export_requests_user_idx").on(t.userId, t.requestedAt)]);
 export const sessions = pgTable("sessions", {
   id: text("id").primaryKey(), token: text("token").notNull().unique(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
@@ -3249,8 +3255,45 @@ export const newsletterAutomationLog = pgTable("newsletter_automation_log", {
   primaryKey({ columns: [t.tenantId, t.id] }),
   foreignKey({ name: "newsletter_automation_log_run_fk", columns: [t.tenantId, t.runId], foreignColumns: [newsletterAutomationRuns.tenantId, newsletterAutomationRuns.id] }).onDelete("cascade"),
   index("newsletter_automation_log_run_idx").on(t.tenantId, t.runId, t.at),
+  index("newsletter_automation_log_attempt_idx").on(t.tenantId, t.attemptId).where(sql`${t.attemptId} is not null`),
   check("newsletter_automation_log_shape", sql`${t.stepIndex} >= 0 and length(coalesce(${t.reason}, '')) <= 80`),
 ]);
+
+/** The content links of an automation's emails, by position, written by the automations worker when clicks are counted. The redirect reads the URL here. */
+export const newsletterAutomationClickLinks = pgTable("newsletter_automation_click_links", {
+  tenantId: uuid("tenant_id").notNull(),
+  automationId: uuid("automation_id").notNull(),
+  linkIndex: integer("link_index").notNull(),
+  url: text("url").notNull(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.automationId, t.linkIndex] }),
+  unique("newsletter_automation_click_link_url").on(t.tenantId, t.automationId, t.url),
+  foreignKey({ name: "newsletter_automation_click_link_automation_fk", columns: [t.tenantId, t.automationId], foreignColumns: [newsletterAutomations.tenantId, newsletterAutomations.id] }),
+  check("newsletter_automation_click_link_shape", sql`${t.linkIndex} between 0 and 199 and ${t.url} ~ '^https://' and char_length(${t.url}) <= 2000`)]);
+
+// One row per automation email and link for at most 90 days (no address, IP, user agent or device), then only anonymous automation/step/day/link counts remain.
+export const newsletterAutomationClicks = pgTable("newsletter_automation_clicks", {
+  tenantId: uuid("tenant_id").notNull(),
+  automationId: uuid("automation_id").notNull(),
+  attemptId: uuid("attempt_id").notNull(),
+  stepIndex: integer("step_index").notNull(),
+  linkIndex: integer("link_index").notNull(),
+  clickedAt: timestamp("clicked_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.attemptId, t.linkIndex] }),
+  index("newsletter_automation_click_retention_idx").on(t.clickedAt),
+  index("newsletter_automation_click_automation_idx").on(t.tenantId, t.automationId, t.clickedAt),
+  foreignKey({ name: "newsletter_automation_click_link_fk", columns: [t.tenantId, t.automationId, t.linkIndex], foreignColumns: [newsletterAutomationClickLinks.tenantId, newsletterAutomationClickLinks.automationId, newsletterAutomationClickLinks.linkIndex] }),
+  check("newsletter_automation_click_step", sql`${t.stepIndex} >= 0`)]);
+
+export const newsletterAutomationClickCounts = pgTable("newsletter_automation_click_counts", {
+  tenantId: uuid("tenant_id").notNull(),
+  automationId: uuid("automation_id").notNull(),
+  stepIndex: integer("step_index").notNull(),
+  day: date("day").notNull(),
+  linkIndex: integer("link_index").notNull(),
+  count: bigint("count", { mode: "number" }).notNull(),
+}, (t) => [primaryKey({ columns: [t.tenantId, t.automationId, t.stepIndex, t.day, t.linkIndex] }),
+  foreignKey({ name: "newsletter_automation_click_count_link_fk", columns: [t.tenantId, t.automationId, t.linkIndex], foreignColumns: [newsletterAutomationClickLinks.tenantId, newsletterAutomationClickLinks.automationId, newsletterAutomationClickLinks.linkIndex] }),
+  check("newsletter_automation_click_count_shape", sql`${t.count} > 0 and ${t.stepIndex} >= 0`)]);
 
 // Docs (slice 1). A ministry's documents: folders (nested), docs, and the ordered page tree of each doc. Rich content is Tiptap JSON, sanitised again on the server.
 export const docFolders = pgTable("doc_folders", {

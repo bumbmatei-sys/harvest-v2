@@ -172,17 +172,33 @@ it("sends only to an ephemeral synthetic fixture in test mode", async () => {
   expect((await f.admin.query("select count(*)::int as n from social_auto_dm_jobs")).rows[0].n).toBe(before);
 });
 
-it("enforces the per-recipient daily limit after the cooldown has elapsed", async () => {
+// The per-recipient limit is a rolling 24 hours (founder, 27 Nov), so neither test depends on the time of day: 23 hours back
+// crosses a calendar midnight in most time zones and is still inside the window, 25 hours back is always outside it.
+it("enforces the per-recipient limit in a rolling 24 hours after the cooldown has elapsed", async () => {
   const r=await enable(draft("daily-cap",{cooldownMinutes:1,recipientDaily:1,ruleDaily:10}));
   const recipient=randomUUID();
   await inbound("daily-cap",recipient);
   await run();
   const previous=(await report(r.id)).activity[0].id;
-  await f.admin.query("update social_auto_dm_jobs set first_attempt_at=now()-interval '2 minutes' where id=$1",[previous]);
+  await f.admin.query("update social_auto_dm_jobs set first_attempt_at=now()-interval '23 hours' where id=$1",[previous]);
   await inbound("daily-cap",recipient);
   await run();
   expect((await report(r.id)).counts).toEqual(expect.arrayContaining([expect.objectContaining({state:"sent",count:1}),
     expect.objectContaining({reason:"limit",count:1})]));
+});
+
+it("sends to the same recipient again once 24 hours have passed", async () => {
+  const r=await enable(draft("rolling-cap",{cooldownMinutes:1,recipientDaily:1,ruleDaily:10}));
+  const recipient=randomUUID();
+  await inbound("rolling-cap",recipient);
+  await run();
+  const previous=(await report(r.id)).activity[0].id;
+  await f.admin.query("update social_auto_dm_jobs set first_attempt_at=now()-interval '25 hours' where id=$1",[previous]);
+  await inbound("rolling-cap",recipient);
+  await run();
+  const counts=(await report(r.id)).counts;
+  expect(counts).toEqual(expect.arrayContaining([expect.objectContaining({state:"sent",count:2})]));
+  expect(counts).not.toEqual(expect.arrayContaining([expect.objectContaining({reason:"limit"})]));
 });
 
 it("binds a composer rule to a published delivery and sends a private reply before the public follow-through", async () => {
