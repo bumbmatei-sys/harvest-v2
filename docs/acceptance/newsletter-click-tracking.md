@@ -29,7 +29,7 @@ Security notes: every new definer pins `search_path=pg_catalog,pg_temp`, schema-
 - Sender page (`/newsletter/sender`) has a "Link clicks" section with the shared `Switch` and `Label`, one consequence line, and "Only the owner can change this." for admins. The label is the 44px tap target.
 - Analytics overview has a "Link clicks" tile, a clicks line in the daily chart and a sortable Clicks column once counting is on or clicks exist. The footer reads "Link clicks are totals and may include link scanners; opens are not collected." When counting is off it reads "Opens are not collected. Link clicks are counted only when the owner turns it on."
 - Campaign analytics has the same tile, a clicks line, and a "Top links" card that uses the shared `DataTable` with Link and Clicks columns.
-- Hosted sign-up page shows one muted line under the form when the ministry counts clicks. This line sits beside the recorded consent wording and is not part of it, so `newsletter-consent-v1` is unchanged.
+- Hosted sign-up page showed one muted line under the form when the ministry counts clicks, beside the recorded consent wording. (Superseded 27 Nov 2026: see `newsletter-consent-v2-automation-clicks.md`.)
 - The review preview shows the footer line when counting is on.
 - Reuse: `ReportStatCards` (now 4 columns for 7 tiles), `ReportTrendCard`, `DataTable`, `Card`, `Switch`, `Label`. **No new kit items**, no new shared component and no provenance change.
 
@@ -54,8 +54,8 @@ Security notes: every new definer pins `search_path=pg_catalog,pg_temp`, schema-
 
 ## Deferred and decisions needed
 
-- **Automation emails, test sends and the preview are not rewritten.** Counts are per campaign. Automation emails do not carry the footer line because they are not counted.
-- **The hosted sign-up line is outside the consent wording.** If the founder wants it inside a recorded wording, that needs a new immutable wording version (`newsletter-consent-v2`).
+- **Test sends and the preview are not rewritten.** Automation emails are now counted under the same rules (migration 0135, `newsletter-consent-v2-automation-clicks.md`).
+- **The hosted sign-up line is now inside the recorded wording** as `newsletter-consent-v2` (migration 0135, `newsletter-consent-v2-automation-clicks.md`).
 - **Clicks count once per delivery and link.** They are not unique people and they include scanners. A click that arrives after the delivery record expires at 90 days from selection is not counted, but the link still redirects.
 - **Small-group rule.** Days and campaigns are suppressed as described above. Top links use the complementary rule. Revisit if the delivery analytics rule changes.
 - **Not done:** no export, no member access, no per-link trend, no opens.

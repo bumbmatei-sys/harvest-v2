@@ -11,15 +11,38 @@ export const NEWSLETTER_BLOCK_IDS = { email: "newsmail", first: "newsfrst", last
  * the exact words they agreed to. `{ministry}` is replaced with the ministry's name when the form is saved and again, for the frozen copy, when
  * it is published. The second line is Harvest's fixed minimum line that sits next to the checkbox on every hosted form.
  */
+const v1 = {
+  consent: "I agree to receive the {ministry} newsletter by email. I can unsubscribe at any time.",
+  fixed: "Your details go to {ministry}. You can ask them to delete them.",
+} as const;
+/** The line a ministry that counts link clicks adds to the consent statement (founder decision, 27 Nov 2026). */
+export const CLICKS_COUNTED_LINE = "This ministry counts link clicks in its emails, as totals only.";
 export const newsletterWordings = {
-  "newsletter-consent-v1": {
-    consent: "I agree to receive the {ministry} newsletter by email. I can unsubscribe at any time.",
-    fixed: "Your details go to {ministry}. You can ask them to delete them.",
-  },
+  "newsletter-consent-v1": v1,
+  // Recorded instead of v1 when the ministry counts link clicks at the moment of sign-up: the v1 statement plus the clicks line, same fixed line.
+  "newsletter-consent-v2": { consent: `${v1.consent} ${CLICKS_COUNTED_LINE}`, fixed: v1.fixed },
 } as const;
 export type NewsletterWordingId = keyof typeof newsletterWordings;
+/** Wordings a form is saved and published with. v2 is never stored on a form: it is chosen at sign-up from the ministry's click setting. */
 export const newsletterWordingIds = ["newsletter-consent-v1"] as const satisfies readonly NewsletterWordingId[];
 export const CURRENT_NEWSLETTER_WORDING: NewsletterWordingId = "newsletter-consent-v1";
+/** The wording recorded instead of a form's own when the ministry counts link clicks. Must match newsletter_form_signup_start (migration 0135). */
+export const countedWordings: Partial<Record<NewsletterWordingId, NewsletterWordingId>> = { "newsletter-consent-v1": "newsletter-consent-v2" };
+
+/** The wording that applies to a sign-up now: the counted variant of the form's frozen wording while the ministry counts clicks, the frozen one otherwise. */
+export function signupWording(frozen: string, clicksCounted: boolean): string {
+  return clicksCounted ? countedWordings[frozen as NewsletterWordingId] ?? frozen : frozen;
+}
+
+/**
+ * The texts a hosted page shows for the wording that applies now. The frozen texts keep the ministry name the form was published with; the counted
+ * variant adds only the clicks line, so it is exactly the v2 wording stamped with that same name.
+ */
+export function signupTexts(config: { wordingVersion: string; consentText: string; fixedNotice: string }, clicksCounted: boolean) {
+  const wordingVersion = signupWording(config.wordingVersion, clicksCounted);
+  const consentText = wordingVersion === config.wordingVersion ? config.consentText : `${config.consentText} ${CLICKS_COUNTED_LINE}`;
+  return { wordingVersion, consentText, fixedNotice: config.fixedNotice };
+}
 
 export function newsletterTexts(wording: NewsletterWordingId, ministry: string) {
   const name = ministry.trim() || "the ministry";

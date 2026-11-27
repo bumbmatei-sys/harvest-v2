@@ -4,7 +4,8 @@ import { z } from "zod";
 import type { Database } from "../db/client";
 import { contactInput, uuidInput } from "../lib/contact-input";
 import { formDefinitionSchema, validateBlock, type FormAnswers, type FormBlock, type FormDefinition } from "../lib/crm-forms";
-import { NEWSLETTER_BLOCK_IDS } from "../lib/newsletter-signup";
+import { NEWSLETTER_BLOCK_IDS, signupWording } from "../lib/newsletter-signup";
+import { newsletterFormCountsClicks } from "./newsletter-clicks";
 import { crmFormNoticeAcknowledgement } from "./consent-gate";
 import { deliverNewsletterConfirmation } from "./newsletter-confirmation";
 import { newsletterKey, signedDigest } from "./newsletter-public";
@@ -54,6 +55,7 @@ const submissionInput = z.object({
   campaign: uuidInput.optional(),
   qr: z.string().regex(/^[a-f0-9]{32}$/).optional(),
   website: z.string().max(200).optional(), // Honeypot, separate from the Website answer type.
+  wording: z.string().regex(/^newsletter-consent-v\d{1,3}$/).optional(), // Sign-up forms: the consent wording the page showed.
 }).strict();
 
 function readProof(proof: string, slug: string, key: Buffer, now: number) {
@@ -114,7 +116,7 @@ export async function submitCrmForm(db: Database, form: PublishedForm, slug: str
   const { answers } = input;
   const blocks = new Set(definition.blocks.map(block => block.id));
   if (Object.keys(answers).some(id => !blocks.has(id)) || definition.blocks.some(block => !validAnswer(block, answers[block.id]))) return "invalid";
-  if (definition.newsletter) return submitNewsletterSignup(db, form, slug, answers, proof.receipt);
+  if (definition.newsletter) return submitNewsletterSignup(db, form, slug, answers, proof.receipt, input.wording);
   if (!mappedAnswers(definition, answers)) return "invalid";
   const consentBlock = definition.blocks.at(-1);
   const acknowledgement = consentBlock && crmFormNoticeAcknowledgement(consentBlock, answers[consentBlock.id]);
@@ -136,9 +138,13 @@ export async function submitCrmForm(db: Database, form: PublishedForm, slug: str
  * one confirmation message. Only the confirmation link grants the newsletter permission. A declined, repeated or rate-limited request looks exactly like
  * a successful one, so the form cannot be used to find out who is on a list.
  */
-async function submitNewsletterSignup(db: Database, form: PublishedForm, slug: string, answers: FormAnswers, receipt: string) {
+async function submitNewsletterSignup(db: Database, form: PublishedForm, slug: string, answers: FormAnswers, receipt: string, shown: string | undefined) {
   const tokenKey = newsletterKey();
   if (!tokenKey) return "not_found";
+  // The recorded wording is the one that applies at sign-up (v2 while the ministry counts link clicks). A page that showed another wording, because the
+  // owner changed the setting after it loaded, is asked to reload so the person sees the words that will be recorded. The database checks again.
+  const frozen = form.definition.newsletter!.wordingVersion, wording = shown ?? frozen;
+  if (wording !== signupWording(frozen, await newsletterFormCountsClicks(db, slug))) return "conflict";
   const email = String(answers[NEWSLETTER_BLOCK_IDS.email] ?? "").trim().toLowerCase();
   // Synthetic data only, like every hosted form while the activation decisions are open.
   if (!z.email().max(254).safeParse(email).success || !email.endsWith("@example.test")) return "invalid";
@@ -147,7 +153,7 @@ async function submitNewsletterSignup(db: Database, form: PublishedForm, slug: s
   const token = randomBytes(32).toString("base64url");
   const addressKey = signedDigest(tokenKey, "newsletter-address-limit", email).toString("hex");
   const { rows: [row] } = await db.execute<{ queued: boolean }>(sql`
-    select public.newsletter_form_signup_start(${slug}, ${form.versionId}::uuid, ${receipt}::uuid, ${email}, ${first}, ${last}, ${token}, ${addressKey}) as queued`);
+    select public.newsletter_form_signup_start(${slug}, ${form.versionId}::uuid, ${receipt}::uuid, ${email}, ${first}, ${last}, ${token}, ${addressKey}, ${wording}) as queued`);
   if (row.queued) deliverNewsletterConfirmation({ to: email, token, ministryName: form.ministryName, formTitle: form.definition.title });
   return "ok";
 }

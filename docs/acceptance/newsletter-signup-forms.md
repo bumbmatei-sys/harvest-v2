@@ -36,6 +36,6 @@ Reused: forms builder, `PublicForm`/`FormField`, hosted forms server, NL-02 conf
 - Plain CRM forms still render the standard fixed line from the catalogue rather than a frozen copy (only sign-up forms freeze it).
 - A merge drops pending sign-ups of the merged-away person (their link then grants nothing); a confirmed sign-up has no link to the person, so a merge needs nothing from it.
 - Sign-up counts are totals per form; there is no per-list or per-day breakdown, and no export.
-- Wording versions: only `newsletter-consent-v1` exists and the editor shows it read-only; moving a form to a newer wording is not built.
+- Wording versions: forms are saved with `newsletter-consent-v1`, shown read-only. Since 0135 a sign-up records `newsletter-consent-v2` (v1 plus the link-clicks line) while the ministry counts link clicks; see `newsletter-consent-v2-automation-clicks.md`. Moving a form to another stored wording is not built.
 - The embed height is fixed at 520 px; a resize message from the frame is not built.
 - Rate limits are the existing hosted-form numbers; the production design still needs the founder decisions already open in the hosted forms record.

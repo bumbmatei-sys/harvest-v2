@@ -890,6 +890,13 @@
       "when": 1795755001287,
       "tag": "0129_community_hardening",
       "breakpoints": true
+    },
+    {
+      "idx": 135,
+      "version": "7",
+      "when": 1795762708834,
+      "tag": "0135_newsletter_consent_v2",
+      "breakpoints": true
     }
   ]
 }
