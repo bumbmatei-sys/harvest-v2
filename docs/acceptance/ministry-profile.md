@@ -1,6 +1,6 @@
 # Ministry profile and locations
 
-Working migration `0162_ministry_profile`.
+Working migration `0145_ministry_profile`.
 
 | Route | Contract |
 | --- | --- |

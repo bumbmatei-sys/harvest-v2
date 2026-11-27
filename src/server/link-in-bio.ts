@@ -1,12 +1,12 @@
 import { createHmac, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
-import { and, desc, eq, gte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
-import { auditLogs, bioClicks, bioMessages, bioPages, communities } from "../db/schema";
+import { auditLogs, bioClicks, bioMessages, bioPages, catalogItems, communities } from "../db/schema";
 import { message } from "../i18n/messages";
 import { isBrandTheme } from "../lib/theme-registry";
 import { bioDefinitionSchema, bioHandleSchema, bioMessageSchema, emptyBioDefinition, fieldIssues, handleProblem, publishIssues, shownTabs, suggestHandle,
-  type BioDefinition, type BioView, type BioViewBlock } from "../lib/link-in-bio";
+  type BioCatalogCard, type BioDefinition, type BioView, type BioViewBlock } from "../lib/link-in-bio";
 import type { GivingPublicMethod } from "../lib/ways-to-give";
 import { bioMessagesKey, linkInBioEnabled } from "./link-in-bio-mode";
 import { AccessError } from "./permissions";
@@ -89,8 +89,16 @@ async function checkReferences(tx: Transaction, tenantId: string, definition: Bi
     const found = await tx.select({ id: communities.id }).from(communities).where(eq(communities.tenantId, tenantId));
     if (communityIds.some((id) => !found.some((row) => row.id === id))) throw new AccessError(400, message("Errors.linkInBioBlockUnavailable"));
   }
+  // Products, courses and download products must be this ministry's own (read through row security as this manager).
+  const itemIds = [...new Set(definition.blocks.flatMap((block) => block.type === "catalog" || block.type === "files" ? block.itemIds : []))];
+  if (itemIds.length) {
+    const found = await tx.select({ id: catalogItems.id, kind: catalogItems.kind }).from(catalogItems).where(and(eq(catalogItems.tenantId, tenantId), inArray(catalogItems.id, itemIds)));
+    if (found.length !== itemIds.length) throw new AccessError(400, message("Errors.linkInBioBlockUnavailable"));
+    const downloads = new Set(found.filter((row) => row.kind === "download").map((row) => row.id));
+    if (definition.blocks.some((block) => block.type === "files" && block.itemIds.some((id) => !downloads.has(id)))) throw new AccessError(400, message("Errors.linkInBioBlockUnavailable"));
+  }
   for (const block of definition.blocks) {
-    if (block.type !== "newsletter") continue;
+    if (block.type !== "newsletter" && block.type !== "form") continue;
     const { rows } = await tx.execute(sql`select 1 from crm_form_addresses where tenant_id = ${tenantId} and slug = ${block.slug}`);
     if (!rows.length) throw new AccessError(400, message("Errors.linkInBioBlockUnavailable"));
   }
@@ -192,7 +200,9 @@ export async function deleteBioMessage(db: Database, user: string, workspace: st
 }
 
 /** What the owner may pick from: this ministry's communities and its currently published sign-up forms. */
-export type BioChoices = { communities: { id: string; name: string; status: string }[]; signups: { slug: string; title: string }[]; giving?: GivingPublicMethod[] };
+export type BioChoices = { communities: { id: string; name: string; status: string }[]; signups: { slug: string; title: string }[]; giving?: GivingPublicMethod[];
+  /** 0134: the ministry's products and courses (any state; only published, not hidden ones reach visitors) and its live hosted forms other than sign-ups. */
+  catalog?: { id: string; kind: "course" | "download"; slug: string; title: string; summary: string; state: string; visibility: string }[]; forms?: { slug: string; title: string }[] };
 export async function bioChoices(db: Database, user: string, workspace: string): Promise<BioChoices> {
   requireLinkInBioEnabled();
   return withTenant(db, user, uuid.parse(workspace), "bio:manage", async (tx, tenantId) => {
@@ -204,12 +214,23 @@ export async function bioChoices(db: Database, user: string, workspace: string):
       where a.tenant_id = ${tenantId} and a.version_id is not null and p.definition->'newsletter' is not null order by a.slug limit 50`);
     // The preview shows the enabled methods a visitor would see, read through row security as this manager (none without Giving access).
     const giving = await managerGivingPreview(tx, tenantId);
-    return { communities: list, signups: rows, giving };
+    const catalog = await tx.select({ id: catalogItems.id, kind: catalogItems.kind, slug: catalogItems.slug, title: catalogItems.title, summary: catalogItems.summary, state: catalogItems.state, visibility: catalogItems.visibility })
+      .from(catalogItems).where(and(eq(catalogItems.tenantId, tenantId), sql`${catalogItems.state} <> 'archived'`)).orderBy(catalogItems.title).limit(100);
+    const { rows: forms } = await tx.execute<{ slug: string; title: string }>(sql`
+      select a.slug, coalesce(nullif(p.definition->>'title', ''), f.name) as title from crm_form_addresses a
+      join forms f on f.tenant_id = a.tenant_id and f.id = a.form_id and f.archived_at is null
+      join crm_form_publications p on p.tenant_id = a.tenant_id and p.form_id = a.form_id and p.version_id = a.version_id
+      where a.tenant_id = ${tenantId} and a.version_id is not null and p.definition->'newsletter' is null order by a.slug limit 50`);
+    return { communities: list, signups: rows, giving, catalog, forms };
   });
 }
 
 // ---- Public side ---------------------------------------------------------------------------------------------------------------------------------------------
-type PublicRow = { handle: string; ministryName: string; brandTheme: string | null; definition: unknown; hasPhoto: boolean; hasCover: boolean; communities: Record<string, { name: string; tagline: string | null; slug: string }>; signups: string[] };
+type PublicRow = { handle: string; ministryName: string; brandTheme: string | null; definition: unknown; hasPhoto: boolean; hasCover: boolean; communities: Record<string, { name: string; tagline: string | null; slug: string }>; signups: string[];
+  /** 0134: published, not hidden products and courses of the ministry, and its live hosted form addresses. Absent before that migration. */
+  catalog?: Record<string, Omit<BioCatalogCard, "id">>; forms?: string[];
+  /** 0136: ready gallery pictures that a gallery block of the published copy lists. */
+  gallery?: string[] };
 
 /**
  * The published page as a visitor may see it, or null (missing, unpublished and unavailable are the same answer). Hidden blocks, blocks whose community was
@@ -233,11 +254,25 @@ export async function getPublicBio(db: Database, handle: string, env: Record<str
       case "newsletter": return row.result!.signups.includes(block.slug) ? [{ type: "newsletter", id: block.id, slug: block.slug }] : [];
       case "message": return messages ? [{ type: "message", id: block.id, title: block.title }] : [];
       case "giving": return giving.length ? [{ type: "giving", id: block.id, title: block.title, methods: giving }] : [];
+      case "catalog": case "files": {
+        // A file row is a download product; a course is never listed under PDFs and ebooks.
+        const items = block.itemIds.flatMap((id) => { const card = row.result!.catalog?.[id]; return card && (block.type === "catalog" || card.kind === "download") ? [{ id, ...card }] : []; });
+        return items.length ? [{ type: block.type, id: block.id, title: block.title, items }] : [];
+      }
+      case "form": return row.result!.forms?.includes(block.slug) ? [{ type: "form", id: block.id, title: block.title, slug: block.slug }] : [];
+      case "video": return [{ type: "video", id: block.id, title: block.title, video: { provider: block.provider, id: block.videoId } }];
+      case "contact": return [{ type: "contact", id: block.id, email: block.email, phone: block.phone, whatsapp: block.whatsapp }];
+      case "location": return [{ type: "location", id: block.id, label: block.label, address: block.address }];
+      case "live": return block.on ? [{ type: "live", id: block.id, title: block.title, url: block.url }] : [];
+      case "testimonials": return [{ type: "testimonials", id: block.id, items: block.items }];
+      case "gallery": { const ready = block.fileIds.filter((id) => row.result!.gallery?.includes(id)); return ready.length ? [{ type: "gallery", id: block.id, title: block.title, fileIds: ready }] : []; }
+      case "share": return [{ type: "share", id: block.id, title: block.title }];
+      case "countdown": return [{ type: "countdown", id: block.id, title: block.title, at: block.at, url: block.url }];
     }
   };
   // A hidden tab, and a tab with nothing to show, never reach the visitor.
   const tabs = shownTabs(definition, definition.blocks).map((t) => ({ ...t, blocks: t.blocks.flatMap(project) })).filter((t) => t.blocks.length > 0);
-  return { ministryName: row.result.ministryName, name: definition.name, bio: definition.bio, tabs, layout: definition.layout, showCover: definition.cover,
+  return { handle: row.result.handle, ministryName: row.result.ministryName, name: definition.name, bio: definition.bio, tabs, layout: definition.layout, showCover: definition.cover,
     photoAlign: definition.photoAlign, iconStyle: definition.iconStyle, hasPhoto: row.result.hasPhoto, hasCover: definition.cover && row.result.hasCover,
     scheme: definition.scheme, buttons: definition.buttons, brandTheme: isBrandTheme(row.result.brandTheme) ? row.result.brandTheme : null, socials: definition.socials };
 }
@@ -247,6 +282,13 @@ export async function recordBioClick(db: Database, handle: string, block: string
   if (!linkInBioEnabled()) return "not_found";
   const { rows: [row] } = await db.execute<{ result: ClickOutcome }>(sql`select public.bio_record_click(${handle}, ${block}, ${visitor}) as result`);
   return row.result;
+}
+
+/** One gallery picture of a published page (bio_public_gallery checks that a shown gallery block lists it), or null. */
+export async function publicBioGalleryPhoto(db: Database, handle: string, file: string): Promise<{ key: string; name: string; mime: "image/jpeg" | "image/png" | "image/webp" } | null> {
+  if (!linkInBioEnabled() || handleProblem(handle) !== null || !uuid.safeParse(file).success) return null;
+  const { rows: [row] } = await db.execute<{ result: { key: string; name: string; mime: "image/jpeg" | "image/png" | "image/webp" } | null }>(sql`select public.bio_public_gallery(${handle}, ${file}::uuid) as result`);
+  return row?.result ?? null;
 }
 
 export async function publicBioPhoto(db: Database, handle: string, kind: "photo" | "cover" = "photo"): Promise<{ key: string; name: string; mime: "image/jpeg" | "image/png" | "image/webp" } | null> {

@@ -1,3 +1,4 @@
+import { appOrigin } from "@/lib/site-address";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -34,7 +35,7 @@ export default async function SignupFormEditorPage({ params, searchParams }: { p
   if (!form?.definition.newsletter) notFound();
   const [lists, counts] = await Promise.all([newsletterListChoices(db, session.user.id, tenantId), newsletterSignupCounts(db, session.user.id, tenantId, formId)]);
   const initialTab = tabs.find((tab) => tab === query.tab);
-  return <FormEditor ministryName={workspace.name} tenantId={tenantId} formId={formId} initial={form.definition} revision={form.definition.revision} destinations={[]} members={[]}
+  return <FormEditor origin={appOrigin()} ministryName={workspace.name} tenantId={tenantId} formId={formId} initial={form.definition} revision={form.definition.revision} destinations={[]} members={[]}
     responseCount={form.responseCount} publication={form.publication} unpublishedChanges={form.unpublishedChanges} hostedAvailable={syntheticCrmFormsKey() !== null}
     newsletter={{ lists, counts }} initialTab={initialTab} />;
 }
