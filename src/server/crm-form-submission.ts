@@ -155,5 +155,7 @@ async function submitNewsletterSignup(db: Database, form: PublishedForm, slug: s
   const { rows: [row] } = await db.execute<{ queued: boolean }>(sql`
     select public.newsletter_form_signup_start(${slug}, ${form.versionId}::uuid, ${receipt}::uuid, ${email}, ${first}, ${last}, ${token}, ${addressKey}, ${wording}) as queued`);
   if (row.queued) deliverNewsletterConfirmation({ to: email, token, ministryName: form.ministryName, formTitle: form.definition.title });
+  // The setting changed between the check above and the database's own check: ask the page to reload rather than report a sign-up that was not recorded.
+  else if (wording !== signupWording(frozen, await newsletterFormCountsClicks(db, slug))) return "conflict";
   return "ok";
 }

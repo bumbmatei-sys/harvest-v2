@@ -226,8 +226,9 @@ GRANT EXECUTE ON FUNCTION public.newsletter_automation_click_target(uuid,uuid,in
 --> statement-breakpoint
 -- Aggregate click report for one automation, owners and admins only (newsletter:analytics). UTC days, at most 90. The campaign rules with the step in
 -- the campaign's place: any step-day under 5 hides that day, the period total and the step's row; a step whose emails reached fewer than 5 people
--- never shows clicks; links under 5 are left out, and when that leaves one link or fewer than 5 clicks unaccounted for, the smallest shown link is
--- left out too, so no small figure can be found by subtraction.
+-- never shows clicks; links count only clicks of steps that are shown, so no link total can exceed the shown step totals and a withheld step or day
+-- cannot be found by subtracting them; links under 5 are left out, and when that leaves one link or fewer than 5 clicks unaccounted for, the smallest
+-- shown link is left out too, so no small figure can be found by subtraction.
 CREATE FUNCTION public.newsletter_automation_click_report(p_tenant uuid,p_automation uuid,p_from date,p_until date) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
 DECLARE prior_tenant text:=pg_catalog.current_setting('app.nl_send_tenant',true);
@@ -264,7 +265,7 @@ BEGIN
   ), per_step AS (
     SELECT step,sum(n)::bigint AS n FROM step_day GROUP BY 1
   ), links AS (
-    SELECT r.link_index,sum(r.n)::bigint AS n FROM raw r WHERE r.step NOT IN (SELECT step FROM small_cohorts) GROUP BY 1
+    SELECT r.link_index,sum(r.n)::bigint AS n FROM raw r WHERE r.step NOT IN (SELECT step FROM small_steps) GROUP BY 1
   ), hidden AS (
     SELECT count(*) FILTER (WHERE n<5) AS links,coalesce(sum(n) FILTER (WHERE n<5),0) AS clicks FROM links
   ), ranked AS (

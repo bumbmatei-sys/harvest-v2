@@ -58,9 +58,10 @@ const setClicks = async (on: boolean) => {
   if (current.clickTracking !== on) await saveNewsletterClickSettings(fixture.db, people.owner, people.tenant, { clickTracking: on, version: current.version });
 };
 /** A list automation with one email step, active, and `size` subscribers entered into it. */
-async function automationWith(size: number, subject = "Welcome") {
+async function automationWith(size: number, subject = "Welcome", emails = 1) {
   const list = (await createNewsletterList(fixture.db, people.owner, people.tenant, audience, { name: "List " + randomUUID().slice(0, 6) })).id;
-  const made = await createAutomation(fixture.db, people.owner, people.tenant, { name: "Welcome series", trigger: { type: "list", listId: list }, steps: [emailStep(subject), endStep()] });
+  const steps = [...Array.from({ length: emails }, (_, index) => emailStep(index ? `${subject} ${index + 1}` : subject)), endStep()];
+  const made = await createAutomation(fixture.db, people.owner, people.tenant, { name: "Welcome series", trigger: { type: "list", listId: list }, steps });
   await updateAutomation(fixture.db, people.owner, people.tenant, made.id, { version: (await getAutomation(fixture.db, people.owner, people.tenant, made.id)).version, state: "active" });
   for (let index = 0; index < size; index++) {
     const contact = await createContact(fixture.db, people.owner, people.tenant, { name: `Reader ${index}`, email: `nlac-${randomUUID()}@example.invalid` });
@@ -201,6 +202,28 @@ it("withholds every group under 5: a small step, its day and the total, and smal
   const fewTokens = sent.slice(0, 2).flatMap((message) => [...new Set(tracked(message.html))]);
   for (const token of fewTokens) await click(token);
   expect(await report(few)).toMatchObject({ total: null, steps: [{ step: 0, clicks: null }], links: [] });
+});
+
+it("never lets link totals reveal a withheld step or day: links count only shown steps", async () => {
+  // Reviewer's case: two steps reaching 5 people each; step 0 has 10 clicks yesterday, step 1 has 3 clicks today, all on one link.
+  const automation = await automationWith(5, "Two", 2);
+  const first = await tick(), second = await tick();
+  expect([first.length, second.length]).toEqual([5, 5]);
+  for (const message of first) for (const token of new Set(tracked(message.html))) await click(token);
+  await fixture.admin.query("update newsletter_automation_clicks set clicked_at=clicked_at-interval '1 day' where automation_id=$1", [automation]);
+  for (const message of second.slice(0, 3)) await click(tracked(message.html)[0]);
+  const rows = await clickRows(automation);
+  expect(rows.filter((row) => row.step_index === 0)).toHaveLength(10);
+  expect(rows.filter((row) => row.step_index === 1)).toHaveLength(3);
+  const result = await report(automation);
+  expect(result.steps).toEqual([{ step: 0, clicks: 10 }, { step: 1, clicks: null }]);
+  expect(result.total).toBeNull();
+  const shownSteps = result.steps.reduce((sum, step) => sum + (step.clicks ?? 0), 0);
+  const shownDays = result.days.reduce((sum, day) => sum + (day.clicks ?? 0), 0);
+  const linkTotal = result.links.reduce((sum, link) => sum + link.clicks, 0);
+  expect(linkTotal).toBeLessThanOrEqual(shownSteps);
+  expect(linkTotal).toBeLessThanOrEqual(shownDays);
+  for (const link of result.links) expect(link.clicks).toBe(5);
 });
 
 it("stops rewriting and counting as soon as counting is turned off, and does not count earlier emails when it is turned on again", async () => {
