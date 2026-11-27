@@ -1,5 +1,5 @@
 {
-  "id": "d0c093da-f596-4e1f-bf76-a3e89ab33d76",
+  "id": "f596ce51-f529-464e-bbd3-857cd1066510",
   "prevId": "abc8ccb0-e46c-4b28-a8bf-75722c62a312",
   "version": "7",
   "dialect": "postgresql",
@@ -12050,6 +12050,31 @@
           "value": "\"community_email_feedback\".\"outcome\" in ('soft_bounce', 'hard_bounce', 'complaint')"
         }
       },
+      "isRLSEnabled": false
+    },
+    "public.community_email_feedback_grants": {
+      "name": "community_email_feedback_grants",
+      "schema": "",
+      "columns": {
+        "token": {
+          "name": "token",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "transaction_id": {
+          "name": "transaction_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.community_email_suppressions": {

@@ -5,6 +5,11 @@ CREATE TABLE "community_email_feedback" (
 	CONSTRAINT "community_email_feedback_outcome" CHECK ("community_email_feedback"."outcome" in ('soft_bounce', 'hard_bounce', 'complaint'))
 );
 --> statement-breakpoint
+CREATE TABLE "community_email_feedback_grants" (
+	"token" uuid PRIMARY KEY NOT NULL,
+	"transaction_id" text NOT NULL
+);
+--> statement-breakpoint
 CREATE TABLE "community_email_suppressions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"tenant_id" uuid NOT NULL,
@@ -20,19 +25,31 @@ ALTER TABLE "community_email_deliveries" ADD COLUMN "feedback_hash" text;--> sta
 ALTER TABLE "community_email_deliveries" ADD COLUMN "feedback_mask" text;--> statement-breakpoint
 ALTER TABLE "community_email_suppressions" ADD CONSTRAINT "community_email_suppressions_tenant_id_workspaces_tenant_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."workspaces"("tenant_id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "community_email_feedback_delivery_outcome_idx" ON "community_email_feedback" USING btree ("delivery_id","outcome");--> statement-breakpoint
-CREATE UNIQUE INDEX "community_email_suppression_address_idx" ON "community_email_suppressions" USING btree ("tenant_id","address_hash");--> statement-breakpoint
+CREATE UNIQUE INDEX "community_email_suppression_address_idx" ON "community_email_suppressions" USING btree ("tenant_id","address_hash");
+--> statement-breakpoint
+ALTER TABLE public.community_email_feedback_grants ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.community_email_feedback_grants FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.community_email_feedback ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.community_email_feedback FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.community_email_suppressions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.community_email_suppressions FORCE ROW LEVEL SECURITY;
-REVOKE ALL ON public.community_email_feedback, public.community_email_suppressions FROM PUBLIC, harvest_app;
+REVOKE ALL ON public.community_email_feedback_grants, public.community_email_feedback, public.community_email_suppressions FROM PUBLIC, harvest_app;
 --> statement-breakpoint
 DO $$
 DECLARE relation text;
+  worker_scope text := $scope$session_user = 'harvest_worker' AND EXISTS (
+    SELECT FROM public.community_email_feedback_grants g
+    WHERE g.token = nullif(current_setting('app.community_email_feedback_token', true), '')::uuid
+  )$scope$;
+  grant_scope text := $scope$session_user = 'harvest_worker'
+    AND token = nullif(current_setting('app.community_email_feedback_token', true), '')::uuid
+    AND transaction_id = pg_current_xact_id()::text$scope$;
 BEGIN
+  EXECUTE format('CREATE POLICY feedback_grant_scope ON public.community_email_feedback_grants TO %I USING (%s) WITH CHECK (%s)',
+    current_user, grant_scope, grant_scope);
   FOREACH relation IN ARRAY ARRAY['community_email_feedback', 'community_email_suppressions', 'community_email_deliveries'] LOOP
-    EXECUTE format('CREATE POLICY feedback_worker ON public.%I TO %I USING (session_user = %L) WITH CHECK (session_user = %L)',
-      relation, current_user, 'harvest_worker', 'harvest_worker');
+    EXECUTE format('CREATE POLICY feedback_worker ON public.%I TO %I USING (%s) WITH CHECK (%s)',
+      relation, current_user, worker_scope, worker_scope);
   END LOOP;
   EXECUTE format($policy$CREATE POLICY feedback_admin_read ON public.community_email_suppressions FOR SELECT TO %I USING (
     tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid AND EXISTS (
@@ -46,6 +63,52 @@ BEGIN
     ))$policy$, current_user);
 END $$;
 --> statement-breakpoint
+CREATE OR REPLACE FUNCTION public.community_definer_reset() RETURNS void LANGUAGE sql SET search_path = pg_catalog, pg_temp AS $$
+  SELECT set_config(name, '', true) FROM unnest(ARRAY['app.community_resolve_slug','app.community_definer_tenant','app.community_resolve_ids',
+    'app.community_resolve_invite','app.community_resolve_email','app.discover_read','app.community_resolve_user','app.community_purge',
+    'app.community_email_worker','app.giving_definer','app.giving_definer_tenant','app.giving_public_tenant',
+    'app.give_public_slug','app.give_public_tenant','app.give_public_fundraising',
+    'app.catalog_tenant','app.chat_purge','app.chat_settings','app.community_stats_write','app.discover_platform',
+    'app.dm_evidence_report','app.dm_purge','app.events_tenant','app.live_community',
+    'app.account_export','app.account_erase','app.community_email_feedback_token']) AS name;
+$$;
+--> statement-breakpoint
+CREATE OR REPLACE FUNCTION public.account_self_reset() RETURNS void LANGUAGE sql SET search_path = pg_catalog, pg_temp AS $$
+  SELECT pg_catalog.set_config(name, '', true) FROM pg_catalog.unnest(ARRAY['app.account_export','app.account_erase',
+    'app.access_tenant','app.access_token','app.ads_definer','app.blog_public_file','app.blog_public_handle','app.blog_public_tenant','app.blog_publish','app.bio_handle','app.bio_tenant','app.campaign_budget_tenant','app.campaign_invite_tenant',
+    'app.campaign_invite_token','app.catalog_learner_tenant','app.catalog_my_notes','app.catalog_progress_tenant','app.catalog_slug','app.catalog_tenant',
+    'app.chat_purge','app.chat_settings','app.community_definer_tenant','app.community_email_worker','app.community_email_feedback_token','app.community_purge','app.community_resolve_email',
+    'app.community_resolve_ids','app.community_resolve_invite','app.community_resolve_slug','app.community_resolve_user','app.community_stats_write',
+    'app.connect_campaign','app.connect_flow','app.connect_intake_mode','app.connect_invite_id','app.connect_invite_token','app.connect_invite_worker',
+    'app.connect_landing_link','app.connect_metrics','app.connect_purge','app.connect_receipt','app.connect_resolve_code','app.connect_resolve_tenant',
+    'app.connect_retention','app.connect_version','app.crm_forms_slug','app.crm_forms_tenant','app.discover_platform','app.discover_read',
+    'app.dm_evidence_report','app.dm_purge','app.docs_purge','app.event_cover_cleanup','app.events_tenant','app.give_public_fundraising',
+    'app.give_public_slug','app.give_public_tenant','app.giving_definer','app.giving_definer_tenant','app.giving_public_tenant','app.live_community',
+    'app.newsletter_erasure_contact','app.newsletter_erasure_tenant','app.nl02_private','app.nl02_tenant','app.nl_auto_private','app.nl_forms_tenant','app.nl_growth_scan',
+    'app.nl_send_insight','app.nl_send_tenant','app.nl_send_worker','app.office_erasure_contact','app.platform_staff','app.social_analytics_worker',
+    'app.social_approval_definer','app.social_auto_dm_worker','app.social_definer','app.social_inbox_worker','app.social_media_tenant',
+    'app.social_upload_cleanup','app.tenant_id']) AS name;
+$$;
+--> statement-breakpoint
+-- A fresh grant authorizes only the authenticated worker within this transaction.
+CREATE FUNCTION public.community_email_feedback_scope_open() RETURNS void
+LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
+DECLARE grant_token uuid := gen_random_uuid();
+BEGIN
+  PERFORM set_config('app.community_email_feedback_token', grant_token::text, true);
+  INSERT INTO public.community_email_feedback_grants(token, transaction_id) VALUES (grant_token, pg_current_xact_id()::text);
+END $$;
+REVOKE ALL ON FUNCTION public.community_email_feedback_scope_open() FROM PUBLIC;
+--> statement-breakpoint
+CREATE FUNCTION public.community_email_feedback_scope_close() RETURNS void
+LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
+BEGIN
+  DELETE FROM public.community_email_feedback_grants
+    WHERE token = nullif(current_setting('app.community_email_feedback_token', true), '')::uuid;
+  PERFORM set_config('app.community_email_feedback_token', '', true);
+END $$;
+REVOKE ALL ON FUNCTION public.community_email_feedback_scope_close() FROM PUBLIC;
+--> statement-breakpoint
 CREATE FUNCTION public.community_email_check_suppression(p_id uuid, p_hash text, p_mask text) RETURNS text
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE delivery public.community_email_deliveries%ROWTYPE;
@@ -55,19 +118,23 @@ BEGIN
   IF p_hash IS NULL OR p_hash !~ '^[0-9a-f]{64}$' OR p_mask IS NULL OR p_mask !~ '^[*]{3}@[a-z0-9.-]{1,253}$' THEN
     RAISE invalid_parameter_value;
   END IF;
+  PERFORM public.community_email_feedback_scope_open();
   SELECT * INTO delivery FROM public.community_email_deliveries WHERE id = p_id AND status = 'sending' FOR UPDATE;
-  IF NOT FOUND THEN RETURN 'inactive'; END IF;
+  IF NOT FOUND THEN PERFORM public.community_email_feedback_scope_close(); RETURN 'inactive'; END IF;
   PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(delivery.tenant_id::text || ':' || p_hash, 0));
   IF EXISTS (SELECT FROM public.community_email_suppressions
     WHERE tenant_id = delivery.tenant_id AND address_hash = p_hash AND blocked_at IS NOT NULL) THEN
     UPDATE public.community_email_deliveries SET status = 'skipped', last_error = 'address_suppressed', locked_until = NULL WHERE id = p_id;
+    PERFORM public.community_email_feedback_scope_close();
     RETURN 'suppressed';
   END IF;
   IF delivery.feedback_hash IS NOT NULL AND delivery.feedback_hash <> p_hash THEN
     UPDATE public.community_email_deliveries SET status = 'skipped', last_error = 'address_changed', locked_until = NULL WHERE id = p_id;
+    PERFORM public.community_email_feedback_scope_close();
     RETURN 'inactive';
   END IF;
   UPDATE public.community_email_deliveries SET feedback_hash = p_hash, feedback_mask = p_mask WHERE id = p_id;
+  PERFORM public.community_email_feedback_scope_close();
   RETURN 'ready';
 END $$;
 --> statement-breakpoint
@@ -80,11 +147,12 @@ BEGIN
   IF p_event IS NULL OR p_outcome IS NULL OR p_outcome NOT IN ('soft_bounce', 'hard_bounce', 'complaint') THEN
     RAISE invalid_parameter_value;
   END IF;
+  PERFORM public.community_email_feedback_scope_open();
   SELECT * INTO delivery FROM public.community_email_deliveries WHERE id = p_delivery AND feedback_hash IS NOT NULL;
-  IF NOT FOUND THEN RETURN false; END IF;
+  IF NOT FOUND THEN PERFORM public.community_email_feedback_scope_close(); RETURN false; END IF;
   PERFORM pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(delivery.tenant_id::text || ':' || delivery.feedback_hash, 0));
   INSERT INTO public.community_email_feedback(event_id, delivery_id, outcome) VALUES (p_event, p_delivery, p_outcome) ON CONFLICT DO NOTHING;
-  IF NOT FOUND THEN RETURN false; END IF;
+  IF NOT FOUND THEN PERFORM public.community_email_feedback_scope_close(); RETURN false; END IF;
   INSERT INTO public.community_email_suppressions AS previous(tenant_id, address_hash, masked_address, reason, soft_count, blocked_at)
     VALUES (delivery.tenant_id, delivery.feedback_hash, delivery.feedback_mask, p_outcome,
       CASE WHEN p_outcome = 'soft_bounce' THEN 1 ELSE 0 END, CASE WHEN p_outcome <> 'soft_bounce' THEN now() END)
@@ -94,6 +162,7 @@ BEGIN
       soft_count = least(previous.soft_count + excluded.soft_count, 3),
       blocked_at = coalesce(previous.blocked_at, excluded.blocked_at,
         CASE WHEN previous.soft_count + excluded.soft_count >= 3 THEN now() END);
+  PERFORM public.community_email_feedback_scope_close();
   RETURN true;
 END $$;
 --> statement-breakpoint

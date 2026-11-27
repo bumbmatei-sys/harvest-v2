@@ -1803,6 +1803,11 @@ export const communityEmailFeedback = pgTable("community_email_feedback", {
   check("community_email_feedback_outcome", sql`${t.outcome} in ('soft_bounce', 'hard_bounce', 'complaint')`),
 ]);
 
+export const communityEmailFeedbackGrants = pgTable("community_email_feedback_grants", {
+  token: uuid("token").primaryKey(),
+  transactionId: text("transaction_id").notNull(),
+});
+
 export const communityEmailSuppressions = pgTable("community_email_suppressions", {
   id: uuid("id").primaryKey().defaultRandom(),
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId, { onDelete: "cascade" }),

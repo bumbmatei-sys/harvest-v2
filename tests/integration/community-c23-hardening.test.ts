@@ -34,7 +34,7 @@ const appGrants: Record<string, string> = {
   communities: "SIU", community_appeals: "S", community_applications: "SIU", community_categories: "SIUD", community_channel_members: "S",
   community_channel_reads: "S", community_channels: "S", community_chat_purge_runs: "", community_chat_state: "S", community_comment_revisions: "S",
   community_comments: "SIU", community_daily_counts: "S", community_dm_blocks: "S", community_dm_conversations: "S", community_dm_messages: "S",
-  community_dm_participants: "S", community_dm_report_evidence: "", community_email_deliveries: "", community_email_feedback: "", community_email_suppressions: "", community_event_links: "", community_exits: "S",
+  community_dm_participants: "S", community_dm_report_evidence: "", community_email_deliveries: "", community_email_feedback: "", community_email_feedback_grants: "", community_email_suppressions: "", community_event_links: "", community_exits: "S",
   community_files: "SIU", community_invites: "SIU", community_likes: "SIU", community_live_events: "S", community_member_profiles: "",
   community_memberships: "SIU", community_message_reactions: "S", community_messages: "S", community_moderation_actions: "S",
   community_notifications: "SI", community_post_revisions: "S", community_posts: "SIU", community_product_links: "SIUD", community_reports: "S",

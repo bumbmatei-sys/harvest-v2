@@ -179,6 +179,9 @@ it("verifies feedback, deduplicates events, and suppresses the exact send-time a
   await expect(communityEmailSuppressions(f.db, "w-one", a, 1)).rejects.toMatchObject({ status: 403 });
   await expect(f.pool.query("select public.community_email_apply_feedback($1,$2,'complaint')", [randomUUID(), fourth.deliveryId])).rejects.toHaveProperty("code", "42501");
   await expect(f.workerPool.query("select * from community_email_feedback")).rejects.toHaveProperty("code", "42501");
+  await expect(f.workerPool.query("select * from community_email_feedback_grants")).rejects.toHaveProperty("code", "42501");
+  await expect(f.pool.query("select * from community_email_feedback_grants")).rejects.toHaveProperty("code", "42501");
+  expect((await f.admin.query("select count(*)::int as n from community_email_feedback_grants")).rows[0].n).toBe(0);
   const other = (await createWorkspace(f.db, "w-outsider", "Other ministry", "church")).tenantId;
   expect((await communityEmailSuppressions(f.db, "w-outsider", other, 1)).items).toEqual([]);
   const otherClub = (await createCommunity(f.db, "w-outsider", other, { name: "Other club", slug: "other-club" })).id;
