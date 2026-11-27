@@ -892,9 +892,16 @@
       "breakpoints": true
     },
     {
+      "idx": 130,
+      "version": "7",
+      "when": 1795761590767,
+      "tag": "0130_course_structure",
+      "breakpoints": true
+    },
+    {
       "idx": 132,
       "version": "7",
-      "when": 1795761827559,
+      "when": 1795768888340,
       "tag": "0132_bio_tabs_layout",
       "breakpoints": true
     }

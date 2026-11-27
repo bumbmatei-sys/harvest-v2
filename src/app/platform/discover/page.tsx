@@ -21,7 +21,7 @@ export default async function StaffDiscoverPage() {
   const role = await staffRole(getDb(), session.user.id).catch(() => null);
   if (!role) notFound();
   const t = await getTranslations("DiscoverScreens");
-  return <div className="min-h-dvh bg-background">
+  return <div className="min-h-dvh bg-background pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] pl-[env(safe-area-inset-left)]">
     <a href="#main-content" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-card focus:p-3">{t("staff.skip")}</a>
     <header className="border-b">
       <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-4 lg:px-6">

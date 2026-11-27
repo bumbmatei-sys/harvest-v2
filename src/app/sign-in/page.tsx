@@ -58,7 +58,7 @@ export default function SignIn() {
     } catch { setError(t("couldNotConnectPleaseTryAgain")); }
     finally { setBusy(false); }
   }
-  return <main className="flex min-h-dvh items-center justify-center p-6">
+  return <main className="flex min-h-dvh items-center justify-center pt-[max(1.5rem,env(safe-area-inset-top))] pr-[max(1.5rem,env(safe-area-inset-right))] pb-[max(1.5rem,env(safe-area-inset-bottom))] pl-[max(1.5rem,env(safe-area-inset-left))]">
     <div className="absolute right-5 top-5"><ThemeControls touchTargets /></div>
     <Card className="w-full max-w-sm">
       <CardHeader><p className="mb-6 flex items-center gap-2 text-lg font-semibold"><Wheat className="size-6" aria-hidden="true" />{t("harvest")}</p><CardTitle><h1 className="text-[28px] font-semibold leading-tight tracking-[-0.7px]">{t("signInToHarvest")}</h1></CardTitle><CardDescription>{t("enterYourEmailToReceiveASignIn")}</CardDescription></CardHeader>

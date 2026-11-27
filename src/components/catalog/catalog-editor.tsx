@@ -33,6 +33,7 @@ import {
 } from "@/lib/catalog";
 
 type Shelf = { id: string; name: string };
+const contentProblems: readonly string[] = ["lessonTitle", "videoLink", "label"];
 type Saved = { id: string; version: number };
 type Moved = { id: string; version: number; state: CatalogState };
 
@@ -67,7 +68,7 @@ export function CatalogEditor({ tenantId, kind, initial, communities, files: ini
   /** Saves the draft: creates it (and opens its editor) or replaces it with the expected version. Returns the current item, or null on a failure. */
   async function save(): Promise<CatalogItem | null> {
     setAttempted(true);
-    if (found.length) { setStep(found[0] === "lessonTitle" ? "content" : "details"); setError(t(`problems.${found[0]}`)); return null; }
+    if (found.length) { setStep(contentProblems.includes(found[0]) ? "content" : "details"); setError(t(`problems.${found[0]}`)); return null; }
     if (!item) {
       const created = await request<Saved>(endpoint, { method: "POST", body: draftPayload(kind, form) });
       if (!created.ok) { fail(created); if (created.details?.reason === "address_unavailable") setStep("details"); return null; }
@@ -112,7 +113,7 @@ export function CatalogEditor({ tenantId, kind, initial, communities, files: ini
 
   const steps = editorSteps.map((id) => ({ id, label: label(id), disabled: id === "publish" && !item,
     done: id === "details" ? checklist[0].done && checklist[1].done : id === "content" ? checklist[2].done : id === "access" ? true : state === "published",
-    attention: attempted && ((id === "details" && (found.includes("title") || found.includes("address"))) || (id === "content" && found.includes("lessonTitle"))) }));
+    attention: attempted && ((id === "details" && (found.includes("title") || found.includes("address"))) || (id === "content" && found.some((problem) => contentProblems.includes(problem)))) }));
   const sidebar = { typeLabel: shared(`kinds.${kind}`), status: { kind: state === "published" ? "live" as const : "draft" as const, label: shared(`states.${state}`) }, back: { href: listHref, label: listLabel },
     openPage: state === "published" && item ? { href: publicPath(kind, form.slug), label: t("openPage") } : undefined, dirty };
   const status = <StatusBadge tone={stateTone(state)} label={shared(`states.${state}`)} dot />;
@@ -146,7 +147,8 @@ export function CatalogEditor({ tenantId, kind, initial, communities, files: ini
           <Textarea id="catalog-summary" rows={4} value={form.summary} maxLength={2000} disabled={!editable} onChange={(event) => set("summary", event.target.value)} /></Field>
       </FormSection>}
       {step === "content" && (kind === "course"
-        ? <LessonListEditor lessons={form.lessons} onChange={(next) => set("lessons", next)} disabled={!editable} problems={attempted} />
+        ? <LessonListEditor value={form} onChange={(next) => { setNotice(""); setForm((current) => ({ ...current, ...next })); }} onLabels={(next) => set("labels", next)}
+          disabled={!editable} problems={attempted} />
         : <CatalogFilePicker tenantId={tenantId} value={form.fileIds} onChange={(next) => set("fileIds", next)} files={files} onFiles={setFiles} disabled={!editable} />)}
       {step === "access" && <>
         <FormSection as="fieldset" title={t("visibility")}>
