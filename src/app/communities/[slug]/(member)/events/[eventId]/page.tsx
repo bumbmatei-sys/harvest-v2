@@ -1,3 +1,4 @@
+import { eventCalendarLink } from "@/lib/site-address";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { getLocale, getTranslations } from "next-intl/server";
@@ -31,7 +32,7 @@ export default async function EventPage({ params }: { params: Promise<{ slug: st
         </dl>
         {event.description && <div className="space-y-1"><h3 className="text-base font-semibold">{t("about")}</h3><p className="whitespace-pre-line break-words">{event.description}</p></div>}
       </div>
-      <div className="min-w-0"><EventActions tenantId={ctx.tenantId} initial={event} now={now} /></div>
+      <div className="min-w-0"><EventActions tenantId={ctx.tenantId} initial={event} now={now} calendarHref={eventCalendarLink(ctx.tenantId, event.id)} /></div>
     </div>
   </article>;
 }
