@@ -154,10 +154,8 @@ export async function refreshExternalBlogs(db: Database, user: string, workspace
     .where(and(eq(socialConnections.tenantId, tenant), eq(socialConnections.id, id), eq(socialConnections.status, "active")));
   const [connection] = await withBlogAccess(db, user, workspace, "social:connect", load);
   if (!connection || !isExternalBlogPlatform(connection.platform)) throw unavailable();
-  const platform = connection.platform;
   const provider = deps.provider(connection.provider);
   const credential = openCredential(connection.credentialEnvelope, credentialBinding(connection.tenantId, id));
-  const now = deps.now();
   let blogs: ExternalBlog[] = [], health: Destination["health"] = "unknown", allowed = false;
   try {
     health = (await provider.getAccountHealth(credential, connection.externalAccountRef)).health;
@@ -172,15 +170,11 @@ export async function refreshExternalBlogs(db: Database, user: string, workspace
   return withBlogAccess(db, user, connection.tenantId, "social:connect", async (tx, tenant) => {
     const [current] = await load(tx, tenant).for("share");
     if (!current || current.version !== connection.version) throw unavailable();
-    await tx.update(blogExternalDestinations).set({ authorization: "unavailable", health, checkedAt: now })
-      .where(and(eq(blogExternalDestinations.tenantId, tenant), eq(blogExternalDestinations.connectionId, id)));
-    if (allowed) {
-      for (const blog of blogs) {
-        const values = { title: blog.title, health, authorization: "authorized" as const, checkedAt: now };
-        await tx.insert(blogExternalDestinations).values({ ...values, tenantId: tenant, connectionId: id, blogRef: blog.id, platform })
-          .onConflictDoUpdate({ target: [blogExternalDestinations.tenantId, blogExternalDestinations.connectionId, blogExternalDestinations.blogRef], set: values });
-      }
-    }
+    // The app role can only read the catalog. The definer checks owner/admin membership and the connection version again.
+    const list = allowed ? JSON.stringify(blogs.map((blog) => ({ id: blog.id, title: blog.title }))) : null;
+    const { rows: [written] } = await tx.execute<{ count: number | null }>(sql`select public.blog_external_refresh(
+      ${tenant}::uuid, ${id}::uuid, ${connection.version}::integer, ${health}, ${list}::jsonb) as count`);
+    if (written?.count === null || written?.count === undefined) throw unavailable();
     await tx.insert(auditLogs).values({ tenantId: tenant, actorId: user, action: "blog.external.refresh", targetId: id,
       metadata: { outcome: allowed ? "authorized" : "unavailable" } });
     return { authorization: allowed ? "authorized" : "unavailable", health, count: blogs.length };
@@ -260,7 +254,7 @@ export async function queueExternalBlog(db: Database, user: string, workspace: s
   const input = inputSchema.parse(raw);
   return withBlogAccess(db, user, workspace, "blog:manage", async (tx, tenant) => {
     const article = await loadArticle(tx, tenant, uuid.parse(postId), true);
-    const [destination] = await tx.select().from(blogExternalDestinations).where(match(tenant, input.destinationId)).for("share");
+    const [destination] = await tx.select().from(blogExternalDestinations).where(match(tenant, input.destinationId));
     if (!destination || destination.authorization !== "authorized" || destination.health === "failing") throw unavailable();
     if (input.version !== article.version) throw stale();
     const [current] = await tx.select().from(blogExternalDeliveries)

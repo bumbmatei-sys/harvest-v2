@@ -27,8 +27,8 @@ const origin = "https://harvest.example.invalid";
 let f: Awaited<ReturnType<typeof testDatabase>>;
 let tenant: string, other: string, wp: string, wf: string, wpConnection: string, picture: string, handle: string;
 let fetchSpy: ReturnType<typeof noNetwork>;
-const body = (text: string) => ({ type: "doc", content: [
-  { type: "paragraph", content: [{ type: "text", text }] }, { type: "blogImage", attrs: { fileId: picture } },
+const body = (text: string, fileId = picture) => ({ type: "doc", content: [
+  { type: "paragraph", content: [{ type: "text", text }] }, { type: "blogImage", attrs: { fileId } },
 ] });
 const drain = () => runExternalBlogWorker(f.workerPool, deps);
 const getDelivery = async (postId: string, destinationId = wp) =>
@@ -36,10 +36,17 @@ const getDelivery = async (postId: string, destinationId = wp) =>
 const queue = (post: { id: string; version: number }, data: Record<string, unknown>) =>
   queueExternalBlog(f.db, owner, tenant, post.id, { version: post.version, destinationId: wp, ...data }, deps, origin);
 
-async function write(title: string, harvestPage = true) {
+async function write(title: string, harvestPage = true, fileId = picture) {
   const post = await createBlogPost(f.db, owner, tenant);
-  return saveBlogPost(f.db, owner, tenant, post.id, { version: post.version, title, harvestPage, body: body(title), coverFileId: picture });
+  return saveBlogPost(f.db, owner, tenant, post.id, { version: post.version, title, harvestPage, body: body(title, fileId), coverFileId: fileId });
 }
+async function addPicture() {
+  const id = randomUUID();
+  await f.admin.query(`insert into files(id,tenant_id,owner_id,key,name,mime,size,checksum,status)
+    values($1,$2,$3,$4,'picture.png','image/png',5,repeat('a',64),'ready')`, [id, tenant, owner, `workspaces/${tenant}/files/${id}`]);
+  return id;
+}
+const served = async (assetId: string) => (await f.pool.query("select mime from public.blog_external_asset($1)", [assetId])).rows;
 async function addConnection(accountRef: string, platform: "wordpress" | "webflow") {
   const id = randomUUID();
   const envelope = sealCredential({ secret: CANARY }, credentialBinding(tenant, id));
@@ -208,6 +215,47 @@ it("reconciles an old attempted create without resending after the key window", 
   expect(provider.blogArticles.size).toBe(before);
   expect(await getDelivery(post.id)).toMatchObject({ status: "failed", reason: "outcome_unknown" });
   await expect(queue(post, { operation: "push", timing: { mode: "draft" } })).rejects.toMatchObject({ status: 409 });
+});
+
+it("serves a remote image only while an article with a delivery still uses it", async () => {
+  const removed = await addPicture(), deleted = await addPicture();
+  const kept = await write("Image removed", true, removed);
+  await queue(kept, { operation: "push", timing: { mode: "draft" } });
+  const assetFor = async (fileId: string) => (await f.admin.query("select id from blog_external_assets where file_id = $1", [fileId])).rows[0].id as string;
+  const removedAsset = await assetFor(removed);
+  expect(await served(removedAsset)).toEqual([{ mime: "image/png" }]);
+  await drain();
+  expect(await getDelivery(kept.id)).toMatchObject({ status: "draft_on_blog" });
+  expect(await served(removedAsset)).toEqual([{ mime: "image/png" }]);
+  await saveBlogPost(f.db, owner, tenant, kept.id, { version: kept.version, title: kept.title, coverFileId: null,
+    body: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "No picture" }] }] } });
+  expect(await served(removedAsset)).toEqual([]);
+
+  const gone = await write("Article deleted", true, deleted);
+  await queue(gone, { operation: "push", timing: { mode: "draft" } });
+  await drain();
+  const deletedAsset = await assetFor(deleted);
+  expect(await served(deletedAsset)).toEqual([{ mime: "image/png" }]);
+  await deleteBlogPost(f.db, owner, tenant, gone.id, gone.version);
+  expect(await served(deletedAsset)).toEqual([]);
+  expect(await served(randomUUID())).toEqual([]);
+});
+
+it("keeps the destination catalog read-only for the app and refresh owner/admin-only", async () => {
+  const deny = (user: string, statement: ReturnType<typeof sql>) =>
+    expect(withTenant(f.db, user, tenant, "blog:manage", (tx) => tx.execute(statement))).rejects.toMatchObject({ cause: { code: "42501" } });
+  for (const user of [editor, owner]) {
+    await deny(user, sql`update blog_external_destinations set health = 'healthy', "authorization" = 'authorized'`);
+    await deny(user, sql`insert into blog_external_destinations (tenant_id, connection_id, blog_ref, title, platform, health, "authorization")
+      values (${tenant}::uuid, ${wpConnection}::uuid, 'forged', 'Forged', 'wordpress', 'healthy', 'authorized')`);
+    await deny(user, sql`delete from blog_external_destinations`);
+  }
+  const { rows: [connection] } = await f.admin.query("select version from social_connections where id = $1", [wpConnection]);
+  await deny(editor, sql`select public.blog_external_refresh(${tenant}::uuid, ${wpConnection}::uuid, ${connection.version}::integer, 'healthy', '[]'::jsonb)`);
+  await expect(withTenant(f.db, owner, tenant, "blog:manage", (tx) => tx.execute(sql`select public.blog_external_refresh(
+    ${other}::uuid, ${wpConnection}::uuid, ${connection.version}::integer, 'healthy', '[]'::jsonb)`))).rejects.toMatchObject({ cause: { code: "42501" } });
+  await expect(refreshExternalBlogs(f.db, admin, tenant, wpConnection, deps)).resolves.toMatchObject({ authorization: "authorized", count: 1 });
+  expect((await listExternalBlogs(f.db, editor, tenant, deps)).destinations).toContainEqual(expect.objectContaining({ id: wp, authorization: "authorized" }));
 });
 
 it("fences expired leases, bounds retries, and cancels queued work on disconnect", async () => {

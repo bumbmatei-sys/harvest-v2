@@ -192,8 +192,8 @@ BEGIN
     WITH CHECK (backend_pid = pg_catalog.pg_backend_pid() AND id::text = current_setting(''app.social_definer'', true))', current_user);
 END $$;--> statement-breakpoint
 
-GRANT SELECT, INSERT ON public.blog_external_destinations TO harvest_app;--> statement-breakpoint
-GRANT UPDATE (title, health, "authorization", checked_at) ON public.blog_external_destinations TO harvest_app;--> statement-breakpoint
+-- The catalog is read-only for the app. Refresh writes go through blog_external_refresh, the disconnect trigger and the worker.
+GRANT SELECT ON public.blog_external_destinations TO harvest_app;--> statement-breakpoint
 GRANT SELECT, INSERT ON public.blog_external_deliveries TO harvest_app;--> statement-breakpoint
 GRANT UPDATE (mode, requested_at, status, reason, updated_at) ON public.blog_external_deliveries TO harvest_app;--> statement-breakpoint
 GRANT SELECT (tenant_id, id, delivery_id, finished_at), INSERT (tenant_id, delivery_id, operation, post_version, payload) ON public.blog_external_jobs TO harvest_app;--> statement-breakpoint
@@ -201,15 +201,6 @@ GRANT SELECT, INSERT (tenant_id, file_id) ON public.blog_external_assets TO harv
 
 CREATE POLICY blog_external_destinations_read ON public.blog_external_destinations FOR SELECT TO harvest_app
   USING (public.blog_can(tenant_id));--> statement-breakpoint
-CREATE POLICY blog_external_destinations_manage ON public.blog_external_destinations TO harvest_app
-  USING (public.blog_can(tenant_id) AND EXISTS (
-    SELECT FROM public.social_connections c WHERE (c.tenant_id,c.id,c.platform) = (blog_external_destinations.tenant_id,connection_id,blog_external_destinations.platform)
-  ))
-  WITH CHECK (public.blog_can(tenant_id) AND EXISTS (
-    SELECT FROM public.social_connections c
-    WHERE (c.tenant_id,c.id,c.platform) = (blog_external_destinations.tenant_id,connection_id,blog_external_destinations.platform)
-      AND c.status = 'active'
-  ));--> statement-breakpoint
 CREATE POLICY blog_external_deliveries_app ON public.blog_external_deliveries TO harvest_app
   USING (public.blog_can(tenant_id))
   WITH CHECK (public.blog_can(tenant_id) AND status = 'queued' AND reason IS NULL);--> statement-breakpoint
@@ -266,16 +257,22 @@ DECLARE scope text := $s$EXISTS (SELECT FROM public.blog_external_scope_tokens t
     AND t.backend_pid = pg_catalog.pg_backend_pid() AND t.purpose = ANY (%s))$s$;
   worker text;
   jobs text;
+  catalog text;
   media text;
 BEGIN
-  worker := format(scope, 'ARRAY[''worker'']');
+  worker := format(scope, 'ARRAY[''worker'',''refresh'']');
   jobs := format(scope, 'ARRAY[''worker'',''disconnect'']');
+  catalog := format(scope, 'ARRAY[''worker'',''disconnect'',''refresh'']');
   media := format(scope, 'ARRAY[''media'']');
-  EXECUTE format('CREATE POLICY blog_external_destination_owner ON public.blog_external_destinations TO %I USING (%s) WITH CHECK (%s)', current_user, jobs, jobs);
+  EXECUTE format('CREATE POLICY blog_external_destination_owner ON public.blog_external_destinations TO %I USING (%s) WITH CHECK (%s)', current_user, catalog, catalog);
   EXECUTE format('CREATE POLICY blog_external_delivery_owner ON public.blog_external_deliveries TO %I USING (%s) WITH CHECK (%s)', current_user, jobs, jobs);
   EXECUTE format('CREATE POLICY blog_external_job_owner ON public.blog_external_jobs TO %I USING (%s) WITH CHECK (%s)', current_user, jobs, jobs);
   EXECUTE format('CREATE POLICY blog_external_connection_owner ON public.social_connections FOR SELECT TO %I USING (%s AND platform IN (''wordpress'',''shopify'',''wix'',''webflow''))', current_user, worker);
   EXECUTE format('CREATE POLICY blog_external_asset_owner ON public.blog_external_assets FOR SELECT TO %I USING (%s)', current_user, media);
+  -- The image endpoint serves a file only while an article still uses it and a destination holds or awaits a copy.
+  EXECUTE format('CREATE POLICY blog_external_media_post ON public.blog_posts FOR SELECT TO %I USING (%s)', current_user, media);
+  EXECUTE format('CREATE POLICY blog_external_media_delivery ON public.blog_external_deliveries FOR SELECT TO %I USING (%s)', current_user, media);
+  EXECUTE format('CREATE POLICY blog_external_media_job ON public.blog_external_jobs FOR SELECT TO %I USING (%s)', current_user, media);
   EXECUTE format('CREATE POLICY blog_external_file_owner ON public.files FOR SELECT TO %I USING (%s AND status = ''ready'' AND NOT social_upload
     AND mime IN (''image/jpeg'',''image/png'',''image/webp'') AND size <= 10485760)', current_user, media);
   EXECUTE format('CREATE POLICY blog_external_audit_owner ON public.audit_logs FOR INSERT TO %I
@@ -398,14 +395,61 @@ DECLARE prior jsonb := public.blog_external_open('media');
 BEGIN
   RETURN QUERY SELECT f.key,f.mime,f.size::bigint FROM public.blog_external_assets a JOIN public.files f
     ON (f.tenant_id,f.id) = (a.tenant_id,a.file_id)
-    WHERE a.id = p_id AND f.status = 'ready' AND NOT f.social_upload AND f.mime IN ('image/jpeg','image/png','image/webp') AND f.size <= 10485760;
+    WHERE a.id = p_id AND f.status = 'ready' AND NOT f.social_upload AND f.mime IN ('image/jpeg','image/png','image/webp') AND f.size <= 10485760
+      AND EXISTS (SELECT FROM public.blog_posts p
+        WHERE p.tenant_id = a.tenant_id AND (p.cover_file_id = a.file_id OR a.file_id = ANY (p.image_ids))
+          AND EXISTS (SELECT FROM public.blog_external_deliveries d
+            WHERE (d.tenant_id,d.post_id) = (p.tenant_id,p.id) AND (d.remote_id IS NOT NULL OR EXISTS (
+              SELECT FROM public.blog_external_jobs j WHERE (j.tenant_id,j.delivery_id) = (d.tenant_id,d.id) AND j.finished_at IS NULL))));
   PERFORM public.blog_external_close(prior);
+END $$;--> statement-breakpoint
+
+-- Owners and admins only. The provider calls happen in the app; this records their outcome for one active connection version.
+-- p_blogs NULL means the account could not list blogs: every destination of the connection becomes unavailable.
+CREATE FUNCTION public.blog_external_refresh(p_tenant uuid, p_connection uuid, p_version integer, p_health text, p_blogs jsonb) RETURNS integer
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE actor text := nullif(pg_catalog.current_setting('app.user_id', true), ''); prior jsonb; plat text; n integer := 0;
+BEGIN
+  IF p_tenant IS NULL OR actor IS NULL OR p_tenant IS DISTINCT FROM nullif(pg_catalog.current_setting('app.tenant_id', true), '')::uuid THEN
+    RAISE insufficient_privilege;
+  END IF;
+  IF p_connection IS NULL OR p_version IS NULL OR p_health IS NULL OR p_health NOT IN ('unknown','healthy','degraded','failing')
+    OR (p_blogs IS NOT NULL AND (pg_catalog.jsonb_typeof(p_blogs) <> 'array' OR pg_catalog.jsonb_array_length(p_blogs) > 200)) THEN
+    RAISE invalid_parameter_value;
+  END IF;
+  prior := public.blog_external_open('refresh');
+  PERFORM pg_catalog.set_config('app.access_tenant', p_tenant::text, true);
+  -- app.tenant_id is cleared here, so access_role resolves collaborators to guest: only actual owners and admins pass,
+  -- matching the social connection policy.
+  IF NOT EXISTS (SELECT FROM public.workspace_members m WHERE m.tenant_id = p_tenant AND m.user_id = actor
+      AND public.access_role(m.tenant_id, m.user_id, 'social', m.role_id) IN ('owner','admin')) THEN
+    RAISE insufficient_privilege;
+  END IF;
+  PERFORM pg_catalog.set_config('app.access_tenant', '', true);
+  SELECT c.platform INTO plat FROM public.social_connections c
+    WHERE (c.tenant_id,c.id) = (p_tenant,p_connection) AND c.status = 'active' AND c.version = p_version;
+  IF plat IS NULL THEN
+    PERFORM public.blog_external_close(prior);
+    RETURN NULL;
+  END IF;
+  UPDATE public.blog_external_destinations SET "authorization" = 'unavailable', health = p_health, checked_at = now()
+    WHERE tenant_id = p_tenant AND connection_id = p_connection;
+  IF p_blogs IS NOT NULL AND p_health <> 'failing' THEN
+    INSERT INTO public.blog_external_destinations AS b (tenant_id,connection_id,blog_ref,title,platform,health,"authorization",checked_at)
+      SELECT DISTINCT ON (e->>'id') p_tenant, p_connection, e->>'id', e->>'title', plat, p_health, 'authorized', now()
+        FROM pg_catalog.jsonb_array_elements(p_blogs) e ORDER BY e->>'id'
+      ON CONFLICT (tenant_id,connection_id,blog_ref) DO UPDATE SET title = EXCLUDED.title, health = EXCLUDED.health,
+        "authorization" = 'authorized', checked_at = EXCLUDED.checked_at;
+    GET DIAGNOSTICS n = ROW_COUNT;
+  END IF;
+  PERFORM public.blog_external_close(prior);
+  RETURN n;
 END $$;--> statement-breakpoint
 
 REVOKE ALL ON FUNCTION public.blog_external_clear(), public.blog_external_open(text), public.blog_external_close(jsonb), public.blog_external_disconnect(),
   public.blog_external_claim(), public.blog_external_finish(uuid,uuid,uuid,text,text,text,text,text,integer),
-  public.blog_external_asset(uuid) FROM PUBLIC, harvest_app;--> statement-breakpoint
-GRANT EXECUTE ON FUNCTION public.blog_external_asset(uuid) TO harvest_app;--> statement-breakpoint
+  public.blog_external_asset(uuid), public.blog_external_refresh(uuid,uuid,integer,text,jsonb) FROM PUBLIC, harvest_app;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.blog_external_asset(uuid), public.blog_external_refresh(uuid,uuid,integer,text,jsonb) TO harvest_app;--> statement-breakpoint
 DO $$ BEGIN
   IF EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'harvest_worker') THEN
     GRANT EXECUTE ON FUNCTION public.blog_external_claim(),
