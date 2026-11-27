@@ -7,7 +7,6 @@ import { useMemo, useRef, useState } from "react";
 import { useFormatter, useTranslations } from "next-intl";
 import { CalendarClock, ExternalLink, ImageIcon, ImagePlus, Send, Undo2, X } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from "@/components/ui/breadcrumb";
 import { Button } from "@/components/ui/button";
 import { Field, FieldDescription, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
@@ -114,10 +113,9 @@ export function BlogEditor({ tenantId, initial, origin }: { tenantId: string; in
   const publicHref = blogPath(settings.handle, post.slug);
   const canPublish = missing.length === 0 && !slugProblem;
   const actions = <>
-    {post.status === "published" && <Button asChild variant="outline" className="min-h-11"><Link href={publicHref} target="_blank" rel="noopener"><ExternalLink aria-hidden="true" />{t("openArticle")}</Link></Button>}
-    {post.status !== "published" && <Button type="button" className="min-h-11" disabled={busy || !canPublish} onClick={() => void act("publish")}><Send aria-hidden="true" />{t("publishNow")}</Button>}
+    {post.status === "published" && <Button asChild variant="outline" size="sm" className="min-h-11 lg:min-h-8"><Link href={publicHref} target="_blank" rel="noopener"><ExternalLink aria-hidden="true" /><span className="max-sm:sr-only">{t("openArticle")}</span></Link></Button>}
+    {post.status !== "published" && <Button type="button" size="sm" className="min-h-11 lg:min-h-8" disabled={busy || !canPublish} onClick={() => void act("publish")}><Send aria-hidden="true" /><span className="max-sm:sr-only">{t("publishNow")}</span></Button>}
   </>;
-  const breadcrumb = <Breadcrumb><BreadcrumbList><BreadcrumbItem><BreadcrumbLink asChild><Link href={list}>{t("title")}</Link></BreadcrumbLink></BreadcrumbItem><BreadcrumbSeparator /><BreadcrumbItem><BreadcrumbPage className="max-w-[16rem] truncate">{title}</BreadcrumbPage></BreadcrumbItem></BreadcrumbList></Breadcrumb>;
   const done = { write: Boolean(fields.title.trim()) && !missing.includes("body"), settings: !slugProblem, publish: post.status !== "draft" };
   const stepList = steps.map((id) => ({ id, label: t(`steps.${id}`), done: done[id], attention: id === "settings" && Boolean(slugProblem) }));
   const sidebar = { typeLabel: t("typeLabel"), status: { kind: post.status === "published" ? "live" as const : "draft" as const, label: t(`status.${post.status}`) }, back: { href: list, label: t("back") }, dirty,
@@ -135,24 +133,28 @@ export function BlogEditor({ tenantId, initial, origin }: { tenantId: string; in
     <SearchPreview label={t("searchPreview")} untitled={t("untitled")} title={fields.title} seoTitle={fields.seoTitle} seoDescription={fields.seoDescription} excerpt={fields.excerpt} body={previewBody ?? body} url={url} />
   </div>;
 
-  return <EditorShell breadcrumb={breadcrumb} title={title} status={status} actions={actions} steps={stepList} current={step} onStep={(id) => setStep(id as Step)}
+  return <EditorShell headerInShell title={title} status={status} actions={actions} steps={stepList} current={step} onStep={(id) => setStep(id as Step)}
     stepsLabel={t("stepsLabel")} previewLabel={t("preview")} sidebar={sidebar} preview={step === "write" ? undefined : preview}>
     {error && <Alert variant="destructive" role="alert"><AlertDescription className="flex flex-wrap items-center gap-3">{error}{stale && <Button type="button" variant="outline" className="min-h-11" onClick={() => location.reload()}>{t("reload")}</Button>}</AlertDescription></Alert>}
-    <WizardLayout steps={stepList} current={step} onStepChange={(id) => setStep(id as Step)} stepsLabel={t("stepsLabel")} stepper={false} focusOnStepChange={hosted}>
-      {step === "write" && <div className="space-y-4" data-blog-write>
-        <Field><FieldLabel htmlFor="blog-title" className="sr-only">{t("titleField")}</FieldLabel>
-          <Input id="blog-title" value={fields.title} maxLength={blogLimits.title} placeholder={t("titlePlaceholder")} onChange={(e) => set({ title: e.target.value })}
-            className="min-h-14 border-0 bg-transparent px-0 text-3xl font-semibold shadow-none focus-visible:ring-0 md:text-3xl dark:bg-transparent" /></Field>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button type="button" variant="outline" className="min-h-11 lg:min-h-9" onClick={() => setDialog("picture")}><ImagePlus aria-hidden="true" />{t("addPicture")}</Button>
-        </div>
-        <div className="flex h-[70dvh] min-h-[28rem] flex-col overflow-hidden rounded-xl border bg-card" data-blog-body>
-          <DocEditorSurface key={surfaceKey} content={body} readOnly={false} showToolbar handleRef={surface} label={t("body")} bodyClassName="mx-auto w-full max-w-3xl px-4 pb-16 pt-2 sm:px-8"
-            extraExtensions={extensions} slashExclude={slashExclude} mentions={false}
-            onChange={(read) => { readBody.current = read; setBodyDirty(true); }} onNewPage={() => {}} onInsert={(kind) => { if (kind !== "template") setInsertMode(kind); }}
-            mentionSource={async () => []} onOutline={() => {}} onStats={(stats) => setWords(stats.words + (readBody.current ? blogImageIds(readBody.current()).length : 0))} />
-        </div>
-      </div>}
+    {step === "write" && <div className="flex h-[calc(100dvh-8rem)] min-h-[30rem] flex-col overflow-hidden rounded-xl border bg-card" data-blog-write data-blog-body>
+      <DocEditorSurface key={surfaceKey} content={body} readOnly={false} showToolbar handleRef={surface} label={t("body")} bodyClassName="mx-auto w-full max-w-3xl px-4 pb-16 pt-2 sm:px-8"
+        extraExtensions={extensions} slashExclude={slashExclude} mentions={false} toolbarExtras={[{ label: t("addPicture"), icon: ImagePlus, onSelect: () => setDialog("picture") }]}
+        above={<div className="mx-auto w-full max-w-3xl space-y-3 px-4 pb-3 pt-5 sm:px-8" data-blog-composer-head>
+          <label htmlFor="blog-title" className="sr-only">{t("titleField")}</label>
+          <textarea id="blog-title" rows={1} value={fields.title} maxLength={blogLimits.title} placeholder={t("titlePlaceholder")} onChange={(e) => set({ title: e.target.value.replace(/\n/g, " ") })}
+            onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); surface.current?.focusStart(); } }}
+            className="field-sizing-content block min-h-11 w-full resize-none bg-transparent text-3xl font-semibold leading-tight tracking-tight outline-none placeholder:text-muted-foreground focus-visible:ring-0 sm:text-4xl" />
+          {fields.coverFileId && cover.url && <div className="relative overflow-hidden rounded-lg border" data-blog-cover-preview>
+            <img src={cover.url} alt="" className="aspect-[16/9] max-h-64 w-full object-cover" /></div>}
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" variant="ghost" className="min-h-11 px-2 text-muted-foreground lg:min-h-9" onClick={() => setDialog("cover")}><ImageIcon aria-hidden="true" />{fields.coverFileId ? t("changeCover") : t("addCover")}</Button>
+            {fields.coverFileId && <Button type="button" variant="ghost" className="min-h-11 px-2 text-muted-foreground lg:min-h-9" onClick={() => set({ coverFileId: null })}>{t("removeCover")}</Button>}
+          </div>
+        </div>}
+        onChange={(read) => { readBody.current = read; setBodyDirty(true); }} onNewPage={() => {}} onInsert={(kind) => { if (kind !== "template") setInsertMode(kind); }}
+        mentionSource={async () => []} onOutline={() => {}} onStats={(stats) => setWords(stats.words + (readBody.current ? blogImageIds(readBody.current()).length : 0))} />
+    </div>}
+    {step !== "write" && <WizardLayout steps={stepList} current={step} onStepChange={(id) => setStep(id as Step)} stepsLabel={t("stepsLabel")} stepper={false} focusOnStepChange={hosted}>
       {step === "settings" && <>
         <FormSection title={<span className="text-base font-semibold">{t("address")}</span>}>
           <Field data-invalid={slugProblem ? true : undefined}><FieldLabel htmlFor="blog-slug">{t("address")}</FieldLabel>
@@ -197,7 +199,7 @@ export function BlogEditor({ tenantId, initial, origin }: { tenantId: string; in
           <Button asChild variant="outline" className="min-h-11"><Link href={publicHref} target="_blank" rel="noopener"><ExternalLink aria-hidden="true" />{t("openArticle")}</Link></Button>
           <Button type="button" variant="outline" className="min-h-11" disabled={busy} onClick={() => setDialog("unpublish")}><Undo2 aria-hidden="true" />{t("unpublish")}</Button></div>}
       </FormSection>}
-    </WizardLayout>
+    </WizardLayout>}
     <StickySaveBar dirty={dirty} busy={busy && dirty} onSave={() => void act("save")} onDiscard={discard} saveLabel={t("save")} savingLabel={t("saving")} />
     <FilePicker open={dialog === "picture"} onOpenChange={(o) => !o && setDialog(null)} tenantId={tenantId} title={t("choosePicture")} imagesOnly
       onPick={(file) => { surface.current?.insertContent({ type: "blogImage", attrs: { fileId: file.id, alt: "" } }); }} />

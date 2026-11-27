@@ -10694,7 +10694,7 @@
     },
     "stepsLabel": "Article steps",
     "titleField": "Title",
-    "titlePlaceholder": "Article title",
+    "titlePlaceholder": "Title",
     "body": "Article text",
     "addPicture": "Add picture",
     "choosePicture": "Choose a picture",
@@ -10771,7 +10771,10 @@
       "scheduledArticle": "Scheduled article",
       "publishedArticle": "Published article"
     },
-    "pending": "…"
+    "pending": "…",
+    "addCover": "Add cover",
+    "changeCover": "Change cover",
+    "removeCover": "Remove cover"
   },
   "MyNotes": {
     "title": "My notes",
