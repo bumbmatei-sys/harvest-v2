@@ -2,10 +2,9 @@ import { e2eDenialDetails } from "./e2e-diagnostics";
 import { message } from "../i18n/messages";
 import "server-only";
 import { getAuth } from "./auth-instance";
-import { workerSettings } from "./worker-settings";
+import { appOrigin } from "../lib/site-address";
 import { AccessError } from "./permissions";
 import { ZodError } from "zod";
-import { requiredEnv } from "../lib/env";
 export async function verifiedSessionUser(request: Request) {
   const session = await getAuth().api.getSession({ headers: request.headers });
   if (!session) throw new AccessError(401, message("Errors.signInToContinue"));
@@ -15,7 +14,7 @@ export async function verifiedUser(request: Request) {
   return (await verifiedSessionUser(request)).id;
 }
 export function verifyOrigin(request: Request) {
-  if (request.headers.get("origin") !== (workerSettings.getStore()?.origin ?? new URL(requiredEnv("BETTER_AUTH_URL")).origin)) {
+  if (request.headers.get("origin") !== appOrigin()) {
     throw new AccessError(403, message("Errors.requestOriginDenied"));
   }
 }

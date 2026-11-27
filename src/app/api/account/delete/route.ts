@@ -1,3 +1,4 @@
+import { siteAddresses } from "@/lib/site-address";
 import { getDb } from "@/db/client";
 import { getAuth } from "@/server/auth-instance";
 import { accountDeletionBlockers, deleteMyAccount } from "@/server/account-deletion";
@@ -30,8 +31,13 @@ export async function POST(request: Request) {
     const result = await deleteMyAccount(getDb(), session.user.id, session.session.createdAt, body, deleter, new Date(), office && { provider: office.provider, credential: office.credential });
     const response = Response.json(result, { headers: { "Cache-Control": "private, no-store" } });
     // The sessions are already deleted; expire the browser's copies too.
+    const { cookieDomain } = siteAddresses();
     for (const name of (request.headers.get("cookie") ?? "").split(";").map((part) => part.split("=")[0].trim()).filter((name) => /session_(token|data)$/.test(name)))
-      response.headers.append("Set-Cookie", `${name}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${name.startsWith("__Secure-") ? "; Secure" : ""}`);
+      {
+        const expiry = `${name}=; Path=/; Max-Age=0; HttpOnly; SameSite=Lax${name.startsWith("__Secure-") ? "; Secure" : ""}`;
+        response.headers.append("Set-Cookie", expiry);
+        if (cookieDomain) response.headers.append("Set-Cookie", `${expiry}; Domain=${cookieDomain}`);
+      }
     return response;
   } catch (error) {
     const response = errorResponse(error);

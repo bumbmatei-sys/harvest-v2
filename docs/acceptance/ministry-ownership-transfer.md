@@ -1,6 +1,6 @@
 # Ministry ownership transfer
 
-Working migration `0150_ownership_transfer`.
+Working migration `0142_ownership_transfer`.
 
 | Route | Contract |
 | --- | --- |

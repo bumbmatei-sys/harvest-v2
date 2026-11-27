@@ -1,3 +1,4 @@
+import { appOrigin } from "@/lib/site-address";
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -31,6 +32,6 @@ export default async function FormEditorPage({ params }: { params: Promise<{ ten
   // A newsletter sign-up form is edited on its own screen, with the same builder.
   if (form.definition.newsletter) redirect(`/workspaces/${tenantId}/newsletter/forms/${formId}`);
   const [destinations, members] = await Promise.all([destinationOptions(db, session.user.id, tenantId), assignableMembers(db, session.user.id, tenantId)]);
-  return <FormEditor ministryName={workspace.name} tenantId={tenantId} formId={formId} initial={form.definition} revision={form.definition.revision} destinations={destinations.options} members={members}
+  return <FormEditor origin={appOrigin()} ministryName={workspace.name} tenantId={tenantId} formId={formId} initial={form.definition} revision={form.definition.revision} destinations={destinations.options} members={members}
     responseCount={form.responseCount} publication={form.publication} unpublishedChanges={form.unpublishedChanges} hostedAvailable={syntheticCrmFormsKey() !== null} />;
 }

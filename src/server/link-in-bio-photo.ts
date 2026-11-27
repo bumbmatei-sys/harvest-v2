@@ -17,8 +17,9 @@ const uuid = z.uuid();
 const uploadInput = communityUploadInput.refine((input) => input.kind === "cover");
 const photoInput = z.object({ fileId: uuid.nullable(), version: z.number().int().min(1).max(2147483646) }).strict();
 type Storage = () => StorageAdapter;
-type FileMeta = { id: string; key: string; checksum: string; name: string; mime: ImageMime; size: number; status: "pending" | "uploaded" | "quarantined" | "ready"; kind: "photo" | "cover" };
-export type BioImageKind = "photo" | "cover";
+type FileMeta = { id: string; key: string; checksum: string; name: string; mime: ImageMime; size: number; status: "pending" | "uploaded" | "quarantined" | "ready"; kind: "photo" | "cover" | "gallery" };
+/** 0136: `gallery` pictures are listed by a gallery block, never set on the page. */
+export type BioImageKind = "photo" | "cover" | "gallery";
 type Action = "serve" | "create" | "inspect" | "status" | "set";
 type Result<T> = { outcome: "ok"; data: T } | { outcome: "not_found" | "conflict" | "invalid" };
 
@@ -64,5 +65,11 @@ export async function setBioPhoto(db: Database, user: string, tenantId: string, 
 
 export async function getBioPhotoUrl(db: Database, user: string, tenantId: string, storage: Storage, kind: BioImageKind = "photo") {
   const file = await operate<Pick<FileMeta, "key" | "name" | "mime">>(db, user, tenantId, "serve", null, {}, kind);
+  return { url: await storage().presignDownload(file.key, file.name, { inlineImage: file.mime }), expiresIn: 60 };
+}
+
+/** The owner's preview of one gallery picture of the page (ready and not retired), as a one-minute signed address. */
+export async function getBioGalleryUrl(db: Database, user: string, tenantId: string, fileId: string, storage: Storage) {
+  const file = await operate<Pick<FileMeta, "key" | "name" | "mime">>(db, user, tenantId, "serve", fileId, {}, "gallery");
   return { url: await storage().presignDownload(file.key, file.name, { inlineImage: file.mime }), expiresIn: 60 };
 }

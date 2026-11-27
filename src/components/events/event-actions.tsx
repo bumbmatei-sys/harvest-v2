@@ -16,7 +16,7 @@ type RsvpResult = { outcome: "ok"; event: EventItem } | { outcome: "full" };
  * Everything shown follows the event the server returned; the join link is requested only on a click and kept in memory, and the
  * server decides whether the window is open (an answer of "not found" is shown as unavailable, never as a reason).
  */
-export function EventActions({ tenantId, initial, now }: { tenantId: string; initial: EventItem; now: number }) {
+export function EventActions({ tenantId, initial, now, calendarHref }: { tenantId: string; initial: EventItem; now: number; calendarHref: string }) {
   const t = useTranslations("Events"), request = useCrmRequest(), router = useRouter();
   const [event, setEvent] = useState(initial), [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState(""), [stale, setStale] = useState(false), [notice, setNotice] = useState("");
@@ -63,7 +63,7 @@ export function EventActions({ tenantId, initial, now }: { tenantId: string; ini
     </div>}
     <p role="status" aria-live="polite" className={notice ? "text-sm" : "sr-only"}>{notice}</p>
     <div className="flex flex-wrap gap-2">
-      {open && <Button asChild variant="outline" className="min-h-11"><a href={`${base}/calendar`} download><CalendarPlus aria-hidden="true" />{t("addToCalendar")}</a></Button>}
+      {open && <Button asChild variant="outline" className="min-h-11"><a href={calendarHref} download><CalendarPlus aria-hidden="true" />{t("addToCalendar")}</a></Button>}
       {mayAskForJoinLink(event, now) && <Button type="button" variant="outline" className="min-h-11" aria-disabled={busy !== null || undefined} onClick={() => { if (busy === null) void join(); }}>
         {busy === "join" ? <Spinner decorative size="sm" /> : <Video aria-hidden="true" />}{t("joinOnline")}</Button>}
     </div>

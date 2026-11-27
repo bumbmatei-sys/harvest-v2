@@ -1,6 +1,6 @@
 {
-  "id": "f288df89-40b3-4a3f-ada9-87a8fd206401",
-  "prevId": "3b468b07-3629-4465-9e32-5ed3870f10f3",
+  "id": "4441d37a-dd62-4e6b-b0ec-ea56d01ec586",
+  "prevId": "e9b98093-e068-417d-a9ce-30ad795fd3d2",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3948,7 +3948,7 @@
       "checkConstraints": {
         "bio_file_kind": {
           "name": "bio_file_kind",
-          "value": "\"bio_files\".\"kind\" in ('photo','cover')"
+          "value": "\"bio_files\".\"kind\" in ('photo','cover','gallery')"
         },
         "bio_file_mime": {
           "name": "bio_file_mime",

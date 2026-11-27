@@ -21,6 +21,10 @@ export const publicReadLimits = {
   discover: 60,
   "community-page": 60,
   "community-beacon": 60,
+  // Link in bio share dialog: the page's QR code (SVG to show, PNG to save).
+  "bio-qr": 30,
+  // Link in bio gallery pictures (a page shows up to 12 per gallery block, and the viewer loads them again).
+  "bio-photo": 120,
   /** The public blog: index, article, feed and pictures share one budget (a page loads several pictures). */
   blog: 120,
 } as const;
