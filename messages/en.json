@@ -10397,7 +10397,8 @@
         "patreon": "Patreon",
         "ko_fi": "Ko-fi",
         "buy_me_a_coffee": "Buy Me a Coffee"
-      }
+      },
+      "methodName": "{platform}, {label}"
     },
     "rowSummary": "{kind} · {detail}",
     "hiddenByStaff": "Hidden by Harvest staff",

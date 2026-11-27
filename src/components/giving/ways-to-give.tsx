@@ -59,7 +59,7 @@ export function WaysToGive({ methods, title, ministryName, inert = false, headin
         <RadioGroup value={method.id} onValueChange={setSelected} aria-label={title || t("title")} className="grid grid-cols-2 gap-4 sm:grid-cols-3">
           {methods.map((item) => (
           <div key={item.id} data-giving-method={item.kind}>
-            <RadioGroupItem value={item.id} id={`${id}-${item.id}`} className="peer sr-only" aria-label={item.label && item.label !== t(`kinds.${item.kind}`) ? `${t(`kinds.${item.kind}`)}, ${item.label}` : t(`kinds.${item.kind}`)} />
+            <RadioGroupItem value={item.id} id={`${id}-${item.id}`} className="peer sr-only" aria-label={item.label && item.label !== t(`kinds.${item.kind}`) ? t("methodName", { platform: t(`kinds.${item.kind}`), label: item.label }) : t(`kinds.${item.kind}`)} />
             <Label
               htmlFor={`${id}-${item.id}`}
               className="border-muted hover:bg-muted hover:text-accent-foreground peer-data-[state=checked]:border-primary [&:has([data-state=checked])]:border-primary flex h-full min-h-11 flex-col items-center justify-between rounded-md border bg-transparent p-4 text-center break-words">
