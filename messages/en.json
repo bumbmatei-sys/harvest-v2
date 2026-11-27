@@ -3103,7 +3103,8 @@
   },
   "CommunityPage": {
     "rules": "Community rules",
-    "closed": "Joining is by invitation only."
+    "closed": "Joining is by invitation only.",
+    "busy": "Too many requests. Try again in a minute."
   },
   "JoinDialog": {
     "join": "Join",
