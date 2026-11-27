@@ -23,7 +23,7 @@ The server reads every switch at request time. Merging code never switches anyth
 | Live community email | `COMMUNITY_EMAIL_LIVE_DELIVERY = false` in `src/server/community-email-sender.ts` | off | Literal constant. The live sender throws. |
 | Upload release | `FILES_REQUIRE_SCAN_PRIVATE`, `src/server/files/service.ts` | scan required | In production a member upload stays quarantined until the scanner says `clean`. No production scanner is wired yet. |
 
-On the Cloudflare Workers build, API routes that use `communityRoute` (`src/server/community-route.ts`) read the flag from the request's worker settings (`src/server/worker-settings.ts`): any `HARVEST_ENV` other than `production` counts as non-production, so those routes are on in Cloudflare staging and preview. With `HARVEST_ENV=production` they need `HARVEST_COMMUNITIES=enabled` as a Worker variable. Other gates read `process.env` as in the table.
+On the Cloudflare Workers build, API routes that use `communityRoute` (`src/server/community-route.ts`) read the flag from the request's worker settings (`src/server/worker-settings.ts`): any `HARVEST_ENV` other than `production` counts as non-production, so those routes are on in Cloudflare staging and preview. With `HARVEST_ENV=production` they need `HARVEST_COMMUNITIES=enabled` as a Worker variable. Other gates read `process.env` as in the table. Only `local`, `preview`, `staging` and `production` are accepted for `HARVEST_ENV`; any other value makes the settings invalid. Pages and the other gates read `process.env`, so on a Workers staging build the member APIs can be on while `/communities/:slug` pages answer 404, unless `HARVEST_COMMUNITIES=enabled` is also visible to `process.env`. **Founder note:** Communities member APIs are on by default in Cloudflare staging and preview.
 
 ### Switching Communities on in one environment
 
@@ -93,9 +93,15 @@ The address is meant to be permanent so links, QR codes and invitations keep wor
 BEGIN;
 ALTER TABLE public.communities DISABLE TRIGGER community_address_lock;
 ALTER TABLE public.communities NO FORCE ROW LEVEL SECURITY;
+ALTER TABLE public.discover_listings NO FORCE ROW LEVEL SECURITY;
 UPDATE public.communities SET slug = '<new-address>', updated_at = now()
  WHERE tenant_id = '<tenant-uuid>' AND id = '<community-uuid>' AND slug = '<old-address>';
 -- expect UPDATE 1
+-- Discover keeps its own copy of the address; only app code updates it, so update it here too.
+UPDATE public.discover_listings SET slug = '<new-address>', updated_at = now()
+ WHERE resource_type = 'community' AND resource_id = '<community-uuid>' AND slug = '<old-address>';
+-- expect UPDATE 0 or 1
+ALTER TABLE public.discover_listings FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.communities FORCE ROW LEVEL SECURITY;
 ALTER TABLE public.communities ENABLE TRIGGER community_address_lock;
 COMMIT;
@@ -103,7 +109,7 @@ COMMIT;
 
 - Both `ALTER TABLE` statements lock the table for the whole transaction; keep it short.
 - The new address must pass the `community_slug` check and be unique.
-- Check after commit: `select tgenabled from pg_trigger where tgrelid = 'public.communities'::regclass and tgname = 'community_address_lock';` returns `O`, and `select relforcerowsecurity from pg_class where oid = 'public.communities'::regclass;` returns `true`.
+- Check after commit: `select tgenabled from pg_trigger where tgrelid = 'public.communities'::regclass and tgname = 'community_address_lock';` returns `O`, and `select relname, relforcerowsecurity from pg_class where oid in ('public.communities'::regclass, 'public.discover_listings'::regclass);` returns `true` for both.
 - Record the change, the approval and the old address in the PR or incident record. The old address stops working at once; there is no redirect.
 
 ## 5. Write limits and public read limits
@@ -114,7 +120,7 @@ COMMIT;
 | Private messages | on `main` (0058, 0063) | Start cap and message windows; every refusal is the same `not_available`. |
 | Discover reports | on `main` (0100) | Signed-in people only, limited inside `discover_report`. |
 | Forum posts, forum replies, community reports | **pending PR #303 (0129)** | Trigger `community_write_rate_guard`: 10 posts, 30 replies, 20 reports per person per community in 10 minutes. Over it: SQLSTATE `P0429`, HTTP 429 with `Retry-After`, nothing kept. The numbers are engineering defaults (C23 F8). |
-| Anonymous Discover, public community page, visit beacon, unsubscribe | **pending PR #304** | `src/server/public-read-limit.ts`: 60 a minute per visitor for `discover`, `community-page` and `community-beacon`; 10 a minute for `community-unsubscribe`. Hashed visitor key, stored in the existing `rate_limits` table under `public-read:`; no new table. If the limiter fails, the read is served and `public_read_limit_failed` is logged. |
+| Anonymous Discover, public community page, visit beacon | **pending PR #304** | `src/server/public-read-limit.ts`: 60 a minute per visitor for `discover`, `community-page` and `community-beacon`. One-click unsubscribe is deliberately **not** throttled: mailbox providers send it from shared servers, and a bad token is rejected offline before any database call. Hashed visitor key, stored in the existing `rate_limits` table under `public-read:`; no new table. If the limiter fails, the read is served and `public_read_limit_failed` is logged. |
 
 Still open (C23): invitations and applications across many communities have no time-window limit (F4).
 

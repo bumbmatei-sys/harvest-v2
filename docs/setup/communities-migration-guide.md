@@ -49,17 +49,15 @@ Other migrations touch community names only in passing (for example the audit ac
 
 0127 is reserved for open PR #300 (newsletter, `0127_newsletter_audience_growth`). 0049, 0090 and 0121 are unused numbers. Never renumber a merged migration.
 
-## 2. Before merging 0128 and 0129 (journal order)
+## 2. Journal order (re-dating rule)
 
-The migrator decides what is pending by timestamp: it runs a migration only when its journal `when` is later than the newest one already recorded. On the open branches today:
+The migrator decides what is pending by timestamp: it runs a migration only when its journal `when` is later than the newest one already recorded. A migration that merges later must therefore also have a later `when`; re-chaining regenerates the entry with a fresh timestamp. This is allowed only while unmerged.
 
-| Migration | Branch | Journal `when` |
+| Migration | Status | Journal `when` |
 |---|---|---|
-| 0127 | #300 | 1795746812980 |
-| 0128 | #302 | 1795745656809 |
-| 0129 | #303 | 1795749196075 |
-
-0128's `when` is **earlier** than 0127's. If 0127 is applied to a database first, a later run would skip 0128 without an error. Before these merge, the last one to merge must be re-dated so the journal `when` rises with the number. This is allowed only while unmerged.
+| 0127 | merged (#300) | 1795746812980 |
+| 0128 | #302 (re-chained after 0127) | 1795752720179 |
+| 0129 | #303 | must be re-dated above 1795752720179 when re-chained after 0128 |
 
 ## 3. Pre-checks (per environment)
 
