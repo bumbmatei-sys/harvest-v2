@@ -4837,8 +4837,8 @@
     },
     "limits": {
       "cooldown": "Wait between replies to a person",
-      "recipientDaily": "Per person each day",
-      "ruleDaily": "Per rule each day",
+      "recipientDaily": "Per person in 24 hours",
+      "ruleDaily": "Per rule in 24 hours",
       "hoursTitle": "Working hours",
       "hoursMode": {
         "ignore": "Reply any time",
@@ -4885,7 +4885,7 @@
       "trigger": "Trigger",
       "keywords": "Keywords",
       "limits": "Limits",
-      "limitsValue": "Wait {cooldown}, {person} a day per person, {rule} a day per rule",
+      "limitsValue": "Wait {cooldown}, {person} per person and {rule} per rule in 24 hours",
       "hours": "Hours",
       "handoff": "Hand-off",
       "handoffOn": "To a person",
