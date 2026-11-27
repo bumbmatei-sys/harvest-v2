@@ -1,5 +1,5 @@
 {
-  "id": "86017cb1-12f0-47ec-939a-ae1984bdb167",
+  "id": "18797871-4116-4252-9ee4-7016cdc55f24",
   "prevId": "4bfcbac8-d81f-4ab1-958f-10cd671b25a3",
   "version": "7",
   "dialect": "postgresql",
@@ -8581,7 +8581,7 @@
       "checkConstraints": {
         "catalog_lesson_video": {
           "name": "catalog_lesson_video",
-          "value": "(\"catalog_lessons\".\"video_provider\" is null and \"catalog_lessons\".\"video_id\" is null)\n    or (\"catalog_lessons\".\"video_provider\" = 'youtube' and \"catalog_lessons\".\"video_id\" ~ '^[A-Za-z0-9_-]{11}$')\n    or (\"catalog_lessons\".\"video_provider\" = 'vk' and \"catalog_lessons\".\"video_id\" ~ '^-?[0-9]{1,19}_[0-9]{1,19}(_[A-Za-z0-9]{1,32})?$')"
+          "value": "(\"catalog_lessons\".\"video_provider\" is null and \"catalog_lessons\".\"video_id\" is null)\n    or (\"catalog_lessons\".\"video_provider\" = 'youtube' and \"catalog_lessons\".\"video_id\" is not null and \"catalog_lessons\".\"video_id\" ~ '^[A-Za-z0-9_-]{11}$')\n    or (\"catalog_lessons\".\"video_provider\" = 'vk' and \"catalog_lessons\".\"video_id\" is not null and \"catalog_lessons\".\"video_id\" ~ '^-?[0-9]{1,19}_[0-9]{1,19}(_[A-Za-z0-9]{1,32})?$')"
         },
         "catalog_lesson_kind": {
           "name": "catalog_lesson_kind",
