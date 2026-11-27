@@ -5,7 +5,7 @@ import { getDb } from "@/db/client";
 import { pageSession } from "@/server/page-session";
 import { getWorkspace } from "@/server/workspaces";
 import { freeCatalogEnabled } from "@/server/free-catalog-mode";
-import { getCatalogDraft } from "@/server/free-catalog";
+import { getCatalogDraft, getCatalogProgress } from "@/server/free-catalog";
 import { listCommunities } from "@/server/communities";
 import { listFiles } from "@/server/files/service";
 import { AccessError, can } from "@/server/permissions";
@@ -30,7 +30,8 @@ export default async function CatalogItemPage({ params }: { params: Promise<{ te
   const writable = can(workspace.role, "catalog:manage");
   const [communities, files] = writable ? await Promise.all([listCommunities(db, session.user.id, tenantId).catch(denied),
     item.kind === "download" ? listFiles(db, session.user.id, tenantId).catch(denied) : Promise.resolve([])]) : [[], []];
-  return <CatalogEditor tenantId={tenantId} kind={item.kind} host={workspace.name} writable={writable}
+  const progress = writable && item.kind === "course" ? await getCatalogProgress(db, session.user.id, tenantId, itemId).catch(denied) : null;
+  return <CatalogEditor progress={progress} tenantId={tenantId} kind={item.kind} host={workspace.name} writable={writable}
     initial={JSON.parse(JSON.stringify(item)) as CatalogItem} communities={(communities ?? []).map(({ id, name }) => ({ id, name }))}
     files={JSON.parse(JSON.stringify(files ?? [])) as CatalogFile[]} />;
 }
