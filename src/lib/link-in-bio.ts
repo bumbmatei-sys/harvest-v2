@@ -5,7 +5,9 @@ import type { GivingPublicMethod } from "./ways-to-give";
 // projection the public page and the owner's live preview share. Nothing here reads or stores anything.
 
 export const bioLimits = { blocks: 20, socials: 8, name: 100, bio: 500, label: 80, url: 2048, eventTitle: 100, eventWhen: 60, messageTitle: 60,
-  subtitle: 80, details: 8, detailValue: 100, senderName: 100, senderEmail: 254, messageBody: 2000 } as const;
+  subtitle: 80, details: 8, detailValue: 100, senderName: 100, senderEmail: 254, messageBody: 2000, tabs: 6, tabLabel: 24, bioLine: 160 } as const;
+/** The header's short bio is one line (founder decision 27 Nov): the first line of the text, trimmed and cut to `bioLine`. */
+export const oneLine = (value: string) => value.split(/\r?\n/).map((line) => line.trim()).find(Boolean)?.slice(0, bioLimits.bioLine) ?? "";
 
 /** Link icons (an allow-list, drawn by the screen). */
 export const bioIcons = ["globe", "mail", "phone", "heart", "book", "calendar", "video", "music", "map", "gift"] as const;
@@ -15,9 +17,21 @@ export type BioNetwork = typeof bioNetworks[number];
 export const bioSchemes = ["auto", "light", "dark"] as const;
 export const bioButtonStyles = ["filled", "outline"] as const;
 
-/** Tabs of the public page. The model is a list so more tabs can be added later (a Blog tab is waiting on the founder; native articles are post-launch). */
+/**
+ * Tabs of the public page (founder decision 25 Nov: up to six, renameable, reorderable, or a single page with no tabs). The first pages were made with two
+ * fixed tabs, `home` and `partnership`; those ids stay valid and show their default names until the owner renames them. New tabs get an eight-character id.
+ */
 export const bioTabIds = ["home", "partnership"] as const;
-export type BioTabId = typeof bioTabIds[number];
+export type BioLegacyTabId = typeof bioTabIds[number];
+export type BioTabId = string;
+export const isLegacyTabId = (id: string): id is BioLegacyTabId => (bioTabIds as readonly string[]).includes(id);
+export const bioLayouts = ["tabs", "single"] as const;
+export type BioLayout = typeof bioLayouts[number];
+export const bioPhotoAligns = ["center", "left"] as const;
+export type BioPhotoAlign = typeof bioPhotoAligns[number];
+/** One style for every social and website icon of a page: the network's mark in the text colour, or in its own colour. */
+export const bioIconStyles = ["outline", "color"] as const;
+export type BioIconStyle = typeof bioIconStyles[number];
 /** Detail rows the owner may add: nothing is shown unless the owner typed it (no birthday, relationship or gender rows exist). */
 export const bioDetailKinds = ["location", "ministry", "role", "website", "languages"] as const;
 export type BioDetailKind = typeof bioDetailKinds[number];
@@ -59,7 +73,8 @@ const httpsUrl = z.string().max(bioLimits.url).transform((value, ctx) => { const
 const plain = (max: number) => z.string().max(max).refine((value) => !/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value) && !/[<>]/.test(value));
 const trimmed = (max: number, min = 1) => plain(max).transform((value) => value.trim()).pipe(z.string().min(min));
 const blockId = z.string().regex(/^[a-z0-9]{8}$/);
-const tab = z.enum(bioTabIds).default("home");
+const tabId = z.string().regex(/^(home|partnership|[a-z0-9]{8})$/);
+const tab = tabId.default("home");
 const signupSlug = z.string().regex(/^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$/);
 
 export const bioBlockSchema = z.discriminatedUnion("type", [
@@ -74,7 +89,7 @@ export const bioBlockSchema = z.discriminatedUnion("type", [
 export type BioBlock = z.infer<typeof bioBlockSchema>;
 export type BioBlockType = BioBlock["type"];
 
-const defaultTabs = bioTabIds.map((id) => ({ id, hidden: false }));
+const defaultTabs = bioTabIds.map((id) => ({ id, label: "", hidden: false }));
 export const bioDefinitionSchema = z.object({
   kind: z.literal("bio-v1"),
   name: plain(bioLimits.name).transform((value) => value.trim()),
@@ -82,8 +97,14 @@ export const bioDefinitionSchema = z.object({
   bio: plain(bioLimits.bio).transform((value) => value.trim()),
   details: z.array(z.object({ id: blockId, kind: z.enum(bioDetailKinds), value: trimmed(bioLimits.detailValue), hidden: z.boolean() }).strict()).max(bioLimits.details).default([])
     .refine((list) => new Set(list.map((item) => item.id)).size === list.length),
-  tabs: z.array(z.object({ id: z.enum(bioTabIds), hidden: z.boolean() }).strict()).max(bioTabIds.length).default(defaultTabs)
+  // A block whose tab is missing or hidden is not shown (the database's bio_block_shown agrees); in the single-page layout tabs are ignored.
+  tabs: z.array(z.object({ id: tabId, label: plain(bioLimits.tabLabel).transform((value) => value.trim()).default(""), hidden: z.boolean() }).strict()).max(bioLimits.tabs).default(defaultTabs)
     .refine((list) => new Set(list.map((item) => item.id)).size === list.length),
+  layout: z.enum(bioLayouts).default("tabs"),
+  /** Whether the cover band shows at all (an uploaded image, or the brand gradient without one). */
+  cover: z.boolean().default(true),
+  photoAlign: z.enum(bioPhotoAligns).default("center"),
+  iconStyle: z.enum(bioIconStyles).default("outline"),
   scheme: z.enum(bioSchemes),
   buttons: z.enum(bioButtonStyles),
   socials: z.array(z.object({ network: z.enum(bioNetworks), url: httpsUrl }).strict()).max(bioLimits.socials)
@@ -92,10 +113,25 @@ export const bioDefinitionSchema = z.object({
     .refine((list) => new Set(list.map((block) => block.id)).size === list.length)
     .refine((list) => list.filter((block) => block.type === "message").length <= 1)
     .refine((list) => list.filter((block) => block.type === "giving").length <= 1),
-}).strict();
+}).strict()
+  // Founder decision 27 Nov: the header shows the name, the photo, a one-line short bio and the icons. A subtitle becomes the one-line bio when there is no
+  // bio, and the details list is dropped (that information belongs in blocks). Older pages are normalised here on every read and saved that way.
+  .transform((definition) => ({ ...definition, bio: oneLine(definition.bio || definition.subtitle), subtitle: "", details: [] as typeof definition.details }));
 export type BioDefinition = z.infer<typeof bioDefinitionSchema>;
 
-export const emptyBioDefinition = (name = ""): BioDefinition => ({ kind: "bio-v1", name: name.slice(0, bioLimits.name), subtitle: "", bio: "", details: [], tabs: bioTabIds.map((id) => ({ id, hidden: false })), scheme: "auto", buttons: "filled", socials: [], blocks: [] });
+export const emptyBioDefinition = (name = ""): BioDefinition => ({ kind: "bio-v1", name: name.slice(0, bioLimits.name), subtitle: "", bio: "", details: [], tabs: bioTabIds.map((id) => ({ id, label: "", hidden: false })),
+  layout: "tabs", cover: true, photoAlign: "center", iconStyle: "outline", scheme: "auto", buttons: "filled", socials: [], blocks: [] });
+
+/** Whether a block reaches visitors: not hidden and, with tabs, on a tab that exists and is shown. Mirrors the database function `bio_block_shown`. */
+export function blockShown(definition: Pick<BioDefinition, "tabs" | "layout">, block: { hidden: boolean; tab: string }) {
+  if (block.hidden) return false;
+  return definition.layout === "single" || definition.tabs.some((t) => t.id === block.tab && !t.hidden);
+}
+/** The tabs a visitor sees, in order, each with its shown blocks. The single-page layout is one unnamed tab holding every shown block. */
+export function shownTabs<B extends { hidden: boolean; tab: string }>(definition: Pick<BioDefinition, "tabs" | "layout">, blocks: readonly B[]): { id: string; label: string; blocks: B[] }[] {
+  if (definition.layout === "single") return [{ id: definition.tabs[0]?.id ?? "home", label: "", blocks: blocks.filter((b) => !b.hidden) }];
+  return definition.tabs.filter((t) => !t.hidden).map((t) => ({ id: t.id, label: t.label, blocks: blocks.filter((b) => !b.hidden && b.tab === t.id) }));
+}
 
 const alphabet = "abcdefghijklmnopqrstuvwxyz0123456789";
 export function newBlockId(taken: readonly string[] = [], random: () => number = Math.random) {
@@ -115,28 +151,29 @@ export function moveItem<T>(list: readonly T[], from: number, to: number): T[] {
 }
 
 // ---- Publishing ---------------------------------------------------------------------------------------------------------------------------------------------
-export type BioIssue = "name" | "empty" | "link";
-/** What stops a page from being published. Hidden blocks do not count. */
-export function publishIssues(definition: BioDefinition): BioIssue[] {
+export type BioIssue = "name" | "photo" | "empty" | "link";
+/** What stops a page from being published. Hidden blocks do not count. A profile photo is required (founder decision 25 Nov). */
+export function publishIssues(definition: BioDefinition, { hasPhoto }: { hasPhoto: boolean }): BioIssue[] {
   const issues: BioIssue[] = [];
   if (!definition.name.trim()) issues.push("name");
-  const shown = new Set(definition.tabs.filter((t) => !t.hidden).map((t) => t.id));
-  if (!definition.blocks.some((block) => !block.hidden && shown.has(block.tab))) issues.push("empty");
+  if (!hasPhoto) issues.push("photo");
+  if (!definition.blocks.some((block) => blockShown(definition, block))) issues.push("empty");
   return issues;
 }
 /** Parses what the editor holds; a null result means a field is invalid (the editor shows which through `fieldIssues`). */
 export function parseDefinition(value: unknown) { const parsed = bioDefinitionSchema.safeParse(value); return parsed.success ? parsed.data : null; }
 
-/** Per-field problems of an editor draft, so the screen can mark the exact row. Keys are block ids, `social:<network>` or `name`. */
+/** Per-field problems of an editor draft, so the screen can mark the exact row. Keys are block ids, `social:<network>`, `detail:<id>` or `tab:<id>`. */
 export function fieldIssues(definition: BioDefinition): Record<string, "url" | "required"> {
   const out: Record<string, "url" | "required"> = {};
+  // The two original tabs fall back to their default names; a tab the owner added needs a name.
+  if (definition.layout === "tabs") for (const t of definition.tabs) if (!t.label.trim() && !isLegacyTabId(t.id)) out[`tab:${t.id}`] = "required";
   for (const block of definition.blocks) {
     if ((block.type === "link" || block.type === "event") && !safeHttpsUrl(block.url)) out[block.id] = "url";
     else if (block.type === "link" && !block.label.trim()) out[block.id] = "required";
     else if (block.type === "event" && (!block.title.trim() || !block.when.trim())) out[block.id] = "required";
     else if ((block.type === "message" || block.type === "giving") && !block.title.trim()) out[block.id] = "required";
   }
-  for (const detail of definition.details) if (!detail.value.trim() || (detail.kind === "website" && !safeHttpsUrl(detail.value))) out[`detail:${detail.id}`] = detail.kind === "website" ? "url" : "required";
   for (const social of definition.socials) if (!safeHttpsUrl(social.url)) out[`social:${social.network}`] = "url";
   return out;
 }
@@ -150,7 +187,11 @@ export type BioViewBlock =
   | { type: "message"; id: string; title: string }
   | { type: "giving"; id: string; title: string; methods: GivingPublicMethod[] };
 export type BioView = {
-  ministryName: string; name: string; subtitle: string; bio: string; details: { id: string; kind: BioDetailKind; value: string }[]; tabs: { id: BioTabId; blocks: BioViewBlock[] }[]; hasPhoto: boolean; hasCover: boolean; scheme: typeof bioSchemes[number]; buttons: typeof bioButtonStyles[number];
+  /** `bio` is the one-line short bio under the name. */
+  ministryName: string; name: string; bio: string;
+  /** Tabs in order. `label` is empty for an original tab that keeps its default name, and for the single-page layout. */
+  tabs: { id: BioTabId; label: string; blocks: BioViewBlock[] }[]; layout: BioLayout; showCover: boolean; photoAlign: BioPhotoAlign; iconStyle: BioIconStyle;
+  hasPhoto: boolean; hasCover: boolean; scheme: typeof bioSchemes[number]; buttons: typeof bioButtonStyles[number];
   brandTheme: string | null; socials: { network: BioNetwork; url: string }[];
 };
 

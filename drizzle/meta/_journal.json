@@ -953,6 +953,13 @@
       "when": 1795796244452,
       "tag": "0138_blog_scope_clear",
       "breakpoints": true
+    },
+    {
+      "idx": 139,
+      "version": "7",
+      "when": 1795798348794,
+      "tag": "0139_bio_tabs_layout",
+      "breakpoints": true
     }
   ]
 }
