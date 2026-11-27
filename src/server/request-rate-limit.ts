@@ -15,7 +15,7 @@ export async function chargeRateLimit(db: Database, prefix: string, key: string,
       last_request = case when rate_limits.last_request <= ${expired} then ${now} else rate_limits.last_request end
     returning count, last_request`);
   if (Number(row.count) <= max) return { limited: false };
-  const retryAfter = Math.max(1, Math.ceil((Number(row.last_request) + windowMs - now) / 1000));
+  const retryAfter = Math.min(Math.ceil(windowMs / 1000), Math.max(1, Math.ceil((Number(row.last_request) + windowMs - now) / 1000)));
   return { limited: true, retryAfter };
 }
 
