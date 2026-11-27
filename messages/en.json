@@ -10283,7 +10283,6 @@
     }
   },
   "WaysToGive": {
-    "group": "Giving",
     "title": "Ways to give",
     "description": "Your ministry's own giving accounts, shown on your public pages.",
     "add": "Add method",
@@ -10295,10 +10294,6 @@
     "shown": "Shown",
     "hidden": "Hidden",
     "showLabel": "Show {label} on public pages",
-    "moveUp": "Move {label} up",
-    "moveDown": "Move {label} down",
-    "edit": "Edit {label}",
-    "remove": "Remove {label}",
     "removeTitle": "Remove this way to give?",
     "removeBody": "{label} will no longer appear on your public pages.",
     "removeConfirm": "Remove",
@@ -10409,7 +10404,8 @@
         "patreon": "Patreon",
         "ko_fi": "Ko-fi",
         "buy_me_a_coffee": "Buy Me a Coffee"
-      }
+      },
+      "methodName": "{platform}, {label}"
     },
     "rowSummary": "{kind} · {detail}",
     "hiddenByStaff": "Hidden by Harvest staff",
@@ -10433,7 +10429,8 @@
         "wrong_details": "Wrong or outdated details",
         "inappropriate": "Inappropriate content",
         "other": "Something else"
-      }
+      },
+      "question": "What is wrong with these giving details?"
     },
     "staff": {
       "title": "Ways to give reports",
@@ -10483,7 +10480,14 @@
       "reauth": "Sign in again to continue.",
       "signInAgain": "Sign in again",
       "openBadge": "{count, plural, one {# open report} other {# open reports}}"
-    }
+    },
+    "liveCount": "{live} of {total} shown on your public pages.",
+    "actionsFor": "Actions for {label}",
+    "editItem": "Edit",
+    "moveUpItem": "Move up",
+    "moveDownItem": "Move down",
+    "removeItem": "Remove",
+    "dialogDescription": "Shown on your public pages."
   },
   "Fundraising": {
     "title": "Fundraising campaigns",
@@ -10520,7 +10524,6 @@
       "status": "Status",
       "goal": "Goal",
       "raised": "Raised",
-      "progress": "Progress",
       "actions": "Actions"
     },
     "statuses": {
@@ -10573,7 +10576,12 @@
       "gifts": "{count, plural, one {# gift} other {# gifts}}",
       "pledges": "{count, plural, one {# pledge} other {# pledges}}",
       "raisedHidden": "Owners and admins see giving records.",
-      "ofGoal": "{percent}% of goal"
+      "ofGoal": "{percent}% of goal",
+      "ofLimit": "of {limit}",
+      "goalReached": "Goal reached",
+      "toGo": "{amount} to go",
+      "giftsLabel": "Gifts",
+      "raisedOfGoal": "{raised} · {percent}%"
     },
     "tabs": {
       "gifts": "Gifts",
@@ -10597,7 +10605,6 @@
       "date": "Date",
       "supporter": "Supporter",
       "amount": "Amount",
-      "method": "Method",
       "recorded": "Recorded",
       "actions": "Actions"
     },
@@ -10646,7 +10653,34 @@
     },
     "amountPlaceholder": "0.00",
     "reversalLabel": "Reversal · {reason}",
-    "pledgeOption": "{name} · {amount}"
+    "pledgeOption": "{name} · {amount}",
+    "actionsFor": "Actions for {title}",
+    "summary": {
+      "published": "Open",
+      "draft": "Drafts",
+      "closed": "Closed"
+    },
+    "filterByStatus": "Filter by status",
+    "clearFilter": "Clear filter",
+    "resetFilters": "Reset filters",
+    "noMatchesDescription": "Try another status or search term.",
+    "optional": "(optional)",
+    "pickDate": "Pick a date",
+    "sections": {
+      "details": "Details",
+      "goal": "Goal and currency",
+      "pledge": "Pledge",
+      "supporter": "Supporter",
+      "gift": "Gift",
+      "method": "Method and reference",
+      "correction": "Correction"
+    },
+    "showing": "Showing <strong>{first}-{last}</strong> of <strong>{total}</strong>",
+    "previousPage": "Previous page",
+    "nextPage": "Next page",
+    "notSet": "Not set",
+    "recordsSummary": "{gifts}, {pledges}",
+    "characterCount": "{count}/{max}"
   },
   "CampaignEvents": {
     "title": "Events",
@@ -10684,7 +10718,16 @@
       "previewTitle": "Public page preview",
       "invalidSlug": "Use 3–48 lowercase letters, numbers or hyphens.",
       "reservedSlug": "That address is reserved. Choose another.",
-      "tooLong": "Use at most {max} characters."
+      "tooLong": "Use at most {max} characters.",
+      "coverPreview": "Cover image preview",
+      "intro": "Save the page to get its address.",
+      "liveHint": "Visitors can see this page now.",
+      "link": "Link",
+      "charactersLeft": "{count, plural, one {# character} other {# characters}} left",
+      "amount": "Amount raised",
+      "cover": "Cover",
+      "unsaved": "You have unsaved changes.",
+      "allSaved": "Everything is saved."
     },
     "public": {
       "by": "By {ministry}",
@@ -10692,12 +10735,14 @@
       "goal": "Goal",
       "ofGoal": "{percent}% of goal",
       "progressLabel": "Progress toward the goal",
-      "raisedOf": "{raised} of {goal}",
       "suppressed": "Progress shows once more gifts are recorded.",
       "recorded": "Gifts recorded by the ministry.",
       "notice": "Gifts go directly to {ministry}. Harvest doesn't process payments.",
       "theMinistry": "the ministry",
-      "coverAlt": "Cover image for {title}"
+      "coverAlt": "Cover image for {title}",
+      "ofGoalAmount": "of {goal}",
+      "toGo": "{amount} to go",
+      "goalReached": "Goal reached"
     },
     "cover": {
       "label": "Cover image",
