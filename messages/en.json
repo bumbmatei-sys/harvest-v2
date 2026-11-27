@@ -774,7 +774,7 @@
     "reportDuplicate": "You've already reported this.",
     "appealDuplicate": "You've already sent an appeal.",
     "bannedWordsInvalid": "Banned words can be up to 40 characters each, 100 in total.",
-    "communitySlugLocked": "The address of a published community can't be changed. Unpublish it first.",
+    "communitySlugLocked": "A community's address can't change once it has been published, so shared links keep working.",
     "linkInBioHandleTaken": "That address is already taken.",
     "linkInBioHandleLocked": "Unpublish the page before changing its address.",
     "linkInBioNotReady": "Add your name and at least one visible link or block, and fix any highlighted field.",
@@ -3024,6 +3024,7 @@
     "name": "Name",
     "tagline": "Tagline (optional)",
     "address": "Address",
+    "addressLocked": "Fixed once published, so shared links keep working.",
     "visibility": "Who can find it",
     "visibilities": {
       "listed": "Listed: appears in Discover",
