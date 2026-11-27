@@ -80,6 +80,22 @@ test("write, schedule, publish and read an article publicly", async ({ page }) =
   await expect(page.getByRole("button", { name: "Add cover" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Add picture" })).toBeVisible();
   await audit(page, "editor-write", "[data-blog-body] .docs-prose");
+  // A 200-character title truncates in the header at tablet and desktop widths: no sideways overflow, Publish now stays in view.
+  const titleBox = page.getByLabel("Title", { exact: true });
+  await titleBox.fill("Advent ".repeat(29).slice(0, 200));
+  for (const width of [768, 1280]) {
+    await page.setViewportSize({ width, height: 900 });
+    await settleForAxe(page);
+    const header = await page.locator("[data-shell-header]").evaluate((el) => ({ scroll: el.scrollWidth, client: el.clientWidth }));
+    expect(header.scroll, `header overflow at ${width}`).toBeLessThanOrEqual(header.client);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `page overflow at ${width}`).toBe(true);
+    const publish = page.locator("[data-shell-header-trail]").getByRole("button", { name: "Publish now" });
+    await expect(publish).toBeInViewport();
+    const box = (await publish.boundingBox())!;
+    expect(box.x + box.width, `Publish now inside the viewport at ${width}`).toBeLessThanOrEqual(width);
+  }
+  await titleBox.fill("Advent hope for every home");
+  await page.setViewportSize({ width: 1280, height: 900 });
 
   // Settings and SEO: the address came from the title; excerpt and SEO fields feed the search preview.
   await step(page, "Settings and SEO").click();
