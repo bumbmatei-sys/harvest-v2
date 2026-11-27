@@ -2973,6 +2973,24 @@ export const newsletterArchivedCounts = pgTable("newsletter_archived_counts", {
 }, t => [primaryKey({ columns: [t.tenantId, t.campaignId, t.day, t.metric] }),
   foreignKey({ columns: [t.tenantId, t.campaignId], foreignColumns: [newsletterCampaigns.tenantId, newsletterCampaigns.id] })]);
 
+// A one-transaction token that only newsletter_snapshot_audience writes and deletes; the worker-only `workspaces` read policy requires it, so a
+// session that sets the scan flag by hand opens nothing.
+export const newsletterGrowthScans = pgTable("newsletter_growth_scans", {
+  token: uuid("token").primaryKey(),
+  xact: text("xact").notNull(),
+});
+
+// One row per ministry per UTC day: audience counts only (no person ids), written by the newsletter worker for the growth chart.
+export const newsletterAudienceSnapshots = pgTable("newsletter_audience_snapshots", {
+  tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),
+  day: date("day").notNull(),
+  subscribed: integer("subscribed").notNull(),
+  unsubscribed: integer("unsubscribed").notNull(),
+  suppressed: integer("suppressed").notNull(),
+  takenAt: timestamp("taken_at", { withTimezone: true }).notNull().defaultNow(),
+}, t => [primaryKey({ columns: [t.tenantId, t.day] }),
+  check("newsletter_audience_snapshot_counts", sql`${t.subscribed} >= 0 and ${t.unsubscribed} >= 0 and ${t.suppressed} >= 0`)]);
+
 /** Per-ministry newsletter settings. Link-click counting is off until the owner turns it on; `click_tracking_since` is set by the database when it is turned on. */
 export const newsletterSettings = pgTable("newsletter_settings", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId),

@@ -26,8 +26,38 @@ export type AnalyticsOverview = {
   campaigns: CampaignFigures[];
   campaignsTruncated: boolean;
   audience: AudienceFigures;
+  /** Daily audience counts from the snapshots, for the growth chart and net change. */
+  growth: AudienceGrowth;
   clicks: ClickFigures;
 };
+
+export const audienceKeys = ["subscribed", "unsubscribed", "suppressed"] as const;
+/** One UTC day of audience counts. `counts` is null when no snapshot exists for that day ("no data yet", never zero); a single count is null when withheld. */
+export type GrowthPoint = { day: string; counts: AudienceFigures | null };
+export type AudienceGrowth = {
+  days: GrowthPoint[];
+  /** The first day in the period with a snapshot; null when there is none yet. */
+  firstDay: string | null;
+  /** Last snapshot minus first snapshot in the period; null with fewer than two snapshots. A key is null when either end is withheld. */
+  net: AudienceFigures | null;
+};
+export type SnapshotRow = { day: string; subscribed: number | null; unsubscribed: number | null; suppressed: number | null };
+
+/** Snapshot rows (already small-group filtered by the server) to one point per day of the range, plus the net change over the period. */
+export function audienceGrowth(range: { from: string; until: string }, rows: readonly SnapshotRow[]): AudienceGrowth {
+  const byDay = new Map(rows.map((row) => [row.day, row]));
+  const days = eachDay(range).map((day) => {
+    const row = byDay.get(day);
+    return { day, counts: row ? { subscribed: row.subscribed, unsubscribed: row.unsubscribed, suppressed: row.suppressed } : null };
+  });
+  const taken = days.filter((day) => day.counts !== null);
+  const first = taken[0], last = taken.at(-1);
+  const net = first && last && taken.length > 1 ? Object.fromEntries(audienceKeys.map((key) => {
+    const start = first.counts![key], end = last.counts![key];
+    return [key, start === null || end === null ? null : end - start];
+  })) as AudienceFigures : null;
+  return { days, firstDay: first?.day ?? null, net };
+}
 
 export const parsePeriod = (value: string | string[] | undefined): AnalyticsPeriod => {
   const number = Number(Array.isArray(value) ? value[0] : value);
@@ -75,6 +105,10 @@ export type CampaignAnalytics = {
   generatedAt: string;
   totals: Counts | null;
   days: DayPoint[];
+  /** Outcomes on the UTC day each was recorded (same days as `days`); counts are null when the campaign is a small group. */
+  outcomeDays: DayPoint[];
+  /** The campaign has records rolled up after 90 days: their outcomes are kept by selection day only and are not in `outcomeDays`. */
+  outcomesArchived: boolean;
   /** Delivery status breakdown; null when the campaign has a small cohort. */
   status: StatusFigures | null;
   clicks: ClickFigures | null;

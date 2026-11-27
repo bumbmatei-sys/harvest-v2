@@ -43,7 +43,7 @@ export function AnalyticsCampaignView({ tenantId, data }: { tenantId: string; da
     ...(showClicks ? [{ key: "clicks", label: t("tiles.clicks"), color: "var(--chart-3)" }] : []),
   ];
   const clicksByDay = new Map((clicks?.days ?? []).map((day) => [day.day, day.clicks]));
-  const points = data.days.map((day) => ({ day: day.day, values: Object.fromEntries(series.map((item) => [item.key, item.key === "clicks" ? clicksByDay.get(day.day) ?? 0
+  const points = data.outcomeDays.map((day) => ({ day: day.day, values: Object.fromEntries(series.map((item) => [item.key, item.key === "clicks" ? clicksByDay.get(day.day) ?? 0
     : day.counts ? day.counts[item.key as "sent"] : null])) }));
   const keys = ["selected", "skipped", "queued", "failed", "unknown", "operatorReview", "accepted", "delivered"] as const;
   const date = (value: string) => format.dateTime(new Date(`${value}T12:00:00Z`), { timeZone: "UTC", dateStyle: "medium" });
@@ -59,7 +59,7 @@ export function AnalyticsCampaignView({ tenantId, data }: { tenantId: string; da
     </header>
     {!data.sent ? <EmptyState icon={MailPlus} title={t("notSent.title")} description={t("notSent.description")} solid headingLevel={2} /> : <>
       <ReportStatCards stats={stats} columns={4} />
-      <ReportTrendCard id="campaign-daily" title={t("campaign.sinceSend")} caption={t("daily.caption")} dayHeader={t("daily.day")} points={points} series={series} />
+      <ReportTrendCard id="campaign-daily" title={t("campaign.sinceSend")} description={data.outcomesArchived ? t("campaign.archivedNote") : t("campaign.outcomeDay")} caption={t("campaign.outcomeCaption")} dayHeader={t("daily.day")} points={points} series={series} />
       <ReportBarsCard id="status" title={t("campaign.statusTitle")} description="" caption={t("campaign.statusCaption")} keyHeader={t("campaign.statusKey")}
         rows={keys.map((key) => ({ key, label: t(`campaign.status.${key}`), values: { count: status ? status[key] : null } }))} series={[{ key: "count", label: t("campaign.count"), color: "var(--chart-1)" }]} />
       {showClicks && clicks && <Card data-testid="top-links">

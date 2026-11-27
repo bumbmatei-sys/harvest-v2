@@ -1,6 +1,6 @@
 {
-  "id": "ae8fee99-7a8c-4106-bc3f-341678a88d2d",
-  "prevId": "4bfcbac8-d81f-4ab1-958f-10cd671b25a3",
+  "id": "067a3289-3620-4ebe-851a-a2a048dfe0c2",
+  "prevId": "d1f23fda-b1ba-4f81-9355-d651aff54274",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -28079,6 +28079,83 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.newsletter_audience_snapshots": {
+      "name": "newsletter_audience_snapshots",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "day": {
+          "name": "day",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "subscribed": {
+          "name": "subscribed",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "unsubscribed": {
+          "name": "unsubscribed",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "suppressed": {
+          "name": "suppressed",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "taken_at": {
+          "name": "taken_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "newsletter_audience_snapshots_tenant_id_workspaces_tenant_id_fk": {
+          "name": "newsletter_audience_snapshots_tenant_id_workspaces_tenant_id_fk",
+          "tableFrom": "newsletter_audience_snapshots",
+          "tableTo": "workspaces",
+          "columnsFrom": [
+            "tenant_id"
+          ],
+          "columnsTo": [
+            "tenant_id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "newsletter_audience_snapshots_tenant_id_day_pk": {
+          "name": "newsletter_audience_snapshots_tenant_id_day_pk",
+          "columns": [
+            "tenant_id",
+            "day"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "newsletter_audience_snapshot_counts": {
+          "name": "newsletter_audience_snapshot_counts",
+          "value": "\"newsletter_audience_snapshots\".\"subscribed\" >= 0 and \"newsletter_audience_snapshots\".\"unsubscribed\" >= 0 and \"newsletter_audience_snapshots\".\"suppressed\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.newsletter_audiences": {
       "name": "newsletter_audiences",
       "schema": "",
@@ -30293,6 +30370,31 @@
           "value": "(\"newsletter_form_signups\".\"state\" in ('confirmed', 'blocked')) = (\"newsletter_form_signups\".\"confirmed_at\" is not null)"
         }
       },
+      "isRLSEnabled": false
+    },
+    "public.newsletter_growth_scans": {
+      "name": "newsletter_growth_scans",
+      "schema": "",
+      "columns": {
+        "token": {
+          "name": "token",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "xact": {
+          "name": "xact",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.newsletter_identities": {
