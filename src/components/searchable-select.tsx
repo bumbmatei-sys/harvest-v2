@@ -1,4 +1,4 @@
-/** Derived from Shadcn UI Kit item select14 (premium), registry retrieved 2026-11-25, approved by the founder 2026-11-25 (Discover category control). Code written for Harvest on the shared Command and Popover; local changes: docs/ui-sources.md. */
+/** Derived from Shadcn UI Kit item select14 (free), registry retrieved 2026-11-25, approved by the founder 2026-11-25 (Discover category control). Code written for Harvest on the shared Command and Popover; local changes: docs/ui-sources.md. */
 "use client";
 import { useState } from "react";
 import type { ComponentType } from "react";

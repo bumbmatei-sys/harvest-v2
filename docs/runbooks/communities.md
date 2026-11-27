@@ -128,7 +128,7 @@ To change a write limit after #303: a new migration that recreates the trigger w
 
 ## 6. Erasure and rights requests
 
-No self-service account deletion exists. There is no export of a person's community data. Handle every request through the ministry's privacy owner, using the same steps as `docs/runbooks/connect-rights-requests.md` (receive, verify, confirm scope, act, check, close). Retention periods and the policy for public contributions are open decision G2.
+No self-service account deletion exists. There is no export of a person's community data. Handle every request through the ministry's privacy owner, using the same steps as `docs/runbooks/connect-rights-requests.md` (receive, verify, confirm scope, act, check, close). Retention periods and the policy for public contributions (G2) are drafted in `docs/decisions/hc-02-policy-pack.md` §11 (founder direction 27 Nov: posts, replies and channel messages stay as "Former member"; DMs are deleted with the account by the `chat-erasure` hook below); the gate stays UNAPPROVED.
 
 What the database does when a user row is deleted:
 

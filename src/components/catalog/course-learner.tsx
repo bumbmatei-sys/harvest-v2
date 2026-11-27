@@ -9,27 +9,53 @@ import { Progress } from "@/components/ui/progress";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { EmptyState } from "@/components/empty-state";
 import { RichTextView } from "@/components/rich-text/rich-text-view";
+import { LessonVideoPlayer } from "@/components/catalog/lesson-video";
+import { labelOr, type CourseLabels } from "@/lib/course-structure";
+import { validVideo, type LessonVideo } from "@/lib/lesson-video";
 import { cn } from "@/lib/utils";
 
-export type LearnerLesson = { id: string; title: string; body: unknown };
+export type LearnerLesson = { id: string; title: string; body: unknown; sectionId?: string; video?: LessonVideo | null };
+/** The published structure: only the levels and sections that hold a published lesson arrive, in course order. */
+export type LearnerStructure = { labels?: Partial<CourseLabels>; levels?: { id: string; title: string }[]; sections?: { id: string; levelId: string | null; title: string }[] };
 
 /** The learner's place in the course. It is a position, not a completion mark: the server stores no progress yet. */
-function PlaceCard({ index, total }: { index: number; total: number }) {
+function PlaceCard({ index, total, label }: { index: number; total: number; label: string }) {
   const t = useTranslations("CatalogPublic");
+  const place = t("place", { label, current: index + 1, total });
   return <Card className="gap-4">
     <CardHeader><CardTitle>{t("yourPlace")}</CardTitle></CardHeader>
     <CardContent className="space-y-3">
-      <Progress value={Math.round(((index + 1) / total) * 100)} aria-label={t("lessonOf", { current: index + 1, total })} />
-      <p className="text-sm text-muted-foreground tabular-nums">{t("lessonOf", { current: index + 1, total })}</p>
+      <Progress value={Math.round(((index + 1) / total) * 100)} aria-label={place} />
+      <p className="text-sm text-muted-foreground tabular-nums">{place}</p>
     </CardContent>
   </Card>;
 }
 
-function LessonList({ slug, lessons, current }: { slug: string; lessons: LearnerLesson[]; current: string }) {
+type Group = { key: string; heading: string | null; lessons: { lesson: LearnerLesson; index: number }[] };
+type Band = { key: string; heading: string | null; groups: Group[] };
+/**
+ * Lessons grouped by level and section for the side list. Headings use the course's own titles, or its label and number ("Week 2"). A course that
+ * is one untitled section (and every course before 0130) shows the plain list with no headings.
+ */
+function grouped(lessons: LearnerLesson[], structure: LearnerStructure, names: { level: string; section: string }): Band[] {
+  const sections = structure.sections ?? [], levels = structure.levels ?? [];
+  const headed = levels.length > 0 || sections.length > 1 || sections.some((row) => row.title.trim() !== "");
+  const groupOf = (id: string, index: number, title: string): Group => ({ key: id, heading: headed ? title.trim() || `${names.section} ${index + 1}` : null,
+    lessons: lessons.flatMap((lesson, at) => (lesson.sectionId === id ? [{ lesson, index: at }] : [])) });
+  const known = new Set(sections.map((row) => row.id));
+  const loose = lessons.flatMap((lesson, index) => (!lesson.sectionId || !known.has(lesson.sectionId) ? [{ lesson, index }] : []));
+  const bands: Band[] = levels.length
+    ? levels.map((level, at) => ({ key: level.id, heading: level.title.trim() || `${names.level} ${at + 1}`,
+      groups: sections.flatMap((row, index) => (row.levelId === level.id ? [groupOf(row.id, index, row.title)] : [])) }))
+    : [{ key: "course", heading: null, groups: sections.map((row, index) => groupOf(row.id, index, row.title)) }];
+  if (loose.length) bands.push({ key: "loose", heading: null, groups: [{ key: "loose", heading: null, lessons: loose }] });
+  return bands.map((band) => ({ ...band, groups: band.groups.filter((group) => group.lessons.length) })).filter((band) => band.groups.length);
+}
+
+function LessonList({ slug, lessons, current, structure, names }: { slug: string; lessons: LearnerLesson[]; current: string; structure: LearnerStructure; names: { level: string; section: string } }) {
   const t = useTranslations("CatalogPublic");
   const at = lessons.findIndex((lesson) => lesson.id === current);
-  return <nav aria-label={t("lessons")}><ol className="space-y-2">
-    {lessons.map((lesson, index) => {
+  const item = (lesson: LearnerLesson, index: number) => {
       const here = lesson.id === current;
       return <li key={lesson.id}>
         <Link href={`/courses/${slug}/learn?lesson=${lesson.id}`} aria-current={here ? "step" : undefined} data-lesson-link
@@ -39,16 +65,26 @@ function LessonList({ slug, lessons, current }: { slug: string; lessons: Learner
           <span className="min-w-0 flex-1 break-words font-medium">{lesson.title}</span>
         </Link>
       </li>;
-    })}
-  </ol></nav>;
+  };
+  const list = (rows: { lesson: LearnerLesson; index: number }[]) => <ol className="space-y-2">{rows.map(({ lesson, index }) => item(lesson, index))}</ol>;
+  return <nav aria-label={t("lessons")} className="space-y-5">
+    {grouped(lessons, structure, names).map((band) => <div key={band.key} data-learner-level={band.heading !== null ? "" : undefined} className="space-y-3">
+      {band.heading !== null && <h3 className="text-sm font-semibold break-words">{band.heading}</h3>}
+      {band.groups.map((group) => group.heading === null ? <div key={group.key}>{list(group.lessons)}</div>
+        : <section key={group.key} aria-label={group.heading} data-learner-section className="space-y-2">
+          <h4 className="text-sm font-medium text-muted-foreground break-words">{group.heading}</h4>{list(group.lessons)}</section>)}
+    </div>)}
+  </nav>;
 }
 
 /**
  * The enrolled learner's course view, in the arrangement of the kit's course detail: the lesson on the left, and on the right the learner's place and the
  * ordered lessons (a sheet below 1024px). Previous and next move one lesson. Only published lessons arrive from the server; nothing here is stored.
  */
-export function CourseLearner({ slug, title, lessons, currentId }: { slug: string; title: string; lessons: LearnerLesson[]; currentId: string }) {
-  const t = useTranslations("CatalogPublic");
+export function CourseLearner({ slug, title, lessons, currentId, structure = {} }: { slug: string; title: string; lessons: LearnerLesson[]; currentId: string; structure?: LearnerStructure }) {
+  const t = useTranslations("CatalogPublic"), s = useTranslations("Catalog.structure");
+  const names = { level: labelOr(structure.labels?.level, s("defaults.level")), section: labelOr(structure.labels?.section, s("defaults.section")) };
+  const lessonWord = labelOr(structure.labels?.lesson, s("defaults.lesson"));
   const index = Math.max(0, lessons.findIndex((lesson) => lesson.id === currentId)), lesson = lessons[index];
   if (!lesson) return <EmptyState icon={BookOpen} title={t("noLessons")} />;
   const previous = lessons[index - 1], next = lessons[index + 1], href = (id: string) => `/courses/${slug}/learn?lesson=${id}`;
@@ -58,19 +94,20 @@ export function CourseLearner({ slug, title, lessons, currentId }: { slug: strin
         <h1 className="text-[28px] font-semibold tracking-tight break-words">{title}</h1></div>
       <Sheet><SheetTrigger asChild><Button variant="outline" className="min-h-11 lg:hidden"><ListOrdered aria-hidden="true" />{t("lessons")}</Button></SheetTrigger>
         <SheetContent side="right" className="w-full overflow-y-auto sm:max-w-md"><SheetHeader><SheetTitle>{t("lessons")}</SheetTitle></SheetHeader>
-          <div className="p-4"><LessonList slug={slug} lessons={lessons} current={lesson.id} /></div></SheetContent></Sheet>
+          <div className="p-4"><LessonList slug={slug} lessons={lessons} current={lesson.id} structure={structure} names={names} /></div></SheetContent></Sheet>
     </div>
     <div className="grid gap-6 lg:grid-cols-3">
       <article aria-labelledby="lesson-title" className="min-w-0 space-y-6 lg:col-span-2">
-        <div className="lg:hidden"><PlaceCard index={index} total={lessons.length} /></div>
+        <div className="lg:hidden"><PlaceCard index={index} total={lessons.length} label={lessonWord} /></div>
         <Card><CardHeader><CardTitle><h2 id="lesson-title" className="text-xl font-semibold break-words">{lesson.title}</h2></CardTitle></CardHeader>
-          <CardContent><RichTextView doc={lesson.body} /></CardContent></Card>
+          <CardContent className="space-y-6">{validVideo(lesson.video) && <LessonVideoPlayer key={lesson.id} video={lesson.video} title={lesson.title} />}<RichTextView doc={lesson.body} /></CardContent></Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           {previous ? <Button asChild variant="outline" className="min-h-11"><Link href={href(previous.id)}><ArrowLeft aria-hidden="true" />{t("previous")}</Link></Button> : <span />}
           {next ? <Button asChild className="min-h-11"><Link href={href(next.id)}>{t("next")}<ArrowRight aria-hidden="true" /></Link></Button> : <span />}
         </div>
       </article>
-      <aside className="hidden min-w-0 space-y-6 lg:block"><PlaceCard index={index} total={lessons.length} /><LessonList slug={slug} lessons={lessons} current={lesson.id} /></aside>
+      <aside className="hidden min-w-0 space-y-6 lg:block"><PlaceCard index={index} total={lessons.length} label={lessonWord} />
+        <LessonList slug={slug} lessons={lessons} current={lesson.id} structure={structure} names={names} /></aside>
     </div>
   </div>;
 }

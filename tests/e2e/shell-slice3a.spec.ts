@@ -134,7 +134,8 @@ test("editing sidebar: swap, steps, back link, open page, mode switcher and prev
   await steps(page).getByRole("button", { name: /Joining/ }).click();
   await expect(heading(page, "Joining")).toBeFocused();
   await expect(steps(page).getByRole("button", { name: /Joining/ })).toHaveAttribute("aria-current", "step");
-  await expect(page).toHaveURL(new RegExp(`${url}$`));
+  // The address follows the step (shell slice S8: ?step=), replaced in place.
+  await expect(page).toHaveURL(new RegExp(`${url}\\?step=joining$`));
   // A disabled step does nothing.
   await steps(page).getByRole("button", { name: /Messages/ }).focus();
   await page.keyboard.press("Enter");
@@ -292,7 +293,10 @@ test("phone and tablet: Step n of m bar, All steps sheet, preview sheet, 44px ta
     await page.keyboard.press("Escape");
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(trigger).toBeFocused();
+    // Reloading keeps the step from the address (?step=joining, shell slice S8); open the plain address to start again from Basics.
     await page.reload();
+    await expect(heading(page, "Joining")).toBeFocused();
+    await page.goto(url);
     await expect(page.locator("[data-hydrated=true]")).toBeVisible();
 
     // The preview is a sheet on phones; Back and Next are the form's footer.

@@ -60,20 +60,20 @@ export function CommunityShell({ slug, name, chat = false, events = false, shelf
     return <Link key={item.id} href={item.href} aria-current={active ? "page" : undefined} prefetch={false}
       className={cn(classes, active ? "bg-muted font-medium text-foreground" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground")}>{inner}</Link>;
   };
-  return <div className="flex min-h-dvh bg-background">
+  return <div className="flex min-h-dvh bg-background pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pl-[env(safe-area-inset-left)]">
     <a href="#community-main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-md focus:bg-card focus:p-3">{t("skip")}</a>
-    <nav aria-label={t("navigation")} className="sticky top-0 hidden h-dvh w-20 shrink-0 flex-col items-center gap-1 border-r p-2 md:flex">
+    <nav aria-label={t("navigation")} className="sticky top-[env(safe-area-inset-top)] hidden h-[calc(100dvh-env(safe-area-inset-top))] w-20 shrink-0 flex-col items-center gap-1 border-r p-2 md:flex">
       <Link href="/account/communities" prefetch={false} className="mb-2 flex size-11 items-center justify-center rounded-md hover:bg-muted" aria-label={t("myCommunities")}>
         <Wheat className="size-6" aria-hidden="true" /></Link>
       {items.map((item) => entry(item, false))}
     </nav>
-    <div className={cn("flex min-w-0 flex-1 flex-col md:pb-0", !chatView && "pb-20")}>
+    <div className={cn("flex min-w-0 flex-1 flex-col md:pb-0", !chatView && "pb-[calc(5rem+env(safe-area-inset-bottom))]")}>
       <header className={cn("flex min-h-14 items-center gap-3 border-b px-4", chatView && "hidden md:flex")}><h1 className="min-w-0 flex-1 truncate text-base font-semibold">{name}</h1>
         {notifications && <NotificationBell slug={slug} unread={notifications.unread} prefs={notifications.prefs} />}</header>
       <main id="community-main" tabIndex={-1} className="min-w-0 flex-1 outline-none"><ChatUnreadContext.Provider value={setBadge}>{children}</ChatUnreadContext.Provider></main>
     </div>
     {/* Every entry keeps a 44px target; on the narrowest phones the bar scrolls sideways instead of shrinking them. */}
-    {!chatView && <nav aria-label={t("navigation")} className="fixed inset-x-0 bottom-0 z-40 grid overflow-x-auto border-t bg-background px-1 py-1 md:hidden" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(2.75rem, 1fr))` }}>
+    {!chatView && <nav aria-label={t("navigation")} className="fixed inset-x-0 bottom-0 z-40 grid overflow-x-auto border-t bg-background pt-1 pr-[calc(0.25rem+env(safe-area-inset-right))] pb-[calc(0.25rem+env(safe-area-inset-bottom))] pl-[calc(0.25rem+env(safe-area-inset-left))] md:hidden" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(2.75rem, 1fr))` }}>
       {items.map((item) => entry(item, true))}
     </nav>}
   </div>;

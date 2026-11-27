@@ -185,3 +185,38 @@ Approved for the CRM reports slice (`docs/acceptance/crm-reports.md`); they sett
 - **Platform list:** approved as built (26 Nov). GoFundMe and Donorbox are removed by the PR that adds a payment provider for donations, with founder sign-off.
 - **Logos (26 Nov, after the screenshots):** every method shows its real brand logo except bank transfer, which keeps its generic icon. Logos come only from a verified source (Simple Icons, CC0); a brand without a verified mark keeps a generic icon until its official mark and terms are checked. GoFundMe's and Donorbox's entries go with those kinds.
 
+
+## Founder decisions, 26–27 Nov (decision forms in the coordinating session)
+Source: the founder's answers to decision forms in the coordinating Claude session (26 Nov evening and 27 Nov morning, Berlin). Nothing here approves a merge, deployment, production migration or HC-02 gate.
+- **Newsletter click tracking (26 Nov):** link clicks only, no open tracking or pixel; totals per email and per day, groups under 5 hidden, owners and admins only, nobody sees who clicked; off by default, the ministry owner turns it on; click records kept 90 days, then anonymous daily totals; no IP or device data. Built in #299.
+- **/give page (26 Nov):** the raised amount shows only once 5 known supporters have given; give pages are hidden from search engines until launch. Built in #296.
+- **Newsletter (27 Nov):** the "links are counted" line becomes part of the recorded consent wording (a new consent version) when click counting is on; automation emails count clicks under the same rules as campaigns; newsletter analytics stay owners and admins only.
+- **Auto-DM (27 Nov):** the per-person limit is a rolling 24 hours, not a calendar day.
+- **Courses (27 Nov):** the screens of #306 and #307 (levels as cards, sections as groups, lesson video, Mark complete, progress, My notes) are approved.
+- **Communities (27 Nov):**
+  - Write limits stay at 10 posts, 30 replies and 20 reports per person per community per 10 minutes; hosts and moderators are exempt.
+  - Public page limits stay at 60 a minute per visitor.
+  - Harvest staff get a takedown tool for communities and single posts, like the giving takedown: a report button, staff admins hide and restore, in-app badge, reversible.
+  - Communities are on by default in staging; production stays off.
+  - Adults only (18+) at launch, with age confirmation at sign-up; a minors programme is a later decision.
+  - Bounce and complaint handling is required before any real community email.
+- **Your data (27 Nov):** self-serve download of your own data and account deletion are built before launch.
+- **Link in bio and blog (27 Nov):** the 16 kit items in the approval request are approved (12 link in bio, 4 blog); one small MIT carousel library is allowed for gallery and phone tab swipe; location shows the address with "Open in maps" (no embedded map); "Live now" is a manual link with a LIVE badge.
+
+## Founder decisions, 27 Nov (launch gates)
+Source: the founder's answers to decision forms in the coordinating Claude session (27 Nov). These record directions only. **Nothing here approves a merge, deployment, production migration, real data collection, real sending or real payment.** All five HC-02 gates stay UNAPPROVED until the founder ticks the checklist in `docs/decisions/hc-02-policy-pack.md`.
+- **G1, the five HC-02 privacy gates:** the founder chose not to hire a lawyer for now. The engineering team drafts the five policies to current EU and UK GDPR best practice, and the founder approves them. The drafts are not legal advice; a qualified review is still recommended before real data. Drafts: `docs/decisions/hc-02-policy-pack.md`.
+- **G2, public community contributions:** when someone leaves a community or deletes their account, their public posts and replies stay but are anonymised: name and photo are removed and the author shows as "Former member".
+- **G4, email sender:** Amazon SES sends community and newsletter email. Sign-in mail stays on its current sender. Setup steps: `docs/setup/ses-production.md`. No real sending until the founder says go. Bounce and complaint handling is required (decided earlier, 27 Nov).
+- **G5, payments:** build toward Stripe Connect. Ministries connect their own Stripe account and money goes straight to them. This needs Stripe's platform approval. Dodo stays for Harvest SaaS billing. Payment adapters, ledgers and webhook identities stay separate (ADR 0012). Draft: `docs/prd/payments-stripe-connect.md`.
+- **G6, Discover:** on at launch, with Harvest staff approving each listing before it shows (as built for the 25 Nov decision).
+- **G7, prayer requests in Community Live:** deleted 30 days after the request is closed, at most 90 days after submission. Prayer-wall items are kept 180 days. They are encrypted, and only the host team can see them.
+- **Follow-up answers (27 Nov morning, same decision forms):**
+  - Retention periods approved as written in the policy pack: inactive verified contacts are flagged for review after 24 months; closed follow-up cases and audit logs are kept 12 months; the rights-request register is kept 3 years. They are part of the Gate 4 draft. The gate itself stays UNAPPROVED until the founder ticks the checklist.
+  - The "Former member" rule (G2), as refined later on 27 Nov: forum posts, replies and channel messages stay as "Former member" both when someone leaves a community and when they delete their account. DMs stay as "Former member" when someone leaves a community; when someone deletes their whole account, their DMs are deleted (the planned `chat-erasure` hook).
+  - The prayer host team (G7) is the community owner, admins and moderators.
+  - Stripe uses Standard accounts with direct charges.
+  - Fees: 0% Harvest fee on donations; 3% Harvest fee on course and product sales, on top of Stripe's own fee. Paid sales still wait for the LLC (16 Nov).
+  - Individual missionaries can connect for donations from day one. Their give page says: "Gifts are personal support and may not be tax-deductible."
+  - US audience first: SES runs in `us-east-1` (N. Virginia). The main database stays in the EU (Frankfurt) for now. Email addresses and message content therefore go to a US processor for delivery (transfer section of the policy pack).
+  - Alerts and DMARC reports go to the founder's mailbox for now. The address is not written in the repository.
