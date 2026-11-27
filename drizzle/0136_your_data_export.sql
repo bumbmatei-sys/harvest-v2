@@ -13,12 +13,13 @@ CREATE INDEX "account_export_requests_user_idx" ON "account_export_requests" USI
 ALTER TABLE public.account_export_requests ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE public.account_export_requests FORCE ROW LEVEL SECURITY;--> statement-breakpoint
 REVOKE ALL ON public.account_export_requests FROM PUBLIC, harvest_app;--> statement-breakpoint
--- Every app.* flag an owner-role policy reads, except app.user_id (the verified caller), blanked by both account definers on entry and on exit.
--- pg_settings does not list custom settings (the 0120 defect fixed in 0124), so the names are explicit. app.tenant_id is blanked too: the account
--- definers run in a personal (withUser) transaction, never inside a ministry.
+-- Every app.* flag an owner-role policy reads, except app.user_id (the verified caller), blanked by the account definers on entry and on exit.
+-- pg_settings does not list custom settings (the 0120 defect fixed in 0124), so the names are explicit; an integration test compares this list
+-- with pg_policies. The four app.blog_* names belong to the native blog (#315), listed ahead so either merge order is covered. app.tenant_id is
+-- blanked too, so the account definers must only run in a personal (withUser) transaction, never inside a ministry (withTenant) transaction.
 CREATE FUNCTION public.account_self_reset() RETURNS void LANGUAGE sql SET search_path = pg_catalog, pg_temp AS $$
   SELECT pg_catalog.set_config(name, '', true) FROM pg_catalog.unnest(ARRAY['app.account_export','app.account_erase',
-    'app.access_tenant','app.access_token','app.ads_definer','app.bio_handle','app.bio_tenant','app.campaign_budget_tenant','app.campaign_invite_tenant',
+    'app.access_tenant','app.access_token','app.ads_definer','app.blog_public_file','app.blog_public_handle','app.blog_public_tenant','app.blog_publish','app.bio_handle','app.bio_tenant','app.campaign_budget_tenant','app.campaign_invite_tenant',
     'app.campaign_invite_token','app.catalog_learner_tenant','app.catalog_my_notes','app.catalog_progress_tenant','app.catalog_slug','app.catalog_tenant',
     'app.chat_purge','app.chat_settings','app.community_definer_tenant','app.community_email_worker','app.community_purge','app.community_resolve_email',
     'app.community_resolve_ids','app.community_resolve_invite','app.community_resolve_slug','app.community_resolve_user','app.community_stats_write',
@@ -27,7 +28,7 @@ CREATE FUNCTION public.account_self_reset() RETURNS void LANGUAGE sql SET search
     'app.connect_retention','app.connect_version','app.crm_forms_slug','app.crm_forms_tenant','app.discover_platform','app.discover_read',
     'app.dm_evidence_report','app.dm_purge','app.docs_purge','app.event_cover_cleanup','app.events_tenant','app.give_public_fundraising',
     'app.give_public_slug','app.give_public_tenant','app.giving_definer','app.giving_definer_tenant','app.giving_public_tenant','app.live_community',
-    'app.newsletter_erasure_contact','app.newsletter_erasure_tenant','app.nl_auto_private','app.nl_forms_tenant','app.nl_growth_scan',
+    'app.newsletter_erasure_contact','app.newsletter_erasure_tenant','app.nl02_private','app.nl02_tenant','app.nl_auto_private','app.nl_forms_tenant','app.nl_growth_scan',
     'app.nl_send_insight','app.nl_send_tenant','app.nl_send_worker','app.office_erasure_contact','app.platform_staff','app.social_analytics_worker',
     'app.social_approval_definer','app.social_auto_dm_worker','app.social_definer','app.social_inbox_worker','app.social_media_tenant',
     'app.social_upload_cleanup','app.tenant_id']) AS name;
@@ -116,6 +117,10 @@ BEGIN
     'createdAt', u.created_at, 'cityRegion', p.city_region, 'onboardingCompletedAt', p.onboarding_completed_at, 'onboardingSkippedAt', p.onboarding_skipped_at)
     INTO section FROM public.users u LEFT JOIN public.user_profiles p ON p.user_id = u.id WHERE u.id = actor;
   result := result || pg_catalog.jsonb_build_object('account', section);
+  -- Sign-in history: the person's current sessions (Harvest keeps no older ones). The session token is never exported.
+  SELECT coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('signedInAt', s.created_at, 'lastActiveAt', s.updated_at, 'expiresAt', s.expires_at,
+    'ipAddress', s.ip_address, 'userAgent', s.user_agent) ORDER BY s.created_at), '[]'::jsonb) INTO section FROM public.sessions s WHERE s.user_id = actor;
+  result := result || pg_catalog.jsonb_build_object('signIns', section);
 
   FOR name, section IN
     SELECT 'ministries', coalesce(pg_catalog.jsonb_agg(x ORDER BY x->>'joinedAt'), '[]') FROM (SELECT pg_catalog.jsonb_build_object('ministry', w.name, 'role', m.role_id,
