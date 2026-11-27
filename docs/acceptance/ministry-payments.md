@@ -4,8 +4,8 @@ Working migration `0160_ministry_payments`. Standard connected accounts are the 
 
 | Route | Contract |
 | --- | --- |
-| `GET /api/workspaces/{tenantId}/payments` | Owners and admins see account readiness and conservative payment settings. |
-| `POST /api/workspaces/{tenantId}/payments` | Owners and admins can request an onboarding link with a request key, sync status, disconnect, or set a synthetic price for an existing course or product. |
+| `GET /api/workspaces/{tenantId}/payments` | Owners and admins see account readiness and conservative payment settings. `canManageAccount` is true only for the owner, so a screen hides the connect, sync and disconnect actions from admins. |
+| `POST /api/workspaces/{tenantId}/payments` | Only the owner can request an onboarding link with a request key, sync status or disconnect. Owners and admins can set a synthetic price for an existing course or product. |
 | `POST /api/public/ministries/{tenantId}/payments/checkout` | Signed-in fixture checkout. Send a request key and a one-time or monthly donation amount, or a course or product ID for server pricing. |
 | `GET /api/workspaces/{tenantId}/payments/ledger` | Owners and admins read a ministry's append-only provider facts. Refund, fee and dispute records can arrive before the related charge and reconcile by payment or charge reference when the charge arrives. |
 | `GET /api/account/donation-receipts` | The donor's own receipts with amount, currency, date, ministry legal name and the missionary tax notice flag. |
@@ -25,3 +25,16 @@ The central fee table sets donations to 0% and sales to 3%. Fees round down to a
 | Gift record retention | Still to decide before live records. |
 
 Hosted Neon, the live provider contract, live payment methods and the recurring provider event mapping remain unverified. Paid sales also depend on the LLC. No real funds, messages, webhook deliveries or provider calls were used. HC-02 activation gates remain **UNAPPROVED**.
+
+## Payout account write path (founder decision 27 Nov)
+
+The independent review found that the app role had INSERT and UPDATE on every column of `ministry_payment_accounts` under an owner-or-admin policy, so an app session could rewrite where money goes (`account_id`, `provider`) or claim provider status (`charges_enabled`, `payouts_enabled`, `requirements_due`, `disconnected_at`). Changed:
+
+- The app role has no INSERT or UPDATE on `ministry_payment_accounts` or `ministry_payment_onboarding`. Connect, sync and disconnect run through `ministry_payment_account_change`, a SECURITY DEFINER with a pinned search path, the explicit `app.*` clear list (`blog_scope_clear` and `account_self_reset`) with saved and restored settings, the per-ministry advisory lock and a transaction-tied grant.
+- Founder decision 27 Nov: **only the owner** can connect, sync or disconnect the payout account. The definer checks the owner membership itself, and the server route returns the neutral 404 for admins. Admins keep read access to account readiness and the ledger, and can still set prices.
+- `account_id` and `provider` are set only at creation. A guard trigger refuses any change to them (or to `tenant_id`), even from the table owner. A reconnect must use the same provider and account ID.
+- Status columns are written only by that definer or by `ministry_payment_record_event`. The definer accepts a synced status only for the synthetic provider; a live provider's status will arrive only as a verified event.
+- Prices: the app may insert a row and change only `amount_minor` and `currency` (column grants). A guard trigger keeps `tenant_id` and `item_id` fixed.
+- `ministry_payment_record_event` now refuses any session user other than `harvest_worker`, matching the blog worker functions.
+
+This PR has no payment screens, so there is no visible control to hide yet; the first screen must use `canManageAccount`.

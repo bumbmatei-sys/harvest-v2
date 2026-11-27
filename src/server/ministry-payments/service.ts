@@ -9,7 +9,7 @@ import { message } from "../../i18n/messages";
 import { checkoutInput, ministryApplicationFee, paymentAccountAction, paymentPolicy, type MinistryPaymentKind } from "../../lib/ministry-payments";
 import { AccessError } from "../permissions";
 import { withTenant, withUser } from "../tenancy";
-import { fakeConnectedAccountId, fakePaymentProvider, type MinistryPaymentProvider } from "./provider";
+import { fakeConnectedAccountId, fakePaymentProvider, type AccountStatus, type MinistryPaymentProvider } from "./provider";
 
 export const paymentMissing = () => new AccessError(404, message("Errors.thisViewIsNotAvailable"));
 const conflict = (code: string) => new AccessError(409, message("Errors.thisRecordChangedReloadAndTryAgain"), { code });
@@ -18,11 +18,13 @@ const synthetic = (provider: MinistryPaymentProvider) => {
   if (provider.identity !== "fake") throw paymentMissing();
 };
 
-async function finance<T>(db: Database, user: string, tenant: string, run: (tx: Transaction, id: string) => Promise<T>) {
+type FinanceAccess = "owner" | "admin";
+async function finance<T>(db: Database, user: string, tenant: string,
+  run: (tx: Transaction, id: string, access: FinanceAccess) => Promise<T>) {
   try {
     return await withTenant(db, user, z.uuid().parse(tenant), "workspace:read", (tx, id, _role, access) => {
       if (access !== "owner" && access !== "admin") throw paymentMissing();
-      return run(tx, id);
+      return run(tx, id, access);
     });
   } catch (error) {
     if (error instanceof AccessError && error.status === 403) throw paymentMissing();
@@ -40,16 +42,35 @@ function accountView(row: Merchant | undefined) {
 }
 
 export function paymentAccount(db: Database, actor: string, tenant: string) {
-  return finance(db, actor, tenant, async (tx, id) => {
+  return finance(db, actor, tenant, async (tx, id, access) => {
     const [account] = await tx.select().from(ministryPaymentAccounts).where(eq(ministryPaymentAccounts.tenantId, id));
-    return { account: accountView(account), policy: paymentPolicy };
+    // Founder decision 27 Nov: only the owner connects, syncs or disconnects the payout account.
+    return { account: accountView(account), policy: paymentPolicy, canManageAccount: access === "owner" };
   });
+}
+
+type AccountChange = { action: "connect" | "sync" | "disconnect"; accountId: string; requestKey?: string; fingerprint?: string;
+  legalName?: string; country?: string; currency?: string; status?: AccountStatus };
+const textArray = (values: string[]) => `{${values.map(value => `"${value.replace(/["\\]/g, "\\$&")}"`).join(",")}}`;
+/** All payout-account writes go through the owner-only definer; the app role has no write grant on the table. */
+async function saveAccount(tx: Transaction, tenant: string, provider: MinistryPaymentProvider, change: AccountChange) {
+  const { rows: [row] } = await tx.execute<{ outcome: "ok" | "replay" | "key_conflict" | "account_changed" | "missing" }>(sql`
+    select public.ministry_payment_account_change(${tenant}::uuid,${change.action},${provider.identity},${change.accountId},
+      ${change.requestKey ?? null},${change.fingerprint ?? null},${change.legalName ?? null},${change.country ?? null},
+      ${change.currency ?? null},${change.status?.chargesEnabled ?? null}::boolean,${change.status?.payoutsEnabled ?? null}::boolean,
+      ${change.status ? textArray(change.status.requirementsDue) : null}::text[]) as outcome`);
+  if (row.outcome === "key_conflict" || row.outcome === "account_changed") throw conflict(row.outcome);
+  if (row.outcome === "missing") throw paymentMissing();
+  const [saved] = await tx.select().from(ministryPaymentAccounts).where(eq(ministryPaymentAccounts.tenantId, tenant));
+  return { outcome: row.outcome, account: saved };
 }
 
 export function changePaymentAccount(db: Database, actor: string, tenant: string, raw: unknown, provider = fakePaymentProvider) {
   synthetic(provider);
-  return finance(db, actor, tenant, async (tx, id) => {
+  return finance(db, actor, tenant, async (tx, id, access) => {
     const input = paymentAccountAction.parse(raw);
+    // Founder decision 27 Nov: admins keep read access and pricing, but the payout account is the owner's alone.
+    if (input.action !== "price" && access !== "owner") throw paymentMissing();
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended('ministry-payments:' || ${id}, 0))`);
     const key = eq(ministryPaymentAccounts.tenantId, id);
     const [account] = await tx.select().from(ministryPaymentAccounts).where(key);
@@ -65,15 +86,11 @@ export function changePaymentAccount(db: Database, actor: string, tenant: string
       const link = await provider.onboarding({ tenantId: id, idempotencyKey: requestKey, country, currency });
       if (prior) return { account: accountView(account), onboardingUrl: account?.disconnectedAt ? null : link.url };
       if (account && (account.provider !== provider.identity || account.accountId !== link.accountId)) throw conflict("account_changed");
-      const [saved] = await tx.insert(ministryPaymentAccounts).values({
-        tenantId: id, accountId: link.accountId, provider: provider.identity, legalName, country, currency,
-      }).onConflictDoUpdate({ target: ministryPaymentAccounts.tenantId, set: {
-        legalName, country, currency, disconnectedAt: null, statusReportedAt: new Date(),
-        chargesEnabled: false, payoutsEnabled: false, requirementsDue: [],
-      } }).returning();
-      await tx.insert(ministryPaymentOnboarding).values({ tenantId: id, requestKey, fingerprint });
+      const saved = await saveAccount(tx, id, provider, { action: "connect", accountId: link.accountId, requestKey, fingerprint,
+        legalName, country, currency });
+      if (saved.outcome === "replay") return { account: accountView(saved.account), onboardingUrl: saved.account?.disconnectedAt ? null : link.url };
       await audit("connect");
-      return { account: accountView(saved), onboardingUrl: link.url };
+      return { account: accountView(saved.account), onboardingUrl: link.url };
     }
     if (!account || account.provider !== provider.identity) throw paymentMissing();
     if (input.action === "price") {
@@ -92,14 +109,16 @@ export function changePaymentAccount(db: Database, actor: string, tenant: string
       if (input.action === "disconnect") return { account: accountView(account) };
       throw paymentMissing();
     }
-    const status = input.action === "disconnect" ? { chargesEnabled: false, payoutsEnabled: false, requirementsDue: [] } :
-      await provider.accountStatus(account.accountId);
-    if (input.action === "disconnect") await provider.disconnect(account.accountId);
-    const now = new Date();
-    const [saved] = await tx.update(ministryPaymentAccounts).set({ ...status, statusReportedAt: now,
-      disconnectedAt: input.action === "disconnect" ? now : null }).where(key).returning();
-    await audit(input.action);
-    return { account: accountView(saved) };
+    if (input.action === "disconnect") {
+      await provider.disconnect(account.accountId);
+      const saved = await saveAccount(tx, id, provider, { action: "disconnect", accountId: account.accountId });
+      await audit("disconnect");
+      return { account: accountView(saved.account) };
+    }
+    const status = await provider.accountStatus(account.accountId);
+    const saved = await saveAccount(tx, id, provider, { action: "sync", accountId: account.accountId, status });
+    await audit("sync");
+    return { account: accountView(saved.account) };
   });
 }
 

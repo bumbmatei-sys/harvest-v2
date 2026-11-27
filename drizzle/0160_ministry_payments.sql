@@ -137,7 +137,7 @@ DECLARE scoped text := 'tenant_id = nullif(current_setting(''app.tenant_id'',tru
 BEGIN
   EXECUTE format($p$CREATE POLICY payment_grant ON public.ministry_payment_grants TO %I
     USING (backend = pg_backend_pid() AND transaction = pg_current_xact_id_if_assigned()::text
-      AND (mode = 'checkout') = (nullif(current_setting('app.user_id',true),'') IS NOT NULL))$p$, current_user);
+      AND (mode IN ('checkout','account')) = (nullif(current_setting('app.user_id',true),'') IS NOT NULL))$p$, current_user);
   FOREACH tbl IN ARRAY ARRAY['ministry_payment_accounts','ministry_payment_prices','ministry_payment_intents',
     'ministry_payment_ledger','ministry_donation_receipts','ministry_payment_events','ministry_payment_onboarding'] LOOP
     EXECUTE format('ALTER TABLE public.%I ENABLE ROW LEVEL SECURITY', tbl);
@@ -149,13 +149,25 @@ BEGIN
         USING (public.ministry_payment_staff(tenant_id))', tbl);
     END IF;
   END LOOP;
-  FOREACH tbl IN ARRAY ARRAY['ministry_payment_accounts','ministry_payment_prices','ministry_payment_onboarding'] LOOP
-    EXECUTE format('GRANT INSERT, UPDATE ON public.%I TO harvest_app', tbl);
-    EXECUTE format('CREATE POLICY payment_staff_create ON public.%I FOR INSERT TO harvest_app
-      WITH CHECK (public.ministry_payment_staff(tenant_id))', tbl);
-    EXECUTE format('CREATE POLICY payment_staff_update ON public.%I FOR UPDATE TO harvest_app
-      USING (public.ministry_payment_staff(tenant_id)) WITH CHECK (public.ministry_payment_staff(tenant_id))', tbl);
-  END LOOP;
+  -- Payout accounts and onboarding requests change only through ministry_payment_account_change (owner only) and
+  -- ministry_payment_record_event (verified provider facts). Prices: the app may set amount and currency, never the keys.
+  GRANT INSERT (tenant_id, item_id, currency, amount_minor), UPDATE (currency, amount_minor) ON public.ministry_payment_prices TO harvest_app;
+  CREATE POLICY payment_staff_create ON public.ministry_payment_prices FOR INSERT TO harvest_app
+    WITH CHECK (public.ministry_payment_staff(tenant_id));
+  CREATE POLICY payment_staff_update ON public.ministry_payment_prices FOR UPDATE TO harvest_app
+    USING (public.ministry_payment_staff(tenant_id)) WITH CHECK (public.ministry_payment_staff(tenant_id));
+  EXECUTE format($p$CREATE POLICY payment_account_change_read ON public.ministry_payment_accounts FOR SELECT TO %I USING (
+    %s AND EXISTS (SELECT FROM public.ministry_payment_grants g WHERE g.mode = 'account'))$p$, current_user, scoped);
+  EXECUTE format($p$CREATE POLICY payment_account_change_create ON public.ministry_payment_accounts FOR INSERT TO %I WITH CHECK (
+    %s AND EXISTS (SELECT FROM public.ministry_payment_grants g WHERE g.mode = 'account'
+      AND g.provider = ministry_payment_accounts.provider AND g.account_id = ministry_payment_accounts.account_id))$p$, current_user, scoped);
+  EXECUTE format($p$CREATE POLICY payment_account_change_update ON public.ministry_payment_accounts FOR UPDATE TO %I USING (
+    %s AND EXISTS (SELECT FROM public.ministry_payment_grants g WHERE g.mode = 'account'
+      AND g.provider = ministry_payment_accounts.provider AND g.account_id = ministry_payment_accounts.account_id))$p$, current_user, scoped);
+  EXECUTE format($p$CREATE POLICY payment_onboarding_change ON public.ministry_payment_onboarding TO %I USING (
+    %s AND EXISTS (SELECT FROM public.ministry_payment_grants g WHERE g.mode = 'account'))$p$, current_user, scoped);
+  EXECUTE format($p$CREATE POLICY payment_account_member ON public.workspace_members FOR SELECT TO %I USING (
+    %s AND EXISTS (SELECT FROM public.ministry_payment_grants g WHERE g.mode = 'account'))$p$, current_user, scoped);
   EXECUTE format($p$CREATE POLICY payment_account_definer ON public.ministry_payment_accounts FOR SELECT TO %I USING (
     EXISTS (SELECT FROM public.ministry_payment_grants g WHERE g.provider = ministry_payment_accounts.provider
       AND ((g.mode = 'event' AND g.account_id = ministry_payment_accounts.account_id)
@@ -190,6 +202,91 @@ BEGIN RAISE EXCEPTION 'ministry payment ledger is append-only' USING ERRCODE = '
 REVOKE ALL ON FUNCTION public.ministry_payment_append_only() FROM PUBLIC;
 CREATE TRIGGER ministry_payment_append_only BEFORE UPDATE OR DELETE OR TRUNCATE ON public.ministry_payment_ledger
   FOR EACH STATEMENT EXECUTE FUNCTION public.ministry_payment_append_only();
+--> statement-breakpoint
+-- Keys never move: a payout account keeps its tenant, provider and account ID, and a price keeps its tenant and item.
+CREATE FUNCTION public.ministry_payment_keys_fixed() RETURNS trigger
+LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
+BEGIN
+  IF TG_TABLE_NAME = 'ministry_payment_accounts' THEN
+    IF NEW.tenant_id IS DISTINCT FROM OLD.tenant_id OR NEW.account_id IS DISTINCT FROM OLD.account_id
+      OR NEW.provider IS DISTINCT FROM OLD.provider THEN
+      RAISE EXCEPTION 'ministry payment account identity is immutable' USING ERRCODE = '42501';
+    END IF;
+  ELSIF NEW.tenant_id IS DISTINCT FROM OLD.tenant_id OR NEW.item_id IS DISTINCT FROM OLD.item_id THEN
+    RAISE EXCEPTION 'ministry payment price identity is immutable' USING ERRCODE = '42501';
+  END IF;
+  RETURN NEW;
+END $$;
+REVOKE ALL ON FUNCTION public.ministry_payment_keys_fixed() FROM PUBLIC;
+CREATE TRIGGER ministry_payment_account_keys BEFORE UPDATE ON public.ministry_payment_accounts
+  FOR EACH ROW EXECUTE FUNCTION public.ministry_payment_keys_fixed();
+CREATE TRIGGER ministry_payment_price_keys BEFORE UPDATE ON public.ministry_payment_prices
+  FOR EACH ROW EXECUTE FUNCTION public.ministry_payment_keys_fixed();
+--> statement-breakpoint
+-- Founder decision 27 Nov: only the ministry owner connects, syncs or disconnects the payout account. The app passes the
+-- provider's answer; the account ID and provider are fixed at creation. Status from the app is accepted only for the
+-- synthetic provider; a live provider's status arrives only as a verified event through ministry_payment_record_event.
+CREATE FUNCTION public.ministry_payment_account_change(p_tenant uuid,p_action text,p_provider text,p_account text,
+  p_request text,p_fingerprint text,p_legal text,p_country text,p_currency text,p_charges boolean,p_payouts boolean,p_due text[])
+RETURNS text LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE actor text := nullif(current_setting('app.user_id',true),'');
+DECLARE prior jsonb;
+DECLARE merchant public.ministry_payment_accounts;
+DECLARE seen text;
+DECLARE result text := 'missing';
+BEGIN
+  IF actor IS NULL OR p_tenant IS NULL OR p_action IS NULL OR p_action NOT IN ('connect','sync','disconnect')
+    OR p_provider IS NULL OR p_provider NOT IN ('fake','stripe_connect')
+    OR p_account IS NULL OR p_account !~ '^[A-Za-z0-9_:-]{1,120}$' THEN
+    RETURN result;
+  END IF;
+  prior := public.blog_scope_clear();
+  PERFORM public.account_self_reset();
+  PERFORM set_config('app.user_id', actor, true);
+  PERFORM set_config('app.tenant_id', p_tenant::text, true);
+  PERFORM pg_advisory_xact_lock(hashtextextended('ministry-payments:' || p_tenant::text,0));
+  INSERT INTO public.ministry_payment_grants VALUES (pg_backend_pid(), pg_current_xact_id()::text,'account',p_account,p_provider);
+  IF EXISTS (SELECT FROM public.workspace_members m WHERE m.tenant_id = p_tenant AND m.user_id = actor AND m.role_id = 'owner') THEN
+    SELECT * INTO merchant FROM public.ministry_payment_accounts WHERE tenant_id = p_tenant;
+    IF merchant.tenant_id IS NOT NULL AND (merchant.provider <> p_provider OR merchant.account_id <> p_account) THEN
+      result := CASE WHEN p_action = 'connect' THEN 'account_changed' ELSE 'missing' END;
+    ELSIF p_action = 'connect' THEN
+      IF p_request IS NOT NULL AND p_request ~ '^[A-Za-z0-9._:-]{1,200}$' AND p_fingerprint ~ '^[0-9a-f]{64}$' THEN
+        SELECT fingerprint INTO seen FROM public.ministry_payment_onboarding WHERE tenant_id = p_tenant AND request_key = p_request;
+        IF seen IS NOT NULL THEN
+          result := CASE WHEN seen = p_fingerprint THEN 'replay' ELSE 'key_conflict' END;
+        ELSIF merchant.tenant_id IS NULL THEN
+          INSERT INTO public.ministry_payment_accounts (tenant_id,account_id,provider,legal_name,country,currency,status_reported_at)
+            VALUES (p_tenant,p_account,p_provider,p_legal,p_country,p_currency,now());
+          INSERT INTO public.ministry_payment_onboarding VALUES (p_tenant,p_request,p_fingerprint);
+          result := 'ok';
+        ELSE
+          UPDATE public.ministry_payment_accounts SET legal_name = p_legal, country = p_country, currency = p_currency,
+            disconnected_at = NULL, status_reported_at = now(), charges_enabled = false, payouts_enabled = false,
+            requirements_due = ARRAY[]::text[] WHERE tenant_id = p_tenant;
+          INSERT INTO public.ministry_payment_onboarding VALUES (p_tenant,p_request,p_fingerprint);
+          result := 'ok';
+        END IF;
+      END IF;
+    ELSIF merchant.tenant_id IS NOT NULL AND p_action = 'disconnect' THEN
+      IF merchant.disconnected_at IS NULL THEN
+        UPDATE public.ministry_payment_accounts SET charges_enabled = false, payouts_enabled = false,
+          requirements_due = ARRAY[]::text[], disconnected_at = now(), status_reported_at = now() WHERE tenant_id = p_tenant;
+      END IF;
+      result := 'ok';
+    ELSIF merchant.tenant_id IS NOT NULL AND p_action = 'sync' AND merchant.disconnected_at IS NULL AND p_provider = 'fake'
+      AND p_charges IS NOT NULL AND p_payouts IS NOT NULL AND p_due IS NOT NULL AND cardinality(p_due) <= 80 THEN
+      UPDATE public.ministry_payment_accounts SET charges_enabled = p_charges, payouts_enabled = p_payouts,
+        requirements_due = p_due, status_reported_at = now() WHERE tenant_id = p_tenant;
+      result := 'ok';
+    END IF;
+  END IF;
+  DELETE FROM public.ministry_payment_grants WHERE backend = pg_backend_pid();
+  PERFORM public.blog_scope_restore(prior);
+  RETURN result;
+END $$;
+REVOKE ALL ON FUNCTION public.ministry_payment_account_change(uuid,text,text,text,text,text,text,text,text,boolean,boolean,text[]) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.ministry_payment_account_change(uuid,text,text,text,text,text,text,text,text,boolean,boolean,text[]) TO harvest_app;
 --> statement-breakpoint
 CREATE FUNCTION public.ministry_fake_checkout(p_tenant uuid,p_request text,p_kind text,p_cadence text,p_item uuid,p_amount bigint)
 RETURNS jsonb LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
@@ -258,6 +355,7 @@ DECLARE intent public.ministry_payment_intents;
 DECLARE ledger_id uuid;
 DECLARE result text := 'ignored';
 BEGIN
+  IF session_user IS DISTINCT FROM 'harvest_worker' THEN RAISE insufficient_privilege; END IF;
   -- The worker can exercise only the fake provider until the activation slice.
   IF p_provider IS DISTINCT FROM 'fake' OR p_event IS NULL OR p_event !~ '^[A-Za-z0-9_:-]{1,120}$'
     OR p_account IS NULL OR p_account !~ '^[A-Za-z0-9_:-]{1,120}$' THEN RETURN result; END IF;

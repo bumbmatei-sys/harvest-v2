@@ -41,21 +41,77 @@ beforeAll(async () => {
 afterAll(async () => { await f?.close(); });
 
 it("keeps finance roles and connections scoped to the ministry", async () => {
-  expect((await paymentAccount(f.db, admin, tenant)).account.status).toBe("not_connected");
-  const first = await changePaymentAccount(f.db, admin, tenant, settings);
+  expect(await paymentAccount(f.db, admin, tenant)).toMatchObject({ account: { status: "not_connected" }, canManageAccount: false });
+  expect((await paymentAccount(f.db, owner, tenant)).canManageAccount).toBe(true);
+  // Founder decision 27 Nov: only the owner connects the payout account, in the server and in the database definer.
+  await expect(changePaymentAccount(f.db, admin, tenant, settings)).rejects.toMatchObject({ status: 404 });
+  const definer = (user: string, action: string) => withUser(f.db, user, async tx => {
+    await tx.execute(sql`select set_config('app.tenant_id',${tenant},true)`);
+    return (await tx.execute<{ o: string }>(sql`select public.ministry_payment_account_change(${tenant}::uuid,${action},'fake',
+      ${fakeConnectedAccountId(tenant)},'direct-1',${"a".repeat(64)},'Admin Payee','US','USD',true,true,'{}'::text[]) as o`)).rows[0].o;
+  });
+  expect(await definer(admin, "connect")).toBe("missing");
+  expect((await f.admin.query("select count(*)::int as n from ministry_payment_accounts where tenant_id=$1", [tenant])).rows[0].n).toBe(0);
+  const first = await changePaymentAccount(f.db, owner, tenant, settings);
   expect(first).toMatchObject({ onboardingUrl: expect.stringContaining("example.invalid"), account: { status: "restricted" } });
   expect(await changePaymentAccount(f.db, owner, tenant, settings)).toEqual(first);
+  await expect(changePaymentAccount(f.db, admin, tenant, { action: "sync" })).rejects.toMatchObject({ status: 404 });
+  await expect(changePaymentAccount(f.db, admin, tenant, { action: "disconnect" })).rejects.toMatchObject({ status: 404 });
+  expect(await definer(admin, "sync")).toBe("missing");
+  expect(await definer(admin, "disconnect")).toBe("missing");
+  expect((await paymentAccount(f.db, owner, tenant)).account.status).toBe("restricted");
   await expect(changePaymentAccount(f.db, owner, tenant, { ...settings, legalName: "Different" })).rejects.toMatchObject({ status: 409 });
   await changePaymentAccount(f.db, outsider, outside, { ...settings, legalName: "Outside ministry" });
   await expect(changePaymentAccount(f.db, donor, tenant, { action: "sync" })).rejects.toMatchObject({ status: 404 });
   await expect(paymentAccount(f.db, outsider, tenant)).rejects.toMatchObject({ status: 404 });
-  expect(await changePaymentAccount(f.db, admin, tenant, { action: "sync" })).toMatchObject({ account: { status: "ready" } });
+  expect(await changePaymentAccount(f.db, owner, tenant, { action: "sync" })).toMatchObject({ account: { status: "ready" } });
   const direct = await withUser(f.db, outsider, async tx => {
     await tx.execute(sql`select set_config('app.tenant_id',${tenant},true)`);
     return tx.execute(sql`select * from ministry_payment_accounts`);
   });
   expect(direct.rows).toEqual([]);
   await expect(f.workerPool.query("select * from ministry_payment_accounts")).rejects.toMatchObject({ code: "42501" });
+});
+
+it("lets no app session write payout identity or provider status directly", async () => {
+  const direct = (user: string, statement: string) => withUser(f.db, user, async tx => {
+    await tx.execute(sql`select set_config('app.tenant_id',${tenant},true)`);
+    return tx.execute(sql.raw(statement));
+  });
+  for (const user of [owner, admin]) {
+    for (const set of ["account_id = 'acct_attacker'", "provider = 'stripe_connect'", "charges_enabled = true",
+      "payouts_enabled = true", "requirements_due = '{}'", "disconnected_at = null", "status_reported_at = now()", "legal_name = 'X'"]) {
+      await expect(direct(user, `update ministry_payment_accounts set ${set}`)).rejects.toMatchObject({ cause: { code: "42501" } });
+    }
+    await expect(direct(user, `insert into ministry_payment_accounts (tenant_id,account_id,provider,legal_name,currency,country,charges_enabled,payouts_enabled)
+      values ('${tenant}','acct_attacker','fake','X','USD','US',true,true)`)).rejects.toMatchObject({ cause: { code: "42501" } });
+    await expect(direct(user, `insert into ministry_payment_onboarding values ('${tenant}','k-${user}','${"b".repeat(64)}')`)).rejects.toMatchObject({ cause: { code: "42501" } });
+  }
+  // Even the table owner cannot move an account's identity.
+  await expect(f.admin.query("update ministry_payment_accounts set account_id = 'acct_attacker' where tenant_id = $1", [tenant])).rejects.toMatchObject({ code: "42501" });
+  await expect(f.admin.query("update ministry_payment_accounts set provider = 'stripe_connect' where tenant_id = $1", [tenant])).rejects.toMatchObject({ code: "42501" });
+  const { rows: [row] } = await f.admin.query("select account_id, provider from ministry_payment_accounts where tenant_id = $1", [tenant]);
+  expect(row).toEqual({ account_id: fakeConnectedAccountId(tenant), provider: "fake" });
+  // The provider-event definer runs only for the worker login.
+  await expect(f.admin.query(`select public.ministry_payment_record_event('fake','evt_admin',$1,'account_status',null,null,null,null,null,now(),true,true,'{}')`,
+    [fakeConnectedAccountId(tenant)])).rejects.toMatchObject({ code: "42501" });
+  expect((await f.admin.query("select count(*)::int as n from ministry_payment_events where event_id = 'evt_admin'")).rows[0].n).toBe(0);
+});
+
+it("lets staff change only a price's amount and currency", async () => {
+  const other = id();
+  await f.admin.query("insert into catalog_items(tenant_id,id,kind,slug,title,state,visibility) values($1,$2,'course','synthetic-course-2','Course 2','published','listed')", [tenant, other]);
+  await changePaymentAccount(f.db, admin, tenant, { action: "price", itemId: other, amountMinor: "700", currency: "USD" });
+  const direct = (statement: string) => withUser(f.db, admin, async tx => {
+    await tx.execute(sql`select set_config('app.tenant_id',${tenant},true)`);
+    return tx.execute(sql.raw(statement));
+  });
+  await direct(`update ministry_payment_prices set amount_minor = 800 where item_id = '${other}'`);
+  await expect(direct(`update ministry_payment_prices set item_id = '${item}' where item_id = '${other}'`)).rejects.toMatchObject({ cause: { code: "42501" } });
+  await expect(direct(`update ministry_payment_prices set tenant_id = '${outside}' where item_id = '${other}'`)).rejects.toMatchObject({ cause: { code: "42501" } });
+  await expect(f.admin.query("update ministry_payment_prices set item_id = $1 where item_id = $2", [item, other])).rejects.toMatchObject({ code: "42501" });
+  await expect(f.admin.query("update ministry_payment_prices set tenant_id = $1 where item_id = $2", [outside, other])).rejects.toMatchObject({ code: "42501" });
+  expect((await f.admin.query("select tenant_id, amount_minor::int as a from ministry_payment_prices where item_id = $1", [other])).rows[0]).toEqual({ tenant_id: tenant, a: 800 });
 });
 
 it("builds idempotent direct charges with canonical server-side course pricing", async () => {
