@@ -57,6 +57,18 @@ it("returns 404 from every Communities route in production unless activated", as
   expect(touched).not.toHaveBeenCalled();
 });
 
+it("hides the C15c email routes and the unsubscribe page in production unless activated", async () => {
+  vi.stubEnv("NODE_ENV", "production"); vi.stubEnv("HARVEST_COMMUNITIES", "");
+  const email = await import("../../src/app/api/communities/[slug]/notifications/email/route");
+  const unsubscribe = await import("../../src/app/api/communities/unsubscribe/route");
+  const page = await import("../../src/app/communities/unsubscribe/page");
+  expect((await email.PUT(request("PUT"), context)).status).toBe(404);
+  expect((await unsubscribe.POST(new Request("https://example.test/api/communities/unsubscribe?token=a.b", { method: "POST" }))).status).toBe(404);
+  expect(() => page.default()).toThrow();
+  expect(await page.generateMetadata()).toEqual({});
+  expect(touched).not.toHaveBeenCalled();
+});
+
 it("reaches authentication once activated", async () => {
   vi.stubEnv("NODE_ENV", "production"); vi.stubEnv("HARVEST_COMMUNITIES", "enabled");
   const list = await import("../../src/app/api/workspaces/[tenantId]/communities/route");

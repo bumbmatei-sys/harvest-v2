@@ -1,7 +1,7 @@
 import { sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
-import type { NotificationView } from "../lib/notifications";
+import { emailFrequencies, type NotificationView } from "../lib/notifications";
 import { message } from "../i18n/messages";
 import { communitySlug } from "./communities";
 import { forumContextTx, forumDefiner, type ForumContext } from "./community-forum";
@@ -60,7 +60,7 @@ export async function savePreferences(db: Database, userId: string, slug: string
   return forumDefiner(db, userId, sql`select public.community_notification_prefs_save(${communitySlug.parse(slug)}, ${input.replies}, ${input.likes}, ${input.announcements}, ${input.muted}) as v`);
 }
 
-const emailInput = z.object({ frequency: z.enum(["off", "important", "daily", "weekly"]) }).strict();
+const emailInput = z.object({ frequency: z.enum(emailFrequencies) }).strict();
 /** The caller's own email frequency for this community (off, important only, daily digest or weekly digest). */
 export async function saveEmailFrequency(db: Database, userId: string, slug: string, raw: unknown) {
   const { frequency } = emailInput.parse(raw);
