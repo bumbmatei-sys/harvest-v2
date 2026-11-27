@@ -788,6 +788,10 @@
     "newsletterImageSuggestionUnavailable": "A thumbnail suggestion is not available.",
     "waysToGiveLimit": "This ministry already has the most ways to give allowed.",
     "campaignNotFound": "Campaign not found",
+    "dataExportLimited": "You can download your data 3 times an hour. Try again later.",
+    "deleteAccountConfirm": "Type DELETE to confirm.",
+    "deleteAccountSoleOwner": "You are the only owner of a ministry. Contact Harvest support to transfer ownership first.",
+    "deleteAccountDisconnectFailed": "Could not disconnect your mail and calendar. Try again.",
     "blogHandleTaken": "Another ministry already uses this blog address.",
     "blogHandleInvalid": "Use 3 to 30 lower-case letters, numbers or single hyphens.",
     "blogHandleLocked": "The blog address is fixed once an article is published.",
@@ -799,8 +803,7 @@
     "blogSlugInvalid": "Use lower-case letters, numbers or single hyphens.",
     "blogPictureUnavailable": "That picture is not available. Choose a ready picture from Files.",
     "blogScheduleRange": "Choose a time within the coming year.",
-    "blogNotReady": "Add a title, an address and some text before publishing.",
-    "dataExportLimited": "You can download your data 3 times an hour. Try again later."
+    "blogNotReady": "Add a title, an address and some text before publishing."
   },
   "LibEnv": {
     "missingRequiredEnvironmentVariableValue": "Missing required environment variable: {name}"
@@ -3349,7 +3352,8 @@
     "newer": "Newer posts",
     "older": "Older posts",
     "awaitingReview": "Awaiting review",
-    "mutedUntil": "You can't post until {date}."
+    "mutedUntil": "You can't post until {date}.",
+    "formerMember": "Former member"
   },
   "RichText": {
     "toolbar": "Formatting",
@@ -3801,7 +3805,8 @@
       "open": "Open",
       "approved": "Approved",
       "declined": "Declined"
-    }
+    },
+    "formerMember": "Former member"
   },
   "CommunityUnsubscribe": {
     "metaTitle": "Community email",
@@ -10803,6 +10808,33 @@
     "downloaded": "Your data was downloaded.",
     "downloadFailed": "Could not prepare your data. Try again.",
     "limited": "You can download your data 3 times an hour. Try again later.",
-    "newslettersNote": "Newsletter subscriptions belong to each ministry's contact list and are not linked to your account. Use the unsubscribe link in any email, or ask the ministry."
+    "newslettersNote": "Newsletter subscriptions belong to each ministry's contact list and are not linked to your account. Use the unsubscribe link in any email, or ask the ministry.",
+    "deleteHelp": "Your posts and chat messages stay as \"Former member\". Everything else about you is deleted.",
+    "deleteLink": "Delete my account",
+    "deleteTitle": "Delete your account",
+    "removedTitle": "What is deleted",
+    "removedProfile": "Your name, email address, photo and profile",
+    "removedDms": "Your direct messages",
+    "removedCourses": "Your course progress and private notes",
+    "removedMemberships": "Your ministry and community memberships, likes and reactions",
+    "removedSessions": "Every sign-in, on every device",
+    "keptTitle": "What stays",
+    "keptPosts": "Your posts, replies and chat messages, shown as \"Former member\"",
+    "keptAudit": "Security records of actions taken with your account, without your name or email",
+    "keptMinistry": "Contact records a ministry keeps about you. Ask the ministry to remove them.",
+    "soleOwnerTitle": "Transfer your ministries first",
+    "soleOwnerBody": "You are the only owner of these ministries. Ownership can't be transferred in the app yet: contact Harvest support to make someone else an owner, then come back.",
+    "soleOwnerShort": "You are the only owner of a ministry. Contact Harvest support to transfer ownership first.",
+    "typeToConfirm": "Type {word} to confirm",
+    "deleteAccount": "Delete my account",
+    "deleting": "Deleting…",
+    "deleteFailed": "Could not delete your account. Try again.",
+    "deleted": "Your account was deleted.",
+    "home": "Go to Harvest",
+    "cancel": "Cancel",
+    "reauth": "For your security, sign in again before deleting your account.",
+    "signInAgain": "Sign in again",
+    "removedConnections": "Your connected mail and calendar accounts (disconnected)",
+    "disconnectFailed": "Could not disconnect your mail and calendar. Try again."
   }
 }

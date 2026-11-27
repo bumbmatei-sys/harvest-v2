@@ -1,6 +1,6 @@
 # Newsletter click report privacy
 
-Working migration `0136_newsletter_click_fixed_buckets` (first drafted as 0142, re-chained after main's 0135; final numbers are assigned at merge) replaces both click report functions: `newsletter_click_report` (ministry overview and campaign report) and `newsletter_automation_click_report` (automation Activity tab). The function can be called by the application role, so the privacy rule lives in PostgreSQL.
+Working migration `0137_newsletter_click_fixed_buckets` (first drafted as 0142, re-chained after main's 0135; final numbers are assigned at merge) replaces both click report functions: `newsletter_click_report` (ministry overview and campaign report) and `newsletter_automation_click_report` (automation Activity tab). The function can be called by the application role, so the privacy rule lives in PostgreSQL.
 
 The report uses whole UTC days with an inclusive start and exclusive end. It determines visibility separately for each campaign and day before adding up a requested period. Each reported link on that day must have at least five deduplicated delivery IDs. If a campaign went to fewer than five recipients or any of its clicked links had fewer than five clicks that day, the whole campaign day is withheld. The rule also works on anonymous archived link counts.
 
@@ -17,7 +17,7 @@ The independent review found that `newsletter_automation_click_report` (0133) st
 - The earlier "leave out the smallest shown link" rule is no longer needed, because every shown cell is at least five.
 - Access is owners and admins only in the database (`access_role(..., 'owner_admin', ...)`, which is never grantable) and in `automationClicks`; a delegated newsletter grant is refused (404 in the app, 42501 from the function). Search path stays pinned; the function only saves and restores its own `app.nl_send_tenant` and `app.nl_auto_private` flags and reads no forgeable flag.
 
-Tests in `tests/integration/newsletter-automation-clicks.test.ts`: the reviewer's two-range case ([d1,d2), [d1,d3), [d2,d3) and a later safe day), with clicks written at UTC day edges in +02:00 and -04:00 and reports run under the Pacific/Kiritimati, America/Los_Angeles, Asia/Kolkata and UTC session time zones; the app path for the same data; and the delegated-manager refusal. Both new tests fail against the 0133 function and pass with 0136. Existing automation tests pass unchanged.
+Tests in `tests/integration/newsletter-automation-clicks.test.ts`: the reviewer's two-range case ([d1,d2), [d1,d3), [d2,d3) and a later safe day), with clicks written at UTC day edges in +02:00 and -04:00 and reports run under the Pacific/Kiritimati, America/Los_Angeles, Asia/Kolkata and UTC session time zones; the app path for the same data; and the delegated-manager refusal. Both new tests fail against the 0133 function and pass with 0137. Existing automation tests pass unchanged.
 
 Rules kept: clicks only, totals only, owners and admins only, no IP, under-5 withheld. Synthetic data only.
 
