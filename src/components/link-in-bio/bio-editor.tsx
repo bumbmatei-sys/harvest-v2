@@ -70,7 +70,7 @@ export function draftView(definition: BioDefinition, choices: BioChoices, minist
     brandTheme: brandTheme as BioView["brandTheme"], socials: definition.socials.filter((s) => /^https:\/\//.test(s.url)) };
 }
 
-export function BioEditor({ tenantId, initial, choices, ministryName, brandTheme, base, messagesHref }: {
+export function BioEditor({ origin, tenantId, initial, choices, ministryName, brandTheme, base, messagesHref }: { origin: string;
   tenantId: string; initial: BioOwnerView; choices: BioChoices; ministryName: string; brandTheme: string | null; base: string; messagesHref: string;
 }) {
   const t = useTranslations("LinkInBio"), request = useCrmRequest(), hosted = useEditorHosted();
@@ -287,7 +287,7 @@ export function BioEditor({ tenantId, initial, choices, ministryName, brandTheme
             : handleProblemNow ? <span className="text-destructive">{t(`publishing.problems.${handleProblemNow}`)}</span>
             : fields.handle !== saved.handle ? <span className="text-muted-foreground">{handleState.checking || handleState.value !== fields.handle ? t("publishing.handleChecking") : t("publishing.handleAvailable")}</span> : null}</p></Field>
         {published && <div className="flex flex-wrap items-center gap-2"><Button asChild variant="outline" className="min-h-11"><a href={path} target="_blank" rel="noopener noreferrer"><ExternalLink aria-hidden="true" />{t("openPage")}</a></Button>
-          <CopyButton value={`${typeof window === "undefined" ? "" : window.location.origin}/l/${data.handle}`} label={t("copyLink")} /></div>}
+          <CopyButton value={`${origin}/l/${data.handle}`} label={t("copyLink")} /></div>}
         <div className="space-y-2"><p className="text-sm font-medium">{t("publishing.checklist")}</p>
           <ul className="space-y-1 text-sm text-muted-foreground" data-bio-checklist>
             <li className="flex items-center gap-2">{checklist.includes("name") ? <Circle className="size-4" aria-hidden="true" /> : <Check className="size-4" aria-hidden="true" />}<span>{t("publishing.checkName")}</span></li>
