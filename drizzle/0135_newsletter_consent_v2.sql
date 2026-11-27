@@ -6,6 +6,7 @@
 -- 2. Automation emails count link clicks under the campaign rules: links are rewritten only while the ministry counts clicks; totals only per
 --    automation, per step, per UTC day and per link; groups under 5 withheld; owners and admins only (newsletter:analytics); click rows kept 90 days,
 --    then rolled into anonymous counts; no IP address, user agent or device data. Three new tables, all FORCE RLS, nothing granted to the app role.
+-- 3. newsletter_click_report (0126) is replaced so top links count only shown days (review fix; same body otherwise).
 -- Every definer pins search_path, schema-qualifies names, restores each app.* setting it changes and checks roles only through public.access_role.
 -- The new tables start empty, so the 0091 NO FORCE backfill pattern is not needed. Sending stays off; no worker or schedule is installed.
 CREATE TABLE "newsletter_automation_click_counts" (
@@ -289,6 +290,74 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.newsletter_automation_click_report(uuid,uuid,date,date) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.newsletter_automation_click_report(uuid,uuid,date,date) TO harvest_app;
+--> statement-breakpoint
+-- Review fix: newsletter_click_report (0126) is replaced with its exact 0126 body except one condition. Top links now count only clicks on days that
+-- are shown, so a link total can never exceed the shown day totals and a withheld day cannot be found by subtracting them. Complementary rule kept.
+-- Aggregate click report for owners and admins (newsletter:analytics). UTC days, at most 90. Withheld (null): any campaign-day under 5 hides that
+-- day, the period total and the campaign's row; a campaign whose recipients are a group under 5 never shows clicks; links under 5 are left out, and
+-- when that leaves one link or fewer than 5 clicks unaccounted for, the smallest shown link is left out too, so no small figure can be subtracted.
+CREATE OR REPLACE FUNCTION public.newsletter_click_report(p_tenant uuid,p_campaign uuid,p_from date,p_until date) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path=pg_catalog,pg_temp AS $$
+DECLARE prior_tenant text:=pg_catalog.current_setting('app.nl_send_tenant',true); result jsonb;
+BEGIN
+  IF p_tenant IS DISTINCT FROM nullif(pg_catalog.current_setting('app.tenant_id',true),'')::uuid OR NOT EXISTS (
+    SELECT FROM public.workspace_members m WHERE m.tenant_id=p_tenant AND m.user_id=nullif(pg_catalog.current_setting('app.user_id',true),'')
+      AND public.newsletter_capability(public.access_role(m.tenant_id,m.user_id,'newsletter',m.role_id),'newsletter:analytics')) THEN
+    RAISE insufficient_privilege;
+  END IF;
+  IF p_until IS NULL OR p_from IS NULL OR p_until-p_from NOT BETWEEN 1 AND 90 THEN RAISE invalid_parameter_value; END IF;
+  PERFORM pg_catalog.set_config('app.nl_send_tenant',p_tenant::text,true);
+  WITH raw AS (
+    SELECT k.campaign_id,k.revision,(k.clicked_at AT TIME ZONE 'UTC')::date AS day,k.link_index,count(*)::bigint AS n
+    FROM public.newsletter_clicks k WHERE k.tenant_id=p_tenant AND (p_campaign IS NULL OR k.campaign_id=p_campaign)
+      AND k.clicked_at>=p_from::timestamp AT TIME ZONE 'UTC' AND k.clicked_at<p_until::timestamp AT TIME ZONE 'UTC'
+    GROUP BY 1,2,3,4
+    UNION ALL
+    SELECT a.campaign_id,a.revision,a.day,a.link_index,a.count FROM public.newsletter_click_counts a
+    WHERE a.tenant_id=p_tenant AND (p_campaign IS NULL OR a.campaign_id=p_campaign) AND a.day>=p_from AND a.day<p_until
+  ), small_cohorts AS (
+    SELECT x.campaign_id FROM (
+      SELECT d.campaign_id,count(*)::bigint AS n FROM public.newsletter_deliveries d
+        WHERE d.tenant_id=p_tenant AND d.campaign_id IN (SELECT campaign_id FROM raw) GROUP BY 1
+      UNION ALL
+      SELECT a.campaign_id,a.count FROM public.newsletter_archived_counts a
+        WHERE a.tenant_id=p_tenant AND a.metric='selected' AND a.campaign_id IN (SELECT campaign_id FROM raw)
+    ) x GROUP BY 1 HAVING sum(x.n)<5
+  ), campaign_day AS (
+    SELECT campaign_id,day,sum(n)::bigint AS n FROM raw GROUP BY 1,2
+  ), small_campaigns AS (
+    SELECT DISTINCT campaign_id FROM campaign_day WHERE n<5 UNION SELECT campaign_id FROM small_cohorts
+  ), small_days AS (
+    SELECT DISTINCT day FROM campaign_day WHERE campaign_id IN (SELECT campaign_id FROM small_campaigns)
+  ), daily AS (
+    SELECT day,sum(n)::bigint AS n FROM campaign_day GROUP BY 1
+  ), per_campaign AS (
+    SELECT campaign_id,sum(n)::bigint AS n FROM campaign_day GROUP BY 1
+  ), links AS (
+    SELECT r.campaign_id,r.revision,r.link_index,sum(r.n)::bigint AS n FROM raw r
+    WHERE p_campaign IS NOT NULL AND r.campaign_id NOT IN (SELECT campaign_id FROM small_cohorts) AND r.day NOT IN (SELECT day FROM small_days) GROUP BY 1,2,3
+  ), hidden AS (
+    SELECT count(*) FILTER (WHERE n<5) AS links,coalesce(sum(n) FILTER (WHERE n<5),0) AS clicks FROM links
+  ), ranked AS (
+    SELECT l.*,row_number() OVER (ORDER BY l.n,l.revision DESC,l.link_index DESC) AS smallest FROM links l WHERE l.n>=5
+  ), shown AS (
+    SELECT r.* FROM ranked r,hidden h WHERE NOT (h.links>0 AND (h.links=1 OR h.clicks<5) AND r.smallest=1)
+  )
+  SELECT jsonb_build_object(
+    'total',CASE WHEN EXISTS (SELECT FROM small_days) THEN NULL ELSE coalesce((SELECT sum(n) FROM daily),0) END,
+    'days',coalesce((SELECT jsonb_agg(jsonb_build_object('day',pg_catalog.to_char(d.day,'YYYY-MM-DD'),
+      'clicks',CASE WHEN d.day IN (SELECT day FROM small_days) THEN NULL ELSE d.n END) ORDER BY d.day) FROM daily d),'[]'::jsonb),
+    'campaigns',coalesce((SELECT jsonb_agg(jsonb_build_object('id',c.campaign_id,
+      'clicks',CASE WHEN c.campaign_id IN (SELECT campaign_id FROM small_campaigns) THEN NULL ELSE c.n END) ORDER BY c.campaign_id) FROM per_campaign c),'[]'::jsonb),
+    'links',coalesce((SELECT jsonb_agg(jsonb_build_object('url',u.url,'clicks',t.n) ORDER BY t.n DESC,u.url)
+      FROM (SELECT * FROM shown ORDER BY n DESC,link_index LIMIT 10) t JOIN public.newsletter_click_links u
+        ON u.tenant_id=p_tenant AND u.campaign_id=t.campaign_id AND u.revision=t.revision AND u.link_index=t.link_index),'[]'::jsonb)
+  ) INTO result;
+  PERFORM pg_catalog.set_config('app.nl_send_tenant',coalesce(prior_tenant,''),true);
+  RETURN result;
+END $$;
+REVOKE ALL ON FUNCTION public.newsletter_click_report(uuid,uuid,date,date) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.newsletter_click_report(uuid,uuid,date,date) TO harvest_app;
 --> statement-breakpoint
 -- Worker only (the newsletter:purge:test command): automation click rows older than 90 days become anonymous automation/step/day/link counts in the
 -- same statement.

@@ -41,6 +41,10 @@ Details:
 
 UI: the automation editor's Activity tab now starts with a "Link clicks" section (owners and admins): the shared `ReportStatCards` tile ("May include link scanners", or "Not counted"), `ReportTrendCard` clicks by day, `ReportBarsCard` clicks by step ("Step 2: Welcome") and the same "Top links" `DataTable` card as campaign analytics, with the 90-day footer. **No new kit items**, no new shared component, no provenance change.
 
+## Review fix: campaign top links (0126 report)
+
+`newsletter_click_report` is replaced in 0135 with its exact 0126 body except one condition: top links now count only clicks on days that are shown (`r.day NOT IN (SELECT day FROM small_days)`), as well as excluding small cohorts. Before, a campaign with a withheld day still counted that day's clicks in its link totals, so the links could reveal it. The complementary rule is unchanged. Regression: `tests/integration/newsletter-click-tracking.test.ts` ("never lets a campaign's link totals reveal a withheld day").
+
 ## Evidence
 
 - Unit: `tests/unit/newsletter-signup.test.ts` (v2 wording pinned, `signupWording`, `signupTexts`, a form cannot store v2) and `tests/unit/newsletter-click-tracking.test.ts` (automation tokens round trip and never verify as campaign tokens, and the reverse).
