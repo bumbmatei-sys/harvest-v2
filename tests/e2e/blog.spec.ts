@@ -40,6 +40,8 @@ test("write, schedule, publish and read an article publicly", async ({ page }) =
   await page.setViewportSize({ width: 1280, height: 900 });
   // Compile the sign-in and public routes first: a busy shared runner can take longer than a request's default patience on a first compile.
   for (const path of ["/api/auth/email-otp/send-verification-otp", "/blog/warm-up", "/blog/warm-up/rss.xml"]) await page.request.get(path, { timeout: 240_000 }).catch(() => undefined);
+  // An unknown blog address answers 404 (checked on the already compiled route).
+  expect((await page.request.get("/blog/no-such-blog-here", { timeout: 240_000 })).status()).toBe(404);
   await signIn(page);
   const ministry = `Grace Fellowship ${Date.now().toString(36)}`;
   const tenant = (await (await post(page, "/api/workspaces", { name: ministry, audience: "church" })).json()).tenantId as string;
@@ -85,7 +87,7 @@ test("write, schedule, publish and read an article publicly", async ({ page }) =
   await expect(preview).toContainText("Light the Advent candles");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.getByText("Saved.").first()).toBeVisible();
-  await audit(page, "editor-settings", "[data-blog-search-preview]");
+  await audit(page, "editor-settings", "[data-blog-search-preview]:visible");
 
   // Publish step: schedule for tomorrow 09:00 in the ministry's zone.
   await step(page, "Publish").click();
@@ -150,6 +152,5 @@ test("write, schedule, publish and read an article publicly", async ({ page }) =
   expect(xml).toContain("Advent hope for every home");
   expect(xml).not.toContain("Private draft notes");
   expect((await page.request.get(`/blog/${handle}/private-draft-notes`)).status()).toBe(404);
-  expect((await page.request.get("/blog/no-such-blog-here")).status()).toBe(404);
   expect(errors).toEqual([]);
 });
