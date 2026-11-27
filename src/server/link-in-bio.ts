@@ -5,7 +5,7 @@ import type { Database, Transaction } from "../db/client";
 import { auditLogs, bioClicks, bioMessages, bioPages, communities } from "../db/schema";
 import { message } from "../i18n/messages";
 import { isBrandTheme } from "../lib/theme-registry";
-import { bioDefinitionSchema, bioHandleSchema, bioMessageSchema, emptyBioDefinition, fieldIssues, handleProblem, publishIssues, suggestHandle,
+import { bioDefinitionSchema, bioHandleSchema, bioMessageSchema, emptyBioDefinition, fieldIssues, handleProblem, publishIssues, shownTabs, suggestHandle,
   type BioDefinition, type BioView, type BioViewBlock } from "../lib/link-in-bio";
 import type { GivingPublicMethod } from "../lib/ways-to-give";
 import { bioMessagesKey, linkInBioEnabled } from "./link-in-bio-mode";
@@ -52,7 +52,9 @@ async function project(tx: Transaction, row: typeof bioPages.$inferSelect): Prom
   const counts = await tx.select({ block: bioClicks.blockId, clicks: sql<number>`sum(${bioClicks.clicks})::int` }).from(bioClicks)
     .where(and(eq(bioClicks.tenantId, row.tenantId), gte(bioClicks.day, since))).groupBy(bioClicks.blockId);
   const [unread] = await tx.select({ n: sql<number>`count(*)::int` }).from(bioMessages).where(and(eq(bioMessages.tenantId, row.tenantId), eq(bioMessages.status, "new"), sql`${bioMessages.expiresAt} > now()`));
-  return { id: row.id, handle: row.handle, status: row.status, version: row.version, draft: row.draft, photoFileId: row.photoFileId, coverFileId: row.coverFileId, publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
+  // Older drafts lack the fields added since (tab names, layout, cover switch, photo position, icon style): the schema's defaults fill them in.
+  const draft = bioDefinitionSchema.safeParse(row.draft);
+  return { id: row.id, handle: row.handle, status: row.status, version: row.version, draft: draft.success ? draft.data : row.draft, photoFileId: row.photoFileId, coverFileId: row.coverFileId, publishedAt: row.publishedAt ? row.publishedAt.toISOString() : null,
     unpublishedChanges: row.status === "published" && !sameDefinition(row.draft, row.published), messagesAvailable: bioMessagesKey() !== null,
     clicks: Object.fromEntries(counts.map((c) => [c.block, Number(c.clicks)])), newMessages: Number(unread?.n ?? 0) };
 }
@@ -143,7 +145,7 @@ export async function transitionBioPage(db: Database, user: string, workspace: s
     if (input.action === "publish") {
       if (current.version !== input.version) throw stale();
       const definition = bioDefinitionSchema.safeParse(current.draft);
-      if (!definition.success || publishIssues(definition.data).length || Object.keys(fieldIssues(definition.data)).length) throw new AccessError(400, message("Errors.linkInBioNotReady"));
+      if (!definition.success || publishIssues(definition.data, { hasPhoto: current.photoFileId !== null }).length || Object.keys(fieldIssues(definition.data)).length) throw new AccessError(400, message("Errors.linkInBioNotReady"));
       await checkReferences(tx, tenantId, definition.data);
     }
     const { rows: [row] } = await tx.execute<{ result: string }>(sql`select public.bio_transition(${tenantId}::uuid, ${input.action}, ${input.version}) as result`);
@@ -233,11 +235,10 @@ export async function getPublicBio(db: Database, handle: string, env: Record<str
       case "giving": return giving.length ? [{ type: "giving", id: block.id, title: block.title, methods: giving }] : [];
     }
   };
-  const details = definition.details.filter((item) => !item.hidden).map(({ id, kind, value }) => ({ id, kind, value }));
   // A hidden tab, and a tab with nothing to show, never reach the visitor.
-  const tabs = definition.tabs.filter((t) => !t.hidden).map((t) => ({ id: t.id, blocks: definition.blocks.filter((b) => b.tab === t.id).flatMap(project) }))
-    .filter((t) => t.blocks.length > 0 || (t.id === "home" && details.length > 0));
-  return { ministryName: row.result.ministryName, name: definition.name, subtitle: definition.subtitle, bio: definition.bio, details, tabs, hasPhoto: row.result.hasPhoto, hasCover: row.result.hasCover,
+  const tabs = shownTabs(definition, definition.blocks).map((t) => ({ ...t, blocks: t.blocks.flatMap(project) })).filter((t) => t.blocks.length > 0);
+  return { ministryName: row.result.ministryName, name: definition.name, bio: definition.bio, tabs, layout: definition.layout, showCover: definition.cover,
+    photoAlign: definition.photoAlign, iconStyle: definition.iconStyle, hasPhoto: row.result.hasPhoto, hasCover: definition.cover && row.result.hasCover,
     scheme: definition.scheme, buttons: definition.buttons, brandTheme: isBrandTheme(row.result.brandTheme) ? row.result.brandTheme : null, socials: definition.socials };
 }
 
