@@ -39,6 +39,20 @@ export const accountExportRequests = pgTable("account_export_requests", {
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("account_export_requests_user_idx").on(t.userId, t.requestedAt)]);
+// "Your data" (27 Nov): one row per deleted account, the reference staff and the audit row use. The account row itself stays as a scrubbed
+// tombstone (append-only audit logs and other people's records point at it). Written only by public.account_delete (0136); no app grant.
+export const accountDeletions = pgTable("account_deletions", {
+  userId: text("user_id").primaryKey().references(() => users.id),
+  reference: uuid("reference").notNull().unique(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }).notNull().defaultNow(),
+});
+// One row per running account definer (0136): the random token app.account_erase must equal, for the caller, created in this transaction.
+// Written and deleted only by the account definers; no app grant. It makes the erase flag unforgeable: a value the app sets by hand matches no row.
+export const accountEraseGrants = pgTable("account_erase_grants", {
+  token: uuid("token").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
 export const sessions = pgTable("sessions", {
   id: text("id").primaryKey(), token: text("token").notNull().unique(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),

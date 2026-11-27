@@ -1,5 +1,3 @@
-ALTER TABLE "audit_logs" DROP CONSTRAINT "audit_system_actor";--> statement-breakpoint
-ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_system_actor" CHECK ("audit_logs"."actor_id" is not null or "audit_logs"."action" in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated', 'community.profile_save', 'community.profile_withdraw', 'community.profile_erase', 'crm.form.submit', 'bio.message.submit', 'docs.trash.purge', 'blog.external.outcome'));--> statement-breakpoint
 CREATE TABLE "blog_external_assets" (
 	"tenant_id" uuid NOT NULL,
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
@@ -78,6 +76,7 @@ CREATE TABLE "blog_external_scope_tokens" (
 	"purpose" text NOT NULL
 );
 --> statement-breakpoint
+ALTER TABLE "audit_logs" DROP CONSTRAINT "audit_system_actor";--> statement-breakpoint
 ALTER TABLE "blog_posts" ADD COLUMN "harvest_page" boolean DEFAULT true NOT NULL;--> statement-breakpoint
 ALTER TABLE "blog_external_assets" ADD CONSTRAINT "blog_external_assets_tenant_id_workspaces_tenant_id_fk" FOREIGN KEY ("tenant_id") REFERENCES "public"."workspaces"("tenant_id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "blog_external_assets" ADD CONSTRAINT "blog_external_assets_file_id_files_id_fk" FOREIGN KEY ("file_id") REFERENCES "public"."files"("id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -87,6 +86,7 @@ ALTER TABLE "blog_external_destinations" ADD CONSTRAINT "blog_external_destinati
 ALTER TABLE "blog_external_jobs" ADD CONSTRAINT "blog_external_job_delivery" FOREIGN KEY ("tenant_id","delivery_id") REFERENCES "public"."blog_external_deliveries"("tenant_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "blog_external_pending_job" ON "blog_external_jobs" USING btree ("tenant_id","delivery_id") WHERE "blog_external_jobs"."finished_at" is null;--> statement-breakpoint
 CREATE INDEX "blog_external_due_job" ON "blog_external_jobs" USING btree ("next_at","id") WHERE "blog_external_jobs"."finished_at" is null;--> statement-breakpoint
+ALTER TABLE "audit_logs" ADD CONSTRAINT "audit_system_actor" CHECK ("audit_logs"."actor_id" is not null or "audit_logs"."action" in ('followup.case.withdraw', 'followup.case.revoke', 'community.live.auto_close', 'community.moderation_report_expire', 'newsletter.signup.confirmed', 'newsletter.unsubscribe.list', 'newsletter.unsubscribe.all', 'newsletter.withdrawal.propagated', 'community.profile_save', 'community.profile_withdraw', 'community.profile_erase', 'crm.form.submit', 'bio.message.submit', 'docs.trash.purge', 'blog.external.outcome'));--> statement-breakpoint
 GRANT UPDATE (harvest_page) ON public.blog_posts TO harvest_app;--> statement-breakpoint
 ALTER POLICY blog_public_definer ON public.blog_posts
   USING (tenant_id = nullif(current_setting('app.blog_public_tenant', true), '')::uuid AND harvest_page AND status = 'published');--> statement-breakpoint
