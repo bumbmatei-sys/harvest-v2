@@ -7,7 +7,7 @@ import { workerSettings } from "../../src/server/worker-settings";
 import { signUnsubscribe } from "../../src/lib/community-email-token";
 import { chargePublicRead, publicReadLimits, PUBLIC_READ_WINDOW_MS, publicVisitorKey } from "../../src/server/public-read-limit";
 
-// C23 follow-up F1: anonymous public reads (Discover listing, search and page; the public community page and its beacon; unsubscribe) are
+// C23 follow-up F1: anonymous public reads (Discover listing, search and page; the public community page and its beacon) are
 // throttled per hashed visitor in the existing rate_limits store, answering the neutral 429 with Retry-After.
 vi.mock("server-only", () => ({}));
 vi.mock("../../src/db/client", () => ({ getDb: () => f.db }));
@@ -136,35 +136,23 @@ describe("the public community page", () => {
 });
 
 describe("unsubscribe", () => {
-  it("answers the same body for every token kind under the limit and the same 429 over it, per visitor", async () => {
+  it("is not throttled: the same 200 for every token kind, well past any per-visitor limit, and nothing counted", async () => {
     const route = await import("../../src/app/api/communities/unsubscribe/route");
     const valid = signUnsubscribe(secret, { tenantId: tenant, communityId: club, userId: "pr-member" });
     const forged = `${valid.slice(0, -3)}AAA`;
     const expired = signUnsubscribe(secret, { tenantId: tenant, communityId: club, userId: "pr-member" }, Date.now() - 400 * 24 * 3600 * 1000);
-    const query = (token: string | null, ip: string) => route.POST(new Request(`${site}/api/communities/unsubscribe${token === null ? "" : `?token=${encodeURIComponent(token)}`}`, { method: "POST", headers: from(ip) }));
-    const body = (token: string, ip: string) => route.POST(new Request(`${site}/api/communities/unsubscribe`, { method: "POST", headers: { ...from(ip), "content-type": "application/json", "content-length": String(JSON.stringify({ token }).length) }, body: JSON.stringify({ token }) }));
+    // One mailbox provider's server: every request shares one address.
+    const query = (token: string | null) => route.POST(new Request(`${site}/api/communities/unsubscribe${token === null ? "" : `?token=${encodeURIComponent(token)}`}`, { method: "POST", headers: from("203.0.113.30") }));
+    const body = (token: string) => route.POST(new Request(`${site}/api/communities/unsubscribe`, { method: "POST", headers: { ...from("203.0.113.30"), "content-type": "application/json", "content-length": String(JSON.stringify({ token }).length) }, body: JSON.stringify({ token }) }));
     const snapshot = async (response: Response) => ({ status: response.status, body: await response.text(), retry: response.headers.get("retry-after"), cache: response.headers.get("cache-control") });
-
-    const kinds = [() => query(forged, "203.0.113.30"), () => query("garbage", "203.0.113.30"), () => query(null, "203.0.113.30"), () => query(expired, "203.0.113.30"), () => body("garbage", "203.0.113.30"), () => query(valid, "203.0.113.30")];
-    const under = [];
-    for (const send of kinds) under.push(await snapshot(await send()));
-    expect(new Set(under.map((s) => JSON.stringify(s))).size).toBe(1);
-    expect(under[0]).toEqual({ status: 200, body: JSON.stringify({ ok: true }), retry: null, cache: "no-store" });
-    expect((await f.admin.query("select email_frequency from community_memberships where user_id = 'pr-member'")).rows[0].email_frequency).toBe("off");
-
-    for (let i = kinds.length; i < publicReadLimits["community-unsubscribe"]; i++) expect((await query("garbage", "203.0.113.30")).status).toBe(200);
+    const expected = { status: 200, body: JSON.stringify({ ok: true }), retry: null, cache: "no-store" };
+    const kinds = [() => query(forged), () => query("garbage"), () => query(null), () => query(expired), () => body("garbage"), () => body(forged)];
+    for (let round = 0; round < 10; round++) for (const send of kinds) expect(await snapshot(await send())).toEqual(expected);
+    // The real unsubscribe from the same address still lands after 60 junk requests.
     await f.admin.query("update community_memberships set email_frequency = 'important' where user_id = 'pr-member'");
-    const over = [];
-    for (const send of [() => query(valid, "203.0.113.30"), () => query(forged, "203.0.113.30"), () => query(null, "203.0.113.30"), () => body(valid, "203.0.113.30")]) {
-      const response = await send();
-      await expectLimited(response.clone());
-      const { retry, ...rest } = await snapshot(response);
-      over.push({ ...rest, retry: retry !== null });
-    }
-    expect(new Set(over.map((s) => JSON.stringify(s))).size).toBe(1);
-    // Over the limit nothing is processed, valid token or not.
-    expect((await f.admin.query("select email_frequency from community_memberships where user_id = 'pr-member'")).rows[0].email_frequency).toBe("important");
-    // Another visitor is unaffected.
-    expect(await snapshot(await query(valid, "203.0.113.31"))).toEqual(under[0]);
+    expect(await snapshot(await query(valid))).toEqual(expected);
+    expect((await f.admin.query("select email_frequency from community_memberships where user_id = 'pr-member'")).rows[0].email_frequency).toBe("off");
+    expect(await snapshot(await body(valid))).toEqual(expected);
+    expect((await f.admin.query("select count(*)::int n from rate_limits where key like 'public-read:%'")).rows[0].n).toBe(0);
   });
 });

@@ -2,17 +2,15 @@ import { getDb } from "@/db/client";
 import { requiredEnv } from "@/lib/env";
 import { communitiesEnabled } from "@/server/communities-mode";
 import { unsubscribeByToken } from "@/server/community-email";
-import { throttlePublicRead } from "@/server/public-read-limit";
 export const runtime = "nodejs";
 
 // C15b one-click unsubscribe (RFC 8058): a mail client POSTs here with no session and no Origin, so the signed token is
 // the only credential. The token comes from the query string (the List-Unsubscribe URL) or a JSON body (the confirmation page).
-// The answer is always the same, so nobody can learn whether a token was valid. The per-visitor throttle is charged before the token
-// is read, so its 429 is the same for every token too.
+// The answer is always the same, so nobody can learn whether a token was valid. Deliberately not throttled per visitor: one-click
+// POSTs come from mailbox providers' servers, so many real unsubscribes share one address, and they must be honoured. A bad token is
+// rejected offline by its signature before any database call.
 export async function POST(request: Request) {
   if (!communitiesEnabled()) return new Response(null, { status: 404 });
-  const limited = await throttlePublicRead(request, "community-unsubscribe");
-  if (limited) return limited;
   const url = new URL(request.url);
   let token = url.searchParams.get("token");
   // The body is only read when it declares a small size; a token is a few hundred characters.

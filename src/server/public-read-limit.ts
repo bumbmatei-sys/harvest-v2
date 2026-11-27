@@ -5,14 +5,15 @@ import { bioVisitorKey } from "./link-in-bio-public";
 import { workerSettings } from "./worker-settings";
 
 /**
- * Throttles anonymous public reads (Discover, the public community page and its beacon, community unsubscribe), C23 follow-up F1.
+ * Throttles anonymous public reads (Discover, the public community page and its beacon), C23 follow-up F1. Community unsubscribe is
+ * deliberately not throttled (one-click POSTs come from mailbox providers' servers, many real people behind one address).
  *
  * - Identity: the same keyed-hashed visitor key the link-in-bio and give-page report limits use (`bioVisitorKey`), so no raw address is
  *   stored or logged. On Workers the key comes from the request scope's secret and `cf-connecting-ip`. No usable address means no key and
  *   no counting (the read is served), as for those routes.
  * - Store: the existing `rate_limits` table that sign-in's database rate limiter already uses, under a `public-read:` key prefix. One row per
- *   visitor and scope holds a one-minute fixed window; expired rows of this prefix are swept now and then, so a hashed key lives about a
- *   minute.
+ *   visitor and scope holds a one-minute fixed window. Expired rows of this prefix are deleted by a sweep on every 50th charge in each
+ *   server process, so an idle visitor's hashed key stays until the next sweep after its window ends (not a fixed one minute).
  * - Answer: the neutral `{ error: "rate_limited" }` 429 with Retry-After that hosted forms and the giving reports use.
  */
 export const PUBLIC_READ_WINDOW_MS = 60_000;
@@ -21,14 +22,14 @@ export const publicReadLimits = {
   discover: 60,
   "community-page": 60,
   "community-beacon": 60,
-  "community-unsubscribe": 10,
 } as const;
 export type PublicReadScope = keyof typeof publicReadLimits;
 export type PublicReadCharge = { limited: false } | { limited: true; retryAfter: number };
-const PREFIX = "public-read:";
+const PREFIX = "public-read:", SWEEP_EVERY = 50;
+let charges = 0;
 
 /** Counts one request for this visitor and scope. Over the limit, the window is not extended and the count stops growing. */
-export async function chargePublicRead(db: Database, scope: PublicReadScope, visitor: string, now = Date.now(), sweep = Math.random() < 0.02): Promise<PublicReadCharge> {
+export async function chargePublicRead(db: Database, scope: PublicReadScope, visitor: string, now = Date.now(), sweep = ++charges % SWEEP_EVERY === 0): Promise<PublicReadCharge> {
   const max = publicReadLimits[scope], expired = now - PUBLIC_READ_WINDOW_MS;
   if (sweep) await db.execute(sql`delete from rate_limits where key like ${`${PREFIX}%`} and last_request <= ${expired}`);
   const { rows: [row] } = await db.execute<{ count: number; last_request: string | number }>(sql`
