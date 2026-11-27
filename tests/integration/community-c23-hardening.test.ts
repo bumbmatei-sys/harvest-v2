@@ -35,9 +35,9 @@ const appGrants: Record<string, string> = {
   community_channel_reads: "S", community_channels: "S", community_chat_purge_runs: "", community_chat_state: "S", community_comment_revisions: "S",
   community_comments: "SIU", community_daily_counts: "S", community_dm_blocks: "S", community_dm_conversations: "S", community_dm_messages: "S",
   community_dm_participants: "S", community_dm_report_evidence: "", community_email_deliveries: "", community_event_links: "", community_exits: "S",
-  community_files: "SIU", community_invites: "SIU", community_likes: "SIU", community_live_events: "S", community_member_profiles: "",
+  community_files: "SIU", community_harvest_report_quotas: "", community_harvest_reports: "", community_invites: "SIU", community_likes: "SIU", community_live_events: "S", community_member_profiles: "",
   community_memberships: "SIU", community_message_reactions: "S", community_messages: "S", community_moderation_actions: "S",
-  community_notifications: "SI", community_post_revisions: "S", community_posts: "SIU", community_product_links: "SIUD", community_reports: "S",
+  community_notifications: "SI", community_post_revisions: "S", community_posts: "SIU", community_product_links: "SIUD", community_reports: "S", community_takedown_appeals: "S", community_takedowns: "S",
   community_warnings: "S", discover_controls: "SIU", discover_listings: "SIUD", discover_ministry_standing: "", discover_reports: "", discover_review_events: "",
 };
 
@@ -48,6 +48,8 @@ const scopedFlagDefiners: Record<string, string> = {
   community_dm_participant_allowed: "app.community_definer_tenant", community_chat_purge_channels: "app.chat_purge",
   community_chat_purge_health: "app.chat_purge", community_chat_purge_record_failure: "app.chat_purge", discover_platform_reports: "app.discover_platform",
   discover_platform_resolve_report: "app.discover_platform", community_exit_record: "app.community_stats_write",
+  // 0137: the yes/no Harvest-hidden check runs inside row policies and other definers, so it restores its one flag instead of resetting.
+  community_harvest_hidden: "app.community_takedown",
   // Trigger functions with no application EXECUTE: they scope to NEW.tenant_id and restore the previous value.
   community_chat_grant_revision: "app.community_definer_tenant", community_chat_initialize: "app.community_definer_tenant",
   community_chat_settings_revision: "app.community_definer_tenant",

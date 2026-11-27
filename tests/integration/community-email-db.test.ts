@@ -107,6 +107,21 @@ it("includes a post title, but not for a removed post", async () => {
   expect((await claim())[0].items[0].postTitle).toBeNull();
 });
 
+it("leaves out the title of a post Harvest hid (0137), and shows it again after a restore", async () => {
+  await f.admin.query("delete from community_email_deliveries"); await f.admin.query("delete from community_notifications");
+  const post = (await f.admin.query("insert into community_posts (tenant_id, community_id, category_id, author_id, title, body, body_text) values ($1, $2, $3, 'e-two', 'Hidden title', '{}'::jsonb, 'x') returning id", [a, club, general])).rows[0].id;
+  await f.admin.query("insert into community_takedowns (target_type, target_id, tenant_id, community_id, hidden, reason, changed_by) values ('post', $1, $2, $3, true, 'Spam', 'e-owner')", [post, a, club]);
+  await notify("e-one", "held_decision", { post, detail: { decision: "approve" } });
+  await enqueue();
+  expect((await claim())[0].items[0].postTitle).toBeNull();
+  await f.admin.query("delete from community_email_deliveries"); await f.admin.query("delete from community_notifications");
+  await f.admin.query("update community_takedowns set hidden = false, reason = null where target_id = $1", [post]);
+  await notify("e-one", "held_decision", { post, detail: { decision: "approve" } });
+  await enqueue();
+  expect((await claim())[0].items[0].postTitle).toBe("Hidden title");
+  await f.admin.query("delete from community_email_deliveries"); await f.admin.query("delete from community_notifications");
+});
+
 it("sends a daily digest of unread non-instant items in its window, then nothing more for that window", async () => {
   expect(await prefs("e-one", "daily")).toBe("ok");
   expect((await f.admin.query("select email_digest_cursor from community_memberships where user_id = 'e-one' and community_id = $1", [club])).rows[0].email_digest_cursor).not.toBeNull();

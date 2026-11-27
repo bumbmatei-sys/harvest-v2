@@ -800,7 +800,9 @@
     "blogPictureUnavailable": "That picture is not available. Choose a ready picture from Files.",
     "blogScheduleRange": "Choose a time within the coming year.",
     "blogNotReady": "Add a title, an address and some text before publishing.",
-    "dataExportLimited": "You can download your data 3 times an hour. Try again later."
+    "dataExportLimited": "You can download your data 3 times an hour. Try again later.",
+    "reviewAlreadyRequested": "A review request is already open.",
+    "reviewRequestLimited": "Too many review requests today. Try again tomorrow."
   },
   "LibEnv": {
     "missingRequiredEnvironmentVariableValue": "Missing required environment variable: {name}"
@@ -10794,6 +10796,129 @@
     "unavailable": "Course no longer available",
     "open": "Open lesson",
     "updated": "Updated {date, date, medium}"
+  },
+  "CommunityTakedown": {
+    "report": {
+      "button": "Report",
+      "title": "Report this community to Harvest",
+      "reason": "Reason",
+      "note": "Details (optional)",
+      "send": "Send report",
+      "sending": "Sending…",
+      "cancel": "Cancel",
+      "done": "Done",
+      "sent": "Thank you. Harvest staff will review it.",
+      "rateLimited": "Too many reports. Try again in a minute.",
+      "failed": "The report could not be sent. Try again.",
+      "reasons": {
+        "spam": "Spam or advertising",
+        "harassment": "Harassment or hate",
+        "inappropriate": "Inappropriate content",
+        "impersonation": "Pretends to be another ministry or person",
+        "scam": "Looks like a scam",
+        "other": "Something else"
+      }
+    },
+    "sendTo": "Send to",
+    "toHosts": "This community's hosts",
+    "toHarvest": "Harvest",
+    "hiddenByHarvest": "Hidden by Harvest",
+    "paused": {
+      "title": "Paused by Harvest",
+      "body": "{name} is paused while Harvest reviews it.",
+      "reason": "Reason: {reason}"
+    },
+    "owner": {
+      "title": "Paused by Harvest",
+      "reason": "This community's public page, Discover listing and member area are paused. Reason: {reason}",
+      "noReason": "This community's public page, Discover listing and member area are paused.",
+      "requestReview": "Request review",
+      "requestTitle": "Request a review",
+      "requestMessage": "What did you change?",
+      "send": "Send request",
+      "sending": "Sending…",
+      "cancel": "Cancel",
+      "requested": "Review requested {date, date, medium}. Harvest will reply by restoring or keeping the pause.",
+      "declined": "Harvest kept the pause after your last request.",
+      "sent": "Review requested."
+    },
+    "staff": {
+      "title": "Community reports",
+      "skip": "Skip to content",
+      "roles": {
+        "reviewer": "Reviewer",
+        "admin": "Admin"
+      },
+      "tableLabel": "Community reports",
+      "tabsLabel": "Report status",
+      "tabs": {
+        "open": "Open",
+        "reviewed": "Reviewed",
+        "dismissed": "Dismissed"
+      },
+      "empty": {
+        "open": "No open reports.",
+        "reviewed": "No reviewed reports.",
+        "dismissed": "No dismissed reports."
+      },
+      "community": "Community",
+      "target": "Reported",
+      "targets": {
+        "community": "Community",
+        "post": "Post",
+        "comment": "Reply"
+      },
+      "content": "Content",
+      "reason": "Reason",
+      "note": "Details",
+      "reported": "Reported",
+      "visibility": "Visibility",
+      "actions": "Actions",
+      "actionsNamed": "Actions for the report on {name}",
+      "none": "None",
+      "removed": "Deleted by its author or hosts",
+      "unknown": "Unknown community",
+      "shown": "Shown",
+      "hidden": "Hidden",
+      "markReviewed": "Mark reviewed",
+      "dismiss": "Dismiss",
+      "hide": {
+        "community": "Pause community",
+        "post": "Hide post",
+        "comment": "Hide reply"
+      },
+      "hideTitle": {
+        "community": "Pause {name}",
+        "post": "Hide a post in {name}",
+        "comment": "Hide a reply in {name}"
+      },
+      "hideReason": "Reason (shown to the ministry)",
+      "restore": "Restore",
+      "restoreTitle": "Restore?",
+      "restoreBody": {
+        "community": "{name} will be public, in Discover and open to its members again.",
+        "post": "The post will be visible in {name} again.",
+        "comment": "The reply will be visible in {name} again."
+      },
+      "cancel": "Cancel",
+      "refresh": "Refresh",
+      "loadFailed": "Reports could not be loaded.",
+      "resolved": "Report updated.",
+      "hiddenDone": "Hidden.",
+      "restoredDone": "Restored.",
+      "reauth": "Sign in again to continue.",
+      "signInAgain": "Sign in again",
+      "openBadge": "{count, plural, one {# open report} other {# open reports}}",
+      "appeal": "Review request",
+      "appealStatus": {
+        "open": "Open",
+        "declined": "Declined",
+        "restored": "Restored"
+      },
+      "declineAppeal": "Keep paused and close request",
+      "appealDeclined": "Request closed.",
+      "address": "/communities/{slug}"
+    }
   },
   "YourData": {
     "title": "Your data",

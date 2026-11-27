@@ -3848,6 +3848,52 @@ export const givingReportQuotas = pgTable("giving_report_quotas", {
   scope: text("scope").notNull(), minute: timestamp("minute", { withTimezone: true }).notNull(), attempts: integer("attempts").notNull(),
 }, (t) => [primaryKey({ columns: [t.scope, t.minute] }), index("giving_report_quota_expiry_idx").on(t.minute)]);
 
+// Harvest staff takedown of a community, a forum post or a reply (founder, 27 Nov: like the giving takedown). Reports go to Harvest, not to the
+// community's own hosts. No account, address or visitor key is stored with a report; staff admins hide and restore, every action is audited.
+export const communityHarvestReports = pgTable("community_harvest_reports", {
+  id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),
+  targetType: text("target_type").$type<"community" | "post" | "comment">().notNull(), targetId: uuid("target_id").notNull(),
+  reason: text("reason").notNull(), note: text("note"),
+  status: text("status").$type<"open" | "reviewed" | "dismissed">().notNull().default("open"),
+  resolvedBy: text("resolved_by").references(() => users.id), resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  index("community_harvest_reports_open_idx").on(t.status, t.createdAt), index("community_harvest_reports_target_idx").on(t.targetType, t.targetId),
+  check("community_harvest_reports_target", sql`${t.targetType} in ('community', 'post', 'comment') and (${t.targetType} <> 'community' or ${t.targetId} = ${t.communityId})`),
+  check("community_harvest_reports_reason", sql`${t.reason} in ('spam','harassment','inappropriate','impersonation','scam','other')`),
+  check("community_harvest_reports_note", sql`${t.note} is null or length(${t.note}) between 1 and 500`),
+  check("community_harvest_reports_status", sql`${t.status} in ('open','reviewed','dismissed') and ((${t.status} = 'open') = (${t.resolvedAt} is null))`)]);
+// What Harvest staff hid (and restored). One row per target; `hidden` false keeps the last restore on record.
+export const communityTakedowns = pgTable("community_takedowns", {
+  targetType: text("target_type").$type<"community" | "post" | "comment">().notNull(), targetId: uuid("target_id").notNull(),
+  tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),
+  hidden: boolean("hidden").notNull(), reason: text("reason"),
+  changedBy: text("changed_by").notNull().references(() => users.id), changedAt: timestamp("changed_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [primaryKey({ columns: [t.targetType, t.targetId] }),
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  index("community_takedowns_target_idx").on(t.targetId),
+  check("community_takedowns_target", sql`${t.targetType} in ('community', 'post', 'comment') and (${t.targetType} <> 'community' or ${t.targetId} = ${t.communityId})`),
+  check("community_takedowns_reason", sql`${t.reason} is null or length(${t.reason}) between 1 and 500`),
+  check("community_takedowns_hidden_reason", sql`not ${t.hidden} or ${t.reason} is not null`)]);
+// A ministry's request that Harvest review a paused community (founder, 27 Nov): a short message, one open at a time, rate limited in the database.
+export const communityTakedownAppeals = pgTable("community_takedown_appeals", {
+  id: uuid("id").primaryKey().defaultRandom(), tenantId: uuid("tenant_id").notNull(), communityId: uuid("community_id").notNull(),
+  message: text("message").notNull(), status: text("status").$type<"open" | "declined" | "restored">().notNull().default("open"),
+  // The appeal outlives an account deletion (set null), like the report it answers.
+  createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  decidedBy: text("decided_by").references(() => users.id), decidedAt: timestamp("decided_at", { withTimezone: true }),
+}, (t) => [
+  foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
+  uniqueIndex("community_takedown_appeals_open_idx").on(t.communityId).where(sql`${t.status} = 'open'`),
+  index("community_takedown_appeals_recent_idx").on(t.communityId, t.createdAt),
+  check("community_takedown_appeals_message", sql`length(${t.message}) between 1 and 1000`),
+  check("community_takedown_appeals_status", sql`${t.status} in ('open','declined','restored') and ((${t.status} = 'open') = (${t.decidedAt} is null))`)]);
+// One-minute report counters for Harvest reports (the hashed visitor key lives here only, purged after two minutes).
+export const communityHarvestReportQuotas = pgTable("community_harvest_report_quotas", {
+  scope: text("scope").notNull(), minute: timestamp("minute", { withTimezone: true }).notNull(), attempts: integer("attempts").notNull(),
+}, (t) => [primaryKey({ columns: [t.scope, t.minute] }), index("community_harvest_report_quota_expiry_idx").on(t.minute)]);
+
 // Fundraising pledge campaigns (docs/superpowers/specs/2026-11-17-fundraising-pledge-campaigns-design.md). Record keeping only: Harvest moves no money.
 // Pledges are intentions; the append-only ledger holds gifts the ministry says it confirmed outside Harvest. Money is integer cents in one currency
 // per campaign. The composite (tenant, id, currency) key makes every pledge and ledger row carry the campaign's currency, and refuses a currency change

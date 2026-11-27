@@ -54,6 +54,8 @@ it("keeps audit metadata in community services to ids, field names and enums", (
 const wrappers = /\b(communityRoute|communityChatRoute|dmRoute|communityLiveRoute|memberProfileRoute|discoverResponse)\b/;
 const anonymous: Record<string, RegExp[]> = {
   "src/app/api/communities/[slug]/count/route.ts": [/status: 204/, /readBoundedJson\(request, 256/],
+  // Harvest report of a public page (0137): origin, JSON, 4 KiB, honeypot and the database minute limits live in the shared handler.
+  "src/app/api/communities/[slug]/harvest-report/route.ts": [/respondToCommunityHarvestReport\(request, context\)/],
   "src/app/api/communities/unsubscribe/route.ts": [/Response\.json\(\{ ok: true \}/, /content-length/],
   "src/app/api/discover/route.ts": [/private, no-store/],
 };

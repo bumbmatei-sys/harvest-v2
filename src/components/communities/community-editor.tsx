@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslations } from "next-intl";
 import { CircleCheck, Circle } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { HarvestPauseNotice, type HarvestPause } from "@/components/communities/harvest-pause-notice";
 import { ListInDiscover } from "@/components/discover/list-in-discover";
 import type { OwnListing } from "@/lib/discover-ui";
 import { ConfirmDialog } from "@/components/confirm-dialog";
@@ -62,7 +63,9 @@ const fieldsOf = (c: EditableCommunity): Fields => ({ name: c.name, slug: c.slug
   holdFirstPosts: c.holdFirstPosts, bannedWords: c.bannedWords, welcomeMessage: c.welcomeMessage, introCategoryId: c.introCategoryId });
 const same = (a: Fields, b: Fields) => (Object.keys(a) as (keyof Fields)[]).every((key) => equal(a[key], b[key]));
 
-export function CommunityEditor({ initial, members, invites, applications, categories, chat, shelf, endpoint, listHref, host, writable, discoverTenant, discoverListing }: { initial: EditableCommunity; members: CommunityMember[]; invites: CommunityInvite[];
+export function CommunityEditor({ initial, members, invites, applications, categories, chat, shelf, endpoint, listHref, host, writable, discoverTenant, discoverListing, harvestPause }: {
+  /** 0137: Harvest staff paused this community; owners and admins see the staff reason. */
+  harvestPause?: HarvestPause | null; initial: EditableCommunity; members: CommunityMember[]; invites: CommunityInvite[];
   applications: ApplicationQueue | null; categories: ForumCategory[]; chat?: ChatSettings | null;
   /** C13/C16: the Classroom and Products step (free catalogue gate); absent, the step stays "Coming soon". */
   shelf?: { tenantId: string; items: ShelfOption[]; writable: boolean } | null; endpoint: string; listHref: string; host: string; writable: boolean;
@@ -153,6 +156,7 @@ export function CommunityEditor({ initial, members, invites, applications, categ
         {cleanRules(fields.rulesList).length > 0 && <ol className="list-decimal space-y-1 pl-5 text-sm">{cleanRules(fields.rulesList).map((rule, i) => <li key={i} className="break-words">{rule}</li>)}</ol>}
         <Button className="min-h-11 w-full" disabled>{t(fields.allowApply ? "previewApply" : "previewJoinButton")}</Button>
       </CardContent></Card></TabsContent></Tabs>}>
+    {harvestPause && <HarvestPauseNotice pause={harvestPause} endpoint={endpoint} writable={writable} />}
     {!writable && <Alert><AlertDescription>{t("readOnly")}</AlertDescription></Alert>}
     {error && <Alert variant="destructive" role="alert"><AlertDescription className="flex flex-wrap items-center gap-3">{error}{conflict && <Button variant="outline" className="min-h-11" onClick={() => { if (dirty) setDestination(location.href); else location.reload(); }}>{t("reload")}</Button>}</AlertDescription></Alert>}
     {notice && <Alert role="status"><AlertDescription>{notice}</AlertDescription></Alert>}

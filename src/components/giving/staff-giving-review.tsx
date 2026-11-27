@@ -12,9 +12,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Field, FieldLabel } from "@/components/ui/field";
-import { Textarea } from "@/components/ui/textarea";
+import { StaffHideDialog } from "@/components/platform/staff-hide-dialog";
 
 type Status = "open" | "reviewed" | "dismissed";
 type Load = "loading" | "ready" | "error" | "reauth";
@@ -73,30 +71,8 @@ export function StaffGivingReview({ role, initialOpen }: { role: "reviewer" | "a
         toolbar={{ actions: <Button type="button" variant="outline" size="responsive" disabled={load === "loading"} onClick={() => void refresh(status)}>{t("refresh")}</Button> }}
         error={<Alert variant="destructive" role="alert"><AlertDescription>{t("loadFailed")}</AlertDescription></Alert>}
         empty={<EmptyState icon={Flag} size="compact" title={t(`empty.${status}`)} />} />}
-    {hiding && <HideDialog report={hiding} onClose={() => setHiding(null)} onHide={async (reason) => { const problem = await act(`/api/platform/giving/ministries/${hiding.tenantId}/standing`, { hidden: true, reason }, t("hiddenDone")); if (!problem) setHiding(null); return problem; }} />}
+    {hiding && <StaffHideDialog id="giving-hide-reason" title={t("hideTitle", { name: hiding.ministry })} reasonLabel={t("hideReason")} cancelLabel={t("cancel")} hideLabel={t("hide")} onClose={() => setHiding(null)} onHide={async (reason) => { const problem = await act(`/api/platform/giving/ministries/${hiding.tenantId}/standing`, { hidden: true, reason }, t("hiddenDone")); if (!problem) setHiding(null); return problem; }} />}
     <ConfirmDialog tone="neutral" open={restoring !== null} onOpenChange={(open) => { if (!open) setRestoring(null); }} title={t("restoreTitle")} description={restoring ? t("restoreBody", { name: restoring.ministry }) : undefined}
       cancelLabel={t("cancel")} confirmLabel={t("restore")} onConfirm={async () => { if (!restoring) return; const problem = await act(`/api/platform/giving/ministries/${restoring.tenantId}/standing`, { hidden: false }, t("restoredDone")); if (problem) return problem; setRestoring(null); }} />
   </div>;
-}
-
-function HideDialog({ report, onClose, onHide }: { report: StaffGivingReport; onClose: () => void; onHide: (reason: string) => Promise<string | undefined> }) {
-  const t = useTranslations("WaysToGive.staff");
-  const [reason, setReason] = useState(""), [busy, setBusy] = useState(false), [error, setError] = useState("");
-  async function submit() {
-    if (!reason.trim()) return;
-    setBusy(true); setError("");
-    const problem = await onHide(reason.trim());
-    setBusy(false);
-    if (problem) setError(problem);
-  }
-  return <Dialog open onOpenChange={(open) => { if (!open && !busy) onClose(); }}>
-    <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-md">
-      <DialogHeader><DialogTitle className="break-words">{t("hideTitle", { name: report.ministry })}</DialogTitle></DialogHeader>
-      {error && <Alert variant="destructive" role="alert"><AlertDescription>{error}</AlertDescription></Alert>}
-      <Field><FieldLabel htmlFor="giving-hide-reason">{t("hideReason")}</FieldLabel>
-        <Textarea id="giving-hide-reason" rows={3} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
-      <DialogFooter><Button type="button" variant="outline" size="responsive" disabled={busy} onClick={onClose}>{t("cancel")}</Button>
-        <Button type="button" variant="destructive" size="responsive" disabled={busy || !reason.trim()} onClick={() => void submit()}>{t("hide")}</Button></DialogFooter>
-    </DialogContent>
-  </Dialog>;
 }
