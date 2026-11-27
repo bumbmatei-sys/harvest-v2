@@ -918,6 +918,13 @@
       "when": 1795772565019,
       "tag": "0133_newsletter_consent_v2",
       "breakpoints": true
+    },
+    {
+      "idx": 134,
+      "version": "7",
+      "when": 1795775982843,
+      "tag": "0134_your_data_export",
+      "breakpoints": true
     }
   ]
 }

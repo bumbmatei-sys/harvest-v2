@@ -4,7 +4,7 @@ import { AbortMultipartUploadCommand, CompleteMultipartUploadCommand, CreateMult
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { MAX_FILE_SIZE } from "../../lib/files";
 import { downloadDisposition } from "../../lib/download-filename";
-import { InvalidStoredFile, type StorageAdapter, type ImageMime, type MultipartStorage, type UploadObject, type UploadPart } from "./adapter";
+import { InvalidStoredFile, downloadExpiry, type StorageAdapter, type ImageMime, type MultipartStorage, type UploadObject, type UploadPart } from "./adapter";
 import { inspectFileBytes } from "./inspect";
 import { connectStorage, type storageConfig } from "./s3-connection";
 
@@ -56,10 +56,10 @@ export class S3Storage implements StorageAdapter, MultipartStorage {
     return inspectFileBytes(object.Body as AsyncIterable<Uint8Array>, expected, head.ContentType,
       () => (object.Body as { destroy?: () => void }).destroy?.());
   }
-  presignDownload(key: string, name: string, options?: { inlineImage: ImageMime }) {
+  presignDownload(key: string, name: string, options?: { inlineImage?: ImageMime; expiresIn?: number }) {
     return getSignedUrl(this.client, new GetObjectCommand({ Bucket: this.config.bucket, Key: key,
-      ResponseContentDisposition: options ? "inline" : downloadDisposition(name),
+      ResponseContentDisposition: options?.inlineImage ? "inline" : downloadDisposition(name),
       ResponseContentType: options?.inlineImage ?? "application/octet-stream", ResponseCacheControl: "private, no-store",
-    }), { expiresIn: 60 });
+    }), { expiresIn: downloadExpiry(options?.expiresIn) });
   }
 }
