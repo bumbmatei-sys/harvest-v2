@@ -17,6 +17,9 @@ import { withTenant, withUser } from "./tenancy";
 // withUser (member RLS path). Paid pricing is refused until the Commerce gate (C17).
 export const communitySlug = z.string().trim().toLowerCase().regex(/^[a-z0-9](?:[a-z0-9-]{1,46}[a-z0-9])$/)
   .refine((slug) => !(reservedCommunitySlugs as readonly string[]).includes(slug));
+// C15c: `/communities/unsubscribe` is the email confirmation page, so no new or renamed community may take that slug.
+// Enforced here only; adding it to the database check needs a migration (recorded as a follow-up in communities-c15c.md).
+const newCommunitySlug = communitySlug.refine((slug) => slug !== "unsubscribe");
 const name = z.string().trim().min(1).max(80);
 const tagline = z.string().trim().min(1).max(160);
 const description = z.string().trim().min(1).max(2000);
@@ -24,10 +27,10 @@ const rulesList = z.array(z.string().trim().min(1).max(300)).max(20);
 /** Per-ministry cap on communities (ADR 0013 §4a), so one ministry cannot reserve addresses without limit. */
 export const communityLimit = 50;
 
-const createInput = z.object({ name, slug: communitySlug, tagline: tagline.optional() }).strict();
+const createInput = z.object({ name, slug: newCommunitySlug, tagline: tagline.optional() }).strict();
 const updateInput = z.object({
   version: z.number().int().min(1),
-  name: name.optional(), slug: communitySlug.optional(), tagline: tagline.nullable().optional(),
+  name: name.optional(), slug: newCommunitySlug.optional(), tagline: tagline.nullable().optional(),
   visibility: z.enum(["listed", "unlisted", "hidden"]).optional(),
   pricing: z.enum(["free", "paid"]).optional(),
   allowOpen: z.boolean().optional(), allowApply: z.boolean().optional(),

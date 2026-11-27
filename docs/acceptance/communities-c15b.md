@@ -36,7 +36,7 @@ Design: `docs/superpowers/specs/2026-11-13-communities-c15b-email-design.md`. Pl
 ## Decisions and limits
 
 - **The worker functions were first granted to the application role** (no separate worker role), so code running as it could ask the claim function for recipients' addresses across ministries, and `complete` could mark any delivery sent or failed. The independent review (#72) asked for a dedicated role. **Resolved in code by migration 0044** (`docs/acceptance/worker-db-role.md`): `harvest_worker` has EXECUTE on enqueue, claim and complete (and the three retention functions) only, they are revoked from the application role, and the worker script connects as it through `WORKER_DATABASE_URL`. `prefs_save` and `unsubscribe` stay with the application role. The role still has to be provisioned in each real environment (`docs/setup/worker-role.md`).
-- The unsubscribe link in the email points at `/communities/unsubscribe#token=...`, a confirmation page that is **not built yet** (UI kit). The one-click POST works now. The frequency control in the notification settings sheet is also not built; the API accepts it.
+- The unsubscribe link in the email points at `/communities/unsubscribe#token=...`. The confirmation page and the frequency control in the notification settings sheet were built later in C15c (`docs/acceptance/communities-c15c.md`).
 - Plain text only. No HTML, no @mentions, no per-kind choices.
 - An unsubscribe token stays valid for 180 days, so an old email can switch email off again after the member re-enabled it. Off is the only change it can make; a per-membership epoch would end it if wanted.
 - The script also refuses to run unless `WORKER_DATABASE_URL` is a local database.
@@ -47,5 +47,5 @@ Design: `docs/superpowers/specs/2026-11-13-communities-c15b-email-design.md`. Pl
 - Dedicated worker database role: code and migration 0044 delivered; provision `harvest_worker` and `WORKER_DATABASE_URL` per `docs/setup/worker-role.md` (unapproved, not run anywhere).
 - Choose and review an email provider, then replace the constant in `src/server/community-email-sender.ts` in a separate change.
 - Schedule `npm run communities:send-email` every few minutes and `communities:purge-notifications` daily. The worker refuses to run outside test mode today.
-- Build the unsubscribe page and the frequency control.
+- ~~Build the unsubscribe page and the frequency control.~~ Built in C15c (`docs/acceptance/communities-c15c.md`), no migration.
 - Production migration 0042 after 0041; not applied.

@@ -14,6 +14,9 @@ if(process.env.HARVEST_E2E_MAILBOX)await writeFile(`${process.env.HARVEST_E2E_MA
 // QA-2: the test sign-in shortcut is open on this local test server only (HARVEST_ENV=test, loopback origin, harvest_test database).
 const qaPreviewToken = randomBytes(32).toString("hex");
 if (process.env.HARVEST_E2E_MAILBOX) await writeFile(`${process.env.HARVEST_E2E_MAILBOX}.qa-token`, qaPreviewToken, { mode: 0o600 });
+// C15c: browser specs sign community unsubscribe tokens with this throwaway secret (it exists for this test server only).
+const authSecret = randomBytes(48).toString("base64url");
+if (process.env.HARVEST_E2E_MAILBOX) await writeFile(`${process.env.HARVEST_E2E_MAILBOX}.auth-secret`, authSecret, { mode: 0o600 });
 const formsKey=randomBytes(32).toString("hex");
 const bioKey=randomBytes(32).toString("hex");
 // Another port can be used when 3100 is busy: E2E_PORT here and in playwright.config.ts (the default stays 3100).
@@ -27,7 +30,7 @@ const child = spawn(process.execPath, ["node_modules/next/dist/bin/next", "dev",
     // Link in bio "Message me": synthetic mode against this disposable database only; nothing is ever sent.
     HARVEST_LINK_IN_BIO_MESSAGES: "synthetic", HARVEST_LINK_IN_BIO_MESSAGES_TEST_KEY: bioKey,
     HARVEST_ENV: "test", QA_PREVIEW_TOKEN: qaPreviewToken,
-    DATABASE_URL: database.appURL, DATABASE_URL_UNPOOLED: "", BETTER_AUTH_SECRET: randomBytes(48).toString("base64url"),
+    DATABASE_URL: database.appURL, DATABASE_URL_UNPOOLED: "", BETTER_AUTH_SECRET: authSecret,
     BETTER_AUTH_URL: `http://127.0.0.1:${port}`, RESEND_API_KEY: "re_e2e_mock_only", EMAIL_FROM: "Harvest <test@example.test>",
     // Hosted newsletter sign-ups sign their confirmation links with this key; the message goes to the in-memory fake sink only.
     HARVEST_NEWSLETTER_TOKEN_KEY: randomBytes(32).toString("hex"),
