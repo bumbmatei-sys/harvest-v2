@@ -1,6 +1,6 @@
+import { newsletterUnsubscribeLink, newsletterFileLink } from "../lib/site-address";
 import { randomBytes } from "node:crypto";
 import type { Pool } from "pg";
-import { publicFilePath } from "../lib/files";
 import { renderNewsletter } from "../lib/newsletter-content";
 import { automationClickUrl, clickRewriter, linkCollector } from "../lib/newsletter-click-token";
 import { newsletterKey, signNewsletterPreference } from "./newsletter-public";
@@ -31,8 +31,7 @@ export async function runNewsletterAutomations(pool: Pool, env: NodeJS.ProcessEn
   let sent = 0, stopped = 0, failed = 0;
   for (const job of jobs) {
     const nonce = randomBytes(32).toString("base64url");
-    const unsubscribe = new URL("/api/newsletter/unsubscribe", origin);
-    unsubscribe.searchParams.set("token", signNewsletterPreference(key, "list", nonce));
+    const unsubscribe = newsletterUnsubscribeLink(signNewsletterPreference(key, "list", nonce));
     const client = await pool.connect();
     let payload: Authorized | null = null, destroy = false;
     try {
@@ -48,7 +47,7 @@ export async function runNewsletterAutomations(pool: Pool, env: NodeJS.ProcessEn
     let state: "accepted" | "failed" | "unknown" = "failed", reference: string | null = null;
     let rendered: ReturnType<typeof renderNewsletter> | null = null;
     try {
-      const images = new Map(payload.images.map((fileId) => [fileId, new URL(publicFilePath(job.tenant, fileId), origin).href]));
+      const images = new Map(payload.images.map((fileId) => [fileId, newsletterFileLink(job.tenant, fileId)]));
       const context = { preheader: payload.preheader, firstName: payload.firstName, ministryName: payload.ministryName, unsubscribe: unsubscribe.href, images };
       // Click counting, as for campaigns: a first pass collects the content links (never the unsubscribe link) and the database stores them only while
       // the ministry counts clicks; each listed link is then rewritten to a signed redirect that carries only references. Off, the links stay as written.

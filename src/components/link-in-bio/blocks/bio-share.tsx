@@ -13,12 +13,12 @@ import { CopyButton } from "@/components/copy-button";
  * Share: a button that opens a dialog with the page address (read-only field and a copy button), the device's own share sheet where there is one, and
  * the page's QR code from the server's renderer with a PNG download. Nothing leaves the page unless the visitor shares it.
  */
-export function BioShare({ title, handle, preview }: { title: string; handle: string; preview: boolean }) {
+export function BioShare({ title, handle, preview, shareUrl }: { title: string; handle: string; preview: boolean; shareUrl: string }) {
   const t = useTranslations("LinkInBio.public");
   const [address, setAddress] = useState(""), [canShare, setCanShare] = useState(false);
   const qr = `/l/${encodeURIComponent(handle)}/qr`;
-  // The address and the share sheet are read when the dialog opens (they exist only in the browser).
-  const opened = (open: boolean) => { if (open) { setAddress(`${window.location.origin}/l/${handle}`); setCanShare(typeof navigator.share === "function"); } };
+  // The configured page address comes from the server; the share sheet is read when the dialog opens (it exists only in the browser).
+  const opened = (open: boolean) => { if (open) { setAddress(shareUrl); setCanShare(typeof navigator.share === "function"); } };
   return <Dialog onOpenChange={opened}>
     <DialogTrigger asChild><Button type="button" variant="outline" className="min-h-11 w-full" tabIndex={preview ? -1 : undefined} disabled={preview} data-bio-share><Share2 aria-hidden="true" />{title}</Button></DialogTrigger>
     {!preview && <DialogContent className="sm:max-w-md" data-bio-share-dialog>

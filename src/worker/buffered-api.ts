@@ -1,3 +1,4 @@
+import { acceptsLegacyCallback, legacyRedirect } from "@/lib/site-address";
 // Explicit entry point for the buffered CF-03 API. Rendering and multipart
 // uploads are outside this entry point until their Worker lifetimes are proven.
 import * as auth from "@/app/api/auth/[...all]/route";
@@ -81,12 +82,14 @@ export async function fetchBufferedApi(request: Request, env: WorkerBindings) {
   const url = new URL(request.url);
   try {
     const settings = readWorkerSettings(env);
-    if (url.origin !== settings.origin) return privateResponse(new Response(null, { status: 421 }));
+    const redirect = legacyRedirect(request, settings.addresses);
+    if (redirect) return redirect;
+    if (url.origin !== settings.origin && !acceptsLegacyCallback(request, settings.addresses)) return privateResponse(new Response(null, { status: 421 }));
     const route = matchApi(request, url.pathname);
     if (!route && url.pathname !== FILE_TRANSFER_PATH) return privateResponse(new Response(null, { status: 404 }));
 
     const withAuth = <T>(run: () => Promise<T>) => withWorkerRequest({
-      APP_HYPERDRIVE: settings.hyperdrive, database: settings.databaseName, BETTER_AUTH_SECRET: settings.authSecret, BETTER_AUTH_URL: settings.origin,
+      APP_HYPERDRIVE: settings.hyperdrive, database: settings.databaseName, BETTER_AUTH_SECRET: settings.authSecret, addresses: settings.addresses,
       AUTH_IP_ADDRESS_HEADERS: "cf-connecting-ip", cookiePrefix: `harvest-${settings.stage}`,
       mail: { apiKey: settings.mailKey, from: settings.mailFrom },
     }, request, run);

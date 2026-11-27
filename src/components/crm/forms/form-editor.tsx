@@ -44,7 +44,7 @@ function destinationOf(value: string): FormDestination | null {
  * Drafts autosave. Publish, Unpublish, Copy link and Open call the server's publication endpoint; where the server does not serve hosted
  * forms (production) the controls say so. Editing a published form saves a new draft; the live version stays until the next Publish.
  */
-export function FormEditor({ tenantId, formId, initial, revision, destinations, members, responseCount, publication: initialPublication, unpublishedChanges, hostedAvailable, ministryName, newsletter, initialTab }: {
+export function FormEditor({ origin, tenantId, formId, initial, revision, destinations, members, responseCount, publication: initialPublication, unpublishedChanges, hostedAvailable, ministryName, newsletter, initialTab }: { origin: string;
   /** Present for a newsletter sign-up form: the same builder with the sign-up settings, a share panel and the counts. */
   newsletter?: NewsletterEditorData; initialTab?: Tab;
   ministryName?: string; tenantId: string; formId: string; initial: FormDefinition; revision: number; destinations: Destination[]; members: Member[];
@@ -104,7 +104,7 @@ export function FormEditor({ tenantId, formId, initial, revision, destinations, 
 
   const unavailable = () => notify.info(t("bar.unavailable"));
   const publicPath = (slug: string) => signup ? signupPath(slug) : `/f/${slug}`;
-  const address = publication ? `${typeof location === "undefined" ? "" : location.origin}${publicPath(publication.slug)}` : "";
+  const address = publication ? `${origin}${publicPath(publication.slug)}` : "";
   const readyToPublish = shown === "saved" && issues.length === 0 && !acting;
   function openDialog(kind: "publish" | "unpublish") {
     if (!available) { unavailable(); return; }

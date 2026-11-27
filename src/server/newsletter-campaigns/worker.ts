@@ -1,6 +1,6 @@
+import { newsletterUnsubscribeLink, newsletterFileLink } from "../../lib/site-address";
 import { randomBytes } from "node:crypto";
 import type { Pool } from "pg";
-import { publicFilePath } from "../../lib/files";
 import { renderNewsletter } from "../../lib/newsletter-content";
 import { clickRewriter, clickUrl, linkCollector } from "../../lib/newsletter-click-token";
 import { newsletterKey, signNewsletterPreference } from "../newsletter-public";
@@ -39,8 +39,7 @@ export async function runNewsletterWorker(pool: Pool, env: NodeJS.ProcessEnv, pr
     try {
       const ids = [job.tenant, job.key, job.lease];
       const nonce = randomBytes(32).toString("base64url");
-      const unsubscribe = new URL("/api/newsletter/unsubscribe", origin);
-      unsubscribe.searchParams.set("token", signNewsletterPreference(key, "list", nonce));
+      const unsubscribe = newsletterUnsubscribeLink(signNewsletterPreference(key, "list", nonce));
       await options.beforeAuthorize?.();
       const client = await pool.connect();
       let destroy = false;
@@ -60,7 +59,7 @@ export async function runNewsletterWorker(pool: Pool, env: NodeJS.ProcessEnv, pr
         client.release(destroy);
       }
       if (!payload) continue;
-      const images = new Map(payload.images.map(fileId => [fileId, new URL(publicFilePath(job.tenant, fileId), origin).href]));
+      const images = new Map(payload.images.map(fileId => [fileId, newsletterFileLink(job.tenant, fileId)]));
       const context = { preheader: payload.preheader, firstName: payload.firstName, ministryName: payload.ministryName, unsubscribe: unsubscribe.href, images };
       let message;
       try {

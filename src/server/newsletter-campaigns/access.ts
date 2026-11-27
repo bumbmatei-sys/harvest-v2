@@ -1,13 +1,13 @@
+import { newsletterFileLink, newsletterOrigin as siteNewsletterOrigin } from "../../lib/site-address";
 import { createHash } from "node:crypto";
 import { and, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../../db/client";
 import { auditLogs, files, newsletterSettings, workspaces } from "../../db/schema";
 import { message } from "../../i18n/messages";
-import { publicFilePath } from "../../lib/files";
 import { newsletterImageMimes } from "../../lib/email/image-limits";
 import { documentFileIds, isEmailDocument, type EmailDocument } from "../../lib/email/blocks";
-import { renderNewsletter, newsletterHttps, type NewsletterContent } from "../../lib/newsletter-content";
+import { renderNewsletter, type NewsletterContent } from "../../lib/newsletter-content";
 import type { Permission } from "../../lib/permissions";
 import { requireNewsletterEnabled } from "../newsletter";
 import { AccessError } from "../permissions";
@@ -43,11 +43,7 @@ export async function audit(tx: Transaction, tenantId: string, actorId: string, 
 export const previewUnsubscribe = "https://newsletter.example.test/api/newsletter/unsubscribe";
 
 export function newsletterOrigin() {
-  const origin = newsletterHttps(process.env.HARVEST_NEWSLETTER_ORIGIN ?? "https://newsletter.example.test");
-  if (!origin || new URL(origin).pathname !== "/" || new URL(origin).search || new URL(origin).hash) {
-    throw conflict("ORIGIN_UNAVAILABLE");
-  }
-  return new URL(origin).origin;
+  try { return siteNewsletterOrigin(); } catch { throw conflict("ORIGIN_UNAVAILABLE"); }
 }
 
 /** Public addresses for the uploaded images a document uses. Throws unless every one is a ready, public image of this ministry (so nothing unscanned is ever rendered). */
@@ -57,7 +53,7 @@ export async function documentImages(tx: Transaction, tenant: string, doc: Pick<
   const rows = await tx.select({ id: files.id }).from(files).where(and(eq(files.tenantId, tenant), inArray(files.id, ids), eq(files.status, "ready"),
     eq(files.visibility, "public"), eq(files.socialUpload, false), inArray(files.mime, [...newsletterImageMimes]))).for("share");
   if (rows.length !== ids.length) throw new AccessError(409, message("Errors.newsletterImageUnavailable"), { code: "IMAGE_UNAVAILABLE" });
-  for (const { id } of rows) map.set(id, new URL(publicFilePath(tenant, id), newsletterOrigin()).href);
+  for (const { id } of rows) map.set(id, newsletterFileLink(tenant, id));
   return map;
 }
 
@@ -76,7 +72,7 @@ export async function campaignPreview(tx: Transaction, tenant: string, content: 
     const [file] = await tx.select({ id: files.id }).from(files).where(and(eq(files.tenantId, tenant),
       eq(files.id, block.fileId), eq(files.status, "ready"), eq(files.visibility, "public"), inArray(files.mime, ["image/jpeg", "image/png", "image/webp"]))).for("share");
     if (!file) throw unavailable();
-    images.set(block.fileId, new URL(publicFilePath(tenant, block.fileId), newsletterOrigin()).href);
+    images.set(block.fileId, newsletterFileLink(tenant, block.fileId));
   }
   return renderNewsletter(content, { preheader, ministryName: ministry?.name, unsubscribe: previewUnsubscribe, images, clicksCounted });
 }

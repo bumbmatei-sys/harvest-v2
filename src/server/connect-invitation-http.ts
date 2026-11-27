@@ -1,3 +1,4 @@
+import { appOrigin } from "../lib/site-address";
 import { cookies } from "next/headers";
 import { getDb } from "../db/client";
 import { getAuth } from "./auth-instance";
@@ -20,7 +21,7 @@ export async function invitationHttp(request:Request,action:"request"|"prepare"|
    // A failed new-token attempt must not silently resume an unrelated older browser flow.
    jar.delete(invitationFlowCookie);
    const flow=await prepareInvitation(db,await intakeBody(request));
-   jar.set(invitationFlowCookie,flow,{httpOnly:true,sameSite:"lax",secure:new URL(request.url).protocol==="https:",path:"/",maxAge:600});
+   jar.set(invitationFlowCookie,flow,{httpOnly:true,sameSite:"lax",secure:appOrigin().startsWith("https:"),path:"/",maxAge:600});
    return Response.json({ready:true},{headers:intakeHeaders});
   }
   const flow=jar.get(invitationFlowCookie)?.value;

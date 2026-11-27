@@ -2,10 +2,11 @@ import type { Database } from "../db/client";
 import { message } from "../i18n/messages";
 import { qrColors, qrMatrix, qrPng, qrSvg } from "./connect-qr";
 import { getPublicBio } from "./link-in-bio";
+import { readSiteAddresses, type SiteAddressEnvironment } from "../lib/site-address";
 
-/** The page's public address on the configured site (BETTER_AUTH_URL), never from a request's Host header. */
+/** The page's public address on the configured site (the shared site-address module), never from a request's Host header. */
 export function bioPageUrl(handle: string, env: Record<string, string | undefined> = process.env) {
-  try { return new URL(`/l/${encodeURIComponent(handle)}`, env.BETTER_AUTH_URL).href; } catch { return null; }
+  try { return new URL(`/l/${encodeURIComponent(handle)}`, readSiteAddresses(env as SiteAddressEnvironment).app).href; } catch { return null; }
 }
 
 /**
