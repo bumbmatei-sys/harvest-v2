@@ -1,6 +1,6 @@
 {
-  "id": "cbd7f0b5-50c4-4952-81cb-92178a4d5c92",
-  "prevId": "18797871-4116-4252-9ee4-7016cdc55f24",
+  "id": "4091cdf5-9129-42f9-954a-e86769c7a1bb",
+  "prevId": "b67b52d9-3232-4917-9e49-a298f72afcc7",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -8413,7 +8413,7 @@
       "checkConstraints": {
         "catalog_item_labels": {
           "name": "catalog_item_labels",
-          "value": "(\"catalog_items\".\"kind\" = 'course' or (\"catalog_items\".\"level_label\" is null and \"catalog_items\".\"section_label\" is null and \"catalog_items\".\"lesson_label\" is null))\n    and (\"catalog_items\".\"level_label\" is null or length(trim(\"catalog_items\".\"level_label\")) between 1 and 24)\n    and (\"catalog_items\".\"section_label\" is null or length(trim(\"catalog_items\".\"section_label\")) between 1 and 24)\n    and (\"catalog_items\".\"lesson_label\" is null or length(trim(\"catalog_items\".\"lesson_label\")) between 1 and 24)"
+          "value": "(\"catalog_items\".\"kind\" = 'course' or (\"catalog_items\".\"level_label\" is null and \"catalog_items\".\"section_label\" is null and \"catalog_items\".\"lesson_label\" is null))\n    and (\"catalog_items\".\"level_label\" is null or (length(trim(\"catalog_items\".\"level_label\")) between 1 and 24 and \"catalog_items\".\"level_label\" = btrim(\"catalog_items\".\"level_label\") and \"catalog_items\".\"level_label\" !~ '[[:cntrl:]]'))\n    and (\"catalog_items\".\"section_label\" is null or (length(trim(\"catalog_items\".\"section_label\")) between 1 and 24 and \"catalog_items\".\"section_label\" = btrim(\"catalog_items\".\"section_label\") and \"catalog_items\".\"section_label\" !~ '[[:cntrl:]]'))\n    and (\"catalog_items\".\"lesson_label\" is null or (length(trim(\"catalog_items\".\"lesson_label\")) between 1 and 24 and \"catalog_items\".\"lesson_label\" = btrim(\"catalog_items\".\"lesson_label\") and \"catalog_items\".\"lesson_label\" !~ '[[:cntrl:]]'))"
         },
         "catalog_item_kind": {
           "name": "catalog_item_kind",

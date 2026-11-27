@@ -102,15 +102,11 @@ it("keeps notes private to the learner: plain text, capped, never readable by ow
     course: { slug, title: `Course ${slug}` }, lesson: "One" })]));
   expect((await listMyNotes(f.db, b)).some((note) => note.lessonId === first.id)).toBe(false);
   expect(await listMyNotes(f.db, owner)).toEqual([]);
-  // Deleting the account removes the notes and progress (cascade); there is no separate learner export yet.
-  await setLessonComplete(f.db, a, slug, first.id, { completed: true });
-  await f.db.insert(users).values({ id: "cp-gone", name: "Gone", email: "cp-gone@example.invalid", emailVerified: true });
-  await enrolInCatalogItem(f.db, "cp-gone", slug);
-  await saveLessonNote(f.db, "cp-gone", slug, first.id, { body: "Mine" });
-  await setLessonComplete(f.db, "cp-gone", slug, first.id, { completed: true });
-  await f.admin.query("delete from users where id='cp-gone'");
-  expect((await f.admin.query("select (select count(*) from catalog_notes where user_id='cp-gone')::int notes, (select count(*) from catalog_progress where user_id='cp-gone')::int progress")).rows)
-    .toEqual([{ notes: 0, progress: 0 }]);
+  // Erasure: progress and notes go with the person's account row (ON DELETE CASCADE) and with a removed lesson. There is no learner data export or
+  // account deletion flow yet (audit logs are append-only and keep the account row); docs/acceptance/course-progress.md records that gap.
+  expect((await f.admin.query(`select c.conrelid::regclass::text tbl, c.confdeltype from pg_constraint c where c.contype = 'f'
+    and c.conrelid in ('public.catalog_notes'::regclass, 'public.catalog_progress'::regclass) order by 1, c.confrelid::regclass::text`)).rows)
+    .toEqual([{ tbl: "catalog_notes", confdeltype: "c" }, { tbl: "catalog_notes", confdeltype: "c" }, { tbl: "catalog_progress", confdeltype: "c" }, { tbl: "catalog_progress", confdeltype: "c" }]);
 });
 
 it("gives owners and admins counts only, withholding groups under 5", async () => {
