@@ -1,3 +1,4 @@
+import { connectExportLink } from "@/lib/site-address";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -75,7 +76,7 @@ export default async function ConnectLinksPage({ params }: { params: Promise<{ t
               <Button asChild variant="outline" size="sm" className="min-h-11"><Link href={`${root}/${link.id}/landing`}>{landingT("edit")}</Link></Button>
               <Button asChild variant="outline" size="sm" className="min-h-11"><Link href={`${root}/${link.id}/preview`}><Eye aria-hidden="true" />{t("preview")}</Link></Button>
               <Button asChild variant="outline" size="sm" className="min-h-11"><Link href={`${root}/${link.id}/present`}><MonitorPlay aria-hidden="true" />{t("present")}</Link></Button>
-              <DownloadMenu endpoint={`${api}/${link.id}/export`} />
+              <DownloadMenu endpoint={connectExportLink(tenantId, campaignId, link.id)} />
             </>}
           </div>}
           {permissions.publish && <LinkActions endpoint={`${api}/${link.id}/actions`} status={view.status} publicCode={link.publicCode}

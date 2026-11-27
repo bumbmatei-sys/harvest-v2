@@ -34,7 +34,7 @@ export async function runCommunityEmail(pool: Queryable, sender: CommunityMailSe
       let error: string | null = null;
       try {
         const mail = renderEmail(job, { origin: options.origin, secret: options.secret, now: options.now });
-        try { await sender({ to: job.to, ...mail, idempotencyKey: job.idempotencyKey, signal: AbortSignal.timeout(SEND_TIMEOUT_MS) }); }
+        try { await sender({ to: job.to, ...mail, idempotencyKey: job.idempotencyKey, deliveryId: job.id, signal: AbortSignal.timeout(SEND_TIMEOUT_MS) }); }
         catch { error = "send_failed"; }
       } catch { error = "render_failed"; }
       await pool.query("select public.community_email_complete($1::uuid, $2, $3)", [job.id, error ? "failed" : "sent", error]);

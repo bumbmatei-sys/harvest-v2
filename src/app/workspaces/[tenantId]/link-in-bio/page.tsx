@@ -1,3 +1,4 @@
+import { appOrigin } from "@/lib/site-address";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { getTranslations } from "next-intl/server";
@@ -26,5 +27,5 @@ export default async function LinkInBioPage({ params }: { params: Promise<{ tena
   const page = await getBioPage(db, user, tenantId).catch(denied);
   if (!page) return <AccessState />;
   const choices = await bioChoices(db, user, tenantId).catch(() => ({ communities: [], signups: [] }));
-  return <BioEditor tenantId={tenantId} initial={page} choices={choices} ministryName={workspace.name} brandTheme={workspace.brandTheme} base="" messagesHref={`/workspaces/${tenantId}/link-in-bio/messages`} />;
+  return <BioEditor origin={appOrigin()} tenantId={tenantId} initial={page} choices={choices} ministryName={workspace.name} brandTheme={workspace.brandTheme} base="" messagesHref={`/workspaces/${tenantId}/link-in-bio/messages`} />;
 }

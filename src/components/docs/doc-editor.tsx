@@ -67,7 +67,7 @@ function Outline({ items, onJump }: { items: readonly Heading[]; onJump: (positi
 const railItems = [{ id: "comments", icon: MessageSquare, label: "comments" }, { id: "styles", icon: Type, label: "pageStyles" }, { id: "relationships", icon: Link2, label: "relationships" }, { id: "templates", icon: Wand2, label: "templates" }, { id: "export", icon: Download, label: "exportTitle" }] as const;
 
 /** The doc editor: pages tree, title and owner line, formatting toolbar, slash menu, autosave with version check, and the right rail (comments, page styles, relationships, templates, export) with page history and sharing. One page is open at a time; the page is chosen in the URL. */
-export function DocEditor({ tenantId, detail, page, userId }: { tenantId: string; detail: DocDetail; page: PageData; userId: string }) {
+export function DocEditor({ origin, tenantId, detail, page, userId }: { origin: string; tenantId: string; detail: DocDetail; page: PageData; userId: string }) {
   const t = useTranslations("Docs"), format = useFormatter(), router = useRouter(), request = useRequest();
   const { doc, pages } = detail, pageOnly = detail.rights.pageOnly === true, pageRole = detail.pageRoles?.[page.id] ?? null;
   // A page share limits what the person may do to the one page: the doc-level rights are all closed, so the effective rights follow that page's role.
@@ -215,7 +215,7 @@ export function DocEditor({ tenantId, detail, page, userId }: { tenantId: string
     const current = pages.find((p) => p.id === page.id)!;
     switch (action) {
       case "renameDoc": setDialog("renameDoc"); return;
-      case "copyDocLink": case "copyPageLink": { const ok = await copyText(`${location.origin}${action === "copyDocLink" ? docHref(tenantId, doc.id) : pageHref(page.id)}`); if (ok) notify.success(t("linkCopied")); else notify.error(t("linkNotCopied")); return; }
+      case "copyDocLink": case "copyPageLink": { const ok = await copyText(`${origin}${action === "copyDocLink" ? docHref(tenantId, doc.id) : pageHref(page.id)}`); if (ok) notify.success(t("linkCopied")); else notify.error(t("linkNotCopied")); return; }
       case "favorite": { const next = !favorite; setFavorite(next); setFavoritePlacement(next ? "top" : null); const r = await call(next ? "PUT" : "DELETE", "/favorite", next ? { placement: "top" } : undefined); if (!r.ok) { setFavorite(!next); setFavoritePlacement(doc.favoritePlacement); } else router.refresh(); return; }
       case "favoriteTop": case "favoriteSidebar": { const to = action === "favoriteTop" ? "top" : "sidebar"; setFavorite(true); setFavoritePlacement(to); const r = await call("PUT", "/favorite", { placement: to }); if (!r.ok) { setFavorite(doc.favorite); setFavoritePlacement(doc.favoritePlacement); } else router.refresh(); return; }
       case "sharePage": setDialog("sharePage"); return;
@@ -357,7 +357,7 @@ export function DocEditor({ tenantId, detail, page, userId }: { tenantId: string
     <Sheet open={pagesOpen && !docked} onOpenChange={setPagesOpen}><SheetContent side="left" className="w-80 overflow-y-auto p-4 pt-[max(1rem,env(safe-area-inset-top))] pb-[max(1rem,env(safe-area-inset-bottom))] pl-[max(1rem,env(safe-area-inset-left))]" aria-describedby={undefined}><SheetHeader className="p-0"><SheetTitle className="sr-only">{t("pages")}</SheetTitle></SheetHeader>{treeEl}</SheetContent></Sheet>
     <Sheet open={!docked && panelBody !== null} onOpenChange={(o) => { if (!o) setPanel(null); }}><SheetContent showCloseButton={false} className="w-full gap-0 p-0 pt-[env(safe-area-inset-top)] pr-[env(safe-area-inset-right)] pb-[env(safe-area-inset-bottom)] sm:max-w-sm" aria-describedby={undefined}><SheetHeader className="sr-only"><SheetTitle>{t("pageTools")}</SheetTitle></SheetHeader><div className="h-full min-h-0">{panelBody}</div></SheetContent></Sheet>
 
-    <ShareDialog open={dialog === "share"} onOpenChange={(o) => !o && setDialog(null)} tenantId={tenantId} docId={doc.id} pageId={page.id} docTitle={doc.title} protectedDoc={allProtected} onProtect={() => void menuAction("protectDoc")} onChanged={() => router.refresh()} />
+    <ShareDialog origin={origin} open={dialog === "share"} onOpenChange={(o) => !o && setDialog(null)} tenantId={tenantId} docId={doc.id} pageId={page.id} docTitle={doc.title} protectedDoc={allProtected} onProtect={() => void menuAction("protectDoc")} onChanged={() => router.refresh()} />
     <FilePicker open={dialog === "attach"} onOpenChange={(o) => !o && setDialog(null)} tenantId={tenantId} title={t("attachFile")} onPick={async (f) => { const r = await call("POST", "/attachments", { fileId: f.id }); if (!r.ok) return r.error; void loadAttachments(); }} />
     <FilePicker open={dialog === "cover"} onOpenChange={(o) => !o && setDialog(null)} tenantId={tenantId} title={t("chooseCover")} imagesOnly onPick={async (f) => { await changeStyle({ ...style, coverFileId: f.id, header: { ...style.header, cover: true } }); }} />
     <PageShareDialog open={dialog === "sharePage"} onOpenChange={(o) => !o && setDialog(null)} tenantId={tenantId} docId={doc.id} pageId={page.id} />

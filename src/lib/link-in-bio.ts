@@ -7,7 +7,8 @@ import { validVideo, videoProviders, type LessonVideo } from "./lesson-video";
 
 export const bioLimits = { blocks: 20, socials: 8, name: 100, bio: 500, label: 80, url: 2048, eventTitle: 100, eventWhen: 60, messageTitle: 60,
   subtitle: 80, details: 8, detailValue: 100, senderName: 100, senderEmail: 254, messageBody: 2000, tabs: 6, tabLabel: 24, bioLine: 160,
-  catalogItems: 6, fileItems: 10, videoTitle: 100, address: 240, testimonials: 6, quote: 400, personName: 80, phone: 24 } as const;
+  catalogItems: 6, fileItems: 10, videoTitle: 100, address: 240, testimonials: 6, quote: 400, personName: 80, phone: 24,
+  galleryPhotos: 12, galleryFiles: 60 } as const;
 /** The header's short bio is one line (founder decision 27 Nov): the first line of the text, trimmed and cut to `bioLine`. */
 export const oneLine = (value: string) => value.split(/\r?\n/).map((line) => line.trim()).find(Boolean)?.slice(0, bioLimits.bioLine) ?? "";
 
@@ -86,6 +87,15 @@ export const phoneDigits = (value: string) => value.replace(/[^0-9]/g, "");
 const phone = z.string().trim().max(bioLimits.phone).refine((value) => value === "" || (bioPhonePattern.test(value) && phoneDigits(value).length >= 6 && phoneDigits(value).length <= 15));
 const optionalEmail = z.string().trim().max(254).refine((value) => value === "" || z.email().safeParse(value).success);
 
+/** Rework PR 3 blocks (founder decision 25 Nov): a photo gallery, a share and QR button, and a countdown. */
+export const bioPr3BlockSchemas = [
+  // Ready gallery pictures of this page (bio_files of kind gallery), in the owner's order. Swipe and full-screen viewer on the page.
+  z.object({ type: z.literal("gallery"), id: blockId, hidden: z.boolean(), tab, title: plain(bioLimits.messageTitle).transform((value) => value.trim()), fileIds: uuidList(bioLimits.galleryPhotos) }).strict(),
+  // A Share button: the page address to copy or share, and its QR code to download.
+  z.object({ type: z.literal("share"), id: blockId, hidden: z.boolean(), tab, title: trimmed(bioLimits.messageTitle) }).strict(),
+  // A countdown to a moment (UTC), with an optional https link once it has started.
+  z.object({ type: z.literal("countdown"), id: blockId, hidden: z.boolean(), tab, title: trimmed(bioLimits.label), at: z.iso.datetime({ offset: true }), url: z.union([z.literal(""), httpsUrl]) }).strict(),
+] as const;
 export const bioBlockSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("link"), id: blockId, hidden: z.boolean(), tab, label: trimmed(bioLimits.label), url: httpsUrl, icon: z.enum(bioIcons).nullable() }).strict(),
   z.object({ type: z.literal("message"), id: blockId, hidden: z.boolean(), tab, title: trimmed(bioLimits.messageTitle) }).strict(),
@@ -109,6 +119,7 @@ export const bioBlockSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("live"), id: blockId, hidden: z.boolean(), tab, title: trimmed(bioLimits.label), url: httpsUrl, on: z.boolean() }).strict(),
   z.object({ type: z.literal("testimonials"), id: blockId, hidden: z.boolean(), tab, items: z.array(z.object({ id: blockId, quote: trimmed(bioLimits.quote), name: trimmed(bioLimits.personName),
     role: plain(bioLimits.personName).transform((value) => value.trim()) }).strict()).min(1).max(bioLimits.testimonials).refine((list) => new Set(list.map((x) => x.id)).size === list.length) }).strict(),
+  ...bioPr3BlockSchemas,
 ]);
 /** Block types a visitor's click is counted for (the database's bio_record_click_scoped holds the same list). */
 export const bioClickTypes = ["link", "event", "community", "catalog", "files", "form", "video", "contact", "location", "live"] as const;
@@ -207,6 +218,9 @@ export function fieldIssues(definition: BioDefinition): Record<string, "url" | "
     else if (block.type === "contact" && (!optionalEmail.safeParse(block.email).success || !phone.safeParse(block.phone).success || !phone.safeParse(block.whatsapp).success)) out[block.id] = "url";
     else if (block.type === "contact" && !(block.email.trim() || block.phone.trim() || block.whatsapp.trim())) out[block.id] = "required";
     else if (block.type === "location" && !block.address.trim()) out[block.id] = "required";
+    else if ((block.type === "share" || block.type === "countdown") && !block.title.trim()) out[block.id] = "required";
+    else if (block.type === "gallery" && block.fileIds.length === 0) out[block.id] = "required";
+    else if (block.type === "countdown" && (Number.isNaN(Date.parse(block.at)) || (block.url !== "" && !safeHttpsUrl(block.url)))) out[block.id] = "url";
     else if (block.type === "testimonials" && block.items.some((x) => !x.quote.trim() || !x.name.trim())) out[block.id] = "required";
   }
   for (const social of definition.socials) if (!safeHttpsUrl(social.url)) out[`social:${social.network}`] = "url";
@@ -227,7 +241,10 @@ export type BioViewBlock =
   | { type: "contact"; id: string; email: string; phone: string; whatsapp: string }
   | { type: "location"; id: string; label: string; address: string }
   | { type: "live"; id: string; title: string; url: string }
-  | { type: "testimonials"; id: string; items: { id: string; quote: string; name: string; role: string }[] };
+  | { type: "testimonials"; id: string; items: { id: string; quote: string; name: string; role: string }[] }
+  | { type: "gallery"; id: string; title: string; fileIds: string[] }
+  | { type: "share"; id: string; title: string }
+  | { type: "countdown"; id: string; title: string; at: string; url: string };
 /** A product or course as the public page shows it: only fields its own public page shows. */
 export type BioCatalogCard = { id: string; kind: "course" | "download"; slug: string; title: string; summary: string };
 
@@ -237,7 +254,8 @@ export const whatsappHref = (value: string) => `https://wa.me/${phoneDigits(valu
 export const mapsHref = (address: string) => `https://www.openstreetmap.org/search?query=${encodeURIComponent(address.trim())}`;
 export type BioView = {
   /** `bio` is the one-line short bio under the name. */
-  ministryName: string; name: string; bio: string;
+  /** The stored handle of the page (empty in the editor's preview before the address is saved). */
+  handle: string; ministryName: string; name: string; bio: string;
   /** Tabs in order. `label` is empty for an original tab that keeps its default name, and for the single-page layout. */
   tabs: { id: BioTabId; label: string; blocks: BioViewBlock[] }[]; layout: BioLayout; showCover: boolean; photoAlign: BioPhotoAlign; iconStyle: BioIconStyle;
   hasPhoto: boolean; hasCover: boolean; scheme: typeof bioSchemes[number]; buttons: typeof bioButtonStyles[number];
