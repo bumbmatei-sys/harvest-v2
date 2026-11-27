@@ -55,6 +55,7 @@ const wrappers = /\b(communityRoute|communityChatRoute|dmRoute|communityLiveRout
 const anonymous: Record<string, RegExp[]> = {
   "src/app/api/communities/[slug]/count/route.ts": [/status: 204/, /readBoundedJson\(request, 256/],
   "src/app/api/communities/unsubscribe/route.ts": [/Response\.json\(\{ ok: true \}/, /content-length/],
+  "src/app/api/communities/email-feedback/route.ts": [/!COMMUNITY_EMAIL_FEEDBACK_ENABLED/, /return communityEmailFeedback\(request\)/],
   "src/app/api/discover/route.ts": [/private, no-store/],
 };
 it("routes every community API call through the hard-off, origin and session checks", () => {

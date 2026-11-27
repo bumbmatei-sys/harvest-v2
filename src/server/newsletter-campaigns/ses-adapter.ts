@@ -35,11 +35,44 @@ const eventPayload = z.object({
   complaint: z.object({ timestamp: z.iso.datetime() }).optional(),
 });
 
-type TrustedSns = {
+export type TrustedSns = {
   topicArn: string;
   // Preloaded trusted SNS certs only. No network or certificate discovery.
   certificates: ReadonlyMap<string, string>;
 };
+
+function verifiedSnsEvent(config: TrustedSns, body: Uint8Array, now: Date) {
+  if (body.byteLength > 8192) return null;
+  try {
+    const envelope = notification.parse(JSON.parse(Buffer.from(body).toString("utf8")));
+    const topic = /^arn:aws:sns:([a-z0-9-]+):\d{12}:[A-Za-z0-9_-]+$/.exec(config.topicArn);
+    if (!topic || envelope.TopicArn !== config.topicArn ||
+        !callbackTimestampValid(Date.parse(envelope.Timestamp), now)) return null;
+    const prefix = "https://sns." + topic[1] + ".amazonaws.com/";
+    if (!envelope.SigningCertURL.startsWith(prefix) ||
+        !/^SimpleNotificationService-[a-fA-F0-9]+\.pem$/.test(envelope.SigningCertURL.slice(prefix.length))) return null;
+    const cert = config.certificates.get(envelope.SigningCertURL);
+    if (!cert) return null;
+    const fields = ["Message", "MessageId", "Subject", "Timestamp", "TopicArn", "Type"] as const;
+    const signed = fields.flatMap(name => envelope[name] === undefined ? [] : [name, envelope[name]]).join("\n") + "\n";
+    if (!createVerify("RSA-SHA256").update(signed).verify(cert, envelope.Signature, "base64")) return null;
+
+    return { envelope, event: eventPayload.parse(JSON.parse(envelope.Message)) };
+  } catch { return null; }
+}
+
+export function verifyCommunityEmailFeedback(config: TrustedSns, body: Uint8Array, now: Date) {
+  const verified = verifiedSnsEvent(config, body, now);
+  if (!verified) return null;
+  const { envelope, event } = verified;
+  const outcome = event.eventType === "Complaint" ? "complaint"
+    : event.eventType !== "Bounce" ? null
+    : event.bounce?.bounceType === "Permanent" ? "hard_bounce"
+    : event.bounce?.bounceType === "Transient" ? "soft_bounce" : null;
+  const timestamp = event.eventType === "Complaint" ? event.complaint?.timestamp : event.bounce?.timestamp;
+  if (!outcome || !timestamp || Date.parse(timestamp) > now.getTime() + callbackClockSkewMs) return null;
+  return { eventId: envelope.MessageId, deliveryId: event.mail.tags[tag][0], outcome };
+}
 
 export function sesAdapter(config: TrustedSns, submission?: {
   configurationSet: string;
@@ -54,32 +87,18 @@ export function sesAdapter(config: TrustedSns, submission?: {
       } catch { return { state: "unknown" }; }
     },
     verifyCallback(body, _headers, now) {
-      if (body.byteLength > 8192) return null;
-      try {
-        const envelope = notification.parse(JSON.parse(Buffer.from(body).toString("utf8")));
-        const topic = /^arn:aws:sns:([a-z0-9-]+):\d{12}:[A-Za-z0-9_-]+$/.exec(config.topicArn);
-        if (!topic || envelope.TopicArn !== config.topicArn ||
-            !callbackTimestampValid(Date.parse(envelope.Timestamp), now)) return null;
-        const prefix = "https://sns." + topic[1] + ".amazonaws.com/";
-        if (!envelope.SigningCertURL.startsWith(prefix) ||
-            !/^SimpleNotificationService-[a-fA-F0-9]+\.pem$/.test(envelope.SigningCertURL.slice(prefix.length))) return null;
-        const cert = config.certificates.get(envelope.SigningCertURL);
-        if (!cert) return null;
-        const fields = ["Message", "MessageId", "Subject", "Timestamp", "TopicArn", "Type"] as const;
-        const signed = fields.flatMap(name => envelope[name] === undefined ? [] : [name, envelope[name]]).join("\n") + "\n";
-        if (!createVerify("RSA-SHA256").update(signed).verify(cert, envelope.Signature, "base64")) return null;
-
-        const event = eventPayload.parse(JSON.parse(envelope.Message));
-        const details = {
-          Send: { type: "accepted", timestamp: event.mail.timestamp },
-          Delivery: { type: "delivered", timestamp: event.delivery?.timestamp },
-          Bounce: { type: "bounced", timestamp: event.bounce?.bounceType === "Permanent" ? event.bounce.timestamp : undefined },
-          Complaint: { type: "complained", timestamp: event.complaint?.timestamp },
-        } as const;
-        const { type, timestamp } = details[event.eventType];
-        if (!timestamp || Date.parse(timestamp) > now.getTime() + callbackClockSkewMs) return null;
-        return { messageId: envelope.MessageId, signedAt: new Date(envelope.Timestamp), deliveryId: event.mail.tags[tag][0], reference: event.mail.messageId, type, at: new Date(timestamp) };
-      } catch { return null; }
+      const verified = verifiedSnsEvent(config, body, now);
+      if (!verified) return null;
+      const { envelope, event } = verified;
+      const details = {
+        Send: { type: "accepted", timestamp: event.mail.timestamp },
+        Delivery: { type: "delivered", timestamp: event.delivery?.timestamp },
+        Bounce: { type: "bounced", timestamp: event.bounce?.bounceType === "Permanent" ? event.bounce.timestamp : undefined },
+        Complaint: { type: "complained", timestamp: event.complaint?.timestamp },
+      } as const;
+      const { type, timestamp } = details[event.eventType];
+      if (!timestamp || Date.parse(timestamp) > now.getTime() + callbackClockSkewMs) return null;
+      return { messageId: envelope.MessageId, signedAt: new Date(envelope.Timestamp), deliveryId: event.mail.tags[tag][0], reference: event.mail.messageId, type, at: new Date(timestamp) };
     },
     // Live registration, DNS lookup and quota provisioning remain outside this hard-off adapter.
     async domain() { return null; },

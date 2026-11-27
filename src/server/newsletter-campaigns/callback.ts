@@ -7,7 +7,7 @@ import { newsletterWorkerEnabled } from "./worker";
 
 const headers = { "Cache-Control": "private, no-store" };
 
-async function readCallback(request: Request) {
+export async function readCallback(request: Request) {
   const reader = request.body?.getReader();
   if (!reader) return null;
   const chunks = [];
