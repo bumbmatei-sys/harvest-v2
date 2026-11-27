@@ -2,7 +2,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import type { Database, Transaction } from "../db/client";
 import { auditLogs, newsletterSettings } from "../db/schema";
-import { verifyClickToken } from "../lib/newsletter-click-token";
+import { readClickToken } from "../lib/newsletter-click-token";
 import { message } from "../i18n/messages";
 import { conflict, withNewsletter } from "./newsletter-campaigns/access";
 import { newsletterEnabled } from "./newsletter";
@@ -22,12 +22,22 @@ const redirect = (location: string) => new Response(null, { status: 302, headers
 export async function newsletterClickRedirect(db: Database, request: Request, count: boolean) {
   if (!newsletterEnabled()) return new Response(null, { status: 404, headers });
   const fallback = new URL(clickUnavailablePath, request.url).href;
-  const reference = verifyClickToken(newsletterKey(), new URL(request.url).searchParams.get("t"));
-  if (!reference) return redirect(fallback);
+  const token = readClickToken(newsletterKey(), new URL(request.url).searchParams.get("t"));
+  if (!token) return redirect(fallback);
   try {
-    const { rows: [row] } = await db.execute<{ url: string | null }>(count
-      ? sql`select public.newsletter_click(${reference.tenant}::uuid,${reference.campaign}::uuid,${reference.revision}::integer,${reference.delivery}::uuid,${reference.link}::integer) as url`
-      : sql`select public.newsletter_click_target(${reference.tenant}::uuid,${reference.campaign}::uuid,${reference.revision}::integer,${reference.link}::integer) as url`);
+    let query;
+    if (token.kind === "automation") {
+      const { tenant, automation, attempt, link } = token.reference;
+      query = count
+        ? sql`select public.newsletter_automation_click(${tenant}::uuid,${automation}::uuid,${attempt}::uuid,${link}::integer) as url`
+        : sql`select public.newsletter_automation_click_target(${tenant}::uuid,${automation}::uuid,${link}::integer) as url`;
+    } else {
+      const reference = token.reference;
+      query = count
+        ? sql`select public.newsletter_click(${reference.tenant}::uuid,${reference.campaign}::uuid,${reference.revision}::integer,${reference.delivery}::uuid,${reference.link}::integer) as url`
+        : sql`select public.newsletter_click_target(${reference.tenant}::uuid,${reference.campaign}::uuid,${reference.revision}::integer,${reference.link}::integer) as url`;
+    }
+    const { rows: [row] } = await db.execute<{ url: string | null }>(query);
     const url = row?.url;
     return redirect(url && /^https:\/\//.test(url) ? url : fallback);
   } catch {

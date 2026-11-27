@@ -12,7 +12,7 @@ export const blogLimits = { title: 200, excerpt: 300, seoTitle: 70, seoDescripti
 // ---- Addresses ----------------------------------------------------------------------------------------------------------------------------------------
 /** The blog's address: /blog/<handle>. Same shape as a link-in-bio handle (3 to 30 lower-case letters, digits, single hyphens). */
 const handlePattern = /^[a-z0-9](?:[a-z0-9-]{1,28}[a-z0-9])$/;
-/** Route names and words that would read as Harvest itself. Repeated in `public.blog_handle_valid` (migration 0133); a unit test keeps them in step. */
+/** Route names and words that would read as Harvest itself. Repeated in `public.blog_handle_valid` (migration 0135); a unit test keeps them in step. */
 export const blogReservedHandles = [...new Set([...bioReservedHandles, "blog", "blogs", "rss", "feed", "images", "articles"])].sort();
 export type HandleProblem = "length" | "characters" | "reserved";
 export function blogHandleProblem(value: string): HandleProblem | null {

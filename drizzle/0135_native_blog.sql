@@ -217,7 +217,7 @@ CREATE POLICY blog_publish_write ON public.blog_posts FOR UPDATE TO PUBLIC
 CREATE FUNCTION public.blog_scope_clear() RETURNS jsonb LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
 DECLARE prior jsonb := '{}'::jsonb; key text;
 BEGIN
-  FOREACH key IN ARRAY ARRAY['app.blog_public_handle','app.blog_public_tenant','app.blog_public_file','app.blog_publish','app.access_tenant','app.access_token',
+  FOREACH key IN ARRAY ARRAY['app.blog_public_handle','app.blog_public_tenant','app.blog_public_file','app.blog_publish','app.access_tenant','app.account_export','app.access_token',
       'app.ads_definer','app.bio_handle','app.bio_tenant','app.campaign_budget_tenant','app.campaign_invite_tenant','app.campaign_invite_token',
       'app.catalog_slug','app.catalog_tenant','app.catalog_learner_tenant','app.catalog_my_notes','app.catalog_progress_tenant','app.chat_purge','app.chat_settings','app.community_definer_tenant','app.community_email_worker',
       'app.community_purge','app.community_resolve_email','app.community_resolve_ids','app.community_resolve_invite','app.community_resolve_slug',
