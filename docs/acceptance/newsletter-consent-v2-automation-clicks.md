@@ -1,13 +1,13 @@
 # Newsletter consent wording v2 and automation link clicks
 
-Migration `0135_newsletter_consent_v2`. Founder decisions of 27 Nov 2026 (to be recorded in `docs/decisions/founder-decisions-2026-11.md` by PR #309). Newsletter sending stays hard-off in production, automations stay behind their flags, nothing real is sent and there are no real webhooks. All five HC-02 gates remain **UNAPPROVED**. Production migrations are unapplied.
+Migration `0133_newsletter_consent_v2`. Founder decisions of 27 Nov 2026 (to be recorded in `docs/decisions/founder-decisions-2026-11.md` by PR #309). Newsletter sending stays hard-off in production, automations stay behind their flags, nothing real is sent and there are no real webhooks. All five HC-02 gates remain **UNAPPROVED**. Production migrations are unapplied.
 
 ## 1. The "links are counted" line is part of the recorded consent wording
 
 | Decision | Where |
 | --- | --- |
 | New immutable wording `newsletter-consent-v2`: the v1 statement plus "This ministry counts link clicks in its emails, as totals only." | `src/lib/newsletter-signup.ts` (`newsletterWordings`, `CLICKS_COUNTED_LINE`). v1 is unchanged and pinned by a unit test. |
-| v2 is recorded when the ministry counts link clicks at the moment of sign-up; v1 when it does not. | `newsletter_form_signup_start` (replaced in 0135) reads `newsletter_settings` inside the same statement that records the sign-up and stores `wording_version` = v2 or v1. The confirmation grant's evidence carries that id, as before. |
+| v2 is recorded when the ministry counts link clicks at the moment of sign-up; v1 when it does not. | `newsletter_form_signup_start` (replaced in 0133) reads `newsletter_settings` inside the same statement that records the sign-up and stores `wording_version` = v2 or v1. The confirmation grant's evidence carries that id, as before. |
 | Old v1 grants are untouched. History is never rewritten. | No backfill, no update of `newsletter_form_signups`, `contact_consents` or subscriptions. Integration test compares an earlier v1 person's grant and subscription rows before and after counting is turned on. |
 
 How it works:
@@ -43,7 +43,7 @@ UI: the automation editor's Activity tab now starts with a "Link clicks" section
 
 ## Review fix: campaign top links (0126 report)
 
-`newsletter_click_report` is replaced in 0135 with its exact 0126 body except one condition: top links now count only clicks on days that are shown (`r.day NOT IN (SELECT day FROM small_days)`), as well as excluding small cohorts. Before, a campaign with a withheld day still counted that day's clicks in its link totals, so the links could reveal it. The complementary rule is unchanged. Regression: `tests/integration/newsletter-click-tracking.test.ts` ("never lets a campaign's link totals reveal a withheld day").
+`newsletter_click_report` is replaced in 0133 with its exact 0126 body except one condition: top links now count only clicks on days that are shown (`r.day NOT IN (SELECT day FROM small_days)`), as well as excluding small cohorts. Before, a campaign with a withheld day still counted that day's clicks in its link totals, so the links could reveal it. The complementary rule is unchanged. Regression: `tests/integration/newsletter-click-tracking.test.ts` ("never lets a campaign's link totals reveal a withheld day").
 
 ## Evidence
 

@@ -26,7 +26,7 @@ export type NewsletterWordingId = keyof typeof newsletterWordings;
 /** Wordings a form is saved and published with. v2 is never stored on a form: it is chosen at sign-up from the ministry's click setting. */
 export const newsletterWordingIds = ["newsletter-consent-v1"] as const satisfies readonly NewsletterWordingId[];
 export const CURRENT_NEWSLETTER_WORDING: NewsletterWordingId = "newsletter-consent-v1";
-/** The wording recorded instead of a form's own when the ministry counts link clicks. Must match newsletter_form_signup_start (migration 0135). */
+/** The wording recorded instead of a form's own when the ministry counts link clicks. Must match newsletter_form_signup_start (migration 0133). */
 export const countedWordings: Partial<Record<NewsletterWordingId, NewsletterWordingId>> = { "newsletter-consent-v1": "newsletter-consent-v2" };
 
 /** The wording that applies to a sign-up now: the counted variant of the form's frozen wording while the ministry counts clicks, the frozen one otherwise. */

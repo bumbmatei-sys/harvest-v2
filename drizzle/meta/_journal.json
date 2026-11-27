@@ -899,10 +899,24 @@
       "breakpoints": true
     },
     {
-      "idx": 135,
+      "idx": 131,
       "version": "7",
-      "when": 1795768923671,
-      "tag": "0135_newsletter_consent_v2",
+      "when": 1795761650767,
+      "tag": "0131_course_progress",
+      "breakpoints": true
+    },
+    {
+      "idx": 132,
+      "version": "7",
+      "when": 1795769192415,
+      "tag": "0132_limits_followups",
+      "breakpoints": true
+    },
+    {
+      "idx": 133,
+      "version": "7",
+      "when": 1795772565019,
+      "tag": "0133_newsletter_consent_v2",
       "breakpoints": true
     }
   ]

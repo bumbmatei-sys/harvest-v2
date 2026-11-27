@@ -6,6 +6,8 @@ import { auditLogs, catalogItems, catalogLessons, catalogLevels, catalogSections
 import { sanitizeRichText, type RichDoc } from "../lib/rich-text";
 import { parseVideoLink, type LessonVideo } from "../lib/lesson-video";
 import { labelLimit, maxLevels, maxSections, type CourseLabels } from "../lib/course-structure";
+import { noteLimit, validNote, type ProgressSummary } from "../lib/course-progress";
+import { suppressSmall } from "../lib/connect-retention";
 import { message } from "../i18n/messages";
 import { freeCatalogEnabled } from "./free-catalog-mode";
 import { refreshDiscoverListing } from "./discover/refresh";
@@ -72,7 +74,9 @@ type Draft = z.infer<typeof draft>;
 type Item = typeof catalogItems.$inferSelect;
 type Metadata = { slug: string; title: string; summary: string; kind: Item["kind"] };
 type Content = Metadata & { lessons: { id: string; title: string; body: RichDoc; sectionId?: string; video?: LessonVideo | null }[]; files: { id: string; name: string }[];
-  labels?: CourseLabels; levels?: { id: string; title: string }[]; sections?: { id: string; levelId: string | null; title: string }[] };
+  labels?: CourseLabels; levels?: { id: string; title: string }[]; sections?: { id: string; levelId: string | null; title: string }[];
+  /** 0131: the caller's own completed lessons and notes (published lessons only). */
+  completed?: string[]; notes?: { lessonId: string; body: string }[] };
 type CourseInput = Extract<Draft, { kind: "course" }>;
 type LessonInput = NonNullable<CourseInput["lessons"]>[number];
 
@@ -180,14 +184,25 @@ async function writeDraft(tx: Transaction, item: Item, input: Draft) {
     known(lessons, await tx.select({ id: catalogLessons.id }).from(catalogLessons).where(scope));
     known(sections, await tx.select({ id: catalogSections.id }).from(catalogSections).where(sectionScope));
     known(levels, await tx.select({ id: catalogLevels.id }).from(catalogLevels).where(levelScope));
-    await tx.delete(catalogLessons).where(scope);
-    await tx.delete(catalogSections).where(sectionScope);
-    await tx.delete(catalogLevels).where(levelScope);
-    if (levels.length) await tx.insert(catalogLevels).values(levels.map((row, position) => ({ ...owner, id: row.key, title: row.title, position })));
+    // Upserts by id (0131): a kept lesson keeps its row, so learner progress and notes on it survive edits and reorders. Position uniques are checked at
+    // commit, so swapped positions do not collide midway. Only the rows the owner removed are deleted, after everything kept has moved off them.
+    const upsert = <T extends typeof catalogLevels | typeof catalogSections | typeof catalogLessons>(table: T, set: Record<string, unknown>) =>
+      ({ target: [table.tenantId, table.itemId, table.id], set });
+    if (levels.length) await tx.insert(catalogLevels).values(levels.map((row, position) => ({ ...owner, id: row.key, title: row.title, position })))
+      .onConflictDoUpdate(upsert(catalogLevels, { title: sql`excluded.title`, position: sql`excluded.position` }));
     if (sections.length) await tx.insert(catalogSections).values(sections.map((row, position) =>
-      ({ ...owner, id: row.key, levelId: row.level, title: row.title, position })));
-    if (lessons.length) await tx.insert(catalogLessons).values(lessons.map(({ section: sectionId, video, ...row }, position) =>
-      ({ ...row, ...owner, position, sectionId, videoProvider: video?.provider ?? null, videoId: video?.id ?? null })));
+      ({ ...owner, id: row.key, levelId: row.level, title: row.title, position })))
+      .onConflictDoUpdate(upsert(catalogSections, { title: sql`excluded.title`, position: sql`excluded.position`, levelId: sql`excluded.level_id` }));
+    const lessonRows = lessons.map(({ section: sectionId, video, id, ...row }, position) =>
+      ({ ...row, ...owner, id: id ?? randomUUID(), position, sectionId, videoProvider: video?.provider ?? null, videoId: video?.id ?? null }));
+    if (lessonRows.length) await tx.insert(catalogLessons).values(lessonRows)
+      .onConflictDoUpdate(upsert(catalogLessons, { title: sql`excluded.title`, body: sql`excluded.body`, published: sql`excluded.published`, position: sql`excluded.position`,
+        sectionId: sql`excluded.section_id`, videoProvider: sql`excluded.video_provider`, videoId: sql`excluded.video_id` }));
+    const keep = (ids: string[], column: typeof catalogLessons.id | typeof catalogSections.id | typeof catalogLevels.id) =>
+      ids.length ? sql`${column} not in (${sql.join(ids.map((id) => sql`${id}::uuid`), sql`, `)})` : sql`true`;
+    await tx.delete(catalogLessons).where(and(scope, keep(lessonRows.map((row) => row.id), catalogLessons.id)));
+    await tx.delete(catalogSections).where(and(sectionScope, keep(sections.map((row) => row.key), catalogSections.id)));
+    await tx.delete(catalogLevels).where(and(levelScope, keep(levels.map((row) => row.key), catalogLevels.id)));
   } else {
     if (input.fileIds.length) {
       const found = await tx.select({ id: files.id }).from(files).where(and(eq(files.tenantId, item.tenantId),
@@ -341,4 +356,48 @@ export const getCatalogContent = (db: Database, user: string, slug: string) => a
 export async function catalogDownload(db: Database, user: string, slug: string, fileId: string, storage: () => Pick<StorageAdapter, "presignDownload">) {
   const file = await access<{ key: string; name: string }>(db, slug, "file", user, fileId);
   return { url: await storage().presignDownload(file.key, file.name) };
+}
+
+// 0131 learner progress and notes. Every write goes through public.catalog_learner, which first passes catalog_access(slug, 'content'): only an
+// enrolled learner with an active grant, on a published lesson of a course they can open, writes, and only their own row.
+const noteBody = z.string().max(noteLimit).refine((value) => validNote(value));
+async function learner(db: Database, user: string, slug: string, lesson: string, action: "complete" | "incomplete" | "note", body?: string) {
+  ensureEnabled();
+  if (!slugSchema.safeParse(slug).success || !uuid.safeParse(lesson).success) throw notFound();
+  const result = await withUser(db, user, (tx) => tx.execute<{ data: Record<string, boolean> | null }>(
+    sql`select public.catalog_learner(${slug}, ${lesson}::uuid, ${action}, ${body ?? null}) as data`));
+  const data = result.rows[0]?.data;
+  if (data == null) throw notFound();
+  return data;
+}
+/** Marks one lesson complete or not complete for the signed-in learner. */
+export async function setLessonComplete(db: Database, user: string, slug: string, lesson: string, raw: unknown) {
+  const { completed } = z.object({ completed: z.boolean() }).strict().parse(raw);
+  return learner(db, user, slug, lesson, completed ? "complete" : "incomplete") as Promise<{ completed: boolean }>;
+}
+/** Saves the learner's private note on one lesson; an empty note deletes it. Plain text, at most 4000 characters. */
+export async function saveLessonNote(db: Database, user: string, slug: string, lesson: string, raw: unknown) {
+  const { body } = z.object({ body: noteBody }).strict().parse(raw);
+  return learner(db, user, slug, lesson, "note", body) as Promise<{ saved: true }>;
+}
+export type MyNote = { lessonId: string; body: string; updatedAt: string; course: { slug: string; title: string } | null; lesson: string | null };
+/** The signed-in person's notes across courses, newest first. */
+export async function listMyNotes(db: Database, user: string) {
+  ensureEnabled();
+  const result = await withUser(db, user, (tx) => tx.execute<{ data: MyNote[] | null }>(sql`select public.catalog_my_notes() as data`));
+  return result.rows[0]?.data ?? [];
+}
+/**
+ * Owners and admins: one course's enrolment and per-lesson completion counts. Counts of 1 to 4 are withheld (null) by the database and again here
+ * (the shared small-group rule). No learner, row or note is ever returned.
+ */
+export function getCatalogProgress(db: Database, user: string, tenant: string, id: string) {
+  return ministry(db, user, tenant, true, async (tx, scope) => {
+    if (!uuid.safeParse(id).success) throw notFound();
+    const result = await tx.execute<{ data: ProgressSummary | null }>(sql`select public.catalog_progress_summary(${scope}::uuid, ${id}::uuid) as data`);
+    const data = result.rows[0]?.data;
+    if (!data) throw notFound();
+    return { ...data, enrolled: data.enrolled === null ? null : suppressSmall(data.enrolled),
+      lessons: data.lessons.map((row) => ({ ...row, completed: row.completed === null ? null : suppressSmall(row.completed) })) };
+  });
 }

@@ -1,6 +1,6 @@
 {
-  "id": "b464a5b5-6b52-48b1-8ce3-02ed36782689",
-  "prevId": "60d5de56-0999-4da6-827d-3b90a6f31560",
+  "id": "a686414e-e906-417c-ac37-0533bf9104ad",
+  "prevId": "f2540c72-0ada-4a0b-8d6f-4d8275c38938",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -8702,6 +8702,237 @@
           "value": "length(\"catalog_levels\".\"title\") <= 120 and \"catalog_levels\".\"title\" = trim(\"catalog_levels\".\"title\")"
         }
       },
+      "isRLSEnabled": false
+    },
+    "public.catalog_notes": {
+      "name": "catalog_notes",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lesson_id": {
+          "name": "lesson_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "body": {
+          "name": "body",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "catalog_notes_user_idx": {
+          "name": "catalog_notes_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "catalog_notes_user_id_users_id_fk": {
+          "name": "catalog_notes_user_id_users_id_fk",
+          "tableFrom": "catalog_notes",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "catalog_notes_tenant_id_item_id_lesson_id_catalog_lessons_tenant_id_item_id_id_fk": {
+          "name": "catalog_notes_tenant_id_item_id_lesson_id_catalog_lessons_tenant_id_item_id_id_fk",
+          "tableFrom": "catalog_notes",
+          "tableTo": "catalog_lessons",
+          "columnsFrom": [
+            "tenant_id",
+            "item_id",
+            "lesson_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "item_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "catalog_notes_tenant_id_item_id_lesson_id_user_id_pk": {
+          "name": "catalog_notes_tenant_id_item_id_lesson_id_user_id_pk",
+          "columns": [
+            "tenant_id",
+            "item_id",
+            "lesson_id",
+            "user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "catalog_note_body": {
+          "name": "catalog_note_body",
+          "value": "length(btrim(\"catalog_notes\".\"body\")) between 1 and 4000 and translate(\"catalog_notes\".\"body\", E'\\n\\r\\t', '') !~ '[[:cntrl:]]'"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.catalog_progress": {
+      "name": "catalog_progress",
+      "schema": "",
+      "columns": {
+        "tenant_id": {
+          "name": "tenant_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "item_id": {
+          "name": "item_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lesson_id": {
+          "name": "lesson_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "catalog_progress_user_idx": {
+          "name": "catalog_progress_user_idx",
+          "columns": [
+            {
+              "expression": "user_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "tenant_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "item_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "catalog_progress_user_id_users_id_fk": {
+          "name": "catalog_progress_user_id_users_id_fk",
+          "tableFrom": "catalog_progress",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "catalog_progress_tenant_id_item_id_lesson_id_catalog_lessons_tenant_id_item_id_id_fk": {
+          "name": "catalog_progress_tenant_id_item_id_lesson_id_catalog_lessons_tenant_id_item_id_id_fk",
+          "tableFrom": "catalog_progress",
+          "tableTo": "catalog_lessons",
+          "columnsFrom": [
+            "tenant_id",
+            "item_id",
+            "lesson_id"
+          ],
+          "columnsTo": [
+            "tenant_id",
+            "item_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "catalog_progress_tenant_id_item_id_lesson_id_user_id_pk": {
+          "name": "catalog_progress_tenant_id_item_id_lesson_id_user_id_pk",
+          "columns": [
+            "tenant_id",
+            "item_id",
+            "lesson_id",
+            "user_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.catalog_sections": {
