@@ -876,6 +876,13 @@
       "when": 1795751942060,
       "tag": "0130_course_structure",
       "breakpoints": true
+    },
+    {
+      "idx": 131,
+      "version": "7",
+      "when": 1795753304779,
+      "tag": "0131_course_progress",
+      "breakpoints": true
     }
   ]
 }

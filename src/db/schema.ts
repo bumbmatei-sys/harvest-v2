@@ -2537,6 +2537,30 @@ export const catalogLessons = pgTable("catalog_lessons", {
   check("catalog_lesson_body", sql`jsonb_typeof(${t.body}) = 'object' and octet_length(${t.body}::text) <= 32000`),
 ]);
 
+// 0131 learner progress and private notes, one row per (learner, lesson). Learners write only their own rows, through public.catalog_learner;
+// owners and admins see aggregate counts only (public.catalog_progress_summary) and never read notes. A removed lesson takes its rows with it.
+export const catalogProgress = pgTable("catalog_progress", {
+  tenantId: uuid("tenant_id").notNull(), itemId: uuid("item_id").notNull(), lessonId: uuid("lesson_id").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  completedAt: timestamp("completed_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.itemId, t.lessonId, t.userId] }),
+  foreignKey({ columns: [t.tenantId, t.itemId, t.lessonId], foreignColumns: [catalogLessons.tenantId, catalogLessons.itemId, catalogLessons.id] }).onDelete("cascade"),
+  index("catalog_progress_user_idx").on(t.userId, t.tenantId, t.itemId),
+]);
+
+export const catalogNotes = pgTable("catalog_notes", {
+  tenantId: uuid("tenant_id").notNull(), itemId: uuid("item_id").notNull(), lessonId: uuid("lesson_id").notNull(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  body: text("body").notNull(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.itemId, t.lessonId, t.userId] }),
+  foreignKey({ columns: [t.tenantId, t.itemId, t.lessonId], foreignColumns: [catalogLessons.tenantId, catalogLessons.itemId, catalogLessons.id] }).onDelete("cascade"),
+  index("catalog_notes_user_idx").on(t.userId, t.updatedAt),
+  check("catalog_note_body", sql`length(btrim(${t.body})) between 1 and 4000 and translate(${t.body}, E'\\n\\r\\t', '') !~ '[[:cntrl:]]'`),
+]);
+
 export const catalogFiles = pgTable("catalog_files", {
   tenantId: uuid("tenant_id").notNull(), itemId: uuid("item_id").notNull(), fileId: uuid("file_id").notNull(),
   kind: text("kind").notNull().default("download"),

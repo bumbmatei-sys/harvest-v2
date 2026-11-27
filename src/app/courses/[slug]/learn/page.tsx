@@ -8,6 +8,7 @@ import { AccessError } from "@/server/permissions";
 import { PublicFrame } from "@/components/connect/public-frame";
 import { CourseLearner, type LearnerLesson, type LearnerStructure } from "@/components/catalog/course-learner";
 import { publicPath } from "@/lib/catalog";
+import { continueLesson } from "@/lib/course-progress";
 
 export const dynamic = "force-dynamic";
 type Props = { params: Promise<{ slug: string }>; searchParams: Promise<{ lesson?: string }> };
@@ -26,8 +27,10 @@ export default async function CourseLearnPage({ params, searchParams }: Props) {
   if (!content) redirect(publicPath("course", slug));
   if (content.kind !== "course") redirect(publicPath(content.kind, slug));
   const lessons = content.lessons as LearnerLesson[];
+  const completed = content.completed ?? [];
   const structure: LearnerStructure = { labels: content.labels, levels: content.levels, sections: content.sections };
   return <PublicFrame personal notice={false}>
-    <CourseLearner slug={slug} title={content.title} lessons={lessons} currentId={lessons.find((item) => item.id === lesson)?.id ?? lessons[0]?.id ?? ""} structure={structure} />
+    <CourseLearner slug={slug} title={content.title} lessons={lessons} currentId={lessons.find((item) => item.id === lesson)?.id ?? continueLesson(lessons, completed) ?? ""}
+      structure={structure} completed={completed} notes={content.notes ?? []} />
   </PublicFrame>;
 }
