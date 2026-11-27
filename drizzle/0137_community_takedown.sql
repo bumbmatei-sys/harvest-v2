@@ -62,7 +62,7 @@ CREATE TABLE "community_takedown_appeals" (
 --> statement-breakpoint
 ALTER TABLE "community_takedown_appeals" ADD CONSTRAINT "community_takedown_appeals_created_by_users_id_fk" FOREIGN KEY ("created_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
 --> statement-breakpoint
-ALTER TABLE "community_takedown_appeals" ADD CONSTRAINT "community_takedown_appeals_decided_by_users_id_fk" FOREIGN KEY ("decided_by") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+ALTER TABLE "community_takedown_appeals" ADD CONSTRAINT "community_takedown_appeals_decided_by_users_id_fk" FOREIGN KEY ("decided_by") REFERENCES "public"."users"("id") ON DELETE set null ON UPDATE no action;
 --> statement-breakpoint
 ALTER TABLE "community_takedown_appeals" ADD CONSTRAINT "community_takedown_appeals_tenant_id_community_id_communities_tenant_id_id_fk" FOREIGN KEY ("tenant_id","community_id") REFERENCES "public"."communities"("tenant_id","id") ON DELETE cascade ON UPDATE no action;
 --> statement-breakpoint
@@ -446,11 +446,16 @@ BEGIN
   END IF;
   IF length(body) NOT BETWEEN 1 AND 1000 OR body ~ '[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]' THEN PERFORM public.community_definer_reset(); RETURN 'invalid'; END IF;
   PERFORM set_config('app.community_takedown', 'on', true);
+  -- One request at a time per community: concurrent requests queue here, so the daily count cannot be raced past three.
+  PERFORM pg_advisory_xact_lock(hashtext('community_takedown_appeal'), hashtext(p_community::text));
   IF EXISTS (SELECT FROM public.community_takedown_appeals a WHERE a.community_id = p_community AND a.status = 'open') THEN result := 'open';
   ELSIF (SELECT count(*) FROM public.community_takedown_appeals a WHERE a.community_id = p_community AND a.created_at > now() - interval '24 hours') >= 3 THEN result := 'limited';
   ELSE
-    INSERT INTO public.community_takedown_appeals (tenant_id, community_id, message, created_by) VALUES (p_tenant, p_community, body, actor);
-    result := 'ok';
+    BEGIN
+      INSERT INTO public.community_takedown_appeals (tenant_id, community_id, message, created_by) VALUES (p_tenant, p_community, body, actor);
+      result := 'ok';
+    EXCEPTION WHEN unique_violation THEN result := 'open';
+    END;
   END IF;
   PERFORM set_config('app.community_takedown', '', true);
   IF result = 'ok' THEN
@@ -478,16 +483,31 @@ END $$;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.platform_community_appeal_decline(uuid) FROM PUBLIC;--> statement-breakpoint
 GRANT EXECUTE ON FUNCTION public.platform_community_appeal_decline(uuid) TO harvest_app;--> statement-breakpoint
 -- Founder answers, part 2: while Harvest pauses a community its forum and chat are read-only for everyone, owners and admins included, whatever path
--- the write takes (member definers, chat definers, the ministry's staff path). New rows are refused; an update may change only the columns an account
--- deletion clears or a purge recounts (reply counts, revision numbers). Deletions (retention, account erasure) still run. The same neutral answer as a missing community (SQLSTATE P0404).
+-- the write takes (member definers, chat definers, the ministry's staff path). New rows are refused. An update may only clear user references (an
+-- account deletion), recount replies and revisions (a purge), or be the author deleting their own content. Hard deletions (retention, erasure) still run. The same neutral answer as a missing community (SQLSTATE P0404).
 CREATE FUNCTION public.community_harvest_write_guard() RETURNS trigger
 LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
+DECLARE o jsonb; n jsonb; changed text[];
 BEGIN
-  IF public.community_harvest_hidden(NEW.community_id) AND (TG_OP = 'INSERT'
-      OR (to_jsonb(NEW) - ARRAY['author_id', 'user_id', 'sender_id', 'updated_at', 'reply_count', 'rev']) IS DISTINCT FROM (to_jsonb(OLD) - ARRAY['author_id', 'user_id', 'sender_id', 'updated_at', 'reply_count', 'rev'])) THEN
-    RAISE EXCEPTION 'community unavailable' USING ERRCODE = 'P0404';
+  IF NOT public.community_harvest_hidden(NEW.community_id) THEN RETURN NEW; END IF;
+  IF TG_OP = 'INSERT' THEN RAISE EXCEPTION 'community unavailable' USING ERRCODE = 'P0404'; END IF;
+  o := to_jsonb(OLD); n := to_jsonb(NEW);
+  SELECT coalesce(array_agg(e.key), '{}') INTO changed FROM jsonb_each(n) e WHERE e.value IS DISTINCT FROM o -> e.key;
+  -- An account deletion (ON DELETE SET NULL) clears user references, and a purge recounts replies and revisions: references may only become NULL.
+  IF NOT EXISTS (SELECT 1 FROM unnest(changed) k WHERE NOT (k IN ('updated_at', 'reply_count', 'rev')
+      OR (k IN ('author_id', 'user_id', 'sender_id', 'removed_by', 'deleted_by', 'pinned_by') AND n -> k = 'null'::jsonb))) THEN
+    RETURN NEW;
   END IF;
-  RETURN NEW;
+  -- Founder (27 Nov): the author may delete their own post, reply, chat message or private message; nothing else changes.
+  IF o ->> 'author_id' IS NOT NULL
+    AND ((o -> 'removed_at' = 'null'::jsonb AND n -> 'removed_at' <> 'null'::jsonb AND n ->> 'removed_by' = o ->> 'author_id')
+      OR (o -> 'deleted_at' = 'null'::jsonb AND n -> 'deleted_at' <> 'null'::jsonb AND n ->> 'deleted_by' = o ->> 'author_id'
+        AND coalesce(n ->> 'deleted_kind', 'author') = 'author'))
+    AND NOT EXISTS (SELECT 1 FROM unnest(changed) k WHERE k NOT IN ('removed_at', 'removed_by', 'deleted_at', 'deleted_by', 'deleted_kind', 'purge_after', 'updated_at', 'rev', 'pinned_at', 'pinned_by')
+      OR (k IN ('pinned_at', 'pinned_by') AND n -> k <> 'null'::jsonb)) THEN
+    RETURN NEW;
+  END IF;
+  RAISE EXCEPTION 'community unavailable' USING ERRCODE = 'P0404';
 END $$;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.community_harvest_write_guard() FROM PUBLIC, harvest_app;--> statement-breakpoint
 -- Part 3: a paused community takes no new members and no new or resubmitted applications, through any path (join, invitation, approval).
@@ -509,6 +529,58 @@ DO $$ DECLARE rel text; BEGIN
     EXECUTE format('CREATE TRIGGER community_harvest_join_guard BEFORE INSERT OR UPDATE ON public.%I FOR EACH ROW EXECUTE FUNCTION public.community_harvest_join_guard()', rel);
   END LOOP;
 END $$;--> statement-breakpoint
+-- Founder (27 Nov): while paused, members may still delete their own posts, replies, chat messages and private messages. The normal delete definers
+-- answer "not found" for a paused community (no read access, no chat role), so this one does the same soft delete for the author only, and only
+-- while the community is paused. The write guard above lets exactly this change through.
+CREATE FUNCTION public.community_harvest_delete_own(p_slug text, p_type text, p_id uuid) RETURNS jsonb
+LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE actor text := nullif(current_setting('app.user_id', true), ''); c record; m record; v_rev bigint; done boolean := false;
+BEGIN
+  PERFORM public.community_definer_reset();
+  IF actor IS NULL OR p_id IS NULL OR p_type IS NULL OR p_type NOT IN ('post', 'comment', 'message', 'dm_message') THEN RETURN jsonb_build_object('outcome', 'not_found'); END IF;
+  PERFORM set_config('app.community_resolve_slug', coalesce(p_slug, ''), true);
+  SELECT communities.tenant_id, communities.id INTO c FROM public.communities WHERE communities.slug = p_slug AND communities.status = 'published';
+  IF NOT FOUND OR NOT public.community_harvest_hidden(c.id) THEN PERFORM public.community_definer_reset(); RETURN jsonb_build_object('outcome', 'not_found'); END IF;
+  PERFORM set_config('app.community_definer_tenant', c.tenant_id::text, true);
+  IF NOT EXISTS (SELECT FROM public.community_memberships ms WHERE ms.tenant_id = c.tenant_id AND ms.community_id = c.id AND ms.user_id = actor AND ms.status = 'active') THEN
+    PERFORM public.community_definer_reset(); RETURN jsonb_build_object('outcome', 'not_found');
+  END IF;
+  IF p_type = 'post' THEN
+    UPDATE public.community_posts SET removed_at = now(), removed_by = actor, updated_at = now()
+      WHERE tenant_id = c.tenant_id AND community_id = c.id AND id = p_id AND author_id = actor AND removed_at IS NULL;
+    done := FOUND;
+    IF done THEN INSERT INTO public.audit_logs (tenant_id, actor_id, action, target_id) VALUES (c.tenant_id, actor, 'community.post_delete', p_id::text); END IF;
+  ELSIF p_type = 'comment' THEN
+    UPDATE public.community_comments SET removed_at = now(), removed_by = actor, updated_at = now()
+      WHERE tenant_id = c.tenant_id AND community_id = c.id AND id = p_id AND author_id = actor AND removed_at IS NULL;
+    done := FOUND;
+    IF done THEN INSERT INTO public.audit_logs (tenant_id, actor_id, action, target_id) VALUES (c.tenant_id, actor, 'community.comment_delete', p_id::text); END IF;
+  ELSIF p_type = 'message' THEN
+    SELECT x.id, x.channel_id, x.parent_id INTO m FROM public.community_messages x
+      WHERE x.tenant_id = c.tenant_id AND x.community_id = c.id AND x.id = p_id AND x.author_id = actor AND x.deleted_at IS NULL FOR UPDATE;
+    IF FOUND THEN
+      UPDATE public.community_channels SET last_rev = last_rev + 1 WHERE id = m.channel_id RETURNING last_rev INTO v_rev;
+      UPDATE public.community_messages SET pinned_at = NULL, pinned_by = NULL, deleted_at = now(), deleted_by = actor, deleted_kind = 'author',
+        purge_after = coalesce(purge_after, now() + interval '30 days'), rev = v_rev WHERE id = p_id;
+      PERFORM public.community_chat_refresh_thread(m.parent_id, m.channel_id);
+      PERFORM public.community_chat_bump(c.tenant_id, c.id);
+      done := true;
+    END IF;
+  ELSE
+    SELECT x.id, x.conversation_id INTO m FROM public.community_dm_messages x
+      WHERE x.tenant_id = c.tenant_id AND x.community_id = c.id AND x.id = p_id AND x.author_id = actor AND x.deleted_at IS NULL FOR UPDATE;
+    IF FOUND THEN
+      UPDATE public.community_dm_conversations SET last_rev = last_rev + 1 WHERE id = m.conversation_id RETURNING last_rev INTO v_rev;
+      UPDATE public.community_dm_messages SET rev = v_rev, deleted_at = clock_timestamp(), deleted_by = actor, purge_after = clock_timestamp() + interval '30 days' WHERE id = p_id;
+      PERFORM public.community_dm_bump(c.tenant_id, c.id, m.conversation_id, ARRAY(SELECT user_id FROM public.community_dm_participants WHERE conversation_id = m.conversation_id));
+      done := true;
+    END IF;
+  END IF;
+  PERFORM public.community_definer_reset();
+  RETURN jsonb_build_object('outcome', CASE WHEN done THEN 'ok' ELSE 'not_found' END, 'id', CASE WHEN done THEN p_id END);
+END $$;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.community_harvest_delete_own(text, text, uuid) FROM PUBLIC;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.community_harvest_delete_own(text, text, uuid) TO harvest_app;--> statement-breakpoint
 -- Chat and private messages: no chat role in a paused community, so owners and admins cannot open chat either (settings stay open to them). Patched
 -- on the live definition (0057, rewritten by 0113) so earlier rewrites are kept; the migration fails if the body no longer has the expected shape.
 DO $$ DECLARE def text; patched text; BEGIN

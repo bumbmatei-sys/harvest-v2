@@ -9,7 +9,10 @@ import { users } from "../../src/db/schema";
 import { createWorkspace, putMember } from "../../src/server/workspaces";
 import { createCommunity, getCommunity, listCategories, publishCommunity, updateCommunity } from "../../src/server/communities";
 import { enterCommunity, getPublicCommunity, listDiscover } from "../../src/server/community-joining";
-import { forumContext, getPost, listPosts, moderate, saveComment, savePost } from "../../src/server/community-forum";
+import { deleteComment, deletePost, forumContext, getPost, listPosts, moderate, saveComment, savePost } from "../../src/server/community-forum";
+import { deleteChatMessage, saveChatChannel } from "../../src/server/community-chat";
+import { dmChangeMessage, dmStart } from "../../src/server/community-dm";
+import { randomUUID } from "node:crypto";
 import { communityTakedownFor, harvestPaused, respondToCommunityHarvestReport, staffCommunityOpenCount, staffCommunityReports, staffCommunityTakedown,
   staffResolveCommunityReport, submitContentHarvestReport } from "../../src/server/community-takedown";
 import { withTenant, withUser } from "../../src/server/tenancy";
@@ -23,7 +26,7 @@ import { emptyBioDefinition } from "../../src/lib/link-in-bio";
 let f: Awaited<ReturnType<typeof testDatabase>>;
 let a: string, b: string, clubA: string, clubB: string, generalA: string, generalB: string;
 const origin = "http://localhost:3000";
-const people = ["t-owner", "t-host", "t-one", "t-two", "t-outsider", "t-bowner", "t-bone", "t-staff", "t-reviewer", "t-admin", "t-new", "t-applicant"];
+const people = ["t-owner", "t-host", "t-one", "t-two", "t-outsider", "t-bowner", "t-bone", "t-staff", "t-reviewer", "t-admin", "t-new", "t-applicant", "t-mod", "t-pin", "t-del", "t-dm", "t-dm2"];
 // The answer a route gives for the error (errorResponse maps database refusals such as P0404 the way the API does).
 const status = (promise: Promise<unknown>) => promise.then(() => 200, (e: { status?: number; name?: string }) => e.status ?? (e.name === "ZodError" ? 400 : errorResponse(e).status));
 const body = (text: string) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
@@ -340,5 +343,87 @@ describe("founder answers (27 Nov): review requests, read-only while paused, no 
     expect(await view()).not.toContain("Grace prayer");
     await pause(false);
     expect(await view()).toContain("Grace prayer");
+  });
+});
+
+describe("round 3: account deletion and own deletes while paused", () => {
+  let chatClub: string, chatGeneral: string, channel: string;
+  type R = { outcome: string; message?: { id: string }; conversation?: { id: string } };
+  const chat = (user: string, fn: string, args: unknown[]) => withUser(f.db, user, async (tx) => (await tx.execute<{ result: R }>(
+    sql`select ${sql.raw("public." + fn)}(${sql.join(["grace-chat", ...args].map((v) => sql`${sql.param(v)}`), sql`,`)}) result`)).rows[0].result);
+  const say = async (user: string, text: string) => { const r = await chat(user, "community_message_send", [channel, null, text, [], randomUUID()]); expect(r.outcome, text).toBe("ok"); return r.message!.id; };
+  const pauseChat = (hidden: boolean) => staffCommunityTakedown(f.db, "t-staff", { targetType: "community", targetId: chatClub, hidden, ...(hidden ? { reason: "Review" } : {}) });
+
+  beforeAll(async () => {
+    chatClub = await community("t-owner", a, "Grace chat", "grace-chat");
+    for (const user of ["t-mod", "t-pin", "t-del", "t-dm", "t-dm2", "t-one"]) await enterCommunity(f.db, user, "grace-chat", { rulesVersion: 0, adult: true });
+    await f.admin.query("update community_memberships set role = 'moderator' where community_id = $1 and user_id = any($2)", [chatClub, ["t-mod", "t-pin", "t-del"]]);
+    await f.admin.query("update communities set chat_enabled = true, dm_policy = 'members' where id = $1", [chatClub]);
+    await f.admin.query("update community_memberships set dm_accept_members = true where community_id = $1", [chatClub]);
+    chatGeneral = (await listCategories(f.db, "t-owner", a, chatClub))[0].id;
+    const saved = await saveChatChannel(f.db, "t-owner", "grace-chat", null, { name: "Talk" });
+    channel = (saved.channel as { id: string }).id;
+    expect((await visitorReport("grace-chat", { reason: "other" }, "203.0.113.150")).status).toBe(200);
+  });
+
+  it("lets accounts that removed, pinned or deleted content in a paused community be deleted", async () => {
+    const removedPost = await savePost(f.db, "t-one", "grace-chat", { categoryId: chatGeneral, title: "Removed", body: body("x") });
+    await moderate(f.db, "t-mod", "grace-chat", { action: "remove_post", targetId: removedPost.id });
+    const pinned = await say("t-one", "Pin me"), removed = await say("t-one", "Remove me");
+    expect((await chat("t-pin", "community_message_moderate", [pinned, "pin"])).outcome).toBe("ok");
+    expect((await chat("t-del", "community_message_moderate", [removed, "remove"])).outcome).toBe("ok");
+    const started = await dmStart(f.db, "t-dm", "grace-chat", { targetUserId: "t-dm2", body: "Private", client_id: randomUUID() }) as R;
+    expect(started.outcome).toBe("ok");
+    expect((await dmChangeMessage(f.db, "t-dm", "grace-chat", started.message!.id, "delete")).outcome).toBe("ok");
+    await pauseChat(true);
+    // Account deletion is not built yet; its audit handling is out of scope here, so the test clears these people's (append-only) audit rows first,
+    // then deletes the accounts. Each delete fires ON DELETE SET NULL updates on the paused community's posts, chat and private messages.
+    const leaving = ["t-mod", "t-pin", "t-del", "t-dm"];
+    await f.admin.query("alter table audit_logs disable trigger user");
+    try { await f.admin.query("delete from audit_logs where actor_id = any($1)", [leaving]); } finally { await f.admin.query("alter table audit_logs enable trigger user"); }
+    for (const user of leaving) {
+      await expect(f.admin.query("delete from users where id = $1", [user]), user).resolves.toBeTruthy();
+    }
+    const refs = (await f.admin.query("select (select removed_by from community_posts where id = $1) a, (select pinned_by from community_messages where id = $2) b, (select deleted_by from community_messages where id = $3) c",
+      [removedPost.id, pinned, removed])).rows[0];
+    expect(refs).toEqual({ a: null, b: null, c: null });
+    // Clearing is the only change allowed: a reference cannot be reassigned to someone else.
+    await expect(f.admin.query("update community_messages set author_id = 't-two' where id = $1", [pinned])).rejects.toMatchObject({ code: "P0404" });
+    await pauseChat(false);
+  });
+
+  it("lets members delete only their own posts, replies, chat messages and private messages while paused", async () => {
+    const mine = await savePost(f.db, "t-one", "grace-chat", { categoryId: chatGeneral, title: "Mine", body: body("x") });
+    const theirs = await savePost(f.db, "t-dm2", "grace-chat", { categoryId: chatGeneral, title: "Theirs", body: body("x") });
+    const reply = await saveComment(f.db, "t-one", "grace-chat", theirs.id!, { body: "My reply" });
+    const message = await say("t-one", "My message"), other = await say("t-dm2", "Their message");
+    const dm = await dmStart(f.db, "t-one", "grace-chat", { targetUserId: "t-dm2", body: "Hi", client_id: randomUUID() }) as R;
+    await pauseChat(true);
+    // Editing and writing stay closed.
+    expect(await status(savePost(f.db, "t-one", "grace-chat", { categoryId: chatGeneral, title: "Edited", body: body("y") }, mine.id!))).toBe(404);
+    // Someone else's content: the same not-found answer.
+    expect(await status(deletePost(f.db, "t-one", "grace-chat", theirs.id!))).toBe(404);
+    expect(await status(deleteChatMessage(f.db, "t-one", "grace-chat", other))).toBe(404);
+    expect(await status(deleteChatMessage(f.db, "t-one", "grace-chat", message, true))).toBe(404);
+    // Their own: deleted.
+    expect(await deletePost(f.db, "t-one", "grace-chat", mine.id!)).toMatchObject({ outcome: "ok" });
+    expect(await deleteComment(f.db, "t-one", "grace-chat", reply.id!)).toMatchObject({ outcome: "ok" });
+    expect(await deleteChatMessage(f.db, "t-one", "grace-chat", message)).toMatchObject({ outcome: "ok" });
+    expect(await dmChangeMessage(f.db, "t-one", "grace-chat", dm.message!.id, "delete")).toMatchObject({ outcome: "ok" });
+    expect(await dmChangeMessage(f.db, "t-dm2", "grace-chat", dm.message!.id, "delete")).toMatchObject({ outcome: "not_found" });
+    const rows = (await f.admin.query(`select (select removed_by from community_posts where id = $1) post, (select removed_by from community_comments where id = $2) reply,
+      (select deleted_kind from community_messages where id = $3) message, (select deleted_by from community_dm_messages where id = $4) dm, (select removed_at is null from community_posts where id = $5) theirs`,
+      [mine.id, reply.id, message, dm.message!.id, theirs.id])).rows[0];
+    expect(rows).toEqual({ post: "t-one", reply: "t-one", message: "author", dm: "t-one", theirs: true });
+    // A non-paused community never uses this path.
+    await pauseChat(false);
+    expect(await withUser(f.db, "t-one", async (tx) => (await tx.execute<{ v: { outcome: string } }>(sql`select public.community_harvest_delete_own('grace-chat', 'post', ${theirs.id}::uuid) as v`)).rows[0].v.outcome)).toBe("not_found");
+  });
+
+  it("answers a concurrent second review request with 'already open', never an error", async () => {
+    await pauseChat(true);
+    const results = await Promise.all([1, 2].map((n) => status(requestHarvestReview(f.db, n === 1 ? "t-owner" : "t-admin", a, chatClub, { message: `Request ${n}` }))));
+    expect(results.sort()).toEqual([200, 409]);
+    await pauseChat(false);
   });
 });

@@ -1,5 +1,5 @@
 {
-  "id": "6b4d0014-5627-4d8f-8db5-f55f08bf2994",
+  "id": "649e7510-6c7e-4b6d-9755-9cfd3feb57df",
   "prevId": "6a68760d-6a9a-4352-b9c2-82a839f07794",
   "version": "7",
   "dialect": "postgresql",
@@ -16004,7 +16004,7 @@
           "columnsTo": [
             "id"
           ],
-          "onDelete": "no action",
+          "onDelete": "set null",
           "onUpdate": "no action"
         },
         "community_takedown_appeals_tenant_id_community_id_communities_tenant_id_id_fk": {

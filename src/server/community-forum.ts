@@ -11,6 +11,7 @@ import { message } from "../i18n/messages";
 import { communitySlug } from "./communities";
 import { AccessError } from "./permissions";
 import { withUser } from "./tenancy";
+import { harvestDeleteOwn } from "./community-takedown";
 
 // PR 4b (C09/C10): the member forum. Reads run in withUser through community_can_read (RLS); every write goes
 // through a definer in migration 0038, which re-checks membership, roles, hosts-only categories and switches.
@@ -140,8 +141,15 @@ export async function savePost(db: Database, userId: string, slug: string, raw: 
     ${plainText(body).slice(0, 20000)}, ${video}, ${input.coverFileId ?? null}::uuid, ${attachments}::uuid[], ${input.commentsOff}, ${input.likesOff}) as v`, ["ok", "held"]);
 }
 
+// A community Harvest paused answers "not found" here; its members may still delete their own content (community-takedown.ts).
+const orOwnPausedDelete = async (db: Database, userId: string, slug: string, type: "post" | "comment", id: string, run: () => Promise<Outcome>): Promise<Outcome> => {
+  try { return await run(); } catch (error) {
+    if (error instanceof AccessError && error.status === 404 && await harvestDeleteOwn(db, userId, slug, type, id)) return { outcome: "ok", id };
+    throw error;
+  }
+};
 export function deletePost(db: Database, userId: string, slug: string, postId: string) {
-  return forumDefiner(db, userId, sql`select public.community_post_delete(${communitySlug.parse(slug)}, ${z.uuid().parse(postId)}::uuid) as v`);
+  return orOwnPausedDelete(db, userId, slug, "post", postId, () => forumDefiner(db, userId, sql`select public.community_post_delete(${communitySlug.parse(slug)}, ${z.uuid().parse(postId)}::uuid) as v`));
 }
 
 export function saveComment(db: Database, userId: string, slug: string, postId: string, raw: unknown, commentId?: string) {
@@ -151,7 +159,7 @@ export function saveComment(db: Database, userId: string, slug: string, postId: 
 }
 
 export function deleteComment(db: Database, userId: string, slug: string, commentId: string) {
-  return forumDefiner(db, userId, sql`select public.community_comment_delete(${communitySlug.parse(slug)}, ${z.uuid().parse(commentId)}::uuid) as v`);
+  return orOwnPausedDelete(db, userId, slug, "comment", commentId, () => forumDefiner(db, userId, sql`select public.community_comment_delete(${communitySlug.parse(slug)}, ${z.uuid().parse(commentId)}::uuid) as v`));
 }
 
 const likeInput = z.object({ targetType: z.enum(["post", "comment"]), targetId: z.uuid() }).strict();

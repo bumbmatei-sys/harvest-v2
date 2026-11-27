@@ -8,6 +8,7 @@ import { communitySlug } from "./communities";
 import { chatResponse, communityChatEnabled, communityChatRoute, type ChatResult } from "./community-chat";
 import { AccessError } from "./permissions";
 import { withUser } from "./tenancy";
+import { harvestDeleteOwn } from "./community-takedown";
 
 const userId = z.string().min(1).max(200);
 const start = z.object({ targetUserId: userId, body: chatBody, client_id: z.uuid() }).strict();
@@ -52,7 +53,9 @@ export function dmMessages(db: Database, user: string, slug: string, id: string,
 export function dmChangeMessage(db: Database, user: string, slug: string, id: string, action: "edit" | "delete" | "restore", body?: unknown) {
   const address = communitySlug.parse(slug), mid = z.uuid().parse(id);
   if (action === "edit") return executeDm(db, user, sql`select public.community_dm_edit(${address},${mid}::uuid,${edit.parse(body).body}) result`);
-  if (action === "delete") return executeDm(db, user, sql`select public.community_dm_delete_message(${address},${mid}::uuid) result`);
+  if (action === "delete") return executeDm(db, user, sql`select public.community_dm_delete_message(${address},${mid}::uuid) result`).then(async (result) =>
+    // A community Harvest paused: its members may still delete their own private messages.
+    result.outcome === "not_found" && await harvestDeleteOwn(db, user, address, "dm_message", mid) ? { outcome: "ok" } : result);
   return executeDm(db, user, sql`select public.community_dm_restore_message(${address},${mid}::uuid) result`);
 }
 

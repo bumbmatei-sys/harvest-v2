@@ -44,13 +44,17 @@ Migration `0137_community_takedown` (tentative; the final number is assigned at 
 
 ## Founder answers (27 Nov) and review fixes
 - **Request review.** On a paused community's settings page owners and admins see the staff reason and "Request review": a message of up to 1,000
-  characters, one open request at a time, three a day per community (`community_harvest_appeal`, table `community_takedown_appeals`, FORCE RLS; owners and
+  characters, one open request at a time (a concurrent second request answers "already open"), three a day per community under a per-community lock (`community_harvest_appeal`, table `community_takedown_appeals`, FORCE RLS; owners and
   admins read their own requests). The request shows in the staff queue on the community's report row, with its status. Staff admins keep the pause
   and close it (`platform_community_appeal_decline`), or restore the community, which closes it as restored. Audited: `community.takedown.appeal` in the
   ministry's audit log (no message text), `community.appeal.declined` in the staff log.
 - **Settings only while paused.** Owners and admins keep the ministry settings. Forum and chat are read-only for everyone, owners and admins
   included, in the database: a trigger (`community_harvest_write_guard`) on posts, replies, likes, chat messages, reactions and private messages
-  refuses new rows and changes. It allows only the columns an account deletion clears or a purge recounts. Deletions (retention, erasure) still run.
+  refuses new rows and changes. An update may only set user references (author, user, sender, removed by, deleted by, pinned by) to NULL, as an
+  account deletion's ON DELETE SET NULL does, recount replies and revisions (a purge), or be the author's own delete (below). Hard deletions still run.
+- **Own deletes while paused (founder, 27 Nov).** Members may still delete their own posts, replies, chat messages and private messages, and nothing
+  else. The normal delete definers answer "not found" for a paused community, so the delete routes then call `community_harvest_delete_own`. It does the
+  same soft delete as the normal path, for the author only, only while paused, and only for an active member. Restoring a deleted message stays closed.
   `community_chat_role` gives nobody a chat role while paused. Patched on its live definition, the migration fails if that definition has an unexpected shape.
 - **No new joins.** `community_harvest_join_guard` on memberships and applications refuses new rows and any change to active, pending,
   info requested or approved. That covers joining, invitations, applications, resubmissions and approvals through any path. Members can still leave. The database answers
@@ -75,7 +79,10 @@ Migration `0137_community_takedown` (tentative; the final number is assigned at 
   restore closes, ministry and staff audit without the message, other ministry isolated); settings still saved while paused; forum and chat
   writes refused through the member path, the ministry's staff path and a direct insert; no chat role for owners, admins, hosts or members; deletes
   still run; joins, applications, an earlier application's approval and a direct membership insert refused with the missing-community 404; leaving
-  works; link in bio leaves out and brings back the community. `tests/integration/community-email-db.test.ts`: the digest leaves out a hidden post's
+  works; link in bio leaves out and brings back the community. Round 3: accounts that removed a post, pinned or removed a chat message, or deleted a
+  private message in a paused community can be deleted (their references become NULL; a reassignment is refused); members delete their own post,
+  reply, chat message and private message while paused but nobody else's, and cannot edit or restore; two concurrent review requests give one
+  request and one "already open". `tests/integration/community-email-db.test.ts`: the digest leaves out a hidden post's
   title and shows it again after a restore.
 - `tests/unit/community-takedown.test.ts`: input rules and reasons identical in code, migration and copy. C23 hardening (unit and database) updated.
 - `tests/e2e/community-takedown.spec.ts`: report, staff pause, public 404 and Discover, member notice, owner reason, restore, hide and restore a post;

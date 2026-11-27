@@ -3882,7 +3882,7 @@ export const communityTakedownAppeals = pgTable("community_takedown_appeals", {
   message: text("message").notNull(), status: text("status").$type<"open" | "declined" | "restored">().notNull().default("open"),
   // The appeal outlives an account deletion (set null), like the report it answers.
   createdBy: text("created_by").references(() => users.id, { onDelete: "set null" }), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
-  decidedBy: text("decided_by").references(() => users.id), decidedAt: timestamp("decided_at", { withTimezone: true }),
+  decidedBy: text("decided_by").references(() => users.id, { onDelete: "set null" }), decidedAt: timestamp("decided_at", { withTimezone: true }),
 }, (t) => [
   foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
   uniqueIndex("community_takedown_appeals_open_idx").on(t.communityId).where(sql`${t.status} = 'open'`),

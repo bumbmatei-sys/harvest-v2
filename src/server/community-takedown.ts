@@ -116,6 +116,17 @@ export async function requestHarvestReview(db: Database, userId: string, tenantI
   throw new AccessError(404, message("Errors.communityNotFound"));
 }
 
+/**
+ * Founder (27 Nov): while Harvest pauses a community its members may still delete their own posts, replies, chat messages and private messages.
+ * The normal delete answers "not found" for a paused community; the delete routes then try this, which the database allows only for the author,
+ * only while the community is paused. False when it does not apply.
+ */
+export async function harvestDeleteOwn(db: Database, userId: string, slug: string, type: "post" | "comment" | "message" | "dm_message", id: string): Promise<boolean> {
+  const name = communitySlug.safeParse(slug), target = z.uuid().safeParse(id);
+  if (!name.success || !target.success) return false;
+  return withUser(db, userId, async (tx) => (await tx.execute<{ v: { outcome: string } }>(sql`select public.community_harvest_delete_own(${name.data}, ${type}, ${target.data}::uuid) as v`)).rows[0].v.outcome === "ok");
+}
+
 // ---- Harvest staff ---------------------------------------------------------------------------------------------------------------------------------------
 export type StaffCommunityReport = { id: string; tenantId: string; communityId: string; ministry: string | null; community: string | null; slug: string | null;
   targetType: HarvestReportTarget; targetId: string; reason: string; note: string | null; excerpt: string | null; removed: boolean;

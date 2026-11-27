@@ -13,6 +13,7 @@ import { communitiesEnabled } from "./communities-mode";
 import { communityRoute } from "./community-route";
 import { AccessError } from "./permissions";
 import { withTenant, withUser } from "./tenancy";
+import { harvestDeleteOwn } from "./community-takedown";
 
 export function communityChatEnabled(env: Record<string, string | undefined> = process.env) {
   return env.NODE_ENV !== "production" && communitiesEnabled(env);
@@ -53,8 +54,13 @@ export function editChatMessage(db: Database, user: string, slug: string, id: st
   enabled(); const input = messageEditInput.parse(raw);
   return call(db, user, sql`select public.community_message_edit(${communitySlug.parse(slug)},${z.uuid().parse(id)}::uuid,${input.body},${sql.param(input.mention_ids)}::text[]) result`);
 }
-export function deleteChatMessage(db: Database, user: string, slug: string, id: string, restore = false) {
-  return call(db, user, sql`select public.community_message_delete(${communitySlug.parse(slug)},${z.uuid().parse(id)}::uuid,${restore}) result`);
+export async function deleteChatMessage(db: Database, user: string, slug: string, id: string, restore = false): Promise<ChatResult> {
+  try { return await call(db, user, sql`select public.community_message_delete(${communitySlug.parse(slug)},${z.uuid().parse(id)}::uuid,${restore}) result`); }
+  catch (error) {
+    // A community Harvest paused gives nobody a chat role; its members may still delete (not restore) their own messages.
+    if (!restore && error instanceof AccessError && error.status === 404 && await harvestDeleteOwn(db, user, slug, "message", id)) return { outcome: "ok" };
+    throw error;
+  }
 }
 export function moderateChatMessage(db: Database, user: string, slug: string, id: string, raw: unknown) {
   enabled(); const input = z.object({ action: z.enum(["pin", "unpin", "remove", "restore", "approve", "reject"]) }).strict().parse(raw);
