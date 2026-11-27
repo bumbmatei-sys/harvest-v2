@@ -107,7 +107,7 @@ ALTER TABLE "crm_notifications" ADD CONSTRAINT "crm_notification_kind" CHECK ("c
 ALTER TABLE "crm_notifications" ADD CONSTRAINT "crm_notification_due_at" CHECK (("crm_notifications"."kind" in ('task_assigned','volunteer_assigned','volunteer_changed')) = ("crm_notifications"."due_at" is null));--> statement-breakpoint
 CREATE FUNCTION public.volunteer_role(p_tenant uuid) RETURNS text
 LANGUAGE sql STABLE SET search_path = pg_catalog, pg_temp AS $$
-  SELECT role_id FROM public.workspace_members
+  SELECT public.access_role(tenant_id,user_id,'owner_admin',role_id) FROM public.workspace_members
   WHERE tenant_id = p_tenant AND tenant_id = nullif(current_setting('app.tenant_id', true), '')::uuid
     AND user_id = nullif(current_setting('app.user_id', true), '')
 $$;
@@ -191,7 +191,7 @@ BEGIN
   PERFORM set_config('app.user_id', actor, true);
   PERFORM set_config('app.tenant_id', p_tenant::text, true);
   PERFORM set_config('app.access_tenant', p_tenant::text, true);
-  SELECT m.role_id INTO role FROM public.workspace_members m WHERE m.tenant_id = p_tenant AND m.user_id = actor;
+  SELECT public.access_role(m.tenant_id,m.user_id,'owner_admin',m.role_id) INTO role FROM public.workspace_members m WHERE m.tenant_id = p_tenant AND m.user_id = actor;
   IF role IS NULL OR role NOT IN ('owner','admin','member') THEN
     PERFORM public.blog_scope_restore(prior);
     RETURN '{"outcome":"missing"}';
@@ -234,7 +234,7 @@ BEGIN
     IF p_action IN ('swap','decline') THEN
       IF NOT EXISTS (SELECT FROM public.volunteer_assignments WHERE tenant_id = p_tenant AND slot_id = slot.id AND user_id = actor) OR
         (p_action = 'swap' AND (p_target IS NULL OR p_target = actor OR NOT EXISTS (
-          SELECT FROM public.workspace_members WHERE tenant_id = p_tenant AND user_id = p_target AND role_id IN ('owner','admin','member')))) THEN
+          SELECT FROM public.workspace_members WHERE tenant_id = p_tenant AND user_id = p_target AND public.access_role(tenant_id,user_id,'owner_admin',role_id) IN ('owner','admin','member')))) THEN
         result := '{"outcome":"missing"}'; EXIT operation;
       END IF;
       INSERT INTO public.volunteer_requests (tenant_id, slot_id, user_id, replacement_user_id, kind)
@@ -287,7 +287,7 @@ BEGIN
     IF person IS NOT NULL OR volunteer IS NOT NULL THEN
       IF NOT EXISTS (SELECT FROM public.volunteer_roles WHERE tenant_id = p_tenant AND id = slot.role_id AND NOT archived) OR
         (person IS NOT NULL AND NOT EXISTS (
-          SELECT FROM public.workspace_members WHERE tenant_id = p_tenant AND user_id = person AND role_id IN ('owner','admin','member'))) THEN
+          SELECT FROM public.workspace_members WHERE tenant_id = p_tenant AND user_id = person AND public.access_role(tenant_id,user_id,'owner_admin',role_id) IN ('owner','admin','member'))) THEN
         result := '{"outcome":"missing"}'; EXIT operation;
       END IF;
       IF (SELECT count(*) FROM public.volunteer_assignments WHERE tenant_id = p_tenant AND slot_id = slot.id) >= slot.needed AND p_action <> 'approve' THEN
