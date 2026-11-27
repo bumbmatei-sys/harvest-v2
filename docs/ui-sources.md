@@ -593,3 +593,17 @@ Founder instruction, 27 Nov 2026, on the community post page: "in the admin dash
 | `src/app/communities/[slug]/(member)/posts/[postId]/page.tsx` | modelled on | `components/post-item.tsx` | 1 of 67 (1%) | The feed card expanded: full post, replies inside the card, reply box in the footer. |
 
 Kit actions mapped to Harvest: like (forum like route), comment (opens the post in the feed; focuses the reply box on the post page), report (existing report dialog, from the menu), pin and unpin and remove (hosts, moderation route), delete and edit (author), copy link (added; client only). Dropped because Harvest has no such feature: save, share (send), hide post, unfollow, comment-level reply threads, liker avatars, stories, the right-hand suggestions, search, the profile header and the upgrade banner. Kept unchanged: rich text sanitising, upload rules, rate limits (the shared request hook shows the 429 message), held posts, muting, replies and likes switches, edit history for hosts. Not used: `aside-right.tsx`, `social-media-sidebar.tsx` (removed after founder feedback), `social-media-stories.tsx`, `data.ts` (sample data). The welcome card on the forum is now a compact single-row notice.
+
+### Native blog (Public > Website > Blog, 27 Nov 2026)
+
+The founder approved four kit items for the native blog on **27 Nov 2026** (`src/lib/ui-provenance.ts`, `kitApprovals`, "Native blog"). The registry entries (`https://shadcnuikit.com/r/<name>.json`) were read on 27 Nov 2026 as **layout references only**: no kit code, sample data, images or copy was copied, so no file carries the "Derived from" header. Identical lines were measured with `scripts/ui-identical.sh`.
+
+| Kit item (registry name) | Tier | Approved | Used for | Harvest file | Identical lines | Kept / reused instead of kit code |
+| --- | --- | --- | --- | --- | --- | --- |
+| `blog-card1` | premium | 2026-11-27 | Article card: cover, title, excerpt, date and reading time (index and "More articles") | `src/components/blog/blog-card.tsx` | 4 of 26 (15%) | Theme tokens; one link per card; no author avatar or comment count (no data for them) |
+| `changelog2` | premium | 2026-11-27 | Blog index header: title, intro and the RSS icon button | `src/components/blog/blog-public.tsx` | 5 of 36 (13%) | `PublicFrame`, `EmptyState`, `Button`; no social or newsletter buttons yet (the kit's timeline is not used) |
+| `tables8` | premium | 2026-11-27 | Owner article list: status, author, date, row actions | `src/components/blog/blog-list.tsx` | 7 of 119 (5%) | Shared `DataTable` (status tabs with counts, cards below 768px), `StatusBadge`, `EmptyState`, `ConfirmDialog`; no row selection, progress card or priority column |
+| `form-layout15` | premium | 2026-11-27 | Article settings and SEO: address with fixed prefix, excerpt with counter, cover and share pictures | `src/components/blog/blog-editor.tsx` | 9 of 225 (4%) | Shared `EditorShell`, `WizardLayout`, `FormSection`, `StickySaveBar`; pictures through the Docs `FilePicker` (ready, scanned Files only) |
+
+Built from existing Harvest parts, no kit item: the article body is the Docs editor surface (`DocEditorSurface`, Tiptap) with one blog-only picture node (`src/components/blog/blog-image-node.tsx`); the public article renders through `RichTextView` (`format="doc"`, the Docs reading styles); the search-result preview (`src/components/blog/search-preview.tsx`) is Harvest-written; the RSS feed is server only; scheduled articles appear in the existing Social Planner week and month views.
+

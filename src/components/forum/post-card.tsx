@@ -10,13 +10,13 @@ import { Card, CardAction, CardContent, CardFooter, CardHeader } from "@/compone
 import { PostEngagement } from "@/components/forum/forum-actions";
 import { memberInitials } from "@/lib/community-members";
 
-export type PostCardData = { id: string; title: string; excerpt: string; authorId?: string | null; authorName: string | null; createdAt: Date; likes: number; comments: number;
+export type PostCardData = { id: string; title: string; excerpt: string; authorId: string | null; authorName: string | null; createdAt: Date; likes: number; comments: number;
   liked: boolean; likesOff: boolean; coverFileId: string | null; hasVideo: boolean; held: boolean; pinned: boolean };
 
 type Translate = (key: "formerMember" | "unnamed") => string;
 /** The name shown for an author: their name, "Member" without one, "Former member" once the account is gone (author id cleared). */
-export function forumAuthorName(t: Translate, authorId: string | null | undefined, authorName: string | null) {
-  return authorId === null ? t("formerMember") : authorName?.trim() || t("unnamed");
+export function forumAuthorName(t: Translate, authorId: string | null, authorName: string | null) {
+  return authorId ? authorName?.trim() || t("unnamed") : t("formerMember");
 }
 
 /**
@@ -38,7 +38,7 @@ export function PostCard({ slug, post, category, menu, meta, detail, footer, chi
         {/* Post Header */}
         <div className="flex min-w-0 items-center gap-3">
           <Avatar>
-            <AvatarFallback aria-hidden="true">{memberInitials(post.authorId === null ? "" : post.authorName ?? "")}</AvatarFallback>
+            <AvatarFallback aria-hidden="true">{memberInitials(post.authorId ? post.authorName ?? "" : "")}</AvatarFallback>
           </Avatar>
           <div className="flex min-w-0 flex-col gap-0.5">
             <div className="flex items-center gap-1">
@@ -104,7 +104,7 @@ export function PostComment({ authorId, authorName, body, createdAt, like, badge
   const t = useTranslations("CommunityForum"), format = useFormatter(), name = forumAuthorName(t, authorId, authorName);
   return <li className="flex gap-2">
     <Avatar className="h-8 w-8">
-      <AvatarFallback aria-hidden="true">{memberInitials(authorId === null ? "" : authorName ?? "")}</AvatarFallback>
+      <AvatarFallback aria-hidden="true">{memberInitials(authorId ? authorName ?? "" : "")}</AvatarFallback>
     </Avatar>
     <div className="min-w-0 flex-1">
       <div className="w-fit max-w-full rounded-2xl bg-muted px-3 py-2">

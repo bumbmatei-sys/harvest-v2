@@ -73,7 +73,7 @@ export function ModerationPanel({ slug, me, role, queue, held, chatHeld, members
   const forumHeldRows: DataTableRow[] = held.map((h) => { const label = itemLabel(h), href = postHref(h.postId); return { id: h.id, label, cells: {
     item: <div className="space-y-1"><Badge variant="outline">{t(`targets.${h.targetType}`)}</Badge>
       {href ? <Link href={href} prefetch={false} className="line-clamp-2 block break-words hover:underline">{label}</Link> : <span className="line-clamp-2 break-words">{label}</span>}</div>,
-    author: h.authorName?.trim() || t("unnamed"), why: <Badge variant="secondary">{t(`heldReasons.${h.reason}`)}</Badge>, date: <span className="whitespace-nowrap">{date(h.heldAt)}</span>,
+    author: h.authorId ? h.authorName?.trim() || t("unnamed") : t("formerMember"), why: <Badge variant="secondary">{t(`heldReasons.${h.reason}`)}</Badge>, date: <span className="whitespace-nowrap">{date(h.heldAt)}</span>,
     actions: <div className="flex justify-end gap-2">
       <Button className="min-h-11" disabled={busy} aria-label={t("approveNamed", { name: label })} onClick={() => void act(`${base}/held`, { targetType: h.targetType, id: h.id, decision: "approve" })}>{t("approve")}</Button>
       <Button variant="outline" className="min-h-11" disabled={busy} aria-label={t("rejectNamed", { name: label })} onClick={() => void act(`${base}/held`, { targetType: h.targetType, id: h.id, decision: "reject" })}>{t("reject")}</Button></div>,
@@ -86,7 +86,7 @@ export function ModerationPanel({ slug, me, role, queue, held, chatHeld, members
     const endpoint = `/api/communities/${slug}/chat/messages/${item.id}/moderate`;
     return { id: item.id, label, cells: {
       item: <Link href={href} prefetch={false} className="line-clamp-2 break-words hover:underline">{label}</Link>,
-      author: members.find(member => member.userId === item.author_id)?.name || t("unnamed"),
+      author: item.author_id ? members.find(member => member.userId === item.author_id)?.name || t("unnamed") : t("formerMember"),
       why: <Badge variant="secondary">{t("heldReasons.banned_word")}</Badge>,
       date: date(item.held_at),
       actions: <div className="flex flex-wrap justify-end gap-2">
@@ -132,7 +132,7 @@ export function ModerationPanel({ slug, me, role, queue, held, chatHeld, members
   const historyColumns: DataTableColumn[] = [{ id: "date", header: t("date"), className: "whitespace-normal" }, { id: "host", header: t("host"), className: "whitespace-normal" },
     { id: "action", header: t("action"), card: "title", className: "whitespace-normal" }, { id: "subject", header: t("subject"), className: "whitespace-normal" }];
   const historyRows: DataTableRow[] = history.map((h) => ({ id: h.id, label: t(`history.${h.action}` as "history.ban", { days: Number(h.detail.days ?? 0) }), cells: {
-    date: format.dateTime(new Date(h.createdAt), { dateStyle: "medium", timeStyle: "short" }), host: h.actorName?.trim() || t("unnamed"),
+    date: format.dateTime(new Date(h.createdAt), { dateStyle: "medium", timeStyle: "short" }), host: h.actorName === null ? t("formerMember") : h.actorName.trim() || t("unnamed"),
     action: t(`history.${h.action}` as "history.ban", { days: Number(h.detail.days ?? 0) }),
     subject: t("subjectWithType", { name: h.subjectName?.trim() || t("unnamed"), type: t(`targets.${h.targetType}` as "targets.post") }),
   } }));
@@ -175,7 +175,7 @@ export function ModerationPanel({ slug, me, role, queue, held, chatHeld, members
           <div className="space-y-1"><Badge variant="outline">{t(`targets.${current.targetType}`)}</Badge>
             {current.title && <p className="font-medium break-words">{current.title}</p>}
             {current.excerpt && <p className="text-sm whitespace-pre-line break-words text-muted-foreground">{current.excerpt}</p>}
-            {current.targetType !== "member" && <p className="text-sm">{t("byAuthor", { name: current.authorName?.trim() || t("unnamed") })}</p>}
+            {current.targetType !== "member" && <p className="text-sm">{t("byAuthor", { name: current.authorId ? current.authorName?.trim() || t("unnamed") : t("formerMember") })}</p>}
             {postHref(current.postId) && <Link href={postHref(current.postId)!} prefetch={false} className="inline-flex min-h-11 items-center text-sm underline">{t("openItem")}</Link>}
             {(current.targetType === "post" || current.targetType === "comment") && <div><EditHistory slug={slug} targetType={current.targetType} targetId={current.targetId} name={itemLabel(current) || t(`targets.${current.targetType}`)} /></div>}</div>
           <div className="space-y-2"><h3 className="text-sm font-medium">{t("reportsCount", { count: current.reports })}</h3>

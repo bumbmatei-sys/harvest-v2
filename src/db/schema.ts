@@ -7,6 +7,7 @@ import { socialPlatforms, type SocialPlatform } from "../lib/social/platforms";
 import type { ComposerInput, DeliveryPayload, WeeklySlot } from "../lib/social/composer";
 import type { LandingDefinition } from "../lib/connect-landing";
 import type { RichDoc } from "../lib/rich-text";
+import { blogReservedHandles } from "../lib/blog";
 import type { BrandTheme } from "../lib/theme-registry";
 import type { Audience } from "../lib/audience";
 import type { AccessArea, AccessGrants, AccessLevel } from "../lib/access-areas";
@@ -38,6 +39,20 @@ export const accountExportRequests = pgTable("account_export_requests", {
   userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   requestedAt: timestamp("requested_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("account_export_requests_user_idx").on(t.userId, t.requestedAt)]);
+// "Your data" (27 Nov): one row per deleted account, the reference staff and the audit row use. The account row itself stays as a scrubbed
+// tombstone (append-only audit logs and other people's records point at it). Written only by public.account_delete (0136); no app grant.
+export const accountDeletions = pgTable("account_deletions", {
+  userId: text("user_id").primaryKey().references(() => users.id),
+  reference: uuid("reference").notNull().unique(),
+  deletedAt: timestamp("deleted_at", { withTimezone: true }).notNull().defaultNow(),
+});
+// One row per running account definer (0136): the random token app.account_erase must equal, for the caller, created in this transaction.
+// Written and deleted only by the account definers; no app grant. It makes the erase flag unforgeable: a value the app sets by hand matches no row.
+export const accountEraseGrants = pgTable("account_erase_grants", {
+  token: uuid("token").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
 export const sessions = pgTable("sessions", {
   id: text("id").primaryKey(), token: text("token").notNull().unique(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
@@ -3987,4 +4002,65 @@ export const fundraisingFiles = pgTable("fundraising_files", {
   check("fundraising_file_checksum", sql`${t.checksum} ~ '^[a-f0-9]{64}$'`),
   check("fundraising_file_status", sql`${t.status} in ('pending','uploaded','quarantined','ready')`),
   check("fundraising_file_key", sql`${t.key} = 'workspaces/' || ${t.tenantId}::text || '/fundraising/' || ${t.fundraisingId}::text || '/files/' || ${t.id}::text`),
+]);
+// Native blog (0135). One blog per ministry at /blog/<handle>; articles are Docs content with pictures from the ministry's Files. Owners and admins (a
+// collaborator with Website at manage) manage both; visitors read only published articles, through the SECURITY DEFINER functions of the migration.
+const blogHandleCheck = `'^[a-z0-9](?:[a-z0-9-]{1,28}[a-z0-9])$' and position('--' in %s) = 0 and %s not in (${blogReservedHandles.map((h) => `'${h}'`).join(", ")})`;
+const blogText = (column: string, max: number) => `(${column} is null or (length(${column}) between 1 and ${max} and ${column} = btrim(${column}) and ${column} !~ '[\\x01-\\x08\\x0b\\x0c\\x0e-\\x1f\\x7f]'))`;
+export const blogSettings = pgTable("blog_settings", {
+  tenantId: uuid("tenant_id").primaryKey().references(() => workspaces.tenantId),
+  handle: text("handle").notNull(),
+  title: text("title").notNull(),
+  intro: text("intro"),
+  version: integer("version").notNull().default(1),
+  /** Set once, when the blog's first article is first published; the address is fixed from then on. */
+  firstPublishedAt: timestamp("first_published_at", { withTimezone: true }),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  uniqueIndex("blog_settings_handle_idx").on(t.handle),
+  check("blog_settings_handle", sql.raw(`"blog_settings"."handle" ~ ${blogHandleCheck.replaceAll("%s", `"blog_settings"."handle"`)}`)),
+  check("blog_settings_title", sql.raw(`length("blog_settings"."title") between 1 and 100 and "blog_settings"."title" = btrim("blog_settings"."title")`)),
+  check("blog_settings_intro", sql.raw(blogText(`"blog_settings"."intro"`, 500))),
+  check("blog_settings_version", sql`${t.version} >= 1`),
+]);
+export const blogPosts = pgTable("blog_posts", {
+  tenantId: uuid("tenant_id").notNull().references(() => blogSettings.tenantId),
+  id: uuid("id").notNull().defaultRandom(),
+  slug: text("slug").notNull(),
+  title: text("title").notNull().default(""),
+  excerpt: text("excerpt"),
+  body: jsonb("body").$type<import("../lib/docs").DocContent>().notNull(),
+  imageIds: uuid("image_ids").array().notNull().default(sql`'{}'::uuid[]`),
+  coverFileId: uuid("cover_file_id").references(() => files.id, { onDelete: "set null" }),
+  shareFileId: uuid("share_file_id").references(() => files.id, { onDelete: "set null" }),
+  seoTitle: text("seo_title"),
+  seoDescription: text("seo_description"),
+  status: text("status", { enum: ["draft", "scheduled", "published"] }).notNull().default("draft"),
+  publishAt: timestamp("publish_at", { withTimezone: true }),
+  publishedAt: timestamp("published_at", { withTimezone: true }),
+  firstPublishedAt: timestamp("first_published_at", { withTimezone: true }),
+  scheduledBy: text("scheduled_by").references(() => users.id, { onDelete: "set null" }),
+  version: integer("version").notNull().default(1),
+  createdBy: text("created_by").notNull().references(() => users.id),
+  updatedBy: text("updated_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+}, (t) => [
+  primaryKey({ columns: [t.tenantId, t.id] }),
+  uniqueIndex("blog_posts_slug_idx").on(t.tenantId, t.slug),
+  index("blog_posts_public_idx").on(t.tenantId, t.publishedAt, t.id).where(sql`${t.status} = 'published'`),
+  index("blog_posts_due_idx").on(t.publishAt, t.tenantId, t.id).where(sql`${t.status} = 'scheduled'`),
+  index("blog_posts_list_idx").on(t.tenantId, t.updatedAt, t.id),
+  check("blog_posts_slug", sql.raw(`"blog_posts"."slug" ~ '^[a-z0-9](?:[a-z0-9-]{0,78}[a-z0-9])?$' and position('--' in "blog_posts"."slug") = 0 and "blog_posts"."slug" not in ('rss', 'feed', 'images', 'page')`)),
+  check("blog_posts_title", sql.raw(`length("blog_posts"."title") <= 200 and "blog_posts"."title" = btrim("blog_posts"."title")`)),
+  check("blog_posts_text", sql.raw(`${blogText(`"blog_posts"."excerpt"`, 300)} and ${blogText(`"blog_posts"."seo_title"`, 70)} and ${blogText(`"blog_posts"."seo_description"`, 160)}`)),
+  check("blog_posts_body", sql`jsonb_typeof(${t.body}) = 'object' and ${t.body}->>'type' = 'doc' and pg_column_size(${t.body}) <= 524288`),
+  check("blog_posts_images", sql`cardinality(${t.imageIds}) <= 50 and array_position(${t.imageIds}, null) is null`),
+  check("blog_posts_status", sql`${t.status} in ('draft', 'scheduled', 'published')
+    and ((${t.status} = 'scheduled') = (${t.publishAt} is not null))
+    and ((${t.status} = 'published') = (${t.publishedAt} is not null))
+    and (${t.status} = 'draft' or ${t.firstPublishedAt} is not null or ${t.status} = 'scheduled')`),
+  check("blog_posts_version", sql`${t.version} >= 1`),
 ]);

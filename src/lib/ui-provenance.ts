@@ -308,6 +308,9 @@ export const kitApprovals = [
     note: "Only the admin-dashboard checkout (1631106) was read; product-details1 and the product-card set could not be read here (no registry token) and product-list7 was already adopted (Kit PR 7). No kit code is copied; see docs/ui-sources.md." },
   { feature: "Discover screens", approvedOn: "2026-11-25", approvedBy: "founder",
     items: ["product-category", "product-card", "product-list7", "product-quickview", "switch-card1", "tables14", "drawer1"], note: "Plus the shared filter popover pattern from CRM, the shared EmptyState and ConfirmDialog. Pro kit first, free shadcn only if nothing fits. Variants used: product-category3, product-card1 (product-card2 and product-card3 read), product-quickview2. See docs/ui-sources.md." },
+  { feature: "Native blog", approvedOn: "2026-11-27", approvedBy: "founder",
+    items: ["blog-card1", "changelog2", "tables8", "form-layout15"],
+    note: "Layout references only (registry read 2026-11-27); no kit code copied, so no file carries the Derived from header. Lines identical by scripts/ui-identical.sh: blog-card1 vs src/components/blog/blog-card.tsx 4 of 26 (15%), changelog2 vs src/components/blog/blog-public.tsx 5 of 36 (13%), tables8 vs src/components/blog/blog-list.tsx 7 of 119 (5%), form-layout15 vs src/components/blog/blog-editor.tsx 9 of 225 (4%). See docs/ui-sources.md, Native blog." },
 ] as const;
 
 /**

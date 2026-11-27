@@ -925,6 +925,20 @@
       "when": 1795775982843,
       "tag": "0134_your_data_export",
       "breakpoints": true
+    },
+    {
+      "idx": 135,
+      "version": "7",
+      "when": 1795785935924,
+      "tag": "0135_native_blog",
+      "breakpoints": true
+    },
+    {
+      "idx": 136,
+      "version": "7",
+      "when": 1795787887914,
+      "tag": "0136_account_deletion",
+      "breakpoints": true
     }
   ]
 }
