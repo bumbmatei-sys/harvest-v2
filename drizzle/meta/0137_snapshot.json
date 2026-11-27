@@ -1,5 +1,5 @@
 {
-  "id": "7167ec5c-e6e2-4e2a-8b59-87e972abc95f",
+  "id": "ca358b54-1916-45ff-a3fd-7107552b3c2e",
   "prevId": "cc3b36b1-fd5a-44cf-89c1-a835112ed5a0",
   "version": "7",
   "dialect": "postgresql",
@@ -54,6 +54,52 @@
           ]
         }
       },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.account_erase_grants": {
+      "name": "account_erase_grants",
+      "schema": "",
+      "columns": {
+        "token": {
+          "name": "token",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "user_id": {
+          "name": "user_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "account_erase_grants_user_id_users_id_fk": {
+          "name": "account_erase_grants_user_id_users_id_fk",
+          "tableFrom": "account_erase_grants",
+          "tableTo": "users",
+          "columnsFrom": [
+            "user_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
       "isRLSEnabled": false

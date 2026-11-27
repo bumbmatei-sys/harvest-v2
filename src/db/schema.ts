@@ -45,6 +45,13 @@ export const accountDeletions = pgTable("account_deletions", {
   reference: uuid("reference").notNull().unique(),
   deletedAt: timestamp("deleted_at", { withTimezone: true }).notNull().defaultNow(),
 });
+// One row per running account definer (0137): the random token app.account_erase must equal, for the caller, created in this transaction.
+// Written and deleted only by the account definers; no app grant. It makes the erase flag unforgeable: a value the app sets by hand matches no row.
+export const accountEraseGrants = pgTable("account_erase_grants", {
+  token: uuid("token").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
 export const sessions = pgTable("sessions", {
   id: text("id").primaryKey(), token: text("token").notNull().unique(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),

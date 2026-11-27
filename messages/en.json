@@ -790,7 +790,8 @@
     "campaignNotFound": "Campaign not found",
     "dataExportLimited": "You can download your data 3 times an hour. Try again later.",
     "deleteAccountConfirm": "Type DELETE to confirm.",
-    "deleteAccountSoleOwner": "You are the only owner of a ministry. Make someone else an owner first."
+    "deleteAccountSoleOwner": "You are the only owner of a ministry. Contact Harvest support to transfer ownership first.",
+    "deleteAccountDisconnectFailed": "Could not disconnect your mail and calendar. Try again."
   },
   "LibEnv": {
     "missingRequiredEnvironmentVariableValue": "Missing required environment variable: {name}"
@@ -3792,7 +3793,8 @@
       "open": "Open",
       "approved": "Approved",
       "declined": "Declined"
-    }
+    },
+    "formerMember": "Former member"
   },
   "CommunityUnsubscribe": {
     "metaTitle": "Community email",
@@ -10634,8 +10636,8 @@
     "keptAudit": "Security records of actions taken with your account, without your name or email",
     "keptMinistry": "Contact records a ministry keeps about you. Ask the ministry to remove them.",
     "soleOwnerTitle": "Transfer your ministries first",
-    "soleOwnerBody": "You are the only owner of these ministries. Make someone else an owner, then come back.",
-    "soleOwnerShort": "You are the only owner of a ministry. Make someone else an owner first.",
+    "soleOwnerBody": "You are the only owner of these ministries. Ownership can't be transferred in the app yet: contact Harvest support to make someone else an owner, then come back.",
+    "soleOwnerShort": "You are the only owner of a ministry. Contact Harvest support to transfer ownership first.",
     "typeToConfirm": "Type {word} to confirm",
     "deleteAccount": "Delete my account",
     "deleting": "Deleting…",
@@ -10644,6 +10646,8 @@
     "home": "Go to Harvest",
     "cancel": "Cancel",
     "reauth": "For your security, sign in again before deleting your account.",
-    "signInAgain": "Sign in again"
+    "signInAgain": "Sign in again",
+    "removedConnections": "Your connected mail and calendar accounts (disconnected)",
+    "disconnectFailed": "Could not disconnect your mail and calendar. Try again."
   }
 }

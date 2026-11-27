@@ -9,6 +9,7 @@ import { dmList } from "../../src/server/community-dm";
 import { getPost, listPosts } from "../../src/server/community-forum";
 import { leaveCommunity } from "../../src/server/community-joining";
 import { withUser } from "../../src/server/tenancy";
+import { OfficeProviderError } from "../../src/server/office-provider/types";
 import { createWorkspace } from "../../src/server/workspaces";
 
 // "Your data" (27 Nov), part 2: account deletion and "Former member" on leaving (policy pack §7, §11). Migrations run as a non-superuser owner,
@@ -18,6 +19,10 @@ const { owner, me, peer, outsider } = ydPeople;
 const now = new Date("2026-11-27T10:00:00Z"), fresh = new Date("2026-11-27T09:50:00Z"), stale = new Date("2026-11-27T09:40:00Z");
 const removedKeys: string[] = [];
 const deleter = { async deleteObject(key: string) { removedKeys.push(key); } };
+// A synthetic mail and calendar provider: it records revocations and makes no network call.
+const revoked: string[] = [];
+const office = (fail?: OfficeProviderError["code"]) => ({ credential: { secret: "synthetic-office-credential" }, provider: { id: "fake" as const,
+  async disconnect(_credential: unknown, account: { ref: string }) { if (fail) throw new OfficeProviderError(fail); revoked.push(account.ref); } } });
 const count = async (query: string, params: unknown[] = []) => (await f.admin.query(query, params)).rows[0].n as number;
 
 beforeAll(async () => {
@@ -27,6 +32,9 @@ beforeAll(async () => {
   await f.admin.query(`insert into sessions(id, token, expires_at, user_id) values ('yd-s1', 'yd-t1', now() + interval '1 day', $1), ('yd-s2', 'yd-t2', now() + interval '1 day', $2)`, [me, peer]);
   await f.admin.query(`insert into accounts(id, account_id, provider_id, user_id, created_at, updated_at) values ('yd-a1', $1, 'email-otp', $1, now(), now())`, [me]);
   await f.admin.query(`insert into user_profiles(user_id, city_region) values ($1, 'Synthetic city')`, [me]);
+  // Two personal connections (synthetic provider), with a thread marker that must go with them.
+  await f.admin.query(`insert into office_connections(tenant_id, owner_user_id, kind, provider, external_account_ref, platform, profile_ref, health, grants, notice_version)
+    values ($1, $2, 'mail', 'fake', 'yd-mail-ref', 'google', 'yd-profile', 'healthy', 1, 1), ($1, $2, 'calendar', 'fake', 'yd-calendar-ref', 'google', 'yd-profile', 'healthy', 2, 1)`, [seed.tenant, me]);
   // A hard-bounce block in the ministry's newsletter: it must survive the deletion (newsletter-sending acceptance).
   await f.admin.query(`insert into newsletter_suppressions(tenant_id, scope, address_hash, key_version, reason, blocked_at) values ($1, '00000000-0000-0000-0000-000000000000', $2, 'v1', 'hard_bounce', now())`, [seed.tenant, "a".repeat(64)]);
 }, 120_000);
@@ -73,9 +81,21 @@ it("shows a member who left as \"Former member\": posts, replies and chat detach
   expect(items.find((item) => item.id === seed.conversation)).toMatchObject({ otherName: null });
 });
 
+it("revokes mail and calendar connections first, and stops the deletion if any revocation fails", async () => {
+  await expect(deleteMyAccount(f.db, me, fresh, { confirm: "DELETE" }, deleter, now, office("TEMPORARY"))).rejects.toMatchObject({ status: 409, details: { code: "OFFICE_DISCONNECT_FAILED" } });
+  // No provider configured for these connections: refused too, never left behind.
+  await expect(deleteMyAccount(f.db, me, fresh, { confirm: "DELETE" }, deleter, now, null)).rejects.toMatchObject({ details: { code: "OFFICE_DISCONNECT_FAILED" } });
+  expect(await count("select count(*)::int n from office_connections where owner_user_id = $1", [me])).toBe(2);
+  expect(await count("select count(*)::int n from users where id = $1 and email = $2", [me, `${me}@example.invalid`])).toBe(1);
+  expect(revoked).toEqual([]);
+});
+
 it("deletes the account: per-table outcomes, chat erasure, kept audit and suppression", async () => {
   const auditBefore = await count("select count(*)::int n from audit_logs where actor_id = $1", [me]);
-  const result = await deleteMyAccount(f.db, me, fresh, { confirm: "DELETE" }, deleter, now);
+  const result = await deleteMyAccount(f.db, me, fresh, { confirm: "DELETE" }, deleter, now, office());
+  // Both connections were revoked at the provider, then deleted.
+  expect(revoked.sort()).toEqual(["yd-calendar-ref", "yd-mail-ref"]);
+  expect(await count("select count(*)::int n from office_connections where owner_user_id = $1", [me])).toBe(0);
   expect(result.reference).toMatch(/^[0-9a-f-]{36}$/);
   // The account row stays as a tombstone: no name, photo, language or real address.
   expect((await f.admin.query("select name, email, image, locale, email_verified from users where id = $1", [me])).rows[0])
@@ -122,4 +142,33 @@ it("leaves no flag set and gives the app role no access to the deletion register
     await tx.execute(sql`select set_config('app.account_erase', 'on', true)`);
     return tx.execute(sql`delete from community_dm_messages`);
   })).rejects.toThrow();
+});
+
+it("cannot be widened by a hand-set erase flag: an owner-role definer sees and changes no detached row", async () => {
+  expect(await count("select count(*)::int n from community_posts where author_id is null")).toBeGreaterThan(0);
+  expect(await count("select count(*)::int n from account_erase_grants")).toBe(0);
+  const owner = f.migrationOwner!;
+  // Run as the migration owner (what any SECURITY DEFINER runs as) with flags a harvest_app session could have set by hand, including the
+  // reference of a real deletion: nothing opens, because no grant row of this caller exists in this transaction.
+  const reference = (await f.admin.query("select reference from account_deletions limit 1")).rows[0].reference as string;
+  for (const flag of ["on", reference, "00000000-0000-0000-0000-000000000000"]) {
+    await f.admin.query("begin");
+    try {
+      await f.admin.query(`set local role ${owner}`);
+      await f.admin.query("select set_config('app.user_id', $1, true), set_config('app.account_erase', $2, true)", [peer, flag]);
+      expect((await f.admin.query("select public.account_erase_active() a")).rows[0].a).toBe(false);
+      expect((await f.admin.query("select count(*)::int n from community_posts")).rows[0].n).toBe(0);
+      expect((await f.admin.query("update community_posts set title = 'Hijacked' where author_id is null")).rowCount).toBe(0);
+      expect((await f.admin.query("delete from community_dm_messages")).rowCount).toBe(0);
+      expect((await f.admin.query("delete from workspace_members")).rowCount).toBe(0);
+      await expect(f.admin.query("insert into account_erase_grants(token, user_id) values (gen_random_uuid(), $1)", [peer])).rejects.toThrow();
+    } finally { await f.admin.query("rollback"); }
+  }
+  // The same as harvest_app calling a definer: the flag is blanked on entry and the definer only acts on its own token.
+  await withUser(f.db, peer, async (tx) => {
+    await tx.execute(sql`select set_config('app.account_erase', 'on', true)`);
+    await tx.execute(sql`select public.account_delete_blockers()`);
+  });
+  expect(await count("select count(*)::int n from community_posts where title = 'Hijacked'")).toBe(0);
+  expect(await count("select count(*)::int n from account_erase_grants")).toBe(0);
 });

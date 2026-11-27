@@ -5,15 +5,59 @@ CREATE TABLE "account_deletions" (
 	CONSTRAINT "account_deletions_reference_unique" UNIQUE("reference")
 );
 --> statement-breakpoint
+CREATE TABLE "account_erase_grants" (
+	"token" uuid PRIMARY KEY NOT NULL,
+	"user_id" text NOT NULL,
+	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+);
+--> statement-breakpoint
 ALTER TABLE "account_deletions" ADD CONSTRAINT "account_deletions_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "account_erase_grants" ADD CONSTRAINT "account_erase_grants_user_id_users_id_fk" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE no action ON UPDATE no action;
+--> statement-breakpoint
 -- "Your data" (founder, 27 Nov), part 2: self-serve account deletion, and "Former member" on leaving a community (policy pack §11, G2).
 -- The account row itself stays, scrubbed: append-only audit logs and other people's records (CRM notes, documents, campaigns a staff member
 -- created) still point at it, so it cannot be deleted. Everything that is about the person is deleted or detached by public.account_delete,
--- which runs as this migration's owner under app.account_erase and touches only rows of the caller (app.user_id).
+-- which runs as this migration's owner and touches only rows of the caller (app.user_id).
+--
+-- The erase flag is unforgeable. Each account definer draws a random token, stores it in account_erase_grants (no app grant) for the caller,
+-- sets app.account_erase to it, and deletes the row before returning. public.account_erase_active() is true only when app.account_erase names a
+-- grant row of app.user_id created in the current transaction (created_at = now()). A value the app sets by hand, an old token or another
+-- person's token matches nothing, so no other owner-role definer can be widened by it. The account definers are VOLATILE: a STABLE function would
+-- not see the grant row it has just inserted. These definers blank app.tenant_id and every other app.*
+-- flag on entry and exit: they must only run in a personal (withUser) transaction, never inside a ministry (withTenant) transaction.
+ALTER TABLE public.account_erase_grants ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
+ALTER TABLE public.account_erase_grants FORCE ROW LEVEL SECURITY;--> statement-breakpoint
+REVOKE ALL ON public.account_erase_grants FROM PUBLIC, harvest_app;--> statement-breakpoint
+-- The grant table's own policy names only settings and now(), never its own table.
+DO $$ BEGIN
+  EXECUTE format($p$CREATE POLICY account_erase_grant_own ON public.account_erase_grants TO %I
+    USING (token::text = current_setting('app.account_erase', true) AND user_id = nullif(current_setting('app.user_id', true), '') AND created_at = pg_catalog.now())
+    WITH CHECK (token::text = current_setting('app.account_erase', true) AND user_id = nullif(current_setting('app.user_id', true), '') AND created_at = pg_catalog.now())$p$, current_user);
+END $$;--> statement-breakpoint
+CREATE FUNCTION public.account_erase_active() RETURNS boolean LANGUAGE sql STABLE SET search_path = pg_catalog, pg_temp AS $$
+  SELECT nullif(current_setting('app.account_erase', true), '') IS NOT NULL AND nullif(current_setting('app.user_id', true), '') IS NOT NULL
+    AND EXISTS (SELECT 1 FROM public.account_erase_grants g WHERE g.token::text = current_setting('app.account_erase', true)
+      AND g.user_id = nullif(current_setting('app.user_id', true), '') AND g.created_at = pg_catalog.now())
+$$;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.account_erase_active() FROM PUBLIC, harvest_app;--> statement-breakpoint
+-- Internal: draw a token for the caller and turn the erase policies on; account_erase_end() deletes it and blanks every flag.
+CREATE FUNCTION public.account_erase_begin(p_actor text) RETURNS void LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
+DECLARE t uuid := pg_catalog.gen_random_uuid();
+BEGIN
+  PERFORM pg_catalog.set_config('app.account_erase', t::text, true);
+  INSERT INTO public.account_erase_grants (token, user_id) VALUES (t, p_actor);
+END $$;--> statement-breakpoint
+CREATE FUNCTION public.account_erase_end() RETURNS void LANGUAGE plpgsql SET search_path = pg_catalog, pg_temp AS $$
+BEGIN
+  DELETE FROM public.account_erase_grants g WHERE g.token::text = current_setting('app.account_erase', true);
+  PERFORM public.account_self_reset();
+END $$;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.account_erase_begin(text) FROM PUBLIC, harvest_app;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.account_erase_end() FROM PUBLIC, harvest_app;--> statement-breakpoint
 ALTER TABLE public.account_deletions ENABLE ROW LEVEL SECURITY;--> statement-breakpoint
 ALTER TABLE public.account_deletions FORCE ROW LEVEL SECURITY;--> statement-breakpoint
 REVOKE ALL ON public.account_deletions FROM PUBLIC, harvest_app;--> statement-breakpoint
--- Owner write policies, one per (table, person column). Each is active only while app.account_erase is on, for the caller's rows and for rows
+-- Owner write policies, one per (table, person column). Each is active only while account_erase_active(), for the caller's rows and for rows
 -- with no person (PostgreSQL also checks a detaching update's new row, author set to null, against the SELECT side); every statement in
 -- account_delete filters on the caller's id, so a detached row of someone else is never touched. No policy refers to its own table.
 DO $$ DECLARE pair text[]; BEGIN
@@ -33,25 +77,25 @@ DO $$ DECLARE pair text[]; BEGIN
     ARRAY['connect_claim_completions','user_id'], ARRAY['doc_favorites','user_id'], ARRAY['doc_notifications','user_id'],
     ARRAY['doc_page_shares','user_id'], ARRAY['doc_shares','user_id'], ARRAY['crm_notification_preferences','user_id'],
     ARRAY['crm_notifications','recipient_user_id'], ARRAY['social_approval_notices','recipient_user_id'], ARRAY['platform_staff','user_id'],
-    ARRAY['discover_reports','reporter_id']] LOOP
+    ARRAY['discover_reports','reporter_id'], ARRAY['office_connections','owner_user_id'], ARRAY['crm_saved_views','owner_user_id']] LOOP
     EXECUTE format($p$CREATE POLICY %I ON public.%I TO %I
-      USING ((%I IS NULL OR %I = nullif(current_setting('app.user_id', true), '')) AND current_setting('app.account_erase', true) = 'on')
-      WITH CHECK ((%I IS NULL OR %I = nullif(current_setting('app.user_id', true), '')) AND current_setting('app.account_erase', true) = 'on')$p$,
+      USING ((%I IS NULL OR %I = nullif(current_setting('app.user_id', true), '')) AND public.account_erase_active())
+      WITH CHECK ((%I IS NULL OR %I = nullif(current_setting('app.user_id', true), '')) AND public.account_erase_active())$p$,
       'account_erase_' || pair[2], pair[1], current_user, pair[2], pair[2], pair[2], pair[2]);
   END LOOP;
   EXECUTE format($p$CREATE POLICY account_erase_audit ON public.audit_logs FOR INSERT TO %I
     WITH CHECK (tenant_id IS NULL AND actor_id = nullif(current_setting('app.user_id', true), '') AND action = 'account.delete'
-      AND current_setting('app.account_erase', true) = 'on')$p$, current_user);
+      AND public.account_erase_active())$p$, current_user);
   -- The sole-owner check names the ministries the caller owns, and nothing else.
   EXECUTE format($p$CREATE POLICY account_erase_ref ON public.workspaces FOR SELECT TO %I
-    USING (current_setting('app.account_erase', true) = 'on' AND EXISTS (SELECT 1 FROM public.workspace_members m
+    USING (public.account_erase_active() AND EXISTS (SELECT 1 FROM public.workspace_members m
       WHERE m.tenant_id = workspaces.tenant_id AND m.user_id = nullif(current_setting('app.user_id', true), '') AND public.access_role(m.tenant_id, m.user_id, 'owner_admin', m.role_id) = 'owner'))$p$, current_user);
   -- Co-owners are counted (not read) to decide whether the caller is the only owner. Roles are read through public.access_role ('owner_admin' is
 -- never grantable to a collaborator, so this is the stored owner role).
   EXECUTE format($p$CREATE POLICY account_erase_owners ON public.workspace_members FOR SELECT TO %I
-    USING (current_setting('app.account_erase', true) = 'on' AND public.access_role(tenant_id, user_id, 'owner_admin', role_id) = 'owner')$p$, current_user);
+    USING (public.account_erase_active() AND public.access_role(tenant_id, user_id, 'owner_admin', role_id) = 'owner')$p$, current_user);
 END $$;--> statement-breakpoint
--- Internal: the ministries the caller is the only owner of, under app.account_erase (set by the caller).
+-- Internal: the ministries the caller is the only owner of, while the caller's erase token is active.
 CREATE FUNCTION public.account_sole_owner_ministries(p_actor text) RETURNS jsonb
 LANGUAGE sql STABLE SET search_path = pg_catalog, pg_temp AS $$
   SELECT coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('id', w.tenant_id, 'name', w.name) ORDER BY w.name, w.tenant_id), '[]'::jsonb)
@@ -62,19 +106,37 @@ $$;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.account_sole_owner_ministries(text) FROM PUBLIC, harvest_app;--> statement-breakpoint
 -- The confirm screen's blocker: the ministries the caller must transfer or delete first. Read-only.
 CREATE FUNCTION public.account_delete_blockers() RETURNS jsonb
-LANGUAGE plpgsql STABLE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
 DECLARE actor text := nullif(current_setting('app.user_id', true), ''); result jsonb;
 BEGIN
   PERFORM public.community_definer_reset();
   PERFORM public.account_self_reset();
   IF actor IS NULL THEN RETURN '[]'::jsonb; END IF;
-  PERFORM pg_catalog.set_config('app.account_erase', 'on', true);
+  PERFORM public.account_erase_begin(actor);
   result := public.account_sole_owner_ministries(actor);
-  PERFORM public.account_self_reset();
+  PERFORM public.account_erase_end();
   RETURN result;
 END $$;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.account_delete_blockers() FROM PUBLIC;--> statement-breakpoint
 GRANT EXECUTE ON FUNCTION public.account_delete_blockers() TO harvest_app;--> statement-breakpoint
+-- The person's own mail, calendar and files connections, so the web layer can revoke each one at its provider before the account is deleted
+-- (Harvest stores no mailbox token itself: the provider holds the grant, and disconnecting it there is the revocation). Read-only.
+CREATE FUNCTION public.account_office_connections() RETURNS jsonb
+LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
+DECLARE actor text := nullif(current_setting('app.user_id', true), ''); result jsonb;
+BEGIN
+  PERFORM public.community_definer_reset();
+  PERFORM public.account_self_reset();
+  IF actor IS NULL THEN RETURN '[]'::jsonb; END IF;
+  PERFORM public.account_erase_begin(actor);
+  SELECT coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object('id', o.id, 'provider', o.provider, 'kind', o.kind, 'ref', o.external_account_ref,
+      'platform', o.platform, 'profileRef', o.profile_ref) ORDER BY o.created_at, o.id), '[]'::jsonb)
+    INTO result FROM public.office_connections o WHERE o.owner_user_id = actor;
+  PERFORM public.account_erase_end();
+  RETURN result;
+END $$;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.account_office_connections() FROM PUBLIC;--> statement-breakpoint
+GRANT EXECUTE ON FUNCTION public.account_office_connections() TO harvest_app;--> statement-breakpoint
 -- The deletion. The web layer checks a sign-in within the last 15 minutes and the typed word; the database checks the word again, refuses a sole
 -- owner, and does the rest in this one transaction. It returns the storage keys of uploads that were never attached to a post, so the web layer can
 -- delete those objects; their rows are already gone.
@@ -88,15 +150,15 @@ BEGIN
   IF p_confirm IS DISTINCT FROM 'DELETE' THEN RETURN pg_catalog.jsonb_build_object('outcome', 'invalid'); END IF;
   SELECT u.email INTO old_email FROM public.users u WHERE u.id = actor FOR UPDATE;
   IF NOT FOUND THEN RETURN pg_catalog.jsonb_build_object('outcome', 'not_found'); END IF;
-  PERFORM pg_catalog.set_config('app.account_erase', 'on', true);
+  PERFORM public.account_erase_begin(actor);
   IF EXISTS (SELECT 1 FROM public.account_deletions d WHERE d.user_id = actor) THEN
-    PERFORM public.account_self_reset(); RETURN pg_catalog.jsonb_build_object('outcome', 'not_found');
+    PERFORM public.account_erase_end(); RETURN pg_catalog.jsonb_build_object('outcome', 'not_found');
   END IF;
   -- Owner rows are locked so a concurrent ownership change cannot leave a ministry without an owner.
   PERFORM 1 FROM public.workspace_members m WHERE public.access_role(m.tenant_id, m.user_id, 'owner_admin', m.role_id) = 'owner' AND m.tenant_id IN (SELECT x.tenant_id FROM public.workspace_members x WHERE x.user_id = actor) FOR UPDATE;
   blockers := public.account_sole_owner_ministries(actor);
   IF pg_catalog.jsonb_array_length(blockers) > 0 THEN
-    PERFORM public.account_self_reset(); RETURN pg_catalog.jsonb_build_object('outcome', 'sole_owner', 'ministries', blockers);
+    PERFORM public.account_erase_end(); RETURN pg_catalog.jsonb_build_object('outcome', 'sole_owner', 'ministries', blockers);
   END IF;
 
   -- Community contributions stay, as "Former member": the author is detached from posts, replies and channel messages (G2).
@@ -150,10 +212,14 @@ BEGIN
   DELETE FROM public.doc_shares WHERE user_id = actor;
   DELETE FROM public.crm_notification_preferences WHERE user_id = actor;
   DELETE FROM public.crm_notifications WHERE recipient_user_id = actor;
+  -- Personal saved CRM views (owner_user_id set); shared views the person created stay with the ministry.
+  DELETE FROM public.crm_saved_views WHERE owner_user_id = actor;
   DELETE FROM public.social_approval_notices WHERE recipient_user_id = actor;
   DELETE FROM public.platform_staff WHERE user_id = actor;
   DELETE FROM public.discover_reports WHERE reporter_id = actor;
   DELETE FROM public.account_export_requests WHERE user_id = actor;
+  -- Mail, calendar and files connections (already revoked at the provider by the web layer); their markers, links and attempts cascade.
+  DELETE FROM public.office_connections WHERE owner_user_id = actor;
   DELETE FROM public.workspace_members WHERE user_id = actor;
   DELETE FROM public.user_profiles WHERE user_id = actor;
   -- Sign-in: every session and sign-in method ends; pending codes for the old address go.
@@ -166,7 +232,7 @@ BEGIN
     updated_at = pg_catalog.now() WHERE id = actor;
   INSERT INTO public.account_deletions (user_id, reference) VALUES (actor, ref);
   INSERT INTO public.audit_logs (tenant_id, actor_id, action, target_id) VALUES (NULL, actor, 'account.delete', ref::text);
-  PERFORM public.account_self_reset();
+  PERFORM public.account_erase_end();
   RETURN pg_catalog.jsonb_build_object('outcome', 'deleted', 'reference', ref, 'fileKeys', keys);
 END $$;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.account_delete(text) FROM PUBLIC;--> statement-breakpoint

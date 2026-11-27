@@ -25,7 +25,7 @@ export function DeleteAccountForm({ fresh }: { fresh: boolean }) {
       const body = await response.json().catch(() => ({})) as { details?: { code?: string } };
       if (response.ok) { setDone(true); return; }
       if (response.status === 401) { setStale(true); return; }
-      setError(t(body.details?.code === "SOLE_OWNER" ? "soleOwnerShort" : "deleteFailed"));
+      setError(t(body.details?.code === "SOLE_OWNER" ? "soleOwnerShort" : body.details?.code === "OFFICE_DISCONNECT_FAILED" ? "disconnectFailed" : "deleteFailed"));
     } catch { setError(t("deleteFailed")); }
     finally { setBusy(false); }
   }

@@ -12,7 +12,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { robots: { index: false, follow: false }, referrer: "no-referrer" };
 
 const kept = ["keptPosts", "keptAudit", "keptMinistry"] as const;
-const removed = ["removedProfile", "removedDms", "removedCourses", "removedMemberships", "removedSessions"] as const;
+const removed = ["removedProfile", "removedDms", "removedCourses", "removedMemberships", "removedConnections", "removedSessions"] as const;
 
 export default async function DeleteAccount() {
   const session = await pageSession("personal"), t = await getTranslations("YourData");
