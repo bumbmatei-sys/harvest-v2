@@ -1600,6 +1600,9 @@ export const communityPosts = pgTable("community_posts", {
   foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
   check("community_post_held", sql`(${t.heldAt} is null) = (${t.heldReason} is null) and (${t.heldReason} is null or ${t.heldReason} in ('first_post', 'banned_word'))`),
   index("community_posts_feed_idx").on(t.communityId, t.pinned, t.createdAt),
+  // C23: the category-filtered forum list and the per-author write limit (0129).
+  index("community_posts_category_feed_idx").on(t.communityId, t.categoryId, t.pinned, t.createdAt),
+  index("community_posts_author_recent_idx").on(t.communityId, t.authorId, t.createdAt),
   check("community_post_title", sql`length(${t.title}) between 1 and 200`),
   check("community_post_body", sql`jsonb_typeof(${t.body}) = 'object' and length(${t.body}::text) <= 100000`),
   check("community_post_body_text", sql`length(${t.bodyText}) <= 20000`),
@@ -1621,6 +1624,7 @@ export const communityComments = pgTable("community_comments", {
   foreignKey({ columns: [t.tenantId, t.communityId], foreignColumns: [communities.tenantId, communities.id] }).onDelete("cascade"),
   check("community_comment_held", sql`(${t.heldAt} is null) = (${t.heldReason} is null) and (${t.heldReason} is null or ${t.heldReason} in ('first_post', 'banned_word'))`),
   index("community_comments_post_idx").on(t.postId, t.createdAt),
+  index("community_comments_author_recent_idx").on(t.communityId, t.authorId, t.createdAt),
   check("community_comment_body", sql`length(${t.body}) between 1 and 5000`)]);
 
 export const communityLikes = pgTable("community_likes", {
@@ -1656,6 +1660,7 @@ export const communityReports = pgTable("community_reports", {
   index("community_dm_reports_open_age_idx").on(t.createdAt, t.id).where(sql`${t.targetType} = 'dm_message' and ${t.status} = 'open'`),
   uniqueIndex("community_reports_open_idx").on(t.communityId, t.reporterId, t.targetType, t.targetId).where(sql`${t.status} = 'open'`),
   index("community_reports_queue_idx").on(t.communityId, t.status, t.targetType, t.targetId),
+  index("community_reports_reporter_recent_idx").on(t.communityId, t.reporterId, t.createdAt),
   check("community_report_target", sql`${t.targetType} in ('post', 'comment', 'member', 'message', 'dm_message') and length(${t.targetId}) between 1 and 200`),
   check("community_report_reason", sql`${t.reason} in ('spam', 'harassment', 'inappropriate', 'other')`),
   check("community_report_note", sql`${t.note} is null or length(${t.note}) between 1 and 500`),

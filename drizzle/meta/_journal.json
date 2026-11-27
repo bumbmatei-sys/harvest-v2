@@ -869,6 +869,13 @@
       "when": 1795740896157,
       "tag": "0126_newsletter_click_tracking",
       "breakpoints": true
+    },
+    {
+      "idx": 129,
+      "version": "7",
+      "when": 1795749196075,
+      "tag": "0129_community_hardening",
+      "breakpoints": true
     }
   ]
 }

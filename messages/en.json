@@ -774,6 +774,7 @@
     "reportDuplicate": "You've already reported this.",
     "appealDuplicate": "You've already sent an appeal.",
     "bannedWordsInvalid": "Banned words can be up to 40 characters each, 100 in total.",
+    "communityWriteLimited": "You're posting a lot right now. Try again in a few minutes.",
     "communitySlugLocked": "The address of a published community can't be changed. Unpublish it first.",
     "linkInBioHandleTaken": "That address is already taken.",
     "linkInBioHandleLocked": "Unpublish the page before changing its address.",
