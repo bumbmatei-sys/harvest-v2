@@ -29,6 +29,11 @@ describe("connect crypto source guard", () => {
     const offenders = scan().filter(({ file, source }) => !allowed.includes(file) && file !== "src/server/connect-key-provider.ts" && /connect-key-provider/.test(source));
     expect(offenders.map((o) => o.file)).toEqual([]);
   });
+  it("restricts opening a staging envelope to the audited wrapper", () => {
+    const callers = scan().filter(({ file, source }) => file !== "src/server/contact-envelope.ts" &&
+      importsOf(source).some(({ names, from }) => /contact-envelope$/.test(from) && /\bopenContactEnvelope\b/.test(names)));
+    expect(callers.map(({ file }) => file)).toEqual(["src/server/connect-decrypt.ts"]);
+  });
   it("the guard detects a violation", () => {
     expect(importsOf('import { openIntake } from "./connect-intake-crypto";').some((i) => /\bopenIntake\b/.test(i.names))).toBe(true);
   });
