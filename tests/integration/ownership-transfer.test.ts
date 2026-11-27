@@ -9,7 +9,7 @@ vi.mock("../../src/db/client", async importOriginal => ({
 }));
 vi.mock("../../src/server/http", async importOriginal => ({
   ...await importOriginal<typeof import("../../src/server/http")>(),
-  verifiedUser: async () => owner,
+  verifiedUser: async () => requestActor,
   verifyOrigin: () => {},
 }));
 import { POST } from "../../src/app/api/workspaces/[tenantId]/ownership-transfer/route";
@@ -21,6 +21,7 @@ import { withTenant } from "../../src/server/tenancy";
 import { listOwnershipNotifications, markOwnershipNotifications, ownershipTransfer } from "../../src/server/ownership-transfer";
 
 const owner = "transfer-owner", admin = "transfer-admin", member = "transfer-member", outsider = "transfer-outsider";
+let requestActor = owner;
 let f: Awaited<ReturnType<typeof testDatabase>>, tenant: string, other: string;
 const offer = () => ownershipTransfer(f.db, owner, tenant, { action: "offer", recipientUserId: admin });
 
@@ -68,6 +69,25 @@ it("limits offers and cancellations together before the next notification", asyn
   expect(await listOwnershipNotifications(f.db, admin, workspace)).toEqual(notices);
   // Leave the shared owner fixture unchanged for the account deletion checks.
   await f.admin.query("delete from workspace_members where tenant_id=$1 and user_id=$2", [workspace, owner]);
+});
+
+it("shares the per-account rate limit between accept and decline across ministries", async () => {
+  const { id } = await offer();
+  requestActor = admin;
+  try {
+    const post = (action: "accept" | "decline", workspace: string, offerId: string) =>
+      POST(new Request("https://app.example.invalid", { method: "POST", body: JSON.stringify({ action, offerId }) }),
+        { params: Promise.resolve({ tenantId: workspace }) });
+    for (let i = 0; i < 3; i++) {
+      expect((await post("accept", other, id!)).status).toBe(404);
+      expect((await post("decline", other, id!)).status).toBe(404);
+    }
+    for (const action of ["accept", "decline"] as const) expect((await post(action, tenant, id!)).status).toBe(429);
+    expect(await ownershipTransfer(f.db, admin, tenant, { action: "status", offerId: id })).toMatchObject({ outcome: "pending" });
+  } finally {
+    requestActor = owner;
+    await ownershipTransfer(f.db, owner, tenant, { action: "cancel", offerId: id! });
+  }
 });
 
 it("handles decline and expiry without changing the roles", async () => {

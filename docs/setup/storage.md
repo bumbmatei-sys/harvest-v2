@@ -11,7 +11,7 @@ and does not change any deployed environment.
 
 ## Configuration
 
-Set these server-only variables in your environment or ignored `.env.local`:
+Set these server-only variables in your environment or ignored `.env.local`. For course resource links in the Node runtime, generate a separate `FILE_GRANT_SECRET` of at least 32 characters with `openssl rand -hex 32`. Keep it distinct from `BETTER_AUTH_SECRET`.
 
 | Variable | Purpose |
 | --- | --- |

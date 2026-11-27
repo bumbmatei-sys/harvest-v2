@@ -3500,12 +3500,25 @@ export const bioFiles = pgTable("bio_files", {
   uploaderId: text("uploader_id").references(() => users.id, { onDelete: "set null" }),
   key: text("key").notNull().unique(), kind: text("kind").notNull().default("photo"), name: text("name").notNull(), mime: text("mime").notNull(), size: integer("size").notNull(),
   checksum: text("checksum").notNull(), status: text("status").$type<"pending" | "uploaded" | "quarantined" | "ready">().notNull().default("pending"),
+  galleryUnusedSince: timestamp("gallery_unused_since", { withTimezone: true }).defaultNow(),
   retiredAt: timestamp("retired_at", { withTimezone: true }), createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [index("bio_files_page").on(t.tenantId, t.pageId), foreignKey({ columns: [t.tenantId, t.pageId], foreignColumns: [bioPages.tenantId, bioPages.id] }).onDelete("cascade"),
   check("bio_file_kind", sql`${t.kind} in ('photo','cover','gallery')`), check("bio_file_mime", sql`${t.mime} in ('image/jpeg','image/png','image/webp')`),
   check("bio_file_name", sql`length(btrim(${t.name})) between 1 and 200`), check("bio_file_size", sql`${t.size} between 1 and 10485760`),
   check("bio_file_checksum", sql`${t.checksum} ~ '^[a-f0-9]{64}$'`), check("bio_file_status", sql`${t.status} in ('pending','uploaded','quarantined','ready')`),
-  check("bio_file_key", sql`${t.key} = 'workspaces/' || ${t.tenantId}::text || '/bio/' || ${t.pageId}::text || '/files/' || ${t.id}::text`)]);
+  check("bio_file_key", sql`${t.key} = 'workspaces/' || ${t.tenantId}::text || '/bio/' || ${t.pageId}::text || '/files/' || ${t.id}::text`),
+  index("bio_gallery_cleanup_due").on(t.galleryUnusedSince, t.id).where(sql`${t.kind} = 'gallery'`),
+]);
+export const bioGalleryCleanupRuns = pgTable("bio_gallery_cleanup_runs", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  finishedAt: timestamp("finished_at", { withTimezone: true }).notNull().default(sql`clock_timestamp()`),
+  deleted: integer("deleted").notNull(),
+  failed: integer("failed").notNull(),
+}, (t) => [
+  check("bio_gallery_cleanup_runs_deleted_check", sql`${t.deleted} between 0 and 50`),
+  check("bio_gallery_cleanup_runs_failed_check", sql`${t.failed} between 0 and 50`),
+]);
+
 // Aggregate clicks only: a block, a day and a count. No visitor, address, agent or referrer is kept.
 export const bioClicks = pgTable("bio_clicks", {
   tenantId: uuid("tenant_id").notNull(), pageId: uuid("page_id").notNull(), blockId: text("block_id").notNull(), day: date("day").notNull(), clicks: integer("clicks").notNull(),

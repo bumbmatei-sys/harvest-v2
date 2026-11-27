@@ -475,6 +475,50 @@ describe("rework PR 3: gallery, share and countdown (0141)", () => {
     return id;
   };
   const publicPicture = (handle: string, file: string) => fixture.admin.query("select public.bio_public_gallery($1, $2::uuid) r", [handle, file]).then((r) => r.rows[0].r as { key: string } | null);
+  it("omits file ids from the public payload when the gallery tab is hidden", async () => {
+    const ready = await galleryFile("ready");
+    const current = await getBioPage(db(), people.owner, people.tenant);
+    version = current.version;
+    await save(people.owner, undefined, {
+      ...current.draft,
+      layout: "tabs",
+      tabs: [{ id: "home", label: "Home", hidden: false }, { id: "partnership", label: "Partners", hidden: true }],
+      blocks: [link("galleryl"), { type: "gallery", id: "tabgall1", hidden: false, tab: "partnership", title: "Gallery", fileIds: [ready] }],
+    });
+    await transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version });
+    const { rows: [row] } = await fixture.pool.query("select public.bio_public_page('grace-church') r");
+    expect(row.r.gallery).toEqual([]);
+    expect(row.r.definition.blocks.find((block: { id: string }) => block.id === "tabgall1")).toBeUndefined();
+    expect(await publicPicture("grace-church", ready)).toBeNull();
+  });
+  it("keeps saved and published references and retries a failed object deletion", async () => {
+    const { sweepBioGallery } = await import("../../src/server/bio-gallery-cleanup-worker");
+    const published = await galleryFile("ready"), draft = await galleryFile("ready"), unused = await galleryFile("ready"), fresh = await galleryFile("pending");
+    const current = await getBioPage(db(), people.owner, people.tenant);
+    version = current.version;
+    const withGallery = (id: string): BioDefinition => ({
+      ...current.draft, layout: "single", blocks: [{ type: "gallery", id: "jobgall1", hidden: false, tab: "home", title: "", fileIds: [id] }],
+    });
+    await save(people.owner, undefined, withGallery(published));
+    await transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version });
+    await save(people.owner, undefined, withGallery(draft));
+    await fixture.admin.query("update bio_files set gallery_unused_since=now()-interval '8 days' where id=any($1::uuid[])", [[published, draft, unused]]);
+    const health = async () => (await fixture.workerPool.query("select public.bio_gallery_cleanup_health() healthy")).rows[0].healthy;
+    expect(await health()).toBe(false);
+    await expect(fixture.workerPool.query("select * from bio_gallery_cleanup_runs")).rejects.toMatchObject({ code: "42501" });
+    await expect(fixture.pool.query("select public.bio_gallery_cleanup_take('{}')")).rejects.toMatchObject({ code: "42501" });
+    const deleteObject = vi.fn<(key: string) => Promise<void>>().mockRejectedValueOnce(new Error("storage unavailable")).mockResolvedValue(undefined);
+    expect(await sweepBioGallery(fixture.workerPool, { deleteObject })).toEqual({ deleted: 0, failed: 1 });
+    expect(await health()).toBe(false);
+    expect(await sweepBioGallery(fixture.workerPool, { deleteObject })).toEqual({ deleted: 1, failed: 0 });
+    expect(await health()).toBe(true);
+    expect(deleteObject.mock.calls.map(([key]) => key.split("/").at(-1))).toEqual([unused, unused]);
+    const { rows } = await fixture.admin.query("select id from bio_files where id=any($1::uuid[])", [[published, draft, unused, fresh]]);
+    expect(rows.map(row => row.id).sort()).toEqual([published, draft, fresh].sort());
+    await transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version });
+    const { rows: [released] } = await fixture.admin.query("select gallery_unused_since > now()-interval '1 minute' as recently_unused from bio_files where id=$1", [published]);
+    expect(released.recently_unused).toBe(true);
+  });
   it("serves only ready gallery pictures that a shown gallery block of the published page lists", async () => {
     const ready = await galleryFile("ready"), pending = await galleryFile("pending"), unlisted = await galleryFile("ready"), foreign = await galleryFile("ready", people.other);
     const current = await getBioPage(db(), people.owner, people.tenant); version = current.version;
