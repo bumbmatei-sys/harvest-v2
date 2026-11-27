@@ -61,10 +61,10 @@ REVOKE ALL ON public.account_deletions FROM PUBLIC, harvest_app;--> statement-br
 -- for rows with no person (PostgreSQL also checks a detaching update's new row, author set to null, against the SELECT side); every statement in
 -- account_delete filters on the caller's id, so a detached row of someone else is never touched. No policy refers to its own table.
 -- The token check is written out in each policy (the same test as account_erase_active()), reading the settings directly, so a policy calls no
--- erase helper: a role that copies these policies (a restricted definer owner) needs no EXECUTE on it. Reading account_erase_grants is granted
--- to PUBLIC for the same reason; FORCE RLS and its owner-only policy keep every row invisible to any other role, and a token row never
--- outlives its transaction.
-GRANT SELECT ON public.account_erase_grants TO PUBLIC;--> statement-breakpoint
+-- erase helper: a role that copies these policies (a restricted definer owner) needs no EXECUTE on it. The app role evaluates these
+-- policies, so it may read account_erase_grants; FORCE RLS and its owner-only policy keep every row invisible to it, and a token row
+-- never outlives its transaction. The worker role gets nothing (it reaches these tables only through definers).
+GRANT SELECT ON public.account_erase_grants TO harvest_app;--> statement-breakpoint
 DO $$ DECLARE pair text[]; live text := $l$(pg_catalog.current_setting('app.account_erase', true) <> '' AND EXISTS (SELECT 1 FROM public.account_erase_grants g
       WHERE g.token::text = pg_catalog.current_setting('app.account_erase', true) AND g.user_id = nullif(pg_catalog.current_setting('app.user_id', true), '')
         AND g.created_at = pg_catalog.now()))$l$; BEGIN
