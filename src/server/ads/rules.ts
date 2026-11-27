@@ -3,8 +3,7 @@ import { z } from "zod";
 import type { Database, Transaction } from "../../db/client";
 import { adsRuleRuns, adsRules } from "../../db/schema";
 import { deriveRatios, evaluateRule, projectResults, ruleInput, versionInput, type AdLevel, type ResultMetrics } from "../../lib/ads/ads";
-import { audit, derivedKey, invalid, loadAccount, parse, recordId, stale, unavailable, withAds } from "./access";
-import { setStatus } from "./mutations";
+import { audit, invalid, loadAccount, parse, recordId, stale, unavailable, withAds } from "./access";
 import type { AdsDeps } from "./registry";
 import { entityTables } from "./access";
 
@@ -28,6 +27,11 @@ export async function listRules(db: Database, user: string, workspace: string, d
 export async function setRuleEnabled(db: Database, user: string, workspace: string, ruleId: string, data: unknown, deps: AdsDeps) {
   const input = parse(z.object({ enabled: z.boolean(), version: versionInput }).strict(), data);
   return withAds(db, user, workspace, deps, async (tx, tenant) => {
+    // A rule stored with an action other than flag (before 0125) can be switched off or removed, never on.
+    if (input.enabled) {
+      const [current] = await tx.select({ action: adsRules.action }).from(adsRules).where(and(eq(adsRules.tenantId, tenant), eq(adsRules.id, recordId(ruleId))));
+      if (current && current.action !== "notify") throw invalid("ADS_RULE_FLAG_ONLY");
+    }
     const [row] = await tx.update(adsRules).set({ enabled: input.enabled, version: sql`${adsRules.version} + 1`, updatedAt: sql`now()` })
       .where(and(eq(adsRules.tenantId, tenant), eq(adsRules.id, recordId(ruleId)), eq(adsRules.version, input.version))).returning();
     if (!row) { const [e] = await tx.select({ id: adsRules.id }).from(adsRules).where(and(eq(adsRules.tenantId, tenant), eq(adsRules.id, recordId(ruleId)))); throw e ? stale() : unavailable(); }
@@ -77,26 +81,19 @@ export async function previewRule(db: Database, user: string, workspace: string,
   });
 }
 
-/** Runs the account's enabled rules once. `pause` goes through the same audited, idempotent status path as a person's pause (a repeatable key per rule, target and day). */
+/** Runs the account's enabled rules once. Rules only flag (founder decision 26 Nov): a match is recorded and nothing on the ad account changes. A stored non-flag rule is skipped, never executed. */
 export async function runRules(db: Database, user: string, workspace: string, adAccountId: string, deps: AdsDeps) {
   const today = utcToday(deps);
   const plan = await withAds(db, user, workspace, deps, async (tx, tenant) => {
     await loadAccount(tx, tenant, adAccountId);
     const rules = await tx.select().from(adsRules).where(and(eq(adsRules.tenantId, tenant), eq(adsRules.adAccountId, recordId(adAccountId)), eq(adsRules.enabled, true)));
-    return Promise.all(rules.map(async rule => ({ rule, found: await matches(tx, tenant, rule, today) })));
+    return Promise.all(rules.map(async rule => ({ rule, found: rule.action === "notify" ? await matches(tx, tenant, rule, today) : [] })));
   });
-  const log: { ruleId: string; level: string; id: string; outcome: "triggered" | "failed"; detail: Record<string, unknown> }[] = [];
-  for (const { rule, found } of plan) for (const f of found) {
-    if (rule.action === "notify") { log.push({ ruleId: rule.id, level: rule.level, id: f.id, outcome: "triggered", detail: { action: "notify" } }); continue; }
-    try {
-      await setStatus(db, user, workspace, { level: rule.level, id: f.id, status: "paused", version: f.version, idempotencyKey: derivedKey(`rule:${rule.id}:${f.id}:${today}`) }, deps);
-      log.push({ ruleId: rule.id, level: rule.level, id: f.id, outcome: "triggered", detail: { action: "pause" } });
-    } catch (error) { log.push({ ruleId: rule.id, level: rule.level, id: f.id, outcome: "failed", detail: { action: "pause", code: error instanceof Error && "details" in error ? String((error as { details?: { code?: unknown } }).details?.code ?? "ERROR") : "ERROR" } }); }
-  }
+  const log: { ruleId: string; level: string; id: string; outcome: "triggered"; detail: Record<string, unknown> }[] = [];
+  for (const { rule, found } of plan) for (const f of found) log.push({ ruleId: rule.id, level: rule.level, id: f.id, outcome: "triggered", detail: { action: "notify" } });
   await withAds(db, user, workspace, deps, async (tx, tenant) => {
     for (const l of log) await tx.insert(adsRuleRuns).values({ tenantId: tenant, ruleId: l.ruleId, targetLevel: l.level, targetId: l.id, outcome: l.outcome, detail: l.detail });
-    if (log.length) await audit(tx, tenant, user, "rules_run", adAccountId, { triggered: String(log.filter(l => l.outcome === "triggered").length), failed: String(log.filter(l => l.outcome === "failed").length) });
+    if (log.length) await audit(tx, tenant, user, "rules_run", adAccountId, { triggered: String(log.length), failed: "0" });
   });
-  return { ran: plan.length, triggered: log.filter(l => l.outcome === "triggered").length, failed: log.filter(l => l.outcome === "failed").length };
+  return { ran: plan.filter(p => p.rule.action === "notify").length, triggered: log.length, failed: 0 };
 }
-void invalid;

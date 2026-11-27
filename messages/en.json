@@ -8657,6 +8657,8 @@
     "refreshing": "Refreshing",
     "refreshed": "Ads data updated",
     "leadsLink": "Lead forms and leads",
+    "overviewLink": "Overview",
+    "rulesLink": "Rules",
     "create": "Create ad",
     "boost": "Boost a post",
     "account": {
@@ -9353,6 +9355,143 @@
       "publishOff": "Publishing is not turned on yet.",
       "publishedToast": "Form published",
       "preview": "Preview"
+    },
+    "overview": {
+      "title": "Ads overview",
+      "rulesLink": "Rules",
+      "manageLink": "Manage ads",
+      "activeCampaigns": "Active campaigns",
+      "series": {
+        "spend": "Spend",
+        "results": "Results",
+        "costPerResult": "Cost per result",
+        "clicks": "Clicks",
+        "impressions": "Impressions"
+      },
+      "attention": {
+        "title": "Needs attention",
+        "description": "Account problems, alerts, review results, budgets and rule flags.",
+        "count": "{count, plural, one {# item} other {# items}}",
+        "critical": "Urgent",
+        "warning": "Check",
+        "noneTitle": "All clear",
+        "none": "Nothing needs attention on this ad account.",
+        "subject": "{level}: {name}",
+        "healthCheck": "A health check needs a look.",
+        "alert": "An alert needs a look.",
+        "adRejected": "Rejected in review.",
+        "deliveryIssue": "Not delivering because of an issue.",
+        "budgetDaily": "{share} of the daily budget spent today.",
+        "budgetLifetime": "{share} of the lifetime budget spent.",
+        "ruleFlag": "Flagged by the rule {rule}."
+      },
+      "health": {
+        "title": "Ad account health",
+        "checked": "Health checked",
+        "checks": "Health checks for {name}",
+        "check": {
+          "account_status": "Account status",
+          "payment_method": "Payment method",
+          "spend_limit": "Spending limit",
+          "page_link": "Page link",
+          "instagram_link": "Instagram link",
+          "lead_ads_terms": "Lead ads terms",
+          "pixel": "Tracking pixel",
+          "whatsapp_link": "WhatsApp number"
+        },
+        "checkNow": "Check now",
+        "checkNamed": "Check now: {name}",
+        "checking": "Checking…",
+        "checkedAt": "Checked {time}",
+          "networkCurrency": "{network} · {currency}",
+        "never": "Not checked yet",
+        "summary": {
+          "ok": "Healthy",
+          "warning": "Needs a look",
+          "failing": "Problem",
+          "unknown": "Not checked"
+        },
+        "state": {
+          "ok": "OK",
+          "warning": "Needs a look",
+          "failing": "Problem",
+          "unknown": "Not confirmed"
+        }
+      }
+    },
+    "rules": {
+      "title": "Ad rules",
+      "subtitle": "Rules flag what matches. They never turn ads off or change budgets.",
+      "back": "Ads overview",
+      "label": "Ad rules",
+      "loading": "Loading rules…",
+      "new": "New rule",
+      "checkNow": "Check rules now",
+      "ran": "{count, plural, =0 {Nothing flagged} one {# item flagged} other {# items flagged}}",
+      "emptyTitle": "No rules yet",
+      "empty": "Get flagged when spend or costs pass a limit you set.",
+      "columns": {
+        "name": "Rule",
+        "condition": "When",
+        "level": "Level",
+        "action": "Action",
+        "on": "On",
+        "actions": "Actions"
+      },
+      "condition": "{metric} {operator} {value} over {days, plural, one {# day} other {# days}}",
+      "metric": {
+        "spend": "Spend",
+        "costPerResult": "Cost per result",
+        "results": "Results",
+        "ctr": "Click-through rate",
+        "cpc": "Cost per click",
+        "cpm": "Cost per 1,000 impressions",
+        "impressions": "Impressions",
+        "clicks": "Clicks"
+      },
+      "operator": {
+        "gt": "above",
+        "gte": "at least",
+        "lt": "below",
+        "lte": "at most"
+      },
+      "flagOnly": "Flag",
+      "pauseAction": "Pause (not offered here)",
+      "turnOn": "Rule {name} on",
+      "turnedOn": "Rule turned on",
+      "turnedOff": "Rule turned off",
+      "remove": "Remove {name}",
+      "removeTitle": "Remove {name}?",
+      "removeBody": "The rule and its history are removed. This cannot be undone.",
+      "removeConfirm": "Remove",
+      "removed": "Rule removed",
+      "cancel": "Cancel",
+      "created": "Rule created. It starts off.",
+      "newTitle": "New rule",
+      "newDescription": "Flag campaigns, ad sets or ads when a measure passes a limit.",
+      "create": "Create rule",
+      "form": {
+        "name": "Name",
+        "nameInvalid": "Enter a name of up to 120 characters.",
+        "level": "Watch",
+        "metric": "Measure",
+        "operator": "Condition",
+        "threshold": "Limit",
+        "thresholdIn": "Limit ({unit})",
+        "thresholdInvalid": "Enter a number of 0 or more.",
+        "days": "Over the last days",
+        "daysInvalid": "Enter 1 to 30 days.",
+        "action": "Matching items are flagged. Nothing is turned off and no budget changes."
+      },
+      "on": "On",
+      "off": "Off",
+      "previewTitle": "Would flag now",
+      "previewNone": "Nothing matches right now.",
+      "runsTitle": "Recent checks",
+      "runsNone": "Not checked yet.",
+      "flagged": "Flagged",
+      "failed": "Failed",
+      "unavailable": "Unavailable"
     }
   },
   "DiscoverScreens": {

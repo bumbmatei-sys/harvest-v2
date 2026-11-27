@@ -1,6 +1,6 @@
 {
-  "id": "72888708-2924-49eb-be1e-980ab007caa0",
-  "prevId": "3f340911-4307-4b0c-9b6a-7119e09a80b2",
+  "id": "4bfcbac8-d81f-4ab1-958f-10cd671b25a3",
+  "prevId": "b179977e-aa04-450b-bba2-2b7b31f6c64e",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3132,7 +3132,7 @@
       "checkConstraints": {
         "ads_rules_shape": {
           "name": "ads_rules_shape",
-          "value": "length(\"ads_rules\".\"name\") between 1 and 120 and \"ads_rules\".\"level\" in ('campaign','adset','ad') and \"ads_rules\".\"action\" in ('pause','notify') and pg_column_size(\"ads_rules\".\"condition\") <= 1024"
+          "value": "length(\"ads_rules\".\"name\") between 1 and 120 and \"ads_rules\".\"level\" in ('campaign','adset','ad') and \"ads_rules\".\"action\" in ('pause','notify') and (\"ads_rules\".\"action\" = 'notify' or not \"ads_rules\".\"enabled\") and pg_column_size(\"ads_rules\".\"condition\") <= 1024"
         }
       },
       "isRLSEnabled": false
