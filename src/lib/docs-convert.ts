@@ -28,35 +28,38 @@ function inlineHtml(node: DocNode): string {
 }
 const kids = (node: DocNode, fn: (child: DocNode) => string) => (node.content ?? []).map(fn).join("");
 /** Safe HTML for a doc node: every text is escaped, links are https only, colours are validated hex, no attribute is passed through. */
-export function nodeToHtml(node: DocNode): string {
+export type HtmlOptions = { /** Address of an inline picture (the blog's `blogImage` node); without it pictures are left out. */ image?: (fileId: string) => string | null };
+export function nodeToHtml(node: DocNode, options: HtmlOptions = {}): string {
+  const sub = (child: DocNode) => nodeToHtml(child, options);
   switch (node.type) {
     case "text": case "hardBreak": return inlineHtml(node);
     case "mention": return `<span data-mention>@${esc(String(node.attrs?.label ?? ""))}</span>`;
     case "button": { const href = safeDocHref(node.attrs?.href); return href ? `<p><a data-button href="${esc(href)}" rel="nofollow noopener noreferrer ugc">${esc(String(node.attrs?.label ?? ""))}</a></p>` : ""; }
-    case "paragraph": return `<p${alignStyle(node)}>${kids(node, nodeToHtml)}</p>`;
-    case "heading": { const l = Math.min(4, Math.max(1, Number(node.attrs?.level) || 1)); return `<h${l}${alignStyle(node)}>${kids(node, nodeToHtml)}</h${l}>`; }
-    case "bulletList": return `<ul>${kids(node, nodeToHtml)}</ul>`;
-    case "orderedList": return `<ol>${kids(node, nodeToHtml)}</ol>`;
-    case "listItem": return `<li>${kids(node, nodeToHtml)}</li>`;
-    case "taskList": return `<ul data-type="taskList">${kids(node, nodeToHtml)}</ul>`;
-    case "taskItem": return `<li data-type="taskItem" data-checked="${node.attrs?.checked === true}">${node.attrs?.checked === true ? "☑ " : "☐ "}${kids(node, nodeToHtml)}</li>`;
-    case "blockquote": return `<blockquote${node.attrs?.pull === true ? " data-pull" : ""}>${kids(node, nodeToHtml)}</blockquote>`;
+    case "paragraph": return `<p${alignStyle(node)}>${kids(node, sub)}</p>`;
+    case "heading": { const l = Math.min(4, Math.max(1, Number(node.attrs?.level) || 1)); return `<h${l}${alignStyle(node)}>${kids(node, sub)}</h${l}>`; }
+    case "bulletList": return `<ul>${kids(node, sub)}</ul>`;
+    case "orderedList": return `<ol>${kids(node, sub)}</ol>`;
+    case "listItem": return `<li>${kids(node, sub)}</li>`;
+    case "taskList": return `<ul data-type="taskList">${kids(node, sub)}</ul>`;
+    case "taskItem": return `<li data-type="taskItem" data-checked="${node.attrs?.checked === true}">${node.attrs?.checked === true ? "☑ " : "☐ "}${kids(node, sub)}</li>`;
+    case "blockquote": return `<blockquote${node.attrs?.pull === true ? " data-pull" : ""}>${kids(node, sub)}</blockquote>`;
     case "codeBlock": return `<pre><code>${esc(docText(node))}</code></pre>`;
     case "horizontalRule": return "<hr>";
-    case "table": return `<table>${kids(node, nodeToHtml)}</table>`;
-    case "tableRow": return `<tr>${kids(node, nodeToHtml)}</tr>`;
-    case "tableHeader": return `<th>${kids(node, nodeToHtml)}</th>`;
-    case "tableCell": return `<td>${kids(node, nodeToHtml)}</td>`;
-    case "details": return `<details${node.attrs?.open === true ? " open" : ""}>${kids(node, nodeToHtml)}</details>`;
-    case "detailsSummary": return `<summary>${kids(node, nodeToHtml)}</summary>`;
-    case "detailsContent": return `<div>${kids(node, nodeToHtml)}</div>`;
-    case "callout": return `<div data-callout data-tone="${["info", "success", "warning", "danger"].includes(String(node.attrs?.tone)) ? node.attrs?.tone : "info"}" style="border-left:4px solid gray;padding:4px 12px">${kids(node, nodeToHtml)}</div>`;
-    case "columns": return `<div data-columns>${kids(node, nodeToHtml)}</div>`;
-    case "column": return `<div data-column>${kids(node, nodeToHtml)}</div>`;
+    case "table": return `<table>${kids(node, sub)}</table>`;
+    case "tableRow": return `<tr>${kids(node, sub)}</tr>`;
+    case "tableHeader": return `<th>${kids(node, sub)}</th>`;
+    case "tableCell": return `<td>${kids(node, sub)}</td>`;
+    case "details": return `<details${node.attrs?.open === true ? " open" : ""}>${kids(node, sub)}</details>`;
+    case "detailsSummary": return `<summary>${kids(node, sub)}</summary>`;
+    case "detailsContent": return `<div>${kids(node, sub)}</div>`;
+    case "callout": return `<div data-callout data-tone="${["info", "success", "warning", "danger"].includes(String(node.attrs?.tone)) ? node.attrs?.tone : "info"}" style="border-left:4px solid gray;padding:4px 12px">${kids(node, sub)}</div>`;
+    case "columns": return `<div data-columns>${kids(node, sub)}</div>`;
+    case "column": return `<div data-column>${kids(node, sub)}</div>`;
+    case "blogImage": { const src = typeof node.attrs?.fileId === "string" ? options.image?.(node.attrs.fileId) : null; return src ? `<figure><img src="${esc(src)}" alt="${esc(String(node.attrs?.alt ?? ""))}" loading="lazy" decoding="async"></figure>` : ""; }
     default: return "";
   }
 }
-export const docToHtml = (doc: DocContent) => (doc.content ?? []).map(nodeToHtml).join("\n");
+export const docToHtml = (doc: DocContent, options: HtmlOptions = {}) => (doc.content ?? []).map((node) => nodeToHtml(node, options)).join("\n");
 
 // ---- Markdown -----------------------------------------------------------------------------------------------------------------------------------------------
 function inlineMd(node: DocNode): string {
