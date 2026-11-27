@@ -28,12 +28,12 @@ export async function linkFixtureAccount(db: Database, user: string, tenant: str
   }
   const connectDeps = { ...deps, blogConnect: { providerId: "fake" as const, credential: { secret: CANARY } } };
   const origin = "https://harvest.example.invalid";
-  const signIn = await connectExternalBlog(db, user, tenant, {
+  const signIn: { status: string; attempt?: string; url?: string } = await connectExternalBlog(db, user, tenant, {
     action: "start", platform: account.platform, ...(account.platform === "shopify" ? { shop: "test-store.myshopify.com" } : {}),
   }, connectDeps, origin);
   if (!signIn.attempt || !signIn.url) throw new Error("Expected fake sign-in");
   fake.blogConnectProfiles.set(new URL(signIn.url).pathname.slice(1), account);
-  const linked = await connectExternalBlog(db, user, tenant, { action: "finish", attempt: signIn.attempt }, connectDeps, origin);
+  const linked: { status: string; connectionId?: string } = await connectExternalBlog(db, user, tenant, { action: "finish", attempt: signIn.attempt }, connectDeps, origin);
   if (!linked.connectionId) throw new Error("Expected linked fixture account");
   return linked.connectionId;
 }
