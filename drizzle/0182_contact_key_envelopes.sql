@@ -30,7 +30,9 @@ ALTER TABLE public.connect_contact_decrypt_audit FORCE ROW LEVEL SECURITY;
 REVOKE ALL ON public.connect_contact_decrypt_audit FROM PUBLIC, harvest_app;
 DO $$
 BEGIN
-  EXECUTE format('CREATE POLICY connect_contact_decrypt_insert ON public.connect_contact_decrypt_audit FOR INSERT TO %I WITH CHECK (true)', current_user);
+  EXECUTE format($policy$CREATE POLICY connect_contact_decrypt_insert ON public.connect_contact_decrypt_audit FOR INSERT TO %I
+    WITH CHECK (current_setting('app.connect_intake_mode', true) = 'synthetic'
+      OR (session_user = 'harvest_worker' AND current_setting('app.contact_rotation', true) = 'on'))$policy$, current_user);
 END $$;
 
 CREATE FUNCTION public.connect_audit_contact_open(p_envelope jsonb, p_purpose text) RETURNS void
