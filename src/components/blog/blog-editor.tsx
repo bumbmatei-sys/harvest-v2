@@ -113,8 +113,8 @@ export function BlogEditor({ tenantId, initial, origin }: { tenantId: string; in
   const publicHref = blogPath(settings.handle, post.slug);
   const canPublish = missing.length === 0 && !slugProblem;
   const actions = <>
-    {post.status === "published" && <Button asChild variant="outline" size="sm" className="min-h-11 lg:min-h-8"><Link href={publicHref} target="_blank" rel="noopener"><ExternalLink aria-hidden="true" /><span className="max-sm:sr-only">{t("openArticle")}</span></Link></Button>}
-    {post.status !== "published" && <Button type="button" size="sm" className="min-h-11 lg:min-h-8" disabled={busy || !canPublish} onClick={() => void act("publish")}><Send aria-hidden="true" /><span className="max-sm:sr-only">{t("publishNow")}</span></Button>}
+    {post.status === "published" && <Button asChild variant="outline" size="sm" className="min-h-11 max-sm:min-w-11 max-sm:px-0 lg:min-h-8"><Link href={publicHref} target="_blank" rel="noopener"><ExternalLink aria-hidden="true" /><span className="max-sm:sr-only">{t("openArticle")}</span></Link></Button>}
+    {post.status !== "published" && <Button type="button" size="sm" className="min-h-11 max-sm:min-w-11 max-sm:px-0 lg:min-h-8" disabled={busy || !canPublish} onClick={() => void act("publish")}><Send aria-hidden="true" /><span className="max-sm:sr-only">{t("publishNow")}</span></Button>}
   </>;
   const done = { write: Boolean(fields.title.trim()) && !missing.includes("body"), settings: !slugProblem, publish: post.status !== "draft" };
   const stepList = steps.map((id) => ({ id, label: t(`steps.${id}`), done: done[id], attention: id === "settings" && Boolean(slugProblem) }));
