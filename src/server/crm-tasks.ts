@@ -364,7 +364,7 @@ export function markNotificationsRead(db: Database, userId: string, workspace: s
   const list = ids === "all" ? "all" : ids.map((id) => uuidInput.parse(id));
   return withTenant(db, userId, uuidInput.parse(workspace), "tasks:read", async (tx, tenantId) => {
     const updated = await tx.update(crmNotifications).set({ readAt: new Date() })
-      .where(and(eq(crmNotifications.tenantId, tenantId), eq(crmNotifications.recipientUserId, userId), isNull(crmNotifications.ownershipOfferId), isNull(crmNotifications.readAt), list === "all" ? undefined : inArray(crmNotifications.id, list.length ? list : ["00000000-0000-4000-8000-000000000000"])))
+      .where(and(eq(crmNotifications.tenantId, tenantId), eq(crmNotifications.recipientUserId, userId), isNull(crmNotifications.readAt), isNull(crmNotifications.ownershipOfferId), isNull(crmNotifications.volunteerSlotId), list === "all" ? undefined : inArray(crmNotifications.id, list.length ? list : ["00000000-0000-4000-8000-000000000000"])))
       .returning({ id: crmNotifications.id });
     return { marked: updated.length };
   });
