@@ -9,6 +9,11 @@ import { communityChatEnabled } from "@/server/community-chat";
 import { eventsEnabled } from "@/server/events";
 import { freeCatalogEnabled } from "@/server/free-catalog-mode";
 import { CommunityShell } from "@/components/communities/community-shell";
+import { getTranslations } from "next-intl/server";
+import { ShieldAlert } from "lucide-react";
+import { harvestPaused } from "@/server/community-takedown";
+import { PublicFrame } from "@/components/connect/public-frame";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 export const dynamic = "force-dynamic";
 export const metadata = { robots: { index: false, follow: false } };
@@ -19,7 +24,16 @@ export default async function MemberLayout({ children, params }: { children: Rea
   if (!communitiesEnabled()) notFound();
   const session = await pageSession("personal"), { slug } = await params;
   const ctx = await forumContext(getDb(), session.user.id, slug);
-  if (!ctx) redirect(`/communities/${encodeURIComponent(slug)}`);
+  if (!ctx) {
+    // 0137: a member of a community Harvest paused sees a notice (owners and admins also see the reason); everyone else gets the public page as before.
+    const paused = await harvestPaused(getDb(), session.user.id, slug);
+    if (!paused) redirect(`/communities/${encodeURIComponent(slug)}`);
+    const t = await getTranslations("CommunityTakedown.paused");
+    return <PublicFrame personal notice={false}>
+      <Alert data-harvest-paused><ShieldAlert aria-hidden="true" /><AlertTitle><h1>{t("title")}</h1></AlertTitle>
+        <AlertDescription><p>{t("body", { name: paused.name })}</p>{paused.manager && paused.reason && <p>{t("reason", { reason: paused.reason })}</p>}</AlertDescription></Alert>
+    </PublicFrame>;
+  }
   const moderation = ctx.canModerate ? await moderationCount(getDb(), session.user.id, ctx.slug) : null;
   const unread = await unreadCount(getDb(), session.user.id, ctx.slug);
   return <CommunityShell slug={ctx.slug} name={ctx.name} chat={communityChatEnabled() && ctx.chatEnabled} events={eventsEnabled()} shelf={freeCatalogEnabled()} moderation={moderation} notifications={{ unread, prefs: ctx.prefs }}>{children}</CommunityShell>;

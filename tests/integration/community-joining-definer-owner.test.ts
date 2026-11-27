@@ -68,6 +68,8 @@ beforeAll(async () => {
   const chatFunctions = (await fixture.admin.query("select oid::regprocedure::text signature from pg_proc where pronamespace='public'::regnamespace and (proname like 'community_chat_%' or proname like 'community_channel_%' or proname like 'community_message_%' or proname like 'community_dm_%' or proname in ('community_reaction_toggle','community_report_decide_forum') or oid='public.community_notifications_list(text,integer,boolean)'::regprocedure)")).rows;
   definers.push(...chatFunctions.map(row => row.signature));
   await fixture.admin.query(`grant execute on function public.access_role(uuid,text,text,text) to ${role}`);
+  // 0137: the Harvest takedown check (a definer of the real owner) is called from community_can_read and community_public.
+  await fixture.admin.query(`grant execute on function public.community_harvest_hidden(uuid) to ${role}`);
   await fixture.admin.query(`grant select on public.workspace_member_access to ${role}`);
   for (const definer of definers) await fixture.admin.query(`alter function ${definer} owner to ${role}`);
 });

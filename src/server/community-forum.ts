@@ -48,12 +48,15 @@ export { context as forumContextTx };
 export function forumContext(db: Database, userId: string, slug: string) { return withUser(db, userId, (tx) => context(tx, userId, slug)); }
 
 export type PostSummary = { id: string; title: string; excerpt: string; authorId: string | null; authorName: string | null; categoryId: string; pinned: boolean;
-  createdAt: Date; editedAt: Date | null; likes: number; comments: number; liked: boolean; likesOff: boolean; coverFileId: string | null; hasVideo: boolean; held: boolean };
+  createdAt: Date; editedAt: Date | null; likes: number; comments: number; liked: boolean; likesOff: boolean; coverFileId: string | null; hasVideo: boolean; held: boolean; harvestHidden: boolean };
 
 const likeCount = (target: "post" | "comment", idColumn: typeof communityPosts.id | typeof communityComments.id, since?: Date) =>
   sql<number>`(select count(*)::int from ${communityLikes} l where l.target_type = ${target} and l.target_id = ${idColumn}${since ? sql` and l.created_at >= ${since}` : sql``})`;
 const likedBy = (target: "post" | "comment", idColumn: typeof communityPosts.id | typeof communityComments.id, userId: string) =>
   sql<boolean>`exists (select 1 from ${communityLikes} l where l.target_type = ${target} and l.target_id = ${idColumn} and l.user_id = ${userId})`;
+
+// 0137: Harvest staff hid it. Row security already limits such rows to their author and the community's staff, who see a marker.
+const harvestHidden = (idColumn: typeof communityPosts.id | typeof communityComments.id) => sql<boolean>`public.community_harvest_hidden(${idColumn})`;
 
 const listInput = z.object({ category: z.uuid().optional(), sort: z.enum(forumSorts).default("new"), page: z.coerce.number().int().min(1).max(1000).default(1) }).strict();
 export const forumPageSize = 50;
@@ -68,7 +71,7 @@ export async function listPosts(db: Database, userId: string, slug: string, raw:
       categoryId: communityPosts.categoryId, pinned: communityPosts.pinned, createdAt: communityPosts.createdAt, editedAt: communityPosts.editedAt,
       likes: likeCount("post", communityPosts.id), liked: likedBy("post", communityPosts.id, userId), likesOff: communityPosts.likesOff,
       comments: sql<number>`(select count(*)::int from ${communityComments} c where c.post_id = ${communityPosts.id} and c.removed_at is null and c.held_at is null)`,
-      coverFileId: communityPosts.coverFileId, videoUrl: communityPosts.videoUrl, held: sql<boolean>`${communityPosts.heldAt} is not null` })
+      coverFileId: communityPosts.coverFileId, videoUrl: communityPosts.videoUrl, held: sql<boolean>`${communityPosts.heldAt} is not null`, harvestHidden: harvestHidden(communityPosts.id) })
       .from(communityPosts).leftJoin(users, eq(users.id, communityPosts.authorId))
       // Held posts (C12a) are listed only for their author; hosts review them in the moderation page.
       .where(and(eq(communityPosts.communityId, ctx.id), isNull(communityPosts.removedAt), or(isNull(communityPosts.heldAt), eq(communityPosts.authorId, userId)),
@@ -90,7 +93,8 @@ export async function getPost(db: Database, userId: string, slug: string, postId
     const [post] = await tx.select({ id: communityPosts.id, title: communityPosts.title, body: communityPosts.body, authorId: communityPosts.authorId, authorName: users.name,
       categoryId: communityPosts.categoryId, pinned: communityPosts.pinned, createdAt: communityPosts.createdAt, editedAt: communityPosts.editedAt, videoUrl: communityPosts.videoUrl,
       coverFileId: communityPosts.coverFileId, commentsOff: communityPosts.commentsOff, likesOff: communityPosts.likesOff,
-      likes: likeCount("post", communityPosts.id), liked: likedBy("post", communityPosts.id, userId), held: sql<boolean>`${communityPosts.heldAt} is not null` })
+      likes: likeCount("post", communityPosts.id), liked: likedBy("post", communityPosts.id, userId), held: sql<boolean>`${communityPosts.heldAt} is not null`,
+      harvestHidden: harvestHidden(communityPosts.id) })
       .from(communityPosts).leftJoin(users, eq(users.id, communityPosts.authorId))
       .where(and(eq(communityPosts.communityId, ctx.id), eq(communityPosts.id, id.data), isNull(communityPosts.removedAt),
         ctx.canModerate ? undefined : or(isNull(communityPosts.heldAt), eq(communityPosts.authorId, userId))));
@@ -100,7 +104,7 @@ export async function getPost(db: Database, userId: string, slug: string, postId
       .orderBy(asc(communityFiles.createdAt));
     const comments = await tx.select({ id: communityComments.id, body: communityComments.body, authorId: communityComments.authorId, authorName: users.name,
       createdAt: communityComments.createdAt, updatedAt: communityComments.updatedAt, likes: likeCount("comment", communityComments.id),
-      liked: likedBy("comment", communityComments.id, userId), held: sql<boolean>`${communityComments.heldAt} is not null`,
+      liked: likedBy("comment", communityComments.id, userId), held: sql<boolean>`${communityComments.heldAt} is not null`, harvestHidden: harvestHidden(communityComments.id),
       // C12b: previous versions are readable only by hosts (RLS), so everyone else counts zero.
       edits: sql<number>`(select count(*)::int from community_comment_revisions r where r.comment_id = ${communityComments.id})` })
       .from(communityComments).leftJoin(users, eq(users.id, communityComments.authorId))

@@ -1,0 +1,172 @@
+import { mkdir } from "node:fs/promises";
+import { expect as baseExpect, test, type Browser, type Page } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
+import { discoverAdmin } from "./helpers/discover";
+import { origin, signIn } from "./helpers/session";
+import { settleForAxe } from "./helpers/settle";
+
+// Harvest staff takedown (0137): a visitor reports a community, a member reports a post to Harvest, a staff admin pauses the community (the public page and
+// Discover answer 404, members see a notice, the owner sees the reason), restores it, then hides and restores the post. Axe at 1280 and 360, light and dark.
+const expect = baseExpect.configure({ timeout: 20_000 });
+test.use({ actionTimeout: 30_000, reducedMotion: "reduce", viewport: { width: 1280, height: 900 } });
+const evidence = process.env.TAKEDOWN_SHOTS ?? "test-results/community-takedown";
+const sizes = [[1280, 900], [360, 740]] as const;
+const doc = (text: string) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
+
+async function audit(page: Page, name: string, prepare?: () => Promise<void>) {
+  for (const scheme of ["light", "dark"] as const) {
+    await page.emulateMedia({ colorScheme: scheme, reducedMotion: "reduce" });
+    await page.evaluate((value) => { const root = document.documentElement; root.dataset.theme = value; root.classList.toggle("dark", value === "dark"); }, scheme);
+    await prepare?.();
+    for (const [width, height] of sizes) {
+      await page.setViewportSize({ width, height });
+      await settleForAxe(page);
+      expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations, `${name} ${width} ${scheme}`).toEqual([]);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name} ${width} ${scheme} scroll`).toBe(true);
+      await page.screenshot({ path: `${evidence}/${name}-${width}-${scheme}.png`, fullPage: true });
+    }
+  }
+  await page.emulateMedia({ colorScheme: "light", reducedMotion: "reduce" });
+  await page.evaluate(() => { const root = document.documentElement; root.dataset.theme = "light"; root.classList.remove("dark"); });
+  await page.setViewportSize({ width: 1280, height: 900 });
+}
+async function person(browser: Browser, errors: string[], name?: string) {
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 }, reducedMotion: "reduce" }), page = await context.newPage();
+  page.on("pageerror", (error) => errors.push(error.message));
+  const email = await signIn(page);
+  if (name) expect((await page.request.put("/api/account/profile", { headers: { origin }, data: { name, locale: null, cityRegion: null } })).ok()).toBe(true);
+  return { context, page, email };
+}
+async function join(page: Page, slug: string, name: string) {
+  await page.goto(`/communities/${slug}`);
+  await page.getByRole("button", { name: "Join", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: `Join ${name}` });
+  await dialog.getByLabel("I confirm I am 18 or older").click();
+  await dialog.getByRole("button", { name: "Join", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/communities/${slug}/forum$`));
+}
+const menu = (page: Page, name: string) => page.getByRole("button", { name: `Actions for the report on ${name}` });
+
+test("report, staff pause and restore a community, hide and restore a post", async ({ page, browser }) => {
+  test.setTimeout(600_000);
+  await mkdir(evidence, { recursive: true });
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await signIn(page);
+  const tenant = (await (await page.request.post("/api/workspaces", { headers: { origin }, data: { name: "Grace Community Church", audience: "church" } })).json()).tenantId as string;
+  const suffix = Date.now().toString(36), slug = `grace-circle-${suffix}`, name = "Grace Prayer Circle", api = `/api/workspaces/${tenant}/communities`;
+  const community = (await (await page.request.post(api, { headers: { origin }, data: { name, slug } })).json()) as { id: string };
+  let { version } = await (await page.request.get(`${api}/${community.id}`)).json() as { version: number };
+  ({ version } = await (await page.request.patch(`${api}/${community.id}`, { headers: { origin }, data: { version, visibility: "listed", allowOpen: true, discoverOptIn: true, tagline: "Prayer every week" } })).json());
+  expect((await page.request.post(`${api}/${community.id}/publish`, { headers: { origin }, data: { version, published: true } })).ok()).toBe(true);
+  const admin = await discoverAdmin();
+  await admin.decide("community", community.id, "approve");
+  const general = ((await (await page.request.get(`${api}/${community.id}/categories`)).json()) as { id: string }[])[0].id;
+
+  const visitorContext = await browser.newContext({ viewport: { width: 1280, height: 900 }, reducedMotion: "reduce", extraHTTPHeaders: { "x-forwarded-for": "198.51.100.77" } });
+  const visitor = await visitorContext.newPage();
+  const author = await person(browser, errors, "Andrew"), member = await person(browser, errors, "Rebecca");
+  const staff = await person(browser, errors);
+  try {
+    // 1. A visitor reports the public page to Harvest: no account.
+    await visitor.goto(`/communities/${slug}`);
+    await visitor.getByRole("button", { name: "Report", exact: true }).click();
+    const dialog = visitor.getByRole("dialog", { name: "Report this community to Harvest" });
+    await expect(dialog.getByRole("button", { name: "Send report" })).toBeDisabled();
+    await dialog.getByLabel("Looks like a scam").click();
+    await dialog.getByLabel("Details (optional)").fill("Asks for money by private message");
+    await audit(visitor, "public-report-dialog");
+    await dialog.getByRole("button", { name: "Send report" }).click();
+    await expect(dialog.getByRole("status")).toHaveText("Thank you. Harvest staff will review it.");
+    await dialog.getByRole("button", { name: "Done" }).click();
+
+    // 2. A member reports a post to Harvest instead of the hosts.
+    await join(author.page, slug, name); await join(member.page, slug, name);
+    const post = (await (await author.page.request.post(`/api/communities/${slug}/posts`, { headers: { origin },
+      data: { categoryId: general, title: "Cheap watches", body: doc("Buy now"), videoUrl: null, coverFileId: null, attachmentIds: [], commentsOff: false, likesOff: false } })).json()) as { id: string };
+    await member.page.goto(`/communities/${slug}/posts/${post.id}`);
+    await member.page.getByRole("button", { name: "Report post Cheap watches" }).click();
+    const report = member.page.getByRole("dialog", { name: "Report post" });
+    await report.getByLabel("Harvest", { exact: true }).click();
+    await report.getByLabel("Spam or advertising").click();
+    await audit(member.page, "member-report-to-harvest");
+    await report.getByRole("button", { name: "Send report" }).click();
+    await expect(report.getByRole("status")).toHaveText("Thank you. Harvest staff will review it.");
+
+    // 3. The staff queue: neutral 404 for everyone else; the admin sees the badge and pauses the community.
+    expect((await visitor.goto("/platform/communities"))?.status()).toBe(404);
+    expect((await member.page.goto("/platform/communities"))?.status()).toBe(404);
+    expect((await member.page.request.get("/api/platform/communities/reports")).status()).toBe(404);
+    await admin.grantStaff(staff.email, "admin");
+    const s = staff.page;
+    await s.goto("/platform/communities");
+    await expect(s.getByRole("heading", { name: "Community reports", level: 1 })).toBeVisible();
+    await expect(s.locator("[data-community-open-count]")).toHaveText("2 open reports");
+    await expect(s.getByText("Asks for money by private message")).toBeVisible();
+    await expect(s.getByText("Cheap watches · Buy now")).toBeVisible();
+    await audit(s, "staff-queue");
+    const communityRow = s.getByRole("row").filter({ hasText: "Asks for money" });
+    await communityRow.getByRole("button", { name: `Actions for the report on ${name}` }).click();
+    await s.getByRole("menuitem", { name: "Pause community" }).click();
+    const hide = s.getByRole("dialog", { name: `Pause ${name}` });
+    await hide.getByLabel("Reason (shown to the ministry)").fill("Fundraising outside Harvest's rules");
+    await audit(s, "staff-pause-dialog");
+    await hide.getByRole("button", { name: "Pause community" }).click();
+    await expect(s.getByRole("status")).toHaveText("Hidden.");
+
+    // 4. Public page and Discover answer as for a missing community; members see the notice; the owner sees the reason.
+    expect((await visitor.goto(`/communities/${slug}`))?.status()).toBe(404);
+    await visitor.goto(`/discover?q=${encodeURIComponent("grace prayer")}`);
+    await expect(visitor.getByText(name)).toHaveCount(0);
+    await member.page.goto(`/communities/${slug}/forum`);
+    await expect(member.page.locator("[data-harvest-paused]")).toContainText(`${name} is paused while Harvest reviews it.`);
+    await expect(member.page.locator("[data-harvest-paused]")).not.toContainText("Fundraising");
+    await audit(member.page, "member-paused");
+    await page.goto(`/workspaces/${tenant}/communities/${community.id}/edit`);
+    await expect(page.locator("[data-harvest-paused]")).toContainText("Reason: Fundraising outside Harvest's rules");
+    await audit(page, "owner-paused");
+
+    // 5. Restore: everything comes back.
+    await s.goto("/platform/communities");
+    await menu(s, name).first().click();
+    await s.getByRole("menuitem", { name: "Restore" }).click();
+    await s.getByRole("alertdialog").getByRole("button", { name: "Restore" }).click();
+    await expect(s.getByRole("status")).toHaveText("Restored.");
+    expect((await visitor.goto(`/communities/${slug}`))?.status()).toBe(200);
+    await visitor.goto(`/discover?q=${encodeURIComponent("grace prayer")}`);
+    await expect(visitor.getByText(name).first()).toBeVisible();
+    await member.page.goto(`/communities/${slug}/forum`);
+    await expect(member.page.getByText("Cheap watches")).toBeVisible();
+
+    // 6. Hide the post: gone for other members, marked for its author and the hosts; then restore it.
+    await s.goto("/platform/communities");
+    await s.getByRole("row").filter({ hasText: "Cheap watches" }).getByRole("button", { name: `Actions for the report on ${name}` }).click();
+    await s.getByRole("menuitem", { name: "Hide post" }).click();
+    const hidePost = s.getByRole("dialog", { name: `Hide a post in ${name}` });
+    await hidePost.getByLabel("Reason (shown to the ministry)").fill("Spam");
+    await hidePost.getByRole("button", { name: "Hide post" }).click();
+    await expect(s.getByRole("status")).toHaveText("Hidden.");
+    await member.page.goto(`/communities/${slug}/forum`);
+    await expect(member.page.getByText("Cheap watches")).toHaveCount(0);
+    expect((await member.page.goto(`/communities/${slug}/posts/${post.id}`))?.status()).toBe(404);
+    await author.page.goto(`/communities/${slug}/posts/${post.id}`);
+    await expect(author.page.locator("[data-harvest-hidden]")).toHaveText("Hidden by Harvest");
+    await audit(author.page, "author-hidden-post");
+    await page.goto(`/communities/${slug}/forum`);
+    await expect(page.locator("[data-harvest-hidden]")).toHaveText("Hidden by Harvest");
+    await s.goto("/platform/communities");
+    await s.getByRole("row").filter({ hasText: "Cheap watches" }).getByRole("button", { name: `Actions for the report on ${name}` }).click();
+    await s.getByRole("menuitem", { name: "Restore" }).click();
+    await s.getByRole("alertdialog").getByRole("button", { name: "Restore" }).click();
+    await expect(s.getByRole("status")).toHaveText("Restored.");
+    await member.page.goto(`/communities/${slug}/forum`);
+    await expect(member.page.getByText("Cheap watches")).toBeVisible();
+
+    const actions = (await admin.q<{ action: string }>("select action from platform_staff_audit where action like 'community.takedown.%' order by created_at")).map((r) => r.action);
+    expect(actions).toEqual(["community.takedown.hide", "community.takedown.restore", "community.takedown.hide", "community.takedown.restore"]);
+    expect(errors).toEqual([]);
+  } finally {
+    await admin.end();
+    for (const context of [visitorContext, author.context, member.context, staff.context]) await context.close();
+  }
+});

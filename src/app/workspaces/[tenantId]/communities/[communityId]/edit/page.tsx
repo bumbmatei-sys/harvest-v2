@@ -12,6 +12,7 @@ import { chatChannelSettings, communityChatEnabled } from "@/server/community-ch
 import { discoverGateOpen, discoverRouteDeps } from "@/server/discover/gate";
 import { listMyListings } from "@/server/discover/owner";
 import { CommunityEditor } from "@/components/communities/community-editor";
+import { communityTakedownFor } from "@/server/community-takedown";
 import { freeCatalogEnabled } from "@/server/free-catalog-mode";
 import { listCommunityShelf } from "@/server/free-catalog";
 
@@ -37,6 +38,8 @@ export default async function CommunityEditPage({ params }: { params: Promise<{ 
   // C13/C16: the ministry's published courses and products with this community's links; changing them needs catalogue rights.
   const shelfItems = freeCatalogEnabled() ? await listCommunityShelf(db, session.user.id, tenantId, communityId).catch(denied) : null;
   const shelf = shelfItems ? { tenantId, items: shelfItems, writable: can(workspace.role, "catalog:manage") } : null;
-  return <CommunityEditor chat={chat} shelf={shelf} initial={community} members={members} invites={invites} applications={applications} categories={categories} host={workspace.name}
+  // 0137: whether Harvest staff paused it; only owners and admins can read the reason (row security), everyone else reads "not paused".
+  const takedown = await communityTakedownFor(db, session.user.id, tenantId, communityId).catch(denied);
+  return <CommunityEditor harvestPause={takedown?.hidden ? { reason: takedown.reason } : null} chat={chat} shelf={shelf} initial={community} members={members} invites={invites} applications={applications} categories={categories} host={workspace.name}
     endpoint={`/api/workspaces/${tenantId}/communities/${communityId}`} listHref={`/workspaces/${tenantId}/communities`} writable={writable} discoverTenant={discoverOpen ? tenantId : undefined} discoverListing={listing} />;
 }

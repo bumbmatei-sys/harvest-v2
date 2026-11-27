@@ -1,7 +1,7 @@
 /** Derived from Shadcn UI Kit item social-media-post1 (premium), registry retrieved 2026-11-16, approved 2026-11-16 (Kit PR 7). Visual reference only; local changes: docs/ui-sources.md. */
 import Link from "next/link";
 import { useFormatter, useTranslations } from "next-intl";
-import { MessageSquare, Pin, PlayCircle } from "lucide-react";
+import { EyeOff, MessageSquare, Pin, PlayCircle } from "lucide-react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
@@ -9,14 +9,14 @@ import { LikeButton } from "@/components/forum/like-button";
 import { memberInitials } from "@/lib/community-members";
 
 export type PostCardData = { id: string; title: string; excerpt: string; authorName: string | null; createdAt: Date; likes: number; comments: number; liked: boolean; likesOff: boolean;
-  coverFileId: string | null; hasVideo: boolean; held: boolean; pinned: boolean };
+  coverFileId: string | null; hasVideo: boolean; held: boolean; pinned: boolean; harvestHidden?: boolean };
 
 /**
  * A forum post in the feed: author and date, optional cover, title, excerpt and a footer with replies and likes. Presentation only; the like
  * request, hosts-only categories, held posts and who may see the post are decided by the server before this renders.
  */
 export function PostCard({ slug, post, category }: { slug: string; post: PostCardData; category?: { name: string; emoji: string | null } }) {
-  const t = useTranslations("CommunityForum"), format = useFormatter(), author = post.authorName?.trim() || t("unnamed"), href = `/communities/${slug}/posts/${post.id}`;
+  const t = useTranslations("CommunityForum"), th = useTranslations("CommunityTakedown"), format = useFormatter(), author = post.authorName?.trim() || t("unnamed"), href = `/communities/${slug}/posts/${post.id}`;
   return <article aria-label={post.title}><Card className="gap-0 overflow-hidden py-0 shadow-none">
     <CardHeader className="flex flex-row flex-wrap items-center gap-3 py-3">
       <Avatar><AvatarFallback aria-hidden="true">{memberInitials(post.authorName ?? "")}</AvatarFallback></Avatar>
@@ -24,6 +24,7 @@ export function PostCard({ slug, post, category }: { slug: string; post: PostCar
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         {post.pinned && <Badge variant="secondary"><Pin className="size-3" aria-hidden="true" />{t("pinned")}</Badge>}
         {post.held && <Badge variant="outline">{t("awaitingReview")}</Badge>}
+        {post.harvestHidden && <Badge variant="destructive" data-harvest-hidden><EyeOff className="size-3" aria-hidden="true" />{th("hiddenByHarvest")}</Badge>}
         {category && <Badge variant="outline">{category.emoji ? `${category.emoji} ` : ""}{category.name}</Badge>}
         {post.hasVideo && <PlayCircle className="size-4" aria-label={t("hasVideo")} />}
       </div>

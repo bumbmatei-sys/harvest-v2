@@ -11,6 +11,7 @@ import { optionalSession } from "@/server/page-session";
 import { PublicFrame } from "@/components/connect/public-frame";
 import { CommunityPageView } from "@/components/communities/community-page-view";
 import { JoinDialog } from "@/components/communities/join-dialog";
+import { CommunityHarvestReport } from "@/components/communities/harvest-report";
 
 // C05: resolved per request through the published-only definer, so unpublishing or hiding takes effect at once.
 export const dynamic = "force-dynamic";
@@ -46,5 +47,6 @@ export default async function CommunityPage({ params, searchParams }: Props) {
         questions={community.joinQuestions} questionsVersion={community.questionsVersion} apply={community.allowApply} invite={invited}
         signedIn={Boolean(session)} signInHref={`/sign-in?personal=1&next=${encodeURIComponent(back)}`} />
         : <p className="text-sm text-muted-foreground">{t("closed")}</p>} />
+    <div className="mt-6 flex justify-end border-t pt-2"><CommunityHarvestReport slug={community.slug} /></div>
   </PublicFrame>;
 }
