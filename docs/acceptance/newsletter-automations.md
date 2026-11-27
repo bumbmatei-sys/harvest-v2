@@ -22,7 +22,7 @@ Three tables, all `ENABLE` and `FORCE ROW LEVEL SECURITY`, `REVOKE ALL ... FROM 
 
 - Sender and reply-to selection (today the synthetic sender address); real provider delivery, scheduling windows and quiet hours.
 - Branching, goals, exits other than consent, re-entry, entering people who were already on the list or form before activation.
-- Editing steps while a run is in flight beyond "pause to edit" (runs continue at their position with the new steps), per-step analytics, run log retention and purge.
+- Editing steps while a run is in flight beyond "pause to edit" (runs continue at their position with the new steps), run log retention and purge. (Per-step link-click totals arrived in 0133: `newsletter-consent-v2-automation-clicks.md`.)
 - Merge keeps the target's own runs only (the source's are dropped with the source).
 
 ## Evidence

@@ -911,6 +911,13 @@
       "when": 1795769192415,
       "tag": "0132_limits_followups",
       "breakpoints": true
+    },
+    {
+      "idx": 133,
+      "version": "7",
+      "when": 1795772565019,
+      "tag": "0133_newsletter_consent_v2",
+      "breakpoints": true
     }
   ]
 }

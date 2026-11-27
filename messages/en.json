@@ -5993,7 +5993,8 @@
       "last": "Ask for last name",
       "firstLabel": "First name",
       "lastLabel": "Last name",
-      "consent": "Consent wording"
+      "consent": "Consent wording",
+      "countedWording": "While link clicks are counted, sign-ups record {version}, which adds: {line}"
     },
     "adForm": {
       "title": "Ad lead form",
@@ -7677,8 +7678,7 @@
       "pageTitle": "Newsletter sign-up",
       "loading": "Loading",
       "busyTitle": "Too many requests. Try again in a minute.",
-      "unavailableTitle": "This sign-up form is not available.",
-      "clicksCounted": "This ministry counts link clicks in its emails, as totals only."
+      "unavailableTitle": "This sign-up form is not available."
     },
     "confirm": {
       "pageTitle": "Confirm sign-up",
@@ -8510,6 +8510,17 @@
         "stopped": "Stopped"
       },
       "withReason": "{outcome} ({reason})"
+    },
+    "clicks": {
+      "title": "Link clicks",
+      "daily": "Clicks by day",
+      "dailyCaption": "Automation link clicks by day (UTC)",
+      "byStep": "Clicks by step",
+      "byStepCaption": "Automation link clicks by step",
+      "stepHeader": "Step",
+      "step": "Step {number}",
+      "stepNamed": "Step {number}: {subject}",
+      "footer": "Last 90 days, UTC. Click records are kept for 90 days. {clicks} Groups under 5 are not shown."
     }
   },
   "Catalog": {
