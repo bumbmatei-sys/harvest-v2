@@ -26,7 +26,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
   const session = await pageSession("personal"), { slug, postId } = await params, me = session.user.id;
   const { context, post, attachments, comments } = await getPost(getDb(), me, slug, postId).catch(missingPost);
   const t = await getTranslations("CommunityForum"), format = await getFormatter(), files = `/api/communities/${context.slug}/files`;
-  const isAuthor = post.authorId === me, author = post.authorName?.trim() || t("unnamed"), muted = context.mutedUntil;
+  const isAuthor = post.authorId === me, author = post.authorId ? post.authorName?.trim() || t("unnamed") : t("formerMember"), muted = context.mutedUntil;
   const awaiting = <Badge variant="outline">{t("awaitingReview")}</Badge>;
   const th = await getTranslations("CommunityTakedown"), hiddenByHarvest = <span data-harvest-hidden className="inline-flex"><StatusBadge tone="danger" label={th("hiddenByHarvest")} dot /></span>;
   return <article className="mx-auto w-full max-w-3xl space-y-6 p-4 lg:p-6">
@@ -61,7 +61,7 @@ export default async function PostPage({ params }: { params: Promise<{ slug: str
     </div>
     <section aria-labelledby="post-replies" className="space-y-4">
       <h3 id="post-replies" className="text-base font-semibold">{t("replies", { count: comments.length })}</h3>
-      {comments.length > 0 && <ul className="space-y-3">{comments.map((c) => { const name = c.authorName?.trim() || t("unnamed"); return <li key={c.id} className="rounded-lg border p-3">
+      {comments.length > 0 && <ul className="space-y-3">{comments.map((c) => { const name = c.authorId ? c.authorName?.trim() || t("unnamed") : t("formerMember"); return <li key={c.id} className="rounded-lg border p-3">
         <div className="flex flex-wrap items-center gap-2"><p className="text-sm text-muted-foreground">{t("byline", { name, date: format.dateTime(c.createdAt, { dateStyle: "medium" }) })}</p>
           {c.held && awaiting}{c.harvestHidden && hiddenByHarvest}</div>
         <p className="mt-1 text-sm whitespace-pre-line break-words">{c.body}</p>

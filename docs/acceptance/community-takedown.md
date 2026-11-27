@@ -79,7 +79,7 @@ Migration `0137_community_takedown` (tentative; the final number is assigned at 
   restore closes, ministry and staff audit without the message, other ministry isolated); settings still saved while paused; forum and chat
   writes refused through the member path, the ministry's staff path and a direct insert; no chat role for owners, admins, hosts or members; deletes
   still run; joins, applications, an earlier application's approval and a direct membership insert refused with the missing-community 404; leaving
-  works; link in bio leaves out and brings back the community. Round 3: accounts that removed a post, pinned or removed a chat message, or deleted a
+  works; link in bio leaves out and brings back the community. Round 3: the product's account deletion (0136) works while paused, and a hard user delete fires ON DELETE SET NULL for accounts that removed a post, pinned or removed a chat message, or deleted a
   private message in a paused community can be deleted (their references become NULL; a reassignment is refused); members delete their own post,
   reply, chat message and private message while paused but nobody else's, and cannot edit or restore; two concurrent review requests give one
   request and one "already open". `tests/integration/community-email-db.test.ts`: the digest leaves out a hidden post's

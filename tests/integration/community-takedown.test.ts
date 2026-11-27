@@ -13,6 +13,7 @@ import { deleteComment, deletePost, forumContext, getPost, listPosts, moderate, 
 import { deleteChatMessage, saveChatChannel } from "../../src/server/community-chat";
 import { dmChangeMessage, dmStart } from "../../src/server/community-dm";
 import { randomUUID } from "node:crypto";
+import { deleteMyAccount } from "../../src/server/account-deletion";
 import { communityTakedownFor, harvestPaused, respondToCommunityHarvestReport, staffCommunityOpenCount, staffCommunityReports, staffCommunityTakedown,
   staffResolveCommunityReport, submitContentHarvestReport } from "../../src/server/community-takedown";
 import { withTenant, withUser } from "../../src/server/tenancy";
@@ -26,7 +27,7 @@ import { emptyBioDefinition } from "../../src/lib/link-in-bio";
 let f: Awaited<ReturnType<typeof testDatabase>>;
 let a: string, b: string, clubA: string, clubB: string, generalA: string, generalB: string;
 const origin = "http://localhost:3000";
-const people = ["t-owner", "t-host", "t-one", "t-two", "t-outsider", "t-bowner", "t-bone", "t-staff", "t-reviewer", "t-admin", "t-new", "t-applicant", "t-mod", "t-pin", "t-del", "t-dm", "t-dm2"];
+const people = ["t-owner", "t-host", "t-one", "t-two", "t-outsider", "t-bowner", "t-bone", "t-staff", "t-reviewer", "t-admin", "t-new", "t-applicant", "t-mod", "t-pin", "t-del", "t-dm", "t-dm2", "t-gone"];
 // The answer a route gives for the error (errorResponse maps database refusals such as P0404 the way the API does).
 const status = (promise: Promise<unknown>) => promise.then(() => 200, (e: { status?: number; name?: string }) => e.status ?? (e.name === "ZodError" ? 400 : errorResponse(e).status));
 const body = (text: string) => ({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text }] }] });
@@ -356,7 +357,7 @@ describe("round 3: account deletion and own deletes while paused", () => {
 
   beforeAll(async () => {
     chatClub = await community("t-owner", a, "Grace chat", "grace-chat");
-    for (const user of ["t-mod", "t-pin", "t-del", "t-dm", "t-dm2", "t-one"]) await enterCommunity(f.db, user, "grace-chat", { rulesVersion: 0, adult: true });
+    for (const user of ["t-mod", "t-pin", "t-del", "t-dm", "t-dm2", "t-one", "t-gone"]) await enterCommunity(f.db, user, "grace-chat", { rulesVersion: 0, adult: true });
     await f.admin.query("update community_memberships set role = 'moderator' where community_id = $1 and user_id = any($2)", [chatClub, ["t-mod", "t-pin", "t-del"]]);
     await f.admin.query("update communities set chat_enabled = true, dm_policy = 'members' where id = $1", [chatClub]);
     await f.admin.query("update community_memberships set dm_accept_members = true where community_id = $1", [chatClub]);
@@ -367,23 +368,25 @@ describe("round 3: account deletion and own deletes while paused", () => {
   });
 
   it("lets accounts that removed, pinned or deleted content in a paused community be deleted", async () => {
-    const removedPost = await savePost(f.db, "t-one", "grace-chat", { categoryId: chatGeneral, title: "Removed", body: body("x") });
+    const removedPost = await savePost(f.db, "t-gone", "grace-chat", { categoryId: chatGeneral, title: "Removed", body: body("x") });
     await moderate(f.db, "t-mod", "grace-chat", { action: "remove_post", targetId: removedPost.id });
-    const pinned = await say("t-one", "Pin me"), removed = await say("t-one", "Remove me");
+    const pinned = await say("t-gone", "Pin me"), removed = await say("t-gone", "Remove me");
     expect((await chat("t-pin", "community_message_moderate", [pinned, "pin"])).outcome).toBe("ok");
     expect((await chat("t-del", "community_message_moderate", [removed, "remove"])).outcome).toBe("ok");
     const started = await dmStart(f.db, "t-dm", "grace-chat", { targetUserId: "t-dm2", body: "Private", client_id: randomUUID() }) as R;
     expect(started.outcome).toBe("ok");
     expect((await dmChangeMessage(f.db, "t-dm", "grace-chat", started.message!.id, "delete")).outcome).toBe("ok");
     await pauseChat(true);
-    // Account deletion is not built yet; its audit handling is out of scope here, so the test clears these people's (append-only) audit rows first,
-    // then deletes the accounts. Each delete fires ON DELETE SET NULL updates on the paused community's posts, chat and private messages.
-    const leaving = ["t-mod", "t-pin", "t-del", "t-dm"];
+    const leaving = ["t-mod", "t-pin", "t-del"];
+    // The product's account deletion (#319, 0136) works while the community is paused: it clears authorship, deletes private messages and anonymises.
+    await expect(deleteMyAccount(f.db, "t-dm", new Date(), { confirm: "DELETE" }, null)).resolves.toMatchObject({ reference: expect.any(String) });
+    await expect(deleteMyAccount(f.db, "t-gone", new Date(), { confirm: "DELETE" }, null)).resolves.toMatchObject({ reference: expect.any(String) });
+    expect((await f.admin.query("select count(*)::int n from community_posts where id = $1 and author_id is null", [removedPost.id])).rows[0].n).toBe(1);
+    // A hard delete of the user rows fires ON DELETE SET NULL on removed_by, pinned_by and deleted_by in the paused community's posts, chat and DMs.
+    // Audit rows are append-only and keep the actor, so this test clears them first (the product never hard-deletes users today).
     await f.admin.query("alter table audit_logs disable trigger user");
     try { await f.admin.query("delete from audit_logs where actor_id = any($1)", [leaving]); } finally { await f.admin.query("alter table audit_logs enable trigger user"); }
-    for (const user of leaving) {
-      await expect(f.admin.query("delete from users where id = $1", [user]), user).resolves.toBeTruthy();
-    }
+    for (const user of leaving) await expect(f.admin.query("delete from users where id = $1", [user]), user).resolves.toBeTruthy();
     const refs = (await f.admin.query("select (select removed_by from community_posts where id = $1) a, (select pinned_by from community_messages where id = $2) b, (select deleted_by from community_messages where id = $3) c",
       [removedPost.id, pinned, removed])).rows[0];
     expect(refs).toEqual({ a: null, b: null, c: null });

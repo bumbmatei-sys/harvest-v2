@@ -934,9 +934,16 @@
       "breakpoints": true
     },
     {
+      "idx": 136,
+      "version": "7",
+      "when": 1795787887914,
+      "tag": "0136_account_deletion",
+      "breakpoints": true
+    },
+    {
       "idx": 137,
       "version": "7",
-      "when": 1795790737778,
+      "when": 1795793379713,
       "tag": "0137_community_takedown",
       "breakpoints": true
     }
