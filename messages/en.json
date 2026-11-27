@@ -7541,6 +7541,14 @@
       "unsubscribed": "Unsubscribed",
       "suppressed": "Bounced or suppressed"
     },
+    "growth": {
+      "title": "Audience growth",
+      "caption": "Audience counts by day (UTC)",
+      "net": "{label}, net change",
+      "noData": "No data yet",
+      "none": "No data yet. Counts are taken once a day.",
+      "since": "No data yet before {date}."
+    },
     "footer": "Last {days} days, {start} to {end}, UTC. Figures are indicative: they come from mail provider reports and can arrive late. {clicks} Groups under 5 are not shown.",
     "back": "Analytics",
     "openCampaign": "Open campaign",
@@ -7550,6 +7558,9 @@
     },
     "campaign": {
       "sinceSend": "Since send",
+      "outcomeDay": "Each outcome on the day it was recorded.",
+      "outcomeCaption": "Campaign outcomes by the day they were recorded (UTC)",
+      "archivedNote": "Each outcome on the day it was recorded. Records older than 90 days keep only totals, so their outcomes are not in this chart.",
       "statusTitle": "Delivery status",
       "statusCaption": "Delivery status counts",
       "statusKey": "Status",

@@ -869,6 +869,13 @@
       "when": 1795740896157,
       "tag": "0126_newsletter_click_tracking",
       "breakpoints": true
+    },
+    {
+      "idx": 127,
+      "version": "7",
+      "when": 1795746812980,
+      "tag": "0127_newsletter_audience_growth",
+      "breakpoints": true
     }
   ]
 }
