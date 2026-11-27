@@ -33,6 +33,16 @@ async function send(handle: string, over: Record<string, unknown> = {}, ip = "20
   if (wait) await new Promise((r) => setTimeout(r, 1100));
   return respondToBioMessage(request(`/l/${handle}/message`, { method: "POST", ip, body: JSON.stringify({ proof: p, name: "Ana", email: "ana@example.test", message: "Hello there", consent: true, ...over }) }), ctx(handle));
 }
+/** A ready profile photo, set through the owner's definer as the editor does (the photo is required to publish). */
+async function attachPhoto(kind: "photo" | "cover" = "photo") {
+  const page = await getBioPage(db(), people.owner, people.tenant), file = randomUUID();
+  await fixture.admin.query("insert into bio_files(id,tenant_id,page_id,key,kind,name,mime,size,checksum,status) values($1,$2,$3,$4,$5,'p.png','image/png',10,$6,'ready')", [file, people.tenant, page.id, `workspaces/${people.tenant}/bio/${page.id}/files/${file}`, kind, "c".repeat(64)]);
+  const { withUser } = await import("../../src/server/tenancy");
+  const result = await withUser(db(), people.owner, async (tx) => (await tx.execute(sql`select public.bio_photo_operate(${people.tenant}::uuid, 'set', ${file}::uuid, ${JSON.stringify({ version: page.version, kind })}::jsonb) r`)).rows[0].r as { outcome: string });
+  expect(result.outcome).toBe("ok");
+  version = (await getBioPage(db(), people.owner, people.tenant)).version;
+  return file;
+}
 const messageRows = (tenant = people.tenant) => fixture.admin.query("select * from bio_messages where tenant_id=$1 order by created_at", [tenant]).then((r) => r.rows);
 
 beforeAll(async () => {
@@ -102,10 +112,13 @@ describe("saving and publishing", () => {
   it("answers an unpublished page like a missing one, then serves only the published copy", async () => {
     expect(await getPublicBio(db(), "grace-church")).toBeNull(); expect(await getPublicBio(db(), "no-such-page")).toBeNull();
     expect(await status(transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version: version - 1 }))).toBe(409);
+    // The profile photo is required (founder decision 25 Nov).
+    expect(await status(transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version }))).toBe(400);
+    await attachPhoto();
     const published = await transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version });
     expect(published.status).toBe("published");
     const view = (await getPublicBio(db(), "grace-church"))!;
-    expect(view).toMatchObject({ name: "Grace Church", ministryName: "bio ministry", hasPhoto: false });
+    expect(view).toMatchObject({ name: "Grace Church", ministryName: "bio ministry", hasPhoto: true, layout: "tabs", showCover: true, photoAlign: "center", iconStyle: "outline" });
     expect(view.tabs.flatMap((t) => t.blocks).map((b) => b.type)).toEqual(["link", "message"]);
     // Later edits stay in the draft until they are published; hidden blocks never reach the visitor.
     await save(people.owner, undefined, def([link("aaaaaaaa", { label: "Changed" }), link("hhhhhhhh", { hidden: true, label: "Secret" }), message], "Grace Church"));
@@ -273,18 +286,21 @@ describe("photo, choices and cross-ministry safety", () => {
 });
 
 describe("tabs, details and the cover", () => {
-  it("shows only the details the owner entered and left visible, and no hidden tab or its blocks", async () => {
+  it("drops the details list and keeps one line of short bio (founder decision 27 Nov), and shows no hidden tab or its blocks", async () => {
     version = (await getBioPage(db(), people.owner, people.tenant)).version;
     const detail = (id: string, kind: "location" | "role", value: string, hidden: boolean) => ({ id, kind, value, hidden });
-    const definition: BioDefinition = { ...def([link("aaaaaaaa"), message]), details: [detail("dddddd01", "location", "Lisbon", false), detail("dddddd02", "role", "Pastor", true)],
-      tabs: [{ id: "home", hidden: false }, { id: "partnership", hidden: false }] };
-    await save(people.owner, undefined, definition);
+    const definition: BioDefinition = { ...def([link("aaaaaaaa"), message]), subtitle: "Church planter", bio: "", details: [detail("dddddd01", "location", "Lisbon", false), detail("dddddd02", "role", "Pastor", true)],
+      tabs: [{ id: "home", label: "", hidden: false }, { id: "partnership", label: "", hidden: false }] };
+    const saved = await save(people.owner, undefined, definition);
+    expect(saved.draft).toMatchObject({ subtitle: "", bio: "Church planter", details: [] });
     await transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version });
     const open = (await getPublicBio(db(), "grace-church"))!;
-    expect(open.details).toEqual([{ id: "dddddd01", kind: "location", value: "Lisbon" }]);
-    expect(JSON.stringify(open)).not.toContain("Pastor");
+    expect(open.bio).toBe("Church planter");
+    expect(JSON.stringify(open)).not.toContain("Pastor"); expect(JSON.stringify(open)).not.toContain("Lisbon");
+    await save(people.owner, undefined, { ...definition, subtitle: "", bio: "\n  First line  \nSecond line" });
+    expect((await getBioPage(db(), people.owner, people.tenant)).draft.bio).toBe("First line");
     expect((await respondToBioProof(request("/l/grace-church/message"), ctx("grace-church"))).status).toBe(200);
-    await save(people.owner, undefined, { ...definition, tabs: [{ id: "partnership", hidden: true }, { id: "home", hidden: false }] });
+    await save(people.owner, undefined, { ...definition, tabs: [{ id: "partnership", label: "", hidden: true }, { id: "home", label: "", hidden: false }] });
     await transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version });
     const closed = (await getPublicBio(db(), "grace-church"))!;
     expect(closed.tabs.map((t) => t.id)).toEqual(["home"]);
@@ -307,10 +323,75 @@ describe("tabs, details and the cover", () => {
   });
   it("will not publish when every visible block sits in a tab that is hidden or missing from the list", async () => {
     version = (await getBioPage(db(), people.owner, people.tenant)).version;
-    await save(people.owner, undefined, { ...def([message]), tabs: [{ id: "home", hidden: false }] });
+    await save(people.owner, undefined, { ...def([message]), tabs: [{ id: "home", label: "", hidden: false }] });
     expect(await status(transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version }))).toBe(400);
-    await save(people.owner, undefined, { ...def([link("aaaaaaaa")]), tabs: [{ id: "home", hidden: true }, { id: "partnership", hidden: false }] });
+    await save(people.owner, undefined, { ...def([link("aaaaaaaa")]), tabs: [{ id: "home", label: "", hidden: true }, { id: "partnership", label: "", hidden: false }] });
     expect(await status(transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version }))).toBe(400);
-    expect((await fixture.admin.query("select public.bio_block_shown($1::jsonb, $2::jsonb) a, public.bio_block_shown($3::jsonb, $2::jsonb) b", [JSON.stringify({ tabs: [{ id: "home", hidden: false }] }), JSON.stringify({ hidden: false, tab: "partnership" }), JSON.stringify({ tabs: [{ id: "partnership", hidden: false }] })])).rows[0]).toEqual({ a: false, b: true });
+    expect((await fixture.admin.query("select public.bio_block_shown($1::jsonb, $2::jsonb) a, public.bio_block_shown($3::jsonb, $2::jsonb) b", [JSON.stringify({ tabs: [{ id: "home", label: "", hidden: false }] }), JSON.stringify({ hidden: false, tab: "partnership" }), JSON.stringify({ tabs: [{ id: "partnership", label: "", hidden: false }] })])).rows[0]).toEqual({ a: false, b: true });
+  });
+});
+
+describe("rework: named tabs, single page, cover switch (0139)", () => {
+  const tab = (id: string, label: string, hidden = false) => ({ id, label, hidden });
+  it("serves up to six named tabs in the owner's order and never a hidden one", async () => {
+    version = (await getBioPage(db(), people.owner, people.tenant)).version;
+    const tabs = [tab("tabaaaaa", "Watch"), tab("home", ""), tab("tabbbbbb", "Give", true), tab("tabccccc", "Pray"), tab("tabddddd", "Events"), tab("tabeeeee", "About")];
+    const definition: BioDefinition = { ...def([link("aaaaaaaa", { tab: "tabaaaaa" }), link("bbbbbbbb", { tab: "home" }), link("cccccccc", { tab: "tabbbbbb", label: "Hidden tab link" }), link("dddddddd", { tab: "tabccccc" })]),
+      tabs, photoAlign: "left", iconStyle: "color" };
+    const page = await save(people.owner, undefined, definition);
+    expect(page.draft.tabs.map((t) => t.label)).toEqual(["Watch", "", "Give", "Pray", "Events", "About"]);
+    expect(await status(save(people.owner, undefined, { ...definition, tabs: [...tabs, tab("tabfffff", "Seven")] }))).toBe(400);
+    await transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version });
+    const view = (await getPublicBio(db(), "grace-church"))!;
+    // Empty tabs are left out; the hidden tab and its block never reach the visitor.
+    expect(view.tabs.map((t) => [t.id, t.label, t.blocks.map((b) => b.id)])).toEqual([["tabaaaaa", "Watch", ["aaaaaaaa"]], ["home", "", ["bbbbbbbb"]], ["tabccccc", "Pray", ["dddddddd"]]]);
+    expect(JSON.stringify(view)).not.toContain("Hidden tab link");
+    expect(view).toMatchObject({ layout: "tabs", photoAlign: "left", iconStyle: "color" });
+    // Clicks follow the same rule in the database.
+    const click = (block: string) => respondToBioClick(request("/l/grace-church/click", { method: "POST", body: JSON.stringify({ block }), ip: "203.0.113.77" }), ctx("grace-church")).then((r) => r.status);
+    expect(await click("dddddddd")).toBe(204);
+    expect(await click("cccccccc")).toBe(404);
+  });
+  it("shows every visible block on one page in the single-page layout, in the database too", async () => {
+    const current = await getBioPage(db(), people.owner, people.tenant); version = current.version;
+    await save(people.owner, undefined, { ...current.draft, layout: "single" });
+    await transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version });
+    const view = (await getPublicBio(db(), "grace-church"))!;
+    expect(view.layout).toBe("single");
+    expect(view.tabs).toHaveLength(1);
+    expect(view.tabs[0].blocks.map((b) => b.id)).toEqual(["aaaaaaaa", "bbbbbbbb", "cccccccc", "dddddddd"]);
+    const click = (block: string) => respondToBioClick(request("/l/grace-church/click", { method: "POST", body: JSON.stringify({ block }), ip: "203.0.113.78" }), ctx("grace-church")).then((r) => r.status);
+    expect(await click("cccccccc")).toBe(204);
+    const shown = (published: unknown, block: unknown) => fixture.admin.query("select public.bio_block_shown($1::jsonb, $2::jsonb) r", [JSON.stringify(published), JSON.stringify(block)]).then((r) => r.rows[0].r);
+    expect(await shown({ layout: "single", tabs: [] }, { hidden: false, tab: "zzzzzzzz" })).toBe(true);
+    expect(await shown({ layout: "single", tabs: [] }, { hidden: true, tab: "home" })).toBe(false);
+    expect(await shown({ tabs: [{ id: "home", hidden: false }] }, { hidden: false })).toBe(true);
+  });
+  it("hides the cover image when the cover is switched off, and brings it back when switched on", async () => {
+    await attachPhoto("cover");
+    const current = await getBioPage(db(), people.owner, people.tenant); version = current.version;
+    await transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version });
+    const coverKey = async () => (await fixture.admin.query("select public.bio_public_photo('grace-church', 'cover') c")).rows[0].c;
+    expect(await coverKey()).not.toBeNull();
+    await save(people.owner, undefined, { ...current.draft, cover: false });
+    expect(await coverKey()).not.toBeNull(); // Only the published copy counts.
+    await transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version });
+    expect(await coverKey()).toBeNull();
+    expect((await getPublicBio(db(), "grace-church"))).toMatchObject({ showCover: false, hasCover: false, hasPhoto: true });
+    expect((await fixture.admin.query("select public.bio_public_photo('grace-church', 'photo') p")).rows[0].p).not.toBeNull();
+    await save(people.owner, undefined, { ...current.draft, cover: true });
+    await transitionBioPage(db(), people.owner, people.tenant, { action: "publish", version });
+    expect(await coverKey()).not.toBeNull();
+  });
+  it("reads a page saved before the rework with the new defaults", async () => {
+    const old = { kind: "bio-v1", name: "Grace Church", subtitle: "", bio: "", details: [], tabs: [{ id: "home", hidden: false }, { id: "partnership", hidden: false }], scheme: "auto", buttons: "filled", socials: [],
+      blocks: [{ type: "link", id: "aaaaaaaa", hidden: false, tab: "partnership", label: "Give", url: "https://example.org/give", icon: null }] };
+    await fixture.admin.query("update bio_pages set draft=$1::jsonb, published=$1::jsonb where tenant_id=$2", [JSON.stringify(old), people.tenant]);
+    const page = await getBioPage(db(), people.owner, people.tenant);
+    expect(page.draft).toMatchObject({ layout: "tabs", cover: true, photoAlign: "center", iconStyle: "outline", tabs: [{ id: "home", label: "", hidden: false }, { id: "partnership", label: "", hidden: false }] });
+    const view = (await getPublicBio(db(), "grace-church"))!;
+    expect(view.tabs.map((t) => t.id)).toEqual(["partnership"]);
+    const click = await respondToBioClick(request("/l/grace-church/click", { method: "POST", body: JSON.stringify({ block: "aaaaaaaa" }), ip: "203.0.113.79" }), ctx("grace-church"));
+    expect(click.status).toBe(204);
   });
 });

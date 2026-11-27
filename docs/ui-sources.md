@@ -525,6 +525,29 @@ Layout reference for the public page and editor preview: the founder named the O
 
 Layout reference (25 Nov 2026): the public page and live preview follow the OpenShadcnBlocks `user-profile3` layout the founder pasted (cover banner, round photo overlapping it, name and subtitle, main action button, tabs, bordered divided list card), refined by the founder as a profile-page idea (social icon row, details list, Home and Partnership tabs; no third-party branding, visuals or copy). **No code copied; licence unverified** (the host is blocked from the build environment). Built from Harvest shared components (Tabs, Button, Card-style borders, `EventCoverPicker`, `PlatformLogo`) and Tailwind container queries.
 
+### Link in bio rework (27 Nov 2026)
+
+Founder decision 25 Nov 2026 (header, tabs and blocks); the founder approved all twelve kit items of section 1 of the approval list on **27 Nov 2026**, plus one MIT carousel library (answers to the list's questions: carousel library yes, address with "Open in maps" and no embedded map, kit `profile-block2` for the header, the `product-cards5` countdown bar as reference, Live now as a manual link). The approved items are recorded as `kitApprovals` ("Link in bio rework") in `src/lib/ui-provenance.ts`; each item becomes a `kitProvenance` row when a file built from it lands. Every item is a **layout reference only**: the registry JSON (`https://shadcnuikit.com/r/<name>.json`) was read on 27 Nov 2026 outside the repository, no kit code, sample data, images or copy is committed, and no react-hook-form or zod 3 is added. Design is the founder's spec; style is Studio Admin through Harvest's shared components.
+
+| Kit item | Tier | Area | PR | Harvest file | Lines identical (`scripts/ui-identical.sh`) |
+| --- | --- | --- | --- | --- | --- |
+| `profile-block2` | free | Public page header | 1 | `src/components/link-in-bio/bio-header.tsx` | 3 of 48 (6%) |
+| `form-layout14` | premium | Editor: Profile step | 1 | `src/components/link-in-bio/bio-profile-step.tsx` | 5 of 84 (5%) |
+| `dashboard-dropdown10` | premium | Editor: Tabs | 1 | `src/components/link-in-bio/bio-tabs-editor.tsx` | 11 of 76 (14%) |
+| `list-block26` | premium | Editor: Blocks list | 2 | not yet built | |
+| `blog-card3` | premium | Blog and latest newsletter blocks | 2 | not yet built | |
+| `list-block13` | premium | PDFs and ebooks | 2 | not yet built | |
+| `contact9` | premium | Contact | 2 | not yet built | |
+| `contact10` | premium | Location ("Open in maps", no map) | 2 | not yet built | |
+| `testimonial11` | premium | Testimonials | 2 | not yet built | |
+| `customer-reviews9` | premium | Photo gallery (grid and viewer only) | 3 | not yet built | |
+| `product-cards5` | premium | Countdown (the bar only) | 3 | not yet built | |
+| `dashboard-modal2` | premium | Share and QR | 3 | not yet built | |
+
+**PR 1 (header, cover, icons, tabs).** `BioHeader` takes `profile-block2`'s structure: a cover band (switchable, brand gradient without an image), a round photo overlapping it with a ring in the page colour, the name and one line under it (the one-line short bio), and the line-style tab bar that scrolls sideways. Not used: edit-cover button, online badge, verified mark, meta row with join date, Follow, Message and More actions (founder decision 27 Nov: no main button in the header), tab counts, remote avatar. Photo position (left or centre) and the single icon style (outline or colour, through `PlatformLogo`) are Harvest additions from the founder's spec. `BioProfileStep` takes `form-layout14`'s label-left rows and its cover and photo uploads; uploads stay on the shared `EventCoverPicker`, which gains a `square` variant (small square thumbnail with buttons beside it) and an `invalid` state. The bio is one line (founder decision 27 Nov). Not used: handle check, website, markdown toolbar, role toggle, booking email, the kit's save footer (the editor keeps `StickySaveBar`). `BioTabsEditor` takes `dashboard-dropdown10`'s reorderable rows with drag handles for mouse and keyboard (`@dnd-kit/sortable`, already approved) and show or hide per row; the rows gain a rename field, move buttons and remove, and a Tabs / Single page choice above them. Not used: popover container, locked column, Reset and Show all, table preview.
+
+**Carousel library.** `embla-carousel-react` 8.6.0 (MIT, pinned; see `docs/third-party-licenses.md`), chosen because the shadcn carousel is built on it, it is small (no styles, about 20 KB gzipped with its two dependencies) and actively maintained. PR 1 uses it in the shared `src/components/swipe-tabs.tsx` (`SwipeTabs`: Radix tabs whose panels sit side by side; only a touch starts a swipe, panels out of view are `inert`, instant under reduced motion). The photo gallery uses it in a later PR.
+
 ### Ads screens (25 Nov 2026)
 
 Founder approval 25 Nov 2026, under the kit item approval gate. Approved kit items: shared `DataTable` (`tables14`; `tables15` and `tables9` as alternates), `switch-card1` style for the per-row switch, `dashboard-dropdown7` for the columns picker, the stat cards used in Social Analytics and the CRM reports, `drawer1` for the right-side edit panel, `stepper1` and `form-layout1` inside the shared `EditorShell` for guided create, `social-media-post1` for the live ad preview, `badge1` (the shared `StatusBadge`) and the existing alerts. **No kit source was retrieved or copied.** Every Ads file is Harvest-written on the shared components and carries a header that says it is modelled on the named items; the record is `adsKitApprovals` in `src/lib/ui-provenance.ts`. The structure (a three-level Campaign, Ad set, Ad table with a totals row, a columns picker, per-row switches, an edit drawer, a guided create flow with a live preview) is taken from an ads manager; **no network branding, colour, icon or copy is used.**
