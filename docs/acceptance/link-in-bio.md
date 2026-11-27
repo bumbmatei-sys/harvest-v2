@@ -14,7 +14,7 @@ Draft PR "Link in bio with Message me". Plan and decisions: `docs/plans/link-in-
 
 ## Rework PR 1 (founder decision 25 Nov; kit items approved 27 Nov)
 
-Migration `0132_bio_tabs_layout` (no columns; `bio_block_shown` learns the single-page layout, `bio_public_photo_scoped` stops serving a cover that is switched off).
+Migration `0134_bio_tabs_layout` (no columns; `bio_block_shown` learns the single-page layout, `bio_public_photo_scoped` stops serving a cover that is switched off).
 
 - **Header** (`BioHeader`, layout from kit `profile-block2`): cover on or off (brand gradient without an image), a **required** profile photo placed left or centre (publishing is refused without one, in the editor checklist and on the server), name, a one-line short bio, and the social and website icons in one style for the page (outline or colour). Founder decision 27 Nov: nothing else in the header; the subtitle becomes the one-line bio when there is no bio, and the details list and the main action button are dropped (that information goes in blocks). Older pages are normalised on read.
 - **Profile step** (`BioProfileStep`, kit `form-layout14`): label-left rows; cover and photo use the shared `EventCoverPicker` in a new small square variant.

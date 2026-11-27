@@ -25,6 +25,8 @@ import { WizardLayout } from "@/components/wizard-layout";
 import { CatalogFilePicker } from "@/components/catalog/catalog-file-picker";
 import { CatalogPreview } from "@/components/catalog/catalog-preview";
 import { LessonListEditor } from "@/components/catalog/lesson-list-editor";
+import { ProgressSummaryCard } from "@/components/catalog/progress-summary";
+import type { ProgressSummary } from "@/lib/course-progress";
 import { useRequest } from "@/hooks/use-request";
 import { useUnsavedChangesGuard } from "@/hooks/use-unsaved-changes-guard";
 import {
@@ -42,8 +44,9 @@ type Moved = { id: string; version: number; state: CatalogState };
  * sends it with the expected version (a stale version is "changed elsewhere, reload"), and Publish saves first. Creating the draft opens the editor for it.
  * Owners and admins edit; everyone else reads. Free only: there is no price, checkout or coupon. The server decides everything; this only guides.
  */
-export function CatalogEditor({ tenantId, kind, initial, communities, files: initialFiles, host, writable }: {
+export function CatalogEditor({ tenantId, kind, initial, communities, files: initialFiles, host, writable, progress = null }: {
   tenantId: string; kind: CatalogKind; initial: CatalogItem | null; communities: Shelf[]; files: CatalogFile[]; host: string; writable: boolean;
+  /** Owners and admins of a course: aggregate learner progress, counts only. */ progress?: ProgressSummary | null;
 }) {
   const t = useTranslations("Catalog.editor"), shared = useTranslations("Catalog"), request = useRequest(), router = useRouter(), hosted = useEditorHosted();
   const [item, setItem] = useState(initial), [files, setFiles] = useState(initialFiles);
@@ -168,6 +171,7 @@ export function CatalogEditor({ tenantId, kind, initial, communities, files: ini
             {communities.length > 0 && state === "published" && <p className="text-sm text-muted-foreground">{t("shelfNote")}</p>}
           </CardContent></Card>
       </>}
+      {step === "publish" && progress && <ProgressSummaryCard summary={progress} />}
       {step === "publish" && <ul className="space-y-2" aria-label={t("checklist")}>
         {checklist.map((check) => <li key={check.id} className="flex min-h-11 flex-wrap items-center gap-3 rounded-md border px-3">
           {check.done ? <CircleCheck className="size-4 text-success" aria-hidden="true" /> : <Circle className="size-4 text-muted-foreground" aria-hidden="true" />}
