@@ -46,9 +46,11 @@ async function settingsRow(tx: Transaction, tenantId: string, user: string) {
   if (existing) return existing;
   const [ministry] = await tx.select({ name: workspaces.name }).from(workspaces).where(eq(workspaces.tenantId, tenantId));
   const name = (ministry?.name ?? "").trim().slice(0, blogLimits.blogTitle) || "Blog";
-  const base = suggestHandle(name) || "ministry-blog";
-  for (let attempt = 0; attempt < 12; attempt++) {
-    const handle = attempt === 0 ? base : `${base.slice(0, 25).replace(/-+$/, "")}-${randomSuffix()}`;
+  // Founder decision 27 Nov: the blog uses the ministry's link-in-bio name (/l/<handle> and /blog/<handle>) when there is one, else the name suggestion.
+  const { rows: [bio] } = await tx.execute<{ handle: string }>(sql`select handle from bio_pages where tenant_id = ${tenantId}::uuid`);
+  const base = suggestHandle(name) || "ministry-blog", candidates = [...(bio?.handle && !blogHandleProblem(bio.handle) ? [bio.handle] : []), base];
+  for (let attempt = 0; attempt < 12 + candidates.length - 1; attempt++) {
+    const handle = attempt < candidates.length ? candidates[attempt] : `${base.slice(0, 25).replace(/-+$/, "")}-${randomSuffix()}`;
     if (blogHandleProblem(handle)) continue;
     await tx.execute(sql`savepoint blog_create`);
     try {
@@ -65,9 +67,8 @@ async function settingsRow(tx: Transaction, tenantId: string, user: string) {
   throw new AccessError(409, message("Errors.blogHandleTaken"), { reason: "handle_taken" });
 }
 async function ownerSettings(tx: Transaction, row: typeof blogSettings.$inferSelect): Promise<BlogOwnerSettings> {
-  const [locked] = await tx.select({ n: sql<number>`count(*)::int` }).from(blogPosts).where(and(eq(blogPosts.tenantId, row.tenantId), sql`${blogPosts.firstPublishedAt} is not null`));
   const [ministry] = await tx.select({ timeZone: workspaces.timeZone }).from(workspaces).where(eq(workspaces.tenantId, row.tenantId));
-  return { handle: row.handle, title: row.title, intro: row.intro, version: row.version, handleLocked: Number(locked?.n ?? 0) > 0, timeZone: timeZoneOrDefault(ministry?.timeZone) };
+  return { handle: row.handle, title: row.title, intro: row.intro, version: row.version, handleLocked: row.firstPublishedAt !== null, timeZone: timeZoneOrDefault(ministry?.timeZone) };
 }
 const listColumns = { id: blogPosts.id, title: blogPosts.title, slug: blogPosts.slug, status: blogPosts.status, publishAt: blogPosts.publishAt, publishedAt: blogPosts.publishedAt,
   updatedAt: blogPosts.updatedAt, author: users.name };
@@ -216,6 +217,7 @@ export async function changeBlogPostState(db: Database, user: string, workspace:
     if (input.action === "unschedule" && current.status !== "scheduled") throw stale();
     if (input.action === "unpublish" && current.status !== "published") throw stale();
     let values: Partial<typeof blogPosts.$inferInsert>;
+    // The database replaces this with its own clock (blog_posts_guard), so a manual publish always reads now().
     if (input.action === "publish") values = { status: "published", publishedAt: new Date(), publishAt: null, scheduledBy: null };
     else if (input.action === "schedule") {
       const at = new Date(input.at);

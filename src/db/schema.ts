@@ -3956,6 +3956,8 @@ export const blogSettings = pgTable("blog_settings", {
   title: text("title").notNull(),
   intro: text("intro"),
   version: integer("version").notNull().default(1),
+  /** Set once, when the blog's first article is first published; the address is fixed from then on. */
+  firstPublishedAt: timestamp("first_published_at", { withTimezone: true }),
   createdBy: text("created_by").notNull().references(() => users.id),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
