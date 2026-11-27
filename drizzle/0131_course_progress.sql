@@ -66,6 +66,10 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp
 AS $$
 DECLARE actor text := nullif(current_setting('app.user_id', true), ''); content jsonb; v_tenant uuid; v_item uuid; note text; result jsonb;
 BEGIN
+  -- Every flag an owner-role catalogue or community policy reads is blank on entry; each path below leaves them blank again.
+  PERFORM public.community_definer_reset();
+  PERFORM set_config('app.catalog_tenant', '', true);
+  PERFORM set_config('app.catalog_slug', '', true);
   PERFORM set_config('app.catalog_learner_tenant', '', true);
   PERFORM set_config('app.catalog_my_notes', '', true);
   PERFORM set_config('app.catalog_progress_tenant', '', true);
@@ -106,10 +110,12 @@ LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp
 AS $$
 DECLARE actor text := nullif(current_setting('app.user_id', true), ''); r record; course record; lesson_title text; result jsonb := '[]'::jsonb;
 BEGIN
+  PERFORM public.community_definer_reset();
   PERFORM set_config('app.catalog_learner_tenant', '', true);
   PERFORM set_config('app.catalog_progress_tenant', '', true);
   PERFORM set_config('app.catalog_tenant', '', true);
   PERFORM set_config('app.catalog_slug', '', true);
+  PERFORM set_config('app.catalog_my_notes', '', true);
   IF actor IS NULL THEN RETURN result; END IF;
   PERFORM set_config('app.catalog_my_notes', 'on', true);
   FOR r IN SELECT n.tenant_id, n.item_id, n.lesson_id, n.body, n.updated_at FROM public.catalog_notes n
@@ -155,26 +161,29 @@ BEGIN
   RETURN result;
 END $$;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.catalog_progress_summary_scoped(uuid, uuid) FROM PUBLIC, harvest_app;--> statement-breakpoint
--- The entry point (the 0120 pattern): every other app.* flag except the caller's ministry and user is cleared for the call, so nothing the app set
--- beforehand can widen what the owner-role policies let it read; it sets its own flag and puts every setting back afterwards.
+-- The entry point. pg_settings does not list custom settings (PostgreSQL 18; the 0120 defect fixed in 0124), so the flags are named explicitly. On
+-- entry it blanks every flag an owner-role catalogue or community policy reads (community_definer_reset() plus the catalogue flags below), so nothing
+-- the app set beforehand can widen what those policies let it read. It sets only app.catalog_progress_tenant and (in the scoped helper)
+-- app.catalog_tenant, and on exit blanks every one of those flags again rather than restoring prior values, as catalog_access does. app.tenant_id and
+-- app.user_id are never touched.
 CREATE FUNCTION public.catalog_progress_summary(p_tenant uuid, p_item uuid) RETURNS jsonb
 LANGUAGE plpgsql VOLATILE SECURITY DEFINER SET search_path = pg_catalog, pg_temp AS $$
-DECLARE prior jsonb; entry record; result jsonb;
+DECLARE flag text; result jsonb;
+  flags text[] := ARRAY['app.catalog_tenant', 'app.catalog_slug', 'app.catalog_learner_tenant', 'app.catalog_my_notes', 'app.catalog_progress_tenant'];
 BEGIN
-  SELECT coalesce(pg_catalog.jsonb_object_agg(s.name, s.setting), '{}'::jsonb) INTO prior FROM pg_catalog.pg_settings s
-    WHERE s.name LIKE 'app.%' AND s.name NOT IN ('app.tenant_id', 'app.user_id');
-  FOR entry IN SELECT key FROM pg_catalog.jsonb_each_text(prior) LOOP PERFORM pg_catalog.set_config(entry.key, '', true); END LOOP;
+  PERFORM public.community_definer_reset();
+  FOREACH flag IN ARRAY flags LOOP PERFORM pg_catalog.set_config(flag, '', true); END LOOP;
   PERFORM pg_catalog.set_config('app.catalog_progress_tenant', coalesce(p_tenant::text, ''), true);
   result := public.catalog_progress_summary_scoped(p_tenant, p_item);
-  PERFORM pg_catalog.set_config('app.catalog_progress_tenant', '', true);
-  PERFORM pg_catalog.set_config('app.catalog_tenant', '', true);
-  FOR entry IN SELECT key, value FROM pg_catalog.jsonb_each_text(prior) LOOP PERFORM pg_catalog.set_config(entry.key, entry.value, true); END LOOP;
+  FOREACH flag IN ARRAY flags LOOP PERFORM pg_catalog.set_config(flag, '', true); END LOOP;
+  PERFORM public.community_definer_reset();
   RETURN result;
 END $$;--> statement-breakpoint
 REVOKE ALL ON FUNCTION public.catalog_progress_summary(uuid, uuid) FROM PUBLIC;--> statement-breakpoint
 GRANT EXECUTE ON FUNCTION public.catalog_progress_summary(uuid, uuid) TO harvest_app;--> statement-breakpoint
 -- catalog_access as replaced by 0130, unchanged except that course content also returns the caller's own completed lessons and notes (published
--- lessons only), read under app.catalog_learner_tenant, which it clears on entry and on exit like its other settings.
+-- lessons only), read under app.catalog_learner_tenant, which it clears on entry and on exit like its other settings. It also blanks the 0131 flags
+-- app.catalog_my_notes and app.catalog_progress_tenant on entry, so no owner-role policy keyed on them is active while it runs.
 CREATE OR REPLACE FUNCTION public.catalog_access(p_slug text, p_action text, p_file uuid DEFAULT NULL) RETURNS jsonb
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, pg_temp
 AS $$
@@ -187,6 +196,8 @@ DECLARE item public.catalog_items%ROWTYPE;
 BEGIN
   PERFORM set_config('app.catalog_tenant','',true);
   PERFORM set_config('app.catalog_learner_tenant','',true);
+  PERFORM set_config('app.catalog_my_notes','',true);
+  PERFORM set_config('app.catalog_progress_tenant','',true);
   PERFORM public.community_definer_reset();
   <<resolve>>
   BEGIN

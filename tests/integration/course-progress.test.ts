@@ -224,3 +224,48 @@ it("forces row security, grants the app read only, and keeps two ministries apar
     expect(row, name).toMatchObject({ prosecdef: true, config: ["search_path=pg_catalog, pg_temp"] });
   }
 });
+
+it("ignores and clears every catalogue and community flag the app pre-sets before a definer call", async () => {
+  const slug = "flagged-course", id = await published(slug), a = learners[5];
+  await enrolInCatalogItem(f.db, a, slug);
+  const [first] = (await content(a, slug)).lessons;
+  const flags = ["app.catalog_tenant", "app.catalog_slug", "app.catalog_learner_tenant", "app.catalog_my_notes", "app.catalog_progress_tenant",
+    "app.community_definer_tenant", "app.community_resolve_slug"];
+  const preset = (tx: Parameters<Parameters<typeof withUser>[2]>[0]) => tx.execute(sql`select set_config('app.catalog_tenant', ${foreignTenant}, true),
+    set_config('app.catalog_slug', 'foreign-progress', true), set_config('app.catalog_learner_tenant', ${foreignTenant}, true), set_config('app.catalog_my_notes', 'on', true),
+    set_config('app.catalog_progress_tenant', ${foreignTenant}, true), set_config('app.community_definer_tenant', ${foreignTenant}, true),
+    set_config('app.community_resolve_slug', 'x', true)`);
+  const read = async (tx: Parameters<Parameters<typeof withUser>[2]>[0]) =>
+    (await tx.execute<{ name: string; value: string | null }>(sql`select name, current_setting(name, true) as value from unnest(${sql.raw(`ARRAY[${flags.map((flag) => `'${flag}'`).join(",")}]`)}::text[]) name`)).rows;
+  const blank = (rows: { value: string | null }[]) => rows.every((row) => !row.value);
+  // The owner's counts: same answer as without the preset flags, every flag blank afterwards.
+  const expected = await getCatalogProgress(f.db, owner, tenant, id);
+  const owned = await withTenant(f.db, owner, tenant, "catalog:manage", async (tx) => {
+    await preset(tx);
+    const data = (await tx.execute<{ data: unknown }>(sql`select public.catalog_progress_summary(${tenant}::uuid, ${id}::uuid) as data`)).rows[0].data;
+    return { data, after: await read(tx) };
+  });
+  expect(owned.data).toMatchObject({ enrolled: null, lessons: expected.lessons.map((row) => ({ id: row.id })) });
+  expect(blank(owned.after), JSON.stringify(owned.after)).toBe(true);
+  // A foreign ministry's flag does not let the summary count another ministry's course either.
+  const other = await withTenant(f.db, owner, tenant, "catalog:manage", async (tx) => {
+    await preset(tx);
+    const foreignCourse = (await f.admin.query("select id from catalog_items where tenant_id=$1 limit 1", [foreignTenant])).rows[0]?.id ?? id;
+    return (await tx.execute<{ data: unknown }>(sql`select public.catalog_progress_summary(${foreignTenant}::uuid, ${foreignCourse}::uuid) as data`)).rows[0].data;
+  });
+  expect(other).toBeNull();
+  // The learner's write and My notes: correct, own rows only, every flag blank afterwards.
+  const learned = await withUser(f.db, a, async (tx) => {
+    await preset(tx);
+    const write = (await tx.execute<{ data: unknown }>(sql`select public.catalog_learner(${slug}, ${first.id}::uuid, 'note', 'Flagged note') as data`)).rows[0].data;
+    const afterWrite = await read(tx);
+    await preset(tx);
+    const notes = (await tx.execute<{ data: { body: string }[] }>(sql`select public.catalog_my_notes() as data`)).rows[0].data;
+    return { write, afterWrite, notes, afterNotes: await read(tx) };
+  });
+  expect(learned.write).toEqual({ saved: true });
+  expect(blank(learned.afterWrite), JSON.stringify(learned.afterWrite)).toBe(true);
+  expect(learned.notes.map((note) => note.body)).toEqual(["Flagged note"]);
+  expect(blank(learned.afterNotes), JSON.stringify(learned.afterNotes)).toBe(true);
+  expect((await f.admin.query("select count(*)::int n from catalog_notes where user_id=$1", [a])).rows).toEqual([{ n: 1 }]);
+});

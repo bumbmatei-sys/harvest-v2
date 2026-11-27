@@ -38,6 +38,7 @@ async function clickUntil(page: Page, name: string | RegExp, done: () => Promise
 
 test("a learner completes lessons, sees the percentage, writes a note and finds it on My notes", async ({ page: owner, browser }) => {
   test.setTimeout(900_000);
+  const started = Date.now();
   await mkdir(shots, { recursive: true });
   const errors: string[] = [];
   await signIn(owner);
@@ -116,7 +117,8 @@ test("a learner completes lessons, sees the percentage, writes a note and finds 
     await check(page, name, width, scheme);
     await page.screenshot({ path: `${shots}/${name}-${width}-${scheme}.png`, fullPage: true });
   }
-  // A hydration mismatch is ignored only when the dev server also reported a chunk failure in this run (scripts/e2e-server.ts notes it).
-  const devChunkFailure = (await readFile(`${process.env.HARVEST_E2E_MAILBOX}.dev-errors`, "utf8").catch(() => "")).trim() !== "";
+  // A hydration mismatch is ignored only when the dev server noted a chunk failure during this test (scripts/e2e-server.ts stamps each line).
+  const devChunkFailure = (await readFile(`${process.env.HARVEST_E2E_MAILBOX}.dev-errors`, "utf8").catch(() => "")).split("\n")
+    .some((line) => Number(line.split(" ", 1)[0]) >= started);
   expect(errors.filter((message) => !(devChunkFailure && message.startsWith("Hydration failed because the server rendered HTML didn't match the client")))).toEqual([]);
 });

@@ -46,4 +46,4 @@ There is no learner data export and no account deletion flow in Harvest today (a
 
 ## Not in this slice (remaining 25 Nov items, follow-ups)
 
-Lesson attachments, Resources tab, course cover, author page, visibility work beyond hidden, unlisted and listed, and the public catalogue. Also open: a learner data export and erasure flow (above). The routes stay off in production (`freeCatalogEnabled`). No production migration has been applied. All five HC-02 gates remain **UNAPPROVED**.
+Lesson attachments, Resources tab, course cover, author page, visibility work beyond hidden, unlisted and listed, and the public catalogue. Also open: a learner data export and erasure flow (above). The definers name their flags explicitly (pg_settings does not list custom settings), blank them on entry and on exit, and a test pre-sets them before each call. The routes stay off in production (`freeCatalogEnabled`). No production migration has been applied. All five HC-02 gates remain **UNAPPROVED**.
