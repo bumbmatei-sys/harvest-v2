@@ -116,7 +116,7 @@ test("deletes my account: sole-owner blocker, re-auth, typed confirmation, then 
     // The post stays, shown as "Former member".
     await page.goto(`/communities/${slug}/posts/${post.id}`);
     await expect(page.getByRole("heading", { name: "Synthetic member post" })).toBeVisible();
-    await expect(page.getByText(/^Former member · /)).toBeVisible();
+    await expect(page.getByRole("article").getByText("Former member", { exact: true }).first()).toBeVisible();
     await check(page, "post-former-member");
   } finally { await other.close(); await admin.end(); }
 });

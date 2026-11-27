@@ -70,7 +70,7 @@ export function CommunityShell({ slug, name, chat = false, events = false, shelf
     <div className={cn("flex min-w-0 flex-1 flex-col md:pb-0", !chatView && "pb-[calc(5rem+env(safe-area-inset-bottom))]")}>
       <header className={cn("flex min-h-14 items-center gap-3 border-b px-4", chatView && "hidden md:flex")}><h1 className="min-w-0 flex-1 truncate text-base font-semibold">{name}</h1>
         {notifications && <NotificationBell slug={slug} unread={notifications.unread} prefs={notifications.prefs} />}</header>
-      <main id="community-main" tabIndex={-1} className="min-w-0 flex-1 outline-none"><ChatUnreadContext.Provider value={setBadge}>{children}</ChatUnreadContext.Provider></main>
+      <main id="community-main" tabIndex={-1} className="min-w-0 flex-1 outline-none has-[[data-surface=sunken]]:bg-muted"><ChatUnreadContext.Provider value={setBadge}>{children}</ChatUnreadContext.Provider></main>
     </div>
     {/* Every entry keeps a 44px target; on the narrowest phones the bar scrolls sideways instead of shrinking them. */}
     {!chatView && <nav aria-label={t("navigation")} className="fixed inset-x-0 bottom-0 z-40 grid overflow-x-auto border-t bg-background pt-1 pr-[calc(0.25rem+env(safe-area-inset-right))] pb-[calc(0.25rem+env(safe-area-inset-bottom))] pl-[calc(0.25rem+env(safe-area-inset-left))] md:hidden" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(2.75rem, 1fr))` }}>
