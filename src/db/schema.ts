@@ -654,7 +654,7 @@ export const crmNotes = pgTable("crm_notes", {
   check("crm_note_target", sql`num_nonnulls(${t.contactId}, ${t.companyId}, ${t.opportunityId}) = 1`),
   check("crm_note_body", sql`length(btrim(${t.body})) between 1 and 10000`),
   check("crm_note_version", sql`${t.version} >= 1`)]);
-export const crmNotificationKinds = ["task_assigned", "task_due", "task_overdue", "volunteer_assigned", "volunteer_changed", "volunteer_reminder"] as const;
+export const crmNotificationKinds = ["task_assigned", "task_due", "task_overdue", "volunteer_assigned", "volunteer_changed", "volunteer_reminder", "volunteer_swap_requested"] as const;
 export const crmNotifications = pgTable("crm_notifications", {
   tenantId: uuid("tenant_id").notNull().references(() => workspaces.tenantId), id: uuid("id").notNull().defaultRandom(),
   recipientUserId: text("recipient_user_id").notNull().references(() => users.id),
@@ -671,9 +671,9 @@ export const crmNotifications = pgTable("crm_notifications", {
   foreignKey({ columns: [t.tenantId, t.volunteerSlotId], foreignColumns: [volunteerSlots.tenantId, volunteerSlots.id] }),
   index("crm_notifications_recipient_idx").on(t.tenantId, t.recipientUserId, t.readAt, t.createdAt),
   uniqueIndex("crm_notifications_due_unique").on(t.tenantId, t.taskId, t.recipientUserId, t.kind, t.dueAt).where(sql`${t.kind} in ('task_due', 'task_overdue')`),
-  check("crm_notification_kind", sql`${t.kind} in ('task_assigned', 'task_due', 'task_overdue', 'volunteer_assigned', 'volunteer_changed', 'volunteer_reminder')`),
-  check("crm_notification_due_at", sql`(${t.kind} in ('task_assigned','volunteer_assigned','volunteer_changed')) = (${t.dueAt} is null)`),
-  check("crm_notification_volunteer_target", sql`num_nonnulls(${t.taskId}, ${t.volunteerSlotId}) = 1 and (${t.volunteerSlotId} is not null) = (${t.kind} in ('volunteer_assigned','volunteer_changed','volunteer_reminder'))`),
+  check("crm_notification_kind", sql`${t.kind} in ('task_assigned', 'task_due', 'task_overdue', 'volunteer_assigned', 'volunteer_changed', 'volunteer_reminder', 'volunteer_swap_requested')`),
+  check("crm_notification_due_at", sql`(${t.kind} in ('task_assigned','volunteer_assigned','volunteer_changed','volunteer_swap_requested')) = (${t.dueAt} is null)`),
+  check("crm_notification_volunteer_target", sql`num_nonnulls(${t.taskId}, ${t.volunteerSlotId}) = 1 and (${t.volunteerSlotId} is not null) = (${t.kind} in ('volunteer_assigned','volunteer_changed','volunteer_reminder','volunteer_swap_requested'))`),
   uniqueIndex("crm_notification_volunteer_reminder").on(t.tenantId, t.volunteerSlotId, t.recipientUserId, t.dueAt).where(sql`${t.kind} = 'volunteer_reminder'`),
 ]);
 // Per-person on/off for each due/overdue kind in one ministry (default on; in-app only).
@@ -4155,7 +4155,9 @@ export const volunteerRequests = pgTable("volunteer_requests", {
   userId: text("user_id").notNull(),
   replacementUserId: text("replacement_user_id"),
   kind: text("kind", { enum: ["swap", "decline"] }).notNull(),
-  state: text("state", { enum: ["pending", "approved", "rejected", "cancelled"] }).notNull().default("pending"),
+  state: text("state", { enum: ["pending", "approved", "rejected", "cancelled", "declined"] }).notNull().default("pending"),
+  // Founder decision 27 Nov: the named replacement accepts a swap before staff can approve it.
+  replacementAcceptedAt: timestamp("replacement_accepted_at", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   primaryKey({ columns: [t.tenantId, t.id] }),
@@ -4163,7 +4165,8 @@ export const volunteerRequests = pgTable("volunteer_requests", {
   foreignKey({ columns: [t.tenantId, t.slotId], foreignColumns: [volunteerSlots.tenantId, volunteerSlots.id] }),
   foreignKey({ columns: [t.tenantId, t.userId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }).onDelete("cascade"),
   foreignKey({ columns: [t.tenantId, t.replacementUserId], foreignColumns: [workspaceMembers.tenantId, workspaceMembers.userId] }).onDelete("cascade"),
-  check("volunteer_request_state", sql`${t.state} in ('pending','approved','rejected','cancelled')`),
+  check("volunteer_request_state", sql`${t.state} in ('pending','approved','rejected','cancelled','declined')`),
+  check("volunteer_request_acceptance", sql`${t.replacementAcceptedAt} is null or ${t.kind} = 'swap'`),
   check("volunteer_request_kind", sql`((${t.kind} = 'swap' and ${t.replacementUserId} <> ${t.userId}) or ${t.kind} = 'decline') and (${t.kind} = 'swap') = (${t.replacementUserId} is not null)`),
 ]);
 

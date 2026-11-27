@@ -26,9 +26,11 @@ CREATE TABLE "volunteer_requests" (
 	"replacement_user_id" text,
 	"kind" text NOT NULL,
 	"state" text DEFAULT 'pending' NOT NULL,
+	"replacement_accepted_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "volunteer_requests_tenant_id_id_pk" PRIMARY KEY("tenant_id","id"),
-	CONSTRAINT "volunteer_request_state" CHECK ("volunteer_requests"."state" in ('pending','approved','rejected','cancelled')),
+	CONSTRAINT "volunteer_request_state" CHECK ("volunteer_requests"."state" in ('pending','approved','rejected','cancelled','declined')),
+	CONSTRAINT "volunteer_request_acceptance" CHECK ("volunteer_requests"."replacement_accepted_at" is null or "volunteer_requests"."kind" = 'swap'),
 	CONSTRAINT "volunteer_request_kind" CHECK ((("volunteer_requests"."kind" = 'swap' and "volunteer_requests"."replacement_user_id" <> "volunteer_requests"."user_id") or "volunteer_requests"."kind" = 'decline') and ("volunteer_requests"."kind" = 'swap') = ("volunteer_requests"."replacement_user_id" is not null))
 );
 --> statement-breakpoint
@@ -102,9 +104,9 @@ CREATE UNIQUE INDEX "volunteer_request_pending" ON "volunteer_requests" USING bt
 CREATE INDEX "volunteer_slot_date" ON "volunteer_slots" USING btree ("tenant_id","service_date","id");--> statement-breakpoint
 ALTER TABLE "crm_notifications" ADD CONSTRAINT "crm_notifications_tenant_id_volunteer_slot_id_volunteer_slots_tenant_id_id_fk" FOREIGN KEY ("tenant_id","volunteer_slot_id") REFERENCES "public"."volunteer_slots"("tenant_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "crm_notification_volunteer_reminder" ON "crm_notifications" USING btree ("tenant_id","volunteer_slot_id","recipient_user_id","due_at") WHERE "crm_notifications"."kind" = 'volunteer_reminder';--> statement-breakpoint
-ALTER TABLE "crm_notifications" ADD CONSTRAINT "crm_notification_volunteer_target" CHECK (num_nonnulls("crm_notifications"."task_id", "crm_notifications"."volunteer_slot_id") = 1 and ("crm_notifications"."volunteer_slot_id" is not null) = ("crm_notifications"."kind" in ('volunteer_assigned','volunteer_changed','volunteer_reminder')));--> statement-breakpoint
-ALTER TABLE "crm_notifications" ADD CONSTRAINT "crm_notification_kind" CHECK ("crm_notifications"."kind" in ('task_assigned', 'task_due', 'task_overdue', 'volunteer_assigned', 'volunteer_changed', 'volunteer_reminder'));--> statement-breakpoint
-ALTER TABLE "crm_notifications" ADD CONSTRAINT "crm_notification_due_at" CHECK (("crm_notifications"."kind" in ('task_assigned','volunteer_assigned','volunteer_changed')) = ("crm_notifications"."due_at" is null));--> statement-breakpoint
+ALTER TABLE "crm_notifications" ADD CONSTRAINT "crm_notification_volunteer_target" CHECK (num_nonnulls("crm_notifications"."task_id", "crm_notifications"."volunteer_slot_id") = 1 and ("crm_notifications"."volunteer_slot_id" is not null) = ("crm_notifications"."kind" in ('volunteer_assigned','volunteer_changed','volunteer_reminder','volunteer_swap_requested')));--> statement-breakpoint
+ALTER TABLE "crm_notifications" ADD CONSTRAINT "crm_notification_kind" CHECK ("crm_notifications"."kind" in ('task_assigned', 'task_due', 'task_overdue', 'volunteer_assigned', 'volunteer_changed', 'volunteer_reminder', 'volunteer_swap_requested'));--> statement-breakpoint
+ALTER TABLE "crm_notifications" ADD CONSTRAINT "crm_notification_due_at" CHECK (("crm_notifications"."kind" in ('task_assigned','volunteer_assigned','volunteer_changed','volunteer_swap_requested')) = ("crm_notifications"."due_at" is null));--> statement-breakpoint
 CREATE FUNCTION public.volunteer_role(p_tenant uuid) RETURNS text
 LANGUAGE sql STABLE SET search_path = pg_catalog, pg_temp AS $$
   SELECT public.access_role(tenant_id,user_id,'owner_admin',role_id) FROM public.workspace_members
@@ -136,7 +138,7 @@ BEGIN
     EXECUTE format('CREATE POLICY volunteer_scoped_definer ON public.%I TO %I USING (%s) WITH CHECK (%s)', tbl, current_user, scope, scope);
   END LOOP;
   EXECUTE format('CREATE POLICY volunteer_notice_insert ON public.crm_notifications FOR INSERT TO %I
-    WITH CHECK (%s AND kind IN (''volunteer_assigned'',''volunteer_changed'',''volunteer_reminder''))', current_user, scope);
+    WITH CHECK (%s AND kind IN (''volunteer_assigned'',''volunteer_changed'',''volunteer_reminder'',''volunteer_swap_requested''))', current_user, scope);
   EXECUTE format('CREATE POLICY volunteer_notice_reminder ON public.crm_notifications FOR SELECT TO %I
     USING (%s AND kind = ''volunteer_reminder'')', current_user, scope);
 END $$;
@@ -157,7 +159,8 @@ CREATE POLICY volunteer_slots_read ON public.volunteer_slots FOR SELECT TO harve
 CREATE POLICY volunteer_assignments_read ON public.volunteer_assignments FOR SELECT TO harvest_app
   USING (public.volunteer_role(tenant_id) = 'member' AND user_id = nullif(current_setting('app.user_id', true), ''));
 CREATE POLICY volunteer_requests_read ON public.volunteer_requests FOR SELECT TO harvest_app
-  USING (public.volunteer_role(tenant_id) = 'member' AND user_id = nullif(current_setting('app.user_id', true), ''));
+  USING (public.volunteer_role(tenant_id) = 'member' AND (user_id = nullif(current_setting('app.user_id', true), '')
+    OR replacement_user_id = nullif(current_setting('app.user_id', true), '')));
 CREATE POLICY volunteer_availability_own ON public.volunteer_availability TO harvest_app
   USING (public.volunteer_role(tenant_id) = 'member' AND user_id = nullif(current_setting('app.user_id', true), ''))
   WITH CHECK (public.volunteer_role(tenant_id) = 'member' AND user_id = nullif(current_setting('app.user_id', true), ''));
@@ -218,21 +221,42 @@ BEGIN
         GROUP BY s.id) tally;
       EXIT operation;
     END IF;
-    IF p_action IN ('approve','reject','withdraw') THEN
+    IF p_action IN ('approve','reject','withdraw','accept_swap','decline_swap') THEN
       SELECT * INTO request FROM public.volunteer_requests WHERE tenant_id = p_tenant AND id = p_id;
-      IF request.id IS NULL OR (p_action = 'withdraw' AND request.user_id <> actor) OR (p_action <> 'withdraw' AND NOT is_staff) THEN
+      -- Only the named replacement answers a swap (founder decision 27 Nov); staff, the requester or anyone else read it as missing.
+      IF request.id IS NULL OR (p_action = 'withdraw' AND request.user_id <> actor)
+        OR (p_action IN ('accept_swap','decline_swap') AND (request.kind <> 'swap' OR request.replacement_user_id IS DISTINCT FROM actor))
+        OR (p_action IN ('approve','reject') AND NOT is_staff) THEN
         result := '{"outcome":"missing"}'; EXIT operation;
       END IF;
       IF request.state <> 'pending' THEN result := '{"outcome":"conflict"}'; EXIT operation; END IF;
       p_slot := request.slot_id;
-      IF p_action IN ('reject','withdraw') THEN
-        UPDATE public.volunteer_requests SET state = CASE WHEN p_action = 'reject' THEN 'rejected' ELSE 'cancelled' END
+      IF p_action = 'accept_swap' THEN
+        IF request.replacement_accepted_at IS NOT NULL THEN result := '{"outcome":"conflict"}'; EXIT operation; END IF;
+        UPDATE public.volunteer_requests SET replacement_accepted_at = clock_timestamp() WHERE tenant_id = p_tenant AND id = request.id;
+        INSERT INTO public.crm_notifications(tenant_id, recipient_user_id, actor_user_id, kind, volunteer_slot_id)
+          VALUES (p_tenant, request.user_id, actor, 'volunteer_changed', p_slot);
+        result := jsonb_build_object('outcome','ok','id',request.id);
+        EXIT operation;
+      END IF;
+      -- A decline closes the request; the original assignment stays as it is.
+      IF p_action IN ('reject','withdraw','decline_swap') THEN
+        UPDATE public.volunteer_requests SET state = CASE p_action WHEN 'reject' THEN 'rejected' WHEN 'decline_swap' THEN 'declined' ELSE 'cancelled' END
           WHERE tenant_id = p_tenant AND id = request.id;
-        IF p_action = 'reject' THEN
+        IF p_action IN ('reject','decline_swap') THEN
           INSERT INTO public.crm_notifications(tenant_id, recipient_user_id, actor_user_id, kind, volunteer_slot_id)
           VALUES (p_tenant, request.user_id, actor, 'volunteer_changed', p_slot);
         END IF;
+        IF p_action IN ('reject','withdraw') AND request.kind = 'swap' THEN
+          INSERT INTO public.crm_notifications(tenant_id, recipient_user_id, actor_user_id, kind, volunteer_slot_id)
+          VALUES (p_tenant, request.replacement_user_id, actor, 'volunteer_changed', p_slot);
+        END IF;
+        result := jsonb_build_object('outcome','ok','id',request.id);
         EXIT operation;
+      END IF;
+      -- Staff approve a swap only after the replacement has accepted.
+      IF request.kind = 'swap' AND request.replacement_accepted_at IS NULL THEN
+        result := '{"outcome":"awaiting_replacement"}'; EXIT operation;
       END IF;
     END IF;
     SELECT * INTO slot FROM public.volunteer_slots WHERE tenant_id = p_tenant AND id = p_slot;
@@ -247,6 +271,10 @@ BEGIN
       INSERT INTO public.volunteer_requests (tenant_id, slot_id, user_id, replacement_user_id, kind)
       VALUES (p_tenant, slot.id, actor, CASE WHEN p_action = 'swap' THEN p_target END, p_action)
       ON CONFLICT (tenant_id,slot_id,user_id) WHERE state = 'pending' DO NOTHING RETURNING * INTO request;
+      IF request.id IS NOT NULL AND p_action = 'swap' THEN
+        INSERT INTO public.crm_notifications(tenant_id, recipient_user_id, actor_user_id, kind, volunteer_slot_id)
+          VALUES (p_tenant, p_target, actor, 'volunteer_swap_requested', slot.id);
+      END IF;
       result := CASE WHEN request.id IS NULL THEN '{"outcome":"conflict"}' ELSE jsonb_build_object('outcome','ok','id',request.id) END;
       EXIT operation;
     END IF;
@@ -297,7 +325,9 @@ BEGIN
           SELECT FROM public.workspace_members WHERE tenant_id = p_tenant AND user_id = person AND public.access_role(tenant_id,user_id,'owner_admin',role_id) IN ('owner','admin','member'))) THEN
         result := '{"outcome":"missing"}'; EXIT operation;
       END IF;
-      IF (SELECT count(*) FROM public.volunteer_assignments WHERE tenant_id = p_tenant AND slot_id = slot.id) >= slot.needed AND p_action <> 'approve' THEN
+      -- An approved swap frees the requester place, so it is checked against capacity without it.
+      IF (SELECT count(*) FROM public.volunteer_assignments WHERE tenant_id = p_tenant AND slot_id = slot.id)
+        - (p_action = 'approve')::int >= slot.needed THEN
         result := '{"outcome":"full"}'; EXIT operation;
       END IF;
       IF EXISTS (SELECT FROM public.volunteer_assignments WHERE tenant_id = p_tenant AND slot_id = slot.id

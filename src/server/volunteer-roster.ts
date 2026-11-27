@@ -15,7 +15,7 @@ const day = z.iso.date();
 const time = z.iso.datetime({ offset: true });
 const userId = z.string().min(1).max(128);
 const label = z.string().trim().min(1).max(120);
-const noticeKinds = ["volunteer_assigned", "volunteer_changed", "volunteer_reminder"] as const;
+const noticeKinds = ["volunteer_assigned", "volunteer_changed", "volunteer_reminder", "volunteer_swap_requested"] as const;
 const notFound = () => new AccessError(404, message("Errors.thisViewIsNotAvailable"));
 const staff = (role: string) => role === "owner" || role === "admin";
 const conflict = (code: string) => new AccessError(409, message("Errors.thisRecordChangedReloadAndTryAgain"), { code });
@@ -35,7 +35,8 @@ const commandInput = z.discriminatedUnion("action", [
   z.strictObject({ action: z.literal("remove"), slotId: uuid, assignmentId: uuid }),
   z.strictObject({ action: z.enum(["signup", "decline"]), slotId: uuid }),
   z.strictObject({ action: z.literal("swap"), slotId: uuid, replacementUserId: userId }),
-  z.strictObject({ action: z.enum(["approve", "reject", "withdraw"]), requestId: uuid }),
+  // Founder decision 27 Nov: the named replacement accepts or declines a swap first; staff approve only an accepted swap.
+  z.strictObject({ action: z.enum(["approve", "reject", "withdraw", "accept_swap", "decline_swap"]), requestId: uuid }),
   z.strictObject({ action: z.literal("availability"), date: day, unavailable: z.boolean() }),
   z.strictObject({ action: z.literal("reminder"), slotId: uuid, dueAt: time }),
 ]);

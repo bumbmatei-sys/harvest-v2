@@ -14053,7 +14053,7 @@
       "checkConstraints": {
         "community_reaction_emoji": {
           "name": "community_reaction_emoji",
-          "value": "\"community_message_reactions\".\"emoji\" in ('👍','❤️','🙏','😊','🎉','👏','💡','🔥','😮','😢','✅','🙌')"
+          "value": "\"community_message_reactions\".\"emoji\" in ('\ud83d\udc4d','\u2764\ufe0f','\ud83d\ude4f','\ud83d\ude0a','\ud83c\udf89','\ud83d\udc4f','\ud83d\udca1','\ud83d\udd25','\ud83d\ude2e','\ud83d\ude22','\u2705','\ud83d\ude4c')"
         }
       },
       "isRLSEnabled": false
@@ -21195,15 +21195,15 @@
       "checkConstraints": {
         "crm_notification_kind": {
           "name": "crm_notification_kind",
-          "value": "\"crm_notifications\".\"kind\" in ('task_assigned', 'task_due', 'task_overdue', 'volunteer_assigned', 'volunteer_changed', 'volunteer_reminder')"
+          "value": "\"crm_notifications\".\"kind\" in ('task_assigned', 'task_due', 'task_overdue', 'volunteer_assigned', 'volunteer_changed', 'volunteer_reminder', 'volunteer_swap_requested')"
         },
         "crm_notification_due_at": {
           "name": "crm_notification_due_at",
-          "value": "(\"crm_notifications\".\"kind\" in ('task_assigned','volunteer_assigned','volunteer_changed')) = (\"crm_notifications\".\"due_at\" is null)"
+          "value": "(\"crm_notifications\".\"kind\" in ('task_assigned','volunteer_assigned','volunteer_changed','volunteer_swap_requested')) = (\"crm_notifications\".\"due_at\" is null)"
         },
         "crm_notification_volunteer_target": {
           "name": "crm_notification_volunteer_target",
-          "value": "num_nonnulls(\"crm_notifications\".\"task_id\", \"crm_notifications\".\"volunteer_slot_id\") = 1 and (\"crm_notifications\".\"volunteer_slot_id\" is not null) = (\"crm_notifications\".\"kind\" in ('volunteer_assigned','volunteer_changed','volunteer_reminder'))"
+          "value": "num_nonnulls(\"crm_notifications\".\"task_id\", \"crm_notifications\".\"volunteer_slot_id\") = 1 and (\"crm_notifications\".\"volunteer_slot_id\" is not null) = (\"crm_notifications\".\"kind\" in ('volunteer_assigned','volunteer_changed','volunteer_reminder','volunteer_swap_requested'))"
         }
       },
       "isRLSEnabled": false
@@ -39676,6 +39676,12 @@
           "notNull": true,
           "default": "'pending'"
         },
+        "replacement_accepted_at": {
+          "name": "replacement_accepted_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -39775,7 +39781,11 @@
       "checkConstraints": {
         "volunteer_request_state": {
           "name": "volunteer_request_state",
-          "value": "\"volunteer_requests\".\"state\" in ('pending','approved','rejected','cancelled')"
+          "value": "\"volunteer_requests\".\"state\" in ('pending','approved','rejected','cancelled','declined')"
+        },
+        "volunteer_request_acceptance": {
+          "name": "volunteer_request_acceptance",
+          "value": "\"volunteer_requests\".\"replacement_accepted_at\" is null or \"volunteer_requests\".\"kind\" = 'swap'"
         },
         "volunteer_request_kind": {
           "name": "volunteer_request_kind",
