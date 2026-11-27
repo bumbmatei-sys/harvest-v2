@@ -133,15 +133,15 @@ Explicit consent is already how the code works: purposes are separate, unchecked
 
 **Policy.** We keep data only as long as we need it. Unverified Connect responses are deleted after at most 30 days; a ministry can choose shorter. Everything else follows the table below. A daily job deletes what has expired, and an alert fires if it fails.
 
-**Lawful basis and reasoning.** Storage limitation (Art. 5(1)(e)). Short fixed periods are easier to defend and to test. Numbers marked "proposed" are new engineering proposals for the founder to approve.
+**Lawful basis and reasoning.** Storage limitation (Art. 5(1)(e)). Short fixed periods are easier to defend and to test. The three periods once marked "proposed" (24-month review, 12 months, 3 years) were approved as written by the founder on 27 Nov; they are part of this Gate 4 draft, which itself stays UNAPPROVED until the checklist is ticked.
 
 | Data | Retention | Status | Where enforced |
 | --- | --- | --- | --- |
 | Unverified Connect responses | At most 30 days; shorter per form | Engineering default | `drizzle/0043_connect_retention.sql` trigger and sweep |
 | Erasure tombstones | 90 days | Engineering default | same |
 | Hosted CRM form responses | 90 days for new responses | Founder, 23 Nov | founder decisions log, "Hosted forms server defaults" |
-| Verified CRM contacts and consents | While the relationship is active; flagged for review after 24 months without any activity | **Proposed** | Not built |
-| Follow-up cases | Closed cases deleted 12 months after closing | **Proposed** | Not built |
+| Verified CRM contacts and consents | While the relationship is active; flagged for review after 24 months without any activity | Founder, 27 Nov | Not built |
+| Follow-up cases | Closed cases deleted 12 months after closing | Founder, 27 Nov | Not built |
 | Newsletter delivery records | 90 days, then anonymous daily totals | Founder, 20 Nov | `drizzle/0073_newsletter_sending.sql` purge |
 | Newsletter click records | 90 days, then anonymous daily totals | Founder, 26 Nov | #299 |
 | Newsletter hard bounce and complaint blocks | While needed to stop sending to that address | Founder, 20 Nov ("minimum necessary") | `docs/runbooks/connect-rights-requests.md#newsletter-suppression` |
@@ -149,8 +149,8 @@ Explicit consent is already how the code works: purposes are separate, unchecked
 | Community chat and DMs (deleted items) | 30 days | Engineering default | C23 item 7.7 |
 | Public community posts after leaving or account deletion | Kept, anonymised | Founder, 27 Nov (G2) | §11 |
 | Prayer requests | 30 days after closed, at most 90 days after submission; prayer wall 180 days | Founder, 27 Nov (G7) | §12, not built |
-| Audit log rows | 12 months | **Proposed** | Not built |
-| Rights-request register | 3 years after the request closes | **Proposed** | Not built |
+| Audit log rows | 12 months | Founder, 27 Nov | Not built |
+| Rights-request register | 3 years after the request closes | Founder, 27 Nov | Not built |
 | Retention run log | 90 days | Engineering default | `drizzle/0043_connect_retention.sql` |
 
 **Art. 9.** Special-category data gets the shortest workable periods (Connect pending, prayer).
@@ -166,7 +166,7 @@ Explicit consent is already how the code works: purposes are separate, unchecked
 **Still to build.** Verified-contact review flag, follow-up case deletion, audit retention, rights-register retention, prayer retention job, and the schedulers and alerts for all of them.
 
 **Text the founder approves (Gate 4).**
-> I approve Gate 4 as drafted, including the retention table in §5 and the three proposed periods (24-month review for inactive verified contacts, 12 months for closed follow-up cases and audit rows, 3 years for the rights-request register). I understand this is an engineering best-practice draft, not legal advice.
+> I approve Gate 4 as drafted, including the retention table in §5 and the three periods I chose on 27 Nov (24-month review for inactive verified contacts, 12 months for closed follow-up cases and audit rows, 3 years for the rights-request register). I understand this is an engineering best-practice draft, not legal advice.
 
 ## 6. Gate 5: protecting contact details (HC-DEC5)
 
@@ -247,18 +247,24 @@ Product copy never names vendors. Internal docs may name infrastructure provider
 | Database | Neon | All application data | `aws-eu-central-1` (Frankfurt) | EU hosting; provider DPA; US parent: EU-US Data Privacy Framework (DPF) or SCCs; UK addendum |
 | Edge hosting, files, workers | Cloudflare (Workers, R2) | Requests, uploaded files | Global edge; placement `aws:eu-central-1` for workers | DPA with SCCs and DPF; check R2 bucket location |
 | Sign-in email | Resend | Email address, sign-in code | US | DPF or SCCs; UK addendum |
-| Community and newsletter email | Amazon SES | Recipient address, message body | Region to choose; proposed `eu-central-1` | AWS DPA with SCCs; DPF |
+| Community and newsletter email | Amazon SES | Recipient address, message body | `us-east-1` (N. Virginia), founder 27 Nov | AWS DPA with SCCs (EU module 2 or 3 as fits the role) or the provider's DPF certification; UK addendum or IDTA |
 | Social scheduler and inbox | Zernio | Connected accounts, posts, DMs | To verify | To verify before activation |
 | SaaS billing | Dodo Payments | Billing contact, payment | To verify | To verify |
 | Donations and sales (planned) | Stripe | Donor and buyer payment data | EEA entity for EEA accounts; US processing | Stripe DPA, SCCs, DPF |
 | Live video embeds | YouTube | Viewer's device data when the embed loads | US | Embed loads only after the viewer acts (to build); DPF |
 | Staging previews | Vercel (if still used) | Synthetic data only | US | Synthetic only; no real data |
 
+**US email delivery (founder, 27 Nov: US audience first).** The main database stays in the EU (Frankfurt) for now, but SES runs in `us-east-1`. Every community and newsletter email therefore sends the recipient's address and the message content to a US processor for delivery, and delivery events come back from the US. This is a restricted transfer under GDPR Chapter V (Art. 44 onward) for EU and UK recipients. Best-practice draft, not legal advice:
+- rely on the provider's EU-US Data Privacy Framework certification (Art. 45 adequacy decision) where it covers the service, and on the SCCs in the provider's DPA (Art. 46(2)(c)) as the fallback; for UK recipients, the UK extension to the DPF or the UK addendum to the SCCs;
+- record a short transfer risk assessment for the SCC route;
+- send only what delivery needs: address, subject, body, unsubscribe headers and the delivery tag; no CRM notes, consent evidence or pastoral data in message content beyond what the recipient asked for;
+- name the US processing in the ministry DPA sub-processor list and in the privacy notice ("email delivery is handled by a provider in the United States").
+
 **Draft rule.** Keep primary data in the EU. Use only providers with a signed DPA and a valid transfer mechanism. List them as sub-processors in the ministry DPA, and tell ministries before adding one.
 
 ## 11. G2: public community contributions after leaving or deleting an account
 
-**Policy (founder, 27 Nov).** When someone leaves a community or deletes their account, their public posts and replies stay, but are anonymised. Their name and photo are removed and the author shows as "Former member". Before leaving, they can delete their own posts. They can also ask the ministry to delete specific posts at any time.
+**Policy (founder, 27 Nov).** When someone leaves a community or deletes their account, their forum posts and replies, community chat messages and DMs stay, but are anonymised. Their name and photo are removed and the author shows as "Former member". Before leaving, they can delete their own posts. They can also ask the ministry to delete specific posts at any time.
 
 **Reasoning.** Keeping a discussion readable is a legitimate interest of the community (Art. 6(1)(f)). Removing the name and photo limits the impact on the person. The text itself can still mention the person, so this is pseudonymisation, not full anonymisation. A specific request to delete a post is handled as an erasure request (Art. 17), and the ministry should agree unless it has a strong reason not to.
 
@@ -270,7 +276,7 @@ Product copy never names vendors. Internal docs may name infrastructure provider
 - On **leaving** a community, detach the author from that community's posts and replies (today the author link and name stay).
 - Show "Former member" (today the post page falls back to a generic label from `t("unnamed")`).
 - Clear the author from mentions and reactions, or show them as "Former member" too.
-- Decide whether the same rule covers community chat messages (see the decisions list in the report).
+- Apply the same rule to community chat messages and DMs (founder, 27 Nov): on leaving, detach the author in that community's channels and in DMs started through it; show "Former member" in the chat and DM screens (already the fallback label there).
 
 ## 12. G7: prayer requests in Community Live
 
@@ -278,7 +284,7 @@ Product copy never names vendors. Internal docs may name infrastructure provider
 
 **Lawful basis and Art. 9.** Consent (Art. 6(1)(a)) and explicit consent (Art. 9(2)(a)), captured with its own box at submit. A prayer request often includes health or family details, which are also special-category data. The notice says who can read it and for how long. The prayer wall needs a separate yes, because it is visible to more people.
 
-**Access.** Host team: the community owner, admins and moderators (V1 prayer team, founder 16 Nov). Members see only wall items. Harvest staff: no access.
+**Access.** Host team: the community owner, admins and moderators (V1 prayer team, founder 16 Nov). Members see only wall items. Harvest staff: no access. Founder confirmed on 27 Nov that the host team is the owner, admins and moderators.
 
 **Encryption.** A separate key purpose for prayer content (§6). Titles and bodies encrypted; only state and dates in clear.
 
@@ -326,7 +332,7 @@ Draft steps.
 6. **Record.** Every breach goes in a breach log, even ones not reported (Art. 33(5)).
 7. **Learn.** A short review and a fix within two weeks.
 
-Owner of the breach log, the alert channel and the lead supervisory authority are still to be chosen.
+Breach and system alerts go to the founder's mailbox for now (founder, 27 Nov; the address is not written in the repository). The owner of the breach log and the lead supervisory authority are still to be chosen.
 
 ## 16. Founder approval checklist
 
@@ -336,15 +342,15 @@ Tick each line to approve it. Then record the date and "founder, engineering-dra
 - [ ] **Gate 1 (purposes):** approve the §2 text.
 - [ ] **Gate 2 (pending access):** approve the §3 text.
 - [ ] **Gate 3 (erasure tombstones):** approve the §4 text (90 days, fewer than 5 hidden).
-- [ ] **Gate 4 (retention):** approve the §5 text and table, including the three proposed periods.
+- [ ] **Gate 4 (retention):** approve the §5 text and table, including the three periods chosen on 27 Nov (24 months, 12 months, 3 years).
 - [ ] **Gate 5 (encryption):** approve the §6 text and key plan.
 - [ ] Explicit consent (Art. 9(2)(a)) is the default for religious and pastoral data; Art. 9(2)(d) only for a ministry's own member records (§1).
 - [ ] Rights-request steps (§7).
 - [ ] Adults only at launch (§8).
 - [ ] CRM contact visibility, audit retention and denial logging policies (§9).
-- [ ] Transfer rule: primary data in the EU, signed DPAs, sub-processor list (§10).
-- [ ] G2 public contributions policy (§11).
-- [ ] G7 prayer policy (§12).
+- [ ] Transfer rule: primary data in the EU, signed DPAs, sub-processor list, and US email delivery under the DPF or SCCs (§10).
+- [ ] G2 "Former member" policy for posts, replies, chat messages and DMs (§11).
+- [ ] G7 prayer policy, host team = owner, admins and moderators (§12).
 - [ ] Records of Processing table (§13).
 - [ ] Do a DPIA from the §14 outline before launch.
 - [ ] Breach steps (§15).

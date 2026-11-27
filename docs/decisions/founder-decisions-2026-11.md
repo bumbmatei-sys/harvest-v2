@@ -211,3 +211,12 @@ Source: the founder's answers to decision forms in the coordinating Claude sessi
 - **G5, payments:** build toward Stripe Connect. Ministries connect their own Stripe account and money goes straight to them. This needs Stripe's platform approval. Dodo stays for Harvest SaaS billing. Payment adapters, ledgers and webhook identities stay separate (ADR 0012). Draft: `docs/prd/payments-stripe-connect.md`.
 - **G6, Discover:** on at launch, with Harvest staff approving each listing before it shows (as built for the 25 Nov decision).
 - **G7, prayer requests in Community Live:** deleted 30 days after the request is closed, at most 90 days after submission. Prayer-wall items are kept 180 days. They are encrypted, and only the host team can see them.
+- **Follow-up answers (27 Nov morning, same decision forms):**
+  - Retention periods approved as written in the policy pack: inactive verified contacts are flagged for review after 24 months; closed follow-up cases and audit logs are kept 12 months; the rights-request register is kept 3 years. They are part of the Gate 4 draft. The gate itself stays UNAPPROVED until the founder ticks the checklist.
+  - The "Former member" rule (G2) covers forum posts and replies, community chat messages and DMs.
+  - The prayer host team (G7) is the community owner, admins and moderators.
+  - Stripe uses Standard accounts with direct charges.
+  - Fees: 0% Harvest fee on donations; 3% Harvest fee on course and product sales, on top of Stripe's own fee. Paid sales still wait for the LLC (16 Nov).
+  - Individual missionaries can connect for donations from day one. Their give page says gifts are personal support and are not tax-deductible.
+  - US audience first: SES runs in `us-east-1` (N. Virginia). The main database stays in the EU (Frankfurt) for now. Email addresses and message content therefore go to a US processor for delivery (transfer section of the policy pack).
+  - Alerts and DMARC reports go to the founder's mailbox for now. The address is not written in the repository.

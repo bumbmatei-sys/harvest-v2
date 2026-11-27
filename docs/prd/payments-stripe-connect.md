@@ -44,7 +44,7 @@ Stripe's account types (Standard, Express, Custom) are now also described by "co
 | Harvest's compliance load | Lowest | Medium | Highest |
 | Fit with "money goes straight to them" | Best | Possible, but money flows through the platform | Poor |
 
-**Recommendation: Standard accounts with direct charges.** The ministry is the seller and the recipient of each gift. Funds settle in its own balance. It handles refunds and disputes in its own dashboard. Harvest is never in the funds flow. Many churches already have a Stripe account and can connect it. Express is the fallback if Stripe asks for it during platform review.
+**Recommendation: Standard accounts with direct charges.** The ministry is the seller and the recipient of each gift. Funds settle in its own balance. It handles refunds and disputes in its own dashboard. Harvest is never in the funds flow. Many churches already have a Stripe account and can connect it. **Founder decision (27 Nov): Standard accounts with direct charges.** Express is considered again only if Stripe requires it during platform review, with a new founder decision.
 
 ## 4. Onboarding
 
@@ -61,10 +61,18 @@ Stripe's account types (Standard, Express, Custom) are now also described by "co
 - **Checkout:** Stripe-hosted Checkout in `payment` mode (one-time) or `subscription` mode (monthly), created on the connected account (direct charge). No card fields in Harvest.
 - **Amounts:** suggested amounts plus a custom amount, in the fundraiser's currency (the existing 16-currency allowlist, integer cents).
 - **Donor details:** name and email only as Stripe requires for a receipt; an optional "add me to the ministry's contacts" box, unchecked, recorded as a consent with its notice version. No newsletter or follow-up permission is inferred.
-- **Cover the fee:** optional donor choice to add the processing fee (open question 4).
+- **Cover the fee:** optional donor choice to add the processing fee (open question 1).
 - **Anonymous giving:** the donor can hide their name from public totals (the give page never shows donor names anyway).
 - **Recurring gifts:** the donor manages or cancels through a Stripe customer portal link in the receipt.
 - **Raised total:** the existing rule stays: the amount shows only once 5 known supporters have given (founder, 26 Nov).
+
+## 5a. Individual missionaries (founder, 27 Nov)
+
+- Individual missionaries can connect their own Stripe account for donations from day one.
+- Their give page and checkout show a fixed notice: gifts are personal support for the missionary and are not tax-deductible.
+- The notice cannot be edited or hidden, and the receipt email repeats it.
+- The ministry type comes from the existing audience setting (`0033_workspace_audience`). The notice is shown for the missionary audience.
+- Stripe may still refuse or limit personal fundraising accounts. If it does, Ways to give stays the fallback.
 
 ## 6. Course and product checkout (after the LLC)
 
@@ -76,7 +84,10 @@ Stripe's account types (Standard, Express, Custom) are now also described by "co
 ## 7. Fees
 
 - **Stripe's fees** are charged to the ministry's account (Standard, direct charges). Check Stripe's current pricing for each country; this PRD states no numbers.
-- **Harvest platform fee:** Stripe supports an application fee on direct charges. Recommendation: **no Harvest fee on donations at launch**; Harvest earns from SaaS plans through Dodo. A fee on product sales is an open question.
+- **Harvest platform fee (founder, 27 Nov):** Stripe supports an application fee on direct charges.
+  - Donations: **0% Harvest fee.** No application fee is set on donation charges.
+  - Course and product sales: **3% Harvest fee**, set as the application fee on each sale, on top of Stripe's own fee. Rounding: whole cents, rounded down (proposed). Refunds: the application fee is refunded in proportion (proposed). Starts only with paid sales, after the LLC.
+  - The 3% application fee lands in Harvest's platform balance. It is Harvest revenue and is kept in its own platform-fee records, never in a ministry's giving or orders ledger, and never mixed with Dodo SaaS billing.
 - Show the ministry, before it connects, who charges what.
 
 ## 8. Refunds and disputes
@@ -120,7 +131,7 @@ Stripe's account types (Standard, Express, Custom) are now also described by "co
 Before any live charge:
 1. Apply to Stripe as a platform. Describe Harvest as software for churches and ministries, with Standard accounts and direct charges, where each ministry is the merchant.
 2. Check Stripe's current restricted and prohibited businesses list and its rules for donations at application time. Earlier research in this repository noted that crowdfunding and fundraising platforms and third-party creator commerce can need explicit prior approval (`docs/plans/professional-v1-first-eight-prs.md`). We do not claim what the current terms say.
-3. Expect questions about: registered charities versus churches without registration, **individual missionaries** receiving personal donations (higher risk; may need a different flow or be excluded), countries, and how Harvest prevents impersonation (the existing takedown tool helps).
+3. Expect questions about: registered charities versus churches without registration, **individual missionaries** receiving personal donations (allowed from day one by founder decision; see §5a), countries, and how Harvest prevents impersonation (the existing takedown tool helps).
 4. Get the approval in writing and record it in this file and ADR 0012 before building live paths.
 5. Each ministry still passes Stripe's own checks when it connects.
 
@@ -153,13 +164,16 @@ All other Ways to give kinds stay.
 
 Each slice: independent review, acceptance record, no live keys until activation approval.
 
-## 17. Open questions for the founder
+## 17. Founder answers (27 Nov) and open questions
 
-1. Standard accounts with direct charges: yes, or Express?
-2. Harvest platform fee on donations: none at launch?
-3. Harvest platform fee on product sales: none, or a percentage?
-4. Offer donors "cover the processing fee": yes or no?
-5. Individual missionaries: allowed to connect from day one, or registered churches and charities first?
-6. Gift Aid (UK) and other tax-receipt helpers: later?
-7. Default retention for gift records: 10 years, or the ministry chooses?
-8. Launch countries for payments: EU and UK first?
+Answered on 27 Nov ([decisions log](../decisions/founder-decisions-2026-11.md#founder-decisions-27-nov-launch-gates)):
+- Account type: **Standard accounts with direct charges.**
+- Harvest fee on donations: **0%.**
+- Harvest fee on course and product sales: **3%**, on top of Stripe's own fee (after the LLC).
+- Individual missionaries: **can connect for donations from day one**; their give page says gifts are personal support and not tax-deductible.
+
+Still open:
+1. Offer donors "cover the processing fee": yes or no?
+2. Gift Aid (UK) and other tax-receipt helpers: later?
+3. Default retention for gift records: 10 years, or the ministry chooses?
+4. Launch countries for payments: US first (matching the US-first email decision), then EU and UK?

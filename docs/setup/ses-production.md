@@ -22,7 +22,7 @@ Related: newsletter SES adapter `src/server/newsletter-campaigns/ses-adapter.ts`
 ## 1. Account and region **[Founder AWS]**
 
 1. Use a dedicated AWS account for Harvest email, or a dedicated organisation unit. Turn on MFA for the root user. Do not create root access keys.
-2. Pick one region and keep it for SES, SNS and alarms. Proposed: `eu-central-1` (Frankfurt), the same region as the database. SES quotas, identities and suppression are per region.
+2. Use **`us-east-1` (N. Virginia)** for SES, SNS and alarms (founder, 27 Nov: US audience first). The main database stays in the EU (Frankfurt) for now. SES quotas, identities and suppression are per region. Email addresses and message content therefore go to a US processor; see the transfer section of `docs/decisions/hc-02-policy-pack.md` (§10).
 3. Create two IAM roles (no long-lived user keys if the runtime can assume roles):
    - **Sender role:** `ses:SendEmail` only, limited to the Harvest identities and the two configuration sets.
    - **Identity worker role:** `ses:CreateEmailIdentity`, `ses:GetEmailIdentity`, `ses:DeleteEmailIdentity`, `ses:PutEmailIdentityMailFromAttributes`, for ministry domains on the worker path.
@@ -53,7 +53,7 @@ There are two kinds of sending domain.
 ### 2.3 DMARC
 
 1. Publish `_dmarc.<domain>` TXT. Start with `v=DMARC1; p=none` (the code's minimum; `p=quarantine` or `p=reject` also pass).
-2. Add an aggregate report address you control (`rua=mailto:...`) before moving to `p=quarantine`. Choosing that mailbox is a founder decision.
+2. Add an aggregate report address you control (`rua=mailto:...`) before moving to `p=quarantine`. For now that is the founder's mailbox (founder, 27 Nov). Do not write the address in the repository.
 3. Move Harvest's own domain to `p=quarantine` after two clean weeks of reports.
 
 ## 3. Leaving the sandbox **[Founder AWS]**
@@ -124,7 +124,7 @@ The handler deliberately does not confirm SNS subscriptions or fetch any URL. Th
 
 1. CloudWatch alarms **[Founder AWS]**: `Reputation.BounceRate` above 2%, `Reputation.ComplaintRate` above 0.05%, daily send close to quota, and SNS `NumberOfNotificationsFailed` above zero for either topic.
 2. Harvest health checks: the newsletter worker health output (`unknown` and `operatorReview` counts, oldest unresolved age), the callback's 503 rate, and the community sender's failures (to build).
-3. Alerts go to one channel. The channel is not chosen yet (founder decision).
+3. Alerts go to the founder's mailbox for now (founder, 27 Nov). The address lives only in the alarm configuration, not in the repository.
 4. Weekly for the first month: read the DMARC aggregate reports and the SES reputation page.
 
 ## 9. Secrets and configuration (names only)
