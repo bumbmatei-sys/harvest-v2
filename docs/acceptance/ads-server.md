@@ -45,7 +45,7 @@ Checklist, ticked with evidence.
 - Fields still to confirm against live provider behaviour are listed in `src/server/ads/zernio-ads-adapter.ts` (TODO block).
 
 ## CRM leads, audiences and conversions (migration 0104): decisions, limits and draft wording
-**Founder approval required before activation: everything in this section, including the wording below. Nothing here is approved, and every send path is hard-off.**
+**Founder approval 27 Nov 2026 covers wording items 1 to 5 below. Every send path remains hard-off pending activation approval.**
 
 Limits and choices recorded:
 - **Source kind.** A converted contact's first source in CRM reports shows as `unknown`: adding an `ad_lead` source kind touches the CRM source taxonomy (filters, reports, exports, labels, drift tests) and needs its own decision. Provenance today is the lead record, the consent evidence and the `ads.lead_convert` audit row.
@@ -56,13 +56,17 @@ Limits and choices recorded:
 - **Hashed identifiers** are SHA-256 of the lower-cased email or the digits of the phone number with country code. The provider performs its own matching; a hash of a low-entropy identifier is still personal data.
 - The synthetic-data guard of the hosted forms (example addresses and numbers only) applies to conversion until the HC-02 decisions are approved.
 
-Draft wording (for review; not approved; plain language, provider-neutral):
-1. **Lead form consent text** (shown on the form; stored as evidence): "We use your answers to reply about [ministry name]. Your details are not shared with anyone else. You can ask us to delete them at any time."
-2. **Newsletter question** (own tick box, unticked by default): "Yes, email me the [ministry name] newsletter. I can unsubscribe at any time."
-3. **Follow-up question** (own tick box, unticked by default): "Yes, [ministry name] may contact me again about [purpose of the ad]."
-4. **Advertising notice** (for a future marketing consent, shown wherever a marketing grant is asked): "If you tick this box, [ministry name] may show you advertising on other platforms. We share a scrambled version of your email address or phone number with the advertising platform so it can recognise you; we do not share your name or anything else. You can withdraw at any time and we will stop using your details for advertising."
-5. **Withdrawal confirmation:** "We have stopped using your details for advertising. The platform may take a short time to remove you from its lists."
+Draft wording (founder approval 27 Nov 2026):
+1. **Lead form consent text** (shown on the form; stored as evidence): "We use your answers to reply about [ministry name]. Your details are not shared with anyone else. You can ask us to delete them at any time." (founder approval 27 Nov 2026)
+2. **Newsletter question** (own tick box, unticked by default): "Yes, email me the [ministry name] newsletter. I can unsubscribe at any time." (founder approval 27 Nov 2026)
+3. **Follow-up question** (own tick box, unticked by default): "Yes, [ministry name] may contact me again about [purpose of the ad]." (founder approval 27 Nov 2026)
+4. **Advertising notice** (for a future marketing consent, shown wherever a marketing grant is asked): "If you tick this box, [ministry name] may show you advertising on other platforms. We share a scrambled version of your email address or phone number with the advertising platform so it can recognise you; we do not share your name or anything else. You can withdraw at any time and we will stop using your details for advertising." (founder approval 27 Nov 2026)
+5. **Withdrawal confirmation:** "We have stopped using your details for advertising. The platform may take a short time to remove you from its lists." (founder approval 27 Nov 2026)
 Open questions for the founder and legal review: whether a marketing consent may be asked on a lead form at all, the retention of uploaded lists at the platform, and notice wording for people in the EEA, the UK and Switzerland.
+
+## Saved CRM audiences
+
+A customer-list audience uses a shared People view with filters for marketing consent, contact-method presence or CRM timestamps. Free-text search, sources and custom fields cannot be used to target audiences. Every sync reevaluates the view and the current marketing ledger. It replaces the fake provider’s membership with hashes for eligible email addresses and telephone numbers. A withdrawn consent on any channel or an erased contact is excluded. If membership falls below the provider minimum, the API gives a generic refusal and clears any previous fake membership. Upload audit metadata records counts. Live provider minimums and activation are deferred.
 
 ## Ad lead forms built in Harvest and the ad_lead source (migration 0105)
 Founder decisions (25 Nov): (1) converted ad leads get the CRM source kind `ad_lead`; (2) ad lead forms are created in Harvest, reusing the shared forms model, then published to the network's instant form.

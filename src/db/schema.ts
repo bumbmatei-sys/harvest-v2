@@ -3671,11 +3671,14 @@ export const adsFormPublications = pgTable("ads_form_publications", {
 ]);
 export const adsAudiences = pgTable("ads_audiences", {
   tenantId: uuid("tenant_id").notNull(), id: uuid("id").notNull().defaultRandom(), adAccountId: uuid("ad_account_id").notNull(), externalRef: text("external_ref").notNull(),
+  crmSavedViewId: uuid("crm_saved_view_id"), crmManaged: boolean("crm_managed").notNull().default(false),
   kind: text("kind").notNull(), name: text("name").notNull(), sizeEstimate: bigint("size_estimate", { mode: "number" }), status: text("status").notNull().default("ready"),
   spec: jsonb("spec").$type<Record<string, unknown> | null>(), syncedAt: timestamp("synced_at", { withTimezone: true }),
 }, (t) => [primaryKey({ columns: [t.tenantId, t.id] }),
   foreignKey({ name: "ads_audiences_account_fk", columns: [t.tenantId, t.adAccountId], foreignColumns: [adsAccounts.tenantId, adsAccounts.id] }),
+  foreignKey({ name: "ads_audiences_crm_view_fk", columns: [t.tenantId, t.crmSavedViewId], foreignColumns: [crmSavedViews.tenantId, crmSavedViews.id] }),
   uniqueIndex("ads_audiences_ref_idx").on(t.tenantId, t.adAccountId, t.externalRef),
+  check("ads_audiences_crm_view_kind", sql`(not ${t.crmManaged} or ${t.kind} = 'customer_list') and (${t.crmSavedViewId} is null or ${t.crmManaged})`),
   check("ads_audiences_shape", sql`${t.kind} in ('custom','lookalike','saved_targeting','website','engagement','customer_list') and length(${t.name}) between 1 and 200 and (${t.spec} is null or pg_column_size(${t.spec}) <= 16384)`),
 ]);
 export const adsRules = pgTable("ads_rules", {
