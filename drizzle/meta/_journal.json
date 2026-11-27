@@ -941,6 +941,13 @@
       "breakpoints": true
     },
     {
+      "idx": 137,
+      "version": "7",
+      "when": 1795792371617,
+      "tag": "0137_newsletter_click_fixed_buckets",
+      "breakpoints": true
+    },
+    {
       "idx": 150,
       "version": "7",
       "when": 1795793420091,
