@@ -3,11 +3,14 @@ import { communitiesEnabled } from "@/server/communities-mode";
 import { listDiscover } from "@/server/community-joining";
 import { errorResponse } from "@/server/http";
 import { discoverRouteDeps } from "@/server/discover/gate";
+import { throttlePublicRead } from "@/server/public-read-limit";
 export const runtime = "nodejs";
-// Public: returns only sanitized, approved listing fields from the Discover projection.
+// Public: returns only sanitized, approved listing fields from the Discover projection. Throttled per visitor (shared Discover budget).
 export async function GET(request: Request) {
   if (!communitiesEnabled()) return new Response(null, { status: 404 });
   try {
+    const limited = await throttlePublicRead(request, "discover");
+    if (limited) return limited;
     const params = new URL(request.url).searchParams;
     const query = { q: params.get("q") ?? undefined, open: params.get("open") === "1", after: params.get("after") ?? undefined };
     return Response.json(await listDiscover(getDb(), query, { requireApproval: discoverRouteDeps().enabled }), { headers: { "Cache-Control": "private, no-store" } });

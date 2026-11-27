@@ -35,7 +35,9 @@ export const communitySlugPattern = /^[a-z0-9](?:[a-z0-9-]{1,46}[a-z0-9])$/;
  * Whether the address still follows the title. A draft follows its title until the owner edits the address (or it already differs from what
  * the title would give); a published community's address never follows it.
  */
-export const slugFollowsName = (c: { slug: string; name: string; status: string }) => c.status !== "published" && c.slug === suggestSlug(c.name);
+export const slugFollowsName = (c: { slug: string; name: string; status: string; firstPublishedAt?: Date | string | null }) => !communityAddressLocked(c) && c.slug === suggestSlug(c.name);
+/** The address is locked for good once the community has ever been published (0128 marker), unpublished since or not. */
+export const communityAddressLocked = (c: { status: string; firstPublishedAt?: Date | string | null }) => c.status === "published" || c.firstPublishedAt != null;
 /** The address after a title change: the suggestion when the address follows the title and the suggestion is a valid address, otherwise unchanged. */
 export function nextSlug(current: string, name: string, follows: boolean) {
   const suggestion = suggestSlug(name);

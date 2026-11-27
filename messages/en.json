@@ -775,7 +775,7 @@
     "appealDuplicate": "You've already sent an appeal.",
     "bannedWordsInvalid": "Banned words can be up to 40 characters each, 100 in total.",
     "communityWriteLimited": "You're posting a lot right now. Try again in a few minutes.",
-    "communitySlugLocked": "The address of a published community can't be changed. Unpublish it first.",
+    "communitySlugLocked": "A community's address can't change once it has been published, so shared links keep working.",
     "linkInBioHandleTaken": "That address is already taken.",
     "linkInBioHandleLocked": "Unpublish the page before changing its address.",
     "linkInBioNotReady": "Add your name and at least one visible link or block, and fix any highlighted field.",
@@ -3025,6 +3025,7 @@
     "name": "Name",
     "tagline": "Tagline (optional)",
     "address": "Address",
+    "addressLocked": "Fixed once published, so shared links keep working.",
     "visibility": "Who can find it",
     "visibilities": {
       "listed": "Listed: appears in Discover",
@@ -3103,7 +3104,8 @@
   },
   "CommunityPage": {
     "rules": "Community rules",
-    "closed": "Joining is by invitation only."
+    "closed": "Joining is by invitation only.",
+    "busy": "Too many requests. Try again in a minute."
   },
   "JoinDialog": {
     "join": "Join",
@@ -3784,6 +3786,14 @@
       "declined": "Declined"
     }
   },
+  "CommunityUnsubscribe": {
+    "metaTitle": "Community email",
+    "title": "Stop emails from this community?",
+    "body": "You can turn email back on in the community's notification settings.",
+    "confirm": "Stop emails",
+    "doneTitle": "Your request was received",
+    "doneBody": "If this link was valid, this community will not email you again unless you turn email back on."
+  },
   "CommunityNotifications": {
     "bell": "Notifications",
     "bellUnread": "{count, plural, one {Notifications, # unread} other {Notifications, # unread}}",
@@ -3797,6 +3807,18 @@
     "someone": "Someone",
     "settingsTitle": "Notification settings",
     "save": "Save",
+    "savedToast": "Notification settings saved.",
+    "email": {
+      "title": "Email",
+      "off": "Off",
+      "offHint": "No email from this community",
+      "important": "Important only",
+      "importantHint": "Decisions and warnings about you",
+      "daily": "Daily summary",
+      "dailyHint": "Important email and one summary a day",
+      "weekly": "Weekly summary",
+      "weeklyHint": "Important email and one summary a week"
+    },
     "prefs": {
       "replies": "Replies",
       "likes": "Likes",
@@ -7522,6 +7544,14 @@
       "unsubscribed": "Unsubscribed",
       "suppressed": "Bounced or suppressed"
     },
+    "growth": {
+      "title": "Audience growth",
+      "caption": "Audience counts by day (UTC)",
+      "net": "{label}, net change",
+      "noData": "No data yet",
+      "none": "No data yet. Counts are taken once a day.",
+      "since": "No data yet before {date}."
+    },
     "footer": "Last {days} days, {start} to {end}, UTC. Figures are indicative: they come from mail provider reports and can arrive late. {clicks} Groups under 5 are not shown.",
     "back": "Analytics",
     "openCampaign": "Open campaign",
@@ -7531,6 +7561,9 @@
     },
     "campaign": {
       "sinceSend": "Since send",
+      "outcomeDay": "Each outcome on the day it was recorded.",
+      "outcomeCaption": "Campaign outcomes by the day they were recorded (UTC)",
+      "archivedNote": "Each outcome on the day it was recorded. Records older than 90 days keep only totals, so their outcomes are not in this chart.",
       "statusTitle": "Delivery status",
       "statusCaption": "Delivery status counts",
       "statusKey": "Status",
