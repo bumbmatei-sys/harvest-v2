@@ -9968,7 +9968,31 @@
     "freeOnly": "Free only",
     "allCategories": "All categories",
     "searchCategories": "Search categories",
-    "noCategoryMatch": "No category found."
+    "noCategoryMatch": "No category found.",
+    "anyPrice": "Any price",
+    "moreNamed": "More options for {name}",
+    "includes": "What is inside",
+    "contents": {
+      "course": "Lessons",
+      "product": "Files",
+      "community": "Discussions"
+    },
+    "byLabel": "By",
+    "oldPrice": "Was",
+    "saleEndsDays": "Sale ends in {days}d {hours}h",
+    "saleEndsHours": "Sale ends in {hours}h {minutes}m",
+    "seeAll": "See all",
+    "seeAllNamed": "See all: {name}",
+    "scrollPrev": "Previous in {name}",
+    "scrollNext": "Next in {name}",
+    "shelves": {
+      "picks": "Picks",
+      "picksPersonal": "Based on what you joined",
+      "picksBody": "Approved listings to start with",
+      "newest": "New this week",
+      "free": "Free to start",
+      "all": "All"
+    }
   },
   "CatalogPublic": {
     "free": "Free",
@@ -10917,5 +10941,9 @@
     "signInAgain": "Sign in again",
     "removedConnections": "Your connected mail and calendar accounts (disconnected)",
     "disconnectFailed": "Could not disconnect your mail and calendar. Try again."
+  },
+  "Carousel": {
+    "previous": "Previous slide",
+    "next": "Next slide"
   }
 }

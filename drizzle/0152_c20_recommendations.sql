@@ -161,6 +161,8 @@ DECLARE lim integer := least(greatest(coalesce(p_limit, 6), 1), 12); seed uuid[]
 BEGIN
   IF p_type IS NOT NULL AND p_type NOT IN ('community','course','product') THEN RAISE EXCEPTION 'invalid type'; END IF;
   IF cardinality(seed) > 500 THEN seed := seed[1:500]; END IF;
+  -- Start from a clean definer scope: no app.* flag the caller set earlier in the transaction reaches the reads below.
+  PERFORM public.community_definer_reset();
   PERFORM set_config('app.discover_read', 'on', true);
   WITH visible AS (
     SELECT d.* FROM public.discover_listings d
@@ -181,3 +183,22 @@ BEGIN
 END $$;
 REVOKE ALL ON FUNCTION public.discover_recommend(text,uuid[],integer) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.discover_recommend(text,uuid[],integer) TO harvest_app;
+--> statement-breakpoint
+-- 6. The definer policy above reads app.connect_join_tenant. blog_scope_clear() (0135) and account_self_reset() (0134) blank every app.* flag an owner-role
+--    policy reads, so add it to both lists. Patch the live definitions (as 0138 does) instead of redefining them, so entries other migrations add are kept.
+DO $$
+DECLARE fn text; def text; patched text;
+  anchor constant text := '''app.connect_invite_worker'',';
+  added constant text := '''app.connect_invite_worker'',''app.connect_join_tenant'',';
+BEGIN
+  FOREACH fn IN ARRAY ARRAY['public.blog_scope_clear()','public.account_self_reset()'] LOOP
+    def := pg_catalog.pg_get_functiondef(fn::regprocedure);
+    patched := pg_catalog.replace(def, anchor, added);
+    IF pg_catalog.length(patched) - pg_catalog.length(def) <> pg_catalog.length(added) - pg_catalog.length(anchor) THEN
+      RAISE EXCEPTION '%: expected exactly one ''app.connect_invite_worker'' entry to extend', fn;
+    END IF;
+    EXECUTE patched;
+  END LOOP;
+END $$;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.blog_scope_clear() FROM PUBLIC, harvest_app;--> statement-breakpoint
+REVOKE ALL ON FUNCTION public.account_self_reset() FROM PUBLIC, harvest_app;

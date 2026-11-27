@@ -21,9 +21,16 @@ async function audit(page: Page, name: string) {
     await page.evaluate((value) => { const root = document.documentElement; root.dataset.theme = value; root.classList.toggle("dark", value === "dark"); }, scheme);
     for (const [width, height] of sizes) {
       await page.setViewportSize({ width, height });
-      await settleForAxe(page);
-      expect((await new AxeBuilder({ page }).withTags(axeTags).analyze()).violations, `${name} ${width} ${scheme}`).toEqual([]);
-      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name} ${width} ${scheme} scroll`).toBe(true);
+      // The webpack dev server can reload an open page after it compiles another route ("[Fast Refresh] rebuilding"); measure again after such a reload.
+      for (let attempt = 0; ; attempt++) try {
+        await settleForAxe(page);
+        expect((await new AxeBuilder({ page }).withTags(axeTags).analyze()).violations, `${name} ${width} ${scheme}`).toEqual([]);
+        expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name} ${width} ${scheme} scroll`).toBe(true);
+        break;
+      } catch (error) {
+        if (attempt >= 2 || !String(error).includes("Execution context was destroyed")) throw error;
+        await page.waitForLoadState("load");
+      }
       if (width !== 768) await page.screenshot({ path: `${evidence}/${name}-${width}-${scheme}.png`, fullPage: true });
     }
   }
@@ -35,7 +42,9 @@ async function audit(page: Page, name: string) {
 async function expectTouchTargets(page: Page, scope: string) {
   await page.setViewportSize({ width: 360, height: 740 });
   const small = await page.evaluate((selector) => [...document.querySelectorAll(`${selector} :is(a[href],button,select,input:not([type=hidden]),[role=switch],[role=tab],[role=radio])`)].filter((element) => {
-    const box = element.getBoundingClientRect(), style = getComputedStyle(element);
+    // A card's title link covers the whole card through its ::after (the kit's stretched link), so its target is the card.
+    const stretched = getComputedStyle(element, "::after").position === "absolute" ? element.closest("[data-slot=listing-card]") : null;
+    const box = (stretched ?? element).getBoundingClientRect(), style = getComputedStyle(element);
     return box.width > 0 && box.height > 0 && style.visibility !== "hidden" && !element.closest("[aria-hidden=true]") && (box.height < 43.5 || box.width < 43.5) && !element.classList.contains("sr-only") && element.getAttribute("type") !== "checkbox";
   }).map((element) => `${element.tagName} ${(element.getAttribute("aria-label") ?? element.textContent ?? "").trim().slice(0, 30)} ${Math.round(element.getBoundingClientRect().width)}x${Math.round(element.getBoundingClientRect().height)}`), scope);
   expect(small, "targets under 44px").toEqual([]);
@@ -126,8 +135,8 @@ test("public Discover, quick look, report, filters, load more and the owner's Li
   await admin.decide("community", community.id, "approve");
   await admin.decide("course", course.id, "approve");
   await anon.goto("/discover");
-  await expect(anon.getByRole("heading", { name: "Grace Bible Study", level: 2 })).toBeVisible();
-  await expect(anon.getByRole("heading", { name: "Foundations of Prayer", level: 2 })).toBeVisible();
+  await expect(anon.getByRole("heading", { name: "Grace Bible Study", level: 3 })).toBeVisible();
+  await expect(anon.getByRole("heading", { name: "Foundations of Prayer", level: 3 })).toBeVisible();
   await expect(anon.getByText("2 results")).toBeVisible();
   await expect(anon.getByRole("navigation", { name: "Type" }).getByRole("link", { name: /^All/ })).toHaveAttribute("aria-current", "page");
   await hydrated(anon);
@@ -140,49 +149,49 @@ test("public Discover, quick look, report, filters, load more and the owner's Li
   // Type, category dropdown, language and free filters; search; sort; reset; the URL carries the state.
   await anon.getByRole("navigation", { name: "Type" }).getByRole("link", { name: /^Courses/ }).click();
   await expect(anon).toHaveURL(/type=course/);
-  await expect(anon.getByRole("heading", { name: "Grace Bible Study", level: 2 })).toHaveCount(0);
-  await expect(anon.getByRole("heading", { name: "Foundations of Prayer", level: 2 })).toBeVisible();
+  await expect(anon.getByRole("heading", { name: "Grace Bible Study", level: 3 })).toHaveCount(0);
+  await expect(anon.getByRole("heading", { name: "Foundations of Prayer", level: 3 })).toBeVisible();
   await anon.getByRole("navigation", { name: "Type" }).getByRole("link", { name: /^Products/ }).click();
   await expect(anon.getByText("No results")).toBeVisible();
   await anon.getByRole("navigation", { name: "Type" }).getByRole("link", { name: /^Courses/ }).click();
   await expect(anon).toHaveURL(/type=course/);
-  await expect(anon.getByRole("heading", { name: "Foundations of Prayer", level: 2 })).toBeVisible();
+  await expect(anon.getByRole("heading", { name: "Foundations of Prayer", level: 3 })).toBeVisible();
   await hydrated(anon);
-  await anon.getByRole("combobox", { name: "Category" }).click();
-  await anon.getByPlaceholder("Search categories").fill("pray");
-  await anon.getByRole("option", { name: "Prayer" }).click();
+  const categories = anon.getByRole("navigation", { name: "Category" }), prices = anon.getByRole("navigation", { name: "Price" });
+  await categories.getByRole("button", { name: "Prayer", exact: true }).click();
   await expect(anon).toHaveURL(/category=prayer/);
-  await expect(anon.getByRole("combobox", { name: "Category" })).toContainText("Prayer");
+  await expect(categories.getByRole("button", { name: "Prayer", exact: true })).toHaveAttribute("aria-pressed", "true");
   await anon.getByRole("button", { name: /^Filters/ }).click();
   await anon.getByLabel("Language").selectOption("en");
   await expect(anon).toHaveURL(/language=en/);
-  await anon.getByLabel("Free only").click();
-  await expect(anon).toHaveURL(/free=1/);
-  await expect(anon.getByRole("heading", { name: "Foundations of Prayer", level: 2 })).toBeVisible();
-  await expect(anon.getByRole("button", { name: /^Filters, 3 filters active/ })).toBeVisible();
-  await audit(anon, "public-filters");
   await anon.keyboard.press("Escape");
+  await prices.getByRole("button", { name: "Free", exact: true }).click();
+  await expect(anon).toHaveURL(/free=1/);
+  await expect(anon.getByRole("heading", { name: "Foundations of Prayer", level: 3 })).toBeVisible();
+  await expect(anon.getByRole("button", { name: /^Filters, 1 filter active/ })).toBeVisible();
+  await audit(anon, "public-filters");
   await anon.getByRole("button", { name: "Remove filter English" }).click();
   await expect(anon).not.toHaveURL(/language=en/);
-  await anon.getByRole("combobox", { name: "Category" }).click();
-  await anon.getByRole("option", { name: "All categories" }).click();
+  await categories.getByRole("button", { name: "All categories" }).click();
   await expect(anon).not.toHaveURL(/category=/);
-  await anon.getByRole("button", { name: "Remove filter Free only" }).click();
+  await prices.getByRole("button", { name: "Any price" }).click();
+  await expect(anon).not.toHaveURL(/free=/);
   await anon.getByRole("navigation", { name: "Type" }).getByRole("link", { name: /^All/ }).click();
   await anon.getByRole("searchbox", { name: "Search Discover" }).fill("zzzz nothing");
   await anon.getByRole("button", { name: "Search", exact: true }).click();
   await expect(anon.getByText("No results")).toBeVisible();
   await audit(anon, "public-no-results");
   await anon.getByRole("link", { name: "Reset filters" }).click();
-  await expect(anon.getByRole("heading", { name: "Grace Bible Study", level: 2 })).toBeVisible();
+  await expect(anon.getByRole("heading", { name: "Grace Bible Study", level: 3 })).toBeVisible();
   await anon.getByLabel("Sort by").selectOption("name");
   await expect(anon).toHaveURL(/sort=name/);
-  await expect(anon.getByRole("heading", { level: 2 }).filter({ hasText: /Foundations|Grace Bible/ }).first()).toHaveText("Foundations of Prayer");
+  await expect(anon.getByRole("heading", { level: 3 }).filter({ hasText: /Foundations|Grace Bible/ }).first()).toHaveText("Foundations of Prayer");
 
   // Quick look: a course has no public page; a community links to /communities/:slug.
   await anon.goto("/discover");
   await hydrated(anon);
-  await anon.getByRole("button", { name: "Quick look at Foundations of Prayer" }).click();
+  await anon.getByRole("button", { name: "More options for Foundations of Prayer" }).click();
+  await anon.getByRole("menuitem", { name: "Quick look" }).click();
   const look = anon.getByRole("dialog");
   await expect(look.getByText("Six weeks on how to pray.")).toBeVisible();
   await expect(look.locator("dd", { hasText: "Prayer" })).toBeVisible();
@@ -194,7 +203,7 @@ test("public Discover, quick look, report, filters, load more and the owner's Li
   await expect(anon.getByRole("dialog").getByRole("link", { name: "Report", exact: false }).or(anon.getByRole("dialog").getByRole("link", { name: "Sign in to report" }))).toHaveAttribute("href", /\/sign-in\?next=%2Fdiscover/);
   await audit(anon, "public-report-signed-out");
   await anon.keyboard.press("Escape");
-  await anon.getByRole("link", { name: "View Grace Bible Study" }).click();
+  await anon.getByRole("link", { name: "Grace Bible Study", exact: true }).click();
   await expect(anon).toHaveURL(new RegExp(`/communities/grace-study-${suffix}$`));
 
   // Signed in: report, duplicate, and a rate-limit answer.
@@ -202,7 +211,8 @@ test("public Discover, quick look, report, filters, load more and the owner's Li
   member.page.on("pageerror", (error) => errors.push(error.message));
   await member.page.goto("/discover");
   await hydrated(member.page);
-  await member.page.getByRole("button", { name: "Report Grace Bible Study" }).click();
+  await member.page.getByRole("button", { name: "More options for Grace Bible Study" }).click();
+  await member.page.getByRole("menuitem", { name: "Report" }).click();
   const report = member.page.getByRole("dialog");
   await expect(report.getByRole("button", { name: "Send report" })).toBeDisabled();
   await report.getByLabel("Spam").check();
@@ -211,13 +221,15 @@ test("public Discover, quick look, report, filters, load more and the owner's Li
   await report.getByRole("button", { name: "Send report" }).click();
   await expect(report.getByText("Thank you. We will review it.")).toBeVisible();
   await report.getByRole("button", { name: "Done" }).click();
-  await member.page.getByRole("button", { name: "Report Grace Bible Study" }).click();
+  await member.page.getByRole("button", { name: "More options for Grace Bible Study" }).click();
+  await member.page.getByRole("menuitem", { name: "Report" }).click();
   await member.page.getByRole("dialog").getByLabel("Misleading").check();
   await member.page.getByRole("dialog").getByRole("button", { name: "Send report" }).click();
   await expect(member.page.getByRole("dialog").getByText("You already reported this and it is still open.")).toBeVisible();
   await member.page.getByRole("dialog").getByRole("button", { name: "Done" }).click();
   await member.page.route("**/api/discover/reports", (route) => route.fulfill({ status: 429, contentType: "application/json", body: JSON.stringify({ error: "Too many" }) }));
-  await member.page.getByRole("button", { name: "Report Foundations of Prayer" }).click();
+  await member.page.getByRole("button", { name: "More options for Foundations of Prayer" }).click();
+  await member.page.getByRole("menuitem", { name: "Report" }).click();
   await member.page.getByRole("dialog").getByLabel("Other").check();
   await member.page.getByRole("dialog").getByRole("button", { name: "Send report" }).click();
   await expect(member.page.getByRole("alert").filter({ hasText: "You have sent too many reports today. Try again tomorrow." })).toBeVisible();
@@ -231,7 +243,7 @@ test("public Discover, quick look, report, filters, load more and the owner's Li
   await page.getByRole("dialog").getByLabel("Category").selectOption("missions");
   await expect(page.getByRole("dialog").getByText("In review", { exact: true })).toBeVisible();
   await anon.goto("/discover");
-  await expect(anon.getByRole("heading", { name: "Foundations of Prayer", level: 2 })).toHaveCount(0);
+  await expect(anon.getByRole("heading", { name: "Foundations of Prayer", level: 3 })).toHaveCount(0);
   // Rejected: the owner sees the reason and can send it for review again.
   await admin.decide("course", course.id, "reject", "Needs a clearer summary.");
   await page.reload();
@@ -253,7 +265,7 @@ test("public Discover, quick look, report, filters, load more and the owner's Li
   await expect(page.getByRole("dialog").getByRole("switch", { name: "List in Discover" })).not.toBeChecked();
   await expect(page.getByRole("dialog").getByText("Approved", { exact: true })).toBeVisible();
   await anon.goto("/discover");
-  await expect(anon.getByRole("heading", { name: "Foundations of Prayer", level: 2 })).toHaveCount(0);
+  await expect(anon.getByRole("heading", { name: "Foundations of Prayer", level: 3 })).toHaveCount(0);
 
   // Load more: 26 approved courses make a second server page.
   for (let n = 1; n <= 26; n++) {
@@ -266,10 +278,10 @@ test("public Discover, quick look, report, filters, load more and the owner's Li
   }
   await anon.goto("/discover?sort=name&type=course");
   await hydrated(anon);
-  await expect(anon.getByRole("heading", { level: 2 }).filter({ hasText: "Batch course" })).toHaveCount(24);
+  await expect(anon.getByRole("heading", { level: 3 }).filter({ hasText: "Batch course" })).toHaveCount(24);
   await expect(anon.getByText("26 results")).toBeVisible();
   await anon.getByRole("button", { name: "Load more" }).click();
-  await expect(anon.getByRole("heading", { level: 2 }).filter({ hasText: "Batch course" })).toHaveCount(26);
+  await expect(anon.getByRole("heading", { level: 3 }).filter({ hasText: "Batch course" })).toHaveCount(26);
   await expect(anon.getByRole("button", { name: "Load more" })).toHaveCount(0);
   // A failed page shows a retry, not a broken grid.
   await anon.goto("/discover?sort=name&type=course");

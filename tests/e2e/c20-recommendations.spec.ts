@@ -17,7 +17,7 @@ async function scheme(page: Page, value: "light" | "dark") {
   await page.evaluate((v) => { const root = document.documentElement; root.dataset.theme = v; root.classList.toggle("dark", v === "dark"); }, value);
 }
 /** axe, no sideways scroll and 44px targets inside `scope` below 1024px; then a 2x screenshot. */
-async function shot(page: Page, name: string, width: number, value: "light" | "dark", scope = "main") {
+async function shot(page: Page, name: string, width: number, value: "light" | "dark", scope = "main", folder = evidence) {
   await page.setViewportSize({ width, height: width < 1024 ? 740 : 900 });
   await scheme(page, value);
   await settleForAxe(page);
@@ -25,12 +25,14 @@ async function shot(page: Page, name: string, width: number, value: "light" | "d
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name} ${width} ${value} scroll`).toBe(true);
   if (width < 1024) {
     const small = await page.evaluate((selector) => [...document.querySelectorAll(`${selector} :is(a[href],button,select,input:not([type=hidden]))`)].filter((element) => {
-      const box = element.getBoundingClientRect(), style = getComputedStyle(element);
+      // A card's title link covers the whole card through its ::after (the kit's stretched link), so its target is the card.
+      const stretched = getComputedStyle(element, "::after").position === "absolute" ? element.closest("[data-slot=listing-card]") : null;
+      const box = (stretched ?? element).getBoundingClientRect(), style = getComputedStyle(element);
       return box.width > 0 && box.height > 0 && style.visibility !== "hidden" && !element.closest("[aria-hidden=true]") && (box.height < 43.5 || box.width < 43.5) && !element.classList.contains("sr-only") && element.getAttribute("type") !== "checkbox";
     }).map((element) => `${element.tagName} ${(element.textContent ?? "").trim().slice(0, 30)}`), scope);
     expect(small, `${name} targets under 44px`).toEqual([]);
   }
-  await page.screenshot({ path: `${evidence}/${name}-${width}-${value}.png`, fullPage: true });
+  await page.screenshot({ path: `${folder}/${name}-${width}-${value}.png`, fullPage: true });
 }
 
 async function visit(page: Page, url: string) {
@@ -69,6 +71,8 @@ test("Discover recommendations, the QR page's recommended community, a normal jo
   await community("Bible Study", `study-${suffix}`, "Read one book a term", "bible_study");
   await community("Worship Night", `worship-${suffix}`, "Songs and prayer on Fridays", "worship");
   await community("Leaders Room", `leaders-${suffix}`, "For team leads only", "leadership", "hidden");
+  // Shelves show only with enough listings (src/lib/discover-shelves.ts): eight more approved communities make twelve.
+  for (let n = 1; n <= 8; n++) await community(`Serve Team ${n}`, `serve-${n}-${suffix}`, "Serve on Sundays", "service");
 
   // Owner: QR page with a recommended community.
   const campaign = (await send("post", `/api/workspaces/${tenant}/campaigns`, { name: "Welcome Evening", type: "conference" }, { "Idempotency-Key": randomUUID() })).id;
@@ -77,7 +81,7 @@ test("Discover recommendations, the QR page's recommended community, a normal jo
   await send("post", `${api}/links/${link.id}/actions`, { action: "publish" });
   await page.goto(`${root}/${link.id}/landing`);
   const picker = page.getByLabel("Recommended community", { exact: true });
-  await expect(picker.locator("option")).toHaveText(["None", "Bible Study", "Morning Prayer", "Prayer Circle", "Worship Night"]);
+  await expect(picker.locator("option")).toHaveText(["None", "Bible Study", "Morning Prayer", "Prayer Circle", ...Array.from({ length: 8 }, (_, n) => `Serve Team ${n + 1}`), "Worship Night"]);
   await picker.selectOption({ label: "Prayer Circle" });
   const preview = page.getByRole("region", { name: "Preview your page", exact: true });
   await expect(preview.getByRole("heading", { name: "Prayer Circle", exact: true })).toBeVisible();
@@ -126,11 +130,12 @@ test("Discover recommendations, the QR page's recommended community, a normal jo
   await expect(member).toHaveURL(new RegExp(`/communities/${prayerSlug}/forum`), { timeout: 150_000 });
   expect((await admin.q<{ n: number }>("select coalesce(sum(joins),0)::int n from connect_community_join_counts where link_id = $1", [link.id]))[0].n).toBe(1);
 
-  // Discover: Recommended for the member puts the other prayer community first and leaves out the one they joined; the hidden one never appears.
+  // Discover: the Picks shelf for the member puts the other prayer community first and leaves out the one they joined; the hidden one never appears.
   await visit(member, "/discover");
   const recommended = member.locator("[data-slot=discover-recommended]");
-  await expect(recommended.getByRole("heading", { name: "Recommended", level: 2 })).toBeVisible();
-  await expect(recommended.locator("[data-slot=listing-card] h2").first()).toHaveText("Morning Prayer");
+  await expect(recommended.getByRole("heading", { name: "Picks", level: 2 })).toBeVisible();
+  await expect(recommended.getByText("Based on what you joined")).toBeVisible();
+  await expect(recommended.locator("[data-slot=listing-card] h3").first()).toHaveText("Morning Prayer");
   await expect(recommended.getByText("Prayer Circle", { exact: true })).toHaveCount(0);
   await expect(member.getByText("Leaders Room")).toHaveCount(0);
   await memberContext.close();
@@ -140,9 +145,23 @@ test("Discover recommendations, the QR page's recommended community, a normal jo
   anon.on("pageerror", (error) => errors.push(error.message));
   await visit(anon, "/discover");
   const anonRecommended = anon.locator("[data-slot=discover-recommended]");
-  await expect(anonRecommended.locator("[data-slot=listing-card]")).toHaveCount(3);
+  await expect(anonRecommended.locator("[data-slot=listing-card]")).toHaveCount(8);
+  // Every community is free, so "Free to start" would repeat the grid and is left out.
+  await expect(anon.locator("[data-slot=discover-free]")).toHaveCount(0);
   await expect(anon.getByText("Leaders Room")).toHaveCount(0);
   for (const width of [360, 1280]) for (const value of ["light", "dark"] as const) await shot(anon, "discover-recommended", width, value);
+  // Discover redesign evidence (phone 390, desktop 1440, both schemes, 2x): shelves, chip rows and the All grid; then a card menu open.
+  await mkdir("docs/screenshots/discover-v2", { recursive: true });
+  for (const width of [390, 1440]) for (const value of ["light", "dark"] as const) await shot(anon, "discover", width, value, "main", "docs/screenshots/discover-v2");
+  await anon.getByRole("button", { name: "Next in Picks" }).click();
+  await expect(anon.getByRole("button", { name: "Previous in Picks" })).toBeEnabled();
+  await anon.locator("section[aria-labelledby=discover-all]").getByRole("button", { name: /^More options for / }).first().click();
+  await expect(anon.getByRole("menuitem", { name: "Quick look" })).toBeVisible();
+  await anon.screenshot({ path: "docs/screenshots/discover-v2/card-menu-1440-dark.png" });
+  await anon.keyboard.press("Escape");
+  await visit(anon, "/discover?category=service");
+  await expect(anon.locator("[data-slot=discover-recommended]")).toHaveCount(0);
+  for (const width of [390, 1440]) for (const value of ["light", "dark"] as const) await shot(anon, "discover-filtered", width, value, "main", "docs/screenshots/discover-v2");
   // A search or filter shows results only.
   await visit(anon, "/discover?q=prayer");
   await expect(anon.locator("[data-slot=discover-recommended]")).toHaveCount(0);
