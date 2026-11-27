@@ -12,6 +12,13 @@ const evidence = process.env.FOUNDER_SHOTS ?? "docs/screenshots/link-in-bio";
 const sizes = [["phone", 360, 800], ["tablet", 768, 1024], ["desktop", 1280, 900]] as const;
 const post = (page: Page, url: string, data: unknown = {}) => page.request.post(url, { headers: { origin }, data });
 
+/** axe, retried when the dev server reloads the page mid-run (a late compile or a restart); a real violation is returned, never retried away. */
+async function axe(page: Page) {
+  for (let attempt = 0; ; attempt++) {
+    try { return (await new AxeBuilder({ page }).exclude("iframe").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations; }
+    catch (error) { if (attempt >= 3 || !/Execution context was destroyed|navigat/i.test(String(error))) throw error; await page.waitForLoadState("load"); await settleForAxe(page); }
+  }
+}
 /** One scene per width and scheme: axe (WCAG 2.0 to 2.2 A and AA), no horizontal overflow, and a screenshot. */
 async function audit(page: Page, name: string, ready: string, prepare?: () => Promise<void>) {
   for (const scheme of ["light", "dark"] as const) {
@@ -23,7 +30,7 @@ async function audit(page: Page, name: string, ready: string, prepare?: () => Pr
     for (const [label, width, height] of sizes) {
       await page.setViewportSize({ width, height });
       await settleForAxe(page);
-      const found = (await new AxeBuilder({ page }).exclude("iframe").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations;
+      const found = await axe(page);
       expect(found.map((v) => `${label}/${scheme} ${v.id}: ${v.nodes.map((n) => n.target.join(" ")).slice(0, 3).join(" | ")}`)).toEqual([]);
       // Allow a late layout pass (fonts, the tab carousel measuring itself) before judging sideways overflow; name the widest element when it fails.
       await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= innerWidth ? "ok"
